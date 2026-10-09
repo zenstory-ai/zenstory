@@ -16,12 +16,13 @@ from api import stats as stats_api
 from database import get_session
 from main import app
 from models import ChatMessage, ChatSession, File, Project, User
+from models.file_version import FileVersion
 from models.writing_stats import WritingStats, WritingStreak
 from services.core.auth_service import create_access_token
 from services.infra.dashboard_cache import dashboard_cache
 
 stats_module = importlib.import_module("services.features.writing_stats_service")
-TABLES = [User.__table__, Project.__table__, File.__table__, WritingStats.__table__,
+TABLES = [User.__table__, Project.__table__, File.__table__, FileVersion.__table__, WritingStats.__table__,
           WritingStreak.__table__, ChatSession.__table__, ChatMessage.__table__]
 TODAY = date(2026, 10, 6)
 
@@ -149,7 +150,7 @@ async def test_dashboard_counts_supported_writing_content(stats_probe, project_t
     assert body["total_word_count"] == 60
     assert body["chapter_completion"] == {
         "total_chapters": 1, "completed_chapters": 1, "in_progress_chapters": 0,
-        "not_started_chapters": 0, "completion_percentage": 100,
+        "not_started_chapters": 0, "completion_percentage": 100, "planned_total": None,
         "chapter_details": [{"outline_id": writing_id, "draft_id": writing_id, "title": "Opening",
                              "word_count": 60, "target_word_count": None, "status": "complete",
                              "completion_percentage": 100}],

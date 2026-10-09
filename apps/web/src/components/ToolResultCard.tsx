@@ -132,6 +132,13 @@ interface ToolResultCardProps {
   isPending?: boolean;
 
   /**
+   * The round ended (stopped / dropped) before this tool call returned a result.
+   * Shown as a neutral 「未完成」 instead of a spinner (the round may have ended by stop, error or disconnect).
+   * @default false
+   */
+  interrupted?: boolean;
+
+  /**
    * Callback to undo a file edit operation.
    * Called with immutable edit provenance when undo button is clicked.
    * Only shown for successful edit_file results.
@@ -526,6 +533,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   result,
   error,
   isPending,
+  interrupted,
   onUndo,
   onApply,
   onRetry,
@@ -596,6 +604,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           {isPending && (
             <span className="text-xs text-[hsl(var(--text-secondary))] animate-pulse ml-auto">
               {t('chat:tool.processing_ellipsis')}
+            </span>
+          )}
+          {!isPending && interrupted && (
+            <span className="text-xs text-[hsl(var(--text-secondary))] ml-auto">
+              {t('chat:tool.interrupted')}
             </span>
           )}
         </div>

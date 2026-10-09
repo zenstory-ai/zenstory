@@ -13,7 +13,7 @@ import { useIsMobile } from '../../hooks/useMediaQuery';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { IconWrapper } from '../ui/IconWrapper';
-import { statsUnitKey } from './statsUnits';
+import { plannedTotal, statsUnitKey } from './statsUnits';
 
 interface OutstandingTasksCardProps {
   /** Dashboard statistics data */
@@ -185,8 +185,13 @@ export function OutstandingTasksCard({
     );
   }
 
-  // No outstanding tasks - all good!
+  // No outstanding tasks. "All done" only once the outline's planned total is
+  // written; otherwise say what is left by the plan (or nothing pending).
   if (outstandingTasks.length === 0) {
+    const completion = stats?.chapter_completion;
+    const planned = plannedTotal(completion);
+    const allPlannedDone = planned !== null && (completion?.completed_chapters ?? 0) >= planned;
+    const unwrittenPlanned = planned !== null ? planned - (completion?.total_chapters ?? 0) : 0;
     return (
       <Card padding={isMobile ? 'sm' : 'lg'}>
         <div className="flex items-center gap-2 mb-4">
@@ -197,15 +202,26 @@ export function OutstandingTasksCard({
             {t('statistics.outstandingTasks.title')}
           </h3>
         </div>
-        <div className="flex flex-col items-center justify-center py-8 text-[hsl(var(--text-secondary))]">
-          <BookOpen className={`${isMobile ? 'w-8 h-8' : 'w-10 h-10'} mb-2 text-emerald-500 opacity-70`} />
-          <p className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-emerald-500`}>
-            {t('statistics.outstandingTasks.allClear')}
-          </p>
-          <p className="text-xs mt-1 text-[hsl(var(--text-secondary)/0.7)]">
-            {t('statistics.outstandingTasks.allClearHint')}
-          </p>
-        </div>
+        {allPlannedDone ? (
+          <div className="flex flex-col items-center justify-center py-8 text-[hsl(var(--text-secondary))]">
+            <BookOpen className={`${isMobile ? 'w-8 h-8' : 'w-10 h-10'} mb-2 text-emerald-500 opacity-70`} />
+            <p className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-emerald-500`}>
+              {t('statistics.outstandingTasks.allClear')}
+            </p>
+            <p className="text-xs mt-1 text-[hsl(var(--text-secondary)/0.7)]">
+              {t('statistics.outstandingTasks.allClearHint')}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 text-[hsl(var(--text-secondary))]">
+            <BookOpen className={`${isMobile ? 'w-8 h-8' : 'w-10 h-10'} mb-2 opacity-50`} />
+            <p className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
+              {unwrittenPlanned > 0
+                ? t(statsUnitKey(stats, 'remainingPlanned'), { count: unwrittenPlanned })
+                : t('statistics.outstandingTasks.nothingPending')}
+            </p>
+          </div>
+        )}
       </Card>
     );
   }

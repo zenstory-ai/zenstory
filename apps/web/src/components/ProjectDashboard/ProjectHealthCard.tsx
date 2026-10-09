@@ -13,7 +13,7 @@ import type { ProjectDashboardStatsResponse } from '../../types/writingStats';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { Card } from '../ui/Card';
 import { IconWrapper } from '../ui/IconWrapper';
-import { statsUnitKey } from './statsUnits';
+import { plannedTotal, statsUnitKey, writtenChapters } from './statsUnits';
 
 interface ProjectHealthCardProps {
   /** Dashboard statistics data */
@@ -103,34 +103,43 @@ export function ProjectHealthCard({
     // Chapter Progress Indicator
     if (stats.chapter_completion) {
       const cc = stats.chapter_completion;
-      const chapterLevel: HealthLevel =
-        cc.completion_percentage >= 50
-          ? 'good'
-          : cc.completion_percentage >= 25
-            ? 'warning'
-            : cc.total_chapters > 0
-              ? 'critical'
-              : 'neutral';
+      const planned = plannedTotal(cc);
+      if (planned !== null) {
+        const chapterLevel: HealthLevel =
+          cc.completion_percentage >= 50
+            ? 'good'
+            : cc.completion_percentage >= 25
+              ? 'warning'
+              : 'critical';
 
-      indicators.push({
-        id: 'chapters',
-        icon: BookOpen,
-        label: t(statsUnitKey(stats, 'progress')),
-        value: `${cc.completed_chapters}/${cc.total_chapters}`,
-        level: chapterLevel,
-        description:
-          cc.total_chapters > 0
-            ? t('statistics.projectHealth.indicators.chaptersDesc', {
-                percent: cc.completion_percentage,
-              })
-            : t(statsUnitKey(stats, 'noChapters')),
-      });
+        indicators.push({
+          id: 'chapters',
+          icon: BookOpen,
+          label: t(statsUnitKey(stats, 'progress')),
+          value: `${cc.completed_chapters}/${planned}`,
+          level: chapterLevel,
+          description: t('statistics.projectHealth.indicators.chaptersDesc', {
+            percent: cc.completion_percentage,
+          }),
+        });
+      } else {
+        // Unknown plan: report what is written, without grading progress.
+        indicators.push({
+          id: 'chapters',
+          icon: BookOpen,
+          label: t(statsUnitKey(stats, 'progress')),
+          value: t(statsUnitKey(stats, 'written'), { count: writtenChapters(cc) }),
+          level: 'neutral',
+          description: cc.total_chapters > 0 ? undefined : t(statsUnitKey(stats, 'noChapters')),
+        });
+      }
     }
 
-    // Writing Activity Indicator
-    const wordsToday = stats.words_today || 0;
+    // Writing Activity Indicator: the author's words plus what the AI wrote.
+    const wordsToday = (stats.words_today || 0) + (stats.ai_words_today ?? 0);
+    const wordsThisWeek = (stats.words_this_week || 0) + (stats.ai_words_this_week ?? 0);
     const activityLevel: HealthLevel =
-      wordsToday > 0 ? 'good' : stats.words_this_week > 0 ? 'warning' : 'neutral';
+      wordsToday > 0 ? 'good' : wordsThisWeek > 0 ? 'warning' : 'neutral';
 
     indicators.push({
       id: 'activity',
@@ -139,7 +148,7 @@ export function ProjectHealthCard({
       value:
         wordsToday > 0
           ? t('statistics.wordCount.today')
-          : stats.words_this_week > 0
+          : wordsThisWeek > 0
             ? t('statistics.wordCount.thisWeek')
             : t('statistics.projectHealth.indicators.inactive'),
       level: activityLevel,
@@ -148,7 +157,7 @@ export function ProjectHealthCard({
           ? t('statistics.projectHealth.indicators.activityGood', {
               count: wordsToday,
             })
-          : stats.words_this_week > 0
+          : wordsThisWeek > 0
             ? t('statistics.projectHealth.indicators.activityWarning')
             : t('statistics.projectHealth.indicators.activityInactive'),
     });

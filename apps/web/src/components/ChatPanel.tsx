@@ -32,7 +32,7 @@ import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { useTextQuote } from "../contexts/TextQuoteContext";
 import { useAgentStream } from "../hooks/useAgentStream";
 import type { MessageSegment, StreamCompletionMeta } from "../hooks/useAgentStream";
-import { parseChatDisplayEvents } from "../lib/chatDisplayEvents";
+import { dropProgressOnlyItems, parseChatDisplayEvents } from "../lib/chatDisplayEvents";
 import { useChatStreaming } from "../hooks/useChatStreaming";
 import { MessageList } from "./MessageList";
 import type { Message, MessageListRef, MessageStatusCard } from "./MessageList";
@@ -82,6 +82,7 @@ import { createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress
 import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
 import { hasSubstantiveDisplayItems, parseRoundStopOutcome } from "../lib/chatRoundEnd";
+import type { QuotaResponse } from "../types/subscription";
 
 const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Message["statusCards"] | undefined => {
   if (!metadataRaw) return undefined;
@@ -420,6 +421,24 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const invalidateQuota = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quotaLite() });
+  }, [queryClient]);
+  /** Today's used count in the cache when this round was sent (before the server reserved one). */
+  const roundQuotaBaselineRef = useRef<number | null>(null);
+  /**
+   * The server confirmed this round's AI message was refunded: put the cached count back to
+   * where it was before the round right away (the refetch can take seconds, and the refund
+   * note already says 「不计入」). min() makes a repeated frame a no-op; the refetch that
+   * follows corrects anything used elsewhere meanwhile.
+   */
+  const applyConfirmedRefund = useCallback(() => {
+    const baseline = roundQuotaBaselineRef.current;
+    if (baseline == null) return;
+    const restore = (old: QuotaResponse | undefined) =>
+      old && old.ai_conversations.limit !== -1
+        ? { ...old, ai_conversations: { ...old.ai_conversations, used: Math.min(old.ai_conversations.used, baseline) } }
+        : old;
+    queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quota(), restore);
+    queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quotaLite(), restore);
   }, [queryClient]);
   const { isMobile } = useMobileLayout();
   const { attachedFileIds, attachedLibraryMaterials, clearMaterials } = useMaterialAttachment();
@@ -910,8 +929,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // 添加到 messages（正文、状态卡片、已完成的工具结果都会随消息一起保留）。
     // A round that ended early with only transient progress lines (「正在组装上下文…」)
     // leaves no bubble: the error card / stop note below says what happened.
+    // The finished bubble keeps what the round did, not 「正在组装上下文… / 正在思考… / 正在规划工作流…」.
+    const finishedItems = dropProgressOnlyItems(displayItems);
     const hasSubstance = Boolean(accumulatedContent.trim() || statusCards.length > 0 || toolResults?.length)
-      || (endedEarly ? hasSubstantiveDisplayItems(displayItems) : displayItems.length > 0);
+      || (endedEarly ? hasSubstantiveDisplayItems(displayItems) : finishedItems.length > 0);
     if (hasSubstance) {
       const aiMessage: Message = {
         id: `ai-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
@@ -921,7 +942,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         timestamp: new Date(),
         statusCards: statusCards.length > 0 ? statusCards : undefined,
         toolResults,
-        displayItems: displayItems.length ? displayItems : undefined,
+        displayItems: finishedItems.length ? finishedItems : undefined,
         feedbackUnavailable: endedEarly && !assistantMessageId ? true : undefined,
       };
       setMessages(prev => [...prev, aiMessage]);
@@ -1159,6 +1180,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onSteeringReceived: streamCallbacks.onSteeringReceived,
     onQuotaRefunded: (kind, removedFiles = []) => {
       if (currentProjectId) setQuotaRefund({ projectId: currentProjectId, kind, removedFiles });
+      applyConfirmedRefund();
       invalidateQuota();
       if (removedFiles.length > 0) {
         // The server removed blank files this stopped round had created.
@@ -1534,6 +1556,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       blockedCandidateRef.current = { id: userMessage.id, content: request.message };
     }
     lastUserRequestRef.current = request.message;
+    roundQuotaBaselineRef.current =
+      queryClient.getQueryData<QuotaResponse>(subscriptionQueryKeys.quota())?.ai_conversations.used ?? null;
     followLatestMessage();
 
     if (currentProjectId) {
@@ -1541,7 +1565,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
     startStream(request);
     return true;
-  }, [isStreaming, currentProjectId, followLatestMessage, setAiSuggestions, startStream]);
+  }, [isStreaming, currentProjectId, queryClient, followLatestMessage, setAiSuggestions, startStream]);
 
   /**
    * Handles sending a user message to the AI agent.

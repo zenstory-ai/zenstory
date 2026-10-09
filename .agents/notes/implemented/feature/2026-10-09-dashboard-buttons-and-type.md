@@ -24,6 +24,7 @@ Status: implemented
 - **卡片**：首页与「我的项目」共用 `dashboard/ProjectCard`，进度行和类型/时间行一起放进 `mt-auto` 页脚；在删除按钮上按回车不再同时打开项目。长篇类型徽章改用强调色浅底。
 - **对比度**：新增 `--success-text / --warning-text / --error-text`，浅色主题下取更深的色值，`Badge` 的状态文字使用它们（额度徽章因此达到 AA）。
 - **设置弹窗**：签到、兑换、开通、创建密钥（入口和表单里的提交/取消）、生成邀请码、退出登录都改用 `Button`（primary/secondary/ghost，桌面 md、手机 touch）；「用积分兑换 Pro」弹窗去掉紫蓝渐变确认按钮，改为同一个 primary；「生成邀请码」不换行，手机上标题在上、按钮全宽。积分 tab 的「积分余额」「每日签到」标签也改为 12/500，和同 tab 其它分区一致。
+- **设置弹窗手机补漏（2026-10-10，wall-r3 `settings-390.txt` 复核）**：上一条写了「开通…桌面 md、手机 touch」，但订阅 tab 的 `SubscriptionStatus` 当时没传尺寸，390px 下「开通 Pro / 续费 Pro / 兑换码」仍是 40px，现在组件内用 `useIsMobile` 取 `touch`/`md`（与 `InviteCodeList`、`AgentApiKeysPanel` 同法），桌面仍 40px。API 密钥 tab 的复制按钮（连接指引的命令复制、密钥前缀复制、新密钥弹窗复制）原是 20×20 左右的裸按钮：768px 以下加到 44×44（与同面板 `IconButton` 的手机尺寸一致），桌面保持原来的小内边距不变，并补 `type="button"`，原有 `aria-label` 保留。邀请 tab 空状态删掉第二个实心「创建第一个邀请码」，页头「生成邀请码」是该视图唯一的主按钮，空状态说明改为先指向「点上方『生成邀请码』」，`referral.json` 删除不再使用的 `inviteCodes.createFirst`。
 - **素材页试用已用完且书已删除**：免费作者删掉试用书后，空状态不再给「上传第一本小说」（上传会被拒），改为说明试用已用过，并给出唯一的实心「开通 Pro」。
 
 ## Alternatives considered
@@ -31,6 +32,8 @@ Status: implemented
 - **把全局 `h2–h6` 改成无衬线。** 最强理由：一条规则覆盖全站，不需要作用域类。被否：会同时改变隐私条款、文档页、管理后台和工作区里大量有意使用衬线的标题，超出这次 dashboard 范围，回归面太大；作用域类只覆盖审计过的控件区域，以后可以按页扩展。
 - **素材页免费作者的页头不放「开通 Pro」，只留正文入口。** 最强理由：每屏只有一个「开通 Pro」。被否：数据加载时正文按钮会在「开通 Pro」和「免费试拆」之间切换，页头入口随之出现/消失会跳动；而且已有决策要求试用可用时页头保留 Pro 入口。改为 secondary 既保留常驻入口，又不和正文主按钮抢焦点。
 - **空输入时禁用「开始创作」并提示「先写一句想法」。** 最强理由：引导作者先输入想法，减少空白项目。被否：空想法建空白项目是首页唯一的「新建项目」路径（我的项目页的「新建项目」也跳回这里），空状态文案也写着「想法可以先空着」；禁用会让想直接开写的作者无路可走。
+- **API 密钥复制按钮直接换成 `IconButton`（2026-10-10）。** 最强理由：DESIGN 规定图标按钮统一用 `IconButton`。本次没采用：`IconButton` 桌面固定 32px，会把桌面上 text-xs 的命令行和密钥前缀行撑高，而本轮要求桌面样式不变；而且它默认的悬停底色是 `bg-tertiary`，正好等于命令行的底色，悬停反馈在那一行会看不见。所以只给原按钮加手机 44px 触控尺寸。以后如果要统一桌面尺寸，需要同时调整这些行的高度和悬停色。
+- **邀请空状态的按钮降为 secondary 而不是删除。** 最强理由：空卡片里就近有操作。被否：页头按钮在手机上就在空卡片正上方、全宽，两处触发同一操作只是重复。
 - **IconButton 用 `pointer: coarse` 判断触屏尺寸。** 最强理由：更准确地对应触控设备。被否：项目其它地方都以 768px 断点区分手机（`useIsMobile`、DESIGN 的 44px 规则），用同一断点行为可预测、截图可验证。
 
 ## Consequences
@@ -44,5 +47,6 @@ Status: implemented
 - `tsc -b`、相关文件 eslint、`lint:tokens`、`lint:i18n-keys` 通过。
 - 本地 vite + 已有的 mocked 夹具，用 Playwright 在 1440×900 与 390×844 截图核对首页、我的项目、素材库（试用可用、Pro 额度用完）、技能（发现/我的技能）、订阅权益、价格页、账户菜单、手机菜单、设置弹窗各 tab 和 API 密钥创建表单（浅色主题）。
 - `e2e/dashboard-ui-mocked.spec.ts`：用计算样式断言 primary / ghost 按钮边框透明、secondary 保留 1px 边框，以及 390px 下技能卡标题宽度 ≥160px；把两处修复回退后该用例分别失败（边框非透明、标题宽 8px）。
+- 2026-10-10 补漏的回归：`SubscriptionStatus.test.tsx`（手机 44px / 桌面 40px）、`AgentApiKeysPanel.test.tsx`（四个复制按钮都有名称、`type="button"` 和手机 44px 类）、`InviteCodeList.test.tsx`（空状态只有页头一个按钮，从页头按钮创建第一个码）；修改前三条新用例均失败。jsdom 不计算媒体查询，所以这几条断言的是尺寸类，390px 的实际像素要靠审计截图复核。
 - `projects.spec.ts` 与 `SettingsPOM` 改为断言 `aria-pressed` / `aria-selected`，不再依赖选中态的颜色类。
 - 同一 spec 还检查：`main` 与 `Modal` 里普通 h2/h3 为无衬线，`.heading-display`、`.prose`/`.editor-content` 里的标题为衬线，控件区外的 `font-sans` 工具类能压过全局衬线默认值（规则不在 layer 里时 `.heading-display` 用例失败）；设置「API 密钥」tab 能列出密钥、三个操作有名称、打开创建表单（提交按钮 ≥40px、无描边），390px 下密钥名宽 ≥120px、删除按钮 ≥44px。mocked 夹具的 `/agent-api-keys` 按 `AgentApiKeyListResponse`（`{ keys, total }`）返回一条密钥，并补了 `/points/config`，兑换弹窗在 mocked 环境里能显示时长选项。

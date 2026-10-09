@@ -23,8 +23,7 @@
     "unlimitedHint": "No limit on invite codes",
     "generateButton": "Generate Code",
     "noCodes": "No invite codes yet",
-    "noCodesHint": "When a friend signs up with your code and verifies their email, you both get points you can redeem for Pro.",
-    "createFirst": "Create First Invite Code",
+    "noCodesHint": "Use Generate Code above to get a code to share. When a friend signs up with your code and verifies their email, you both get points you can redeem for Pro.",
     "loadError": "Couldn't load invite codes. Refresh to try again.",
     "createError": "Couldn't create an invite code. Please try again."
   },

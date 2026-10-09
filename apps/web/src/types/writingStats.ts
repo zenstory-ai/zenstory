@@ -78,7 +78,13 @@ export interface ChapterCompletionResponse {
   completed_chapters: number;
   in_progress_chapters: number;
   not_started_chapters: number;
+  /**
+   * Completed share of planned_total. Only meaningful when planned_total is
+   * known; older servers send the share of total_chapters.
+   */
   completion_percentage: number;
+  /** Planned chapter count from the outline; null/absent when unknown. */
+  planned_total?: number | null;
   chapter_details: ChapterDetailItem[];
 }
 
@@ -245,6 +251,10 @@ export interface ProjectDashboardStatsResponse {
   words_today: number;
   words_this_week: number;
   words_this_month: number;
+  /** Words the AI added to manuscripts (absent from older servers: 0). words_* are the author's own. */
+  ai_words_today?: number;
+  ai_words_this_week?: number;
+  ai_words_this_month?: number;
   // Chapter completion
   chapter_completion: ChapterCompletionResponse;
   // Writing streak

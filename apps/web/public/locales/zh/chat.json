@@ -172,6 +172,7 @@
     "parallelTaskLabel": "{{label}}：",
     "processing": "处理中",
     "processing_ellipsis": "处理中...",
+    "interrupted": "未完成",
     "created": "已创建{{type}}",
     "updated": "已更新",
     "deleted": "已删除文件",

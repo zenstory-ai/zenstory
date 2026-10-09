@@ -391,6 +391,8 @@ describe('useChatStreaming', () => {
         expect(result.current.streamRenderItems).toHaveLength(1)
         expect(result.current.streamRenderItems[0].type).toBe('thinking_status')
         expect(result.current.streamRenderItems[0].content).toBe('Analyzing...')
+        // 「正在组装上下文… / 正在思考…」只在生成中有意义，完成后不随消息保留。
+        expect(result.current.streamRenderItems[0].transient).toBe(true)
       })
     })
 
@@ -905,6 +907,8 @@ describe('useChatStreaming', () => {
         const item = result.current.streamRenderItems[0]
         expect(item.type).toBe('thinking_status')
         expect(item.content).toContain('chat:workflow.handoffMessage')
+        // 交接说明是这一轮做过的事，完成后仍保留。
+        expect(item.transient).toBeUndefined()
       })
 
       it('skips the handoff bubble when the target role is unknown', () => {

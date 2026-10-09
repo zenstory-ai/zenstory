@@ -3,6 +3,7 @@ import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionAp
 import { useTranslation } from 'react-i18next';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 import {
   getLocalizedPlanDisplayName,
   getSubscriptionFeatureRows,
@@ -18,6 +19,8 @@ interface SubscriptionStatusProps {
 
 export function SubscriptionStatus({ onRedeemClick, onUpgradeClick, onRenewClick }: SubscriptionStatusProps) {
   const { t, i18n } = useTranslation(['settings', 'dashboard']);
+  // Phones get the 44px touch size, matching the other settings tabs' actions.
+  const actionSize = useIsMobile() ? 'touch' : 'md';
   const { data: status, isLoading } = useQuery({
     queryKey: subscriptionQueryKeys.status(),
     queryFn: () => subscriptionApi.getStatus(),
@@ -74,13 +77,13 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick, onRenewClick
 
       <div className="flex flex-wrap gap-2">
         {isPaidTier === false && onUpgradeClick && (
-          <Button type="button" onClick={onUpgradeClick}>
+          <Button type="button" size={actionSize} onClick={onUpgradeClick}>
             {t('settings:subscription.upgradePrimary', '开通 Pro')}
           </Button>
         )}
 
         {isPaidTier && onRenewClick && (
-          <Button type="button" onClick={onRenewClick}>
+          <Button type="button" size={actionSize} onClick={onRenewClick}>
             {t('dashboard:billing.ctaRenewPro', '续费 Pro')}
           </Button>
         )}
@@ -88,6 +91,7 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick, onRenewClick
         {onRedeemClick && (
           <Button
             type="button"
+            size={actionSize}
             onClick={onRedeemClick}
             variant={
               (isPaidTier === false && onUpgradeClick) || (isPaidTier && onRenewClick)

@@ -30,6 +30,8 @@ vi.mock('../i18n-helpers', () => ({
 // Import after mocking
 import {
   getLocalDateString,
+  getBeijingDateString,
+  formatCalendarDate,
   parseUTCDate,
   formatRelativeTime,
   formatFullDate,
@@ -115,6 +117,38 @@ describe('dateUtils', () => {
     it('formats local date as YYYY-MM-DD with zero padding', () => {
       const result = getLocalDateString(new Date('2024-03-05T10:30:00Z'))
       expect(result).toBe('2024-03-05')
+    })
+  })
+
+  describe('getBeijingDateString', () => {
+    it('rolls to the next day at 16:00Z, whatever the host timezone', () => {
+      expect(getBeijingDateString(new Date('2026-10-09T16:30:00Z'))).toBe('2026-10-10')
+      expect(getBeijingDateString(new Date('2026-10-09T15:59:00Z'))).toBe('2026-10-09')
+      // A PDT evening (2026-10-09 18:00 -07:00) is already 10-10 in Beijing.
+      expect(getBeijingDateString(new Date('2026-10-09T18:00:00-07:00'))).toBe('2026-10-10')
+    })
+
+    it('defaults to now', () => {
+      vi.setSystemTime(new Date('2026-12-31T16:00:00Z'))
+      expect(getBeijingDateString()).toBe('2027-01-01')
+    })
+  })
+
+  describe('formatCalendarDate', () => {
+    const originalTz = process.env.TZ
+    afterEach(() => {
+      process.env.TZ = originalTz
+    })
+
+    it('keeps the calendar day west of UTC', () => {
+      process.env.TZ = 'America/Los_Angeles'
+      expect(formatCalendarDate('2026-10-09', 'en-US')).toBe('10/9/2026')
+      expect(formatCalendarDate('2026-10-09', 'zh-CN')).toBe('2026/10/9')
+    })
+
+    it('accepts a date-time string and leaves unparseable values as they are', () => {
+      expect(formatCalendarDate('2026-04-06T00:00:00Z', 'en-US')).toBe('4/6/2026')
+      expect(formatCalendarDate('not a date', 'en-US')).toBe('not a date')
     })
   })
 

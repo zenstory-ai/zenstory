@@ -107,16 +107,8 @@ export const InviteCodeList: React.FC = () => {
       ) : (
         <div className="text-center py-10 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl">
           <p className="text-[hsl(var(--text-secondary))] mb-1">{t('inviteCodes.noCodes')}</p>
-          <p className="mx-auto mb-4 max-w-sm px-4 text-xs text-[hsl(var(--text-secondary))]">{t('inviteCodes.noCodesHint')}</p>
-          <Button
-            size={actionSize}
-            onClick={handleCreateCode}
-            disabled={!canCreateMore || createMutation.isPending}
-            className="whitespace-nowrap"
-            leftIcon={<Plus size={16} />}
-          >
-            {t('inviteCodes.createFirst')}
-          </Button>
+          {/* No second create button here: the header's 生成邀请码 stays the view's one primary. */}
+          <p className="mx-auto max-w-sm px-4 text-xs text-[hsl(var(--text-secondary))]">{t('inviteCodes.noCodesHint')}</p>
         </div>
       )}
 

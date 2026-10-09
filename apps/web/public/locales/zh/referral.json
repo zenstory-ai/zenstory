@@ -23,8 +23,7 @@
     "unlimitedHint": "邀请码数量不限",
     "generateButton": "生成邀请码",
     "noCodes": "还没有邀请码",
-    "noCodesHint": "好友用你的邀请码注册并验证邮箱后，你们都能获得积分，积分可以兑换 Pro。",
-    "createFirst": "创建第一个邀请码",
+    "noCodesHint": "点上方「生成邀请码」，把邀请码发给好友。好友用你的邀请码注册并验证邮箱后，你们都能获得积分，积分可以兑换 Pro。",
     "loadError": "邀请码加载失败，请刷新重试",
     "createError": "邀请码生成失败，请重试"
   },

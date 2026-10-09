@@ -399,6 +399,65 @@ describe('ChatPanel mount smoke', () => {
     })
   })
 
+  it('a finished reply drops 正在组装上下文 / 正在思考 / 正在规划工作流 but keeps the plan and the handoff line', async () => {
+    const timestamp = new Date()
+    mockStreamSnapshot.items = [
+      { type: 'thinking_status', id: 'ctx', content: '正在组装上下文...', transient: true, timestamp },
+      { type: 'thinking_status', id: 'think', content: '正在思考...', transient: true, timestamp },
+      { type: 'router_thinking', id: 'router', content: '高质量模式：正在规划工作流...', timestamp },
+      { type: 'router_decided', id: 'plan', initialAgent: 'planner', workflowAgents: ['writer'], timestamp },
+      { type: 'thinking_status', id: 'handoff', content: '接下来由内容创作者继续', timestamp },
+      { type: 'content', id: 'reply', content: '大纲写好了', timestamp },
+    ]
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    await act(async () => {
+      await roundOptions().onComplete([{ type: 'content', id: 'reply', content: '大纲写好了' }], null)
+    })
+    await waitFor(() => {
+      const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ displayItems?: Array<{ id: string }> }> }
+      expect(props.messages?.at(-1)?.displayItems?.map((item) => item.id)).toEqual(['plan', 'handoff', 'reply'])
+    })
+  })
+
+  it('a confirmed refund puts the cached count back to the pre-round value at once, then refetches', async () => {
+    const quotaKey = ['subscription-quota', 'test-user']
+    const cachedUsed = () =>
+      testQueryClient.getQueryData<{ ai_conversations: { used: number } }>(quotaKey)?.ai_conversations.used
+    mockQuota.value = { ai_conversations: { used: 1, limit: 10, reset_at: null } }
+    render(<ChatPanel />)
+    await waitFor(() => expect(cachedUsed()).toBe(1))
+    await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
+    await act(async () => { await lastMessageInputProps().onSend('写第一章', []) })
+
+    // 服务端开轮时预扣：这一轮进行中徽标是 2/10。
+    mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
+    act(() => (capturedUseAgentStream.options as { onSessionStarted: (id: string) => void }).onSessionStarted('session-1'))
+    await waitFor(() => expect(cachedUsed()).toBe(2))
+
+    // 退还后的重拉要几百毫秒到几秒才回来；这段时间里说明已写「不计入」，徽标不能还停在 2/10。
+    const pending: Array<(value: unknown) => void> = []
+    vi.mocked(subscriptionApi.getQuota).mockImplementation(
+      () => new Promise((resolve) => { pending.push(resolve) }) as never,
+    )
+    try {
+      const callsBefore = vi.mocked(subscriptionApi.getQuota).mock.calls.length
+      act(() => roundOptions().onQuotaRefunded('stopped'))
+      expect(cachedUsed()).toBe(1)
+      // 同一轮重复的退还帧不会再减一次。
+      act(() => roundOptions().onQuotaRefunded('stopped'))
+      expect(cachedUsed()).toBe(1)
+      // 仍然去拉真值（别的设备同时用了额度时由它纠正）。
+      await waitFor(() => expect(vi.mocked(subscriptionApi.getQuota).mock.calls.length).toBeGreaterThan(callsBefore))
+      await act(async () => {
+        pending.forEach((resolve) => resolve({ ai_conversations: { used: 1, limit: 10, reset_at: null } }))
+      })
+      await waitFor(() => expect(cachedUsed()).toBe(1))
+    } finally {
+      vi.mocked(subscriptionApi.getQuota).mockImplementation(async () => mockQuota.value as never)
+    }
+  })
+
   it('assigns backendMessageId for status-only completions using done metadata', async () => {
     vi.mocked(getRecentMessages)
       .mockResolvedValueOnce([])
