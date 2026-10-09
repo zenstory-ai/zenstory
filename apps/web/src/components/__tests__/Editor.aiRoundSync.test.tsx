@@ -58,11 +58,20 @@ const T_V1 = '2026-10-09T12:38:46.000001';
 const T_V2 = '2026-10-09T12:43:06.000001';
 
 type Callbacks = Required<UseChatStreamingOptions>;
-const harness: { callbacks: Callbacks | null } = { callbacks: null };
+const harness: {
+  callbacks: Callbacks | null;
+  project: ReturnType<typeof useProject> | null;
+  setShowEditor: ((show: boolean) => void) | null;
+} = { callbacks: null, project: null, setShowEditor: null };
 
 /** Wires the real stream callbacks to the real ProjectContext, like ChatPanel does. */
 function Harness() {
   const project = useProject();
+  // The project state outlives the editor, as in the app (leaving the project page).
+  const [showEditor, setShowEditor] = React.useState(true);
+  React.useLayoutEffect(() => {
+    harness.setShowEditor = setShowEditor;
+  }, []);
   const { getStreamCallbacks } = useChatStreaming();
   const selectedRef = React.useRef(project.selectedItem);
   const streamingRef = React.useRef(project.streamingFileId);
@@ -78,6 +87,7 @@ function Harness() {
   React.useLayoutEffect(() => {
     selectedRef.current = project.selectedItem;
     streamingRef.current = project.streamingFileId;
+    harness.project = project;
     harness.callbacks = getStreamCallbacks({
       triggerFileTreeRefresh: project.triggerFileTreeRefresh,
       triggerEditorRefresh: project.triggerEditorRefresh,
@@ -95,7 +105,7 @@ function Harness() {
       t: (key: string) => key,
     });
   });
-  return <Editor />;
+  return showEditor ? <Editor /> : null;
 }
 
 const settle = async () => { await act(async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); }); };
@@ -187,6 +197,8 @@ beforeEach(() => {
     return { ...next };
   });
   harness.callbacks = null;
+  harness.project = null;
+  harness.setShowEditor = null;
 });
 afterEach(async () => {
   cleanup();
@@ -343,16 +355,72 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(textarea().value).toBe(V2);
   });
 
-  it('leaving while the comparison is open keeps the author draft locally and sends no stale save', async () => {
+  it('leaving while the comparison is open keeps the merged draft locally, sends no stale save, and restores it on return', async () => {
     await runRoundUntilV1();
     fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
     await secondWrite('parallel_execute');
     expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
 
-    cleanup();
+    // The author leaves the project page; the project state stays mounted.
+    act(() => harness.setShowEditor!(false));
     await settle();
     expect(putsFor(CH2_ID)).toHaveLength(0);
+    // Kept locally: v2 plus only the author's sentence, on v2's token, so
+    // restoring it can never undo the AI's write.
     const snapshot = readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH2_ID });
-    expect(snapshot?.content).toBe(`${V1}作者补的一句。`);
+    expect(snapshot).toMatchObject({ content: `${V2}作者补的一句。`, baseUpdatedAt: T_V2 });
+    // The comparison does not linger in the project state to reopen with an older token.
+    expect(harness.project!.diffReviewState).toBeNull();
+
+    // Coming back to the chapter offers the author's text again, on top of v2.
+    act(() => harness.setShowEditor!(true));
+    await settle(); await advance(50); await settle();
+    expect(textarea().value).toBe(`${V2}作者补的一句。`);
+    expect(screen.getByText('editor:draftRecovery.restored')).toBeTruthy();
+    fireEvent.change(textarea(), { target: { value: `${V2}作者补的一句。好` } });
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ base_updated_at: T_V2 });
+    expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。好`);
+  });
+
+  it('closing the page while the comparison is open keeps the merged draft, not the draft on the older copy', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
+    await secondWrite('parallel_execute');
+
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    const snapshot = readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH2_ID });
+    expect(snapshot).toMatchObject({ content: `${V2}作者补的一句。`, baseUpdatedAt: T_V2 });
+  });
+
+  it("does not count the AI's streamed chapter as the author's words", async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${V1}好` } });
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    // One typed character: no "author edit" version for the AI's text either.
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${V1}好`, base_updated_at: T_V1, skip_version: true });
+    expect(recordStats).toHaveBeenCalledTimes(1);
+    expect(recordStats.mock.calls[0]).toEqual(['project-1', expect.objectContaining({ words_added: 1, words_deleted: 0 })]);
+  });
+
+  it('says so when the latest copy cannot be loaded, and loads it on request', async () => {
+    await runRoundUntilV1();
+    server.get.mockRejectedValueOnce(new Error('network'));
+    server.get.mockRejectedValueOnce(new Error('network'));
+    server.get.mockRejectedValueOnce(new Error('network'));
+    await secondWrite('parallel_execute');
+    await advance(1100); await settle();
+    await advance(3100); await settle();
+    // Still on v1, but the author is told and can load again.
+    expect(textarea().value).toBe(V1);
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('editor:serverSyncFailed.message');
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:serverSyncFailed.retry' }));
+    await settle();
+    expect(textarea().value).toBe(V2);
+    expect(screen.queryByText('editor:serverSyncFailed.message')).toBeNull();
   });
 });

@@ -405,7 +405,7 @@ test('@watch mobile project menu item must accept ordinary pointer input', async
   await expect(page).toHaveURL(new RegExp(`/project/${projectB}$`));
 });
 
-test('@watch final unmount 409 records review affinity while replacement B is selected', async ({ page }) => {
+test('@watch final unmount 409 keeps the old A draft while replacement B is selected', async ({ page }) => {
   const f = await fixture(page);
   await openA(page);
   await textarea(page).fill('Final old A draft');
@@ -423,8 +423,11 @@ test('@watch final unmount 409 records review affinity while replacement B is se
   expect(await reviewButton.count()).toBe(0);
   f.observations.afterOldCompletion = await titleInput(page).inputValue();
   await selectFile(page, 'Chapter Alpha');
-  await expect(reviewButton).toBeVisible();
-  f.observations.oldReviewVisibleWhenReturningToA = true;
+  // The editor that sent the save is gone, so no comparison opens for it; the
+  // failed leave-save kept the draft locally and reopening A offers it again.
+  await expect(textarea(page)).toHaveValue('Final old A draft');
+  await expect(page.getByText(/Your unsaved work from before the refresh was restored|已恢复刷新前未保存的内容/)).toBeVisible();
+  f.observations.oldDraftRestoredWhenReturningToA = true;
   f.observations.originalWriteCommitted = false;
   expect(f.files.A.content).toBe('你好 world\n\n第二段 story');
 });

@@ -41,6 +41,8 @@ import {
 } from "../lib/editorDraftRecovery";
 import { notifyEditorContentSaved } from "../lib/editorSaveTracker";
 import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
+import { applyPendingEditsToDiffs, buildParagraphReviewData } from "../lib/diffReview";
+import type { DiffReviewState } from "../types";
 
 /** Retry delays for re-reading the open file after an external write. */
 const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
@@ -53,6 +55,20 @@ const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
 export interface EditorProps {}
 
 type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'script';
+
+/** The comparison Editor opened for "the author wrote on an older copy". */
+interface ConflictReview {
+  fileId: string;
+  originalContent: string;
+  modifiedContent: string;
+}
+
+const isSameReview = (review: DiffReviewState | null, conflict: ConflictReview | null): boolean =>
+  review !== null &&
+  conflict !== null &&
+  review.fileId === conflict.fileId &&
+  review.originalContent === conflict.originalContent &&
+  review.modifiedContent === conflict.modifiedContent;
 
 /** Apple keyboards label the search shortcut ⌘ K; everything else uses Ctrl K. */
 const isApplePlatform = (): boolean => {
@@ -146,6 +162,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
     updatedAt?: string;
   } | null>(null);
   const serverBaselineVersionRef = useRef(0);
+  /**
+   * Re-reading the open file after an AI write failed even after retries: the
+   * editor may show an older copy, so it says so and offers to load again.
+   */
+  const [serverSyncIssue, setServerSyncIssue] = useState<{ fileId: string; retrying: boolean } | null>(null);
+  const conflictReviewRef = useRef<ConflictReview | null>(null);
   const [draftRecovery, setDraftRecovery] = useState<{
     snapshot: EditorDraftSnapshot;
     serverTitle: string;
@@ -230,12 +252,31 @@ const EditorComponent: React.FC<EditorProps> = () => {
   }, [currentProjectId]);
 
   /**
+   * Make `data` SimpleEditor's clean baseline (draft, save token, dirty flag and
+   * word-count base), for server copies that arrive outside its own save flow.
+   */
+  const markServerBaseline = useCallback((data: File) => {
+    serverBaselineVersionRef.current += 1;
+    setServerBaseline({
+      version: serverBaselineVersionRef.current,
+      fileId: data.id,
+      title: data.title,
+      content: data.content || "",
+      updatedAt: data.updated_at,
+    });
+  }, []);
+
+  /**
    * Loads the file data for the currently selected item.
    *
    * Fetches file content from the API and updates local editing state. Only shows
    * the loading spinner on initial load to prevent UI flicker when switching files.
+   *
+   * `followServer`: a reload of the open file after the AI finished writing it
+   * (the <file> stream). The loaded copy also becomes SimpleEditor's baseline,
+   * so the AI's words are not counted as the author's on the next save.
    */
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (options?: { followServer?: boolean }) => {
     if (activeProjectIdRef.current !== currentProjectId || selectedIdRef.current !== selectedItem?.id) return;
     const generation = ++loadGenerationRef.current;
     const currentFile = currentFileRef.current;
@@ -281,6 +322,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
       if (generation !== loadGenerationRef.current) return;
       setFile(data);
       hasLoadedRef.current = true;
+      setServerSyncIssue((prev) => (prev?.fileId === data.id ? null : prev));
+      const followServer = options?.followServer === true && currentFile?.id === data.id;
       const serverContent = data.content || "";
       const scope = currentUserId ? {
         userId: currentUserId,
@@ -292,6 +335,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         setDraftRecovery(null);
         setEditTitle(data.title);
         setEditContent(serverContent);
+        if (followServer) markServerBaseline(data);
       } else {
         const resolution = resolveEditorDraftRecovery(snapshot, {
           title: data.title,
@@ -303,6 +347,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
           setDraftRecovery(null);
           setEditTitle(data.title);
           setEditContent(serverContent);
+          if (followServer) markServerBaseline(data);
         } else if (resolution === "recover") {
           setDraftRecovery({
             snapshot,
@@ -323,6 +368,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
           });
           setEditTitle(data.title);
           setEditContent(serverContent);
+          if (followServer) markServerBaseline(data);
         }
       }
     } catch (err: unknown) {
@@ -340,6 +386,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     currentProjectId,
     setSelectedItem,
     currentUserId,
+    markServerBaseline,
   ]);
 
   useEffect(() => {
@@ -359,7 +406,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     if (prevId && prevId === file?.id && prevId === selectedItem?.id && streamingFileId === null) {
       // Small delay to ensure backend has updated the content
       const timer = setTimeout(() => {
-        loadData();
+        void loadData({ followServer: true });
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -371,20 +418,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * new copy by the next autosave); everything else follows the server.
    */
   const adoptServerCopy = useCallback((data: File, nextTitle: string) => {
-    const serverContent = data.content || "";
     currentFileRef.current = data;
     setFile(data);
     setEditTitle(nextTitle);
-    setEditContent(serverContent);
-    serverBaselineVersionRef.current += 1;
-    setServerBaseline({
-      version: serverBaselineVersionRef.current,
-      fileId: data.id,
-      title: data.title,
-      content: serverContent,
-      updatedAt: data.updated_at,
-    });
-  }, []);
+    setEditContent(data.content || "");
+    markServerBaseline(data);
+  }, [markServerBaseline]);
 
   /**
    * Open the comparison for "the author has unsaved text written on an older
@@ -408,9 +447,37 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const { proposal, conflictEditIds } = rebaseLocalEdits(base, localContent, serverContent);
     if (proposal === serverContent) return false;
     enterDiffReview(fileId, serverContent, proposal);
+    conflictReviewRef.current = { fileId, originalContent: serverContent, modifiedContent: proposal };
     for (const editId of conflictEditIds) rejectEdit(editId);
     return true;
   }, [enterDiffReview, rejectEdit]);
+
+  /**
+   * What SimpleEditor keeps locally when the author leaves (or the page
+   * unloads) while this comparison is open: the text finishing it would save
+   * right now, on the server copy's token. The raw draft would be the author's
+   * whole text on the older copy, and restoring it would undo the AI's write.
+   */
+  const getReviewLeaveDraft = useCallback(() => {
+    const review = currentReviewRef.current;
+    const opened = currentFileRef.current;
+    if (!review || !opened || review.fileId !== opened.id || !isSameReview(review, conflictReviewRef.current)) {
+      return null;
+    }
+    const { diffs } = buildParagraphReviewData(review.originalContent, review.modifiedContent);
+    return {
+      title: editTitleRef.current,
+      content: applyPendingEditsToDiffs(diffs, review.pendingEdits),
+      baseUpdatedAt: opened.updated_at,
+    };
+  }, []);
+
+  // Leaving the project with the comparison open: the draft is already kept
+  // locally (getReviewLeaveDraft) and is offered again when the file reopens,
+  // so the comparison must not reappear on top of it with an older token.
+  useEffect(() => () => {
+    if (isSameReview(currentReviewRef.current, conflictReviewRef.current)) exitDiffReview();
+  }, [exitDiffReview]);
 
   /**
    * Re-read the open file after someone else (the AI, an undo) wrote it.
@@ -436,9 +503,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
         data = await fileApi.get(fileId);
       } catch (err) {
         if (attempt >= SERVER_SYNC_RETRY_DELAYS_MS.length) {
-          // The save token still guards the server copy: saving stale text
-          // gets a 409, which opens the same comparison.
+          // The save token still guards the server copy (saving stale text
+          // gets a 409, which opens the same comparison), but the author must
+          // not keep reading an older copy without knowing it.
           logger.warn("Failed to re-read file after an external write:", err);
+          if (isStillOpen()) setServerSyncIssue({ fileId, retrying: false });
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, SERVER_SYNC_RETRY_DELAYS_MS[attempt]));
@@ -447,6 +516,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     }
     const current = currentFileRef.current;
     if (!current || !isStillOpen() || activeProjectIdRef.current !== data.project_id) return;
+    setServerSyncIssue((prev) => (prev?.fileId === fileId ? null : prev));
     // A comparison is already open for this file. Its save carries the token
     // it was opened with, so a newer server copy surfaces there as a conflict.
     if (currentReviewRef.current?.fileId === fileId) return;
@@ -478,6 +548,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setEditTitle(nextTitle);
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
   }, [adoptServerCopy, openConflictReview]);
+
+  const retryServerSync = useCallback(() => {
+    const fileId = currentFileRef.current?.id;
+    if (!fileId) return;
+    setServerSyncIssue({ fileId, retrying: true });
+    void syncOpenFileFromServer();
+  }, [syncOpenFileFromServer]);
 
   // Re-read the open file when the AI (or an undo) wrote it
   useEffect(() => {
@@ -781,6 +858,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
         setSelectedItem({ ...selectedItem, title: reviewedTitle });
       }
 
+      // A copy kept locally while this comparison was open (the editor was
+      // hidden mid-review) is superseded by this save. A recovery banner the
+      // author has not answered yet keeps its draft.
+      if (currentUserId && currentProjectId && draftRecovery?.snapshot.fileId !== file.id) {
+        clearEditorDraftSnapshot(localStorage, {
+          userId: currentUserId,
+          projectId: currentProjectId,
+          fileId: file.id,
+        });
+      }
+
       // Exit diff review mode
       exitDiffReview();
 
@@ -838,6 +926,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
   }, [
     diffReviewState,
     currentProjectId,
+    currentUserId,
+    draftRecovery,
     file?.id,
     file?.project_id,
     file?.updated_at,
@@ -1142,6 +1232,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       onHistoryRestore: loadData,
       onFlushReady: registerEditorFlush,
       serverBaseline: serverBaseline?.fileId === file.id ? serverBaseline : undefined,
+      getReviewLeaveDraft,
       isStreaming,
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,
@@ -1214,6 +1305,24 @@ const EditorComponent: React.FC<EditorProps> = () => {
                 </div>
               </details>
             )}
+          </div>
+        )}
+        {serverSyncIssue?.fileId === file.id && (
+          <div
+            role="alert"
+            className="border-b border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-4 py-3 text-sm text-[hsl(var(--text-primary))]"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p>{t("editor:serverSyncFailed.message")}</p>
+              <button
+                type="button"
+                onClick={retryServerSync}
+                disabled={serverSyncIssue.retrying}
+                className="min-h-11 rounded bg-[hsl(var(--accent-primary))] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              >
+                {t(serverSyncIssue.retrying ? "editor:serverSyncFailed.retrying" : "editor:serverSyncFailed.retry")}
+              </button>
+            </div>
           </div>
         )}
         <SimpleEditor {...editorProps} />

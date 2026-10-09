@@ -177,6 +177,11 @@
   "saveStaleWrite": "AI 刚修改了这个文件，已载入最新内容，请确认后再保存。",
   "saveStaleWriteConflict": "文件在别处有了新改动。你的内容都还在，请在对比中逐处选择要保留哪一份。",
   "aiEditedWhileDirty": "AI 刚改过这个文件，你还有没保存的修改。两边的内容都在，请在对比里逐处选择要保留哪一份。",
+  "serverSyncFailed": {
+    "message": "AI 刚改过这个文件，但最新内容没能载入，你看到的可能是旧版本。你的修改不会丢。",
+    "retry": "重新载入",
+    "retrying": "正在载入…"
+  },
   "saveVersionQuotaExceeded": "内容已保存。这个文件的历史版本存满了，这次没有生成新版本；开通 Pro 可以保留更多版本。",
   "draftRecovery": {
     "restored": "已恢复刷新前未保存的内容。确认无误后可继续编辑或保存。",
