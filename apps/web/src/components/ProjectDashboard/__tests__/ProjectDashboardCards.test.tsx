@@ -46,9 +46,15 @@ vi.mock('react-i18next', () => ({
           'statistics.outstandingTasks.types.outlineWithoutDraft': 'Outline only',
           'statistics.outstandingTasks.types.notStarted': 'Not started',
           'statistics.outstandingTasks.outlineWithoutDraftDesc': 'Draft still missing',
-          'statistics.outstandingTasks.notStartedDesc': 'Draft exists but is not started',
-          'statistics.outstandingTasks.notStartedCount': 'not started',
-          'statistics.outstandingTasks.outlineWithoutDraftCount': 'outline only',
+          'statistics.byType.novel.notStartedDesc': 'Draft exists but is not started',
+          'statistics.byType.novel.notStartedCount': 'not started',
+          'statistics.byType.novel.outlineWithoutDraftCount': 'outline only',
+          'statistics.byType.novel.progress': 'Chapters',
+          'statistics.byType.screenplay.progress': 'Episodes',
+          'statistics.byType.screenplay.outlineWithoutDraftCount': 'episode to script',
+          'statistics.aiUsage.sent': `${count} sent`,
+          'statistics.aiUsage.sentDesc': 'Sent in this project',
+          'statistics.aiUsage.todaySent': `${count} sent today`,
           'statistics.outstandingTasks.total': `${count} total`,
           'statistics.outstandingTasks.moreTasks': `${count} more`,
           'statistics.streak.title': 'Streak',
@@ -328,6 +334,35 @@ describe('ProjectDashboard cards', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /第3章/ }))
     expect(mockNavigate).toHaveBeenCalledWith('/project/project-1?file=outline-3')
+  })
+
+  it('names screenplay units as episodes and counts only messages the author sent', () => {
+    const screenplayStats = {
+      ...baseStats,
+      project_type: 'screenplay',
+      ai_usage: {
+        ...baseStats.ai_usage,
+        // 3 sent by the author; the rest are AI replies and tool steps.
+        current: { ...baseStats.ai_usage.current, total_messages: 14, user_messages: 3 },
+        today: { total: 6, user: 2, estimated_tokens: 500 },
+      },
+    }
+
+    render(
+      <>
+        <ProjectHealthCard stats={screenplayStats as never} />
+        <OutstandingTasksCard stats={screenplayStats as never} projectId="project-1" />
+        <AiUsageCard stats={screenplayStats as never} projectId="project-1" />
+      </>,
+    )
+
+    expect(screen.getByText('Episodes')).toBeInTheDocument()
+    expect(screen.queryByText('Chapters')).not.toBeInTheDocument()
+    expect(screen.getByText('1 episode to script')).toBeInTheDocument()
+    expect(screen.getByText('3 sent')).toBeInTheDocument()
+    expect(screen.queryByText('14 messages')).not.toBeInTheDocument()
+    expect(screen.getByText('2 sent today')).toBeInTheDocument()
+    expect(screen.getByText('statistics.aiUsage.quotaNote')).toBeInTheDocument()
   })
 
   it('renders streak and health warning states with recovery info', () => {

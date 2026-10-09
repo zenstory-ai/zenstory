@@ -512,13 +512,68 @@
         "efficiency": "让 AI 帮你想点子、列大纲、改稿。",
         "iterative": "先让 AI 写一版，再告诉它哪里要改，效果更好。",
         "context": "在“AI 记忆”里写好角色、设定和文风，AI 的建议会更贴合你的故事。"
-      }
+      },
+      "sent": "已发 {{count}} 条",
+      "sent_one": "已发 {{count}} 条",
+      "sent_other": "已发 {{count}} 条",
+      "sentDesc": "本项目里你发给 AI 的消息",
+      "todaySent": "今天发了 {{count}} 条",
+      "todaySent_one": "今天发了 {{count}} 条",
+      "todaySent_other": "今天发了 {{count}} 条",
+      "quotaNote": "只算本项目里你发给 AI 的消息。今日 AI 消息额度按所有项目合计，以对话框上方的显示为准。"
     },
     "loading": "加载统计数据中...",
     "error": "加载失败",
     "retry": "重试",
     "noData": "暂无数据",
-    "lastUpdated": "最后更新: {{time}}"
+    "lastUpdated": "最后更新: {{time}}",
+    "byType": {
+      "novel": {
+        "completionTitle": "章节完成",
+        "progress": "章节进度",
+        "total": "共 {{count}} 章",
+        "total_one": "共 {{count}} 章",
+        "total_other": "共 {{count}} 章",
+        "noChapters": "暂无章节",
+        "createFirst": "先建一章，想到哪写到哪",
+        "hintNotStarted": "开始写这一章",
+        "hintCompleted": "回顾或继续下一章",
+        "notStartedDesc": "这一章还没开始写",
+        "notStartedCount": "章还没开始",
+        "outlineWithoutDraftCount": "章待写正文",
+        "more": "还有 {{count}} 章"
+      },
+      "short": {
+        "completionTitle": "完成情况",
+        "progress": "完成情况",
+        "total": "共 {{count}} 篇",
+        "total_one": "共 {{count}} 篇",
+        "total_other": "共 {{count}} 篇",
+        "noChapters": "还没有正文",
+        "createFirst": "先建一篇，想到哪写到哪",
+        "hintNotStarted": "开始写这一篇",
+        "hintCompleted": "回顾或接着写下一篇",
+        "notStartedDesc": "这一篇还没开始写",
+        "notStartedCount": "篇还没开始",
+        "outlineWithoutDraftCount": "篇待写正文",
+        "more": "还有 {{count}} 篇"
+      },
+      "screenplay": {
+        "completionTitle": "剧集完成",
+        "progress": "剧集进度",
+        "total": "共 {{count}} 集",
+        "total_one": "共 {{count}} 集",
+        "total_other": "共 {{count}} 集",
+        "noChapters": "还没有剧本",
+        "createFirst": "先建一集，想到哪写到哪",
+        "hintNotStarted": "开始写这一集",
+        "hintCompleted": "回顾或继续写下一集",
+        "notStartedDesc": "这一集还没开始写",
+        "notStartedCount": "集还没开始",
+        "outlineWithoutDraftCount": "集待写剧本",
+        "more": "还有 {{count}} 集"
+      }
+    }
   },
   "dashboardTour": {
     "common": {

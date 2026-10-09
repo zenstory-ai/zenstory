@@ -83,8 +83,9 @@ function getPeriodDisplay(
 
   return {
     label: t(labelKey),
-    totalMessages: period.total,
-    messages: formatNumber(period.total),
+    // Messages the author sent; the AI's replies and tool steps are not counted.
+    totalMessages: period.user ?? 0,
+    messages: formatNumber(period.user ?? 0),
     tokens: formatNumber(period.estimated_tokens),
   };
 }
@@ -360,7 +361,7 @@ export function AiUsageCard({
           </span>
           {periodSummaries && (
             <span>
-              {t('statistics.aiUsage.messages', { count: periodSummaries.today.totalMessages })}
+              {t('statistics.aiUsage.todaySent', { count: periodSummaries.today.totalMessages })}
             </span>
           )}
         </div>
@@ -392,6 +393,9 @@ export function AiUsageCard({
             </p>
           </div>
         </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-[hsl(var(--text-tertiary))]">
+          {t('statistics.aiUsage.quotaNote')}
+        </p>
       </div>
     </Card>
   );
