@@ -35,6 +35,25 @@
     "rolledBack": "恢复",
     "autoSave": "自动保存"
   },
+  "summaries": {
+    "restoredToVersion": "恢复到版本 {{version}}",
+    "restoredFromSnapshot": "从快照恢复",
+    "snapshotBaseline": "保存快照时记录的版本",
+    "snapshotSync": "保存快照时同步的当前内容",
+    "createdViaApi": "通过 Agent API 创建",
+    "updatedViaApi": "通过 Agent API 更新",
+    "aiReviewed": "审阅后接受的 AI 修改",
+    "aiEditOps": "AI 修改：{{ops}}",
+    "aiEditOpsMore": "AI 修改：{{ops}} 等 {{total}} 处",
+    "opsSeparator": "、",
+    "ops": {
+      "replace": "替换",
+      "append": "追加",
+      "prepend": "开头插入",
+      "insert": "插入",
+      "delete": "删除"
+    }
+  },
   "quota": {
     "limitTitle": "这个文件的历史版本存满了",
     "limitDescription": "正文照常保存，只是不再生成新版本。开通 Pro 可以保留更多版本。",
