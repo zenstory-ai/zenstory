@@ -782,6 +782,45 @@ class TestJSONParsing:
         assert "valid suggestion" in suggestions
         assert "another valid" in suggestions
 
+    def test_validate_suggestions_drops_instructions_aimed_at_the_author(self, suggest_service):
+        """建议是作者点一下就发给 AI 的话，指向作者本人的指令要丢掉。"""
+        suggestions = suggest_service._validate_suggestions([
+            "请用户拍板开篇方案",
+            "按方案 A 写全文",
+            "请作者确认主角年龄",
+            "Ask the user which ending",
+            "开头方案请你拍板",
+            "把第二章结尾改得更紧",
+        ])
+
+        assert suggestions == ["按方案 A 写全文", "把第二章结尾改得更紧"]
+
+    @pytest.mark.asyncio
+    async def test_author_directed_suggestions_are_replaced_by_fallbacks(
+        self, suggest_service, test_user_with_project, db_session: Session
+    ):
+        """过滤后不足 3 条时，用现有 fallback 补齐，且不重复。"""
+        from agent.suggest_service import FALLBACK_SUGGESTIONS_ZH
+
+        user = test_user_with_project["user"]
+        project = test_user_with_project["project"]
+        suggest_service.llm.acomplete.return_value = json.dumps({
+            "suggestions": ["请用户拍板开篇方案", "按方案 A 写全文", "等用户确认后再写"]
+        })
+
+        suggestions = await suggest_service.generate_suggestions(
+            session=db_session,
+            project_id=str(project.id),
+            user_id=str(user.id),
+            count=3,
+        )
+
+        assert len(suggestions) == 3
+        assert suggestions[0] == "按方案 A 写全文"
+        assert all(s in FALLBACK_SUGGESTIONS_ZH for s in suggestions[1:])
+        assert len(set(suggestions)) == 3
+        assert not any("用户" in s or "拍板" in s for s in suggestions)
+
 
 # =============================================================================
 # Fallback Suggestions Tests
