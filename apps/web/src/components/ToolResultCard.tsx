@@ -366,6 +366,16 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
         icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />, 
         label: t('chat:fileType.snippet')
       };
+    case 'script':
+      return {
+        icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--success-light))]" />,
+        label: t('chat:fileType.script')
+      };
+    case 'document':
+      return {
+        icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />,
+        label: t('chat:fileType.document')
+      };
     default:
       return { 
         icon: <FileText className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />, 

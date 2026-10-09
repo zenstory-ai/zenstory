@@ -35,6 +35,25 @@
     "rolledBack": "Restored",
     "autoSave": "Auto Save"
   },
+  "summaries": {
+    "restoredToVersion": "Restored to version {{version}}",
+    "restoredFromSnapshot": "Restored from snapshot",
+    "snapshotBaseline": "Version recorded when saving a snapshot",
+    "snapshotSync": "Current text synced when saving a snapshot",
+    "createdViaApi": "Created via Agent API",
+    "updatedViaApi": "Updated via Agent API",
+    "aiReviewed": "AI edit accepted after review",
+    "aiEditOps": "AI edit: {{ops}}",
+    "aiEditOpsMore": "AI edit: {{ops}} and more ({{total}} changes)",
+    "opsSeparator": ", ",
+    "ops": {
+      "replace": "replace",
+      "append": "append",
+      "prepend": "insert at start",
+      "insert": "insert",
+      "delete": "delete"
+    }
+  },
   "quota": {
     "limitTitle": "This file's version history is full",
     "limitDescription": "Your text is still saved; we just won't create new versions. Pro keeps more versions per file.",
