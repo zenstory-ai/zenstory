@@ -27,11 +27,12 @@ import { MaterialPreview } from "./MaterialPreview";
 import { ImportMaterialDialog } from "./ImportMaterialDialog";
 import type { File, FileTreeNode } from "../types";
 import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
-import { FileText, Users, BookOpen, Sparkles, Folder, Zap, Keyboard, ChevronDown } from "lucide-react";
+import { FileText, Users, BookOpen, Sparkles, Folder, Zap, Keyboard, ChevronDown, Clapperboard } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { captureException, trackEvent } from "../lib/analytics";
+import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import {
   clearEditorDraftSnapshot,
   readEditorDraftSnapshot,
@@ -45,6 +46,15 @@ import {
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EditorProps {}
+
+type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'script';
+
+/** Apple keyboards label the search shortcut ⌘ K; everything else uses Ctrl K. */
+const isApplePlatform = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const uaDataPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
+  return /mac|iphone|ipad|ipod/i.test(uaDataPlatform || navigator.platform || '');
+};
 
 /**
  * Internal Editor component implementation.
@@ -69,8 +79,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const { user } = useAuth();
   const currentUserId = user?.id ?? null;
   const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
+  // Layout 在手机宽度下用 MobileLayoutProvider 包住编辑器，这里和它用同一个判断。
+  const { isMobile } = useMobileLayout();
   const {
     selectedItem,
+    currentProject,
     currentProjectId,
     streamingFileId,
     streamingContent,
@@ -152,7 +165,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * 1) Canonical deterministic folder ID (<projectId>-<type>-folder)
    * 2) Folder title mapping fallback (for legacy/migrated projects)
    */
-  const resolveCreateParentId = useCallback(async (fileType: 'draft' | 'outline' | 'character' | 'lore'): Promise<string | undefined> => {
+  const resolveCreateParentId = useCallback(async (fileType: EmptyStateFileType): Promise<string | undefined> => {
     if (!currentProjectId) return undefined;
 
     try {
@@ -161,11 +174,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
       const rootFolders = (tree || []).filter((node) => node.file_type === 'folder');
       const rootFolderIds = new Set(rootFolders.map((node) => node.id));
 
-      const canonicalSuffixByType: Record<'draft' | 'outline' | 'character' | 'lore', string> = {
+      const canonicalSuffixByType: Record<EmptyStateFileType, string> = {
         draft: 'draft-folder',
         outline: 'outline-folder',
         character: 'character-folder',
         lore: 'lore-folder',
+        script: 'script-folder',
       };
 
       const canonicalFolderId = `${currentProjectId}-${canonicalSuffixByType[fileType]}`;
@@ -520,6 +534,25 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setDraftRecovery(null);
   }, [draftRecovery, currentUserId, currentProjectId]);
 
+  // 只有「去AI味」进入的审阅才允许在全部拒绝时跳过写库。另外两条审阅入口里
+  // originalContent 并不等于服务端/编辑器当前持有的正文：Agent 的 edit_file 已经把
+  // AI 文本落库，全部拒绝必须把原文 PUT 回去；保存冲突审阅的 originalContent 是服务端
+  // 正文、编辑器里还是本地正文，必须 setEditContent 并带新令牌写回。这里按审阅的
+  // 三元组记下去AI味审阅的来源，完成审阅时逐项比对。
+  const naturalPolishReviewRef = useRef<{
+    fileId: string;
+    originalContent: string;
+    modifiedContent: string;
+  } | null>(null);
+
+  const enterNaturalPolishReview = useCallback(
+    (fileId: string, originalContent: string, newContent: string) => {
+      naturalPolishReviewRef.current = { fileId, originalContent, modifiedContent: newContent };
+      enterDiffReview(fileId, originalContent, newContent);
+    },
+    [enterDiffReview],
+  );
+
   /**
    * Completes the diff review process and applies accepted changes.
    *
@@ -537,6 +570,27 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     // Get the final content based on accept/reject decisions
     const finalContent = applyDiffReviewChanges();
+
+    const polishReview = naturalPolishReviewRef.current;
+    naturalPolishReviewRef.current = null;
+    const isNaturalPolishReview =
+      polishReview !== null &&
+      polishReview.fileId === diffReviewState.fileId &&
+      polishReview.originalContent === diffReviewState.originalContent &&
+      polishReview.modifiedContent === diffReviewState.modifiedContent;
+
+    // 去AI味审阅全部拒绝（或接受的改动都只是空白差异）时，定稿和审阅前、
+    // 服务端已存的正文、编辑器里的正文三者逐字节相同：屏幕和服务端都不会变，
+    // 直接退出审阅，不写库，也不生成一条「AI 编辑」版本。
+    if (
+      isNaturalPolishReview &&
+      finalContent === diffReviewState.originalContent &&
+      finalContent === (file.content ?? "") &&
+      finalContent === editContent
+    ) {
+      exitDiffReview();
+      return;
+    }
     
     // Update the file with the final content
     try {
@@ -621,6 +675,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     file?.id,
     file?.project_id,
     file?.updated_at,
+    file?.content,
+    editContent,
     applyDiffReviewChanges,
     enterDiffReview,
     exitDiffReview,
@@ -634,9 +690,9 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * Creates a file with the specified type, refreshes the file tree,
    * selects the new file in the editor, and shows success/error feedback.
    *
-   * @param fileType - The type of file to create ('draft', 'outline', 'character', 'lore')
+   * @param fileType - The type of file to create ('draft', 'outline', 'character', 'lore', 'script')
    */
-  const handleCreateFromEmptyState = useCallback(async (fileType: 'draft' | 'outline' | 'character' | 'lore') => {
+  const handleCreateFromEmptyState = useCallback(async (fileType: EmptyStateFileType) => {
     if (!currentProjectId) {
       toast.error(t('editor:error.noProject'));
       return;
@@ -651,6 +707,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       outline: t('editor:fileTree.newOutline'),
       character: t('editor:fileTree.newCharacter'),
       lore: t('editor:fileTree.newLore'),
+      script: t('editor:fileTree.newScript'),
     };
 
     try {
@@ -726,6 +783,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
   // Render empty state
   if (!selectedItem) {
+    const isScreenplay = currentProject?.project_type === 'screenplay';
+    const primaryFileType: EmptyStateFileType = isScreenplay ? 'script' : 'draft';
     return renderWithUpgradeModal(
       <div className="flex flex-col items-center justify-center h-full p-6 md:p-8 relative overflow-hidden">
         {/* Background ambient glow */}
@@ -745,23 +804,29 @@ const EditorComponent: React.FC<EditorProps> = () => {
               {t('editor:emptyStateTitle')}
             </h2>
             <p className="text-sm text-[hsl(var(--text-secondary))]">
-              {t('editor:emptyStateDescription')}
+              {isScreenplay ? t('editor:emptyStateDescriptionScript') : t('editor:emptyStateDescription')}
             </p>
           </div>
 
           {/* Primary Actions - 2 cards */}
           <div className="grid grid-cols-2 gap-3">
-            {/* Create Draft */}
+            {/* Create Draft (screenplay projects: Script) */}
             <div
-              onClick={() => handleCreateFromEmptyState('draft')}
-              className={`group relative flex flex-col items-center gap-2.5 p-4 rounded-xl bg-gradient-to-br from-[hsl(var(--bg-secondary))] to-[hsl(var(--bg-tertiary)/0.5)] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:shadow-xl hover:shadow-[hsl(var(--accent-primary)/0.08)] transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${isCreating === 'draft' ? 'opacity-50 pointer-events-none' : ''}`}
+              onClick={() => handleCreateFromEmptyState(primaryFileType)}
+              className={`group relative flex flex-col items-center gap-2.5 p-4 rounded-xl bg-gradient-to-br from-[hsl(var(--bg-secondary))] to-[hsl(var(--bg-tertiary)/0.5)] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:shadow-xl hover:shadow-[hsl(var(--accent-primary)/0.08)] transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${isCreating === primaryFileType ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.1)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-[hsl(var(--accent-primary)/0.12)] to-[hsl(var(--accent-primary)/0.06)] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
-                {isCreating === 'draft' ? <LoadingSpinner size="md" color="primary" /> : <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />}
+                {isCreating === primaryFileType ? (
+                  <LoadingSpinner size="md" color="primary" />
+                ) : isScreenplay ? (
+                  <Clapperboard className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
+                ) : (
+                  <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
+                )}
               </div>
               <span className="relative text-sm font-medium text-[hsl(var(--text-primary))] text-center">
-                {t('editor:fileTree.newDraft')}
+                {isScreenplay ? t('editor:fileTree.newScript') : t('editor:fileTree.newDraft')}
               </span>
             </div>
 
@@ -834,17 +899,19 @@ const EditorComponent: React.FC<EditorProps> = () => {
               <span>{t('editor:emptyStateHint')}</span>
             </div>
 
-            {/* Keyboard Shortcut Hint */}
-            <div className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--text-secondary))] group cursor-default">
-              <div className="p-1.5 rounded-md bg-[hsl(var(--bg-tertiary))] group-hover:bg-[hsl(var(--accent-primary)/0.08)] transition-colors">
-                <Keyboard className="w-3.5 h-3.5" />
+            {/* Keyboard Shortcut Hint (no physical keyboard on phones) */}
+            {!isMobile && (
+              <div className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--text-secondary))] group cursor-default">
+                <div className="p-1.5 rounded-md bg-[hsl(var(--bg-tertiary))] group-hover:bg-[hsl(var(--accent-primary)/0.08)] transition-colors">
+                  <Keyboard className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex items-center gap-1.5">
+                  <kbd className="px-1.5 py-0.5 rounded bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] text-[10px] font-mono shadow-sm">{isApplePlatform() ? '⌘' : 'Ctrl'}</kbd>
+                  <kbd className="px-1.5 py-0.5 rounded bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] text-[10px] font-mono shadow-sm">K</kbd>
+                  <span className="text-[hsl(var(--text-tertiary))]">{t('editor:fileTree.searchFiles')}</span>
+                </span>
               </div>
-              <span className="flex items-center gap-1.5">
-                <kbd className="px-1.5 py-0.5 rounded bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] text-[10px] font-mono shadow-sm">Ctrl</kbd>
-                <kbd className="px-1.5 py-0.5 rounded bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] text-[10px] font-mono shadow-sm">K</kbd>
-                <span className="text-[hsl(var(--text-tertiary))]">{t('editor:fileTree.searchFiles')}</span>
-              </span>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -908,7 +975,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       isStreaming,
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,
-      onEnterDiffReview: enterDiffReview,
+      onEnterDiffReview: enterNaturalPolishReview,
       // Diff review props
       diffReviewState: isInReviewMode ? diffReviewState : null,
       onAcceptEdit: acceptEdit,

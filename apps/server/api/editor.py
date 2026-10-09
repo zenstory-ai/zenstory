@@ -15,7 +15,7 @@ from core.error_handler import APIException
 from database import get_session
 from middleware.rate_limit import require_user_rate_limit
 from models import User
-from services.features.natural_polish_service import natural_polish_service
+from services.features.natural_polish_service import is_noop_rewrite, natural_polish_service
 from services.quota_service import quota_service
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access
@@ -46,6 +46,10 @@ class NaturalPolishResponse(BaseModel):
 
     text: str
     model: str | None = None
+    # True：改写和原文只差空白或引号体例，这次已退还额度，text 是原文。
+    # 前端据此不进审阅，直接提示「这次不计入今日 AI 消息」；退还失败时保持 False，
+    # 走正常审阅，避免提示与实际扣费不符。
+    unchanged: bool = False
 
 
 def _refund_ai_conversation(
@@ -55,7 +59,7 @@ def _refund_ai_conversation(
     *,
     reason: str,
 ) -> bool:
-    """润色失败时退还已预扣的 AI 对话额度，失败只记日志不影响主流程。
+    """退还已预扣的 AI 对话额度（生成失败，或改写没有实质改动），失败只记日志不影响主流程。
 
     失败的事务可能让共享 session 处于 PendingRollback 状态，先复位再补偿，
     否则退款会静默失效、用户白扣一次额度。
@@ -74,7 +78,7 @@ def _refund_ai_conversation(
         log_with_context(
             logger,
             30,  # WARNING
-            "Failed to refund AI conversation quota after natural polish failure",
+            "Failed to refund AI conversation quota for natural polish",
             user_id=user_id,
             reason=reason,
             error=str(refund_error),
@@ -137,11 +141,14 @@ async def natural_polish(
         )
 
     lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
+    raw_file_type = body.metadata.get("current_file_type")
+    file_type = raw_file_type if isinstance(raw_file_type, str) and raw_file_type else None
 
     try:
         result = await natural_polish_service.natural_polish(
             selected_text=body.selected_text,
             language=lang,
+            file_type=file_type,
             user_id=current_user.id,
             project_id=body.project_id,
         )
@@ -165,6 +172,22 @@ async def natural_polish(
             status_code=500,
             detail=f"Natural polish failed: {type(exc).__name__}",
         ) from exc
+
+    # 只换了引号或空白的改写不算改动：退还这条 AI 消息，并把原文还给前端，
+    # 让旧版前端即使忽略 unchanged 也只会看到零处修改。
+    if is_noop_rewrite(body.selected_text, result.polished_text):
+        refunded = _refund_ai_conversation(
+            session,
+            current_user.id,
+            charged_period_start,
+            reason="no_change",
+        )
+        if refunded:
+            return NaturalPolishResponse(
+                text=body.selected_text,
+                model=result.model,
+                unchanged=True,
+            )
 
     return NaturalPolishResponse(
         text=result.polished_text,

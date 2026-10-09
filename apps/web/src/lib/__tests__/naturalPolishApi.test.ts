@@ -58,7 +58,8 @@ describe("naturalPolishApi", () => {
       selectedText: "hello",
     });
 
-    expect(result).toBe("rewritten");
+    // 旧服务端不带 unchanged：按「有改动」处理，照常进审阅。
+    expect(result).toEqual({ text: "rewritten", unchanged: false });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/api/v1/editor/natural-polish");
@@ -73,6 +74,25 @@ describe("naturalPolishApi", () => {
         source: "editor_natural_polish",
       },
     });
+  });
+
+  it("passes through the server's unchanged flag", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ text: "原文", unchanged: true }),
+      }),
+    );
+
+    const { naturalPolishApi } = await import("../naturalPolishApi");
+    const result = await naturalPolishApi.naturalPolish({
+      projectId: "p1",
+      fileId: "f1",
+      selectedText: "原文",
+    });
+
+    expect(result).toEqual({ text: "原文", unchanged: true });
   });
 
   it("throws ApiError when backend returns non-2xx", async () => {
