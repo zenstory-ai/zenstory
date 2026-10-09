@@ -82,6 +82,21 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
   const [hasMore, setHasMore] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Esc 关闭（和其它弹窗一致）。对比视图在上层时交给它处理；正在编辑描述时先退出编辑；
+  // 回滚等操作进行中不关闭，避免操作结果无处显示。
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || showComparison) return;
+      if (editingId) {
+        setEditingId(null);
+        return;
+      }
+      if (!actionBusy) onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [showComparison, editingId, actionBusy, onClose]);
   const contextGeneration = useRef(0);
   const requestGeneration = useRef(0);
   const listInFlight = useRef<number | null>(null);
@@ -276,14 +291,18 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`bg-[hsl(var(--bg-secondary))] rounded-2xl flex flex-col shadow-2xl ${
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="version-history-title"
+        className={`bg-[hsl(var(--bg-secondary))] rounded-2xl flex flex-col shadow-2xl ${
         isMobile ? 'w-full max-h-[80vh]' : 'max-w-3xl w-full max-h-[80vh]'
       }`}>
         {/* Header */}
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
-            <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">{t('editor:versionHistory.title')}</h2>
+            <h2 id="version-history-title" className="text-lg font-semibold text-[hsl(var(--text-primary))]">{t('editor:versionHistory.title')}</h2>
           </div>
 
           <div className="flex items-center gap-2">

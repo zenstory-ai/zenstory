@@ -404,6 +404,7 @@ class TestValidateInviteCode:
 
             response = await client.post("/api/v1/referral/codes/INVALID-CODE/validate")
             assert response.status_code == 429
+            assert response.json()["error_code"] == "ERR_AUTH_RATE_LIMIT_EXCEEDED"
         finally:
             _rate_limit_store.clear()
 

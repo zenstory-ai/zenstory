@@ -211,3 +211,111 @@ def test_format_relationship_to_markdown_supports_single_and_collection_titles(d
     assert single_title == "甲 ↔ 乙"
     assert "## 甲 ↔ 乙" in single_markdown
     assert "## 乙 ↔ 丙" not in single_markdown
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [
+        ("zh", ["## 剧情概述\n", "## 剧情类型\n主线", "## 主题\n复仇、成长", "参考来源: 《测试小说》"]),
+        ("en", ["## Synopsis\n", "## Story type\nMain plot", "## Themes\n复仇, 成长", "> Source: *测试小说*"]),
+    ],
+)
+def test_format_story_to_markdown_labels_story_type_in_request_language(lang: str, expected: list[str]):
+    story = Story(title="天机秘闻", synopsis="简介", story_type="main", themes='["复仇", "成长"]')
+
+    _title, markdown = format_story_to_markdown(story, "测试小说", lang)
+
+    for fragment in expected:
+        assert fragment in markdown
+    assert "\nmain\n" not in markdown
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("lang", "gf_type", "archetype", "gf_label", "char_label"),
+    [
+        ("zh", "special_physique", "protagonist", "**类型**: 特殊体质", "**类型**: 主角"),
+        ("en", "special_physique", "protagonist", "**Type**: Special physique", "**Type**: Protagonist"),
+        # Unknown English enum values fall back to "other" rather than leaking raw keys.
+        ("zh", "time_stop", "sidekick", "**类型**: 其他", "**类型**: 其他"),
+        ("en", "time_stop", "sidekick", "**Type**: Other", "**Type**: Other"),
+        # Free-text Chinese values pass through unchanged.
+        ("en", "时间静止", "主角", "**Type**: 时间静止", "**Type**: 主角"),
+    ],
+)
+def test_goldenfinger_and_character_types_are_labelled_not_raw(
+    lang: str, gf_type: str, archetype: str, gf_label: str, char_label: str
+):
+    golden_finger = GoldenFinger(novel_id=1, name="万象", type=gf_type)
+    character = Character(novel_id=1, name="林凡", archetype=archetype)
+
+    _gf_title, gf_markdown = format_goldenfinger_to_markdown(golden_finger, "测试小说", lang)
+    _char_title, char_markdown = format_character_to_markdown(character, "测试小说", lang)
+
+    assert gf_label in gf_markdown
+    assert char_label in char_markdown
+
+
+@pytest.mark.unit
+def test_english_markdown_has_no_chinese_headings():
+    world_view = WorldView(novel_id=1, power_system="灵力", key_factions='["散修盟"]')
+    golden_finger = GoldenFinger(novel_id=1, name="万象", type="system", evolution_history='["初始"]')
+
+    world_title, world_markdown = format_worldview_to_markdown(world_view, "测试小说", "en")
+    _gf_title, gf_markdown = format_goldenfinger_to_markdown(golden_finger, "测试小说", "en")
+
+    assert world_title == "World building"
+    for fragment in ("# World building", "## Power system\n灵力", "## World structure\nNone", "## Major factions"):
+        assert fragment in world_markdown
+    for fragment in ("## Description\nNone", "## Evolution\n1. 初始"):
+        assert fragment in gf_markdown
+    for chinese_heading in ("世界观", "力量体系", "描述", "进化历程", "参考来源"):
+        assert chinese_heading not in world_markdown + gf_markdown
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("lang", "title", "expected"),
+    [
+        ("zh", "角色关系", ["- **关系**: 师徒", "- **态度**: 正面", "- **关系**: 其他"]),
+        ("en", "Character relationships",
+         ["- **Relationship**: Mentor & disciple", "- **Attitude**: Positive", "- **Relationship**: Other"]),
+    ],
+)
+def test_format_relationship_to_markdown_labels_types_in_request_language(
+    db_session, lang: str, title: str, expected: list[str]
+):
+    novel = Novel(user_id="u3", title="关系标签小说")
+    db_session.add(novel)
+    db_session.commit()
+    db_session.refresh(novel)
+    characters = [Character(novel_id=novel.id, name=name) for name in ("甲", "乙", "丙")]
+    db_session.add_all(characters)
+    db_session.commit()
+    char_a, char_b, char_c = (c.id for c in characters)
+    db_session.add_all([
+        CharacterRelationship(
+            novel_id=novel.id,
+            character_a_id=char_a,
+            character_b_id=char_b,
+            relationship_type="master_disciple",
+            sentiment="positive",
+        ),
+        CharacterRelationship(
+            novel_id=novel.id,
+            character_a_id=char_b,
+            character_b_id=char_c,
+            relationship_type="rival_sect_elder",
+        ),
+    ])
+    db_session.commit()
+
+    result_title, markdown = format_relationship_to_markdown(novel.id, db_session, novel.title, lang=lang)
+
+    assert result_title == title
+    assert markdown.startswith(f"# {title}\n")
+    for fragment in expected:
+        assert fragment in markdown
+    assert "master_disciple" not in markdown
+    assert "rival_sect_elder" not in markdown

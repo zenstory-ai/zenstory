@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { materialEnumLabel } from "../lib/materialEnumLabels";
 import i18n from "../lib/i18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LazyMarkdown } from "../components/LazyMarkdown";
@@ -984,7 +985,7 @@ function ContentDetail({ item }: ContentDetailProps) {
           </div>
           {story.story_type && (
             <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-              {story.story_type}
+              {materialEnumLabel(t, 'storyType', story.story_type)}
             </span>
           )}
         </div>
@@ -1062,7 +1063,7 @@ function ContentDetail({ item }: ContentDetailProps) {
             </h2>
           </div>
           <span className="inline-block px-3 py-1 rounded-full bg-cyan-100 text-cyan-700 text-xs font-medium">
-            {plot.plot_type}
+            {materialEnumLabel(t, 'plotType', plot.plot_type)}
           </span>
         </div>
 
@@ -1171,7 +1172,7 @@ function ContentDetail({ item }: ContentDetailProps) {
             </h2>
           </div>
           <span className="inline-block px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-medium">
-            {relationship.relationship_type}
+            {materialEnumLabel(t, 'relationshipType', relationship.relationship_type)}
           </span>
         </div>
 
@@ -1208,7 +1209,7 @@ function ContentDetail({ item }: ContentDetailProps) {
             </h2>
           </div>
           <span className="inline-block px-3 py-1 rounded-full bg-[hsl(var(--warning)/0.2)] text-[hsl(var(--warning))] text-xs font-medium">
-            {goldenfinger.type}
+            {materialEnumLabel(t, 'goldenFingerType', goldenfinger.type)}
           </span>
         </div>
 

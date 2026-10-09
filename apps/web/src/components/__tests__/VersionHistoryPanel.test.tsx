@@ -152,6 +152,19 @@ describe('VersionHistoryPanel', () => {
     expect(screen.getByText(/version.*history/i)).toBeInTheDocument()
   })
 
+  it('is an accessible dialog that closes on Escape', () => {
+    render(
+      <VersionHistoryPanel
+        projectId="project-1"
+        onClose={mockOnClose}
+      />
+    )
+
+    expect(screen.getByRole('dialog', { name: /version.*history/i })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(mockOnClose).toHaveBeenCalledTimes(1)
+  })
+
   it('displays loading state initially', () => {
     vi.mocked(api.versionApi.getSnapshots).mockImplementation(() => new Promise(() => {}))
 
@@ -454,6 +467,33 @@ describe('VersionHistoryPanel', () => {
         description: 'Updated description',
       })
     })
+  })
+
+  it('Escape while editing a description only leaves edit mode', async () => {
+    render(
+      <VersionHistoryPanel
+        projectId="project-1"
+        onClose={mockOnClose}
+      />
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Initial version')).toBeInTheDocument()
+    })
+    const editButton = screen.getAllByRole('button').find(btn => {
+      const classAttr = btn.querySelector('svg')?.getAttribute('class') || ''
+      return classAttr.includes('w-3.5') && classAttr.includes('h-3.5')
+    })
+    fireEvent.click(editButton!)
+    await screen.findByPlaceholderText(/add.*description/i)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/add.*description/i)).not.toBeInTheDocument()
+    })
+    expect(mockOnClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(mockOnClose).not.toHaveBeenCalled()
   })
 
   it('cancels editing description', async () => {

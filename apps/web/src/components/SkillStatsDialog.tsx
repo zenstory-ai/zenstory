@@ -46,8 +46,8 @@ export const SkillStatsDialog: React.FC<SkillStatsDialogProps> = ({
     : 1;
 
   const headerContent = (
-    <div className="flex items-center justify-between w-full">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between gap-3 w-full pr-2">
+      <div className="flex items-center gap-2 min-w-0">
         <BarChart3 size={18} className="text-[hsl(var(--accent))]" />
         <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
           {t('stats.title')}
@@ -142,11 +142,13 @@ export const SkillStatsDialog: React.FC<SkillStatsDialogProps> = ({
                 <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-2">
                   {t('stats.dailyUsage')}
                 </h3>
-                <div className="h-32 flex items-end gap-1">
-                  {stats.daily_usage.slice(-14).map((day) => (
+                {/* 展示所选范围内的全部天数（以前固定只画最后 14 天，与「最近 30/90 天」不符）；
+                    日期标签按间隔抽样，最多约 14 个，避免挤在一起。 */}
+                <div className={`h-32 flex items-end ${stats.daily_usage.length > 31 ? 'gap-px' : 'gap-1'}`} data-testid="skill-stats-daily-chart">
+                  {stats.daily_usage.map((day, index, all) => (
                     <div
                       key={day.date}
-                      className="flex-1 flex flex-col items-center gap-1"
+                      className="flex-1 min-w-0 flex flex-col items-center gap-1"
                       title={`${day.date}: ${day.count}`}
                     >
                       <div
@@ -156,7 +158,11 @@ export const SkillStatsDialog: React.FC<SkillStatsDialogProps> = ({
                           minHeight: day.count > 0 ? '4px' : '2px',
                         }}
                       />
-                      <span className="text-[10px] text-[hsl(var(--text-tertiary))] rotate-45 origin-left">
+                      <span
+                        className={`text-[10px] text-[hsl(var(--text-tertiary))] rotate-45 origin-left ${
+                          index % Math.max(1, Math.ceil(all.length / 14)) === 0 || index === all.length - 1 ? '' : 'invisible'
+                        }`}
+                      >
                         {day.date.slice(5)}
                       </span>
                     </div>
