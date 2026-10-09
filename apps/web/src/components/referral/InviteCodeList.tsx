@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { referralApi } from '@/lib/referralApi';
 import { InviteCodeCard } from './InviteCodeCard';
+import { Button } from '../ui/Button';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { InviteCode } from '@/types/referral';
 
 const DEFAULT_MAX_INVITE_CODES = 3;
@@ -17,6 +19,7 @@ export const InviteCodeList: React.FC = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isSuperuser = Boolean(user?.is_superuser);
+  const isMobile = useIsMobile();
 
   // Fetch invite codes
   const { data: codes = [], isLoading, isFetching, error } = useQuery({
@@ -60,13 +63,15 @@ export const InviteCodeList: React.FC = () => {
   }
 
   const canCreateMore = isSuperuser || activeCodesCount < DEFAULT_MAX_INVITE_CODES;
+  const actionSize = isMobile ? 'touch' : 'md';
 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Phones: title above a full-width button, so the label never breaks onto two lines. */}
+      <div className={isMobile ? 'flex flex-col gap-3' : 'flex items-center justify-between gap-3'}>
         <div>
-          <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t('inviteCodes.title')}</h3>
+          <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))]">{t('inviteCodes.title')}</h3>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
             {isSuperuser
               ? t('inviteCodes.unlimitedHint', '邀请码数量不限')
@@ -75,18 +80,21 @@ export const InviteCodeList: React.FC = () => {
         </div>
 
         {/* Create button */}
-        <button
+        <Button
+          size={actionSize}
           onClick={handleCreateCode}
           disabled={!canCreateMore || createMutation.isPending}
-          className="btn btn-primary flex items-center gap-2"
+          className={`whitespace-nowrap ${isMobile ? 'w-full' : ''}`}
+          leftIcon={
+            createMutation.isPending ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Plus size={16} />
+            )
+          }
         >
-          {createMutation.isPending ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Plus size={16} />
-          )}
-          <span>{t('inviteCodes.generateButton')}</span>
-        </button>
+          {t('inviteCodes.generateButton')}
+        </Button>
       </div>
 
       {/* Codes list */}
@@ -99,14 +107,16 @@ export const InviteCodeList: React.FC = () => {
       ) : (
         <div className="text-center py-10 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl">
           <p className="text-[hsl(var(--text-secondary))] mb-1">{t('inviteCodes.noCodes')}</p>
-          <p className="text-xs text-[hsl(var(--text-secondary)/0.7)] mb-4">{t('inviteCodes.noCodesHint')}</p>
-          <button
+          <p className="mx-auto mb-4 max-w-sm px-4 text-xs text-[hsl(var(--text-secondary))]">{t('inviteCodes.noCodesHint')}</p>
+          <Button
+            size={actionSize}
             onClick={handleCreateCode}
-            className="btn btn-primary inline-flex items-center gap-2"
+            disabled={!canCreateMore || createMutation.isPending}
+            className="whitespace-nowrap"
+            leftIcon={<Plus size={16} />}
           >
-            <Plus size={16} />
             {t('inviteCodes.createFirst')}
-          </button>
+          </Button>
         </div>
       )}
 

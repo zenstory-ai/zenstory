@@ -407,7 +407,8 @@ describe('EarnOpportunities', () => {
 
       await waitFor(() => {
         const header = screen.getByText('获取更多积分')
-        expect(header).toHaveClass('text-sm', 'font-medium')
+        // Settings-dialog section label: the same 12/500 grey label as the 通用 tab.
+        expect(header).toHaveClass('text-xs', 'font-medium')
       })
     })
   })

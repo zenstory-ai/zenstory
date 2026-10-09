@@ -339,13 +339,17 @@ describe('DashboardHome featured inspirations section', () => {
       const card = await screen.findByRole('button', { name: `Open project ${project.name}` })
       const content = card.querySelector(':scope > .relative')
       const footer = content?.lastElementChild
+      const meta = footer?.lastElementChild
 
       expect(card).toHaveClass('flex', 'flex-col')
       expect(content).toHaveClass('flex', 'flex-1', 'flex-col')
-      expect(footer).toHaveClass('mt-auto', 'flex', 'items-center', 'justify-between')
-      expect(footer?.children).toHaveLength(2)
-      expect(footer?.firstElementChild).toHaveTextContent('长篇小说')
-      expect(footer?.lastElementChild).not.toBeEmptyDOMElement()
+      // One bottom-anchored footer holds the progress line and the type/time row.
+      expect(footer).toHaveClass('mt-auto')
+      expect(footer).toHaveAttribute('data-testid', 'project-card-footer')
+      expect(meta).toHaveClass('flex', 'items-center', 'justify-between')
+      expect(meta?.children).toHaveLength(2)
+      expect(meta?.firstElementChild).toHaveTextContent('长篇小说')
+      expect(meta?.lastElementChild).not.toBeEmptyDOMElement()
     }
   })
 
@@ -711,6 +715,34 @@ describe('DashboardHome featured inspirations section', () => {
 
     expect(await screen.findByTestId('upgrade-modal')).toBeInTheDocument()
   })
+  it('keeps 「开始创作」 usable with an empty idea and says so while the project is being created', async () => {
+    let resolveCreate: (value: { id: string }) => void = () => {}
+    mockCreateProject.mockImplementationOnce(
+      () => new Promise<{ id: string }>((resolve) => { resolveCreate = resolve }),
+    )
+
+    renderDashboardHome()
+
+    // An empty idea still creates a blank project, so the button is a real, enabled control.
+    const cta = screen.getByTestId('create-project-button')
+    expect(cta).toBeEnabled()
+    expect(cta).toHaveTextContent('开始创作')
+
+    fireEvent.click(cta)
+
+    await waitFor(() => expect(screen.getByTestId('create-project-button')).toBeDisabled())
+    expect(screen.getByTestId('create-project-button')).toHaveTextContent('正在创建项目…')
+
+    resolveCreate({ id: 'project-created' })
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+  })
+
+  it('announces which project type is selected', () => {
+    renderDashboardHome()
+
+    expect(screen.getByRole('button', { name: '长篇小说' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('greets an author by nickname, then username, before the localized default name', async () => {
     mockUser = { ...defaultMockUser, nickname: '青柠' }
     const { unmount } = renderDashboardHome()

@@ -59,7 +59,7 @@ export function EarnOpportunities({ className = '' }: EarnOpportunitiesProps) {
 
   return (
     <Card className={className} isLoading={isOpportunitiesLoading}>
-      <h3 className="text-sm font-medium text-[hsl(var(--text-secondary))] mb-3">
+      <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-3">
         {t('earnMore', '获取更多积分')}
       </h3>
 

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pointsApi } from '../../lib/pointsApi';
 import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
+import { Button } from '../ui/Button';
 import { handleApiError } from '../../lib/errorHandler';
 import { CelebrationBurst } from '../subscription/CelebrationBurst';
 
@@ -77,25 +78,23 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
   const canAfford = balanceReady && selectedOption ? balance! >= selectedOption.cost : false;
 
   const footer = redeemedDays !== null ? (
-    <button
-      onClick={handleClose}
-      className="flex-1 px-4 py-2 text-sm font-medium text-white bg-[hsl(var(--accent-primary))] rounded-lg hover:opacity-90 transition-colors"
-    >
+    <Button onClick={handleClose} className="flex-1">
       {t('common:close', '关闭')}
-    </button>
+    </Button>
   ) : (
     <>
-      <button
+      <Button
+        variant="ghost"
         onClick={handleClose}
         disabled={redeemMutation.isPending}
-        className="flex-1 px-4 py-2 text-sm font-medium text-[hsl(var(--text-secondary))] bg-[hsl(var(--bg-tertiary))] rounded-lg hover:bg-[hsl(var(--bg-hover))] transition-colors"
+        className="flex-1"
       >
         {t('common:cancel', '取消')}
-      </button>
-      <button
+      </Button>
+      <Button
         onClick={handleRedeem}
         disabled={!canAfford || redeemMutation.isPending}
-        className="flex-1 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        className="flex-1"
       >
         {redeemMutation.isPending
           ? t('common:processing', '处理中...')
@@ -106,7 +105,7 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
           : canAfford
           ? t('redeem', '兑换')
           : t('insufficient', '积分不足')}
-      </button>
+      </Button>
     </>
   );
 
@@ -132,7 +131,14 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
         <>
           {loadError && <div className="mb-4">
             <p role="alert" className="text-sm text-[hsl(var(--error))]">{handleApiError(loadError)}</p>
-            <button onClick={() => { if (configQuery.isError) void configQuery.refetch(); if (balanceQuery.isError) void balanceQuery.refetch(); }}>{t('common:retry', '重试')}</button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-2"
+              onClick={() => { if (configQuery.isError) void configQuery.refetch(); if (balanceQuery.isError) void balanceQuery.refetch(); }}
+            >
+              {t('common:retry', '重试')}
+            </Button>
           </div>}
           {(balanceQuery.isLoading || configQuery.isLoading) && <p role="status">{t('common:loading', '加载中...')}</p>}
           {/* Current Balance */}

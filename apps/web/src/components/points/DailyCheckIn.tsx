@@ -6,6 +6,7 @@ import { pointsApi } from '../../lib/pointsApi';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
 
 interface DailyCheckInProps {
   className?: string;
@@ -43,7 +44,7 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
           <svg className="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span className="text-sm font-medium text-[hsl(var(--text-secondary))]">
+          <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">
             {t('dailyCheckIn', '每日签到')}
           </span>
         </div>
@@ -69,15 +70,14 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
           )}
         </div>
       ) : (
-        <button
+        <Button
           onClick={handleCheckIn}
-          disabled={checkInMutation.isPending}
-          className="w-full py-2 px-4 bg-gradient-to-r from-[hsl(var(--accent-secondary-dark))] to-[hsl(var(--accent-secondary))] text-white font-medium rounded-lg hover:from-[hsl(var(--accent-secondary))] hover:to-[hsl(var(--accent-secondary-light))] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          isLoading={checkInMutation.isPending}
+          loadingText={t('common:loading', '处理中...')}
+          className="w-full"
         >
-          {checkInMutation.isPending
-            ? t('common:loading', '处理中...')
-            : t('checkIn', '签到领积分')}
-        </button>
+          {t('checkIn', '签到领积分')}
+        </Button>
       )}
 
       {checkInMutation.isSuccess && checkInMutation.data && (

@@ -80,13 +80,13 @@ export class SettingsPOM extends BasePage {
   async switchToTab(tab: 'profile' | 'general'): Promise<void> {
     const tabButton = tab === 'profile' ? this.profileTab : this.generalTab;
     await tabButton.click();
-    // Verify active state
-    await expect(tabButton).toHaveAttribute('class', /bg-\[hsl\(var\(--bg-tertiary\)\)\]/);
+    // Verify active state via the tab semantics, not the selected-state colour classes
+    await expect(tabButton).toHaveAttribute('aria-selected', 'true');
   }
 
   async getActiveTab(): Promise<'profile' | 'general'> {
-    const profileActive = await this.profileTab.getAttribute('class');
-    if (profileActive?.includes('bg-[hsl(var(--bg-tertiary))]')) {
+    const profileActive = await this.profileTab.getAttribute('aria-selected');
+    if (profileActive === 'true') {
       return 'profile';
     }
     return 'general';

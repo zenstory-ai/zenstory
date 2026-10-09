@@ -83,6 +83,11 @@ vi.mock('../../hooks/useMediaQuery', () => ({
   useIsTablet: () => isTablet,
 }))
 
+// No network in unit tests: progress lines are covered by ProjectCard and DashboardHome tests.
+vi.mock('../../hooks/useProjectsProgress', () => ({
+  useProjectsProgress: () => new Map(),
+}))
+
 vi.mock('../../lib/toast', () => ({
   toast: {
     error: (...args: unknown[]) => mockToastError(...args),
@@ -210,13 +215,17 @@ describe('DashboardProjects', () => {
       const card = screen.getByRole('button', { name: `Open project ${project.name}` })
       const content = card.querySelector(':scope > .relative')
       const footer = content?.lastElementChild
+      const meta = footer?.lastElementChild
 
       expect(card).toHaveClass('flex', 'flex-col')
       expect(content).toHaveClass('flex', 'flex-1', 'flex-col')
-      expect(footer).toHaveClass('mt-auto', 'flex', 'items-center', 'justify-between')
-      expect(footer?.children).toHaveLength(2)
-      expect(footer?.firstElementChild).toHaveTextContent('Novel')
-      expect(footer?.lastElementChild).not.toBeEmptyDOMElement()
+      // One bottom-anchored footer holds the progress line and the type/time row.
+      expect(footer).toHaveClass('mt-auto')
+      expect(footer).toHaveAttribute('data-testid', 'project-card-footer')
+      expect(meta).toHaveClass('flex', 'items-center', 'justify-between')
+      expect(meta?.children).toHaveLength(2)
+      expect(meta?.firstElementChild).toHaveTextContent('Novel')
+      expect(meta?.lastElementChild).not.toBeEmptyDOMElement()
     }
   })
 

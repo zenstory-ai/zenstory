@@ -81,6 +81,10 @@
     --success-dark: var(--success); /* Alias: success hover token */
     --warning: 43 96% 56%; /* #fbbf24 - Warning */
     --error: 0 91% 71%; /* #f87171 - Error/destructive */
+    /* Small status text (badges) on a 15% tint of its own color: AA contrast in both themes */
+    --success-text: var(--success-light);
+    --warning-text: var(--warning);
+    --error-text: var(--error);
     --info: 220 65% 50%; /* 墨蓝 - Info (same as accent-primary) */
     --info-light: 220 65% 60%; /* 墨蓝浅色 - Info light */
     --purple: 270 60% 60%; /* #9966e8 - Purple */
@@ -163,6 +167,11 @@
 
     --result-bg: 142 71% 94%; /* #f0fdf4 */
     --result-border: 142 71% 86%; /* #dcfce7 */
+
+    /* Status text on light tints: the dark-theme hues are ~1.6–2.5:1 on near-white */
+    --success-text: 142 72% 27%; /* #137333 */
+    --warning-text: 30 90% 30%; /* #924a08 */
+    --error-text: 0 72% 42%; /* #b91d1d */
     --user-message-bg: 220 47% 94%; /* 墨蓝浅色背景 - Lighter user message */
 
     --ref-tag-bg: 220 40% 96%; /* 墨蓝标签背景 */
@@ -312,6 +321,19 @@ html {
 
 /* Heading font */
 h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+}
+
+/* Control surfaces (dashboard pages, settings, dialogs): only the page H1 stays serif.
+   Section, card and dialog titles are labels for controls and use the UI sans. */
+.ui-sans-headings :is(h2, h3, h4, h5, h6),
+.ui-sans-headings:is(h2, h3, h4, h5, h6) {
+    font-family: var(--font-sans);
+}
+
+/* Writing content shown inside a control surface (a chapter preview in a dialog) keeps
+   its serif headings. Same specificity as the rule above, so this later rule wins. */
+:is(.prose, .editor-content) :is(h1, h2, h3, h4, h5, h6) {
     font-family: var(--font-display);
 }
 
