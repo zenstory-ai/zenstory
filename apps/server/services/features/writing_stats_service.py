@@ -11,7 +11,7 @@ Provides methods for:
 import json as json_module
 import os
 import re
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from sqlite3 import Connection as SQLiteConnection
 from typing import Any, cast
 
@@ -21,9 +21,10 @@ from sqlalchemy.orm import QueryableAttribute, SessionTransaction, load_only
 from sqlmodel import Session, col, select, update
 
 from agent.constants import CONTENT_FILE_TYPES
-from config.datetime_utils import utcnow
+from config.datetime_utils import BEIJING_TIMEZONE, utcnow
 from models.entities import ChatMessage, ChatSession
 from models.file_model import FILE_TYPE_OUTLINE, WORD_COUNT_REV, File, cached_word_count
+from models.file_version import CHANGE_SOURCE_AI, FileVersion
 from models.writing_stats import WritingStats, WritingStreak
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -220,6 +221,38 @@ class WritingStatsService:
             return int(leading_num_match.group(1))
 
         return None
+
+    # Plan length of a whole-book outline. Only explicit forms count: a range
+    # (「1-80集」「第61–80集」), a total (「全60集」「共一百二十章」), a leading book
+    # length (「60集分集大纲」) or the largest line-start heading (「第80集　…」).
+    # A 「第80集」 mid-sentence is a plot mention, not a plan.
+    _PLAN_NUMBER = r"(\d+|[零一二三四五六七八九十百千]+)"
+    _PLAN_RANGE_RE = re.compile(r"第?\s*(\d+)\s*[章集回话]?\s*[-–—~～至到]\s*第?\s*(\d+)\s*[章集回话]")
+    _PLAN_TOTAL_RE = re.compile(r"[全共]\s*" + _PLAN_NUMBER + r"\s*[章集回话]")
+    _PLAN_HEADING_RE = re.compile(
+        r"^[ \t#>*\-•·【\[（(]*第\s*" + _PLAN_NUMBER + r"\s*[章集回话]", re.MULTILINE
+    )
+    # Anything above this is a misread (a year, an ID), not a plan.
+    _PLAN_MAX_TOTAL = 2000
+
+    def _plan_number(self, value: str) -> int:
+        return int(value) if value.isdigit() else self._parse_chinese_number(value)
+
+    def _parse_planned_total(self, title: str | None, content: str | None) -> int | None:
+        """Planned chapter/episode count stated by a whole-book outline, or None."""
+        candidates: list[int] = []
+        for text in (title or "", content or ""):
+            for match in self._PLAN_RANGE_RE.finditer(text):
+                start, end = int(match.group(1)), int(match.group(2))
+                if 1 <= start < end:
+                    candidates.append(end)
+            candidates.extend(self._plan_number(m.group(1)) for m in self._PLAN_TOTAL_RE.finditer(text))
+        book_count = self._WHOLE_BOOK_COUNT_RE.match((title or "").strip())
+        if book_count:
+            candidates.append(int(book_count.group("count")))
+        candidates.extend(self._plan_number(m.group(1)) for m in self._PLAN_HEADING_RE.finditer(content or ""))
+        plausible = [n for n in candidates if 0 < n <= self._PLAN_MAX_TOTAL]
+        return max(plausible) if plausible else None
 
     def _extract_chapter_number_from_file(self, file: File) -> int | None:
         """
@@ -711,6 +744,96 @@ class WritingStatsService:
             "edit_sessions": result.total_sessions or 0,
         }
 
+    def get_ai_words_written(
+        self,
+        session: Session,
+        project_id: str,
+        today: date,
+    ) -> dict[str, int]:
+        """
+        Words the AI added to manuscript files today / this week / this month.
+
+        Read-only from file_version: each AI version adds max(0, its word count
+        minus the file's previous version). The previous version may be the
+        author's own save or the pre-AI-write backup, so author typing (already
+        counted by /stats/record) is the baseline, never AI words. Days are
+        Beijing calendar days, the same as the quota. Outlines and deleted
+        files are excluded, matching the manuscript total.
+        """
+        periods = {
+            "today": (today, today),
+            "this_week": (today - timedelta(days=today.weekday()), today),
+            "this_month": (today.replace(day=1), today),
+        }
+
+        def day_start_utc(day: date) -> datetime:
+            # file_version.created_at is naive UTC.
+            return datetime.combine(day, time.min, tzinfo=BEIJING_TIMEZONE).astimezone(UTC).replace(tzinfo=None)
+
+        window_start = day_start_utc(min(start for start, _end in periods.values()))
+        window_end = day_start_utc(max(end for _start, end in periods.values()) + timedelta(days=1))
+
+        files_with_ai_writes = (
+            select(FileVersion.file_id)
+            .where(
+                FileVersion.project_id == project_id,
+                FileVersion.change_source == CHANGE_SOURCE_AI,
+                col(FileVersion.created_at) >= window_start,
+                col(FileVersion.created_at) < window_end,
+            )
+            .distinct()
+        )
+        previous_words = func.lag(FileVersion.word_count, 1, 0).over(
+            partition_by=FileVersion.file_id,
+            order_by=FileVersion.version_number,
+        )
+        versions = (
+            select(
+                FileVersion.change_source,
+                FileVersion.created_at,
+                FileVersion.word_count,
+                previous_words.label("previous_words"),
+            )
+            .join(File, col(File.id) == FileVersion.file_id)
+            .where(
+                FileVersion.project_id == project_id,
+                col(FileVersion.file_id).in_(files_with_ai_writes),
+                col(File.file_type).in_(CONTENT_FILE_TYPES),
+                File.is_deleted == False,
+                col(FileVersion.created_at) < window_end,
+            )
+            .subquery()
+        )
+        added = case(
+            (versions.c.word_count > versions.c.previous_words, versions.c.word_count - versions.c.previous_words),
+            else_=0,
+        )
+        sums = [
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                versions.c.created_at >= day_start_utc(start),
+                                versions.c.created_at < day_start_utc(end + timedelta(days=1)),
+                            ),
+                            added,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label(name)
+            for name, (start, end) in periods.items()
+        ]
+        row = session.exec(
+            select(*sums).where(
+                versions.c.change_source == CHANGE_SOURCE_AI,
+                versions.c.created_at >= window_start,
+            )
+        ).one()
+        return {name: int(value or 0) for name, value in zip(periods, row, strict=True)}
+
     def get_chapter_completion_stats(
         self,
         session: Session,
@@ -739,7 +862,13 @@ class WritingStatsService:
             Dict with completion statistics:
             - total_chapters: chapters written or planned
             - completed_chapters / in_progress_chapters / not_started_chapters
-            - completion_percentage: completed share of total_chapters
+            - planned_total: planned chapter count, or None when unknown. Known
+              when a whole-book outline states it (「分集大纲（1-80集）」, line-start
+              「第N集」 headings) or when chapter outlines still wait for prose;
+              never below total_chapters.
+            - completion_percentage: completed share of planned_total; without a
+              plan, the legacy share of total_chapters (kept for older clients,
+              which show it unconditionally)
             - chapter_details: per-chapter rows (outline_id equals draft_id when
               the chapter has no outline)
         """
@@ -829,6 +958,7 @@ class WritingStatsService:
             return None
 
         chapter_pairs: list[tuple[File | None, File | None]] = []
+        whole_book_outlines: list[File] = []
 
         for outline in outline_files:
             outline_title_lower = self._normalize_title(outline.title)
@@ -857,6 +987,7 @@ class WritingStatsService:
 
             if draft is None and outline_chapter_number is None:
                 # Whole-book outline or other unnumbered planning note.
+                whole_book_outlines.append(outline)
                 continue
             chapter_pairs.append((outline, draft))
 
@@ -911,7 +1042,14 @@ class WritingStatsService:
             })
 
         total_chapters = len(chapter_details)
-        completion_percentage = int((completed_chapters / total_chapters) * 100) if total_chapters > 0 else 0
+        planned_total = self._resolve_planned_total(session, whole_book_outlines)
+        if planned_total is None and any(draft is None for _outline, draft in chapter_pairs):
+            # Chapter outlines without prose are planned chapters already in the list.
+            planned_total = total_chapters
+        if planned_total is not None:
+            planned_total = max(planned_total, total_chapters)
+        completion_base = planned_total if planned_total is not None else total_chapters
+        completion_percentage = int((completed_chapters / completion_base) * 100) if completion_base > 0 else 0
 
         log_with_context(
             logger,
@@ -920,17 +1058,29 @@ class WritingStatsService:
             project_id=project_id,
             total_chapters=total_chapters,
             completed_chapters=completed_chapters,
+            planned_total=planned_total,
             completion_percentage=completion_percentage,
         )
 
         return {
             "total_chapters": total_chapters,
+            "planned_total": planned_total,
             "completed_chapters": completed_chapters,
             "in_progress_chapters": in_progress_chapters,
             "not_started_chapters": total_chapters - completed_chapters - in_progress_chapters,
             "completion_percentage": completion_percentage,
             "chapter_details": chapter_details,
         }
+
+    def _resolve_planned_total(self, session: Session, whole_book_outlines: list[File]) -> int | None:
+        """Largest plan length stated by the whole-book outlines (loads only their content)."""
+        if not whole_book_outlines:
+            return None
+        rows = session.exec(
+            select(File.title, File.content).where(col(File.id).in_([outline.id for outline in whole_book_outlines]))
+        ).all()
+        totals = [total for title, content in rows if (total := self._parse_planned_total(title, content))]
+        return max(totals) if totals else None
 
     # ==========================================
     # Writing Streak Tracking Methods

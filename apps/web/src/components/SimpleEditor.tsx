@@ -9,6 +9,7 @@ import { DiffReviewSplitView } from "./DiffReviewSplitView";
 import { DiffToolbar } from "./DiffToolbar";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
+import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { usePinchZoom } from "../hooks/useGestures";
 import type { DiffReviewState } from "../types";
 import { SavedAgoLabel } from "./SavedAgoLabel";
@@ -178,6 +179,27 @@ export const SimpleEditor = ({
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionRangeRef = useRef<{ start: number; end: number } | null>(null);
+  /** Forget the selection the toolbar and 去AI味 would act on. */
+  const clearSelectionState = useCallback(() => {
+    if (selectionTimeoutRef.current) {
+      clearTimeout(selectionTimeoutRef.current);
+      selectionTimeoutRef.current = null;
+    }
+    setSelectedText("");
+    setSelectionPosition(null);
+    selectionRangeRef.current = null;
+  }, []);
+  /**
+   * The selection is done with (quoted to chat, or the mobile editor panel was left): collapse
+   * it in the textarea too, so a later 去AI味 never acts on text the author no longer sees selected.
+   */
+  const dropSelection = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea && textarea.selectionStart !== textarea.selectionEnd) {
+      textarea.setSelectionRange(textarea.selectionEnd, textarea.selectionEnd);
+    }
+    clearSelectionState();
+  }, [clearSelectionState]);
   const lastSavedContentRef = useRef<string>(content);
   const lastSavedTitleRef = useRef<string>(title);
   const latestContentRef = useRef(content);
@@ -411,13 +433,7 @@ export const SimpleEditor = ({
 
     // This editor instance is often reused across file switches, so we must
     // clear selection and abort any in-flight natural polish requests.
-    if (selectionTimeoutRef.current) {
-      clearTimeout(selectionTimeoutRef.current);
-      selectionTimeoutRef.current = null;
-    }
-    setSelectedText("");
-    setSelectionPosition(null);
-    selectionRangeRef.current = null;
+    clearSelectionState();
 
     naturalPolishRunIdRef.current += 1;
     naturalPolishAbortRef.current?.abort();
@@ -425,7 +441,7 @@ export const SimpleEditor = ({
     naturalPolishBaselineRef.current = null;
     naturalPolishBufferRef.current = "";
     setIsNaturalPolishRunning(false);
-  }, [fileId, adjustTextareaHeight]);
+  }, [fileId, adjustTextareaHeight, clearSelectionState]);
 
   useEffect(() => {
     if (!recoveredDraft || !fileId) {
@@ -598,8 +614,16 @@ export const SimpleEditor = ({
     if (!selectedText || !fileId) return;
     const displayTitle = fileTitle || title;
     addQuote(selectedText, fileId, displayTitle);
-    closeSelectionToolbar();
-  }, [selectedText, fileId, fileTitle, title, addQuote, closeSelectionToolbar]);
+    // The quoted text is used; it is no longer the target of 去AI味.
+    dropSelection();
+  }, [selectedText, fileId, fileTitle, title, addQuote, dropSelection]);
+
+  // Mobile keeps every panel mounted (hidden with inert), so a selection made before
+  // switching to 文件 / AI would otherwise survive unseen and be what 去AI味 polishes.
+  const { isMobile, activePanel } = useMobileLayout();
+  useEffect(() => {
+    if (isMobile && activePanel !== "editor") dropSelection();
+  }, [isMobile, activePanel, dropSelection]);
 
   const startNaturalPolish = useCallback(async () => {
     if (isNaturalPolishRunning) return;

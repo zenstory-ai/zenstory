@@ -2,6 +2,14 @@ import type { StreamRenderItem } from '../hooks/useChatStreaming';
 import type { ToolCall } from '../types';
 import { formatHandoffMessage } from './agentDisplayName';
 
+/**
+ * A finished reply keeps what the round did (plan, handoffs, tools, text) but not the
+ * lines that only said it was still working (「正在组装上下文… / 正在思考… / 正在规划工作流…」).
+ */
+export function dropProgressOnlyItems(items: StreamRenderItem[]): StreamRenderItem[] {
+  return items.filter((item) => !item.transient && item.type !== 'router_thinking');
+}
+
 /** Replay the sequence recorded by the server, not a guessed category order. */
 export function parseChatDisplayEvents(
   metadata: string | null | undefined,
@@ -37,7 +45,8 @@ export function parseChatDisplayEvents(
           items.push({ ...base, type: 'agent_selected', agentType: data.agent_type, agentName: data.agent_name, iteration: data.iteration, maxIterations: data.max_iterations, remaining: data.remaining });
           break;
         case 'router_thinking':
-          items.push({ ...base, type: 'router_thinking', content: data.message });
+          // 「高质量模式：正在规划工作流…」 only meant "working on it"; the router_decided
+          // that follows already says what the plan was.
           break;
         case 'router_decided':
           items.push({ ...base, type: 'router_decided', initialAgent: data.initial_agent, workflowPlan: data.workflow_plan, workflowAgents: data.workflow_agents, routingMetadata: data.routing_metadata });

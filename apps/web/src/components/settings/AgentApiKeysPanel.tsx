@@ -39,6 +39,12 @@ const SCOPES = [
   { value: 'write', labelKey: 'settings:apiKeys.permissions.write' },
 ] as const;
 
+/**
+ * Copy buttons sit inside compact code rows, so desktop keeps their small padding; below
+ * 768px they grow to the same 44px target as the panel's IconButtons.
+ */
+const COPY_TOUCH_TARGET = 'inline-flex items-center justify-center max-md:h-11 max-md:w-11';
+
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
     await navigator.clipboard.writeText(text);
@@ -101,9 +107,10 @@ function CommandLine({ command }: { command: string }) {
         {command}
       </code>
       <button
+        type="button"
         onClick={handleCopy}
         aria-label={copied ? t('apiKeys.copied') : t('apiKeys.copy')}
-        className="shrink-0 p-1 rounded-md hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]"
+        className={`${COPY_TOUCH_TARGET} shrink-0 p-1 rounded-md hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]`}
       >
         {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
       </button>
@@ -203,9 +210,10 @@ function KeyCreatedModal({
             {apiKey}
           </code>
           <button
+            type="button"
             onClick={handleCopy}
             aria-label={copied ? t('apiKeys.copied') : t('apiKeys.copyKey')}
-            className="shrink-0 p-1.5 rounded-lg hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]"
+            className={`${COPY_TOUCH_TARGET} shrink-0 p-1.5 rounded-lg hover:bg-[hsl(var(--bg-hover))] transition-colors text-[hsl(var(--text-secondary))]`}
           >
             {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
           </button>
@@ -408,9 +416,10 @@ function KeyRow({
         <div className="flex items-center gap-2 text-xs text-[hsl(var(--text-secondary))] mb-1.5">
           <code className="font-mono">{apiKey.key_prefix}...</code>
           <button
+            type="button"
             onClick={handleCopyPrefix}
             aria-label={copiedPrefix ? t('apiKeys.copied') : t('apiKeys.copyPrefix')}
-            className="p-0.5 rounded hover:bg-[hsl(var(--bg-hover))] transition-colors"
+            className={`${COPY_TOUCH_TARGET} p-0.5 rounded hover:bg-[hsl(var(--bg-hover))] transition-colors`}
           >
             {copiedPrefix ? (
               <Check size={11} className="text-green-500" />

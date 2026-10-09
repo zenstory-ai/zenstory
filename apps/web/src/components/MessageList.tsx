@@ -438,7 +438,10 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
               toolName={toolCall.tool_name}
               result={(toolCall.result || toolCall.arguments) as Record<string, unknown>}
               error={toolCall.error}
-              isPending={toolCall.status === 'pending'}
+              // A call still pending in a finished round (stopped / dropped) never got its
+              // result: it did not finish, it is not still running.
+              isPending={toolCall.status === 'pending' && isStreaming}
+              interrupted={toolCall.status === 'pending' && !isStreaming}
               onUndo={onUndo}
             />
           ))}
@@ -895,7 +898,8 @@ function Row({
                 toolName={toolCall.tool_name}
                 result={toolCall.result ?? (toolCall.arguments as Record<string, unknown>)}
                 error={toolCall.status === 'error' ? toolCall.error : undefined}
-                isPending={toolCall.status === 'pending'}
+                isPending={toolCall.status === 'pending' && isStreaming}
+                interrupted={toolCall.status === 'pending' && !isStreaming}
                 onUndo={onUndo}
               />
             ))}

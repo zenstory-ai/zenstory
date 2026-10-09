@@ -34,7 +34,6 @@ vi.mock('react-i18next', () => ({
         'inviteCodes.loadError': '加载邀请码失败，请重试',
         'inviteCodes.noCodes': '暂无邀请码',
         'inviteCodes.noCodesHint': '邀请好友注册并获得奖励',
-        'inviteCodes.createFirst': '创建第一个邀请码',
         'inviteCodes.createError': '创建邀请码失败，请重试',
       };
       return translations[key] ?? options?.defaultValue ?? key;
@@ -160,14 +159,18 @@ describe('InviteCodeList', () => {
       })
     })
 
-    it('shows "create first" button in empty state', async () => {
+    it('keeps the header action as the only button in the empty state', async () => {
       mockGetInviteCodes.mockResolvedValue([])
 
       render(<InviteCodeList />, { wrapper: createWrapper() })
 
       await waitFor(() => {
-        expect(screen.getByText('创建第一个邀请码')).toBeInTheDocument()
+        expect(screen.getByText('暂无邀请码')).toBeInTheDocument()
       })
+      // One solid primary per view: the empty card no longer repeats the create action.
+      const buttons = screen.getAllByRole('button')
+      expect(buttons).toHaveLength(1)
+      expect(buttons[0]).toHaveTextContent('生成邀请码')
     })
   })
 
@@ -449,17 +452,16 @@ describe('InviteCodeList', () => {
       })
     })
 
-    it('works from empty state button', async () => {
+    it('creates the first code from the header button in the empty state', async () => {
       mockGetInviteCodes.mockResolvedValue([])
 
       render(<InviteCodeList />, { wrapper: createWrapper() })
 
       await waitFor(() => {
-        expect(screen.getByText('创建第一个邀请码')).toBeInTheDocument()
+        expect(screen.getByText('暂无邀请码')).toBeInTheDocument()
       })
 
-      const emptyButton = screen.getByText('创建第一个邀请码')
-      fireEvent.click(emptyButton)
+      fireEvent.click(screen.getByRole('button', { name: /生成邀请码/ }))
 
       // Wait for mutation to be called
       await waitFor(() => {

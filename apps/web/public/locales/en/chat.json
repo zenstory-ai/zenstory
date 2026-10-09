@@ -172,6 +172,7 @@
     "parallelTaskLabel": "{{label}}:",
     "processing": "Processing",
     "processing_ellipsis": "Processing...",
+    "interrupted": "Not finished",
     "created": "Created {{type}}",
     "updated": "Updated",
     "deleted": "File deleted",

@@ -469,6 +469,26 @@ describe('MessageList', () => {
     expect(screen.getByText('chat:tool.create_file')).toBeInTheDocument()
   })
 
+  it('a tool call left pending by a stopped round reads as unfinished, not as still running', () => {
+    const pendingEdit = { id: 'edit-1', tool_name: 'edit_file', arguments: { title: '第4集' }, status: 'pending' as const }
+    const displayItems = [{ id: 'tools', type: 'tool_calls' as const, toolCalls: [pendingEdit], timestamp: new Date() }]
+    const { container, rerender } = render(<MessageList messages={[]} streamRenderItems={displayItems} />)
+    // 流式中：照常转圈、写「处理中」。
+    expect(screen.getByText('chat:tool.processing_ellipsis')).toBeInTheDocument()
+    expect(container.querySelector('.animate-spin')).not.toBeNull()
+
+    // 这一轮已结束（停止 / 断开）：不再转圈，改说没做完。
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
+    expect(screen.queryByText('chat:tool.processing_ellipsis')).not.toBeInTheDocument()
+    expect(container.querySelector('.animate-spin')).toBeNull()
+    expect(screen.getByText('chat:tool.interrupted')).toBeInTheDocument()
+
+    // 没有 displayItems 的旧消息走 legacy 分支，同样不转圈。
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', toolCalls: [pendingEdit] })]} />)
+    expect(container.querySelector('.animate-spin')).toBeNull()
+    expect(screen.getByText('chat:tool.interrupted')).toBeInTheDocument()
+  })
+
   it('does not draw tool cards for handoff and clarification control calls, live or saved', () => {
     const timestamp = new Date()
     const handoff = { id: 'tool-handoff', tool_name: 'handoff_to_agent', arguments: { target_agent: 'writer' }, status: 'success' as const, result: {} }

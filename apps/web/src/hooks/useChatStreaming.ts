@@ -151,6 +151,11 @@ export interface StreamRenderItem {
     | "workflow_complete";
   /** Unique identifier for this item */
   id: string;
+  /**
+   * Progress line that only means "working on it" (「正在组装上下文… / 正在思考…」);
+   * dropped when the round is saved as a finished message. Handoff lines never set it.
+   */
+  transient?: boolean;
   /** Text content for thinking, status, or message items */
   content?: string;
   /** Context items assembled for the AI request */
@@ -881,6 +886,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
               type: "thinking_status",
               id: generateUniqueId("thinking-status"),
               content: message,
+              transient: true,
               timestamp: new Date(),
             },
           ]);

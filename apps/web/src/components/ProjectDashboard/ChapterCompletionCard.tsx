@@ -4,7 +4,7 @@ import { CheckCircle2, Circle, Loader2, BookOpen } from 'lucide-react';
 import type { ProjectDashboardStatsResponse, ChapterDetailItem } from '../../types/writingStats';
 import { Card } from '../ui/Card';
 import { IconWrapper } from '../ui/IconWrapper';
-import { statsUnitKey } from './statsUnits';
+import { plannedTotal, statsUnitKey, writtenChapters } from './statsUnits';
 
 interface ChapterCompletionCardProps {
   /** Dashboard statistics data */
@@ -63,6 +63,9 @@ export function ChapterCompletionCard({
     if (!stats?.chapter_completion) return null;
     return stats.chapter_completion;
   }, [stats]);
+
+  // Without a planned total from the outline there is no honest percentage.
+  const planned = plannedTotal(completionData);
 
   // Calculate progress bar color based on percentage
   const progressColorClass = useMemo(() => {
@@ -138,26 +141,40 @@ export function ChapterCompletionCard({
           </h3>
         </div>
         <div className="text-sm text-[hsl(var(--text-secondary))]">
-          {t(statsUnitKey(stats, 'total'), { count: completionData.total_chapters })}
+          {planned !== null
+            ? t(statsUnitKey(stats, 'plannedOf'), {
+                written: writtenChapters(completionData),
+                planned,
+                count: planned,
+              })
+            : t(statsUnitKey(stats, 'written'), { count: writtenChapters(completionData) })}
         </div>
       </div>
 
       {/* Progress Section */}
       <div className="mb-5">
-        <div className="flex items-baseline gap-2 mb-2">
-          <span className="text-3xl font-bold text-[hsl(var(--text-primary))]">
-            {completionData.completion_percentage}%
-          </span>
-          <span className="text-sm text-[hsl(var(--text-secondary))]">
-            {t('statistics.chapterCompletion.completed')}
-          </span>
-        </div>
-        <div className="h-2.5 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${progressColorClass}`}
-            style={{ width: `${Math.min(completionData.completion_percentage, 100)}%` }}
-          />
-        </div>
+        {planned !== null ? (
+          <>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-3xl font-bold text-[hsl(var(--text-primary))]">
+                {completionData.completion_percentage}%
+              </span>
+              <span className="text-sm text-[hsl(var(--text-secondary))]">
+                {t('statistics.chapterCompletion.completed')}
+              </span>
+            </div>
+            <div className="h-2.5 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${progressColorClass}`}
+                style={{ width: `${Math.min(completionData.completion_percentage, 100)}%` }}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-[hsl(var(--text-secondary))]">
+            {t(statsUnitKey(stats, 'noPlanHint'))}
+          </p>
+        )}
         {/* Stats Summary */}
         <div className="flex items-center gap-4 mt-3 text-xs text-[hsl(var(--text-secondary))]">
           <div className="flex items-center gap-1.5">

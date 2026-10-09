@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SimpleEditor } from '../SimpleEditor';
+import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext';
 import { toast } from '../../lib/toast';
 import { writingStatsApi } from '../../lib/writingStatsApi';
 import {
@@ -77,7 +78,10 @@ vi.mock('../DiffToolbar', () => ({
 }));
 
 vi.mock('../SelectionToolbar', () => ({
-  SelectionToolbar: () => null,
+  // Stand-in for the floating 「引用到对话」 toolbar: just the action, no positioning.
+  SelectionToolbar: ({ onAdd }: { onAdd: () => void }) => (
+    <button type="button" onClick={onAdd}>quote-to-chat</button>
+  ),
 }));
 
 describe('SimpleEditor', () => {
@@ -550,6 +554,80 @@ describe('SimpleEditor', () => {
     selectText(textarea);
     return textarea;
   };
+
+  const renderMobilePolishableEditor = () => {
+    // Stand-in for the mobile bottom tabs.
+    const PanelTabs = () => {
+      const { switchToChat, switchToEditor } = useMobileLayout();
+      return (
+        <>
+          <button type="button" onClick={switchToChat}>tab-chat</button>
+          <button type="button" onClick={switchToEditor}>tab-editor</button>
+        </>
+      );
+    };
+    render(
+      <MobileLayoutProvider isMobile>
+        <PanelTabs />
+        <SimpleEditor
+          projectId="project-1"
+          fileId="file-1"
+          fileType="draft"
+          title="File 1"
+          content="Hello world"
+          onTitleChange={vi.fn()}
+          onContentChange={vi.fn()}
+          onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+        />
+      </MobileLayoutProvider>,
+    );
+    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
+    return { textarea };
+  };
+
+  it('clears a stale selection when the mobile editor panel is hidden, so 去AI味 asks for a selection instead of polishing invisible text', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
+    const { textarea } = renderMobilePolishableEditor();
+    selectText(textarea);
+
+    fireEvent.click(screen.getByRole('button', { name: 'tab-chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'tab-editor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+
+    expect(naturalPolishApi.naturalPolish).not.toHaveBeenCalled();
+    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
+    expect(textarea.selectionStart).toBe(textarea.selectionEnd);
+  });
+
+  it('keeps the selection while the mobile editor panel stays visible', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    vi.mocked(naturalPolishApi.naturalPolish).mockResolvedValueOnce({ text: 'Hello', unchanged: true });
+    vi.spyOn(toast, 'info').mockImplementation(() => {});
+    const { textarea } = renderMobilePolishableEditor();
+    selectText(textarea);
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+
+    await waitFor(() => expect(naturalPolishApi.naturalPolish).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedText: 'Hello' }),
+      expect.anything(),
+    ));
+  });
+
+  it('quoting a selection to chat clears the selection that 去AI味 would use', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
+    const textarea = renderPolishableEditor();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'quote-to-chat' }));
+    expect(screen.queryByRole('button', { name: 'quote-to-chat' })).not.toBeInTheDocument();
+    expect(textarea.selectionStart).toBe(textarea.selectionEnd);
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+    expect(naturalPolishApi.naturalPolish).not.toHaveBeenCalled();
+    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
+  });
 
   it('natural polish with no real change skips review, says it was free and refreshes the quota', async () => {
     const { naturalPolishApi } = await import('../../lib/naturalPolishApi');

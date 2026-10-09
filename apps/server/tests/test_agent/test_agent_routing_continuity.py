@@ -150,7 +150,7 @@ def test_continue_falls_back_to_persisted_routing_agents():
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "stop_reason", ["model_call_budget_exhausted", "run_deadline_exceeded"]
+    "stop_reason", ["model_call_budget_exhausted", "run_deadline_exceeded", "output_truncated"]
 )
 def test_budget_and_deadline_stops_are_resumable(stop_reason):
     from agent.graph.router import resume_route_after_exhaustion

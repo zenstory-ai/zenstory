@@ -185,6 +185,7 @@ class ErrorCode:
     AGENT_NO_PROGRESS = "ERR_AGENT_NO_PROGRESS"
     AGENT_RUN_TIMEOUT = "ERR_AGENT_RUN_TIMEOUT"
     AGENT_MODEL_CALL_LIMIT = "ERR_AGENT_MODEL_CALL_LIMIT"
+    AGENT_OUTPUT_TRUNCATED = "ERR_AGENT_OUTPUT_TRUNCATED"
     AGENT_FILE_SAVE_FAILED = "ERR_AGENT_FILE_SAVE_FAILED"
 
 
@@ -312,6 +313,7 @@ ERROR_MESSAGES = {
         "ERR_AGENT_NO_PROGRESS": "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。",
         "ERR_AGENT_RUN_TIMEOUT": "这一轮写得太久，先停下了。回复「继续」就能接着写。",
         "ERR_AGENT_MODEL_CALL_LIMIT": "这次任务步骤太多，AI 先停下了。回复「继续」就能接着做。",
+        "ERR_AGENT_OUTPUT_TRUNCATED": "这一步 AI 想得太久，还没写出内容就到了上限，先停下了。回复「继续」就能接着完成。",
         "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
     },
     "en": {
@@ -435,6 +437,7 @@ ERROR_MESSAGES = {
         "ERR_AGENT_NO_PROGRESS": 'The AI kept rereading the same material without writing, so this round stopped. Tell it which chapter to change and how, or reply "continue".',
         "ERR_AGENT_RUN_TIMEOUT": "This round ran too long and stopped. Reply \"continue\" to keep going.",
         "ERR_AGENT_MODEL_CALL_LIMIT": "This task took too many steps, so the AI paused. Reply \"continue\" to keep going.",
+        "ERR_AGENT_OUTPUT_TRUNCATED": "The AI spent this step thinking and hit its output limit before writing anything, so it stopped. Reply \"continue\" to finish.",
         "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
     },
 }

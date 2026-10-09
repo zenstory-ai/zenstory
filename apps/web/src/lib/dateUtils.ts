@@ -42,6 +42,39 @@ export function getLocalDateString(baseDate: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+const BEIJING_DAY_FORMAT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * YYYY-MM-DD of the Beijing calendar day, the day boundary quotas and
+ * project statistics use, whatever the viewer's own timezone.
+ */
+export function getBeijingDateString(baseDate: Date = new Date()): string {
+  const parts = Object.fromEntries(
+    BEIJING_DAY_FORMAT.formatToParts(baseDate).map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/**
+ * Format a calendar date ("YYYY-MM-DD", or a string starting with one) as
+ * that same day. `new Date("YYYY-MM-DD")` is UTC midnight, which shows as the
+ * previous day west of UTC; this never shifts the day. Other values are
+ * returned unchanged.
+ */
+export function formatCalendarDate(value: string, locale: string = getLocaleCode()): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return value;
+  const [, year, month, day] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).toLocaleDateString(locale, {
+    timeZone: 'UTC',
+  });
+}
+
 /**
  * Parse a UTC datetime string from backend and convert to local Date object.
  *

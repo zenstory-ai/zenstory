@@ -4,10 +4,12 @@
  * Provides functions for:
  * - Fetching dashboard statistics including word count and streak data
  * - Recording daily writing statistics for progress tracking
+ *
+ * Dates default to the Beijing calendar day, the same day boundary as quotas.
  */
 
 import { api } from './apiClient';
-import { getLocalDateString } from './dateUtils';
+import { getBeijingDateString } from './dateUtils';
 import type {
   ActivationGuideResponse,
   ProjectDashboardStatsResponse,
@@ -40,7 +42,7 @@ export const writingStatsApi = {
     params: { clientDate?: string } = {}
   ) => {
     const search = new URLSearchParams();
-    search.set('client_date', params.clientDate ?? getLocalDateString());
+    search.set('client_date', params.clientDate ?? getBeijingDateString());
     return api.get<ProjectDashboardStatsResponse>(
       `/api/v1/projects/${projectId}/stats?${search.toString()}`
     );
@@ -60,7 +62,7 @@ export const writingStatsApi = {
     const search = new URLSearchParams();
     if (params.period) search.set('period', params.period);
     if (typeof params.days === 'number') search.set('days', String(params.days));
-    search.set('client_date', params.clientDate ?? getLocalDateString());
+    search.set('client_date', params.clientDate ?? getBeijingDateString());
     const query = search.toString();
     const suffix = query ? `?${query}` : '';
     return api.get<WordCountTrendResponse>(
@@ -82,7 +84,7 @@ export const writingStatsApi = {
   recordStats: (projectId: string, data: RecordStatsRequest) =>
     api.post<RecordStatsResponse>(`/api/v1/projects/${projectId}/stats/record`, {
       ...data,
-      stats_date: data.stats_date ?? getLocalDateString(),
+      stats_date: data.stats_date ?? getBeijingDateString(),
     }),
 };
 

@@ -205,6 +205,31 @@ describe('AgentApiKeysPanel', () => {
     expect(writeText).toHaveBeenCalledWith('npx zenstory login')
   })
 
+  it('gives every copy button a named 44px touch target on phones without changing desktop', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    listMock.mockResolvedValue({ keys: [makeKey()] })
+    createMock.mockResolvedValue({ key: 'eg_secret_full_key' })
+    renderPanel(<AgentApiKeysPanel />)
+
+    const expectTouchTarget = (button: HTMLElement) => {
+      // Same phone size as the row's IconButtons (h-11 w-11 below 768px); desktop keeps p-1.
+      expect(button.className).toContain('max-md:h-11')
+      expect(button.className).toContain('max-md:w-11')
+      expect(button).toHaveAttribute('type', 'button')
+    }
+
+    const commandCopies = await screen.findAllByRole('button', { name: 'apiKeys.copy' })
+    expect(commandCopies).toHaveLength(2)
+    commandCopies.forEach(expectTouchTarget)
+    expectTouchTarget(screen.getByRole('button', { name: 'apiKeys.copyPrefix' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'apiKeys.create' }))
+    fireEvent.change(screen.getByPlaceholderText('apiKeys.form.namePlaceholder'), { target: { value: 'CLI' } })
+    fireEvent.submit(screen.getByPlaceholderText('apiKeys.form.namePlaceholder').closest('form')!)
+    expectTouchTarget(await screen.findByRole('button', { name: 'apiKeys.copyKey' }))
+  })
+
   it('keeps the connect guide above the key list', async () => {
     listMock.mockResolvedValue({ keys: [makeKey()] })
     renderPanel(<AgentApiKeysPanel />)

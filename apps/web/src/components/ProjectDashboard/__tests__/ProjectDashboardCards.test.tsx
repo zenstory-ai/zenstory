@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getLocaleCode } from '../../../lib/i18n-helpers'
+import { ChapterCompletionCard } from '../ChapterCompletionCard'
 import { ContinueWritingCard } from '../ContinueWritingCard'
 import { OutstandingTasksCard } from '../OutstandingTasksCard'
 import { WritingStreakCard } from '../WritingStreakCard'
@@ -29,8 +31,21 @@ vi.mock('react-i18next', () => ({
       if (typeof options === 'string') return options
       const count = options?.count
       const time = options?.time
+      const { written, planned, mine, ai, percent } = options ?? {}
       return (
         {
+          'statistics.byType.screenplay.written': `${count} episodes written`,
+          'statistics.byType.screenplay.plannedOf': `${written} of ${planned} episodes written`,
+          'statistics.byType.screenplay.noPlanHint': 'State the episode count in the outline',
+          'statistics.byType.screenplay.remainingPlanned': `${count} more episodes planned`,
+          'statistics.byType.screenplay.completionTitle': 'Episode Completion',
+          'statistics.byType.novel.written': `${count} chapters written`,
+          'statistics.byType.novel.plannedOf': `${written} of ${planned} chapters written`,
+          'statistics.byType.novel.noPlanHint': 'State the chapter count in the outline',
+          'statistics.byType.novel.remainingPlanned': `${count} more chapters planned`,
+          'statistics.outstandingTasks.nothingPending': 'Nothing pending',
+          'statistics.wordCount.breakdown': `You ${mine} · AI ${ai}`,
+          'statistics.streak.dayUnit': count === 1 ? 'day' : 'days',
           'statistics.continueWriting.title': 'Continue Writing',
           'statistics.continueWriting.action': 'Continue',
           'statistics.continueWriting.noFiles': 'No files',
@@ -77,7 +92,7 @@ vi.mock('react-i18next', () => ({
           'statistics.projectHealth.status.critical': 'Critical',
           'statistics.projectHealth.status.neutral': 'Neutral',
           'statistics.projectHealth.indicators.chapters': 'Chapters',
-          'statistics.projectHealth.indicators.chaptersDesc': `${count}% complete`,
+          'statistics.projectHealth.indicators.chaptersDesc': `${percent}% complete`,
           'statistics.projectHealth.indicators.noChapters': 'No chapters yet',
           'statistics.projectHealth.indicators.activity': 'Activity',
           'statistics.projectHealth.indicators.activityGood': `${count} words today`,
@@ -509,8 +524,10 @@ describe('ProjectDashboard cards', () => {
     )
 
     expect(screen.getByText('No files')).toBeInTheDocument()
-    expect(screen.getByText('All clear')).toBeInTheDocument()
-    expect(screen.getAllByText('0 days').length).toBeGreaterThan(0)
+    // No outline plan: nothing is pending, but nothing is "all done" either.
+    expect(screen.getByText('Nothing pending')).toBeInTheDocument()
+    expect(screen.queryByText('All clear')).not.toBeInTheDocument()
+    expect(screen.getAllByText('days').length).toBe(2)
     expect(screen.getByText('Last writing date')).toBeInTheDocument()
   })
 
@@ -616,5 +633,164 @@ describe('ProjectDashboard cards', () => {
     rerender(<AiUsageCard stats={inactiveStats as never} projectId="project-1" />)
     expect(screen.getByText('AI inactive')).toBeInTheDocument()
     expect(screen.getByText('Ask for help')).toBeInTheDocument()
+  })
+
+  describe('planned total (P2-N3-a)', () => {
+    // The audited drama: 「分集大纲（1-80集）」 and 3 finished episodes.
+    const draftedEpisodes = [1, 2, 3].map((n) => ({
+      outline_id: `ep-${n}`,
+      draft_id: `ep-${n}`,
+      title: `第${n}集`,
+      status: 'complete',
+      word_count: 520,
+      target_word_count: null,
+      completion_percentage: 100,
+    }))
+    const dramaStats = (plannedTotal: number | null | undefined, completionPercentage: number) => {
+      const chapterCompletion: Record<string, unknown> = {
+        total_chapters: 3,
+        completed_chapters: 3,
+        in_progress_chapters: 0,
+        not_started_chapters: 0,
+        completion_percentage: completionPercentage,
+        chapter_details: draftedEpisodes,
+      }
+      if (plannedTotal !== undefined) chapterCompletion.planned_total = plannedTotal
+      return { ...baseStats, project_type: 'screenplay', chapter_completion: chapterCompletion }
+    }
+
+    it('shows written of planned episodes and the percentage when the outline states a total', () => {
+      const stats = dramaStats(80, 3)
+      render(
+        <>
+          <ChapterCompletionCard stats={stats as never} />
+          <ProjectHealthCard stats={stats as never} />
+          <OutstandingTasksCard stats={stats as never} projectId="project-1" />
+        </>,
+      )
+
+      expect(screen.getByText('3 of 80 episodes written')).toBeInTheDocument()
+      expect(screen.getByText('3%')).toBeInTheDocument()
+      expect(screen.getByText('3/80')).toBeInTheDocument()
+      expect(screen.queryByText('100%')).not.toBeInTheDocument()
+      // 77 episodes are still planned: not "all clear".
+      expect(screen.getByText('77 more episodes planned')).toBeInTheDocument()
+      expect(screen.queryByText('All clear')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['an unknown plan', null],
+      ['an older server without planned_total', undefined],
+    ])('hides percentage, progress bar and all-clear for %s', (_label, plannedTotal) => {
+      // Older servers still send the legacy 3/3 = 100%.
+      const stats = dramaStats(plannedTotal, 100)
+      const { container } = render(
+        <>
+          <ChapterCompletionCard stats={stats as never} />
+          <ProjectHealthCard stats={stats as never} />
+          <OutstandingTasksCard stats={stats as never} projectId="project-1" />
+        </>,
+      )
+
+      expect(screen.queryByText('100%')).not.toBeInTheDocument()
+      expect(screen.queryByText('3/3')).not.toBeInTheDocument()
+      expect(screen.queryByText(/100% complete/)).not.toBeInTheDocument()
+      expect(container.querySelector('[style*="width: 100%"]')).toBeNull()
+      expect(screen.getAllByText('3 episodes written').length).toBe(2)
+      expect(screen.getByText('State the episode count in the outline')).toBeInTheDocument()
+      expect(screen.getByText('Nothing pending')).toBeInTheDocument()
+      expect(screen.queryByText('All clear')).not.toBeInTheDocument()
+    })
+
+    it('shows all clear only once the planned total is written', () => {
+      render(<OutstandingTasksCard stats={dramaStats(3, 100) as never} projectId="project-1" />)
+
+      expect(screen.getByText('All clear')).toBeInTheDocument()
+    })
+
+    it('does not let an unknown plan lift project health to good', () => {
+      const stats = {
+        ...dramaStats(null, 100),
+        words_today: 0,
+        words_this_week: 0,
+        ai_words_today: 0,
+        ai_words_this_week: 0,
+        streak: { ...baseStats.streak, current_streak: 0, streak_status: 'none', days_until_break: null },
+        ai_usage: { ...baseStats.ai_usage, current: { ...baseStats.ai_usage.current, total_messages: 0 } },
+      }
+      render(<ProjectHealthCard stats={stats as never} />)
+
+      expect(screen.queryByText('Good')).not.toBeInTheDocument()
+      expect(screen.getByText('Neutral')).toBeInTheDocument()
+    })
+  })
+
+  describe('AI words in today/week/month (P2-N3-b)', () => {
+    it('adds AI writes to the big number and shows the mine/AI breakdown', () => {
+      const stats = {
+        ...baseStats,
+        words_today: 29,
+        ai_words_today: 9700,
+        words_this_week: 29,
+        ai_words_this_week: 9700,
+        words_this_month: 29,
+        ai_words_this_month: 9700,
+      }
+      render(<WordCountTrendChart projectId="project-1" stats={stats as never} timeRange="daily" />)
+
+      expect(screen.getByText('9,729')).toBeInTheDocument()
+      expect(screen.getByText('You 29 · AI 9,700')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /9,729 This Week/ })).toBeInTheDocument()
+    })
+
+    it('counts writing activity when only the AI wrote today', () => {
+      const stats = {
+        ...baseStats,
+        words_today: 0,
+        words_this_week: 0,
+        words_this_month: 0,
+        ai_words_today: 1587,
+        ai_words_this_week: 1587,
+        ai_words_this_month: 1587,
+      }
+      render(<ProjectHealthCard stats={stats as never} />)
+
+      // The activity value reads "Today" instead of "inactive".
+      expect(screen.getByText('Today')).toBeInTheDocument()
+      expect(screen.queryByText('statistics.projectHealth.indicators.inactive')).not.toBeInTheDocument()
+    })
+
+    it('falls back to author words for an older server without ai_words fields', () => {
+      render(<WordCountTrendChart projectId="project-1" stats={baseStats as never} timeRange="daily" />)
+
+      expect(screen.getByText('1,200')).toBeInTheDocument()
+      expect(screen.queryByText(/^You /)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('streak card (P2-N3-c/d)', () => {
+    const originalTz = process.env.TZ
+    afterEach(() => {
+      process.env.TZ = originalTz
+    })
+
+    it('shows each day count once', () => {
+      const stats = { ...baseStats, streak: { ...baseStats.streak, current_streak: 1, longest_streak: 1 } }
+      const { container } = render(<WritingStreakCard stats={stats as never} />)
+
+      expect(screen.getAllByText('day').length).toBe(2)
+      expect(container.textContent).not.toMatch(/1\s*1\s*day/)
+    })
+
+    it('shows the stored calendar day as last writing date west of UTC', () => {
+      process.env.TZ = 'America/Los_Angeles'
+      const stats = { ...baseStats, streak: { ...baseStats.streak, last_writing_date: '2026-10-09' } }
+      render(<WritingStreakCard stats={stats as never} />)
+
+      const expected = new Date(2026, 9, 9).toLocaleDateString(getLocaleCode())
+      const dayBefore = new Date(2026, 9, 8).toLocaleDateString(getLocaleCode())
+      expect(screen.getByText(expected)).toBeInTheDocument()
+      expect(screen.queryByText(dayBefore)).not.toBeInTheDocument()
+    })
   })
 })

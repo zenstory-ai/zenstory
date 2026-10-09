@@ -10,8 +10,10 @@ vi.mock('../apiClient', () => ({
   },
 }))
 
+// Host-local day and Beijing day differ (e.g. a PDT evening): stats use Beijing.
 vi.mock('../dateUtils', () => ({
   getLocalDateString: vi.fn(() => '2026-03-05'),
+  getBeijingDateString: vi.fn(() => '2026-03-06'),
 }))
 
 import { writingStatsApi } from '../writingStatsApi'
@@ -21,13 +23,13 @@ describe('writingStatsApi', () => {
     vi.clearAllMocks()
   })
 
-  it('appends client_date for dashboard stats by default', async () => {
+  it('appends the Beijing date as client_date for dashboard stats by default', async () => {
     mockApiGet.mockResolvedValue({})
 
     await writingStatsApi.getDashboardStats('project-1')
 
     expect(mockApiGet).toHaveBeenCalledWith(
-      '/api/v1/projects/project-1/stats?client_date=2026-03-05'
+      '/api/v1/projects/project-1/stats?client_date=2026-03-06'
     )
   })
 
@@ -39,17 +41,17 @@ describe('writingStatsApi', () => {
     expect(mockApiGet).toHaveBeenCalledWith('/api/v1/activation/guide')
   })
 
-  it('appends client_date for word trend with custom params', async () => {
+  it('appends the Beijing date as client_date for word trend with custom params', async () => {
     mockApiGet.mockResolvedValue({})
 
     await writingStatsApi.getWordCountTrend('project-1', { period: 'weekly', days: 84 })
 
     expect(mockApiGet).toHaveBeenCalledWith(
-      '/api/v1/projects/project-1/stats/word-count-trend?period=weekly&days=84&client_date=2026-03-05'
+      '/api/v1/projects/project-1/stats/word-count-trend?period=weekly&days=84&client_date=2026-03-06'
     )
   })
 
-  it('fills stats_date from local date when recording stats', async () => {
+  it('fills stats_date from the Beijing date when recording stats', async () => {
     mockApiPost.mockResolvedValue({})
 
     await writingStatsApi.recordStats('project-1', {
@@ -64,7 +66,7 @@ describe('writingStatsApi', () => {
         word_count: 1234,
         words_added: 12,
         words_deleted: 3,
-        stats_date: '2026-03-05',
+        stats_date: '2026-03-06',
       })
     )
   })

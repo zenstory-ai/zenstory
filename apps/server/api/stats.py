@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_date, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from core.project_access import verify_project_ownership
@@ -120,6 +120,10 @@ class ChapterCompletionResponse(BaseModel):
     in_progress_chapters: int
     not_started_chapters: int
     completion_percentage: int
+    # Planned chapter/episode count from the outline; None when unknown (no
+    # percentage or "all done" should be shown then). Additive: older clients
+    # ignore it.
+    planned_total: int | None = None
     chapter_details: list[ChapterDetailItem]
 
 
@@ -264,6 +268,11 @@ class ProjectDashboardStatsResponse(BaseModel):
     words_today: int
     words_this_week: int
     words_this_month: int
+    # Words the AI added to manuscript files (Beijing days). words_* above stay
+    # the author's own editor writing; additive for older clients.
+    ai_words_today: int = 0
+    ai_words_this_week: int = 0
+    ai_words_this_month: int = 0
     # Chapter completion
     chapter_completion: ChapterCompletionResponse
     # Writing streak
@@ -335,7 +344,7 @@ def get_project_stats(
     project_id: str,
     client_date: str | None = Query(
         default=None,
-        description="Client local date in YYYY-MM-DD, used for today/week/month boundaries",
+        description="Beijing calendar date in YYYY-MM-DD, used for today/week/month boundaries",
     ),
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
@@ -357,8 +366,8 @@ def get_project_stats(
         15,
     )
 
-    # Use client-local date when provided to avoid UTC day-boundary skew.
-    today = _parse_iso_date_or_none(client_date, "client_date") or utcnow().date()
+    # Stats days are Beijing calendar days, the same as the quota.
+    today = _parse_iso_date_or_none(client_date, "client_date") or beijing_date(utcnow())
 
     project_cache_version = dashboard_cache.get_project_version(
         current_user.id,
@@ -403,6 +412,7 @@ def get_project_stats(
         today.replace(day=1),  # First day of current month
         today
     )
+    ai_words = writing_stats_service.get_ai_words_written(session, project_id, today)
 
     # Get chapter completion stats
     chapter_completion_data = writing_stats_service.get_chapter_completion_stats(
@@ -414,6 +424,7 @@ def get_project_stats(
         in_progress_chapters=chapter_completion_data["in_progress_chapters"],
         not_started_chapters=chapter_completion_data["not_started_chapters"],
         completion_percentage=chapter_completion_data["completion_percentage"],
+        planned_total=chapter_completion_data.get("planned_total"),
         chapter_details=[
             ChapterDetailItem(**detail)
             for detail in chapter_completion_data["chapter_details"]
@@ -519,6 +530,9 @@ def get_project_stats(
         words_today=words_today["net_words"],
         words_this_week=words_this_week["net_words"],
         words_this_month=words_this_month["net_words"],
+        ai_words_today=ai_words["today"],
+        ai_words_this_week=ai_words["this_week"],
+        ai_words_this_month=ai_words["this_month"],
         chapter_completion=chapter_completion,
         streak=streak,
         ai_usage=ai_usage,
@@ -549,7 +563,7 @@ def get_project_word_count_trend(
     days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
     client_date: str | None = Query(
         default=None,
-        description="Client local date in YYYY-MM-DD for trend window end date",
+        description="Beijing calendar date in YYYY-MM-DD for trend window end date",
     ),
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
@@ -566,8 +580,8 @@ def get_project_word_count_trend(
         60,
     )
 
-    end_date = _parse_iso_date_or_none(client_date, "client_date")
-    normalized_end_date = (end_date or utcnow().date()).isoformat()
+    end_date = _parse_iso_date_or_none(client_date, "client_date") or beijing_date(utcnow())
+    normalized_end_date = end_date.isoformat()
 
     project_cache_version = dashboard_cache.get_project_version(
         current_user.id,
@@ -649,7 +663,7 @@ def record_project_stats(
         stats_date=request.stats_date,
     )
 
-    effective_stats_date = _parse_iso_date_or_none(request.stats_date, "stats_date") or utcnow().date()
+    effective_stats_date = _parse_iso_date_or_none(request.stats_date, "stats_date") or beijing_date(utcnow())
     user_id = current_user.id
 
     try:

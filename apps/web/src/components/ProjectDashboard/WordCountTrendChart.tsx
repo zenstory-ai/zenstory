@@ -59,61 +59,61 @@ export function WordCountTrendChart({
     staleTime: 60 * 1000,
   });
 
+  // Period words: the author's own (words_*) plus what the AI wrote
+  // (ai_words_*, absent from older servers).
+  const periodWords = useMemo(() => {
+    if (!stats) return null;
+    const period = (mine: number, ai: number | undefined) => ({
+      mine,
+      ai: ai ?? 0,
+      total: mine + (ai ?? 0),
+    });
+    return {
+      daily: period(stats.words_today, stats.ai_words_today),
+      weekly: period(stats.words_this_week, stats.ai_words_this_week),
+      monthly: period(stats.words_this_month, stats.ai_words_this_month),
+    };
+  }, [stats]);
+
   // Get the appropriate word count based on time range
   const displayData = useMemo(() => {
-    if (!stats) return null;
-
-    switch (timeRange) {
-      case 'daily':
-        return {
-          value: stats.words_today,
-          label: t('statistics.wordCount.today'),
-        };
-      case 'weekly':
-        return {
-          value: stats.words_this_week,
-          label: t('statistics.wordCount.thisWeek'),
-        };
-      case 'monthly':
-        return {
-          value: stats.words_this_month,
-          label: t('statistics.wordCount.thisMonth'),
-        };
-      default:
-        return {
-          value: stats.words_today,
-          label: t('statistics.wordCount.today'),
-        };
-    }
-  }, [stats, timeRange, t]);
+    if (!periodWords) return null;
+    const labels: Record<TimeRange, string> = {
+      daily: t('statistics.wordCount.today'),
+      weekly: t('statistics.wordCount.thisWeek'),
+      monthly: t('statistics.wordCount.thisMonth'),
+    };
+    const range: TimeRange = timeRange in periodWords ? timeRange : 'daily';
+    return { ...periodWords[range], value: periodWords[range].total, label: labels[range] };
+  }, [periodWords, timeRange, t]);
 
   // Summary stats for display
   const summaryStats = useMemo(() => {
-    if (!stats) return [];
+    if (!stats || !periodWords) return [];
     return [
       {
         key: 'today',
-        value: stats.words_today,
+        value: periodWords.daily.total,
         label: t('statistics.wordCount.today'),
         colorClass: 'bg-emerald-500',
         isActive: timeRange === 'daily',
       },
       {
         key: 'week',
-        value: stats.words_this_week,
+        value: periodWords.weekly.total,
         label: t('statistics.wordCount.thisWeek'),
         colorClass: 'bg-blue-500',
         isActive: timeRange === 'weekly',
       },
       {
         key: 'month',
-        value: stats.words_this_month,
+        value: periodWords.monthly.total,
         label: t('statistics.wordCount.thisMonth'),
         colorClass: 'bg-purple-500',
         isActive: timeRange === 'monthly',
       },
     ];
-  }, [stats, timeRange, t]);
+  }, [stats, periodWords, timeRange, t]);
 
   // Trend series data for expanded chart.
   const trendBars = useMemo(() => {
@@ -222,6 +222,14 @@ export function WordCountTrendChart({
         <p className="text-xs text-[hsl(var(--text-secondary))]">
           {displayData?.label}
         </p>
+        {displayData && displayData.ai > 0 && (
+          <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+            {t('statistics.wordCount.breakdown', {
+              mine: displayData.mine.toLocaleString(),
+              ai: displayData.ai.toLocaleString(),
+            })}
+          </p>
+        )}
       </div>
 
       {/* Summary Stats Row */}

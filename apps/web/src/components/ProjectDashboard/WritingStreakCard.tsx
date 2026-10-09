@@ -5,6 +5,7 @@ import type { ProjectDashboardStatsResponse, WritingStreakResponse } from '../..
 import { Card } from '../ui/Card';
 import { IconWrapper } from '../ui/IconWrapper';
 import { getLocaleCode } from '../../lib/i18n-helpers';
+import { formatCalendarDate } from '../../lib/dateUtils';
 
 interface WritingStreakCardProps {
   /** Dashboard statistics data */
@@ -137,7 +138,7 @@ export function WritingStreakCard({
                   {streakData.current_streak}
                 </span>
                 <span className="text-sm text-[hsl(var(--text-secondary))]">
-                  {t('statistics.streak.days', { count: streakData.current_streak })}
+                  {t('statistics.streak.dayUnit', { count: streakData.current_streak })}
                 </span>
                 <span className={`text-xs font-medium ${statusDisplay.colorClass}`}>
                   • {statusDisplay.label}
@@ -162,7 +163,7 @@ export function WritingStreakCard({
                   {streakData.longest_streak}
                 </span>
                 <span className="text-sm text-[hsl(var(--text-secondary))]">
-                  {t('statistics.streak.days', { count: streakData.longest_streak })}
+                  {t('statistics.streak.dayUnit', { count: streakData.longest_streak })}
                 </span>
               </div>
             </div>
@@ -193,7 +194,7 @@ export function WritingStreakCard({
         {streakData.last_writing_date && (
           <div className="flex items-center justify-between text-xs text-[hsl(var(--text-secondary))] pt-2 border-t border-[hsl(var(--border-color))]">
             <span>{t('statistics.lastWritingDate')}</span>
-            <span>{new Date(streakData.last_writing_date).toLocaleDateString(getLocaleCode())}</span>
+            <span>{formatCalendarDate(streakData.last_writing_date, getLocaleCode())}</span>
           </div>
         )}
       </div>

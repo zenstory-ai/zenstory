@@ -16,6 +16,12 @@ vi.mock('../../lib/subscriptionApi', () => ({
   },
 }))
 
+const mediaState = vi.hoisted(() => ({ isMobile: false }))
+
+vi.mock('../../hooks/useMediaQuery', () => ({
+  useIsMobile: () => mediaState.isMobile,
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, defaultValue: string, options?: Record<string, unknown>) => {
@@ -54,6 +60,7 @@ function renderWithQuery(ui: JSX.Element) {
 describe('SubscriptionStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mediaState.isMobile = false
   })
 
   it('renders loading skeleton while query is pending', () => {
@@ -122,6 +129,34 @@ describe('SubscriptionStatus', () => {
 
     fireEvent.click(screen.getByText('兑换码'))
     expect(onRedeemClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the 44px touch size on phones like the other settings tabs, and 40px on desktop', async () => {
+    const freeStatus = {
+      tier: 'free',
+      status: 'none',
+      display_name: '免费试用',
+      display_name_en: 'Free Trial',
+      current_period_end: null,
+      days_remaining: null,
+      features: { ai_conversations_per_day: 10 },
+    }
+    mockGetStatus.mockResolvedValue(freeStatus)
+    const actions = <SubscriptionStatus onUpgradeClick={vi.fn()} onRedeemClick={vi.fn()} />
+
+    mediaState.isMobile = true
+    const phone = renderWithQuery(actions)
+    const phoneUpgrade = (await screen.findByText('开通 Pro')).closest('button')!
+    const phoneRedeem = screen.getByText('兑换码').closest('button')!
+    expect(phoneUpgrade.className).toContain('min-h-[44px]')
+    expect(phoneRedeem.className).toContain('min-h-[44px]')
+    phone.unmount()
+
+    mediaState.isMobile = false
+    renderWithQuery(actions)
+    const desktopUpgrade = (await screen.findByText('开通 Pro')).closest('button')!
+    expect(desktopUpgrade.className).toContain('min-h-[40px]')
+    expect(screen.getByText('兑换码').closest('button')!.className).toContain('min-h-[40px]')
   })
 
   it('returns null when status data is unavailable', async () => {

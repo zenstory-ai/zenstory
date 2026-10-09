@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseChatDisplayEvents } from '../chatDisplayEvents';
+import { dropProgressOnlyItems, parseChatDisplayEvents } from '../chatDisplayEvents';
 import type { ToolCall } from '../../types';
 
 const timestamp = new Date('2026-10-05T10:00:00Z');
@@ -51,12 +51,38 @@ describe('persisted chat display sequence', () => {
       { type: 'workflow_complete', data: { reason: 'complete', agent_type: 'writer', message: 'Done', confidence: 1 } },
     ];
     const items = parseChatDisplayEvents(JSON.stringify({ display_events: events }), [], timestamp, t)!;
-    expect(items.map(item => item.type)).toEqual(events.map(event => event.type));
+    // router_thinking（「高质量模式：正在规划工作流…」）只表示当时在干活，回放已完成的回复时不再显示；
+    // 紧随其后的 router_decided 已经说明了计划。
+    expect(items.map(item => item.type)).toEqual(['thinking_content', 'router_decided', 'iteration_exhausted', 'workflow_complete']);
     expect(items[0].content).toBe('Reasoning');
-    expect(items[1].content).toBe('Choosing an agent');
-    expect(items[2]).toMatchObject({ initialAgent: 'planner', workflowPlan: 'Plan then write', workflowAgents: ['planner', 'writer'], routingMetadata: { decision: 'explicit' } });
-    expect(items[3]).toMatchObject({ layer: 'tool_call', iterationsUsed: 4, maxIterations: 4, lastAgent: 'writer' });
-    expect(items[4]).toMatchObject({ reason: 'complete', agentType: 'writer', message: 'Done', confidence: 1 });
+    expect(items[1]).toMatchObject({ initialAgent: 'planner', workflowPlan: 'Plan then write', workflowAgents: ['planner', 'writer'], routingMetadata: { decision: 'explicit' } });
+    expect(items[2]).toMatchObject({ layer: 'tool_call', iterationsUsed: 4, maxIterations: 4, lastAgent: 'writer' });
+    expect(items[3]).toMatchObject({ reason: 'complete', agentType: 'writer', message: 'Done', confidence: 1 });
+  });
+
+  it('history replay drops the in-progress router line but keeps the plan and the handoff line', () => {
+    const events = [
+      { type: 'router_thinking', data: { message: '高质量模式：正在规划工作流...' } },
+      { type: 'router_decided', data: { initial_agent: 'planner', workflow_plan: '', workflow_agents: ['writer'] } },
+      { type: 'handoff', data: { target_agent: 'writer', reason: 'Write' } },
+      { type: 'content', content: '写好了' },
+    ];
+    const items = parseChatDisplayEvents(JSON.stringify({ display_events: events }), [], timestamp, t)!;
+    expect(items.map(item => item.type)).toEqual(['router_decided', 'thinking_status', 'content']);
+    expect(items.some(item => item.content?.includes('正在规划工作流'))).toBe(false);
+  });
+
+  it('drops progress-only lines from a finished round but keeps handoff lines and the plan', () => {
+    const now = new Date();
+    const items = [
+      { id: 'a', type: 'thinking_status' as const, content: '正在组装上下文...', transient: true, timestamp: now },
+      { id: 'b', type: 'thinking_status' as const, content: '正在思考...', transient: true, timestamp: now },
+      { id: 'c', type: 'router_thinking' as const, content: '高质量模式：正在规划工作流...', timestamp: now },
+      { id: 'd', type: 'router_decided' as const, initialAgent: 'planner', timestamp: now },
+      { id: 'e', type: 'thinking_status' as const, content: '接下来由内容创作者继续', timestamp: now },
+      { id: 'f', type: 'content' as const, content: '正文', timestamp: now },
+    ];
+    expect(dropProgressOnlyItems(items).map(item => item.id)).toEqual(['d', 'e', 'f']);
   });
 
   it.each([

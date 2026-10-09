@@ -162,6 +162,13 @@ def model_call_limit_error() -> StreamErrorInfo:
     return StreamErrorInfo(ErrorCode.AGENT_MODEL_CALL_LIMIT, False, True)
 
 
+def output_truncated_error() -> StreamErrorInfo:
+    """最后一次响应只有思考就撞上输出上限：与同类「回复继续」的停止一样不给重试按钮
+    （重试会重发原请求、从头再做一遍）；是否退还交给 stream_billing 的既有规则
+    （本轮无产出退还，有产出照常计费）。"""
+    return StreamErrorInfo(ErrorCode.AGENT_OUTPUT_TRUNCATED, False, True)
+
+
 def run_timeout_error() -> StreamErrorInfo:
     return StreamErrorInfo(ErrorCode.AGENT_RUN_TIMEOUT, False, True)
 
