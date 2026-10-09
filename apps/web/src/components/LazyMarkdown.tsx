@@ -25,6 +25,7 @@ import type { Components, Options } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { lazyRoute } from '../lib/chunkRecovery';
 import { logger } from "../lib/logger";
+import { prepareCjkEmphasis, remarkStripCjkEmphasisMarkers } from "../lib/cjkEmphasis";
 
 type RemarkPlugins = NonNullable<Options['remarkPlugins']>;
 type RehypePlugins = NonNullable<Options['rehypePlugins']>;
@@ -97,8 +98,13 @@ export function LazyMarkdown({
       });
   }, []);
 
-  // Combine GFM plugin with any additional remark plugins
-  const allRemarkPlugins: RemarkPlugins = gfmPlugin ? [gfmPlugin, ...remarkPlugins] : remarkPlugins;
+  // Combine GFM plugin with any additional remark plugins. The CJK marker strip
+  // pairs with `prepareCjkEmphasis` below (bold beside 《》“” etc.).
+  const allRemarkPlugins: RemarkPlugins = [
+    ...(gfmPlugin ? [gfmPlugin] : []),
+    ...remarkPlugins,
+    remarkStripCjkEmphasisMarkers,
+  ];
 
   return (
     <Suspense fallback={<MarkdownFallback className={className} />}>
@@ -109,7 +115,7 @@ export function LazyMarkdown({
           components={components}
           skipHtml={skipHtml}
         >
-          {children}
+          {prepareCjkEmphasis(children)}
         </ReactMarkdown>
       </div>
     </Suspense>
