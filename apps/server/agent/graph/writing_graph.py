@@ -499,6 +499,60 @@ async def _review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]
     return None
 
 
+def _collect_review_payload_text(file_ids: list[str]) -> str | None:
+    """读本请求写过的正文（draft / script）落库后的内容，按写入顺序拼成送审内容。
+
+    流式落库和 edit_file 会把半角引号规范成稿件风格，库里这份才是作者看到的正文；
+    模型原始输出里那些已经修好的半角引号不能再送审。没有可用正文时返回 None。
+    """
+    project_id = ToolContext.get_project_id()
+    if not project_id or not file_ids:
+        return None
+
+    from sqlmodel import select
+
+    from models import File
+
+    with ToolContext.short_lived_session() as session:
+        rows = session.exec(
+            select(File.id, File.content).where(
+                File.project_id == project_id,
+                File.id.in_(file_ids),
+                File.file_type.in_(CONTENT_FILE_TYPES),
+                File.is_deleted.is_(False),
+            )
+        ).all()
+    contents = {row.id: (row.content or "").strip() for row in rows}
+    return "\n\n".join(contents[file_id] for file_id in file_ids if contents.get(file_id)) or None
+
+
+async def _review_payload_text(file_ids: list[str]) -> str | None:
+    """在送审预算内读落库正文；读取失败或超时只记 WARNING，返回 None（退回模型输出）。"""
+    if not file_ids:
+        return None
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_collect_review_payload_text, list(file_ids)),
+            timeout=REVIEW_AUTO_CHECK_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Review payload read timed out; using writer output",
+            timeout_seconds=REVIEW_AUTO_CHECK_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Review payload read failed; using writer output",
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+    return None
+
+
 def _format_review_auto_checks(repeats: list[str], facts: list[str]) -> str:
     """有检测结果时渲染成交接信息末尾的「[自动检测：需核对]」段，没有时返回空串。"""
     items = [*repeats, *facts]
@@ -1818,7 +1872,15 @@ async def run_writing_workflow_streaming(
                 # Point the reviewer at the draft via the file inventory (already appended
                 # as inventory_text which includes file ids) instead of inlining the full
                 # draft body, which can reach ~9k chars and pile up across review rounds.
-                review_payload = _format_review_payload(_extract_review_payload(agent_content))
+                # 送审内容优先取本请求写过的正文落库后的样子（引号已规范），
+                # 没写文件或读不到时退回模型输出里的 <file> 块 / 全文。
+                payload_guard = _guard_from_state(state)
+                persisted_payload = (
+                    await _review_payload_text(payload_guard.written_file_ids()) if payload_guard else None
+                )
+                review_payload = _format_review_payload(
+                    persisted_payload or _extract_review_payload(agent_content)
+                )
                 handoff_context = (
                     f"{base_context}\n\n"
                     f"[待审查内容]\n{review_payload}"
