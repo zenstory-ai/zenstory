@@ -62,9 +62,10 @@ export function QuotaBadge() {
   };
 
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex items-center gap-2 text-xs min-w-0">
       <Badge
         variant={getVariant()}
+        className="whitespace-nowrap"
         icon={
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -77,7 +78,7 @@ export function QuotaBadge() {
         <button
           type="button"
           onClick={handleUpgradeClick}
-          className="text-[hsl(var(--accent-primary))] hover:underline"
+          className="text-[hsl(var(--accent-primary))] hover:underline whitespace-nowrap"
         >
           {stage === "blocked"
             ? t("subscription.upgradeNow", "开通 Pro")

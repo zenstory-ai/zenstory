@@ -1612,8 +1612,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         ref={headerRef}
         className={`shrink-0 flex items-center justify-between border-b border-[hsl(var(--separator-color))] ${isMobile ? 'h-11 px-2' : 'h-12 px-3'}`}
       >
-        <div className="flex items-center gap-1">
-          <span className={`font-medium text-[hsl(var(--text-primary))] ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
+        {/* 窄面板（约 270px）下标题曾被折成「AI 创作助 / 手」：标题不换行、可截断，右侧徽标保持一行 */}
+        <div className="flex items-center gap-1 min-w-0">
+          <span className={`font-medium text-[hsl(var(--text-primary))] whitespace-nowrap truncate ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
           {isStreaming && (
             <span className="text-xs text-[hsl(var(--success))] animate-[breathe_1.5s_ease-in-out_infinite]">
               · {t('chat:panel.processing')}
@@ -1623,7 +1624,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             <span className="text-xs text-[hsl(var(--text-secondary))]">· {t('chat:panel.loadingHistory')}</span>
           )}
         </div>
-        <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
+        <div className={`flex items-center shrink-0 ${isMobile ? 'gap-1' : 'gap-2'}`}>
           <QuotaBadge />
           <button
             onClick={() => setShowAIMemory(true)}
