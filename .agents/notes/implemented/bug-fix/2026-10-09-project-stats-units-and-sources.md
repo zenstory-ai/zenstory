@@ -14,7 +14,7 @@ Status: implemented
 
 ## Decision
 
-- `writing_stats_service.get_chapter_completion_stats`：每个正文类文件（draft / script）都是一章；大纲只有带章节号（标题里的「第N章/集/回/节/话」、`Chapter N`/`Episode N`、开头数字，或元数据 `chapter_number`）或被正文的 `outline_id` 显式指向时才算一章，没有正文配上时是「计划中」。不带章节号的大纲（整本大纲、分集大纲）只能靠显式链接或标题完全相同配对，不再走章节号、`order`、模糊包含这三个兜底；配不上就不出现在章节进度里。没被任何大纲认领的正文追加在后面，不再被丢掉。原来「有大纲 / 没大纲」两条分支合成一条。字数仍走 `resolve_prose_word_counts`，与作品卡片 `project_progress` 同一来源。
+- `writing_stats_service.get_chapter_completion_stats`：每个正文类文件（draft / script）都是一章；大纲只有带章节号（标题里的「第N章/集/回/节/话」、`Chapter N`/`Episode N`、开头数字，或元数据 `chapter_number`）或被正文的 `outline_id` 显式指向时才算一章，没有正文配上时是「计划中」。不带章节号的大纲（整本大纲、分集大纲）只能靠显式链接或标题完全相同配对，不再走章节号、`order`、模糊包含这三个兜底；配不上就不出现在章节进度里。章节号取标题里最靠前的「第N章/集/回/节/话」（阿拉伯数字和中文数字一视同仁），所以「第12章 第一节课」是第 12 章而不是第 1 章；开头数字后面紧跟「集/章/回/话」再接「大纲/总纲/梗概/目录/规划」的（「60集分集大纲」「100章总纲」）是全书长度，不算章节号。没被任何大纲认领的正文追加在后面，不再被丢掉。原来「有大纲 / 没大纲」两条分支合成一条。字数仍走 `resolve_prose_word_counts`，与作品卡片 `project_progress` 同一来源。
 - `GET /projects/{id}/stats` 增加 `project_type`。前端 `statsUnits.ts` 按类型取 `statistics.byType.{novel|short|screenplay}` 下的文案：卡片标题、进度标签、「共 N 章/篇/集」、「还有 N 章/篇/集」（顺带修掉原来用正则剪「共 N 章」得到的「+3 共 章」）、空状态、「开始写这一集」等提示。旧服务端不返回该字段时按长篇处理。
 - AI 协作：健康度卡片显示「已发 N 条」（`user_messages`，说明「本项目里你发给 AI 的消息」）；AI 协作卡片的今日、本周数字改用 `user`，标题旁「今天发了 N 条」，卡片底部一句「只算本项目里你发给 AI 的消息。今日 AI 消息额度按所有项目合计，以对话框上方的显示为准。」不提任何其他限制。
 
@@ -27,9 +27,9 @@ Status: implemented
 ## Consequences
 
 - 收益：短剧显示「剧集完成 共 3 集」，每集字数与作品卡片一致；整本大纲不再被当作待写章节；AI 协作的数字有了明确口径。
-- 代价：没有章节号、标题也不同于正文的单章细纲（如「开端细纲」）不再算计划中的章，只在作者写出配对正文后通过标题完全相同才会配上。「已写的番外/后记」作为正文文件仍算一章（与作品卡片口径相同）。`statistics.chapterCompletion.title/total/noChapters` 等旧 key 暂时保留未删。
+- 代价：没有章节号、标题也不同于正文的单章细纲（如「开端细纲」）不再算计划中的章，只在作者写出配对正文后通过标题完全相同才会配上。「已写的番外/后记」作为正文文件仍算一章（与作品卡片口径相同）。真正按集写的「1集大纲」这种不带「第」的单集细纲也会被当成全书长度而不算章，作者写「第1集大纲」即可。统计页的标签页名也按类型显示（「章节完成 / 剧集完成 / 完成情况」），进度条下的三个计数带单位（「2 集已完成 · 1 集写作中 · 1 集还没开始」，`byType.<type>.countFinished/countInProgress/countPlanned`）；每行的状态图标用 `statistics.chapterCompletion.finished/inProgress/planned` 作无障碍名称和悬停提示，这几个 key 仍在使用，不能删。
 
 ## Verification
 
-- pytest `tests/test_api/test_project_stats_chapter_units.py`（短剧：两份整本大纲加 3 集剧本得到 3 集 100%，每集与总字数等于 `/projects/progress`，旧缓存不影响；长篇：带章号的细纲算计划章、无大纲的正文仍计入、整本「故事大纲」不出现），改动前两条都失败。`tests/test_chapter_completion.py` 等统计相关 120 个用例通过。
+- pytest `tests/test_api/test_project_stats_chapter_units.py`（短剧：两份整本大纲加 3 集剧本得到 3 集 100%，每集与总字数等于 `/projects/progress`，旧缓存不影响；长篇：带章号的细纲算计划章、无大纲的正文仍计入、整本「故事大纲」不出现），改动前两条都失败。同文件的章节号用例（「第12章 第一节课」=12、「60集分集大纲」不算章）和两条配对用例在只取中文数字优先/开头数字兜底的旧实现上失败。`tests/test_chapter_completion.py` 等统计相关 120 个用例通过。
 - vitest `src/components/ProjectDashboard/__tests__/ProjectDashboardCards.test.tsx`（短剧显示「集」的文案；AI 协作数作者消息而非全部消息，有口径说明）与 `ProjectDashboardPage.test.tsx`。

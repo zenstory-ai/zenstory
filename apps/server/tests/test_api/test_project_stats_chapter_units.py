@@ -105,3 +105,65 @@ def test_numbered_outline_plans_a_chapter_and_unmatched_drafts_still_count(db_se
     assert rows["第3章 追逐"]["status"] == "complete"
     assert stats["total_chapters"] == 3
     assert stats["completed_chapters"] == 2
+
+
+def _project(db_session, project_type: str) -> Project:
+    owner = User(
+        username=f"units_{uuid4().hex[:8]}",
+        email=f"units_{uuid4().hex[:8]}@example.com",
+        hashed_password="x",
+    )
+    db_session.add(owner)
+    db_session.commit()
+    project = Project(name="编号", owner_id=owner.id, project_type=project_type)
+    db_session.add(project)
+    db_session.commit()
+    return project
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("第12章 第一节课", 12),
+        ("第3章 第一回合", 3),
+        ("第十二章 第1节", 12),
+        ("第 7 集 重逢", 7),
+        ("第一节课", 1),
+        ("60集分集大纲", None),
+        ("100章 总纲", None),
+        ("60集故事梗概", None),
+        ("3 开端", 3),
+        ("Episode 4", 4),
+    ],
+)
+def test_chapter_number_takes_the_leading_ordinal_and_ignores_book_lengths(title, expected):
+    assert writing_stats_service._extract_chapter_number(title) == expected
+
+
+def test_chapter_title_with_inner_section_pairs_with_its_own_outline(db_session):
+    project = _project(db_session, "novel")
+    _add(db_session, project, "第1章 细纲", "outline", "开学。", 0)
+    _add(db_session, project, "第12章 细纲", "outline", "第一节课。", 1)
+    # Order deliberately crossed so only the chapter number can pair them right.
+    chapter_12 = _add(db_session, project, "第12章 第一节课", "draft", "铃声响了。" * 10, 0)
+    chapter_1 = _add(db_session, project, "第1章 开学", "draft", "他背着书包。" * 10, 1)
+
+    stats = writing_stats_service.get_chapter_completion_stats(db_session, project.id)
+
+    rows = {row["title"]: row for row in stats["chapter_details"]}
+    assert rows["第1章 细纲"]["draft_id"] == chapter_1.id
+    assert rows["第12章 细纲"]["draft_id"] == chapter_12.id
+    assert stats["total_chapters"] == 2
+
+
+def test_book_outline_titled_with_episode_count_is_not_an_episode(db_session):
+    project = _project(db_session, "screenplay")
+    _add(db_session, project, "60集分集大纲", "outline", "第1集：三周年。" * 50, 0)
+    _add(db_session, project, "第1集", "script", "【场1】客厅。" * 10, 0)
+    _add(db_session, project, "第2集", "script", "【场1】民政局。" * 10, 1)
+
+    stats = writing_stats_service.get_chapter_completion_stats(db_session, project.id)
+
+    assert [row["title"] for row in stats["chapter_details"]] == ["第1集", "第2集"]
+    assert stats["total_chapters"] == 2
+    assert all(row["draft_id"] for row in stats["chapter_details"])

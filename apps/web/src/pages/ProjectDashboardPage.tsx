@@ -13,6 +13,7 @@ import {
   OutstandingTasksCard,
 } from '../components/ProjectDashboard';
 import type { TimeRange } from '../components/ProjectDashboard';
+import { statsUnitKey } from '../components/ProjectDashboard/statsUnits';
 import { useIsMobile, useIsTablet } from '../hooks/useMediaQuery';
 import { useProject } from '../contexts/ProjectContext';
 
@@ -60,7 +61,7 @@ export default function ProjectDashboardPage() {
   const tabs: { id: DashboardTab; icon: React.ElementType; label: string }[] = [
     { id: 'overview', icon: BarChart3, label: t('dashboard.tabs.overview', '总览') },
     { id: 'wordcount', icon: BarChart3, label: t('statistics.wordCount.title') },
-    { id: 'chapters', icon: BookOpen, label: t('statistics.chapterCompletion.title') },
+    { id: 'chapters', icon: BookOpen, label: t(statsUnitKey(stats, 'completionTitle')) },
     { id: 'streak', icon: Flame, label: t('statistics.streak.title') },
     { id: 'ai-usage', icon: Bot, label: t('statistics.aiUsage.title') },
   ];

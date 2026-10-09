@@ -36,6 +36,12 @@ vi.mock('react-i18next', () => ({
           'dashboard.tabs.overview': 'Overview',
           'statistics.wordCount.title': 'Word Count',
           'statistics.chapterCompletion.title': 'Chapters',
+          'statistics.byType.novel.completionTitle': 'Chapters',
+          'statistics.byType.screenplay.completionTitle': 'Episode Completion',
+          'statistics.byType.screenplay.countFinished': `${count} episodes finished`,
+          'statistics.byType.screenplay.countInProgress': `${count} episodes in progress`,
+          'statistics.byType.screenplay.countPlanned': `${count} episodes not started`,
+          'statistics.chapterCompletion.finished': 'Finished',
           'statistics.streak.title': 'Streak',
           'statistics.aiUsage.title': 'AI Usage',
           'dashboard.sections.nextSteps': 'What’s Next',
@@ -201,6 +207,26 @@ describe('ProjectDashboardPage', () => {
     fireEvent.click(screen.getByTitle('Refresh'))
     expect(mockRefetch).toHaveBeenCalled()
   })
+  it('names the completion tab and its counts after the project type', () => {
+    mockStats = { ...mockStats, project_type: 'screenplay' }
+    render(<ProjectDashboardPage />)
+
+    expect(screen.queryByRole('button', { name: 'Chapters' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Episode Completion' }))
+
+    expect(screen.getByText('2 episodes finished')).toBeInTheDocument()
+    expect(screen.getByText('1 episodes in progress')).toBeInTheDocument()
+    expect(screen.getByText('1 episodes not started')).toBeInTheDocument()
+    expect(screen.getAllByRole('img', { name: 'Finished' }).length).toBeGreaterThan(0)
+
+    const byType = zhDashboard.statistics.byType
+    expect(byType.novel.completionTitle).toBe('章节完成')
+    expect(byType.screenplay.completionTitle).toBe('剧集完成')
+    expect(byType.short.completionTitle).toBe('完成情况')
+    expect(byType.screenplay.countFinished).toBe('{{count}} 集已完成')
+    expect(byType.short.countPlanned).toBe('{{count}} 篇还没开始')
+  })
+
   it('falls back to the localized dashboard title while the project list has not loaded', () => {
     mockProjects = []
     render(<ProjectDashboardPage />)
