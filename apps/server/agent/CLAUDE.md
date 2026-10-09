@@ -149,7 +149,9 @@ Agent 可以通过两种方式交接：
   也不是正开着它提改动时，`edit_file` / `delete_file`（含递归删文件夹里的这类文件）/ 剧本
   `create_file` 复用同名剧集都不执行，返回 `error_type="author_edit_protected"`，让 agent 以作者
   写法为准、在回复里问作者；被拒的文件随 routing 落库（`author_confirm_file_ids`），作者下一轮
-  答应时放行（「不用改」不放行）。规则见 `tools/author_edit_guard.py`；工作集也会标注这类文件。
+  答应时放行（「不用改」、不带方向的「要统一」都不放行）。递归删文件夹要作者点名并说删。
+  规则见 `tools/author_edit_guard.py`；工作集也会标注这类文件。前端工具卡片把
+  `author_edit_protected` / `clarify_first` 显示成「保留了你改过的内容」/「先问清楚再改」，不显示「失败」。
 - 每个 agent run 的 TEXT 经 `core/author_facing_text.AgentTextShaper` 整理：和前一个角色的文字之间
   补空行；作者写中文时，紧接着工具调用的英文过程句（「Now create the … file.」）不发给作者。
 - 只读请求（router `read_only=true`）不交接给有写权限的 agent，显式 handoff 也拦下，并给一张

@@ -11,8 +11,12 @@
 - 「指向这个文件」：作者点名它并要求改（标题或标题里的词、第 N 章 / 集、前 N 章，同一分句
   或下一分句里有「改 / 润色 / 精简…」）、「全书 / 所有章节」并要求改、大纲 / 人设这类文件
   类别并要求改、附加或引用了它；作者正开着它时说「这一章 / 这里」，或者提了改动且没点名别的
-  文件、不是要下一章（「把开头改得更有悬念一点」）；上一轮 AI 因为这条规则问过作者要不要改它，
-  且作者这一轮答应了（「可以」「统一成老周」；「不用改，继续写下一章」不算）。
+  文件、不是要下一章或接着往下写（「把开头改得更有悬念一点」）；上一轮 AI 因为这条规则问过
+  作者要不要改它，且作者这一轮答应了（「可以」「统一成老周」；「不用改，继续写下一章」不算）。
+- 不算要求改的说法：「改变 / 改天」、「继续更新」（发新章）、作者讲自己改过的（「我把老周
+  改成老秦了」「第3章我改过了」）、抱怨（「你怎么把第3章改了」）；没点名哪一章时不带方向的
+  「统一」（「人名要统一」「统一一下格式」）——作者改的写法是最新设定，往回统一要作者说清楚。
+- 递归删除文件夹：作者点名这个文件夹并说删才整个删；否则里面作者手改过的文件要点名并说删。
 - 「把老秦改成老周」这类改名要求：只替换 / 删除含「老秦」的原文时放行；「把主角的名字改成
   李明」只放行改成的文字里有「李明」的小段替换。
 - 作者正开着的文件只追加（op=append）、且本轮不是写下一章时放行：作者写了半章说
@@ -162,25 +166,25 @@ _CLAUSE_DELIMITERS = "，,。！？!?；;\n"
 # 作者回答 AI「要不要改」的提问：不改的说法（整句里出现就不算答应）。
 _DECLINE_RE = re.compile(
     r"(?:(?<![分区特告性级类识差个错辨离道送鉴判派])别(?![的人处])|不要|不用|不必|先不|算了|不改|保持|维持|"
-    r"就叫|就这样|按我的|按我改的|无需|不需要|不了|\bno\b|don'?t|\bkeep\b)"
+    r"就叫|就这样|按我的|按我改的|无需|不需要|不了|我自己|我来改|自己来|\bno\b|don'?t|\bkeep\b)"
 )
-# 答应的说法。
+# 答应的说法：出现在任何位置都算的。
 _CONFIRM_MARKERS: tuple[str, ...] = (
     "可以",
-    "好",
-    "行",
     "同意",
     "确认",
     "没问题",
     "要的",
     "要改",
-    "嗯",
-    "对",
     "是的",
-    "ok",
-    "yes",
-    *_EDIT_VERBS,
 )
+# 单独成句才算答应的短词：「好，改吧」「行」「嗯」算；「写好一点」「行文」「对话」不算。
+_SHORT_CONFIRM_RE = re.compile(
+    r"(?:^|[，,。！!？?；;])(?:好|好的|好吧|行|行吧|嗯|嗯嗯|对|对的|ok|okay|yes)"
+    r"(?:的|吧|啊|呀|哒|嘞|了)?(?=$|[，,。！!？?；;])"
+)
+# 作者在让 AI 接着往下写（不是在回答要不要改）。
+_MOVING_ON_MARKERS: tuple[str, ...] = ("继续写", "接着写", "往下写", "续写", "继续更新", "接着更新")
 
 # 「把老秦改成老周」：改名 / 替换的来源词和目标词。
 _RENAME_VERB_RE = re.compile(
@@ -231,8 +235,80 @@ def _any_positive(text: str, needles: Iterable[str], start: int = 0, end: int | 
     return any(_positive_occurrence(text, needle, start, end) for needle in needles)
 
 
-def _has_edit_verb(text: str, start: int = 0, end: int | None = None) -> bool:
-    return _any_positive(text, _EDIT_VERBS, start, end)
+# 「改」开头却不是要改稿的词：「主角的命运从此改变」「改天再说」。
+_GAI_NON_EDIT_NEXT = "变天日革口观行嫁"
+# 「更新」在网文里常指发新章（「继续更新」「今天更新两章」），不是改已有的字。
+_UPDATE_AS_PUBLISH_BEFORE_RE = re.compile(r"(?:继续|接着|日|今天|今日|明天|每天|多|快)$")
+_UPDATE_AS_PUBLISH_AFTER_RE = re.compile(rf"^了?{_NUMBER}?[章集]")
+# 作者在说自己做过的改动（「我把第3章的老周改成老秦了」「第3章我改过了」），不是在要求改。
+_REPORT_TIME_RE = re.compile(r"(?:已经|已|刚才|刚刚|早就)$")
+_FIRST_PERSON_RE = re.compile(r"(?<![帮给替让请叫])我(?!们)")
+_REQUEST_INTENT_RE = re.compile(r"(?:想|要|希望|打算|准备|需要|得|觉得|认为)")
+# 「你怎么把第3章改了」是在抱怨，不是在要求改。
+_COMPLAINT_RE = re.compile(r"你(?:怎么|为什么|为啥|又|居然|竟然|干嘛)")
+# 不带方向的「统一」：「人名要统一」「统一一下格式」。「统一成 / 统一为 / 统一叫」是带方向的改名。
+_UNIFY_DIRECTION_NEXT = "成为叫"
+
+
+def _verb_is_request(text: str, verb: str, position: int, *, allow_bare_unify: bool) -> bool:
+    """text[position:] 上的这个改动说法，是不是作者在要求改稿。"""
+    after_position = position + len(verb)
+    next_char = text[after_position:after_position + 1]
+    if verb == "改" and next_char and next_char in _GAI_NON_EDIT_NEXT:
+        return False
+    clause_start, clause_end = _clause_bounds(text, position)
+    before = text[clause_start:position]
+    after = text[after_position:clause_end]
+    if verb == "更新" and (
+        _UPDATE_AS_PUBLISH_BEFORE_RE.search(before) or _UPDATE_AS_PUBLISH_AFTER_RE.match(after)
+    ):
+        return False
+    if verb == "统一" and not allow_bare_unify and (not next_char or next_char not in _UNIFY_DIRECTION_NEXT):
+        return False
+    if _COMPLAINT_RE.search(before):
+        return False
+    if after.startswith("过") or _REPORT_TIME_RE.search(before):
+        return False
+    return not (_FIRST_PERSON_RE.search(before) and not _REQUEST_INTENT_RE.search(before))
+
+
+def _has_edit_verb(
+    text: str, start: int = 0, end: int | None = None, *, allow_bare_unify: bool = True
+) -> bool:
+    """text[start:end] 里有没有作者要求改稿的说法。
+
+    不算的：前面有否定（「别改」）、「改变 / 改天」、「继续更新」这类发新章的说法、作者在讲
+    自己改过的（「我把老周改成老秦了」「第3章我改过了」）、抱怨（「你怎么把第3章改了」）。
+    allow_bare_unify=False 时不带方向的「统一」也不算：作者没点名哪一章、只说「人名要统一」
+    「统一一下格式」时，不能拿来放开作者手改过的文件（AI 会把作者改的名字统一回去）。
+    """
+    stop = len(text) if end is None else end
+    for verb in _EDIT_VERBS:
+        position = text.find(verb, start, stop)
+        while position != -1:
+            if not _is_negated(text, position) and _verb_is_request(
+                text, verb, position, allow_bare_unify=allow_bare_unify
+            ):
+                return True
+            position = text.find(verb, position + 1, stop)
+    return False
+
+
+# 删除的说法：递归删除文件夹时，作者要明说删它，才连带删掉里面作者手改过的文件。
+_DELETE_VERBS: tuple[str, ...] = ("删", "去掉", "移除", "清空", "清掉", "不要了", "扔掉")
+
+
+def _has_delete_verb(text: str, start: int = 0, end: int | None = None) -> bool:
+    stop = len(text) if end is None else end
+    for verb in _DELETE_VERBS:
+        position = text.find(verb, start, stop)
+        while position != -1:
+            if not _is_negated(text, position) and _verb_is_request(
+                text, verb, position, allow_bare_unify=False
+            ):
+                return True
+            position = text.find(verb, position + 1, stop)
+    return False
 
 
 def _clause_bounds(text: str, position: int) -> tuple[int, int]:
@@ -393,22 +469,36 @@ def _edits_are_requested_rename(raw_text: str, edits: list[dict[str, Any]]) -> b
     return all(allowed(edit) for edit in edits)
 
 
-def author_confirms_change(text: str) -> bool:
+def author_confirms_change(text: str, *, sequence: tuple[int, str] | None = None) -> bool:
     """作者这句是不是在答应 AI 上一轮「要不要改」的提问。
 
-    出现不改的说法（不用 / 别 / 先不 / 保持 / 就叫…）就不算；要有答应的说法。
-    「好，继续写下一章」只是让 AI 往下写：带下一章的说法时，还要有改动的说法
-    （「可以，统一成老周再写下一章」）才算。
+    出现不改的说法（不用 / 别 / 先不 / 保持 / 就叫 / 我自己…）就不算；要有答应的说法
+    （可以 / 好 / 改吧 / 统一成老周…）。不带方向的「统一」（「要统一」「人名要统一」）不算：
+    作者改的写法是最新设定，往作者这边统一用不着动作者改过的文件，往回统一要作者说清楚
+    「统一成谁」。
+    作者在让 AI 往下写（下一章、继续写、点名的是别的章 / 集）时，要明确答应改
+    （「可以，统一成老周再写下一章」「好，改吧，然后写下一章」）才算；「好，继续写下一章」
+    「继续写第5章，写好一点」「继续写下一章，开头改得有悬念一点」（说的是新的一章）不算。
+    sequence：这个文件的章 / 集号。
     """
     normalized = _normalize_text(text)
     if not normalized or _DECLINE_RE.search(normalized):
         return False
-    if not _any_positive(normalized, _CONFIRM_MARKERS):
+    asks_for_edit = _has_edit_verb(normalized, allow_bare_unify=False)
+    says_yes = _any_positive(normalized, _CONFIRM_MARKERS) or bool(_SHORT_CONFIRM_RE.search(normalized))
+    if not (asks_for_edit or says_yes):
         return False
-    only_moving_on = any(marker in normalized for marker in _NEXT_UNIT_MARKERS) and not _has_edit_verb(
-        normalized
+    names_other_unit = any(
+        sequence is None or sequence not in numbers for numbers, _ in _sequence_mentions(normalized)
     )
-    return not only_moving_on
+    moving_on = (
+        names_other_unit
+        or any(marker in normalized for marker in _NEXT_UNIT_MARKERS)
+        or any(marker in normalized for marker in _MOVING_ON_MARKERS)
+    )
+    if not moving_on:
+        return True
+    return bool(_rename_pairs(text)) or (asks_for_edit and says_yes)
 
 
 def _title_tokens(title: str) -> list[str]:
@@ -479,13 +569,13 @@ def request_targets_file(
     if not text:
         return False
 
-    # 上一轮 AI 问过作者要不要改它：作者答应了才放行（「不用改，继续写下一章」不算）。
-    if file_id in scope.confirmed_file_ids and author_confirms_change(raw_text):
-        return True
-
     title_text = title or ""
     file_type_text = str(file_type or "")
     sequence = _title_sequence(title_text)
+
+    # 上一轮 AI 问过作者要不要改它：作者答应了才放行（「不用改，继续写下一章」不算）。
+    if file_id in scope.confirmed_file_ids and author_confirms_change(raw_text, sequence=sequence):
+        return True
 
     # 全书 / 所有章节，并且要求改动。
     for marker in _GLOBAL_SCOPE_MARKERS:
@@ -496,16 +586,18 @@ def request_targets_file(
             position = text.find(marker, position + 1)
 
     # 作者正开着这个文件：说了「这一章 / 这里」，或者提了改动（「把开头改得更有悬念一点」），
-    # 并且没点名别的文件、也不是在要下一章。
+    # 并且没点名别的文件、也不是在要下一章 / 接着往下写。没点名时不带方向的「统一」
+    # （「人名要统一」「统一一下格式」）不算：作者刚改的名字正是要保住的。
     is_focus = bool(scope.focus_file_id) and file_id == scope.focus_file_id
     wants_next_unit = any(marker in text for marker in _NEXT_UNIT_MARKERS)
+    moving_on = wants_next_unit or any(marker in text for marker in _MOVING_ON_MARKERS)
     if is_focus and not _names_another_file(
         text, title=title_text, file_type=file_type_text, sequence=sequence
     ):
         has_deictic = _any_positive(text, _FOCUS_DEICTIC_MARKERS)
         if has_deictic and (_has_edit_verb(text) or not wants_next_unit):
             return True
-        if _has_edit_verb(text) and not wants_next_unit:
+        if not moving_on and _has_edit_verb(text, allow_bare_unify=False):
             return True
 
     # 点名这个文件（标题、第 N 章 / 集）并要求改它。
@@ -532,6 +624,58 @@ def request_targets_file(
             return True
 
     return False
+
+
+def request_deletes_folder(scope: AuthorScope, *, file_id: str, title: str | None) -> bool:
+    """递归删除文件夹：作者这一轮是不是明说要删这个文件夹（「把『废稿』文件夹删了」）。
+
+    要点名文件夹（标题或标题里的词）且同一分句或下一分句里说删；「正文改紧凑一点」
+    这类只提到文件夹名的改动要求不算，不能借它连带删掉里面作者手改过的章节。
+    附加 / 引用了这个文件夹时，也要说删。
+    """
+    text = _normalize_text(scope.text)
+    if not text or not _has_delete_verb(text):
+        return False
+    if file_id in scope.referenced_file_ids:
+        return True
+    needles = [_normalize_text(title or "")] + [_normalize_text(token) for token in _title_tokens(title or "")]
+    for needle in needles:
+        if not needle:
+            continue
+        position = text.find(needle)
+        while position != -1:
+            if not _is_negated(text, position):
+                start, end = _clause_bounds(text, position)
+                if _has_delete_verb(text, start, end):
+                    return True
+                next_start = end + 1
+                if next_start < len(text):
+                    _, next_end = _clause_bounds(text, next_start)
+                    if (
+                        next_start < next_end
+                        and not _names_a_unit(text[next_start:next_end])
+                        and _has_delete_verb(text, next_start, next_end)
+                    ):
+                        return True
+            position = text.find(needle, position + 1)
+    return False
+
+
+def request_deletes_file(
+    scope: AuthorScope, *, file_id: str, title: str | None, file_type: str | None = None
+) -> bool:
+    """递归删除文件夹时，里面这个作者手改过的文件能不能跟着删。
+
+    作者这一轮指向了它（点名、附加、答应了上一轮的提问…，同 request_targets_file），
+    并且说了删（「第3章删掉」），或者上一轮 AI 问过、作者答应了。只说「第3章改一下」不算。
+    """
+    if not request_targets_file(scope, file_id=file_id, title=title, file_type=file_type):
+        return False
+    if file_id in scope.confirmed_file_ids and author_confirms_change(
+        scope.text, sequence=_title_sequence(title or "")
+    ):
+        return True
+    return _has_delete_verb(_normalize_text(scope.text))
 
 
 def latest_text_is_authors(session: Any, file: Any) -> bool:
@@ -582,8 +726,9 @@ def protected_refusal_message(title: str | None, *, action: str = "edit") -> str
         f"{lead}"
         "作者手改的写法（人名、称呼、用词、情节）就是最新设定，以作者为准："
         "不要再尝试修改或删除这个文件，也不要把它改回以前的写法；新写的内容沿用作者的写法。"
-        "如果你觉得它和其他章节有出入，只在给作者的回复里用一句话指出位置，问作者要不要改"
-        "（例如「第3章是你手动改过的，我没动它：那里摊主叫老秦，第2章写的是老周，要统一吗？」），"
+        "如果你觉得它和其他章节有出入，只在给作者的回复里用一句话指出位置，问作者往哪边改，"
+        "默认建议按作者改的写法改其他章节（例如「第3章是你手动改过的，我没动它：那里摊主叫老秦，"
+        "第2章写的是老周，要把第2章也改成老秦吗？」），"
         "不要说「改不动」「被拦下」；作者同意后下一轮再改。"
     )
 

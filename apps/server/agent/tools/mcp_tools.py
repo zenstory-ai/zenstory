@@ -28,6 +28,8 @@ from agent.tools.author_edit_guard import (
     latest_text_is_authors,
     protected_refusal_message,
     protected_user_message,
+    request_deletes_file,
+    request_deletes_folder,
     request_targets_file,
 )
 from agent.tools.file_ops import FileToolExecutor
@@ -1685,7 +1687,8 @@ def _author_edit_refusal(
 
     规则见 agent/tools/author_edit_guard.py。读不到文件或判定出错时不拦（交给后面的
     正常路径报「文件不存在」等错误），守卫只在确认是作者写下的正文时生效。
-    - 文件夹：只有递归删除时检查，作者没点名这个文件夹时，逐个看里面的文件。
+    - 文件夹：只有递归删除时检查。作者没明说删这个文件夹（点名并说删）时逐个看里面的文件，
+      作者手改过的文件要作者点名并说删（或答应了上一轮的提问）才跟着删。
     - create_file：只在复用了同名的已有剧集时调用（接下来的 <file> 正文会整份覆盖它）。
     """
     scope = ToolContext.get_author_scope()
@@ -1702,14 +1705,14 @@ def _author_edit_refusal(
             if file is None or file.is_deleted or (project_id and file.project_id != project_id):
                 return None
             if file.file_type == "folder":
-                if not recursive or request_targets_file(
-                    scope, file_id=file.id, title=str(file.title or ""), file_type="folder"
+                if not recursive or request_deletes_folder(
+                    scope, file_id=file.id, title=str(file.title or "")
                 ):
                     return None
                 for child in _folder_descendant_files(session, file, project_id):
                     if not latest_text_is_authors(session, child):
                         continue
-                    if request_targets_file(
+                    if request_deletes_file(
                         scope,
                         file_id=child.id,
                         title=str(child.title or ""),
