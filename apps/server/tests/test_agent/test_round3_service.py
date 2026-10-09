@@ -21,6 +21,7 @@ from sqlmodel import Session, select
 
 from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
+from tests.test_agent.test_service import wait_for_stream_start
 
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
 
@@ -366,7 +367,7 @@ class TestRound3CancellationTermination:
             patch("agent.service.create_session", side_effect=lambda: Session(bind)),
         ):
             task = asyncio.create_task(consume())
-            await started.wait()
+            await wait_for_stream_start(started, task)
             await asyncio.sleep(0)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):

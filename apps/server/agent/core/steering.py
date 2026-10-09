@@ -436,6 +436,9 @@ _REDIS_HEALTH_TTL_S: Final[float] = 30.0
 
 _redis_health_checked_at: float = 0.0
 _redis_is_healthy: bool = False
+# The REDIS_URL the cached verdict belongs to. A different URL (tests swapping a
+# fake for the developer's real one) must not inherit a stale "healthy".
+_redis_health_url: str | None = None
 
 
 def _owner_key(session_id: str) -> str:
@@ -452,13 +455,14 @@ def _runs_key(session_id: str) -> str:
 
 def _redis_available_sync() -> bool:
     """Whether to use Redis for steering (configured + reachable), cached briefly."""
-    global _redis_health_checked_at, _redis_is_healthy
+    global _redis_health_checked_at, _redis_is_healthy, _redis_health_url
     # Mirror the rate-limiter's "auto" rule: only use Redis when explicitly
     # configured, so dev without a local Redis doesn't pay a connect timeout.
-    if not os.getenv("REDIS_URL"):
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
         return False
     now = time.monotonic()
-    if now < _redis_health_checked_at + _REDIS_HEALTH_TTL_S:
+    if redis_url == _redis_health_url and now < _redis_health_checked_at + _REDIS_HEALTH_TTL_S:
         return _redis_is_healthy
     try:
         from services.infra.redis_client import get_redis_client
@@ -477,6 +481,7 @@ def _redis_available_sync() -> bool:
         )
     _redis_is_healthy = healthy
     _redis_health_checked_at = now
+    _redis_health_url = redis_url
     return healthy
 
 

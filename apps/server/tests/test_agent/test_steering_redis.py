@@ -268,8 +268,8 @@ def redis_steering(monkeypatch):
         "services.infra.redis_client.get_redis_client", lambda: fake, raising=True
     )
     # Force a fresh health check (and that it resolves to "healthy").
-    st._redis_health_checked_at = 0.0
-    st._redis_is_healthy = False
+    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(st, "_redis_is_healthy", False)
     return st, fake
 
 
@@ -497,8 +497,8 @@ async def test_memory_path_concurrent_create_and_cleanup_keeps_queue(monkeypatch
     import agent.core.steering as st
 
     monkeypatch.delenv("REDIS_URL", raising=False)
-    st._redis_health_checked_at = 0.0
-    st._redis_is_healthy = False
+    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(st, "_redis_is_healthy", False)
 
     # 两种调度顺序都要成立：注册先拿到锁 / 释放先拿到锁。
     for label, register_first in (("register-first", True), ("release-first", False)):
@@ -526,8 +526,8 @@ async def test_falls_back_to_memory_without_redis_url(monkeypatch):
     import agent.core.steering as st
 
     monkeypatch.delenv("REDIS_URL", raising=False)
-    st._redis_health_checked_at = 0.0
-    st._redis_is_healthy = False
+    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(st, "_redis_is_healthy", False)
 
     queue = await st.create_steering_queue_async("sess-mem", "user-1")
     assert isinstance(queue, st.SteeringQueue)  # in-memory, not RedisSteeringQueue
