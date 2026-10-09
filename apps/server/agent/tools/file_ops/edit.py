@@ -579,6 +579,7 @@ class FileEditor:
                     applied_edits.append({
                         "op": op,
                         "text_len": len(text),
+                        "text_words": count_words(text),
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                 elif op == "prepend":
@@ -586,6 +587,7 @@ class FileEditor:
                     applied_edits.append({
                         "op": op,
                         "text_len": len(text),
+                        "text_words": count_words(text),
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                 elif op == "delete":
@@ -1218,6 +1220,7 @@ class FileEditor:
                 "match_count": match_count,
                 "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                 "text_len": len(text),
+                "text_words": count_words(text),
                 "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
             })
         else:
@@ -1263,6 +1266,7 @@ class FileEditor:
                         "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
                         "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                         "text_len": len(text),
+                        "text_words": count_words(text),
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                     return content
@@ -1289,6 +1293,7 @@ class FileEditor:
                         "fallback": True,
                         "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                         "text_len": len(text),
+                        "text_words": count_words(text),
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                     return content
@@ -1331,6 +1336,7 @@ class FileEditor:
                 "match_count": len(spans),
                 "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                 "text_len": len(text),
+                "text_words": count_words(text),
                 "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
             })
 
@@ -1372,6 +1378,7 @@ class FileEditor:
                 "match_count": match_count,
                 "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                 "text_len": len(text),
+                "text_words": count_words(text),
                 "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
             })
         else:
@@ -1417,6 +1424,7 @@ class FileEditor:
                         "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
                         "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                         "text_len": len(text),
+                        "text_words": count_words(text),
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                     return content
@@ -1441,6 +1449,7 @@ class FileEditor:
                         "fallback": True,
                         "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                         "text_len": len(text),
+                        "text_words": count_words(text),
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                     return content
@@ -1483,6 +1492,7 @@ class FileEditor:
                 "match_count": len(spans),
                 "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                 "text_len": len(text),
+                "text_words": count_words(text),
                 "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
             })
 

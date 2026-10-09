@@ -87,6 +87,50 @@ async def test_export_drafts_success(client: AsyncClient, db_session):
 
 
 @pytest.mark.integration
+async def test_export_filename_header_is_readable_cross_origin(client: AsyncClient, db_session):
+    """The web app runs on another origin; without exposing Content-Disposition the
+    browser hides the `{项目名}_正文.txt` filename and the download falls back to「导出.txt」."""
+    from urllib.parse import quote
+
+    from main import all_origins
+    from services.core.auth_service import hash_password
+
+    assert all_origins, "test app should allow at least one dev origin"
+    origin = all_origins[0]
+    user = User(
+        username="cors_export", email="cors_export@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True, is_active=True
+    )
+    db_session.add(user)
+    db_session.commit()
+    login_response = await client.post("/api/auth/login", data={"username": "cors_export", "password": "password123"})
+    token = login_response.json()["access_token"]
+    project_id = (await client.post(
+        "/api/v1/projects",
+        json={"name": "雨夜", "description": ""},
+        headers={"Authorization": f"Bearer {token}"},
+    )).json()["id"]
+    await client.post(
+        f"/api/v1/projects/{project_id}/files",
+        json={"title": "第一章", "content": "正文", "file_type": "draft"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    response = await client.get(
+        f"/api/v1/projects/{project_id}/export/drafts",
+        headers={"Authorization": f"Bearer {token}", "Origin": origin},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    exposed = [h.strip().lower() for h in response.headers["access-control-expose-headers"].split(",")]
+    assert "content-disposition" in exposed
+    assert exposed.count("content-disposition") == 1
+    assert response.headers["content-disposition"] == f"attachment; filename*=UTF-8''{quote('雨夜_正文.txt')}"
+
+
+@pytest.mark.integration
 async def test_export_drafts_includes_screenplay_scripts(client: AsyncClient, db_session):
     """Screenplay projects store episodes as scripts; export should include them."""
     from services.core.auth_service import hash_password
