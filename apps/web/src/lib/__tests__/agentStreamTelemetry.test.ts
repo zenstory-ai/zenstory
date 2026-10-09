@@ -58,7 +58,7 @@ describe("agent stream telemetry", () => {
     captureExceptionMock.mockReset();
   });
 
-  it("reports time to first visible output and an author stop as its own outcome", async () => {
+  it("reports an author stop as its own outcome", async () => {
     await runStream(
       sseResponse([
         'event: thinking_content\ndata: {"content":"先读大纲"}\n\n',
@@ -69,17 +69,7 @@ describe("agent stream telemetry", () => {
     );
 
     expect(trackEventMock).toHaveBeenCalledTimes(1);
-    const [eventName, properties] = trackEventMock.mock.calls[0];
-    expect(eventName).toBe("ai_chat_stopped");
-    expect(typeof properties.first_output_ms).toBe("number");
-  });
-
-  it("leaves time to first output empty when nothing visible arrived", async () => {
-    await runStream(sseResponse(['event: thinking_content\ndata: {"content":"先读大纲"}\n\n', "event: done\ndata: {}\n\n"]));
-
-    const [eventName, properties] = trackEventMock.mock.calls[0];
-    expect(eventName).toBe("ai_chat_completed");
-    expect(properties.first_output_ms).toBeUndefined();
+    expect(trackEventMock.mock.calls[0][0]).toBe("ai_chat_stopped");
   });
 
   afterEach(() => {

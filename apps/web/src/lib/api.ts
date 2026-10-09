@@ -24,7 +24,6 @@ import type {
   FileVersionListResponse,
   PatchProjectRequest,
   Project,
-  ProjectNextStep,
   ProjectProgress,
   RollbackResponse,
   SnapshotComparison,
@@ -442,15 +441,13 @@ export const projectApi = {
   get: (projectId: string) => api.get<Project>(`/api/v1/projects/${projectId}`),
 
   /**
-   * The project's next step: "write chapter 1" when a framework exists but no prose yet.
+   * Writing progress of the author's projects (cards), or of one project when given
+   * (the chat's "write chapter 1" offer when its framework is ready).
    */
-  getNextStep: (projectId: string) =>
-    api.get<{ next_step: ProjectNextStep | null }>(`/api/v1/projects/${projectId}/next-step`),
-
-  /**
-   * Writing progress of every project the author owns (for the project cards).
-   */
-  getProgress: () => api.get<ProjectProgress[]>("/api/v1/projects/progress"),
+  getProgress: (projectId?: string) =>
+    api.get<ProjectProgress[]>(
+      projectId ? `/api/v1/projects/progress?project_id=${encodeURIComponent(projectId)}` : "/api/v1/projects/progress",
+    ),
 
   /**
    * Create a new project.

@@ -23,10 +23,9 @@ from sqlmodel import Session, col, select, update
 from agent.constants import CONTENT_FILE_TYPES
 from config.datetime_utils import utcnow
 from models.entities import ChatMessage, ChatSession
-from models.file_model import FILE_TYPE_OUTLINE, WORD_COUNT_REV, File, cached_word_count
+from models.file_model import FILE_TYPE_OUTLINE, File, cached_word_count, stamp_word_count
 from models.writing_stats import WritingStats, WritingStreak
 from utils.logger import get_logger, log_with_context
-from utils.text_metrics import count_words
 
 logger = get_logger(__name__)
 
@@ -65,6 +64,41 @@ def _begin_stats_creation_savepoint(session: Session) -> SessionTransaction:
             connection.exec_driver_sql("BEGIN")
     return session.begin_nested()
 
+
+
+def resolve_prose_word_counts(session: Session, files: list[File], **log_fields: Any) -> dict[str, int]:
+    """Editor word count per file id: trust the current-revision cache, recompute the rest.
+
+    ``files`` may be loaded with only ``id`` and ``file_metadata``. Files whose cache is
+    missing or from an older counting revision are reloaded with content, stamped and
+    committed once; a failed backfill commit is logged and the computed counts returned.
+    """
+    counts: dict[str, int] = {}
+    stale_ids: list[str] = []
+    for file in files:
+        cached = cached_word_count(file.file_metadata)
+        if cached is None:
+            stale_ids.append(file.id)
+        else:
+            counts[file.id] = cached
+    if not stale_ids:
+        return counts
+    for file in session.exec(select(File).where(col(File.id).in_(stale_ids))).all():
+        counts[file.id] = stamp_word_count(file)
+        session.add(file)
+    try:
+        session.commit()
+    except Exception as exc:  # pragma: no cover - infra dependent
+        session.rollback()
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Failed to backfill prose word_count metadata (continuing)",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            **log_fields,
+        )
+    return counts
 
 class WritingStatsService:
     """Service for managing writing statistics and streaks."""
@@ -163,60 +197,6 @@ class WritingStatsService:
                 parsed = int(stripped)
                 return parsed if parsed > 0 else None
         return None
-
-    def _parse_non_negative_int(self, value: Any) -> int | None:
-        """Parse non-negative integer from metadata-like value."""
-        if isinstance(value, bool):
-            return None
-        if isinstance(value, int):
-            return value if value >= 0 else None
-        if isinstance(value, float):
-            parsed = int(value)
-            return parsed if parsed >= 0 else None
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            # Support common numeric formats e.g. "1,234"
-            with_value = stripped.replace(",", "")
-            if with_value.isdigit():
-                return int(with_value)
-            try:
-                parsed_float = float(with_value)
-                parsed_int = int(parsed_float)
-                return parsed_int if parsed_int >= 0 else None
-            except ValueError:
-                return None
-        return None
-
-    def _read_word_count_from_file_metadata(self, raw_metadata: str | None) -> int | None:
-        """Cached word_count in the current counting revision; None means recompute from content."""
-        return cached_word_count(raw_metadata)
-
-    def _set_word_count_in_file_metadata(self, file: File, word_count: int) -> bool:
-        """Set file_metadata.word_count, preserving other metadata keys. Returns True when updated."""
-        normalized_word_count = max(0, int(word_count))
-        metadata_dict: dict[str, Any] = {}
-        if file.file_metadata:
-            try:
-                parsed = json_module.loads(file.file_metadata)
-                if isinstance(parsed, dict):
-                    metadata_dict = parsed
-            except (TypeError, ValueError):
-                metadata_dict = {}
-
-        existing = metadata_dict.get("word_count")
-        existing_parsed = self._parse_non_negative_int(existing) if existing is not None else None
-        if (
-            existing_parsed == normalized_word_count
-            and metadata_dict.get("word_count_rev") == WORD_COUNT_REV
-        ):
-            return False
-
-        metadata_dict["word_count"] = normalized_word_count
-        metadata_dict["word_count_rev"] = WORD_COUNT_REV
-        file.file_metadata = json_module.dumps(metadata_dict, ensure_ascii=False)
-        return True
 
     def _resolve_completion_target(
         self,
@@ -634,45 +614,7 @@ class WritingStatsService:
             )
         ).all()
 
-        total = 0
-        missing_ids: list[str] = []
-        for file in draft_files:
-            cached = self._read_word_count_from_file_metadata(file.file_metadata)
-            if cached is None:
-                missing_ids.append(file.id)
-            else:
-                total += int(cached)
-
-        if not missing_ids:
-            return total
-
-        # Fallback: compute only missing files, then backfill metadata (commit once).
-        missing_files = session.exec(
-            select(File)
-            .options(load_only(File.id, File.content, File.file_metadata))
-            .where(File.id.in_(missing_ids))
-        ).all()
-
-        updated_any = False
-        for file in missing_files:
-            computed = count_words(file.content)
-            total += computed
-            updated_any = self._set_word_count_in_file_metadata(file, computed) or updated_any
-
-        if updated_any:
-            try:
-                session.commit()
-            except Exception as exc:  # pragma: no cover - infra dependent
-                session.rollback()
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Failed to backfill draft word_count metadata (continuing)",
-                    project_id=project_id,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
-
+        total = sum(resolve_prose_word_counts(session, list(draft_files), project_id=project_id).values())
         return total
 
     def get_words_written_in_period(
@@ -872,43 +814,9 @@ class WritingStatsService:
             outline_draft_pairs.append((outline, draft))
 
         # Resolve word_count for matched drafts.
-        draft_word_counts: dict[str, int] = {}
-        missing_draft_ids: list[str] = []
-        for _outline, draft in outline_draft_pairs:
-            if not draft:
-                continue
-            cached = self._read_word_count_from_file_metadata(draft.file_metadata)
-            if cached is None:
-                missing_draft_ids.append(draft.id)
-            else:
-                draft_word_counts[draft.id] = int(cached)
-
-        if missing_draft_ids:
-            missing_drafts = session.exec(
-                select(File)
-                .options(load_only(File.id, File.content, File.file_metadata))
-                .where(File.id.in_(missing_draft_ids))
-            ).all()
-
-            updated_any = False
-            for draft in missing_drafts:
-                computed = count_words(draft.content)
-                draft_word_counts[draft.id] = computed
-                updated_any = self._set_word_count_in_file_metadata(draft, computed) or updated_any
-
-            if updated_any:
-                try:
-                    session.commit()
-                except Exception as exc:  # pragma: no cover - infra dependent
-                    session.rollback()
-                    log_with_context(
-                        logger,
-                        30,  # WARNING
-                        "Failed to backfill draft word_count metadata for chapter stats (continuing)",
-                        project_id=project_id,
-                        error=str(exc),
-                        error_type=type(exc).__name__,
-                    )
+        draft_word_counts = resolve_prose_word_counts(
+            session, [draft for _outline, draft in outline_draft_pairs if draft], project_id=project_id
+        )
 
         for outline, draft in outline_draft_pairs:
             if draft:
@@ -964,41 +872,7 @@ class WritingStatsService:
             in_progress_chapters = 0
             chapter_details = []
 
-            draft_word_counts = {}
-            missing_draft_ids = []
-            for draft in draft_files:
-                cached = self._read_word_count_from_file_metadata(draft.file_metadata)
-                if cached is None:
-                    missing_draft_ids.append(draft.id)
-                else:
-                    draft_word_counts[draft.id] = int(cached)
-
-            if missing_draft_ids:
-                missing_drafts = session.exec(
-                    select(File)
-                    .options(load_only(File.id, File.content, File.file_metadata))
-                    .where(File.id.in_(missing_draft_ids))
-                ).all()
-
-                updated_any = False
-                for draft in missing_drafts:
-                    computed = count_words(draft.content)
-                    draft_word_counts[draft.id] = computed
-                    updated_any = self._set_word_count_in_file_metadata(draft, computed) or updated_any
-
-                if updated_any:
-                    try:
-                        session.commit()
-                    except Exception as exc:  # pragma: no cover - infra dependent
-                        session.rollback()
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Failed to backfill draft word_count metadata for chapter stats fallback (continuing)",
-                            project_id=project_id,
-                            error=str(exc),
-                            error_type=type(exc).__name__,
-                        )
+            draft_word_counts = resolve_prose_word_counts(session, list(draft_files), project_id=project_id)
 
             for draft in draft_files:
                 word_count = draft_word_counts.get(draft.id, 0)

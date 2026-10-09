@@ -39,8 +39,9 @@ class MaterialSettings(BaseSettings):
     MAX_CHAPTERS_PER_NOVEL: int = 3000
     # 免费试拆：没有素材库权益的账号可拆一本的前 N 章（一次）。默认关闭：
     # 阶段0 的章节上限要随 Prefect worker 一起发布，worker 上线后再打开。
-    MATERIAL_TRIAL_ENABLED: bool = False
-    MATERIAL_TRIAL_MAX_CHAPTERS: int = 20
+    # 环境变量带 MATERIAL_ 前缀：MATERIAL_TRIAL_ENABLED / MATERIAL_TRIAL_MAX_CHAPTERS。
+    TRIAL_ENABLED: bool = False
+    TRIAL_MAX_CHAPTERS: int = 20
     MIN_PLOTS_PER_CHAPTER: int = 10
     MAX_PLOTS_PER_CHAPTER: int = 15
     MIN_PLOTS_PER_STORY: int = 3

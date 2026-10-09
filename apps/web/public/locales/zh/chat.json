@@ -302,18 +302,8 @@
     "partialFailed": "《{{title}}》有 {{count}} 处修改没有生效，请检查后让 AI 重试。"
   },
   "activity": {
-    "understanding": "正在理解你的需求",
-    "planning": "正在规划",
-    "writing": "正在构思正文",
-    "reviewing": "正在检查刚写的内容",
-    "reading": "正在查看项目里的文件",
-    "creatingFile": "正在写新文件",
-    "creatingFileTitled": "正在写《{{title}}》",
-    "editingFile": "正在修改文件",
-    "editingFileTitled": "正在修改《{{title}}》",
-    "replying": "正在回复",
-    "elapsed": "{{seconds}} 秒",
-    "longWaitHint": "写长内容通常要一两分钟，可以先去看看别的地方，回来再看。"
+    "elapsed": "AI 正在处理 · {{seconds}} 秒",
+    "longWaitHint": "写长内容通常要一两分钟，请稍等。"
   },
   "leaveWhileGenerating": {
     "title": "AI 还在写",
@@ -323,6 +313,18 @@
   },
   "nextStep": {
     "frameworkReady": "故事框架已经有了，可以开始写正文了。",
-    "dismiss": "先不用"
+    "dismiss": "先不用",
+    "novel": {
+      "label": "写第一章正文",
+      "message": "按大纲写第一章正文"
+    },
+    "short": {
+      "label": "开始写正文",
+      "message": "按大纲开始写正文"
+    },
+    "screenplay": {
+      "label": "写第 1 集剧本",
+      "message": "按分集大纲写第 1 集剧本"
+    }
   }
 }

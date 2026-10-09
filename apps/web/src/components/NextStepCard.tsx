@@ -1,12 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { PenLine } from "lucide-react";
-import type { ProjectNextStep } from "../types";
 
 interface NextStepCardProps {
-  step: ProjectNextStep;
-  /** Send step.message right away. */
-  onStart: () => void;
+  /** novel / short / screenplay: chapter 1, the opening, or episode 1. */
+  projectType: string | undefined;
+  /** Send the localized request right away. */
+  onStart: (message: string) => void;
   onDismiss: () => void;
 }
 
@@ -14,8 +14,9 @@ interface NextStepCardProps {
  * Above the chat input once the framework exists but no prose does: one press
  * sends "write chapter 1" (the most common place new authors stopped).
  */
-export const NextStepCard: React.FC<NextStepCardProps> = ({ step, onStart, onDismiss }) => {
+export const NextStepCard: React.FC<NextStepCardProps> = ({ projectType, onStart, onDismiss }) => {
   const { t } = useTranslation(["chat"]);
+  const kind = projectType === "screenplay" || projectType === "short" ? projectType : "novel";
   return (
     <div
       data-testid="next-step-card"
@@ -28,10 +29,10 @@ export const NextStepCard: React.FC<NextStepCardProps> = ({ step, onStart, onDis
       <button
         type="button"
         data-testid="next-step-start"
-        onClick={onStart}
+        onClick={() => onStart(t(`chat:nextStep.${kind}.message`))}
         className="btn-primary rounded-lg px-3 text-xs min-h-[44px] md:min-h-0 md:h-8"
       >
-        {step.label}
+        {t(`chat:nextStep.${kind}.label`)}
       </button>
       <button
         type="button"

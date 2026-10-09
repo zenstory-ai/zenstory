@@ -92,6 +92,10 @@ class SSEStreamPump:
         """作者要求停止：消费端尽快取消后台 task 并抛出 StreamStoppedByUser。"""
         self._stop_event.set()
 
+    @property
+    def stop_requested(self) -> bool:
+        return self._stop_event.is_set()
+
     def cancel(self) -> None:
         """同步取消后台 task（可在 GeneratorExit / CancelledError 路径中调用）。"""
         if self._task is not None and not self._task.done():

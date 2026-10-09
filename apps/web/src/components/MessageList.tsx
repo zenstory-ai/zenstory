@@ -28,7 +28,6 @@ import { stripThinkTags } from '../lib/utils';
 import { getAgentDisplayName } from '../lib/agentDisplayName';
 import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
-import { USER_STOPPED_REASON } from '../lib/agentStop';
 
 /** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
 function UserStoppedNote() {
@@ -560,7 +559,7 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
         .map((d) => d.trim())
         .filter(Boolean);
       const workflowReason = (item as { reason?: string }).reason;
-      if (workflowReason === USER_STOPPED_REASON) {
+      if (workflowReason === 'user_stopped') {
         return <UserStoppedNote key={item.id} />;
       }
       const isClarificationStop =
@@ -920,7 +919,7 @@ function Row({
         {message.role === 'assistant' && !hasDisplayItems && message.statusCards && message.statusCards.length > 0 && (
           <div className="mt-3 space-y-2">
             {message.statusCards.map((card, idx) => {
-              if (card.type === 'workflow_stopped' && card.reason === USER_STOPPED_REASON) {
+              if (card.type === 'workflow_stopped' && card.reason === 'user_stopped') {
                 return <UserStoppedNote key={`status-${idx}`} />;
               }
               if (card.type === 'workflow_stopped') {

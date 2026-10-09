@@ -20,7 +20,7 @@ const mockProjectState = vi.hoisted(() => ({
 const mockStartStream = vi.hoisted(() => vi.fn())
 const mockScrollToBottom = vi.hoisted(() => vi.fn())
 const mockRollback = vi.hoisted(() => vi.fn())
-const mockGetNextStep = vi.hoisted(() => vi.fn(async () => ({ next_step: null as unknown })))
+const mockGetProgress = vi.hoisted(() => vi.fn(async () => [] as unknown[]))
 
 let testQueryClient: QueryClient
 const render = (ui: React.ReactElement) => {
@@ -47,6 +47,7 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:panel.notChargedError': '这次出错不计入今日 AI 消息。',
   'chat:panel.notChargedStopped': '已停止，这一轮还没有写出内容，不计入今日 AI 消息。',
   'chat:panel.resend': '重新发送',
+  'chat:nextStep.novel.message': '按大纲写第一章正文',
   'chat:input.mode.switchedFast': '已切换到快速模式：更快出结果（可能更简略）',
   'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
@@ -216,7 +217,7 @@ vi.mock('../../lib/agentApi', () => ({
 vi.mock('../../lib/api', () => ({
   fileVersionApi: { rollback: mockRollback },
   versionApi: {},
-  projectApi: { getNextStep: mockGetNextStep },
+  projectApi: { getProgress: mockGetProgress },
 }))
 
 type MockMessageInputProps = {
@@ -549,9 +550,9 @@ describe('ChatPanel mount smoke', () => {
   })
 
   it('offers to write chapter 1 once the framework exists, sending it in one press', async () => {
-    mockGetNextStep.mockResolvedValue({
-      next_step: { kind: 'write_first_chapter', label: '写第一章正文', message: '按大纲写第一章正文' },
-    })
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
     render(<ChatPanel />)
 
     fireEvent.click(await screen.findByTestId('next-step-start'))
@@ -561,13 +562,13 @@ describe('ChatPanel mount smoke', () => {
     expect(request.message).toBe('按大纲写第一章正文')
     expect(request.metadata.entry).toBe('next_step')
     expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
-    mockGetNextStep.mockResolvedValue({ next_step: null })
+    mockGetProgress.mockResolvedValue([])
   })
 
   it('keeps the chapter-1 offer hidden after the author dismisses it', async () => {
-    mockGetNextStep.mockResolvedValue({
-      next_step: { kind: 'write_first_chapter', label: '写第一章正文', message: '按大纲写第一章正文' },
-    })
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
     render(<ChatPanel />)
 
     await screen.findByTestId('next-step-card')
@@ -575,7 +576,7 @@ describe('ChatPanel mount smoke', () => {
 
     expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
     expect(mockStartStream).not.toHaveBeenCalled()
-    mockGetNextStep.mockResolvedValue({ next_step: null })
+    mockGetProgress.mockResolvedValue([])
   })
 
   it('never pairs a refund note with the used-up card, which would hint at a second limit', async () => {

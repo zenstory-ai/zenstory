@@ -47,7 +47,6 @@ import type {
   AgentRequest,
   ApplyAction,
   FileEditUndoTarget,
-  ProjectNextStep,
   SSEWorkflowStoppedData,
 } from "../types";
 import { logger } from "../lib/logger";
@@ -71,7 +70,6 @@ import { useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
-import { useStreamActivity } from "../hooks/useStreamActivity";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
 import { StreamActivityLine } from "./StreamActivityLine";
 
@@ -375,6 +373,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, []);
   const {
     currentProjectId,
+    currentProject,
     selectedItem,
     triggerFileTreeRefresh,
     triggerEditorRefresh,
@@ -423,7 +422,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [showFileVersionUpgradeModal, setShowFileVersionUpgradeModal] = useState(false);
   // 后端确实退还了这一轮的 AI 消息时才有值（quota_refunded 帧），按项目隔离，下一轮开始时清空。
   const [quotaRefund, setQuotaRefund] = useState<{ projectId: string; kind: QuotaRefundKind } | null>(null);
-  const streamActivity = useStreamActivity();
+  const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null);
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
@@ -499,15 +498,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
   const currentProjectIdRef = useRef<string | null>(currentProjectId);
   // "Write chapter 1" once a framework exists but no prose yet; refreshed on open and after each round.
-  const [nextStep, setNextStep] = useState<{ projectId: string; step: ProjectNextStep } | null>(null);
+  const [frameworkReadyProjectId, setFrameworkReadyProjectId] = useState<string | null>(null);
   const [dismissedNextStepProjects, setDismissedNextStepProjects] = useState<ReadonlySet<string>>(() => new Set());
   const refreshNextStep = useCallback(async (projectId: string) => {
     try {
-      const { next_step: step } = await projectApi.getNextStep(projectId);
+      const [progress] = await projectApi.getProgress(projectId);
       if (currentProjectIdRef.current !== projectId) return;
-      setNextStep(step ? { projectId, step } : null);
+      setFrameworkReadyProjectId(progress?.framework_ready ? projectId : null);
     } catch (error) {
-      logger.warn("Failed to load the project's next step:", error);
+      logger.warn("Failed to load the project's progress:", error);
     }
   }, []);
   useEffect(() => {
@@ -940,7 +939,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Lifecycle callbacks
     onStart: () => {
       streamCallbacks.onStart();
-      streamActivity.begin();
+      setStreamStartedAt(Date.now());
       terminalStatusCardsRef.current = [];
       setQuotaRefund(null);
       resetOnCompleteFlag();
@@ -956,10 +955,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onThinkingContent: streamCallbacks.onThinkingContent,
 
     // Segment callbacks
-    onSegmentStart: (segment) => {
-      streamActivity.onSegmentStart(segment);
-      streamCallbacks.onSegmentStart(segment);
-    },
+    onSegmentStart: streamCallbacks.onSegmentStart,
     onSegmentUpdate: streamCallbacks.onSegmentUpdate,
     onSegmentUpdateToolCalls: streamCallbacks.onSegmentUpdateToolCalls,
     onSegmentEnd: streamCallbacks.onSegmentEnd,
@@ -975,16 +971,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onToolResult: streamCallbacks.onToolResult,
 
     // File operation callbacks
-    onFileCreated: (fileId, fileType, title) => {
-      streamActivity.onFileCreated(title);
-      streamCallbacks.onFileCreated(fileId, fileType, title);
-    },
+    onFileCreated: streamCallbacks.onFileCreated,
     onFileContent: streamCallbacks.onFileContent,
     onFileContentEnd: streamCallbacks.onFileContentEnd,
-    onFileEditStart: (fileId, title, totalEdits, fileType) => {
-      streamActivity.onFileEditStart(title);
-      streamCallbacks.onFileEditStart(fileId, title, totalEdits, fileType);
-    },
+    onFileEditStart: streamCallbacks.onFileEditStart,
     onFileEditApplied: streamCallbacks.onFileEditApplied,
     onFileEditEnd: streamCallbacks.onFileEditEnd,
 
@@ -993,11 +983,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onSkillsMatched: streamCallbacks.onSkillsMatched,
 
     // Multi-agent workflow callbacks
-    onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
-      streamActivity.onAgentSelected(agentType);
-      streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
-    },
-    onToolCall: streamActivity.onToolCall,
+    onAgentSelected: streamCallbacks.onAgentSelected,
     onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
@@ -1191,7 +1177,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setSuggestionDisplayState("loading");
     contextItemsRef.current = [];
 
-    setNextStep(null);
+    setFrameworkReadyProjectId(null);
     void refreshNextStep(currentProjectId);
 
     // Load chat history first, then request project suggestions immediately.
@@ -1904,7 +1890,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               )}
 
               {isStreaming && (
-                <StreamActivityLine activity={streamActivity.activity} startedAt={streamActivity.startedAt} />
+                <StreamActivityLine startedAt={streamStartedAt} />
               )}
 
               {/* 这一轮确实没扣 AI 消息（后端退还落库后才会收到） */}
@@ -1983,23 +1969,22 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               : `px-3 py-2 ${inputPanelHeight !== null ? "flex-1 min-h-0" : ""}`
           }`}
         >
-          {nextStep
-            && nextStep.projectId === currentProjectId
-            && !dismissedNextStepProjects.has(nextStep.projectId)
+          {frameworkReadyProjectId
+            && frameworkReadyProjectId === currentProjectId
+            && !dismissedNextStepProjects.has(frameworkReadyProjectId)
             && !isStreaming
             && !isThinking
             && !quotaExhausted && (
             <NextStepCard
-              step={nextStep.step}
-              onStart={() => {
-                const { projectId, step } = nextStep;
-                trackEvent("ai_next_step_clicked", { project_id: projectId, kind: step.kind });
-                setNextStep(null);
-                void handleSendMessage(step.message, undefined, { entry: "next_step" });
+              projectType={currentProject?.project_type}
+              onStart={(message) => {
+                trackEvent("ai_next_step_clicked", { project_id: frameworkReadyProjectId });
+                setFrameworkReadyProjectId(null);
+                void handleSendMessage(message, undefined, { entry: "next_step" });
               }}
               onDismiss={() => {
-                trackEvent("ai_next_step_dismissed", { project_id: nextStep.projectId, kind: nextStep.step.kind });
-                setDismissedNextStepProjects((prev) => new Set(prev).add(nextStep.projectId));
+                trackEvent("ai_next_step_dismissed", { project_id: frameworkReadyProjectId });
+                setDismissedNextStepProjects((prev) => new Set(prev).add(frameworkReadyProjectId));
               }}
             />
           )}

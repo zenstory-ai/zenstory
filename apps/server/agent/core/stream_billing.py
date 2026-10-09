@@ -53,10 +53,7 @@ REFUND_KIND_NO_PROGRESS = "no_progress"
 REFUND_KIND_ERROR = "error"
 REFUND_KIND_STOPPED = "stopped"
 
-USER_STOPPED_BILLING_REASON = "user_stopped"
 USER_STOPPED_NO_OUTPUT_BILLING_REASON = "user_stopped_no_output"
-CLIENT_DISCONNECTED_BILLING_REASON = "client_disconnected"
-CLIENT_DISCONNECTED_NO_OUTPUT_BILLING_REASON = "client_disconnected_no_output"
 
 
 def quota_refunded_frame(billing_reason: str) -> str:
@@ -181,14 +178,11 @@ class StreamBillingTracker:
         user_stopped: bool = False,
     ) -> tuple[str, bool]:
         """返回 (billing_reason, should_refund)。"""
-        if user_stopped:
+        if user_stopped or client_disconnected:
+            reason = "user_stopped" if user_stopped else "client_disconnected"
             if self.produced_output:
-                return USER_STOPPED_BILLING_REASON, False
-            return USER_STOPPED_NO_OUTPUT_BILLING_REASON, True
-        if client_disconnected:
-            if self.produced_output:
-                return CLIENT_DISCONNECTED_BILLING_REASON, False
-            return CLIENT_DISCONNECTED_NO_OUTPUT_BILLING_REASON, True
+                return reason, False
+            return f"{reason}_no_output", True
         if deadline_exceeded:
             return "run_deadline_exceeded", not self.produced_output
         if self.runaway_stop and not self.write_succeeded and not unexpected_exception:

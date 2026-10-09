@@ -1340,15 +1340,6 @@ export type AgentEnhancementEvent =
   | ParallelEndEvent
   | SteeringReceivedEvent;
 
-/** Next step offered above the chat input (from GET /projects/{id}/next-step). */
-export interface ProjectNextStep {
-  kind: "write_first_chapter";
-  /** Button text, already localized. */
-  label: string;
-  /** The request sent to the AI when the author clicks it. */
-  message: string;
-}
-
 /** Writing progress shown on a project card (from GET /projects/progress). */
 export interface ProjectProgress {
   project_id: string;

@@ -28,7 +28,6 @@ from services.auth import get_current_active_user
 from sqlmodel import Session
 
 from agent.core.events import EventType, StreamEvent, done_event, error_event
-from agent.core.run_stop import RunStopWatch, request_stop
 from agent.core.sse_pump import SSEStreamPump, StreamDeadlineExceeded, StreamStoppedByUser
 from agent.core.steering import SteeringSessionBusyError
 from agent.core.stream_billing import StreamBillingTracker, quota_refunded_frame
@@ -85,6 +84,11 @@ USER_STOPPED_MESSAGE = "已停止生成。"
 
 # 断线路径上不能挂起：要退还的额度交给后台任务，这里持有引用防止被回收。
 _detached_refund_tasks: set[asyncio.Task[Any]] = set()
+
+# 进行中的 /stream：(user_id, agent_run_id) → 该请求的 SSE 泵，供 /stop 找到并停止。
+# 按用户命名，拿到别人的 run id 也停不了。生产只有一个 API 进程（WEB_CONCURRENCY=1）；
+# 停止请求落到别的进程（如发布交接期间）时找不到运行，前端随即断开，按断线结算。
+_running_streams: dict[tuple[str, str], SSEStreamPump] = {}
 
 
 # 「按登录用户限流」的依赖构造器现已下沉到 middleware.rate_limit，
@@ -185,17 +189,6 @@ def _schedule_detached_refund(
     _detached_refund_tasks.add(task)
     task.add_done_callback(_detached_refund_tasks.discard)
     return True
-
-
-# 前端在 metadata.entry 里标明消息从哪里发出；日志只记这几个已知值。
-MESSAGE_ENTRIES = frozenset(
-    {"typed", "suggestion", "next_step", "resend_after_stop", "dashboard_idea"}
-)
-
-
-def _message_entry(metadata: dict[str, Any] | None) -> str | None:
-    entry = (metadata or {}).get("entry")
-    return entry if entry in MESSAGE_ENTRIES else None
 
 
 def _session_busy_exception() -> APIException:
@@ -320,7 +313,7 @@ class StopRequest(BaseModel):
 
 
 class StopResponse(BaseModel):
-    """The stop request was recorded (the run ends on its own stream)."""
+    """Whether the run was found and asked to stop (it then ends on its own stream)."""
 
     stop_requested: bool
 
@@ -410,8 +403,6 @@ async def stream_request(
         message_length=len(body.message),
         message_preview=message_preview,
         has_selected_text=body.selected_text is not None,
-        # 这条消息从哪里发出：输入框 / 建议 / 下一步按钮 / 停止后重发 / 首页想法
-        entry=_message_entry(body.metadata),
         language=accept_language,
     )
 
@@ -514,11 +505,7 @@ async def stream_request(
             deadline_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
             on_item=tracker.observe,
         )
-        stop_watch = RunStopWatch(user_id, agent_run_id)
-
-        async def _relay_stop_request() -> None:
-            await stop_watch.wait()
-            pump.request_stop()
+        run_key = (user_id, agent_run_id)
 
         async def _settle_billing(*, detached: bool = False) -> tuple[str, bool, bool]:
             # 结算规则见 stream_billing；这里只负责「只结算一次」。断线路径
@@ -548,8 +535,7 @@ async def stream_request(
                 settlement = (billing_reason, should_refund, refund_applied)
             return settlement
 
-        stop_watch.__enter__()
-        stop_relay = asyncio.create_task(_relay_stop_request())
+        _running_streams[run_key] = pump
         try:
             async for event in pump:
                 yield event
@@ -586,7 +572,7 @@ async def stream_request(
             # aclose（GeneratorExit）。GeneratorExit 路径上不能 yield，也不做任何
             # 会挂起的 await。作者先点了停止、前端等不到收尾才断开时仍算主动停止。
             client_disconnected = True
-            user_stopped = stop_watch.stop_requested
+            user_stopped = pump.stop_requested
             pump.cancel()
             raise
         except StreamDeadlineExceeded:
@@ -648,8 +634,8 @@ async def stream_request(
                     yield quota_refunded_frame(billing_reason)
             raise
         finally:
-            stop_relay.cancel()
-            stop_watch.__exit__(None, None, None)
+            if _running_streams.get(run_key) is pump:
+                del _running_streams[run_key]
             billing_reason, should_refund, refund_applied = await _settle_billing(
                 detached=client_disconnected
             )
@@ -852,19 +838,21 @@ async def stop_stream(
     ),
 ):
     """
-    作者点了「停止生成」：记录停止请求，运行在自己的 /stream 连接上收尾。
+    作者点了「停止生成」：运行在自己的 /stream 连接上收尾。
 
-    前端随后继续读流，收到 workflow_stopped(reason=user_stopped) + done，以及
-    （本轮没有任何产出时）quota_refunded(kind=stopped)。停止信号按当前用户命名，
-    别人的 run id 写进来也只会落在自己的命名空间里，不会影响别人的运行；
-    运行不存在或已结束时同样返回 stop_requested=true（幂等）。
+    找到时前端继续读流，收到 workflow_stopped(reason=user_stopped) + done，以及
+    （本轮没有任何产出时）quota_refunded(kind=stopped)；找不到（已结束、别的进程、
+    别人的运行）返回 stop_requested=false，前端直接断开连接。
     """
-    await request_stop(current_user.id, body.agent_run_id)
+    pump = _running_streams.get((current_user.id, body.agent_run_id))
+    if pump is not None:
+        pump.request_stop()
     log_with_context(
         logger,
         20,  # INFO
         "Agent stop requested",
         user_id=current_user.id,
         agent_run_id=body.agent_run_id,
+        found=pump is not None,
     )
-    return StopResponse(stop_requested=True)
+    return StopResponse(stop_requested=pump is not None)

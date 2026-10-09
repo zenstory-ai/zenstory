@@ -476,12 +476,15 @@ export default function MaterialsPage() {
                     })}
                   </button>
                 )}
-                <button
-                  onClick={() => openUpgradePath("billing")}
-                  className={trialAvailable ? "btn-secondary h-11 px-4" : "btn-primary h-11 px-4"}
-                >
-                  {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
-                </button>
+                {/* With the trial on offer, the header keeps the Pro entry. */}
+                {!trialAvailable && (
+                  <button
+                    onClick={() => openUpgradePath("billing")}
+                    className="btn-primary h-11 px-4"
+                  >
+                    {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
+                  </button>
+                )}
                 <button
                   onClick={() => openUpgradePath("pricing")}
                   className="inline-flex h-11 items-center justify-center rounded-md border border-[hsl(var(--accent-primary)/0.24)] bg-[hsl(var(--accent-primary)/0.08)] px-4 text-sm font-medium text-[hsl(var(--accent-primary))] transition-colors hover:border-[hsl(var(--accent-primary)/0.36)] hover:bg-[hsl(var(--accent-primary)/0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
@@ -571,7 +574,10 @@ export default function MaterialsPage() {
                 onClick={() => handleCardClick(material.id)}
                 onDelete={() => setDeletingId(material.id)}
                 onRetry={
-                  isMaterialsQuotaExhausted ? undefined : () => handleRetry(material.id)
+                  // Retrying charges a monthly breakdown: the free trial cannot retry.
+                  !hasWorkspaceAccess || isMaterialsQuotaExhausted
+                    ? undefined
+                    : () => handleRetry(material.id)
                 }
                 isRetrying={retryingId === material.id}
                 isMobile={isMobile}

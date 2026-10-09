@@ -9,9 +9,9 @@ Status: implemented
 
 ## Decision
 
-- `models/file_model.py`：`before_update` 事件里，正文类文件只要 `content` 有改动就按编辑器口径（`utils.text_metrics.count_words`）重算 `word_count` 并写 `word_count_rev = 2`。`cached_word_count()` 只信任带当前 rev 的缓存，没有或旧口径的缓存返回 None，由读取方加载 `content` 重算并回写（`get_total_word_count` 与新的进度接口都这样做）。新建文件不在插入时盖章，首次读取时按需重算。只覆盖 ORM 写入；仓库里唯一的 Core `update(File)` 只做软删除，不改内容。
-- `GET /api/v1/projects/progress`（`services/project_progress.py`，注册在 `/projects/{project_id}` 之前）：当前用户每个作品的 `written_units`（内容非空的正文类文件数）、`word_count`、`framework_ready`（大纲/角色/设定已有、正文还没有）。
-- 首页「近期项目」与「我的项目」卡片在页脚上方显示一行进度：长篇「已写 12 章 · 3.2 万字」、剧本「已写 3 集 · …」、短篇「已写 …」，框架已就绪但未开写时「框架已就绪，可以开写了」；什么都没有时不显示。请求失败时卡片照旧，不显示进度。
+- `models/file_model.py`：`before_update` 事件里，正文类文件只要 `content` 有改动就按编辑器口径（`utils.text_metrics.count_words`）重算 `word_count` 并写 `word_count_rev = 2`。`cached_word_count()` 只信任带当前 rev 的缓存；`writing_stats_service.resolve_prose_word_counts()` 统一做「读缓存，旧口径的加载 `content` 重算并回写、提交一次」，总字数、章节完成度（两处）与进度接口共用，原来三份重复的回填代码与 `_read/_set_word_count_in_file_metadata`、`_parse_non_negative_int` 删除。新建文件不在插入时盖章，首次读取时按需重算。只覆盖 ORM 写入；仓库里唯一的 Core `update(File)` 只做软删除，不改内容。
+- `GET /api/v1/projects/progress`（`services/project_progress.py`，注册在 `/projects/{project_id}` 之前，可选 `project_id` 只看一个作品）：当前用户每个作品的 `written_units`（内容非空的正文类文件数）、`word_count`、`framework_ready`（大纲/角色/设定已有、正文还没有；聊天里的「写第一章」按钮也用它）。
+- 首页「近期项目」与「我的项目」卡片在页脚上方显示一行进度：长篇「已写 12 章 · 3.2万 字」、剧本「已写 3 集 · …」、短篇「已写 …」（数字用 `Intl.NumberFormat` 的 compact 格式），框架已就绪但未开写时「框架已就绪，可以开写了」；什么都没有时不显示。请求失败时卡片照旧，不显示进度。
 
 ## Alternatives considered
 

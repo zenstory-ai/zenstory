@@ -385,7 +385,7 @@ async def upload_material(
     Constraints:
     - Paid materials-library entitlement (or an unused free trial) and per-user
       rate limit are checked before the request body is read
-    - A free trial decomposes only the first MATERIAL_TRIAL_MAX_CHAPTERS chapters
+    - A free trial decomposes only the first TRIAL_MAX_CHAPTERS chapters
     - Only .txt files allowed, maximum 20MB, maximum 300,000 characters
     - The text must split into 1..MATERIAL_MAX_CHAPTERS_PER_NOVEL chapters
     - Returns success only after the decomposition flow dispatch is accepted
@@ -438,13 +438,13 @@ async def process_material_upload(
 
     # Paid authors spend a monthly decomposition; everyone else reaches this point
     # only with an unused free trial (require_materials_upload), which covers the
-    # first MATERIAL_TRIAL_MAX_CHAPTERS chapters of one book.
+    # first TRIAL_MAX_CHAPTERS chapters of one book.
     from config.material_settings import material_settings
 
     use_trial = not quota_service.has_feature_access(
         session, current_user.id, "materials_library_access"
     )
-    trial_chapter_limit = int(material_settings.MATERIAL_TRIAL_MAX_CHAPTERS) if use_trial else None
+    trial_chapter_limit = int(material_settings.TRIAL_MAX_CHAPTERS) if use_trial else None
 
     # Check before file I/O, then reserve authoritatively with job creation in
     # one short transaction. No quota write lock spans the file write.

@@ -12,8 +12,6 @@ export interface AgentStreamTelemetry {
   noteEvent(): void;
   /** Count one tool call announced by the stream. */
   noteToolCall(): void;
-  /** First visible output (reply text or file text) reached the client. */
-  noteFirstOutput(): void;
   completed(): void;
   /** The author pressed stop and the server ended the run on this stream. */
   stopped(): void;
@@ -41,7 +39,6 @@ export function createAgentStreamTelemetry(
   let agentRunId: string | undefined;
   let eventCount = 0;
   let toolCallCount = 0;
-  let firstOutputMs: number | undefined;
   let settled = false;
 
   const baseProperties = () => ({
@@ -50,8 +47,6 @@ export function createAgentStreamTelemetry(
     http_status: httpStatus,
     events_received: eventCount,
     tool_calls: toolCallCount,
-    // Time from send to the first reply/file text; undefined when none arrived.
-    first_output_ms: firstOutputMs,
     request_id: requestId,
     agent_run_id: agentRunId,
   });
@@ -74,9 +69,7 @@ export function createAgentStreamTelemetry(
     noteToolCall() {
       toolCallCount += 1;
     },
-    noteFirstOutput() {
-      if (firstOutputMs === undefined) firstOutputMs = Math.max(0, now() - startedAt);
-    },
+
     completed() {
       if (!settle()) return;
       trackEvent("ai_chat_completed", baseProperties());

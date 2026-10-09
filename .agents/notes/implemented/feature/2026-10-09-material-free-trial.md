@@ -13,11 +13,11 @@ Status: implemented
 ## Decision
 
 - **试用额度**：`usage_quota.material_trial_used_at`（迁移 `20261009_120000`，可空列）。一个账号一次，不随月度重置。`quota_service.reserve_material_trial` 用条件更新原子占用（仅当为空），`release_material_trial` 清空。
-- **开关**：`MaterialSettings.MATERIAL_TRIAL_ENABLED`（默认 False）与 `MATERIAL_TRIAL_MAX_CHAPTERS`（默认 20），环境变量可覆盖。章节上限在 Prefect worker 的阶段0 执行，必须先按发布流程上线 worker，再在 API 服务上打开开关；否则旧 worker 会拆整本。
+- **开关**：`MaterialSettings.TRIAL_ENABLED`（默认 False）与 `TRIAL_MAX_CHAPTERS`（默认 20），对应环境变量 `MATERIAL_TRIAL_ENABLED` / `MATERIAL_TRIAL_MAX_CHAPTERS`（设置类带 `MATERIAL_` 前缀）。章节上限在 Prefect worker 的阶段0 执行，必须先按发布流程上线 worker，再在 API 服务上打开开关；否则旧 worker 会拆整本。
 - **权限拆分**（`api/materials/access.py`）：读取类接口（列表、详情、实体、预览、导入、搜索）改用 `require_materials_library_read`：有素材库权益，或已经用过试用。上传改用 `require_materials_upload`：有权益，或试用可用（开关打开、未用过、没有权益）。重试仍只对有权益的账号开放。
 - **上传**：没有权益时走试用：占用试用而不扣月度次数；`source_meta.trial_chapter_limit`；任务 billing 记 `quota_mode="trial"` 与 `chapter_limit`。阶段0（`novel_ingestion_v3_flow._execute_stage0`）读 `job_chapter_limit(job)`，只为前 N 章建章节记录，后续阶段与费用随之只覆盖这些章。
 - **退还**：任务以可退款错误码失败时，`IngestionJobsService._release_job_quota` 对试用任务调用 `release_material_trial`，作者可以再试一次；其余口径同月度次数（重试、部分完成都不退）。
-- **前端**：`/subscription/quota` 新增 `material_trial {available, used, max_chapters}`。素材页：试用可用时预览页主按钮为「免费试拆一本（前 20 章）」，上传弹窗说明只拆前 20 章、一次、平台出错会退还；用过试用后显示素材库与横幅「免费试拆只拆了这本书的前 20 章…开通 Pro」。编辑器素材面板对用过试用的作者也加载这本书，可引用到对话、导入到作品。
+- **前端**：`/subscription/quota` 新增 `material_trial {available, used, max_chapters}`。素材页：试用可用时预览页主按钮为「免费试拆一本（前 20 章）」（页头保留「开通 Pro」），上传弹窗说明只拆前 20 章、一次、平台出错会退还；用过试用后显示素材库与横幅「免费试拆只拆了这本书的前 20 章…开通 Pro」，没有权益时不显示重试（重试要扣月度次数）。编辑器素材面板对用过试用的作者也加载这本书，可引用到对话、导入到作品。
 
 ## Alternatives considered
 
@@ -35,4 +35,5 @@ Status: implemented
 
 - 后端：`.venv/bin/pytest tests/test_api/test_materials_trial.py tests/test_flows/integration/test_novel_ingestion_stage0.py -q --no-cov`：开关关闭时免费用户上传与读取仍是 402；打开后试用一次、只记试用不扣月度次数、任务带章数上限、第二次 402、试用书可在库中读取；平台原因失败退还试用；阶段0 只建前 N 章。相关素材、额度、权益、Prefect flow 测试（545 个）全部通过。
 - 前端：`pnpm exec vitest run src/pages/__tests__/MaterialsPage.test.tsx src/hooks/__tests__/useMaterialLibrary.test.ts`。
+- 本地端到端（SQLite + 假模型、无 Prefect）：`MATERIAL_TRIAL_ENABLED=true` 后素材页出现试拆按钮与说明；上传后任务记为试用、20 章上限，派发失败自动退还试用；标记已用后显示素材库与横幅。这次实测发现设置类带 `MATERIAL_` 前缀、原字段名会让开关变成 `MATERIAL_MATERIAL_TRIAL_ENABLED`，已改名并加测试。
 - 未验证：迁移在真实 PostgreSQL 上的执行（本地从零跑 SQLite 迁移链在更早的迁移上就失败，与本次无关）；真实 Prefect worker 的试用拆解（需要 staging worker 发布）。

@@ -4,7 +4,7 @@ Project management API endpoints
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from services.auth import get_current_active_user
 from sqlmodel import Session, col, func, select
@@ -29,7 +29,6 @@ from models import (
     Project,
     User,
 )
-from services.project_next_step import compute_next_step
 from services.project_progress import get_projects_progress
 from services.project_service import (
     create_project_with_default_folders,
@@ -222,10 +221,11 @@ class ProjectProgressItem(BaseModel):
 # 必须在 /projects/{project_id} 之前注册，否则 "progress" 会被当成作品 id。
 @router.get("/projects/progress", response_model=list[ProjectProgressItem])
 def list_projects_progress(
+    project_id: str | None = Query(None, description="只看这一个作品"),
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):
-    """当前用户所有作品的写作进度：写了几章（集）、多少字，或框架已就绪还没开写。"""
+    """当前用户作品的写作进度：写了几章（集）、多少字，或框架已就绪还没开写（「写第一章」按钮也用它）。"""
     return [
         ProjectProgressItem(
             project_id=item.project_id,
@@ -233,7 +233,7 @@ def list_projects_progress(
             word_count=item.word_count,
             framework_ready=item.framework_ready,
         )
-        for item in get_projects_progress(session, current_user.id)
+        for item in get_projects_progress(session, current_user.id, project_id)
     ]
 
 
@@ -246,36 +246,6 @@ def get_project(
     """Get a specific project."""
     project = verify_project_ownership(project_id, current_user, session)
     return project
-
-
-class ProjectNextStep(BaseModel):
-    """作品的下一步建议（目前只有「框架已就绪，写第一章」）。"""
-
-    kind: Literal["write_first_chapter"]
-    label: str
-    message: str
-
-
-class ProjectNextStepResponse(BaseModel):
-    next_step: ProjectNextStep | None
-
-
-@router.get("/projects/{project_id}/next-step", response_model=ProjectNextStepResponse)
-def get_project_next_step(
-    project_id: str,
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-    accept_language: str | None = Header(None, alias="Accept-Language"),
-):
-    """框架有了、正文还没有时，返回聊天输入框上方「写第一章」按钮的文字和要发的话。"""
-    project = verify_project_ownership(project_id, current_user, session)
-    language = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
-    step = compute_next_step(session, project, language)
-    if step is None:
-        return ProjectNextStepResponse(next_step=None)
-    return ProjectNextStepResponse(
-        next_step=ProjectNextStep(kind=step.kind, label=step.label, message=step.message)
-    )
 
 
 @router.put("/projects/{project_id}", response_model=Project)

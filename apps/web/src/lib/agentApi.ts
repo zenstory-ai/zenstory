@@ -34,7 +34,6 @@ import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./er
 import { logger } from "./logger";
 import i18n from "./i18n";
 import { createAgentStreamTelemetry, type AgentStreamTelemetry } from "./agentStreamTelemetry";
-import { USER_STOPPED_REASON } from "./agentStop";
 
 const TRACE_ID_HEADER = "X-Trace-ID";
 
@@ -180,16 +179,8 @@ function withOutcomeTelemetry(
       telemetry.noteToolCall();
       callbacks.onToolCall?.(...args);
     },
-    onContent: (...args) => {
-      telemetry.noteFirstOutput();
-      callbacks.onContent?.(...args);
-    },
-    onFileContent: (...args) => {
-      telemetry.noteFirstOutput();
-      callbacks.onFileContent?.(...args);
-    },
     onWorkflowStopped: (data) => {
-      if (data.reason === USER_STOPPED_REASON) telemetry.stopped();
+      if (data.reason === "user_stopped") telemetry.stopped();
       callbacks.onWorkflowStopped?.(data);
     },
     onDone: (data) => {

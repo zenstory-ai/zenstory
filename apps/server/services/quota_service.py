@@ -696,7 +696,7 @@ class QuotaService:
         return True
 
     # ------------------------------------------------------------------
-    # 素材拆书免费试用（一个账号一次，见 material_settings.MATERIAL_TRIAL_*）
+    # 素材拆书免费试用（一个账号一次，见 material_settings.TRIAL_*）
     # ------------------------------------------------------------------
     def material_trial_status(self, session: Session, user_id: str) -> dict[str, Any]:
         """{"enabled", "available", "used", "max_chapters"}；有素材库权益的账号不需要试用。"""
@@ -704,13 +704,13 @@ class QuotaService:
 
         quota = self.get_user_quota(session, user_id)
         used = bool(quota and quota.material_trial_used_at is not None)
-        enabled = bool(material_settings.MATERIAL_TRIAL_ENABLED)
+        enabled = bool(material_settings.TRIAL_ENABLED)
         has_access = self.has_feature_access(session, user_id, "materials_library_access")
         return {
             "enabled": enabled,
             "available": enabled and not used and not has_access,
             "used": used,
-            "max_chapters": int(material_settings.MATERIAL_TRIAL_MAX_CHAPTERS),
+            "max_chapters": int(material_settings.TRIAL_MAX_CHAPTERS),
         }
 
     def reserve_material_trial(self, session: Session, user_id: str, *, commit: bool = True) -> bool:

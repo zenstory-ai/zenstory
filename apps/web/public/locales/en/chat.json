@@ -302,17 +302,7 @@
     "partialFailed": "{{count}} edit(s) to \"{{title}}\" did not apply. Review them and ask the AI to retry."
   },
   "activity": {
-    "understanding": "Reading your request",
-    "planning": "Planning",
-    "writing": "Working out the text",
-    "reviewing": "Checking what was just written",
-    "reading": "Looking through your project files",
-    "creatingFile": "Writing a new file",
-    "creatingFileTitled": "Writing \"{{title}}\"",
-    "editingFile": "Editing a file",
-    "editingFileTitled": "Editing \"{{title}}\"",
-    "replying": "Replying",
-    "elapsed": "{{seconds}}s",
+    "elapsed": "AI is working · {{seconds}}s",
     "longWaitHint": "Long passages usually take a minute or two."
   },
   "leaveWhileGenerating": {
@@ -323,6 +313,18 @@
   },
   "nextStep": {
     "frameworkReady": "The outline is ready. Time to start writing.",
-    "dismiss": "Not now"
+    "dismiss": "Not now",
+    "novel": {
+      "label": "Write chapter 1",
+      "message": "Write chapter 1 from the outline"
+    },
+    "short": {
+      "label": "Start the story",
+      "message": "Start writing the story from the outline"
+    },
+    "screenplay": {
+      "label": "Write episode 1",
+      "message": "Write the episode 1 script from the episode outline"
+    }
   }
 }

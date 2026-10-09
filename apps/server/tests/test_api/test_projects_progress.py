@@ -68,3 +68,33 @@ async def test_progress_counts_written_chapters_and_real_word_counts(client: Asy
     assert by_id[writing.id]["word_count"] == 10
     assert by_id[writing.id]["framework_ready"] is False
     assert by_id[empty.id]["framework_ready"] is False
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("files", "written_units", "framework_ready"),
+    [
+        ([("character", "沈晚：假千金")], 0, True),
+        # 只建了标题、还没写内容的正文文件不算已经开写
+        ([("outline", "总纲"), ("draft", "")], 0, True),
+        ([("outline", "分集大纲"), ("script", "第1集 △雨夜")], 1, False),
+        ([], 0, False),
+    ],
+)
+async def test_progress_for_one_project_drives_the_write_chapter_one_offer(
+    client: AsyncClient, db_session, files, written_units, framework_ready
+):
+    token, user = await _login(client, db_session)
+    project = _project(db_session, user, "单个作品", files)
+    _project(db_session, user, "另一个", [("outline", "总纲")])
+
+    response = await client.get(
+        f"/api/v1/projects/progress?project_id={project.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    [item] = response.json()
+    assert item["project_id"] == project.id
+    assert item["written_units"] == written_units
+    assert item["framework_ready"] is framework_ready

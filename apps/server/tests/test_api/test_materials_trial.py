@@ -56,7 +56,7 @@ async def _upload(client: AsyncClient, headers: dict[str, str]):
 
 @pytest.mark.integration
 async def test_trial_is_off_until_enabled(client: AsyncClient, db_session, monkeypatch):
-    monkeypatch.setattr(material_settings, "MATERIAL_TRIAL_ENABLED", False)
+    monkeypatch.setattr(material_settings, "TRIAL_ENABLED", False)
     _user, headers = await _free_author(client, db_session)
 
     quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
@@ -69,8 +69,8 @@ async def test_trial_is_off_until_enabled(client: AsyncClient, db_session, monke
 async def test_free_author_gets_one_capped_trial_and_can_read_its_result(
     client: AsyncClient, db_session, monkeypatch
 ):
-    monkeypatch.setattr(material_settings, "MATERIAL_TRIAL_ENABLED", True)
-    monkeypatch.setattr(material_settings, "MATERIAL_TRIAL_MAX_CHAPTERS", 2)
+    monkeypatch.setattr(material_settings, "TRIAL_ENABLED", True)
+    monkeypatch.setattr(material_settings, "TRIAL_MAX_CHAPTERS", 2)
     user, headers = await _free_author(client, db_session)
 
     before = (await client.get("/api/v1/subscription/quota", headers=headers)).json()["material_trial"]
@@ -97,7 +97,7 @@ async def test_free_author_gets_one_capped_trial_and_can_read_its_result(
 
 @pytest.mark.integration
 async def test_platform_failure_gives_the_trial_back(client: AsyncClient, db_session, monkeypatch):
-    monkeypatch.setattr(material_settings, "MATERIAL_TRIAL_ENABLED", True)
+    monkeypatch.setattr(material_settings, "TRIAL_ENABLED", True)
     _user, headers = await _free_author(client, db_session)
     response = await _upload(client, headers)
     job = db_session.get(IngestionJob, response.json()["job_id"])
@@ -113,3 +113,17 @@ async def test_platform_failure_gives_the_trial_back(client: AsyncClient, db_ses
     trial = (await client.get("/api/v1/subscription/quota", headers=headers)).json()["material_trial"]
     assert trial["available"] is True
     assert (await _upload(client, headers)).status_code == 200
+
+
+@pytest.mark.unit
+def test_trial_switch_is_the_documented_environment_variable(monkeypatch):
+    """运维按 MATERIAL_TRIAL_ENABLED / MATERIAL_TRIAL_MAX_CHAPTERS 打开试用（设置类带 MATERIAL_ 前缀）。"""
+    from config.material_settings import MaterialSettings
+
+    monkeypatch.setenv("MATERIAL_TRIAL_ENABLED", "true")
+    monkeypatch.setenv("MATERIAL_TRIAL_MAX_CHAPTERS", "12")
+
+    settings = MaterialSettings()
+
+    assert settings.TRIAL_ENABLED is True
+    assert settings.TRIAL_MAX_CHAPTERS == 12

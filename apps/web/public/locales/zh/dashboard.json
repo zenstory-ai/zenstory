@@ -552,9 +552,7 @@
     "chapters": "已写 {{count}} 章 · {{words}}",
     "episodes": "已写 {{count}} 集 · {{words}}",
     "shortWritten": "已写 {{words}}",
-    "words": "{{count}} 字",
-    "wordsWan": "{{count}} 万字",
-    "wordsK": "{{count}}k 字",
-    "frameworkReady": "框架已就绪，可以开写了"
+    "frameworkReady": "框架已就绪，可以开写了",
+    "words": "{{words}} 字"
   }
 }

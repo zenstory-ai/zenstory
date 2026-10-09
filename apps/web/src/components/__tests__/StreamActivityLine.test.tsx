@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { act, cleanup, render, renderHook, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { LONG_WAIT_HINT_AFTER_S, StreamActivityLine } from '../StreamActivityLine'
-import { useStreamActivity } from '../../hooks/useStreamActivity'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -16,27 +15,11 @@ describe('StreamActivityLine', () => {
     vi.useRealTimers()
   })
 
-  it('follows the round from understanding to writing a named file', () => {
-    const { result } = renderHook(() => useStreamActivity())
-    act(() => result.current.begin())
-    expect(result.current.activity).toEqual({ kind: 'understanding' })
-
-    act(() => result.current.onAgentSelected('writer'))
-    expect(result.current.activity).toEqual({ kind: 'writing' })
-
-    act(() => result.current.onToolCall('query_files', { id: 'f1' }))
-    expect(result.current.activity).toEqual({ kind: 'reading' })
-
-    act(() => result.current.onToolCall('create_file', { title: '第一章 雨夜' }))
-    expect(result.current.activity).toEqual({ kind: 'creatingFile', title: '第一章 雨夜' })
-  })
-
-  it('shows the activity with elapsed seconds and reassures after a long wait', () => {
+  it('counts the seconds of a running round and reassures the author once it gets long', () => {
     vi.useFakeTimers()
-    const startedAt = Date.now()
-    render(<StreamActivityLine activity={{ kind: 'creatingFile', title: '第一章' }} startedAt={startedAt} />)
+    render(<StreamActivityLine startedAt={Date.now()} />)
 
-    expect(screen.getByText('chat:activity.creatingFileTitled:{"title":"第一章"}')).toBeInTheDocument()
+    expect(screen.getByText('chat:activity.elapsed:{"seconds":0}')).toBeInTheDocument()
     expect(screen.queryByText('chat:activity.longWaitHint')).not.toBeInTheDocument()
 
     act(() => {

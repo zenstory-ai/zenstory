@@ -15,15 +15,12 @@ export const ProjectProgressLine: React.FC<ProjectProgressLineProps> = ({ progre
 
   let label: string | null = null;
   if (progress.written_units > 0) {
-    const isZh = (i18n.language ?? "zh").toLowerCase().startsWith("zh");
-    const words = progress.word_count;
-    const wordsText = isZh
-      ? words >= 10_000
-        ? t("dashboard:projectProgress.wordsWan", { count: Number((words / 10_000).toFixed(1)) })
-        : t("dashboard:projectProgress.words", { count: words })
-      : words >= 1_000
-        ? t("dashboard:projectProgress.wordsK", { count: Number((words / 1_000).toFixed(1)) })
-        : t("dashboard:projectProgress.words", { count: words });
+    // "3.2万" / "32.5K": compact numbers in the UI language.
+    const compact = new Intl.NumberFormat(i18n.language || "zh", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(progress.word_count);
+    const wordsText = t("dashboard:projectProgress.words", { count: progress.word_count, words: compact });
     label =
       projectType === "screenplay"
         ? t("dashboard:projectProgress.episodes", { count: progress.written_units, words: wordsText })

@@ -21,8 +21,8 @@ Status: implemented
 
 **服务端收尾的停止（`POST /api/v1/agent/stop`）**
 
-- 请求体 `{agent_run_id}`（`/stream` 响应头 `X-Agent-Run-ID`，32 位小写十六进制），按用户限流 240 次/小时，不触发 LLM，幂等，运行不存在或已结束时同样返回 `{stop_requested: true}`。
-- 停止信号在 `agent/core/run_stop.py`：键为 `agent:stop:{user_id}:{run_id}`（TTL 1800 秒）。停止端点只写当前用户命名空间，运行方只读自己用户的键，所以别人拿到 run id 也停不了这次运行，不需要额外的归属校验。同一 worker 内用登记的 `asyncio.Event` 立即唤醒；配置了 Redis 时同时写 Redis，别的 worker 上的运行按 0.5 秒轮询看到（`RunStopWatch.wait`，Redis 健康检查沿用 steering 的 `_redis_available`）。
+- 请求体 `{agent_run_id}`（`/stream` 响应头 `X-Agent-Run-ID`，32 位小写十六进制），按用户限流 240 次/小时，不触发 LLM。
+- `api/agent.py` 在进程内登记进行中的运行：`_running_streams[(user_id, run_id)] = pump`，请求结束时移除。停止端点只按当前用户查找，别人拿到 run id 也停不了；找到就 `pump.request_stop()` 并返回 `stop_requested=true`，找不到（已结束、别人的、别的进程）返回 false，前端随即断开、按断线结算。生产只有一个 API 进程（`WEB_CONCURRENCY` 未设置、服务挂了卷只能单副本），只有发布交接的约 5 分钟里请求可能落到另一进程。
 - `SSEStreamPump.request_stop()`：消费端优先于已排队的帧响应停止，取消后台 task（生成器按原有取消路径收尾：后台落库部分历史、补存文件正文、释放会话），然后抛 `StreamStoppedByUser`。
 - `event_generator` 收到 `StreamStoppedByUser` 后在仍然打开的连接上补发 `workflow_stopped {reason: "user_stopped", message: "已停止生成。"}` 与 `done`，结算后若退还落库再发 `quota_refunded {kind: "stopped"}`，正常关闭连接。
 
@@ -31,12 +31,12 @@ Status: implemented
 - 参数 `user_cancelled` 改名为 `client_disconnected`，新增 `user_stopped`。优先级第一条变为：作者停止或断线时，本轮已有实质产出（非空正文、非空文件正文、写文件工具成功）→ 计费；否则退还。`billing_reason` 分别为 `user_stopped` / `user_stopped_no_output` / `client_disconnected` / `client_disconnected_no_output`（原 `user_cancelled` 不再出现）。只想过（thinking）、只读过文件不算产出。
 - 判断产出看「这次运行实际产出了什么」：`SSEStreamPump` 的 `on_item` 在后台 task 里对源生成器的每一帧先记账再入队，断线时队列里还没送到客户端的写入照样算产出，不会出现「文件已写入却退了额度」。
 - 断线路径不能挂起：要退还时由 `_schedule_detached_refund` 在后台任务里调 `_refund_quota`（PostgreSQL 下照旧用独立 session），日志记 `refund_scheduled=true`；断线发生前作者已发出停止请求的，按 `user_stopped` 结算。
-- `Agent stream billing evaluated` 日志新增 `user_stopped`、`client_disconnected`、`refund_scheduled`，以及 `first_output_ms`（第一次实质产出距请求开始的毫秒数，没有产出为 null），取代 `user_cancelled`。
+- `Agent stream billing evaluated` 日志新增 `user_stopped`、`client_disconnected`、`refund_scheduled`，以及 `first_output_ms`（第一次实质产出距请求开始的毫秒数，没有产出为 null；「首字等待」只在服务端日志里量一次），取代 `user_cancelled`。
 
 **前端**
 
 - `agentApi.streamAgentRequest` 在响应头到达时回调 `onRunStarted(agentRunId)`；`stopAgentRun(runId)` 调停止端点。`QuotaRefundKind` 增加 `stopped`。
-- `useAgentStream.stop()`：已知 run id 时请求服务端停止并继续读流，`isStopping` 为真；停止请求失败、5 秒（`STOP_GRACE_MS`）内等不到收尾、或再按一次停止时，退回原来的 `cancel()` 直接断开（服务端按断线结算，同样遵守无产出退还）。卸载、切换项目仍用 `cancel()`。
+- `useAgentStream.stop()`：已知 run id 时请求服务端停止并继续读流，`isStopping` 为真；服务端没找到运行、请求失败、5 秒（`STOP_GRACE_MS`）内等不到收尾、或再按一次停止时，退回原来的 `cancel()` 直接断开（服务端按断线结算，同样遵守无产出退还）。卸载、切换项目仍用 `cancel()`。
 
 ## Alternatives considered
 
@@ -48,7 +48,7 @@ Status: implemented
 ## Consequences
 
 - 收益：停止和断线在日志与统计里可以分开；作者停掉一轮没有产出时不扣额度，并且立刻在原连接上得到准确的说明；断线时没有产出也会在后台退还。`first_output_ms` 让「第一个字要等多久」第一次有了服务端口径。
-- 代价：停止多了一次 HTTP 往返（前端最多等 5 秒再兜底断开）；跨 worker 的停止最多延迟 0.5 秒，且每个进行中的运行每 0.5 秒读一次 Redis。没有产出的停止和断线不再计费，理论上可被用来反复白看思考过程，靠成本兜底和限流约束。断线退还在后台进行，作者看不到说明。部分历史落库的 `stop_reason` 仍是 `cancelled`，刷新后看不出这一轮是作者停止还是断线。
+- 代价：停止多了一次 HTTP 往返（前端最多等 5 秒再兜底断开）；停止登记只在进程内，将来改成多进程/多副本时，落到别的进程的停止会退化为断线（照样无产出退还，但作者看不到「不计入」说明），届时再加跨进程信号。没有产出的停止和断线不再计费，理论上可被用来反复白看思考过程，靠成本兜底和限流约束。断线退还在后台进行，作者看不到说明。部分历史落库的 `stop_reason` 仍是 `cancelled`，刷新后看不出这一轮是作者停止还是断线。
 
 ## Verification
 

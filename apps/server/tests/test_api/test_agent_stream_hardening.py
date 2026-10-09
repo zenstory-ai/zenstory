@@ -424,12 +424,14 @@ async def test_stop_request_for_another_users_run_does_not_stop_it(client: Async
         )
         iterator = response.body_iterator
         await iterator.__anext__()
-        await agent_api.stop_stream(
+        stopped = await agent_api.stop_stream(
             body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
             current_user=other,
             _rate_limit=0,
         )
         rest = "".join([frame async for frame in iterator])
+
+    assert stopped.stop_requested is False
 
     assert _frame_data(rest, "workflow_stopped") is None
     assert _frame_data(rest, "content") == {"text": "照常写完"}
