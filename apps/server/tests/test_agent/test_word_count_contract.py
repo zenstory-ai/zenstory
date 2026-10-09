@@ -177,7 +177,8 @@ async def test_auto_review_handoff_carries_no_character_count(monkeypatch):
     handoff = next(
         e for e in events if e.type == StreamEventType.HANDOFF and e.data["target_agent"] == "quality_reviewer"
     )
-    assert handoff.data["reason"] == "自动质量门控"
+    assert handoff.data["reason"] == "正文写好了，检查一遍质量"
+    assert handoff.data["handoff_packet"]["reason"] == "自动质量门控"
     assert handoff.data["context"] == "正文已写完，自动进入质量检查"
     assert not re.search(r"\d", handoff.data["context"])
     packet = handoff.data["handoff_packet"]
