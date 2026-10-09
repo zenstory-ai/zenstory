@@ -95,3 +95,27 @@ async def test_export_with_outline_works_before_any_episode_is_written(client: A
     text = with_outline.content.decode("utf-8-sig")
     assert "【剧本】" not in text
     assert "分集大纲（全60集）" in text
+
+
+@pytest.mark.integration
+async def test_export_with_outline_names_the_file_honestly_when_no_outline_is_written(
+    client: AsyncClient, db_session
+):
+    headers, project = await _drama(client, db_session)
+    for file in db_session.query(File).filter(File.project_id == project.id, File.file_type == "outline"):
+        if file.title != "空白细纲":
+            file.is_deleted = True
+            db_session.add(file)
+    db_session.commit()
+
+    response = await client.get(
+        f"/api/v1/projects/{project.id}/export/drafts",
+        params={"include_outline": "true"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    text = response.content.decode("utf-8-sig")
+    assert "【大纲】" not in text
+    # Only a blank outline is left, so the file must not claim 「大纲和正文」.
+    assert response.headers["content-disposition"].endswith(quote("晚风知我意_正文（暂无大纲）.txt"))

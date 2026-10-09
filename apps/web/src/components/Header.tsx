@@ -127,6 +127,8 @@ export const Header: React.FC<HeaderProps> = () => {
         // deployed before include_outline ignores it and sends the text only.
         if (result?.includesOutline === true) {
           toast.success(t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
+        } else if (result?.noOutlineYet) {
+          toast.info(t('editor:header.exportNoOutlineYet', '这部作品还没有写好的大纲，这次导出了正文'));
         } else if (result?.includesOutline === false) {
           toast.info(t('editor:header.exportOutlineSkipped', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'));
         } else {

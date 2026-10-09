@@ -25,6 +25,7 @@ import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
+import { useIsMobile } from "../hooks/useMediaQuery";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 
 const VERSION_PAGE_SIZE = 50;
@@ -80,12 +81,15 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const [currentVersionNumber, setCurrentVersionNumber] = useState<number | null>(null);
   const rollbackInFlightRef = useRef(false);
   const [preview, setPreview] = useState<{ content: string; versionNumber: number } | null>(null);
-  // Phones hide the list (display:none) while a preview or comparison is open,
-  // which drops its scroll position; remember it so closing returns to the row.
+  // Phones (<768px) hide the list (display:none) while a preview or comparison
+  // is open, which drops its scroll position; remember it so closing returns to
+  // the row. From 768px up the list stays visible beside the preview and the
+  // author may keep scrolling it, so it is never treated as hidden there.
+  const isMobile = useIsMobile();
   const outerListRef = useRef<HTMLDivElement>(null);
   const innerListRef = useRef<HTMLDivElement>(null);
   const listScrollRef = useRef({ outer: 0, inner: 0 });
-  const listHidden = showComparison || preview !== null;
+  const listHidden = isMobile && (showComparison || preview !== null);
   const listRequestGenerationRef = useRef(0);
   const fileContextGenerationRef = useRef(0);
   const translateRef = useRef(t);

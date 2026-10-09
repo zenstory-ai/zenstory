@@ -8,7 +8,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from services.auth import get_current_active_user
-from services.export_service import export_drafts_to_txt
+from services.export_service import export_drafts_to_txt, get_sorted_outlines
 from sqlmodel import Session
 
 from core.error_codes import ErrorCode
@@ -109,7 +109,15 @@ def export_project_drafts(
         title=project.name,
         include_outline=include_outline,
     )
-    filename = f"{project.name}_{'大纲和正文' if include_outline else '正文'}.txt"
+    # The file name tells the author (and the web app's toast) what is inside.
+    # Asked for the outline but none is written yet: say so instead of
+    # promising 「大纲和正文」.
+    if not include_outline:
+        filename = f"{project.name}_正文.txt"
+    elif get_sorted_outlines(session, project_id):
+        filename = f"{project.name}_大纲和正文.txt"
+    else:
+        filename = f"{project.name}_正文（暂无大纲）.txt"
 
     if not content:
         log_with_context(

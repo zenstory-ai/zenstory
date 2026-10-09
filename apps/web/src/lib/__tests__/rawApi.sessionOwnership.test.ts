@@ -116,7 +116,7 @@ function assertDenied(result: Outcome, surface: Surface) {
 }
 async function assertSuccess(result: Outcome, surface: Surface) {
   const values = { stream: 'stream-as-a', suggestions: ['suggest-as-a'], steer: { message_id: 'steer-as-a', queued: true },
-    export: { filename: '导出.txt', includesOutline: false }, material: { id: 'material-as-a', file_type: 'material' },
+    export: { filename: '导出.txt', includesOutline: false, noOutlineYet: false }, material: { id: 'material-as-a', file_type: 'material' },
     draft: { files: [{ id: 'draft-as-a' }], total: 1, errors: ['kept partial warning'] } }
   expect(result).toEqual({ ok: true, value: values[surface] })
   if (surface === 'export') {

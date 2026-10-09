@@ -145,8 +145,11 @@ class WritingStatsService:
         return result if result > 0 else 0
 
     _WHOLE_BOOK_COUNT_RE = re.compile(
-        r"^\d+\s*[章集回话]\s*(?:的)?\s*(?:分集|分章|全书|全剧|整体|故事)?\s*(?:大纲|总纲|梗概|目录|规划)"
+        r"^(?P<count>\d+)\s*[章集回话]\s*(?:的)?\s*(?P<scope>分集|分章|全书|全剧|整体|故事)?\s*"
+        r"(?P<kind>大纲|总纲|梗概|目录|规划)"
     )
+    # A bare 「N集大纲」 below this is read as that episode's own outline.
+    _WHOLE_BOOK_MIN_BARE_COUNT = 10
 
     def _extract_chapter_number(self, title: str | None) -> int | None:
         """
@@ -176,8 +179,14 @@ class WritingStatsService:
 
         stripped_title = title.strip()
         # 「60集分集大纲」「100章总纲」: a leading count of episodes/chapters on a
-        # whole-book outline is its length, not a chapter number.
-        if self._WHOLE_BOOK_COUNT_RE.match(stripped_title):
+        # whole-book outline is its length, not a chapter number. A bare small
+        # 「1集大纲」「3集大纲」 is that episode's own outline and keeps its number.
+        book_count = self._WHOLE_BOOK_COUNT_RE.match(stripped_title)
+        if book_count and (
+            book_count.group("scope")
+            or book_count.group("kind") != "大纲"
+            or int(book_count.group("count")) >= self._WHOLE_BOOK_MIN_BARE_COUNT
+        ):
             return None
 
         leading_num_match = re.match(r"^(\d+)", stripped_title)

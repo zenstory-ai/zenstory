@@ -290,11 +290,20 @@ export interface DraftExportResult {
    * caller must not promise an outline it did not get. null = unknown.
    */
   includesOutline: boolean | null;
+  /**
+   * The outline was asked for but the work has none written yet
+   * (`{项目名}_正文（暂无大纲）.txt`), as opposed to an old API skipping it.
+   */
+  noOutlineYet: boolean;
 }
 
 export function exportFilenameIncludesOutline(filename: string | null): boolean | null {
   if (!filename) return null;
   return /_大纲和正文\.txt$/.test(filename);
+}
+
+export function exportFilenameHasNoOutlineYet(filename: string | null): boolean {
+  return !!filename && /_正文（暂无大纲）\.txt$/.test(filename);
 }
 
 /**
@@ -393,7 +402,11 @@ export const exportApi = {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    return { filename: serverFilename, includesOutline: exportFilenameIncludesOutline(serverFilename) };
+    return {
+      filename: serverFilename,
+      includesOutline: exportFilenameIncludesOutline(serverFilename),
+      noOutlineYet: exportFilenameHasNoOutlineYet(serverFilename),
+    };
   },
 };
 

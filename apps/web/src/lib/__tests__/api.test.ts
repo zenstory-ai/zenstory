@@ -52,6 +52,7 @@ import {
   fileVersionApi,
   exportApi,
   exportFilenameIncludesOutline,
+  exportFilenameHasNoOutlineYet,
   skillsApi,
   publicSkillsApi,
 } from '../api'
@@ -795,6 +796,7 @@ describe('api', () => {
         await expect(exportApi.exportDrafts('project-1')).resolves.toEqual({
           filename: 'drafts.txt',
           includesOutline: false,
+          noOutlineYet: false,
         })
 
         expect(mockLink.click).toHaveBeenCalled()
@@ -807,6 +809,11 @@ describe('api', () => {
         expect(exportFilenameIncludesOutline('晚风_正文.txt')).toBe(false)
         expect(exportFilenameIncludesOutline('大纲和正文_正文.txt')).toBe(false)
         expect(exportFilenameIncludesOutline(null)).toBeNull()
+        // Asked for the outline, but the work has none written yet.
+        expect(exportFilenameIncludesOutline('晚风_正文（暂无大纲）.txt')).toBe(false)
+        expect(exportFilenameHasNoOutlineYet('晚风_正文（暂无大纲）.txt')).toBe(true)
+        expect(exportFilenameHasNoOutlineYet('晚风_正文.txt')).toBe(false)
+        expect(exportFilenameHasNoOutlineYet(null)).toBe(false)
       })
 
       it('throws ApiError when no drafts', async () => {

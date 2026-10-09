@@ -444,6 +444,25 @@ describe('Header', () => {
       expect(mockToastSuccess).not.toHaveBeenCalledWith('大纲和正文已导出为 TXT 文件')
     })
 
+    it('says the work has no outline yet instead of asking to retry', async () => {
+      mockCurrentProjectId = 'project-123'
+      mockExportDrafts.mockResolvedValueOnce({
+        filename: '晚风_正文（暂无大纲）.txt',
+        includesOutline: false,
+        noOutlineYet: true,
+      })
+      render(<Header />)
+
+      fireEvent.click(screen.getByTestId('header-more-actions'))
+      fireEvent.click(screen.getByText('导出大纲和正文（TXT）'))
+
+      await waitFor(() => {
+        expect(mockToastInfo).toHaveBeenCalledWith('这部作品还没有写好的大纲，这次导出了正文')
+      })
+      expect(mockToastInfo).not.toHaveBeenCalledWith('这次只导出了正文，大纲没能一起导出，请过几分钟再试')
+      expect(mockToastSuccess).not.toHaveBeenCalledWith('大纲和正文已导出为 TXT 文件')
+    })
+
     it('uses a neutral toast when the exported file name is unreadable', async () => {
       mockCurrentProjectId = 'project-123'
       mockExportDrafts.mockResolvedValueOnce({ filename: null, includesOutline: null })

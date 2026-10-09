@@ -21,6 +21,7 @@
     "exportWithOutline": "导出大纲和正文（TXT）",
     "exportWithOutlineSuccess": "大纲和正文已导出为 TXT 文件",
     "exportOutlineSkipped": "这次只导出了正文，大纲没能一起导出，请过几分钟再试",
+    "exportNoOutlineYet": "这部作品还没有写好的大纲，这次导出了正文",
     "exportDone": "已导出为 TXT 文件"
   },
   "fileTree": {

@@ -21,6 +21,7 @@
     "exportWithOutline": "Export outline and text (TXT)",
     "exportWithOutlineSuccess": "Outline and text exported as a TXT file",
     "exportOutlineSkipped": "Only the text was exported this time. The outline could not be included; please try again in a few minutes.",
+    "exportNoOutlineYet": "This work has no written outline yet, so the text was exported.",
     "exportDone": "Exported as a TXT file"
   },
   "fileTree": {
