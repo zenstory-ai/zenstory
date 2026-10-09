@@ -350,10 +350,13 @@ def test_preloaded_rollback_advances_past_latest_web_token(
     service = get_file_version_service()
     with Session(pg_engine) as setup:
         user_id, file_id, _key_id = _seed_file(setup, "web-rollback")
+        # 种子版本用 system 来源（等同创建文件时的基线）：用户来源的 v1 会让下面
+        # 窗口内的网页保存直接合并改写 v1，测的就不再是「恢复到原稿」。
         service.create_version(
             setup,
             file_id,
             "Original",
+            change_source="system",
             force_base=True,
             skip_quota=True,
         )

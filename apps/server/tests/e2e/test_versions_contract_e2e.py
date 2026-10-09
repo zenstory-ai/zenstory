@@ -100,14 +100,34 @@ async def test_file_versions_compare_and_rollback_contract(
     rollback_payload = rollback_response.json()
     assert rollback_payload["success"] is True
     assert rollback_payload["restored_version"] == 2
-    assert rollback_payload["new_version_number"] == 4
+    # POST /versions 只写历史、不改正文，所以恢复时正文仍是 "seed"，和最新版本 v3
+    # 不同：恢复前先把它存成系统备份 v4（不占用户额度），v5 才是恢复出来的版本。
+    # 响应里报告的是实际新建的 restore 版本号。
+    # 见 .agents/notes/implemented/bug-fix/2026-10-09-file-restore-backs-up-current-content.md
+    assert rollback_payload["new_version_number"] == 5
+
+    backup = await client.get(
+        f"/api/v1/files/{file_id}/versions/4/content",
+        headers=_auth_headers(access_token),
+    )
+    assert backup.status_code == 200
+    assert backup.json()["content"] == "seed"
 
     restored_content = await client.get(
-        f"/api/v1/files/{file_id}/versions/4/content",
+        f"/api/v1/files/{file_id}/versions/5/content",
         headers=_auth_headers(access_token),
     )
     assert restored_content.status_code == 200
     assert restored_content.json()["content"] == "Line 1\nLine 2"
+
+    history = await client.get(
+        f"/api/v1/files/{file_id}/versions?limit=2",
+        headers=_auth_headers(access_token),
+    )
+    assert [
+        (item["version_number"], item["change_source"], item["change_type"])
+        for item in history.json()["versions"]
+    ] == [(5, "user", "restore"), (4, "system", "edit")]
 
 
 @pytest.mark.asyncio

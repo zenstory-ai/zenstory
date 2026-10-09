@@ -25,11 +25,10 @@ from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, 
 from models import File
 from models.file_version import (
     CHANGE_SOURCE_AI,
-    CHANGE_SOURCE_SYSTEM,
     CHANGE_TYPE_AI_EDIT,
-    CHANGE_TYPE_EDIT,
 )
 from services.features.activation_event_service import activation_event_service
+from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY
 from utils.cjk_quotes import (
     detect_quote_style,
     has_style_quote_marks,
@@ -237,9 +236,6 @@ def _numbered_previews(content: str, spans: list[tuple[int, int]]) -> list[str]:
 # 引用术语或英文原文，不属于对白体例，保持原样。
 NORMALIZED_QUOTE_FILE_TYPES = frozenset({"draft", "script"})
 
-# AI 覆盖前备份的固定说明（前端按这个字符串映射成本地化文案，不要改写）。
-BEFORE_AI_EDIT_SUMMARY = "Before AI edit"
-
 
 def previous_chapter_content(
     session: Session,
@@ -301,36 +297,21 @@ def resolve_write_quote_style(
 def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: str) -> bool:
     """AI 覆盖正文之前，把还没进历史的当前正文存成一个系统版本。
 
-    作者手动修改的正文不一定生成版本（例如小改动跳过版本），AI 随后整篇覆盖或
-    edit_file 改写时，原稿就既不在正文里也不在历史里。这里在调用方的同一个锁和
-    事务里开 savepoint：当前正文非空、且和最新版本内容（没有版本时按空串算）
-    不同，才建一个 system 来源、不占用户额度的版本。任何失败只记 WARNING、返回
-    False，不阻断 AI 写入（沿用「版本失败正文照存」的语义）。
+    备份规则（何时备份、版本形态、不占额度）只在
+    ``FileVersionService.backup_unversioned_content`` 一处定义，恢复历史版本前的
+    备份用的也是它。这里只负责 AI 写入路径的失败策略：在调用方的同一个锁和事务
+    里开 savepoint，任何失败只回滚 savepoint、记 WARNING、返回 False，不阻断 AI
+    写入（沿用「版本失败正文照存」的语义）。
     """
-    if not current_content:
-        return False
     try:
         with session.begin_nested():
-            service = FileVersionService()
-            latest = service.get_latest_version(session, file_id)
-            latest_content = (
-                service._get_contents_for_versions(session, {file_id: latest})[file_id]
-                if latest
-                else ""
-            )
-            if latest_content == current_content:
-                return False
-            service.create_version(
-                session=session,
-                file_id=file_id,
-                new_content=current_content,
-                change_type=CHANGE_TYPE_EDIT,
-                change_source=CHANGE_SOURCE_SYSTEM,
+            backup = FileVersionService().backup_unversioned_content(
+                session,
+                file_id,
+                current_content,
                 change_summary=BEFORE_AI_EDIT_SUMMARY,
-                skip_quota=True,
-                commit=False,
             )
-            return True
+            return backup is not None
     except Exception as exc:
         logger.warning(
             "Failed to back up unversioned content before AI write; write will continue",

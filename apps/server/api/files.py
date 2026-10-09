@@ -929,6 +929,7 @@ def update_file(
 
         prospective_title = file_data.title if file_data.title is not None else file.title
         prospective_content = file_data.content if file_data.content is not None else file.content
+        pre_save_content = file.content
         content_changed = file_data.content is not None and file_data.content != file.content
         prospective_parent_id = file.parent_id
         if "parent_id" in file_data.model_fields_set:
@@ -1017,7 +1018,7 @@ def update_file(
         create_version_needed = content_changed
         if content_changed and change_type == CHANGE_TYPE_EDIT:
             coalesce_target = file_version_service.find_coalescible_user_version(
-                session, file
+                session, file, pre_save_content=pre_save_content
             )
             if coalesce_target is not None:
                 try:

@@ -1,5 +1,7 @@
 """AI overwrites back up unversioned body text as a system version first."""
 
+from datetime import datetime
+
 import pytest
 from fastapi import BackgroundTasks
 from sqlmodel import select
@@ -38,14 +40,22 @@ def _versions(session, file_id):
 
 
 def _manual_save_without_version(session, user, file, content):
-    """编辑器的小改动保存：skip_version=True，正文变了但历史里没有。"""
-    files_api.update_file(
-        file.id,
-        files_api.FileUpdate(content=content, skip_version=True),
-        BackgroundTasks(),
-        current_user=user,
-        session=session,
-    )
+    """正文变了但历史里没有的手动保存。
+
+    小改动不再走 skip_version 跳过版本（见 2026-10-09-user-versions-coalesce-by-time-window），
+    现在留下「没进历史的正文」的真实路径是：最新版本不能合并（这里是 system 基线），
+    且用户版本额度已满，PUT 照常保存正文、只回 version_quota_exceeded。
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (False, 10, 10))
+        response = files_api.update_file(
+            file.id,
+            files_api.FileUpdate(content=content),
+            BackgroundTasks(),
+            current_user=user,
+            session=session,
+        )
+    assert response.version_quota_exceeded is True
 
 
 def _content_at(session, file_id, version_number):
@@ -131,3 +141,53 @@ def test_backup_failure_does_not_block_the_ai_write(db_session, chapter, monkeyp
     db_session.expire_all()
     assert db_session.get(File, file.id).content == "AI 重写。\n"
     assert [v.change_source for v in _versions(db_session, file.id)] == ["system", "ai"]
+
+
+def _manual_save(session, user, file, content):
+    return files_api.update_file(
+        file.id,
+        files_api.FileUpdate(content=content),
+        BackgroundTasks(),
+        current_user=user,
+        session=session,
+    )
+
+
+def test_coalesced_manual_saves_are_already_history_so_ai_write_adds_no_backup(db_session, chapter):
+    """时间窗合并改写的是最新用户版本，正文始终等于历史头；AI 写入前无需再备份。"""
+    user, _, file = chapter
+    _manual_save(db_session, user, file, "手改第一稿。\n")
+    _manual_save(db_session, user, file, "手改第二稿。\n")  # 窗口内，合并进上一版
+
+    FileCRUD(db_session, user.id).update_file(file.id, content="AI 重写。\n")
+
+    versions = _versions(db_session, file.id)
+    assert [v.change_source for v in versions] == ["system", "user", "ai"]
+    assert all(v.change_summary != "Before AI edit" for v in versions)
+    assert _content_at(db_session, file.id, 2) == "手改第二稿。\n"
+
+
+def test_undo_of_ai_write_after_unversioned_text_backs_up_once(db_session, chapter):
+    """AI 写入前的备份和恢复前的备份是同一条规则：撤销 AI 修改不会把同一份正文再备份一次，
+    回滚响应里的版本号就是实际新建的 restore 版本。"""
+    user, _, file = chapter
+    _manual_save_without_version(db_session, user, file, "手改稿。\n")
+    result = FileEditor(db_session, user.id).edit_file(file.id, [{"op": "append", "text": "AI 续写。\n"}])
+    anchor = result["undo"]["before_version_number"]
+
+    _, restore_version, quota_exceeded = FileVersionService().rollback_to_version(
+        db_session,
+        file.id,
+        anchor,
+        user_id=user.id,
+        expected_updated_at=datetime.fromisoformat(result["undo"]["expected_after_updated_at"]),
+    )
+
+    versions = _versions(db_session, file.id)
+    summaries = [v.change_summary for v in versions]
+    assert summaries.count("Before AI edit") == 1
+    assert not any((s or "").startswith("Before restoring") for s in summaries)
+    assert quota_exceeded is False
+    assert restore_version.version_number == versions[-1].version_number
+    assert versions[-1].change_type == "restore"
+    assert db_session.get(File, file.id).content == "手改稿。\n"

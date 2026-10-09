@@ -231,6 +231,33 @@ async def test_merge_still_works_when_quota_is_full(client: AsyncClient, db_sess
 
 
 @pytest.mark.integration
+async def test_save_after_quota_blocked_restore_does_not_rewrite_pre_restore_version(
+    client: AsyncClient, db_session: Session
+):
+    """额度已满时恢复不生成 restore 版本，最新版本还是恢复前那一版用户编辑。
+
+    之后窗口内的保存如果并进它，恢复前的正文就从历史里消失了。合并只在最新版本
+    仍等于这次保存要替换的正文时进行，这里正文已经是恢复出来的内容，所以不合并。
+    """
+    user, headers = await _login(client, db_session, "co_restore_quota")
+    _bind_plan(db_session, user, max_versions=1)
+    _project_id, file_id = await _create_draft(client, headers)
+    await _save(client, headers, file_id, PARAGRAPH + "恢复前写的。\n")
+    pre_restore = _user_versions(db_session, file_id)[0]
+
+    restored = await client.post(f"/api/v1/files/{file_id}/versions/1/rollback", headers=headers)
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["version_quota_exceeded"] is True
+    assert restored.json()["new_version_number"] is None
+
+    after = await _save(client, headers, file_id, PARAGRAPH + "恢复后又写。\n")
+
+    assert after["version_quota_exceeded"] is True
+    assert _content(db_session, file_id, pre_restore.version_number) == PARAGRAPH + "恢复前写的。\n"
+    assert [v.version_number for v in _versions(db_session, file_id)] == [1, pre_restore.version_number]
+
+
+@pytest.mark.integration
 async def test_amended_delta_and_base_versions_replay_correctly(client: AsyncClient, db_session: Session):
     """delta 版本相对上一版重算 diff；base 版本存全文。改写后整条链都能还原。"""
     _user, headers = await _login(client, db_session, "co_replay")

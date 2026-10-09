@@ -25,6 +25,7 @@ from models import File, FileVersion, Project, User
 from models.file_version import CHANGE_SOURCE_USER
 from models.subscription import SubscriptionPlan, UserSubscription
 from services.core.auth_service import hash_password
+from services.features.file_version_service import FileVersionService
 
 
 @contextlib.contextmanager
@@ -196,9 +197,13 @@ async def test_post_version_rejects_unknown_change_source(
 @pytest.mark.integration
 @pytest.mark.parametrize("spoofed_source", ["ai", "system"])
 async def test_put_file_cannot_bypass_quota_via_change_source(
-    client: AsyncClient, db_session: Session, spoofed_source: str
+    client: AsyncClient, db_session: Session, spoofed_source: str, monkeypatch
 ):
     """PUT 与 POST 一样不得让客户端来源逃离受限版本计数集合。"""
+    # 关掉时间窗合并，让第二次保存真的去申请一个新版本名额：合并只改写已有的
+    # 用户版本、不新增行，会绕开这里要验证的额度闸门（见
+    # 2026-10-09-user-versions-coalesce-by-time-window）。
+    monkeypatch.setenv("USER_VERSION_COALESCE_WINDOW_SECONDS", "0")
     user, file, headers = await _setup_user(
         client,
         db_session,
@@ -231,11 +236,40 @@ async def test_put_file_cannot_bypass_quota_via_change_source(
 
 
 @pytest.mark.integration
+async def test_coalesced_put_does_not_consume_quota_and_stays_user_sourced(
+    client: AsyncClient, db_session: Session
+):
+    """时间窗内的第二次保存并进同一个用户版本：不新增行、不占额度，来源仍钉死 user。"""
+    user, file, headers = await _setup_user(client, db_session, "r3p_put_quota_coalesce")
+    _bind_plan(db_session, user, max_versions=1)
+
+    for content in ("第一版", "第二版", "第三版"):
+        resp = await client.put(
+            f"/api/v1/files/{file.id}",
+            json={"content": content, "change_source": "system"},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["version_quota_exceeded"] is False
+
+    db_session.expire_all()
+    rows = db_session.exec(
+        select(FileVersion).where(FileVersion.file_id == file.id)
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].change_source == CHANGE_SOURCE_USER
+    assert FileVersionService().get_content_at_version(db_session, file.id, rows[0].version_number) == "第三版"
+
+
+@pytest.mark.integration
 async def test_concurrent_authenticated_writes_cannot_overrun_single_version_slot(
     client: AsyncClient,
     db_session: Session,
+    monkeypatch,
 ):
     """两个并发 PUT 的预检都看到余额时，最终也只能有一个用户快照。"""
+    # 关掉时间窗合并：否则后到的 PUT 直接并进先到的那个用户版本，根本不去抢名额。
+    monkeypatch.setenv("USER_VERSION_COALESCE_WINDOW_SECONDS", "0")
     user, file, headers = await _setup_user(
         client,
         db_session,

@@ -37,6 +37,12 @@ logger = get_logger(__name__)
 MAX_CREATE_VERSION_RETRIES = 3
 CONTENT_RECONSTRUCTION_BATCH_SIZE = 200
 DEFAULT_USER_VERSION_COALESCE_WINDOW_SECONDS = 600
+# 覆盖前系统备份的固定说明（前端 versionSummary.ts 按字符串映射成本地化文案，不要改写）。
+BEFORE_AI_EDIT_SUMMARY = "Before AI edit"
+
+
+def before_restore_summary(version_number: int) -> str:
+    return f"Before restoring version {version_number}"
 
 
 def user_version_coalesce_window_seconds() -> int:
@@ -328,6 +334,7 @@ class FileVersionService:
         session: Session,
         file: File,
         *,
+        pre_save_content: str | None,
         now: datetime | None = None,
     ) -> FileVersion | None:
         """返回可以吸收本次手动保存的最新版本；不可合并时返回 None。
@@ -336,7 +343,13 @@ class FileVersionService:
         - 最新版本是用户的手动编辑（change_source=user 且 change_type=edit）；
         - 它的 created_at 距现在不足合并时间窗；
         - 项目里没有在它之后（含同一时刻）拍下的快照。快照按 version_id 引用
-          版本，改写被引用的版本会悄悄改变快照内容。
+          版本，改写被引用的版本会悄悄改变快照内容；
+        - 最新版本的内容仍等于本次保存要替换掉的正文（``pre_save_content``，
+          即保存前的 File.content），或者已经等于本次要保存的新正文（调用时
+          ``file.content`` 已赋成新正文，改写是空操作）。正文在这个版本之后被别的
+          路径改过、又没有留下版本时（例如额度已满时的恢复没生成 restore 版本、
+          AI 版本写入失败），改写这个版本会把它记录的那份正文从历史里抹掉，所以
+          改为新建版本。
 
         调用方必须持有该文件的写锁（PG 行锁 / SQLite 条带锁），并且只在本次
         保存的 change_type 为 edit 时调用。
@@ -367,6 +380,12 @@ class FileVersionService:
             .limit(1)
         ).first()
         if later_snapshot is not None:
+            return None
+
+        latest_content = self._get_contents_for_versions(session, {file.id: latest})[file.id]
+        # file.content 此时已是本次要保存的新正文；L 已经等于它时改写是空操作，
+        # 也不会抹掉任何历史（避免再建一条内容相同的版本）。
+        if latest_content not in (pre_save_content or "", file.content or ""):
             return None
 
         return latest
@@ -684,6 +703,58 @@ class FileVersionService:
 
         return file, new_version, version_quota_exceeded
 
+    def backup_unversioned_content(
+        self,
+        session: Session,
+        file_id: str,
+        current_content: str | None,
+        *,
+        change_summary: str,
+        unless_equal_to: str | None = None,
+    ) -> FileVersion | None:
+        """覆盖正文之前，把「还没进历史」的当前正文存成系统备份版本。
+
+        恢复历史版本（rollback_to_version）和 AI 覆盖（agent 的 update_file /
+        edit_file）共用这一条规则，不要在别处另写一份：
+
+        - 当前正文去掉空白后为空，或等于 ``unless_equal_to``（这次写入会写回同样
+          的内容）时不备份；
+        - 当前正文等于最新版本的内容（没有版本按空串算）时不备份——它已经在
+          历史里了，同一份正文不会被备份两次；
+        - 否则建 ``change_type=edit``、``change_source=system`` 的 base 版本，
+          ``skip_quota=True``：系统来源本来就不计入用户额度，额度满时照样备份。
+
+        调用方必须已持有该文件的写锁，并在同一事务里随后覆盖正文；这里只 flush
+        不 commit。失败时直接抛出，失败策略由调用方决定：恢复路径中止恢复
+        （宁可恢复失败也不丢稿），AI 写入路径在 savepoint 里吞掉异常、照常写入。
+        """
+        current = current_content or ""
+        if not current.strip():
+            return None
+        if unless_equal_to is not None and current == unless_equal_to:
+            return None
+
+        latest = self.get_latest_version(session, file_id)
+        latest_content = (
+            self._get_contents_for_versions(session, {file_id: latest})[file_id]
+            if latest is not None
+            else ""
+        )
+        if latest_content == current:
+            return None
+
+        return self.create_version(
+            session=session,
+            file_id=file_id,
+            new_content=current,
+            change_type=CHANGE_TYPE_EDIT,
+            change_source=CHANGE_SOURCE_SYSTEM,
+            change_summary=change_summary,
+            force_base=True,
+            skip_quota=True,
+            commit=False,
+        )
+
     def _backup_unversioned_content_before_restore(
         self,
         session: Session,
@@ -693,27 +764,13 @@ class FileVersionService:
         version_number: int,
     ) -> FileVersion | None:
         """恢复前备份当前正文；无需备份时返回 None，备份失败抛 500 并回滚事务。"""
-        current = file.content or ""
-        if not current.strip() or current == restored_content:
-            return None
-
-        latest = self.get_latest_version(session, file.id)
-        if latest is not None:
-            latest_content = self.get_content_at_version(session, file.id, latest.version_number)
-            if latest_content == current:
-                return None
-
         try:
-            return self.create_version(
-                session=session,
-                file_id=file.id,
-                new_content=current,
-                change_type=CHANGE_TYPE_EDIT,
-                change_source=CHANGE_SOURCE_SYSTEM,
-                change_summary=f"Before restoring version {version_number}",
-                force_base=True,
-                skip_quota=True,
-                commit=False,
+            return self.backup_unversioned_content(
+                session,
+                file.id,
+                file.content,
+                change_summary=before_restore_summary(version_number),
+                unless_equal_to=restored_content,
             )
         except Exception as exc:
             session.rollback()
