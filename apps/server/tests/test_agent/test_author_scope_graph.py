@@ -23,6 +23,8 @@ from agent.graph.author_scope import (
     SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING,
     chat_only_plan_units,
     is_vague_edit_request,
+    previous_question_offers_one_edit,
+    request_asks_for_a_plan,
 )
 
 
@@ -351,6 +353,96 @@ async def test_plan_already_written_to_a_file_is_not_redone():
     )
 
     assert calls == ["planner"]
+
+
+@pytest.mark.parametrize(
+    ("message", "asks"),
+    [
+        ("先给我列一下前十章的大纲", True),
+        ("前十章大纲", True),
+        ("帮我做个分集规划", True),
+        ("能列一下前十章大纲吗", True),
+        ("大纲帮我列一下，你觉得十章够吗", True),
+        # 讨论：规划贴在对话里就够了。
+        ("先聊聊前十章大纲怎么安排", False),
+        ("你觉得前十章大纲怎么写比较好", False),
+        # 回答 / 评价上一轮的规划。
+        ("大纲没问题，开始写第一章吧", False),
+        ("这个分集规划挺好", False),
+        ("大纲写得不错", False),
+        # 拿规划当依据。
+        ("按大纲写第5章", False),
+        ("根据分集规划写第3集", False),
+        # 回答规划师的提问，没提规划。
+        ("爽文，主角叫陈默", False),
+        # 问进度 / 在哪、提意见：不是要一份新规划（不该多一轮补写大纲文件）。
+        ("大纲好了吗", False),
+        ("大纲写了吗", False),
+        ("我的大纲在哪", False),
+        ("你的大纲有问题", False),
+        ("这个大纲第5章节奏太慢", False),
+        ("大纲写好了没", False),
+        ("大纲还没写吧，帮我列一下前十章大纲", True),
+    ],
+)
+def test_plan_backstop_needs_the_author_to_ask_for_a_plan(message, asks):
+    assert request_asks_for_a_plan(message) is asks
+
+
+async def test_answer_approving_a_plan_is_not_turned_into_an_outline_file():
+    """作者回「大纲没问题」时规划师又把规划列了一遍：不是作者要的新交付物，不补写文件。"""
+    calls: list[str] = []
+
+    async def fake_agent(_state, agent_type, **_kwargs):
+        calls.append(agent_type)
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": _TEN_CHAPTER_PLAN})
+
+    await _run(
+        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False}),
+        fake_agent,
+        message="大纲没问题，就这样",
+    )
+
+    assert calls == ["planner"]
+
+
+@pytest.mark.parametrize(
+    ("reply", "one_edit"),
+    [
+        ("第4章写好了。\n要我继续写第5章，还是先把第4章开头改紧凑一点？", True),
+        ("第4章写好了。\n接下来你可以：\n- 把第4章开头改紧凑一点\n- 继续写第5章", True),
+        ("第4章写好了。\n接下来你可以：\n- 把开头改紧凑一点\n- 优化第3章的对话\n- 继续写第5章", False),
+        # 交代做了什么的句子不是提议：选项里一处修改都没有。
+        ("第4章写好了，我把节奏改快了一些。\n接下来你可以：\n1. 继续写第5章\n2. 补一份人设", False),
+        ("第4章写好了，我把节奏改快了一些。要我继续写第5章吗？", False),
+        ("要我继续写第5章吗？主角的命运会在那里改变。", False),
+    ],
+)
+def test_single_proposed_edit_is_read_from_the_offered_options_only(reply, one_edit):
+    assert previous_question_offers_one_edit(reply) is one_edit
+
+
+async def test_vague_request_after_a_report_and_no_edit_option_still_asks_first():
+    """上一轮交代「我把节奏改快了」、选项里没有修改：「帮我优化一下」没选中任何一项，先问。"""
+    seen: dict[str, object] = {}
+
+    async def fake_agent(state, agent_type, **_kwargs):
+        seen["clarify_first"] = state.get("clarify_first")
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "想先改哪一处？"})
+
+    history = [
+        {"role": "user", "content": "继续写下一章"},
+        {
+            "role": "assistant",
+            "content": "第4章写好了，我把节奏改快了一些。要我继续写第5章吗？",
+            "routing": _WRITER_ROUTING,
+        },
+    ]
+    route = _route({"agent_type": "writer", "workflow_type": "quick", "write_content": True})
+    await _run(route, fake_agent, message="帮我优化一下", messages=history)
+
+    route.assert_not_called()
+    assert seen["clarify_first"] is True
 
 
 # ------------------------------------------------------------------ P3-16

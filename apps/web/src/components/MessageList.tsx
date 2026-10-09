@@ -472,8 +472,8 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
             </span>
             {hasIteration && (
               <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--text-secondary))]'}`}>
-                · {t('workflow.iteration', { ns: 'chat' })} {item.iteration}
-                {isLowTurns && ` (${t('workflow.remaining', { ns: 'chat' })} ${item.remaining})`}
+                · {t('workflow.iteration', { ns: 'chat', step: item.iteration })}
+                {isLowTurns && t('workflow.remaining', { ns: 'chat', n: item.remaining })}
               </span>
             )}
           </div>

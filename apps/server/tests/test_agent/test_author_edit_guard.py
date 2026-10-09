@@ -22,6 +22,8 @@ from agent.tools.author_edit_guard import (
     mentioned_sequences,
     referenced_file_ids_from_metadata,
     rename_source_terms,
+    request_deletes_file,
+    request_deletes_folder,
     request_targets_file,
 )
 from agent.tools.file_ops import FileCRUD
@@ -97,31 +99,61 @@ class TestRequestTargetsFile:
             file_id="ch3",
             title="第3章",
         ) is True
-        # 上一轮问过作者要不要改它，作者这一轮只回了「可以」。
+        # 上一轮因为作者手改过没改它，作者这一轮说清了往哪改。
         assert request_targets_file(
-            AuthorScope(messages=("可以",), confirmed_file_ids=frozenset({"ch3"})),
+            AuthorScope(messages=("统一成老周吧",), confirmed_file_ids=frozenset({"ch3"})),
             file_id="ch3",
             title="第3章",
+            edits=[{"op": "replace", "old": "老秦", "new": "老周"}],
         ) is True
 
     @pytest.mark.parametrize(
         ("reply", "unlocked"),
         [
-            ("可以", True),
-            ("改吧", True),
+            # 说清了往哪改（不点名别的章）：放行把这一章往这个写法改。
             ("统一成老周吧", True),
+            ("改回老周", True),
             ("可以，统一成老周，然后写下一章", True),
+            # 上一轮 AI 问的是「要把第2章也改成老秦吗？」：「好 / 可以」答应的是改第2章，
+            # 不放开作者改过的第3章（审计复查：答应改别的章时第3章被改回去）。
+            ("可以", False),
+            ("好", False),
+            ("行", False),
+            ("嗯", False),
+            ("OK", False),
+            ("没问题", False),
+            ("改吧", False),
+            ("好，改吧，然后写下一章", False),
+            ("可以，第2章也改成老秦", False),
+            ("第2章改成老秦", False),
+            # 往作者的写法统一：用不着动作者改过的这一章。
+            ("统一成老秦吧", False),
             # 作者不同意、或只是让 AI 往下写：上一轮问过也不放行。
             ("不用改，继续写下一章", False),
             ("不用改，第3章就叫老秦", False),
             ("先不改，按我的来", False),
             ("好，继续写下一章", False),
             ("继续写第5章", False),
+            ("继续写下一章，人名要统一", False),
+            ("统一吧", False),
+            ("要统一", False),
+            ("继续写第5章，写好一点", False),
+            ("继续写下一章，开头改得有悬念一点", False),
+            ("我已经把老周改成老秦了，继续写下一章", False),
+            ("我自己改好了", False),
         ],
     )
-    def test_reply_to_the_ais_question_unlocks_only_when_the_author_agrees(self, reply, unlocked):
+    def test_reply_to_the_ais_question_unlocks_only_with_a_direction(self, reply, unlocked):
         scope = AuthorScope(messages=(reply,), confirmed_file_ids=frozenset({"ch3"}))
-        assert request_targets_file(scope, file_id="ch3", title="第3章 三十年") is unlocked
+        revert = [{"op": "replace", "old": "老秦", "new": "老周", "replace_all": True}]
+        assert request_targets_file(scope, file_id="ch3", title="第3章 三十年", edits=revert) is unlocked
+
+    def test_direction_reply_still_allows_only_edits_toward_it(self):
+        scope = AuthorScope(messages=("统一成老周吧",), confirmed_file_ids=frozenset({"ch3"}))
+        unrelated = {"op": "replace", "old": "折叠桌一张张码上三轮车。", "new": "桌子收好了。"}
+        assert request_targets_file(scope, file_id="ch3", title="第3章 三十年", edits=[unrelated]) is False
+        # 没有逐处修改（删除 / 整份重写）不算答应。
+        assert request_targets_file(scope, file_id="ch3", title="第3章 三十年") is False
 
     def test_edit_request_on_the_open_chapter(self):
         # 作者正开着第 1 章、直接提改动：就是改这一章。
@@ -154,6 +186,113 @@ class TestRequestTargetsFile:
         # 「统一」不再整轮放开所有已有章节（审计：作者手改的「老秦」会被改回去）。
         assert _targets("统一一下格式再写下一章", focus="ch3") is False
         assert _targets("继续写下一章，人名要统一") is False
+
+    def test_unify_without_a_direction_does_not_unlock_the_open_chapter(self):
+        # 作者刚把第 3 章的老周改成老秦、还开着它：「人名要统一」「统一一下格式」不能让 AI
+        # 把老秦改回老周；点名「这一章」或说清「统一成老周」才算。
+        revert = [{"op": "replace", "old": "老秦", "new": "老周"}]
+        assert _targets("人名要统一", focus="ch3", edits=revert) is False
+        assert _targets("把格式统一一下", focus="ch3", edits=revert) is False
+        assert _targets("这一章的人名统一一下", focus="ch3", edits=revert) is True
+        assert _targets("第3章人名统一一下", edits=revert) is True
+        assert _targets("老秦统一成老周", focus="ch3", edits=revert) is True
+
+    def test_words_that_only_look_like_an_edit_request(self):
+        # 「改变」「继续更新」不是要改已有章节；作者讲自己改过的也不是。
+        assert _targets("继续写第四章，夜市里主角命运改变", title="第3章 夜市") is False
+        assert _targets("继续更新", focus="ch3", edits=[{"op": "replace", "old": "老秦", "new": "老周"}]) is False
+        assert _targets("今天更新两章") is False
+        assert _targets("我把第3章的老周改成老秦了，继续写下一章") is False
+        assert _targets("第3章夜市那段我改过了，你继续写第4章", title="第3章 夜市") is False
+        assert _targets("我在第3章把人名改了，继续写下一章") is False
+        assert _targets("第3章已经改好了，继续写第4章") is False
+        # 接着往下写时，开着的文件只能往后追加，不能改作者写过的字。
+        assert _targets("接着写，节奏改快点", focus="ch3", edits=[{"op": "replace", "old": "老秦", "new": "老周"}]) is False
+        assert _targets("接着写，节奏改快点", focus="ch3", edits=[{"op": "append", "text": "后来"}]) is True
+        # 真正的要求照常放行。
+        assert _targets("帮我把第3章改了") is True
+        assert _targets("我想把第3章的开头改一下") is True
+        assert _targets("我觉得第3章太拖了，精简一下") is True
+        assert _targets("把之前写的第3章改一下") is True
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            # 拿第3章当标准 / 来源：作者是在让 AI 跟着第3章走，不是要改第3章。
+            "写第4章，和第3章的人名保持统一",
+            "第4章的人名要和第3章统一",
+            "第4章要跟第3章保持一致",
+            "第4章沿用第3章的改动",
+            "以第3章为准，统一一下人名",
+            "人名以第3章为准",
+            "第3章为准，其他章统一一下",
+            "按第3章统一人名",
+            "按照《三十年》统一人名",
+            "第2章按第3章改",
+            "把第2章改得跟第3章一样",
+            "同步第3章的人名到第4章",
+            # 讲完第3章改过了，下一分句的要求说的是别的章。
+            "第3章是我改过的，以它为准统一一下其他章",
+            "第3章我改了名字，把前面的章节也统一一下",
+            "第3章改了名字，后面的章节统一一下",
+            # 讲第3章已经改过（没有「我 / 已经 / 过」）。
+            "第3章老周改成老秦了，继续写下一章",
+            "第3章里老周换成老秦了",
+            "第3章改好了，继续写下一章",
+            "第3章改完了，继续写下一章",
+            "第3章刚改完，接着写第4章",
+            "第3章有改动，继续写下一章",
+            "第3章做了修改，继续写下一章",
+            "第3章调整了一下人名，继续写下一章",
+            "第3章改好了吗",
+        ],
+    )
+    def test_naming_the_chapter_as_the_standard_or_reporting_an_edit_does_not_unlock_it(self, message):
+        # 审计复查：这些话里作者都是在让 AI 跟着第3章走；模型要是反过来统一，就会把
+        # 作者手改的「老秦」改回「老周」。
+        revert = [{"op": "replace", "old": "老秦", "new": "老周", "replace_all": True}]
+        assert _targets(message) is False
+        assert _targets(message, edits=revert) is False
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "第3章人名统一一下",
+            "把第3章统一成老周",
+            "把第3章和第4章统一一下",
+            "把第2章和第3章统一成老周",
+            "第3章跟第2章统一成老周",
+            "第3章的人名改回老周",
+            "第3章再改一下",
+            "请把第3章改短一点",
+            "第3章，帮我润色一下",
+            "把第3章的结局改变一下",
+            "第3章写得太烂了，删了吧",
+        ],
+    )
+    def test_asking_to_change_the_named_chapter_still_unlocks_it(self, message):
+        assert _targets(message) is True
+
+    def test_deleting_inside_a_folder_is_not_deleting_the_folder(self):
+        for message in ("正文里的第2章删掉", "正文里多余的空行删掉", "正文里的错别字去掉", "把正文里重复的段落删掉"):
+            assert request_deletes_folder(_scope(message), file_id="f", title="正文") is False, message
+        assert request_deletes_folder(_scope("正文整个删掉"), file_id="f", title="正文") is True
+        # 删的说法要落在点名第3章的那一处：「把废稿删了」说的是废稿。
+        assert request_deletes_file(_scope("第3章改一下，把废稿删了"), file_id="ch3", title="第3章 三十年") is False
+        assert request_deletes_file(_scope("把第3章和废稿都删了"), file_id="ch3", title="第3章 三十年") is True
+
+    def test_deleting_a_folder_needs_the_author_to_say_delete(self):
+        assert request_deletes_folder(_scope("把废稿文件夹删了"), file_id="f", title="废稿") is True
+        assert request_deletes_folder(_scope("废稿那个文件夹，不要了"), file_id="f", title="废稿") is True
+        # 只提到文件夹名的改动要求、或者说的是别的，不算要删它。
+        assert request_deletes_folder(_scope("正文改紧凑一点"), file_id="f", title="正文") is False
+        assert request_deletes_folder(_scope("别删正文文件夹"), file_id="f", title="正文") is False
+        assert request_deletes_folder(
+            AuthorScope(messages=("改一下",), referenced_file_ids=frozenset({"f"})), file_id="f", title="正文"
+        ) is False
+        # 文件夹里作者改过的章节：点名并说删才跟着删，只说「改一下」不算。
+        assert request_deletes_file(_scope("第3章删掉"), file_id="ch3", title="第3章 三十年") is True
+        assert request_deletes_file(_scope("第3章改一下"), file_id="ch3", title="第3章 三十年") is False
 
     def test_whole_book_request_targets_every_file(self):
         assert _targets("全书统一一下称呼") is True
@@ -292,9 +431,19 @@ async def test_reply_to_the_ais_question_unlocks_the_file(db_session, owner_proj
     chapter = _ai_chapter(db_session, project)
     _author_saves(db_session, user, chapter, AUTHOR_CH3)
 
-    payload = await _run(
+    # AI 上一轮问「要把第2章也改成老秦吗？」，作者回「可以」：答应的是改第2章，第3章不动。
+    agreed = await _run(
         mcp_tools.edit_file, db_session, user, project, _revert_rename_edit(chapter.id),
         message="可以", author_confirmed_file_ids=[chapter.id],
+    )
+    assert agreed["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == AUTHOR_CH3
+
+    # 作者说清了往回统一：放行。
+    payload = await _run(
+        mcp_tools.edit_file, db_session, user, project, _revert_rename_edit(chapter.id),
+        message="统一成老周吧", author_confirmed_file_ids=[chapter.id],
     )
 
     assert payload["status"] == "success"
@@ -345,6 +494,29 @@ async def test_delete_of_an_author_edited_chapter_is_refused(db_session, owner_p
     assert payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
     db_session.expire_all()
     assert db_session.get(File, chapter.id).is_deleted is False
+
+
+async def test_deleting_an_author_edited_chapter_needs_delete_where_it_is_named(db_session, owner_project):
+    """「第3章改一下，把废稿删了」：删的是废稿，作者改过的第3章不能借这句被删掉。"""
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project)
+    _author_saves(db_session, user, chapter, AUTHOR_CH3)
+
+    refused = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": chapter.id},
+        message="第3章改一下，把废稿删了",
+    )
+    assert refused["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False
+
+    allowed = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": chapter.id},
+        message="第3章不要了，删掉吧",
+    )
+    assert allowed["status"] == "success"
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is True
 
 
 async def test_guard_is_off_without_an_author_message(db_session, owner_project):
@@ -460,3 +632,21 @@ async def test_recursive_folder_delete_keeps_author_edited_chapters(db_session, 
     db_session.expire_all()
     assert db_session.get(File, chapter.id).is_deleted is False
     assert db_session.get(File, folder.id).is_deleted is False
+
+    # 只提到文件夹名的改动要求（「正文改紧凑一点」）不是要删它，里面的章节照样保住。
+    edit_request = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": folder.id, "recursive": True},
+        message="正文改紧凑一点",
+    )
+    assert edit_request["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False
+
+    # 作者明说删这个文件夹时照常删。
+    allowed = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": folder.id, "recursive": True},
+        message="把正文文件夹删了，我要重新开始",
+    )
+    assert allowed["status"] == "success"
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is True

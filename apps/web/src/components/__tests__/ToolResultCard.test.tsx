@@ -33,6 +33,9 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.failureHint.repeatRead' && options?.title !== undefined) {
     return `Already read ${options.title}`
   }
+  if (key === 'chat:tool.failureHint.authorEdited' && options?.title !== undefined) {
+    return `Kept edits in ${options.title}`
+  }
   if (key === 'chat:response.conflicts_detected' && options?.count !== undefined) {
     return `Conflicts detected`
   }
@@ -553,6 +556,53 @@ describe('ToolResultCard', () => {
       )
       expect(screen.getByText(expected)).toBeInTheDocument()
       expect(screen.queryByText('Internal detail')).not.toBeInTheDocument()
+    })
+
+    it('says the AI kept the author\'s edits, in the UI language, instead of reporting a failure', () => {
+      i18nStub.language = 'en'
+      try {
+        render(
+          <ToolResultCard
+            type="tool_result"
+            toolName="edit_file"
+            error="raw instructions for the model"
+            result={{
+              error_type: 'author_edit_protected',
+              title: '第3章 三十年',
+              user_message: '《第3章 三十年》有你手动改过的内容，AI 没有动它；需要改的话会先问你。',
+            }}
+          />
+        )
+        expect(screen.getByText('Kept edits in 第3章 三十年')).toBeInTheDocument()
+        expect(screen.getByText('chat:tool.skippedTitle.authorEdited')).toBeInTheDocument()
+        expect(screen.queryByText(/failed/)).not.toBeInTheDocument()
+        expect(screen.queryByText(/手动改过/)).not.toBeInTheDocument()
+      } finally {
+        i18nStub.language = 'zh'
+      }
+    })
+
+    it('shows the backend sentence for a kept author edit on Chinese UIs', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="delete_file"
+          error="raw"
+          result={{ data: { error_type: 'author_edit_protected', user_message: '《第3章》有你手动改过的内容，AI 没有动它；需要改的话会先问你。' } }}
+        />
+      )
+      expect(screen.getByText('《第3章》有你手动改过的内容，AI 没有动它；需要改的话会先问你。')).toBeInTheDocument()
+      expect(screen.getByText('chat:tool.skippedTitle.authorEdited')).toBeInTheDocument()
+    })
+
+    it.each([
+      [{ error_type: 'author_edit_protected' }, 'chat:tool.failureHint.authorEditedUntitled', 'chat:tool.skippedTitle.authorEdited'],
+      [{ error_type: 'clarify_first' }, 'chat:tool.failureHint.clarifyFirst', 'chat:tool.skippedTitle.clarifyFirst'],
+    ])('maps the intentional skip %j to its own hint and title', (result, hint, title) => {
+      render(<ToolResultCard type="tool_result" toolName="edit_file" error="x" result={result} />)
+      expect(screen.getByText(hint)).toBeInTheDocument()
+      expect(screen.getByText(title)).toBeInTheDocument()
+      expect(screen.queryByText(/failed/)).not.toBeInTheDocument()
     })
 
     it('names the file for a repeated read when the title is known', () => {

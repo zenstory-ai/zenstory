@@ -11,7 +11,7 @@ Status: implemented
 - 短剧首轮，聊天里出现「Now create the 分集大纲 file.」「Now create the script for episode 1.」。这是模型在调用 `create_file` 前写的过程说明，作为正文发给了作者。
 - 规划师最后一行「…把三人的说话习惯和外形标签定死」后面紧跟着内容创作者的第一句「我先确认三个剧本文件的当前内容。」，两段话粘成一句：两个 agent 的 TEXT 连续写进同一条回复，中间没有任何分隔。
 - 审稿人交回 writer 的原因「与第1章逐字重复47字（超过15字阈值，按阻断处理）」显示在交接气泡里。#164 已把「阻断」换成「需要先修正」，「15字阈值」和「按…处理」仍在。
-- 并行任务行的「[edit_file]」（截图 shortstory-32）是前端 `ToolResultCard` 渲染的，#164 已改为本地化任务名；「质量审稿人 · 步骤 N」是前端的 agent 卡片，不在本次范围。
+- 并行任务行的「[edit_file]」（截图 shortstory-32）是前端 `ToolResultCard` 渲染的，#164 已改为本地化任务名；「质量审稿人 · 步骤 N」是前端的 agent 卡片，见 Decision 最后一条。
 
 ## Decision
 
@@ -20,6 +20,7 @@ Status: implemented
   - 英文过程句：作者原话里有汉字时开启。每段文字（到下一个非文字事件为止，思考过程不算）先攒着：开头不是英文字母、汉字已占多数且至少 4 个、出现 `<`（`<file>` 正文）、或超过 120 字时立刻原样发出；这段紧接着就是工具调用、并且以英文开头、英文字母至少是汉字的两倍（`is_english_process_narration`）时丢掉。最后的总结（后面没有工具调用）不丢。
 - **`author_facing_text`**：在流程用语替换之前去掉审稿规则的说法：括号里提到「阈值」或「按…处理」的整段括号；不在括号里的「（超过）N字（的）阈值」「按阻断 / 客观缺陷…处理」按分句去掉。
 - **提示词**：`AUTHOR_REPLY_PROTOCOL` 加「每一句都用作者使用的语言写，调用工具前后的说明也一样」和「不写内部规则和阈值（15字阈值、按…处理、步骤 N）」；`QUALITY_REVIEWER_PROMPT` 要求交接 reason 写成作者能懂的一句话，不写阈值和规则名。
+- **前端 agent 卡片**（`MessageList`，`chat.json` 的 `workflow.iteration` / `workflow.remaining`）：「质量审稿人 · 步骤 3（还剩 1）」改成「质量审稿人 · 第 3 步（还能做 1 步）」，英文「Reviewer · step 3 (1 more left)」。数字作为插值传进整句，不再拼在一个光秃秃的「步骤」后面。
 
 ## Alternatives considered
 
@@ -35,8 +36,10 @@ Status: implemented
   - 以英文开头的文字最多晚 120 字发出；作者写中文时，紧接着工具调用的英文短句（包括作者确实想要的英文短句，几乎不会出现在工具调用前）会被丢掉。
   - 丢掉的过程句不进历史，排障时看不到；模型下一轮也看不到它说过这句话（无影响）。
   - 规则是正则，「超过 15 个字的门槛」这类其他说法仍会漏过。
-  - 「质量审稿人 · 步骤 N」这类前端 agent 卡片文案没有改。
+  - agent 卡片的步数只在作者看得到的那一处改了说法；数字本身（这一轮里第几次换人接手）作者未必看得懂，没有去掉。
 
 ## Verification
 
 `cd apps/server && venv/bin/python -m pytest tests/test_agent/test_author_scope_graph.py tests/test_agent/test_handoff_author_facing.py -q --no-cov -n 0`：审计原样的「Now create the 分集大纲 file.」+ 工具调用不出现在发给作者的文字里，规划师和内容创作者之间有空行；英文作者的同一句保留；中文立刻放行、`<file>` 正文不攒、不在工具调用前的英文照常发；审稿理由里的「超过15字阈值，按阻断处理」被去掉、其余内容保留。
+
+前端：`pnpm --dir apps/web exec vitest run src/components/__tests__/MessageList.test.tsx`：agent 卡片把步数和剩余步数作为插值传入；中文文案拼出来是「第 3 步（还能做 1 步）」、不含「步骤」，英文是「step 3 (1 more left)」。
