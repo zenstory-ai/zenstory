@@ -312,7 +312,7 @@
     "stay": "继续等"
   },
   "nextStep": {
-    "frameworkReady": "故事框架已经有了，可以开始写正文了。",
+    "frameworkReady": "框架已就绪，可以开始写正文了。",
     "dismiss": "先不用",
     "novel": {
       "label": "写第一章正文",

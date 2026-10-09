@@ -20,27 +20,29 @@ export const NextStepCard: React.FC<NextStepCardProps> = ({ projectType, onStart
   return (
     <div
       data-testid="next-step-card"
-      className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.08)] px-3 py-2"
+      className="mb-2 rounded-lg border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.06)] px-3 py-2.5"
     >
-      <PenLine size={14} className="shrink-0 text-[hsl(var(--accent-primary))]" />
-      <span className="flex-1 min-w-0 text-xs text-[hsl(var(--text-primary))]">
+      <p className="flex items-start gap-1.5 text-xs leading-5 text-[hsl(var(--text-primary))]">
+        <PenLine size={14} className="mt-[3px] shrink-0 text-[hsl(var(--accent-primary))]" />
         {t("chat:nextStep.frameworkReady")}
-      </span>
-      <button
-        type="button"
-        data-testid="next-step-start"
-        onClick={() => onStart(t(`chat:nextStep.${kind}.message`))}
-        className="btn-primary rounded-lg px-3 text-xs min-h-[44px] md:min-h-0 md:h-8"
-      >
-        {t(`chat:nextStep.${kind}.label`)}
-      </button>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="rounded-lg px-2 text-xs min-h-[44px] md:min-h-0 md:h-8 text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
-      >
-        {t("chat:nextStep.dismiss")}
-      </button>
+      </p>
+      <div className="mt-2 flex items-center gap-1 pl-5">
+        <button
+          type="button"
+          data-testid="next-step-start"
+          onClick={() => onStart(t(`chat:nextStep.${kind}.message`))}
+          className="btn-primary rounded-md px-3 text-xs min-h-[44px] md:min-h-0 md:h-7"
+        >
+          {t(`chat:nextStep.${kind}.label`)}
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-md px-2 text-xs min-h-[44px] md:min-h-0 md:h-7 text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
+        >
+          {t("chat:nextStep.dismiss")}
+        </button>
+      </div>
     </div>
   );
 };
