@@ -60,6 +60,8 @@ import {
 } from "../lib/chatApi";
 import { fileVersionApi, projectApi, versionApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
+import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
+import { duplicatesNextStep } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind } from "../lib/agentApi";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
@@ -504,7 +506,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const currentProjectIdRef = useRef<string | null>(currentProjectId);
   // "Write chapter 1" once a framework exists but no prose yet; refreshed on open and after each round.
   const [frameworkReadyProjectId, setFrameworkReadyProjectId] = useState<string | null>(null);
-  const [dismissedNextStepProjects, setDismissedNextStepProjects] = useState<ReadonlySet<string>>(() => new Set());
+  const nextStepDismissal = useNextStepDismissal();
   const refreshNextStep = useCallback(async (projectId: string) => {
     try {
       const [progress] = await projectApi.getProgress(projectId);
@@ -1748,6 +1750,19 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     );
   }
 
+  const showNextStep = Boolean(
+    frameworkReadyProjectId
+      && frameworkReadyProjectId === currentProjectId
+      && !nextStepDismissal.isDismissed(frameworkReadyProjectId)
+      && !isStreaming
+      && !isThinking
+      && !quotaExhausted,
+  );
+  // While the card offers "write chapter 1", chips saying the same are dropped: one entry for it.
+  const visibleAiSuggestions = showNextStep
+    ? aiSuggestions.filter((suggestion) => !duplicatesNextStep(suggestion))
+    : aiSuggestions;
+
   return (
     <div
       ref={chatPanelRef}
@@ -2015,12 +2030,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               : `px-3 py-2 ${inputPanelHeight !== null ? "flex-1 min-h-0" : ""}`
           }`}
         >
-          {frameworkReadyProjectId
-            && frameworkReadyProjectId === currentProjectId
-            && !dismissedNextStepProjects.has(frameworkReadyProjectId)
-            && !isStreaming
-            && !isThinking
-            && !quotaExhausted && (
+          {showNextStep && frameworkReadyProjectId && (
             <NextStepCard
               projectType={currentProject?.project_type}
               onStart={(message) => {
@@ -2030,7 +2040,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               }}
               onDismiss={() => {
                 trackEvent("ai_next_step_dismissed", { project_id: frameworkReadyProjectId });
-                setDismissedNextStepProjects((prev) => new Set(prev).add(frameworkReadyProjectId));
+                nextStepDismissal.dismiss(frameworkReadyProjectId);
               }}
             />
           )}
@@ -2053,7 +2063,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                   ? t("chat:input.placeholderQuotaExhausted", { limit: aiMessageQuota?.limit })
                   : undefined
             }
-            aiSuggestions={aiSuggestions}
+            aiSuggestions={visibleAiSuggestions}
             messageCount={messages.length}
             suggestionDisplayState={suggestionDisplayState}
             onRefreshSuggestions={refreshSuggestionsNow}

@@ -320,17 +320,19 @@
     "stay": "Keep waiting"
   },
   "nextStep": {
-    "frameworkReady": "The outline is ready. Time to start writing.",
     "dismiss": "Not now",
     "novel": {
+      "frameworkReady": "The outline is ready. Time to write chapter 1.",
       "label": "Write chapter 1",
       "message": "Write chapter 1 from the outline"
     },
     "short": {
+      "frameworkReady": "The outline is ready. Time to start the story.",
       "label": "Start the story",
       "message": "Start writing the story from the outline"
     },
     "screenplay": {
+      "frameworkReady": "The outline is ready. Time to write the script.",
       "label": "Write episode 1",
       "message": "Write the episode 1 script from the episode outline"
     }

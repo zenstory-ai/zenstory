@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { PenLine } from "lucide-react";
+import { nextStepKind } from "../lib/nextStep";
 
 interface NextStepCardProps {
   /** novel / short / screenplay: chapter 1, the opening, or episode 1. */
@@ -12,11 +13,12 @@ interface NextStepCardProps {
 
 /**
  * Above the chat input once the framework exists but no prose does: one press
- * sends "write chapter 1" (the most common place new authors stopped).
+ * sends "write chapter 1" (the most common place new authors stopped). The
+ * line and the button use the same unit as the project type (章 / 正文 / 剧本).
  */
 export const NextStepCard: React.FC<NextStepCardProps> = ({ projectType, onStart, onDismiss }) => {
   const { t } = useTranslation(["chat"]);
-  const kind = projectType === "screenplay" || projectType === "short" ? projectType : "novel";
+  const kind = nextStepKind(projectType);
   return (
     <div
       data-testid="next-step-card"
@@ -24,7 +26,7 @@ export const NextStepCard: React.FC<NextStepCardProps> = ({ projectType, onStart
     >
       <p className="flex items-start gap-1.5 text-xs leading-5 text-[hsl(var(--text-primary))]">
         <PenLine size={14} className="mt-[3px] shrink-0 text-[hsl(var(--accent-primary))]" />
-        {t("chat:nextStep.frameworkReady")}
+        {t(`chat:nextStep.${kind}.frameworkReady`)}
       </p>
       <div className="mt-2 flex items-center gap-1 pl-5">
         <button

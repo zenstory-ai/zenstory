@@ -301,6 +301,7 @@ describe('ChatPanel mount smoke', () => {
     mockAgentStreamState.errorCode = null
     localStorage.removeItem('zenstory_suggestions_cache_project-1')
     localStorage.removeItem('zenstory_inspiration_project-1')
+    localStorage.removeItem('zenstory_next_step_dismissed_project-1')
     mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
     mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
   })
@@ -584,6 +585,50 @@ describe('ChatPanel mount smoke', () => {
 
     expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
     expect(mockStartStream).not.toHaveBeenCalled()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('remembers 先不用 for the project after a refresh or re-entry', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    const first = render(<ChatPanel />)
+    await screen.findByTestId('next-step-card')
+    fireEvent.click(screen.getByText('chat:nextStep.dismiss'))
+    first.unmount()
+
+    // A fresh mount is what a page reload or leaving and coming back does.
+    const second = render(<ChatPanel />)
+    await waitFor(() => expect(mockGetProgress).toHaveBeenCalledTimes(2))
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    second.unmount()
+
+    // Control: the same mount without the remembered 先不用 shows the card again.
+    localStorage.removeItem('zenstory_next_step_dismissed_project-1')
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('drops the suggestion chips that repeat the chapter-1 card, keeping the others', async () => {
+    vi.mocked(fetchSuggestions).mockResolvedValueOnce([
+      '写第一章，老周还剩七天',
+      '先补陈越的角色卡',
+      '调整大纲的节奏',
+    ])
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    render(<ChatPanel />)
+    await screen.findByTestId('next-step-card')
+
+    const chips = () => (lastMessageInputProps() as unknown as { aiSuggestions: string[] }).aiSuggestions
+    await waitFor(() => expect(chips()).toEqual(['先补陈越的角色卡', '调整大纲的节奏']))
+
+    // Once the author says 先不用, the card is gone and the chip is the way back in.
+    fireEvent.click(screen.getByText('chat:nextStep.dismiss'))
+    await waitFor(() => expect(chips()).toEqual(['写第一章，老周还剩七天', '先补陈越的角色卡', '调整大纲的节奏']))
     mockGetProgress.mockResolvedValue([])
   })
 

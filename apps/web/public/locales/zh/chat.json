@@ -320,17 +320,19 @@
     "stay": "继续等"
   },
   "nextStep": {
-    "frameworkReady": "框架已就绪，可以开始写正文了。",
     "dismiss": "先不用",
     "novel": {
+      "frameworkReady": "框架已就绪，可以开始写第一章了。",
       "label": "写第一章正文",
       "message": "按大纲写第一章正文"
     },
     "short": {
+      "frameworkReady": "框架已就绪，可以开始写正文了。",
       "label": "开始写正文",
       "message": "按大纲开始写正文"
     },
     "screenplay": {
+      "frameworkReady": "框架已就绪，可以开始写剧本了。",
       "label": "写第 1 集剧本",
       "message": "按分集大纲写第 1 集剧本"
     }
