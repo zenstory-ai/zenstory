@@ -18,9 +18,15 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { MaterialsUpgradePromptModal } from "../components/subscription/MaterialsUpgradePrompt";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import {
+  prepareMaterialUpload,
   resolveMaterialUploadErrorMessage,
-  validateMaterialUploadFile,
+  type MaterialTrialSelection,
 } from "../lib/materialUploadValidation";
+import {
+  MaterialTrialBookNote,
+  MaterialTrialSelectionNote,
+  MaterialTrialUsedEmptyState,
+} from "../components/materials/MaterialTrialNotes";
 import { hasMaterialsLibraryAccess, materialJobErrorText } from "../lib/materialsAccess";
 import { MATERIAL_LIBRARY_SUMMARY_QUERY_KEY } from "../hooks/useMaterialLibrary";
 import { useRefreshMaterialLibraryOnCompletion } from "../hooks/useMaterialLibraryRefresh";
@@ -46,6 +52,7 @@ export default function MaterialsPage() {
   const [title, setTitle] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trialSelection, setTrialSelection] = useState<MaterialTrialSelection | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -246,10 +253,14 @@ export default function MaterialsPage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      const validationError = await validateMaterialUploadFile(selectedFile, t);
-      if (validationError) {
+      // A free trial only checks and uploads the first chapters of the book.
+      const prepared = await prepareMaterialUpload(selectedFile, t, {
+        trialMaxChapters: trialAvailable ? materialTrial?.max_chapters : null,
+      });
+      if (prepared.error !== null) {
         setFile(null);
-        setError(validationError);
+        setTrialSelection(null);
+        setError(prepared.error);
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -257,6 +268,7 @@ export default function MaterialsPage() {
       }
 
       setFile(selectedFile);
+      setTrialSelection(prepared.trial);
       if (!title) {
         setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
       }
@@ -273,18 +285,27 @@ export default function MaterialsPage() {
 
     setUploading(true);
     setError(null);
+    const uploadingWithTrial = trialAvailable;
 
     try {
       await materialsApi.upload(file, title || undefined);
       setShowUploadModal(false);
       setFile(null);
+      setTrialSelection(null);
       setTitle("");
       queryClient.invalidateQueries({ queryKey: ["materials"] });
       queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
     } catch (err) {
-      setError(
-        resolveMaterialUploadErrorMessage(err, t, t("materials:uploadError"))
-      );
+      const message = resolveMaterialUploadErrorMessage(err, t, t("materials:uploadError"));
+      setError(message);
+      if (uploadingWithTrial && !(err instanceof ApiError && err.errorCode === "ERR_FEATURE_NOT_INCLUDED")) {
+        // Failed trial uploads give the trial back; say so once the quota confirms it.
+        void confirmTrialStillAvailable().then((available) => {
+          if (!available) return;
+          const note = t("materials:trialNotUsed", { defaultValue: "这次没有用掉免费试拆机会。" });
+          setError((current) => (current === message ? `${message} ${note}` : current));
+        });
+      }
       if (err instanceof ApiError && err.errorCode === "ERR_FEATURE_NOT_INCLUDED") {
         trackEvent("materials_upload_blocked_free", {
           source: "materials_upload_runtime_guard",
@@ -299,6 +320,19 @@ export default function MaterialsPage() {
       }
     } finally {
       setUploading(false);
+    }
+  };
+
+  const confirmTrialStillAvailable = async (): Promise<boolean> => {
+    try {
+      const fresh = await queryClient.fetchQuery({
+        queryKey: subscriptionQueryKeys.quota(),
+        queryFn: () => subscriptionApi.getQuota(),
+        staleTime: 0,
+      });
+      return fresh?.material_trial?.available === true;
+    } catch {
+      return false;
     }
   };
 
@@ -495,6 +529,8 @@ export default function MaterialsPage() {
             </div>
           </div>
         </div>
+      ) : materials.length === 0 && trialUsed ? (
+        <MaterialTrialUsedEmptyState onUpgrade={() => openUpgradePath("billing", "materials_trial_used")} />
       ) : materials.length === 0 ? (
         <>
           {materialDecomposeQuota && hasWorkspaceAccess && (
@@ -539,7 +575,7 @@ export default function MaterialsPage() {
             >
               <p className="flex-1 min-w-0 text-sm text-[hsl(var(--text-primary))]">
                 {t("materials:trialUsedBanner", {
-                  defaultValue: "免费试拆只拆了这本书的前 {{chapters}} 章。开通 Pro 后，每月可以拆完整的小说。",
+                  defaultValue: "你已经用过免费试拆（只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
                   chapters: materialTrial?.max_chapters,
                 })}
               </p>
@@ -641,7 +677,7 @@ export default function MaterialsPage() {
         {trialAvailable && (
           <p data-testid="materials-trial-upload-note" className="mb-4 text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:trialUploadNote", {
-              defaultValue: "免费试拆：只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
+              defaultValue: "免费试拆：整本上传即可，只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
               chapters: materialTrial?.max_chapters,
             })}
           </p>
@@ -683,12 +719,20 @@ export default function MaterialsPage() {
                     {t("materials:uploadModal.clickToSelect")}
                   </p>
                   <p className="text-xs text-[hsl(var(--text-tertiary))]">
-                    {t("materials:uploadModal.supportedFormats")}
+                    {trialAvailable
+                      ? t("materials:uploadModal.trialSupportedFormats", {
+                          defaultValue: "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 30 万字",
+                          chapters: materialTrial?.max_chapters,
+                        })
+                      : t("materials:uploadModal.supportedFormats")}
                   </p>
                 </>
               )}
             </div>
           </div>
+          {file && trialAvailable && trialSelection && (
+            <MaterialTrialSelectionNote selection={trialSelection} />
+          )}
         </div>
 
         {/* Title Input */}
@@ -856,6 +900,8 @@ function MaterialCard({
             </div>
           </div>
         )}
+
+        <MaterialTrialBookNote material={material} />
 
         {/* Error Message */}
         {(material.status === "failed" || material.status === "completed_with_errors") && material.error_message && (

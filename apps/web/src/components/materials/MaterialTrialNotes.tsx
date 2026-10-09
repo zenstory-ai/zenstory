@@ -1,0 +1,69 @@
+import { useTranslation } from "react-i18next";
+import { BookOpen } from "../icons";
+import type { MaterialNovel } from "../../lib/materialsApi";
+import type { MaterialTrialSelection } from "../../lib/materialUploadValidation";
+
+/** Upload dialog: how much of the picked book the free trial covers. */
+export function MaterialTrialSelectionNote({ selection }: { selection: MaterialTrialSelection }) {
+  const { t } = useTranslation(["materials"]);
+  const rest = selection.totalChapters - selection.keptChapters;
+  return (
+    <p
+      data-testid="materials-trial-selection-note"
+      className="mt-2 text-sm text-[hsl(var(--text-secondary))]"
+    >
+      {rest > 0
+        ? t("materials:trialSelectionCut", {
+            defaultValue: "这本书共 {{total}} 章，免费试拆只拆前 {{chapters}} 章，后 {{rest}} 章不拆。",
+            total: selection.totalChapters,
+            chapters: selection.keptChapters,
+            rest,
+          })
+        : t("materials:trialSelectionAll", {
+            defaultValue: "这本书共 {{total}} 章，会全部拆解。",
+            total: selection.totalChapters,
+          })}
+    </p>
+  );
+}
+
+/** Library card: a trial book that covers only the first chapters of the file. */
+export function MaterialTrialBookNote({ material }: { material: MaterialNovel }) {
+  const { t } = useTranslation(["materials"]);
+  const limit = material.trial_chapter_limit;
+  const total = material.source_chapter_count;
+  if (!limit || !total || total <= limit) return null;
+  return (
+    <p data-testid="materials-trial-book-note" className="mt-2 text-xs text-[hsl(var(--text-tertiary))]">
+      {t("materials:trialBookNote", {
+        defaultValue: "免费试拆：全书 {{total}} 章，只拆了前 {{chapters}} 章",
+        total,
+        chapters: limit,
+      })}
+    </p>
+  );
+}
+
+/** Empty library after the free trial was used: nothing left to upload without Pro. */
+export function MaterialTrialUsedEmptyState({ onUpgrade }: { onUpgrade: () => void }) {
+  const { t } = useTranslation(["materials"]);
+  return (
+    <div
+      data-testid="materials-trial-used-empty"
+      className="flex flex-col items-center gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-10 text-center"
+    >
+      <BookOpen className="h-10 w-10 text-[hsl(var(--text-tertiary))]" />
+      <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
+        {t("materials:trialUsedEmptyTitle", { defaultValue: "免费试拆已经用过了" })}
+      </h2>
+      <p className="max-w-md text-sm text-[hsl(var(--text-secondary))]">
+        {t("materials:trialUsedEmptyBody", {
+          defaultValue: "开通 Pro 后，每月可以拆解参考小说，每本最多 30 万字；拆出的角色、设定和章节梗概写作时随时引用。",
+        })}
+      </p>
+      <button onClick={onUpgrade} className="btn-primary h-11 px-4">
+        {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
+      </button>
+    </div>
+  );
+}

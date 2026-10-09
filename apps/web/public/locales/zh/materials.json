@@ -42,6 +42,7 @@
     "selectFile": "选择文件",
     "clickToSelect": "点击选择文件",
     "supportedFormats": "仅支持 .txt，不超过 20MB、30 万字，需要有章节标题（如“第一章”“第一回”）",
+    "trialSupportedFormats": "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 30 万字",
     "titleLabel": "小说标题",
     "titlePlaceholder": "留空则使用文件名",
     "uploading": "上传中...",
@@ -49,7 +50,10 @@
     "errors": {
       "invalidType": "仅支持上传 .txt 文件",
       "tooLarge": "文件超过 20MB，请拆分后再上传",
-      "tooManyCharacters": "字数超过 30 万，请拆分后再上传"
+      "trialTooLarge": "文件超过 20MB。免费试拆只拆前 {{chapters}} 章，可以只保留前 {{chapters}} 章再上传",
+      "tooManyCharacters": "字数超过 30 万，请拆分后再上传",
+      "tooManyCharactersCounted": "这本书约 {{wan}} 万字，超过 30 万字上限，请拆分后再上传",
+      "trialTooManyCharacters": "这本书前 {{chapters}} 章就有约 {{wan}} 万字，超过 30 万字上限，请删减后再上传"
     }
   },
   "deleteConfirm": {
@@ -177,6 +181,12 @@
     "other": "其他"
   },
   "trialStart": "免费试拆一本（前 {{chapters}} 章）",
-  "trialUploadNote": "免费试拆：只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
-  "trialUsedBanner": "免费试拆只拆了这本书的前 {{chapters}} 章。开通 Pro 后，每月可以拆完整的小说。"
+  "trialUploadNote": "免费试拆：整本上传即可，只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
+  "trialUsedBanner": "你已经用过免费试拆（只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
+  "trialSelectionCut": "这本书共 {{total}} 章，免费试拆只拆前 {{chapters}} 章，后 {{rest}} 章不拆。",
+  "trialSelectionAll": "这本书共 {{total}} 章，会全部拆解。",
+  "trialNotUsed": "这次没有用掉免费试拆机会。",
+  "trialBookNote": "免费试拆：全书 {{total}} 章，只拆了前 {{chapters}} 章",
+  "trialUsedEmptyTitle": "免费试拆已经用过了",
+  "trialUsedEmptyBody": "开通 Pro 后，每月可以拆解参考小说，每本最多 30 万字；拆出的角色、设定和章节梗概写作时随时引用。"
 }

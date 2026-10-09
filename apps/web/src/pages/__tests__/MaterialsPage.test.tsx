@@ -2,7 +2,7 @@
 // the Beijing calendar day promised by the product.
 process.env.TZ = "UTC";
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -246,6 +246,89 @@ describe("MaterialsPage", () => {
     expect(screen.queryByTestId("materials-trial-start")).not.toBeInTheDocument();
   });
 
+  it("tells the author on the card how much of a long book the trial covered", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([
+      {
+        id: "n1",
+        title: "参考书",
+        status: "completed",
+        chapters_count: 20,
+        trial_chapter_limit: 20,
+        source_chapter_count: 150,
+        created_at: "2026-10-09T00:00:00Z",
+      },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-trial-book-note")).toHaveTextContent(
+      "免费试拆：全书 150 章，只拆了前 20 章",
+    );
+    expect(screen.getByTestId("materials-trial-banner")).not.toHaveTextContent("这本书");
+  });
+
+  it("does not invite an upload when the trial is used and the library is empty", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const emptyState = await screen.findByTestId("materials-trial-used-empty");
+    expect(emptyState).toHaveTextContent("免费试拆已经用过了");
+    expect(screen.queryByText("materials:uploadFirst")).not.toBeInTheDocument();
+    fireEvent.click(within(emptyState).getByRole("button", { name: "开通 Pro" }));
+    expect(trackEventMock).toHaveBeenCalledWith("materials_upgrade_clicked", {
+      source: "materials_trial_used",
+      destination: "billing",
+    });
+  });
+
+  const trialBook = (chapters: number) =>
+    Array.from(
+      { length: chapters },
+      (_, index) => `第${index + 1}章 雾港\n${"雾港的灯一盏盏亮起来，他把旧信折好放回怀里。".repeat(10)}`,
+    ).join("\n");
+
+  it("tells the author before upload which chapters of the picked book the trial breaks down", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByTestId("materials-trial-start"));
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const picked = new File([trialBook(25)], "雾港旧事.txt", { type: "text/plain" });
+    fireEvent.change(fileInput, { target: { files: [picked] } });
+
+    expect(await screen.findByTestId("materials-trial-selection-note")).toHaveTextContent(
+      "这本书共 25 章，免费试拆只拆前 20 章，后 5 章不拆。",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "materials:uploadModal.upload" }));
+    await waitFor(() => expect(mockUpload).toHaveBeenCalled());
+    // The whole book goes up: the server cuts it and remembers it had 25 chapters
+    // (for the card note), and a just-upgraded author still gets the whole book.
+    expect(mockUpload.mock.calls[0][0]).toBe(picked);
+  });
+
+  it("says the trial was not used when a trial upload fails on the platform side", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+    mockUpload.mockRejectedValueOnce(new ApiError(503, "ERR_SERVICE_UNAVAILABLE"));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByTestId("materials-trial-start"));
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File([trialBook(3)], "short.txt", { type: "text/plain" })] },
+    });
+    await screen.findByText("short.txt");
+    fireEvent.click(screen.getByRole("button", { name: "materials:uploadModal.upload" }));
+
+    expect(await screen.findByText(/这次没有用掉免费试拆机会。/)).toBeInTheDocument();
+  });
+
   it("states the Pro breakdown limit from the plan catalog instead of a constant", async () => {
     mockGetStatus.mockResolvedValueOnce({
       tier: "free",
@@ -466,7 +549,7 @@ describe("MaterialsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("materials:uploadModal.errors.tooManyCharacters")
+        screen.getByText("materials:uploadModal.errors.tooManyCharactersCounted")
       ).toBeInTheDocument();
     });
 

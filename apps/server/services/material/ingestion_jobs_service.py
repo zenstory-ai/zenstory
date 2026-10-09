@@ -34,8 +34,9 @@ ENABLED_STAGES_KEY = "enabled_stages"
 # stage_progress key holding the job's quota state:
 # {"quota_charged": bool, "quota_refunded": bool, "refund_reason": str}.
 # quota_charged means this job currently holds one material_decompose unit, or,
-# with quota_mode="trial", the account's one free trial; a trial job also carries
-# chapter_limit, which stage0 applies before creating chapters.
+# with quota_mode="trial", the account's one free trial; a trial job (and a paid
+# retry of a trial book, whose stored source holds only those chapters) also
+# carries chapter_limit, which stage0 applies before creating chapters.
 BILLING_KEY = "billing"
 
 
@@ -44,6 +45,23 @@ def job_chapter_limit(job: Any) -> int | None:
     billing = _load_stage_progress(getattr(job, "stage_progress", None)).get(BILLING_KEY)
     limit = billing.get("chapter_limit") if isinstance(billing, dict) else None
     return limit if isinstance(limit, int) and not isinstance(limit, bool) and limit > 0 else None
+
+
+def is_refunded_trial_attempt(job: Any) -> bool:
+    """
+    A free-trial job that failed for a platform reason and gave the trial back.
+
+    For the author that attempt never happened: they can try again, and the
+    library does not show it as a failed book.
+    """
+    if job is None or getattr(job, "status", None) != "failed":
+        return False
+    billing = _load_stage_progress(getattr(job, "stage_progress", None)).get(BILLING_KEY)
+    return (
+        isinstance(billing, dict)
+        and billing.get("quota_mode") == "trial"
+        and billing.get("quota_refunded") is True
+    )
 
 
 def _load_stage_progress(raw: str | None) -> dict[str, Any]:

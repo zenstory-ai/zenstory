@@ -57,6 +57,9 @@ class MaterialListItem(BaseModel):
     chapters_count: int
     # Effective decomposition stages recorded at flow start (see MaterialDetailResponse).
     enabled_stages: dict[str, bool] | None = None
+    # Free-trial books: the chapter cap, and how many chapters the uploaded file had.
+    trial_chapter_limit: int | None = None
+    source_chapter_count: int | None = None
 
 
 class MaterialDetailResponse(BaseModel):

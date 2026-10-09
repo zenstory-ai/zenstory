@@ -4,6 +4,8 @@ Status: implemented
 
 本 note 修改了 `feature/2026-04-29-materials-paid-entitlements.md` 中「免费用户只看预览」的规定：免费账号可以试拆一本的前 N 章，并在素材库里查看、引用这一本。付费权益（月度次数、退款口径）不变。
 
+后续：试拆的上传预检、存储和派发改为只针对前 N 章，退还的失败试拆不再出现在素材库，见 `feature/2026-10-09-material-trial-first-chapters-upload.md`。
+
 ## Problem
 
 10-03 至 10-09 的新用户里，43% 没建项目就离开；其中 19 人注册后几分钟内就碰到升级入口，12 人是从素材页点过去的，另有一笔从素材页预览发起、未付款的 Pro 订单。很多人是冲着「拆书」来的，免费版一次也试不了：素材库所有接口都要求 `materials_library_access`，免费套餐的拆解次数是 0。
