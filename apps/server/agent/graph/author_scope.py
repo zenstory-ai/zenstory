@@ -44,6 +44,45 @@ def is_vague_edit_request(message: str) -> bool:
     return bool(_VAGUE_EDIT_RE.match(normalized))
 
 
+# 上一轮收尾提问里「提议修改」的说法。
+_PROPOSED_EDIT_WORDS: tuple[str, ...] = (
+    "改",
+    "优化",
+    "润色",
+    "调整",
+    "精简",
+    "加强",
+    "打磨",
+    "修一下",
+    "修正",
+    "重写",
+    "收紧",
+    "压缩",
+    "完善",
+)
+_PROPOSAL_SPLIT_RE = re.compile(r"(?:\n|还是|或者|或是|；|;)")
+_PREVIOUS_QUESTION_TAIL_LINES = 4
+
+
+def previous_question_offers_one_edit(reply_text: str) -> bool:
+    """上一轮 AI 收尾的提问 / 选项里，是不是只提了一处修改。
+
+    「要我继续写第5章，还是先把第4章开头改紧凑一点？」只有一处：作者回「帮我优化一下」
+    「改改」就是答应这一处，不用再问。选项里有两处以上修改（「1. 把开头改紧 2. 优化第3章
+    对话」）或一处都没有（「要我继续写第5章吗？」）时，这句笼统的话没说清改哪里。
+    """
+    text = reply_text or ""
+    close = text.lower().rfind("</file>")
+    if close != -1:
+        text = text[close + len("</file>"):]
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    tail = "\n".join(lines[-_PREVIOUS_QUESTION_TAIL_LINES:])
+    proposals = [
+        part for part in _PROPOSAL_SPLIT_RE.split(tail) if any(word in part for word in _PROPOSED_EDIT_WORDS)
+    ]
+    return len(proposals) == 1
+
+
 def has_selected_text(user_message: str) -> bool:
     return any(marker in (user_message or "") for marker in _SELECTED_TEXT_MARKERS)
 
@@ -116,6 +155,27 @@ _PLAN_LINE_RE = re.compile(
 )
 CHAT_PLAN_MIN_UNITS = 5
 CHAT_PLAN_MIN_CHARS = 200
+
+# 作者要的是一份规划（要落进大纲文件）：「前十章大纲」「分集规划」。
+_PLAN_DELIVERABLE_WORDS: tuple[str, ...] = (
+    "大纲", "细纲", "章纲", "分章", "分集", "规划", "梗概", "目录", "outline",
+)
+# 只想先聊聊：「前十章大纲你怎么看」「先讨论一下规划」，规划贴在对话里就够了。
+_DISCUSSION_WORDS: tuple[str, ...] = (
+    "聊聊", "聊一下", "聊一聊", "讨论", "说说", "商量", "怎么看", "建议", "意见", "想法", "觉得",
+)
+_PRODUCE_WORDS: tuple[str, ...] = ("写", "做", "出", "列", "整理", "生成", "给我", "存", "保存")
+
+
+def request_asks_for_a_plan(message: str) -> bool:
+    """作者这一轮是不是要一份规划交付物（大纲 / 分章 / 分集规划），而不是只想聊聊。"""
+    text = re.sub(r"\s+", "", message or "").lower()
+    if not any(word in text for word in _PLAN_DELIVERABLE_WORDS):
+        return False
+    only_discussing = any(word in text for word in _DISCUSSION_WORDS) and not any(
+        word in text for word in _PRODUCE_WORDS
+    )
+    return not only_discussing
 
 
 def chat_only_plan_units(tail_text: str) -> list[int]:

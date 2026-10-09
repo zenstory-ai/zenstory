@@ -1601,6 +1601,13 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             normalize_quotes=True,
         )
 
+        # 剧本分集的幂等复用命中了作者手改过的同名剧集：接下来的 <file> 正文会整份覆盖
+        # 作者的字，作者本轮没点名它时不复用（占坑在 finally 里释放）。
+        if result.get("reused_existing") and int(result.get("original_content_length") or 0) > 0:
+            refusal = _author_edit_refusal(str(result.get("id") or ""), tool_name=tool_name)
+            if refusal is not None:
+                return refusal
+
         # 如果创建的是空文件，把占坑换成真实 file_id
         # folder 例外：文件夹是纯容器节点，永远不会收到 <file>…</file> 正文，
         # 给它置标记后无人清除（标记跨子任务可见），会硬阻断本轮后续所有建档，
@@ -1637,20 +1644,55 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             ToolContext.release_pending_empty_file(reservation)
 
 
+_AUTHOR_GUARD_MAX_FOLDER_FILES = 500
+
+
+def _folder_descendant_files(session: Session, folder: Any, project_id: str | None) -> list[Any]:
+    """文件夹下（含子文件夹）未删除的非文件夹文件，最多 _AUTHOR_GUARD_MAX_FOLDER_FILES 个。"""
+    from models import File
+
+    descendants: list[Any] = []
+    frontier = [folder.id]
+    seen = {folder.id}
+    while frontier and len(descendants) < _AUTHOR_GUARD_MAX_FOLDER_FILES:
+        statement = select(File).where(
+            File.parent_id.in_(frontier),  # type: ignore[attr-defined]
+            File.is_deleted.is_(False),  # type: ignore[attr-defined]
+        )
+        if project_id:
+            statement = statement.where(File.project_id == project_id)
+        children = list(session.exec(statement).all())
+        frontier = []
+        for child in children:
+            if child.id in seen:
+                continue
+            seen.add(child.id)
+            if child.file_type == "folder":
+                frontier.append(child.id)
+            else:
+                descendants.append(child)
+    return descendants[:_AUTHOR_GUARD_MAX_FOLDER_FILES]
+
+
 def _author_edit_refusal(
     file_id: str,
     *,
     tool_name: str,
     edits: list[Any] | None = None,
+    recursive: bool = False,
 ) -> dict[str, Any] | None:
     """作者手改过、本轮又没点名的文件：返回拒绝结果；可以改时返回 None。
 
     规则见 agent/tools/author_edit_guard.py。读不到文件或判定出错时不拦（交给后面的
     正常路径报「文件不存在」等错误），守卫只在确认是作者写下的正文时生效。
+    - 文件夹：只有递归删除时检查，作者没点名这个文件夹时，逐个看里面的文件。
+    - create_file：只在复用了同名的已有剧集时调用（接下来的 <file> 正文会整份覆盖它）。
     """
     scope = ToolContext.get_author_scope()
     if scope is None or not file_id:
         return None
+    protected: tuple[str, str] | None = None  # (被保护文件的 id, 标题)
+    action = "rewrite" if tool_name == "create_file" else "edit"
     try:
         from models import File
 
@@ -1660,11 +1702,34 @@ def _author_edit_refusal(
             if file is None or file.is_deleted or (project_id and file.project_id != project_id):
                 return None
             if file.file_type == "folder":
-                return None
-            title = str(file.title or "")
-            file_type = str(file.file_type or "")
-            if not latest_text_is_authors(session, file):
-                return None
+                if not recursive or request_targets_file(
+                    scope, file_id=file.id, title=str(file.title or ""), file_type="folder"
+                ):
+                    return None
+                for child in _folder_descendant_files(session, file, project_id):
+                    if not latest_text_is_authors(session, child):
+                        continue
+                    if request_targets_file(
+                        scope,
+                        file_id=child.id,
+                        title=str(child.title or ""),
+                        file_type=str(child.file_type or ""),
+                    ):
+                        continue
+                    protected = (str(child.id), str(child.title or ""))
+                    action = "folder"
+                    break
+                if protected is None:
+                    return None
+            else:
+                if not latest_text_is_authors(session, file):
+                    return None
+                title = str(file.title or "")
+                if request_targets_file(
+                    scope, file_id=file.id, title=title, file_type=str(file.file_type or ""), edits=edits
+                ):
+                    return None
+                protected = (str(file.id), title)
     except Exception as exc:
         logger.warning(
             "Author-edit guard check failed; letting the write proceed",
@@ -1672,21 +1737,20 @@ def _author_edit_refusal(
         )
         return None
 
-    if request_targets_file(scope, file_id=file_id, title=title, file_type=file_type, edits=edits):
-        return None
-
-    ToolContext.record_author_edit_refusal(file_id)
+    protected_id, title = protected
+    ToolContext.record_author_edit_refusal(protected_id)
     log_with_context(
         logger,
         20,  # INFO
         "Refused AI write to a file the author edited and did not ask to change",
         tool_name=tool_name,
         file_id=file_id,
+        protected_file_id=protected_id,
         agent_type=ToolContext.get_current_agent(),
     )
     payload: dict[str, Any] = {
         "status": "error",
-        "error": protected_refusal_message(title),
+        "error": protected_refusal_message(title, action=action),
         "error_type": AUTHOR_EDIT_PROTECTED_ERROR,
         "user_message": protected_user_message(title),
         "id": file_id,
@@ -1872,7 +1936,9 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         recursive = coerce_bool(args.get("recursive"))
         delete_id = args.get("id", "")
         refusal = _author_edit_refusal(
-            delete_id.strip() if isinstance(delete_id, str) else "", tool_name=tool_name
+            delete_id.strip() if isinstance(delete_id, str) else "",
+            tool_name=tool_name,
+            recursive=recursive,
         )
         if refusal is not None:
             return refusal

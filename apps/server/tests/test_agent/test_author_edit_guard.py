@@ -104,8 +104,60 @@ class TestRequestTargetsFile:
             title="第3章",
         ) is True
 
+    @pytest.mark.parametrize(
+        ("reply", "unlocked"),
+        [
+            ("可以", True),
+            ("改吧", True),
+            ("统一成老周吧", True),
+            ("可以，统一成老周，然后写下一章", True),
+            # 作者不同意、或只是让 AI 往下写：上一轮问过也不放行。
+            ("不用改，继续写下一章", False),
+            ("不用改，第3章就叫老秦", False),
+            ("先不改，按我的来", False),
+            ("好，继续写下一章", False),
+            ("继续写第5章", False),
+        ],
+    )
+    def test_reply_to_the_ais_question_unlocks_only_when_the_author_agrees(self, reply, unlocked):
+        scope = AuthorScope(messages=(reply,), confirmed_file_ids=frozenset({"ch3"}))
+        assert request_targets_file(scope, file_id="ch3", title="第3章 三十年") is unlocked
+
+    def test_edit_request_on_the_open_chapter(self):
+        # 作者正开着第 1 章、直接提改动：就是改这一章。
+        assert _targets("把开头改得更有悬念一点", title="第1章 夜班", file_id="ch1", focus="ch1") is True
+        assert _targets("精简一下对话", title="第1章 夜班", file_id="ch1", focus="ch1") is True
+        # 没开着它、点名了别的章、或者要的是下一章：都不算改它。
+        assert _targets("把开头改得更有悬念一点", title="第1章 夜班", file_id="ch1") is False
+        assert _targets("把第3章开头改一下", title="第1章 夜班", file_id="ch1", focus="ch1") is False
+        assert _targets("继续写下一章，开头改得有悬念一点", title="第1章 夜班", file_id="ch1", focus="ch1") is False
+        assert _targets("不用改，继续写", title="第1章 夜班", file_id="ch1", focus="ch1") is False
+
+    def test_rename_by_description_allows_only_the_new_name(self):
+        rename = {"op": "replace", "old": "张三", "new": "李明", "replace_all": True}
+        in_context = {"op": "replace", "old": "张三推开门。", "new": "李明推开门。"}
+        unrelated = {"op": "replace", "old": "折叠桌一张张码上三轮车。", "new": "桌子收好了。"}
+        message = "帮我把主角的名字改成李明"
+        assert _targets(message, edits=[rename]) is True
+        assert _targets(message, edits=[rename, in_context]) is True
+        assert _targets(message, edits=[rename, unrelated]) is False
+        # 开着的那一章：提了改动，整章都算作者要改的。
+        assert _targets(message, focus="ch3", edits=[unrelated]) is True
+
+    def test_title_word_or_unify_alone_is_not_a_request_to_edit(self):
+        # 提到「夜市」只是在说下一章的内容。
+        assert _targets("继续写第四章，夜市那段的氛围延续下去", title="第3章 夜市") is False
+        assert _targets("夜市那段改得紧凑一点", title="第3章 夜市") is True
+        assert _targets("参考第3章的写法写第4章") is False
+        assert _targets("第3章写得太拖了，帮我精简一下") is True
+        assert _targets("第2章不用改，第3章改成老周", title="第2章 夜班", file_id="ch2") is False
+        # 「统一」不再整轮放开所有已有章节（审计：作者手改的「老秦」会被改回去）。
+        assert _targets("统一一下格式再写下一章", focus="ch3") is False
+        assert _targets("继续写下一章，人名要统一") is False
+
     def test_whole_book_request_targets_every_file(self):
         assert _targets("全书统一一下称呼") is True
+        assert _targets("全书写到第3章了，继续写下一章") is False
 
 
 def test_history_and_metadata_helpers():
@@ -308,3 +360,103 @@ async def test_guard_is_off_without_an_author_message(db_session, owner_project)
         mcp_tools.ToolContext.clear_context()
 
     assert json.loads(raw["content"][0]["text"])["status"] == "success"
+
+
+async def test_declined_reply_keeps_the_file_protected(db_session, owner_project):
+    """上一轮被拒、AI 问过作者；作者回「不用改，继续写下一章」时第 3 章仍然改不了。"""
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project)
+    _author_saves(db_session, user, chapter, AUTHOR_CH3)
+    first_round = AuthorEditRefusals()
+    refused = await _run(
+        mcp_tools.edit_file, db_session, user, project, _revert_rename_edit(chapter.id),
+        message="继续写下一章", refusals=first_round,
+    )
+    assert refused["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    history = [
+        {"role": "user", "content": "继续写下一章"},
+        {
+            "role": "assistant",
+            "content": "第4章写好了。第3章是你手动改过的，我没动它：那里摊主叫老秦，第2章写的是老周，要统一吗？",
+            "routing": {CONFIRM_FILE_IDS_ROUTING_KEY: first_round.file_ids()},
+        },
+    ]
+
+    payload = await _run(
+        mcp_tools.edit_file, db_session, user, project, _revert_rename_edit(chapter.id),
+        message="不用改，继续写下一章",
+        author_confirmed_file_ids=confirmed_file_ids_from_history(history),
+    )
+
+    assert payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == AUTHOR_CH3
+
+
+async def test_author_can_edit_the_chapter_they_have_open(db_session, owner_project):
+    """作者自己写的第 1 章开着，说「把开头改得更有悬念一点」：照常改，不先问一句。"""
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project, title="第1章 夜班", content="夜里十点，他到了店里。")
+    _author_saves(db_session, user, chapter, "夜里十点，他推门进了店。")
+
+    payload = await _run(
+        mcp_tools.edit_file, db_session, user, project,
+        {"id": chapter.id, "edits": [
+            {"op": "replace", "old": "夜里十点，他推门进了店。", "new": "门是从里面锁着的。夜里十点，他推门进了店。"},
+        ]},
+        message="把开头改得更有悬念一点", focus_file_id=chapter.id,
+    )
+
+    assert payload["status"] == "success"
+
+
+async def test_rewriting_an_author_edited_episode_through_create_file_is_refused(db_session, owner_project):
+    """剧本项目：create_file 复用同名剧集后 <file> 会整份覆盖，作者手改过的第 3 集不复用。"""
+    user, project = owner_project
+    project.project_type = "screenplay"
+    folder = File(id=f"{project.id}-script-folder", project_id=project.id, title="剧本", file_type="folder")
+    db_session.add_all([project, folder])
+    db_session.commit()
+    episode = File(
+        project_id=project.id, parent_id=folder.id, title="第3集", file_type="script", content=AI_CH3, order=3
+    )
+    db_session.add(episode)
+    db_session.flush()
+    FileVersionService().create_version(
+        db_session, episode.id, AI_CH3, change_type="create", change_source="ai", commit=False
+    )
+    db_session.commit()
+    _author_saves(db_session, user, episode, AUTHOR_CH3)
+    args = {"title": "第3集", "file_type": "script", "content": "", "parent_id": folder.id}
+
+    refused = await _run(mcp_tools.create_file, db_session, user, project, args, message="继续写下一集")
+
+    assert refused["status"] == "error"
+    assert refused["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    assert "<file>" in refused["error"]
+    # 作者点名要重写第 3 集时照常复用。
+    allowed = await _run(mcp_tools.create_file, db_session, user, project, args, message="第3集重写一下")
+    assert allowed["status"] == "success"
+    assert allowed["data"]["reused_existing"] is True
+
+
+async def test_recursive_folder_delete_keeps_author_edited_chapters(db_session, owner_project):
+    user, project = owner_project
+    folder = File(project_id=project.id, title="正文", file_type="folder")
+    db_session.add(folder)
+    db_session.commit()
+    chapter = _ai_chapter(db_session, project)
+    chapter.parent_id = folder.id
+    db_session.add(chapter)
+    db_session.commit()
+    _author_saves(db_session, user, chapter, AUTHOR_CH3)
+
+    payload = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": folder.id, "recursive": True},
+        message="继续写下一章",
+    )
+
+    assert payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False
+    assert db_session.get(File, folder.id).is_deleted is False

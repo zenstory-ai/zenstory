@@ -36,6 +36,8 @@ from agent.graph.author_scope import (
     is_vague_edit_request,
     outline_covers_units,
     planning_question_keeps_writer,
+    previous_question_offers_one_edit,
+    request_asks_for_a_plan,
 )
 from agent.graph.nodes import (
     detect_task_complete,
@@ -48,6 +50,7 @@ from agent.graph.router import (
     _ended_with_question,
     _last_assistant_message,
     _previous_routing,
+    _reply_text,
     get_next_node,
     inherit_routing_after_clarification,
     resume_route_after_exhaustion,
@@ -299,8 +302,10 @@ def _build_scope_directive(routing_metadata: dict[str, Any] | None) -> str:
 def _should_clarify_first(state: WritingState) -> bool:
     """作者这一轮只说了「帮我优化一下」这类笼统的话：先问清楚改哪里（P2-16）。
 
-    不问的情况：带着选中文本、附加或引用了文件（改哪里已经清楚）；上一轮 AI 以提问
-    收尾（作者这句是在回答）；上一轮已经为笼统要求问过一次（只问一次）。
+    不问的情况：带着选中文本、附加或引用了文件（改哪里已经清楚）；上一轮是结构化澄清卡，
+    或上一轮 AI 收尾的提问里只提了一处修改（「要不要把第4章开头改紧一点？」，作者这句就是
+    答应它）；上一轮已经为笼统要求问过一次（只问一次）。上一轮只是以选项 / 问句收尾
+    （回复协议要求每轮都给选项）不算作者在回答，照样先问。
     """
     message = str(state.get("router_message") or state.get("user_message") or "")
     if not is_vague_edit_request(message):
@@ -314,7 +319,11 @@ def _should_clarify_first(state: WritingState) -> bool:
     if previous is not None:
         if _previous_routing(previous).get("clarify_first") is True:
             return False
-        if previous.get("clarification_pending") is True or _ended_with_question(previous):
+        if previous.get("clarification_pending") is True:
+            return False
+        if _ended_with_question(previous) and previous_question_offers_one_edit(
+            _reply_text(previous.get("content"))
+        ):
             return False
     return True
 
@@ -1095,12 +1104,9 @@ async def run_writing_workflow_streaming(
         # 上一轮以工具调用轮数耗尽 / 无进展停止收尾，用户只回了一句「继续」：直接交给
         # 上一轮的 agent 走 quick 工作流，不再重新做多 agent 规划（规划会从头再读一遍）。
         resume_result = resume_route_after_exhaustion(state)
-        # 上一轮以提问收尾、用户简短作答（「可以」「B」「主角叫陈默」）：沿用上一轮落库的
-        # 路由，不让只看本条原话的 LLM 路由把回答重新分类。只替代 LLM 路由那一步，
-        # 快速模式（路由关闭）照旧固定从 writer 开始。
-        if resume_result is None and router_strategy == "llm":
-            resume_result = inherit_routing_after_clarification(state)
         # 「帮我优化一下」这类笼统要求：不走路由，writer 单独一轮先问清楚改哪里（P2-16）。
+        # 放在「沿用上一轮路由」之前：上一轮按回复协议以选项收尾时，这句话也会被当成
+        # 简短作答沿用路由，直接去改好几个文件。
         if resume_result is None and _should_clarify_first(state):
             resume_result = clarify_first_route()
             log_with_context(
@@ -1108,6 +1114,11 @@ async def run_writing_workflow_streaming(
                 20,  # INFO
                 "Vague edit request; asking the author what to improve before editing",
             )
+        # 上一轮以提问收尾、用户简短作答（「可以」「B」「主角叫陈默」）：沿用上一轮落库的
+        # 路由，不让只看本条原话的 LLM 路由把回答重新分类。只替代 LLM 路由那一步，
+        # 快速模式（路由关闭）照旧固定从 writer 开始。
+        if resume_result is None and router_strategy == "llm":
+            resume_result = inherit_routing_after_clarification(state)
 
         try:
             if resume_result is not None:
@@ -1724,6 +1735,10 @@ async def run_writing_workflow_streaming(
                 and not read_only_request
                 and not clarify_first_request
                 and iteration < max_iterations
+                # 作者要的是一份规划（「前十章大纲」）；「先聊聊前十章怎么安排」这类讨论不补写。
+                and request_asks_for_a_plan(
+                    str(state.get("router_message") or state.get("user_message") or "")
+                )
             ):
                 plan_units = chat_only_plan_units(agent_tail_text)
                 if plan_units:

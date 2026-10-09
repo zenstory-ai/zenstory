@@ -190,6 +190,54 @@ async def test_vague_reply_to_the_ais_question_is_not_asked_again():
     assert calls == ["writer"]
 
 
+_WRITER_ROUTING = {"initial_agent": "writer", "workflow_type": "quick", "write_content": True, "scope": ""}
+
+
+async def test_vague_request_after_an_options_list_still_asks_first():
+    """回复协议让每轮都以选项收尾：「帮我优化一下」不是在选其中哪一项，照样先问。"""
+    seen: dict[str, object] = {}
+
+    async def fake_agent(state, agent_type, **_kwargs):
+        seen["clarify_first"] = state.get("clarify_first")
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "想先改哪一处？"})
+
+    history = [
+        {"role": "user", "content": "继续写下一章"},
+        {
+            "role": "assistant",
+            "content": "第4章写好了，2980字。\n接下来你可以：\n- 把第4章开头改紧凑一点？\n- 优化第3集的台词？\n- 继续写第5章？",
+            "routing": _WRITER_ROUTING,
+        },
+    ]
+    route = _route({"agent_type": "writer", "workflow_type": "quick", "write_content": True})
+    await _run(route, fake_agent, message="帮我优化一下", messages=history)
+
+    route.assert_not_called()
+    assert seen["clarify_first"] is True
+
+
+async def test_vague_reply_to_a_single_proposed_edit_goes_ahead():
+    """上一轮只提了一处修改（「要不要把第4章开头改紧凑一点？」）：「改改」就是答应它。"""
+    seen: dict[str, object] = {}
+
+    async def fake_agent(state, agent_type, **_kwargs):
+        seen["clarify_first"] = state.get("clarify_first")
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "改好了。"})
+
+    history = [
+        {"role": "user", "content": "继续写下一章"},
+        {
+            "role": "assistant",
+            "content": "第4章写好了，2980字。\n要我继续写第5章，还是先把第4章开头改紧凑一点？",
+            "routing": _WRITER_ROUTING,
+        },
+    ]
+    route = _route({"agent_type": "writer", "workflow_type": "quick", "write_content": True})
+    await _run(route, fake_agent, message="改改", messages=history)
+
+    assert seen["clarify_first"] is not True
+
+
 def test_clarify_first_tools_refuse_with_their_own_reason():
     from agent.openai_agents.tools_adapter import (
         CLARIFY_FIRST_TOOL_DESCRIPTION_PREFIX,
@@ -266,6 +314,23 @@ async def test_plan_left_only_in_chat_is_saved_to_an_outline_file():
     assert calls == ["planner", "planner"]
     assert "还没有写进文件" in messages[1]
     assert "第1–10" in messages[1]
+
+
+async def test_plan_discussion_is_not_turned_into_an_outline_file():
+    """作者只是想先聊聊怎么安排：规划贴在对话里就够了，不多花一轮去建大纲文件。"""
+    calls: list[str] = []
+
+    async def fake_agent(_state, agent_type, **_kwargs):
+        calls.append(agent_type)
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": _TEN_CHAPTER_PLAN})
+
+    await _run(
+        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False}),
+        fake_agent,
+        message="先聊聊前十章怎么安排比较好",
+    )
+
+    assert calls == ["planner"]
 
 
 async def test_plan_already_written_to_a_file_is_not_redone():
