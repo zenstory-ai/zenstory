@@ -1095,9 +1095,17 @@ export const SimpleEditor = ({
       {!isReviewMode && (
         <div className="shrink-0 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 bg-[hsl(var(--bg-secondary)/0.3)]">
           <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">
-            <span>
+            {/* Counts Chinese characters and English words only, so it reads lower than
+                platforms that count punctuation; say so on hover and on tap. */}
+            <button
+              type="button"
+              data-testid="editor-word-count"
+              onClick={() => toast.info(t('editor:wordCountHint'))}
+              title={t('editor:wordCountHint')}
+              className="cursor-help text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
+            >
               {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(content)}</strong>
-            </span>
+            </button>
             <span>
               {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{content.split(/\n\n+/).filter(Boolean).length}</strong>
             </span>
@@ -1130,14 +1138,16 @@ export const SimpleEditor = ({
             {fileId && (
               <button
                 onClick={startNaturalPolish}
+                // No selection yet: stays pressable (dimmed) so a tap says why — the
+                // hover title alone never reaches touch screens.
                 disabled={
                   !projectId ||
                   readOnly ||
                   isStreaming ||
-                  isNaturalPolishRunning ||
-                  !selectedText
+                  isNaturalPolishRunning
                 }
-                className="px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                aria-disabled={!selectedText || undefined}
+                className="px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent aria-disabled:opacity-50"
                 title={
                   !projectId
                     ? t("editor:naturalPolishMissingContext")

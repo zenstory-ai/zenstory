@@ -13,7 +13,7 @@
  *
  * @module components/Layout
  */
-import React, { useEffect, useRef, useCallback, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { Header } from "./Header";
 import { BottomTabs } from "./BottomTabs";
@@ -29,6 +29,7 @@ import {
 } from "../contexts/MobileLayoutContext";
 import { useFileSearchContext } from "../contexts/FileSearchContext";
 import { useProject } from "../contexts/ProjectContext";
+import { hasPendingInspiration } from "../lib/pendingInspiration";
 
 /**
  * Props for the Layout component and its internal layouts.
@@ -239,6 +240,11 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
   const filesPanelRef = useRef<HTMLDivElement>(null);
   const editorPanelRef = useRef<HTMLDivElement>(null);
   const chatPanelRef = useRef<HTMLDivElement>(null);
+  // Opened from the dashboard with an idea: the first message is about to be sent,
+  // so land on the AI tab where it shows up instead of the empty editor.
+  useLayoutEffect(() => {
+    if (hasPendingInspiration(currentProjectId)) setActivePanel("chat");
+  }, [currentProjectId, setActivePanel]);
   const mobilePanelBottomInset = isMobileKeyboardOpen
     ? "0px"
     : `calc(${MOBILE_BOTTOM_TABS_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px))`;

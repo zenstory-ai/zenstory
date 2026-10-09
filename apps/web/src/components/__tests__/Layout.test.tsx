@@ -13,6 +13,7 @@ const mockSwitchToEditor = vi.fn()
 let mockIsMobile = false
 let mockIsTablet = false
 let mockActivePanel: 'files' | 'editor' | 'chat' = 'editor'
+let mockCurrentProjectId: string | null = null
 
 // Mock hooks
 vi.mock('../../hooks/useMediaQuery', () => ({
@@ -47,6 +48,7 @@ vi.mock('../../contexts/FileSearchContext', () => ({
 
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
+    currentProjectId: mockCurrentProjectId,
     project: null,
     isLoading: false,
     error: null,
@@ -135,6 +137,7 @@ describe('Layout', () => {
     mockIsMobile = false
     mockIsTablet = false
     mockActivePanel = 'editor'
+    mockCurrentProjectId = null
   })
 
   afterEach(() => {
@@ -268,6 +271,30 @@ describe('Layout', () => {
   describe('Mobile Layout', () => {
     beforeEach(() => {
       mockIsMobile = true
+    })
+
+    it('opens on the AI tab when the project was started from a dashboard idea', () => {
+      mockCurrentProjectId = 'project-with-idea'
+      localStorage.setItem('zenstory_inspiration_project-with-idea', JSON.stringify({
+        content: '写一篇反转短篇',
+        projectType: 'short',
+        timestamp: Date.now(),
+      }))
+      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+
+      expect(mockSetActivePanel).toHaveBeenCalledWith('chat')
+    })
+
+    it('stays on the editor when there is no idea waiting to be sent', () => {
+      mockCurrentProjectId = 'project-with-idea'
+      // A stale idea (older than 5 minutes) is never sent, so no reason to switch.
+      localStorage.setItem('zenstory_inspiration_project-with-idea', JSON.stringify({
+        content: '写一篇反转短篇',
+        timestamp: Date.now() - 10 * 60 * 1000,
+      }))
+      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+
+      expect(mockSetActivePanel).not.toHaveBeenCalled()
     })
 
     it('renders mobile layout when isMobile is true', () => {

@@ -698,7 +698,7 @@ export default function DashboardHome() {
             data-testid="dashboard-inspiration-input"
             data-tour-id="dashboard-inspiration-input"
             disabled={isQuickCreating}
-            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] px-6 py-5 text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[212px]" : "min-h-[136px] pr-[180px]"}`}
+            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[248px] px-4 py-4" : "min-h-[136px] px-6 py-5 pr-[180px]"}`}
             value={inspiration}
             onChange={(e) => setInspiration(e.target.value)}
             onKeyDown={(e) => {

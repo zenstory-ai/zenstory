@@ -273,7 +273,7 @@ export const DiffReviewSplitView = ({
                 {t("editor:pendingDefaultAcceptedHint")}
               </div>
             </div>
-            <div className="rounded-full bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--text-secondary))] shadow-[0_6px_18px_-16px_hsl(var(--text-primary)/0.5)] ring-1 ring-[hsl(var(--border-primary)/0.32)]">
+            <div className="shrink-0 whitespace-nowrap rounded-full bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--text-secondary))] shadow-[0_6px_18px_-16px_hsl(var(--text-primary)/0.5)] ring-1 ring-[hsl(var(--border-primary)/0.32)]">
               {t("editor:reviewQueueCount", {
                 pending: counts.pending,
                 all: counts.all,
@@ -333,7 +333,8 @@ export const DiffReviewSplitView = ({
               {filteredEdits.length === 0 ? "0/0" : `${Math.max(activeIndex, 0) + 1}/${filteredEdits.length}`}
             </div>
 
-            <div className="whitespace-nowrap text-[10px] text-[hsl(var(--text-tertiary))]">
+            {/* Keyboard shortcuts mean nothing on a phone. */}
+            <div data-testid="review-shortcut-hints" className="hidden whitespace-nowrap text-[10px] text-[hsl(var(--text-tertiary))] md:block">
               <span className="mr-2">Y {t("editor:acceptOne")}</span>
               <span className="mr-2">N {t("editor:rejectOne")}</span>
               <span>U {t("editor:resetOne")}</span>

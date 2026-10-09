@@ -10,7 +10,7 @@ interface ProjectProgressLineProps {
 
 /** "写到第几章 / 多少字", or a nudge when the outline is ready but nothing is written yet. */
 export const ProjectProgressLine: React.FC<ProjectProgressLineProps> = ({ progress, projectType }) => {
-  const { t, i18n } = useTranslation(["dashboard"]);
+  const { t, i18n } = useTranslation(["dashboard", "editor"]);
   if (!progress) return null;
 
   let label: string | null = null;
@@ -38,7 +38,10 @@ export const ProjectProgressLine: React.FC<ProjectProgressLineProps> = ({ progre
       className="mb-2 flex items-center gap-1 text-xs text-[hsl(var(--text-secondary))]"
     >
       <PenLine className="w-3 h-3 shrink-0" />
-      <span className="truncate">{label}</span>
+      {/* Same count as the editor: Chinese characters and English words, no punctuation. */}
+      <span className="truncate" title={progress.written_units > 0 ? t("editor:wordCountHint") : undefined}>
+        {label}
+      </span>
     </div>
   );
 };
