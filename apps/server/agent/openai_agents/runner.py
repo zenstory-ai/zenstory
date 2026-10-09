@@ -90,7 +90,7 @@ MODEL_CALL_BUDGET_STOP_REASON = "model_call_budget_exhausted"
 MAX_TURNS_STOP_REASON = "max_turns_exceeded"
 # 重复读取守卫判定无进展、结束本轮时的 stop_reason（与 ERROR 事件 data.reason 相同）。
 NO_PROGRESS_STOP = NO_PROGRESS_STOP_REASON
-# 一次 agent run 只有思考、没有正文和工具调用就撞上输出上限（max_tokens）时
+# 最后一次模型响应只有思考、没有正文和工具调用就撞上输出上限（max_tokens）时
 # MESSAGE_END 的 stop_reason。
 OUTPUT_TRUNCATED_STOP_REASON = "output_truncated"
 # 最后一次模型响应的 output_tokens 达到 max_tokens 的这个比例即视为被输出上限截断。
@@ -1151,7 +1151,7 @@ async def run_openai_agents_streaming_agent(
             # 最后一次响应只有思考（没有正文、没有工具调用），又撞上了输出上限，本 run
             # 也没有交接/澄清——这是被截断，不是正常结束。之前按 end_turn 收尾，最后这
             # 一步什么都没交付，工作流静默结束，作者只看到一段思考、没有任何结果或提示。
-            # 先让 usage 入账，再以可重试的 ERROR 结束；是否退还额度由 stream_billing 的
+            # 先让 usage 入账，再以不可重试、可回复「继续」的 ERROR 结束；是否退还额度由 stream_billing 的
             # 既有规则决定（本轮无产出退还，已有产出照常计费）。只修状态，不限制思考。
             log_with_context(
                 logger,
