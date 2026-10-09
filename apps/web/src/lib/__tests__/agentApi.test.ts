@@ -338,6 +338,20 @@ describe('agentApi', () => {
       expect(onRunStarted).toHaveBeenCalledWith('run-42')
     })
 
+    it('declares the stop contract on every stream request', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream(['event: done\ndata: {}\n\n']),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, {})
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(mockFetch.mock.calls[0][1].headers['X-Client-Stop-Contract']).toBe('1')
+    })
+
     it('passes session_id in stream request body when provided', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
