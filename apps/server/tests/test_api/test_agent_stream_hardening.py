@@ -622,6 +622,57 @@ async def test_stop_after_only_narration_and_an_empty_chapter_refunds_and_remove
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("then_disconnect", [False, True])
+async def test_refunded_stop_keeps_a_blank_chapter_the_author_has_unsaved_text_in(
+    client: AsyncClient, db_session, then_disconnect
+):
+    """停止前编辑器没存下作者在空章节里打的字（保存失败 / 超时）：停止请求带上这个文件，
+    这一轮照样退还，但这一章不被当作空白占位文件移除；离开页面（停止后马上断线）也一样。"""
+    from models import File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, filled, _older = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        yield _create_file_result(filled)
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(3):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(
+                agent_run_id=response.headers["X-Agent-Run-ID"], keep_file_ids=[placeholder.id]
+            ),
+            current_user=user,
+            _rate_limit=0,
+        )
+        if then_disconnect:
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        else:
+            rest = "".join([frame async for frame in iterator])
+            assert _frame_data(rest, "quota_refunded")["removed_files"] == [
+                {"id": filled.id, "title": "第2章 入宅"}
+            ]
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+    # 作者没在里面打字的空章节照常移除。
+    assert db_session.get(File, filled.id).is_deleted is True
+
+
+@pytest.mark.integration
 async def test_stop_after_chapter_body_was_written_is_charged_and_keeps_files(
     client: AsyncClient, db_session
 ):

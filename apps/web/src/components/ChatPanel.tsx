@@ -43,7 +43,7 @@ import { QuotaBadge } from "./subscription/QuotaBadge";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
-import { flushOpenEditor } from "../lib/editorSaveTracker";
+import { flushOpenEditor, type OpenEditorFlushResult } from "../lib/editorSaveTracker";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -224,6 +224,13 @@ const parseToolCallsFromHistory = (toolCallsRaw?: string | null): Pick<Message, 
 interface ChatPanelProps {}
 
 /** Local storage key for persisting chat input panel height */
+/**
+ * Stop options for "the editor could not save the author's text before the round
+ * ends": the server keeps that file even if it looks blank.
+ */
+const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[] } | undefined =>
+  !result.saved && result.fileId ? { keepFileIds: [result.fileId] } : undefined;
+
 const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
 const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -1127,6 +1134,32 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const leaveGuard = useLeaveWhileGenerating(isStreaming && !isStopping);
   // Leaving mid-round: the server settles (and may refund) after the chat is gone.
   useQuotaRefreshAfterLeave(isStreaming, currentProjectId ?? null);
+  /** A confirmed leave is waiting for the editor's save. */
+  const leaveAfterSavePendingRef = useRef(false);
+  // Leaving mid-round drops the stream; a refunded round then removes its still-blank
+  // files. Save the editor first (as the stop button does) so text typed into a chapter
+  // the AI just created counts; if that save fails or times out, stop the round naming
+  // the open file so the server keeps it, then leave.
+  const handleConfirmLeave = () => {
+    const confirmLeave = leaveGuard.confirmLeave;
+    if (leaveGuard.roundEnded) {
+      confirmLeave();
+      return;
+    }
+    if (leaveAfterSavePendingRef.current) return;
+    const editorSaved = flushOpenEditor();
+    if (!editorSaved) {
+      confirmLeave();
+      return;
+    }
+    leaveAfterSavePendingRef.current = true;
+    void editorSaved.then(async (result) => {
+      const keep = keepUnsavedFile(result);
+      if (keep) await stop(keep);
+      leaveAfterSavePendingRef.current = false;
+      confirmLeave();
+    });
+  };
   const conflictCount = state.conflicts?.length ?? 0;
   const streamRenderItemCount = streamRenderItems?.length ?? 0;
 
@@ -1766,16 +1799,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (stopAfterSavePendingRef.current) return;
     // Text the author typed in the editor (for example into a chapter the AI just created)
     // is saved first: on a refunded stop the server removes this round's still-blank files,
-    // and it can only see text that has been saved.
+    // and it can only see text that has been saved. When that save fails or times out, the
+    // stop names the open file so the server keeps it.
     const editorSaved = flushOpenEditor();
     if (editorSaved) {
       stopAfterSavePendingRef.current = true;
-      void editorSaved.then(() => {
+      void editorSaved.then((result) => {
         stopAfterSavePendingRef.current = false;
-        stop();
+        void stop(keepUnsavedFile(result));
       });
     } else {
-      stop();
+      void stop();
     }
     if (currentProjectId) {
       const { wroteFiles, charged, producedOutput } = roundProgressRef.current;
@@ -2364,7 +2398,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         producedOutput={roundProgressRef.current.producedOutput}
         showDailyCount={showDailyCount}
         onStay={leaveGuard.cancelLeave}
-        onLeave={leaveGuard.confirmLeave}
+        onLeave={handleConfirmLeave}
       />
 
       {/* AI Memory Dialog */}

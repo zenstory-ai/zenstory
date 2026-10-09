@@ -10,6 +10,11 @@
  * where both sides touched the same paragraphs, per character. Regions both
  * sides changed in incompatible ways are conflicts: the merged text keeps the
  * server side there, the proposal shows the author's side.
+ *
+ * The comparison built from this is the author's own text (`local`) on the left
+ * and `merged` on the right, so every change listed is a change from the other
+ * side (the AI), never one of the author's edits: rejecting one keeps the
+ * author's words, and "reject all" gives back exactly the author's text.
  */
 import {
   DIFF_DELETE,
@@ -37,8 +42,8 @@ interface MergePiece {
   merged: string;
   /** Text with conflicts resolved to the author's side. */
   proposal: string;
-  /** The server copy of the same region. */
-  server: string;
+  /** The author's copy (base + the author's edits) of the same region. */
+  local: string;
   conflict: boolean;
 }
 
@@ -48,9 +53,10 @@ export interface RebaseResult {
   /** server + every author edit, conflicts included (the comparison's right side). */
   proposal: string;
   /**
-   * Review edit ids (as produced by `buildParagraphReviewData(server, proposal)`)
-   * that touch a conflict. They should start rejected so finishing the review
-   * without looking keeps the server side there.
+   * Review edit ids (as produced by `buildParagraphReviewData(local, merged)`,
+   * the author's text against the merge) that touch a conflict. They should
+   * start rejected so finishing the review without looking keeps the author's
+   * side there.
    */
   conflictEditIds: string[];
 }
@@ -102,7 +108,7 @@ function mergeHunks(
   const all = [...localHunks, ...serverHunks].sort((a, b) => a.start - b.start || a.end - b.end);
   const pieces: MergePiece[] = [];
   const pushEqual = (text: string) => {
-    if (text) pieces.push({ merged: text, proposal: text, server: text, conflict: false });
+    if (text) pieces.push({ merged: text, proposal: text, local: text, conflict: false });
   };
   let pos = 0;
   let i = 0;
@@ -125,12 +131,12 @@ function mergeHunks(
     const baseText = base.slice(clusterStart, clusterEnd).join("");
     const serverText = sideText(base, server, clusterStart, clusterEnd);
     if (local.length === 0) {
-      pieces.push({ merged: serverText, proposal: serverText, server: serverText, conflict: false });
+      pieces.push({ merged: serverText, proposal: serverText, local: baseText, conflict: false });
       continue;
     }
     const localText = sideText(base, local, clusterStart, clusterEnd);
     if (server.length === 0 || localText === serverText) {
-      pieces.push({ merged: localText, proposal: localText, server: serverText, conflict: false });
+      pieces.push({ merged: localText, proposal: localText, local: localText, conflict: false });
       continue;
     }
     pieces.push(...resolveBothChanged(baseText, localText, serverText));
@@ -155,7 +161,7 @@ function charLevelMerge(base: string, local: string, server: string): MergePiece
     hunksFromDiffs(diff(local), identity, "local"),
     hunksFromDiffs(diff(server), identity, "server"),
     (_baseText, localText, serverText) => [
-      { merged: serverText, proposal: localText, server: serverText, conflict: true },
+      { merged: serverText, proposal: localText, local: localText, conflict: true },
     ],
   );
 }
@@ -202,9 +208,10 @@ function rangesTouch(a0: number, a1: number, b0: number, b1: number): boolean {
   return a0 < b1 && b0 < a1;
 }
 
-function findConflictEditIds(server: string, proposal: string, conflicts: Array<[number, number]>): string[] {
+/** Review edit ids (original → modified) touching `conflicts`, given in `original` offsets. */
+function findConflictEditIds(original: string, modified: string, conflicts: Array<[number, number]>): string[] {
   if (conflicts.length === 0) return [];
-  const segments = buildReviewSegmentsFromDiffs(computeParagraphReviewDiffs(server, proposal));
+  const segments = buildReviewSegmentsFromDiffs(computeParagraphReviewDiffs(original, modified));
   const ids: string[] = [];
   let pos = 0;
   for (const segment of segments) {
@@ -227,13 +234,13 @@ export function rebaseLocalEdits(base: string, local: string, server: string): R
   const pieces = paragraphLevelMerge(base, local, server);
   let merged = "";
   let proposal = "";
-  let serverPos = 0;
+  let localPos = 0;
   const conflicts: Array<[number, number]> = [];
   for (const piece of pieces) {
     merged += piece.merged;
     proposal += piece.proposal;
-    if (piece.conflict) conflicts.push([serverPos, serverPos + piece.server.length]);
-    serverPos += piece.server.length;
+    if (piece.conflict) conflicts.push([localPos, localPos + piece.local.length]);
+    localPos += piece.local.length;
   }
-  return { merged, proposal, conflictEditIds: findConflictEditIds(server, proposal, conflicts) };
+  return { merged, proposal, conflictEditIds: findConflictEditIds(local, merged, conflicts) };
 }

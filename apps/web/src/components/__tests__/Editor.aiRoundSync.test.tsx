@@ -244,8 +244,12 @@ describe('AI writes the open chapter twice in one round', () => {
     fireEvent.change(textarea(), { target: { value: authorText } });
     await secondWrite('parallel_execute');
 
-    // Comparison view: the AI's v2 is the baseline, the author's text the proposal.
+    // Comparison view: the author's text is the baseline, the AI's change the proposal.
     expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
+    expect(harness.project!.diffReviewState).toMatchObject({
+      originalContent: `${V1}作者补的一句。`,
+      modifiedContent: `${V2}作者补的一句。`,
+    });
     expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
     expect(screen.getAllByText(/作者补的一句/).length).toBeGreaterThan(0);
     // Autosave is held while the author decides; v2 is not overwritten.
@@ -257,7 +261,8 @@ describe('AI writes the open chapter twice in one round', () => {
     finishReview();
     await advance(100); await settle();
     expect(putsFor(CH2_ID)).toHaveLength(1);
-    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ base_updated_at: T_V2 });
+    // Saved as the author's edit, so the server's author-edit guard keeps protecting it.
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ base_updated_at: T_V2, change_type: 'edit', change_source: 'user' });
     expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
     expect(server.files.get(CH2_ID)!.content.startsWith('第二天')).toBe(true);
     expect(textarea().value).toBe(server.files.get(CH2_ID)!.content);
@@ -266,16 +271,93 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(putsFor(CH2_ID)).toHaveLength(1);
   });
 
-  it('where the author and the AI rewrote the same words, finishing keeps the AI side', async () => {
+  it("where the author and the AI rewrote the same words, finishing keeps the author's side", async () => {
     await runRoundUntilV1();
     // The author rewrites the first sentence that v2 also changes.
-    fireEvent.change(textarea(), { target: { value: V1.replace('中午十二点，老周还在摊上。', '傍晚，老周收摊了。') } });
+    const authorText = V1.replace('中午十二点，老周还在摊上。', '傍晚，老周收摊了。');
+    fireEvent.change(textarea(), { target: { value: authorText } });
     await secondWrite('parallel_execute');
     expect(screen.getAllByText(/傍晚，老周收摊了/).length).toBeGreaterThan(0);
+    // The listed change is the AI's rewrite, starting rejected (the author's words).
+    expect(harness.project!.diffReviewState).toMatchObject({ originalContent: authorText, modifiedContent: V2 });
+    expect(harness.project!.diffReviewState!.pendingEdits.map((edit) => edit.status)).toEqual(['rejected']);
 
     finishReview();
     await advance(100); await settle();
-    expect(server.files.get(CH2_ID)!.content).toBe(V2);
+    expect(server.files.get(CH2_ID)!.content).toBe(authorText);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ change_type: 'edit', change_source: 'user', base_updated_at: T_V2 });
+  });
+
+  it("'reject all' in the comparison gives back exactly the author's text, never less", async () => {
+    await runRoundUntilV1();
+    const authorText = `${V1.replace('中午十二点，老周还在摊上。', '傍晚，老周收摊了。')}作者补的一句。`;
+    fireEvent.change(textarea(), { target: { value: authorText } });
+    await secondWrite('parallel_execute');
+
+    fireEvent.click(screen.getByTitle('editor:rejectAll'));
+    await settle();
+    finishReview();
+    await advance(100); await settle();
+    expect(server.files.get(CH2_ID)!.content).toBe(authorText);
+    expect(textarea().value).toBe(authorText);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ change_type: 'edit', change_source: 'user' });
+  });
+
+  it("accepting the AI's rewrite takes the AI's words there and keeps the author's other edits", async () => {
+    await runRoundUntilV1();
+    const authorText = `${V1.replace('中午十二点，老周还在摊上。', '傍晚，老周收摊了。')}作者补的一句。`;
+    fireEvent.change(textarea(), { target: { value: authorText } });
+    await secondWrite('parallel_execute');
+
+    fireEvent.click(screen.getByTitle('editor:acceptAll'));
+    await settle();
+    finishReview();
+    await advance(100); await settle();
+    expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ change_type: 'edit', change_source: 'user' });
+  });
+
+  it('an AI <file> stream into the open chapter does not discard text the author had not saved yet', async () => {
+    await runRoundUntilV1();
+    // The author types (not saved yet: under the 3 s autosave), then the AI
+    // rewrites the same chapter through a <file> stream.
+    const authorText = `${V1}作者补的一句。`;
+    fireEvent.change(textarea(), { target: { value: authorText } });
+    act(() => {
+      callbacks().onToolResult('create_file', 'success', { id: CH2_ID });
+      callbacks().onFileCreated(CH2_ID, 'draft', '第2章');
+    });
+    await settle();
+    act(() => callbacks().onFileContent(CH2_ID, V2));
+    await advance(50);
+    server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
+    act(() => callbacks().onFileContentEnd(CH2_ID));
+    await advance(300); await settle();
+
+    // Not replaced by the streamed copy: the comparison opens instead.
+    expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
+    expect(harness.project!.diffReviewState).toMatchObject({ originalContent: authorText, modifiedContent: `${V2}作者补的一句。` });
+    await advance(5000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+    finishReview();
+    await advance(100); await settle();
+    expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
+  });
+
+  it('keeps the unsaved text when the AI only renamed the chapter, and saves it on the new token', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
+    server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, title: '第2章 新名', updated_at: T_V2 });
+    act(() => { callbacks().onToolResult('parallel_execute', 'success', { total_tasks: 1, completed: 1, tasks: [] }); });
+    await advance(300); await settle();
+
+    // Nothing from the AI to review: no comparison, the author's text stays.
+    expect(harness.project!.diffReviewState).toBeNull();
+    expect(textarea().value).toBe(`${V1}作者补的一句。`);
+    expect(titleInput().value).toBe('第2章 新名');
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${V1}作者补的一句。`, base_updated_at: T_V2 });
   });
 
   it('a typed-then-deleted character does not leave a stale draft that later overwrites v2', async () => {
@@ -395,7 +477,7 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(snapshot).toMatchObject({ content: `${V2}作者补的一句。`, baseUpdatedAt: T_V2 });
   });
 
-  // The author and the AI rewrote the same sentence; the comparison starts on the AI's side there.
+  // The author and the AI rewrote the same sentence; the comparison starts on the author's side there.
   const AUTHOR_REWRITE = V1.replace('中午十二点，老周还在摊上。', '傍晚，老周收摊了。');
   const draftFor = () => readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH2_ID });
 
@@ -443,8 +525,8 @@ describe('AI writes the open chapter twice in one round', () => {
     fireEvent.change(textarea(), { target: { value: `${AUTHOR_REWRITE}作者补的一句。` } });
     await secondWrite('parallel_execute');
     // The author looks at the rewritten sentence and keeps the AI's version.
-    fireEvent.click(screen.getAllByTitle('editor:acceptChange')[0]);
     fireEvent.click(screen.getAllByTitle('editor:rejectChange')[0]);
+    fireEvent.click(screen.getAllByTitle('editor:acceptChange')[0]);
     await settle();
 
     act(() => harness.setShowEditor!(false));
@@ -457,15 +539,15 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(screen.getByText('editor:draftRecovery.restored')).toBeTruthy();
   });
 
-  it('pressing finish where both rewrote the same words keeps the AI side and leaves no draft behind', async () => {
+  it("pressing finish where both rewrote the same words keeps the author's side and leaves no draft behind", async () => {
     await runRoundUntilV1();
     fireEvent.change(textarea(), { target: { value: `${AUTHOR_REWRITE}作者补的一句。` } });
     await secondWrite('parallel_execute');
     finishReview();
     await advance(100); await settle();
-    expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
+    expect(server.files.get(CH2_ID)!.content).toBe(`${AUTHOR_REWRITE}作者补的一句。`);
     expect(putsFor(CH2_ID)[0][1]).toMatchObject({ base_updated_at: T_V2 });
-    expect(textarea().value).toBe(`${V2}作者补的一句。`);
+    expect(textarea().value).toBe(`${AUTHOR_REWRITE}作者补的一句。`);
 
     act(() => harness.setShowEditor!(false));
     await settle();

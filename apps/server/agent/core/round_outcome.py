@@ -39,7 +39,16 @@ class RunOutcome:
     """路由层与 process_stream 之间共享的这一轮收尾信息（同一事件循环内使用）。"""
 
     stop_kind: str | None = None
+    # 作者停止时编辑器里还有没存下的字的文件（前端停止前的保存失败或超时，随 /stop 送来）：
+    # 这一轮被退还时不当作空白占位文件移除，见 :meth:`removable`。
+    keep_file_ids: set[str] = field(default_factory=set)
     _message_id: asyncio.Future[str | None] | None = field(default=None, repr=False)
+
+    def removable(self, candidates: list[dict[str, str]]) -> list[dict[str, str]]:
+        """去掉作者编辑器里还有未保存文字的文件，剩下的才交给 remove_empty_placeholders。"""
+        if not self.keep_file_ids:
+            return candidates
+        return [item for item in candidates if item.get("id") not in self.keep_file_ids]
 
     def _future(self) -> asyncio.Future[str | None]:
         if self._message_id is None:

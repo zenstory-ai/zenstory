@@ -245,17 +245,31 @@ async function rewriteFirstParagraph(page: Page) {
   await expect(page.getByText('未保存', { exact: true })).toBeVisible();
 }
 
-test('pressing finish where both rewrote the same words keeps the AI side there', async ({ page }) => {
+test("pressing finish where both rewrote the same words keeps the author's side there", async ({ page }) => {
   const f = await setup(page);
   await runRound(page, f, 'parallel_execute', () => rewriteFirstParagraph(page));
   await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
-  // The preselected AI side is listed, not hidden behind the "pending" filter.
+  // The AI's rewrite is listed already rejected (the author's words kept), not hidden
+  // behind the "pending" filter.
   await expect(page.getByTitle(/^拒绝 \(N\)$/).first()).toBeDisabled();
 
   await page.getByTitle(/完成审阅|应用更改/).click();
+  await expect(textarea(page)).toHaveValue(authorRewrite);
+  await expect.poll(() => f.files.ch2.content).toBe(authorRewrite);
+  // Saved as the author's edit, on v2's token.
+  expect(putsToCh2(f)[0].body).toMatchObject({ change_type: 'edit', change_source: 'user', base_updated_at: tokenV2 });
+  expect(f.errors).toEqual([]);
+});
+
+test("accepting the AI's rewrite in the comparison takes the AI's words there", async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'parallel_execute', () => rewriteFirstParagraph(page));
+  await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
+
+  await page.getByTitle('全部接受').click();
+  await page.getByTitle(/完成审阅|应用更改/).click();
   await expect(textarea(page)).toHaveValue(V2);
-  await page.waitForTimeout(3500);
-  expect(f.files.ch2.content).toBe(V2);
+  await expect.poll(() => f.files.ch2.content).toBe(V2);
   expect(f.errors).toEqual([]);
 });
 

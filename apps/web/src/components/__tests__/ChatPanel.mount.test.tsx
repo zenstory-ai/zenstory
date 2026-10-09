@@ -901,6 +901,76 @@ describe('ChatPanel mount smoke', () => {
       }
     })
 
+    it("names the open file in the stop when the editor could not save the author's text", async () => {
+      const flush = vi.fn(async () => 'failed')
+      setOpenEditorFlush(flush, null, () => 'ch-typed')
+      try {
+        await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+        await waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
+        // The server then keeps that chapter even if the round is refunded.
+        expect(mockStop).toHaveBeenCalledWith({ keepFileIds: ['ch-typed'] })
+      } finally {
+        setOpenEditorFlush(null)
+      }
+    })
+
+    it('does not name the open file when its text was saved before stopping', async () => {
+      const flush = vi.fn(async () => 'saved')
+      setOpenEditorFlush(flush, null, () => 'ch-typed')
+      try {
+        await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+        await waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
+        expect(mockStop).toHaveBeenCalledWith(undefined)
+      } finally {
+        setOpenEditorFlush(null)
+      }
+    })
+
+    it("leaving mid-round saves the editor first and, if that fails, stops naming the open file before leaving", async () => {
+      const flush = vi.fn(async () => 'failed')
+      setOpenEditorFlush(flush, null, () => 'ch-typed')
+      const back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+      const order: string[] = []
+      mockStop.mockImplementation(async () => { order.push('stop') })
+      back.mockImplementation(() => { order.push('leave') })
+      try {
+        mockAgentStreamState.isStreaming = true
+        render(<ChatPanel />)
+        await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+        // Browser Back while generating opens the leave confirmation.
+        act(() => { window.dispatchEvent(new PopStateEvent('popstate', { state: null })) })
+        fireEvent.click(await screen.findByTestId('leave-dialog-leave'))
+        await waitFor(() => expect(order).toEqual(['stop', 'leave']))
+        expect(flush).toHaveBeenCalledTimes(1)
+        expect(mockStop).toHaveBeenCalledWith({ keepFileIds: ['ch-typed'] })
+      } finally {
+        setOpenEditorFlush(null)
+        back.mockRestore()
+        mockStop.mockReset()
+        mockAgentStreamState.isStreaming = false
+      }
+    })
+
+    it('leaving mid-round after the editor saved does not stop the round', async () => {
+      const flush = vi.fn(async () => 'saved')
+      setOpenEditorFlush(flush, null, () => 'ch-typed')
+      const back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+      try {
+        mockAgentStreamState.isStreaming = true
+        render(<ChatPanel />)
+        await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+        act(() => { window.dispatchEvent(new PopStateEvent('popstate', { state: null })) })
+        fireEvent.click(await screen.findByTestId('leave-dialog-leave'))
+        await waitFor(() => expect(back).toHaveBeenCalled())
+        expect(flush).toHaveBeenCalledTimes(1)
+        expect(mockStop).not.toHaveBeenCalled()
+      } finally {
+        setOpenEditorFlush(null)
+        back.mockRestore()
+        mockAgentStreamState.isStreaming = false
+      }
+    })
+
     it('stops right away when no editor is open', async () => {
       await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
       expect(mockStop).toHaveBeenCalledTimes(1)

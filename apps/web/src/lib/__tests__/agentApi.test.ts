@@ -1186,6 +1186,15 @@ describe('agentApi', () => {
       vi.mocked(api.post).mockRejectedValueOnce(new Error('offline'))
       await expect(stopAgentRun('run-42')).resolves.toBe(false)
     })
+
+    it('sends the files the editor could not save so a refunded round keeps them', async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({ stop_requested: true })
+      await expect(stopAgentRun('run-42', ['ch-typed'])).resolves.toBe(true)
+      expect(api.post).toHaveBeenCalledWith('/api/v1/agent/stop', {
+        agent_run_id: 'run-42',
+        keep_file_ids: ['ch-typed'],
+      })
+    })
   })
 
   describe('fetchSuggestions', () => {

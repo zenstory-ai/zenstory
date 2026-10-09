@@ -741,7 +741,7 @@ describe('useAgentStream', () => {
         result.current.stop()
       })
 
-      expect(agentApi.stopAgentRun).toHaveBeenCalledWith('run-1')
+      expect(agentApi.stopAgentRun).toHaveBeenCalledWith('run-1', [])
       expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
       expect(result.current.isStopping).toBe(true)
 
@@ -760,6 +760,17 @@ describe('useAgentStream', () => {
       expect(result.current.isStreaming).toBe(false)
       expect(result.current.isStopping).toBe(false)
       expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
+    })
+
+    it('passes the files the editor could not save to the stop request', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result } = startWithRun()
+
+      await act(async () => {
+        await result.current.stop({ keepFileIds: ['ch-typed'] })
+      })
+
+      expect(agentApi.stopAgentRun).toHaveBeenCalledWith('run-1', ['ch-typed'])
     })
 
     it('stays in 正在停止… until done arrives with this round\'s message id', async () => {

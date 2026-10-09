@@ -56,19 +56,36 @@ export interface EditorProps {}
 
 type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'script';
 
-/** The comparison Editor opened for "the author wrote on an older copy". */
+/**
+ * The comparison Editor opened for "the author wrote on an older copy": the
+ * author's own text on the left, the server copy merged with the author's
+ * edits on the right. Every listed change is the other side's (the AI's).
+ */
 interface ConflictReview {
   fileId: string;
+  /** The author's text (left side). */
   originalContent: string;
+  /** The server copy plus every author edit that applies cleanly (right side). */
   modifiedContent: string;
+  /** The server copy the comparison was opened against (the save token's copy). */
+  serverContent: string;
+  /** The copy the author's text was written on. */
+  base: string;
   /**
    * Places where the author and the AI rewrote the same words. They start
-   * rejected (AI side) so pressing finish keeps the AI's text there, but that
-   * default is not the author's choice: until the author decides one of them
-   * in the comparison, a draft kept on leaving keeps the author's side.
+   * rejected, which keeps the author's words there; until the author decides
+   * one of them, a draft kept on leaving carries no save token, so reopening
+   * asks instead of silently writing over the AI's copy.
    */
   undecidedConflictIds: Set<string>;
 }
+
+/**
+ * What opening the comparison found: the author's text is already in the
+ * server copy ("server"), the server copy adds nothing to the author's text
+ * ("local"), or there are changes from the other side to review ("review").
+ */
+type ConflictReviewOutcome = "server" | "local" | "review";
 
 const isSameReview = (review: DiffReviewState | null, conflict: ConflictReview | null): boolean =>
   review !== null &&
@@ -175,6 +192,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
    */
   const [serverSyncIssue, setServerSyncIssue] = useState<{ fileId: string; retrying: boolean } | null>(null);
   const conflictReviewRef = useRef<ConflictReview | null>(null);
+  // syncOpenFileFromServer (defined below), for reloads of the open file in loadData.
+  const syncOpenFileFromServerRef = useRef<() => Promise<void>>(async () => {});
   const [draftRecovery, setDraftRecovery] = useState<{
     snapshot: EditorDraftSnapshot;
     serverTitle: string;
@@ -209,7 +228,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const previous = editorFlushRef.current;
     editorFlushRef.current = flush;
     // The chat saves the author's typed text before it stops a round (see ChatPanel).
-    setOpenEditorFlush(flush, previous);
+    setOpenEditorFlush(flush, previous, () => currentFileRef.current?.id ?? null);
   }, []);
 
   /**
@@ -285,8 +304,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * `followServer`: a reload of the open file after the AI finished writing it
    * (the <file> stream). The loaded copy also becomes SimpleEditor's baseline,
    * so the AI's words are not counted as the author's on the next save.
+   *
+   * Reloading the file that is already open (the AI's stream ended, or the AI
+   * selected it again) while the author has unsaved body text never replaces
+   * that text: it goes through syncOpenFileFromServer, which compares instead.
+   * `discardUnsaved`: a version restore the author confirmed (it discards the
+   * unsaved text by design).
    */
-  const loadData = useCallback(async (options?: { followServer?: boolean }) => {
+  const loadData = useCallback(async (options?: { followServer?: boolean; discardUnsaved?: boolean }) => {
     if (activeProjectIdRef.current !== currentProjectId || selectedIdRef.current !== selectedItem?.id) return;
     const generation = ++loadGenerationRef.current;
     const currentFile = currentFileRef.current;
@@ -317,6 +342,15 @@ const EditorComponent: React.FC<EditorProps> = () => {
       setFile(null);
       setDraftRecovery(null);
       hasLoadedRef.current = false;
+      return;
+    }
+
+    if (
+      !options?.discardUnsaved &&
+      currentFile?.id === selectedItem.id &&
+      editContentRef.current !== (currentFile.content || "")
+    ) {
+      void syncOpenFileFromServerRef.current();
       return;
     }
 
@@ -445,49 +479,59 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * Open the comparison for "the author has unsaved text written on an older
    * copy (`base`) and the server now holds a newer one".
    *
-   * A two-way comparison of the server copy against the author's whole text
-   * would present every change the AI made since `base` as an author edit,
-   * and finishing would undo them. Instead the author's own edits are replayed
-   * on top of the server copy, so the proposals are exactly what the author
-   * wrote; regions both sides changed start rejected, so finishing without
-   * choosing keeps the server side there.
-   *
-   * Returns false when the author has nothing beyond the server copy.
+   * The author's edits are replayed on top of the server copy (three-way
+   * merge). The comparison then shows the author's own text on the left and
+   * the merge on the right, so every listed change is the AI's, matching the
+   * review screen's "AI changes" wording: accepting takes the AI's words,
+   * rejecting keeps the author's, and rejecting everything gives back exactly
+   * the author's text. Places both sides rewrote start rejected, so finishing
+   * without choosing keeps the author's words there.
    */
   const openConflictReview = useCallback((
     fileId: string,
     base: string,
     serverContent: string,
     localContent: string,
-  ): boolean => {
-    const { proposal, conflictEditIds } = rebaseLocalEdits(base, localContent, serverContent);
-    if (proposal === serverContent) return false;
-    enterDiffReview(fileId, serverContent, proposal);
+  ): ConflictReviewOutcome => {
+    const { merged, proposal, conflictEditIds } = rebaseLocalEdits(base, localContent, serverContent);
+    if (proposal === serverContent) return "server";
+    if (merged === localContent) return "local";
+    enterDiffReview(fileId, localContent, merged);
     conflictReviewRef.current = {
       fileId,
-      originalContent: serverContent,
-      modifiedContent: proposal,
+      originalContent: localContent,
+      modifiedContent: merged,
+      serverContent,
+      base,
       undecidedConflictIds: new Set(conflictEditIds),
     };
     for (const editId of conflictEditIds) rejectEdit(editId);
-    return true;
+    return "review";
   }, [enterDiffReview, rejectEdit]);
 
   /**
+   * The server copy adds nothing to the author's unsaved text (for example the
+   * AI only renamed the file): keep the author's text in the editor and make
+   * the server copy the save baseline, so the next save carries its token.
+   */
+  const keepLocalOnServerCopy = useCallback((data: File, nextTitle: string) => {
+    currentFileRef.current = data;
+    setFile(data);
+    setEditTitle(nextTitle);
+    markServerBaseline(data);
+  }, [markServerBaseline]);
+
+  /**
    * What SimpleEditor keeps locally when the author leaves (or the page
-   * unloads) while this comparison is open. Leaving is not a choice, so only
-   * the author's own decisions in the comparison count:
+   * unloads) while this comparison is open: the text finishing would save
+   * now (undecided places keep the author's words).
    *
    * - Every place both sides rewrote has been decided by the author (or there
-   *   is none): the text finishing would save now, on the server copy's token.
-   *   Reopening restores it on top of the AI's copy.
-   * - Some are undecided: the AI's copy plus every author edit, with the
-   *   author's side in those places, and no save token, so reopening shows
-   *   "your draft differs from the latest copy" with both versions to compare
-   *   instead of silently restoring either side.
-   *
-   * Never the raw draft: that is the author's whole text on the older copy,
-   * and restoring it would undo the AI's write everywhere.
+   *   is none): on the server copy's token. Reopening restores it on top of
+   *   the AI's copy.
+   * - Some are undecided: no save token, so reopening shows "your draft
+   *   differs from the latest copy" with both versions to compare instead of
+   *   silently writing the author's side over the AI's there.
    */
   const getReviewLeaveDraft = useCallback(() => {
     const review = currentReviewRef.current;
@@ -499,15 +543,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const undecided = review.pendingEdits.some(
       (edit) => edit.status === 'rejected' && conflict.undecidedConflictIds.has(edit.id),
     );
-    const pendingEdits = undecided
-      ? review.pendingEdits.map((edit) =>
-          conflict.undecidedConflictIds.has(edit.id) ? { ...edit, status: 'accepted' as const } : edit,
-        )
-      : review.pendingEdits;
     const { diffs } = buildParagraphReviewData(review.originalContent, review.modifiedContent);
     return {
       title: editTitleRef.current,
-      content: applyPendingEditsToDiffs(diffs, pendingEdits),
+      content: applyPendingEditsToDiffs(diffs, review.pendingEdits),
       baseUpdatedAt: undecided ? undefined : opened.updated_at,
     };
   }, []);
@@ -606,8 +645,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
       return;
     }
 
-    if (!openConflictReview(fileId, savedContent, serverContent, localContent)) {
+    const outcome = openConflictReview(fileId, savedContent, serverContent, localContent);
+    if (outcome === "server") {
       adoptServerCopy(data, nextTitle);
+      return;
+    }
+    if (outcome === "local") {
+      keepLocalOnServerCopy(data, nextTitle);
       return;
     }
     const merged = { ...current, title: data.title, content: serverContent, updated_at: data.updated_at };
@@ -615,7 +659,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setFile((prev) => (prev?.id === fileId ? merged : prev));
     setEditTitle(nextTitle);
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
-  }, [adoptServerCopy, openConflictReview]);
+  }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview]);
+  syncOpenFileFromServerRef.current = syncOpenFileFromServer;
 
   const retryServerSync = useCallback(() => {
     const fileId = currentFileRef.current?.id;
@@ -723,7 +768,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
           openedFile?.id === targetFileId &&
           selectedIdRef.current === targetFileId;
         if (typeof currentContent === "string") {
-          const baseContent = openedFile?.id === targetFileId ? openedFile.content || "" : currentContent;
+          // A save queued before an open comparison (the author cannot type
+          // while it is open) was written on that comparison's base copy.
+          const openConflict = conflictReviewRef.current;
+          const queuedBehindConflict =
+            openConflict?.fileId === targetFileId && isSameReview(currentReviewRef.current, openConflict);
+          const baseContent = queuedBehindConflict
+            ? openConflict.base
+            : openedFile?.id === targetFileId ? openedFile.content || "" : currentContent;
           const nextFile = (prev: File) => ({
             ...prev,
             content: currentContent,
@@ -735,13 +787,18 @@ const EditorComponent: React.FC<EditorProps> = () => {
           if (currentContent !== localContent) {
             // Only an editor that still shows this file may open the comparison;
             // a save sent while leaving keeps its draft as a local snapshot.
-            if (
-              isStillOpen &&
-              openedFile &&
-              !openConflictReview(targetFileId, baseContent, currentContent, localContent)
-            ) {
+            const outcome = isStillOpen && openedFile
+              ? openConflictReview(targetFileId, baseContent, currentContent, localContent)
+              : null;
+            if (outcome === "server" && openedFile) {
               // Everything the author wrote is already in the server copy.
               adoptServerCopy(nextFile(openedFile), editTitleRef.current);
+              return { outcome: "conflict" };
+            }
+            if (outcome === "local" && openedFile) {
+              // The newer copy adds nothing to the author's text: keep it and
+              // save it on the newer token.
+              keepLocalOnServerCopy(nextFile(openedFile), editTitleRef.current);
               return { outcome: "conflict" };
             }
             toast.error(t('editor:saveStaleWriteConflict'));
@@ -868,6 +925,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     // Get the final content based on accept/reject decisions
     const finalContent = applyDiffReviewChanges();
+    // A "your unsaved text vs a newer copy" comparison: the saved text is the
+    // author's (with whichever AI changes the author accepted).
+    const conflictReview = isSameReview(diffReviewState, conflictReviewRef.current)
+      ? conflictReviewRef.current
+      : null;
 
     const polishReview = naturalPolishReviewRef.current;
     naturalPolishReviewRef.current = null;
@@ -900,8 +962,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
       const updated = await fileApi.update(file.id, {
         content: finalContent,
         ...(titleChanged ? { title: reviewedTitle } : {}),
-        change_type: "ai_edit",
-        change_summary: "AI edit (reviewed)",
+        // A conflict comparison saves the author's own text (plus the AI
+        // changes they accepted): record it as the author's edit, so the
+        // server's author-edit guard keeps protecting it (ai_edit versions
+        // count as AI text).
+        ...(conflictReview
+          ? { change_type: "edit" as const, change_source: "user" as const }
+          : { change_type: "ai_edit" as const, change_summary: "AI edit (reviewed)" }),
         // 与 handleSaveFile 对齐的乐观并发令牌。这同样是一次整篇覆盖写，
         // 不带令牌就会无声盖掉审阅期间落库的其它改动。
         base_updated_at: file.updated_at,
@@ -974,11 +1041,19 @@ const EditorComponent: React.FC<EditorProps> = () => {
         });
         if (currentFileRef.current) currentFileRef.current = conflictFile(currentFileRef.current);
         setFile((prev) => (prev ? conflictFile(prev) : null));
-        // The reviewed text was built on this review's baseline; replay only
-        // what the review changed on top of the newer server copy.
-        if (!openConflictReview(file.id, diffReviewState.originalContent, serverContent, finalContent)) {
+        // The reviewed text was built on this review's server copy; replay
+        // only what the review changed on top of the newer one.
+        const reviewBase = conflictReview ? conflictReview.serverContent : diffReviewState.originalContent;
+        const outcome = openConflictReview(file.id, reviewBase, serverContent, finalContent);
+        if (outcome === "server") {
           exitDiffReview();
           setEditContent(serverContent);
+          return;
+        }
+        if (outcome === "local") {
+          // The newer copy adds nothing to the reviewed text: keep this
+          // review and its choices open; finishing again saves on the newer token.
+          toast.error(t('editor:saveStaleWrite'));
           return;
         }
         toast.error(t('editor:saveStaleWriteConflict'));
@@ -1297,7 +1372,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       onTitleChange: setEditTitle,
       onContentChange: setEditContent,
       onSave: handleSaveFile,
-      onHistoryRestore: loadData,
+      onHistoryRestore: () => loadData({ discardUnsaved: true }),
       onFlushReady: registerEditorFlush,
       serverBaseline: serverBaseline?.fileId === file.id ? serverBaseline : undefined,
       getReviewLeaveDraft,

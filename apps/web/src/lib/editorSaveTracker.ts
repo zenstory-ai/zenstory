@@ -54,40 +54,60 @@ export function notifyEditorContentSaved(projectId: string): void {
   );
 }
 
+/** Resolves to "saved" when everything the editor holds is stored (or nothing was unsaved). */
 type OpenEditorFlush = () => Promise<unknown>;
 let openEditorFlush: OpenEditorFlush | null = null;
+let openEditorFileId: (() => string | null) | null = null;
 
 /**
  * The open editor's "save now" hook (`null` when it goes away), so other panels can make
  * sure the author's typed text is stored before they act on the file. Clearing only
  * removes the hook this editor registered (`previous`), never a newer one.
+ * `getFileId` names the file the editor has open.
  */
-export function setOpenEditorFlush(flush: OpenEditorFlush | null, previous?: OpenEditorFlush | null): void {
+export function setOpenEditorFlush(
+  flush: OpenEditorFlush | null,
+  previous?: OpenEditorFlush | null,
+  getFileId?: () => string | null,
+): void {
   if (flush) {
     openEditorFlush = flush;
+    openEditorFileId = getFileId ?? null;
   } else if (!previous || openEditorFlush === previous) {
     openEditorFlush = null;
+    openEditorFileId = null;
   }
+}
+
+export interface OpenEditorFlushResult {
+  /** The editor's text is stored (or it had nothing unsaved). */
+  saved: boolean;
+  /** The file the editor has open (when known). */
+  fileId: string | null;
 }
 
 /**
  * Saves whatever the open editor has not saved yet. `null` when no editor is open;
- * otherwise resolves once that save settles or after `timeoutMs`. Never rejects.
+ * otherwise resolves once that save settles or after `timeoutMs` (then `saved` is
+ * false: the text may still be only in the editor). Never rejects.
  */
-export function flushOpenEditor(timeoutMs = 1500): Promise<void> | null {
+export function flushOpenEditor(timeoutMs = 1500): Promise<OpenEditorFlushResult> | null {
   const flush = openEditorFlush;
   if (!flush) return null;
+  const fileId = openEditorFileId?.() ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, timeoutMs);
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
   });
   const save = Promise.resolve()
     .then(flush)
     .then(
-      () => undefined,
-      () => undefined,
+      (outcome) => outcome === "saved",
+      () => false,
     );
-  return Promise.race([save, timeout]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
+  return Promise.race([save, timeout])
+    .then((saved) => ({ saved, fileId }))
+    .finally(() => {
+      if (timer) clearTimeout(timer);
+    });
 }

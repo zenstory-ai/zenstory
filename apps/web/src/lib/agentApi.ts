@@ -1022,12 +1022,16 @@ export async function sendSteeringRequest(
  * 产出时再发 quota_refunded(kind=stopped)；调用方应继续读流，只有这里失败或
  * 迟迟等不到收尾时才直接断开连接。
  *
+ * `keepFileIds`：编辑器里作者还有没存下的字的文件（停止前的保存失败或超时）。
+ * 这一轮被退还时服务端不把它们当作空白占位文件移除。
+ *
  * @returns 停止请求是否已被服务端记录
  */
-export async function stopAgentRun(agentRunId: string): Promise<boolean> {
+export async function stopAgentRun(agentRunId: string, keepFileIds: string[] = []): Promise<boolean> {
   try {
     const result = await api.post<{ stop_requested: boolean }>("/api/v1/agent/stop", {
       agent_run_id: agentRunId,
+      ...(keepFileIds.length > 0 ? { keep_file_ids: keepFileIds } : {}),
     });
     return result?.stop_requested === true;
   } catch (error) {

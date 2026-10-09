@@ -8,7 +8,7 @@ import type { DiffReviewState, SelectedItem } from '../../types';
 const mocks = vi.hoisted(() => ({
   get: vi.fn(), getTree: vi.fn(), create: vi.fn(), update: vi.fn(),
   error: vi.fn(), success: vi.fn(), refresh: vi.fn(), select: vi.fn(),
-  enter: vi.fn(), exit: vi.fn(), recordStats: vi.fn(),
+  enter: vi.fn(), exit: vi.fn(), recordStats: vi.fn(), reject: vi.fn(),
   t: (key: string) => key,
   context: {
     currentProjectId: 'project-a', selectedItem: null as SelectedItem | null,
@@ -32,8 +32,12 @@ vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => {
   return ({
   ...mocks.context, setSelectedItem: mocks.select, triggerFileTreeRefresh: mocks.refresh,
   enterDiffReview: mocks.enter, exitDiffReview: mocks.exit,
-  applyDiffReviewChanges: () => mocks.context.diffReviewState?.modifiedContent ?? '',
-  acceptEdit: vi.fn(), rejectEdit: vi.fn(), resetEdit: vi.fn(), acceptAllEdits: vi.fn(), rejectAllEdits: vi.fn(),
+  // A conflict comparison rejects its conflicts up front (the author's side,
+  // the left/original text); every comparison here is one whole-text conflict.
+  applyDiffReviewChanges: () => (mocks.reject.mock.calls.length > 0
+    ? mocks.context.diffReviewState?.originalContent
+    : mocks.context.diffReviewState?.modifiedContent) ?? '',
+  acceptEdit: vi.fn(), rejectEdit: mocks.reject, resetEdit: vi.fn(), acceptAllEdits: vi.fn(), rejectAllEdits: vi.fn(),
 });
 } }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
@@ -270,7 +274,7 @@ for (const strict of [false, true]) {
           expect(mocks.exit).toHaveBeenCalledTimes(1); expect(textarea()).toHaveValue('Reviewed A');
           expect(mocks.refresh).toHaveBeenCalledTimes(1);
         } else {
-          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Server A conflict', 'Reviewed A'); expect(mocks.exit).not.toHaveBeenCalled();
+          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Reviewed A', 'Server A conflict'); expect(mocks.exit).not.toHaveBeenCalled();
           mocks.context.diffReviewState = null; view.redraw(); await settle();
         }
         fireEvent.change(textarea(), { target: { value: 'Next reviewed edit' } }); save(); await settle();
@@ -358,7 +362,7 @@ for (const strict of [false, true]) {
           mocks.get.mockResolvedValue({ ...fileA, content: 'External after own save', updated_at: '2026-10-06T10:00:00.000003' });
           view.redraw(); await settle(); await advance(100);
           // A queued own draft is unsaved text: the external copy opens a comparison, never replaces it.
-          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'External after own save', 'Own queued second save');
+          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Own queued second save', 'External after own save');
           expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
           stats.resolve(); await settle();
         }
@@ -382,7 +386,7 @@ for (const strict of [false, true]) {
         expect(mocks.update).toHaveBeenCalledTimes(2);
         expect(mocks.update).toHaveBeenNthCalledWith(2, fileA.id, expect.objectContaining({ content: 'Queued local version', base_updated_at: fileA.updated_at }));
         second.reject(error); await settle();
-        if (outcome === 'conflict') expect(mocks.context.diffReviewState?.modifiedContent).toBe('Queued local version');
+        if (outcome === 'conflict') expect(mocks.context.diffReviewState?.originalContent).toBe('Queued local version');
         else expect(screen.getByText('editor:unsaved')).toBeInTheDocument();
       });
     }
@@ -409,7 +413,8 @@ for (const strict of [false, true]) {
       expect(mocks.get).toHaveBeenCalledTimes(strict ? 3 : 2);
       expect(mocks.update).not.toHaveBeenCalled();
       expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
-      expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Server AI content', 'Local unsaved draft');
+      // The author's draft is the left side; the AI's copy is the change to review.
+      expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Local unsaved draft', 'Server AI content');
       expect(mocks.error).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
       // While the comparison is open the debounce does not race it with the old token.
       mocks.context.aiEditingFileId = null; view.redraw(); await settle();
