@@ -40,7 +40,7 @@
   "input": {
     "placeholder": "想写什么，直接说…",
     "placeholderWhileProcessing": "AI 正在生成，你可以先输入，结束后再发送…",
-    "placeholderQuotaExhausted": "今天的 {{limit}} 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。",
+    "placeholderQuotaExhausted": "先把想法写下来，额度恢复后再发。",
     "stop": "停止生成",
     "stopping": "正在停止…",
     "stopArming": "正在开始，稍后可停止",
@@ -330,6 +330,12 @@
     "endedTitle": "这一轮已经结束",
     "endedMessage": "现在离开不会中断任何内容。",
     "stayEnded": "留在这里"
+  },
+  "quotaCard": {
+    "title": "今天的 {{limit}} 条免费 AI 消息用完了",
+    "resetOnDay": "北京时间 {{day}} 00:00 恢复。写好的内容会留在输入框里，到时再发。",
+    "resetTomorrow": "北京时间明天 00:00 恢复。写好的内容会留在输入框里，到时再发。",
+    "upgradeHint": "想现在接着写，可以开通 Pro，AI 消息不限条数。"
   },
   "nextStep": {
     "frameworkReady": "框架已就绪，可以开始写正文了。",

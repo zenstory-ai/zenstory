@@ -193,12 +193,24 @@ export default function BillingPage() {
   // A paid author's header button renews; keep it apart from upgrades in attribution.
   const checkoutSource = isPaidTier && !attributionSource ? RENEW_SOURCE : effectiveUpgradeSource;
   const statusLine = status ? getSubscriptionStatusLine(status, t) : null;
+  // Online checkout off: "开通 Pro" would only open the redeem dialog, so say so and offer
+  // the redeem code itself. Decided only after the options answer arrives.
+  const isCheckoutKnownOff = !isPaymentOptionsLoading && !isCheckoutEnabled;
+  const subtitle = isUpgradableTier
+    ? isCheckoutKnownOff
+      ? t("dashboard:billing.subtitleRedeemOnly", "查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。")
+      : t("dashboard:billing.subtitle", "查看当前套餐和用量，需要更多额度时可升级或使用兑换码。")
+    : isPaidTier
+    ? isCheckoutKnownOff
+      ? t("dashboard:billing.subtitlePaidRedeemOnly", "查看当前套餐和用量，到期前可以用兑换码续期。")
+      : t("dashboard:billing.subtitlePaid", "查看当前套餐和用量，到期前可以续费 Pro 或使用兑换码。")
+    : t("dashboard:billing.subtitleNeutral", "查看当前套餐和用量。");
 
   return (
     <div className="space-y-6">
       <DashboardPageHeader
         title={t("dashboard:billing.title", "订阅权益")}
-        subtitle={t("dashboard:billing.subtitle", "查看当前套餐和用量，需要更多额度时可升级或使用兑换码。")}
+        subtitle={subtitle}
         action={
           <div className="flex items-center gap-2">
             {isCheckoutEnabled ? (
@@ -220,30 +232,32 @@ export default function BillingPage() {
                   ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
                   : t("dashboard:billing.ctaProNeutral", "开通或续费 Pro")}
               </Button>
-            ) : (
-              isUpgradableTier && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    trackUpgradeClick(
-                      effectiveUpgradeSource,
-                      "direct",
-                      "redeem",
-                      "page"
-                    );
-                    setShowRedeemCodeModal(true);
-                  }}
-                >
-                  {t("dashboard:billing.ctaUpgradePro", "开通 Pro")}
-                </Button>
-              )
-            )}
-            <Button size="sm" variant="secondary" onClick={() => setShowRedeemCodeModal(true)}>
+            ) : null}
+            <Button
+              size="sm"
+              // The only way to get Pro while checkout is off: make it the main button.
+              variant={isCheckoutKnownOff && isUpgradableTier ? "primary" : "secondary"}
+              onClick={() => {
+                if (isCheckoutKnownOff && isUpgradableTier) {
+                  trackUpgradeClick(effectiveUpgradeSource, "direct", "redeem", "page");
+                }
+                setShowRedeemCodeModal(true);
+              }}
+            >
               {t("settings:subscription.redeemCode", "兑换码")}
             </Button>
           </div>
         }
       />
+
+      {isCheckoutKnownOff && isUpgradableTier && (
+        <p
+          data-testid="billing-checkout-unavailable"
+          className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-secondary))]"
+        >
+          {t("dashboard:billing.checkoutUnavailableNotice", "暂时不能在线付款。有兑换码的话，点「兑换码」就能开通 Pro。")}
+        </p>
+      )}
 
       <Card variant="outlined" padding="lg">
         <div className="flex items-center justify-between gap-3">
@@ -308,20 +322,37 @@ export default function BillingPage() {
             {usageItems.map((item) => {
               const metric = quota?.[item.key];
               const progress = usageProgress(metric);
-              const isWarning = metric && metric.limit !== -1 && metric.limit > 0 && progress >= 80;
+              const isLimited = Boolean(metric && metric.limit !== -1 && metric.limit > 0);
+              // Same states as the header badge: used up is an error, close to it a warning.
+              const isUsedUp = isLimited && Boolean(metric && metric.used >= metric.limit);
+              const isWarning = isLimited && !isUsedUp && progress >= 80;
+              const usageTextClass = isUsedUp
+                ? "text-[hsl(var(--error))]"
+                : isWarning
+                ? "text-[hsl(var(--warning))]"
+                : "text-[hsl(var(--text-primary))]";
+              const usageBarClass = isUsedUp
+                ? "bg-[hsl(var(--error))]"
+                : isWarning
+                ? "bg-[hsl(var(--warning))]"
+                : "bg-[hsl(var(--accent-primary))]";
               const notIncluded = isNotIncluded(metric);
               return (
                 <div key={item.key} className="rounded-lg border border-[hsl(var(--border-color))] p-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[hsl(var(--text-secondary))]">{item.label}</span>
-                    <span className={`font-semibold ${isWarning ? "text-[hsl(var(--warning))]" : "text-[hsl(var(--text-primary))]"}`}>
+                    <span
+                      data-testid={`billing-usage-${item.key}`}
+                      className={`font-semibold ${usageTextClass}`}
+                    >
                       {formatUsage(metric)}
                     </span>
                   </div>
                   {metric?.limit !== -1 && !notIncluded && (
                     <div className="mt-2 h-1.5 rounded-full bg-[hsl(var(--bg-tertiary))] overflow-hidden">
                       <div
-                        className={`h-full ${isWarning ? "bg-[hsl(var(--warning))]" : "bg-[hsl(var(--accent-primary))]"}`}
+                        data-testid={`billing-usage-bar-${item.key}`}
+                        className={`h-full ${usageBarClass}`}
                         style={{ width: `${progress}%` }}
                       />
                     </div>

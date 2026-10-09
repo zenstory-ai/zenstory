@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+const mockDraft = vi.hoisted(() => ({ saveDraft: vi.fn(), clearDraft: vi.fn() }))
+
 const mockQuota = vi.hoisted(() => ({
   value: { ai_conversations: { used: 2, limit: 10, reset_at: null } } as {
     ai_conversations: { used: number; limit: number; reset_at: string | null }
@@ -53,7 +55,7 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
   'home:pricingTeaser.viewPricing': '查看套餐权益',
-  'chat:input.placeholderQuotaExhausted': '今天的 {{limit}} 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。',
+  'chat:input.placeholderQuotaExhausted': '先把想法写下来，额度恢复后再发。',
   'chat:input.placeholderWhileProcessing': 'AI 正在生成，你可以先输入，结束后再发送…',
   'chat:tool.undo_edit': '撤销这次修改',
   'chat:actions.undo': '撤销',
@@ -204,8 +206,8 @@ vi.mock('../../hooks/useAgentStream', () => ({
 vi.mock('../../hooks/useDraftPersistence', () => ({
   useDraftPersistence: () => ({
     draft: '',
-    saveDraft: vi.fn(),
-    clearDraft: vi.fn(),
+    saveDraft: mockDraft.saveDraft,
+    clearDraft: mockDraft.clearDraft,
   }),
 }))
 
@@ -230,6 +232,7 @@ type MockMessageInputProps = {
   onSend: (message: string, selectedSkillIds: string[]) => void | Promise<void>
   disabled?: boolean
   sendDisabled?: boolean
+  onBlockedSend?: () => void
   placeholder?: string
   onCancel?: () => void
 }
@@ -1069,17 +1072,87 @@ describe('ChatPanel new-author flow', () => {
     expect(screen.queryByRole('button', { name: 'chat:panel.jumpToLatest' })).not.toBeInTheDocument()
   })
 
-  it('keeps drafting open but blocks sending once today\'s AI messages are used up', async () => {
-    mockQuota.value = { ai_conversations: { used: 10, limit: 10, reset_at: null } }
+  it('explains a used-up day above the input and opens the wall on send instead of a silent grey button', async () => {
+    mockQuota.value = { ai_conversations: { used: 10, limit: 10, reset_at: '2026-10-09T16:00:00Z' } }
     render(<ChatPanel />)
 
-    // sendDisabled is also true while history loads, so wait on the quota placeholder itself.
-    const placeholder = '今天的 10 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。'
-    await waitFor(() => expect(lastMessageInputProps().placeholder).toBe(placeholder))
-    expect(lastMessageInputProps().sendDisabled).toBe(true)
-    const textarea = screen.getByTestId('mock-input-textarea')
-    expect(textarea).not.toBeDisabled()
-    expect(textarea).toHaveAttribute('placeholder', placeholder)
+    const card = await screen.findByTestId('chat-quota-card')
+    expect(card).toHaveTextContent('今天的 10 条免费 AI 消息用完了')
+    expect(card).toHaveTextContent('北京时间 10月10日 00:00 恢复')
+    expect(card).toHaveTextContent('开通 Pro')
+    // Only the daily message count is ever named.
+    expect(card.textContent).not.toMatch(/¥|成本|费用/)
+
+    // Drafting stays open; send / Enter stay live and explain instead of doing nothing.
+    await waitFor(() => expect(lastMessageInputProps().onBlockedSend).toBeTypeOf('function'))
+    expect(lastMessageInputProps().sendDisabled).toBe(false)
+    expect(screen.getByTestId('mock-input-textarea')).not.toBeDisabled()
+    expect(lastMessageInputProps().placeholder).toBe('先把想法写下来，额度恢复后再发。')
+
+    act(() => lastMessageInputProps().onBlockedSend?.())
+    expect(await screen.findByText('北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。')).toBeInTheDocument()
+    expect(mockStartStream).not.toHaveBeenCalled()
+  })
+
+  it('keeps a programmatic send (dashboard idea, resend) as the draft while the day is used up', async () => {
+    mockQuota.value = { ai_conversations: { used: 10, limit: 10, reset_at: null } }
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'assistant-1', session_id: 'session-1', role: 'assistant', content: '大纲写好了',
+      created_at: '2026-10-09T10:00:00Z',
+    }] as never)
+    render(<ChatPanel />)
+    await screen.findByTestId('chat-quota-card')
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+
+    await act(async () => {
+      await lastMessageInputProps().onSend('写第二章', [])
+    })
+
+    expect(mockStartStream).not.toHaveBeenCalled()
+    expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章')
+    expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(false)
+  })
+
+  it('puts a message the server refused for the daily limit back into the input', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'assistant-1', session_id: 'session-1', role: 'assistant', content: '大纲写好了',
+      created_at: '2026-10-09T10:00:00Z',
+    }] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+
+    await act(async () => {
+      await lastMessageInputProps().onSend('写第二章', [])
+    })
+    expect(mockStartStream).toHaveBeenCalledTimes(1)
+    expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(true)
+
+    act(() => streamOptions().onError('quota exceeded', 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED', false))
+
+    expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章')
+    expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(false)
+  })
+
+  it('keeps the bubble when an accepted round fails for another reason', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'assistant-1', session_id: 'session-1', role: 'assistant', content: '大纲写好了',
+      created_at: '2026-10-09T10:00:00Z',
+    }] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+
+    await act(async () => {
+      await lastMessageInputProps().onSend('写第三章', [])
+    })
+    act(() => streamOptions().onSessionStarted('session-3'))
+    act(() => streamOptions().onError('boom', 'ERR_INTERNAL', true))
+
+    expect(mockDraft.saveDraft).not.toHaveBeenCalledWith('写第三章')
+    expect(lastMessageListProps().messages?.some((m) => m.content === '写第三章')).toBe(true)
   })
 
   it.each([

@@ -29,6 +29,9 @@ import type { ProjectType } from "../types";
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
 import { formatRelativeTime, parseUTCDate } from "../lib/dateUtils";
 import { UpgradePromptModal } from "../components/subscription/UpgradePromptModal";
+import { IdeaQuotaWallModal } from "../components/subscription/IdeaQuotaWallModal";
+import { useAiMessageQuota } from "../hooks/useAiMessageQuota";
+import { readHeldDashboardIdea, useHeldDashboardIdea } from "../hooks/useHeldDashboardIdea";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { writingStatsApi } from "../lib/writingStatsApi";
 import { onboardingPersonaApi, type PersonaRecommendation } from "../lib/onboardingPersonaApi";
@@ -68,7 +71,11 @@ export default function DashboardHome() {
   const [templates, setTemplates] = useState<Record<string, ProjectTemplate> | null>(null);
   const [creating, setCreating] = useState<ProjectType | null>(null);
   const [isQuickCreating, setIsQuickCreating] = useState(false);
-  const [inspiration, setInspiration] = useState("");
+  // An idea held back while today's AI messages were used up comes back after a reload.
+  const [inspiration, setInspiration] = useState(() => readHeldDashboardIdea(user?.id));
+  const aiMessageQuota = useAiMessageQuota();
+  useHeldDashboardIdea(user?.id, inspiration, aiMessageQuota.exhausted);
+  const [showIdeaQuotaModal, setShowIdeaQuotaModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   // The landing page type card (or a short-story / screenwriter onboarding answer)
   // decides which tab a new author starts on.
@@ -466,6 +473,14 @@ export default function DashboardHome() {
   const handleCreateProject = async (useInspiration = false) => {
     if (!creating) return;
 
+    // The idea would be the first AI message, which cannot go out today: keep it and
+    // explain, instead of spending a project slot on an empty project.
+    if (useInspiration && inspiration.trim() && aiMessageQuota.exhausted) {
+      setCreating(null);
+      setShowIdeaQuotaModal(true);
+      return;
+    }
+
     const fallbackTemplates = templates;
     const defaultName = fallbackTemplates?.[creating]?.default_project_name || t('defaults.untitled');
     const projectName = newProjectName.trim() || defaultName;
@@ -517,8 +532,13 @@ export default function DashboardHome() {
   const handleQuickCreate = async () => {
     if (isQuickCreating) return;
 
-    setIsQuickCreating(true);
     const insp = inspiration.trim();
+    if (insp && aiMessageQuota.exhausted) {
+      setShowIdeaQuotaModal(true);
+      return;
+    }
+
+    setIsQuickCreating(true);
     const fallbackTemplates = templates;
     const defaultName = fallbackTemplates?.[activeTab]?.default_project_name || t('defaults.untitled');
 
@@ -1068,6 +1088,12 @@ export default function DashboardHome() {
         loading={deletingProject}
         confirmLabel={t('common:delete')}
         cancelLabel={t('common:cancel')}
+      />
+
+      <IdeaQuotaWallModal
+        open={showIdeaQuotaModal}
+        onClose={() => setShowIdeaQuotaModal(false)}
+        resetAt={aiMessageQuota.resetAt}
       />
 
       <UpgradePromptModal

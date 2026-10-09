@@ -326,6 +326,7 @@ export function InspirationGrid({
             : {
                 title: t("copyQuotaExceededTitle"),
                 description: t("copyQuotaExceededModalDesc"),
+                paidDescription: t("copyQuotaPaidModalDesc", { defaultValue: "北京时间下月 1 日 00:00 恢复。" }),
               };
 
         return (
@@ -337,6 +338,7 @@ export function InspirationGrid({
         secondaryDestination="pricing"
         title={modalCopy.title}
         description={modalCopy.description}
+        paidDescription={"paidDescription" in modalCopy ? modalCopy.paidDescription : undefined}
         primaryLabel={t("copyQuotaUpgradePrimary")}
         onPrimary={() => {
           window.location.assign(

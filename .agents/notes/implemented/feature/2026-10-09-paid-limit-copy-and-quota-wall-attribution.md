@@ -2,6 +2,8 @@
 
 Status: implemented
 
+付费用户只显示通用一句、以及套餐未知时先按免费渲染的部分，已由 [2026-10-09-paid-limit-hints-and-neutral-pending](2026-10-09-paid-limit-hints-and-neutral-pending.md) 取代。
+
 ## Problem
 
 1. Pro 也有有限的额度（每个文件 100 个版本、20 个自定义技能、每月 100 次灵感复制），用满时弹出的是给免费用户写的升级弹窗，按钮写「开通 Pro」。版本、技能、灵感各自调用 `UpgradePromptModal`，都不判断套餐。

@@ -255,7 +255,8 @@
     "versionPrefix": "版本",
     "deletedFile": "(已删除)",
     "fileVersionLimitTitle": "这个文件的历史版本存满了",
-    "fileVersionLimitUpgrade": "正文照常保存，只是不再生成新版本。开通 Pro 可以保留更多版本。"
+    "fileVersionLimitUpgrade": "正文照常保存，只是不再生成新版本。开通 Pro 可以保留更多版本。",
+    "fileVersionLimitPaid": "正文照常保存，只是这个文件不再生成新版本。"
   },
   "bottomTabs": {
     "files": "文件",

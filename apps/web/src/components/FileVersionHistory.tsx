@@ -607,6 +607,9 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         secondaryDestination="pricing"
         title={t("quota.limitTitle")}
         description={t("quota.limitDescription")}
+        paidDescription={t("quota.paidLimitDescription", {
+          defaultValue: "正文照常保存，只是这个文件不再生成新版本。",
+        })}
         primaryLabel={t("quota.upgradePrimary")}
         onPrimary={() => {
           window.location.assign(

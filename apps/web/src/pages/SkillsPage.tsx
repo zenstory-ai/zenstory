@@ -822,6 +822,7 @@ export default function SkillsPage() {
         description={t("skills:quota.createDescription", {
           defaultValue: "删掉不用的技能就能腾出名额，或开通 Pro 建更多技能。",
         })}
+        paidDescription={t("skills:quota.createPaidDescription", { defaultValue: "删掉不用的技能就能腾出名额。" })}
         primaryLabel={t("skills:quota.upgradePrimary", { defaultValue: "开通 Pro" })}
         onPrimary={() => {
           window.location.assign(

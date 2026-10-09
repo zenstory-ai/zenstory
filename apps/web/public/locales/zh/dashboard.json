@@ -42,6 +42,10 @@
   "billing": {
     "title": "订阅权益",
     "subtitle": "查看当前套餐和用量，需要更多额度时可升级或使用兑换码。",
+    "subtitleRedeemOnly": "查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。",
+    "subtitlePaid": "查看当前套餐和用量，到期前可以续费 Pro 或使用兑换码。",
+    "subtitlePaidRedeemOnly": "查看当前套餐和用量，到期前可以用兑换码续期。",
+    "subtitleNeutral": "查看当前套餐和用量。",
     "currentPlan": "当前套餐",
     "unknownPlan": "未开通",
     "unlockPro": "解锁 Pro",
@@ -102,6 +106,7 @@
     "paymentNoAutoRenew": "一次性付款，不会自动续费。到期前续费，时长会接在当前到期日之后。",
     "paymentUnavailable": "暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。",
     "paymentUnavailableOnPage": "暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。",
+    "checkoutUnavailableNotice": "暂时不能在线付款。有兑换码的话，点「兑换码」就能开通 Pro。",
     "paymentUnavailableOpenBilling": "去订阅权益页",
     "paymentInvalidCheckout": "无法跳转到支付宝，请刷新页面后重试",
     "paymentCreateFailed": "暂时无法创建订单，请稍后重试",
@@ -285,6 +290,10 @@
       "short": "写一篇 1 万字左右的反转短篇：高考结束那天，刚刑满出狱的影后妈妈在校门口当众向女儿下跪，直播镜头全对准这场“母爱重逢”，只有女儿知道她入狱的真正原因。第一人称，先给我分段大纲。",
       "screenplay": "写一部 60 集竖屏短剧：神医弟子下山完婚，被未婚妻当众撕了婚书，转身娶了她的姐姐。每集 1–2 分钟，前 3 集各留一个反转钩子，先出分集大纲和第 1 集剧本。"
     }
+  },
+  "ideaQuota": {
+    "descriptionOnDay": "北京时间 {{day}} 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。",
+    "descriptionTomorrow": "北京时间明天 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。"
   },
   "inspirations": {
     "featured": "精选灵感",

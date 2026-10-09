@@ -255,7 +255,8 @@
     "versionPrefix": "Version",
     "deletedFile": "(deleted)",
     "fileVersionLimitTitle": "This file's version history is full",
-    "fileVersionLimitUpgrade": "Your text is still saved; we just won't create new versions. Pro keeps more versions per file."
+    "fileVersionLimitUpgrade": "Your text is still saved; we just won't create new versions. Pro keeps more versions per file.",
+    "fileVersionLimitPaid": "Your text is still saved; this file just won't get new versions."
   },
   "bottomTabs": {
     "files": "Files",

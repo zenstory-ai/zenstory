@@ -501,6 +501,9 @@ const EditorComponent: React.FC<EditorProps> = () => {
         secondaryDestination="pricing"
         title={t("editor:versionHistory.fileVersionLimitTitle")}
         description={t("editor:versionHistory.fileVersionLimitUpgrade")}
+        paidDescription={t("editor:versionHistory.fileVersionLimitPaid", {
+          defaultValue: "正文照常保存，只是这个文件不再生成新版本。",
+        })}
         primaryLabel={t("common:viewUpgrade")}
         onPrimary={() => {
           window.location.assign(
