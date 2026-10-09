@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
+import { act, render as rtlRender, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const mockDraft = vi.hoisted(() => ({ draft: '', saveDraft: vi.fn(), clearDraft: vi.fn() }))
@@ -479,15 +479,32 @@ describe('ChatPanel mount smoke', () => {
     try {
       mockAgentStreamState.errorCode = 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED'
       mockAgentStreamState.error = '今日 AI 额度已用完'
+      // The cached count still shows room (2/10) and the framework is ready for chapter 1.
+      mockGetProgress.mockResolvedValue([
+        { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+      ])
       render(<ChatPanel />)
       // 成本兜底和每日条数用同一个标题与说明；错误码文案本身不再重复显示。
-      expect((await screen.findAllByText('今天的免费 AI 消息用完了')).length).toBeGreaterThan(0)
+      const card = await screen.findByTestId('chat-quota-card')
+      expect(card).toHaveTextContent('今天的免费 AI 消息用完了')
+      expect(card).toHaveTextContent(/北京时间明天 00:00 恢复/)
+      // No count it cannot back up (the badge says 2/10), and no second limit.
+      expect(card).not.toHaveTextContent(/\d+ 条/)
       expect(screen.queryByText('今日 AI 额度已用完')).not.toBeInTheDocument()
-      expect(screen.getAllByText(/北京时间明天 00:00 恢复/).length).toBeGreaterThan(0)
+      // Treated like the used-up day: no chapter-1 offer, and Send explains instead of sending.
+      await waitFor(() => expect(mockGetProgress).toHaveBeenCalled())
+      await act(async () => {})
+      expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+      expect(lastMessageInputProps().onBlockedSend).toBeTypeOf('function')
+      expect(lastMessageInputProps().placeholder).toBe('先把想法写下来，额度恢复后再发。')
+      await act(async () => { await lastMessageInputProps().onSend('按大纲写第一章正文', []) })
+      expect(mockStartStream).not.toHaveBeenCalled()
+      expect(mockDraft.saveDraft).toHaveBeenCalledWith('按大纲写第一章正文')
 
-      screen.getByRole('button', { name: '升级专业版' }).click()
+      within(card).getByRole('button', { name: '升级专业版' }).click()
       expect(assignMock).toHaveBeenCalledWith('/dashboard/billing?source=chat_quota_blocked')
     } finally {
+      mockGetProgress.mockResolvedValue([])
       Object.defineProperty(window, 'location', {
         value: originalLocation,
         writable: true,
@@ -503,7 +520,7 @@ describe('ChatPanel mount smoke', () => {
     render(<ChatPanel />)
 
     await waitFor(() => {
-      expect(screen.getByText('今天的免费 AI 消息用完了')).toBeInTheDocument()
+      expect(screen.getAllByText('今天的免费 AI 消息用完了').length).toBeGreaterThan(0)
     })
     // 同一件事不在一张卡片里说三遍：额度错误不再渲染原始 {error}。
     expect(screen.queryByText('quota exceeded')).not.toBeInTheDocument()
@@ -745,6 +762,25 @@ describe('ChatPanel mount smoke', () => {
     mockGetProgress.mockResolvedValue([])
   })
 
+  it('offers one way back after a refunded stop of the chapter-1 request, not two buttons for it', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    render(<ChatPanel />)
+    fireEvent.click(await screen.findByTestId('next-step-start'))
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
+
+    // The stop is refunded; the progress refresh after the round finds the framework still ready.
+    await act(async () => {
+      await roundOptions().onComplete([], null, { stoppedByAuthor: true, producedOutput: false })
+    })
+    act(() => roundOptions().onQuotaRefunded('stopped'))
+    expect(await screen.findByTestId('chat-resend-after-stop')).toBeInTheDocument()
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
   it('keeps the chapter-1 offer hidden after the author dismisses it', async () => {
     mockGetProgress.mockResolvedValue([
       { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
@@ -817,10 +853,17 @@ describe('ChatPanel mount smoke', () => {
       onStart: () => void
       onSessionStarted: (sessionId: string) => void
       onToolResult: (toolName: string, status: string, result?: Record<string, unknown>, error?: string) => void
+      onSegmentUpdate: (segmentId: string, content: string) => void
+      onAgentSelected: (agentType: string, agentName?: string) => void
+      onHandoff: (data: Record<string, unknown>) => void
+      onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
     }
     const stopOptions = () => capturedUseAgentStream.options as StopOptions
 
-    const runRoundThenStop = async (round: (options: StopOptions) => void) => {
+    const runRoundThenStop = async (
+      round: (options: StopOptions) => void,
+      doneMeta: Record<string, unknown> = {},
+    ) => {
       vi.mocked(getRecentMessages).mockResolvedValueOnce([{
         id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
         created_at: '2026-10-05T10:00:00Z',
@@ -833,9 +876,13 @@ describe('ChatPanel mount smoke', () => {
         stopOptions().onStart()
         round(stopOptions())
       })
-      // The stop ends streaming; the note renders once the panel is idle.
-      mockAgentStreamState.isStreaming = false
       fireEvent.click(screen.getByTestId('mock-stop-button'))
+      // The note waits for the done that says the author stopped this round.
+      expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument()
+      mockAgentStreamState.isStreaming = false
+      await act(async () => {
+        await stopOptions().onComplete([], null, { stoppedByAuthor: true, ...doneMeta })
+      })
       return screen.findByTestId('chat-user-stop-note')
     }
 
@@ -886,6 +933,7 @@ describe('ChatPanel mount smoke', () => {
         await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
         expect(flush).toHaveBeenCalledTimes(1)
         expect(mockStop).not.toHaveBeenCalled()
+        // Waiting for the save does not hide how the round ended.
 
         // A second click while the save is in flight sends no second stop (which would drop the stream).
         const stopHandlers = mockMessageInput.mock.calls.map(([props]) => props.onCancel).filter(Boolean)
@@ -940,6 +988,59 @@ describe('ChatPanel mount smoke', () => {
       expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument()
       expect(screen.queryByText(/本条计入/)).not.toBeInTheDocument()
     })
+
+    it('says nothing about a stop when the round finished on its own before the stop took effect', async () => {
+      vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+        id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
+        created_at: '2026-10-05T10:00:00Z',
+      }] as never)
+      mockAgentStreamState.isStreaming = true
+      render(<ChatPanel />)
+      await waitFor(() => expect(testQueryClient.getQueryData(['subscription-quota', 'test-user'])).toBeDefined())
+      act(() => {
+        stopOptions().onStart()
+        stopOptions().onSessionStarted('session-stop')
+        stopOptions().onToolResult('edit_file', 'success', { data: { id: 'file-1' } })
+      })
+      fireEvent.click(screen.getByTestId('mock-stop-button'))
+      mockAgentStreamState.isStreaming = false
+      // A normal done (no stop_reason): the reply completed and was charged as completed.
+      await act(async () => {
+        await stopOptions().onComplete([], null, { assistantMessageId: 'assistant-done' })
+      })
+      expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument()
+      expect(screen.queryByText(/已停止/)).not.toBeInTheDocument()
+    })
+
+    it('counts prose like the server: an agent switch or handoff starts a new segment', async () => {
+      // 40 visible characters before the switch, 30 after: two short segments, no real prose.
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onSegmentUpdate('seg-1', '甲'.repeat(40))
+        options.onAgentSelected('writer', '写手')
+        options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30))
+        options.onHandoff({ target_agent: 'reviewer' })
+        options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30) + '丙'.repeat(30))
+      })
+      expect(note).toHaveTextContent(/^已停止$/)
+    })
+
+    it('counts one uninterrupted segment of 60 visible characters as real prose', async () => {
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onSegmentUpdate('seg-1', '甲'.repeat(40))
+        options.onSegmentUpdate('seg-1', '甲'.repeat(60))
+      })
+      expect(note).toHaveTextContent('已停止 · 本条计入今日 AI 消息')
+    })
+
+    it("follows the server's verdict on whether the stopped round produced output", async () => {
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onSegmentUpdate('seg-1', '甲'.repeat(80))
+      }, { producedOutput: false })
+      expect(note).toHaveTextContent(/^已停止$/)
+    })
   })
 
   it('never pairs a refund note with the used-up card, which would hint at a second limit', async () => {
@@ -970,11 +1071,8 @@ describe('ChatPanel mount smoke', () => {
       mockAgentStreamState.error = 'quota exceeded'
       render(<ChatPanel />)
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: '升级专业版' })).toBeInTheDocument()
-      })
-
-      screen.getByRole('button', { name: '升级专业版' }).click()
+      const dialog = await screen.findByRole('dialog')
+      within(dialog).getByRole('button', { name: '升级专业版' }).click()
       expect(assignMock).toHaveBeenCalledWith('/dashboard/billing?source=chat_quota_blocked')
     } finally {
       Object.defineProperty(window, 'location', {
@@ -1209,6 +1307,25 @@ describe('ChatPanel new-author flow', () => {
     act(() => lastMessageInputProps().onBlockedSend?.())
     expect(await screen.findByText('北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。')).toBeInTheDocument()
     expect(mockStartStream).not.toHaveBeenCalled()
+  })
+
+  it('waits for the 10th message to finish before showing the used-up card', async () => {
+    mockQuota.value = { ai_conversations: { used: 10, limit: 10, reset_at: null } }
+    mockAgentStreamState.isStreaming = true
+    render(<ChatPanel />)
+    await waitFor(() => expect(testQueryClient.getQueryData(['subscription-quota', 'test-user'])).toBeDefined())
+    await act(async () => {})
+    expect(screen.queryByTestId('chat-quota-card')).not.toBeInTheDocument()
+    expect(lastMessageInputProps().placeholder).toBe('AI 正在生成，你可以先输入，结束后再发送…')
+
+    // The round ends (done): the panel re-renders idle.
+    mockAgentStreamState.isStreaming = false
+    await act(async () => {
+      await (capturedUseAgentStream.options as {
+        onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
+      }).onComplete([], null, { assistantMessageId: 'assistant-10' })
+    })
+    expect(await screen.findByTestId('chat-quota-card')).toBeInTheDocument()
   })
 
   it('keeps a programmatic send (dashboard idea, resend) as the draft while the day is used up', async () => {

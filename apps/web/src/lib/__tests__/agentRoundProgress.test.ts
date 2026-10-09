@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PROSE_MIN_CHARS, isRealProse, isWriteToolResult } from '../agentRoundProgress'
+import { PROSE_MIN_CHARS, createProseCounter, isRealProse, isWriteToolResult } from '../agentRoundProgress'
 
 describe('agentRoundProgress (same output rules as the server bills a stopped round by)', () => {
   it('does not count an empty chapter that create_file just made', () => {
@@ -40,5 +40,18 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(isRealProse('正在查看已有的全书大纲，确认现有设定后再梳理主线。')).toBe(false)
     expect(isRealProse('字'.repeat(PROSE_MIN_CHARS))).toBe(true)
     expect(isRealProse(' \n'.repeat(PROSE_MIN_CHARS))).toBe(false)
+  })
+
+  it('restarts the prose count at a segment boundary inside one streamed segment, like the server', () => {
+    const counter = createProseCounter()
+    expect(counter.update('seg-1', '甲'.repeat(40))).toBe(false)
+    counter.boundary() // agent switch / handoff / file created / parallel start / tool result
+    expect(counter.update('seg-1', '甲'.repeat(40) + '乙'.repeat(30))).toBe(false)
+    expect(counter.update('seg-1', '甲'.repeat(40) + '乙'.repeat(PROSE_MIN_CHARS))).toBe(true)
+
+    // A new segment starts from zero; a new round forgets everything.
+    expect(counter.update('seg-2', '丙'.repeat(30))).toBe(false)
+    counter.reset()
+    expect(counter.update('seg-2', '丙'.repeat(PROSE_MIN_CHARS))).toBe(true)
   })
 })

@@ -73,11 +73,12 @@ import { ProjectStatusDialog } from "./ProjectStatusDialog";
 import { useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
+import { nextAiQuotaResetMs } from "../hooks/useAiMessageQuota";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
 import { StreamActivityLine } from "./StreamActivityLine";
-import { isRealProse, isWriteToolResult } from "../lib/agentRoundProgress";
+import { createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
 import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
 import { hasSubstantiveDisplayItems, parseRoundStopOutcome } from "../lib/chatRoundEnd";
@@ -446,6 +447,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * segment long enough to be prose rather than a one-line narration before a tool call).
    */
   const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false });
+  /** Reply text since the last segment boundary, counted like the server (see createProseCounter). */
+  const proseCounterRef = useRef(createProseCounter());
+  /** The author pressed 停止 in this project's current round; the note waits for how the round ended. */
+  const stopRequestedProjectRef = useRef<string | null>(null);
   /** Reentrancy guard: two sends in the same tick (closure isStreaming still stale) start one round. */
   const sendLockRef = useRef(false);
   const pendingMaterialClearRef = useRef(false);
@@ -922,6 +927,20 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
     }
 
+    // The stop note says how a stopped round ended, so it waits for the end of the round:
+    // only a done that says the author stopped it (or the stop's fallback that dropped the
+    // connection) gets one. A round that finished on its own before the stop took effect
+    // completed normally and gets no 「已停止」.
+    const stoppedThisRound = completionMeta?.stoppedByAuthor === true
+      || (completionMeta?.partial === true && stopRequestedProjectRef.current === currentProjectId);
+    stopRequestedProjectRef.current = null;
+    if (stoppedThisRound && currentProjectId) {
+      const { wroteFiles, charged } = roundProgressRef.current;
+      // The server's own verdict when the done carries it; otherwise the same rule locally.
+      const producedOutput = completionMeta?.producedOutput ?? roundProgressRef.current.producedOutput;
+      setUserStop({ projectId: currentProjectId, wroteFiles, counted: charged && producedOutput });
+    }
+
     finalizePendingContextClears();
     invalidateQuota();
     if (currentProjectId) void refreshNextStep(currentProjectId);
@@ -1010,6 +1029,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setQuotaRefund(null);
       setUserStop(null);
       roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false };
+      proseCounterRef.current.reset();
+      stopRequestedProjectRef.current = null;
       resetOnCompleteFlag();
     },
 
@@ -1025,7 +1046,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Segment callbacks
     onSegmentStart: streamCallbacks.onSegmentStart,
     onSegmentUpdate: (segmentId, content) => {
-      if (isRealProse(content)) roundProgressRef.current.producedOutput = true;
+      if (proseCounterRef.current.update(segmentId, content)) roundProgressRef.current.producedOutput = true;
       streamCallbacks.onSegmentUpdate(segmentId, content);
     },
     onSegmentUpdateToolCalls: streamCallbacks.onSegmentUpdateToolCalls,
@@ -1043,6 +1064,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     // Tool result callbacks
     onToolResult: (toolName, status, result, toolError) => {
+      proseCounterRef.current.boundary();
       if (isWriteToolResult(toolName, status, result)) {
         roundProgressRef.current.wroteFiles = true;
         roundProgressRef.current.producedOutput = true;
@@ -1051,7 +1073,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     },
 
     // File operation callbacks
-    onFileCreated: streamCallbacks.onFileCreated,
+    onFileCreated: (fileId, fileType, title) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onFileCreated(fileId, fileType, title);
+    },
     onFileContent: (fileId, chunk) => {
       if (chunk.trim()) {
         roundProgressRef.current.wroteFiles = true;
@@ -1069,7 +1094,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onSkillsMatched: streamCallbacks.onSkillsMatched,
 
     // Multi-agent workflow callbacks
-    onAgentSelected: streamCallbacks.onAgentSelected,
+    onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
+    },
     onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
@@ -1083,7 +1111,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     },
     onRouterThinking: streamCallbacks.onRouterThinking,
     onRouterDecided: streamCallbacks.onRouterDecided,
-    onHandoff: streamCallbacks.onHandoff,
+    onHandoff: (data) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onHandoff(data);
+    },
     onWorkflowStopped: (data: SSEWorkflowStoppedData) => {
       terminalStatusCardsRef.current = [{
         type: "workflow_stopped",
@@ -1107,7 +1138,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       roundProgressRef.current.charged = true;
       invalidateQuota();
     },
-    onParallelStart: streamCallbacks.onParallelStart,
+    onParallelStart: (executionId, taskCount, taskDescriptions, droppedCount) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onParallelStart(executionId, taskCount, taskDescriptions, droppedCount);
+    },
     onParallelTaskStart: streamCallbacks.onParallelTaskStart,
     onParallelTaskEnd: streamCallbacks.onParallelTaskEnd,
     onParallelEnd: streamCallbacks.onParallelEnd,
@@ -1134,6 +1168,22 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const isAiQuotaLimit =
     errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
     || errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
+  // The server refused a round for today's AI messages. The cached count can still show room
+  // (the cost backstop, or a stale cache), so remember the refusal until the next Beijing
+  // midnight: the chat then behaves like the used-up day (card, blocked send, no next-step
+  // offer) and never names a count it cannot back up.
+  const [aiLimitHitUntil, setAiLimitHitUntil] = useState<number | null>(null);
+  useEffect(() => {
+    if (isAiQuotaLimit) setAiLimitHitUntil(nextAiQuotaResetMs(Date.now()));
+  }, [isAiQuotaLimit]);
+  useEffect(() => {
+    if (aiLimitHitUntil === null) return;
+    const timer = setTimeout(() => setAiLimitHitUntil(null), Math.max(0, aiLimitHitUntil - Date.now()));
+    return () => clearTimeout(timer);
+  }, [aiLimitHitUntil]);
+  const aiLimitHit = aiLimitHitUntil !== null && aiMessageQuota?.limit !== -1;
+  /** Today's AI messages are used up, by the cached count or by the server's refusal. */
+  const aiSendBlocked = quotaExhausted || aiLimitHit;
   // Never pair a refund note with the used-up card: that would hint at a second, cost-based limit.
   // Pro has no daily count: a refunded stop still says nothing was written (with Resend);
   // other refunds have nothing to explain.
@@ -1153,7 +1203,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       quotaRefund.removedFiles.length > 0
         ? t('chat:panel.removedEmptyFiles', {
           defaultValue: '这一轮新建的空白文件《{{titles}}》已移除。',
-          titles: quotaRefund.removedFiles.map((file) => file.title).join('》《'),
+          titles: quotaRefund.removedFiles
+            .map((file) => file.title)
+            .join(t('chat:panel.removedFilesJoiner', { defaultValue: '》《' })),
         })
         : null,
     ].filter(Boolean).join('').trim() || null
@@ -1173,7 +1225,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     ? [
         t('chat:panel.userStopped', { defaultValue: '已停止' }),
         userStop.wroteFiles ? t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' }) : null,
-        userStop.counted ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' }) : null,
+        // Counts only with real output (server rule); Pro has no daily count to mention.
+        userStop.counted && showDailyCount
+          ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
+          : null,
       ].filter(Boolean).join(' · ')
     : null;
 
@@ -1466,7 +1521,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (!message.trim() || isStreaming || sendLockRef.current) return;
 
     // Used up for today: keep the words as the draft and explain, instead of sending.
-    if (quotaExhausted) {
+    if (aiSendBlocked) {
       saveDraft(message);
       setShowQuotaUpgradeModal(true);
       return;
@@ -1522,7 +1577,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     });
 
     startRound(request, { userBubble: true });
-  }, [isStreaming, quotaExhausted, saveDraft, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, clearDraft, currentProjectId, startRound]);
+  }, [isStreaming, aiSendBlocked, saveDraft, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, clearDraft, currentProjectId, startRound]);
 
   /**
    * 「重新发送」 after a stop that wrote nothing: the same round again, with the original
@@ -1777,17 +1832,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     } else {
       stop();
     }
-    if (currentProjectId) {
-      const { wroteFiles, charged, producedOutput } = roundProgressRef.current;
-      // A stopped round counts only once it produced real output (server rule); with
-      // nothing written the server refunds it and its receipt replaces this note. Pro has
-      // no daily count to mention.
-      setUserStop({
-        projectId: currentProjectId,
-        wroteFiles,
-        counted: charged && producedOutput && showDailyCount,
-      });
-    }
+    // The note itself waits for the end of the round (onCompleteHandler): the round may
+    // still finish on its own before the stop reaches the server.
+    if (currentProjectId) stopRequestedProjectRef.current = currentProjectId;
   };
 
   /**
@@ -1943,13 +1990,18 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     );
   }
 
+  // A refunded stop of the 「写第一章正文」 request already offers 「重新发送」 for the same
+  // request: one button for it, not two.
+  const resendRepeatsNextStep = resendAfterStop
+    && lastRetryRequestRef.current?.request.metadata?.entry === 'next_step';
   const showNextStep = Boolean(
     frameworkReadyProjectId
       && frameworkReadyProjectId === currentProjectId
       && !nextStepDismissal.isDismissed(frameworkReadyProjectId)
       && !isStreaming
       && !isThinking
-      && !quotaExhausted,
+      && !aiSendBlocked
+      && !resendRepeatsNextStep,
   );
 
   return (
@@ -2078,7 +2130,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               )}
 
               {/* Error */}
-              {error && !(isAiQuotaLimit && quotaExhausted) && (
+              {error && !(isAiQuotaLimit && aiSendBlocked) && (
                 <div className="mt-3 bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-lg p-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-start gap-2">
                     <svg
@@ -2175,7 +2227,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     type="button"
                     data-testid="chat-retry-unanswered"
                     onClick={() => retryUnanswered(unansweredUserMessage)}
-                    disabled={quotaExhausted}
+                    disabled={aiSendBlocked}
                     className="ml-2 text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:underline disabled:cursor-not-allowed disabled:text-[hsl(var(--text-tertiary))] disabled:no-underline"
                   >
                     {t('chat:panel.resend')}
@@ -2253,8 +2305,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               }}
             />
           )}
-          {quotaExhausted && aiMessageQuota && (
-            <ChatQuotaCard limit={aiMessageQuota.limit} resetAt={aiMessageQuota.reset_at} />
+          {/* Only once the round has ended: the 10th message is still being answered until then. */}
+          {aiSendBlocked && !isStreaming && !isThinking && (
+            <ChatQuotaCard
+              // The count is named only when the cached quota itself shows the day used up.
+              limit={quotaExhausted ? aiMessageQuota?.limit : undefined}
+              resetAt={aiMessageQuota?.reset_at ?? null}
+            />
           )}
           <MessageInput
             onSend={handleSendMessage}
@@ -2262,7 +2319,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             disabled={isLoadingHistory}
             sendDisabled={isStreaming || isThinking || isLoadingHistory}
             // Quota used up: drafting stays possible; send / Enter explains instead of sending.
-            onBlockedSend={quotaExhausted ? () => setShowQuotaUpgradeModal(true) : undefined}
+            onBlockedSend={aiSendBlocked ? () => setShowQuotaUpgradeModal(true) : undefined}
             onCancel={isStreaming ? handleCancel : undefined}
             isStopping={isStopping}
             // Steering: while streaming with an active session, the user can send
@@ -2272,7 +2329,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             placeholder={
               isStreaming || isThinking
                 ? t("chat:input.placeholderWhileProcessing")
-                : quotaExhausted
+                : aiSendBlocked
                   ? t("chat:input.placeholderQuotaExhausted")
                   : undefined
             }

@@ -36,6 +36,7 @@
     "roundNotCounted": "未计入今日 AI 消息",
     "roundRemovedFiles": "空白的《{{titles}}》已移除",
     "removedEmptyFiles": "这一轮新建的空白文件《{{titles}}》已移除。",
+    "removedFilesJoiner": "》《",
     "unanswered": "这条消息没有收到回复。"
   },
   "input": {

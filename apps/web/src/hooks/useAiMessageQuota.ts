@@ -8,6 +8,14 @@ export function isAiMessageQuotaExhausted(metric: QuotaMetric | undefined | null
   return Boolean(metric && metric.limit !== -1 && metric.limit > 0 && metric.used >= metric.limit);
 }
 
+const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The next Beijing midnight after `now` (epoch ms): when the daily AI messages come back. */
+export function nextAiQuotaResetMs(now: number): number {
+  return Math.floor((now + BEIJING_OFFSET_MS) / DAY_MS) * DAY_MS + DAY_MS - BEIJING_OFFSET_MS;
+}
+
 /**
  * The Beijing calendar day the daily AI messages come back on ("10月10日" / "October 10").
  * The server's `reset_at` is the next Beijing midnight; null when it is missing or unreadable.

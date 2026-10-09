@@ -530,7 +530,8 @@
       "todaySent": "{{count}} sent today",
       "todaySent_one": "{{count}} sent today",
       "todaySent_other": "{{count}} sent today",
-      "quotaNote": "Counts only the messages you sent to the AI in this project. Today's AI message allowance covers all projects; the count above the chat box is the one that applies."
+      "quotaNote": "Counts only the messages you sent to the AI in this project.",
+      "quotaNoteWithDaily": "Counts only the messages you sent to the AI in this project. Today's AI message allowance covers all projects; the count above the chat box is the one that applies."
     },
     "loading": "Loading statistics...",
     "error": "Failed to load",

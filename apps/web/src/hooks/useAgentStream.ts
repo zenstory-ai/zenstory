@@ -775,6 +775,10 @@ export function useAgentStream(
    * up within STOP_GRACE_MS. A second press while stopping drops it right away.
    */
   const stop = useCallback(() => {
+    // The round already ended (done arrived, e.g. while the editor was saving before the
+    // stop): there is nothing to stop. Asking /stop or arming the fallback would only
+    // cancel the finished stream and drop the frames that still follow done.
+    if (onCompleteCalledRef.current) return;
     const runId = runIdRef.current;
     if (!runId || stopRequestedRef.current) {
       cancel();
@@ -1033,6 +1037,7 @@ export function useAgentStream(
 
           onFileCreated: (fileId, fileType, title) => {
             if (isStaleEvent()) return;
+            flushPendingContent();
             onFileCreated?.(fileId, fileType, title);
           },
 
@@ -1091,6 +1096,8 @@ export function useAgentStream(
 
           onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
             if (isStaleEvent()) return;
+            // Segment boundary for the prose count: deliver the text before it first.
+            flushPendingContent();
             onAgentSelected?.(agentType, agentName, iteration, maxIterations, remaining);
           },
 
@@ -1120,6 +1127,7 @@ export function useAgentStream(
 
           onHandoff: (data) => {
             if (isStaleEvent()) return;
+            flushPendingContent();
             resolvePendingControlTool(
               "handoff_to_agent",
               "success",
@@ -1172,6 +1180,7 @@ export function useAgentStream(
 
           onParallelStart: (execution_id, task_count, task_descriptions, dropped_count) => {
             if (isStaleEvent()) return;
+            flushPendingContent();
             parallelStateRef.current = {
               executionId: execution_id,
               tasks: new Map(),

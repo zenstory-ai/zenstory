@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Bot,
@@ -15,6 +16,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { IconWrapper } from '../ui/IconWrapper';
 import { getLocaleCode } from '../../lib/i18n-helpers';
+import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi';
 
 interface AiUsageCardProps {
   /** Dashboard statistics data */
@@ -99,6 +101,14 @@ export function AiUsageCard({
   projectId,
 }: AiUsageCardProps) {
   const { t } = useTranslation(['dashboard']);
+  // Same cached quota the chat badge polls. The daily-allowance sentence only applies to
+  // a finite daily limit (free); Pro (-1) and an unknown quota see only the first sentence.
+  const { data: quota } = useQuery({
+    queryKey: subscriptionQueryKeys.quota(),
+    queryFn: () => subscriptionApi.getQuota(),
+  });
+  const aiMessageLimit = quota?.ai_conversations?.limit;
+  const showDailyAllowance = typeof aiMessageLimit === 'number' && aiMessageLimit > 0;
   const navigate = useNavigate();
 
   // Get AI usage data from stats
@@ -394,7 +404,9 @@ export function AiUsageCard({
           </div>
         </div>
         <p className="mt-3 text-[11px] leading-relaxed text-[hsl(var(--text-tertiary))]">
-          {t('statistics.aiUsage.quotaNote')}
+          {showDailyAllowance
+            ? t('statistics.aiUsage.quotaNoteWithDaily')
+            : t('statistics.aiUsage.quotaNote')}
         </p>
       </div>
     </Card>

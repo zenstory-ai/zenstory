@@ -12,6 +12,7 @@ let mockTrendResponse: {
   data: Array<{ date: string; net_words: number }>
 } | null = null
 let trendLoading = false
+let mockQuota: { ai_conversations: { used: number; limit: number } } | undefined
 let trendFetching = false
 
 vi.mock('react-router-dom', async () => {
@@ -135,11 +136,14 @@ vi.mock('../../hooks/useMediaQuery', () => ({
 }))
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({
-    data: mockTrendResponse,
-    isLoading: trendLoading,
-    isFetching: trendFetching,
-  }),
+  useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) =>
+    queryKey[0] === 'subscription-quota'
+      ? { data: mockQuota, isLoading: false, isFetching: false }
+      : {
+          data: mockTrendResponse,
+          isLoading: trendLoading,
+          isFetching: trendFetching,
+        },
 }))
 
 describe('ProjectDashboard cards', () => {
@@ -147,6 +151,7 @@ describe('ProjectDashboard cards', () => {
     vi.clearAllMocks()
     trendLoading = false
     trendFetching = false
+    mockQuota = { ai_conversations: { used: 2, limit: 10 } }
     mockTrendResponse = {
       data: [
         { date: '2026-04-01', net_words: 120 },
@@ -362,7 +367,19 @@ describe('ProjectDashboard cards', () => {
     expect(screen.getByText('3 sent')).toBeInTheDocument()
     expect(screen.queryByText('14 messages')).not.toBeInTheDocument()
     expect(screen.getByText('2 sent today')).toBeInTheDocument()
+    expect(screen.getByText('statistics.aiUsage.quotaNoteWithDaily')).toBeInTheDocument()
+  })
+
+  it('never mentions a daily AI message allowance to Pro (unlimited) or before the quota loads', () => {
+    mockQuota = { ai_conversations: { used: 40, limit: -1 } }
+    const { rerender } = render(<AiUsageCard stats={baseStats as never} projectId="project-1" />)
     expect(screen.getByText('statistics.aiUsage.quotaNote')).toBeInTheDocument()
+    expect(screen.queryByText('statistics.aiUsage.quotaNoteWithDaily')).not.toBeInTheDocument()
+
+    mockQuota = undefined
+    rerender(<AiUsageCard stats={{ ...baseStats } as never} projectId="project-1" />)
+    expect(screen.getByText('statistics.aiUsage.quotaNote')).toBeInTheDocument()
+    expect(screen.queryByText('statistics.aiUsage.quotaNoteWithDaily')).not.toBeInTheDocument()
   })
 
   it('renders streak and health warning states with recovery info', () => {

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { BookOpen } from "../icons";
 import { Button } from "../ui/Button";
+import { DashboardEmptyState } from "../dashboard/DashboardEmptyState";
 import type { MaterialNovel } from "../../lib/materialsApi";
 import type { MaterialTrialSelection } from "../../lib/materialUploadValidation";
 
@@ -57,22 +58,19 @@ interface MaterialTrialUsedEmptyStateProps {
 export function MaterialTrialUsedEmptyState({ onUpgrade, label, size }: MaterialTrialUsedEmptyStateProps) {
   const { t } = useTranslation(["materials"]);
   return (
-    <div
-      data-testid="materials-trial-used-empty"
-      className="flex flex-col items-center gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-10 text-center"
-    >
-      <BookOpen className="h-10 w-10 text-[hsl(var(--text-tertiary))]" />
-      <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-        {t("materials:trialUsedEmptyTitle", { defaultValue: "免费试拆已经用过了" })}
-      </h2>
-      <p className="max-w-md text-sm text-[hsl(var(--text-secondary))]">
-        {t("materials:trialUsedEmptyBody", {
+    <div data-testid="materials-trial-used-empty">
+      <DashboardEmptyState
+        icon={BookOpen}
+        title={t("materials:trialUsedEmptyTitle", { defaultValue: "免费试拆已经用过了" })}
+        description={t("materials:trialUsedEmptyBody", {
           defaultValue: "开通 Pro 后，每月可以拆解参考小说，每本最多 30 万字；拆出的角色、设定和章节梗概写作时随时引用。",
         })}
-      </p>
-      <Button size={size} onClick={onUpgrade}>
-        {label}
-      </Button>
+        action={
+          <Button size={size} onClick={onUpgrade}>
+            {label}
+          </Button>
+        }
+      />
     </div>
   );
 }
