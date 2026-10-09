@@ -48,12 +48,36 @@ PROJECT_TITLE_SOURCE_AI = "ai_auto"
 PROJECT_TITLE_SOURCE_AUTHOR = "author_requested"
 
 # 拒绝改名时写进工具结果的说明。必须给出界面上真实存在的入口，模型才不会自己编一个。
+# 这里不提 author_requested：每次拒绝都会带这段话，写了就等于教模型「再带上标记重试」。
 AUTHOR_NAMED_TITLE_NOTE = (
-    "项目名「{current}」是作者自己起的，这次没改。"
-    "作者在对话里明确要求改项目名时，带上 author_requested=true 再调用一次；"
-    "作者想自己改的话，告诉他：点顶部的项目名打开项目切换器，"
-    "再点项目名旁的铅笔（「编辑项目名称」）。"
+    "项目名「{current}」是作者自己起的，这次没改，不要再换参数重试。"
+    "需要提到改名时告诉作者：点顶部的项目名打开项目切换器，"
+    "再点项目名旁的铅笔（「编辑项目名称」）就能自己改。"
 )
+
+# author_requested 只在作者这一轮的原话里确实提到改名时才生效（服务端判断，不靠模型）。
+# 两种说法算数：直接说改名（「改名」「重命名」「rename」…），
+# 或者同时提到作品名称（「项目名」「书名」…）和改动（「改」「换」「叫」…）。
+_RENAME_DIRECT = re.compile(
+    r"改名|改个名|换名|换个名|重命名|重新命名|更名|rename",
+    re.IGNORECASE,
+)
+# 只认作品级的名称。「标题」「title」不算：章节标题、大纲标题也这么叫。
+_RENAME_NOUN = re.compile(
+    r"项目名|项目的名|书名|剧名|作品名|作品的名|小说名|小说的名|故事名"
+    r"|书的名|剧的名|故事的名|(?:book|novel|story|project)\s*(?:title|name)",
+    re.IGNORECASE,
+)
+_RENAME_VERB = re.compile(r"改|换|叫|定|设|用|变|change|set|call|switch|update|make", re.IGNORECASE)
+
+
+def author_message_asks_rename(message: Any) -> bool:
+    """作者这一轮的原话里有没有要求改项目名（author_requested 的服务端闸门）。"""
+    if not isinstance(message, str) or not message.strip():
+        return False
+    if _RENAME_DIRECT.search(message):
+        return True
+    return bool(_RENAME_NOUN.search(message) and _RENAME_VERB.search(message))
 
 _TITLE_STRIP_CHARS = re.compile(r"[《》“”]")
 _WHITESPACE_RUN = re.compile(r"\s+")

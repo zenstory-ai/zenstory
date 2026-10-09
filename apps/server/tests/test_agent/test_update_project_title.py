@@ -25,9 +25,20 @@ def _project(session, owner, name, project_type="novel"):
     return project
 
 
-async def _update_project(session, user, project, args):
+RENAME_ASK = "把项目名改成《雾港来信》"
+
+
+async def _update_project(session, user, project, args, *, author_message=None, author_steering=None):
     engine = session.get_bind()
-    mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine))
+    mcp_tools.ToolContext.set_context(
+        None,
+        user.id,
+        project.id,
+        None,
+        create_session_func=lambda: Session(engine),
+        author_message=author_message,
+        author_steering=author_steering,
+    )
     try:
         raw = await mcp_tools.update_project(args)
     finally:
@@ -134,7 +145,9 @@ async def test_refusal_names_the_real_manual_rename_entry(db_session, owner):
 
     note = payload["data"]["title_note"]
     assert "我自己起的书名" in note
-    assert "author_requested=true" in note
+    # 每次拒绝都带这段话：不能教模型「带上 author_requested 再试一次」。
+    assert "author_requested" not in note
+    assert "重试" in note
     assert "项目切换器" in note
     assert "铅笔" in note
     assert "「编辑项目名称」" in note
@@ -146,7 +159,11 @@ async def test_author_requested_rename_overrides_the_author_name_lock(db_session
     project = _project(db_session, owner, "我自己起的书名")
 
     payload = await _update_project(
-        db_session, owner, project, {"title": "《雾港来信》", "author_requested": flag}
+        db_session,
+        owner,
+        project,
+        {"title": "《雾港来信》", "author_requested": flag},
+        author_message=RENAME_ASK,
     )
 
     assert payload["status"] == "success"
@@ -161,7 +178,11 @@ async def test_author_requested_name_is_not_overwritten_by_later_ai_titles(db_se
     project = _project(db_session, owner, "我的小说")
     await _update_project(db_session, owner, project, {"title": "雾港来信"})
     await _update_project(
-        db_session, owner, project, {"title": "海雾", "author_requested": True}
+        db_session,
+        owner,
+        project,
+        {"title": "海雾", "author_requested": True},
+        author_message="项目名改成海雾吧",
     )
 
     payload = await _update_project(db_session, owner, project, {"title": "雾港旧事"})
@@ -175,12 +196,105 @@ async def test_author_requested_still_rejects_invalid_titles(db_session, owner):
     project = _project(db_session, owner, "我自己起的书名")
 
     payload = await _update_project(
-        db_session, owner, project, {"title": "长" * 31, "author_requested": True}
+        db_session,
+        owner,
+        project,
+        {"title": "长" * 31, "author_requested": True},
+        author_message=RENAME_ASK,
     )
 
     assert payload["data"]["title_skipped"] == "invalid_title"
     db_session.expire_all()
     assert db_session.get(Project, project.id).name == "我自己起的书名"
+
+
+@pytest.mark.parametrize(
+    "author_message",
+    [
+        None,
+        "",
+        "帮我写一份大纲，主角是灯塔看守人",
+        "大纲第一行写上书名《雾港来信》",
+        "第三章的标题改成「潮汐」",
+    ],
+)
+async def test_author_requested_without_a_rename_ask_keeps_the_author_name(
+    db_session, owner, author_message
+):
+    """模型自己带上 author_requested，但作者这一轮没说要改名：服务端按没传处理。"""
+    project = _project(db_session, owner, "我自己起的书名")
+
+    payload = await _update_project(
+        db_session,
+        owner,
+        project,
+        {"title": "雾港来信", "author_requested": True},
+        author_message=author_message,
+    )
+
+    data = payload["data"]
+    assert data["project_name_updated"] is False
+    assert data["title_skipped"] == "author_named"
+    assert "项目切换器" in data["title_note"]
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == "我自己起的书名"
+
+
+async def test_rename_ask_sent_while_the_run_is_going_counts(db_session, owner):
+    """作者在 AI 运行中追加「改名」（steering），也算这一轮的明确要求。"""
+    project = _project(db_session, owner, "我自己起的书名")
+    steering: list[str] = []
+
+    steering.append("对了，项目名换成雾港来信")
+    payload = await _update_project(
+        db_session,
+        owner,
+        project,
+        {"title": "雾港来信", "author_requested": True},
+        author_message="继续写第二章",
+        author_steering=steering,
+    )
+
+    assert payload["data"]["project_name_updated"] is True
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == "雾港来信"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "把项目名改成《雾港来信》",
+        "帮我改个名吧，叫雾港来信",
+        "书名换成雾港旧事",
+        "这本小说的名字改一下",
+        "作品名就叫海雾",
+        "重命名为海雾",
+        "Rename the project to Fog Harbor",
+        "change the book title to Fog Harbor",
+    ],
+)
+def test_rename_asks_are_recognised(message):
+    from agent.tools.file_ops.project import author_message_asks_rename
+
+    assert author_message_asks_rename(message) is True
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        None,
+        "   ",
+        "帮我写一份大纲",
+        "主角的名字改成李雷",
+        "第三章的标题改成「潮汐」",
+        "书名是什么来着？",
+        "write an outline for chapter one",
+    ],
+)
+def test_non_rename_messages_are_not_rename_asks(message):
+    from agent.tools.file_ops.project import author_message_asks_rename
+
+    assert author_message_asks_rename(message) is False
 
 
 def test_update_project_schema_documents_author_requested():

@@ -32,6 +32,7 @@ from agent.tools.file_ops.edit import (
     FileWriteBusyError,
     edit_error_user_message,
 )
+from agent.tools.file_ops.project import author_message_asks_rename
 from agent.tools.file_ops.serialization import (
     QUERY_FILES_DEFAULT_LIMIT,
     QUERY_FILES_FULL_MODE_DEFAULT_LIMIT,
@@ -336,10 +337,16 @@ class ToolContext:
         current_agent: str | None = None,
         recorded_skill_ids: Iterable[str] | None = None,
         skill_tokens_used: int = 0,
+        author_message: str | None = None,
+        author_steering: list[str] | None = None,
     ) -> None:
         """Set the execution context for tools (request-scoped).
 
         Args:
+            author_message: 作者这一轮的原话（不含选中文本、上下文等拼接内容）。
+                服务端据此判断「作者是否明确要求改项目名」，见 update_project。
+            author_steering: 本轮运行中作者追加的消息（service 的 consumed_steering，
+                同一个 list 对象，运行中会继续追加），和 author_message 一起判断。
             recorded_skill_ids: 本次请求里已记录过用量的技能（显式选择的技能），
                 load_skill 不再为它们重复记用量。
             skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
@@ -356,6 +363,8 @@ class ToolContext:
             "pending_empty_file_state": _PendingEmptyFileState(),
             "skill_usage_claims": _SkillUsageClaims(recorded_skill_ids),
             "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
+            "author_message": author_message,
+            "author_steering": author_steering,
         })
         _owned_session_var.set(None)
         _pending_empty_file_var.set(None)
@@ -450,6 +459,19 @@ class ToolContext:
         context = cls._get_context()
         project_id = context.get("project_id")
         return project_id if isinstance(project_id, str) and project_id else None
+
+    @classmethod
+    def get_author_messages(cls) -> list[str]:
+        """作者本轮的原话：首条消息加运行中追加的消息（拿不到时为空）。"""
+        context = cls._get_context()
+        messages: list[str] = []
+        first = context.get("author_message")
+        if isinstance(first, str):
+            messages.append(first)
+        steering = context.get("author_steering")
+        if isinstance(steering, list):
+            messages.extend(item for item in list(steering) if isinstance(item, str))
+        return messages
 
     @classmethod
     def get_current_agent(cls) -> str | None:
@@ -2023,13 +2045,26 @@ def _update_project_sync(args: dict[str, Any]) -> dict[str, Any]:
         has_status_update_args = any(k in normalized_args for k in status_keys)
         # title：作品名。项目还叫默认名或 AI 自动起的名字时改名；作者起的名字只在
         # author_requested=true（作者明确要求改名）时改（见 ProjectOperations）。
+        # author_requested 不只听模型的：作者这一轮的原话里得真有改名的说法
+        # （author_message_asks_rename），否则按没传处理，作者起的名字照样不动。
         title_arg = normalized_args.get("title")
         has_title_arg = title_arg is not None
         title_kwargs: dict[str, Any] = {}
         if has_title_arg:
             title_kwargs["title"] = title_arg
             if _coerce_bool_arg(normalized_args.get("author_requested")):
-                title_kwargs["author_requested"] = True
+                if any(
+                    author_message_asks_rename(text) for text in ToolContext.get_author_messages()
+                ):
+                    title_kwargs["author_requested"] = True
+                else:
+                    log_with_context(
+                        logger,
+                        20,  # INFO
+                        "update_project author_requested ignored: no rename request in author message",
+                        project_id=project_id,
+                        user_id=user_id,
+                    )
         if has_status_update_args or has_title_arg:
             status_result = executor.update_project_status(
                 project_id=project_id,
