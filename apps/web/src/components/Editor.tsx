@@ -534,6 +534,25 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setDraftRecovery(null);
   }, [draftRecovery, currentUserId, currentProjectId]);
 
+  // 只有「去AI味」进入的审阅才允许在全部拒绝时跳过写库。另外两条审阅入口里
+  // originalContent 并不等于服务端/编辑器当前持有的正文：Agent 的 edit_file 已经把
+  // AI 文本落库，全部拒绝必须把原文 PUT 回去；保存冲突审阅的 originalContent 是服务端
+  // 正文、编辑器里还是本地正文，必须 setEditContent 并带新令牌写回。这里按审阅的
+  // 三元组记下去AI味审阅的来源，完成审阅时逐项比对。
+  const naturalPolishReviewRef = useRef<{
+    fileId: string;
+    originalContent: string;
+    modifiedContent: string;
+  } | null>(null);
+
+  const enterNaturalPolishReview = useCallback(
+    (fileId: string, originalContent: string, newContent: string) => {
+      naturalPolishReviewRef.current = { fileId, originalContent, modifiedContent: newContent };
+      enterDiffReview(fileId, originalContent, newContent);
+    },
+    [enterDiffReview],
+  );
+
   /**
    * Completes the diff review process and applies accepted changes.
    *
@@ -552,9 +571,23 @@ const EditorComponent: React.FC<EditorProps> = () => {
     // Get the final content based on accept/reject decisions
     const finalContent = applyDiffReviewChanges();
 
-    // 全部拒绝（或接受的改动都只是空白差异）时正文和审阅前逐字节相同：
+    const polishReview = naturalPolishReviewRef.current;
+    naturalPolishReviewRef.current = null;
+    const isNaturalPolishReview =
+      polishReview !== null &&
+      polishReview.fileId === diffReviewState.fileId &&
+      polishReview.originalContent === diffReviewState.originalContent &&
+      polishReview.modifiedContent === diffReviewState.modifiedContent;
+
+    // 去AI味审阅全部拒绝（或接受的改动都只是空白差异）时，定稿和审阅前、
+    // 服务端已存的正文、编辑器里的正文三者逐字节相同：屏幕和服务端都不会变，
     // 直接退出审阅，不写库，也不生成一条「AI 编辑」版本。
-    if (finalContent === diffReviewState.originalContent) {
+    if (
+      isNaturalPolishReview &&
+      finalContent === diffReviewState.originalContent &&
+      finalContent === (file.content ?? "") &&
+      finalContent === editContent
+    ) {
       exitDiffReview();
       return;
     }
@@ -642,6 +675,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     file?.id,
     file?.project_id,
     file?.updated_at,
+    file?.content,
+    editContent,
     applyDiffReviewChanges,
     enterDiffReview,
     exitDiffReview,
@@ -940,7 +975,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       isStreaming,
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,
-      onEnterDiffReview: enterDiffReview,
+      onEnterDiffReview: enterNaturalPolishReview,
       // Diff review props
       diffReviewState: isInReviewMode ? diffReviewState : null,
       onAcceptEdit: acceptEdit,

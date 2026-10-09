@@ -37,7 +37,7 @@ Status: implemented
 - `lib/naturalPolishApi.ts` 返回 `{ text, unchanged }`；响应里没有 `unchanged`（旧服务端）按 `false` 处理。
 - `SimpleEditor.tsx`：`unchanged` 为真时不进审阅，弹 info toast `editor:naturalPolishNoChange`「这段没找到明显的 AI 腔，这次不计入今日 AI 消息」。请求结束后（成功、无改动、出错、取消都算）invalidate `subscriptionQueryKeys.quota()` 和 `quotaLite()`。按钮提示读 QuotaBadge 已缓存的 `quota()` 数据（订阅 query cache，不另发请求），`ai_conversations.limit !== -1` 时用 `editor:naturalPolishTooltipFree`「给选中内容去AI味，用 1 条今日 AI 消息（Ctrl/⌘+Shift+R）」；缓存为空或没有 QueryClientProvider 时用原提示。底部历史按钮的 `title` 改为 `versions:title`，按钮文字 `editor:history` 改为「历史版本」/ "Versions"。
 - `lib/diffReview.ts::buildAtomicReviewSegments`：只差空白的段落记成 equal 时用 `oldBlock`，原文的空白和 U+3000 缩进原样保留。原文里纯空白的块不再被丢掉（记成 equal 保留），改写多出来的纯空白块不再被加进结果。原文最后一段没有段落分隔、而改写在它后面补了段落时，分隔符挂到下一个插入段前面：拒绝时原文逐字节不变，接受时两段不会粘在一起。
-- `Editor.tsx::handleFinishReview`：`applyDiffReviewChanges()` 的结果和 `diffReviewState.originalContent` 逐字节相同时只调用 `exitDiffReview()`，不发 PUT、不生成版本。
+- `Editor.tsx::handleFinishReview`：只对「去AI味」进入的审阅跳过写库。`SimpleEditor` 的 `onEnterDiffReview` 只在去AI味时调用，`Editor` 传给它的是 `enterNaturalPolishReview`：先把 `{fileId, originalContent, modifiedContent}` 记进 `naturalPolishReviewRef`，再调用 `enterDiffReview`。完成审阅时先取出并清空这个记录，三项都和当前 `diffReviewState` 相同，且 `applyDiffReviewChanges()` 的结果和 `originalContent`、`file.content`、`editContent` 都逐字节相同，才只调用 `exitDiffReview()`，不发 PUT、不生成版本。其它审阅入口保持原行为：带 `base_updated_at` PUT 定稿，再 `setEditContent(finalContent)`。这些入口包括 Agent `edit_file` 的审阅（`useChatStreaming.ts`，AI 文本已经落库，全部拒绝要把原文写回）、自动保存撞 `stale_write` 后的冲突审阅、`handleFinishReview` 里 409 重进的审阅（这两种 `originalContent` 是服务端正文，编辑器里还是本地正文）。
 - `Editor.tsx` 空状态：当前项目 `project_type === 'screenplay'` 时主卡片建 `file_type='script'`（父目录 `<projectId>-script-folder`，或按 `FOLDER_TYPE_MAP` 找「剧本/Scripts」），标题用 `editor:fileTree.newScript`「新建剧本」，描述用 `editor:emptyStateDescriptionScript`「打开一个文件，或新建剧本、大纲。」。快捷键提示在手机布局下不渲染；`navigator.userAgentData.platform` 或 `navigator.platform` 是 Mac/iPhone/iPad 时显示「⌘」「K」，其余平台显示「Ctrl」「K」。手机判断用 `useMobileLayout().isMobile`：`Layout` 正是用 `useIsMobile()` 决定是否套 `MobileLayoutProvider isMobile`，编辑器读同一个信号，且不在渲染时直接调用 `matchMedia`。
 
 ## Alternatives considered
@@ -46,6 +46,7 @@ Status: implemented
 - **服务端拿整段改写结果和原文做行级 diff，再套格式守卫。** 最强理由：不用改输出格式，模型照常整段输出，兼容任何模型。没采用：模型一旦合并或拆分段落，diff 对齐就会把改动挂到错误的行上；行级协议用模型自己抄的原句定位，对不上就丢弃，宁可少改也不改错。整段输出仍作为兜底，只在行数相同时逐行守卫。
 - **前端 `diffReview` 只修 noop 分支（规格原文）。** 最强理由：最小改动，单测好写。没采用的部分：只修 noop 分支，原文里纯空白的块在「全部拒绝」时仍会丢、改写多出的纯空白块仍会被加进去，「全部拒绝后逐字节不变」做不到；最后一段补了新段落时还会把两段粘在一起。这几处同属「拒绝应当恢复原文」，一并修掉。
 - **把温度从默认的 1.0 调低，提高召回的稳定性。** 最强理由：同一段剧本两次请求一次改掉「指节泛白」、一次漏掉，正是采样随机性；调低温度是一行改动。没采用：温度低只让输出更确定，不保证确定地「找到」套话；套话本身能用正则找全，直接点给模型更可靠，也不必改动其它调用方共享的温度默认值和既有单测。
+- **完成审阅时只按内容判断要不要写库：定稿 == `originalContent` == `file.content` == `editContent`。** 最强理由：不用给审阅打来源标记，`ProjectContext` 和 `DiffReviewState` 都不用动，规则也直观，就是「屏幕和服务端都不会变就不写」。没采用：Agent 的 `edit_file` 一结束就进入审阅，编辑器要等 `editorRefreshVersion` 触发的重新加载（100ms 延迟加一次 GET）才拿到 AI 文本。这段时间里 `file.content` 和 `editContent` 仍是原文，三者相等，全部拒绝会被当成「没变」跳过写库，服务端留着用户刚拒绝的 AI 文本。客户端看到的正文可能已经过时，只看内容不能判断服务端状态，所以必须同时确认审阅来自去AI味：去AI味的审阅之前，服务端没有任何写入。
 - **按钮提示用 `useQuery` 自己拉额度。** 最强理由：缓存为空时也能显示准确提示。没采用：规格要求复用额度缓存；桌面端 ChatPanel 的 QuotaBadge 一直挂着、缓存总是热的，手机上悬停提示本身看不到；`useQuery` 还要求所有渲染 `SimpleEditor` 的地方都有 QueryClientProvider，现有生命周期测试没有。
 - **手机判断直接用 `useIsMobile()`（规格原文）。** 最强理由：和 `Layout` 用同一个 hook，语义直接。没采用：它在渲染时调用 `window.matchMedia`，现有编辑器生命周期测试 `vi.resetAllMocks()` 后 `matchMedia` 返回 `undefined` 会让整个编辑器渲染崩掉；`useMobileLayout()` 读的是 `Layout` 用 `useIsMobile()` 算好后注入的值，生产上结果相同。
 
@@ -58,6 +59,7 @@ Status: implemented
 - 代价：套话正则只覆盖清单里的写法，同义变体（「指尖发白」）仍靠模型自己发现。
 - 代价：退还只退 AI 消息额度，这次调用的真实模型成本照样记入用量台账和成本兜底。
 - 代价：无改动判定把 “”「」 视为同一种引号，模型只把直角引号换成弯引号也算「无改动」并退还——这类改动按提示词本来就不该发生。
+- 代价：去AI味审阅的来源靠 `Editor` 里的一个 ref 记录，没有写进 `DiffReviewState`。之后的审阅如果 fileId、原文、改写三项都和一次去AI味审阅完全相同，也会被当成去AI味审阅，实际上不会出现。审阅前有还没自动保存的本地编辑时（`file.content` ≠ `editContent`），全部拒绝仍按原行为 PUT，这些编辑会记成一条「AI edit (reviewed)」版本。
 - 代价：编辑器空状态的手机判断依赖 `MobileLayoutProvider`；将来如果手机布局不再套这个 provider，快捷键提示会在手机上重新出现。
 
 ## Verification
@@ -65,7 +67,7 @@ Status: implemented
 **自动化测试**
 
 - `apps/server/tests/test_api/test_editor_natural_polish.py`：无改动时退还且额度不变（真实额度表，从 0 到 0）；只换引号也判为 `unchanged`；有改动时照扣（0 到 1）；`metadata.current_file_type` 作为 `file_type` 传进 service；剧本规则只拼在 script 提示词后面；行级协议的缩进保留、引号还原、剧本结构守卫、△/台词行不可删、「无改动」和对不上的改动、子串替换、整段兜底。新增用例在改动前的代码上全部失败。
-- `apps/web`：`diffReview.test`（U+3000 缩进多段文本全部拒绝后逐字节不变、缩进差异按原文保留、补段不粘连）；`Editor.test`（全部拒绝不调用 `fileApi.update`、短剧空状态「新建剧本」并创建 script、手机不显示 Ctrl K、Mac 显示 ⌘）；`SimpleEditor.test`（`unchanged` 不进审阅并弹 toast、结束后 invalidate 两个额度 query、免费用户提示、历史按钮 title 为字符串键）；`naturalPolishApi.test`（缺 `unchanged` 按 false）。前端全量 vitest（250 个文件）、`tsc -p tsconfig.app.json`、`lint`、`lint:tokens`、`lint:i18n-keys`、`build:typecheck` 通过；后端 `ruff check api/ services/` 通过。
+- `apps/web`：`diffReview.test`（U+3000 缩进多段文本全部拒绝后逐字节不变、缩进差异按原文保留、补段不粘连）；`Editor.test`（去AI味审阅全部拒绝不调用 `fileApi.update`；Agent 编辑审阅全部拒绝仍把原文 PUT 回去，编辑器显示原文，即使编辑器还没重新加载 AI 文本也一样；保存冲突审阅全部拒绝后编辑器显示服务端正文，并带新令牌写回。后三条在只按 `originalContent` 跳过写库的代码上都失败；短剧空状态「新建剧本」并创建 script、手机不显示 Ctrl K、Mac 显示 ⌘）；`SimpleEditor.test`（`unchanged` 不进审阅并弹 toast、结束后 invalidate 两个额度 query、免费用户提示、历史按钮 title 为字符串键）；`naturalPolishApi.test`（缺 `unchanged` 按 false）。前端全量 vitest（250 个文件）、`tsc -p tsconfig.app.json`、`lint`、`lint:tokens`、`lint:i18n-keys`、`build:typecheck` 通过；后端 `ruff check api/ services/` 通过。
 
 **真实模型检查**（owner 授权的 DeepSeek key，只注入本地测试进程；经本地 FastAPI + 临时 SQLite 走完整的 `/api/v1/editor/natural-polish`，含真实额度扣减与退还；不进 CI，脚本不入库）
 
