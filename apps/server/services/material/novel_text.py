@@ -232,28 +232,20 @@ def extract_chapter_number(title_line: str) -> tuple[int, str]:
     return heading.number, heading.title
 
 
-def split_novel_text(
-    text: str,
-    min_chapter_length: int = MIN_CHAPTER_LENGTH,
+def _split_lines(
+    lines: list[str],
+    min_chapter_length: int,
 ) -> list[dict[str, Any]]:
     """
-    Split novel text into chapters.
-
-    - Recognises 第X章/节/回 (also after 第X卷 on the same line, or in 【】),
-      Chapter N, "N. 标题", and 楔子/序章/尾声/番外 style headings.
-    - Volume-only lines are separators, not content.
-    - Text before the first heading becomes a prologue chapter when it is long
-      enough; a text without any heading yields no chapters.
-    - Chapters shorter than ``min_chapter_length`` are merged into the previous
-      chapter (or the next one when they come first) instead of being dropped.
+    Split normalized lines into chapters; each chapter also records
+    ``start_line``, the index of the line where it begins in ``lines``.
     """
-    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     preamble: list[str] = []
     raw_chapters: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     last_number = 0
 
-    for raw_line in normalized.split("\n"):
+    for index, raw_line in enumerate(lines):
         line = raw_line.strip()
         if not line:
             target = current["lines"] if current else preamble
@@ -282,6 +274,7 @@ def split_novel_text(
             "title": heading.title or f"第{number}章",
             "original_title_line": line,
             "lines": [],
+            "start_line": index,
         }
         raw_chapters.append(current)
 
@@ -297,16 +290,20 @@ def split_novel_text(
                 "title": "序章",
                 "original_title_line": "",
                 "lines": [preamble_text],
+                "start_line": 0,
             },
         )
 
     chapters: list[dict[str, Any]] = []
     carry = ""
+    carry_start: int | None = None
     for raw in raw_chapters:
         content = "\n".join(raw["lines"]).strip()
+        start_line = raw["start_line"] if carry_start is None else carry_start
         if carry:
             content = f"{carry}\n\n{content}".strip()
             carry = ""
+            carry_start = None
         if len(content) < min_chapter_length:
             fragment = "\n".join(
                 part for part in (raw["original_title_line"], content) if part
@@ -315,6 +312,7 @@ def split_novel_text(
                 chapters[-1]["content"] = f"{chapters[-1]['content']}\n\n{fragment}".strip()
             else:
                 carry = fragment
+                carry_start = start_line
             continue
         chapters.append(
             {
@@ -322,10 +320,72 @@ def split_novel_text(
                 "title": raw["title"],
                 "original_title_line": raw["original_title_line"],
                 "content": content,
+                "start_line": start_line,
             }
         )
 
     return chapters
+
+
+def _normalized_lines(text: str) -> list[str]:
+    return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
+def split_novel_text(
+    text: str,
+    min_chapter_length: int = MIN_CHAPTER_LENGTH,
+) -> list[dict[str, Any]]:
+    """
+    Split novel text into chapters.
+
+    - Recognises 第X章/节/回 (also after 第X卷 on the same line, or in 【】),
+      Chapter N, "N. 标题", and 楔子/序章/尾声/番外 style headings.
+    - Volume-only lines are separators, not content.
+    - Text before the first heading becomes a prologue chapter when it is long
+      enough; a text without any heading yields no chapters.
+    - Chapters shorter than ``min_chapter_length`` are merged into the previous
+      chapter (or the next one when they come first) instead of being dropped.
+    """
+    chapters = _split_lines(_normalized_lines(text), min_chapter_length)
+    for chapter in chapters:
+        chapter.pop("start_line", None)
+    return chapters
+
+
+@dataclass(frozen=True)
+class NovelTruncation:
+    """The first chapters of a novel, cut at a chapter-heading boundary."""
+
+    text: str
+    total_chapters: int
+    kept_chapters: int
+
+    @property
+    def truncated(self) -> bool:
+        return self.kept_chapters < self.total_chapters
+
+
+def truncate_novel_text(
+    text: str,
+    max_chapters: int,
+    min_chapter_length: int = MIN_CHAPTER_LENGTH,
+) -> NovelTruncation:
+    """
+    Keep only the first ``max_chapters`` chapters of ``text``.
+
+    The cut is made on the line where chapter ``max_chapters + 1`` begins, so
+    ``split_novel_text`` on the result yields exactly the same first chapters
+    as on the whole text (short chapters merged into chapter N stay with it).
+    Line endings are normalized to ``\\n``.
+    """
+    lines = _normalized_lines(text)
+    chapters = _split_lines(lines, min_chapter_length)
+    total = len(chapters)
+    if max_chapters < 1 or total <= max_chapters:
+        return NovelTruncation(text=text, total_chapters=total, kept_chapters=total)
+    cut_line = chapters[max_chapters]["start_line"]
+    kept_text = "\n".join(lines[:cut_line]).rstrip()
+    return NovelTruncation(text=kept_text, total_chapters=total, kept_chapters=max_chapters)
 
 
 def analyze_novel_bytes(data: bytes) -> NovelTextAnalysis:
@@ -343,9 +403,11 @@ __all__ = [
     "MIN_CHAPTER_LENGTH",
     "NovelDecodeError",
     "NovelTextAnalysis",
+    "NovelTruncation",
     "analyze_novel_bytes",
     "chinese_num_to_int",
     "decode_novel_bytes",
     "extract_chapter_number",
     "split_novel_text",
+    "truncate_novel_text",
 ]

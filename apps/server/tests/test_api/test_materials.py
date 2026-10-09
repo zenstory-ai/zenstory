@@ -726,6 +726,8 @@ async def test_upload_material_returns_503_when_flow_dispatch_fails(
             "error_message": ErrorCode.MATERIAL_DISPATCH_FAILED,
             "chapters_count": 0,
             "enabled_stages": None,
+            "trial_chapter_limit": None,
+            "source_chapter_count": None,
         }
     ]
 
