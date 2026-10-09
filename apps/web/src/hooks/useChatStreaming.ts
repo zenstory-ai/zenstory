@@ -35,6 +35,12 @@ import type { MessageSegment, StreamCompletionMeta } from "./useAgentStream";
 /** Throttle delay for stream render updates in milliseconds */
 export const STREAM_UPDATE_THROTTLE_MS = 50;
 const FILE_TREE_REFRESH_DEBOUNCE_MS = 180;
+/**
+ * Tools that can rewrite a file's body without emitting file_edit_* events
+ * (parallel_execute runs edit_file inside sub-tasks). After they succeed the
+ * open file must be re-read explicitly.
+ */
+const AI_WRITES_WITHOUT_EDIT_EVENTS = new Set(["parallel_execute"]);
 const AI_MEMORY_STATUS_FIELDS = new Set([
   "summary",
   "current_phase",
@@ -715,6 +721,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
     new Map(),
   );
   const pendingFileTreeRefreshRef = useRef(false);
+  /** Whether the current round has written any file (reset on stream start). */
+  const roundWroteFilesRef = useRef(false);
   const fileTreeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -795,6 +803,21 @@ export function useChatStreaming(): UseChatStreamingReturn {
         }, delayMs);
       };
 
+      /**
+       * Ask the editor to re-read the file the author has open. The editor
+       * follows the server copy when it has no unsaved text and opens a
+       * comparison otherwise, so this is safe to call after any AI write.
+       * The file whose <file> stream is still running is skipped: its own
+       * stream-end reload already brings in the saved text.
+       */
+      const refreshOpenFileFromServer = () => {
+        const selected = getCurrentSelectedItem?.() ?? null;
+        if (!selected || selected.type === "folder") return;
+        const activeStreamFileId = getCurrentStreamingFileId?.() ?? null;
+        if (activeStreamFileId && activeStreamFileId === selected.id) return;
+        triggerEditorRefresh(selected.id);
+      };
+
       const flushFileTreeRefresh = () => {
         if (fileTreeRefreshTimerRef.current) {
           clearTimeout(fileTreeRefreshTimerRef.current);
@@ -819,6 +842,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           setMatchedSkills([]);
           fileContentEndByFileIdRef.current.clear();
           fileEditMetaByIdRef.current.clear();
+          roundWroteFilesRef.current = false;
           pendingFileTreeRefreshRef.current = false;
           if (fileTreeRefreshTimerRef.current) {
             clearTimeout(fileTreeRefreshTimerRef.current);
@@ -1160,6 +1184,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
           ) {
             // Coalesce multiple tool/file events into one refresh.
             scheduleFileTreeRefresh();
+            roundWroteFilesRef.current = true;
+          }
+
+          // parallel_execute 改了正文却不发 file_edit_* 事件（子任务里可能有
+          // edit_file）。不在这里刷新的话，作者打开着的那一章会一直停在
+          // 本轮更早的版本上，接着打字就是在旧稿上改。
+          if (status === "success" && AI_WRITES_WITHOUT_EDIT_EVENTS.has(toolName)) {
+            refreshOpenFileFromServer();
           }
 
           if (status === "success" && toolName === "update_project") {
@@ -1220,6 +1252,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
          */
         onFileCreated: (fileId: string, fileType: string, title: string) => {
           // Auto-select newly created file so the editor can show streaming output
+          roundWroteFilesRef.current = true;
           scheduleFileTreeRefresh();
           startFileStreaming(fileId);
           fileContentEndByFileIdRef.current.delete(fileId);
@@ -1297,6 +1330,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
           outcome?: FileEditOutcome,
         ) => {
           // Clear edit progress and mark tree refresh once.
+          roundWroteFilesRef.current = true;
           setEditProgress(null);
           setAiEditingFileId?.(null);
           scheduleFileTreeRefresh();
@@ -1528,6 +1562,11 @@ export function useChatStreaming(): UseChatStreamingReturn {
             fileContentEndByFileIdRef.current.delete(latestStreamingFileId);
           }
           flushFileTreeRefresh();
+          // 收尾兜底：本轮写过文件（或服务端确认有改动）时，让打开着的文件再对一次
+          // 服务端版本，保证编辑器停在本轮最后一次写入之后。
+          if (roundWroteFilesRef.current || completionMeta?.confirmedFileMutation === true) {
+            refreshOpenFileFromServer();
+          }
 
           if (
             completionMeta?.partial !== true &&
@@ -1571,6 +1610,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
             fileContentEndByFileIdRef.current.delete(latestStreamingFileId);
           }
           flushFileTreeRefresh();
+          if (roundWroteFilesRef.current) {
+            refreshOpenFileFromServer();
+          }
         },
       };
     },

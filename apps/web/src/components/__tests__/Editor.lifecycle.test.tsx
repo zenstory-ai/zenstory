@@ -357,7 +357,9 @@ for (const strict of [false, true]) {
           mocks.context.aiEditingFileId = fileA.id; mocks.context.lastEditedFileId = fileA.id; mocks.context.editorRefreshVersion = 1;
           mocks.get.mockResolvedValue({ ...fileA, content: 'External after own save', updated_at: '2026-10-06T10:00:00.000003' });
           view.redraw(); await settle(); await advance(100);
-          expect(textarea()).toHaveValue('External after own save');
+          // A queued own draft is unsaved text: the external copy opens a comparison, never replaces it.
+          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'External after own save', 'Own queued second save');
+          expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
           stats.resolve(); await settle();
         }
         evidence(`C5 queue ${strict} external=${external}`);
@@ -397,29 +399,26 @@ for (const strict of [false, true]) {
       expect(mocks.update).toHaveBeenLastCalledWith(fileB.id, expect.objectContaining({ base_updated_at: '2026-10-06T10:00:00.000100' }));
     });
 
-    for (const method of ['manual', 'debounce', 'after-refresh-edit'] as const) {
-      it(`C5 assessment ${method}: dirty draft and server token stay affiliated`, async () => {
-        const server = { ...fileA, content: 'Server AI content', updated_at: token2 };
-        const view = mount(strict); await settle();
-        expect(mocks.get).toHaveBeenCalledTimes(strict ? 2 : 1);
-        fireEvent.change(textarea(), { target: { value: 'Local unsaved draft' } });
-        mocks.context.aiEditingFileId = fileA.id; mocks.context.lastEditedFileId = fileA.id; mocks.context.editorRefreshVersion = 1;
-        mocks.get.mockResolvedValue(server); view.redraw(); await settle(); await advance(100);
-        expect(mocks.update).not.toHaveBeenCalled();
-        expect(mocks.get).toHaveBeenCalledTimes(strict ? 3 : 2);
-        expect(textarea()).toHaveValue(server.content);
-        mocks.context.aiEditingFileId = null; view.redraw(); await settle();
-        if (method === 'after-refresh-edit') fireEvent.change(textarea(), { target: { value: 'Server AI content plus user edit' } });
-        if (method === 'debounce') await advance(3000); else { save(); await settle(); }
-        expect(mocks.update).toHaveBeenCalledTimes(1); evidence(`C5 ${strict} ${method}`);
-        const [, payload] = mocks.update.mock.calls[0];
-        if (method === 'after-refresh-edit') expect(payload).toEqual(expect.objectContaining({ content: 'Server AI content plus user edit', base_updated_at: fileA.updated_at }));
-        else {
-          expect(payload.content).toBe('Local unsaved draft');
-          // Assessment only: pre-refresh text must not acquire the later server token.
-          expect(payload.base_updated_at).toBe(fileA.updated_at);
-        }
-      });
-    }
+    it('C5 AI refresh over a dirty draft keeps the draft and compares it with the server copy', async () => {
+      const server = { ...fileA, content: 'Server AI content', updated_at: token2 };
+      const view = mount(strict); await settle();
+      expect(mocks.get).toHaveBeenCalledTimes(strict ? 2 : 1);
+      fireEvent.change(textarea(), { target: { value: 'Local unsaved draft' } });
+      mocks.context.aiEditingFileId = fileA.id; mocks.context.lastEditedFileId = fileA.id; mocks.context.editorRefreshVersion = 1;
+      mocks.get.mockResolvedValue(server); view.redraw(); await settle(); await advance(100);
+      expect(mocks.get).toHaveBeenCalledTimes(strict ? 3 : 2);
+      expect(mocks.update).not.toHaveBeenCalled();
+      expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
+      expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Server AI content', 'Local unsaved draft');
+      expect(mocks.error).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
+      // While the comparison is open the debounce does not race it with the old token.
+      mocks.context.aiEditingFileId = null; view.redraw(); await settle();
+      await advance(3000);
+      expect(mocks.update).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTitle(/editor:(finishReview|applyChanges)/)); await settle();
+      evidence(`C5 ${strict} dirty refresh review`);
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+      expect(mocks.update).toHaveBeenCalledWith(fileA.id, expect.objectContaining({ content: 'Local unsaved draft', base_updated_at: token2 }));
+    });
   });
 }
