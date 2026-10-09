@@ -235,25 +235,6 @@ const CHAT_INPUT_PANEL_MAX_RATIO = 0.45;
 /** Minimum height reserved for the messages list in pixels */
 const CHAT_INPUT_PANEL_MIN_MESSAGES_PX = 160;
 
-/**
- * Project names that mean "not named yet": the template defaults the server
- * assigns (`config/project_templates.py`, the same values as `dashboard:defaults.*`
- * in zh and en) plus the server's last-resort fallback. While a project still
- * carries one of these, the agent may name it during a round, so the project
- * list is refreshed after the round to show the new name.
- */
-const DEFAULT_PROJECT_NAMES = new Set([
-  "我的小说",
-  "我的短篇",
-  "我的短剧",
-  "未命名项目",
-  "我的项目",
-  "My Novel",
-  "My Short Story",
-  "My Drama",
-  "Untitled",
-]);
-
 const isNearBottom = (el: HTMLElement, thresholdPx = 48) => {
   return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
 };
@@ -399,8 +380,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     startFileStreaming,
     streamingFileId,
     enterDiffReview,
-    currentProject,
-    refreshProjects,
+    refreshProject,
   } =
     useProject();
   const queryClient = useQueryClient();
@@ -418,10 +398,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quotaLite() });
   }, [queryClient]);
-  const currentProjectNameRef = useRef<string | undefined>(currentProject?.name);
-  useEffect(() => {
-    currentProjectNameRef.current = currentProject?.name;
-  }, [currentProject?.name]);
   const { isMobile } = useMobileLayout();
   const { attachedFileIds, attachedLibraryMaterials, clearMaterials } = useMaterialAttachment();
   const { quotes, clearQuotes } = useTextQuote();
@@ -589,6 +565,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           snapshotType: options?.snapshotType,
         }),
       getLatestUserRequest: () => lastUserRequestRef.current,
+      // update_project 报告服务端给默认名项目改了名：只重读这一个项目，顶栏换上新名字。
+      // 不走 refreshProjects——它会打开全局 loading，整个工作台（含本面板）被换成加载页。
+      onProjectRenamed: (projectId) => {
+        void refreshProject(projectId);
+      },
       t: (key, options) => t(key as string, options as Record<string, unknown>),
     });
   }, [
@@ -603,6 +584,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     streamingFileId,
     enterDiffReview,
     currentProjectId,
+    refreshProject,
     t,
   ]);
 
@@ -871,12 +853,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     finalizePendingContextClears();
     invalidateQuota();
 
-    // 项目还叫默认名时，AI 可能在这一轮里给它起了名字；刷新一次项目列表，顶栏才会显示新名字。
-    const projectName = currentProjectNameRef.current;
-    if (projectName && DEFAULT_PROJECT_NAMES.has(projectName.trim())) {
-      void refreshProjects();
-    }
-
     // Let the streaming hook finalize cleanup/snapshot work in the background.
     void streamCallbacks.onComplete(
       completedSegments,
@@ -922,7 +898,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     finalizePendingContextClears,
     hydrateAssistantBackendMessage,
     invalidateQuota,
-    refreshProjects,
   ]);
 
   // Agent stream hook - uses callbacks from useChatStreaming hook

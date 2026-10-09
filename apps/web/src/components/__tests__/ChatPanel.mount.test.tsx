@@ -12,6 +12,7 @@ const mockQuota = vi.hoisted(() => ({
 const mockProjectState = vi.hoisted(() => ({
   currentProject: { id: 'project-1', name: '外卖小哥看见倒计时' } as { id: string; name: string } | null,
   refreshProjects: vi.fn(async () => {}),
+  refreshProject: vi.fn(async (_projectId: string) => {}),
   triggerFileTreeRefresh: vi.fn(),
   triggerEditorRefresh: vi.fn(),
 }))
@@ -69,6 +70,7 @@ vi.mock('../../contexts/ProjectContext', () => ({
     currentProjectId: 'project-1',
     currentProject: mockProjectState.currentProject,
     refreshProjects: mockProjectState.refreshProjects,
+    refreshProject: mockProjectState.refreshProject,
     selectedItem: null,
     triggerFileTreeRefresh: mockProjectState.triggerFileTreeRefresh,
     triggerEditorRefresh: mockProjectState.triggerEditorRefresh,
@@ -147,7 +149,10 @@ const streamCallbacks = {
   onSteeringReceived: vi.fn(),
 }
 
-const mockGetStreamCallbacks = vi.fn((_deps: { getLatestUserRequest?: () => string | null | undefined }) => streamCallbacks)
+const mockGetStreamCallbacks = vi.fn((_deps: {
+  getLatestUserRequest?: () => string | null | undefined
+  onProjectRenamed?: (projectId: string) => void
+}) => streamCallbacks)
 
 vi.mock('../../hooks/useChatStreaming', () => ({
   useChatStreaming: () => ({
@@ -840,7 +845,9 @@ describe('ChatPanel new-author flow', () => {
     vi.unstubAllGlobals()
   })
 
-  it('refreshes the project list after a round while the project still has a default name', async () => {
+  it('does not reload the project list when a round completes, even under a default name', async () => {
+    // refreshProjects flips ProjectContext.loading, and ProjectEditor then swaps
+    // the whole workspace (this panel included) for a page loader.
     mockProjectState.currentProject = { id: 'project-1', name: '我的短篇' }
     render(<ChatPanel />)
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
@@ -849,17 +856,21 @@ describe('ChatPanel new-author flow', () => {
       await streamOptions().onComplete([{ type: 'content', id: 'c', content: '大纲好了' }], null)
     })
 
-    expect(mockProjectState.refreshProjects).toHaveBeenCalledTimes(1)
+    expect(mockProjectState.refreshProjects).not.toHaveBeenCalled()
+    expect(mockProjectState.refreshProject).not.toHaveBeenCalled()
   })
 
-  it('does not refresh the project list once the author has named the project', async () => {
+  it('re-reads only the renamed project when update_project reports a rename', async () => {
+    mockProjectState.currentProject = { id: 'project-1', name: '我的短篇' }
     render(<ChatPanel />)
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
 
-    await act(async () => {
-      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '大纲好了' }], null)
-    })
+    const deps = mockGetStreamCallbacks.mock.calls.at(-1)?.[0]
+    expect(deps?.onProjectRenamed).toBeTypeOf('function')
+    act(() => deps?.onProjectRenamed?.('project-1'))
 
+    expect(mockProjectState.refreshProject).toHaveBeenCalledTimes(1)
+    expect(mockProjectState.refreshProject).toHaveBeenCalledWith('project-1')
     expect(mockProjectState.refreshProjects).not.toHaveBeenCalled()
   })
 })

@@ -1198,6 +1198,58 @@ describe('useChatStreaming', () => {
           window.removeEventListener(PROJECT_STATUS_UPDATED_EVENT, eventHandler as EventListener)
         }
       })
+
+      it('reports a project rename from update_project even when no AI memory field changed', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = { ...createMockDeps(), onProjectRenamed: vi.fn() }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          // Title-only call: the server renamed the default-named project.
+          callbacks.onToolResult('update_project', 'success', {
+            data: {
+              updated_fields: [],
+              project_id: 'tool-project-id',
+              project_name_updated: true,
+              project_name: '雾港来信',
+            },
+          })
+        })
+
+        expect(deps.onProjectRenamed).toHaveBeenCalledTimes(1)
+        expect(deps.onProjectRenamed).toHaveBeenCalledWith('tool-project-id')
+      })
+
+      it('reads project_name_updated nested under project_status and falls back to the active project', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = { ...createMockDeps(), onProjectRenamed: vi.fn() }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onToolResult('update_project', 'success', {
+            data: { project_status: { updated_fields: ['summary'], project_name_updated: true } },
+          })
+        })
+
+        expect(deps.onProjectRenamed).toHaveBeenCalledWith('test-project-id')
+      })
+
+      it('does not report a rename when the server kept the name or the call failed', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = { ...createMockDeps(), onProjectRenamed: vi.fn() }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onToolResult('update_project', 'success', {
+            data: { updated_fields: ['summary'], project_name_updated: false, title_skipped: 'author_named' },
+          })
+          callbacks.onToolResult('update_project', 'success', { data: { updated_fields: ['notes'] } })
+          callbacks.onToolResult('update_project', 'error', { data: { project_name_updated: true } })
+          callbacks.onToolResult('create_file', 'success', { data: { project_name_updated: true } })
+        })
+
+        expect(deps.onProjectRenamed).not.toHaveBeenCalled()
+      })
     })
 
     describe('onFileCreated callback', () => {

@@ -461,6 +461,13 @@ export interface UseChatStreamingDependencies {
    * started it). Used to describe the automatic snapshot taken after AI edits.
    */
   getLatestUserRequest?: () => string | null | undefined;
+  /**
+   * Called when a successful `update_project` reports that the server renamed
+   * the project (`project_name_updated: true`, set when the agent gave a
+   * default-named project its work title). The caller re-reads that one
+   * project so the header shows the new name.
+   */
+  onProjectRenamed?: (projectId: string) => void;
   /** Translation function for generating snapshot descriptions */
   t: (key: string, options?: Record<string, unknown>) => string;
 }
@@ -771,6 +778,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         activeProjectId,
         createSnapshot,
         getLatestUserRequest,
+        onProjectRenamed,
         t,
       } = deps;
 
@@ -1161,6 +1169,22 @@ export function useChatStreaming(): UseChatStreamingReturn {
             const projectStatus = payload?.project_status as
               | Record<string, unknown>
               | undefined;
+            const payloadProjectIdRaw =
+              payload?.project_id ?? projectStatus?.project_id;
+            const payloadProjectId =
+              typeof payloadProjectIdRaw === "string" &&
+              payloadProjectIdRaw.trim().length > 0
+                ? payloadProjectIdRaw
+                : null;
+            const targetProjectId = payloadProjectId ?? activeProjectId;
+
+            const projectRenamed =
+              payload?.project_name_updated === true ||
+              projectStatus?.project_name_updated === true;
+            if (projectRenamed && targetProjectId) {
+              onProjectRenamed?.(targetProjectId);
+            }
+
             const rawUpdatedFields =
               payload?.updated_fields ?? projectStatus?.updated_fields;
             const updatedFields = Array.isArray(rawUpdatedFields)
@@ -1175,15 +1199,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
             if (!hasAiMemoryFieldUpdates) {
               return;
             }
-
-            const payloadProjectIdRaw =
-              payload?.project_id ?? projectStatus?.project_id;
-            const payloadProjectId =
-              typeof payloadProjectIdRaw === "string" &&
-              payloadProjectIdRaw.trim().length > 0
-                ? payloadProjectIdRaw
-                : null;
-            const targetProjectId = payloadProjectId ?? activeProjectId;
 
             if (!targetProjectId) {
               return;
