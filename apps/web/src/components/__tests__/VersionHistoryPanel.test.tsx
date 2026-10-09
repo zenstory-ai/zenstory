@@ -152,6 +152,19 @@ describe('VersionHistoryPanel', () => {
     expect(screen.getByText(/version.*history/i)).toBeInTheDocument()
   })
 
+  it('is an accessible dialog that closes on Escape', () => {
+    render(
+      <VersionHistoryPanel
+        projectId="project-1"
+        onClose={mockOnClose}
+      />
+    )
+
+    expect(screen.getByRole('dialog', { name: /version.*history/i })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(mockOnClose).toHaveBeenCalledTimes(1)
+  })
+
   it('displays loading state initially', () => {
     vi.mocked(api.versionApi.getSnapshots).mockImplementation(() => new Promise(() => {}))
 
