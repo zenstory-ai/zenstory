@@ -131,3 +131,35 @@ def test_unknown_project_type_falls_back_to_generic_label():
     assert "「作品」" in dashboard_kickoff_hint(None, force_en=False)
     assert "screenplay" not in dashboard_kickoff_hint("screenplay", force_en=True)
     assert "短剧剧本" in dashboard_kickoff_hint("screenplay", force_en=False)
+
+
+@pytest.mark.asyncio
+async def test_tools_see_the_author_words_without_the_hidden_hint(
+    agent_service, db_session, short_project
+):
+    """update_project 核对「作者是否要求改名」时，看的是作者原话，不是拼了提示的模型输入。"""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = short_project
+    seen: dict = {}
+
+    def fake_workflow(state, **_kwargs):
+        seen["author_messages"] = ToolContext.get_author_messages()
+
+        async def stream():
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return stream()
+
+    with patch("agent.service.run_writing_workflow_streaming", side_effect=fake_workflow):
+        async for _event in agent_service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message=IDEA,
+            session=db_session,
+            metadata={"entry": DASHBOARD_IDEA_ENTRY},
+        ):
+            pass
+
+    assert seen["author_messages"] == [IDEA]

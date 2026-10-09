@@ -129,6 +129,30 @@ describe('ProjectSwitcher', () => {
     })
   })
 
+  it('keeps the rename pencil visible instead of hiding it until hover', () => {
+    render(<ProjectSwitcher />)
+    fireEvent.click(screen.getByRole('button', { name: /Alpha/ }))
+
+    const pencils = screen.getAllByTestId('project-switcher-rename')
+    expect(pencils.length).toBeGreaterThan(0)
+    for (const pencil of pencils) {
+      expect(pencil).toHaveAccessibleName('Edit project')
+      expect(pencil.className).not.toMatch(/(^|\s)opacity-0(\s|$)/)
+      expect(pencil.className).toContain('opacity-50')
+    }
+  })
+
+  it('shows the rename pencil at full strength on touch layouts', () => {
+    mockIsMobile = true
+    render(<ProjectSwitcher />)
+    fireEvent.click(screen.getByRole('button', { name: /Alpha/ }))
+
+    for (const pencil of screen.getAllByTestId('project-switcher-rename')) {
+      expect(pencil.className).toContain('opacity-100')
+      expect(pencil.className).not.toContain('opacity-50')
+    }
+  })
+
   it('creates and deletes projects from the dropdown footer', async () => {
     createProject.mockResolvedValue({ id: 'project-3' })
     deleteProject.mockResolvedValue(undefined)

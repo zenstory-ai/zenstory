@@ -1085,6 +1085,9 @@ class AgentService:
                 skill_tokens_used=sum(
                     int(selected.get("instructions_tokens") or 0) for selected in selected_skills
                 ),
+                # 作者原话：update_project 据此确认 author_requested 真是作者要求的改名
+                author_message=message,
+                author_steering=consumed_steering,
             )
 
             # Build WritingState for workflow execution

@@ -21,6 +21,12 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.files_found' && options?.count !== undefined) {
     return `Files found`
   }
+  if (key === 'chat:tool.parallelTaskLabel' && options?.label !== undefined) {
+    return `${options.label}:`
+  }
+  if (key === 'chat:workflow.charCount' && options?.count !== undefined) {
+    return `${options.count} chars`
+  }
   if (key === 'chat:tool.failed' && options?.label !== undefined) {
     return `${options.label} failed`
   }
@@ -187,7 +193,7 @@ describe('ToolResultCard', () => {
       expect(screen.getByText('New File')).toBeInTheDocument()
     })
 
-    it('shows content length for created files', () => {
+    it('shows the word count for created files', () => {
       render(
         <ToolResultCard
           type="tool_result"
@@ -196,13 +202,27 @@ describe('ToolResultCard', () => {
             data: {
               title: 'New File',
               file_type: 'draft',
-              content: 'A'.repeat(1500),
+              content: '字'.repeat(1500),
             },
           }}
         />
       )
-      // Content length is displayed
       expect(screen.getByText(/1.5k/)).toBeInTheDocument()
+    })
+
+    it('counts words the way the editor does, not raw characters', () => {
+      // 1200 Chinese characters plus punctuation and blank lines: 2400 characters.
+      const content = '你好，世界！\n\n'.repeat(300)
+      expect(content.length).toBe(2400)
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="update_file"
+          result={{ data: { title: 'Chapter', content } }}
+        />
+      )
+      expect(screen.getByText('1.2k')).toBeInTheDocument()
+      expect(screen.queryByText('2.4k')).not.toBeInTheDocument()
     })
 
     it('renders update_file success', () => {
@@ -977,6 +997,50 @@ describe('ToolResultCard', () => {
         />
       )
       expect(screen.getByText('检索资料')).toBeInTheDocument()
+    })
+
+    it('labels sub-tasks with the localized task name instead of the raw type', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="parallel_execute"
+          result={{
+            total_tasks: 2,
+            tasks: [
+              { id: 't0', type: 'query_files', description: '读取第5章当前全文', status: 'completed', result: {} },
+              { id: 't1', type: 'internal_probe', description: '核对设定', status: 'completed', result: {} },
+            ],
+          }}
+        />
+      )
+      expect(screen.getByText('Query files:')).toBeInTheDocument()
+      expect(screen.getByText('读取第5章当前全文')).toBeInTheDocument()
+      expect(screen.getByText('核对设定')).toBeInTheDocument()
+      expect(screen.queryByText(/\[query_files\]/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/internal_probe/)).not.toBeInTheDocument()
+    })
+
+    it('strips internal ids and raw fields from sub-task descriptions', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="parallel_execute"
+          result={{
+            total_tasks: 1,
+            tasks: [
+              {
+                id: 't0',
+                type: 'edit_file',
+                description: '[edit_file] 修改第2章(id=68212e4b-fe8e-4238-ae5b-a57233195b69) word_count=2434',
+                status: 'completed',
+                result: {},
+              },
+            ],
+          }}
+        />
+      )
+      expect(screen.getByText('修改第2章 2434 chars')).toBeInTheDocument()
+      expect(screen.queryByText(/68212e4b/)).not.toBeInTheDocument()
     })
   })
 

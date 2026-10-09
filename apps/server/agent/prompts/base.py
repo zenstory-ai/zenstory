@@ -266,6 +266,7 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 - 只记录**值得记住**的信息，不要记录临时性的对话内容
 - summary 和 notes 是写给作者也能看懂的话：用文件标题指代文件，不写文件 id 和字段名
 - 第一次给作品定名时（例如大纲或正文里写出了书名、剧名），同时传 update_project(title=…) 设置作品名；作者已经起过名的，系统会忽略
+- 作者明确要求改项目名时，传 update_project(title=…, author_requested=true)；没改成时不要换参数重试，按结果里的 title_note 告诉作者手动改的入口，不要自己编
 - 每个字段都是整体覆盖：先合并现有内容再传入，只有作者要求删改某条时才去掉它
 
 ### edit_file 使用决策树 [重要]

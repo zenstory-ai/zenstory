@@ -45,6 +45,8 @@ import {
   Layers,
 } from 'lucide-react';
 import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
+import { countWords } from '../lib/documentChunker';
+import { sanitizeAgentText } from '../lib/agentDisplayName';
 
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
@@ -217,6 +219,20 @@ const getSeverityBgColor = (severity: string) => {
  * // icon: <FilePlus /> with success color
  * // label: t('chat:tool.create_file')
  */
+const PARALLEL_TASK_TYPES = new Set([
+  'write_chapter',
+  'edit_file',
+  'delete_file',
+  'query_files',
+  'hybrid_search',
+]);
+
+/** Localized name for a parallel sub-task type, or null for an unknown internal type. */
+const getParallelTaskLabel = (taskType: unknown, t: (key: string) => string): string | null => {
+  if (typeof taskType !== 'string' || !PARALLEL_TASK_TYPES.has(taskType)) return null;
+  return t(`chat:tool.${taskType}`);
+};
+
 const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { icon: React.ReactNode; label: string } => {
   switch (toolName) {
     case 'create_file':
@@ -421,19 +437,16 @@ const getCanApply = (applyAction: string) => {
 };
 
 /**
- * Formats content length for display, converting large values to k-characters.
+ * Formats a word count (the editor's `countWords` definition: one per Chinese
+ * character, one per English word) for display, switching to 千字 / k above 1000.
  *
- * @param length - Content length in characters
+ * @param words - Word count from `countWords` or the server's `count_words`
  * @param t - Translation function with interpolation support
- * @returns Formatted string (e.g., "150 字符" or "2.5k 字符")
- *
- * @example
- * formatContentLength(500, t);  // '500 字符'
- * formatContentLength(2500, t); // '2.5k 字符'
+ * @returns Formatted string (e.g., "150 字" or "2.5 千字")
  */
-const formatContentLength = (length: number, t: (key: string, options?: Record<string, unknown>) => string): string => {
-  if (length < 1000) return t('chat:size.characters', { length });
-  return t('chat:size.kCharacters', { length: (length / 1000).toFixed(1) });
+const formatWordCount = (words: number, t: (key: string, options?: Record<string, unknown>) => string): string => {
+  if (words < 1000) return t('chat:size.characters', { length: words });
+  return t('chat:size.kCharacters', { length: (words / 1000).toFixed(1) });
 };
 
 /**
@@ -601,7 +614,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     if (toolName === 'create_file' && data) {
       const title = data.title as string || t('common:untitled');
       const fileType = data.file_type as string || '';
-      const contentLength = typeof data.content === 'string' ? data.content.length : 0;
+      const wordCount = typeof data.content === 'string' ? countWords(data.content) : 0;
       const typeInfo = getFileTypeInfo(fileType, t);
       
       return (
@@ -615,9 +628,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               <span className="shrink-0">{typeInfo.icon}</span>
               <span className="min-w-0 break-words">{title}</span>
             </span>
-            {contentLength > 0 && (
+            {wordCount > 0 && (
               <span className="text-xs text-[hsl(var(--text-secondary))] ml-auto">
-                {formatContentLength(contentLength, t)}
+                {formatWordCount(wordCount, t)}
               </span>
             )}
           </div>
@@ -628,7 +641,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     // update_file success
     if (toolName === 'update_file' && data) {
       const title = data.title as string || t('chat:fileDefault');
-      const contentLength = typeof data.content === 'string' ? data.content.length : 0;
+      const wordCount = typeof data.content === 'string' ? countWords(data.content) : 0;
       
       return (
         <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
@@ -640,9 +653,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             <span className="text-sm text-[hsl(var(--text-primary))]">
               {quote(title)}
             </span>
-            {contentLength > 0 && (
+            {wordCount > 0 && (
               <span className="text-xs text-[hsl(var(--text-secondary))] ml-auto">
-                {formatContentLength(contentLength, t)}
+                {formatWordCount(wordCount, t)}
               </span>
             )}
           </div>
@@ -771,6 +784,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         anchor_preview?: string;
         text_preview?: string;
         text_len?: number;
+        /** Word count of the inserted text (server `count_words`); absent on older servers. */
+        text_words?: number;
         deleted_preview?: string;
         count?: number;
       }> || [];
@@ -881,9 +896,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                           <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
                           <span className="text-xs text-[hsl(var(--diff-add-text))]">
                             {detail.op === 'append' ? t('chat:edit.append_content') : t('chat:edit.prepend_content')}
-                            {detail.text_len && detail.text_len > 200 && (
+                            {detail.text_len && detail.text_len > 200 && typeof detail.text_words === 'number' && (
                               <span className="ml-1 text-[hsl(var(--text-secondary))]">
-                                ({formatContentLength(detail.text_len, t)})
+                                ({formatWordCount(detail.text_words, t)})
                               </span>
                             )}
                           </span>
@@ -911,9 +926,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                             <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
                             <span className="text-xs text-[hsl(var(--diff-add-text))]">
                               {t('chat:edit.insert_content')}
-                              {detail.text_len && detail.text_len > 200 && (
+                              {detail.text_len && detail.text_len > 200 && typeof detail.text_words === 'number' && (
                                 <span className="ml-1 text-[hsl(var(--text-secondary))]">
-                                  ({formatContentLength(detail.text_len, t)})
+                                  ({formatWordCount(detail.text_words, t)})
                                 </span>
                               )}
                             </span>
@@ -984,10 +999,13 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 const taskResult = task.result && typeof task.result === 'object'
                   ? (task.result as Record<string, unknown>)
                   : undefined;
+                // Localized task kind; unknown internal types are hidden, never shown raw.
+                const taskLabel = getParallelTaskLabel(task.type, t);
                 const desc =
-                  (task.description as string) ||
-                  (task.type as string) ||
+                  sanitizeAgentText(task.description as string, t) ||
+                  taskLabel ||
                   `#${index + 1}`;
+                const showTaskLabel = Boolean(taskLabel) && taskLabel !== desc;
                 return (
                   <div
                     key={(task.id as string) || index}
@@ -999,9 +1017,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--success-light))]" />
                     )}
                     <div className="min-w-0">
-                      <span className="text-[hsl(var(--text-secondary))]">
-                        [{task.type as string}]
-                      </span>{' '}
+                      {showTaskLabel ? (
+                        <span className="text-[hsl(var(--text-secondary))]">
+                          {t('chat:tool.parallelTaskLabel', { label: taskLabel })}
+                        </span>
+                      ) : null}
                       <span className="text-[hsl(var(--text-primary))] break-words">
                         {desc}
                       </span>

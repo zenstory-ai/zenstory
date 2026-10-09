@@ -269,7 +269,8 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
         "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格、备注）和任务列表。"
         "summary/current_phase/writing_style/notes 传值即整体替换该字段，不是追加："
         "新增内容时必须把现有内容与新条目合并后整段传入，否则原有内容会丢失。"
-        "给作品定了名字时传 title，项目还叫默认名（如「我的小说」）才会改名，作者自己起的名字不会被改。"
+        "给作品定了名字时传 title：项目还叫默认名（如「我的小说」）或之前由 AI 起的名字时会改名，"
+        "作者自己起的名字不会被改。作者在对话里明确要求改项目名时，传 title 加 author_requested=true。"
     ),
     "input_schema": {
         "type": "object",
@@ -277,10 +278,19 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             "title": {
                 "type": "string",
                 "description": (
-                    "作品名，30 字以内，不带书名号。只在项目还叫默认名时生效；"
-                    "结果里 project_name_updated=true 表示已改名，title_skipped=author_named 表示作者已自己起名、未改"
+                    "作品名，30 字以内，不带书名号。项目还叫默认名或之前由 AI 起的名字时生效；"
+                    "结果里 project_name_updated=true 表示已改名，title_skipped=author_named 表示作者已自己起名、未改，"
+                    "这时把 title_note 里的手动改名入口原样告诉作者，不要自己编入口"
                 ),
                 "maxLength": 30,
+            },
+            "author_requested": {
+                "type": "boolean",
+                "description": (
+                    "只在作者本人在对话里明确要求改项目名时传 true（例如「把项目名改成《雾港来信》」），"
+                    "这时即使是作者自己起过的名字也会改；系统会核对作者这一轮的原话，没有改名的说法就不改。"
+                    "AI 自己想换名、或只是写进大纲里的书名，不传；被拒绝后不要带上它重试"
+                ),
             },
             "summary": {
                 "type": "string",

@@ -107,7 +107,7 @@ async function setupProjectAndFile(page: import('@playwright/test').Page, fileNa
 
   // Reuse an existing project when available to avoid plan-quota flakiness in E2E.
   const reusableProject = page.locator(
-    'button[aria-label^="Open project"], [data-testid="project-card"]'
+    '[data-testid="project-card"]'
   ).first()
   const hasReusableProject = await reusableProject
     .waitFor({ state: 'visible', timeout: 3000 })
