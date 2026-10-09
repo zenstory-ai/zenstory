@@ -1,8 +1,13 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { UpgradePromptModal } from "./UpgradePromptModal";
+import { RedeemCodeModal } from "./RedeemCodeModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
 import { useProMaterialDecompositionsLimit } from "../../hooks/useProMaterialDecompositionsLimit";
+import { useMaterialsCheckoutUnavailableText, useMaterialsProEntry } from "../../hooks/useMaterialsProEntry";
+import { subscriptionApi, subscriptionQueryKeys } from "../../lib/subscriptionApi";
+import { formatBeijingPeriodDate } from "../../lib/dateUtils";
 
 const materialUploadUpgradePrompt = getUpgradePromptDefinition("material_upload_quota_blocked");
 
@@ -20,6 +25,31 @@ function useMaterialsUploadDescription(enabled = true): string {
       });
 }
 
+/**
+ * What a paid author can do when the materials paywall still shows up for them: once
+ * this month's breakdowns are used up, say when they come back (Beijing month start).
+ * Without that fact the generic paid sentence of UpgradePromptModal stays.
+ */
+function useMaterialsPaidDescription(enabled: boolean): string | undefined {
+  const { t } = useTranslation(["materials"]);
+  const { data: quota } = useQuery({
+    queryKey: subscriptionQueryKeys.quota(),
+    queryFn: () => subscriptionApi.getQuota(),
+    enabled,
+  });
+  const decompositions = quota?.material_decompositions;
+  if (!decompositions || decompositions.limit <= 0 || decompositions.used < decompositions.limit) {
+    return undefined;
+  }
+  return t("materials:quotaExhausted", {
+    defaultValue: "本月 {{limit}} 次拆解已用完，将于 {{resetAt}} 恢复。已拆好的内容仍可查看和引用。",
+    limit: decompositions.limit,
+    resetAt: decompositions.reset_at
+      ? formatBeijingPeriodDate(decompositions.reset_at)
+      : t("materials:quotaResetFallback", { defaultValue: "下月 1 日" }),
+  });
+}
+
 interface MaterialsUpgradePromptModalProps {
   open: boolean;
   onClose: () => void;
@@ -32,27 +62,44 @@ export function MaterialsUpgradePromptModal({
   onClose,
   source = materialUploadUpgradePrompt.source,
 }: MaterialsUpgradePromptModalProps) {
-  const { t } = useTranslation(["materials"]);
+  const { t, i18n } = useTranslation(["materials"]);
+  const [redeemOpen, setRedeemOpen] = useState(false);
   const description = useMaterialsUploadDescription(open);
+  const paidDescription = useMaterialsPaidDescription(open);
+  const { checkoutOff, label } = useMaterialsProEntry(open);
+  const checkoutUnavailable = useMaterialsCheckoutUnavailableText();
 
   return (
-    <UpgradePromptModal
-      open={open}
-      onClose={onClose}
-      source={source}
-      primaryDestination="billing"
-      secondaryDestination="pricing"
-      title={t("materials:quota.uploadTitle", { defaultValue: "素材库是 Pro 功能" })}
-      description={description}
-      primaryLabel={t("materials:quota.upgradePrimary", { defaultValue: "开通 Pro" })}
-      onPrimary={() => {
-        window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.billingPath, source));
-      }}
-      secondaryLabel={t("materials:quota.upgradeSecondary", { defaultValue: "查看套餐对比" })}
-      onSecondary={() => {
-        window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.pricingPath, source));
-      }}
-    />
+    <>
+      <UpgradePromptModal
+        open={open}
+        onClose={onClose}
+        source={source}
+        primaryDestination={checkoutOff ? "redeem" : "billing"}
+        secondaryDestination="pricing"
+        title={t("materials:quota.uploadTitle", { defaultValue: "素材库是 Pro 功能" })}
+        description={
+          checkoutOff
+            ? // Chinese sentences join without a space; English needs one.
+              [description, checkoutUnavailable].join(i18n?.language?.startsWith("en") ? " " : "")
+            : description
+        }
+        paidDescription={paidDescription}
+        primaryLabel={label}
+        onPrimary={() => {
+          if (checkoutOff) {
+            setRedeemOpen(true);
+            return;
+          }
+          window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.billingPath, source));
+        }}
+        secondaryLabel={t("materials:quota.upgradeSecondary", { defaultValue: "查看套餐对比" })}
+        onSecondary={() => {
+          window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.pricingPath, source));
+        }}
+      />
+      <RedeemCodeModal isOpen={redeemOpen} onClose={() => setRedeemOpen(false)} source={source} />
+    </>
   );
 }
 
@@ -70,6 +117,7 @@ export function MaterialsUpgradeNotice({ source, className = "" }: MaterialsUpgr
   const { t } = useTranslation(["materials"]);
   const [open, setOpen] = useState(false);
   const description = useMaterialsUploadDescription();
+  const { label } = useMaterialsProEntry();
 
   return (
     <div className={`space-y-2 ${className}`} data-testid="materials-upgrade-notice">
@@ -78,7 +126,7 @@ export function MaterialsUpgradeNotice({ source, className = "" }: MaterialsUpgr
       </p>
       <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">{description}</p>
       <button type="button" className="btn-primary h-8 px-3 text-xs" onClick={() => setOpen(true)}>
-        {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
+        {label}
       </button>
       <MaterialsUpgradePromptModal open={open} onClose={() => setOpen(false)} source={source} />
     </div>

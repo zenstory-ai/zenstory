@@ -268,6 +268,33 @@ async def test_paid_upload_keeps_the_whole_book_limit(
 
 
 @pytest.mark.integration
+async def test_a_just_upgraded_author_with_an_unused_trial_gets_the_whole_book_on_the_paid_path(
+    client: AsyncClient, db_session, monkeypatch, capturing_storage
+):
+    """页面还缓存着免费状态时，浏览器照样上传原文件；服务端按当前权益走付费、拆整本，不占试拆。"""
+    monkeypatch.setattr(material_settings, "TRIAL_ENABLED", True)
+    monkeypatch.setattr(material_settings, "TRIAL_MAX_CHAPTERS", 20)
+    user, headers = await _free_author(client, db_session)
+    _grant_pro(db_session, user)
+    whole_book = _long_novel(30, 2_000)
+
+    response = await _upload_text(client, headers, whole_book)
+
+    assert response.status_code == 200, response.text
+    stored_text, _encoding = decode_novel_bytes(capturing_storage.stored[0])
+    assert len(split_novel_text(stored_text)) == 30
+    meta = json.loads(db_session.get(Novel, response.json()["novel_id"]).source_meta)
+    assert meta["chapter_count"] == 30
+    assert "trial_chapter_limit" not in meta
+    billing = json.loads(db_session.get(IngestionJob, response.json()["job_id"]).stage_progress)["billing"]
+    assert billing.get("quota_mode") != "trial"
+    assert "chapter_limit" not in billing
+    quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
+    assert quota["material_decompositions"]["used"] == 1
+    assert quota["material_trial"]["used"] is False
+
+
+@pytest.mark.integration
 async def test_whole_book_is_rejected_while_the_trial_is_off(
     client: AsyncClient, db_session, monkeypatch, capturing_storage
 ):

@@ -18,7 +18,7 @@
   "teaserCardWorldviewBody": "Spirit-rank hierarchy, sect territories, forbidden-magic costs",
   "quotaRemaining": "{{remaining}} / {{limit}} breakdowns left this month. Each upload or retry uses 1.",
   "quotaExhausted": "You've used all {{limit}} breakdowns this month (resets {{resetAt}}). You can still browse and reference finished results.",
-  "quotaResetFallback": "next month",
+  "quotaResetFallback": "on the 1st of next month",
   "paidSubtitle": "Upload reference novels and use their characters, worldbuilding, and chapter summaries in your writing",
   "teaserSubtitle": "The Materials Library is a Pro feature: break reference novels into chapter summaries, characters and settings to use while you write.",
   "statusLoadError": "We couldn't check your Pro status. Please retry.",
@@ -112,7 +112,9 @@
     "uploadDescriptionNoLimit": "The free plan doesn't include the Materials Library. Get Pro to use it.",
     "decomposeTitle": "No breakdowns left this month",
     "upgradePrimary": "Get Pro",
-    "upgradeSecondary": "Compare plans"
+    "upgradeSecondary": "Compare plans",
+    "redeemPrimary": "Redeem a code",
+    "checkoutUnavailable": "Online payment isn't available right now. If you have a redeem code, choose “Redeem a code” to activate Pro."
   },
   "retrySuccess": "Breakdown restarted",
   "toast": {

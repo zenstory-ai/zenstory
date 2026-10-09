@@ -2,7 +2,7 @@
 // the Beijing calendar day promised by the product.
 process.env.TZ = "UTC";
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -67,9 +67,22 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+const media = vi.hoisted(() => ({ isMobile: false }));
+const mockGetPaymentOptions = vi.fn();
+
 vi.mock("../../hooks/useMediaQuery", () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => media.isMobile,
   useIsTablet: () => false,
+}));
+
+vi.mock("../../lib/paymentApi", () => ({
+  paymentApi: { getOptions: () => mockGetPaymentOptions() },
+  paymentQueryKeys: { options: () => ["payment-options"] },
+}));
+
+vi.mock("../../components/subscription/RedeemCodeModal", () => ({
+  RedeemCodeModal: ({ isOpen, source }: { isOpen: boolean; source?: string }) =>
+    isOpen ? <div data-testid="redeem-modal">{source}</div> : null,
 }));
 
 vi.mock("../../lib/materialsApi", () => ({
@@ -136,6 +149,8 @@ function createWrapper() {
 describe("MaterialsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    media.isMobile = false;
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: [] });
     mockList.mockResolvedValue([]);
     mockGetCatalog.mockResolvedValue({ tiers: [] });
     mockUpload.mockResolvedValue({
@@ -291,11 +306,80 @@ describe("MaterialsPage", () => {
     const emptyState = await screen.findByTestId("materials-trial-used-empty");
     expect(emptyState).toHaveTextContent("免费试拆已经用过了");
     expect(screen.queryByText("materials:uploadFirst")).not.toBeInTheDocument();
-    fireEvent.click(within(emptyState).getByRole("button", { name: "开通 Pro" }));
+    const upgrade = within(emptyState).getByRole("button", { name: "开通 Pro" });
+    // The shared page-action button: solid primary, 40px on desktop.
+    expect(upgrade.className).toContain("bg-[hsl(var(--accent-primary))]");
+    expect(upgrade.className).toContain("min-h-[40px]");
+    fireEvent.click(upgrade);
     expect(trackEventMock).toHaveBeenCalledWith("materials_upgrade_clicked", {
       source: "materials_trial_used",
       destination: "billing",
     });
+  });
+
+  it("gives the trial-used empty state a 44px Pro button on phones", async () => {
+    media.isMobile = true;
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const emptyState = await screen.findByTestId("materials-trial-used-empty");
+    expect(within(emptyState).getByRole("button", { name: "开通 Pro" }).className).toContain("min-h-[44px]");
+  });
+
+  it("while online checkout is off, offers the redeem code on the page and says why", async () => {
+    mockGetPaymentOptions.mockResolvedValue({ enabled: false, payment_methods: [] });
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-checkout-unavailable")).toHaveTextContent(
+      "暂时不能在线付款。有兑换码的话，点「兑换码开通」就能开通 Pro。",
+    );
+    expect(screen.getByTestId("materials-header-upgrade")).toHaveTextContent("兑换码开通");
+    const emptyState = screen.getByTestId("materials-trial-used-empty");
+    expect(within(emptyState).queryByRole("button", { name: "开通 Pro" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(emptyState).getByRole("button", { name: "兑换码开通" }));
+
+    expect(screen.getByTestId("redeem-modal")).toHaveTextContent("materials_trial_used");
+    expect(trackEventMock).toHaveBeenCalledWith("materials_upgrade_clicked", {
+      source: "materials_trial_used",
+      destination: "redeem",
+    });
+    expect(trackEventMock).not.toHaveBeenCalledWith(
+      "materials_upgrade_clicked",
+      expect.objectContaining({ destination: "billing" }),
+    );
+  });
+
+  it("keeps 开通 Pro and no checkout notice when the payment options cannot be read", async () => {
+    mockGetPaymentOptions.mockRejectedValue(new Error("network"));
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const emptyState = await screen.findByTestId("materials-trial-used-empty");
+    await waitFor(() => expect(mockGetPaymentOptions).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(within(emptyState).getByRole("button", { name: "开通 Pro" })).toBeInTheDocument();
+    expect(screen.queryByTestId("materials-checkout-unavailable")).not.toBeInTheDocument();
+  });
+
+  it("does not ask the payment options of an author who already has the library", async () => {
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    await screen.findByText("materials:noMaterials");
+    expect(mockGetPaymentOptions).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("materials-checkout-unavailable")).not.toBeInTheDocument();
   });
 
   const trialBook = (chapters: number) =>

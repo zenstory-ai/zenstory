@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { BookOpen } from "../icons";
+import { Button } from "../ui/Button";
 import type { MaterialNovel } from "../../lib/materialsApi";
 import type { MaterialTrialSelection } from "../../lib/materialUploadValidation";
 
@@ -44,8 +45,16 @@ export function MaterialTrialBookNote({ material }: { material: MaterialNovel })
   );
 }
 
+interface MaterialTrialUsedEmptyStateProps {
+  onUpgrade: () => void;
+  /** The Pro entry's label (「开通 Pro」, or 「兑换码开通」 while online checkout is off). */
+  label: string;
+  /** Page-action size: `md` on desktop, `touch` (44px) on phones. */
+  size: "md" | "touch";
+}
+
 /** Empty library after the free trial was used: nothing left to upload without Pro. */
-export function MaterialTrialUsedEmptyState({ onUpgrade }: { onUpgrade: () => void }) {
+export function MaterialTrialUsedEmptyState({ onUpgrade, label, size }: MaterialTrialUsedEmptyStateProps) {
   const { t } = useTranslation(["materials"]);
   return (
     <div
@@ -61,9 +70,9 @@ export function MaterialTrialUsedEmptyState({ onUpgrade }: { onUpgrade: () => vo
           defaultValue: "开通 Pro 后，每月可以拆解参考小说，每本最多 30 万字；拆出的角色、设定和章节梗概写作时随时引用。",
         })}
       </p>
-      <button onClick={onUpgrade} className="btn-primary h-11 px-4">
-        {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
-      </button>
+      <Button size={size} onClick={onUpgrade}>
+        {label}
+      </Button>
     </div>
   );
 }
