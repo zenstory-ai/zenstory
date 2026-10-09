@@ -18,6 +18,8 @@ import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { MaterialsUpgradePromptModal } from "../components/subscription/MaterialsUpgradePrompt";
+import { useMaterialsCheckoutUnavailableText, useMaterialsProEntry } from "../hooks/useMaterialsProEntry";
+import { RedeemCodeModal } from "../components/subscription/RedeemCodeModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import {
   prepareMaterialUpload,
@@ -48,6 +50,8 @@ export default function MaterialsPage() {
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showMaterialAccessUpgradeModal, setShowMaterialAccessUpgradeModal] = useState(false);
+  /** Funnel source of the open redeem dialog (null = closed). */
+  const [redeemSource, setRedeemSource] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
@@ -92,6 +96,9 @@ export default function MaterialsPage() {
   const canReadLibrary = hasWorkspaceAccess || trialUsed;
   const showTeaser = materialsAccess === false && !trialUsed;
   const proDecompositionsLimit = useProMaterialDecompositionsLimit(materialsAccess === false);
+  // Online checkout off: the Pro entries become 「兑换码开通」 and open the redeem dialog here.
+  const proEntry = useMaterialsProEntry(materialsAccess === false);
+  const checkoutUnavailableText = useMaterialsCheckoutUnavailableText();
 
   const materialDecomposeQuota = quota?.material_decompositions;
   const remainingDecompositions =
@@ -211,6 +218,12 @@ export default function MaterialsPage() {
   }
 
   const openUpgradePath = (destination: "billing" | "pricing", source = "materials_teaser") => {
+    if (destination === "billing" && proEntry.checkoutOff) {
+      // The billing page would only offer the redeem dialog: open it here instead.
+      trackEvent("materials_upgrade_clicked", { source, destination: "redeem" });
+      setRedeemSource(source);
+      return;
+    }
     trackEvent("materials_upgrade_clicked", {
       source,
       destination,
@@ -244,7 +257,7 @@ export default function MaterialsPage() {
     limit: materialDecomposeQuota?.limit ?? 5,
     resetAt:
       formatResetAt(materialDecomposeQuota?.reset_at) ??
-      t("materials:quotaResetFallback", { defaultValue: "下月" }),
+      t("materials:quotaResetFallback", { defaultValue: "下月 1 日" }),
   });
 
   const handleDelete = (id: string) => {
@@ -411,13 +424,20 @@ export default function MaterialsPage() {
               onClick={() => openUpgradePath("billing")}
               data-testid="materials-header-upgrade"
             >
-              {t("materials:teaserPrimary", {
-                defaultValue: "开通 Pro",
-              })}
+              {proEntry.label}
             </Button>
           )
         }
       />
+
+      {proEntry.checkoutOff && !hasWorkspaceAccess && (
+        <p
+          data-testid="materials-checkout-unavailable"
+          className="mb-4 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-secondary))]"
+        >
+          {checkoutUnavailableText}
+        </p>
+      )}
 
       {isMaterialsLoading ? (
         <div className="flex items-center justify-center h-64">
@@ -520,7 +540,7 @@ export default function MaterialsPage() {
                 {/* With the trial on offer, the header keeps the Pro entry. */}
                 {!trialAvailable && (
                   <Button size={actionSize} onClick={() => openUpgradePath("billing")}>
-                    {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
+                    {proEntry.label}
                   </Button>
                 )}
                 <Button variant="secondary" size={actionSize} onClick={() => openUpgradePath("pricing")}>
@@ -531,7 +551,11 @@ export default function MaterialsPage() {
           </div>
         </div>
       ) : materials.length === 0 && trialUsed ? (
-        <MaterialTrialUsedEmptyState onUpgrade={() => openUpgradePath("billing", "materials_trial_used")} />
+        <MaterialTrialUsedEmptyState
+          onUpgrade={() => openUpgradePath("billing", "materials_trial_used")}
+          label={proEntry.label}
+          size={actionSize}
+        />
       ) : materials.length === 0 ? (
         <>
           {materialDecomposeQuota && hasWorkspaceAccess && (
@@ -581,7 +605,7 @@ export default function MaterialsPage() {
                 })}
               </p>
               <Button size={actionSize} onClick={() => openUpgradePath("billing")}>
-                {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
+                {proEntry.label}
               </Button>
             </div>
           )}
@@ -774,6 +798,11 @@ export default function MaterialsPage() {
       <MaterialsUpgradePromptModal
         open={showMaterialAccessUpgradeModal}
         onClose={() => setShowMaterialAccessUpgradeModal(false)}
+      />
+      <RedeemCodeModal
+        isOpen={redeemSource !== null}
+        onClose={() => setRedeemSource(null)}
+        source={redeemSource ?? undefined}
       />
     </>
   );

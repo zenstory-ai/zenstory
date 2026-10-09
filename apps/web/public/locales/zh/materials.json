@@ -18,7 +18,7 @@
   "teaserCardWorldviewBody": "灵脉阶层、宗门辖区、禁术代价",
   "quotaRemaining": "本月还可拆解 {{remaining}} / {{limit}} 次，每次上传或重试用 1 次",
   "quotaExhausted": "本月 {{limit}} 次拆解已用完，将于 {{resetAt}} 恢复。已拆好的内容仍可查看和引用。",
-  "quotaResetFallback": "下月",
+  "quotaResetFallback": "下月 1 日",
   "paidSubtitle": "上传参考小说，拆出角色、世界观和章节梗概，写作时随时引用",
   "teaserSubtitle": "素材库是 Pro 功能：把参考小说拆成章节梗概、角色和设定，写作时随时引用。",
   "statusLoadError": "没能确认你的 Pro 状态，请重试。",
@@ -112,7 +112,9 @@
     "uploadDescriptionNoLimit": "免费版不含素材库，开通 Pro 后即可使用。",
     "decomposeTitle": "本月拆解次数已用完",
     "upgradePrimary": "开通 Pro",
-    "upgradeSecondary": "查看套餐对比"
+    "upgradeSecondary": "查看套餐对比",
+    "redeemPrimary": "兑换码开通",
+    "checkoutUnavailable": "暂时不能在线付款。有兑换码的话，点「兑换码开通」就能开通 Pro。"
   },
   "retrySuccess": "已重新开始拆解",
   "toast": {

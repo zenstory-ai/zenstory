@@ -19,10 +19,11 @@ Status: implemented
 - **分章规则对齐**：Python 的 `str.strip()`、正则 `\s` 和 `.` 与 JavaScript 的 `trim()`、`\s`、`.` 不同（U+FEFF、`\x1c`-`\x1f`、U+0085、U+2028/2029）。前端改为按 `str.isspace()` 的字符集去空白，`.` 写成 `[^\n]`；两端测试用同一组样例固定这些字符的切分结果。
 - **退还的失败试拆**：素材列表过滤最新任务为 `quota_mode=trial` 且 `quota_refunded=true` 的失败记录（`is_refunded_trial_attempt`）。用列表过滤而不是软删除，是因为退还还会发生在派发后的超时对账和 worker 的平台错误里，过滤能覆盖所有路径。搜索和素材摘要本来就只列已完成的书。
 - **重试**：素材详情页对没有素材库权益的作者隐藏「重试」（列表卡片原本就隐藏）。
-- **文案**：试用已用且库为空时，空状态改为「免费试拆已经用过了」+「开通 Pro」，不再提供上传入口。已用横幅改为泛指「你已经用过免费试拆（只拆前 20 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。」，不再说「这本书」，也不再承诺「完整的小说」（付费仍有 30 万字上限）。试拆书的卡片单独写「免费试拆：全书 150 章，只拆了前 20 章」。试用上传失败后，重新读取额度，确认试用仍可用时追加「这次没有用掉免费试拆机会。」。
+- **服务端按当前权益选路径**：`process_material_upload` 每次请求都用 `has_feature_access(materials_library_access)` 读当前订阅，有权益就走付费路径（整本、扣月度次数、不占试拆、不写 `trial_chapter_limit`），与页面缓存的状态无关。刚升级、页面还显示免费试拆的作者上传整本，得到的是整本拆解。
+- **文案**：试用已用且库为空时，空状态改为「免费试拆已经用过了」+「开通 Pro」（共用 `ui/Button` primary，桌面 `md`、手机 `touch`；线上付款关闭时这个按钮叫「兑换码开通」并就地打开兑换码框，见 `2026-10-09-quota-wall-chat-card-and-home-intercept.md`），不再提供上传入口。已用横幅改为泛指「你已经用过免费试拆（只拆前 20 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。」，不再说「这本书」，也不再承诺「完整的小说」（付费仍有 30 万字上限）。试拆书的卡片单独写「免费试拆：全书 150 章，只拆了前 20 章」。试用上传失败后，重新读取额度，确认试用仍可用时追加「这次没有用掉免费试拆机会。」。
 - **P3-15 核查**：
   - 试拆书升级后重试：改动前，存的是整本、重试任务不带章数上限，付费重试会拆整本，甚至绕过 30 万字上限。现在存的只有前 N 章，重试任务沿用 `trial_chapter_limit`，只续拆这 N 章（和其他重试一样扣 1 次月度次数）。想拆整本需要重新上传。卡片上的「只拆了前 20 章」让作者知道这本书不完整。
-  - 「用过试用」放开读取：属实。用过试用、之后订阅过期的作者，仍能读到自己在 Pro 期间拆过的所有书；没用过试用的过期作者则全部 402。没有改：收窄到「只能读试拆的那本」需要在列表、详情、实体、预览、导入、搜索各接口按书判断，改动面大；而且这只是读取，不产生模型费用。原 note 已把它列为代价。建议之后统一决定过期 Pro 是否保留只读权限，再一起改。
+  - 「用过试用」放开读取：属实，**本批次决定保持现状，不改代码，列为待定决策**。现状：用过试用、之后订阅过期的作者，仍能读到自己在 Pro 期间拆过的所有书（只读：列表、详情、实体、预览、导入、搜索）；没用过试用的过期作者则全部 402。两类过期作者的读取权限因此不一致。不改的理由：收窄到「只能读试拆的那本」需要在上述各接口按书判断，改动面大；这只是读取，不产生模型费用，也不能新拆或重试（重试要月度次数）。原 note 已把它列为代价。待定的问题是「过期 Pro 是否保留已拆书的只读权限」：保留就把没用过试用的过期作者也放开，不保留就按书收窄；需要产品决定后一起改，届时更新本条。
 
 ## Alternatives considered
 
@@ -40,6 +41,6 @@ Status: implemented
 
 ## Verification
 
-- 后端：`venv/bin/python -m pytest tests/test_api/test_materials_trial.py tests/test_api/test_materials.py tests/test_services/test_novel_text.py tests/test_flows/integration/test_novel_ingestion_stage0.py -q --no-cov -n0`，覆盖：开关开/关；150 章 42 万字整本试拆接受，只存前 20 章且与整本切分一致；前 N 章超限时 400 带字数、不占试用；付费整本仍拒绝；两次派发失败后再成功，列表只剩成功那本；升级后重试试拆书仍带章数上限。
+- 后端：`venv/bin/python -m pytest tests/test_api/test_materials_trial.py tests/test_api/test_materials.py tests/test_services/test_novel_text.py tests/test_flows/integration/test_novel_ingestion_stage0.py -q --no-cov -n0`，覆盖：开关开/关；150 章 42 万字整本试拆接受，只存前 20 章且与整本切分一致；前 N 章超限时 400 带字数、不占试用；付费整本仍拒绝；有素材库权益、试拆还没用过的作者上传 30 章整本时走付费路径，存满 30 章、扣 1 次月度拆解、试拆仍未使用；两次派发失败后再成功，列表只剩成功那本；升级后重试试拆书仍带章数上限。
 - 前端：`pnpm --dir apps/web exec vitest run src/lib/__tests__/novelChapterSplit.test.ts src/lib/__tests__/materialUploadValidation.test.ts src/lib/__tests__/materialsApi.test.ts src/pages/__tests__/MaterialsPage.test.tsx src/pages/__tests__/MaterialDetailPage.test.tsx`，覆盖：试用上传的是作者选的原文件；GBK 文件也能数章；超限错误保留 `error_detail`；空白字符的切分与服务端一致。
 - 未验证：真实 Prefect worker 对截断文件的拆解（本地无 Prefect，派发均为 mock）；浏览器实测。

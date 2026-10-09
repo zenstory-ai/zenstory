@@ -16,6 +16,7 @@ Status: implemented
   - 技能上限（`SkillsPage`）：「删掉不用的技能就能腾出名额。」
   - 文件版本上限（`Editor`、`FileVersionHistory`、`ChatPanel`）：「正文照常保存，只是这个文件不再生成新版本。」
   - 灵感复制月额度（`InspirationGrid`）：「北京时间下月 1 日 00:00 恢复。」
+  - 素材库弹窗（`MaterialsUpgradePromptModal`）：本月拆解次数用完时，用素材页同一句「本月 {{limit}} 次拆解已用完，将于 {{resetAt}} 恢复。已拆好的内容仍可查看和引用。」，`resetAt` 取额度接口的 `reset_at` 按北京时间显示，缺失时写「下月 1 日」（月度额度按北京自然月重置）；没用完时不传，退回通用句。月度上传次数（`material_uploads`）上传时并不检查，不提。素材页本身撞到月度拆解上限时走 `ERR_QUOTA_EXCEEDED` 的页内提示，不弹这个弹窗。
   - 项目数、导出：Pro 不会撞到（项目不限，导出格式两档相同），不传。
 - `usePaidPlanWhenOpen` 每次渲染都先读 react-query 里已有的 `/subscription/me`（弹窗挂载后页面才取到的也算），套餐未知时 `resolved=false`；4 秒内仍没有答案时按免费处理，避免弹窗一直空着。
 - `UpgradePromptModal` 在 `open && !resolved` 时只显示标题和骨架占位，不显示「开通 Pro」、升级说明或「知道了」，也不记曝光；套餐确定后再渲染免费或付费分支。
