@@ -28,10 +28,13 @@ export function rememberNextStepDismissed(projectId: string): void {
   }
 }
 
-// "写第一章…" / "先写第1集剧本…" / "开始写正文" / "动笔写开篇…" / "开始创作第一章"
-const WRITE_FIRST_UNIT_ZH = /(?:写|动笔|开写|创作)[^，。,.!?！？]{0,4}?(?:第\s*[一1１]\s*[章集]|正文|开篇)/;
+// "写第一章…" / "先写第1集剧本…" / "开始写正文" / "动笔写开篇…" / "开始创作第一章" / "写第一篇"
+const WRITE_FIRST_UNIT_ZH = /(?:写|动笔|开写|创作)[^，。,.!?！？]{0,4}?(?:第\s*[一1１]\s*[章集篇]|正文|开篇)/;
+// "开始第一章" / "进入正文": no writing verb, but the unit follows the start word directly.
+// Kept adjacent so "开始设计开篇钩子" (a different task) is not caught.
+const START_FIRST_UNIT_ZH = /(?:开始|着手|进入)(?:第\s*[一1１]\s*[章集篇]|正文)/;
 // "写第一章前先补人物小传": chapter 1 is only the time reference, the chip offers something else.
-const BEFORE_FIRST_UNIT = /(?:第\s*[一1１]\s*[章集]|正文|开篇)(?:之)?前/;
+const BEFORE_FIRST_UNIT = /(?:第\s*[一1１]\s*[章集篇]|正文|开篇)(?:之)?前/;
 const WRITE_FIRST_UNIT_EN = /\b(?:write|start|draft)\b.{0,20}\b(?:chapter (?:1|one)|episode (?:1|one)|the opening|the story)\b/i;
 // "先补第一章细纲" / "写第一章大纲" plan chapter 1 rather than write it ("按大纲写第一章" still writes).
 const PLANNING = /细纲|梗概|(?:补|改|调|完善|细化|写|出)[^，。,.]{0,4}大纲|\boutline (?:for|of)\b|\b(?:revise|adjust|refine|expand)\b.*\boutline\b/i;
@@ -44,5 +47,5 @@ const PLANNING = /细纲|梗概|(?:补|改|调|完善|细化|写|出)[^，。,.]
 export function duplicatesNextStep(suggestion: string): boolean {
   const text = suggestion.trim();
   if (!text || PLANNING.test(text) || BEFORE_FIRST_UNIT.test(text)) return false;
-  return WRITE_FIRST_UNIT_ZH.test(text) || WRITE_FIRST_UNIT_EN.test(text);
+  return WRITE_FIRST_UNIT_ZH.test(text) || START_FIRST_UNIT_ZH.test(text) || WRITE_FIRST_UNIT_EN.test(text);
 }

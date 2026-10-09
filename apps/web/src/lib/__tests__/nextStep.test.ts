@@ -16,6 +16,11 @@ describe('duplicatesNextStep', () => {
     '按大纲动笔写开篇',
     '按大纲写第一章',
     '开始创作第一章',
+    '开始第一章',
+    '着手第1集',
+    '进入正文吧',
+    '写第一篇小说正文',
+    '开写第一篇',
     'Write chapter 1 with the countdown',
   ])('treats %j as the same action as the card', (chip) => {
     expect(duplicatesNextStep(chip)).toBe(true)
@@ -29,6 +34,9 @@ describe('duplicatesNextStep', () => {
     '接着写第二章',
     '写第 10 章',
     '写第一章前先补人物小传',
+    '开始设计开篇钩子',
+    '开始补第一章细纲',
+    '进入第二章',
     'Add a rival to the outline',
   ])('keeps %j, which offers a different direction', (chip) => {
     expect(duplicatesNextStep(chip)).toBe(false)

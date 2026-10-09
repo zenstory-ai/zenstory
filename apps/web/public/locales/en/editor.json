@@ -19,7 +19,9 @@
     "exportQuotaBlockedTitle": "This export is not available on your current plan",
     "exportQuotaBlockedDesc": "Upgrade your plan to use this export.",
     "exportWithOutline": "Export outline and text (TXT)",
-    "exportWithOutlineSuccess": "Outline and text exported as a TXT file"
+    "exportWithOutlineSuccess": "Outline and text exported as a TXT file",
+    "exportOutlineSkipped": "Only the text was exported this time. The outline could not be included; please try again in a few minutes.",
+    "exportDone": "Exported as a TXT file"
   },
   "fileTree": {
     "ariaLabel": "File tree",

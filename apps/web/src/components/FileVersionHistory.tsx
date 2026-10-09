@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import {
   History,
   RotateCcw,
@@ -80,6 +80,12 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const [currentVersionNumber, setCurrentVersionNumber] = useState<number | null>(null);
   const rollbackInFlightRef = useRef(false);
   const [preview, setPreview] = useState<{ content: string; versionNumber: number } | null>(null);
+  // Phones hide the list (display:none) while a preview or comparison is open,
+  // which drops its scroll position; remember it so closing returns to the row.
+  const outerListRef = useRef<HTMLDivElement>(null);
+  const innerListRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef({ outer: 0, inner: 0 });
+  const listHidden = showComparison || preview !== null;
   const listRequestGenerationRef = useRef(0);
   const fileContextGenerationRef = useRef(0);
   const translateRef = useRef(t);
@@ -154,12 +160,19 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     setIsRollingBack(false);
     setPreview(null);
     setLoadingMore(false);
+    listScrollRef.current = { outer: 0, inner: 0 };
     void loadVersions(0, false);
     return () => {
       fileContextGenerationRef.current += 1;
       listRequestGenerationRef.current += 1;
     };
   }, [loadVersions]);
+
+  useLayoutEffect(() => {
+    if (listHidden) return;
+    if (outerListRef.current) outerListRef.current.scrollTop = listScrollRef.current.outer;
+    if (innerListRef.current) innerListRef.current.scrollTop = listScrollRef.current.inner;
+  }, [listHidden]);
 
   const handleSelectVersion = (versionNumber: number) => {
     if (selectedVersions.includes(versionNumber)) {
@@ -490,6 +503,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       <div className="flex-1 overflow-hidden flex">
         {/* Version List */}
         <div
+          ref={outerListRef}
+          onScroll={(e) => {
+            if (!listHidden) listScrollRef.current.outer = e.currentTarget.scrollTop;
+          }}
           data-testid="version-list"
           // Under 768px the list is too narrow beside a preview (one character per
           // line), so the preview takes the whole dialog and closing it returns here.
@@ -514,7 +531,15 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           )}
 
           {!loading && !error && versions.length > 0 && (
-            <div className="divide-y divide-[hsl(var(--border-color))] overflow-y-auto" style={{ height: 600 }}>
+            <div
+              ref={innerListRef}
+              onScroll={(e) => {
+                if (!listHidden) listScrollRef.current.inner = e.currentTarget.scrollTop;
+              }}
+              data-testid="version-list-rows"
+              className="divide-y divide-[hsl(var(--border-color))] overflow-y-auto"
+              style={{ height: 600 }}
+            >
               {versions.map((version, index) => (
                 <VersionRowWrapper
                   key={version.version_number}
