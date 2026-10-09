@@ -73,6 +73,8 @@ Status: implemented
 - `apps/web/.env.example` 写的是 `VITE_FORGOT_PASSWORD_ENABLED=true`，与代码默认一致（只有字面量 `false` 才隐藏入口）。代价：部署环境如果还设置了这个变量为 false，需要删掉。
 - 版本错开：Vercel 可能先于 Railway 上线，这段时间前端请求会得到 404，页面会回退到「发邮件给客服」；先上线后端则没有影响（新接口暂时没有调用方）。
 
+- 上线配置：Vercel 项目 ergou-ai 的 `VITE_FORGOT_PASSWORD_ENABLED` 在 Production 与 Preview 原本显式设为 `"false"`（当时还没有自助重置，只能发邮件找客服）。2026-10-09 随本次发布改为 `"true"`，Development 环境未改。这是构建时变量，下一次构建才生效。回退方法：改回 `"false"` 并重新部署前端。staging 没有配置邮件服务，所以重置邮件只能在生产环境验证。
+
 ## Verification
 
 - pytest（本地拉起的 Redis；CI 中使用 `ZENSTORY_TEST_REDIS_URL`）：`tests/test_api/test_password_reset.py`、`tests/test_services/test_password_reset_service.py`、`tests/test_api/test_access_token_password_fingerprint.py` 共 24 项通过。覆盖内容：已注册和未注册邮箱的响应相同；请求接口有时间下限；未验证或已停用的账号不发信；冷却期内不重复发信；IP 和邮箱限流返回 429；确认接口按 IP 限流；账号不存在和验证码错误返回同一个错误；错 5 次后正确的码也失效；过期失效；密码规则；成功后旧密码不能登录、新密码可以登录，旧 access token 和 refresh token 都返回 401，记录的撤销原因是 `password_reset`，验证码不能重放；注册验证码不能用来重置；所有日志记录里都没有验证码；只存哈希且 TTL 正确；原子消费；并发两次确认只成功一次；Redis 消费失败时不会改密码；发信失败可以立即重发；`pwf` 签发；旧 token 放行；change-password 后旧 token 在 `/me` 和 `validate-token` 都失效；optional 依赖返回 None。把 `pwf` 校验临时关掉时，其中 3 项会失败。
