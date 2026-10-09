@@ -309,7 +309,14 @@ class FileUpdate(BaseModel):
         ),
     )
     change_summary: str | None = None
-    skip_version: bool = False
+    skip_version: bool = Field(
+        default=False,
+        description=(
+            "Deprecated wire-compatibility flag. Content changes are always "
+            "versioned: consecutive manual edits coalesce into the latest user "
+            "version inside USER_VERSION_COALESCE_WINDOW_SECONDS."
+        ),
+    )
     base_updated_at: datetime | None = Field(
         default=None,
         description=(
@@ -1003,7 +1010,34 @@ def update_file(
         from services.file_version import get_file_version_service
 
         file_version_service = get_file_version_service()
-        create_version_needed = content_changed and not file_data.skip_version
+        # skip_version 只为兼容旧客户端保留：正文有变化时一律「合并或新建」版本。
+        # 旧编辑器对 ≤10 字的改动发 skip_version，结果这些小改动永远进不了历史，
+        # 下一次恢复就会把它们冲掉。现在连续的手动编辑在时间窗内合并进同一个版本，
+        # 历史不会被小改动刷屏，也不会漏掉任何一次保存。
+        create_version_needed = content_changed
+        if content_changed and change_type == CHANGE_TYPE_EDIT:
+            coalesce_target = file_version_service.find_coalescible_user_version(
+                session, file
+            )
+            if coalesce_target is not None:
+                try:
+                    # 合并改写已有版本，不占新额度，额度已满也照常进行。
+                    with session.begin_nested():
+                        file_version_service.amend_latest_user_version(
+                            session, coalesce_target, file.content
+                        )
+                    create_version_needed = False
+                except Exception as e:
+                    log_with_context(
+                        logger,
+                        logging.WARNING,
+                        "Failed to coalesce save into latest user version; creating a new version",
+                        error=str(e),
+                        file_id=file.id,
+                        version_number=coalesce_target.version_number,
+                        operation="update_file_coalesce_version",
+                    )
+
         if create_version_needed:
             has_quota, used_versions, max_versions = (
                 file_version_service.check_user_version_quota(

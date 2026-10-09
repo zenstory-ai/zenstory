@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from "../lib/logger";
 import {
@@ -11,11 +11,19 @@ import {
   FileText,
   Folder,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { versionApi } from '../lib/api';
+import { fileVersionApi, versionApi } from '../lib/api';
 import { formatFullDate } from '../lib/dateUtils';
-import type { SnapshotComparison } from '../types';
+import type { SnapshotComparison, VersionComparison } from '../types';
 import { Modal } from './ui/Modal';
+import { DiffViewer } from './DiffViewer';
+
+type FileDiffState =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'loaded'; comparison: VersionComparison };
 
 interface SnapshotComparisonDialogProps {
   snapshotId1: string;
@@ -32,9 +40,17 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
   const [comparison, setComparison] = useState<SnapshotComparison | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Per-file text diffs load lazily the first time a writer opens them and
+  // stay cached while the dialog is open, so collapsing is free.
+  const [fileDiffs, setFileDiffs] = useState<Record<string, FileDiffState>>({});
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(() => new Set());
+  const comparisonGeneration = useRef(0);
 
   useEffect(() => {
     let isCurrent = true;
+    comparisonGeneration.current += 1;
+    setFileDiffs({});
+    setExpandedFiles(new Set());
 
     const loadComparison = async () => {
       setLoading(true);
@@ -64,6 +80,67 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
     };
   }, [snapshotId1, snapshotId2, t]);
 
+  const loadFileDiff = async (fileId: string, oldVersion: number, newVersion: number) => {
+    const generation = comparisonGeneration.current;
+    setFileDiffs((current) => ({ ...current, [fileId]: { status: 'loading' } }));
+    try {
+      const result = await fileVersionApi.compare(fileId, oldVersion, newVersion);
+      if (generation !== comparisonGeneration.current) return;
+      setFileDiffs((current) => ({ ...current, [fileId]: { status: 'loaded', comparison: result } }));
+    } catch (err) {
+      if (generation !== comparisonGeneration.current) return;
+      logger.error('Failed to load file diff for snapshot comparison:', err);
+      setFileDiffs((current) => ({ ...current, [fileId]: { status: 'error' } }));
+    }
+  };
+
+  const toggleFileDiff = (fileId: string, oldVersion: number, newVersion: number) => {
+    const isExpanded = expandedFiles.has(fileId);
+    setExpandedFiles((current) => {
+      const next = new Set(current);
+      if (isExpanded) next.delete(fileId);
+      else next.add(fileId);
+      return next;
+    });
+    if (!isExpanded) {
+      const state = fileDiffs[fileId];
+      if (!state || state.status === 'error') void loadFileDiff(fileId, oldVersion, newVersion);
+    }
+  };
+
+  const renderFileDiff = (fileId: string, oldVersion: number, newVersion: number) => {
+    if (!expandedFiles.has(fileId)) return null;
+    const state = fileDiffs[fileId];
+    if (!state || state.status === 'loading') {
+      return (
+        <div className="flex items-center gap-2 py-3 text-xs text-[hsl(var(--text-secondary))]">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          {t('editor:versionHistory.loadingChanges')}
+        </div>
+      );
+    }
+    if (state.status === 'error') {
+      return (
+        <div role="alert" className="flex items-center gap-2 py-3 text-xs text-[hsl(var(--error))]">
+          <AlertCircle className="w-4 h-4" />
+          <span>{t('editor:versionHistory.diffLoadFailed')}</span>
+          <button
+            type="button"
+            onClick={() => void loadFileDiff(fileId, oldVersion, newVersion)}
+            className="underline hover:no-underline"
+          >
+            {t('common:retry')}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="mt-2 max-h-[40vh] overflow-auto rounded border border-[hsl(var(--border-color))]">
+        <DiffViewer comparison={state.comparison} defaultViewMode="inline" showLineNumbers={false} />
+      </div>
+    );
+  };
+
   const getFileTypeIcon = (fileType?: string | null) => {
     return fileType === 'folder'
       ? <Folder className="w-4 h-4" />
@@ -87,7 +164,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
     <Modal
       open={true}
       onClose={onClose}
-      size="lg"
+      size="xl"
       title={
         <div className="flex items-center gap-2">
           <GitCompare className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
@@ -249,11 +326,20 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                   {t('editor:versionHistory.modifiedFiles')}
                 </h3>
                 <div className="space-y-2">
-                  {comparison.changes.modified.map((file) => (
+                  {comparison.changes.modified.map((file) => {
+                    // A text diff needs two distinct recorded file versions.
+                    const diffRange = file.old_version != null
+                      && file.new_version != null
+                      && file.old_version !== file.new_version
+                      ? { from: file.old_version, to: file.new_version }
+                      : null;
+                    const isExpanded = expandedFiles.has(file.file_id);
+                    return (
                     <div
                       key={file.file_id}
-                      className="flex items-center gap-3 p-3 bg-[hsl(var(--warning)/0.05)] border border-[hsl(var(--warning)/0.2)] rounded-lg"
+                      className="p-3 bg-[hsl(var(--warning)/0.05)] border border-[hsl(var(--warning)/0.2)] rounded-lg"
                     >
+                      <div className="flex items-center gap-3">
                       <div className="text-[hsl(var(--warning))]">
                         {getFileTypeIcon(file.new_file_type || file.old_file_type)}
                       </div>
@@ -293,8 +379,22 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                           </div>
                         ) : null}
                       </div>
+                      {diffRange && (
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          onClick={() => toggleFileDiff(file.file_id, diffRange.from, diffRange.to)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs rounded text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                        >
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          {isExpanded ? t('editor:versionHistory.hideChanges') : t('editor:versionHistory.viewChanges')}
+                        </button>
+                      )}
+                      </div>
+                      {diffRange && renderFileDiff(file.file_id, diffRange.from, diffRange.to)}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -202,6 +202,12 @@ export interface FileVersionListResponse {
   total: number;
   file_id: string;
   file_title: string;
+  /**
+   * First page only: the listed version whose content equals the live file
+   * text, or null when the file has edits that are not in history yet.
+   * Absent from older servers; treat a missing value as "unknown".
+   */
+  current_version_number?: number | null;
 }
 
 /**

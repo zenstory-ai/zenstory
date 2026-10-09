@@ -389,12 +389,12 @@ class TestExportDraftsToTxt:
         assert lines[6] == "第三章"
 
     def test_export_strips_whitespace_from_content(self, db_session: Session, test_project, test_user, create_draft_file):
-        """Test that leading/trailing whitespace is stripped from content."""
-        create_draft_file("第一章", "  这是内容。  \n\n", order=1)
+        """Leading blank lines and trailing whitespace go; first-line indent stays."""
+        create_draft_file("第一章", "\n  这是内容。  \n\n", order=1)
 
         exported = export_drafts_to_txt(db_session, test_project.id)
 
-        assert exported == "第一章\n\n这是内容。"
+        assert exported == "第一章\n\n  这是内容。"
 
     def test_export_handles_empty_content(self, db_session: Session, test_project, test_user, create_draft_file):
         """Test exporting chapter with empty content."""

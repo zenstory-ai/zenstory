@@ -4,9 +4,14 @@ import { VersionHistoryPanel } from '../VersionHistoryPanel'
 import * as React from 'react'
 import * as api from '../../lib/api'
 
-const { mockLoggerError, mockLoggerWarn } = vi.hoisted(() => ({
+const { mockLoggerError, mockLoggerWarn, mockToastError } = vi.hoisted(() => ({
   mockLoggerError: vi.fn(),
   mockLoggerWarn: vi.fn(),
+  mockToastError: vi.fn(),
+}))
+
+vi.mock('../../lib/toast', () => ({
+  toast: { error: mockToastError, success: vi.fn(), info: vi.fn() },
 }))
 
 // Mock API calls
@@ -75,6 +80,10 @@ const mockT = vi.fn((key: string) => {
     'editor:versionHistory.addDescription': 'Add a description',
     'editor:versionHistory.noDescription': 'No description',
     'editor:versionHistory.confirmRollback': 'Are you sure you want to rollback?',
+    'editor:versionHistory.confirmRollbackTitle': 'Restore this snapshot?',
+    'editor:versionHistory.confirmRollbackButton': 'Restore',
+    'common:cancel': 'Cancel',
+    'common:close': 'Close panel',
     'editor:versionHistory.rollbackFailed': 'Rollback failed',
     'editor:versionHistory.files': 'files',
     'editor:versionHistory.folders': 'folders',
@@ -94,11 +103,15 @@ vi.mock('react-i18next', () => ({
   I18nextProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
 
+const confirmRestore = async () => {
+  fireEvent.click(await screen.findByRole('button', { name: 'Restore' }))
+}
+
 const mockSnapshots = [
   {
     id: 'snap-1',
     created_at: '2024-01-01T12:00:00Z',
-    description: 'Initial version',
+    description: 'First outline pass',
     snapshot_type: 'manual',
     data: JSON.stringify({
       file_versions: [{ id: 'v1', content: 'Version 1 content' }],
@@ -133,7 +146,6 @@ describe('VersionHistoryPanel', () => {
     vi.mocked(api.versionApi.getSnapshots).mockReset().mockResolvedValue(mockSnapshots)
     vi.mocked(api.versionApi.updateSnapshot).mockReset().mockResolvedValue(undefined)
     vi.mocked(api.versionApi.rollback).mockReset().mockResolvedValue(undefined)
-    global.confirm = vi.fn(() => true)
   })
 
   afterEach(() => {
@@ -149,7 +161,7 @@ describe('VersionHistoryPanel', () => {
       />
     )
 
-    expect(screen.getByText(/version.*history/i)).toBeInTheDocument()
+    expect(screen.getByText('Version History')).toBeInTheDocument()
   })
 
   it('displays loading state initially', () => {
@@ -174,7 +186,7 @@ describe('VersionHistoryPanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Initial version')).toBeInTheDocument()
+      expect(screen.getByText('First outline pass')).toBeInTheDocument()
       expect(screen.getByText('After AI edit')).toBeInTheDocument()
     })
   })
@@ -218,7 +230,7 @@ describe('VersionHistoryPanel', () => {
 
     // First wait for the snapshots to load
     await waitFor(() => {
-      expect(screen.getByText('Initial version')).toBeInTheDocument()
+      expect(screen.getByText('First outline pass')).toBeInTheDocument()
     })
 
     // Then check for file and folder count labels
@@ -270,7 +282,7 @@ describe('VersionHistoryPanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Initial version')).toBeInTheDocument()
+      expect(screen.getByText('First outline pass')).toBeInTheDocument()
     })
 
     // Click first compare button - use the translated title text
@@ -301,7 +313,7 @@ describe('VersionHistoryPanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Initial version')).toBeInTheDocument()
+      expect(screen.getByText('First outline pass')).toBeInTheDocument()
     })
 
     const compareButtons = screen.getAllByTitle('Select for comparison')
@@ -336,9 +348,10 @@ describe('VersionHistoryPanel', () => {
     // Select the second saved snapshot.
     const rollbackButtons = screen.getAllByTitle('Rollback to this version')
     fireEvent.click(rollbackButtons[1])
+    expect(api.versionApi.rollback).not.toHaveBeenCalled()
+    await confirmRestore()
 
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalled()
       expect(api.versionApi.rollback).toHaveBeenCalledWith('snap-2')
       expect(mockOnRollback).toHaveBeenCalledWith('snap-2')
       // The parent reconciles/closes the panel; do not request throwaway history.
@@ -347,8 +360,6 @@ describe('VersionHistoryPanel', () => {
   })
 
   it('does not rollback if user cancels confirmation', async () => {
-    global.confirm = vi.fn(() => false)
-
     render(
       <VersionHistoryPanel
         projectId="project-1"
@@ -363,11 +374,13 @@ describe('VersionHistoryPanel', () => {
 
     const rollbackButtons = screen.getAllByTitle('Rollback to this version')
     fireEvent.click(rollbackButtons[0])
+    expect(await screen.findByText('Are you sure you want to rollback?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalled()
-      expect(api.versionApi.rollback).not.toHaveBeenCalled()
+      expect(screen.queryByText('Are you sure you want to rollback?')).not.toBeInTheDocument()
     })
+    expect(api.versionApi.rollback).not.toHaveBeenCalled()
   })
 
   it('offers rollback to the latest saved snapshot without claiming it is live state', async () => {
@@ -377,6 +390,7 @@ describe('VersionHistoryPanel', () => {
     const rollbackButtons=screen.getAllByTitle('Rollback to this version')
     expect(rollbackButtons).toHaveLength(mockSnapshots.length)
     fireEvent.click(rollbackButtons[0])
+    await confirmRestore()
     await waitFor(()=>expect(api.versionApi.rollback).toHaveBeenCalledWith('snap-1'))
   })
 
@@ -389,7 +403,7 @@ describe('VersionHistoryPanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Initial version')).toBeInTheDocument()
+      expect(screen.getByText('First outline pass')).toBeInTheDocument()
     })
 
     // Get all buttons with Edit2 icon (small w-3.5 h-3.5 icons next to description)
@@ -419,7 +433,7 @@ describe('VersionHistoryPanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Initial version')).toBeInTheDocument()
+      expect(screen.getByText('First outline pass')).toBeInTheDocument()
     })
 
     // Get all buttons and find edit button by its icon class pattern
@@ -465,7 +479,7 @@ describe('VersionHistoryPanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Initial version')).toBeInTheDocument()
+      expect(screen.getByText('First outline pass')).toBeInTheDocument()
     })
 
     // Get all buttons and find edit button by its icon class pattern
@@ -639,7 +653,7 @@ describe('VersionHistoryPanel', () => {
     await screen.findByText('Current project')
     await act(async () => { resolveOld(mockSnapshots); await old })
     expect(screen.getByText('Current project')).toBeInTheDocument()
-    expect(screen.queryByText('Initial version')).not.toBeInTheDocument()
+    expect(screen.queryByText('First outline pass')).not.toBeInTheDocument()
   })
 
   it('retries an initial history-load error without closing the panel', async () => {
@@ -647,7 +661,7 @@ describe('VersionHistoryPanel', () => {
     render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
     await screen.findByText('Failed to load versions')
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     expect(mockOnClose).not.toHaveBeenCalled()
   })
 
@@ -656,12 +670,14 @@ describe('VersionHistoryPanel', () => {
     const pending = new Promise<void>((resolve) => { finish = resolve })
     vi.mocked(api.versionApi.rollback).mockReturnValueOnce(pending)
     render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     const rollback = screen.getAllByTitle('Rollback to this version')[0]
     const close = screen.getAllByRole('button').find((button) => button.querySelector('.lucide-x') && button.className.includes('rounded-md'))!
     try {
       fireEvent.click(rollback)
+      await confirmRestore()
       fireEvent.click(rollback)
+      expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument()
       expect(close).toBeDisabled()
       fireEvent.click(close)
       expect(mockOnClose).not.toHaveBeenCalled()
@@ -676,7 +692,7 @@ describe('VersionHistoryPanel', () => {
   it('shows description update failures instead of silently logging them', async () => {
     vi.mocked(api.versionApi.updateSnapshot).mockRejectedValueOnce(new Error('update failed'))
     render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     const edit = screen.getAllByRole('button').find((button) => {
       const icon = button.querySelector('svg')
       return icon?.classList.contains('w-3.5') && icon.classList.contains('h-3.5')
@@ -694,9 +710,10 @@ describe('VersionHistoryPanel', () => {
     const pending = new Promise<void>((resolve) => { finish = resolve })
     vi.mocked(api.versionApi.rollback).mockReturnValueOnce(pending)
     const view = render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     try {
       fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+      await confirmRestore()
       activeTranslator = vi.fn((key: string) => mockT(key))
       view.rerender(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
       const close = screen.getAllByRole('button').find((button) => button.querySelector('.lucide-x') && button.className.includes('rounded-md'))!
@@ -776,8 +793,9 @@ describe('VersionHistoryPanel', () => {
     const pending = new Promise<void>((resolve) => { finish = resolve })
     mockOnRollback.mockReturnValueOnce(pending)
     render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+    await confirmRestore()
     try {
       await waitFor(() => expect(mockOnRollback).toHaveBeenCalledOnce())
       const close = screen.getAllByRole('button').find((button) => button.querySelector('.lucide-x') && button.className.includes('rounded-md'))!
@@ -797,9 +815,11 @@ describe('VersionHistoryPanel', () => {
     vi.stubGlobal('alert', alert)
     vi.mocked(api.versionApi.rollback).mockRejectedValueOnce(new Error('Restore failed'))
     render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
-    await waitFor(() => expect(alert).toHaveBeenCalledWith('Rollback failed'))
+    await confirmRestore()
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Rollback failed'))
+    expect(alert).not.toHaveBeenCalled()
     expect(screen.getAllByTitle('Rollback to this version')[0]).toBeEnabled()
     expect(mockOnRollback).not.toHaveBeenCalled()
     expect(mockOnClose).not.toHaveBeenCalled()
@@ -810,10 +830,11 @@ describe('VersionHistoryPanel', () => {
     const pending = new Promise<void>((resolve) => { finish = resolve })
     vi.mocked(api.versionApi.rollback).mockReturnValueOnce(pending)
     const view = render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+    await confirmRestore()
     view.rerender(<VersionHistoryPanel projectId="project-2" onClose={mockOnClose} onRollback={mockOnRollback} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     await act(async () => { finish(); await pending })
     expect(mockOnRollback).not.toHaveBeenCalled()
     expect(screen.getAllByTitle('Rollback to this version')[0]).toBeEnabled()
@@ -826,7 +847,7 @@ describe('VersionHistoryPanel', () => {
     vi.mocked(api.versionApi.updateSnapshot).mockReturnValueOnce(pending)
     vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce(mockSnapshots).mockResolvedValueOnce([{ ...mockSnapshots[0], description: 'Current outline' }])
     const view = render(<VersionHistoryPanel projectId="project-1" outlineId="outline-a" onClose={mockOnClose} />)
-    await screen.findByText('Initial version')
+    await screen.findByText('First outline pass')
     const edit = screen.getAllByRole('button').find((button) => button.querySelector('svg.w-3\\.5.h-3\\.5'))!
     fireEvent.click(edit)
     fireEvent.change(screen.getByPlaceholderText('Add a description'), { target: { value: 'Old outline description' } })
@@ -859,5 +880,59 @@ describe('VersionHistoryPanel', () => {
     expect(screen.getByText('Page row 0')).toBeInTheDocument()
     expect(api.versionApi.getSnapshots).toHaveBeenCalledTimes(2)
     expect(screen.getAllByTitle('Select for comparison')).toHaveLength(51)
+  })
+
+  it('closes on Escape like other dialogs', async () => {
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    await screen.findByText('First outline pass')
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Version History')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(mockOnClose).toHaveBeenCalledOnce()
+  })
+
+  it('ignores Escape while a restore is still reconciling', async () => {
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => { finish = resolve })
+    vi.mocked(api.versionApi.rollback).mockReturnValueOnce(pending)
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('First outline pass')
+    fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+    await confirmRestore()
+    try {
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(mockOnClose).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => { finish(); await pending })
+    }
+  })
+
+  it('confirms restores in an in-app dialog, never the native confirm', async () => {
+    const nativeConfirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', nativeConfirm)
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('First outline pass')
+    fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+
+    const dialog = await screen.findByRole('dialog', { name: 'Restore this snapshot?' })
+    expect(dialog).toHaveTextContent('Are you sure you want to rollback?')
+    // Escape dismisses only the confirmation, not the snapshot panel.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Restore this snapshot?' })).not.toBeInTheDocument())
+    expect(mockOnClose).not.toHaveBeenCalled()
+    expect(api.versionApi.rollback).not.toHaveBeenCalled()
+    expect(nativeConfirm).not.toHaveBeenCalled()
+  })
+
+  it('shows machine-written snapshot descriptions in plain language', async () => {
+    vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce([
+      { ...mockSnapshots[0], description: 'AI 对话完成 - 文件已修改' },
+      { ...mockSnapshots[1], description: 'Before rollback to snapshot 0f8fad5b-d9cb-469f-a165-70867728950e' },
+    ])
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    expect(await screen.findByText('versions:summary.aiRunCheckpoint')).toBeInTheDocument()
+    expect(screen.getByText('versions:summary.beforeRestore')).toBeInTheDocument()
+    expect(screen.queryByText(/0f8fad5b/)).not.toBeInTheDocument()
   })
 })

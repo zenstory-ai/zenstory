@@ -2000,8 +2000,8 @@ async def test_update_file_respects_ai_review_version_intent(client: AsyncClient
 
 
 @pytest.mark.integration
-async def test_update_file_skip_version_does_not_create_version(client: AsyncClient, db_session):
-    """Test skip_version updates content but does not create file versions."""
+async def test_update_file_skip_version_still_records_content_change(client: AsyncClient, db_session):
+    """skip_version is a deprecated wire flag: content changes are still versioned."""
     from services.core.auth_service import hash_password
 
     user = User(
@@ -2034,7 +2034,7 @@ async def test_update_file_skip_version_does_not_create_version(client: AsyncCli
     versions = db_session.exec(
         select(FileVersion).where(FileVersion.file_id == file.id)
     ).all()
-    assert versions == []
+    assert [(v.change_source, v.content) for v in versions] == [("user", "New content")]
 
 
 @pytest.mark.integration
@@ -2108,6 +2108,11 @@ async def test_update_file_saves_content_when_file_version_quota_exceeded(client
         headers=headers,
     )
     assert first_version_response.status_code == 200
+    # 离开合并窗口：这次保存只能新建版本，从而撞上额度（窗口内会合并进已有版本）。
+    first_version = db_session.get(FileVersion, first_version_response.json()["id"])
+    first_version.created_at -= timedelta(minutes=30)
+    db_session.add(first_version)
+    db_session.commit()
 
     response = await client.put(
         f"/api/v1/files/{file.id}",

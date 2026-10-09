@@ -15,6 +15,10 @@ vi.mock('../subscription/UpgradePromptModal', () => ({
 }))
 import { FileVersionHistory } from '../FileVersionHistory'
 
+const confirmRestore = async () => {
+  fireEvent.click(await screen.findByRole('button', { name: 'rollbackConfirmButton' }))
+}
+
 const version = (n: number) => ({ id:`version-${n}`,version_number:n,change_type:'edit',change_source:'user',created_at:'2026-10-04T00:00:00Z',word_count:10,lines_added:1,lines_removed:0 })
 
 const deferred = <T,>() => {
@@ -34,14 +38,14 @@ describe('FileVersionHistory saved-state boundary', () => {
   })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('allows restoring the latest saved version when unversioned edits may have advanced', async () => {
-    getVersions.mockResolvedValue({ total:1, versions:[version(3)] })
+  it('allows restoring the version that matches the current text', async () => {
+    getVersions.mockResolvedValue({ total:1, versions:[version(3)], current_version_number: 3 })
     rollback.mockResolvedValue({})
-    vi.stubGlobal('confirm',vi.fn(()=>true))
     const onRollback=vi.fn()
     render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} onRollback={onRollback} />)
-    expect(await screen.findByText('latestSaved')).toBeInTheDocument()
+    expect(await screen.findByText('currentText')).toBeInTheDocument()
     fireEvent.click(screen.getByTitle('rollback'))
+    await confirmRestore()
     await waitFor(()=>expect(rollback).toHaveBeenCalledWith('file-1',3))
     await waitFor(()=>expect(onRollback).toHaveBeenCalledWith(3))
   })
@@ -49,10 +53,10 @@ describe('FileVersionHistory saved-state boundary', () => {
   it('still allows closing before restore submission and cancels the pending preparation', async () => {
     const preparing = deferred<void>()
     getVersions.mockResolvedValue({ total: 1, versions: [version(3)] })
-    vi.stubGlobal('confirm', vi.fn(() => true))
     const onClose = vi.fn()
     const { unmount } = render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={onClose} onBeforeRollback={() => preparing.promise} />)
     fireEvent.click(await screen.findByTitle('rollback'))
+    await confirmRestore()
     fireEvent.click(screen.getByRole('button', { name: 'common:close' }))
     expect(onClose).toHaveBeenCalledTimes(1)
     unmount()
@@ -77,10 +81,10 @@ describe('FileVersionHistory saved-state boundary', () => {
   it('shows the rollbackFailed toast and does not report a rollback when restoring fails for a non-quota reason', async () => {
     getVersions.mockResolvedValue({ total:1, versions:[version(3)] })
     rollback.mockRejectedValue(new Error('server error'))
-    vi.stubGlobal('confirm',vi.fn(()=>true))
     const onRollback=vi.fn()
     render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} onRollback={onRollback} />)
     fireEvent.click(await screen.findByTitle('rollback'))
+    await confirmRestore()
     await waitFor(()=>expect(toastError).toHaveBeenCalledWith('rollbackFailed'))
     expect(rollback).toHaveBeenCalledWith('file-1',3)
     expect(onRollback).not.toHaveBeenCalled()
@@ -144,10 +148,10 @@ describe('FileVersionHistory saved-state boundary', () => {
       snapshot_created: false,
       version_quota_exceeded: true,
     })
-    vi.stubGlobal('confirm', vi.fn(() => true))
 
     render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
     fireEvent.click(await screen.findByTitle('rollback'))
+    await confirmRestore()
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('quota.limitDescription'))
     expect(screen.getByTestId('upgrade-modal')).toBeInTheDocument()
@@ -203,7 +207,6 @@ describe('FileVersionHistory saved-state boundary', () => {
       .mockResolvedValueOnce({ total: 1, versions: [version(3)] })
       .mockResolvedValueOnce({ total: 1, versions: [version(8)] })
     rollback.mockReturnValueOnce(rollbackResult.promise)
-    vi.stubGlobal('confirm', vi.fn(() => true))
     const onRollback = vi.fn()
 
     const { rerender } = render(
@@ -215,6 +218,7 @@ describe('FileVersionHistory saved-state boundary', () => {
       />,
     )
     fireEvent.click(await screen.findByTitle('rollback'))
+    await confirmRestore()
     await waitFor(() => expect(rollback).toHaveBeenCalledWith('file-a', 3))
     rerender(
       <FileVersionHistory
@@ -248,7 +252,6 @@ describe('FileVersionHistory saved-state boundary', () => {
     }>()
     getVersions.mockResolvedValue({ total: 1, versions: [version(3)] })
     rollback.mockReturnValueOnce(rollbackResult.promise)
-    vi.stubGlobal('confirm', vi.fn(() => true))
     const onRollback = vi.fn()
 
     const { rerender } = render(
@@ -260,6 +263,7 @@ describe('FileVersionHistory saved-state boundary', () => {
       />,
     )
     fireEvent.click(await screen.findByTitle('rollback'))
+    await confirmRestore()
     await waitFor(() => expect(rollback).toHaveBeenCalledWith('file-1', 3))
     expect(getVersions).toHaveBeenCalledTimes(1)
 
@@ -311,5 +315,84 @@ describe('FileVersionHistory saved-state boundary', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'compare' })).not.toBeDisabled()
     })
+  })
+})
+
+describe('FileVersionHistory current-text marker and restore confirmation', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    translator.current = (key: string) => key
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('marks only the version the server reports as matching the current text', async () => {
+    getVersions.mockResolvedValue({ total: 2, versions: [version(4), version(3)], current_version_number: 3 })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const marker = await screen.findByText('currentText')
+    expect(marker.parentElement).toHaveTextContent('v3')
+    expect(screen.getAllByText('currentText')).toHaveLength(1)
+  })
+
+  it.each([
+    ['has unsaved-to-history edits', { current_version_number: null }],
+    ['comes from an older server without the field', {}],
+  ])('shows no current-text marker when the live text %s', async (_label, extra) => {
+    getVersions.mockResolvedValue({ total: 1, versions: [version(3)], ...extra })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    expect(await screen.findByText('v3')).toBeInTheDocument()
+    expect(screen.queryByText('currentText')).not.toBeInTheDocument()
+  })
+
+  it('asks in an in-app dialog instead of the native confirm, and cancelling keeps the text', async () => {
+    const nativeConfirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', nativeConfirm)
+    getVersions.mockResolvedValue({ total: 1, versions: [version(3)] })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByTitle('rollback'))
+
+    expect(await screen.findByText('rollbackConfirm')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common:cancel' }))
+
+    await waitFor(() => expect(screen.queryByText('rollbackConfirm')).not.toBeInTheDocument())
+    expect(rollback).not.toHaveBeenCalled()
+    expect(nativeConfirm).not.toHaveBeenCalled()
+  })
+
+  it('closes only the confirmation on Escape and leaves the history open', async () => {
+    getVersions.mockResolvedValue({ total: 1, versions: [version(3)] })
+    const onClose = vi.fn()
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={onClose} />)
+    fireEvent.click(await screen.findByTitle('rollback'))
+    await screen.findByText('rollbackConfirm')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByText('rollbackConfirm')).not.toBeInTheDocument())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(rollback).not.toHaveBeenCalled()
+  })
+
+  it('renders line counts once, without a doubled +/- sign next to the icons', async () => {
+    const zhTemplates: Record<string, string> = { linesAdded: '{{count}} 行', linesRemoved: '{{count}} 行' }
+    translator.current = ((key: string, options?: { count?: number }) =>
+      zhTemplates[key]?.replace('{{count}}', String(options?.count)) ?? key) as (key: string) => string
+    getVersions.mockResolvedValue({
+      total: 1,
+      versions: [{ ...version(3), lines_added: 35, lines_removed: 2 }],
+    })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const added = await screen.findByText('35 行')
+    expect(added.textContent).toBe('35 行')
+    expect(document.body.textContent).not.toMatch(/[+-]\s*\d+ 行/)
+  })
+
+  it('shows version summaries in plain language instead of raw markers', async () => {
+    getVersions.mockResolvedValue({
+      total: 1,
+      versions: [{ ...version(3), change_summary: 'Before restoring version 2' }],
+    })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    expect(await screen.findByText('versions:summary.beforeRestore')).toBeInTheDocument()
+    expect(screen.queryByText('Before restoring version 2')).not.toBeInTheDocument()
   })
 })

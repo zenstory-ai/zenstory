@@ -28,6 +28,8 @@ interface DiffViewerProps {
   comparison: VersionComparison;
   /** Whether to display line numbers (default: true) */
   showLineNumbers?: boolean;
+  /** View mode shown first; the toolbar can still switch (default: unified) */
+  defaultViewMode?: DiffViewMode;
 }
 
 /**
@@ -36,7 +38,8 @@ interface DiffViewerProps {
  * - split: Side-by-side old vs new comparison
  * - inline: Prose-friendly inline highlighting
  */
-type ViewMode = "unified" | "split" | "inline";
+export type DiffViewMode = "unified" | "split" | "inline";
+type ViewMode = DiffViewMode;
 
 /**
  * DiffViewer component for visualizing file version differences.
@@ -61,9 +64,10 @@ type ViewMode = "unified" | "split" | "inline";
 export const DiffViewer: React.FC<DiffViewerProps> = ({
   comparison,
   showLineNumbers = true,
+  defaultViewMode = "unified",
 }) => {
   const { t } = useTranslation(["editor", "common"]);
-  const [viewMode, setViewMode] = useState<ViewMode>("unified");
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
   const [showUnchanged, setShowUnchanged] = useState(true);
 
   /**
