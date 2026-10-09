@@ -25,10 +25,19 @@ from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, 
 from models import File
 from models.file_version import (
     CHANGE_SOURCE_AI,
+    CHANGE_SOURCE_SYSTEM,
     CHANGE_TYPE_AI_EDIT,
+    CHANGE_TYPE_EDIT,
 )
 from services.features.activation_event_service import activation_event_service
+from utils.cjk_quotes import (
+    detect_quote_style,
+    has_style_quote_marks,
+    normalize_double_quotes,
+    resolve_quote_style,
+)
 from utils.logger import get_logger, log_with_context
+from utils.text_metrics import count_words
 
 from .text_matching import (
     build_span_previews,
@@ -37,6 +46,7 @@ from .text_matching import (
     find_approximate_match,
     find_fuzzy_spans,
     find_unique_line_span,
+    locate_exact_or_quote_equivalent,
     suggest_similar_lines,
 )
 
@@ -223,6 +233,113 @@ def _numbered_previews(content: str, spans: list[tuple[int, int]]) -> list[str]:
     ]
 
 
+# 应用内 agent 写正文时才做引号规范化；大纲、角色卡、设定里的引号往往是在
+# 引用术语或英文原文，不属于对白体例，保持原样。
+NORMALIZED_QUOTE_FILE_TYPES = frozenset({"draft", "script"})
+
+# AI 覆盖前备份的固定说明（前端按这个字符串映射成本地化文案，不要改写）。
+BEFORE_AI_EDIT_SUMMARY = "Before AI edit"
+
+
+def previous_chapter_content(
+    session: Session,
+    project_id: str,
+    *,
+    exclude_file_id: str | None = None,
+    parent_id: str | None = None,
+    order: int | None = None,
+) -> str:
+    """同项目「上一章」的正文，供新文件沿用引号体例；取不到返回空串。
+
+    优先取同一父目录里排序在前的最近一章，其次取项目里最近更新的一份正文。
+    """
+    base = select(File.content).where(
+        File.project_id == project_id,
+        File.file_type.in_(NORMALIZED_QUOTE_FILE_TYPES),  # type: ignore[attr-defined]
+        File.is_deleted.is_(False),  # type: ignore[attr-defined]
+        File.content.is_not(None),  # type: ignore[union-attr]
+        File.content != "",
+    )
+    if exclude_file_id:
+        base = base.where(File.id != exclude_file_id)
+    if order is not None:
+        sibling = base.where(File.parent_id == parent_id, File.order < order).order_by(
+            File.order.desc()  # type: ignore[attr-defined]
+        )
+        found = session.exec(sibling.limit(1)).first()
+        if found:
+            return found
+    found = session.exec(
+        base.order_by(File.updated_at.desc()).limit(1)  # type: ignore[attr-defined]
+    ).first()
+    return found or ""
+
+
+def resolve_write_quote_style(
+    session: Session,
+    *,
+    project_id: str,
+    existing_content: str,
+    incoming_text: str,
+    exclude_file_id: str | None = None,
+    parent_id: str | None = None,
+    order: int | None = None,
+) -> str:
+    """AI 写入时用的引号风格：文件已有正文 → 上一章 → 本次写入的文本 → “”。"""
+    if has_style_quote_marks(existing_content):
+        return detect_quote_style(existing_content)
+    reference = previous_chapter_content(
+        session,
+        project_id,
+        exclude_file_id=exclude_file_id,
+        parent_id=parent_id,
+        order=order,
+    )
+    return resolve_quote_style(reference, incoming_text)
+
+
+def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: str) -> bool:
+    """AI 覆盖正文之前，把还没进历史的当前正文存成一个系统版本。
+
+    作者手动修改的正文不一定生成版本（例如小改动跳过版本），AI 随后整篇覆盖或
+    edit_file 改写时，原稿就既不在正文里也不在历史里。这里在调用方的同一个锁和
+    事务里开 savepoint：当前正文非空、且和最新版本内容（没有版本时按空串算）
+    不同，才建一个 system 来源、不占用户额度的版本。任何失败只记 WARNING、返回
+    False，不阻断 AI 写入（沿用「版本失败正文照存」的语义）。
+    """
+    if not current_content:
+        return False
+    try:
+        with session.begin_nested():
+            service = FileVersionService()
+            latest = service.get_latest_version(session, file_id)
+            latest_content = (
+                service._get_contents_for_versions(session, {file_id: latest})[file_id]
+                if latest
+                else ""
+            )
+            if latest_content == current_content:
+                return False
+            service.create_version(
+                session=session,
+                file_id=file_id,
+                new_content=current_content,
+                change_type=CHANGE_TYPE_EDIT,
+                change_source=CHANGE_SOURCE_SYSTEM,
+                change_summary=BEFORE_AI_EDIT_SUMMARY,
+                skip_quota=True,
+                commit=False,
+            )
+            return True
+    except Exception as exc:
+        logger.warning(
+            "Failed to back up unversioned content before AI write; write will continue",
+            exc_info=True,
+            extra={"file_id": file_id, "error": str(exc)},
+        )
+        return False
+
+
 class FileEditor:
     """
     Editor for file content with robust text matching.
@@ -250,6 +367,7 @@ class FileEditor:
         id: str,
         edits: list[dict[str, Any]],
         continue_on_error: bool = False,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         """
         Apply precise edits to a file's content.
@@ -276,13 +394,18 @@ class FileEditor:
                 - match_mode: "auto"(默认) 或 "exact"（禁用模糊/近似兜底）
                 - ignore_punct_whitespace: 模糊匹配时是否忽略标点与空白（默认 true）
             continue_on_error: Whether to continue applying remaining edits when one edit fails
+            normalize_quotes: In-app agent writes only. For draft/script files,
+                normalize double quotes in each edit's new text (replace new,
+                insert/append/prepend text) to the file's quote style; text
+                outside the edits is never touched.
 
         Returns:
             Dict with edit results:
                 - id: File ID
                 - title: File title
                 - edits_applied: Number of successful edits
-                - new_length: New content length
+                - new_length: New content length in characters (punctuation/whitespace included)
+                - new_word_count: New word count, same as the editor's count
                 - details: List of applied edit details
                 - failed_edits: List of failed edit details (when continue_on_error=True)
 
@@ -301,20 +424,21 @@ class FileEditor:
         continue_on_error = coerce_bool(continue_on_error, default=False)
 
         if is_postgres:
-            return self._edit_file_impl(id, edits, continue_on_error)
+            return self._edit_file_impl(id, edits, continue_on_error, normalize_quotes)
         # SQLite has no row locks: serialize same-file read-modify-write with
         # the in-process per-file lock so a concurrent edit (parallel_execute
         # runs each task on its own session/thread) cannot interleave between
         # our read and commit. 获取方式见 acquire_file_write_lock：事件循环线程
         # 上只做有界等待，避免整个进程陪着一个工作线程的长事务停摆。
         with acquire_file_write_lock(id):
-            return self._edit_file_impl(id, edits, continue_on_error)
+            return self._edit_file_impl(id, edits, continue_on_error, normalize_quotes)
 
     def _edit_file_impl(
         self,
         id: str,
         edits: list[dict[str, Any]],
         continue_on_error: bool,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         # Get file. On PostgreSQL take a row lock so concurrent edit_file tasks
         # (parallel_execute runs each on its own session) targeting the SAME file
@@ -358,6 +482,20 @@ class FileEditor:
         applied_edits = []
         failed_edits: list[dict[str, Any]] = []
         warnings: list[str] = []
+
+        # 只规范化每个 edit 自己写进去的新文本，不动没被编辑的段落，免得改稿
+        # 审阅里冒出与本次修改无关的引号 diff。风格按文件已有正文判定。
+        quote_style: str | None = None
+        if normalize_quotes and file.file_type in NORMALIZED_QUOTE_FILE_TYPES:
+            quote_style = resolve_write_quote_style(
+                self.session,
+                project_id=file.project_id,
+                existing_content=old_content,
+                incoming_text=self._edits_incoming_text(edits),
+                exclude_file_id=file.id,
+                parent_id=file.parent_id,
+                order=file.order,
+            )
 
         for i, edit in enumerate(edits):
             try:
@@ -443,18 +581,18 @@ class FileEditor:
 
                 if op == "replace":
                     content = self._apply_replace(
-                        content, edit, i, applied_edits, warnings
+                        content, edit, i, applied_edits, warnings, quote_style=quote_style
                     )
                 elif op == "insert_after":
                     content = self._apply_insert_after(
-                        content, edit, i, applied_edits, warnings
+                        content, edit, i, applied_edits, warnings, quote_style=quote_style
                     )
                 elif op == "insert_before":
                     content = self._apply_insert_before(
-                        content, edit, i, applied_edits, warnings
+                        content, edit, i, applied_edits, warnings, quote_style=quote_style
                     )
                 elif op == "append":
-                    text = edit.get("text", "")
+                    text = self._normalize_new_text(edit.get("text", ""), quote_style)
                     content = content + text
                     applied_edits.append({
                         "op": op,
@@ -462,7 +600,7 @@ class FileEditor:
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                 elif op == "prepend":
-                    text = edit.get("text", "")
+                    text = self._normalize_new_text(edit.get("text", ""), quote_style)
                     content = text + content
                     applied_edits.append({
                         "op": op,
@@ -501,6 +639,9 @@ class FileEditor:
         # allowing content and history to describe different writes.
         undo: dict[str, Any] | None = None
         if content != old_content:
+            # 原稿可能是作者手动改过、还没进历史的正文：先备份（独立 savepoint，
+            # 失败不阻断），撤销锚点随后就能落在这份备份上。
+            stage_pre_ai_write_backup(self.session, id, old_content)
             before_version_number: int | None = None
             try:
                 # Provenance is optional, but its read failure must not poison
@@ -556,6 +697,7 @@ class FileEditor:
             "file_type": file.file_type,
             "edits_applied": len(applied_edits),
             "new_length": len(content),
+            "new_word_count": count_words(content),
             "details": applied_edits,
             "failed_edits": failed_edits,
             "partial_success": bool(applied_edits and failed_edits),
@@ -565,6 +707,26 @@ class FileEditor:
         if undo is not None:
             result["undo"] = undo
         return result
+
+    @staticmethod
+    def _normalize_new_text(text: Any, quote_style: str | None) -> Any:
+        """把一个 edit 写入的新文本规范成文件的引号风格；不需要时原样返回。"""
+        if quote_style is None or not isinstance(text, str) or not text:
+            return text
+        return normalize_double_quotes(text, quote_style)
+
+    @classmethod
+    def _edits_incoming_text(cls, edits: Any) -> str:
+        """本次各 edit 要写入的文本拼在一起，只用于兜底判定引号风格。"""
+        if not isinstance(edits, list):
+            return ""
+        keys = ("new", "text", *cls._REPLACE_NEW_ALIASES, *cls._INSERT_TEXT_ALIASES)
+        parts: list[str] = []
+        for edit in edits:
+            if not isinstance(edit, dict):
+                continue
+            parts.extend(v for k in keys if isinstance(v := edit.get(k), str))
+        return "\n".join(parts)
 
     @staticmethod
     def _backfill_new_preview(applied_edits: list[dict[str, Any]]) -> None:
@@ -723,6 +885,7 @@ class FileEditor:
         *,
         label: str,
         extra_hint: str = "",
+        preview_content: str | None = None,
     ) -> int:
         """Resolve the start index for an exact-substring op.
 
@@ -734,10 +897,17 @@ class FileEditor:
           (ambiguous) instead of editing the first occurrence.
         - ``occurrence`` provided -> validate its range and select that
           (1-based, non-overlapping) occurrence.
+
+        ``content``/``sub`` may be the quote-folded haystack/needle; the
+        candidate previews are then cut from ``preview_content`` (the real text,
+        same indices) so the model sees the manuscript's own quotes.
         """
         if occurrence is None:
             if match_count > 1:
-                previews = _numbered_previews(content, _exact_spans(content, sub))
+                previews = _numbered_previews(
+                    preview_content if preview_content is not None else content,
+                    _exact_spans(content, sub),
+                )
                 raise _ambiguous(
                     f"Edit {edit_index}: {label}匹配到多个位置（{match_count}处），"
                     f"为避免定位到错误位置已中止。推荐做法：保持原参数不变，"
@@ -773,6 +943,8 @@ class FileEditor:
         edit_index: int,
         applied_edits: list[dict[str, Any]],
         warnings: list[str],
+        *,
+        quote_style: str | None = None,
     ) -> str:
         """Apply a replace edit operation."""
         old_text = edit.get("old", "")
@@ -798,39 +970,52 @@ class FileEditor:
                 f"Edit {edit_index}: replace 缺少 old 字段（要被替换的原文）。"
                 f"请从当前文件原文中复制要改的那一段。"
             )
-        new_text = self._resolve_replace_new(edit, edit_index, warnings)
+        new_text = self._normalize_new_text(
+            self._resolve_replace_new(edit, edit_index, warnings), quote_style
+        )
 
-        # 1) Exact match first
-        if old_text in content:
+        # 1) Exact match first, then exact modulo double-quote style
+        located = locate_exact_or_quote_equivalent(content, old_text)
+        if located is not None:
+            exact_mode, haystack, needle = located
             if replace_all:
-                count = content.count(old_text)
-                content = content.replace(old_text, new_text)
+                spans = _exact_spans(haystack, needle, limit=len(haystack) + 1)
+                count = len(spans)
+                parts: list[str] = []
+                prev = 0
+                for start, end in spans:
+                    parts.append(content[prev:start])
+                    parts.append(new_text)
+                    prev = end
+                parts.append(content[prev:])
+                content = "".join(parts)
                 applied_edits.append({
                     "op": "replace",
-                    "match_mode": "exact",
+                    "match_mode": exact_mode,
                     "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
                     "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
                     "count": count,
                 })
             else:
-                match_count = content.count(old_text)
+                match_count = haystack.count(needle)
                 # 与 insert_* 共用同一套守卫：occurrence 未指定且有多处匹配时
                 # 中止（并推荐 occurrence=N 这条非破坏性出路），指定了就精确
                 # 定位到第 N 处，而不是像以前那样把 occurrence 整个忽略、只留
                 # replace_all 这一条破坏性逃生通道。
                 start = self._select_exact_occurrence_start(
-                    content,
-                    old_text,
+                    haystack,
+                    needle,
                     occurrence,
                     match_count,
                     edit_index,
                     label="原文片段",
                     extra_hint="（确实要把这几处全部替换时，才使用 replace_all=true）",
+                    preview_content=content,
                 )
                 content = content[:start] + new_text + content[start + len(old_text):]
                 detail = {
                     "op": "replace",
-                    "match_mode": "exact",
+                    "match_mode": exact_mode,
                     "match_count": match_count,
                     "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
                     "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
@@ -995,10 +1180,12 @@ class FileEditor:
         edit_index: int,
         applied_edits: list[dict[str, Any]],
         warnings: list[str],
+        *,
+        quote_style: str | None = None,
     ) -> str:
         """Apply an insert_after edit operation."""
         anchor = edit.get("anchor", "")
-        text = edit.get("text", "")
+        text = self._normalize_new_text(edit.get("text", ""), quote_style)
 
         match_mode = str(edit.get("match_mode") or "auto").strip().lower()
         ignore_punct_whitespace = self._parse_ignore_punct_whitespace(edit)
@@ -1007,16 +1194,19 @@ class FileEditor:
         if not anchor:
             raise ValueError(f"Edit {edit_index}: 'anchor' field is required for insert_after operation")
 
-        if anchor in content:
-            match_count = content.count(anchor)
+        located = locate_exact_or_quote_equivalent(content, anchor)
+        if located is not None:
+            exact_mode, haystack, needle = located
+            match_count = haystack.count(needle)
             start = self._select_exact_occurrence_start(
-                content, anchor, occurrence, match_count, edit_index, label="锚点"
+                haystack, needle, occurrence, match_count, edit_index, label="锚点",
+                preview_content=content,
             )
             pos = start + len(anchor)
             content = content[:pos] + text + content[pos:]
             applied_edits.append({
                 "op": "insert_after",
-                "match_mode": "exact",
+                "match_mode": exact_mode,
                 "match_count": match_count,
                 "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                 "text_len": len(text),
@@ -1145,10 +1335,12 @@ class FileEditor:
         edit_index: int,
         applied_edits: list[dict[str, Any]],
         warnings: list[str],
+        *,
+        quote_style: str | None = None,
     ) -> str:
         """Apply an insert_before edit operation."""
         anchor = edit.get("anchor", "")
-        text = edit.get("text", "")
+        text = self._normalize_new_text(edit.get("text", ""), quote_style)
 
         match_mode = str(edit.get("match_mode") or "auto").strip().lower()
         ignore_punct_whitespace = self._parse_ignore_punct_whitespace(edit)
@@ -1157,15 +1349,18 @@ class FileEditor:
         if not anchor:
             raise ValueError(f"Edit {edit_index}: 'anchor' field is required for insert_before operation")
 
-        if anchor in content:
-            match_count = content.count(anchor)
+        located = locate_exact_or_quote_equivalent(content, anchor)
+        if located is not None:
+            exact_mode, haystack, needle = located
+            match_count = haystack.count(needle)
             pos = self._select_exact_occurrence_start(
-                content, anchor, occurrence, match_count, edit_index, label="锚点"
+                haystack, needle, occurrence, match_count, edit_index, label="锚点",
+                preview_content=content,
             )
             content = content[:pos] + text + content[pos:]
             applied_edits.append({
                 "op": "insert_before",
-                "match_mode": "exact",
+                "match_mode": exact_mode,
                 "match_count": match_count,
                 "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
                 "text_len": len(text),
@@ -1306,23 +1501,26 @@ class FileEditor:
                 f"请从当前文件原文中复制要删的那一段。"
             )
 
-        if old_text in content:
-            match_count = content.count(old_text)
+        located = locate_exact_or_quote_equivalent(content, old_text)
+        if located is not None:
+            exact_mode, haystack, needle = located
+            match_count = haystack.count(needle)
             # 与 replace/insert_* 一致：未指定 occurrence 且多处匹配时中止，
             # 指定了就精确删掉第 N 处（delete 没有 replace_all，以前这条路
             # 完全是死胡同——模型除了重写锚点别无出路）。
             start = self._select_exact_occurrence_start(
-                content,
-                old_text,
+                haystack,
+                needle,
                 occurrence,
                 match_count,
                 edit_index,
                 label="删除片段",
+                preview_content=content,
             )
             content = content[:start] + content[start + len(old_text):]
             detail = {
                 "op": "delete",
-                "match_mode": "exact",
+                "match_mode": exact_mode,
                 "match_count": match_count,
                 "deleted_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
             }

@@ -489,7 +489,11 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
 
 
 def test_undo_provenance_query_failure_does_not_poison_postgres_edit_transaction(pg_engine, monkeypatch):
-    """A failed optional provenance SELECT must roll back only its savepoint."""
+    """Failed optional history SELECTs must roll back only their savepoints.
+
+    The first read is the pre-AI-write backup comparison, the second the undo
+    provenance check; both fail here and the content edit still commits.
+    """
     from sqlalchemy import text
 
     from services.features.file_version_service import FileVersionService
@@ -502,13 +506,13 @@ def test_undo_provenance_query_failure_does_not_poison_postgres_edit_transaction
     original = FileVersionService.get_latest_version
     calls = []
 
-    def fail_first(self, session, target_id):
+    def fail_history_reads(self, session, target_id):
         calls.append(target_id)
-        if len(calls) == 1:
+        if len(calls) <= 2:
             session.exec(text("select 1 / 0"))
         return original(self, session, target_id)
 
-    monkeypatch.setattr(FileVersionService, "get_latest_version", fail_first)
+    monkeypatch.setattr(FileVersionService, "get_latest_version", fail_history_reads)
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     with Session(pg_engine) as session:
         result = FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": " + edit"}])
@@ -596,3 +600,40 @@ async def test_undo_token_belongs_to_edit_even_when_web_write_commits_before_ref
     assert response.json()["error_code"] == "ERR_RESOURCE_CONFLICT"
     assert cache_bumps == before_rollback_cache_bumps
     assert indexed == before_rollback_indexed
+
+
+@pytest.mark.parametrize("writer", ["update_file", "edit_file"])
+def test_ai_write_backs_up_unversioned_body_inside_the_locked_postgres_transaction(pg_engine, monkeypatch, writer):
+    """Unversioned live text is snapshotted (system source) before the AI overwrite commits."""
+    service = get_file_version_service()
+    with Session(pg_engine) as setup:
+        user_id, file_id, _ = _seed_file(setup, f"backup-{writer}")
+        service.create_initial_version(setup, setup.get(File, file_id))
+        setup.commit()
+        # 作者的小改动保存不生成版本：正文变了，历史头仍是 "Original"。
+        live = setup.get(File, file_id)
+        live.content = "Manual edit"
+        setup.add(live)
+        setup.commit()
+    monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
+    monkeypatch.setattr(FileCRUD, "_schedule_index_upsert", lambda *_a, **_kw: None)
+
+    with Session(pg_engine) as session:
+        if writer == "update_file":
+            FileCRUD(session, user_id).update_file(file_id, content='他说："改好了。"', normalize_quotes=True)
+            expected = "他说：“改好了。”"
+        else:
+            FileEditor(session, user_id).edit_file(
+                file_id, [{"op": "append", "text": '\n她说："嗯。"'}], normalize_quotes=True
+            )
+            expected = "Manual edit\n她说：“嗯。”"
+
+    with Session(pg_engine) as verify:
+        assert verify.get(File, file_id).content == expected
+        versions = verify.exec(
+            select(FileVersion).where(FileVersion.file_id == file_id).order_by(FileVersion.version_number)
+        ).all()
+        assert [v.change_source for v in versions] == ["system", "system", "ai"]
+        assert versions[1].change_summary == "Before AI edit"
+        assert service.get_content_at_version(verify, file_id, 2) == "Manual edit"
+        assert service.get_content_at_version(verify, file_id, 3) == expected
