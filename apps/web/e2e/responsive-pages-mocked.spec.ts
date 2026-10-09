@@ -12,10 +12,10 @@ const readyHeadings: Record<string, string> = {
   "/docs": "ZenStory 工作台帮助文档",
   "/docs/getting-started/quick-start": "ZenStory 工作台快速开始：从空项目到第一份可修改提纲",
   "/pricing": "选一个适合你的方案",
-  "/auth/callback": "登录 zenstory",
-  "/login": "登录 zenstory",
+  "/auth/callback": "登录 ZenStory",
+  "/login": "登录 ZenStory",
   "/register": "创建账号",
-  "/forgot-password": "登录 zenstory",
+  "/forgot-password": "找回密码",
   "/verify-email?email=responsive%40example.com": "验证你的邮箱",
   "/onboarding/persona": "告诉我们你怎么写作",
   "/dashboard": "你好，responsive-user",
@@ -44,7 +44,7 @@ for (const viewport of sizes) {
         }
         await page.goto(new URL(route, baseURL).href);
         await expect(page.locator('h1,h2').filter({ hasText: readyHeadings[route] }).first(), route).toBeVisible();
-        const expectedPath = route === '/auth/callback' || route === '/forgot-password' ? '/login' : route.split('?')[0];
+        const expectedPath = route === '/auth/callback' ? '/login' : route.split('?')[0];
         expect(new URL(page.url()).pathname, route).toBe(expectedPath);
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: route }).toBeLessThanOrEqual(viewport.width);
         // Hidden overflow can mask an oversized fixed shell; inspect its actual bounds too.

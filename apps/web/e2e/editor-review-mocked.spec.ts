@@ -89,6 +89,16 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
         return fulfill(files[fileId]);
       }
     }
+    const versionsFile = url.pathname.match(/^\/api\/v1\/files\/([^/]+)\/versions$/)?.[1];
+    if (versionsFile && files[versionsFile] && method === 'GET') {
+      const version = (version_number: number, change_type: string) => ({ id: `${versionsFile}-v${version_number}`, file_id: versionsFile, project_id: files[versionsFile].project_id, version_number, is_base_version: version_number === 1, word_count: 3, char_count: 12, change_type, change_source: 'user', lines_added: 1, lines_removed: 0, created_at: token0 });
+      return fulfill({ versions: [version(2, 'edit'), version(1, 'create')], total: 2, file_id: versionsFile, file_title: files[versionsFile].title, current_version_number: 2 });
+    }
+    const rollback = url.pathname.match(/^\/api\/v1\/files\/([^/]+)\/versions\/(\d+)\/rollback$/);
+    if (rollback && files[rollback[1]] && method === 'POST') {
+      files[rollback[1]] = { ...files[rollback[1]], content: `Restored v${rollback[2]} body`, updated_at: '2026-10-06T10:00:30.000Z' };
+      return fulfill({ success: true, message: 'ok', file_id: rollback[1], restored_version: Number(rollback[2]), new_version_number: 3, snapshot_created: true, version_quota_exceeded: false });
+    }
     const treeProject = url.pathname.match(/^\/api\/v1\/projects\/([^/]+)\/file-tree$/)?.[1];
     if (treeProject && method === 'GET') {
       return fulfill({ tree: [{ id: `folder-${treeProject}`, title: 'Drafts', file_type: 'folder', metadata: { folder_type: 'draft' }, parent_id: null, order: 0, children: Object.values(files).filter(file => file.project_id === treeProject).map(file => ({ ...file, children: [] })) }] });
@@ -195,7 +205,7 @@ test('chunk refresh draft waits for an explicit comparison before replacing newe
   await page.getByRole('button', { name: 'Restore local draft', exact: true }).click();
   await expect(textarea(page)).toHaveValue('Recovered local body before refresh');
   await expect(titleInput(page)).toHaveValue('Recovered chapter title');
-  await expect(page.getByRole('status')).toContainText('was restored');
+  await expect(page.getByRole('status').filter({ hasText: 'was restored' })).toBeVisible();
   await page.waitForTimeout(3200);
   expect(puts(f), 'restoring after comparison must not auto-PUT').toHaveLength(0);
 
@@ -226,10 +236,31 @@ test('ordinary reload within autosave debounce restores the latest local draft',
 
   await expect(titleInput(page)).toHaveValue('Title typed before reload');
   await expect(textarea(page)).toHaveValue('Body typed immediately before reload');
-  await expect(page.getByRole('status')).toContainText('was restored');
+  await expect(page.getByRole('status').filter({ hasText: 'was restored' })).toBeVisible();
   expect(puts(f), 'unload flush was aborted; recovery must use the local snapshot').toHaveLength(1);
   expect(f.files.A).toMatchObject({ title: 'Chapter Alpha', content: '你好 world\n\n第二段 story' });
   f.observations = { ordinaryReloadRecoveredBeforeDebounce: true, unloadPutAborted: true };
+});
+
+test('file history restore confirmation opens above the history modal and completes the restore', async ({ page }) => {
+  const f = await fixture(page);
+  await openA(page);
+  await page.getByRole('button', { name: 'Versions', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore this version', exact: true }).nth(1).click();
+  const confirmDialog = page.getByRole('dialog').filter({ hasText: 'Restore version 1?' });
+  await expect(confirmDialog).toBeVisible();
+  const confirm = confirmDialog.getByRole('button', { name: 'Restore', exact: true });
+  const hit = await confirm.evaluate(el => {
+    const box = el.getBoundingClientRect();
+    const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return { onTop: !!top && (top === el || el.contains(top)), top: top?.outerHTML.slice(0, 200) ?? null };
+  });
+  f.observations.confirmHitTarget = hit;
+  expect(hit.onTop, `confirm button must be the top element at its centre, got ${hit.top}`).toBe(true);
+  await confirm.click({ timeout: 3000 });
+  await expect.poll(() => f.requests.some(r => r.method === 'POST' && r.path === '/api/v1/files/A/versions/1/rollback')).toBe(true);
+  await expect(confirmDialog).toHaveCount(0);
+  await expect(textarea(page)).toHaveValue('Restored v1 body');
 });
 
 for (const conflict of [false, true]) {

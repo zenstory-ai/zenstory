@@ -39,7 +39,7 @@ def reset_user(owned_redis, db_session, monkeypatch):  # noqa: F811
     db_session.commit()
     yield email, sent, owned_redis
     owned_redis.delete(
-        *(storage.password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown")),
+        *(storage.password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown", "fails")),
     )
 
 
@@ -67,7 +67,7 @@ def test_consumption_is_single_use(reset_user):
     email, _sent, redis = reset_user
     code_hash = service.hash_reset_code("123456")
     assert storage.store_password_reset_code(email, code_hash, 600)
-    assert storage.record_password_reset_failure(email, 5, 600) == 1
+    assert storage.record_password_reset_failure(email, 5, 600, 10, 86400) == 1
 
     assert storage.consume_password_reset_code(email, service.hash_reset_code("654321")) is False
     assert storage.consume_password_reset_code(email, code_hash) is True
@@ -134,3 +134,81 @@ async def test_failed_email_delivery_allows_an_immediate_retry(db_session, reset
 
     assert redis.get(storage.password_reset_key("code", email)) is None
     assert redis.get(storage.password_reset_key("cooldown", email)) is None
+
+
+async def _confirm_fails(db_session, email: str, code: str, new_password: str = "brand-new-9") -> str:
+    with pytest.raises(APIException) as raised:
+        await service.confirm_reset(db_session, email, code, new_password)
+    return raised.value.error_code
+
+
+def _wrong(code: str) -> str:
+    return f"{(int(code) + 1) % 1_000_000:06d}"
+
+
+@pytest.mark.asyncio
+async def test_new_codes_do_not_restore_the_daily_wrong_code_budget(db_session, reset_user):
+    email, sent, redis = reset_user
+    cap = service.PASSWORD_RESET_MAX_DAILY_FAILURES
+    per_code = service.PASSWORD_RESET_MAX_ATTEMPTS - 1  # Stay under the per-code budget.
+
+    failures = 0
+    code = ""
+    while failures < cap:
+        redis.delete(storage.password_reset_key("cooldown", email))
+        code = await _issue(db_session, email, sent)
+        for _ in range(min(per_code, cap - failures)):
+            assert await _confirm_fails(db_session, email, _wrong(code)) == "ERR_AUTH_PASSWORD_RESET_CODE_INVALID"
+            failures += 1
+
+    fails_key = storage.password_reset_key("fails", email)
+    assert int(redis.get(fails_key)) == cap
+    assert 0 < redis.ttl(fails_key) <= service.PASSWORD_RESET_FAILURE_WINDOW_SECONDS
+    # The failure that reached the cap removed the live code; even the right code fails.
+    assert redis.get(storage.password_reset_key("code", email)) is None
+    assert await _confirm_fails(db_session, email, code) == "ERR_AUTH_PASSWORD_RESET_CODE_INVALID"
+
+    # While capped, request answers as usual but issues no new code.
+    issued = len(sent)
+    redis.delete(storage.password_reset_key("cooldown", email))
+    tasks = BackgroundTasks()
+    await service.request_reset(db_session, email, "zh", tasks)
+    await tasks()
+    assert len(sent) == issued
+    assert redis.get(storage.password_reset_key("code", email)) is None
+
+    db_session.expire_all()
+    user = db_session.exec(select(User).where(User.email == email)).one()
+    assert verify_password("old-secret-1", user.hashed_password)
+
+
+@pytest.mark.asyncio
+async def test_capped_address_rejects_a_correct_code_with_the_generic_error(db_session, reset_user):
+    email, sent, redis = reset_user
+    code = await _issue(db_session, email, sent)
+    redis.set(storage.password_reset_key("fails", email), service.PASSWORD_RESET_MAX_DAILY_FAILURES, ex=60)
+
+    assert await _confirm_fails(db_session, email, code) == "ERR_AUTH_PASSWORD_RESET_CODE_INVALID"
+    db_session.expire_all()
+    user = db_session.exec(select(User).where(User.email == email)).one()
+    assert verify_password("old-secret-1", user.hashed_password)
+
+
+@pytest.mark.asyncio
+async def test_unknown_address_gets_the_same_error_and_no_failure_counter(db_session, reset_user):
+    _email, _sent, redis = reset_user
+    unknown = f"nobody-{uuid4().hex}@example.com"
+    try:
+        for _ in range(service.PASSWORD_RESET_MAX_DAILY_FAILURES + 1):
+            assert await _confirm_fails(db_session, unknown, "123456") == "ERR_AUTH_PASSWORD_RESET_CODE_INVALID"
+        assert redis.get(storage.password_reset_key("fails", unknown)) is None
+    finally:
+        redis.delete(storage.password_reset_key("fails", unknown))
+
+
+def test_failure_cap_check_fails_closed_when_redis_errors(monkeypatch):
+    def broken():
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(storage, "get_redis_client", broken)
+    assert storage.password_reset_failures_capped("someone@example.com", 10) is True

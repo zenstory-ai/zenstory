@@ -1,6 +1,6 @@
-# zenstory Help Documentation
+# ZenStory Help Documentation
 
-Welcome to zenstory, your AI-assisted novel writing workbench! zenstory is your intelligent writing companion, helping you streamline the entire creative process from idea to finished draft.
+Welcome to ZenStory, your AI-assisted novel writing workbench! ZenStory is your intelligent writing companion, helping you streamline the entire creative process from idea to finished draft.
 
 ## Quick Links
 
@@ -12,14 +12,14 @@ Welcome to zenstory, your AI-assisted novel writing workbench! zenstory is your 
 ## Documentation Navigation
 
 ### Getting Started
-Perfect for new users to quickly understand zenstory's fundamental features.
+Perfect for new users to quickly understand ZenStory's fundamental features.
 
 - [5-Minute Quick Start](getting-started/quick-start.md) - The fastest path to getting started
 - [Account Registration & Login](getting-started/installation.md) - Account setup guide
 - [Create Your First Project](getting-started/first-project.md) - Take the first step in your creative journey
 
 ### User Guide
-Detailed feature explanations to help you make the most of zenstory's capabilities.
+Detailed feature explanations to help you make the most of ZenStory's capabilities.
 
 - [Interface Overview](user-guide/interface-overview.md) - Understand the three-panel workbench layout
 - [Project Management](user-guide/project-management.md) - Create and manage your writing projects
@@ -34,7 +34,7 @@ Detailed feature explanations to help you make the most of zenstory's capabiliti
 - [Export Features](user-guide/export.md) - Export project drafts (TXT currently supported)
 
 ### Advanced Tips
-Master zenstory in depth and build an efficient, personalized writing workflow.
+Master ZenStory in depth and build an efficient, personalized writing workflow.
 
 - [AI Memory & Context](advanced/ai-memory.md) - Separate accepted settings, saved progress and open ideas within the limits of project context
 - [Advanced Custom Skills](advanced/skill-creation.md) - Create exclusive creative skills
@@ -57,7 +57,7 @@ Having issues? Find solutions here.
 
 ## Need Help?
 
-If you encounter issues while using zenstory:
+If you encounter issues while using ZenStory:
 
 1. **Browse Documentation** - Find the relevant user guide in the navigation above
 2. **Search FAQ** - Check the [FAQ](reference/faq.md) for quick answers

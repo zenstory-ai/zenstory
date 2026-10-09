@@ -113,7 +113,7 @@ describe('ForgotPassword', () => {
 
     expect(mockRequestCode).toHaveBeenCalledWith(EMAIL, 'zh')
     expect(screen.getByTestId('forgot-password-subtitle')).toHaveTextContent(
-      '如果这个邮箱注册过 zenstory，验证码已经发出，10 分钟内有效。',
+      '如果这个邮箱注册过 ZenStory，验证码已经发出，10 分钟内有效。',
     )
     expect(screen.getByLabelText('验证码')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重设密码' })).toBeInTheDocument()

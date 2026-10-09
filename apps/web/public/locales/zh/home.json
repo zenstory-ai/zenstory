@@ -204,7 +204,7 @@
     "sectionLabel": "接入你的 AI 助手",
     "badge": "新功能",
     "title": "用 Claude Code 等 AI 助手直接写你的小说",
-    "subtitle": "在设置里创建 API 密钥，在终端用 zenstory 命令行工具登录，再给 AI 助手装上 zenstory 技能，Claude Code、Codex、OpenClaw 就能读写你的项目。",
+    "subtitle": "在设置里创建 API 密钥，在终端用 ZenStory 命令行工具登录，再给 AI 助手装上 ZenStory 技能，Claude Code、Codex、OpenClaw 就能读写你的项目。",
     "supportedAgents": "支持",
     "cta": "创建 API 密钥",
     "ctaAriaLabel": "去设置创建 API 密钥"

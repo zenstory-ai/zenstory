@@ -69,7 +69,7 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     assert.match(privacy, /Privacy Policy/)
     assert.match(privacy, /committed to protecting your personal data/)
     assert.match(terms, /Terms of Service/)
-    assert.match(terms, /By accessing or using zenstory/)
+    assert.match(terms, /By accessing or using ZenStory/)
     const siteMap=readFileSync(join(dir,'_site/sitemap.xml'),'utf8')
     assert.match(siteMap, /xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml"/)
     // Single-URL pages list no alternates; language pairs list both languages and x-default on each entry.

@@ -7,9 +7,12 @@ Self-service password reset with an emailed one-time code.
   same minimum duration, and the email is sent from a background task. A code
   is only issued for an active account with a verified email.
 - ``confirm_reset`` reports an unknown account and a wrong/expired code with the
-  same error. The fifth wrong code deletes the stored code. Success rewrites the
-  password and revokes every refresh token in one transaction; the new password
-  fingerprint makes every previously issued access token fail as well.
+  same error. The fifth wrong code deletes the stored code. Wrong codes are also
+  counted per address for a day (``pwreset:fails``), which a new code does not
+  reset; at the cap confirm always fails and request issues no code.
+- Success rewrites the password and revokes every refresh token in one
+  transaction; the new password fingerprint makes every previously issued
+  access token fail as well.
 """
 import asyncio
 import hashlib
@@ -47,6 +50,10 @@ def _non_negative_env(name: str, default: float) -> float:
 PASSWORD_RESET_CODE_TTL = int(_non_negative_env("PASSWORD_RESET_CODE_TTL", 600)) or 600
 PASSWORD_RESET_COOLDOWN_SECONDS = 60
 PASSWORD_RESET_MAX_ATTEMPTS = 5
+# Per-address wrong-code budget across all codes; requesting a new code does not
+# restore it, so guessing cannot continue indefinitely by re-requesting.
+PASSWORD_RESET_MAX_DAILY_FAILURES = 10
+PASSWORD_RESET_FAILURE_WINDOW_SECONDS = 24 * 60 * 60
 PASSWORD_RESET_CODE_LENGTH = 6
 # Floor for the request endpoint so an issued code (two Redis writes) and an
 # ignored address take the same time from the client's point of view.
@@ -109,6 +116,10 @@ async def _issue_code_if_eligible(
     if not _can_reset(user):
         return
     assert user is not None
+    if await asyncio.to_thread(
+        redis_client.password_reset_failures_capped, email_key, PASSWORD_RESET_MAX_DAILY_FAILURES,
+    ):
+        return
     if not await asyncio.to_thread(
         redis_client.claim_password_reset_cooldown, email_key, PASSWORD_RESET_COOLDOWN_SECONDS,
     ):
@@ -155,6 +166,11 @@ async def confirm_reset(session: Session, email: str, code: str, new_password: s
     if not _CODE_PATTERN.fullmatch(submitted):
         raise _invalid_code()
 
+    if await asyncio.to_thread(
+        redis_client.password_reset_failures_capped, email_key, PASSWORD_RESET_MAX_DAILY_FAILURES,
+    ):
+        raise _invalid_code()
+
     submitted_hash = hash_reset_code(submitted)
     stored_hash = await asyncio.to_thread(redis_client.get_password_reset_code_hash, email_key)
     if not stored_hash:
@@ -165,6 +181,8 @@ async def confirm_reset(session: Session, email: str, code: str, new_password: s
             email_key,
             PASSWORD_RESET_MAX_ATTEMPTS,
             PASSWORD_RESET_CODE_TTL,
+            PASSWORD_RESET_MAX_DAILY_FAILURES,
+            PASSWORD_RESET_FAILURE_WINDOW_SECONDS,
         )
         raise _invalid_code()
     # A concurrent confirm, a newer code, or the attempt budget may have removed

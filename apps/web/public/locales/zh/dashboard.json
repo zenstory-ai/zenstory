@@ -325,7 +325,7 @@
   },
   "common": {
     "loading": "加载中...",
-    "appName": "zenstory",
+    "appName": "ZenStory",
     "slogan": "让 AI 成为你的创作伙伴",
     "createButton": "开始创作",
     "confirmButton": "确认",

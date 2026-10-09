@@ -204,7 +204,7 @@
     "sectionLabel": "Connect your AI assistant",
     "badge": "New",
     "title": "Write your novel from Claude Code and other AI assistants",
-    "subtitle": "Create an API key in Settings, sign in with the zenstory CLI from your terminal and install the zenstory skill for your agent — then Claude Code, Codex or OpenClaw can read and edit your projects.",
+    "subtitle": "Create an API key in Settings, sign in with the ZenStory CLI from your terminal and install the ZenStory skill for your agent — then Claude Code, Codex or OpenClaw can read and edit your projects.",
     "supportedAgents": "Works with",
     "cta": "Create API key",
     "ctaAriaLabel": "Go to Settings to create an API key"

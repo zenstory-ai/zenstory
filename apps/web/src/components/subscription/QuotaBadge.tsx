@@ -93,8 +93,9 @@ export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
   return (
     <div className={`flex items-center text-xs ${compact ? "shrink-0 gap-1" : "gap-2"}`}>
       {compact ? (
+        // Not a live region: the counter rarely changes, and role="status"
+        // would compete with the page's real status announcements.
         <span
-          role="status"
           data-testid="quota-badge-compact"
           title={usageLabel}
           aria-label={usageLabel}

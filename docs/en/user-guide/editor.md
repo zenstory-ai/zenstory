@@ -1,6 +1,6 @@
 # Editor Guide
 
-The editor is the core creative space of zenstory, providing you with a smooth, intelligent writing experience. This document will introduce the various features and usage techniques of the editor in detail.
+The editor is the core creative space of ZenStory, providing you with a smooth, intelligent writing experience. This document will introduce the various features and usage techniques of the editor in detail.
 
 ---
 
@@ -265,7 +265,7 @@ The editor supports multiple file types, each with its specific purpose:
 
 [Screenshot: Mobile editing interface]
 
-zenstory's editor fully supports mobile devices:
+ZenStory's editor fully supports mobile devices:
 
 ### Touch Operations
 

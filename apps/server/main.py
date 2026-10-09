@@ -194,7 +194,7 @@ app.include_router(feedback_router)
 def read_root():
     """Health check endpoint."""
     return {
-        "message": f"Welcome to {os.getenv('APP_NAME', 'zenstory API')} - zenstory写作助手",
+        "message": f"Welcome to {os.getenv('APP_NAME', 'zenstory API')} - ZenStory写作助手",
         "version": os.getenv("APP_VERSION", "1.0.0"),
         "docs": "/docs",
     }

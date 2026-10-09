@@ -1,6 +1,6 @@
 # File Types Reference
 
-zenstory uses a unified file system to manage your creative content. Each file type is optimized for specific creative scenarios, helping you efficiently organize and manage the various components of your novel.
+ZenStory uses a unified file system to manage your creative content. Each file type is optimized for specific creative scenarios, helping you efficiently organize and manage the various components of your novel.
 
 Understanding and correctly using file types allows the AI to better comprehend your creative intent and provide more precise assistance.
 
@@ -257,4 +257,4 @@ My Novel Project
 3. **Iterative Refinement**: AI suggestions may not fully meet expectations - you can modify and improve upon them
 4. **Keep Updated**: Update character and world settings promptly so AI output stays synchronized with story development
 
-By using different file types appropriately, you can help zenstory better understand your creative intent and provide more precise assistance, making writing more efficient and enjoyable.
+By using different file types appropriately, you can help ZenStory better understand your creative intent and provide more precise assistance, making writing more efficient and enjoyable.

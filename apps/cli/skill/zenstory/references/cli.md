@@ -1,4 +1,4 @@
-# zenstory CLI reference
+# ZenStory CLI reference
 
 Run as `zenstory <command>` or `npx -y zenstory <command>`. Every command accepts
 `--json` (machine-readable output) and `-h/--help`. Paths below are relative to the API

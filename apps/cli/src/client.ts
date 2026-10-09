@@ -1,4 +1,4 @@
-/** Minimal HTTP client for the zenstory Agent API (`X-Agent-API-Key` auth). */
+/** Minimal HTTP client for the ZenStory Agent API (`X-Agent-API-Key` auth). */
 
 export const EXIT = {
   OK: 0,
@@ -102,14 +102,14 @@ export function httpError(status: number, body: unknown, retryAfter?: string | n
     case 401:
       return new CliError(
         `Authentication failed (401)${suffix}. The API key is missing, invalid or expired. ` +
-          'Create a key in zenstory Settings → Agent, then run `zenstory login` and paste it when prompted.',
+          'Create a key in ZenStory Settings → Agent, then run `zenstory login` and paste it when prompted.',
         EXIT.AUTH,
         extra,
       );
     case 403:
       return new CliError(
         `Permission denied (403)${suffix}. The key may lack the required scope (read/write) ` +
-          'or be restricted to other projects. Check the key in zenstory Settings → Agent.',
+          'or be restricted to other projects. Check the key in ZenStory Settings → Agent.',
         EXIT.AUTH,
         extra,
       );

@@ -114,12 +114,12 @@
     "copyKey": "Copy API key",
     "copyPrefix": "Copy key prefix",
     "connectGuide": {
-      "title": "Use zenstory from your AI coding agent",
-      "description": "Install the zenstory CLI and skill, and agents like Claude Code, Codex and OpenClaw can read and write your novel projects directly. Requires Node.js 20 or later.",
+      "title": "Use ZenStory from your AI coding agent",
+      "description": "Install the ZenStory CLI and skill, and agents like Claude Code, Codex and OpenClaw can read and write your novel projects directly. Requires Node.js 20 or later.",
       "step1": "Create an API key (read-only or read/write)",
       "step2": "Sign in from your terminal, then paste the key when prompted — it is stored only on your machine",
       "step2Hint": "Paste the key when prompted (input is hidden, so it stays out of your shell history).",
-      "step3": "Install the zenstory skill for your agent",
+      "step3": "Install the ZenStory skill for your agent",
       "step3Hint": "Installs for Claude Code by default; add --target codex or --target openclaw for other agents.",
       "otherAgents": "Other AI agents can read the integration guide directly:"
     }

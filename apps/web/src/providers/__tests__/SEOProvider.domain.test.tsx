@@ -37,7 +37,7 @@ describe('SEOProvider domain metadata', () => {
   it('preserves accurate generated docs metadata during hydration', () => {
     pathname.value = '/docs/guide'
     window.history.replaceState({}, '', pathname.value)
-    document.title = 'Guide title from markdown · zenstory 文档 | ZenStory AI'
+    document.title = 'Guide title from markdown · ZenStory 文档 | ZenStory AI'
     document.head.insertAdjacentHTML('beforeend', `
       <meta name="description" content="Guide description from markdown" data-rh="true">
       <link rel="canonical" href="${window.location.origin}/docs/guide" data-rh="true">
@@ -85,7 +85,7 @@ describe('SEOProvider domain metadata', () => {
     await waitFor(() => {
       expect(screen.getByTestId('canonical')).toHaveTextContent(`${window.location.origin}/docs/second`)
       expect(screen.getByTestId('og')).toHaveTextContent('article')
-      expect(screen.getByTestId('og')).toHaveTextContent('Second guide · zenstory 文档 | ZenStory AI')
+      expect(screen.getByTestId('og')).toHaveTextContent('Second guide · ZenStory 文档 | ZenStory AI')
       expect(screen.getByTestId('og')).toHaveTextContent('Second guide description.')
     })
   })
@@ -111,8 +111,8 @@ describe('SEOProvider domain metadata', () => {
 
     expect(screen.getByTestId('schema')).toBeEmptyDOMElement()
     expect(screen.getByTestId('og')).toHaveTextContent('article')
-    expect(screen.getByTestId('og')).toHaveTextContent('Documentation - zenstory')
-    expect(screen.getByTestId('og')).toHaveTextContent('zenstory documentation')
+    expect(screen.getByTestId('og')).toHaveTextContent('Documentation - ZenStory')
+    expect(screen.getByTestId('og')).toHaveTextContent('ZenStory documentation')
     expect(screen.getByTestId('og')).toHaveTextContent('https://zenstory.ai/brand/zenstory-ai-mark.svg')
   })
 

@@ -674,7 +674,7 @@ def read_skill_zip(data: bytes) -> tuple[ParsedSkill, list[tuple[str, str]], lis
             rel_path = name[len(root_prefix):]
 
             if rel_path.startswith("scripts/"):
-                warnings.append(f"已忽略脚本文件：{rel_path}（zenstory 不执行技能脚本）")
+                warnings.append(f"已忽略脚本文件：{rel_path}（ZenStory 不执行技能脚本）")
                 continue
             if not rel_path.startswith(ALLOWED_RESOURCE_ROOTS):
                 warnings.append(f"已忽略 references/ 与 assets/ 之外的文件：{rel_path}")

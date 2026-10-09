@@ -17,7 +17,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "auth_email_verified": "邮箱验证成功",
         "auth_password_changed": "密码修改成功",
         "auth_verification_resent": "验证码已重新发送,请检查邮箱",
-        "auth_password_reset_requested": "如果这个邮箱注册过 zenstory，验证码已经发出，{minutes} 分钟内有效。",
+        "auth_password_reset_requested": "如果这个邮箱注册过 ZenStory，验证码已经发出，{minutes} 分钟内有效。",
         "auth_password_reset_success": "密码已重设，请用新密码登录",
 
         # ==================== Verification Messages ====================
@@ -65,7 +65,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "auth_email_verified": "Email verified successfully",
         "auth_password_changed": "Password changed successfully",
         "auth_verification_resent": "Verification code has been resent, please check your email",
-        "auth_password_reset_requested": "If this email is registered with zenstory, we've sent a code. It's valid for {minutes} minutes.",
+        "auth_password_reset_requested": "If this email is registered with ZenStory, we've sent a code. It's valid for {minutes} minutes.",
         "auth_password_reset_success": "Your password has been reset. Log in with your new password.",
 
         # ==================== Verification Messages ====================

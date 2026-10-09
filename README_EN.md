@@ -284,7 +284,7 @@ npx zenstory whoami          # check login state and read/write scopes
 
 If you self-host, add `--api-base https://your-server/api/v1` to the login command (Settings shows the command with it filled in). Don't paste the key into an AI chat; if you already did, regenerate it under Settings → Agent.
 
-With the skill installed, the agent works through the `zenstory` CLI. The skill's workflow for continuing a chapter:
+With the skill installed, the agent works through the ZenStory CLI (`zenstory`). The skill's workflow for continuing a chapter:
 
 ```bash
 zenstory files list <projectId> --type draft --fields id,title --json          # list drafts

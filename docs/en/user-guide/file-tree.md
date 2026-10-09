@@ -1,6 +1,6 @@
 # File Tree & File Types
 
-zenstory uses a unified file system to manage your creative content. All files are organized in a tree structure, helping you clearly manage the various components of your novel.
+ZenStory uses a unified file system to manage your creative content. All files are organized in a tree structure, helping you clearly manage the various components of your novel.
 
 ## File Tree Structure
 
@@ -17,7 +17,7 @@ The file tree automatically identifies file types based on folder names. For exa
 
 ## Four Core File Types
 
-zenstory supports four core file types, each with a specific purpose and display icon.
+ZenStory supports four core file types, each with a specific purpose and display icon.
 
 ### Outline
 

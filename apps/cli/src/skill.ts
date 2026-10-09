@@ -105,7 +105,7 @@ export function installSkill(opts: {
       }
       if (!isPreviousInstall(destination)) {
         throw new CliError(
-          `${destination} does not look like a zenstory skill installation (expected only SKILL.md with ` +
+          `${destination} does not look like a ZenStory skill installation (expected only SKILL.md with ` +
             '`name: zenstory` and references/); refusing to replace it even with --force. Move it away manually.',
           EXIT.ERROR,
         );

@@ -1,7 +1,7 @@
 ---
 name: zenstory
-description: Reads, writes and organizes the user's novel projects stored in zenstory (chapters/drafts, outlines, character profiles, lore/world-building, materials) through the zenstory CLI and its Agent API. Use when the user mentions zenstory, refers to their novel or story project kept in zenstory, or asks to read, continue, draft, revise, or reorganize chapters, outlines, characters or settings stored there, or to check continuity across a zenstory project (e.g. "continue chapter 12 in zenstory", "add this character to my zenstory novel", "在 zenstory 里续写第三章", "把人物设定存到 zenstory").
-compatibility: Requires Node.js 20+ (runs the zenstory CLI via a global install or npx) and network access to api.zenstory.ai.
+description: Reads, writes and organizes the user's novel projects stored in ZenStory (chapters/drafts, outlines, character profiles, lore/world-building, materials) through the ZenStory CLI and its Agent API. Use when the user mentions ZenStory, refers to their novel or story project kept in ZenStory, or asks to read, continue, draft, revise, or reorganize chapters, outlines, characters or settings stored there, or to check continuity across a ZenStory project (e.g. "continue chapter 12 in ZenStory", "add this character to my ZenStory novel", "在 ZenStory 里续写第三章", "把人物设定存到 ZenStory").
+compatibility: Requires Node.js 20+ (runs the ZenStory CLI via a global install or npx) and network access to api.zenstory.ai.
 metadata:
   version: "0.2.0"
   homepage: "https://zenstory.ai"
@@ -9,9 +9,9 @@ metadata:
   api_base: "https://api.zenstory.ai/api/v1"
 ---
 
-# zenstory
+# ZenStory
 
-zenstory is an AI-assisted novel writing workbench. Everything in a project is a **file**
+ZenStory is an AI-assisted novel writing workbench. Everything in a project is a **file**
 (outline, draft chapter, character, lore, material, folder) arranged in a folder tree. This
 skill operates those files with the `zenstory` CLI, which wraps the public Agent API.
 
@@ -33,7 +33,7 @@ zenstory whoami --json
 - Exit `0`: note `scopes.read` / `scopes.write`. Without `write`, you can only read — tell
   the user before planning edits.
 - Exit `3` ("Not logged in" / key rejected): ask the user to create an Agent API key in
-  **zenstory → Settings → Agent** (enable the `write` scope if they want you to edit), then
+  **ZenStory → Settings → Agent** (enable the `write` scope if they want you to edit), then
   run this **themselves** in their own terminal and paste the key when prompted (input is
   hidden, so the key stays out of shell history):
 
@@ -41,7 +41,7 @@ zenstory whoami --json
   npx -y zenstory login
   ```
 
-  Self-hosted zenstory: add `--api-base https://<their-server>/api/v1`.
+  Self-hosted ZenStory: add `--api-base https://<their-server>/api/v1`.
 - Never ask the user to paste the key into the chat, and never put a key on a command line.
   If they already pasted a key into the chat, treat it as exposed: recommend they
   **regenerate it in Settings → Agent** and log in again with the new key as above. Never
