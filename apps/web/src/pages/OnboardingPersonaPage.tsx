@@ -140,14 +140,18 @@ export default function OnboardingPersonaPage() {
       GOAL_OPTIONS.some((option) => option.id === value)
     )
   );
-  const [experienceLevel, setExperienceLevel] = useState<PersonaExperienceLevel>(
-    existingData?.experience_level ?? "beginner"
+  // No experience level is preselected for a first visit; the author picks one
+  // (or leaves it blank and the server keeps its default).
+  const [experienceLevel, setExperienceLevel] = useState<PersonaExperienceLevel | null>(
+    existingData?.experience_level ?? null
   );
   const mountedRef = useRef(false);
   const editedFields = useRef({ personas: false, goals: false, experience: false });
   const [hasRestoredProfile, setHasRestoredProfile] = useState(Boolean(existingData));
   const [limitReached, setLimitReached] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: a double click lands before `saving` re-renders.
+  const savingRef = useRef(false);
   const personaQueryKey = personaOnboardingQueryKey(user?.id ?? "anonymous");
   const { data: serverState } = useQuery({
     queryKey: personaQueryKey,
@@ -232,7 +236,9 @@ export default function OnboardingPersonaPage() {
       tips.push(t("onboarding:preview.items.quality", "让 AI 审读并修改章节"));
     }
 
-    tips.push(t(`onboarding:preview.level.${experienceLevel}`, "按你的写作经验给出建议"));
+    if (experienceLevel) {
+      tips.push(t(`onboarding:preview.level.${experienceLevel}`, "按你的写作经验给出建议"));
+    }
 
     return Array.from(new Set(tips)).slice(0, 4);
   }, [experienceLevel, selectedGoals, selectedPersonas, t]);
@@ -271,14 +277,21 @@ export default function OnboardingPersonaPage() {
   };
 
   const handleSubmit = async (skip = false) => {
-    if (!user || saving) return;
-    if (!skip && !canSubmit) return;
+    // The button already shows the saving state for an in-flight save.
+    if (!user || savingRef.current) return;
+    if (!skip && !canSubmit) {
+      toast.error(t("onboarding:actions.needPersona", "先选一个创作者类型，或点「跳过」"));
+      return;
+    }
 
+    savingRef.current = true;
     setSaving(true);
     const payload = {
       selected_personas: skip ? [] : selectedPersonas,
       selected_goals: skip ? [] : selectedGoals,
-      experience_level: experienceLevel,
+      // Unanswered experience keeps the server default instead of a value the
+      // author never picked.
+      ...(experienceLevel ? { experience_level: experienceLevel } : {}),
       skipped: skip,
     };
 
@@ -333,6 +346,7 @@ export default function OnboardingPersonaPage() {
         toast.error(t("onboarding:errors.saveFailed", "保存失败，请检查网络后重试"));
       }
     } finally {
+      savingRef.current = false;
       if (mountedRef.current) setSaving(false);
     }
   };
@@ -533,17 +547,29 @@ export default function OnboardingPersonaPage() {
                 {t("onboarding:actions.skip", "跳过")}
               </Button>
 
-              <Button
-                onClick={() => {
-                  void handleSubmit(false);
-                }}
-                disabled={!canSubmit || saving}
-                isLoading={saving}
-                loadingText={t("onboarding:actions.saving", "正在保存...")}
-                rightIcon={<ArrowRight className="w-4 h-4" />}
-              >
-                {t("onboarding:actions.submit", "保存并进入工作台")}
-              </Button>
+              <div className="flex flex-col items-end gap-1.5">
+                <Button
+                  onClick={() => {
+                    void handleSubmit(false);
+                  }}
+                  disabled={!canSubmit || saving}
+                  isLoading={saving}
+                  loadingText={t("onboarding:actions.saving", "正在保存...")}
+                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                  aria-describedby={!canSubmit ? "onboarding-submit-reason" : undefined}
+                >
+                  {t("onboarding:actions.submit", "保存并进入工作台")}
+                </Button>
+                {!canSubmit && (
+                  <p
+                    id="onboarding-submit-reason"
+                    data-testid="onboarding-submit-reason"
+                    className="text-xs text-[hsl(var(--text-secondary))]"
+                  >
+                    {t("onboarding:actions.needPersona", "先选一个创作者类型，或点「跳过」")}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

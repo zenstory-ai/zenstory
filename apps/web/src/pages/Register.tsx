@@ -14,6 +14,14 @@ import { normalizePlanIntent, type PlanIntent } from "../lib/authFlow";
 
 const MAX_PASSWORD_BYTES = 72;
 
+type PolicyCacheEntry = {
+  key: string;
+  value: boolean | null;
+  promise: Promise<boolean>;
+};
+
+const policyKey = (email: string, username: string) => `${email}\u0000${username}`;
+
 // SVG icons for OAuth providers
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -61,6 +69,11 @@ export const Register: React.FC = () => {
   const [searchParams] = useSearchParams();
   const policyRequestSeqRef = useRef(0);
   const submitInFlightRef = useRef(false);
+  // Identity-independent policy from the mount prefetch (null = unknown or
+  // depends on the identity).
+  const globalPolicyRef = useRef<boolean | null>(null);
+  // Latest per-identity policy lookup, reused by submit.
+  const identityPolicyRef = useRef<PolicyCacheEntry | null>(null);
 
   // Read invite code and plan intent from URL parameters
   useEffect(() => {
@@ -120,37 +133,79 @@ export const Register: React.FC = () => {
   const isUsernameValid = trimmedUsername.length >= 3;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
   const isPasswordLengthValid = password.length >= 6;
-  const isConfirmPasswordLengthValid = confirmPassword.length >= 6;
   const isPasswordMatched = password.length > 0 && password === confirmPassword;
-  const isInviteCodeValid = inviteCodeOptional || trimmedInviteCode.length > 0;
-  const canSubmit =
-    !loading &&
-    !success &&
-    isUsernameValid &&
-    isEmailValid &&
-    isPasswordLengthValid &&
-    isConfirmPasswordLengthValid &&
-    isPasswordMatched &&
-    isInviteCodeValid &&
-    acceptTerms;
+  // The submit button is only disabled while a request is running or after
+  // success. Incomplete forms stay clickable so every click gets a visible
+  // answer (inline message + toast) instead of a silent no-op.
+  const submitDisabled = loading || success;
+
+  // Coming from a card halfway down the landing page, the browser keeps the
+  // old scroll offset and cuts off the title; start the form at the top.
+  useEffect(() => {
+    try {
+      window.scrollTo({ top: 0 });
+    } catch {
+      // Non-browser environments without scrollTo.
+    }
+  }, []);
+
+  // Prefetch the identity-independent policy on mount. When the server says
+  // the answer does not depend on the identity (global optional / no rollout),
+  // submit reuses it without another round trip.
+  useEffect(() => {
+    let cancelled = false;
+    void authApi.getRegistrationPolicy().then((policy) => {
+      if (cancelled) return;
+      const optional = Boolean(policy.invite_code_optional);
+      const identityIndependent =
+        policy.variant === "global_optional" || Number(policy.rollout_percent ?? 0) <= 0;
+      globalPolicyRef.current = identityIndependent ? optional : null;
+      if (identityIndependent) {
+        setInviteCodeOptional(optional);
+      }
+    }).catch(() => {
+      // Keep the build-time default; submit falls back to it as before.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isUsernameValid || !isEmailValid) {
-      setInviteCodeOptional(authConfig.inviteCodeOptional);
+      setInviteCodeOptional(globalPolicyRef.current ?? authConfig.inviteCodeOptional);
+      return;
+    }
+    if (globalPolicyRef.current !== null) {
+      setInviteCodeOptional(globalPolicyRef.current);
       return;
     }
 
     const requestSeq = ++policyRequestSeqRef.current;
     let cancelled = false;
+    const key = policyKey(trimmedEmail, trimmedUsername);
+    const entry: PolicyCacheEntry = {
+      key,
+      value: null,
+      promise: authApi.getRegistrationPolicy({
+        email: trimmedEmail,
+        username: trimmedUsername,
+      }).then((policy) => {
+        const optional = Boolean(policy.invite_code_optional);
+        entry.value = optional;
+        return optional;
+      }),
+    };
+    identityPolicyRef.current = entry;
 
-    void authApi.getRegistrationPolicy({
-      email: trimmedEmail,
-      username: trimmedUsername,
-    }).then((policy) => {
+    entry.promise.then((optional) => {
       if (!cancelled && requestSeq === policyRequestSeqRef.current) {
-        setInviteCodeOptional(Boolean(policy.invite_code_optional));
+        setInviteCodeOptional(optional);
       }
     }).catch(() => {
+      if (identityPolicyRef.current === entry) {
+        identityPolicyRef.current = null;
+      }
       if (!cancelled && requestSeq === policyRequestSeqRef.current) {
         setInviteCodeOptional(authConfig.inviteCodeOptional);
       }
@@ -160,6 +215,38 @@ export const Register: React.FC = () => {
       cancelled = true;
     };
   }, [isEmailValid, isUsernameValid, trimmedEmail, trimmedUsername]);
+
+  /**
+   * Resolve the invite policy for submit. Known answers are returned
+   * synchronously so the first click goes straight to the POST; only an
+   * unknown identity triggers (or joins) a network lookup.
+   */
+  const resolveSubmitPolicy = (): boolean | Promise<boolean> => {
+    if (globalPolicyRef.current !== null) return globalPolicyRef.current;
+    const key = policyKey(trimmedEmail, trimmedUsername);
+    const cached = identityPolicyRef.current;
+    if (cached && cached.key === key) {
+      if (cached.value !== null) return cached.value;
+      return cached.promise.catch(() => inviteCodeOptional);
+    }
+    return authApi.getRegistrationPolicy({ email: trimmedEmail, username: trimmedUsername })
+      .then((policy) => Boolean(policy.invite_code_optional))
+      .catch(() => inviteCodeOptional);
+  };
+
+  const rejectSubmit = (message: string, fieldId?: string) => {
+    setFormError(message);
+    toast.error(message);
+    if (fieldId) {
+      setTimeout(() => {
+        const el = document.getElementById(fieldId);
+        if (el instanceof HTMLInputElement) {
+          el.scrollIntoView?.({ block: 'center' });
+          el.focus();
+        }
+      }, 0);
+    }
+  };
 
   const resetSubmitStateOnInput = () => {
     if (loading) {
@@ -176,35 +263,38 @@ export const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // The button already shows the in-flight / success state for these two.
     if (submitInFlightRef.current || success) return;
     setFormError("");
 
-    if (password !== confirmPassword) {
-      const message = t('auth:errors.passwordMismatch');
-      setFormError(message);
-      toast.error(message);
+    if (trimmedUsername.length < 3) {
+      rejectSubmit(t('auth:errors.shortUsername'), 'username');
+      return;
+    }
+
+    if (!isEmailValid) {
+      rejectSubmit(t('auth:errors.invalidEmail'), 'email');
       return;
     }
 
     if (password.length < 6) {
-      const message = t('auth:errors.shortPassword');
-      setFormError(message);
-      toast.error(message);
+      rejectSubmit(t('auth:errors.shortPassword'), 'password');
       return;
     }
 
     // bcrypt only uses the first 72 bytes; the server rejects longer passwords.
     if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) {
-      const message = t('auth:errors.passwordTooLong');
-      setFormError(message);
-      toast.error(message);
+      rejectSubmit(t('auth:errors.passwordTooLong'), 'password');
       return;
     }
 
-    if (trimmedUsername.length < 3) {
-      const message = t('auth:errors.shortUsername');
-      setFormError(message);
-      toast.error(message);
+    if (password !== confirmPassword) {
+      rejectSubmit(t('auth:errors.passwordMismatch'), 'confirmPassword');
+      return;
+    }
+
+    if (!acceptTerms) {
+      rejectSubmit(t('auth:errors.mustAcceptTerms'));
       return;
     }
 
@@ -212,29 +302,13 @@ export const Register: React.FC = () => {
     setLoading(true);
 
     try {
-      let effectiveInviteCodeOptional = inviteCodeOptional;
-      try {
-        const policy = await authApi.getRegistrationPolicy({
-          email: trimmedEmail,
-          username: trimmedUsername,
-        });
-        effectiveInviteCodeOptional = Boolean(policy.invite_code_optional);
-        setInviteCodeOptional(effectiveInviteCodeOptional);
-      } catch {
-        // Fall back to local config when policy API is unavailable.
-      }
+      const policyResult = resolveSubmitPolicy();
+      const effectiveInviteCodeOptional =
+        typeof policyResult === 'boolean' ? policyResult : await policyResult;
+      setInviteCodeOptional(effectiveInviteCodeOptional);
 
       if (!effectiveInviteCodeOptional && !trimmedInviteCode) {
-        const message = t('auth:errors.inviteCodeRequired');
-        setFormError(message);
-        toast.error(message);
-        return;
-      }
-
-      if (!acceptTerms) {
-        const message = t('auth:errors.mustAcceptTerms');
-        setFormError(message);
-        toast.error(message);
+        rejectSubmit(t('auth:errors.inviteCodeRequired'), 'invite_code');
         return;
       }
       await register(trimmedUsername, trimmedEmail, password, trimmedInviteCode || undefined);
@@ -552,7 +626,7 @@ export const Register: React.FC = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={!canSubmit}
+              disabled={submitDisabled}
               className="btn-primary w-full py-3 text-base"
               aria-busy={loading}
             >

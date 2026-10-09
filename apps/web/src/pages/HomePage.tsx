@@ -4,7 +4,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   Book, FileText, Clapperboard, ArrowRight, Sparkles, Check, Zap,
   TrendingUp, Mic, Paperclip, Brain, History, Cloud, Download,
-  Edit3, User
+  Edit3, User, Loader2
 } from "../components/icons";
 import { useAuth } from "../contexts/AuthContext";
 import { usePreloadRoute } from "../hooks/usePreloadRoute";
@@ -41,6 +41,9 @@ export default function HomePage() {
   const [activeScene, setActiveScene] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [sceneProgress, setSceneProgress] = useState(0);
+  // The sign-up route is lazy and navigation waits for its chunk, so the
+  // clicked card shows an "opening" state instead of looking unresponsive.
+  const [openingProjectType, setOpeningProjectType] = useState<ProjectType | null>(null);
   const sceneTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const demoSectionRef = useRef<HTMLDivElement | null>(null);
   const planIntent = useMemo(() => {
@@ -402,16 +405,21 @@ export default function HomePage() {
               const projectFeatures = Array.isArray(projectFeaturesRaw)
                 ? (projectFeaturesRaw as unknown[])
                 : [];
+              const isOpening = openingProjectType === item.type;
               return (
               <button
                 key={item.type}
                 type="button"
+                data-testid={`home-project-type-card-${item.type}`}
+                aria-busy={isOpening}
                 onClick={() => {
                   // Remember the type first so the dashboard opens on it after sign-up.
                   setPreferredProjectType(item.type);
+                  setOpeningProjectType(item.type);
                   handleGetStarted();
                 }}
                 onFocus={handleGetStartedHover}
+                onPointerEnter={handleGetStartedHover}
                 className="group relative w-full text-left p-4 md:p-5 rounded-xl bg-[hsl(var(--bg-primary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.5)] hover:shadow-[0_0_40px_rgba(74,158,255,0.15)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
               >
                 {/* Popular badge */}
@@ -435,9 +443,23 @@ export default function HomePage() {
                   ))}
                 </div>
 
+                {isOpening && (
+                  <p
+                    className="mt-3 text-xs font-medium text-[hsl(var(--accent-primary))]"
+                    role="status"
+                    data-testid="home-project-type-card-opening"
+                  >
+                    {t('home:projectTypes.opening', '正在打开…')}
+                  </p>
+                )}
+
                 {/* Arrow */}
-                <div className="absolute right-4 md:right-5 bottom-4 md:bottom-5 w-8 h-8 md:w-9 md:h-9 rounded-full bg-[hsl(var(--accent-primary))] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
-                  <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
+                <div className={`absolute right-4 md:right-5 bottom-4 md:bottom-5 w-8 h-8 md:w-9 md:h-9 rounded-full bg-[hsl(var(--accent-primary))] flex items-center justify-center transition-opacity shadow-lg ${isOpening ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                  {isOpening ? (
+                    <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-white animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
+                  )}
                 </div>
               </button>
             )})}
