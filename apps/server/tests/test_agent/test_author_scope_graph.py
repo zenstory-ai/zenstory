@@ -375,6 +375,14 @@ async def test_plan_already_written_to_a_file_is_not_redone():
         ("根据分集规划写第3集", False),
         # 回答规划师的提问，没提规划。
         ("爽文，主角叫陈默", False),
+        # 问进度 / 在哪、提意见：不是要一份新规划（不该多一轮补写大纲文件）。
+        ("大纲好了吗", False),
+        ("大纲写了吗", False),
+        ("我的大纲在哪", False),
+        ("你的大纲有问题", False),
+        ("这个大纲第5章节奏太慢", False),
+        ("大纲写好了没", False),
+        ("大纲还没写吧，帮我列一下前十章大纲", True),
     ],
 )
 def test_plan_backstop_needs_the_author_to_ask_for_a_plan(message, asks):

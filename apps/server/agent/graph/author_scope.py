@@ -219,12 +219,24 @@ def request_asks_for_a_plan(message: str) -> bool:
     return False
 
 
+# 问进度 / 在哪：「大纲写了吗」「大纲好了没」「我的大纲在哪」。
+_STATUS_QUESTION_RE = re.compile(
+    r"(?:(?:写|做|列|出|整理|生成|弄|搞|存|保存|补)(?:了|好了|完了|好|完)(?:吗|么|没|没有)|"
+    r"好了(?:吗|么|没)|在哪|哪里|哪儿|有没有)"
+)
+# 问句 / 意见：「大纲好了吗」「你的大纲有问题」「这个大纲第5章节奏太慢」。改规划要作者
+# 明说（「把大纲第5章改快一点」走修改大纲文件，不是补一份新规划）。
+_QUESTION_OR_FEEDBACK_RE = re.compile(r"(?:吗|么|呢|有问题|不对|不行|不好|太|看不懂|不满意)")
+
+
 def _clause_asks_for_plan(clause: str) -> bool:
+    if _STATUS_QUESTION_RE.search(clause):
+        return bool(_IMPERATIVE_RE.search(clause))
     if any(word in clause for word in _DISCUSSION_WORDS) or _DISCUSSION_QUESTION_RE.search(clause):
         return bool(_IMPERATIVE_RE.search(clause))
     if _PRODUCE_RE.search(clause):
         return True
-    if _VERDICT_RE.search(clause):
+    if _VERDICT_RE.search(clause) or _QUESTION_OR_FEEDBACK_RE.search(clause):
         return False
     return len(clause) <= _BARE_PLAN_REQUEST_MAX_CHARS
 

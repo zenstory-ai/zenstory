@@ -8,15 +8,23 @@
   改过却没留版本），而作者本轮的话没有指向这个文件时，edit_file / delete_file（含递归删除
   文件夹里的这类文件）/ create_file 复用同名剧集不执行，返回 error_type=author_edit_protected，
   告诉模型以作者的写法为准、有出入就问作者。
-- 「指向这个文件」：作者点名它并要求改（标题或标题里的词、第 N 章 / 集、前 N 章，同一分句
+- 「指向这个文件」：作者点名它并要求改它（标题或标题里的词、第 N 章 / 集、前 N 章，同一分句
   或下一分句里有「改 / 润色 / 精简…」）、「全书 / 所有章节」并要求改、大纲 / 人设这类文件
   类别并要求改、附加或引用了它；作者正开着它时说「这一章 / 这里」，或者提了改动且没点名别的
-  文件、不是要下一章或接着往下写（「把开头改得更有悬念一点」）；上一轮 AI 因为这条规则问过
-  作者要不要改它，且作者这一轮答应了（「可以」「统一成老周」；「不用改，继续写下一章」不算）。
-- 不算要求改的说法：「改变 / 改天」、「继续更新」（发新章）、作者讲自己改过的（「我把老周
-  改成老秦了」「第3章我改过了」）、抱怨（「你怎么把第3章改了」）；没点名哪一章时不带方向的
-  「统一」（「人名要统一」「统一一下格式」）——作者改的写法是最新设定，往回统一要作者说清楚。
-- 递归删除文件夹：作者点名这个文件夹并说删才整个删；否则里面作者手改过的文件要点名并说删。
+  文件、不是要下一章或接着往下写（「把开头改得更有悬念一点」）；上一轮 AI 因为这条规则没改
+  它、作者这一轮不点名别的章、说清了往哪改（「统一成老周吧」「改回老周」），且每处修改都是
+  换成这个写法。上一轮 AI 问的是「要把第2章也改成老秦吗？」，所以「好 / 可以」答应的是改
+  其他章，不放开作者改过的这一章。
+- 点名了但不是要改它：拿它当标准 / 来源（「以第3章为准」「按第3章统一人名」「和第3章的
+  人名保持统一」「第4章沿用第3章的改动」）；作者在讲它改过了（「第3章改好了」「第3章老周
+  改成老秦了」「第3章有改动」「第3章是我改过的，以它为准统一一下其他章」——讲完改过的，
+  下一分句的要求不算到它头上）。
+- 不算要求改的说法：「改变 / 改天」（「把结局改变一下」算）、「继续更新」（发新章）、作者讲
+  自己改过的（「我把老周改成老秦了」「第3章我改过了」）、抱怨（「你怎么把第3章改了」）；
+  没点名哪一章时不带方向的「统一」（「人名要统一」「统一一下格式」）——作者改的写法是最新
+  设定，往回统一要作者说清楚。
+- 递归删除文件夹：作者点名这个文件夹并说删它（「正文里的第2章删掉」删的是里面的东西，不算）
+  才整个删；否则里面作者手改过的文件要点名并在那一处说删。
 - 「把老秦改成老周」这类改名要求：只替换 / 删除含「老秦」的原文时放行；「把主角的名字改成
   李明」只放行改成的文字里有「李明」的小段替换。
 - 作者正开着的文件只追加（op=append）、且本轮不是写下一章时放行：作者写了半章说
@@ -29,7 +37,7 @@ from __future__ import annotations
 
 import re
 import threading
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -168,21 +176,6 @@ _DECLINE_RE = re.compile(
     r"(?:(?<![分区特告性级类识差个错辨离道送鉴判派])别(?![的人处])|不要|不用|不必|先不|算了|不改|保持|维持|"
     r"就叫|就这样|按我的|按我改的|无需|不需要|不了|我自己|我来改|自己来|\bno\b|don'?t|\bkeep\b)"
 )
-# 答应的说法：出现在任何位置都算的。
-_CONFIRM_MARKERS: tuple[str, ...] = (
-    "可以",
-    "同意",
-    "确认",
-    "没问题",
-    "要的",
-    "要改",
-    "是的",
-)
-# 单独成句才算答应的短词：「好，改吧」「行」「嗯」算；「写好一点」「行文」「对话」不算。
-_SHORT_CONFIRM_RE = re.compile(
-    r"(?:^|[，,。！!？?；;])(?:好|好的|好吧|行|行吧|嗯|嗯嗯|对|对的|ok|okay|yes)"
-    r"(?:的|吧|啊|呀|哒|嘞|了)?(?=$|[，,。！!？?；;])"
-)
 # 作者在让 AI 接着往下写（不是在回答要不要改）。
 _MOVING_ON_MARKERS: tuple[str, ...] = ("继续写", "接着写", "往下写", "续写", "继续更新", "接着更新")
 
@@ -237,24 +230,65 @@ def _any_positive(text: str, needles: Iterable[str], start: int = 0, end: int | 
 
 # 「改」开头却不是要改稿的词：「主角的命运从此改变」「改天再说」。
 _GAI_NON_EDIT_NEXT = "变天日革口观行嫁"
+# 「把结局改变一下」「改变成…」是要改。
+_GAIBIAN_AS_EDIT_RE = re.compile(r"^变(?:一下|一点|得|成|为)")
 # 「更新」在网文里常指发新章（「继续更新」「今天更新两章」），不是改已有的字。
 _UPDATE_AS_PUBLISH_BEFORE_RE = re.compile(r"(?:继续|接着|日|今天|今日|明天|每天|多|快)$")
 _UPDATE_AS_PUBLISH_AFTER_RE = re.compile(rf"^了?{_NUMBER}?[章集]")
 # 作者在说自己做过的改动（「我把第3章的老周改成老秦了」「第3章我改过了」），不是在要求改。
-_REPORT_TIME_RE = re.compile(r"(?:已经|已|刚才|刚刚|早就)$")
+_REPORT_TIME_RE = re.compile(r"(?:已经|已|刚才|刚刚|刚|早就|之前|上次)$")
 _FIRST_PERSON_RE = re.compile(r"(?<![帮给替让请叫])我(?!们)")
 _REQUEST_INTENT_RE = re.compile(r"(?:想|要|希望|打算|准备|需要|得|觉得|认为)")
+# 名词用法：「第3章有改动」「做了修改」「沿用第3章的改动」。
+_NOUN_USE_BEFORE_RE = re.compile(r"(?:的|有|做了|做过|作了|进行了|进行过)修?$")
+# 讲已经改完的：「第3章改好了」「调整了一下人名」「第3章老周改成老秦了」。
+_DONE_AFTER_RE = re.compile(r"^(?:了|好了|完了|完毕|好啦|完啦)")
+_CLAUSE_FINAL_DONE_RE = re.compile(r"[了啦]$")
+# 带了这些就是在叫 AI 改：「帮我把第3章改了」「第3章该改改了」「第3章删了吧」。
+_IMPERATIVE_BEFORE_RE = re.compile(r"(?:帮|请|麻烦|劳驾|给我|能不能|能否|可不可以|再|该|得|需要|必须|要)")
 # 「你怎么把第3章改了」是在抱怨，不是在要求改。
 _COMPLAINT_RE = re.compile(r"你(?:怎么|为什么|为啥|又|居然|竟然|干嘛)")
 # 不带方向的「统一」：「人名要统一」「统一一下格式」。「统一成 / 统一为 / 统一叫」是带方向的改名。
 _UNIFY_DIRECTION_NEXT = "成为叫"
 
 
+def _is_report(text: str, verb: str, position: int) -> bool:
+    """text[position:] 上的这个改动说法，是不是作者在讲已经改过的（不是在要求改）。
+
+    「第3章我改过了」「我把老周改成老秦了」「第3章改好了」「第3章老周改成老秦了」
+    「第3章调整了一下人名」「第3章有改动」「做了修改」「第3章刚改完」。
+    带「帮 / 请 / 再 / 该 / 吧」或「把第3章删了」这样的祈使说法时不算。
+    """
+    after_position = position + len(verb)
+    next_char = text[after_position:after_position + 1]
+    clause_start, clause_end = _clause_bounds(text, position)
+    before = text[clause_start:position]
+    after = text[after_position:clause_end]
+    if after.startswith("过") or _REPORT_TIME_RE.search(before):
+        return True
+    if _NOUN_USE_BEFORE_RE.search(before) and (verb != "改" or next_char in "动写" or before.endswith("修")):
+        return True
+    if _FIRST_PERSON_RE.search(before) and not _REQUEST_INTENT_RE.search(before):
+        return True
+    # 「第3章删了」口语里多半是叫 AI 删；删掉的东西也不会再被改回去，删的说法不按讲改过的算。
+    if verb in _DELETE_VERBS or not (_DONE_AFTER_RE.match(after) or _CLAUSE_FINAL_DONE_RE.search(after)):
+        return False
+    if _IMPERATIVE_BEFORE_RE.search(before) or "吧" in after:
+        return False
+    # 「把第3章删了」「把第3章改了」：动词紧跟「了」的把字句是在叫 AI 动手。
+    return not (re.search(r"[把将]", before) and after.startswith("了"))
+
+
 def _verb_is_request(text: str, verb: str, position: int, *, allow_bare_unify: bool) -> bool:
     """text[position:] 上的这个改动说法，是不是作者在要求改稿。"""
     after_position = position + len(verb)
     next_char = text[after_position:after_position + 1]
-    if verb == "改" and next_char and next_char in _GAI_NON_EDIT_NEXT:
+    if (
+        verb == "改"
+        and next_char
+        and next_char in _GAI_NON_EDIT_NEXT
+        and not _GAIBIAN_AS_EDIT_RE.match(text[after_position:])
+    ):
         return False
     clause_start, clause_end = _clause_bounds(text, position)
     before = text[clause_start:position]
@@ -267,9 +301,7 @@ def _verb_is_request(text: str, verb: str, position: int, *, allow_bare_unify: b
         return False
     if _COMPLAINT_RE.search(before):
         return False
-    if after.startswith("过") or _REPORT_TIME_RE.search(before):
-        return False
-    return not (_FIRST_PERSON_RE.search(before) and not _REQUEST_INTENT_RE.search(before))
+    return not _is_report(text, verb, position)
 
 
 def _has_edit_verb(
@@ -326,23 +358,94 @@ def _names_a_unit(clause: str) -> bool:
     return bool(_SINGLE_SEQ_RE.search(clause) or _FIRST_N_SEQ_RE.search(clause) or "《" in clause)
 
 
-def _mention_asks_for_edit(text: str, mention_start: int) -> bool:
-    """作者提到某个文件的那一处，是不是在要求改它。
+# 拿点名的文件当标准 / 来源：「以第3章为准」「按第3章统一人名」「第4章沿用第3章的改动」
+# 「同步第3章的人名到第4章」。「可以 / 所以」里的「以」不算。
+_QUOTE_OPEN = "「『《“\"'"
+_REFERENCE_BEFORE_RE = re.compile(
+    rf"(?:(?<![可所难得足予加])以|按|按照|照|照着|参照|参考|根据|依照|依据|对照|基于|沿用|延续|同步|仿照)[{_QUOTE_OPEN}]?$"
+)
+# 「和第3章的人名保持统一」「把第2章改得跟第3章一样」：拿来比的那一章。「第2章和第3章统一一下」
+# 是并列（「和」前面紧挨着另一章），两章都要改。
+_COMPARE_BEFORE_RE = re.compile(
+    rf"(?<![{_SEQ_UNITS}{_CN_DIGITS}》\d])(?:和|跟|与|同|像)[{_QUOTE_OPEN}]?$"
+)
+_COMPARE_AFTER_RE = re.compile(r"(?:一致|一样|统一|相同|同步|对齐|看齐|保持|对应|对上)")
+_STANDARD_AFTER_RE = re.compile(
+    r"^[」』》”\"']?(?:的[^，,。！？!?；;\n]{0,4})?(?:为准|为标准|为主|为参考|为依据|为例|为模板)"
+)
+# 下一分句说的是别的章 / 拿前面那章当标准：「…，以它为准统一一下其他章」「…，把前面的章节也统一一下」。
+_OTHER_UNITS_RE = re.compile(
+    r"(?:其他|其余|其它|别的|另外|前面|后面|之后|之前|剩下|以前|后续)的?(?:章|集|回|节|篇|文件)"
+)
+_STANDARD_PRONOUN_RE = re.compile(r"(?:(?:以|按|按照|照|照着|参照|根据|跟|和|与)(?:它|这章|那章|这一章|那一章)|为准)")
 
-    同一分句里有改动的说法，或者紧跟着的下一分句有、且下一分句没有另外点名章节：
+
+def _mention_is_reference(text: str, mention_start: int, mention_end: int) -> bool:
+    """作者提到这个文件的这一处，是拿它当标准 / 来源（不是要改它）。"""
+    clause_start, clause_end = _clause_bounds(text, mention_start)
+    before = text[clause_start:mention_start]
+    after = text[mention_end:clause_end]
+    if _REFERENCE_BEFORE_RE.search(before) or _STANDARD_AFTER_RE.match(after):
+        return True
+    return bool(_COMPARE_BEFORE_RE.search(before) and _COMPARE_AFTER_RE.search(after))
+
+
+def _clause_reports_edit(text: str, start: int, end: int) -> bool:
+    """text[start:end] 这一分句里，作者在讲已经改过的（「第3章是我改过的」「第3章改好了」）。"""
+    for verb in _EDIT_VERBS:
+        position = text.find(verb, start, end)
+        while position != -1:
+            if not _is_negated(text, position) and _is_report(text, verb, position):
+                return True
+            position = text.find(verb, position + 1, end)
+    return False
+
+
+def _mention_asks_for(
+    text: str,
+    mention_start: int,
+    mention_end: int,
+    has_verb: Callable[[str, int, int], bool],
+) -> bool:
+    """作者提到某个文件的那一处，是不是在要求改（has_verb=_has_edit_verb）/ 删它。
+
+    同一分句里有改动的说法，或者紧跟着的下一分句有、且下一分句没有另外点名章节（这一分句
+    已经提了别的改动时，下一分句是另一件事：「第3章改一下，把废稿删了」不是删第3章）：
     「第3章写得太拖了，精简一下」算；「参考第3章的写法写第4章」「继续写第四章，夜市那段
     的氛围延续下去」「第2章不用改，第3章改成老周」里的第2章不算。
+    拿它当标准 / 来源的（「以第3章为准」「和第3章的人名保持统一」）不算；作者在这一分句讲
+    它已经改过了（「第3章改好了」「第3章是我改过的」）时，下一分句的要求（「以它为准统一一下
+    其他章」「继续写下一章」）也不算到它头上；下一分句说的是别的章（「其他章 / 前面的章节」）
+    同样不算。
     """
+    if _mention_is_reference(text, mention_start, mention_end):
+        return False
     start, end = _clause_bounds(text, mention_start)
-    if _has_edit_verb(text, start, end):
+    if has_verb(text, start, end):
         return True
     next_start = end + 1
-    if next_start >= len(text):
+    # 这一分句已经是一条完整的要求（「第3章改一下，把废稿删了」）或者在讲改过了，
+    # 下一分句是另一件事。
+    if next_start >= len(text) or _clause_reports_edit(text, start, end) or _has_edit_verb(text, start, end):
         return False
     _, next_end = _clause_bounds(text, next_start)
-    if next_start >= next_end or _names_a_unit(text[next_start:next_end]):
+    next_clause = text[next_start:next_end]
+    if (
+        next_start >= next_end
+        or _names_a_unit(next_clause)
+        or _OTHER_UNITS_RE.search(next_clause)
+        or _STANDARD_PRONOUN_RE.search(next_clause)
+    ):
         return False
-    return _has_edit_verb(text, next_start, next_end)
+    return has_verb(text, next_start, next_end)
+
+
+def _mention_asks_for_edit(text: str, mention_start: int, mention_end: int) -> bool:
+    return _mention_asks_for(text, mention_start, mention_end, _has_edit_verb)
+
+
+def _mention_asks_for_delete(text: str, mention_start: int, mention_end: int) -> bool:
+    return _mention_asks_for(text, mention_start, mention_end, _has_delete_verb)
 
 
 def _parse_number(token: str) -> int | None:
@@ -370,23 +473,23 @@ def _title_sequence(title: str) -> tuple[int, str] | None:
     return number, _unit_family(match.group(2))
 
 
-def _sequence_mentions(normalized: str) -> list[tuple[set[tuple[int, str]], int]]:
-    """作者原话（已规整）里点到的章 / 集号和出现的位置；前面带否定的不算。"""
-    found: list[tuple[set[tuple[int, str]], int]] = []
+def _sequence_mentions(normalized: str) -> list[tuple[set[tuple[int, str]], int, int]]:
+    """作者原话（已规整）里点到的章 / 集号和出现的位置 [start, end)；前面带否定的不算。"""
+    found: list[tuple[set[tuple[int, str]], int, int]] = []
     for match in _RANGE_SEQ_RE.finditer(normalized):
         if _is_negated(normalized, match.start()):
             continue
         start, end = _parse_number(match.group(1)), _parse_number(match.group(2))
         if start and end and start <= end and end - start <= 200:
             family = _unit_family(match.group(3))
-            found.append(({(number, family) for number in range(start, end + 1)}, match.start()))
+            found.append(({(number, family) for number in range(start, end + 1)}, match.start(), match.end()))
     for match in _FIRST_N_SEQ_RE.finditer(normalized):
         if _is_negated(normalized, match.start()):
             continue
         count = _parse_number(match.group(1))
         if count and count <= 200:
             family = _unit_family(match.group(2))
-            found.append(({(number, family) for number in range(1, count + 1)}, match.start()))
+            found.append(({(number, family) for number in range(1, count + 1)}, match.start(), match.end()))
     for match in _ENUM_SEQ_RE.finditer(normalized):
         if _is_negated(normalized, match.start()):
             continue
@@ -394,13 +497,13 @@ def _sequence_mentions(normalized: str) -> list[tuple[set[tuple[int, str]], int]
         tokens = re.split(r"[、,，和及与]", match.group(1))
         numbers = {(number, family) for number in map(_parse_number, tokens) if number}
         if numbers:
-            found.append((numbers, match.start()))
+            found.append((numbers, match.start(), match.end()))
     for match in _SINGLE_SEQ_RE.finditer(normalized):
         if _is_negated(normalized, match.start()):
             continue
         number = _parse_number(match.group(1))
         if number:
-            found.append(({(number, _unit_family(match.group(2)))}, match.start()))
+            found.append(({(number, _unit_family(match.group(2)))}, match.start(), match.end()))
     return found
 
 
@@ -410,7 +513,7 @@ def mentioned_sequences(text: str) -> set[tuple[int, str]]:
     前面带否定的不算（「别动第3章」）。
     """
     found: set[tuple[int, str]] = set()
-    for numbers, _ in _sequence_mentions(_normalize_text(text)):
+    for numbers, _, _ in _sequence_mentions(_normalize_text(text)):
         found.update(numbers)
     return found
 
@@ -469,36 +572,49 @@ def _edits_are_requested_rename(raw_text: str, edits: list[dict[str, Any]]) -> b
     return all(allowed(edit) for edit in edits)
 
 
-def author_confirms_change(text: str, *, sequence: tuple[int, str] | None = None) -> bool:
-    """作者这句是不是在答应 AI 上一轮「要不要改」的提问。
+def author_confirms_change(
+    text: str, *, sequence: tuple[int, str] | None = None, edits: list[Any] | None = None
+) -> bool:
+    """上一轮 AI 因为作者手改过而没改这个文件，作者这一轮是不是说清了把它往哪改。
 
-    出现不改的说法（不用 / 别 / 先不 / 保持 / 就叫 / 我自己…）就不算；要有答应的说法
-    （可以 / 好 / 改吧 / 统一成老周…）。不带方向的「统一」（「要统一」「人名要统一」）不算：
-    作者改的写法是最新设定，往作者这边统一用不着动作者改过的文件，往回统一要作者说清楚
-    「统一成谁」。
-    作者在让 AI 往下写（下一章、继续写、点名的是别的章 / 集）时，要明确答应改
-    （「可以，统一成老周再写下一章」「好，改吧，然后写下一章」）才算；「好，继续写下一章」
-    「继续写第5章，写好一点」「继续写下一章，开头改得有悬念一点」（说的是新的一章）不算。
-    sequence：这个文件的章 / 集号。
+    上一轮 AI 问的是「要把第2章也改成老秦吗？」（拒绝说明和提示词都让它默认这样问），
+    所以「好 / 可以 / 行 / 没问题」答应的是把其他章改成作者的写法，不放开作者改过的这一章；
+    「可以，第2章也改成老秦」点名的是别的章，也不算。作者点名这一章要求改（「第3章改回
+    老周」）走点名的规则。
+    这里只放行没点名、但说清了往哪改的回答（「统一成老周吧」「改回老周」「可以，统一成老周，
+    然后写下一章」），而且每一处修改都是换成这个写法（或替换掉作者说要换掉的词）：作者说
+    「统一成老秦」（作者自己的写法）时，把这一章的老秦改成老周仍然不行。
+    出现不改的说法（不用 / 别 / 先不 / 保持 / 就叫 / 我自己…）不算；删除、整份重写
+    （没有逐处修改）不算。sequence：这个文件的章 / 集号。
     """
     normalized = _normalize_text(text)
     if not normalized or _DECLINE_RE.search(normalized):
         return False
-    asks_for_edit = _has_edit_verb(normalized, allow_bare_unify=False)
-    says_yes = _any_positive(normalized, _CONFIRM_MARKERS) or bool(_SHORT_CONFIRM_RE.search(normalized))
-    if not (asks_for_edit or says_yes):
+    if any(sequence is None or sequence not in numbers for numbers, _, _ in _sequence_mentions(normalized)):
         return False
-    names_other_unit = any(
-        sequence is None or sequence not in numbers for numbers, _ in _sequence_mentions(normalized)
-    )
-    moving_on = (
-        names_other_unit
-        or any(marker in normalized for marker in _NEXT_UNIT_MARKERS)
-        or any(marker in normalized for marker in _MOVING_ON_MARKERS)
-    )
-    if not moving_on:
-        return True
-    return bool(_rename_pairs(text)) or (asks_for_edit and says_yes)
+    if not edits or not all(isinstance(edit, dict) for edit in edits):
+        return False
+    pairs = [(source, target) for source, target in _rename_pairs(text) if target]
+    if not pairs:
+        return False
+    sources = {source for source, _ in pairs if len(source) >= 2}
+    targets = {target for _, target in pairs if len(target) <= 8}
+
+    def toward_target(edit: dict[str, Any]) -> bool:
+        op = str(edit.get("op") or "").strip()
+        old = str(edit.get("old") or "")
+        new = str(edit.get("new") or "")
+        if op not in {"replace", "delete"}:
+            return False
+        if any(source in old for source in sources):
+            return True
+        return (
+            op == "replace"
+            and len(old) <= _RENAME_MAX_OLD_CHARS
+            and any(target in new and target not in old for target in targets)
+        )
+
+    return all(toward_target(edit) for edit in edits)
 
 
 def _title_tokens(title: str) -> list[str]:
@@ -507,25 +623,31 @@ def _title_tokens(title: str) -> list[str]:
     return [token for token in _TITLE_TOKEN_SPLIT_RE.split(stripped) if len(token) >= 2]
 
 
-def _mentions_title_for_edit(text: str, title: str) -> bool:
-    """作者原话里提到这个标题（完整标题或标题里的词）并要求改它。"""
+def _title_mentions(text: str, title: str) -> list[tuple[int, int]]:
+    """作者原话（已规整）里提到这个标题（完整标题或标题里的词）的位置 [start, end)；带否定的不算。"""
     needles = [_normalize_text(title)] + [_normalize_text(token) for token in _title_tokens(title)]
+    found: list[tuple[int, int]] = []
     for needle in needles:
         if not needle:
             continue
         position = text.find(needle)
         while position != -1:
-            if not _is_negated(text, position) and _mention_asks_for_edit(text, position):
-                return True
+            if not _is_negated(text, position):
+                found.append((position, position + len(needle)))
             position = text.find(needle, position + 1)
-    return False
+    return found
+
+
+def _mentions_title_for_edit(text: str, title: str) -> bool:
+    """作者原话里提到这个标题（完整标题或标题里的词）并要求改它。"""
+    return any(_mention_asks_for_edit(text, start, end) for start, end in _title_mentions(text, title))
 
 
 def _names_another_file(
     text: str, *, title: str, file_type: str, sequence: tuple[int, str] | None
 ) -> bool:
     """作者原话里点名了别的文件（别的章 / 集号、别的《标题》、别的文件类别）。"""
-    for numbers, _ in _sequence_mentions(text):
+    for numbers, _, _ in _sequence_mentions(text):
         if sequence is None or sequence not in numbers:
             return True
     normalized_title = _normalize_text(title)
@@ -573,15 +695,19 @@ def request_targets_file(
     file_type_text = str(file_type or "")
     sequence = _title_sequence(title_text)
 
-    # 上一轮 AI 问过作者要不要改它：作者答应了才放行（「不用改，继续写下一章」不算）。
-    if file_id in scope.confirmed_file_ids and author_confirms_change(raw_text, sequence=sequence):
+    # 上一轮因为作者手改过没改它：作者说清了往哪改（「统一成老周吧」）才放行，「好 / 可以」不算。
+    if file_id in scope.confirmed_file_ids and author_confirms_change(
+        raw_text, sequence=sequence, edits=edits
+    ):
         return True
 
     # 全书 / 所有章节，并且要求改动。
     for marker in _GLOBAL_SCOPE_MARKERS:
         position = text.find(marker)
         while position != -1:
-            if not _is_negated(text, position) and _mention_asks_for_edit(text, position):
+            if not _is_negated(text, position) and _mention_asks_for_edit(
+                text, position, position + len(marker)
+            ):
                 return True
             position = text.find(marker, position + 1)
 
@@ -604,8 +730,8 @@ def request_targets_file(
     if title_text and _mentions_title_for_edit(text, title_text):
         return True
     if sequence is not None:
-        for numbers, position in _sequence_mentions(text):
-            if sequence in numbers and _mention_asks_for_edit(text, position):
+        for numbers, start, end in _sequence_mentions(text):
+            if sequence in numbers and _mention_asks_for_edit(text, start, end):
                 return True
 
     markers = _FILE_TYPE_MARKERS.get(file_type_text)
@@ -626,56 +752,63 @@ def request_targets_file(
     return False
 
 
+# 「正文里的第2章删掉」「把正文里重复的段落删掉」：删的是文件夹里的东西，不是文件夹。
+_INSIDE_AFTER_RE = re.compile(r"^[」』》”\"']?(?:文件夹|目录)?(?:里|中|内|下|底下)")
+
+
 def request_deletes_folder(scope: AuthorScope, *, file_id: str, title: str | None) -> bool:
     """递归删除文件夹：作者这一轮是不是明说要删这个文件夹（「把『废稿』文件夹删了」）。
 
     要点名文件夹（标题或标题里的词）且同一分句或下一分句里说删；「正文改紧凑一点」
-    这类只提到文件夹名的改动要求不算，不能借它连带删掉里面作者手改过的章节。
-    附加 / 引用了这个文件夹时，也要说删。
+    这类只提到文件夹名的改动要求不算，「正文里的第2章删掉」「正文里多余的空行删掉」删的是
+    里面的东西也不算，不能借它连带删掉里面作者手改过的章节。附加 / 引用了这个文件夹时，
+    也要说删。
     """
     text = _normalize_text(scope.text)
     if not text or not _has_delete_verb(text):
         return False
     if file_id in scope.referenced_file_ids:
         return True
-    needles = [_normalize_text(title or "")] + [_normalize_text(token) for token in _title_tokens(title or "")]
-    for needle in needles:
-        if not needle:
+    for start, end in _title_mentions(text, title or ""):
+        if _INSIDE_AFTER_RE.match(text[end:]):
             continue
-        position = text.find(needle)
-        while position != -1:
-            if not _is_negated(text, position):
-                start, end = _clause_bounds(text, position)
-                if _has_delete_verb(text, start, end):
-                    return True
-                next_start = end + 1
-                if next_start < len(text):
-                    _, next_end = _clause_bounds(text, next_start)
-                    if (
-                        next_start < next_end
-                        and not _names_a_unit(text[next_start:next_end])
-                        and _has_delete_verb(text, next_start, next_end)
-                    ):
-                        return True
-            position = text.find(needle, position + 1)
+        clause_start, clause_end = _clause_bounds(text, start)
+        if _names_a_unit(text[clause_start:start] + text[end:clause_end]):
+            continue
+        if _mention_asks_for_delete(text, start, end):
+            return True
     return False
 
 
-def request_deletes_file(
-    scope: AuthorScope, *, file_id: str, title: str | None, file_type: str | None = None
-) -> bool:
-    """递归删除文件夹时，里面这个作者手改过的文件能不能跟着删。
+def request_deletes_file(scope: AuthorScope, *, file_id: str, title: str | None) -> bool:
+    """作者手改过的文件能不能删（delete_file 删它，或递归删除的文件夹里有它）。
 
-    作者这一轮指向了它（点名、附加、答应了上一轮的提问…，同 request_targets_file），
-    并且说了删（「第3章删掉」），或者上一轮 AI 问过、作者答应了。只说「第3章改一下」不算。
+    作者附加 / 引用了它并说了删；或者点名它（标题、第 N 章 / 集；正开着它时说「这一章」），
+    并且就在点名的那一分句或下一分句说删（「第3章删掉」「把第3章和废稿都删了」）。
+    「第3章改一下，把废稿删了」里的删说的是废稿，不算；只说「第3章改一下」不算。
     """
-    if not request_targets_file(scope, file_id=file_id, title=title, file_type=file_type):
+    text = _normalize_text(scope.text)
+    if not text or not _has_delete_verb(text):
         return False
-    if file_id in scope.confirmed_file_ids and author_confirms_change(
-        scope.text, sequence=_title_sequence(title or "")
-    ):
+    if file_id in scope.referenced_file_ids:
         return True
-    return _has_delete_verb(_normalize_text(scope.text))
+    if scope.focus_file_id and file_id == scope.focus_file_id:
+        for marker in _FOCUS_DEICTIC_MARKERS:
+            position = text.find(marker)
+            while position != -1:
+                if not _is_negated(text, position) and _mention_asks_for_delete(
+                    text, position, position + len(marker)
+                ):
+                    return True
+                position = text.find(marker, position + 1)
+    if title and any(_mention_asks_for_delete(text, start, end) for start, end in _title_mentions(text, title)):
+        return True
+    sequence = _title_sequence(title or "")
+    if sequence is not None:
+        for numbers, start, end in _sequence_mentions(text):
+            if sequence in numbers and _mention_asks_for_delete(text, start, end):
+                return True
+    return False
 
 
 def latest_text_is_authors(session: Any, file: Any) -> bool:
@@ -729,7 +862,9 @@ def protected_refusal_message(title: str | None, *, action: str = "edit") -> str
         "如果你觉得它和其他章节有出入，只在给作者的回复里用一句话指出位置，问作者往哪边改，"
         "默认建议按作者改的写法改其他章节（例如「第3章是你手动改过的，我没动它：那里摊主叫老秦，"
         "第2章写的是老周，要把第2章也改成老秦吗？」），"
-        "不要说「改不动」「被拦下」；作者同意后下一轮再改。"
+        "不要说「改不动」「被拦下」；作者同意后下一轮再改其他章节。"
+        "给作者的选项里不要提议把作者改的写法改回去；只有作者自己说清把这个文件改成哪种写法"
+        "（如「第3章改回老周」「统一成老周」）时才改它。"
     )
 
 
