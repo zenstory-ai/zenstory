@@ -30,6 +30,7 @@ import { DASHBOARD_FIRST_RUN_TOUR } from "../config/productTours/dashboardFirstR
 import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
+import { getUserDisplayName } from "../lib/userDisplayName";
 
 function hasExplicitTimezone(value: string): boolean {
   return /([zZ]|[+-]\d{2}:?\d{2})$/.test(value.trim());
@@ -68,6 +69,7 @@ function DashboardContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const displayName = getUserDisplayName(user);
   const { theme, setTheme } = useTheme();
 
   // Mobile and desktop detection
@@ -207,13 +209,13 @@ function DashboardContent() {
     >
       <div className="flex items-center gap-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5">
         <UserAvatar
-          username={user?.username || "User"}
+          username={displayName || "User"}
           avatarUrl={user?.avatar_url}
           size={36}
         />
         <div className="min-w-0">
           <div className="text-sm font-semibold text-[hsl(var(--text-primary))] truncate">
-            {user?.username || "User"}
+            {displayName || "User"}
           </div>
           <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
             {user?.email || ""}
@@ -403,7 +405,7 @@ function DashboardContent() {
                 aria-label={openUserPanelLabel}
               >
                 <UserAvatar
-                  username={user?.username || "User"}
+                  username={displayName || "User"}
                   avatarUrl={user?.avatar_url}
                   size={32}
                 />
@@ -457,13 +459,13 @@ function DashboardContent() {
             aria-label={openUserPanelLabel}
           >
             <UserAvatar
-              username={user?.username || "User"}
+              username={displayName || "User"}
               avatarUrl={user?.avatar_url}
               size={32}
             />
             <div className="flex-1 min-w-0 text-left">
               <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
-                {user?.username}
+                {displayName}
               </div>
               <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
                 {user?.email || ""}
@@ -533,13 +535,13 @@ function DashboardContent() {
               {/* User section in mobile menu */}
               <div className="flex items-center gap-3 px-3 py-2">
                 <UserAvatar
-                  username={user?.username || "User"}
+                  username={displayName || "User"}
                   avatarUrl={user?.avatar_url}
                   size={32}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
-                    {user?.username}
+                    {displayName}
                   </div>
                   <div className="text-xs text-[hsl(var(--text-secondary))]">
                     {user?.email || ""}

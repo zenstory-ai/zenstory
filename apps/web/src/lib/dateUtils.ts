@@ -104,9 +104,8 @@ export function parseUTCDate(dateString: string): Date {
  * formatRelativeTime('2024-01-01T10:00:00'); // "Jan 1, 10:00 AM"
  * ```
  */
-export function formatRelativeTime(dateString: string): string {
+export function formatRelativeTime(dateString: string, now: Date = new Date()): string {
   const date = parseUTCDate(dateString);
-  const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);

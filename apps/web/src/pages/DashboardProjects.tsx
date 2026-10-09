@@ -8,7 +8,8 @@ import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { useProject } from "../contexts/ProjectContext";
 import { useProjectsProgress } from "../hooks/useProjectsProgress";
 import { ProjectProgressLine } from "../components/ProjectProgressLine";
-import { formatRelativeTime, parseUTCDate } from "../lib/dateUtils";
+import { parseUTCDate } from "../lib/dateUtils";
+import { RelativeTime } from "../components/RelativeTime";
 import type { ProjectType } from "../types";
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
 import { toast } from "../lib/toast";
@@ -270,7 +271,7 @@ export default function DashboardProjects() {
                     </span>
                     <div className="flex items-center gap-1 text-xs text-[hsl(var(--text-secondary))]">
                       <Clock className="w-3 h-3" />
-                      {project.updated_at ? formatRelativeTime(project.updated_at) : '-'}
+                      <RelativeTime value={project.updated_at} />
                     </div>
                   </div>
                 </div>

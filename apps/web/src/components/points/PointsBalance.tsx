@@ -48,10 +48,10 @@ export function PointsBalance({ className = '', showExpiration = true }: PointsB
         </p>
       )}
 
-      {showExpiration && balance?.pending_expiration && balance.pending_expiration > 0 && (
+      {showExpiration && (balance?.pending_expiration ?? 0) > 0 && (
         <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
           {t('pendingExpiration', '{{count}} 积分即将过期', {
-            count: balance.pending_expiration,
+            count: balance?.pending_expiration,
           })}
         </p>
       )}
