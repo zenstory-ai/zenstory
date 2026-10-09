@@ -794,15 +794,16 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    // Verify panel is open
-    await expect(page.getByText(/版本历史|历史版本|Version History/i).first()).toBeVisible()
+    // Verify panel is open (the file's own history button is also labelled 历史版本, so check the dialog)
+    const historyDialog = page.getByRole('dialog').filter({ hasText: /版本历史|历史版本|Version History/i })
+    await expect(historyDialog.first()).toBeVisible()
 
     // Find and click close button
-    const closeButton = page.locator('button:has(svg.lucide-x)').first()
+    const closeButton = historyDialog.first().locator('button:has(svg.lucide-x)').first()
     await closeButton.click()
 
     // Verify panel is closed
-    await expect(page.getByText(/版本历史|历史版本|Version History/i).first()).not.toBeVisible()
+    await expect(historyDialog).toHaveCount(0)
   })
 
   test('version history shows total version count', async ({ page }) => {
@@ -835,7 +836,8 @@ test.describe('Version History - Error Handling', () => {
     await selectFile(page, '无编辑文件')
 
     // Try to open version history
-    const historyButton = page.locator('button:has(svg.lucide-clock), button:has(svg.lucide-history)').first()
+    // The header's first history-like button is now 项目快照; target the file's own history button.
+    const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ }).first()
     if (await historyButton.isVisible()) {
       await historyButton.click()
       // Wait for panel to appear
