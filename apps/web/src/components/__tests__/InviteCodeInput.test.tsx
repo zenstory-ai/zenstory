@@ -245,9 +245,11 @@ describe('InviteCodeInput', () => {
         wrapper: createWrapper(),
       })
 
+      // 显示本地化文案，而不是后端返回的固定英文 message
       await waitFor(() => {
-        expect(screen.getByText('Valid invite code')).toBeInTheDocument()
+        expect(screen.getByText('邀请码有效')).toBeInTheDocument()
       })
+      expect(screen.queryByText('Valid invite code')).not.toBeInTheDocument()
     })
 
     it('hides validation before touched', async () => {
