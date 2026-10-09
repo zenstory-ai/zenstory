@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import RedirectResponse
 from services.auth import (
     TOKEN_TYPE_ACCESS,
+    access_token_claims,
+    access_token_matches_password,
     create_access_token,
     create_refresh_token,
     generate_token_jti,
@@ -310,7 +312,7 @@ def validate_token(
         )
 
     user = session.get(User, user_id)
-    if user is None:
+    if user is None or not access_token_matches_password(payload, user):
         raise APIException(
             error_code=ErrorCode.AUTH_TOKEN_INVALID,
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -731,7 +733,7 @@ async def google_oauth_callback(
         )
 
     # Generate JWT tokens
-    jwt_access_token = create_access_token(data={"sub": user.id})
+    jwt_access_token = create_access_token(data=access_token_claims(user))
     refresh_token_jti = generate_token_jti()
     refresh_family_id = generate_token_jti()
     jwt_refresh_token = create_refresh_token(

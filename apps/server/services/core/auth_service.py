@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -9,13 +11,13 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from passlib.exc import UnknownHashError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
-from models import User
+from models import RefreshTokenRecord, User
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -99,6 +101,60 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         # Covers unexpected verification errors; treat as non-match.
         return False
+
+
+def password_fingerprint(user: User) -> str:
+    """Short digest of the stored password hash, embedded in access tokens as ``pwf``.
+
+    Any password change (self-service reset or change-password) changes the
+    bcrypt hash and therefore this value, which invalidates every access token
+    issued before the change. OAuth-only accounts hash the empty string.
+    """
+    return hashlib.sha256((user.hashed_password or "").encode("utf-8")).hexdigest()[:16]
+
+
+def access_token_claims(user: User) -> dict:
+    """Claims for a user's access token: subject plus password fingerprint."""
+    return {"sub": user.id, "pwf": password_fingerprint(user)}
+
+
+def access_token_matches_password(payload: dict, user: User) -> bool:
+    """False when the token carries a ``pwf`` from before the latest password change.
+
+    Tokens issued before ``pwf`` existed carry no claim and stay valid until
+    they expire (ACCESS_TOKEN_EXPIRE_MINUTES).
+    """
+    token_fingerprint = payload.get("pwf")
+    if token_fingerprint is None:
+        return True
+    return hmac.compare_digest(str(token_fingerprint), password_fingerprint(user))
+
+
+def revoke_active_refresh_tokens_for_user(
+    session: Session,
+    *,
+    user_id: str,
+    reason: str,
+) -> int:
+    """Revoke all active refresh tokens for a user (caller commits)."""
+    # Share refresh's User -> token lock order so rotation cannot insert a
+    # descendant after our active-token snapshot. Do not reload pending changes.
+    session.exec(select(User.id).where(User.id == user_id).with_for_update()).first()
+    now = utcnow()
+    active_records = session.exec(
+        select(RefreshTokenRecord).where(
+            RefreshTokenRecord.user_id == user_id,
+            RefreshTokenRecord.revoked_at.is_(None),
+        )
+    ).all()
+
+    for record in active_records:
+        record.revoked_at = now
+        record.revoke_reason = reason
+        record.updated_at = now
+        session.add(record)
+
+    return len(active_records)
 
 
 # 创建访问令牌
@@ -207,7 +263,7 @@ def get_current_user(
         )
 
     user = session.get(User, user_id)
-    if user is None:
+    if user is None or not access_token_matches_password(payload, user):
         raise APIException(
             error_code=ErrorCode.AUTH_TOKEN_INVALID,
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -246,6 +302,8 @@ async def get_optional_current_user(
         return None
 
     user = session.get(User, user_id)
+    if user is None or not access_token_matches_password(payload, user):
+        return None
     return user
 
 

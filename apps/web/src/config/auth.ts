@@ -60,8 +60,8 @@ export const authConfig: AuthConfig = {
     },
   },
   
-  // Forgot password - disabled for now
-  forgotPasswordEnabled: import.meta.env.VITE_FORGOT_PASSWORD_ENABLED === 'true',
+  // Forgot password (self-service email code) - on unless explicitly disabled
+  forgotPasswordEnabled: import.meta.env.VITE_FORGOT_PASSWORD_ENABLED !== 'false',
 
   // Invite code requirement - default required
   inviteCodeOptional: import.meta.env.VITE_INVITE_CODE_OPTIONAL === 'true',

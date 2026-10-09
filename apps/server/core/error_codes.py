@@ -50,6 +50,8 @@ class ErrorCode:
     AUTH_REGISTRATION_FAILED = "ERR_AUTH_REGISTRATION_FAILED"
     AUTH_RESEND_FAILED = "ERR_AUTH_RESEND_FAILED"
     AUTH_RATE_LIMIT_EXCEEDED = "ERR_AUTH_RATE_LIMIT_EXCEEDED"
+    AUTH_PASSWORD_RESET_CODE_INVALID = "ERR_AUTH_PASSWORD_RESET_CODE_INVALID"
+    AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS = "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS"
     NOT_AUTHORIZED = "ERR_NOT_AUTHORIZED"
     NOT_AUTHORIZED_TO_EXPORT = "ERR_NOT_AUTHORIZED_TO_EXPORT"
     NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT = "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT"
@@ -212,6 +214,8 @@ ERROR_MESSAGES = {
         "ERR_AUTH_REGISTRATION_FAILED": "注册失败，请稍后重试",
         "ERR_AUTH_RESEND_FAILED": "验证码发送失败，请稍后重试",
         "ERR_AUTH_RATE_LIMIT_EXCEEDED": "请求过于频繁，请稍后重试",
+        "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "验证码错误或已过期，请重新输入或重新发送",
+        "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "操作太频繁了，请过几分钟再试",
         "ERR_NOT_AUTHORIZED": "您没有权限执行此操作",
         "ERR_NOT_AUTHORIZED_TO_EXPORT": "您没有权限导出此项目",
         "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT": "您没有权限访问此快照",
@@ -333,6 +337,8 @@ ERROR_MESSAGES = {
         "ERR_AUTH_REGISTRATION_FAILED": "Registration failed, please try again later",
         "ERR_AUTH_RESEND_FAILED": "Failed to send verification code, please try again later",
         "ERR_AUTH_RATE_LIMIT_EXCEEDED": "Too many requests, please try again later",
+        "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "That code is wrong or has expired. Check it or send a new one.",
+        "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "Too many tries. Please wait a few minutes and try again.",
         "ERR_NOT_AUTHORIZED": "You are not authorized to perform this action",
         "ERR_NOT_AUTHORIZED_TO_EXPORT": "You are not authorized to export this project",
         "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT": "You are not authorized to access this snapshot",
