@@ -36,7 +36,7 @@ import { buildTodayActionPlan, type TodayActionPlanItem } from "../lib/dashboard
 import type { ActivationGuideResponse } from "../types/writingStats";
 import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
-import { clearPreferredProjectType, getPreferredProjectType } from "../lib/preferredProjectType";
+import { useDashboardProjectType } from "../hooks/useDashboardProjectType";
 
 const SUPPORTED_PROJECT_TYPES: ProjectType[] = ["novel", "short", "screenplay"];
 
@@ -72,7 +72,7 @@ export default function DashboardHome() {
   const [newProjectName, setNewProjectName] = useState("");
   // The landing page type card (or a short-story / screenwriter onboarding answer)
   // decides which tab a new author starts on.
-  const [activeTab, setActiveTab] = useState<ProjectType>(() => getPreferredProjectType() ?? "novel");
+  const { activeTab, setActiveTab, rememberCreatedType } = useDashboardProjectType(projects);
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
   const [deletingProject, setDeletingProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -272,7 +272,7 @@ export default function DashboardHome() {
         return;
       }
 
-      clearPreferredProjectType();
+      rememberCreatedType(targetProjectType);
       navigate(`/project/${projectId}`);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
@@ -461,7 +461,7 @@ export default function DashboardHome() {
     if (!availableProjectTypes.includes(activeTab)) {
       setActiveTab(availableProjectTypes[0] ?? "novel");
     }
-  }, [activeTab, availableProjectTypes]);
+  }, [activeTab, availableProjectTypes, setActiveTab]);
 
   const handleCreateProject = async (useInspiration = false) => {
     if (!creating) return;
@@ -492,7 +492,7 @@ export default function DashboardHome() {
         );
       }
 
-      clearPreferredProjectType();
+      rememberCreatedType(creating);
 
       // Clean up form state
       setCreating(null);
@@ -544,7 +544,7 @@ export default function DashboardHome() {
         );
       }
 
-      clearPreferredProjectType();
+      rememberCreatedType(activeTab);
 
       // Clean up form state
       setInspiration("");
