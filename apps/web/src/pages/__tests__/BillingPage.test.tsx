@@ -21,8 +21,9 @@ let paymentOptionsResponse: Record<string, unknown> = {}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string, values?: { limit?: number }) =>
+    t: (key: string, fallback?: string, values?: Record<string, unknown>) =>
       (
+        (
         {
           'dashboard:billing.title': 'Billing',
           'dashboard:billing.subtitle': 'Manage plans',
@@ -46,14 +47,18 @@ vi.mock('react-i18next', () => ({
           'dashboard:billing.free': 'Free',
           'dashboard:billing.unknownPlan': 'Unknown',
           'common:noData': 'No data',
-          'settings:subscription.features.ai_conversations_per_day': 'AI conversations',
-          'settings:subscription.features.max_projects': 'Projects',
-          'settings:subscription.features.material_decompositions': 'Materials',
-          'settings:subscription.features.custom_skills': 'Skills',
-          'settings:subscription.features.inspiration_copies_monthly': 'Inspiration copies',
+          'dashboard:billing.metricAiConversations': 'AI conversations',
+          'dashboard:billing.metricProjects': 'Projects',
+          'dashboard:billing.metricMaterialDecompositions': 'Materials',
+          'dashboard:billing.metricCustomSkills': 'Skills',
+          'dashboard:billing.metricInspirationCopies': 'Inspiration copies',
           'settings:subscription.unlimited': 'Unlimited',
+          'dashboard:billing.priceWithYearlyOffer': '{{monthly}}, or {{yearly}} (≈{{equivalent}}/month, save {{percent}}%)',
+          'dashboard:billing.proNoDailyLimit': 'Pro has no daily AI message limit.',
+          'dashboard:billing.availableWithPro': 'Available with Pro',
         } as Record<string, string>
-      )[key] ?? fallback ?? key,
+      )[key] ?? fallback ?? key
+      ).replace(/{{\s*(\w+)\s*}}/g, (_, name: string) => String(values?.[name] ?? '')),
     i18n: {
       language: 'en-US',
     },
@@ -126,8 +131,19 @@ vi.mock('../../components/subscription/PaymentCheckoutModal', () => ({
     isOpen,
     initialCycle,
     upgradeSource,
-  }: { isOpen: boolean; initialCycle: string; upgradeSource?: string }) =>
-    (isOpen ? <div data-cycle={initialCycle} data-source={upgradeSource}>Payment modal</div> : null),
+    isRenewal,
+    redeemEntry,
+  }: { isOpen: boolean; initialCycle: string; upgradeSource?: string; isRenewal?: boolean; redeemEntry?: string }) =>
+    (isOpen ? (
+      <div
+        data-cycle={initialCycle}
+        data-source={upgradeSource}
+        data-renewal={String(Boolean(isRenewal))}
+        data-redeem-entry={redeemEntry}
+      >
+        Payment modal
+      </div>
+    ) : null),
 }))
 
 vi.mock('../../lib/subscriptionApi', () => ({
@@ -145,7 +161,8 @@ vi.mock('../../lib/paymentApi', () => ({
   },
 }))
 
-vi.mock('../../lib/subscriptionEntitlements', () => ({
+vi.mock('../../lib/subscriptionEntitlements', async () => ({
+  ...(await vi.importActual<typeof import('../../lib/subscriptionEntitlements')>('../../lib/subscriptionEntitlements')),
   getEntitlementMetricDefinitions: () => [
     { key: 'projects', label: 'Projects', value: (plan: { project_limit: number }) => String(plan.project_limit) },
   ],
@@ -230,7 +247,49 @@ describe('BillingPage', () => {
     expect(comparison).not.toBeNull()
     expect(within(comparison!).getAllByText('Free')).toHaveLength(2)
     expect(screen.queryByText('Free · Free')).not.toBeInTheDocument()
-    expect(screen.getByText('¥19/month · ¥190/year')).toBeInTheDocument()
+    // The yearly offer is spelled out next to both prices.
+    expect(screen.getByText('¥19/month, or ¥190/year (≈¥15.83/month, save 17%)')).toBeInTheDocument()
+  })
+
+  it('tells Pro users there is no daily limit instead of a reset time', () => {
+    statusResponse = {
+      ...statusResponse,
+      data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
+    }
+    quotaResponse = {
+      ...quotaResponse,
+      data: { ...(quotaResponse.data as Record<string, unknown>), ai_conversations: { used: 12, limit: -1 } },
+    }
+    render(<BillingPage />)
+
+    const dailyUsage = screen.getByText('AI conversations').parentElement!.parentElement!
+    expect(within(dailyUsage).getByText('Pro has no daily AI message limit.')).toBeInTheDocument()
+    expect(within(dailyUsage).queryByText(/reset/)).not.toBeInTheDocument()
+  })
+
+  it('shows a feature the plan does not include as available with Pro, without a bar or reset hint', () => {
+    quotaResponse = {
+      ...quotaResponse,
+      data: { ...(quotaResponse.data as Record<string, unknown>), material_decompositions: { used: 0, limit: 0 } },
+    }
+    render(<BillingPage />)
+
+    const materialsUsage = screen.getByText('Materials').parentElement!.parentElement!
+    expect(within(materialsUsage).getByText('Available with Pro')).toBeInTheDocument()
+    expect(within(materialsUsage).queryByText('0/0')).not.toBeInTheDocument()
+    expect(within(materialsUsage).queryByText(/Monthly quotas reset/)).not.toBeInTheDocument()
+    expect(materialsUsage.querySelector('.rounded-full')).toBeNull()
+  })
+
+  it('opens checkout as a renewal for Pro users', () => {
+    statusResponse = {
+      ...statusResponse,
+      data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
+    }
+    render(<BillingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Renew Pro' }))
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-renewal', 'true')
   })
 
   it('shows the free daily message limit and Beijing midnight reset beside usage', () => {
@@ -266,6 +325,8 @@ describe('BillingPage', () => {
     expect(trackUpgradeClick).toHaveBeenCalled()
     expect(assignSpy).not.toHaveBeenCalled()
     expect(await screen.findByText('Payment modal')).toBeInTheDocument()
+    // This page has its own 兑换码 button, so the unavailable notice may point to it.
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-redeem-entry', 'on-page')
     expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'checkout', 'page')
 
     fireEvent.click(screen.getByRole('button', { name: 'Redeem Code' }))

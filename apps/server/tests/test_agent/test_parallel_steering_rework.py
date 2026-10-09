@@ -142,11 +142,46 @@ class TestParallelProgressEmission:
         assert parsed["data"]["any_failed"] is True
         assert parsed["data"]["failed"] == 1
 
-        # A failed task_end carries its error message.
+        # The raw error stays in the model-facing breakdown; the task_end frame
+        # the author sees never carries it (no user_message was provided).
+        assert parsed["data"]["tasks"][1]["error"] == "boom"
         task_ends = [e for e in captured if _event_value(e) == "parallel_task_end"]
         failed = [e for e in task_ends if e.data["status"] == "failed"]
         assert len(failed) == 1
-        assert "boom" in (failed[0].data.get("error") or "")
+        assert "boom" not in (failed[0].data.get("error") or "")
+
+    async def test_failed_task_end_shows_only_the_tools_user_message(self):
+        from agent.tools.mcp_tools import ToolContext
+
+        captured: list = []
+        token = set_progress_emitter(captured.append)
+        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+        payload = json.dumps(
+            {
+                "status": "error",
+                "error": "Edit 0: old text not found in file id=abc",
+                "user_message": "AI 没在原文里找到要改的那一段，正在重新定位。",
+            },
+            ensure_ascii=False,
+        )
+        try:
+            with patch("agent.tools.parallel_executor.handle_query_files") as mock_query:
+                mock_query.return_value = {"content": [{"type": "text", "text": payload}]}
+                result = await execute_parallel(
+                    [{"type": "query_files", "description": "bad", "params": {}}]
+                )
+        finally:
+            reset_progress_emitter(token)
+            ToolContext.clear_context()
+
+        parsed = json.loads(result["content"][0]["text"])
+        # 模型仍拿到原始错误，好据此纠正。
+        assert parsed["data"]["tasks"][0]["error"] == "Edit 0: old text not found in file id=abc"
+        failed = [
+            e for e in captured
+            if _event_value(e) == "parallel_task_end" and e.data["status"] == "failed"
+        ]
+        assert failed[0].data["error"] == "AI 没在原文里找到要改的那一段，正在重新定位。"
 
     async def test_no_emitter_does_not_break_execution(self):
         from agent.tools.mcp_tools import ToolContext

@@ -83,6 +83,10 @@ describe("ImportMaterialDialog", () => {
     });
 
     const folderSelect = screen.getByRole("combobox");
+    // The folder options render after the tree request resolves; selecting earlier is a no-op.
+    await waitFor(() => {
+      expect(folderSelect.querySelector('option[value="folder-1"]')).not.toBeNull();
+    });
     fireEvent.change(folderSelect, { target: { value: "folder-1" } });
     expect(folderSelect).toHaveValue("folder-1");
 

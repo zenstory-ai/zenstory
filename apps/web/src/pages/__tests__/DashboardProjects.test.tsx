@@ -49,7 +49,8 @@ vi.mock('react-i18next', () => ({
           'projects.noMatch': 'No matching projects',
           'projects.tryDifferent': 'Try a different filter',
           'projects.empty': 'No projects yet',
-          'projects.emptyHint': 'Create a project to begin',
+          'projects.emptyHint': 'Click Start Writing above to create your first project',
+          'projects.emptyHintProjectsPage': 'Click New Project to start your first book.',
           'projects.deleteProject': 'Delete project',
           'projects.confirmDeleteTitle': 'Delete project',
           'projects.confirmDeleteMessage': 'Delete this project?',
@@ -276,6 +277,9 @@ describe('DashboardProjects', () => {
     const { rerender } = render(<DashboardProjects />)
 
     expect(screen.getByText('No projects yet')).toBeInTheDocument()
+    // This page has no Start Writing button, so its hint points at New Project instead.
+    expect(screen.getByText('Click New Project to start your first book.')).toBeInTheDocument()
+    expect(screen.queryByText(/Start Writing/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'New Project' }))
     expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
 

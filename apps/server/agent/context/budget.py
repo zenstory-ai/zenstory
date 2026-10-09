@@ -41,6 +41,13 @@ LOWER_TIER_FLOOR_RATIO = 0.5
 # 也不让用户显式附加/引用的条目整条消失。
 MIN_CRITICAL_ITEM_TOKENS = 200
 
+# 非 CRITICAL 档截断后显示的正文少于这么多字、且不到原文一半时，视为「残片」
+# 直接丢弃：几百字的章节开头或半张角色卡帮不上忙，反而占预算、诱导模型
+# 以为这就是设定原文。被丢弃的条目仍在文件清单里（带 id），需要时按 id 读取；
+# 不再出现在检索排除名单里，混合检索还能把相关片段捞回来。
+# CRITICAL 档（焦点 / 用户附加 / 引用）不受影响，那里宁可截断也不丢。
+MIN_TRUNCATED_ITEM_CHARS = 500
+
 
 def truncate_text_to_tokens(
     text: str,
@@ -172,6 +179,8 @@ class TokenBudget:
         self.allocation = allocation or self.DEFAULT_ALLOCATION
         self.item_overhead = item_overhead
         self.used: dict[ContextPriority, int] = dict.fromkeys(ContextPriority, 0)
+        # 本次 select_items 因截断后只剩残片而丢弃的条目（原条目，未截断）
+        self.dropped_stubs: list[ContextItem] = []
 
     def estimate_tokens(self, text: str) -> int:
         """
@@ -295,6 +304,7 @@ class TokenBudget:
             Tuple of (selected items, budget usage)
         """
         selected: list[ContextItem] = []
+        self.dropped_stubs = []
 
         # Group items by priority if not provided
         if priority_groups is None:
@@ -348,7 +358,9 @@ class TokenBudget:
                     remaining = effective_budget - used
                     if remaining > 50:  # Only if meaningful space
                         truncated = self.truncate_item(item, remaining)
-                        if truncated:
+                        if truncated and priority != ContextPriority.CRITICAL and self.is_stub(truncated):
+                            self.dropped_stubs.append(item)
+                        elif truncated:
                             selected.append(truncated)
                             used += self.estimate_item_tokens(truncated)
                     # Keep scanning remaining items in this priority group.
@@ -358,6 +370,18 @@ class TokenBudget:
             self.used[priority] = used
 
         return selected, dict(self.used)
+
+    @staticmethod
+    def is_stub(item: ContextItem) -> bool:
+        """截断后的条目是否只剩残片（见 MIN_TRUNCATED_ITEM_CHARS）。"""
+        metadata = item.metadata or {}
+        if not metadata.get("truncated"):
+            return False
+        shown = metadata.get("shown_chars")
+        total = metadata.get("original_chars")
+        if not isinstance(shown, int) or not isinstance(total, int):
+            return False
+        return shown < MIN_TRUNCATED_ITEM_CHARS and shown * 2 < total
 
     def _allocate_tier_budgets(
         self,
@@ -378,7 +402,10 @@ class TokenBudget:
            用户显式附加的内容应当压过自动收集的 40 条设定，
            但不能把角色/世界观约束整个挤没。
         3. 下位档按名义份额比例分摊 CRITICAL 实际占用后剩余的额度，
-           且各自不超过自己的名义份额。因此总和恒 <= max_tokens。
+           且各自不超过自己的名义份额。
+        4. 下位档里没人用到的额度按 CONSTRAINT → RELEVANT → INSPIRATION 的
+           顺序补给仍有缺口的档。各档实际占用不超过真实需求，
+           因此实际总占用恒 <= max_tokens。
         """
         critical = ContextPriority.CRITICAL
         lower = [p for p in ContextPriority.priority_order() if p != critical]
@@ -410,6 +437,20 @@ class TokenBudget:
         for p in lower:
             share = self.allocation.get(p, 0.1) / lower_share_sum
             budgets[p] = min(self.get_budget(p), int(leftover * share))
+
+        # 二次分配：下位档用不完的额度（需求小于份额的档、以及份额之和本身
+        # 小于 leftover 的部分）按档位顺序补给还有缺口的档，CONSTRAINT 优先。
+        # 否则长篇续写时 INSPIRATION 空着一截，前一章却被截断。各档实际占用
+        # 不超过各自需求，因此实际总占用仍 <= max_tokens。
+        slack = leftover - sum(min(budgets[p], demand.get(p, 0)) for p in lower)
+        for p in lower:
+            if slack <= 0:
+                break
+            unmet = demand.get(p, 0) - budgets[p]
+            if unmet > 0:
+                extra = min(unmet, slack)
+                budgets[p] += extra
+                slack -= extra
 
         return budgets
 

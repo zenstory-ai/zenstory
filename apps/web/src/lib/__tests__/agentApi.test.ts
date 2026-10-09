@@ -7,6 +7,7 @@ import {
   streamAgentRequest,
   fetchSuggestions,
   sendSteeringRequest,
+  selectStreamErrorMessage,
 } from '../agentApi'
 import type { SSEEvent } from '../../types'
 import { debugContext } from '../debugContext'
@@ -211,7 +212,88 @@ describe('agentApi', () => {
     })
   })
 
+  describe('selectStreamErrorMessage', () => {
+    const noProgress = {
+      message: 'AI 在本轮反复读取同一份资料，已先停下。',
+      code: 'ERR_AGENT_TOOL_FAILURE_LIMIT',
+      retryable: false,
+      reason: 'no_progress',
+    }
+
+    it('shows the server stop explanation when the frame carries a reason', () => {
+      expect(selectStreamErrorMessage(noProgress, 'zh')).toBe(noProgress.message)
+    })
+
+    it('shows the server explanation for tool-failure and no-progress codes without a reason', () => {
+      expect(
+        selectStreamErrorMessage({ message: '这一步连续几次都没做成', code: 'ERR_AGENT_TOOL_FAILURE_LIMIT' }, 'zh-CN'),
+      ).toBe('这一步连续几次都没做成')
+      expect(
+        selectStreamErrorMessage({ message: '一直在翻看同样的资料', code: 'ERR_AGENT_NO_PROGRESS' }, 'zh'),
+      ).toBe('一直在翻看同样的资料')
+    })
+
+    it('falls back to the localized code when the server message is empty', () => {
+      expect(
+        selectStreamErrorMessage({ message: '  ', code: 'ERR_AGENT_NO_PROGRESS', reason: 'no_progress' }, 'zh'),
+      ).toBe('ERR_AGENT_NO_PROGRESS')
+    })
+
+    it('keeps code-based copy in the English UI (server explanations are Chinese only)', () => {
+      expect(selectStreamErrorMessage(noProgress, 'en')).toBe('ERR_AGENT_TOOL_FAILURE_LIMIT')
+    })
+
+    it('never surfaces raw messages for other error codes', () => {
+      expect(
+        selectStreamErrorMessage({ message: 'upstream 502 from deepseek', code: 'ERR_AGENT_UPSTREAM_UNAVAILABLE' }, 'zh'),
+      ).toBe('ERR_AGENT_UPSTREAM_UNAVAILABLE')
+    })
+
+    it('uses the message when there is no ERR_ code, and a generic code when there is nothing', () => {
+      expect(selectStreamErrorMessage({ message: 'Rate limited', code: 'RATE_LIMIT' }, 'zh')).toBe('Rate limited')
+      expect(selectStreamErrorMessage({}, 'zh')).toBe('ERR_INTERNAL_SERVER_ERROR')
+    })
+  })
+
   describe('streamAgentRequest', () => {
+    it('reports a refund only when the backend sends quota_refunded after the terminal frame', async () => {
+      const onError = vi.fn()
+      const onQuotaRefunded = vi.fn()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream([
+          'event: error\ndata: {"message":"x","code":"ERR_AGENT_UPSTREAM_UNAVAILABLE","retryable":true}\n\n',
+          'event: quota_refunded\ndata: {"refunded":true,"kind":"error"}\n\n',
+        ]),
+      }))
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError, onQuotaRefunded })
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onQuotaRefunded).toHaveBeenCalledWith('error')
+    })
+
+    it('maps a no_progress refund and ignores frames that do not claim a refund', async () => {
+      const onQuotaRefunded = vi.fn()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream([
+          'event: done\ndata: {}\n\n',
+          'event: quota_refunded\ndata: {"refunded":false,"kind":"no_progress"}\n\n',
+          'event: quota_refunded\ndata: {"refunded":true,"kind":"no_progress"}\n\n',
+        ]),
+      }))
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded })
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onQuotaRefunded).toHaveBeenCalledTimes(1)
+      expect(onQuotaRefunded).toHaveBeenCalledWith('no_progress')
+    })
+
     it('passes session_id in stream request body when provided', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,

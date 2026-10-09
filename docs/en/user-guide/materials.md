@@ -2,9 +2,9 @@
 
 > Repository snapshot (2026-09-13). Use the [current hosted guide](https://zenstory.ai/docs/user-guide/materials) for the web workbench. This page reuses [the served guide source at this revision](https://github.com/zenstory-ai/zenstory/blob/1773af4781996363496f47268cce0e7c640108c8/apps/web/docs/en/user-guide/materials.md), retaining the explanation and examples for reading in the repository. The date identifies this page’s source version, not the freshness of other repository documents.
 
-ZenStory's materials library breaks reference fiction into browsable chapter, character, plot and world details to help you locate material to read. It is separate from manuscript files: **uploading reference material does not import a continuation-ready writing project, or put the entire book into every AI conversation.**
+ZenStory's Materials Library is a Pro feature: upload a reference novel (TXT), break it into chapter summaries, characters, plot and settings, and attach them to chat while you write. It is separate from your manuscript files: uploading a reference novel does not turn it into a project you can continue, and the AI only reads the items you attach to the chat.
 
-For the path from source evidence to your own scene, go to the [original material-analysis example](../advanced/material-analysis.md). This page covers the usage path, not a guarantee of processing speed, completeness or writing quality.
+For the path from source evidence to your own scene, go to the [original material-analysis example](../advanced/material-analysis.md).
 
 ## 1. Prepare and upload TXT
 

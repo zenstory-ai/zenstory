@@ -24,6 +24,8 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
+FAST_MODE_DIRECTIVE = "本轮为快速模式：写完直接结束，不要交接给 quality_reviewer 审稿。"
+
 
 # =============================================================================
 # Streaming Agent Implementation
@@ -72,6 +74,15 @@ async def run_streaming_agent(
     scope_directive = str(state.get("scope_directive") or "").strip()
     if scope_directive:
         system_prompt = f"{system_prompt}\n\n## 本轮用户范围约束 [最高优先级]\n\n{scope_directive}"
+
+    # 快速模式（前端「更快出结果」）：WRITER_PROMPT 的送审规则在这一轮不适用。
+    # writing_graph 也会丢弃 writer → quality_reviewer 的交接，这里先让模型知道，
+    # 免得它白白调用一次 handoff_to_agent。
+    if (
+        str(state.get("generation_mode") or "").strip().lower() == "fast"
+        and agent_type != "quality_reviewer"
+    ):
+        system_prompt = f"{system_prompt}\n\n## 本轮生成模式\n\n{FAST_MODE_DIRECTIVE}"
 
     try:
         async for event in run_openai_agents_streaming_agent(

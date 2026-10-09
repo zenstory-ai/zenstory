@@ -483,6 +483,51 @@ class TestProcessEventToolResult:
         assert events[0].data["error"] == "Unknown tool: bad_tool"
 
     @pytest.mark.asyncio
+    async def test_tool_result_error_card_gets_user_message_not_internals(self, adapter):
+        """工具自带 user_message 时，卡片拿到的是它，原始错误（内部 id、给模型的指令）不进卡片。"""
+        result_json = json.dumps({
+            "status": "error",
+            "error": "Edit 0: 锚点匹配到多个位置（id=file-9），请提供 occurrence=N",
+            "error_type": "ambiguous_match",
+            "user_message": "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
+        }, ensure_ascii=False)
+        event = LangGraphStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"name": "edit_file", "result": {"content": [{"text": result_json}]}},
+        )
+
+        events = [sse async for sse in adapter._process_langgraph_event(event)]
+
+        card = events[0].data
+        assert card["status"] == "error"
+        assert card["error"] == "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。"
+        assert card["data"] == {
+            "error_type": "ambiguous_match",
+            "user_message": "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
+        }
+        assert "file-9" not in json.dumps(card, ensure_ascii=False)
+
+    @pytest.mark.asyncio
+    async def test_malformed_tool_result_card_carries_no_exception_text(self, adapter, monkeypatch):
+        """解析异常只进日志：卡片拿到固定 error_type，不带英文异常名。"""
+        def boom(_raw):
+            raise ValueError("secret internals")
+
+        monkeypatch.setattr(adapter, "_parse_tool_result_payload", boom)
+        event = LangGraphStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"name": "query_files", "result": {"content": [{"text": "{}"}]}},
+        )
+
+        events = [sse async for sse in adapter._process_langgraph_event(event)]
+
+        card = events[0].data
+        assert card["status"] == "error"
+        assert card["data"] == {"error_type": "malformed_tool_result"}
+        assert "ValueError" not in card["error"]
+        assert "Malformed" not in card["error"]
+
+    @pytest.mark.asyncio
     async def test_tool_result_with_invalid_json(self, adapter):
         """Test tool result with invalid JSON."""
         event = LangGraphStreamEvent(

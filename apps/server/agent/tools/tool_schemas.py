@@ -69,7 +69,7 @@ EDIT_FILE_TOOL: dict[str, Any] = {
                         },
                         "new": {
                             "type": "string",
-                            "description": "替换后的新文本（用于replace操作）"
+                            "description": "替换后的新文本（replace 必填；想删除原文请用 delete，不要省略 new）"
                         },
                         "anchor": {
                             "type": "string",
@@ -77,7 +77,7 @@ EDIT_FILE_TOOL: dict[str, Any] = {
                         },
                         "text": {
                             "type": "string",
-                            "description": "要插入的文本（用于insert_*/append/prepend操作）"
+                            "description": "要写入的文本（insert_*/append/prepend 必填，不能为空）"
                         },
                         "occurrence": {
                             "type": "integer",
@@ -106,7 +106,11 @@ EDIT_FILE_TOOL: dict[str, Any] = {
             },
             "continue_on_error": {
                 "type": "boolean",
-                "description": "是否在单个编辑失败后继续执行后续编辑（默认 false）",
+                "description": (
+                    "默认 false：edits 是一个整体，任一处失败则本次调用的全部编辑都不生效（整体回滚），"
+                    "错误会一次列出所有失败项，修正后需重新提交完整 edits 列表（不要只重发失败的几条）。"
+                    "true：跳过失败项，其余照常生效，结果里的 failed_edits 列出没改成的几处"
+                ),
                 "default": False,
             }
         },
@@ -246,13 +250,17 @@ HYBRID_SEARCH_TOOL: dict[str, Any] = {
 # Tool: update_project (合并 update_project_status + update_plan)
 UPDATE_PROJECT_TOOL: dict[str, Any] = {
     "name": "update_project",
-    "description": "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格）和任务列表。",
+    "description": (
+        "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格、备注）和任务列表。"
+        "summary/current_phase/writing_style/notes 传值即整体替换该字段，不是追加："
+        "新增内容时必须把现有内容与新条目合并后整段传入，否则原有内容会丢失。"
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
             "summary": {
                 "type": "string",
-                "description": "项目摘要/背景介绍",
+                "description": "项目摘要/背景介绍（整体替换；先合并现有内容）",
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["summary"],
             },
             "current_phase": {
@@ -262,12 +270,15 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             },
             "writing_style": {
                 "type": "string",
-                "description": "写作风格指南",
+                "description": "写作风格指南（整体替换；先合并现有内容）",
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["writing_style"],
             },
             "notes": {
                 "type": "string",
-                "description": "给AI助手的额外备注",
+                "description": (
+                    "写作约定、禁忌等需要长期记住的备注。整体替换："
+                    "必须把现有备注与新条目合并后整段传入，只传新条目会抹掉原有约定"
+                ),
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"],
             },
             "tasks": {

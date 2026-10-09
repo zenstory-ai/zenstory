@@ -20,12 +20,6 @@
     "multiDevice": "手机、电脑都能接着写",
     "versionHistory": "改错了可退回旧版本"
   },
-  "stats": {
-    "creators": "创作者在用",
-    "wordsGenerated": "AI 协作字数",
-    "rating": "创作者评分",
-    "contentTypes": "核心创作模式"
-  },
   "demo": {
     "projectName": "《天阙余烬》项目",
     "autoSave": "自动保存",
@@ -64,7 +58,7 @@
     },
     "materialUpload": {
       "title": "素材库",
-      "description": "上传参考小说，拆解出人物、设定和情节，写作时随时引用。"
+      "description": "Pro：上传参考小说，拆出人物、设定和章节摘要，写作时附到对话里参考。"
     },
     "contextAware": {
       "title": "AI 记住你的设定",
@@ -72,7 +66,7 @@
     },
     "versionHistory": {
       "title": "版本对比与回退",
-      "description": "每次修改都会留下版本，可以对比差异，也能退回旧版。"
+      "description": "AI 的每次改动和你的保存都会记成版本，可以对比差异、一键退回。"
     },
     "cloudSync": {
       "title": "换设备接着写",
@@ -92,7 +86,7 @@
       "features": [
         "拖拽调整章节顺序",
         "AI 记住角色关系",
-        "引用素材库",
+        "引用素材库（Pro）",
         "版本对比与回退"
       ]
     },
@@ -117,18 +111,18 @@
   },
   "pricingTeaser": {
     "title": "先免费开始，按需升级",
-    "subtitle": "免费版就能完整写作；需要更多 AI 对话和项目时再升级。",
+    "subtitle": "免费版就能完整写作；需要更多 AI 消息和项目时再开 Pro。",
     "viewPricing": "查看套餐权益",
     "primaryCta": "免费创建项目",
     "free": {
       "badge": "免费",
       "title": "先写起来",
-      "desc": "创建项目、和 AI 对话写章节，个人起步够用。"
+      "desc": "每天 10 条 AI 消息、最多 3 个项目，先把开头写出来。"
     },
     "pro": {
-      "badge": "专业版",
+      "badge": "Pro",
       "title": "写得更多更快",
-      "desc": "AI 对话和项目数量不限，可用素材拆解，自定义技能额度更多。"
+      "desc": "AI 消息和项目不限，可用素材库拆解参考小说，自定义技能更多。"
     }
   },
   "cta": {
@@ -137,7 +131,7 @@
     "button": "免费创建项目"
   },
   "footer": {
-    "copyright": "© 2026 zenstory. All rights reserved.",
+    "copyright": "© {{year}} ZenStory AI",
     "tagline": "把 AI 放进你的创作生产线",
     "projects": "ZenStory AI 全部项目",
     "glossary": "术语表",
@@ -210,9 +204,9 @@
     "sectionLabel": "接入你的 AI 助手",
     "badge": "新功能",
     "title": "用 Claude Code 等 AI 助手直接写你的小说",
-    "subtitle": "在设置里生成 API Key，填到 Claude Code 或 OpenClaw，它就能读取和修改你的项目文件。",
+    "subtitle": "在设置里创建 API 密钥，在终端用 zenstory 命令行工具登录，再给 AI 助手装上 zenstory 技能，Claude Code、Codex、OpenClaw 就能读写你的项目。",
     "supportedAgents": "支持",
-    "cta": "生成 API Key",
-    "ctaAriaLabel": "去设置生成 API Key"
+    "cta": "创建 API 密钥",
+    "ctaAriaLabel": "去设置创建 API 密钥"
   }
 }

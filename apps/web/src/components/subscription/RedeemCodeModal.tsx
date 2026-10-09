@@ -6,6 +6,7 @@ import { handleApiError } from '../../lib/errorHandler';
 import { trackEvent } from '../../lib/analytics';
 import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
+import { CelebrationBurst } from './CelebrationBurst';
 
 interface RedeemCodeModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [celebrate, setCelebrate] = useState(false);
   const queryClient = useQueryClient();
 
   const redeemMutation = useMutation({
@@ -32,11 +34,12 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
       // The server's message is English-only; show the localized result instead.
       setSuccess(
         data.duration_days
-          ? t('dashboard:billing.redeemSuccessDays', '兑换成功，本次兑换 {{days}} 天会员。', { days: data.duration_days })
+          ? t('dashboard:billing.redeemSuccessDays', '兑换成功！Pro 已增加 {{days}} 天。', { days: data.duration_days })
           : t('settings:subscription.redeemSuccess', '兑换成功！')
       );
       setError('');
       setCode('');
+      setCelebrate(Boolean(data.tier && data.tier !== 'free'));
       queryClient.invalidateQueries({ queryKey: ['subscription-status'] });
       queryClient.invalidateQueries({ queryKey: ['subscription-quota'] });
     },
@@ -57,6 +60,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
     e.preventDefault();
     setError('');
     setSuccess('');
+    setCelebrate(false);
 
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) {
@@ -67,22 +71,30 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
     // Basic format validation
     if (!/^ERG-[A-Z0-9]{2,8}-[A-Z0-9]{4}-[A-Z0-9]{8}$/.test(trimmed)) {
       trackEvent('redeem_code_failed', { reason: 'invalid_format', source });
-      setError(t('settings:subscription.invalidFormat', '兑换码格式不正确'));
+      setError(t('settings:subscription.invalidFormat', '兑换码格式不对，请检查是否少了字符'));
       return;
     }
 
     redeemMutation.mutate(trimmed);
   };
 
+  const handleClose = () => {
+    setSuccess('');
+    setError('');
+    setCelebrate(false);
+    onClose();
+  };
+
   return (
     <Modal
       open={isOpen}
-      onClose={onClose}
-      title={t('settings:subscription.redeemTitle', '兑换会员')}
+      onClose={handleClose}
+      title={t('settings:subscription.redeemTitle', '使用兑换码')}
       size="sm"
     >
       <form onSubmit={handleSubmit}>
-        <Modal.Body>
+        <Modal.Body className="relative">
+          {celebrate && <CelebrationBurst className="top-6" />}
           <div className="mb-4">
             <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
               {t('settings:subscription.codeLabel', '兑换码')}
@@ -105,27 +117,42 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
           )}
 
           {success && (
-            <div className="mb-4 p-3 bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))] text-sm rounded-md">
+            <div
+              role="status"
+              className={`mb-4 p-3 bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))] text-sm rounded-md ${celebrate ? 'animate-celebration-pop font-medium' : ''}`}
+            >
               {success}
             </div>
           )}
         </Modal.Body>
 
         <Modal.Footer>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] rounded-md transition-colors"
-          >
-            {t('common:cancel', '取消')}
-          </button>
-          <button
-            type="submit"
-            disabled={redeemMutation.isPending || !code.trim()}
-            className="px-4 py-2 text-sm bg-[hsl(var(--accent-primary))] text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {redeemMutation.isPending ? t('dashboard:billing.redeeming', '正在兑换...') : t('settings:subscription.redeem', '兑换')}
-          </button>
+          {success ? (
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-4 py-2 text-sm bg-[hsl(var(--accent-primary))] text-white rounded-md hover:opacity-90 transition-colors"
+            >
+              {t('settings:subscription.redeemDone', '开始使用')}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-4 py-2 text-sm text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] rounded-md transition-colors"
+              >
+                {t('common:cancel', '取消')}
+              </button>
+              <button
+                type="submit"
+                disabled={redeemMutation.isPending || !code.trim()}
+                className="px-4 py-2 text-sm bg-[hsl(var(--accent-primary))] text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {redeemMutation.isPending ? t('dashboard:billing.redeeming', '正在兑换...') : t('settings:subscription.redeem', '兑换')}
+              </button>
+            </>
+          )}
         </Modal.Footer>
       </form>
     </Modal>

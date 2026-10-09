@@ -32,6 +32,8 @@ from utils.logger import get_logger, log_with_context
 
 from .text_matching import (
     build_span_previews,
+    edge_punct_run,
+    extend_span_over_edge_punct,
     find_approximate_match,
     find_fuzzy_spans,
     find_unique_line_span,
@@ -64,6 +66,102 @@ EVENT_LOOP_LOCK_WAIT_SECONDS = 0.5
 
 class FileWriteBusyError(RuntimeError):
     """写锁在有界等待内没拿到（文件正被另一个写入任务占用），可安全重试。"""
+
+
+# --- edit_file 的稳定错误类型 ---------------------------------------------
+# error 字段是写给模型看的（带候选片段、occurrence 提示，模型靠它重新定位）；
+# error_type 是稳定的机器可读分类，user_message 是给作者看的一句短话，前端
+# 卡片据此展示，不再把模型指令、内部 id 直接甩给作者。
+EDIT_ERROR_ANCHOR_NOT_FOUND = "anchor_not_found"
+EDIT_ERROR_ANCHOR_AMBIGUOUS = "anchor_ambiguous"
+EDIT_ERROR_FILE_NOT_FOUND = "file_not_found"
+EDIT_ERROR_INVALID_EDIT = "invalid_edit"
+EDIT_ERROR_FILE_BUSY = "file_busy"
+EDIT_ERROR_PERMISSION_DENIED = "permission_denied"
+EDIT_ERROR_GENERIC = "edit_failed"
+
+EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
+    EDIT_ERROR_ANCHOR_NOT_FOUND: "AI 没在原文里找到要改的那一段，正在重新定位。",
+    EDIT_ERROR_ANCHOR_AMBIGUOUS: "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
+    EDIT_ERROR_FILE_NOT_FOUND: "这个文件已经不存在了，可能刚被删除。",
+}
+EDIT_ERROR_GENERIC_USER_MESSAGE = "这一步没做成，AI 会换个方式继续。"
+
+# 近似/模糊匹配改动后附在 detail 上的提醒（模型与作者都能看到实际改了哪段原文）。
+FUZZY_EDIT_WARNING = "已按近似匹配改动，请核对"
+
+
+def edit_error_user_message(error_type: str | None) -> str:
+    """error_type 对应的作者可读短句；未知类型用通用说法。"""
+    return EDIT_ERROR_USER_MESSAGES.get(error_type or "", EDIT_ERROR_GENERIC_USER_MESSAGE)
+
+
+class EditFileError(ValueError):
+    """edit_file 的可恢复错误：str(e) 给模型，error_type / user_message 给界面。
+
+    继承 ValueError，所有按 ValueError 捕获的旧调用方（file_ops.router、测试）
+    行为不变。
+    """
+
+    def __init__(self, message: str, *, error_type: str = EDIT_ERROR_INVALID_EDIT):
+        super().__init__(message)
+        self.error_type = error_type
+
+    @property
+    def user_message(self) -> str:
+        return edit_error_user_message(self.error_type)
+
+    def payload_fields(self) -> dict[str, Any]:
+        """附加到工具错误结果上的结构化字段。"""
+        return {
+            "error_type": self.error_type,
+            "user_message": self.user_message,
+            "edits_applied": 0,
+            "mutation_applied": False,
+        }
+
+
+class EditBatchError(EditFileError):
+    """continue_on_error=false 时有编辑失败：整批回滚，列出全部失败项。"""
+
+    def __init__(self, failed_edits: list[dict[str, Any]], edits_total: int):
+        self.failed_edits = failed_edits
+        self.edits_total = edits_total
+        reasons = "；".join(str(item.get("error") or "") for item in failed_edits)
+        message = (
+            f"本次调用的 {edits_total} 处编辑全部未生效（已整体回滚），"
+            f"请修正失败项后重新提交完整 edits 列表："
+            f"失败项 edits[{'、'.join(str(item['index']) for item in failed_edits)}]"
+            f"（0-based）。{reasons}"
+        )
+        first_type = failed_edits[0].get("error_type") if failed_edits else None
+        super().__init__(message, error_type=str(first_type or EDIT_ERROR_GENERIC))
+
+    def payload_fields(self) -> dict[str, Any]:
+        fields = super().payload_fields()
+        fields["edits_total"] = self.edits_total
+        fields["failed_edits"] = self.failed_edits
+        return fields
+
+
+def _classify_edit_exception(exc: Exception) -> str:
+    if isinstance(exc, EditFileError):
+        return exc.error_type
+    if isinstance(exc, ValueError):
+        return EDIT_ERROR_INVALID_EDIT
+    return EDIT_ERROR_GENERIC
+
+
+def _not_found(message: str) -> EditFileError:
+    return EditFileError(message, error_type=EDIT_ERROR_ANCHOR_NOT_FOUND)
+
+
+def _ambiguous(message: str) -> EditFileError:
+    return EditFileError(message, error_type=EDIT_ERROR_ANCHOR_AMBIGUOUS)
+
+
+def _preview(text: str) -> str:
+    return text[:200] + ("..." if len(text) > 200 else "")
 
 
 def file_write_lock(file_id: str) -> threading.Lock:
@@ -189,7 +287,11 @@ class FileEditor:
                 - failed_edits: List of failed edit details (when continue_on_error=True)
 
         Raises:
-            ValueError: If file not found or edit operation fails
+            EditFileError: File not found (error_type=file_not_found)
+            EditBatchError: continue_on_error=False and at least one edit
+                failed. Every edit is still checked in memory so the error lists
+                all failing indices; nothing is committed (the whole batch is
+                rolled back, edits_applied=0).
             PermissionError: If user doesn't have permission
         """
         from database import is_postgres
@@ -246,7 +348,7 @@ class FileEditor:
                 file_id=id,
                 user_id=self.user_id,
             )
-            raise ValueError("文件不存在或已删除")
+            raise EditFileError("文件不存在或已删除", error_type=EDIT_ERROR_FILE_NOT_FOUND)
 
         # Check permission (target must belong to the current tool-context project)
         check_file_access_in_tool_context(self.session, file, self.user_id)
@@ -336,6 +438,9 @@ class FileEditor:
                 # Persist normalized op for subsequent logic
                 edit["op"] = op
 
+                if op in ("append", "prepend", "insert_after", "insert_before"):
+                    self._require_insert_text(edit, i, op, warnings)
+
                 if op == "replace":
                     content = self._apply_replace(
                         content, edit, i, applied_edits, warnings
@@ -371,15 +476,25 @@ class FileEditor:
                 else:
                     raise ValueError(f"Edit {i}: unknown operation '{op}'. Valid ops: replace, insert_after, insert_before, append, prepend, delete")
             except Exception as e:
-                if not continue_on_error:
-                    raise
                 failed_op = str(edit.get("op", "")).strip() if isinstance(edit, dict) else ""
+                error_text = str(e)
+                if not error_text.startswith(f"Edit {i}"):
+                    error_text = f"Edit {i}: {error_text}"
                 failed_edits.append({
                     "index": i,
-                    "error": str(e),
+                    "error": error_text,
+                    "error_type": _classify_edit_exception(e),
                     "op": failed_op,
                 })
-                warnings.append(f"Edit {i}: failed and skipped ({e})")
+                if continue_on_error:
+                    warnings.append(f"Edit {i}: failed and skipped ({e})")
+                # continue_on_error=false 时也继续检查后面的编辑（只在内存里），
+                # 一次把所有失败项报给模型；循环结束后整批回滚，不会落库。
+
+        if failed_edits and not continue_on_error:
+            # 整批不生效：不提交、不建版本。错误里写明「全部未生效」并列出全部
+            # 失败项，否则模型会以为只有报错那一条失败，只重发剩下的几条。
+            raise EditBatchError(failed_edits, edits_total=len(edits))
 
         # Stage content and snapshot in the same transaction while the per-file
         # lock is held. A savepoint keeps snapshot failures non-blocking without
@@ -469,6 +584,97 @@ class FileEditor:
             if isinstance(text_preview, str) and text_preview:
                 detail["new_preview"] = text_preview
 
+    # replace 漏写 new 时可接受的替换文本键（模型常把 append 的 text 习惯带过来）。
+    _REPLACE_NEW_ALIASES = ("text", "content", "new_text", "replacement")
+    # append/prepend/insert_* 漏写 text 时可接受的写入文本键。
+    _INSERT_TEXT_ALIASES = ("new", "new_text", "replacement")
+
+    @classmethod
+    def _require_insert_text(
+        cls,
+        edit: dict[str, Any],
+        edit_index: int,
+        op: str,
+        warnings: list[str],
+    ) -> None:
+        """append/prepend/insert_* 必须有非空 text；用别名补齐时留告警。
+
+        以前 text 缺失或为空时照样记一次 applied，模型和计费都以为写进去了，
+        实际文件一个字没变（空正文纠偏轮因此白跑一轮）。
+        """
+        if edit.get("text") is None:
+            for key in cls._INSERT_TEXT_ALIASES:
+                value = edit.get(key)
+                if isinstance(value, str) and value:
+                    edit["text"] = value
+                    warnings.append(
+                        f"Edit {edit_index}: {op} 未提供 text，已使用 {key} 字段作为写入文本"
+                    )
+                    return
+        text = edit.get("text")
+        if not isinstance(text, str) or not text:
+            raise EditFileError(
+                f"Edit {edit_index}: {op} 的 text 为空，没有可写入的内容。"
+                f"要写入的文本请放在 text 字段里。"
+            )
+
+    @classmethod
+    def _resolve_replace_new(
+        cls,
+        edit: dict[str, Any],
+        edit_index: int,
+        warnings: list[str],
+    ) -> str:
+        """取 replace 的 new；缺失时按别名补齐，仍缺失就报错，绝不当成删除。
+
+        new="" 是模型明确要求替换为空，照常执行；只有「没给 new」才报错——
+        以前缺 new 会默认成空串，台词被静默删除，结果还报成功。
+        """
+        new_text = edit.get("new")
+        if new_text is None:
+            for key in cls._REPLACE_NEW_ALIASES:
+                value = edit.get(key)
+                if isinstance(value, str):
+                    warnings.append(
+                        f"Edit {edit_index}: replace 未提供 new，已使用 {key} 字段作为替换文本"
+                    )
+                    return value
+            raise EditFileError(
+                f"Edit {edit_index}: replace 缺少 new 字段（替换后的新文本）。"
+                f"只想删除这段原文请改用 op=delete。"
+            )
+        if not isinstance(new_text, str):
+            raise EditFileError(f"Edit {edit_index}: replace 的 new 必须是字符串")
+        return new_text
+
+    @staticmethod
+    def _extend_fuzzy_span(
+        content: str,
+        start: int,
+        end: int,
+        pattern: str,
+        *,
+        replacement: str | None = None,
+        leading: bool = True,
+        trailing: bool = True,
+    ) -> tuple[int, int]:
+        """模糊/近似命中后，把原文边缘的同类标点并入改动范围。
+
+        参照串优先取 pattern（old/anchor）自己的边缘标点；pattern 那一侧没有
+        标点而 replacement（new）有时用 replacement 的——new 自带的引号/句号
+        会重新写回去，原文那一个若不并入就会重复（「冷。。」「““」）。
+        """
+        lead_ref = edge_punct_run(pattern, leading=True) if leading else ""
+        trail_ref = edge_punct_run(pattern, leading=False) if trailing else ""
+        if replacement:
+            if leading and not lead_ref:
+                lead_ref = edge_punct_run(replacement, leading=True)
+            if trailing and not trail_ref:
+                trail_ref = edge_punct_run(replacement, leading=False)
+        return extend_span_over_edge_punct(
+            content, start, end, leading_ref=lead_ref, trailing_ref=trail_ref
+        )
+
     @staticmethod
     def _parse_ignore_punct_whitespace(edit: dict[str, Any]) -> bool:
         """解析 ignore_punct_whitespace，默认 True。
@@ -532,7 +738,7 @@ class FileEditor:
         if occurrence is None:
             if match_count > 1:
                 previews = _numbered_previews(content, _exact_spans(content, sub))
-                raise ValueError(
+                raise _ambiguous(
                     f"Edit {edit_index}: {label}匹配到多个位置（{match_count}处），"
                     f"为避免定位到错误位置已中止。推荐做法：保持原参数不变，"
                     f"加上 occurrence=N 指定要改第几处（1-based，见下方候选片段序号）；"
@@ -570,7 +776,6 @@ class FileEditor:
     ) -> str:
         """Apply a replace edit operation."""
         old_text = edit.get("old", "")
-        new_text = edit.get("new", "")
         # replace_all 是本工具唯一的破坏性开关（无次数上限地替换全部匹配）。
         # strict_json_schema=False 时模型会把它序列化成 "false"/"0"，朴素真值
         # 判断会把这些字符串判真，把「改一处」变成「全改」，因此必须强转。
@@ -586,13 +791,14 @@ class FileEditor:
                 f"只改一处请去掉 replace_all，确实要全部替换请去掉 occurrence。"
             )
 
-        if not old_text:
-            warnings.append(f"Edit {edit_index}: missing old for replace; skipped")
-            return content
-
-        if not isinstance(new_text, str):
-            warnings.append(f"Edit {edit_index}: invalid new for replace; skipped")
-            return content
+        # 缺 old 以前只记一条告警就跳过，整次调用仍报 success：模型以为改了，
+        # 文件其实没动。现在与缺 new 一样直接报错，交给批量回滚语义处理。
+        if not isinstance(old_text, str) or not old_text:
+            raise EditFileError(
+                f"Edit {edit_index}: replace 缺少 old 字段（要被替换的原文）。"
+                f"请从当前文件原文中复制要改的那一段。"
+            )
+        new_text = self._resolve_replace_new(edit, edit_index, warnings)
 
         # 1) Exact match first
         if old_text in content:
@@ -634,7 +840,7 @@ class FileEditor:
                 applied_edits.append(detail)
         else:
             if match_mode == "exact":
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: old text not found in content (exact match)"
                 )
 
@@ -664,23 +870,29 @@ class FileEditor:
                     min_pattern_len=8,
                 )
                 if approx_match:
-                    start, end, similarity, matched_text = approx_match
+                    start, end, similarity, _matched_text = approx_match
                     # 近似匹配只会给出唯一的一处；调用方若点名了第 2 处及以后，
                     # 说明它以为文中有多处，此时套用这唯一一处就是改错位置。
                     if occurrence is not None and occurrence != 1:
-                        raise ValueError(
+                        raise EditFileError(
                             f"Edit {edit_index}: 近似匹配只找到 1 处，"
                             f"occurrence out of range (1..1)"
                         )
+                    # 近似匹配同样在去标点的归一化空间里比较，边缘标点要一并纳入。
+                    start, end = self._extend_fuzzy_span(
+                        content, start, end, old_text, replacement=new_text
+                    )
+                    matched_text = content[start:end]
                     # Single approximate match - use it
                     content = content[:start] + new_text + content[end:]
                     applied_edits.append({
                         "op": "replace",
                         "match_mode": "approximate",
                         "similarity": round(similarity, 3),
-                        "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
-                        "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
-                        "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
+                        "matched_original": _preview(matched_text),
+                        "warning": FUZZY_EDIT_WARNING,
+                        "old_preview": _preview(old_text),
+                        "new_preview": _preview(new_text),
                     })
                     return content
 
@@ -690,7 +902,7 @@ class FileEditor:
                     old_text,
                     ignore_punct_whitespace=ignore_punct_whitespace,
                 )
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: 找不到要替换的原文片段。请从当前文件原文中复制更长且唯一的原文。候选片段: {suggestions}"
                 )
 
@@ -699,7 +911,17 @@ class FileEditor:
                 # non-overlapping); repeated re-slicing would be O(n·k).
                 parts: list[str] = []
                 prev = 0
+                first_matched: str | None = None
                 for start, end in spans:
+                    if ignore_punct_whitespace:
+                        start, end = self._extend_fuzzy_span(
+                            content, start, end, old_text, replacement=new_text
+                        )
+                        # 相邻两处之间只隔着标点时，前一处的尾扩展和后一处的
+                        # 头扩展可能重叠；后一处从前一处的结尾开始。
+                        start = max(start, prev)
+                    if first_matched is None:
+                        first_matched = content[start:end]
                     parts.append(content[prev:start])
                     parts.append(new_text)
                     prev = end
@@ -716,8 +938,10 @@ class FileEditor:
                     "op": "replace",
                     "match_mode": "fuzzy",
                     "ignore_punct_whitespace": ignore_punct_whitespace,
-                    "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
-                    "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
+                    "matched_original": _preview(first_matched or ""),
+                    "warning": FUZZY_EDIT_WARNING,
+                    "old_preview": _preview(old_text),
+                    "new_preview": _preview(new_text),
                     "count": len(spans),
                 }
                 if truncated:
@@ -726,7 +950,7 @@ class FileEditor:
             else:
                 if len(spans) != 1 and occurrence is None:
                     previews = _numbered_previews(content, spans)
-                    raise ValueError(
+                    raise _ambiguous(
                         f"Edit {edit_index}: 原文片段匹配到多个位置（{len(spans)}处），"
                         f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                         f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
@@ -736,19 +960,26 @@ class FileEditor:
                 idx = 0
                 if occurrence is not None:
                     if occurrence > len(spans):
-                        raise ValueError(
+                        raise EditFileError(
                             f"Edit {edit_index}: occurrence out of range (1..{len(spans)})"
                         )
                     idx = occurrence - 1
 
                 start, end = spans[idx]
+                if ignore_punct_whitespace:
+                    start, end = self._extend_fuzzy_span(
+                        content, start, end, old_text, replacement=new_text
+                    )
+                matched_text = content[start:end]
                 content = content[:start] + new_text + content[end:]
                 detail = {
                     "op": "replace",
                     "match_mode": "fuzzy",
                     "ignore_punct_whitespace": ignore_punct_whitespace,
-                    "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
-                    "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
+                    "matched_original": _preview(matched_text),
+                    "warning": FUZZY_EDIT_WARNING,
+                    "old_preview": _preview(old_text),
+                    "new_preview": _preview(new_text),
                     "match_count": len(spans),
                 }
                 if occurrence is not None:
@@ -793,7 +1024,7 @@ class FileEditor:
             })
         else:
             if match_mode == "exact":
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: anchor text not found in content (exact match)"
                 )
 
@@ -823,7 +1054,9 @@ class FileEditor:
                             f"Edit {edit_index}: 近似匹配只找到 1 处锚点，"
                             f"occurrence out of range (1..1)"
                         )
-                    pos = end  # Insert after the matched text
+                    # Insert after the matched text：锚点以句号/引号收尾时，
+                    # 插入点要越过原文对应的标点，不能插在「冷」和「。」之间。
+                    _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
                     content = content[:pos] + text + content[pos:]
                     applied_edits.append({
                         "op": "insert_after",
@@ -867,13 +1100,13 @@ class FileEditor:
                     anchor,
                     ignore_punct_whitespace=ignore_punct_whitespace,
                 )
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: 找不到插入锚点。请从当前文件原文中复制更长且唯一的锚点。候选片段: {suggestions}"
                 )
 
             if len(spans) != 1 and occurrence is None:
                 previews = _numbered_previews(content, spans)
-                raise ValueError(
+                raise _ambiguous(
                     f"Edit {edit_index}: 锚点匹配到多个位置（{len(spans)}处），"
                     f"为避免插入到错误位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                     f"指定第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的锚点。"
@@ -890,6 +1123,8 @@ class FileEditor:
 
             start, end = spans[idx]
             pos = end
+            if ignore_punct_whitespace:
+                _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
             content = content[:pos] + text + content[pos:]
             applied_edits.append({
                 "op": "insert_after",
@@ -938,7 +1173,7 @@ class FileEditor:
             })
         else:
             if match_mode == "exact":
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: anchor text not found in content (exact match)"
                 )
 
@@ -968,7 +1203,9 @@ class FileEditor:
                             f"Edit {edit_index}: 近似匹配只找到 1 处锚点，"
                             f"occurrence out of range (1..1)"
                         )
-                    pos = start  # Insert before the matched text
+                    # Insert before the matched text：锚点以引号开头时插入点要
+                    # 落在原文开引号之前，不能把新文本插进「“」和正文之间。
+                    pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
                     content = content[:pos] + text + content[pos:]
                     applied_edits.append({
                         "op": "insert_before",
@@ -1010,13 +1247,13 @@ class FileEditor:
                     anchor,
                     ignore_punct_whitespace=ignore_punct_whitespace,
                 )
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: 找不到插入锚点。请从当前文件原文中复制更长且唯一的锚点。候选片段: {suggestions}"
                 )
 
             if len(spans) != 1 and occurrence is None:
                 previews = _numbered_previews(content, spans)
-                raise ValueError(
+                raise _ambiguous(
                     f"Edit {edit_index}: 锚点匹配到多个位置（{len(spans)}处），"
                     f"为避免插入到错误位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                     f"指定第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的锚点。"
@@ -1033,6 +1270,8 @@ class FileEditor:
 
             start, end = spans[idx]
             pos = start
+            if ignore_punct_whitespace:
+                pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
             content = content[:pos] + text + content[pos:]
             applied_edits.append({
                 "op": "insert_before",
@@ -1061,9 +1300,11 @@ class FileEditor:
         ignore_punct_whitespace = self._parse_ignore_punct_whitespace(edit)
         occurrence = self._parse_occurrence(edit, edit_index)
 
-        if not old_text:
-            warnings.append(f"Edit {edit_index}: missing old for delete; skipped")
-            return content
+        if not isinstance(old_text, str) or not old_text:
+            raise EditFileError(
+                f"Edit {edit_index}: delete 缺少 old 字段（要删除的原文）。"
+                f"请从当前文件原文中复制要删的那一段。"
+            )
 
         if old_text in content:
             match_count = content.count(old_text)
@@ -1090,7 +1331,7 @@ class FileEditor:
             applied_edits.append(detail)
         else:
             if match_mode == "exact":
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: text to delete not found in content (exact match)"
                 )
 
@@ -1111,13 +1352,13 @@ class FileEditor:
                     old_text,
                     ignore_punct_whitespace=ignore_punct_whitespace,
                 )
-                raise ValueError(
+                raise _not_found(
                     f"Edit {edit_index}: 找不到要删除的原文片段。请从当前文件原文中复制更长且唯一的原文。候选片段: {suggestions}"
                 )
 
             if len(spans) != 1 and occurrence is None:
                 previews = _numbered_previews(content, spans)
-                raise ValueError(
+                raise _ambiguous(
                     f"Edit {edit_index}: 删除片段匹配到多个位置（{len(spans)}处），"
                     f"为避免误删已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                     f"指定要删第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
@@ -1133,12 +1374,19 @@ class FileEditor:
                 idx = occurrence - 1
 
             start, end = spans[idx]
+            if ignore_punct_whitespace:
+                # 只按 old 自己的边缘标点扩展：删除没有 new 可参照，
+                # old 带了引号/句号就把原文对应的那一个一起删掉，不留孤立的「“。」。
+                start, end = self._extend_fuzzy_span(content, start, end, old_text)
+            matched_text = content[start:end]
             content = content[:start] + content[end:]
             detail = {
                 "op": "delete",
                 "match_mode": "fuzzy",
                 "ignore_punct_whitespace": ignore_punct_whitespace,
-                "deleted_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
+                "matched_original": _preview(matched_text),
+                "warning": FUZZY_EDIT_WARNING,
+                "deleted_preview": _preview(old_text),
                 "match_count": len(spans),
             }
             if occurrence is not None:
@@ -1188,8 +1436,18 @@ class FileEditor:
 
 
 __all__ = [
+    "EDIT_ERROR_ANCHOR_AMBIGUOUS",
+    "EDIT_ERROR_ANCHOR_NOT_FOUND",
+    "EDIT_ERROR_FILE_BUSY",
+    "EDIT_ERROR_FILE_NOT_FOUND",
+    "EDIT_ERROR_GENERIC",
+    "EDIT_ERROR_INVALID_EDIT",
+    "EDIT_ERROR_PERMISSION_DENIED",
+    "EditBatchError",
+    "EditFileError",
     "FileEditor",
     "FileWriteBusyError",
+    "edit_error_user_message",
     "acquire_file_write_lock",
     "file_write_lock",
 ]

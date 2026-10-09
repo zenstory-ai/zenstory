@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Terminal, ArrowRight } from 'lucide-react';
 
-const AGENT_BADGES = ['Claude Code', 'OpenClaw'];
+const AGENT_BADGES = ['Claude Code', 'Codex', 'OpenClaw'];
 
 export function AgentApiSection() {
   const { t } = useTranslation('home');
@@ -60,7 +60,7 @@ export function AgentApiSection() {
                 </h3>
               </div>
               <p className="text-xs md:text-sm text-[hsl(var(--text-secondary))] leading-relaxed mb-3">
-                {t('agentApi.subtitle', { defaultValue: '在设置里生成 API Key，填到 Claude Code 或 OpenClaw，它就能读取和修改你的项目文件。' })}
+                {t('agentApi.subtitle', { defaultValue: '在设置里创建 API 密钥，在终端用 zenstory 命令行工具登录，再给 AI 助手装上 zenstory 技能，Claude Code、Codex、OpenClaw 就能读写你的项目。' })}
               </p>
 
               {/* Agent badges -- styled like code tags */}
@@ -84,9 +84,9 @@ export function AgentApiSection() {
             <button
               onClick={handleGetStarted}
               className="flex-shrink-0 group/btn relative h-10 md:h-11 px-5 md:px-6 rounded-xl text-sm font-semibold text-white bg-[hsl(var(--accent-primary))] inline-flex items-center gap-2 overflow-hidden transition-all duration-200 hover:shadow-[0_0_24px_hsl(var(--accent-primary)/0.35)] hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
-              aria-label={t('agentApi.ctaAriaLabel', { defaultValue: '去设置生成 API Key' })}
+              aria-label={t('agentApi.ctaAriaLabel', { defaultValue: '去设置创建 API 密钥' })}
             >
-              <span className="relative z-10">{t('agentApi.cta', { defaultValue: '生成 API Key' })}</span>
+              <span className="relative z-10">{t('agentApi.cta', { defaultValue: '创建 API 密钥' })}</span>
               <ArrowRight size={15} className="relative z-10 group-hover/btn:translate-x-0.5 transition-transform duration-200" />
               {/* Hover shine */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-600 pointer-events-none" />

@@ -69,7 +69,7 @@ vi.mock('react-i18next', () => ({
           'chat:input.attachedMaterials': 'Attached materials',
           'chat:input.quotedText': 'Quoted text',
           'chat:input.remove': 'Remove',
-          'common:cancel': 'Cancel',
+          'chat:input.stop': 'Stop generating',
           'common:send': 'Send',
           'chat:voice.mobile_hold': 'Hold to talk',
           'chat:voice.mobile_stop': 'Release to stop',
@@ -204,7 +204,7 @@ describe('MobileChatInput', () => {
     expect(cancelRecording).toHaveBeenCalledTimes(1)
 
     rerender(<MobileChatInput onSend={vi.fn()} disabled={true} onCancel={onCancel} />)
-    fireEvent.click(screen.getByTitle('Cancel'))
+    fireEvent.click(screen.getByRole('button', { name: 'Stop generating' }))
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 

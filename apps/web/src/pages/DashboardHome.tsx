@@ -553,11 +553,9 @@ export default function DashboardHome() {
   };
 
   const hasDraftIdea = inspiration.trim().length > 0;
-  const resolvedInspirationPlaceholder = t(
-    inspirationsConfig.enabled
-      ? 'dashboard:inspiration.dashboardPlaceholder'
-      : 'dashboard:inspiration.dashboardPlaceholderWithoutInspirations',
-  );
+  // A complete example brief (premise + what to produce first) shows what a good request looks like;
+  // a rule such as "enter a core conflict" reads as homework.
+  const resolvedInspirationPlaceholder = t(`dashboard:inspiration.example.${activeTab}`);
   return (
     <>
       {/* Header Section */}
@@ -683,7 +681,7 @@ export default function DashboardHome() {
             data-testid="dashboard-inspiration-input"
             data-tour-id="dashboard-inspiration-input"
             disabled={isQuickCreating}
-            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] px-6 py-5 text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[136px]" : "min-h-[136px] pr-[180px]"}`}
+            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] px-6 py-5 text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[212px]" : "min-h-[136px] pr-[180px]"}`}
             value={inspiration}
             onChange={(e) => setInspiration(e.target.value)}
             onKeyDown={(e) => {
@@ -858,7 +856,7 @@ export default function DashboardHome() {
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                  {t("todayActionPlan.title", { defaultValue: "今天可以做的 3 件事" })}
+                  {t("todayActionPlan.title", { defaultValue: "今天可以做的事" })}
                 </h2>
                 {todayActionPlanExpanded && (
                   <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
@@ -988,14 +986,20 @@ export default function DashboardHome() {
               )}
 
               <div className={`${isMobile ? "mb-4" : "mb-6"}`}>
-                <label className={`block font-medium text-[hsl(var(--text-secondary))] ${isMobile ? "text-xs mb-1.5" : "text-sm mb-2"}`}>
-                  {t('projects.namePlaceholder')}
+                <label
+                  htmlFor="dashboard-new-project-name"
+                  className={`block font-medium text-[hsl(var(--text-secondary))] ${isMobile ? "text-xs mb-1.5" : "text-sm mb-2"}`}
+                >
+                  {t('projects.nameLabel')}
                 </label>
                 <input
+                  id="dashboard-new-project-name"
                   type="text"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder={t('projects.namePlaceholder')}
+                  placeholder={t('projects.namePlaceholder', {
+                    name: templates[creating].default_project_name || t('defaults.untitled'),
+                  })}
                   className="input"
                   autoFocus
                   onKeyDown={(e) => {
@@ -1042,7 +1046,7 @@ export default function DashboardHome() {
         description={t('projects.quotaExceededDesc', {
           defaultValue: '当前套餐的项目数已用完。升级 Pro 可以建更多项目，也可以先删除不再需要的项目。',
         })}
-        primaryLabel={t('dashboard:billing.ctaUpgradePro', '升级专业版')}
+        primaryLabel={t('dashboard:billing.ctaUpgradePro', '开通 Pro')}
         onPrimary={() => {
           window.location.assign(
             buildUpgradeUrl(projectQuotaUpgradePrompt.billingPath, projectQuotaUpgradePrompt.source)

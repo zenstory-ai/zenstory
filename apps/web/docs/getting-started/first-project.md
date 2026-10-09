@@ -1,6 +1,6 @@
 # 用 ZenStory 写第一篇短篇：从创意到可修改的正文
 
-在 ZenStory 在线工作台中，先把故事事实与待定想法分开，再用项目文件保存人物和场景提纲，按场起草、引用原文做局部修改，最后导出正文。这篇教程用一个失物招领故事示范完整路径，而不是让 AI 一次写完一本书。
+在 ZenStory 工作台中，先把故事事实与待定想法分开，再用项目文件保存人物和场景提纲，按场起草、引用原文做局部修改，最后导出正文。这篇教程用一个失物招领故事示范完整路径，而不是让 AI 一次写完一本书。
 
 使用 [app.zenstory.ai 工作台](https://app.zenstory.ai/dashboard)，不需要先安装 Oh Story 或编程 Agent。想先了解按钮位置，可看 [快速入门](https://zenstory.ai/docs/getting-started/quick-start)。下方人物、文件名和对话均为原创教学示例，不是一次真实模型运行的记录。
 
@@ -110,8 +110,8 @@
 
 拿到一场可用正文后，再继续第二场：复用已确认文件，写清本场要发生的变化和停止位置。你也可以先自行写作，只在卡住或修订时使用 AI。
 
-- 想判断该用网页工作台还是本地技能：[写作工作流对照](https://zenstory.ai/compare/writing-workflows)。
-- 想看局部改稿的前后对照：[减少套路化表达](https://zenstory.ai/oh-story/revise-ai-prose)。其中的编辑原则可以借鉴，但 Oh Story 的文件流程并非在线工作台按钮。
+- 想判断该用 ZenStory 工作台还是在 Agent 里用 skill 包：[写作工作流对照](https://zenstory.ai/compare/writing-workflows)。
+- 想看局部改稿的前后对照：[减少套路化表达](https://zenstory.ai/oh-story/revise-ai-prose)。其中的编辑原则可以借鉴，但 Oh Story 的文件流程并非 ZenStory 工作台里的按钮。
 - 账号与配置入口：[注册和登录](https://zenstory.ai/docs/getting-started/installation)。账号、配额与模型服务可用性以实际部署为准。
 
 ## 实现依据

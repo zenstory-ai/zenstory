@@ -1,8 +1,8 @@
 {
-  "title": "Version History",
+  "title": "Version history",
   "loading": "Loading...",
-  "loadFailed": "Failed to load version history",
-  "noVersions": "No versions yet",
+  "loadFailed": "Couldn't load version history. Please try again.",
+  "noVersions": "No history yet — versions appear after you save.",
   "compare": "Compare",
   "comparing": "Comparing...",
   "compareFailed": "Couldn't compare versions. Please try again.",
@@ -13,7 +13,7 @@
   "closePreview": "Close preview",
   "viewContentFailed": "Could not load this version. Please try again.",
   "rollbackHistoryNotSaved": "The content was restored, but this restore was not added to version history.",
-  "rollbackConfirm": "Restore version {{version}}? The current text will be replaced with this version. Existing versions are kept.",
+  "rollbackConfirm": "Restore version {{version}}? Your current text will be replaced with this version; all existing versions are kept.",
   "rollbackSuccess": "Version restored",
   "rollbackFailed": "Couldn't restore this version. Please try again.",
   "totalVersions": "{{count}} version total",
@@ -36,9 +36,9 @@
     "autoSave": "Auto Save"
   },
   "quota": {
-    "limitTitle": "Version limit reached",
-    "limitDescription": "Your plan's version limit is full. Upgrade to keep saving new versions.",
-    "upgradePrimary": "Upgrade",
+    "limitTitle": "This file's version history is full",
+    "limitDescription": "Your text is still saved; we just won't create new versions. Pro keeps more versions per file.",
+    "upgradePrimary": "Get Pro",
     "upgradeSecondary": "Compare plans"
   }
 }

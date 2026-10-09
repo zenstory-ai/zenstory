@@ -28,8 +28,8 @@ export const docsNavigation: DocNavItem[] = [
       { title: "AI Assistant", titleZh: "AI创作助手", path: "/docs/user-guide/ai-assistant" },
       { title: "Skills", titleZh: "技能系统", path: "/docs/user-guide/skills" },
       { title: "Materials", titleZh: "素材库", path: "/docs/user-guide/materials" },
-      { title: "Inspirations", titleZh: "灵感库", path: "/docs/user-guide/inspirations" },
-      { title: "Billing & Benefits", titleZh: "订阅与权益", path: "/docs/user-guide/billing-benefits" },
+      { title: "Inspirations (self-host only)", titleZh: "灵感库（仅自托管）", path: "/docs/user-guide/inspirations" },
+      { title: "Plans & Benefits", titleZh: "订阅权益", path: "/docs/user-guide/billing-benefits" },
       { title: "Version History", titleZh: "版本历史", path: "/docs/user-guide/version-history" },
       { title: "Export", titleZh: "导出功能", path: "/docs/user-guide/export" },
     ]

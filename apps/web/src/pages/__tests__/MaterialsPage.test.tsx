@@ -19,6 +19,7 @@ const mockDelete = vi.fn();
 const mockRetry = vi.fn();
 const mockGetStatus = vi.fn();
 const mockGetQuota = vi.fn();
+const mockGetCatalog = vi.fn();
 const trackEventMock = vi.fn();
 const mockToastError = vi.fn();
 
@@ -84,6 +85,7 @@ vi.mock("../../lib/subscriptionApi", () => ({
   subscriptionApi: {
     getStatus: () => mockGetStatus(),
     getQuota: () => mockGetQuota(),
+    getCatalog: () => mockGetCatalog(),
   },
   subscriptionQueryKeys: {
     status: () => ["subscription-status", "test-user"],
@@ -135,6 +137,7 @@ describe("MaterialsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockList.mockResolvedValue([]);
+    mockGetCatalog.mockResolvedValue({ tiers: [] });
     mockUpload.mockResolvedValue({
       novel_id: 1,
       title: "test",
@@ -200,6 +203,54 @@ describe("MaterialsPage", () => {
     expect(teaserSecondaryButton.className).not.toContain("btn-secondary");
   });
 
+  it("states the Pro breakdown limit from the plan catalog instead of a constant", async () => {
+    mockGetStatus.mockResolvedValueOnce({
+      tier: "free",
+      status: "none",
+      display_name: "免费版",
+      days_remaining: null,
+      current_period_end: null,
+      features: { materials_library_access: false },
+    });
+    mockGetCatalog.mockResolvedValueOnce({
+      version: "test",
+      comparison_mode: "pro_only",
+      pricing_anchor_monthly_cents: 4900,
+      tiers: [
+        { name: "free", entitlements: { material_decompositions_monthly: 0 } },
+        { name: "pro", entitlements: { material_decompositions_monthly: 8 } },
+      ],
+    });
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("开通 Pro 后，每月可拆解 8 次。")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("每月可拆解 5 次");
+  });
+
+  it("omits the breakdown number when the plan catalog is unavailable", async () => {
+    mockGetStatus.mockResolvedValueOnce({
+      tier: "free",
+      status: "none",
+      display_name: "免费版",
+      days_remaining: null,
+      current_period_end: null,
+      features: { materials_library_access: false },
+    });
+    mockGetCatalog.mockRejectedValueOnce(new Error("catalog down"));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("开通 Pro 后，每月都能拆解参考小说。")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/每月可拆解 \d+ 次/);
+  });
+
+  it("does not fetch the plan catalog for users who already have the library", async () => {
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(mockList).toHaveBeenCalled());
+    expect(mockGetCatalog).not.toHaveBeenCalled();
+  });
+
   it("allows retrying a material with partial decomposition errors", async () => {
     mockList.mockResolvedValueOnce([{
       id: "partial-novel", title: "Partial Novel", status: "completed_with_errors",
@@ -256,7 +307,7 @@ describe("MaterialsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("没能确认你的会员状态，请重试。")
+        screen.getByText("没能确认你的 Pro 状态，请重试。")
       ).toBeInTheDocument();
     });
 

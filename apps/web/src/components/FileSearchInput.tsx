@@ -15,6 +15,7 @@
  */
 import React, { useRef } from "react";
 import { Search, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 /**
  * Props for the FileSearchInput component.
@@ -136,6 +137,7 @@ export const FileSearchInput: React.FC<FileSearchInputProps> = ({
   disabled = false,
   className = "",
 }) => {
+  const { t } = useTranslation("common");
   const inputRef = useRef<HTMLInputElement>(null);
   const composingRef = useRef(false);
 
@@ -192,7 +194,7 @@ export const FileSearchInput: React.FC<FileSearchInputProps> = ({
           onClick={onClear}
           data-testid="file-search-clear-button"
           className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors touch-manipulation"
-          aria-label="Clear search"
+          aria-label={t("common:clearSearch", "清空搜索")}
         >
           <X className="w-4 h-4" />
         </button>

@@ -667,7 +667,13 @@ class SessionLoader:
                     msg_data["stop_reason"] = stop_reason
                 if isinstance(usage, dict):
                     msg_data["usage"] = usage
+                # 跨轮路由延续（graph/router.py）：上一轮落库的路由、状态卡里的
+                # lastAgent、是否以澄清卡收尾。只供路由判断，不进回放文本。
+                routing = metadata.get("routing")
+                if isinstance(routing, dict):
+                    msg_data["routing"] = routing
                 if isinstance(status_cards, list):
+                    msg_data.update(self._status_card_routing_hints(status_cards))
                     synthesized_content = self._build_status_cards_history_content(status_cards)
                     if synthesized_content and not self._extract_content_text(
                         msg_data.get("content")
@@ -874,14 +880,30 @@ class SessionLoader:
             task_results = []
 
         actions: list[dict[str, Any]] = []
-        for index, task in enumerate(tasks):
+        # 落库的 arguments 是模型发出的原始子任务；读取守卫会把被拦下的
+        # query_files 子任务从实际执行的列表里剔除，result.tasks 因此比 arguments
+        # 短，按下标配对会把后面子任务的结果（标题、失败状态）安到前一个子任务上。
+        # 用游标顺序配对：类型一致才配对；还有被剔除的名额时，结果里找不到该文件
+        # id 的 query_files 视为被拦下。配不上的子任务按「没有结果」处理。
+        dropped_reads = max(0, len(tasks) - len(task_results))
+        cursor = 0
+        for task in tasks:
             if not isinstance(task, dict):
                 continue
             task_type = str(task.get("type") or "").strip()
             params = self._parse_json_value(task.get("params"))
             params = params if isinstance(params, dict) else {}
 
-            task_result = task_results[index] if index < len(task_results) else None
+            candidate = task_results[cursor] if cursor < len(task_results) else None
+            read_id = str(params.get("id") or "").strip() if task_type == "query_files" else ""
+            if dropped_reads and read_id and not self._result_mentions_id(candidate, read_id):
+                # 被守卫拦下、没有执行的重复读取：不记面包屑（之前的读取已经记过）。
+                dropped_reads -= 1
+                continue
+            task_result: dict[str, Any] | None = None
+            if isinstance(candidate, dict) and str(candidate.get("type") or "").strip() == task_type:
+                task_result = candidate
+                cursor += 1
             if isinstance(task_result, dict):
                 task_status = str(task_result.get("status") or "").strip().lower()
                 if task_status in _FAILED_TOOL_STATUSES or task_result.get("error"):
@@ -914,6 +936,17 @@ class SessionLoader:
                 if file_id or title:
                     actions.append({"name": "create_file", "file_id": file_id, "title": title})
         return actions
+
+    @staticmethod
+    def _result_mentions_id(task_result: Any, file_id: str) -> bool:
+        """parallel 子任务结果里是否出现了这个文件 id（结果被截断时也能在预览里找到）。"""
+        if not isinstance(task_result, dict) or not file_id:
+            return False
+        try:
+            serialized = json.dumps(task_result.get("result"), ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            return False
+        return file_id in serialized
 
     def _build_tool_calls_history_content(self, tool_calls_raw: Any) -> str:
         """
@@ -994,6 +1027,24 @@ class SessionLoader:
         if not verb:
             return ""
         return f"- {verb} {title_part}{id_part}"
+
+    @staticmethod
+    def _status_card_routing_hints(status_cards: list[Any]) -> dict[str, Any]:
+        """从状态卡里取路由延续要用的信号：最后一张卡的 lastAgent、是否以澄清卡收尾。"""
+        hints: dict[str, Any] = {}
+        cards = [card for card in status_cards if isinstance(card, dict)]
+        for card in reversed(cards):
+            last_agent = str(card.get("lastAgent") or "").strip()
+            if last_agent:
+                hints["last_agent"] = last_agent
+                break
+        if cards:
+            last_card = cards[-1]
+            hints["clarification_pending"] = (
+                str(last_card.get("type") or "") == "workflow_stopped"
+                and str(last_card.get("reason") or "") == "clarification_needed"
+            )
+        return hints
 
     def _build_status_cards_history_content(
         self,

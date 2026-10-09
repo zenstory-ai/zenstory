@@ -16,6 +16,7 @@ from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.openai_agents.repeat_read_guard import (
     MAX_BLOCKED_READS_PER_REQUEST,
     NO_PROGRESS_STOP_REASON,
+    NO_PROGRESS_USER_MESSAGE,
     READ_BLOCK_AT,
     REPEATED_READ_ERROR_TYPE,
     RepeatReadGuard,
@@ -57,7 +58,7 @@ def test_identical_reads_hint_then_warn_then_block_then_stop():
     assert "read_hint" not in first
 
     second = json.loads(_guarded_read(guard))
-    assert second["read_hint"] == "该文件全文本轮已读取过且之后未被修改，请直接使用上文内容。"
+    assert second["read_hint"].startswith("该文件全文本次运行中已读取过")
     assert second["data"][0]["title"] == "第一章", "第 2 次照常返回内容"
 
     third = json.loads(_guarded_read(guard))
@@ -69,6 +70,8 @@ def test_identical_reads_hint_then_warn_then_block_then_stop():
         assert blocked["status"] == "error"
         assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
         assert "《第一章》(id=f1)" in blocked["error"]
+        # 给作者看的说明：不带 id，也不带写给模型的指令
+        assert blocked["user_message"] == "《第一章》刚才已经读过，AI 直接用已读内容继续。"
         if blocked_index < MAX_BLOCKED_READS_PER_REQUEST - 1:
             assert not guard.is_open
 
@@ -257,6 +260,127 @@ def test_breaker_does_not_count_guard_blocks_as_failures():
     assert guard.is_open
 
 
+# ------------------------------------------------ 读取计数按 agent run 隔离（F1）
+
+_THREE_FILES = (("f1", "卷纲"), ("f2", "第四章"), ("f3", "主角卡"))
+
+
+def _read_file(guard: RepeatReadGuard, file_id: str, title: str) -> dict:
+    return json.loads(
+        _guarded_read(guard, json.dumps({"id": file_id, "response_mode": "full"}), _read_ok(file_id, title))
+    )
+
+
+@pytest.mark.unit
+def test_each_agent_run_can_read_reference_files_once_without_hints_or_blocks():
+    """full 流程 planner → hook_designer → writer → 审稿人：工具结果不跨 agent 回放，
+
+    每个 agent 都得自己读一次卷纲、上一章、主角卡。旧实现按请求计数，第 4 个 agent
+    的读取被拦下，拦满 3 次就整轮判为无进展。
+    """
+    guard = RepeatReadGuard()
+    for _agent_run in range(4):
+        guard.begin_agent_run()
+        for file_id, title in _THREE_FILES:
+            result = _read_file(guard, file_id, title)
+            assert result["status"] == "success"
+            assert "read_hint" not in result, "本次运行第一次读，不能说「已读过」"
+
+    assert guard.blocked_reads == 0
+    assert guard.duplicate_reads == 0
+    assert not guard.is_open
+    # 读写台账仍按整个请求累计，交接摘要照常列出
+    assert list(guard.files_read) == ["f1", "f2", "f3"]
+
+
+@pytest.mark.unit
+def test_repeats_inside_one_run_are_still_blocked_and_blocks_add_up_across_runs():
+    guard = RepeatReadGuard()
+    guard.begin_agent_run()
+    for _ in range(READ_BLOCK_AT - 1):
+        _read_file(guard, "f1", "卷纲")
+    blocked = _read_file(guard, "f1", "卷纲")
+    assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE, "同一 run 内第 4 次仍拦下"
+    assert "本次运行中已读取" in blocked["error"]
+    assert guard.blocked_reads == 1
+
+    # 下一个 agent run：读取计数清零，但被拦下的次数按请求累计，无进展判定照常生效
+    guard.begin_agent_run()
+    assert _read_file(guard, "f1", "卷纲")["status"] == "success"
+    for _ in range(READ_BLOCK_AT - 2):
+        _read_file(guard, "f1", "卷纲")
+    for _ in range(MAX_BLOCKED_READS_PER_REQUEST - 1):
+        assert _read_file(guard, "f1", "卷纲")["error_type"] == REPEATED_READ_ERROR_TYPE
+    assert guard.is_open
+    assert guard.trip is not None and guard.trip.blocked_reads == MAX_BLOCKED_READS_PER_REQUEST
+
+
+@pytest.mark.unit
+def test_partial_edit_that_changed_the_file_counts_as_a_write():
+    """edit_file 部分成功（status=partial、mutation_applied=true）也改了文件：
+
+    读取计数要清零（否则「之后未被修改」是假话），也要记为写入（否则无进展停止时
+    说「不扣费」，计费却按写入扣了）。
+    """
+    edit_args = json.dumps({"id": "f1", "edits": []})
+    partial = {
+        "status": "partial",
+        "mutation_applied": True,
+        "data": {"id": "f1", "title": "第一章", "partial_success": True, "failed_edits": [{"index": 1}]},
+    }
+
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard)
+    guard.observe("edit_file", guard.plan("edit_file", edit_args), json.dumps(partial, ensure_ascii=False))
+
+    assert json.loads(_guarded_read(guard))["status"] == "success", "改过的文件可以重新读"
+    assert guard.files_written == {"f1": "第一章"}
+    assert guard.write_succeeded is True
+
+    # partial 但实际没有改动（mutation_applied=false）：不算写入
+    untouched = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(untouched)
+    untouched.observe(
+        "edit_file",
+        untouched.plan("edit_file", edit_args),
+        json.dumps({**partial, "mutation_applied": False}, ensure_ascii=False),
+    )
+    assert json.loads(_guarded_read(untouched))["error_type"] == REPEATED_READ_ERROR_TYPE
+    assert untouched.write_succeeded is False
+
+
+@pytest.mark.unit
+def test_handoff_summary_marks_full_text_of_modified_files_as_stale():
+    guard = RepeatReadGuard()
+    guard.observe(
+        "edit_file",
+        guard.plan("edit_file", json.dumps({"id": "f3"})),
+        json.dumps({"status": "success", "data": {"id": "f3", "title": "第三章"}}, ensure_ascii=False),
+    )
+    summary = guard.handoff_summary()
+    assert "《第三章》(id=f3)的[全文]是本请求修改前的版本，已过期" in summary
+    assert "query_files(id=f3)" in summary
+
+
+@pytest.mark.unit
+def test_blocked_parallel_batch_carries_a_short_user_message():
+    guard = RepeatReadGuard()
+    for file_id, title in _THREE_FILES[:2]:
+        for _ in range(READ_BLOCK_AT - 1):
+            _read_file(guard, file_id, title)
+    tasks = [
+        {"type": "query_files", "params": {"id": file_id, "response_mode": "full"}}
+        for file_id, _title in _THREE_FILES[:2]
+    ]
+    plan = guard.plan("parallel_execute", json.dumps({"tasks": tasks}))
+    blocked = json.loads(plan.blocked_output)
+    assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
+    assert "(id=f1)" in blocked["error"] and "(id=f2)" in blocked["error"]
+    assert blocked["user_message"] == "《卷纲》、《第四章》刚才已经读过，AI 直接用已读内容继续。"
+
+
 # ------------------------------------------------------- tools_adapter 接线
 
 
@@ -295,7 +419,7 @@ def test_tool_use_behavior_stops_run_when_guard_trips():
         _guarded_read(guard)
     result = _stop_run_on_control_flow_tool(None, [], read_guard=guard)
     assert result.is_final_output is True
-    assert "反复读取" in result.final_output
+    assert result.final_output == NO_PROGRESS_USER_MESSAGE
 
 
 # ------------------------------------------------------------ 软着陆过滤器
@@ -328,6 +452,32 @@ def test_counting_filter_appends_landing_reminder_for_last_turns():
     assert turn_filter.landing_injected is True
     assert turn_filter.calls == max_turns
     assert meter.model_calls == max_turns
+
+
+@pytest.mark.unit
+def test_landing_reminder_fires_when_request_budget_is_nearly_spent():
+    """前面的 agent 已用掉大半请求级预算：本次 run 才第 1 次调用，也要开始收尾。"""
+    from agents.run_config import ModelInputData
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.openai_agents.runner import LANDING_LIMIT_MODEL_CALL_BUDGET, _ModelCallCountingFilter
+
+    original = [{"role": "user", "content": "写第五章"}]
+
+    def call(turn_filter):
+        return turn_filter(SimpleNamespace(model_data=ModelInputData(input=list(original), instructions="sys")))
+
+    roomy = _ModelCallCountingFilter(lambda data: data.model_data, AgentRunMeter(max_model_calls=10), max_turns=60)
+    assert call(roomy).input == original
+    assert roomy.landing_limit is None
+
+    meter = AgentRunMeter(max_model_calls=10, model_calls=7)  # 还剩 3 次
+    turn_filter = _ModelCallCountingFilter(lambda data: data.model_data, meter, max_turns=60)
+    sent = call(turn_filter)
+    assert turn_filter.calls == 1
+    assert "停止调用任何工具" in sent.input[-1]["content"]
+    assert "最多还能调用模型 2 次" in sent.input[-1]["content"]
+    assert turn_filter.landing_limit == LANDING_LIMIT_MODEL_CALL_BUDGET
 
 
 # ------------------------------------------------- 用真实 SDK run-loop 端到端
@@ -377,6 +527,8 @@ async def test_sdk_run_stops_as_no_progress_when_model_keeps_rereading(monkeypat
     assert events[-2].data["stop_reason"] == NO_PROGRESS_STOP_REASON
     error = events[-1].data
     assert error["reason"] == NO_PROGRESS_STOP_REASON
+    assert error["code"] == "ERR_AGENT_NO_PROGRESS"
+    assert error["error"] == NO_PROGRESS_USER_MESSAGE
     assert error["refundable"] is True, "没有任何写入：可以退还额度"
     assert error["blocked_reads"] == MAX_BLOCKED_READS_PER_REQUEST
 
@@ -438,6 +590,72 @@ async def test_sdk_run_soft_landing_summary_still_ends_as_exhausted(monkeypatch)
     assert events[-1].data["stop_reason"] == "max_turns_exceeded"
 
 
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+async def test_sdk_run_soft_lands_on_request_budget_instead_of_hard_error(monkeypatch):
+    from agent.core.run_meter import AgentRunMeter
+
+    meter = AgentRunMeter(max_model_calls=10, model_calls=7)
+
+    def script(index: int) -> list[dict]:
+        # 第 1 次调用就收到收尾提醒，照做：写阶段总结
+        return _text_chunks("已完成：第五章前半。剩余：后半章。文件：第五章(id=f5)。")
+
+    events, requests, _state = await _run_against_local_model(
+        monkeypatch, script, _unused_edit, state_extra={"run_meter": meter}
+    )
+
+    assert len(requests) == 1
+    reminder = [m for m in requests[0]["messages"] if m.get("role") == "user"][-1]
+    assert "停止调用任何工具" in str(reminder.get("content"))
+    assert "<file>" in str(reminder.get("content")), "提醒先写完刚建文件的正文"
+    assert not any(e.type == StreamEventType.ERROR for e in events), "不再硬停成 ERROR"
+    exhausted = [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert len(exhausted) == 1
+    assert exhausted[0].data["layer"] == "tool_call"
+    assert exhausted[0].data["iterations_used"] == 8
+    assert exhausted[0].data["max_iterations"] == 10
+    assert events[-1].type == StreamEventType.MESSAGE_END
+    assert events[-1].data["stop_reason"] == "model_call_budget_exhausted"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+async def test_sdk_run_resets_read_counts_left_by_the_previous_agent(monkeypatch):
+    """上一个 agent 已把 f1 读了 3 次：新 run 第一次读 f1 要真正执行、不带「已读过」提示。"""
+    executed: list[dict] = []
+
+    async def fake_query(args):
+        executed.append(args)
+        return {"content": [{"type": "text", "text": _read_ok()}]}
+
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard)
+
+    def script(index: int) -> list[dict]:
+        if index == 0:
+            return _tool_call_chunks("call-0", "query_files", FULL_READ)
+        return _text_chunks("审查完成。")
+
+    events, requests, _state = await _run_against_local_model(
+        monkeypatch,
+        script,
+        _unused_edit,
+        state_extra={"repeat_read_guard": guard},
+        tool_impls={"query_files": fake_query},
+    )
+
+    assert len(executed) == 1, "新 run 的第一次读取照常执行"
+    tool_output = _tool_messages(requests[1])[-1]
+    assert REPEATED_READ_ERROR_TYPE not in tool_output
+    assert "read_hint" not in tool_output
+    assert guard.blocked_reads == 0
+    assert events[-1].data["stop_reason"] == "end_turn"
+
+
 # ------------------------------------------------------------------ 计费
 
 
@@ -495,7 +713,7 @@ def test_no_progress_and_model_call_limit_errors_refund_without_writes():
         _sse("content", {"text": "我再看看"}),
         _sse(
             "error",
-            {"message": "x", "code": "ERR_AGENT_TOOL_FAILURE_LIMIT", "refundable": True, "reason": "no_progress"},
+            {"message": "x", "code": "ERR_AGENT_NO_PROGRESS", "refundable": True, "reason": "no_progress"},
         ),
     ]
     assert _decide(no_progress) == ("runaway_no_progress", True)
@@ -519,6 +737,11 @@ def test_stream_adapter_passes_error_reason_to_sse_frame():
 
     from agent.stream_adapter import StreamAdapter
 
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1 + MAX_BLOCKED_READS_PER_REQUEST):
+        _guarded_read(guard)
+    assert guard.trip is not None
+
     async def collect():
         adapter = StreamAdapter()
         return [
@@ -526,21 +749,18 @@ def test_stream_adapter_passes_error_reason_to_sse_frame():
             async for event in adapter._process_workflow_event(
                 StreamEvent(
                     type=StreamEventType.ERROR,
-                    data={
-                        "error": "AI 反复读取……",
-                        "code": "ERR_AGENT_TOOL_FAILURE_LIMIT",
-                        "retryable": False,
-                        "refundable": True,
-                        "reason": NO_PROGRESS_STOP_REASON,
-                    },
+                    data=guard.trip.as_event_data("writer", wrote_files=False),
                 )
             )
         ]
 
     frames = asyncio.run(collect())
     error_frames = [frame for frame in frames if frame.type == "error"]
-    assert error_frames[-1].data["reason"] == NO_PROGRESS_STOP_REASON
-    assert error_frames[-1].data["refundable"] is True
+    frame = error_frames[-1].data
+    assert frame["code"] == "ERR_AGENT_NO_PROGRESS", "不是「工具失败」，用专用错误码"
+    assert frame["message"] == NO_PROGRESS_USER_MESSAGE
+    assert frame["reason"] == NO_PROGRESS_STOP_REASON
+    assert frame["refundable"] is True
 
 
 # --------------------------------------------------------- 「继续」直达
@@ -675,6 +895,9 @@ async def test_review_rounds_are_capped_and_reviewer_notes_are_surfaced(monkeypa
             for event in _write_done(f"w{len(calls)}"):
                 yield event
             yield _text(LONG_TEXT)
+            if len(calls) > 1:
+                # 返工稿不再被自动质检门送审；模型无视提示词显式送审时才会有第 2 轮。
+                yield _handoff("quality_reviewer", "返工完成，请复审")
             return
         reviewer_prompts.append(state["user_message"])
         yield _text("问题：第三段节奏拖沓。")

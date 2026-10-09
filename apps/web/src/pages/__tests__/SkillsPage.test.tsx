@@ -43,6 +43,7 @@ vi.mock('react-i18next', () => ({
         'userSkills': 'My Skills',
         'addedSkills': 'Added Skills',
         'noUserSkills': 'No skills yet',
+        'noUserSkillsHint': 'Save writing rules you reuse as skills',
         'noAddedSkills': 'No added skills',
         'createFirst': 'Create your first skill',
         'discoverMore': 'Discover more',
@@ -889,6 +890,19 @@ describe('SkillsPage', () => {
           expect.objectContaining({ description: '' }),
         )
       })
+    })
+
+    it('explains what a custom skill is when the author has none yet', async () => {
+      vi.mocked(skillsApi.mySkills).mockResolvedValue({
+        user_skills: [],
+        added_skills: [],
+        total: 0,
+      } as MySkillsResponse)
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+
+      expect(await screen.findByText('No skills yet')).toBeInTheDocument()
+      expect(screen.getByText('Save writing rules you reuse as skills')).toBeInTheDocument()
     })
 
     it('shows the review status of shared skills', async () => {

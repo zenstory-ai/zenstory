@@ -27,7 +27,7 @@ vi.mock('react-i18next', () => ({
         return namespaced[key]
       }
       if (options) {
-        return defaultValue!.replace(/{{\s*\w+\s*}}/g, (_, name) => String(options[name] ?? ''))
+        return defaultValue!.replace(/{{\s*(\w+)\s*}}/g, (_, name: string) => String(options[name] ?? ''))
       }
       return defaultValue
     },
@@ -143,7 +143,7 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('兑换 Pro 会员')).toBeInTheDocument()
+        expect(screen.getByText('用积分兑换 Pro')).toBeInTheDocument()
       })
     })
 
@@ -157,7 +157,7 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('兑换 Pro 会员')).toBeInTheDocument()
+        expect(screen.getByText('用积分兑换 Pro')).toBeInTheDocument()
       })
 
       const closeButton = screen.getByRole('button', { name: /close modal/i })
@@ -176,7 +176,7 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('兑换 Pro 会员')).toBeInTheDocument()
+        expect(screen.getByText('用积分兑换 Pro')).toBeInTheDocument()
       })
 
       const backdrop = document.querySelector('[role="presentation"]')
@@ -258,7 +258,7 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('当前积分:')).toBeInTheDocument()
+        expect(screen.getByText('当前积分')).toBeInTheDocument()
       })
     })
   })
@@ -552,7 +552,7 @@ describe('RedeemProModal', () => {
   })
 
   describe('Success Handling', () => {
-    it('closes modal on successful redemption', async () => {
+    it('shows the added Pro days with a celebration and a single close action', async () => {
       mockPointsApi.getBalance.mockResolvedValue({
         available: 500, pending_expiration: 0, nearest_expiration_date: null,
       })
@@ -567,16 +567,19 @@ describe('RedeemProModal', () => {
         wrapper: createWrapper(),
       })
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: '兑换' })).toBeInTheDocument()
-      })
-
-      const redeemButton = screen.getByRole('button', { name: '兑换' })
+      const redeemButton = await screen.findByRole('button', { name: '兑换' })
+      await waitFor(() => expect(redeemButton).toBeEnabled())
       fireEvent.click(redeemButton)
 
-      await waitFor(() => {
-        expect(mockOnClose).toHaveBeenCalledTimes(1)
-      })
+      expect(await screen.findByText('兑换成功！Pro 已增加 7 天。')).toBeInTheDocument()
+      expect(screen.getByTestId('celebration-burst')).toBeInTheDocument()
+      // The modal stays open so the author sees the result.
+      expect(mockOnClose).not.toHaveBeenCalled()
+      expect(screen.queryByRole('button', { name: '兑换' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '取消' })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+      expect(mockOnClose).toHaveBeenCalledTimes(1)
     })
 
     it('invalidates queries on successful redemption', async () => {
@@ -725,9 +728,8 @@ describe('RedeemProModal', () => {
       // Click again for success
       fireEvent.click(redeemButton)
 
-      await waitFor(() => {
-        expect(mockOnClose).toHaveBeenCalled()
-      })
+      expect(await screen.findByText('兑换成功！Pro 已增加 7 天。')).toBeInTheDocument()
+      expect(screen.queryByText('兑换失败，请重试')).not.toBeInTheDocument()
     })
   })
 
@@ -742,7 +744,7 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Pro 会员权益:')).toBeInTheDocument()
+        expect(screen.getByText('Pro 权益')).toBeInTheDocument()
       })
     })
 
@@ -756,8 +758,9 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('更多 AI 写作额度')).toBeInTheDocument()
-        expect(screen.getByText('可创建更多项目')).toBeInTheDocument()
+        expect(screen.getByText('AI 消息不限条数')).toBeInTheDocument()
+        expect(screen.getByText('项目数不限')).toBeInTheDocument()
+        expect(screen.getByText('每月 5 次素材拆解')).toBeInTheDocument()
       })
     })
   })

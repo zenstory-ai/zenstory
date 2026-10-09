@@ -33,9 +33,9 @@
         "desc": "You love characters and worlds, and want to turn ideas into stories that stay consistent."
       },
       "studio": {
-        "tag": "Collaboration",
+        "tag": "Studio",
         "title": "IP / Studio Team",
-        "desc": "You write with a team and need to split work and share materials and progress."
+        "desc": "You juggle several books at once and need materials and progress kept separate."
       }
     }
   },
@@ -88,7 +88,7 @@
     "subtitle": "After you save, your dashboard home will suggest next steps based on these choices.",
     "empty": "Pick a creator type to see what we’ll suggest",
     "items": {
-      "explorer": "Idea templates and quick-start drafting",
+      "explorer": "Start a new book from one line, with step-by-step tips",
       "serial": "Writing streak tracking",
       "professional": "A fast outline-to-chapter-to-revision flow",
       "fanfic": "Organize characters and settings for AI to follow",
@@ -97,7 +97,7 @@
       "quality": "Have AI review and revise chapters"
     },
     "level": {
-      "beginner": "Start from a template, then build out characters and chapters",
+      "beginner": "Create a project first, then add characters and chapters as you go",
       "intermediate": "Suggestions that balance speed and quality",
       "advanced": "Jump straight into your project to expand and revise with AI"
     },

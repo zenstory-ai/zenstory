@@ -8,6 +8,7 @@ import { PointsBalance } from '../points/PointsBalance'
 vi.mock('../../lib/pointsApi', () => ({
   pointsApi: {
     getBalance: vi.fn(),
+    getConfig: vi.fn(),
   },
 }))
 
@@ -30,6 +31,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const mockGetBalance = vi.mocked(pointsApi.pointsApi.getBalance)
+const mockGetConfig = vi.mocked(pointsApi.pointsApi.getConfig)
 
 function renderWithQuery(ui: JSX.Element) {
   const queryClient = new QueryClient({
@@ -47,6 +49,43 @@ function renderWithQuery(ui: JSX.Element) {
 describe('PointsBalance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetConfig.mockResolvedValue({
+      check_in: 5,
+      check_in_streak: 20,
+      referral: 50,
+      skill_contribution: 50,
+      inspiration_contribution: 50,
+      profile_complete: 20,
+      pro_7days_cost: 100,
+      streak_bonus_threshold: 7,
+    })
+  })
+
+  it('says what the points can buy once the redeem price is known', async () => {
+    mockGetBalance.mockResolvedValue({
+      available: 1000,
+      pending_expiration: 0,
+      nearest_expiration_date: null,
+    })
+
+    renderWithQuery(<PointsBalance />)
+
+    expect(await screen.findByText('100 积分可兑换 7 天 Pro')).toBeInTheDocument()
+  })
+
+  it('omits the redeem hint when the price failed to load', async () => {
+    mockGetConfig.mockRejectedValue(new Error('config unavailable'))
+    mockGetBalance.mockResolvedValue({
+      available: 1000,
+      pending_expiration: 0,
+      nearest_expiration_date: null,
+    })
+
+    renderWithQuery(<PointsBalance />)
+
+    await screen.findByText('1,000')
+    await waitFor(() => expect(mockGetConfig).toHaveBeenCalled())
+    expect(screen.queryByText(/可兑换 7 天 Pro/)).not.toBeInTheDocument()
   })
 
   it('renders loading skeleton while query is pending', () => {

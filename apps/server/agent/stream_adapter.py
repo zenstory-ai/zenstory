@@ -46,6 +46,9 @@ from .core.workflow_events import StreamEventType
 
 logger = get_logger(__name__)
 
+# 工具结果无法解析时发给前端的 error_type（前端据此显示通用的「这一步没做成」）。
+MALFORMED_TOOL_RESULT_ERROR_TYPE = "malformed_tool_result"
+
 
 def _get_positive_float_env(name: str, default: float) -> float:
     """Read a positive float env var with safe fallback."""
@@ -617,6 +620,15 @@ class StreamAdapter:
                 status = "error"
                 error = error or self._summarize_edit_failures(result_data)
 
+            # 工具失败卡片只给作者看人话：工具自带 user_message 时用它替换 error，
+            # 并把 error_type / user_message 放进 data，前端按 error_type 兜底文案；
+            # 原始错误（给模型看的指令、内部 id、英文异常）不进卡片。
+            failure_hints = (
+                self._tool_failure_hints(parsed_result, result_data) if status == "error" else {}
+            )
+            if failure_hints.get("user_message"):
+                error = failure_hints["user_message"]
+
             if (
                 status == "success"
                 and isinstance(parsed_result, dict)
@@ -628,6 +640,8 @@ class StreamAdapter:
             # 「哪几处没改成、为什么」的唯一依据，丢掉它卡片就是空白的。
             emit_data = result_data if (status == "success" or edit_all_failed) else None
             emit_data = self._client_safe_skill_payload(tool_name, emit_data)
+            if failure_hints:
+                emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 
             # Emit tool_result event
             yield tool_result_event(
@@ -676,13 +690,27 @@ class StreamAdapter:
                 error=str(exc),
                 error_type=type(exc).__name__,
             )
+            # 解析异常只进日志；卡片拿到的是固定的 error_type，由前端给出通用说法。
             yield tool_result_event(
                 tool_name=tool_name,
                 status="error",
-                data=None,
-                error=f"Malformed tool_result payload: {type(exc).__name__}",
+                data={"error_type": MALFORMED_TOOL_RESULT_ERROR_TYPE},
+                error=MALFORMED_TOOL_RESULT_ERROR_TYPE,
                 tool_use_id=tool_use_id or None,
             )
+
+    @staticmethod
+    def _tool_failure_hints(parsed_result: Any, result_data: Any) -> dict[str, str]:
+        """取出工具失败结果里给作者看的 user_message 与 error_type（顶层优先，其次 data）。"""
+        hints: dict[str, str] = {}
+        for source in (parsed_result, result_data):
+            if not isinstance(source, dict):
+                continue
+            for key in ("error_type", "user_message"):
+                value = source.get(key)
+                if key not in hints and isinstance(value, str) and value.strip():
+                    hints[key] = value.strip()
+        return hints
 
     @staticmethod
     def _client_safe_skill_payload(tool_name: str, data: Any) -> Any:

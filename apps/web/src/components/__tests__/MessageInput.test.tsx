@@ -209,7 +209,7 @@ describe('MessageInput', () => {
     const onCancel = vi.fn()
     render(<MessageInput {...defaultProps} disabled={true} onCancel={onCancel} />)
 
-    expect(screen.getByRole('button', { name: /common:cancel/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /chat:input.stop/i })).toBeInTheDocument()
   })
 
   it('calls onCancel when cancel button is clicked', async () => {
@@ -217,7 +217,7 @@ describe('MessageInput', () => {
     const onCancel = vi.fn()
     render(<MessageInput {...defaultProps} disabled={true} onCancel={onCancel} />)
 
-    await user.click(screen.getByRole('button', { name: /common:cancel/i }))
+    await user.click(screen.getByRole('button', { name: /chat:input.stop/i }))
     expect(onCancel).toHaveBeenCalled()
   })
 

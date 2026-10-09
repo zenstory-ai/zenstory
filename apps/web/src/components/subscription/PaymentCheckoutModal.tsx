@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { Check, CreditCard } from 'lucide-react'
 import Modal from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { paymentApi, paymentQueryKeys } from '../../lib/paymentApi'
 import { ApiError } from '../../lib/apiClient'
 import { trackEvent } from '../../lib/analytics'
+import { formatYuan, getYearlySavings } from '../../lib/subscriptionEntitlements'
 import type { PaymentCycle, PaymentCheckout } from '../../types/payment'
 
 // Codes whose errors: translation tells the buyer what to do next.
@@ -22,6 +24,13 @@ const PAYMENT_ERROR_CODES = new Set([
 const UPGRADE_SOURCE_PATTERN = /^[A-Za-z0-9_:-]{1,64}$/
 
 const VALIDATION_ERROR_CODE = 'ERR_VALIDATION_ERROR'
+const PAYMENT_UNAVAILABLE_CODE = 'ERR_PAYMENT_UNAVAILABLE'
+
+// Where the buyer can find the redeem-code entry when online payment is off.
+export type PaymentRedeemEntry = 'on-page' | 'billing-page'
+
+// ?plan=pro opens the redeem modal on the billing page while checkout is off.
+const BILLING_REDEEM_PATH = '/dashboard/billing?plan=pro'
 
 function paymentErrorCode(cause: unknown): string | null {
   if (!(cause instanceof ApiError)) return null
@@ -69,6 +78,13 @@ interface PaymentCheckoutModalProps {
   yearlyPriceCents?: number
   /** Upgrade entry that led here; stored on the order for paid-conversion attribution. */
   upgradeSource?: string
+  /** The buyer already has Pro: the purchase extends it, so say "renew". */
+  isRenewal?: boolean
+  /**
+   * 'on-page' only when the opening page has its own 兑换码 button (the billing
+   * page); anywhere else the unavailable notice points to the billing page.
+   */
+  redeemEntry?: PaymentRedeemEntry
 }
 
 export function PaymentCheckoutModal({
@@ -78,6 +94,8 @@ export function PaymentCheckoutModal({
   monthlyPriceCents,
   yearlyPriceCents,
   upgradeSource: rawUpgradeSource,
+  isRenewal = false,
+  redeemEntry = 'billing-page',
 }: PaymentCheckoutModalProps) {
   const upgradeSource = rawUpgradeSource && UPGRADE_SOURCE_PATTERN.test(rawUpgradeSource)
     ? rawUpgradeSource
@@ -88,6 +106,9 @@ export function PaymentCheckoutModal({
   // Set once the order exists and the form is submitted: until the browser has
   // left the page another click would create a second order.
   const [redirecting, setRedirecting] = useState(false)
+  const paymentUnavailableText = redeemEntry === 'on-page'
+    ? t('dashboard:billing.paymentUnavailableOnPage', '暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')
+    : t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。')
 
   useEffect(() => {
     // Back-navigation from the cashier can restore this page from bfcache with
@@ -132,12 +153,17 @@ export function PaymentCheckoutModal({
       const fallback = t('dashboard:billing.paymentCreateFailed', '暂时无法创建订单，请稍后重试')
       if (code === VALIDATION_ERROR_CODE) {
         setError(t('dashboard:billing.paymentPageOutdated', '页面已更新，请刷新页面后重试'))
+      } else if (code === PAYMENT_UNAVAILABLE_CODE) {
+        // The errors: copy has no page context; say where the redeem entry is.
+        setError(paymentUnavailableText)
       } else {
         setError(code ? t(`errors:${code}`, fallback) : fallback)
       }
     },
   })
   const isBusy = createOrder.isPending || redirecting
+  const yearlySavings = getYearlySavings(monthlyPriceCents, yearlyPriceCents)
+  const selectedPrice = cycle === 'month' ? monthlyPriceCents : yearlyPriceCents
 
   const alipayEnabled = optionsQuery.data?.enabled === true
     && optionsQuery.data.payment_methods.includes('alipay')
@@ -161,17 +187,23 @@ export function PaymentCheckoutModal({
     <Modal
       open={isOpen}
       onClose={handleClose}
-      title={t('dashboard:billing.paymentTitle', '开通 Pro 会员')}
+      title={isRenewal
+        ? t('dashboard:billing.paymentTitleRenew', '续费 Pro')
+        : t('dashboard:billing.paymentTitle', '开通 Pro')}
       size="md"
       closeOnBackdropClick={!isBusy}
       closeOnEscape={!isBusy}
     >
       <Modal.Body>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
+          <p className="text-sm text-[hsl(var(--text-secondary))]">
+            {t('dashboard:billing.paymentBenefits', 'AI 消息不限条数 · 项目不限 · 每月 5 次素材拆解')}
+          </p>
+          <div className="grid grid-cols-2 gap-3 pt-2" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
               const itemPrice = item === 'month' ? monthlyPriceCents : yearlyPriceCents
+              const savings = item === 'year' ? yearlySavings : null
               return (
                 <button
                   type="button"
@@ -180,22 +212,42 @@ export function PaymentCheckoutModal({
                   key={item}
                   onClick={() => setCycle(item)}
                   disabled={isBusy}
-                  className={`rounded-lg border p-3 text-left transition-colors ${
+                  className={`relative rounded-lg border p-3 text-left transition-colors ${
                     selected
-                      ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
-                      : 'border-[hsl(var(--border-color))]'
+                      ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)] ring-1 ring-[hsl(var(--accent-primary))]'
+                      : savings
+                      ? 'border-[hsl(var(--accent-primary)/0.5)] hover:bg-[hsl(var(--accent-primary)/0.04)]'
+                      : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-tertiary))]'
                   }`}
                 >
-                  <span className="flex items-center justify-between font-medium text-[hsl(var(--text-primary))]">
+                  {savings && (
+                    <span className="absolute -top-2.5 right-3 rounded-full bg-[hsl(var(--accent-primary))] px-2 py-0.5 text-xs font-medium text-white shadow-sm">
+                      {t('dashboard:billing.yearlyBestValue', '最划算 · 省 {{percent}}%', { percent: savings.percent })}
+                    </span>
+                  )}
+                  <span className="flex items-center justify-between text-sm font-medium text-[hsl(var(--text-primary))]">
                     {item === 'month'
                       ? t('dashboard:billing.monthlyDuration', '月付 · 30 天')
                       : t('dashboard:billing.yearlyDuration', '年付 · 365 天')}
                     {selected && <Check className="h-4 w-4 text-[hsl(var(--accent-primary))]" />}
                   </span>
                   {itemPrice !== undefined && (
-                    <span className="mt-1 block text-sm text-[hsl(var(--text-secondary))]">
-                      ¥{(itemPrice / 100).toLocaleString(i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN', { maximumFractionDigits: 2 })}
+                    <span className="mt-1 block text-xl font-semibold text-[hsl(var(--text-primary))]">
+                      {formatYuan(itemPrice, i18n.language)}
                     </span>
+                  )}
+                  {savings ? (
+                    <span className="mt-0.5 block text-xs text-[hsl(var(--accent-primary))]">
+                      {t('dashboard:billing.yearlyEquivalent', '折合 {{price}}/月', { price: formatYuan(savings.monthlyEquivalent, i18n.language) })}
+                      {' · '}
+                      {t('dashboard:billing.yearlySaveAmount', '比月付省 {{amount}}', { amount: formatYuan(savings.amount, i18n.language) })}
+                    </span>
+                  ) : (
+                    item === 'month' && (
+                      <span className="mt-0.5 block text-xs text-[hsl(var(--text-secondary))]">
+                        {t('dashboard:billing.monthlyFlexible', '先试一个月')}
+                      </span>
+                    )
                   )}
                 </button>
               )
@@ -207,6 +259,9 @@ export function PaymentCheckoutModal({
               <CreditCard className="h-4 w-4 text-[#1677ff]" />
               <span className="font-medium">{t('dashboard:billing.alipay', '支付宝')}</span>
             </div>
+            <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
+              {t('dashboard:billing.paymentNoAutoRenew', '一次性付款，不会自动续费。到期前续费，时长会接在当前到期日之后。')}
+            </p>
           </div>
 
           {optionsQuery.isLoading && (
@@ -214,7 +269,12 @@ export function PaymentCheckoutModal({
           )}
           {isUnavailable && (
             <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-[hsl(var(--warning))]" role="alert">
-              {t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。')}
+              {paymentUnavailableText}
+              {redeemEntry === 'billing-page' && (
+                <Link to={BILLING_REDEEM_PATH} className="ml-1 font-medium underline">
+                  {t('dashboard:billing.paymentUnavailableOpenBilling', '去订阅权益页')}
+                </Link>
+              )}
             </div>
           )}
           {error && (
@@ -233,6 +293,8 @@ export function PaymentCheckoutModal({
             ? t('dashboard:billing.paymentRedirecting', '正在前往支付宝...')
             : createOrder.isPending
             ? t('dashboard:billing.paymentCreating', '正在创建订单...')
+            : selectedPrice !== undefined
+            ? t('dashboard:billing.goToPayAmount', '去支付 {{price}}', { price: formatYuan(selectedPrice, i18n.language) })
             : t('dashboard:billing.goToPay', '去支付')}
         </Button>
       </Modal.Footer>

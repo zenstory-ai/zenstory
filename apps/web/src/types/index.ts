@@ -341,7 +341,9 @@ export type SSEEventType =
   | "parallel_end"
   | "steering_received"
   | "done"
-  | "error";
+  | "error"
+  // Sent after the terminal frame, only once the backend actually refunded the round.
+  | "quota_refunded";
 
 export interface SSEThinkingData {
   message: string;

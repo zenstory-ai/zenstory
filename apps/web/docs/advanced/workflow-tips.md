@@ -2,7 +2,7 @@
 
 在 ZenStory 里，一轮工作应留下**你能判断是否采用的结果，以及下一轮从哪里继续**。这个结果可以是一场、一章或已约定的完整短篇，不必切成固定字数的小段。先说明目标、依据、允许改变的事和停止位置，比“自动写好整本书”更便于把握创作方向。
 
-这是 [ZenStory 在线工作台](https://app.zenstory.ai/dashboard)的作者操作指南，不是内置的强制三阶段流水线，也没有实测的节省时间比例。第一次建项目，可先按[快速入门](https://zenstory.ai/docs/getting-started/quick-start)操作；想控制第一条请求，可以不填写灵感，创建后再讨论。
+这是在 [ZenStory 工作台](https://app.zenstory.ai/dashboard)里写一场戏的实用做法：先定方向，再成稿，最后局部修改。第一次建项目，可先按[快速入门](https://zenstory.ai/docs/getting-started/quick-start)操作；想自己控制第一条请求，可以不写想法，建好项目后再讨论。
 
 ## 1. 先选本轮交付，不把讨论、写稿和改文件混在一起
 

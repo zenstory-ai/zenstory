@@ -17,7 +17,7 @@ vi.mock('react-i18next', () => ({
         'stats.loadError': '加载统计数据失败，请重试',
         'stats.noRewards': '暂无奖励记录',
         'rewardTypes.points': '积分',
-        'rewardTypes.pro_trial': 'Pro试用',
+        'rewardTypes.pro_trial': 'Pro 试用',
         'rewardTypes.credits': '额度',
         used: '已使用',
         'rewardSources.referral': '邀请好友奖励',
@@ -247,7 +247,7 @@ describe('ReferralStats', () => {
       render(<ReferralStats />, { wrapper: createWrapper() })
 
       await waitFor(() => {
-        expect(screen.getByText('+7 Pro试用')).toBeInTheDocument()
+        expect(screen.getByText('+7 Pro 试用')).toBeInTheDocument()
       })
     })
 

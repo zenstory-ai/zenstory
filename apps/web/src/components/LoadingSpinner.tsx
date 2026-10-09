@@ -237,7 +237,7 @@ export function PageLoader({ label }: PageLoaderProps) {
   const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex items-center justify-center">
-      <LoadingSpinner size="lg" label={label || t('common.loading', 'Loading...')} vertical />
+      <LoadingSpinner size="lg" label={label || t('common:loading', '加载中...')} vertical />
     </div>
   );
 }
@@ -264,7 +264,7 @@ export function InlineLoader({ label }: InlineLoaderProps) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 py-8">
-      <LoadingSpinner size="sm" label={label || t('common.loading', 'Loading...')} />
+      <LoadingSpinner size="sm" label={label || t('common:loading', '加载中...')} />
     </div>
   );
 }

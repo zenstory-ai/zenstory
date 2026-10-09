@@ -98,8 +98,8 @@ test('writing workflow comparison renders three source-backed choices across the
   assert.match(`${direct.version.zh} ${dsh.version.zh}`, /不要默认.*DSH.*快照|不是你另装的 Oh Story/)
   assert.notEqual(dsh.version.en, direct.version.en)
   assert.notEqual(dsh.version.en, workbench.version.en)
-  assert.match(`${comparison.disclosure.en} ${workbench.fit.en} ${workbench.environment.en}`, /hosted service.*self-hosting is (?:a )?separate|hosted ZenStory.*account-based/i)
-  assert.match(`${comparison.disclosure.zh} ${workbench.fit.zh} ${workbench.environment.zh}`, /托管在线服务.*自托管是另一种|账户化的托管项目工作台/)
+  assert.match(`${comparison.disclosure.en} ${workbench.fit.en} ${workbench.environment.en}`, /ZenStory Workbench.*account-based.*Self-hosting is separate/i)
+  assert.match(`${comparison.disclosure.zh} ${workbench.fit.zh} ${workbench.environment.zh}`, /ZenStory 工作台.*自托管是另一回事/)
   for (const field of ['checklist', 'boundaries']) assert.equal(comparison[field].en.length, comparison[field].zh.length)
 
   for (const lang of LANGS) {

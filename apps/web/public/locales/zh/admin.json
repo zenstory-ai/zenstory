@@ -212,7 +212,9 @@
     "resourcesLoadFailed": "资源文件加载失败，请重试",
     "resourceCount": "{{count}} 个资源文件",
     "resourceCount_one": "{{count}} 个资源文件",
-    "resourceCount_other": "{{count}} 个资源文件"
+    "resourceCount_other": "{{count}} 个资源文件",
+    "expandDetails": "展开详情",
+    "collapseDetails": "收起详情"
   },
   "codes": {
     "title": "兑换码管理",
@@ -243,8 +245,8 @@
     "active": "已启用",
     "inactive": "已禁用",
     "allTiers": "全部等级",
-    "tierFree": "免费试用",
-    "tierPro": "专业版",
+    "tierFree": "免费版",
+    "tierPro": "Pro",
     "tierEnterprise": "企业版",
     "allStatus": "全部状态",
     "activeOnly": "仅已启用",
@@ -292,8 +294,8 @@
     "statusActive": "活跃",
     "statusPastDue": "已过期",
     "statusCanceled": "已取消",
-    "planFree": "免费试用",
-    "planPro": "专业版",
+    "planFree": "免费版",
+    "planPro": "Pro",
     "planEnterprise": "企业版",
     "extendHintOptional": "只改状态时填 0。",
     "extendDurationRequired": "更换套餐时请填写大于 0 的天数",
@@ -467,7 +469,7 @@
     "featuresDetail": {
       "title": "功能特性",
       "jsonLabel": "功能配置 (JSON)",
-      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 10,\n  \"max_projects\": 3,\n  \"context_window_tokens\": 4096,\n  \"material_uploads\": 5,\n  \"material_decompositions\": 5,\n  \"custom_skills\": 3,\n  \"inspiration_copies_monthly\": 10,\n  \"export_formats\": [\"txt\", \"md\"],\n  \"priority_support\": false\n}",
+      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 10,\n  \"max_projects\": 3,\n  \"file_versions_per_file\": 10,\n  \"materials_library_access\": false,\n  \"material_decompositions\": 0,\n  \"custom_skills\": 3,\n  \"inspiration_copies_monthly\": 10\n}",
       "ai_conversations_per_day": "每日 AI 对话次数",
       "context_window_tokens": "上下文窗口",
       "file_versions_per_file": "每文件版本数",

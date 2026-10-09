@@ -85,7 +85,7 @@ describe('SEOProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'update' }))
 
     expect(screen.getByTestId('seo-title')).toHaveTextContent('Overridden title')
-    expect(screen.getByTestId('seo-description')).toHaveTextContent('管理您的写作项目')
+    expect(screen.getByTestId('seo-description')).toHaveTextContent('管理你的写作项目')
   })
 
   it('throws when useSEO is called outside the provider', () => {

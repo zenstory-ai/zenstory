@@ -194,7 +194,8 @@ class TestTokenBudget:
 
     def test_select_items_within_budget(self):
         """Test selecting items within budget."""
-        budget = TokenBudget(max_tokens=1000)
+        # 低重要度设定在 INSPIRATION 档（10%），预算要足够它整条放下。
+        budget = TokenBudget(max_tokens=3000)
 
         items = [
             ContextItem.from_outline(

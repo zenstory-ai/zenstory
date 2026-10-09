@@ -62,8 +62,10 @@ def test_identical_failures_trip_on_third_and_model_keeps_first_two_retries():
     assert trip.reason == TRIP_REASON_IDENTICAL
     assert trip.tool_name == "edit_file"
     assert trip.failures == MAX_IDENTICAL_TOOL_FAILURES == 3
-    assert "database is locked" in trip.user_message()
-    assert "edit_file" in trip.user_message()
+    # 工具名与错误原文只留在 trip 上（写日志），不进给作者看的说明。
+    assert trip.last_error == "database is locked"
+    assert "database is locked" not in trip.user_message()
+    assert "edit_file" not in trip.user_message()
 
 
 @pytest.mark.unit
@@ -155,7 +157,8 @@ def test_total_failure_cap_is_backstop_for_non_identical_thrash():
     assert trip.reason == TRIP_REASON_TOTAL
     assert trip.failures == MAX_TOOL_FAILURES_PER_REQUEST
     assert trip.tool_name == "create_file"
-    assert "累计失败" in trip.user_message()
+    assert "这一轮先停下了" in trip.user_message()
+    assert "create_file" not in trip.user_message()
 
 
 @pytest.mark.unit
@@ -198,7 +201,10 @@ def test_trip_event_data_is_error_event_shape():
     assert data["error_type"] == "ToolFailureCircuitOpen"
     assert data["reason"] == TRIP_REASON_IDENTICAL
     assert data["agent_type"] == "writer"
-    assert len(data["last_error"]) <= 201
+    # 工具名与错误原文只写日志，不随 ERROR 事件走（SSE 帧也就带不出去）。
+    assert "last_error" not in data
+    assert "tool_name" not in data
+    assert len(breaker.trip.last_error) <= 201
 
 
 @pytest.mark.unit
@@ -599,8 +605,9 @@ async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkey
 
     error = events[-1].data
     assert error["reason"] == TRIP_REASON_IDENTICAL
-    assert error["tool_name"] == "edit_file"
-    assert "database is locked" in error["error"]
+    # 工具名与错误原文只进日志（runner 的熔断告警），不随 ERROR 事件给作者。
+    assert "tool_name" not in error
+    assert "database is locked" not in error["error"]
 
     # 已执行的工具调用照常写回会话状态，供后续回放/落库
     assistant_turn = state["messages"][-2]
@@ -800,7 +807,7 @@ async def test_sdk_unknown_tool_thrash_is_bounded_by_breaker(monkeypatch):
     assert events[-1].type == StreamEventType.ERROR
     assert events[-1].data["reason"] == TRIP_REASON_TOOL_NOT_FOUND
     assert "相同参数" not in events[-1].data["error"]
-    assert events[-1].data["tool_name"] == "rewrite_chapter"
+    assert "rewrite_chapter" not in events[-1].data["error"]
 
 
 @pytest.mark.unit
@@ -821,14 +828,14 @@ def test_unknown_tool_trip_has_its_own_reason_and_message():
     assert trip.failures == MAX_IDENTICAL_TOOL_FAILURES
     message = trip.user_message()
     assert "相同参数" not in message
-    assert "rewrite_chapter" in message
-    assert "不可用" in message
+    assert "rewrite_chapter" not in message
+    assert "用不了的功能" in message
     assert trip.as_event_data("writer")["reason"] == TRIP_REASON_TOOL_NOT_FOUND
 
 
 @pytest.mark.unit
 def test_real_tool_identical_failures_keep_identical_reason():
-    """真实工具以相同参数重复失败仍是 TRIP_REASON_IDENTICAL，文案不变。"""
+    """真实工具以相同参数重复失败仍是 TRIP_REASON_IDENTICAL。"""
     breaker = ToolFailureBreaker()
     error = json.dumps({"status": "error", "error": "database is locked"})
     for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
@@ -836,7 +843,7 @@ def test_real_tool_identical_failures_keep_identical_reason():
 
     assert breaker.trip is not None
     assert breaker.trip.reason == TRIP_REASON_IDENTICAL
-    assert "相同参数" in breaker.trip.user_message()
+    assert "连续几次都没做成" in breaker.trip.user_message()
 
 
 @pytest.mark.unit

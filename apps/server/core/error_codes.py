@@ -162,6 +162,7 @@ class ErrorCode:
     REDEMPTION_CODE_DISABLED = "ERR_REDEMPTION_CODE_DISABLED"
     REDEMPTION_CODE_CHECKSUM_FAILED = "ERR_REDEMPTION_CODE_CHECKSUM_FAILED"
     REDEMPTION_CODE_DOWNGRADE = "ERR_REDEMPTION_CODE_DOWNGRADE"
+    REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU = "ERR_REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU"
     REDEMPTION_RATE_LIMIT_EXCEEDED = "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED"
 
     # ==================== Points Errors (13xxx) ====================
@@ -179,6 +180,7 @@ class ErrorCode:
     AGENT_CONTEXT_TOO_LONG = "ERR_AGENT_CONTEXT_TOO_LONG"
     AGENT_RUN_FAILED = "ERR_AGENT_RUN_FAILED"
     AGENT_TOOL_FAILURE_LIMIT = "ERR_AGENT_TOOL_FAILURE_LIMIT"
+    AGENT_NO_PROGRESS = "ERR_AGENT_NO_PROGRESS"
     AGENT_RUN_TIMEOUT = "ERR_AGENT_RUN_TIMEOUT"
     AGENT_MODEL_CALL_LIMIT = "ERR_AGENT_MODEL_CALL_LIMIT"
     AGENT_FILE_SAVE_FAILED = "ERR_AGENT_FILE_SAVE_FAILED"
@@ -276,8 +278,8 @@ ERROR_MESSAGES = {
         "ERR_PAYMENT_SYNC_FAILED": "暂时无法向支付平台查询订单，请稍后刷新",
 
         "ERR_QUOTA_EXCEEDED": "配额已用尽",
-        "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "AI 对话次数已达上限",
-        "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "今日 AI 额度已用完，北京时间次日零点恢复，升级 Pro 可继续创作",
+        "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "今天的免费 AI 消息用完了，北京时间明天 00:00 恢复；开通 Pro 可不限条数继续写。",
+        "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "今天的免费 AI 消息用完了，北京时间明天 00:00 恢复；开通 Pro 可不限条数继续写。",
         "ERR_AI_COST_BUDGET_UNAVAILABLE": "暂时无法确认 AI 可用额度，请稍后重试",
         "ERR_QUOTA_PROJECTS_EXCEEDED": "项目数量已达上限",
         "ERR_QUOTA_FILE_VERSIONS_EXCEEDED": "文件版本数量已达上限",
@@ -289,6 +291,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_CODE_DISABLED": "兑换码已被禁用",
         "ERR_REDEMPTION_CODE_CHECKSUM_FAILED": "兑换码校验失败",
         "ERR_REDEMPTION_CODE_DOWNGRADE": "当前付费套餐仍在有效期内，不能兑换更低档位的兑换码",
+        "ERR_REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU": "你已经兑换过这个码了，权益已在账户里",
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "兑换请求过于频繁，请稍后重试",
 
         "ERR_POINTS_INSUFFICIENT_BALANCE": "积分余额不足",
@@ -301,9 +304,10 @@ ERROR_MESSAGES = {
         "ERR_AGENT_UPSTREAM_UNAVAILABLE": "AI 服务暂时不可用或响应超时，请稍后重试",
         "ERR_AGENT_CONTEXT_TOO_LONG": "本轮对话内容过长，请精简消息或开启新对话后重试",
         "ERR_AGENT_RUN_FAILED": "生成回复时发生错误，请重试",
-        "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 反复调用工具失败，已停止本轮生成",
-        "ERR_AGENT_RUN_TIMEOUT": "本轮生成时间过长，已自动停止",
-        "ERR_AGENT_MODEL_CALL_LIMIT": "本轮生成的模型调用次数已达上限，已自动停止",
+        "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 这一步连续几次都没做成，这一轮先停下了。之前改好的内容不受影响。可以换个说法，或者把任务拆小一点再试。",
+        "ERR_AGENT_NO_PROGRESS": "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。",
+        "ERR_AGENT_RUN_TIMEOUT": "这一轮写得太久，先停下了。回复「继续」就能接着写。",
+        "ERR_AGENT_MODEL_CALL_LIMIT": "这次任务步骤太多，AI 先停下了。回复「继续」就能接着做。",
         "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
     },
     "en": {
@@ -395,8 +399,8 @@ ERROR_MESSAGES = {
         "ERR_PAYMENT_SYNC_FAILED": "Could not check the order with the payment provider. Refresh later.",
 
         "ERR_QUOTA_EXCEEDED": "Quota exceeded",
-        "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "AI conversation limit reached",
-        "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "Today’s AI allowance is used up. It resets the next day at midnight Beijing time. Upgrade to Pro to continue writing",
+        "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "You've used today's free AI messages. They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
+        "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "You've used today's free AI messages. They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
         "ERR_AI_COST_BUDGET_UNAVAILABLE": "We cannot confirm your AI allowance right now. Please try again later",
         "ERR_QUOTA_PROJECTS_EXCEEDED": "Project limit reached",
         "ERR_QUOTA_FILE_VERSIONS_EXCEEDED": "File version limit reached",
@@ -408,6 +412,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_CODE_DISABLED": "Redemption code has been disabled",
         "ERR_REDEMPTION_CODE_CHECKSUM_FAILED": "Redemption code verification failed",
         "ERR_REDEMPTION_CODE_DOWNGRADE": "Your paid plan is still active; a lower-tier code cannot be redeemed",
+        "ERR_REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU": "You've already redeemed this code; it's on your account.",
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "Too many redemption attempts, please try again later",
 
         "ERR_POINTS_INSUFFICIENT_BALANCE": "Insufficient points balance",
@@ -420,9 +425,10 @@ ERROR_MESSAGES = {
         "ERR_AGENT_UPSTREAM_UNAVAILABLE": "The AI service is unavailable or timed out. Please try again shortly",
         "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat",
         "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again",
-        "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI kept failing to use its tools, so this reply was stopped",
-        "ERR_AGENT_RUN_TIMEOUT": "This reply took too long and was stopped automatically",
-        "ERR_AGENT_MODEL_CALL_LIMIT": "This reply reached its model-call limit and was stopped automatically",
+        "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI couldn't complete a step after several tries, so this round stopped. Earlier changes aren't affected. Try rephrasing or splitting the task.",
+        "ERR_AGENT_NO_PROGRESS": 'The AI kept rereading the same material without writing, so this round stopped. Tell it which chapter to change and how, or reply "continue".',
+        "ERR_AGENT_RUN_TIMEOUT": "This round ran too long and stopped. Reply \"continue\" to keep going.",
+        "ERR_AGENT_MODEL_CALL_LIMIT": "This task took too many steps, so the AI paused. Reply \"continue\" to keep going.",
         "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
     },
 }

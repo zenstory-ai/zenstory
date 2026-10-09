@@ -1,9 +1,0 @@
-# M03 stats-integrity root integration
-
-Independent SOURCE APPROVE/CLEAR. Exactly8 native phase-owned files integrated;5shared before-baselines match,3root-absent targets,0conflicts, root later auth.py bytes preserved. Fresh root56affected SQLitePASS/scopedthreeproducts81.40>=80; prior scopedmypy100->98 noaddeddiagnostics remains NOTGREEN. Ruff/unchangedfunctionbodyproof reused for exactreviewedsource. Sourcefivefixes: script filters, chronological streak watermark, SQL additive daily counters, consistent date-exclusive AI boundaries, explicitrequired-null validation.
-
-Root enrolled new writing-stats PG tests in existing mandatory serialCI step and explicitly aligned DATABASE_URL with ZENSTORY_TEST_POSTGRES_URL. New fixtureasserts equality before imports; .env defaults must not silently bind runtimeDB elsewhere. Local affectedworkflowcontract1RED->1PASS. This is necessary current-change CI enrollment, NOT the deferred historicalmain-CI investigation or a claimaboutremoteCI failures. No gates disabled/bypassed, no remoteActions.
-
-Fresh CI-shaped serialsame-ownedDB **9PGPASS** (6authrevocation+3writingcounter), -n0/--no-cov, bothDBURLs same beforeimports, sourceUserlocks/counterlockwait real. Purpose is newly combined fixture/schema/config fidelity, not another unchanged isolatedPG run. OwnedUTF8template0/C lease sessions0/catalog0/shared1/noforce, conftestfile disposed/unlinked. Nativeisolated3PG evidence stillvalid; no total12uniquecaseclaim.
-
-Evidence parallel-native-tmux/delete/m03-stats-repair/root-integration/, exactphase receipts/affected logs/pg-serial/final-cleanup.json. F4actualdialogproof10RED14controls and F5performance10queries/4bodyprojections measurement4PASS are separate pendingdesign/source lanes; fullM03/all23/globaltype/release notcomplete. Old initialunidentifiedconftesttempfile gap remains explicit; do notguesscleanup.

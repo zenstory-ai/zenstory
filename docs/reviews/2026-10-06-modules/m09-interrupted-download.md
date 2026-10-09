@@ -1,7 +1,0 @@
-# M09 interrupted worker download — native candidate
-
-The worker opened its final cache path before completing the response read. An interrupted read left an empty file that later retries accepted as existing. The helper now writes a uniquely owned temporary file in the destination directory, closes it before atomic replace, and removes only that temporary file on failure. Existing local files, including empty caches, retain their existing short circuit; URL/header/timeout and all flow/billing/job policies are unchanged.
-
-Regression-first actual-helper run: interrupted-read regression failed; prospective publish-failure control also failed; six controls passed. Candidate: eight focused tests pass and Ruff passes. Tests cover second download/content, Unicode bytes, no published partial, replace failure cleanup, unrelated file preservation, existing empty/nonempty caches, missing configuration and existing dispatch helper behavior. Imported candidate flow uses current root dependencies under an offline evidence harness, with dotenv disabled and no IP connection.
-
-Evidence: `/private/tmp/zenstory-module-audit-evidence-20261006/parallel-native-tmux/delete/m09-download-repair/`. Scoped type comparison and separate read-only Chapter-load characterization are reported there. No full flow/provider/billing execution or M09 closure claimed. Root owns independent source review/integration.
