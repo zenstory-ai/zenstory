@@ -88,6 +88,27 @@ describe('SkillStatsDialog', () => {
     })
   })
 
+  it('charts every day in the selected range, not just the last 14', async () => {
+    const daily = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-04-${String(i + 1).padStart(2, '0')}`,
+      count: i % 3,
+    }))
+    mockGetStats.mockResolvedValueOnce({
+      total_triggers: 29, builtin_count: 29, user_count: 0, top_skills: [], daily_usage: daily,
+    })
+
+    render(<SkillStatsDialog isOpen={true} onClose={vi.fn()} projectId="project-1" />)
+
+    const chart = await screen.findByTestId('skill-stats-daily-chart')
+    expect(chart.children).toHaveLength(30)
+    expect(chart.firstElementChild).toHaveAttribute('title', '2026-04-01: 0')
+    // 30 天抽样显示日期标签，首尾一定可见
+    const labels = Array.from(chart.querySelectorAll('span')).filter((span) => !span.className.includes('invisible'))
+    expect(labels.length).toBeLessThanOrEqual(16)
+    expect(labels[0]).toHaveTextContent('04-01')
+    expect(labels[labels.length - 1]).toHaveTextContent('04-30')
+  })
+
   it('logs errors and keeps the dialog rendered when loading fails', async () => {
     mockGetStats.mockRejectedValueOnce(new Error('stats failed'))
 
