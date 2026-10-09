@@ -48,7 +48,7 @@ interface VersionRowWrapperProps {
   onViewContent: (versionNumber: number) => void;
   onRollback: (versionNumber: number) => void;
   getChangeTypeIcon: (changeType: string, changeSource: string) => React.ReactNode;
-  getChangeTypeLabel: (changeType: string) => string;
+  getChangeTypeLabel: (changeType: string, changeSource: string) => string;
   getChangeTypeBadgeClass: (changeType: string, changeSource: string) => string;
 }
 
@@ -226,7 +226,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           }
         } else {
           toast.error(translateRef.current('rollbackHistoryNotSaved', {
-            defaultValue: 'The content was restored, but this restore was not added to version history.',
+            defaultValue: '正文已恢复，但本次恢复未能写入版本历史。',
           }));
         }
       }
@@ -280,7 +280,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       if (fileContextGeneration !== fileContextGenerationRef.current) return;
       logger.error("Failed to get version content:", err);
       toast.error(translateRef.current('viewContentFailed', {
-        defaultValue: 'Could not load this version. Please try again.',
+        defaultValue: '加载该版本失败，请重试',
       }));
     }
   };
@@ -296,7 +296,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     return <User size={14} className="text-[hsl(var(--accent-primary))]" />;
   };
 
-  const getChangeTypeLabel = (changeType: string) => {
+  const getChangeTypeLabel = (changeType: string, changeSource: string) => {
+    // The author saved after reviewing AI changes (accept/reject per paragraph):
+    // the text is theirs, so the badge must not read "AI 编辑".
+    if (changeType === 'ai_edit' && changeSource === 'user') return t('types.reviewed');
     const typeMap: Record<string, string> = {
       create: 'types.created',
       edit: 'types.edited',
@@ -364,7 +367,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
               v{version.version_number}
             </span>
             <span className={getChangeTypeBadgeClass(version.change_type, version.change_source)}>
-              {getChangeTypeLabel(version.change_type)}
+              {getChangeTypeLabel(version.change_type, version.change_source)}
             </span>
             {currentVersionNumber !== null && version.version_number === currentVersionNumber && (
               <span className="badge-success">
@@ -487,8 +490,13 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       <div className="flex-1 overflow-hidden flex">
         {/* Version List */}
         <div
+          data-testid="version-list"
+          // Under 768px the list is too narrow beside a preview (one character per
+          // line), so the preview takes the whole dialog and closing it returns here.
           className={`${
-            showComparison || preview ? "w-1/3 border-r border-[hsl(var(--border-color))]" : "w-full"
+            showComparison || preview
+              ? "hidden md:block md:w-1/3 md:border-r md:border-[hsl(var(--border-color))]"
+              : "w-full"
           } overflow-y-auto bg-[hsl(var(--bg-primary))]`}
         >
           {loading && (
@@ -534,7 +542,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                   >
                     {loadingMore
                       ? t('loading')
-                      : t('loadMore', { defaultValue: 'Load more' })}
+                      : t('loadMore', { defaultValue: '加载更多' })}
                   </button>
                 </div>
               )}
@@ -544,13 +552,14 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
 
         {/* Comparison Panel */}
         {showComparison && comparison && (
-          <div className="w-2/3 flex flex-col bg-[hsl(var(--bg-primary))]">
+          <div className="w-full md:w-2/3 min-w-0 flex flex-col bg-[hsl(var(--bg-primary))]">
             <div className="px-4 py-2 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] flex items-center justify-between">
               <span className="text-sm text-[hsl(var(--text-secondary))]">
                 {t('versionTo', { v1: comparison.version1.number, v2: comparison.version2.number })}
               </span>
               <button
                 onClick={() => setShowComparison(false)}
+                aria-label={t('closePreview', { defaultValue: '关闭预览' })}
                 className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
               >
                 <X size={14} className="text-[hsl(var(--text-secondary))]" />
@@ -563,22 +572,34 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         )}
 
         {preview && (
-          <div className="w-2/3 flex flex-col bg-[hsl(var(--bg-primary))]">
-            <div className="px-4 py-2 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] flex items-center justify-between">
+          <div data-testid="version-preview" className="w-full md:w-2/3 min-w-0 flex flex-col bg-[hsl(var(--bg-primary))]">
+            <div className="px-4 py-2 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] flex items-center justify-between gap-2">
               <span className="text-sm text-[hsl(var(--text-secondary))]">
                 {t('versionPreview', {
                   version: preview.versionNumber,
-                  defaultValue: `Version ${preview.versionNumber} preview`,
+                  defaultValue: '版本 {{version}} 预览',
                 })}
               </span>
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
-                title={t('closePreview', { defaultValue: 'Close preview' })}
-              >
-                <X size={14} className="text-[hsl(var(--text-secondary))]" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleRollback(preview.versionNumber)}
+                  disabled={isRollingBack}
+                  className="btn text-xs"
+                >
+                  <RotateCcw size={14} />
+                  {t('rollback')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreview(null)}
+                  className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
+                  title={t('closePreview', { defaultValue: '关闭预览' })}
+                  aria-label={t('closePreview', { defaultValue: '关闭预览' })}
+                >
+                  <X size={14} className="text-[hsl(var(--text-secondary))]" />
+                </button>
+              </div>
             </div>
             <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-sm text-[hsl(var(--text-primary))] font-sans">
               {preview.content}

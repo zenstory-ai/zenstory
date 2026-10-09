@@ -33,6 +33,7 @@
     "created": "Created",
     "edited": "Edited",
     "aiEdited": "AI Edited",
+    "reviewed": "Reviewed",
     "rolledBack": "Restored",
     "autoSave": "Auto Save"
   },
@@ -46,16 +47,9 @@
     "createdViaApi": "Created via Agent API",
     "updatedViaApi": "Updated via Agent API",
     "aiRunCheckpoint": "Saved automatically after AI edits",
-    "aiEditOps": "AI edit: {{ops}}",
-    "aiEditOpsMore": "AI edit: {{ops}} and more ({{total}} changes)",
-    "opsSeparator": ", ",
-    "ops": {
-      "replace": "replace",
-      "append": "append",
-      "prepend": "insert at start",
-      "insert": "insert",
-      "delete": "delete"
-    }
+    "aiEditCount": "AI changed {{count}} places",
+    "aiEditCount_one": "AI changed {{count}} place",
+    "aiEditCount_other": "AI changed {{count}} places"
   },
   "quota": {
     "limitTitle": "This file's version history is full",

@@ -341,6 +341,31 @@ describe('MessageInput', () => {
     expect(screen.getByText('Static 2')).toBeInTheDocument()
   })
 
+  it('leaves out hidden chips from both AI and fallback suggestions', () => {
+    const hideSuggestion = (s: string) => s === 'Static 2' || s === 'Suggestion 1'
+    const { rerender } = render(
+      <MessageInput
+        {...defaultProps}
+        aiSuggestions={[]}
+        suggestionDisplayState="fallback"
+        hideSuggestion={hideSuggestion}
+      />
+    )
+    expect(screen.getByText('Static 1')).toBeInTheDocument()
+    expect(screen.queryByText('Static 2')).not.toBeInTheDocument()
+
+    rerender(
+      <MessageInput
+        {...defaultProps}
+        aiSuggestions={['Suggestion 1', 'Suggestion 2', 'Suggestion 3', 'Suggestion 4']}
+        suggestionDisplayState="ready"
+        hideSuggestion={hideSuggestion}
+      />
+    )
+    expect(screen.queryByText('Suggestion 1')).not.toBeInTheDocument()
+    expect(screen.getByText('Suggestion 4')).toBeInTheDocument()
+  })
+
   it('shows loading placeholders instead of static suggestions during loading', () => {
     render(
       <MessageInput

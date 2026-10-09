@@ -9,8 +9,7 @@
  * - Edit status badges showing pending, accepted, and rejected counts
  * - Accept all / Reject all bulk action buttons
  * - Finish review button with conditional styling (changes based on review state)
- * - Keyboard shortcut hints (Shift+Y, Shift+N, Enter)
- * - Responsive design with hidden labels on mobile
+ * - Keyboard shortcut hints on desktop; on phones the hint points below instead of right
  * - i18n support for all text content
  *
  * @module components/DiffToolbar
@@ -18,6 +17,7 @@
 import { useTranslation } from "react-i18next";
 import { Check, CheckCheck, XCircle, GitCompare, Sparkles } from "lucide-react";
 import type { PendingEdit } from "../types";
+import { useMobileLayout } from "../contexts/MobileLayoutContext";
 
 /**
  * Props for the DiffToolbar component.
@@ -71,6 +71,9 @@ export const DiffToolbar = ({
   onFinish,
 }: DiffToolbarProps) => {
   const { t } = useTranslation(['editor']);
+  // Phone layout (Layout wraps the editor in MobileLayoutProvider under 768px): the
+  // review queue sits below the text and there is no keyboard.
+  const { isMobile } = useMobileLayout();
 
   // Count edit statuses
   const pendingCount = pendingEdits.filter(e => e.status === 'pending').length;
@@ -100,7 +103,7 @@ export const DiffToolbar = ({
                 {t('editor:reviewMode')}
               </span>
               <span className="mt-0.5 block text-[10px] leading-tight text-[hsl(var(--text-secondary))]">
-                {t('editor:reviewModeHint')}
+                {t(isMobile ? 'editor:reviewModeHintMobile' : 'editor:reviewModeHint')}
               </span>
             </div>
           </div>
@@ -140,7 +143,7 @@ export const DiffToolbar = ({
             title={t('editor:acceptAll')}
           >
             <CheckCheck size={14} />
-            <span className="hidden sm:inline">{t('editor:acceptAll')}</span>
+            <span>{t('editor:acceptAll')}</span>
           </button>
 
           {/* Reject All button */}
@@ -154,7 +157,7 @@ export const DiffToolbar = ({
             title={t('editor:rejectAll')}
           >
             <XCircle size={14} />
-            <span className="hidden sm:inline">{t('editor:rejectAll')}</span>
+            <span>{t('editor:rejectAll')}</span>
           </button>
 
           {/* Divider */}

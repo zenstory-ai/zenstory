@@ -33,28 +33,15 @@ const AI_RUN_CHECKPOINT =
   /^(?:AI 对话完成 - 文件已修改|AI (?:chat|conversation) (?:finished|completed?) - files? (?:modified|changed))$/i;
 const AI_EDIT_WITH_OPS = /^AI 编辑[:：]\s*(.+?)(?:\s*等\s*(\d+)\s*处修改)?$/;
 
-/** Operation names written by agent edit_file (apps/server/agent/tools/file_ops/edit.py). */
-const AI_EDIT_OPS: Record<string, { key: string; defaultValue: string }> = {
-  替换: { key: 'versions:summary.ops.replace', defaultValue: '替换' },
-  追加: { key: 'versions:summary.ops.append', defaultValue: '追加' },
-  前置: { key: 'versions:summary.ops.prepend', defaultValue: '开头插入' },
-  插入: { key: 'versions:summary.ops.insert', defaultValue: '插入' },
-  删除: { key: 'versions:summary.ops.delete', defaultValue: '删除' },
-};
-
-const describeAiEditOps = (opsText: string, total: string | undefined, t: Translate): string | null => {
-  const ops = opsText.split(/[,，、]\s*/).map((op) => AI_EDIT_OPS[op.trim()]);
-  // An unknown operation name means we can't describe it faithfully; the badge already says AI edit.
-  if (ops.length === 0 || ops.some((op) => !op)) return null;
-  const separator = t('versions:summary.opsSeparator', { defaultValue: '、' });
-  const opsLabel = ops.map((op) => t(op.key, { defaultValue: op.defaultValue })).join(separator);
-  return total
-    ? t('versions:summary.aiEditOpsMore', {
-        ops: opsLabel,
-        total: Number(total),
-        defaultValue: 'AI 修改：{{ops}} 等 {{total}} 处',
-      })
-    : t('versions:summary.aiEditOps', { ops: opsLabel, defaultValue: 'AI 修改：{{ops}}' });
+/**
+ * agent edit_file writes "AI 编辑: 替换、替换、替换 等 5 处修改". Listing the operation
+ * names (替换、替换、替换) told writers nothing; the number of places changed does.
+ */
+const describeAiEditCount = (opsText: string, total: string | undefined, t: Translate): string | null => {
+  const listed = opsText.split(/[,，、]\s*/).filter((op) => op.trim()).length;
+  const count = total ? Number(total) : listed;
+  if (!Number.isFinite(count) || count <= 0) return null;
+  return t('versions:summary.aiEditCount', { count, defaultValue: 'AI 改了 {{count}} 处' });
 };
 
 /**
@@ -99,7 +86,7 @@ export function describeVersionSummary(summary: string | null | undefined, t: Tr
   }
 
   const aiEdit = AI_EDIT_WITH_OPS.exec(text);
-  if (aiEdit) return describeAiEditOps(aiEdit[1], aiEdit[2], t);
+  if (aiEdit) return describeAiEditCount(aiEdit[1], aiEdit[2], t);
 
   return text.replace(UUID_PATTERN, '…');
 }
