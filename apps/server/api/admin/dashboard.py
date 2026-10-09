@@ -250,12 +250,15 @@ def get_upgrade_conversion_stats(
         count for channel, count in channel_counts.items() if channel in PAID_CONVERSION_CHANNELS
     )
 
-    converting_user_ids = {record.user_id for record in conversion_rows}
+    # A renewal is not a conversion caused by the wall. Order by the server's
+    # created_at: occurred_at can be supplied by the client.
+    wall_candidate_rows = [record for record in conversion_rows if record.action != "renewed"]
+    converting_user_ids = {record.user_id for record in wall_candidate_rows}
     first_wall_at: dict[str, object] = {}
     if converting_user_ids:
         first_wall_at = dict(
             session.exec(
-                select(UpgradeFunnelEvent.user_id, func.min(UpgradeFunnelEvent.occurred_at))
+                select(UpgradeFunnelEvent.user_id, func.min(UpgradeFunnelEvent.created_at))
                 .where(
                     UpgradeFunnelEvent.user_id.in_(converting_user_ids),
                     UpgradeFunnelEvent.source.in_(AI_QUOTA_WALL_SOURCES),
@@ -265,7 +268,7 @@ def get_upgrade_conversion_stats(
         )
     after_wall_conversions = 0
     paid_after_wall_conversions = 0
-    for record in conversion_rows:
+    for record in wall_candidate_rows:
         wall_at = first_wall_at.get(record.user_id)
         if wall_at is None or wall_at > record.created_at:
             continue
