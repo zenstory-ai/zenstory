@@ -829,9 +829,10 @@ describe('ChatPanel new-author flow', () => {
     mockQuota.value = { ai_conversations: { used: 10, limit: 10, reset_at: null } }
     render(<ChatPanel />)
 
-    await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(true))
+    // sendDisabled is also true while history loads, so wait on the quota placeholder itself.
     const placeholder = '今天的 10 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。'
-    expect(lastMessageInputProps().placeholder).toBe(placeholder)
+    await waitFor(() => expect(lastMessageInputProps().placeholder).toBe(placeholder))
+    expect(lastMessageInputProps().sendDisabled).toBe(true)
     const textarea = screen.getByTestId('mock-input-textarea')
     expect(textarea).not.toBeDisabled()
     expect(textarea).toHaveAttribute('placeholder', placeholder)
