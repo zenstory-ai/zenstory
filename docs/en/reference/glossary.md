@@ -1,6 +1,6 @@
 # Glossary
 
-This document lists all the terminology used in the zenstory novel writing workbench to help you better understand the product features and related concepts.
+This document lists all the terminology used in the ZenStory novel writing workbench to help you better understand the product features and related concepts.
 
 ## Core Concepts
 
@@ -76,4 +76,4 @@ This document lists all the terminology used in the zenstory novel writing workb
 
 ---
 
-Mastering these terms will help you make better use of the zenstory novel writing workbench. If you have any questions, please refer to the related detailed documentation or contact customer support for assistance.
+Mastering these terms will help you make better use of the ZenStory novel writing workbench. If you have any questions, please refer to the related detailed documentation or contact customer support for assistance.

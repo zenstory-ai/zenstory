@@ -2,7 +2,7 @@
 
 ## What is the AI Creative Assistant?
 
-The AI Creative Assistant is zenstory's core feature. It acts like a writing partner who understands you. It can comprehend your story background, character settings, and writing style, providing creative inspiration, content generation, and intelligent suggestions. Whether you're constructing outlines, enriching characters, or writing drafts, the AI serves as your capable assistant.
+The AI Creative Assistant is ZenStory's core feature. It acts like a writing partner who understands you. It can comprehend your story background, character settings, and writing style, providing creative inspiration, content generation, and intelligent suggestions. Whether you're constructing outlines, enriching characters, or writing drafts, the AI serves as your capable assistant.
 
 Unlike traditional writing tools, the AI Creative Assistant actively understands your project context. When you open an outline or draft, the AI automatically retrieves relevant content; when you select a passage of text, the AI can continue or modify based on that text. This deep understanding makes the creative process more fluid and natural.
 

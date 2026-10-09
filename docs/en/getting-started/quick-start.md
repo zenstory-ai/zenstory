@@ -1,6 +1,6 @@
 # Quick Start Guide (5 Minutes)
 
-Welcome to zenstory Novel Writing Workbench! This tutorial will help you get started in just 5 minutes and begin your AI-assisted creative writing journey.
+Welcome to ZenStory Novel Writing Workbench! This tutorial will help you get started in just 5 minutes and begin your AI-assisted creative writing journey.
 
 ## What You'll Learn
 
@@ -18,7 +18,7 @@ Welcome to zenstory Novel Writing Workbench! This tutorial will help you get sta
 
 ### Option 1: Email Registration (Recommended)
 
-1. Visit the zenstory website and click the "Sign Up" button in the top right corner
+1. Visit the ZenStory website and click the "Sign Up" button in the top right corner
 2. Fill in your username, email address, and password
 3. If you have an invitation code, enter it during registration to receive bonus rewards (100 points, granted after email verification)
 4. After clicking "Sign Up", the system will send a verification code to your email
@@ -59,7 +59,7 @@ The hosted app (app.zenstory.ai) does not require an invite code, though you can
 
 ### 2.2 Choose Project Type
 
-zenstory supports three creative types. Choose based on your needs:
+ZenStory supports three creative types. Choose based on your needs:
 
 | Project Type | Best For | Default Folders |
 |--------------|----------|----------------|
@@ -98,7 +98,7 @@ After the project is successfully created, the system will:
 
 ### 3.1 Understanding the Interface
 
-zenstory uses a three-panel layout:
+ZenStory uses a three-panel layout:
 
 - **Left: File Tree** - Manage all creative files
 - **Center: Editor** - Edit file content
@@ -171,7 +171,7 @@ You can see the AI's complete thinking and execution process in the chat panel, 
 
 ### 4.1 File Types
 
-zenstory supports multiple file types, each with a dedicated icon:
+ZenStory supports multiple file types, each with a dedicated icon:
 
 | Icon | File Type | Purpose |
 |------|-----------|---------|
@@ -220,7 +220,7 @@ Quickly find files:
 
 ### 4.4 Version History
 
-zenstory automatically saves versions of every modification:
+ZenStory automatically saves versions of every modification:
 
 1. Open any file
 2. Click the "Version History" button at the top of the editor
@@ -262,7 +262,7 @@ Exported files can be:
 
 ## Next Steps
 
-Congratulations on completing the quick start guide! You've now mastered the basics of zenstory.
+Congratulations on completing the quick start guide! You've now mastered the basics of ZenStory.
 
 ### Recommended Reading
 

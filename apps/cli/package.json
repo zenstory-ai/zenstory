@@ -1,7 +1,7 @@
 {
   "name": "zenstory",
   "version": "0.2.0",
-  "description": "Command-line client and Agent Skill for zenstory novel projects (public Agent API).",
+  "description": "Command-line client and Agent Skill for ZenStory novel projects (public Agent API).",
   "type": "module",
   "bin": {
     "zenstory": "dist/cli.js"

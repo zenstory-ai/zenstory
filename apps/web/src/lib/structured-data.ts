@@ -11,7 +11,7 @@
  * - Structured data improves SEO visibility and click-through rates
  *
  * Supported Schema Types:
- * - SoftwareApplication: Describes the zenstory application for app stores/search
+ * - SoftwareApplication: Describes the ZenStory application for app stores/search
  *
  * Usage:
  * ```ts
@@ -20,7 +20,7 @@
  * // Generate schema for home page
  * const schema = generateSoftwareApplicationSchema(
  *   'https://zenstory.ai',
- *   'zenstory',
+ *   'ZenStory',
  *   '专业的AI小说写作助手'
  * );
  *
@@ -53,7 +53,7 @@
  * - `url`: Application URL
  *
  * @param url - The canonical URL of the application
- * @param name - Application display name (e.g., "zenstory" or "zenstory")
+ * @param name - Application display name (e.g., "ZenStory")
  * @param description - Brief description of the application's features
  * @returns SoftwareApplication JSON-LD object ready for embedding
  *
@@ -62,14 +62,14 @@
  * // Chinese variant
  * const zhSchema = generateSoftwareApplicationSchema(
  *   'https://zenstory.ai',
- *   'zenstory',
+ *   'ZenStory',
  *   '专业的AI小说写作助手，提供智能大纲生成、角色管理、世界观构建等功能'
  * );
  *
  * // English variant
  * const enSchema = generateSoftwareApplicationSchema(
  *   'https://zenstory.ai',
- *   'zenstory',
+ *   'ZenStory',
  *   'Professional AI novel writing assistant'
  * );
  *
@@ -77,7 +77,7 @@
  * // {
  * //   "@context": "https://schema.org",
  * //   "@type": "SoftwareApplication",
- * //   "name": "zenstory",
+ * //   "name": "ZenStory",
  * //   "description": "...",
  * //   "applicationCategory": "BusinessApplication",
  * //   "operatingSystem": "Web",

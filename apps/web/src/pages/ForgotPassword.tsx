@@ -132,7 +132,7 @@ export default function ForgotPassword() {
     step === "unavailable"
       ? t("auth:forgotPassword.unavailableSubtitle", "暂时没法在线重设密码，发邮件给我们就好")
       : step === "code"
-        ? t("auth:forgotPassword.codeSentHint", "如果这个邮箱注册过 zenstory，验证码已经发出，10 分钟内有效。")
+        ? t("auth:forgotPassword.codeSentHint", "如果这个邮箱注册过 ZenStory，验证码已经发出，10 分钟内有效。")
         : t("auth:forgotPassword.subtitle", "输入注册时用的邮箱，我们会发一个验证码给你");
 
   return (

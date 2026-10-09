@@ -69,12 +69,12 @@ function getHomePageSchema(): { zh: SEOConfig["schema"]; en: SEOConfig["schema"]
   return {
     zh: generateSoftwareApplicationSchema(
       baseUrl,
-      'zenstory',
+      'ZenStory',
       '专业的AI小说写作助手，提供智能大纲生成、角色管理、世界观构建等功能'
     ) as SEOConfig["schema"],
     en: generateSoftwareApplicationSchema(
       baseUrl,
-      'zenstory',
+      'ZenStory',
       'Professional AI novel writing assistant featuring intelligent outline generation, character management, and world-building'
     ) as SEOConfig["schema"],
   };
@@ -106,7 +106,7 @@ const homePageSchema = getHomePageSchema();
  *
  * // Get Chinese variant
  * const zhLogin = loginConfig.zh;
- * console.log(zhLogin.title); // "登录 - zenstory"
+ * console.log(zhLogin.title); // "登录 - ZenStory"
  * console.log(zhLogin.noindex); // true (auth pages not indexed)
  *
  * // Get English home page with schema
@@ -117,15 +117,15 @@ const homePageSchema = getHomePageSchema();
 export const pageSEOConfig: Record<string, SEOPageConfig> = {
   '/': {
     zh: {
-      title: 'zenstory - 创作让人难忘的故事',
-      description: 'zenstory 是一款 AI 小说写作助手，提供大纲生成、角色管理、世界观构建等功能',
+      title: 'ZenStory - 创作让人难忘的故事',
+      description: 'ZenStory 是一款 AI 小说写作助手，提供大纲生成、角色管理、世界观构建等功能',
       keywords: ['AI写作', '小说创作', '写作助手', '智能创作'],
       noindex: false,  // 公开页面，允许索引
       schema: homePageSchema.zh,
     },
     en: {
-      title: 'zenstory - Create Unforgettable Stories',
-      description: 'zenstory is a professional AI novel writing assistant featuring intelligent outline generation, character management, and world-building',
+      title: 'ZenStory - Create Unforgettable Stories',
+      description: 'ZenStory is a professional AI novel writing assistant featuring intelligent outline generation, character management, and world-building',
       keywords: ['AI writing', 'novel writing', 'writing assistant', 'creative writing'],
       noindex: false,
       schema: homePageSchema.en,
@@ -133,110 +133,110 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   },
   '/login': {
     zh: {
-      title: '登录 - zenstory',
-      description: '登录你的 zenstory 账号',
+      title: '登录 - ZenStory',
+      description: '登录你的 ZenStory 账号',
       noindex: true,  // 需要登录，不允许索引
     },
     en: {
-      title: 'Login - zenstory',
-      description: 'Sign in to your zenstory account',
+      title: 'Login - ZenStory',
+      description: 'Sign in to your ZenStory account',
       noindex: true,
     }
   },
   '/register': {
     zh: {
-      title: '注册 - zenstory',
-      description: '创建 zenstory 账号',
+      title: '注册 - ZenStory',
+      description: '创建 ZenStory 账号',
       noindex: true,  // 需要登录，不允许索引
     },
     en: {
-      title: 'Register - zenstory',
-      description: 'Create a zenstory account',
+      title: 'Register - ZenStory',
+      description: 'Create a ZenStory account',
       noindex: true,
     }
   },
   '/dashboard': {
     zh: {
-      title: '工作台 - zenstory',
+      title: '工作台 - ZenStory',
       description: '管理你的写作项目',
       noindex: true,  // 需要登录，不允许索引
     },
     en: {
-      title: 'Dashboard - zenstory',
+      title: 'Dashboard - ZenStory',
       description: 'Manage your writing projects',
       noindex: true,
     }
   },
   '/verify-email': {
     zh: {
-      title: '验证邮箱 - zenstory',
+      title: '验证邮箱 - ZenStory',
       description: '验证你的邮箱地址',
       noindex: true,
     },
     en: {
-      title: 'Verify Email - zenstory',
+      title: 'Verify Email - ZenStory',
       description: 'Verify your email address',
       noindex: true,
     }
   },
   '/docs': {
     zh: {
-      title: '文档 - zenstory',
-      description: 'zenstory 使用文档：快速入门、用户指南、进阶技巧、参考资料与故障排除',
-      keywords: ['zenstory 文档', 'AI小说写作教程', '写作工作台'],
+      title: '文档 - ZenStory',
+      description: 'ZenStory 使用文档：快速入门、用户指南、进阶技巧、参考资料与故障排除',
+      keywords: ['ZenStory 文档', 'AI小说写作教程', '写作工作台'],
       noindex: false,  // 公开文档，允许索引
     },
     en: {
-      title: 'Documentation - zenstory',
-      description: 'zenstory documentation: getting started, user guide, advanced workflows, reference and troubleshooting',
-      keywords: ['zenstory docs', 'AI novel writing guide', 'writing workbench'],
+      title: 'Documentation - ZenStory',
+      description: 'ZenStory documentation: getting started, user guide, advanced workflows, reference and troubleshooting',
+      keywords: ['ZenStory docs', 'AI novel writing guide', 'writing workbench'],
       noindex: false,
     }
   },
   '/pricing': {
     zh: {
-      title: '定价 - zenstory',
-      description: 'zenstory 订阅方案与权益对比',
+      title: '定价 - ZenStory',
+      description: 'ZenStory 订阅方案与权益对比',
       noindex: false,  // 公开页面
     },
     en: {
-      title: 'Pricing - zenstory',
-      description: 'zenstory subscription plans and benefits',
+      title: 'Pricing - ZenStory',
+      description: 'ZenStory subscription plans and benefits',
       noindex: false,
     }
   },
   '/privacy-policy': {
     zh: {
-      title: '隐私政策 - zenstory',
-      description: 'zenstory 的隐私政策',
+      title: '隐私政策 - ZenStory',
+      description: 'ZenStory 的隐私政策',
       noindex: false,  // 公开页面
     },
     en: {
-      title: 'Privacy Policy - zenstory',
-      description: 'Privacy Policy of zenstory',
+      title: 'Privacy Policy - ZenStory',
+      description: 'Privacy Policy of ZenStory',
       noindex: false,
     }
   },
   '/terms-of-service': {
     zh: {
-      title: '服务条款 - zenstory',
-      description: 'zenstory 的服务条款',
+      title: '服务条款 - ZenStory',
+      description: 'ZenStory 的服务条款',
       noindex: false,  // 公开页面
     },
     en: {
-      title: 'Terms of Service - zenstory',
-      description: 'Terms of Service of zenstory',
+      title: 'Terms of Service - ZenStory',
+      description: 'Terms of Service of ZenStory',
       noindex: false,
     }
   },
   '/auth/callback': {
     zh: {
-      title: '授权回调 - zenstory',
+      title: '授权回调 - ZenStory',
       description: 'OAuth 授权回调处理',
       noindex: true,  // 回调页面，不允许索引
     },
     en: {
-      title: 'Auth Callback - zenstory',
+      title: 'Auth Callback - ZenStory',
       description: 'OAuth authorization callback handler',
       noindex: true,
     }
@@ -256,18 +256,18 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
  * const language = 'en';
  * const config = pageSEOConfig[route]?.[language] ?? defaultSEOConfig;
  *
- * console.log(config.title); // "zenstory - 创作让人难忘的故事"
+ * console.log(config.title); // "ZenStory - 创作让人难忘的故事"
  * console.log(config.noindex); // false (index by default)
  * ```
  */
 export const defaultSEOConfig: SEOPageConfig = {
   zh: {
-    title: 'zenstory - 创作让人难忘的故事',
+    title: 'ZenStory - 创作让人难忘的故事',
     description: '专业的AI小说写作助手，提供智能大纲生成、角色管理、世界观构建等功能',
     noindex: false,
   },
   en: {
-    title: 'zenstory - Create Unforgettable Stories',
+    title: 'ZenStory - Create Unforgettable Stories',
     description: 'Professional AI novel writing assistant featuring intelligent outline generation, character management, and world-building',
     noindex: false,
   }

@@ -1,6 +1,6 @@
-# zenstory concepts for agents
+# ZenStory concepts for agents
 
-Derived from the zenstory backend (`models/file_model.py`, `config/project_templates.py`,
+Derived from the ZenStory backend (`models/file_model.py`, `config/project_templates.py`,
 `api/agent_api.py`, `agent/context/assembler.py`).
 
 ## Contents
@@ -81,7 +81,7 @@ engine picks the "previous chapter" by `order`, so give chapters their number.
 
 Each file has a version history shared with the web app's history panel. A version is
 recorded when a file is created with content and whenever its content changes (web
-editor, zenstory AI, or `files put`); title/order-only updates and moves record none.
+editor, ZenStory AI, or `files put`); title/order-only updates and moves record none.
 Versions are numbered from 1 per file; `files versions` lists them newest first.
 `files rollback <fileId> <n> --yes` restores version n and records the restored content
 as a new version, so nothing is lost. Versions are recorded unless the plan's per-file
@@ -93,7 +93,7 @@ of the previous content is the local backup `files put` keeps
 ## Writing context
 
 `zenstory context <projectId> [--file <id>] [--query text]` calls the same context
-assembler the built-in zenstory AI uses. It can include:
+assembler the built-in ZenStory AI uses. It can include:
 
 - The focus file (`--file`), its parent outline, the previous chapter and a few
   recently edited sibling chapters.
@@ -120,7 +120,7 @@ fall back to `files list` + `files get`.
 
 ## API keys and scopes
 
-Keys look like `eg_` + 64 hex characters and are created in zenstory
+Keys look like `eg_` + 64 hex characters and are created in ZenStory
 **Settings → Agent**. Scopes: `read` (list/get/search/context) and `write`
 (create/update/move/rollback/delete). New keys default to `read` only. A key can optionally be limited
 to specific projects; other projects then return 403 (or are hidden from

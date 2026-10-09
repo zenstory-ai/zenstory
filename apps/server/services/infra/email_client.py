@@ -45,40 +45,40 @@ _EMAIL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
         "en": {
             "title": "Verify Your Email",
             "greeting": "Hi there,",
-            "instruction": "Thanks for signing up for zenstory. Please enter the verification code below to complete your registration:",
+            "instruction": "Thanks for signing up for ZenStory. Please enter the verification code below to complete your registration:",
             "warning": "This code will expire in {expiry} minutes. If you didn't request this code, you can safely ignore this email.",
             "support": "Need help? Please visit zenstory.ai.",
-            "footer": "© 2026 zenstory · zenstory.ai",
-            "unsubscribe": "You're receiving this email because you signed up for zenstory.",
+            "footer": "© 2026 ZenStory · zenstory.ai",
+            "unsubscribe": "You're receiving this email because you signed up for ZenStory.",
         },
         "zh": {
             "title": "验证您的邮箱",
             "greeting": "您好，",
-            "instruction": "感谢您注册 zenstory。请输入下方的验证码完成注册流程：",
+            "instruction": "感谢您注册 ZenStory。请输入下方的验证码完成注册流程：",
             "warning": "此验证码将在 {expiry} 分钟后过期。如果您没有请求此验证码，请忽略此邮件。",
             "support": "需要帮助？请访问 zenstory.ai。",
-            "footer": "© 2026 zenstory · zenstory.ai",
-            "unsubscribe": "您收到此邮件是因为您注册了 zenstory 账号。",
+            "footer": "© 2026 ZenStory · zenstory.ai",
+            "unsubscribe": "您收到此邮件是因为您注册了 ZenStory 账号。",
         },
     },
     EMAIL_PURPOSE_PASSWORD_RESET: {
         "en": {
-            "title": "Reset your zenstory password",
+            "title": "Reset your ZenStory password",
             "greeting": "Hi there,",
-            "instruction": "Someone asked to reset the password for this zenstory account. Enter this code on the reset page to set a new password:",
+            "instruction": "Someone asked to reset the password for this ZenStory account. Enter this code on the reset page to set a new password:",
             "warning": "The code expires in {expiry} minutes and works once. If this wasn't you, just ignore this email. Your password stays the same.",
             "support": "Need help? Email support@zenstory.ai.",
-            "footer": "© 2026 zenstory · zenstory.ai",
-            "unsubscribe": "You're receiving this email because a password reset was requested for your zenstory account.",
+            "footer": "© 2026 ZenStory · zenstory.ai",
+            "unsubscribe": "You're receiving this email because a password reset was requested for your ZenStory account.",
         },
         "zh": {
-            "title": "重设你的 zenstory 密码",
+            "title": "重设你的 ZenStory 密码",
             "greeting": "你好，",
-            "instruction": "有人申请重设这个 zenstory 账号的密码。在重设页面输入下面的验证码，就可以设置新密码：",
+            "instruction": "有人申请重设这个 ZenStory 账号的密码。在重设页面输入下面的验证码，就可以设置新密码：",
             "warning": "验证码 {expiry} 分钟内有效，只能用一次。如果不是你本人操作，忽略这封邮件即可，密码不会改变。",
             "support": "需要帮助？发邮件给 support@zenstory.ai。",
-            "footer": "© 2026 zenstory · zenstory.ai",
-            "unsubscribe": "你收到这封邮件，是因为有人为你的 zenstory 账号申请了重设密码。",
+            "footer": "© 2026 ZenStory · zenstory.ai",
+            "unsubscribe": "你收到这封邮件，是因为有人为你的 ZenStory 账号申请了重设密码。",
         },
     },
 }
@@ -134,7 +134,7 @@ async def send_verification_email(
                             <!-- Logo -->
                             <tr>
                                 <td style="padding-bottom:40px;">
-                                    <span style="font-size:20px;font-weight:600;color:#1a1a1a;letter-spacing:-0.3px;">zenstory</span>
+                                    <span style="font-size:20px;font-weight:600;color:#1a1a1a;letter-spacing:-0.3px;">ZenStory</span>
                                 </td>
                             </tr>
 
@@ -196,7 +196,7 @@ async def send_verification_email(
 
         # Send email using Resend
         params = {
-            "from": f"zenstory <{RESEND_FROM_EMAIL}>",
+            "from": f"ZenStory <{RESEND_FROM_EMAIL}>",
             "to": [email],
             "subject": email_content['title'],
             "html": html_content,

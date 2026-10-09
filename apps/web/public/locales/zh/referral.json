@@ -39,7 +39,7 @@
     "disabled": "已停用",
     "exhausted": "已用完",
     "available": "可用",
-    "shareTitle": "zenstory 邀请码",
-    "shareText": "注册 zenstory 时填写我的邀请码：{{code}}"
+    "shareTitle": "ZenStory 邀请码",
+    "shareText": "注册 ZenStory 时填写我的邀请码：{{code}}"
   }
 }

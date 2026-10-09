@@ -76,8 +76,8 @@ describe('SEOHelmet static metadata hydration', () => {
       )
       expect(document.querySelector('meta[property="og:site_name"]')).toHaveAttribute('content', 'ZenStory AI')
       expect(document.querySelector('meta[property="og:type"]')).toHaveAttribute('content', 'website')
-      expect(document.querySelector('meta[property="og:title"]')).toHaveAttribute('content', 'Privacy Policy - zenstory')
-      expect(document.querySelector('meta[property="og:description"]')).toHaveAttribute('content', 'Privacy Policy of zenstory')
+      expect(document.querySelector('meta[property="og:title"]')).toHaveAttribute('content', 'Privacy Policy - ZenStory')
+      expect(document.querySelector('meta[property="og:description"]')).toHaveAttribute('content', 'Privacy Policy of ZenStory')
       expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute(
         'content',
         'https://zenstory.ai/brand/zenstory-ai-mark.svg',

@@ -1,6 +1,6 @@
 # Project Management
 
-zenstory organizes your creative content around projects. Each project is an independent workspace with its own complete file system, AI conversation records, and version history. This document details how to efficiently manage your writing projects.
+ZenStory organizes your creative content around projects. Each project is an independent workspace with its own complete file system, AI conversation records, and version history. This document details how to efficiently manage your writing projects.
 
 ## Project List
 
@@ -203,7 +203,7 @@ Understanding the independence between projects helps you better organize creati
 
 ### Each Project is Completely Independent
 
-zenstory's projects use a completely isolated design:
+ZenStory's projects use a completely isolated design:
 
 **Independent content spaces:**
 - Each project has an independent file tree
@@ -222,7 +222,7 @@ zenstory's projects use a completely isolated design:
 
 ### Files Are Not Shared Across Projects
 
-Currently, zenstory does not support sharing files across projects. If you need to use the same settings in multiple projects, consider these alternatives:
+Currently, ZenStory does not support sharing files across projects. If you need to use the same settings in multiple projects, consider these alternatives:
 
 **Option 1: Copy Content**
 1. Open the file in the source project

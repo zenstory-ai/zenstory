@@ -44,7 +44,7 @@ describe('installSkill', () => {
     mkdirSync(join(dest, '.git'), { recursive: true });
     writeFileSync(join(dest, 'SKILL.md'), '---\nname: zenstory\ndescription: x\n---\n');
     writeFileSync(join(dest, 'package.json'), '{}');
-    expect(() => installSkill({ target: root, force: true })).toThrow(/does not look like a zenstory skill/);
+    expect(() => installSkill({ target: root, force: true })).toThrow(/does not look like a ZenStory skill/);
     expect(existsSync(join(dest, '.git'))).toBe(true);
     expect(existsSync(join(dest, 'package.json'))).toBe(true);
 

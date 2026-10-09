@@ -39,7 +39,7 @@
     "disabled": "Disabled",
     "exhausted": "Used up",
     "available": "Available",
-    "shareTitle": "zenstory invite code",
-    "shareText": "Use my invite code when you sign up for zenstory: {{code}}"
+    "shareTitle": "ZenStory invite code",
+    "shareText": "Use my invite code when you sign up for ZenStory: {{code}}"
   }
 }

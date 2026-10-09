@@ -1,6 +1,6 @@
 # 常见问题排查
 
-当您在使用zenstory时遇到问题，可以按照本指南逐步排查解决。如果问题仍未解决，请联系客服获取帮助。
+当您在使用ZenStory时遇到问题，可以按照本指南逐步排查解决。如果问题仍未解决，请联系客服获取帮助。
 
 ![项目编辑界面示例](/docs-images/troubleshooting/common-issues.png)
 
@@ -144,7 +144,7 @@ AI 理解偏差通常可以通过以下方式改善:
 
 ### 内容没有保存
 
-zenstory采用自动保存机制,如果发现内容丢失:
+ZenStory采用自动保存机制,如果发现内容丢失:
 
 1. **检查网络连接**
    - 自动保存需要网络连接
@@ -286,7 +286,7 @@ zenstory采用自动保存机制,如果发现内容丢失:
 ### 首次加载慢
 
 1. **首次加载需要下载资源**
-   - zenstory首次加载需要下载 JS、CSS 等静态资源
+   - ZenStory首次加载需要下载 JS、CSS 等静态资源
    - 后续访问会使用浏览器缓存,速度会快很多
 
 2. **网络速度影响**
@@ -330,6 +330,6 @@ zenstory采用自动保存机制,如果发现内容丢失:
 
 **相关文档**
 
-- [快速开始](../getting-started/quick-start.md) - 了解zenstory的基本使用
+- [快速开始](../getting-started/quick-start.md) - 了解ZenStory的基本使用
 - [常见问题 FAQ](../reference/faq.md) - 查看功能相关的常见疑问
 - [用户指南](../user-guide/interface-overview.md) - 详细的功能使用教程

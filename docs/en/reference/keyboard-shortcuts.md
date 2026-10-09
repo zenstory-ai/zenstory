@@ -1,6 +1,6 @@
 # Keyboard Shortcuts Reference
 
-zenstory provides a comprehensive set of keyboard shortcuts to help you write more efficiently. Mastering these shortcuts will significantly improve your writing workflow.
+ZenStory provides a comprehensive set of keyboard shortcuts to help you write more efficiently. Mastering these shortcuts will significantly improve your writing workflow.
 
 [Screenshot: Keyboard shortcuts demo - showing user using Cmd+K to open file search, Cmd+S to save file in editor]
 
@@ -103,7 +103,7 @@ If you're using a Mac, please note the following key correspondences:
 
 ## Custom Shortcuts
 
-zenstory currently does not support user-customized shortcuts. All shortcuts are fixed to ensure a consistent user experience.
+ZenStory currently does not support user-customized shortcuts. All shortcuts are fixed to ensure a consistent user experience.
 
 **Planned Features**:
 - Shortcut customization interface

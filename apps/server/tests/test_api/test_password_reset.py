@@ -333,7 +333,7 @@ async def test_codes_never_reach_the_logs(client, db_session, owned_redis, monke
         assert (await client.post(REQUEST, json={"email": email})).status_code == 200
         assert len(outgoing) == 1
         subject = outgoing[0]["subject"]
-        assert subject == "重设你的 zenstory 密码"
+        assert subject == "重设你的 ZenStory 密码"
         assert "如果不是你本人操作，忽略这封邮件即可" in outgoing[0]["html"]
         [code] = issued
         assert code in outgoing[0]["html"]

@@ -56,12 +56,12 @@ function getRouteConfig(pathname: string, language: string): SEOConfig {
   if (!config && pathname.startsWith('/project/')) {
     config = {
       zh: {
-        title: '项目 - zenstory',
+        title: '项目 - ZenStory',
         description: 'AI辅助的小说创作项目',
         noindex: true,
       },
       en: {
-        title: 'Project - zenstory',
+        title: 'Project - ZenStory',
         description: 'AI-assisted novel writing project',
         noindex: true,
       }
@@ -118,7 +118,7 @@ export function SEOProvider({ children }: { children: React.ReactNode }) {
       if (!heading) return;
       const description = document.querySelector<HTMLElement>('article p')?.textContent?.trim();
       const canonical = getPublicCanonicalUrl(window.location.href);
-      const title = `${heading} · zenstory 文档 | ZenStory AI`;
+      const title = `${heading} · ZenStory 文档 | ZenStory AI`;
       const resolvedDescription = description?.slice(0, 180);
 
       setSeoConfig((previous) => ({
