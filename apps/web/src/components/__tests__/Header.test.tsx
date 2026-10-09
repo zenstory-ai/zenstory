@@ -43,6 +43,7 @@ const headerTranslations: Record<string, string> = {
   'editor:header.projectDashboard': '项目统计',
   'editor:header.helpDocs': '帮助文档',
   'common:feedback.entry': '问题反馈',
+  'editor:header.exportWithOutline': '导出大纲和正文（TXT）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
 }
 
@@ -92,6 +93,7 @@ vi.mock('lucide-react', () => ({
   BarChart3: () => React.createElement('svg', { 'data-testid': 'analytics-icon' }, 'Analytics'),
   BookOpen: () => React.createElement('svg', { 'data-testid': 'help-docs-icon' }, 'HelpDocs'),
   Bug: () => React.createElement('svg', { 'data-testid': 'feedback-icon' }, 'Bug'),
+  FileText: () => React.createElement('svg', { 'data-testid': 'file-text-icon' }, 'FileText'),
   Sparkles: () => React.createElement('svg', { 'data-testid': 'sparkles-icon' }, 'Sparkles'),
 }))
 
@@ -407,6 +409,21 @@ describe('Header', () => {
       })
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith('正文已导出为 TXT 文件')
+      })
+    })
+
+    it('offers an outline-included export next to the plain one', async () => {
+      mockCurrentProjectId = 'project-123'
+      render(<Header />)
+
+      fireEvent.click(screen.getByTestId('header-more-actions'))
+      fireEvent.click(screen.getByText('导出大纲和正文（TXT）'))
+
+      await waitFor(() => {
+        expect(mockExportDrafts).toHaveBeenCalledWith({ includeOutline: true })
+      })
+      await waitFor(() => {
+        expect(mockToastSuccess).toHaveBeenCalledWith('大纲和正文已导出为 TXT 文件')
       })
     })
 

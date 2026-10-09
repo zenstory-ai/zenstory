@@ -17,7 +17,9 @@
     "subscriptionManageHint": "管理套餐、权益和兑换码",
     "subscriptionRenewalSoon": "剩 {{days}} 天",
     "exportQuotaBlockedTitle": "当前套餐暂不支持该导出",
-    "exportQuotaBlockedDesc": "升级套餐后即可使用这项导出。"
+    "exportQuotaBlockedDesc": "升级套餐后即可使用这项导出。",
+    "exportWithOutline": "导出大纲和正文（TXT）",
+    "exportWithOutlineSuccess": "大纲和正文已导出为 TXT 文件"
   },
   "fileTree": {
     "ariaLabel": "文件树",

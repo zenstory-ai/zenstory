@@ -299,6 +299,7 @@ export const exportApi = {
    * Handles authentication automatically with token refresh on 401 errors.
    *
    * @param projectId - The UUID of the project to export
+   * @param options.includeOutline - Put the outline files before the chapters
    * @returns Promise that resolves when download is initiated
    * @throws {ApiError} ERR_EXPORT_NO_DRAFTS if project has no drafts
    *
@@ -309,12 +310,13 @@ export const exportApi = {
    * // Browser will download a file named "{ProjectName}_drafts.txt"
    * ```
    */
-  exportDrafts: async (projectId: string): Promise<void> => {
+  exportDrafts: async (projectId: string, options: { includeOutline?: boolean } = {}): Promise<void> => {
+    const query = options.includeOutline ? "?include_outline=true" : "";
     const entryAccess = getAccessToken();
     const entryRefresh = localStorage.getItem("refresh_token");
     const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
-        `${getApiBase()}/api/v1/projects/${projectId}/export/drafts`,
+        `${getApiBase()}/api/v1/projects/${projectId}/export/drafts${query}`,
         {
           method: "GET",
           headers: accessToken

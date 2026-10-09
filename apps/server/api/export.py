@@ -5,7 +5,7 @@ Provides endpoints for exporting project content to downloadable files.
 """
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from services.auth import get_current_active_user
 from services.export_service import export_drafts_to_txt
@@ -27,13 +27,15 @@ router = APIRouter(prefix="/api/v1", tags=["export"])
 @router.get("/projects/{project_id}/export/drafts")
 def export_project_drafts(
     project_id: str,
+    include_outline: bool = Query(False, description="Put the outline files before the chapters"),
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
 ):
     """
     Export all drafts from a project as a single TXT file.
 
-    The drafts are merged in chapter order with titles and separators.
+    The drafts are merged in chapter order with titles and separators, under the
+    work title. With ``include_outline`` the non-empty outline files come first.
 
     Args:
         project_id: The project ID to export drafts from
@@ -101,7 +103,13 @@ def export_project_drafts(
             )
 
     # 3. Generate export content
-    content = export_drafts_to_txt(session, project_id)
+    content = export_drafts_to_txt(
+        session,
+        project_id,
+        title=project.name,
+        include_outline=include_outline,
+    )
+    filename = f"{project.name}_{'大纲和正文' if include_outline else '正文'}.txt"
 
     if not content:
         log_with_context(
@@ -123,14 +131,13 @@ def export_project_drafts(
         project_id=project_id,
         user_id=current_user.id,
         content_length=len(content),
-        filename=f"{project.name}_正文.txt",
+        filename=filename,
     )
 
     # 4. Add UTF-8 BOM for Windows Notepad compatibility
     content_with_bom = '\ufeff' + content
 
     # 5. Build filename with RFC 5987 encoding for Chinese characters
-    filename = f"{project.name}_正文.txt"
     encoded_filename = quote(filename)
 
     # 6. Return as downloadable file
