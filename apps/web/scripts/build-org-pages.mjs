@@ -597,7 +597,7 @@ const homePage = () => {
   <section class="band" aria-labelledby="guides-h"><div class="wrap library">
     <div class="library-intro">
       <p class="eyebrow">${starGlyph}<span>${t('Knowledge library', '知识体系')}</span></p>
-      ${heading(2, 'A knowledge library, not a link dump', phrases('从上手到排错，', '按层次找到方法'), 'guides-h')}
+      ${heading(2, 'From first steps to fixes, layer by layer', phrases('从上手到排错，', '按层次找到方法'), 'guides-h')}
       <form class="library-search" action="${L('/guides')}" method="get" role="search"><label for="home-search">${t('Search the library', '搜索知识库')}</label><span class="library-search-row"><input id="home-search" name="q" type="search" placeholder="${t('e.g. storyboard, CapCut draft', '例如：去AI味、分镜、剪映草稿')}"><button type="submit">${t('Search', '搜索')}</button></span></form>
       <p class="more"><a href="/guides">${t('Browse the complete library', '浏览完整知识库')}${arrowGlyph}</a></p>
     </div>
