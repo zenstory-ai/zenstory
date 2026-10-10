@@ -932,6 +932,19 @@ html[data-lang="zh"] [data-page="home"] .library-search label { font-size: 13px;
   [data-page="home"] .pipe text.tool { display: none; }
   [data-page="home"] .pipe text { font-size: 19px; }
 }
+/* Header on narrow phones: brand, switch and CTA stay on one row down to 360px (the CTA's arrow is
+   decoration), so `--top-h` keeps matching the header and anchor jumps land below it. */
+@media (max-width: 400px) {
+  .top-row { gap: 0 8px; }
+  .brand { gap: 8px; }
+  .top-tools { gap: 6px; }
+  .lang-switch a, [data-page="home"] .lang-switch a { padding: 0 8px; }
+  .nav-app .arrow { display: none; }
+}
+/* Narrower still, the switch and CTA wrap under the brand: anchors clear all three rows. */
+@media (max-width: 359px) {
+  :root { --top-h: 134px; }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-page="home"] * { transition: none !important; }
 }

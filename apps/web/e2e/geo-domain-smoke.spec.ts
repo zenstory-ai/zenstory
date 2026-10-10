@@ -247,6 +247,24 @@ test.describe('organization site', () => {
     await context.close()
   })
 
+  test('keeps the phone header to two rows at 360px so the hero action lands below it', async ({ browser }) => {
+    for (const path of ['/', '/zh']) {
+      const context = await browser.newContext({ viewport: { width: 360, height: 780 } })
+      const page = await context.newPage()
+      await page.goto(`${SITE}${path}`, { waitUntil: 'networkidle' })
+      await page.locator('article.home .hero-cta a.btn').click()
+      await expect(page).toHaveURL(/#start-h$/)
+
+      const box = await page.evaluate(() => ({
+        header: document.querySelector('header.top')!.getBoundingClientRect().bottom,
+        heading: document.getElementById('start-h')!.getBoundingClientRect().top,
+      }))
+      expect(box.header, `${path}: header wraps past two rows`).toBeLessThanOrEqual(96)
+      expect(box.heading, `${path}: the path heading lands under the sticky header`).toBeGreaterThanOrEqual(box.header)
+      await context.close()
+    }
+  })
+
   test('fits the organization home in a 390px viewport and records a mobile screenshot', async ({ browser }, testInfo) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
     const page = await context.newPage()
