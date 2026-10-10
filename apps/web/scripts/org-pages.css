@@ -94,7 +94,7 @@ a:hover .arrow { transform: translateX(2px); }
 /* ---------- shared type roles ---------- */
 .eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-text); margin: 0 0 12px; }
 html[data-lang="zh"] .eyebrow { font-size: 13.5px; }
-html[data-lang="zh"] :is(.eyebrow, .install-label, .jump-label, .sub-h, .foot-h, .terms > .terms-label, .guide-contents p, .guide-example h3, .docs-group) { text-transform: none; letter-spacing: .03em; }
+html[data-lang="zh"] :is(.eyebrow, .install-label, .jump-label, .sub-h, .foot-h, .terms > .terms-label, .guide-contents summary, .guide-contents summary b, .guide-example h3, .docs-group) { text-transform: none; letter-spacing: .03em; }
 .lede { font-size: 19px; line-height: 1.55; color: var(--ink-2); margin: 14px 0 0; max-width: var(--measure); }
 .facts { font-size: 14px; color: var(--muted); }
 .section-lede { max-width: var(--measure); color: var(--ink-2); margin: -4px 0 24px; }
@@ -276,8 +276,13 @@ html[data-lang="zh"] .pair.answer::before { content: "一句话结论"; letter-s
 .guide-head { grid-column: 1; }
 .guide-body { grid-column: 1; grid-row: 2; min-width: 0; }
 .guide-contents { grid-column: 2; grid-row: 1 / span 2; align-self: start; position: sticky; top: calc(var(--top-h) + 24px); margin-top: 8px; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 14px; }
-.guide-contents p { margin: 0 0 8px; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.guide-contents p b { font-weight: 600; }
+.guide-contents summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); cursor: pointer; list-style: none; }
+.guide-contents summary::-webkit-details-marker { display: none; }
+.guide-contents summary::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: 3px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .15s ease; }
+.guide-contents details[open] > summary::after { transform: rotate(-135deg) translate(-2px, 0); }
+.guide-contents details:not([open]) > summary { margin-bottom: 0; }
+.guide-contents summary b { font-weight: 600; }
+.guide-contents .toc-count { margin-left: auto; font-weight: 400; letter-spacing: .02em; text-transform: none; }
 .guide-contents ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
 .guide-contents li { margin: 0; }
 .guide-contents a { display: block; padding: 6px 0; color: var(--ink-2); text-decoration: none; border-left: 2px solid transparent; padding-left: 10px; margin-left: -12px; }
@@ -436,7 +441,9 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 @media (max-width: 960px) {
   .project-grid, .guide-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .guide { display: block; }
-  .guide-contents { position: static; margin: 24px 0 8px; max-width: var(--measure); }
+  .guide-contents { position: static; margin: 20px 0 8px; padding: 0 16px; max-width: var(--measure); }
+  .guide-contents summary { min-height: 48px; margin: 0; }
+  .guide-contents details[open] > ul { padding-bottom: 14px; }
   .guide-contents ul { flex-direction: row; flex-wrap: wrap; gap: 4px 18px; }
   .guide-contents a { margin-left: 0; padding-left: 0; border-left: 0; }
   .guide-section { grid-template-columns: 1fr; gap: 4px; }
@@ -516,6 +523,14 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .reading-list { list-style: none; padding: 0; margin: 20px 0 40px; }
 .reading-list > li { border-top: 1px solid var(--rule); padding: 18px 0; overflow-wrap: anywhere; }
 .reading-list > li > a { font-size: 18px; font-weight: 600; }
+.reading-list.compact { margin: 8px 0 28px; }
+.reading-list.compact > li { padding: 12px 0; }
+.reading-list.compact > li > a { font-size: 16px; }
+.reading-list.compact .method-facts { margin: 4px 0 0; }
+.skill-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 28px 0 0; font-size: 18px; }
+.skill-group .skill-chip { text-decoration: none; }
+.skill-group .skill-chip code { font-size: 12.5px; font-weight: 400; }
+.skill-group-count { margin-left: auto; font: 500 12.5px/1 var(--mono); color: var(--muted); }
 @media (max-width: 900px) { .topic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .learning-paths { grid-template-columns: 1fr; } }
 /* /guides in four layers (get started → workflows → tasks → revise and look up). */
 .layer-jump ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 22px 0 0; padding: 0; }
@@ -530,6 +545,9 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .layer-step { margin: 0; }
 .layer-more { margin: 0; }
 .task-index { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; list-style: none; margin: 20px 0 0; padding: 0; }
+.project-path { margin: 20px 0 8px; }
+.task-index-title { margin: 28px 0 0; font-size: 17px; }
+.project .task-index { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
 .task-index li { margin: 0; min-width: 0; }
 .task-index a { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; height: 100%; min-height: 88px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; }
 .task-index a:hover { border-color: var(--ink); }
@@ -576,7 +594,7 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .term-row a:hover { border-color: var(--ink); }
 .term-row .term-all { border-color: transparent; background: none; font-weight: 600; }
 @media (max-width: 960px) { .task-index { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .learning-path { padding-left: 14px; } .learning-path ol { padding-left: 18px; margin: 8px 0 0; } .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-index a { min-height: 76px; padding: 12px 14px; } .guide-layer { padding-top: 32px; margin-top: 32px; } }
+@media (max-width: 600px) { .project .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .learning-path { padding-left: 14px; } .learning-path ol { padding-left: 18px; margin: 8px 0 0; } .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-index a { min-height: 76px; padding: 12px 14px; } .guide-layer { padding-top: 32px; margin-top: 32px; } }
 @media (max-width: 600px) { .topic-grid { grid-template-columns: 1fr; } .topic-card { padding: 20px; } }
 
 .library-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 24px; padding: 20px 0 40px; font-size: 14px; }

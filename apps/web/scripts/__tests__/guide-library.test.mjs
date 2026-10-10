@@ -228,3 +228,65 @@ test('the glossary is reference, not navigation: terms link the article that tea
     }
   }
 })
+
+test('project pages lead into craft by workflow and task instead of listing every article', (t) => {
+  const out=mkdtempSync(join(tmpdir(),'zenstory-project-craft-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const flowOf={'oh-story':'first-chapter','drama-skills':'first-short-drama','novel-to-game':'first-game','video-recap':'footage-recap'}
+  for(const lang of ['en','zh']) for(const [slug,flow] of Object.entries(flowOf)) {
+    const html=readFileSync(join(out,pathOf(lang,`/${slug}`),'index.html'),'utf8')
+    const craft=html.match(/<section aria-labelledby="craft-h">([\s\S]*?)<\/section>/)?.[1]
+    assert.ok(craft,`${lang} /${slug}: missing craft section`)
+    const own=articles.filter((a)=>a.owner===slug && a.langs.includes(lang))
+    // The project's own workflow, then one tile per task holding its articles; no per-article dump.
+    assert.ok(craft.includes(`id="path-${flow}"`),`${lang} /${slug}: missing its workflow`)
+    const tiles=[...craft.matchAll(/<li><a href="([^"]+)"><span class="task-name">/g)].map((m)=>m[1])
+    const tasks=new Set(own.map((a)=>a.topic))
+    assert.deepEqual(new Set(tiles),new Set([...tasks].map((topic)=>pathOf(lang,`/guides/${topic}`))),`${lang} /${slug}: task tiles`)
+    assert.ok((craft.match(/<a href=/g) ?? []).length < 20,`${lang} /${slug}: craft section still lists articles one by one`)
+  }
+})
+
+test('the on-this-page navigation is a closed disclosure in the HTML that wide screens open', (t) => {
+  const out=mkdtempSync(join(tmpdir(),'zenstory-toc-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  for(const item of [guides[0],articles.find((a)=>a.langs.includes('en'))]) for(const lang of ['en','zh']) {
+    const html=readFileSync(join(out,pathOf(lang,routeOf(item)),'index.html'),'utf8')
+    const nav=html.match(/<nav class="guide-contents" aria-label="[^"]+">([\s\S]*?)<\/nav>/)?.[1]
+    assert.ok(nav,`${lang} ${routeOf(item)}: missing on-this-page navigation`)
+    // Phones start on the article, not on the list; no-JS readers can still open it.
+    assert.match(nav,/^<details><summary>/,`${lang} ${routeOf(item)}: navigation must be a disclosure`)
+    assert.doesNotMatch(nav,/<details open/,`${lang} ${routeOf(item)}: closed in the HTML`)
+    assert.match(nav,/matchMedia\('\(min-width: 961px\)'\)\.matches\)document\.currentScript\.previousElementSibling\.open=true/)
+    assert.ok((nav.match(/<a href="#/g) ?? []).length>=3,`${lang} ${routeOf(item)}: sections listed`)
+  }
+})
+
+test('large task pages group their guides by the skill behind them, in compact rows, without losing any guide', (t) => {
+  const labels=content('skill-labels')
+  const out=mkdtempSync(join(tmpdir(),'zenstory-skill-groups-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  for(const lang of ['en','zh']) {
+    const pages=[1,2,3].map((n)=>join(out,pathOf(lang,`/guides/ai-video${n>1?`/page/${n}`:''}`),'index.html')).filter(existsSync).map((file)=>readFileSync(file,'utf8'))
+    const heads=pages.flatMap((html)=>[...html.matchAll(/<h3 class="skill-group"><span class="skill-group-name">([^<]+)<\/span>(?:<a class="skill-chip" href="([^"]+)"><code>([a-z0-9-]+)<\/code><\/a>)?/g)].map((m)=>({label:m[1],url:m[2],name:m[3]})))
+    const named=[...new Set(heads.filter((h)=>h.name).map((h)=>h.name))]
+    // Video prompts, storyboards and editing are the main skills behind AI video; each has a reader-facing name and its pinned SKILL.md.
+    assert.deepEqual(named.slice(0,3),['short-drama-video-prompts','short-drama-storyboard','short-drama-edit'],`${lang}: skill groups ordered by size`)
+    for(const head of heads.filter((h)=>h.name)) {
+      assert.equal(head.label,labels[head.name][lang],`${lang}: ${head.name} label`)
+      assert.match(head.url,new RegExp(`/blob/[a-f0-9]{40}/skills/${head.name}/SKILL\\.md$`))
+    }
+    // Compact rows below "Start here": no per-row description paragraph.
+    const more=pages[0].match(/<section aria-labelledby="topic-more">([\s\S]*?)<\/section>/)[1]
+    assert.doesNotMatch(more,/<\/a><p>(?!<)/,`${lang}: compact rows carry no description`)
+  }
+  // Every skill that heads a group anywhere has a label.
+  const used=new Set(reading.map((item)=>item.skill?.name).filter(Boolean))
+  for(const name of used) assert.ok(labels[name]?.en && labels[name]?.zh,`skill-labels.json lacks ${name}`)
+})

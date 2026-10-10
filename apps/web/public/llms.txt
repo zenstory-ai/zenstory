@@ -519,6 +519,22 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [When to Reveal a Twist in a Video Recap](https://zenstory.ai/video-recap/choose-when-to-reveal-a-twist-in-a-video-recap) — Choose a viewer question before revealing answers. Compare two openings from one original short film without hiding prerequisites or inventing motives.
 
 
+## Glossary
+
+Chinese web-fiction and short-drama craft terms that ZenStory AI tools implement as pipeline steps, each with an English bridge and, where one exists, the guide that teaches it. Index: https://zenstory.ai/glossary (中文: https://zenstory.ai/zh/glossary).
+
+- [扫榜 (chart scanning)](https://zenstory.ai/glossary/saobang) — 扫榜 (sǎo bǎng, 'chart scanning') means reading ranking and recommendation samples to find repeated patterns such as genre, protagonist setup and opening angle.
+- [拆文 (deconstruction)](https://zenstory.ai/glossary/chaiwen) — 拆文 (chāi wén) is structured analysis of a reference work: outline rhythm, plot modules, emotional beats, character functions, style and setting. How to do it: https://zenstory.ai/oh-story/learn-from-fiction
+- [去AI味 (de-AI editing)](https://zenstory.ai/glossary/qu-ai-wei) — 去AI味 (qù AI wèi, 'removing the AI flavor') is editing out formulaic phrasing and repeated sentence patterns common in model output so prose reads naturally. How to do it: https://zenstory.ai/oh-story/revise-ai-prose
+- [漫剧 (motion comic)](https://zenstory.ai/glossary/manju) — 漫剧 (màn jù, 'motion comic') is a short serialized drama told through animated or comic-style imagery, as opposed to live-action footage. How to do it: https://zenstory.ai/drama-skills/motion-comic
+- [黄金三章 (golden three chapters)](https://zenstory.ai/glossary/huangjinsanzhang) — 黄金三章 ('golden three chapters') is a serial's opening three chapters, read as one unit to check that premise, conflict, hooks and payoffs land early. How to do it: https://zenstory.ai/oh-story/novel-opening
+- [爽点 (payoff beat)](https://zenstory.ai/glossary/shuangdian) — 爽点 (shuǎng diǎn, 'payoff beat') is a planned moment of emotional payoff that answers an expectation built by earlier conflict or setup. How to do it: https://zenstory.ai/oh-story/satisfaction-beats
+- [钩子 (hook)](https://zenstory.ai/glossary/gouzi) — 钩子 (gōu zi, 'hook') is a device at a chapter break or inside a paragraph that pulls the reader onward, such as an open question, a countdown or a reversal. How to do it: https://zenstory.ai/oh-story/chapter-ending-hooks
+- [套路 (trope)](https://zenstory.ai/glossary/taolu) — 套路 (tào lù) is a familiar, reusable story pattern in web fiction, translated as 'trope' or 'formula'. How to do it: https://zenstory.ai/oh-story/tropes-without-copying
+- [分集地图 (episode map)](https://zenstory.ai/glossary/fenji-ditu) — 分集地图 (fēn jí dì tú, 'episode map') is an episode-by-episode handoff plan for a short-drama series. How to do it: https://zenstory.ai/drama-skills/episode-outline-template
+- [导演阐述 (director's statement)](https://zenstory.ai/glossary/daoyan-chanshu) — 导演阐述 (dǎo yǎn chǎn shù, 'director's statement') is a document that sets a project's visual direction and production constraints. How to do it: https://zenstory.ai/drama-skills/write-a-short-drama-director-statement
+- [冻结关键帧 (frozen keyframe prompt)](https://zenstory.ai/glossary/dongjie-guanjianzhen) — 冻结关键帧 (dòng jié guān jiàn zhēn, 'frozen keyframe') is the prompt or specification for the visible start of a shot in a Drama Skills storyboard. How to do it: https://zenstory.ai/drama-skills/generate-an-ai-storyboard-frame
+
 ## Workbench docs
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
 

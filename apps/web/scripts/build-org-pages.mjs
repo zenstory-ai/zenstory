@@ -40,6 +40,8 @@ const glossary = JSON.parse(readFileSync(join(webRoot, 'content/glossary.json'),
 const guides = JSON.parse(readFileSync(join(webRoot, 'content/guides.json'), 'utf8'))
 const comparisons = JSON.parse(readFileSync(join(webRoot, 'content/comparisons.json'), 'utf8'))
 const topics = JSON.parse(readFileSync(join(webRoot, 'content/guide-topics.json'), 'utf8'))
+/** Reader-facing names of the skills behind guides, from each skill's own description (topic page group headings). */
+const skillLabels = JSON.parse(readFileSync(join(webRoot, 'content/skill-labels.json'), 'utf8'))
 const topicIds = new Set(topics.map((topic) => topic.slug))
 assert.equal(topicIds.size, topics.length, 'Duplicate guide topic')
 for (const topic of topics) {
@@ -653,6 +655,18 @@ const startBlock = (p, own) => {
   </section>`
 }
 
+/**
+ * A project's craft articles as a way in, not a dump: the complete workflow built on this project's
+ * skills (if any), then its creative tasks with how many articles each holds, linking the task pages.
+ */
+const projectCraft = (p, craft) => {
+  const flows = WORKFLOWS.filter((flow) => flow.steps.every((ref) => ref.startsWith(`${p.slug}/`)) && workflowItems(flow).length > 1)
+  const tasks = topics.map((topic) => [topic, craft.filter((a) => topicOf(a) === topic.slug).length]).filter(([, count]) => count)
+  return `<p class="section-lede">${t(`${craft.length} craft articles, each built on a method file in this project's skills.${flows.length ? ' Start with the complete workflow, or open a task.' : ''}`, `共 ${craft.length} 篇写作技法，每篇都依据本项目 skill 里的方法文件。${flows.length ? '可以先走一遍完整创作路径，或按任务进入。' : ''}`)}</p>
+  ${flows.map((flow) => `<div class="learning-path project-path" id="path-${flow.id}"><p class="path-start">${t('Complete workflow', '完整创作路径')}</p><h3>${t(...flow.title)}</h3><ol>${workflowItems(flow).map(skillRow).join('')}</ol></div>`).join('')}
+  <h3 class="task-index-title">${t('By creative task', '按任务查看')}</h3>
+  <ul class="task-index">${tasks.map(([topic, count]) => `<li><a href="/guides/${topic.slug}"><span class="task-name">${esc(pick(topic.title))}</span><span class="task-count">${t(`${count} from ${esc(p.name.en)}`, `${count} 篇`)}</span></a></li>`).join('')}</ul>`
+}
 const projectPage = (p) => {
   const route = `/${p.slug}`
   const title = pick(p.seo.title)
@@ -714,7 +728,7 @@ const projectPage = (p) => {
   ${own.length ? `<section aria-labelledby="guides-h">${heading(2, 'Practical guides', '实用指南', 'guides-h')}
   ${guideList(own)}</section>` : ''}
   ${craft.length ? `<section aria-labelledby="craft-h">${heading(2, 'Writing craft', '写作技法', 'craft-h')}
-  ${topics.filter((topic) => craft.some((a) => topicOf(a) === topic.slug)).map((topic) => `<h3>${esc(pick(topic.title))}</h3>${articleList(craft.filter((a) => topicOf(a) === topic.slug))}`).join('')}</section>` : ''}
+  ${projectCraft(p, craft)}</section>` : ''}
 
   <section aria-labelledby="method-h">
   ${heading(2, 'How it works', '流程', 'method-h')}
@@ -756,6 +770,14 @@ const guideExample = (text) => `
 </section>`
 
 /**
+ * "On this page": a sticky side rail on wide screens; on phones a closed disclosure (one row), so the
+ * article starts on the first screen. The inline script opens it on wide screens before it is painted
+ * beside the article; without JavaScript it stays closed and opens on tap.
+ */
+const tocNav = (entries) => `<nav class="guide-contents" aria-label="${t('On this page', '本页导航')}"><details><summary><b>${t('On this page', '本页导航')}</b><span class="toc-count">${t(`${entries.length} sections`, `${entries.length} 节`)}</span></summary>
+    <ul>${entries.map(([id, text]) => `<li><a href="#${id}">${esc(text)}</a></li>`).join('')}</ul>
+  </details><script>if(matchMedia('(min-width: 961px)').matches)document.currentScript.previousElementSibling.open=true</script></nav>`
+/**
  * Complete workflows on /guides, grouped by what the writer starts with (the homepage's material paths).
  * Steps are `owner/slug` of guides or articles; every step page shows its place in the workflow and the next step.
  */
@@ -773,7 +795,9 @@ const workflowItems = (flow) => flow.steps.map((ref) => readingOf().find((candid
  * them as markdown links in their sources. Every link points at a pinned commit of the owner repository.
  */
 const methodOf = (item) => {
-  if (item.skill) return { name: item.skill.name, url: item.skill.url, files: (item.sources ?? []).map((source) => ({ label: pick(source.label), url: source.url })) }
+  // A source labelled only "method used in this article" is named by its file, which says more.
+  const fileLabel = (label, url) => (/^(?:本文方法来源|Method used in this article)$/.test(label) ? url.replace(/[#?].*$/, '').split('/').pop().replace(/\.(?:md|py|sh)$/, '') : label)
+  if (item.skill) return { name: item.skill.name, url: item.skill.url, files: (item.sources ?? []).map((source) => ({ label: fileLabel(pick(source.label), source.url), url: source.url })) }
   const links = [...pick(item.sources).join('\n').matchAll(/\[([^\]]+)\]\((https:\/\/github\.com\/[^)\s]+)\)/g)].map(([, label, url]) => ({ label: label.replace(/`/g, ''), url }))
   // A guide that cites only a skill's reference files still names that skill: its SKILL.md at the same pinned commit.
   const pinned = links.filter((link) => /\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[a-z0-9-]+\//.test(link.url))
@@ -828,18 +852,15 @@ const guidePage = (g) => {
   ${methodStrip(g)}
   <p class="actions guide-actions"><a class="crumb" href="/${owner.slug}">${t('Part of', '所属项目')} <b>${esc(owner.name.en)}</b>${arrowGlyph}</a><a class="crumb" href="${owner.github}">${t('Source on GitHub', '在 GitHub 查看源码')}${extGlyph}</a></p>
   </header>
-  <nav class="guide-contents" aria-label="${t('On this page', '本页导航')}">
-    <p><b>${t('On this page', '本页导航')}</b></p>
-    <ul>
-      <li><a href="#before-you-start">${t('Before you start', '开始之前')}</a></li>
-      <li><a href="#steps">${t('Steps', '操作步骤')}</a></li>
-      <li><a href="#example-${LANG}">${t('Example', '示例')}</a></li>
-      ${g.faq?.length ? `<li><a href="#faq">${t('FAQ', '常见问题')}</a></li>` : ''}
-      <li><a href="#expected-files">${t('Expected files', '预期文件')}</a></li>
-      <li><a href="#verify-result">${t('Check the result', '检查结果')}</a></li>
-      <li><a href="#sources">${t('Sources', '来源')}</a></li>
-    </ul>
-  </nav>
+  ${tocNav([
+    ['before-you-start', t('Before you start', '开始之前')],
+    ['steps', t('Steps', '操作步骤')],
+    [`example-${LANG}`, t('Example', '示例')],
+    ...(g.faq?.length ? [['faq', t('FAQ', '常见问题')]] : []),
+    ['expected-files', t('Expected files', '预期文件')],
+    ['verify-result', t('Check the result', '检查结果')],
+    ['sources', t('Sources', '来源')],
+  ])}
   <div class="guide-body">
   ${heading(2, 'Before you start', '开始之前', 'before-you-start')}
   ${pair(list(g.prerequisites.en), list(g.prerequisites.zh), 'cols')}
@@ -868,7 +889,6 @@ const guidePage = (g) => {
 const articlesOf = (slug) => articles.filter((a) => a.owner === slug && a.langs.includes(LANG))
 /** Guides and craft articles (of one project, or all) on the current language's site. */
 const readingOf = (slug) => [...guides, ...articles.filter((a) => a.langs.includes(LANG))].filter((item) => !slug || item.owner === slug)
-const articleList = (items) => `<ul class="guide-list">${items.map((a) => `<li>${listLink(`/${a.owner}/${a.slug}`, esc(a.title.en ?? ''), esc(a.title.zh))}</li>`).join('')}</ul>`
 
 /** Title of an organization route on the current language's site, for related-reading lists. */
 const routeTitle = (route) => {
@@ -924,10 +944,7 @@ const articlePage = (a) => {
   <div class="pair answer"><div class="l-${LANG}"${zhMark}>${md(pick(a.answer))}</div></div>
   ${methodStrip(a)}
   </header>
-  <nav class="guide-contents" aria-label="${t('On this page', '本页导航')}">
-    <p><b>${t('On this page', '本页导航')}</b></p>
-    <ul>${contents.map(([id, text]) => `<li><a href="#${id}">${esc(text)}</a></li>`).join('')}</ul>
-  </nav>
+  ${tocNav(contents)}
   <div class="guide-body article-body"${zhMark}>
   ${a.sections.map((section) => `<section aria-labelledby="${section.id}">
   <h2 id="${section.id}">${esc(pick(section.heading))}</h2>
@@ -1041,11 +1058,41 @@ const guidesIndex = () => {
   write(route,page({route,title,description,ogType:'website',ld,body}))
 }
 
+/**
+ * A task's guides grouped by the skill behind them, when at least two skills hold three or more;
+ * smaller ones share an "other methods" group. Shows which skill's knowhow a task draws on.
+ */
+const GUIDES_GROUP = '#guides'
+const skillGroups = (items) => {
+  // Step-by-step guides (guides.json) lead the task as their own group; craft articles group by skill.
+  const crafts = items.filter((item) => item.skill)
+  const counts = new Map()
+  for (const item of crafts) counts.set(item.skill.name, (counts.get(item.skill.name) ?? 0) + 1)
+  const major = [...counts].filter(([, count]) => count >= 3).sort((a, b) => b[1] - a[1]).map(([name]) => name)
+  if (major.length < 2) return null
+  const key = (item) => (!item.skill ? GUIDES_GROUP : major.includes(item.skill.name) ? item.skill.name : '')
+  const order = [GUIDES_GROUP, ...major, '']
+  return { order, key, total: new Map(order.map((name) => [name, items.filter((item) => key(item) === name).length])) }
+}
+const skillGroupHead = (name, count, sample) => `<h3 class="skill-group">${name === GUIDES_GROUP
+  ? `<span class="skill-group-name">${t('Step-by-step guides', '操作指南')}</span>`
+  : name
+  ? `<span class="skill-group-name">${esc(skillLabels[name] ? pick(skillLabels[name]) : name)}</span><a class="skill-chip" href="${esc(methodOf(sample).url)}"><code>${esc(name)}</code></a>`
+  : `<span class="skill-group-name">${t('Other methods', '其他方法')}</span>`}<span class="skill-group-count">${t(`${count} guides`, `${count} 篇`)}</span></h3>`
+/** Compact rows: the title and the method behind it; the description lives on the guide itself. */
+const compactList = (items, withSkill) => `<ul class="reading-list compact">${items.map((item) => `<li>${guideLink(item)}${withSkill ? methodFacts(item) : methodFiles(item)}</li>`).join('')}</ul>`
+const methodFiles = (item) => {
+  const method = methodOf(item)
+  return method?.files.length ? `<p class="method-facts">${method.files.slice(0, 2).map((file) => esc(file.label)).join(dot)}</p>` : ''
+}
 const topicPage = (topic, number = 1) => {
   const route = topicRoute(topic, number)
   const items = topicReading(topic)
   const featured = topicFeatured(topic)
-  const rest = items.filter((item) => !featured.includes(item))
+  const unfeatured = items.filter((item) => !featured.includes(item))
+  const groups = skillGroups(unfeatured)
+  // Grouped tasks page through one skill group after another (sort is stable within a group).
+  const rest = groups ? [...unfeatured].sort((a, b) => groups.order.indexOf(groups.key(a)) - groups.order.indexOf(groups.key(b))) : unfeatured
   const ordered = [...featured, ...rest]
   const current = ordered.slice((number - 1) * TOPIC_PAGE_SIZE, number * TOPIC_PAGE_SIZE)
   const count = topicPageCount(topic, LANG)
@@ -1059,7 +1106,9 @@ const topicPage = (topic, number = 1) => {
     <nav class="terms jump" aria-label="${t('Other creative tasks','其他创作任务')}">${topics.filter((other)=>other.slug!==topic.slug && topicReading(other).length).map((other)=>`<a href="/guides/${other.slug}">${esc(pick(other.title))}</a>`).join(' ')}</nav>
   </div></header><div class="wrap page-body">
     ${number === 1 ? `<section aria-labelledby="topic-start"><h2 id="topic-start">${t('Start here','先看这几篇')}</h2>${libraryList(current.filter((item) => featured.includes(item)))}</section>` : ''}
-    ${current.some((item) => !featured.includes(item)) ? `<section aria-labelledby="topic-more"><h2 id="topic-more">${t('More questions and methods','更多问题与方法')}</h2>${libraryList(current.filter((item) => !featured.includes(item)))}</section>` : ''}
+    ${((more) => more.length ? `<section aria-labelledby="topic-more"><h2 id="topic-more">${t('More questions and methods','更多问题与方法')}</h2>${groups
+      ? groups.order.filter((name) => more.some((item) => groups.key(item) === name)).map((name) => `${skillGroupHead(name, groups.total.get(name), more.find((item) => groups.key(item) === name))}${compactList(more.filter((item) => groups.key(item) === name), name === '' || name === GUIDES_GROUP)}`).join('')
+      : compactList(more, true)}</section>` : '')(current.filter((item) => !featured.includes(item)))}
     ${pagination}
   </div></article>`
   const alternates = number <= Math.min(topicPageCount(topic, 'en'), topicPageCount(topic, 'zh')) ? alternatesOf(route) : null

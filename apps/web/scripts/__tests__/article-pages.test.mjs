@@ -123,9 +123,10 @@ test('craft articles render free-form sections, one language per URL, and Chines
   assert.ok(only.includes('<a href="/oh-story" lang="en" hreflang="en">EN</a>'))
   assert.ok(only.includes(`href="/zh${bilingualRoute}"`))
 
-  // Listed on the project page and the guides index of each language it exists in.
+  // Listed on its task page (fixtures carry no topic, so Oh Story's default task) and the guides index of
+  // each language it exists in. Project pages link tasks, not every article (2026-10-10).
   for (const lang of LANGS) {
-    for (const hub of ['/oh-story', '/guides']) {
+    for (const hub of ['/guides/plot-and-outline', '/guides']) {
       const html = readPage(out, routeIn(lang, hub).slice(1))
       assert.ok(html.includes(`href="${routeIn(lang, bilingualRoute)}"`), `${hub} (${lang}) lacks the bilingual article`)
       assert.equal(html.includes(`href="${routeIn(lang, zhOnlyRoute)}"`), lang === 'zh', `${hub} (${lang}) Chinese-only listing`)
