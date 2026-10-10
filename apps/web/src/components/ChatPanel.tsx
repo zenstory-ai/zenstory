@@ -43,7 +43,12 @@ import { QuotaBadge } from "./subscription/QuotaBadge";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
-import { flushOpenEditor, type OpenEditorFlushResult } from "../lib/editorSaveTracker";
+import {
+  EDITOR_CONTENT_SAVED_EVENT,
+  flushOpenEditor,
+  type EditorContentSavedDetail,
+  type OpenEditorFlushResult,
+} from "../lib/editorSaveTracker";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -575,18 +580,43 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, [currentProjectId, generationMode, t]);
 
   const currentProjectIdRef = useRef<string | null>(currentProjectId);
-  // "Write chapter 1" once a framework exists but no prose yet; refreshed on open and after each round.
+  // "Write chapter 1" once a framework exists but no prose yet; refreshed on open, after each round
+  // and after an editor save while the card can show.
   const [frameworkReadyProjectId, setFrameworkReadyProjectId] = useState<string | null>(null);
+  // 与 frameworkReadyProjectId 同步的镜像，供保存事件监听器读取当前值。
+  const frameworkReadyRef = useRef<string | null>(null);
   const nextStepDismissal = useNextStepDismissal();
+  // 供保存事件监听器读取最新的「先不用」判定。
+  const isNextStepDismissedRef = useRef(nextStepDismissal.isDismissed);
+  useEffect(() => {
+    isNextStepDismissedRef.current = nextStepDismissal.isDismissed;
+  }, [nextStepDismissal.isDismissed]);
+  // 只认最后一次发出的进度请求，先发后到的旧结果（如保存前发出的轮末刷新）不能把卡片翻回来。
+  const nextStepRequestSeqRef = useRef(0);
   const refreshNextStep = useCallback(async (projectId: string) => {
+    const seq = ++nextStepRequestSeqRef.current;
     try {
       const [progress] = await projectApi.getProgress(projectId);
-      if (currentProjectIdRef.current !== projectId) return;
-      setFrameworkReadyProjectId(progress?.framework_ready ? projectId : null);
+      if (currentProjectIdRef.current !== projectId || seq !== nextStepRequestSeqRef.current) return;
+      const ready = progress?.framework_ready ? projectId : null;
+      frameworkReadyRef.current = ready;
+      setFrameworkReadyProjectId(ready);
     } catch (error) {
       logger.warn("Failed to load the project's progress:", error);
     }
   }, []);
+  // 作者手动保存/自动保存正文后立即重查进度，写出第一章正文后卡片当场消失，
+  // 不必等下一轮或重开项目。只在卡片可能显示（框架就绪且未「先不用」）时才请求，卡片消失后的保存不再请求。
+  useEffect(() => {
+    const onSaved = (event: Event) => {
+      const projectId = (event as CustomEvent<EditorContentSavedDetail>).detail?.projectId;
+      if (!projectId || projectId !== currentProjectIdRef.current) return;
+      if (frameworkReadyRef.current !== projectId || isNextStepDismissedRef.current(projectId)) return;
+      void refreshNextStep(projectId);
+    };
+    window.addEventListener(EDITOR_CONTENT_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(EDITOR_CONTENT_SAVED_EVENT, onSaved);
+  }, [refreshNextStep]);
   useEffect(() => {
     currentProjectIdRef.current = currentProjectId;
     return () => {
@@ -1433,6 +1463,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setSuggestionDisplayState("loading");
     contextItemsRef.current = [];
 
+    frameworkReadyRef.current = null;
     setFrameworkReadyProjectId(null);
     void refreshNextStep(currentProjectId);
 
@@ -2371,6 +2402,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               projectType={currentProject?.project_type}
               onStart={(message) => {
                 trackEvent("ai_next_step_clicked", { project_id: frameworkReadyProjectId });
+                frameworkReadyRef.current = null;
                 setFrameworkReadyProjectId(null);
                 void handleSendMessage(message, undefined, { entry: "next_step" });
               }}

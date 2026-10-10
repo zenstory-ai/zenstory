@@ -106,6 +106,13 @@ def _classify_marker(
 # Buffer size limit (1MB)
 BUFFER_MAX_SIZE = 1024 * 1024
 
+# 正文以真实 </file> 收尾后，模型偶尔在同一回复里再补一对空的 <file></file>
+# （仅空白隔开）。处理器此时已回到 IDLE，这对标签会原样进对话气泡。只在
+# "刚收尾、尚未出现任何非空白文字"的窗口里识别并丢弃这一对；窗口内一旦出现
+# 别的文字（叙述、反引号、围栏、非空块）就立即关闭，原样输出。
+_EMPTY_FILE_PAIR_COMPACT = "<file></file>"
+_EMPTY_FILE_PAIR_PATTERN = re.compile(r"<\s*file\s*>\s*<\s*/\s*file\s*>", re.IGNORECASE)
+
 # 悬置（ambiguous）标记候选的等待上限：一个 </file> 候选因反引号/围栏未闭合被
 # 挂起后，若其后又累积了这么多字符仍无法判定，就按真实结束标记处理。没有这个
 # 上限时，一个永远等不到闭合围栏的候选会把其后的全部叙述扣在缓冲里，直到流
@@ -242,6 +249,11 @@ class StreamProcessor:
     prev_char: str = ""
     fence_open: bool = False
 
+    # 刚以真实 </file> 收尾的窗口（见 _EMPTY_FILE_PAIR_PATTERN）及其中暂扣的
+    # "可能是空标签对"的前缀
+    after_close: bool = False
+    idle_hold: str = ""
+
     def reset(self) -> None:
         """Reset processor to idle state."""
         self.state = StreamState.IDLE
@@ -251,6 +263,8 @@ class StreamProcessor:
         self.history_buffer = ""
         self.prev_char = ""
         self.fence_open = False
+        self.after_close = False
+        self.idle_hold = ""
 
     def start_file_write(self, file_id: str) -> None:
         """
@@ -266,6 +280,8 @@ class StreamProcessor:
         self.history_buffer = ""
         self.prev_char = ""
         self.fence_open = False
+        self.after_close = False
+        self.idle_hold = ""
 
         log_with_context(
             logger,
@@ -278,8 +294,13 @@ class StreamProcessor:
 
     @property
     def is_active(self) -> bool:
-        """Check if processor is actively handling file content."""
-        return self.state != StreamState.IDLE
+        """Check if processor is actively handling file content.
+
+        真实 </file> 收尾后的窗口也算活跃：适配器在 MESSAGE_END / 出错 / 下一次
+        create_file 前 / 流结束时都会据此调用 finalize_on_stream_end，把窗口里
+        暂扣的文字交还对话，保证不丢字。
+        """
+        return self.state != StreamState.IDLE or self.after_close or bool(self.idle_hold)
 
     def process_content(self, content: str) -> StreamResult:
         """
@@ -292,6 +313,8 @@ class StreamProcessor:
 
         if self.state == StreamState.IDLE:
             # Not in file writing mode - return as conversation
+            if self.after_close:
+                return StreamResult(conversation_content=self._filter_after_close(content))
             return StreamResult(conversation_content=content)
 
         if self.state == StreamState.WAITING_START:
@@ -304,6 +327,53 @@ class StreamProcessor:
             return self._process_draining(content)
 
         return StreamResult(conversation_content=content)
+
+    def _filter_after_close(self, text: str) -> str:
+        """收尾窗口内：丢弃仅由空白隔开的空 <file></file>，其余原样返回。
+
+        标签对可能被切成 "<"、"file"、">\n" 这样的碎 chunk（逐 chunk 的
+        normalize_file_markers 看不到跨 chunk 的整体），所以仍可能拼成空标签对
+        的前缀先暂扣在 idle_hold，凑齐两个 ">" 后再判定：精确匹配才丢弃，否则
+        关窗原样输出。暂扣长度有上限，窗口关闭/流结束时由 _release_after_close
+        交还。
+        """
+        buf = self.idle_hold + text
+        self.idle_hold = ""
+        out = ""
+        while buf and self.after_close:
+            stripped = buf.lstrip()
+            out += buf[: len(buf) - len(stripped)]
+            buf = stripped
+            if not buf:
+                break
+            first_close = buf.find(">")
+            second_close = buf.find(">", first_close + 1) if first_close >= 0 else -1
+            if second_close < 0:
+                compact = re.sub(r"\s+", "", buf).lower()
+                if _EMPTY_FILE_PAIR_COMPACT.startswith(compact) and len(buf) <= MAX_MARKER_LEN * 2:
+                    self.idle_hold = buf  # 还可能是空标签对，等后续 chunk
+                    return out
+                self.after_close = False
+                break
+            if _EMPTY_FILE_PAIR_PATTERN.fullmatch(buf[: second_close + 1]):
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Dropping empty <file></file> pair emitted after a completed file",
+                    project_id=self.project_id,
+                    user_id=self.user_id,
+                )
+                buf = buf[second_close + 1:]
+                continue
+            self.after_close = False
+        return out + buf
+
+    def _release_after_close(self) -> str:
+        """关闭收尾窗口，交还暂扣的文字（流/agent 结束、新捕获开始前）。"""
+        held = self.idle_hold
+        self.idle_hold = ""
+        self.after_close = False
+        return held
 
     def _process_waiting_start(self, content: str) -> StreamResult:
         """Process content while waiting for <file> marker."""
@@ -534,6 +604,10 @@ class StreamProcessor:
 
         # Reset state
         self.reset()
+        # 只有真实 </file> 收尾才打开窗口；自动补全 / DRAINING / WAITING_START
+        # 的收尾路径都不经过这里
+        self.after_close = True
+        after_marker = self._filter_after_close(after_marker)
 
         return StreamResult(
             file_content=file_content,
@@ -682,7 +756,7 @@ class StreamProcessor:
         - WRITING: auto-complete file content even without </file>
         """
         if self.state == StreamState.IDLE:
-            return StreamResult()
+            return StreamResult(conversation_content=self._release_after_close())
 
         if self.state == StreamState.DRAINING:
             # File was already force-completed at the size cap; discard the
@@ -727,6 +801,7 @@ class StreamProcessor:
             # 此前因歧义挂起的 </file> 到这里可确认为真实结束标记
             scanned = self._scan_writing_buffer(at_eof=True)
             if scanned.file_complete:
+                scanned.conversation_content_after_file += self._release_after_close()
                 return scanned
 
             trailing = self.temp_buffer

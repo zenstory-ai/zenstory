@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectDashboardPage from '../ProjectDashboardPage'
 import zhDashboard from '../../../public/locales/zh/dashboard.json'
@@ -35,6 +35,13 @@ vi.mock('react-i18next', () => ({
           'common.refresh': 'Refresh',
           'dashboard.tabs.overview': 'Overview',
           'statistics.wordCount.title': 'Word Count',
+          'statistics.wordCount.today': 'Today',
+          'statistics.wordCount.thisWeek': 'This Week',
+          'statistics.wordCount.thisMonth': 'This Month',
+          'statistics.wordCount.total': 'Total',
+          'statistics.wordCount.mine.today': 'You wrote today',
+          'statistics.wordCount.mine.thisWeek': 'You wrote this week',
+          'statistics.wordCount.mine.thisMonth': 'You wrote this month',
           'statistics.chapterCompletion.title': 'Chapters',
           'statistics.byType.novel.completionTitle': 'Chapters',
           'statistics.byType.screenplay.completionTitle': 'Episode Completion',
@@ -225,6 +232,44 @@ describe('ProjectDashboardPage', () => {
     expect(byType.short.completionTitle).toBe('完成情况')
     expect(byType.screenplay.countFinished).toBe('{{count}} 集已完成')
     expect(byType.short.countPlanned).toBe('{{count}} 篇还没开始')
+  })
+
+  it('labels the author-only period counts apart from the AI-inclusive totals', () => {
+    // 左卡是「你写 + AI 写」合计，右卡只是作者手写（words_*），两者不能共用「今日字数」
+    mockStats = {
+      ...mockStats,
+      total_word_count: 10955,
+      words_today: 47,
+      words_this_week: 47,
+      words_this_month: 47,
+      ai_words_today: 10908,
+      ai_words_this_week: 10908,
+      ai_words_this_month: 10908,
+    }
+    render(<ProjectDashboardPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Word Count' }))
+
+    // 「Today」只剩左卡一处，且对应合计值
+    expect(screen.getAllByText('Today')).toHaveLength(1)
+    expect(screen.getByText('Today').closest('div')).toHaveTextContent('10,955')
+
+    // 右卡用「你写」口径标注作者手写字数
+    const mineToday = screen.getByText('You wrote today')
+    expect(mineToday.parentElement).toHaveTextContent('47')
+    expect(mineToday.parentElement).not.toHaveTextContent('10,955')
+    expect(screen.getByText('You wrote this week').parentElement).toHaveTextContent('47')
+    expect(screen.getByText('You wrote this month').parentElement).toHaveTextContent('47')
+    // 右卡的总字数行仍是含 AI 的全文总字数，不受改名影响
+    const rightCard = screen.getByRole('heading', { name: '字数趋势' }).parentElement as HTMLElement
+    expect(within(rightCard).getByText('You wrote today')).toBe(mineToday)
+    expect(within(rightCard).getByText('Total').parentElement).toHaveTextContent('10,955')
+
+    expect(zhDashboard.statistics.wordCount.mine).toEqual({
+      today: '今日你写',
+      thisWeek: '本周你写',
+      thisMonth: '本月你写',
+    })
+    expect(zhDashboard.statistics.wordCount.today).toBe('今日字数')
   })
 
   it('falls back to the localized dashboard title while the project list has not loaded', () => {

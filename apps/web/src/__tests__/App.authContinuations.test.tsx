@@ -18,6 +18,7 @@ import App from '../App'
 import i18n from '../lib/i18n'
 import { clearAuthStorage } from '../lib/apiClient'
 import { takeAuthCallbackParams } from '../lib/authCallbackParams'
+import { rememberSignedInUser } from '../lib/authFlow'
 import { identifyUser, trackEvent } from '../lib/analytics'
 
 // Actual App includes BrowserRouter, AuthProvider, AuthIdentityQueryBoundary,
@@ -92,7 +93,7 @@ beforeEach(async () => {
   vi.stubGlobal('sessionStorage', new window.Storage());
   calls = []; unexpected = []; pending = []; hrefWrites = []; expectedNetworkError = null; vi.clearAllMocks()
   expect(localStorage).toBeInstanceOf(Storage); expect(vi.isMockFunction(localStorage.getItem)).toBe(false)
-  localStorage.clear(); sessionStorage.clear(); clearAuthStorage('offline-case-start'); takeAuthCallbackParams()
+  localStorage.clear(); sessionStorage.clear(); clearAuthStorage('offline-case-start'); takeAuthCallbackParams(); rememberSignedInUser(null)
   handler = ordinary
   vi.spyOn(window.history, 'pushState'); vi.spyOn(window.history, 'replaceState') // Call-through observation, real Router/history retained.
   vi.spyOn(window.location, 'href', 'set').mockImplementation(value => { hrefWrites.push(value) })
@@ -196,6 +197,28 @@ for (const strict of [true, false]) {
       expect(window.location.pathname + window.location.search + window.location.hash).toBe(mode === 'paid' ? '/dashboard/billing?plan=pro' : '/dashboard/projects?source=homepage#intent')
       expect(window.history.state?.usr?.zenstoryLoginAttempt).toBeUndefined()
       if (mode === 'deep-link') expect(window.history.state.usr).toEqual({ authorIntent: true })
+    })
+    // 同一浏览器登出 A 再登入 B：ProtectedRoute 留下的 A 回跳目标不能把 B 送进 A 的页面；
+    // 同账号重新登录仍回到原深链接。走真实身份边界重挂（AuthIdentityQueryBoundary）。
+    it.each(['B', 'A'] as const)('logout inside A protected page then Login as %s only restores an A-owned return target', async next => {
+      let logins = 0
+      handler = async call => call.path === '/api/auth/login' ? json(++logins === 1 ? a : next === 'B' ? b : a) : ordinary(call)
+      mount(strict, '/login'); await login('A')
+      await waitFor(() => expect(window.location.pathname).toBe('/dashboard'))
+      depart('/dashboard/projects?owner=A#recent')
+      await waitFor(() => expect(screen.queryByTestId('login-form')).not.toBeInTheDocument())
+      act(() => clearAuthStorage('offline-explicit-logout'))
+      await waitFor(() => expect(screen.getByTestId('login-form')).toBeInTheDocument())
+      const returnState = window.history.state?.usr
+      await login(next)
+      await waitFor(() => expect(vi.mocked(identifyUser).mock.calls.at(-1)?.[0].id).toBe(next))
+      await waitFor(() => expect(window.history.state?.usr?.zenstoryLoginAttempt).toBeUndefined())
+      observe(`relogin-return-target-${next}`, strict, { returnState })
+      expect(localStorage.getItem('access_token')).toBe(next === 'B' ? b.access_token : a.access_token)
+      expect(window.location.pathname + window.location.search + window.location.hash)
+        .toBe(next === 'B' ? '/dashboard' : '/dashboard/projects?owner=A#recent')
+      expect(returnState?.from?.pathname).toBe('/dashboard/projects')
+      expect(returnState?.fromUserId).toBe('A')
     })
     it.each(['logout', 'new B', 'page departure'] as const)('obsolete Login list after %s cannot replace current App route', async boundary => {
       const list = hold(); let projects = 0, logins = 0

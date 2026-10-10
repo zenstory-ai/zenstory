@@ -22,7 +22,15 @@ import { RouteChangeTracker } from "./components/RouteChangeTracker";
 import { SiteBoundary } from "./components/SiteBoundary";
 import { logger } from "./lib/logger";
 import { fileApi } from "./lib/api";
-import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, type LoginAttempt } from "./lib/authFlow";
+import {
+  LOGIN_ATTEMPT_KEY,
+  RETURN_OWNER_KEY,
+  lastSignedInUser,
+  normalizePlanIntent,
+  ownedReturnTarget,
+  rememberSignedInUser,
+  type LoginAttempt,
+} from "./lib/authFlow";
 import { ApiError, clearAuthStorage, resolveOwnedAuthSession } from "./lib/apiClient";
 import { onboardingPersonaApi, personaOnboardingQueryKey } from "./lib/onboardingPersonaApi";
 import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "./lib/lastOpenedFile";
@@ -92,13 +100,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     queryFn: onboardingPersonaApi.getState,
     enabled: shouldCheckOnboarding,
   });
+  const signedInId = user?.id;
+  React.useEffect(() => {
+    if (signedInId) rememberSignedInUser(signedInId);
+  }, [signedInId]);
 
   if (loading) {
     return <PageLoader />;
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // 回跳目标记下归属账号：登出 A 后换 B 登录时不再回到 A 的页面。
+    const owner = lastSignedInUser();
+    return <Navigate to="/login" state={{ from: location, ...(owner ? { [RETURN_OWNER_KEY]: owner } : {}) }} replace />;
   }
 
   if (shouldCheckOnboarding && onboardingState.isPending) {
@@ -231,8 +245,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
       const attempt = window.history.state?.usr?.[LOGIN_ATTEMPT_KEY] as LoginAttempt | undefined;
       const continuationState = attempt?.kind === 'login' && typeof attempt.id === 'string'
         ? { [LOGIN_ATTEMPT_KEY]: attempt } : {};
-      const from = state?.from as { pathname?: string; search?: string; hash?: string; state?: object } | undefined;
-      if (from && typeof from.pathname === 'string') {
+      const from = ownedReturnTarget(state, user.id);
+      if (from) {
         return <Navigate to={`${from.pathname}${from.search ?? ''}${from.hash ?? ''}`}
           state={{ ...from.state, ...continuationState }} replace />;
       }

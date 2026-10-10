@@ -1,5 +1,7 @@
 """Regression tests for the file-streaming state machine."""
 
+import pytest
+
 from agent.core.stream_processor import (
     BUFFER_MAX_SIZE,
     StreamProcessor,
@@ -276,3 +278,178 @@ def test_drain_ignores_inline_code_end_marker():
     closing = proc.process_content("</file>之后的对话")
     assert closing.conversation_content == "之后的对话"
     assert proc.state == StreamState.IDLE
+
+
+# ---------------------------------------------------------------------------
+# 正文以真实 </file> 收尾后，模型偶尔在同一回复里再补一对空的 <file></file>，
+# 且被切成很碎的 chunk（生产 sse-loop1.txt 事件 18015–18022）。处理器此时已回到
+# IDLE，这对标签会原样进聊天气泡并写入历史。只丢弃"紧随真实收尾、仅由空白隔开"
+# 的精确空标签对；叙述/代码里的字面标签、非空块、被截断的前缀一律原样保留。
+# ---------------------------------------------------------------------------
+
+# 生产流的实际切分：正文末尾 chunk 带 </file>，之后是 "\n\n" 和六个碎 chunk
+PROD_EMPTY_PAIR_CHUNKS = [
+    "<file>\n　　我叫温知夏。\n",
+    "就没打算",
+    "松开我的手。\n\n　　只是上一世，雨太大，我没看清。\n",
+    "</file>\n\n",
+    "<",
+    "file",
+    ">\n",
+    "</",
+    "file",
+    ">",
+]
+
+
+def _chat_through_eof(results, proc):
+    """所有 chunk 的对话输出 + 流结束 finalize 交还的内容（不得有丢失）。"""
+    tail = proc.finalize_on_stream_end()
+    return _all_conversation(results + [tail]), tail
+
+
+def test_prod_split_empty_pair_after_close_is_dropped():
+    results, proc = _drive(PROD_EMPTY_PAIR_CHUNKS)
+    completed = [r for r in results if r.file_complete]
+    assert len(completed) == 1
+    assert completed[0].final_content == (
+        "\n　　我叫温知夏。\n就没打算松开我的手。\n\n　　只是上一世，雨太大，我没看清。\n"
+    )
+    chat, tail = _chat_through_eof(results, proc)
+    assert chat == "\n\n"
+    assert not tail.file_complete
+    assert not proc.is_active
+
+
+@pytest.mark.parametrize(
+    "chunk",
+    [
+        "</file>\n\n<file>\n</file>",
+        "</file><FILE></File>",
+        "</file> < file >\n< /file >",
+    ],
+)
+def test_empty_pair_in_same_chunk_as_close_is_dropped(chunk):
+    results, proc = _drive(["<file>正文", chunk])
+    assert next(r for r in results if r.file_complete).final_content == "正文"
+    chat, _ = _chat_through_eof(results, proc)
+    assert "file" not in chat.lower()
+    assert chat.strip() == ""
+
+
+def test_text_after_dropped_pair_is_kept():
+    results, proc = _drive(["<file>正文</file>\n<file></file>", "\n\n已写完。"])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == "\n\n\n已写完。"
+
+
+def test_two_empty_pairs_after_close_are_dropped_and_prose_kept():
+    results, proc = _drive(["<file>正文</file>", "<file></file>\n<file></file>说明"])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == "\n说明"
+
+
+# ---- 守卫：以下输入修复前后都必须原样输出、不丢字 ----
+
+
+def test_narration_first_then_literal_pair_is_kept():
+    results, proc = _drive(["<file>正文</file>", "\n\n空标签写法是 ", "<file></file>", "。"])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == "\n\n空标签写法是 <file></file>。"
+    assert not proc.is_active
+
+
+@pytest.mark.parametrize("literal", ["`<file></file>`", "```\n<file></file>\n```"])
+def test_code_literal_pair_after_close_split_per_char_is_kept(literal):
+    results, proc = _drive(["<file>正文</file>\n", *literal])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == "\n" + literal
+
+
+def test_non_empty_stray_block_after_close_is_kept():
+    results, proc = _drive(["<file>正文</file>\n", "<file>", "多出来的正文", "</file>"])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == "\n<file>多出来的正文</file>"
+
+
+@pytest.mark.parametrize(
+    "chunks, expected",
+    [
+        (["<", "br>换行"], "<br>换行"),
+        (["<file/>"], "<file/>"),
+        (["<", "-- 注意"], "<-- 注意"),
+        (["<file>", "\n后面是叙述"], "<file>\n后面是叙述"),
+    ],
+)
+def test_other_text_after_close_is_kept_verbatim(chunks, expected):
+    results, proc = _drive(["<file>正文</file>", *chunks])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == expected
+    assert not proc.is_active
+
+
+@pytest.mark.parametrize("partial", ["\n<fi", "<file>\n</fi", "\n<file>\n", "<file></"])
+def test_unfinished_pair_prefix_is_released_at_stream_end(partial):
+    results, proc = _drive(["<file>正文</file>", partial])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == partial
+    assert not proc.is_active
+
+
+def test_overlong_whitespace_padded_prefix_is_not_held():
+    # 暂扣有长度上限：超长空白填充的前缀不再等待，当场原样输出
+    padded = "<file>" + " " * 80
+    results, proc = _drive(["<file>A</file>", padded])
+    assert results[-1].conversation_content == padded
+    assert not proc.is_active
+
+
+def test_unfinished_prefix_is_released_before_next_capture():
+    # 适配器在 create_file 前会 finalize（_flush_active_capture），暂扣前缀必须交还
+    results, proc = _drive(["<file>A</file>", "<file>\n"])
+    chat, _ = _chat_through_eof(results, proc)
+    assert chat == "<file>\n"
+    proc.start_file_write("file-2")
+    r = proc.process_content("<file>B</file>")
+    assert r.file_complete and r.final_content == "B"
+
+
+def test_eof_confirmed_close_releases_held_prefix():
+    # 围栏未闭合使 </file> 悬置，流结束复扫才确认为真实收尾；其后的前缀照样交还
+    results, proc = _drive(["<file>```\n正文\n", "</file>\n<file>"])
+    tail = proc.finalize_on_stream_end()
+    assert tail.file_complete and tail.final_content == "```\n正文\n"
+    assert _all_conversation(results + [tail]) == "\n<file>"
+    assert not proc.is_active
+
+
+def test_empty_pair_without_preceding_close_is_untouched():
+    proc = StreamProcessor()
+    assert proc.process_content("<file></file>").conversation_content == "<file></file>"
+    assert not proc.is_active
+
+
+def test_window_closes_at_agent_boundary():
+    results, proc = _drive(["<file>正文</file>"])
+    assert proc.finalize_on_stream_end().conversation_content == ""
+    assert not proc.is_active
+    assert proc.process_content("<file></file>").conversation_content == "<file></file>"
+
+
+def test_auto_completed_capture_does_not_open_window():
+    _, proc = _drive(["<file>正文"])
+    final = proc.finalize_on_stream_end()
+    assert final.file_complete and final.auto_completed
+    assert proc.process_content("<file></file>").conversation_content == "<file></file>"
+    assert not proc.is_active
+
+
+def test_draining_close_does_not_open_window():
+    proc = StreamProcessor()
+    proc.start_file_write("file-1")
+    proc.process_content("<file>")
+    proc.process_content("x" * (BUFFER_MAX_SIZE + 100))
+    assert proc.state == StreamState.DRAINING
+    closing = proc.process_content("</file><file></file>")
+    assert closing.conversation_content == "<file></file>"
+    assert not proc.is_active
