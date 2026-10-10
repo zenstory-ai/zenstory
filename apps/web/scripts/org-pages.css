@@ -575,7 +575,6 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .path-step { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 14px; }
 .path-step a { color: var(--ink-2); text-decoration: none; }
 .path-step a:hover { color: var(--accent-text); }
-.path-step .path-step-next { color: var(--ink); font-weight: 600; }
 .path-next { margin: 40px 0 0; padding: 18px 20px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface); }
 .path-next-place { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
 .path-next a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: var(--ink); font-weight: 600; text-decoration: none; }

@@ -162,7 +162,8 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       assert.equal(doc.publisher['@id'], 'https://zenstory.ai/#org')
       assert.deepEqual(graph[2].itemListElement.map(item => item.item), [urlIn(lang, '/'), urlIn(lang, `/${owner.slug}`), url])
       const projectArticle = matches(readOutput(outDir, outPath(lang, `/${owner.slug}`)), /<article class="project">([\s\S]*?)<\/article>/g)[0][1]
-      assert.ok(projectArticle.includes(`href="${routeIn(lang, route)}"`))
+      // Linked from the project page: in its guide list, or (English content keeps absolute links) as a worked example under “How it works”.
+      assert.ok([`href="${routeIn(lang, route)}"`, `href="https://zenstory.ai${routeIn(lang, route)}"`].some((href) => projectArticle.includes(href)), `/${owner.slug} (${lang}) does not link ${route}`)
       assert.ok(readOutput(outDir, outPath(lang, `/guides/${guide.topic}`)).includes(`href="${routeIn(lang, route)}"`), 'each workflow belongs to a reachable task category')
     }
   }
