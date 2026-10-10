@@ -572,6 +572,7 @@ const homePage = () => {
       ${heading(2, 'Real projects. Visible results.', phrases('真实项目，', '看得见的产物'), 'examples-h')}
       <p class="section-lede">${t('Demos and playable prototypes from our project READMEs, each with the method behind it.', '各项目 README 里的演示与可试玩原型，每个都附创作方法。')}</p>
     </header>
+    <p class="swipe-hint" aria-hidden="true">${t(`Swipe to see all ${showcases.length} demos`, `左右滑动，查看全部 ${showcases.length} 个演示`)}<span class="arrow">→</span></p>
     <div class="showcase-grid">${showcaseCards()}</div>
     <p class="more stage-next"><a href="#start-h">${t('Pick a path for what you have', '看看从哪里开始')}<span class="arrow" aria-hidden="true">↓</span></a></p>
   </div></section>

@@ -372,6 +372,14 @@ test('homepage offers three crawlable paths for the visitor’s three input stat
   }
 })
 
+test('the showcase says how many cases a phone visitor can swipe through', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const cases = elementsWithClass(section(html, 'examples-h'), 'case-card', 'article').length
+    const hint = section(html, 'examples-h').match(/<p class="swipe-hint" aria-hidden="true">([^<]+)</)?.[1] ?? ''
+    assert.ok(hint.includes(String(cases)), `${lang}: swipe hint must count the ${cases} cases`)
+  }
+})
+
 test('the idea path lets a visitor with no agent start writing in the browser workbench', () => {
   for (const [lang, html] of Object.entries(pages)) {
     const paths = elementsWithClass(section(html, 'start-h'), 'learning-path')

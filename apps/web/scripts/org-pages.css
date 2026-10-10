@@ -1032,6 +1032,16 @@ html[data-lang="zh"] [data-page="home"] .library-search label { font-size: 13px;
 @media (max-width: 359px) {
   :root { --top-h: 134px; }
 }
+/* Phones: the five cases scroll sideways (owner decision 2026-10-10) instead of stacking ~3300px; the next card
+   peeks in as the cue, and a phone-only line says how many there are. Every card keeps its full copy. */
+[data-page="home"] .swipe-hint { display: none; }
+@media (max-width: 720px) {
+  [data-page="home"] .swipe-hint { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 22px 0 0; font-size: 13.5px; color: var(--stage-muted); }
+  [data-page="home"] .showcase-grid { display: flex; gap: 14px; margin: 18px calc(-1 * var(--gutter)) 0; padding: 0 var(--gutter) 4px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); overscroll-behavior-x: contain; scrollbar-width: none; }
+  [data-page="home"] .showcase-grid::-webkit-scrollbar { display: none; }
+  [data-page="home"] .case-card, [data-page="home"] .case-card.is-feature { flex: 0 0 84%; display: flex; flex-direction: column; scroll-snap-align: start; }
+  [data-page="home"] .case-card .media-frame, [data-page="home"] .is-tall .media-frame { flex: none; aspect-ratio: 16 / 10; min-height: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-page="home"] * { transition: none !important; }
 }
