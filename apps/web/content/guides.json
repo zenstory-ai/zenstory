@@ -152,21 +152,21 @@
         "[Revision impact, existing saves and owner-directed resume](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)"
       ],
       "zh": [
-        "[安装适配器、入口命令与 quick 模式](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L100)",
+        "[按工具安装、调用命令与 quick 模式](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L100)",
         "[模式、产品简报与流程](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L10-L46)",
-        "[输入、权利边界与产品简报字段](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/intake-method.md#L1-L50)",
+        "[输入、版权授权与产品简报字段](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/intake-method.md#L1-L50)",
         "[工作区路径与输出文件名](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/pipeline-contract.md#L3-L19)",
-        "[工具、运行命令与构建阻塞](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/references/build-brief-contract.md#L27-L57)",
-        "[六项检查、完整运行证据与失败状态](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)",
-        "[全量来源覆盖与明确的片段范围例外](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L16-L24)",
-        "[原作事实、选定段落证据与下游新增设计](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L40-L68)",
+        "[工具、运行命令与构建受阻时的处理](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/references/build-brief-contract.md#L27-L57)",
+        "[六项检查、完整跑一遍的记录与失败状态](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)",
+        "[读完全书，以及只拆指定片段的例外](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L16-L24)",
+        "[原作事实、选段原文依据与后续新增设计](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L40-L68)",
         "[一次性高潮可留作标志性场面，核心循环要能反复决策](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/references/gameability-protocol.md#L32-L42)",
-        "[开放选择、硬约束与实际概念取舍](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-concept/references/concept-method.md#L5-L35)",
-        "[服从简报的切片范围与设计交接](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/SKILL.md#L18-L41)",
-        "[白盒反馈定位到所属规则、归属与最小修改](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/world-design-method.md#L51-L57)",
-        "[表现层只读取已提交状态，结果保持不变](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-build/references/playable-model-contract.md#L7-L13)",
-        "[现有状态与独立的概念、设计、美术归属](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L21-L28)",
-        "[修订影响、既有存档与按归属回流](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)"
+        "[开放选择、硬约束与概念之间的取舍](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-concept/references/concept-method.md#L5-L35)",
+        "[按简报选定的可玩片段与设计交付](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/SKILL.md#L18-L41)",
+        "[白盒试玩反馈对到规则、负责环节与最小改动](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/world-design-method.md#L51-L57)",
+        "[画面只显示规则确认的状态，不改结果](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-build/references/playable-model-contract.md#L7-L13)",
+        "[现有进度与概念、设计、美术各自负责的文件](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L21-L28)",
+        "[改动影响、旧存档与问题退回对应环节](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)"
       ]
     },
     "topic": "interactive-games"
@@ -326,13 +326,13 @@
         "[合成输入、cut 模式源视频与导出参数](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L33-L68)",
         "[字幕、声音与最终播放复核](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L79-L97)",
         "[远程模型依赖与可选复核](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
-        "[草稿文件与编辑器版本边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
-        "[媒体打包、警告与不覆盖输出](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
-        "[独立导出的输入、参数与单向草稿输出](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L219-L256)",
+        "[草稿文件与剪映版本兼容范围](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
+        "[素材打包、缺失提示与不覆盖已有草稿](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
+        "[单独导出的输入、参数与只导出不回读的草稿](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L219-L256)",
         "[导出时可选的本地倒放素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L103-L216)",
-        "[原声音量自动化保留在视频片段上](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L106)",
-        "[独立旁白、可选配乐与显示字幕段](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
-        "[草稿中的视频源区间与音量关键帧](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
+        "[原声的音量变化保留在视频片段上](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L106)",
+        "[单独的旁白轨、可选配乐与字幕轨](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
+        "[草稿中的原片时间段与音量关键帧](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
         "[草稿中的音频素材与片段放置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L546-L610)",
         "[字幕文字作为独立文本素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)"
       ]
@@ -520,17 +520,17 @@
       ],
       "zh": [
         "[Agent Skills：格式与按需加载](https://agentskills.io/home)",
-        "[Claude Code：skills 与宿主扩展](https://code.claude.com/docs/en/skills)",
+        "[Claude Code：用 skills 扩展功能](https://code.claude.com/docs/en/skills)",
         "[Claude Code：插件打包与命名空间](https://code.claude.com/docs/en/plugins)",
         "[MCP：连接 AI 应用与外部系统](https://modelcontextprotocol.io/docs/getting-started/intro)",
-        "[Oh Story：安装路径与宿主差异](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/README_EN.md#L106-L168)",
-        "[Oh Story：技能分工与自然语言入口](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/README_EN.md#L170-L190)",
-        "[Story 路由：任务选择与导入顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story/SKILL.md#L10-L38)",
-        "[当前任务路由：裸调用、规划停靠与明确正文请求](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/SKILL.md#L55-L83)",
-        "[滚动建纲与指定章节范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L184-L195)",
-        "[既有大纲锁定与未来事实边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L263-L270)",
-        "[复用设定与作者裁定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
-        "[规划交付物与初始追踪](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)"
+        "[Oh Story：安装方法与各工具差异](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/README_EN.md#L106-L168)",
+        "[Oh Story：技能分工与直接描述需求](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/README_EN.md#L170-L190)",
+        "[Story 总入口：选任务与导入顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story/SKILL.md#L10-L38)",
+        "[选流程：没说要做什么、开书停在细纲、明说才写正文](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/SKILL.md#L55-L83)",
+        "[边写边补大纲与指定章节范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L184-L195)",
+        "[锁定已有大纲，未写情节不进追踪](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L263-L270)",
+        "[复用设定与作者决定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
+        "[规划文件与初始追踪记录](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)"
       ]
     },
     "topic": "getting-started"
@@ -699,20 +699,20 @@
         "[Bundled skill discovery and native provider registration](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)"
       ],
       "zh": [
-        "[社区插件身份、宿主边界与小说工作台](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L15-L23)",
-        "[小说能力、固定版本安装与宿主管理模型配置](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L63-L94)",
-        "[选择 workspace、按项目显示工作台与 profile 持久化](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L117-L161)",
+        "[社区插件说明、DSH 管什么与小说工作台](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L15-L23)",
+        "[小说功能、指定版本安装与在 DSH 里配置模型](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L63-L94)",
+        "[选择 workspace、按项目显示工作台与保存 profile](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L117-L161)",
         "[小说项目目录与生成的文件](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/skills/story-long-write/references/project-files.md#L1-L60)",
         "[已有稿件：只讨论，不导入或改文件](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/README.md#L136-L142)",
-        "[导入意图、原稿形式与残章裁定](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L65-L98)",
-        "[导入迁移前的完整拆解要求](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L125-L145)",
+        "[导入目的、原稿形式与残章由作者定](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L65-L98)",
+        "[导入前先完整拆解原稿](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L125-L145)",
         "[迁移正文时保留原文](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L283-L290)",
-        "[导入检查点截至最后完整章](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L394-L424)",
-        "[当前格式工程不重复完整导入](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L46-L47)",
-        "[指定章、补纲、日更与修订边界](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L59-L83)",
+        "[导入后的状态只记到最后一个完整章](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L394-L424)",
+        "[已是新格式的项目不必重新导入](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L46-L47)",
+        "[指定章、补纲、日更与修改范围](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L59-L83)",
         "[定位、备份与限定已有章节的修改范围](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/references/workflow-revision.md#L7-L50)",
-        "[DSH 随包角色覆盖外部宿主部署指令](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L16-L35)",
-        "[随包 Skill 发现与原生 Provider 注册](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)"
+        "[DSH 自带角色，替代其他工具的部署步骤](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L16-L35)",
+        "[自带 Skill 的查找与在 DSH 里注册](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)"
       ]
     },
     "faq": [
@@ -889,16 +889,16 @@
         "[Next-chapter intent, approved blueprint and limits on premature outcomes](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
       ],
       "zh": [
-        "[安装路径、命令命名空间与导入续写顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L82-L142)",
-        "[导入顺序、可续写工程选择、支持输入与作者确认项](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L121)",
-        "[工程骨架、正文原样迁移与作者确认卷界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L264-L320)",
-        "[基于证据反推大纲与初始化连贯性状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L335-L424)",
-        "[角色快照、认知边界、残稿与扩大范围导入](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
-        "[权威追踪状态、派生视图与手工编辑边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
+        "[安装方法、命令前缀与导入后续写的顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L82-L142)",
+        "[导入顺序、要不要做成可续写项目、支持的输入与作者确认项](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L121)",
+        "[项目结构、正文原样迁移与作者确认分卷](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L264-L320)",
+        "[按原文反推大纲与建立初始追踪记录](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L335-L424)",
+        "[角色快照、人物所知、残稿与扩大导入范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
+        "[唯一的追踪状态、生成视图与哪些能手改](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
         "[下一章上下文：上章正文、当前状态、角色与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
-        "[点名写章、日更续写与旧章大修路由](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
-        "[反推前史、未知字段，以及不把未来事件写入历史检查点](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
-        "[下一章意图、已批准蓝图与禁止提前给出的结果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
+        "[点名写章、日更续写与大改旧章的不同做法](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
+        "[反推前史、未知项留空，不把后面的事写进当时的状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
+        "[下一章意图、已确认的细纲与不能提前给的结果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
       ]
     },
     "topic": "getting-started"
@@ -1042,26 +1042,26 @@
         "[Speaker, response and the distinction between VO and OS](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/screenplay-format.md#L100-L126)"
       ],
       "zh": [
-        "[安装与宿主调用方式](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/README_EN.md#L19-L85)",
-        "[原著接入、改编决定与分集规划](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L27-L89)",
+        "[安装与在各工具里的调用方式](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/README_EN.md#L19-L85)",
+        "[导入原著、改编决定与分集规划](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L27-L89)",
         "[改编切分：按戏剧结果切集](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
-        "[原著分析交接：可拍内容、可见载体与纯文字材料](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/SKILL.md#L189-L207)",
+        "[原著分析结果：可直接拍的、要换表现的与纯文字内容](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/SKILL.md#L189-L207)",
         "[分镜来源、镜头状态与真实参考图](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-storyboard/SKILL.md#L30-L71)",
-        "[创作流程与独立的媒体制作决定](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama/references/creator-workflow.md#L44-L98)",
-        "[先准备预览，再确认供应商执行](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-produce/SKILL.md#L37-L49)",
+        "[创作流程与生成图片视频要另外确认](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama/references/creator-workflow.md#L44-L98)",
+        "[先出预览，确认后再调用生成服务](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-produce/SKILL.md#L37-L49)",
         "[分集地图文件与按需开发文档](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L117-L131)",
-        "[分集地图记录阶段性结果与精确继承事实](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L84-L89)",
+        "[分集地图记录阶段性结果与要延续的事实](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L84-L89)",
         "[单集是一次人物处境变化](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L17-L30)",
-        "[出口压力与完整情绪落点](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L189-L201)",
-        "[地图字段与知识、行动、物理状态交接](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L328-L378)",
-        "[先设计必要状态台阶，再定目标集数](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/story-craft.md#L297-L306)",
+        "[留给下集的压力与完整情绪落点](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L189-L201)",
+        "[分集地图字段：所知、行动与实物状态的承接](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L328-L378)",
+        "[先排必要的处境变化，再定集数](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/story-craft.md#L297-L306)",
         "[压缩时保留段落作用](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-develop/references/adaptation-craft.md#L83-L94)",
-        "[删段后用可见载体保住因果桥](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-develop/references/adaptation-craft.md#L157-L166)",
-        "[可见载体、旁白与慢场的创作边界](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-develop/references/adaptation-craft.md#L212-L218)",
+        "[删段后用看得见的表现保住因果衔接](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-develop/references/adaptation-craft.md#L157-L166)",
+        "[看得见的表现、旁白与慢场怎么用](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-develop/references/adaptation-craft.md#L212-L218)",
         "[对白争取目标与对方回应](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/dialogue-craft.md#L20-L49)",
-        "[可观察的潜台词与直白承认的选择](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/dialogue-craft.md#L141-L159)",
+        "[看得出的潜台词与何时让人物直说](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/dialogue-craft.md#L141-L159)",
         "[先保事实，再选表达；新增事实来自已建立的因果](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/script-craft.md#L34-L50)",
-        "[已有场景入口与定点剧本修改](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/SKILL.md#L17-L37)",
+        "[按手头材料开始与只改点名的地方](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/SKILL.md#L17-L37)",
         "[说话者、回应以及 VO 与 OS 的区分](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/screenplay-format.md#L100-L126)"
       ]
     },
@@ -1220,21 +1220,21 @@
       "zh": [
         "[运行环境前提与远程 MiMo 配置](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L53-L70)",
         "[Claude Code 与 Codex 插件安装路径](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L82-L106)",
-        "[环境检查、自然语言入口与 cut 模式交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L133-L161)",
-        "[端到端阶段、创作模式与计划文件](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
-        "[远程服务、首次分析命令与写稿交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L47-L98)",
+        "[环境检查、直接说需求与 cut 模式先剪后写旁白](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L133-L161)",
+        "[完整流程各阶段、创作模式与计划文件](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
+        "[远程服务、首次分析命令与转入写稿](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L47-L98)",
         "[续跑命令、成片输出与最终观看](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L117-L157)",
-        "[理解阶段、运行命令与证据文件](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-understanding/SKILL.md#L11-L63)",
-        "[证据输入、创作方向与声音所有权](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L35-L103)",
+        "[看懂素材的阶段、运行命令与证据文件](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-understanding/SKILL.md#L11-L63)",
+        "[证据输入、创作方向与谁来出声](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L35-L103)",
         "[旁白结构、事实依据与简短创作复核](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L130-L200)",
         "[配音输入、服务选择、输出与缓存行为](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-voiceover/SKILL.md#L12-L70)",
         "[合成输入、命令与最终时间轴文件](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-assemble/SKILL.md#L33-L58)",
-        "[观察边界与按需跳过 ASR](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L12-L38)",
+        "[事实与推断分开，按需跳过 ASR](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L12-L38)",
         "[人物、因果与结果需要证据](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L13-L18)",
         "[比较叙事角度，兑现有依据的观众期待](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L32-L56)",
-        "[旁白只在有明确职责时才写](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L95-L118)",
-        "[遵守指定方向与本轮未点名的冻结项](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)",
-        "[配音定位、授权参考音频与能力边界](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)"
+        "[旁白只在有明确作用时才写](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L95-L118)",
+        "[按指定方向改，这轮没提到的不动](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)",
+        "[配音定位、授权参考音频与实际能做什么](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)"
       ]
     },
     "topic": "video-recaps"
@@ -1367,14 +1367,14 @@
         "[Source inputs, rights and the product brief](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/references/intake-method.md#L1-L50)"
       ],
       "zh": [
-        "[互动故事入口与持久选择](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/README.md#L88-L100)",
-        "[推动情节的机会、决定结果的机会与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
-        "[状态、行动、世界规则与可读反馈](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/world-design-method.md#L11-L24)",
-        "[知识边界、选择后果与诚实汇流](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/narrative-design-method.md#L6-L35)",
-        "[叙事设计交接与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
-        "[玩家动词与规则裁决的状态提交](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)",
-        "[代表路径、相邻分支与叙事检查](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-qa/references/test-design-method.md#L27-L40)",
-        "[原文输入、权利与产品简报](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/references/intake-method.md#L1-L50)"
+        "[互动故事入口与长期生效的选择](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/README.md#L88-L100)",
+        "[推动情节的机会、决定结果的机会与以叙事为主的设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[状态、行动、世界规则与看得懂的反馈](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/world-design-method.md#L11-L24)",
+        "[人物所知、选择后果与分支汇合不串线](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/narrative-design-method.md#L6-L35)",
+        "[叙事设计交付与最小可玩片段](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[玩家能做的动作与由规则确认的状态](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)",
+        "[典型路线、相邻分支与叙事检查](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-qa/references/test-design-method.md#L27-L40)",
+        "[原文、版权与产品简报](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/references/intake-method.md#L1-L50)"
       ]
     },
     "topic": "interactive-games"
@@ -1514,17 +1514,17 @@
         "[Actual video/tail frames and accepted-start conflicts in continuation](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
       ],
       "zh": [
-        "[资产边界：身份、变体、镜头瞬态与连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/SKILL.md#L18-L50)",
-        "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[资产范围：身份、造型变体、单镜临时状态与连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/SKILL.md#L18-L50)",
+        "[Character 的稳定特征与互不冲突的 Look](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[哪些可见事实值得写成连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L13-L30)",
-        "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[连续性锁要写进哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
         "[图片提示词结构与参考图控制范围](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-image-prompts/SKILL.md#L30-L47)",
-        "[参考用途、整集固定造型例外与观察边界](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/reference-roles.md#L15-L49)",
-        "[REF文件路径、PLAN条目定位符与四种准备状态](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L102-L137)",
-        "[已有图无需虚构提示词条目及混合参考示例](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L138-L172)",
+        "[参考用途、整集固定造型的例外与能参考的范围](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/reference-roles.md#L15-L49)",
+        "[REF 文件路径、PLAN 条目 ID 与四种准备状态](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L102-L137)",
+        "[已有图不用编提示词条目，及混合参考示例](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L138-L172)",
         "[三种图片准备选择，本套件出图是往项目里放图的一种做法](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L33-L40)",
-        "[逐帧视觉依据与逐镜重新判断的参考绑定](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L121)",
-        "[续接中的实际视频、尾帧与已接受起点冲突](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
+        "[每帧画面依据与参考图逐镜重新确认](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L121)",
+        "[续接时的实际视频、尾帧与已定起点不符](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
       ]
     },
     "topic": "ai-video"
@@ -1670,16 +1670,16 @@
         "[Caption cues and optional packaging after the edit is locked](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L79-L89)"
       ],
       "zh": [
-        "[主要声音与旁白职责](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
-        "[先分配声音职责再写稿](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L92-L103)",
-        "[旁白时钟、对白边界与原声字幕](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L130-L186)",
-        "[渲染器不解析声音职责方案](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L19-L31)",
-        "[混音、时长边界与安全恢复原声](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L60-L77)",
-        "[实际配音放置与无法安全装入的处理](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/narration_audio.py#L221-L309)",
-        "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-cut/SKILL.md#L59-L76)",
+        "[主要声音与旁白的分工](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
+        "[先分好谁来出声再写稿](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L92-L103)",
+        "[旁白时间轴、对白起止与原声字幕](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L130-L186)",
+        "[合成时不直接读取声音分工表](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L19-L31)",
+        "[混音、时长限制与安全恢复原声](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L60-L77)",
+        "[实际配音放置与放不下时的处理](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/narration_audio.py#L221-L309)",
+        "[剪辑流程中原片与输出的时间轴](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-cut/SKILL.md#L59-L76)",
         "[依据对白与静音证据判断重叠](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/scripts/speech_ownership.py#L103-L143)",
-        "[限定修订与创作层归属](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L25-L33)",
-        "[口语写作、证据与非机械减字](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L157-L167)",
+        "[只改点名部分与该改哪一层](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L25-L33)",
+        "[口语化写作、证据与不机械删字](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L157-L167)",
         "[剪辑定稿后的字幕提示与可选包装](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L79-L89)"
       ]
     },
@@ -1835,12 +1835,12 @@
       "zh": [
         "[续写输入、状态卡与下一章承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
         "[只读取本章相关的当前状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/state-tracking.md#L9-L27)",
-        "[静态角色、当前快照与修订重算](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/state-tracking.md#L68-L106)",
-        "[唯一追踪权威与派生视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L1-L39)",
-        "[作者事实、读者认知、伏笔与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
+        "[固定人设、当前快照与改稿后重算](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/state-tracking.md#L68-L106)",
+        "[唯一的追踪状态与生成视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L1-L39)",
+        "[真相、读者已知、伏笔与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
         "[修订前读取前后章与相关材料](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L25-L38)",
         "[重算追踪并指出受影响后文](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L56-L75)",
-        "[未来细纲与已成立的追踪事实分开](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
+        "[还没写的细纲与已写成的事实分开](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
         "[疑问、伏笔与可信的误导提示](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L26-L46)",
         "[用新证据推进，并在本章兑现一项变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L93)"
       ]
@@ -1988,17 +1988,17 @@
         "[Character depth as an exemption from plot-only cutting](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L240-L253)"
       ],
       "zh": [
-        "[从细纲规格到可见场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L257-L271)",
+        "[从细纲写成看得见的场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L257-L271)",
         "[场景目标、阻碍、变化与具体章尾](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L31-L47)",
         "[人物处境变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
-        "[章节蓝图字段、释放边界与语义去重](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L31-L42)",
-        "[批准情节点覆盖、章尾与追踪边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L61-L70)",
+        "[细纲字段、不提前透露与合并重复要求](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L31-L42)",
+        "[已定情节点逐一写到、章尾与更新追踪](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L61-L70)",
         "[单章钩子的种、养、收](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/long-suspense.md#L87-L95)",
-        "[细纲字段、执行边界、成本与章尾交接](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L198-L260)",
-        "[只排纲补纲、锁定单元与低压章节](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
-        "[开篇方向是候选菜单](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L24-L25)",
-        "[网文开篇中的目标与分批背景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L37-L65)",
-        "[限知视角与不凑数的叙述维度](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L273-L304)",
+        "[细纲字段、能写与不能写、行动成本与章尾承接](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L198-L260)",
+        "[只排纲补纲、已锁定的剧情单元与平缓章节](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
+        "[开篇写法只是几种可选方向](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L24-L25)",
+        "[网文开篇的目标与分批交代背景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L37-L65)",
+        "[限知视角，叙述角度不硬凑](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L273-L304)",
         "[早期章节定调，不强求公式](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-craft.md#L287-L303)",
         "[人物余韵：删稿规则的例外](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L240-L253)"
       ]
@@ -2123,14 +2123,14 @@
         "[Single-event receipts and active preference query](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
       ],
       "zh": [
-        "[按维度的文风优先级与统一裁决](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-resolution.md#L5-L18)",
-        "[作者偏好与本书事实边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L3-L18)",
-        "[派生视图与本次相关 active 上下文](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L22-L49)",
+        "[文风逐项定优先级，最后统一判断](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-resolution.md#L5-L18)",
+        "[作者偏好与本书不能改的事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L3-L18)",
+        "[生成视图与本次用到的 active 偏好](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L22-L49)",
         "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L53-L76)",
         "[冲突、替换、本书例外与忘掉偏好](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L80-L87)",
         "[偏好来源与状态校验](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L308-L335)",
         "[确认、替换与停用状态变更](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L480-L544)",
-        "[单事件回执与 active 偏好查询](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
+        "[单条记录回执与 active 偏好查询](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
       ]
     },
     "topic": "revision"
@@ -2264,13 +2264,13 @@
       ],
       "zh": [
         "[审稿模式与实际执行](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L25-L30)",
-        "[发现的位置、证据与严重度](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L198-L217)",
-        "[报告综合与冲突建议](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L360-L370)",
+        "[问题的位置、证据与严重程度](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L198-L217)",
+        "[报告汇总与互相冲突的建议](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L360-L370)",
         "[分批审稿状态与小说事实追踪分开](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L145-L150)",
-        "[追踪维护边界与改稿衔接](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L475-L495)",
-        "[章节范围、相邻上下文与原稿备份](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L16-L50)",
-        "[修订事务与后续章节影响](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L56-L72)",
-        "[细纲边界与需要先规划的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
+        "[审稿收尾的追踪维护与转去改稿](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L475-L495)",
+        "[章节范围、前后章与原稿备份](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L16-L50)",
+        "[改稿后统一更新追踪与后文影响](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L56-L72)",
+        "[以细纲为准与需要先改细纲的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
       ]
     },
     "topic": "revision"
@@ -2402,14 +2402,14 @@
         "[Section batches, full-story scope and no silent section collapse](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/workflow-draft.md#L34-L49)"
       ],
       "zh": [
-        "[单一核心支点、首尾与视角优先级](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/SKILL.md#L33-L39)",
+        "[一个核心支点、开头结尾与视角怎么选](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/SKILL.md#L33-L39)",
         "[设计与正文阶段分离](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/SKILL.md#L81-L103)",
         "[核心框架与两份设计文件](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/workflow-design.md#L10-L50)",
-        "[具体因果动作与不凑量](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/writing-workflow.md#L25-L40)",
+        "[具体的因果动作与不凑字数](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/writing-workflow.md#L25-L40)",
         "[不必使用反转的情况](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/short-reversal.md#L167-L180)",
         "[揭示前的误判与揭示后的后果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/short-reversal.md#L224-L242)",
         "[明确或默认篇幅与计划节数](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/SKILL.md#L105-L109)",
-        "[正文文件与明确交付参数](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/workflow-draft.md#L5-L13)",
+        "[正文文件与用户给的字数、节数](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/workflow-draft.md#L5-L13)",
         "[分批写作、整篇范围与不擅自合并小节](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/workflow-draft.md#L34-L49)"
       ]
     },
@@ -2533,12 +2533,12 @@
       ],
       "zh": [
         "[对白功能与情绪回应](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L32-L38)",
-        "[议程、潜台词与关系×场合×目的](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L96-L120)",
+        "[说话目的、潜台词，看关系和场合定语气](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L96-L120)",
         "[让反应在对话里起作用](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L132-L143)",
         "[信息服务眼前对话目的](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L154-L159)",
-        "[声音维度与关系中的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L174-L186)",
-        "[情节与揭示边界优先于表达](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/references/style-resolution.md#L5-L18)",
-        "[局部范围、上下文、备份与后续影响检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L7-L75)"
+        "[说话方式的差异与关系变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L174-L186)",
+        "[情节和揭示时机优先于写法](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/references/style-resolution.md#L5-L18)",
+        "[修改范围、上下文、备份与后续影响检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L7-L75)"
       ]
     },
     "topic": "characters-and-dialogue"
@@ -2682,10 +2682,10 @@
       "zh": [
         "[角色卡：目标、动机与产生后果的弱点](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L25-L43)",
         "[动机链与有来路的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L151-L173)",
-        "[稳定型主角与非强制成长](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L300-L304)",
+        "[稳定型主角与成长不是必须](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L300-L304)",
         "[配角与同阵营人物也有自己的行动](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-relations.md#L194-L198)",
-        "[长篇静态人设与当前角色快照分开](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/state-tracking.md#L66-L70)",
-        "[增量设定与作者裁定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
+        "[长篇固定人设与当前角色快照分开](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/state-tracking.md#L66-L70)",
+        "[新增设定与作者决定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
         "[审查无铺垫的动机变化与不一致行动](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/references/review-quality.md#L101-L109)",
         "[以人物驱动行动，剧情与人设冲突时先改剧情](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L277-L288)",
         "[人物想从谈话里得到什么](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L104-L108)"

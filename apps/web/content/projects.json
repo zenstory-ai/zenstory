@@ -18,7 +18,7 @@
     },
     "definition": {
       "en": "Oh Story is an MIT-licensed skill pack that turns Claude Code, Codex and other supported agent hosts into a web-fiction writing workflow. Its 13 skills cover chart research, deconstruction, long-form serials, short stories, revision and covers, and combine writing instructions with chapter blueprints, deterministic checks and file-based project state. `/story-setup` configures the host; specialist agents are orchestrated where the host supports it and run directly where it does not.",
-      "zh": "Oh Story 是 MIT 开源的网文写作 skill 包，把 Claude Code、Codex 等 Agent 宿主变成完整的写作流程。13 个 skill 覆盖扫榜选题、拆文、长篇连载、短篇、修订与封面，把写作指令与逐章细纲、确定性检查和文件化的项目状态结合在一起。`/story-setup` 负责配置宿主；宿主支持多 agent 时按专业分工编排，不支持时直接执行。"
+      "zh": "Oh Story 是 MIT 开源的网文写作 skill 包，装进 Claude Code、Codex 等 Agent 后，就能按完整流程写书。13 个 skill 覆盖扫榜选题、拆文、长篇连载、短篇、修改和封面：每章先有细纲，写完有自动检查，项目进度都存成文件。先用 `/story-setup` 配置；Agent 支持多角色分工时按分工来，不支持就直接执行。"
     },
     "seo": {
       "title": {
@@ -46,7 +46,7 @@
       "en": [
         [
           "How do I continue a manuscript I have already written?",
-          "Use story-import for a continuable project, then separate reconstructed history from the next chapter you choose to write. The [harbor-radio handoff example](https://zenstory.ai/oh-story/import-and-continue) preserves a promise, an already-made decision and unequal character knowledge without inventing a successful repair or complete reconciliation. Old prose stays intact; a future outline is not a completed event."
+          "Use story-import for a continuable project, then separate reconstructed history from the next chapter you choose to write. The [harbor-radio continuation example](https://zenstory.ai/oh-story/import-and-continue) preserves a promise, an already-made decision and unequal character knowledge without inventing a successful repair or complete reconciliation. Old prose stays intact; a future outline is not a completed event."
         ],
         [
           "How do I start writing in Claude Code?",
@@ -104,7 +104,7 @@
       "zh": [
         [
           "已经写了十几章，怎么接着写？",
-          "先用 story-import 建立可续写工程，再把反推前史与作者选定的下一章分开。[海港收音机交接示例](https://zenstory.ai/oh-story/import-and-continue)保留一个承诺、已经作出的决定与不同人物的知情范围，不补猜修理成功或彻底和解。旧正文不动，未来细纲也不是已发生事件。"
+          "先用 story-import 建立可续写工程，再把反推前史与作者选定的下一章分开。[海港收音机续写示例](https://zenstory.ai/oh-story/import-and-continue)保留一个承诺、已经作出的决定与不同人物各自知道的事，不补猜修理成功或彻底和解。旧正文不动，未来细纲也不是已发生事件。"
         ],
         [
           "Claude Code 装好后，怎么开始写小说？",
@@ -168,9 +168,9 @@
         "The repository includes complete deconstruction, continuation and cover examples you can run through yourself."
       ],
       "zh": [
-        "本地 verifier 检查契约与可检测模式，不为文学质量打分。",
+        "本地检查脚本只查格式和能自动发现的问题，不给文笔打分。",
         "设定、大纲、正文、参考资料与追踪记录均为可检查的文件。",
-        "按宿主能力使用专业角色或直接执行回退；支持某个宿主不代表编排能力完全相同。",
+        "按 Agent 的能力分工或直接执行；支持某个 Agent，不代表每个 Agent 的分工能力都一样。",
         "仓库附有拆文、续写和封面的完整示例，可以照着跑一遍。"
       ]
     },
@@ -213,7 +213,7 @@
         "[未来细纲不是已成立的追踪事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
         "[从细纲规格到可见场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
         "[状态变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
-        "[按维度的文风优先级与统一裁决](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
+        "[按维度的文风优先级与统一取舍](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
         "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)"
       ]
     },
@@ -246,7 +246,7 @@
     },
     "definition": {
       "en": "Drama Skills is an eleven-skill workflow for AI short-drama and motion-comic creation in agent hosts such as Claude Code and Codex. Start at whichever stage your material needs: development, writing, assets, storyboards, prompts, production, editing or review. Each episode lives in five Markdown files, and media generation runs only after you review the prompts and confirm the spend with your configured provider.",
-      "zh": "Drama Skills 是面向 Claude Code、Codex 等 Agent 宿主的 11 个 skill 的 AI 短剧与漫剧创作流程。从你手头材料对应的阶段进入即可：开发、写作、资产、分镜、提示词、制作、剪辑或审查。每集只维护五份 Markdown 文件；图片和视频生成在你审阅提示词、确认供应商与消费之后才执行。"
+      "zh": "Drama Skills 是一套给 Claude Code、Codex 等 Agent 用的 AI 短剧和漫剧 skill，共 11 个。手上有什么就从哪一步开始：开发、写剧本、做资产、分镜、写提示词、出片、剪辑或审查。每集只用五份 Markdown 文件；图片和视频要等你看过提示词、确认服务商和费用后才会生成。"
     },
     "seo": {
       "title": {
@@ -274,7 +274,7 @@
       "en": [
         [
           "Does one novel chapter become one short-drama episode?",
-          "Not by default. Plan around a local dramatic result and a clear handoff, preserving source facts and marking proposed changes. When combining episodes, retain what changes the character’s judgment and the visible consequence of the choice, not every recap or break. The [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama) compares one-episode and three-episode cuts of an original repair-shop story, alongside its prose-to-scene-and-shots example."
+          "Not by default. Plan around an episode-level payoff and a clear lead-in to the next episode, preserving source facts and marking proposed changes. When combining episodes, retain what changes the character’s judgment and the visible consequence of the choice, not every recap or break. The [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama) compares one-episode and three-episode cuts of an original repair-shop story, alongside its prose-to-scene-and-shots example."
         ],
         [
           "Develop",
@@ -286,7 +286,7 @@
         ],
         [
           "Can I storyboard an already accepted screenplay directly?",
-          "Yes: start from the current screenplay and necessary visual facts, without restarting development or waiting for image prompts. The [script-to-storyboard guide](https://zenstory.ai/drama-skills/script-to-storyboard) follows an original scene through four shot designs, preserving dialogue, handoffs and the ending. It explains what to change when complete speech and sequential actions do not fit the planned duration; its timings are text estimates, not measured footage. A same-script four-shot versus continuous two-shot study also shows how framing changes attention, without treating more cuts or a long take as automatically better."
+          "Yes: start from the current screenplay and necessary visual facts, without restarting development or waiting for image prompts. The [script-to-storyboard guide](https://zenstory.ai/drama-skills/script-to-storyboard) follows an original scene through four shot designs, preserving dialogue, action continuity and the ending. It explains what to change when complete speech and sequential actions do not fit the planned duration; its timings are text estimates, not measured footage. A same-script four-shot versus continuous two-shot study also shows how framing changes attention, without treating more cuts or a long take as automatically better."
         ],
         [
           "Can I save a reveal for the ending just by hiding it in the picture?",
@@ -294,7 +294,7 @@
         ],
         [
           "How do I keep the same character across shots?",
-          "Separate persistent identity from the scene’s compatible Look and each shot’s changing hand, prop and gaze state. Carry only the necessary unchanged visual facts as continuity locks. The [three-shot character example](https://zenstory.ai/drama-skills/character-consistency) shows the handoff without pretending a character sheet guarantees generated faces."
+          "Separate persistent identity from the scene’s compatible Look and each shot’s changing hand, prop and gaze state. Carry only the necessary unchanged visual facts as continuity locks. The [three-shot character example](https://zenstory.ai/drama-skills/character-consistency) shows how the shots connect without pretending a character sheet guarantees generated faces."
         ],
         [
           "Are prompt IDs already image references?",
@@ -308,7 +308,7 @@
       "zh": [
         [
           "小说改短剧，是不是一章对应一集？",
-          "不是默认一一对应。按局部戏剧结果与明确交接来分集，保留原文事实，并标清拟改内容。合并集数时，要保住改变人物判断的信息与选择的可见后果，不必保留每次回顾或断点。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创维修铺故事比较一集与三集切法，并演示从叙述到场次、镜头的转换。"
+          "不是默认一一对应。按每集的阶段性结果和下集承接来分集，保留原文事实，并标清拟改内容。合并集数时，要保住改变人物判断的信息与选择的可见后果，不必保留每次回顾或断点。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创维修铺故事比较一集与三集切法，并演示从叙述到场次、镜头的转换。"
         ],
         [
           "开发",
@@ -320,7 +320,7 @@
         ],
         [
           "已经确认的剧本，可以直接做分镜吗？",
-          "可以从当前剧本与必要视觉事实进入，不必重做开发，也不必等待图片提示词。[剧本到分镜指南](https://zenstory.ai/drama-skills/script-to-storyboard)用原创场景展示四镜设计，保留对白、动作交接与结尾，并说明完整发声和顺序动作装不下时该改哪一层；示例时长是文本估计，不是实测视频。 另用同一剧本比较四镜与连续双人镜怎样分配注意，不把切得多或长镜当成天然更好。"
+          "可以从当前剧本与必要视觉事实进入，不必重做开发，也不必等待图片提示词。[剧本到分镜指南](https://zenstory.ai/drama-skills/script-to-storyboard)用原创场景展示四镜设计，保留对白、动作衔接与结尾，并说明完整发声和顺序动作装不下时该改哪一层；示例时长是文本估计，不是实测视频。 另用同一剧本比较四镜与连续双人镜怎样分配注意，不把切得多或长镜当成天然更好。"
         ],
         [
           "想把信息留到结尾揭晓，只在画面里藏住就够了吗？",
@@ -328,7 +328,7 @@
         ],
         [
           "同一角色跨镜头，怎样减少外观和动作串线？",
-          "分开长期人物身份、本场相容造型，以及每镜变化的手位、道具和视线；只有必要且不变的可见事实才作为连续性锁传递。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示具体交接，不把角色设定表当成生成脸部一致的保证。"
+          "分开长期人物身份、本场相容造型，以及每镜变化的手位、道具和视线；只有必要且不变的可见事实才作为连续性锁传递。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示镜头之间具体怎么衔接，不把角色设定表当成生成脸部一致的保证。"
         ],
         [
           "有提示词编号，就算已经有参考图了吗？",
@@ -348,9 +348,9 @@
         "Only image files that were actually generated or supplied, and are bound to the project, become production references."
       ],
       "zh": [
-        "每集按需使用至多五类核心创作文档：剧本、视觉设定、分镜、图片提示词和视频提示词，不要求提前建齐。",
-        "规则分类区分本地可证明的结构失败、需审阅的判断、工艺默认与口味选择。",
-        "制作使用与指纹绑定的一次性确认；写好提示词本身不代表授权付费执行。",
+        "每集最多用五类文档：剧本、视觉设定、分镜、图片提示词和视频提示词，用到再建，不必一开始建齐。",
+        "检查规则分得清：哪些是能自动查出的结构错误，哪些要人来判断，哪些只是默认做法或个人口味。",
+        "每次生成前都要你确认一次，确认只对那一版内容有效；写好提示词不等于同意付费生成。",
         "只有真实生成或提供、并已绑定到项目的图片文件，才能作为制作参考。"
       ]
     },
@@ -374,7 +374,7 @@
         "[按戏剧结果而非章节数量切集](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
         "[创作者优先的入口与按需文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
         "[可选画风探索、制作与审查边界](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
-        "[导演阐述的接受与可选产物](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
+        "[导演阐述的确认与可选输出](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
         "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
         "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
@@ -409,7 +409,7 @@
     },
     "definition": {
       "en": "Novel to Game is a seven-skill workflow for Claude Code, Codex and Kimi Code that adapts a novel into a playable game candidate. It builds a cited source bible, compares adaptation concepts, designs gameplay and art direction, and builds for the target runtime you choose. A QA contract records evidence that the build launches, renders, takes input, completes its core loop, reaches an outcome and restarts.",
-      "zh": "Novel to Game 是面向 Claude Code、Codex 和 Kimi Code 的 7 个 skill 的工作流，把小说改编成可玩版本（游戏原型）。它先建立带引用的原著设定集，比较改编概念，设计玩法与美术，再针对你选定的目标运行环境构建。QA 契约记录启动、渲染、输入、核心循环、结局和重开的运行证据。"
+      "zh": "Novel to Game 是给 Claude Code、Codex 和 Kimi Code 用的 7 个 skill，把小说改编成可以玩的游戏原型。先整理一份标明原文出处的设定集，比较几种改编思路，设计玩法和美术，再在你选的平台上构建。测试记录会写明启动、画面、操作、核心玩法、结局和重开是否真的跑通。"
     },
     "seo": {
       "title": {
@@ -489,13 +489,13 @@
     },
     "distinctive": {
       "en": [
-        "Source evidence and adaptation decisions are explicit artifacts rather than an unsupported genre guess.",
+        "Source evidence and adaptation decisions are written down as explicit files rather than an unsupported genre guess.",
         "The target platform, engine and test runtime are recorded; passing in a substitute runtime does not establish target-platform compatibility.",
         "The repository links to example games built with this workflow; you can play one before you start."
       ],
       "zh": [
-        "原文证据与改编决策形成显式产物，而不是无依据地猜测游戏类型。",
-        "记录目标平台、引擎与测试运行环境；替代环境通过不等于目标平台兼容。",
+        "原文证据和改编决定都会写成明确的文件，而不是无依据地猜测游戏类型。",
+        "记录目标平台、引擎和测试环境；在别的环境跑通，不等于目标平台也没问题。",
         "仓库链接了用这套流程做出的游戏示例，开工前可以先试玩。"
       ]
     },
@@ -522,8 +522,8 @@
         "[六项运行检查与 QA 边界](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)",
         "[因果权、结算权与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
         "[知识边界、选择后果与诚实汇流](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
-        "[叙事设计交接与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
-        "[玩家动词与规则裁决的状态提交](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)"
+        "[叙事设计交付与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[玩家动作、规则判定与状态更新](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)"
       ]
     },
     "vocabulary": [
@@ -551,7 +551,7 @@
     },
     "definition": {
       "en": "Video Recap Skills turns a local video into a Chinese-narration recap inside Claude Code: five independent skills plus a thin orchestrator. It runs on local ffmpeg and one MiMo API key for speech recognition, visual understanding and voiceover, with Fish Audio as an optional TTS provider, and needs no GPU. Besides the finished video it can export an editable JianYing/CapCut draft so you can keep cutting in the editor.",
-      "zh": "Video Recap Skills 在 Claude Code 里把本地视频做成中文解说成片：5 个独立 skill 加一个轻量编排器。只需本地 ffmpeg 和一个 MiMo API key 即可完成语音识别、画面理解和配音，不需要 GPU；Fish Audio 是可选的配音服务。除了直接出片，还能导出可编辑的剪映草稿，方便在剪辑软件里继续精剪。"
+      "zh": "Video Recap Skills 在 Claude Code 里把本地视频做成中文解说成片：5 个 skill，外加一个把它们串起来的总入口。只需本地 ffmpeg 和一个 MiMo API key 就能完成语音识别、画面理解和配音，不需要 GPU；Fish Audio 是可选的配音服务。除了直接出片，还能导出可编辑的剪映草稿，方便在剪映里继续精剪。"
     },
     "seo": {
       "title": {
@@ -599,7 +599,7 @@
         ],
         [
           "Does an audio-owner label automatically preserve the mix?",
-          "No. The renderer does not parse the creative board. Actual narration timing, speech evidence and mix settings implement the plan; source audio can remain ducked beyond the written block until a safe recovery point. Listen to the rendered handoff."
+          "No. The renderer does not parse the creative board. Actual narration timing, speech evidence and mix settings implement the plan; source audio can remain ducked beyond the written block until a safe recovery point. Listen to the rendered transitions."
         ],
         [
           "Can I finish the sound and captions manually?",
@@ -609,7 +609,7 @@
       "zh": [
         [
           "怎样把本地视频做成中文解说？",
-          "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、阶段交接和预期文件，再按需导出草稿。"
+          "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、各阶段怎么衔接和预期文件，再按需导出草稿。"
         ],
         [
           "原片没有旁白，可以看画面生成解说吗？",
@@ -629,7 +629,7 @@
         ],
         [
           "写了声音职责标签，就能自动保住原声吗？",
-          "不能。渲染器不解析创意 board，需要实际旁白时间、对白证据与混音设置落实；原声可能在书面段落结束后仍被压低，直到安全恢复点。要听渲染后的真实交接。"
+          "不能。渲染器不解析创意 board，需要实际旁白时间、对白证据与混音设置落实；原声可能在书面段落结束后仍被压低，直到安全恢复点。要听渲染后实际的声音衔接。"
         ],
         [
           "可以再手动精修声音和字幕吗？",
@@ -669,7 +669,7 @@
         "[Video/audio/subtitle separation and authored volume placement](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)"
       ],
       "zh": [
-        "[编导规划与阶段交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
+        "[编导规划与各阶段衔接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
         "[五个阶段技能与编排器](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
         "[MiMo 与可选 Fish Audio 依赖](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[视频理解阶段的依赖与 API key 边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
@@ -774,8 +774,8 @@
         "The local plugin needs no ZenStory Workbench account; generation can still use external model and media services."
       ],
       "zh": [
-        "固定上游 skill 版本，打包的源码组合可以追溯。",
-        "四个任务工作台共用 DSH 的工作目录与会话模型。",
+        "内置的 skill 版本是固定的，能查到打包的是哪一版源码。",
+        "四个工作台共用 DSH 的工作目录和会话。",
         "本地插件不需要 ZenStory 工作台账户；生成时仍可能用到外部模型和媒体服务。"
       ]
     },
@@ -822,7 +822,7 @@
     },
     "definition": {
       "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, manuscripts, characters and settings are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under MIT, and is available as a service at app.zenstory.ai with free and paid plans.",
-      "zh": "ZenStory 工作台是这个家族里的浏览器成员：三栏工作区（文件树、编辑器、AI 对话），大纲、正文、角色卡、设定都是文件，多 agent 后端围绕它们起草、建议与修订。自带技能与面向 Claude Code / OpenClaw 的 Agent API，可按 MIT 许可自托管，也提供 app.zenstory.ai 的在线服务与免费/付费方案。"
+      "zh": "ZenStory 工作台在浏览器里用：左边文件树、中间编辑器、右边 AI 对话。大纲、正文、角色卡和设定都是文件，后台的多个 AI 角色围绕这些文件起草、提建议和修改。它自带 skill，也提供给 Claude Code / OpenClaw 用的 Agent API；代码按 MIT 许可开源，可以自己部署，也提供 app.zenstory.ai 的在线服务（有免费和付费方案）。"
     },
     "seo": {
       "title": {

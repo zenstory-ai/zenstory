@@ -150,7 +150,9 @@ html[data-lang="zh"] :is(.eyebrow, .install-label, .jump-label, .sub-h, .foot-h,
 .terms a span, .terms > span span { display: inline; border: 0; padding: 0; margin: 0; }
 .terms a span.count, .terms > span span.count { margin-left: 6px; color: var(--muted); font-size: 12.5px; }
 .terms > .terms-label { flex-basis: 100%; min-height: 0; border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.terms.hosts > span { color: var(--ink-2); }
+.host-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 720px; margin: 16px 0 0; padding: 0; list-style: none; }
+.host-grid li { display: flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--rule); border-radius: var(--radius-box); background: var(--surface); color: var(--ink); font-size: 14.5px; font-weight: 500; }
+@media (max-width: 640px) { .host-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* In-page jump links: chips after the hero; on wide project pages a sticky side rail */
 .jump-row, .page-rail { font-size: 14px; }
@@ -199,6 +201,9 @@ html[data-lang="zh"] .pair.answer::before { content: "一句话结论"; letter-s
 .need-list li:first-child, .start-list li:first-child { border-top: 0; }
 .need-list b, .start-list b { color: var(--ink); font-weight: 600; }
 .need-list span code, .start-list span code { font-size: 13px; }
+.need-list span code:not(.cmd), .start-list span code:not(.cmd) { white-space: nowrap; }
+.host-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.host-chips > span { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 13.5px; }
 .start-list { counter-reset: start; }
 .start-list li { grid-template-columns: 36px 140px 1fr; }
 .start-list li::before { counter-increment: start; content: counter(start); display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--btn-fg); font: 600 13px/1 var(--mono); }
@@ -323,6 +328,8 @@ html[data-lang="zh"] .pair.answer::before { content: "一句话结论"; letter-s
 .table-wrap thead th { border-top: 0; background: var(--cream); color: var(--ink); font-weight: 600; white-space: nowrap; }
 .table-wrap :is(th, td) { min-width: 7.5em; }
 .table-wrap :is(th, td):first-child { min-width: 2em; color: var(--ink); font-weight: 600; }
+/* Phones: tighter cells, and a first column wide enough for a short label (第一章) to stay on one line. */
+@media (max-width: 640px) { .table-wrap :is(th, td) { padding: 9px 10px; min-width: 6em; } .table-wrap :is(th, td):first-child { min-width: calc(3.2em + 20px); } }
 .use-skill { margin-top: 36px; padding: 4px 24px 18px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); }
 .use-skill h2 { border-top: 0; margin-top: 18px; padding-top: 0; font-size: 22px; }
 
@@ -353,10 +360,12 @@ h3 .paren { display: inline; font-size: .8em; margin: 0 0 0 .3em; }
 /* ---------- glossary ---------- */
 .glossary { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; margin: 24px 0 0; }
 .glossary .entry { padding: 20px 0 18px; border-top: 1px solid var(--rule); }
+/* The hero already ends in a rule; the first row of entries starts without one. */
+.glossary .entry:nth-child(-n+2) { border-top: 0; padding-top: 4px; }
 .glossary dt { font-family: var(--serif); font-size: 21px; font-weight: 600; color: var(--ink); }
 .glossary dt a { color: var(--ink); text-decoration: none; }
 .glossary dt a:hover { color: var(--accent-text); }
-.glossary dt .bridge { display: block; font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.glossary dt .bridge { display: block; font-family: var(--sans); font-size: 13.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); margin-top: 4px; }
 .glossary dd { margin: 8px 0 0; font-size: 15px; color: var(--ink-2); }
 .glossary dd .owner { display: block; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 .term .related { margin-top: 28px; }
@@ -453,6 +462,7 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
   .guide-section { grid-template-columns: 1fr; gap: 4px; }
   .foot-grid { grid-template-columns: 1fr 1fr; }
   .glossary { grid-template-columns: 1fr; }
+  .glossary .entry:nth-child(2) { border-top: 1px solid var(--rule); padding-top: 20px; }
   .docs-grid { grid-template-columns: 1fr; }
   .docs-side { position: static; max-height: none; padding: 0 0 20px; margin-bottom: 8px; border-bottom: 1px solid var(--rule); }
   .docs-side ul { display: flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -526,7 +536,10 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .guide-search-controls { display: flex; gap: 10px; }
 .guide-search input { width: 100%; min-width: 0; background: var(--surface); color: var(--text); border: 1px solid var(--rule-strong); border-radius: 8px; padding: 12px 14px; font: inherit; }
 .guide-search button { border: 1px solid var(--rule-strong); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 8px 14px; font: inherit; white-space: nowrap; cursor: pointer; }
-.guide-search [role="status"] { min-height: 1.8em; font-size: 14px; }
+.guide-search [role="status"] { min-height: 1.8em; margin: 12px 0 0; font-size: 14px; color: var(--muted); }
+.guide-search [role="status"]:empty { min-height: 0; margin: 0; }
+/* The Clear button already resets the field; hide the browser's own clear cross. */
+.guide-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .reading-list { list-style: none; padding: 0; margin: 20px 0 40px; }
 .reading-list > li { border-top: 1px solid var(--rule); padding: 18px 0; overflow-wrap: anywhere; }
 .reading-list > li > a { font-size: 18px; font-weight: 600; }
@@ -631,6 +644,14 @@ body[data-page="home"] .eyebrow::before { content: none; }
 .page-hero { background: transparent; padding-block: 56px 40px; }
 .page-hero .lede { color: var(--ink-2); }
 .band-cream { background: color-mix(in srgb, var(--cream) 55%, var(--paper)); }
+/* Workflow steps outside the homepage: numbered like the homepage paths, links styled like the other guide lists. */
+body:not([data-page="home"]) .learning-path ol { list-style: none; margin: 12px 0 0; padding: 0; counter-reset: step; }
+body:not([data-page="home"]) .learning-path li { counter-increment: step; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 4px 12px; padding: 7px 0 9px; }
+body:not([data-page="home"]) .learning-path li::before { content: counter(step); grid-row: 1 / span 2; align-self: start; display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--rule-strong); border-radius: 50%; font: 500 11.5px/1 var(--mono); color: var(--ink-2); }
+body:not([data-page="home"]) .learning-path li > * { grid-column: 2; }
+body:not([data-page="home"]) .learning-path li > code { justify-self: start; }
+body:not([data-page="home"]) .learning-path a { color: var(--ink); font-size: 14.5px; font-weight: 500; line-height: 1.45; text-decoration: none; }
+body:not([data-page="home"]) .learning-path a:hover { color: var(--accent-text); }
 /* One radius family: cards 16px, boxes 12px. */
 .project-card, .guide-card, .topic-card, .model .steps li { border-radius: var(--radius-card); }
 .pair.answer, .guide-example, .article-body blockquote, .table-wrap, .use-skill, .need-list, .start-list, .install-row, .guide-contents, .page-rail, .path-step, .path-next, .term-howto, .task-index a, .docs-note, .migration-note, .prose pre, .prose img, .guide-search input, .guide-search button, .path-direct a { border-radius: var(--radius-box); }

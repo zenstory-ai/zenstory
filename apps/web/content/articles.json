@@ -145,29 +145,29 @@
     "sources": [
       {
         "label": {
-          "zh": "开篇基点与候选策略",
-          "en": "Opening anchors and candidate strategies"
+          "zh": "开篇三要素与几种开头写法",
+          "en": "Three opening essentials and ways to open"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/opening-design.md"
       },
       {
         "label": {
-          "zh": "阅读承诺与阶段交付",
-          "en": "Reader promise and stage delivery"
+          "zh": "读者期待与分阶段兑现",
+          "en": "Reader expectations and staged payoff"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "把既定结果演成完整场景",
-          "en": "Develop accepted results into a scene"
+          "zh": "把定好的结果写成完整场景",
+          "en": "Write a planned result as a full scene"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
@@ -339,42 +339,42 @@
     "sources": [
       {
         "label": {
-          "zh": "部署、包完整性与配置合并",
-          "en": "Deployment, package completeness, and configuration merge"
+          "zh": "安装、文件齐全检查与配置合并",
+          "en": "Install, file completeness and config merge"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-setup/SKILL.md"
       },
       {
         "label": {
-          "zh": "Codex部署与信任交接",
-          "en": "Codex deployment and trust handoff"
+          "zh": "Codex安装与信任设置",
+          "en": "Codex setup and hook trust"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-setup/references/deploy-codex.md"
       },
       {
         "label": {
-          "zh": "仅检查与未验证能力",
+          "zh": "只做检查与尚未验证的功能",
           "en": "Check-only diagnostics and unverified capabilities"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-setup/references/diagnostics.md"
       },
       {
         "label": {
-          "zh": "长篇操作范围与首章停点",
-          "en": "Novel operation scope and chapter-one boundary"
+          "zh": "长篇任务范围与何时停笔",
+          "en": "Novel task scope and when to stop"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
       },
       {
         "label": {
-          "zh": "追踪派生视图与容量",
-          "en": "Derived tracking views and size limits"
+          "zh": "追踪生成文件与容量上限",
+          "en": "Generated tracking files and size limits"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/tracking-transaction.md"
       },
       {
         "label": {
-          "zh": "封面内置通路与API回退",
+          "zh": "封面内置生成与API备用方案",
           "en": "Built-in cover generation and API fallback"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-cover/SKILL.md"
@@ -526,14 +526,14 @@
     "sources": [
       {
         "label": {
-          "zh": "长篇章首章尾候选与承接",
-          "en": "Long-form opening and ending options"
+          "zh": "长篇章首章尾钩子与承接",
+          "en": "Long-form chapter openings, end hooks and carryover"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-chapter-hooks.md"
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -663,8 +663,8 @@
     "sources": [
       {
         "label": {
-          "zh": "细纲原生模板与可选字段",
-          "en": "Native detailed-outline template and optional fields"
+          "zh": "细纲模板与可选字段",
+          "en": "Detailed-outline template and optional fields"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-outline.md"
       },
@@ -677,8 +677,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与通用默认值",
-          "en": "Author style and general defaults"
+          "zh": "作者文风与通用写法",
+          "en": "Author style and general writing habits"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -853,15 +853,15 @@
       },
       {
         "label": {
-          "zh": "把既定节点演成连续场景",
-          "en": "Dramatize established beats as a continuous scene"
+          "zh": "把定好的情节写成场景",
+          "en": "Turn planned beats into scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
       {
         "label": {
-          "zh": "题材默认与本例文风的取舍",
-          "en": "Resolve genre defaults against the chosen voice"
+          "zh": "本例文风优先于题材默认写法",
+          "en": "Chosen voice over genre defaults"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -1198,15 +1198,15 @@
       },
       {
         "label": {
-          "zh": "项目2.5正文档案",
-          "en": "Project 2.5 prompt profile"
+          "zh": "Seedance 2.5 提示词写法",
+          "en": "Seedance 2.5 prompt guide"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/seedance-2.5.md"
       },
       {
         "label": {
-          "zh": "项目2.0正文档案",
-          "en": "Project 2.0 prompt profile"
+          "zh": "Seedance 2.0 提示词写法",
+          "en": "Seedance 2.0 prompt guide"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/seedance-2.0.md"
       }
@@ -1379,21 +1379,21 @@
     "sources": [
       {
         "label": {
-          "zh": "去AI味范围、删除保护与收敛",
-          "en": "Revision scope, deletion protection, and stopping"
+          "zh": "去AI味的范围、不该删的与何时停手",
+          "en": "De-AI scope, what not to cut, when to stop"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md"
       },
       {
         "label": {
-          "zh": "作者文风覆盖参考默认值",
-          "en": "Author style over reference defaults"
+          "zh": "作者文风优先于参考写法",
+          "en": "Author style over reference habits"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "泛化、书面腔与自然节奏",
+          "zh": "空泛、书面腔与自然节奏",
           "en": "Generic phrasing, bookish diction, and natural rhythm"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/anti-ai-writing.md"
@@ -1555,15 +1555,15 @@
     "sources": [
       {
         "label": {
-          "zh": "事实提取与双序分离",
-          "en": "Fact extraction and separate orders"
+          "zh": "事实提取与叙述、发生顺序",
+          "en": "Fact extraction: narrative order vs. event order"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/references/stage2-extraction.md"
       },
       {
         "label": {
-          "zh": "剧情问题、三维节奏与机制迁移",
-          "en": "Plot problems, three-dimensional pacing and transfer"
+          "zh": "剧情问题、节奏与可借用的写法",
+          "en": "Plot problems, pacing and reusable techniques"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/references/stage3-plot-rhythm.md"
       }
@@ -1702,15 +1702,15 @@
     "sources": [
       {
         "label": {
-          "zh": "原文落实、镜头职责、连续性与对白估时",
+          "zh": "不漏原文、镜头作用、连续性与台词时长",
           "en": "Source coverage, shot purpose, continuity, and speech timing"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
       },
       {
         "label": {
-          "zh": "正式镜头块与冻结关键帧入口",
-          "en": "Native shot blocks and frozen keyframe entry"
+          "zh": "正式分镜表与定稿关键帧",
+          "en": "Storyboard shot blocks and locked keyframes"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md"
       }
@@ -1868,14 +1868,14 @@
       },
       {
         "label": {
-          "zh": "认知变化与反应层",
+          "zh": "认知变化与各方反应",
           "en": "Changed understanding and reactions"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-conflict.md"
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -2034,7 +2034,7 @@
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -2173,8 +2173,8 @@
     "sources": [
       {
         "label": {
-          "zh": "门槛集、局部回报与下一集交接",
-          "en": "Threshold episodes, local payoff, and handover"
+          "zh": "付费卡点集、本集回报与下一集承接",
+          "en": "Paywall episodes, episode payoff and the next episode"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/episode-design.md"
       }
@@ -2313,15 +2313,15 @@
     "sources": [
       {
         "label": {
-          "zh": "图生参考减法、起终点与变化字段",
+          "zh": "参考图做减法、起止状态与变化写法",
           "en": "Reference subtraction, boundaries, and motion fields"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       },
       {
         "label": {
-          "zh": "可复制正文、文字与局部变换保持",
-          "en": "Copyable body, text, and selective preservation"
+          "zh": "可粘贴的提示词、画面文字与不变项",
+          "en": "Paste-ready prompt, on-screen text and what stays"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
       },
@@ -2467,15 +2467,15 @@
     "sources": [
       {
         "label": {
-          "zh": "首尾边界、插值取舍与终点验证",
-          "en": "Start/end boundaries, interpolation and end checks"
+          "zh": "首尾帧、中间过渡与结尾检查",
+          "en": "First/last frames, in-between motion and end checks"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/keyframe-craft.md"
       },
       {
         "label": {
-          "zh": "起终状态与实际交付",
-          "en": "Motion state and delivery"
+          "zh": "起止状态与最终画面",
+          "en": "Start and end states and the final frame"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       }
@@ -2632,22 +2632,22 @@
       },
       {
         "label": {
-          "zh": "保持正确部分与动作实现",
-          "en": "Preserve working parts and motion requirements"
+          "zh": "保住做对的部分，改动作写法",
+          "en": "Keep what works, rewrite the motion"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       },
       {
         "label": {
-          "zh": "母版、补拍与替代职责",
-          "en": "Main, pickup and replacement duties"
+          "zh": "母版、补拍与替换镜头的分工",
+          "en": "Main take, pickups and replacement shots"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/pickup-and-alternate.md"
       },
       {
         "label": {
-          "zh": "实际素材缺陷反馈",
-          "en": "Observed footage defect feedback"
+          "zh": "生成素材的问题反馈",
+          "en": "Feedback on generated-footage defects"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/generated-footage.md"
       }
@@ -2782,8 +2782,8 @@
       },
       {
         "label": {
-          "zh": "已定事实与规划交接",
-          "en": "Established facts and planning handoff"
+          "zh": "已定事实与后续规划",
+          "en": "Established facts and later planning"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-volume.md"
       },
@@ -2943,8 +2943,8 @@
       },
       {
         "label": {
-          "zh": "表达取舍服从本书选择",
-          "en": "Expression follows the book"
+          "zh": "本书选择优先于默认写法",
+          "en": "Book choices over default methods"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -3079,8 +3079,8 @@
     "sources": [
       {
         "label": {
-          "zh": "简介类型、组合与阅读承诺",
-          "en": "Blurb types, combinations and reading promises"
+          "zh": "简介类型、组合与给读者的期待",
+          "en": "Blurb types, combinations and reader expectations"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-readers.md"
       }
@@ -3487,8 +3487,8 @@
       },
       {
         "label": {
-          "zh": "作者选择与方法默认值",
-          "en": "Author choices and method defaults"
+          "zh": "作者选择优先于默认写法",
+          "en": "Author choices over default methods"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -3615,22 +3615,22 @@
     "sources": [
       {
         "label": {
-          "zh": "舞台、认知差与反应传递",
-          "en": "Stage, recognition gaps and reactions"
+          "zh": "打脸场面、认知差与反应传开",
+          "en": "Face-slap stage, knowledge gaps and spreading shock"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-combat-face.md"
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "将既定行动、回应与结果写成场景",
-          "en": "Dramatize established action, response and result"
+          "zh": "把定好的行动、回应和结果写成场景",
+          "en": "Write planned action, response and result as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
@@ -3793,8 +3793,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -3934,7 +3934,7 @@
     "sources": [
       {
         "label": {
-          "zh": "推进、低压收益与代价取舍",
+          "zh": "推进、平静的收获与代价取舍",
           "en": "Progression, quiet gains and optional costs"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
@@ -3948,8 +3948,8 @@
       },
       {
         "label": {
-          "zh": "表达默认值服从本书",
-          "en": "Expression defaults follow this book"
+          "zh": "写法以本书文风为准",
+          "en": "Writing choices follow the book's style"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -4099,8 +4099,8 @@
     "sources": [
       {
         "label": {
-          "zh": "双线进度与独立目标",
-          "en": "Dual progress and independent goals"
+          "zh": "两条感情进度与独立目标",
+          "en": "Two relationship progress lines and independent goals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       },
@@ -4274,8 +4274,8 @@
       },
       {
         "label": {
-          "zh": "默认设计服从本书选择",
-          "en": "Default methods follow the book"
+          "zh": "本书选择优先于默认写法",
+          "en": "Book choices over default methods"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -4428,15 +4428,15 @@
       },
       {
         "label": {
-          "zh": "表达默认值服从本书文风",
-          "en": "Expression defaults follow the book"
+          "zh": "写法以本书文风为准",
+          "en": "Writing choices follow the book's style"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "把已定情节点展开成场景",
-          "en": "Dramatizing established story beats"
+          "zh": "把定好的情节写成场景",
+          "en": "Turn planned beats into scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
@@ -4589,8 +4589,8 @@
       },
       {
         "label": {
-          "zh": "表达默认值服从本书文风",
-          "en": "Expression defaults follow the book"
+          "zh": "写法以本书文风为准",
+          "en": "Writing choices follow the book's style"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -4718,8 +4718,8 @@
     "sources": [
       {
         "label": {
-          "zh": "身份、反差、主线与回报命名法",
-          "en": "Identity, contrast, throughline and payoff naming"
+          "zh": "按身份、反差、主线与回报起书名",
+          "en": "Titles from identity, contrast, plot and payoff"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-readers.md"
       },
@@ -4878,15 +4878,15 @@
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "把已定情节点展开成场景",
-          "en": "Dramatizing established story beats"
+          "zh": "把定好的情节写成场景",
+          "en": "Turn planned beats into scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
@@ -5032,8 +5032,8 @@
       },
       {
         "label": {
-          "zh": "本书表达选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -5161,22 +5161,22 @@
     "sources": [
       {
         "label": {
-          "zh": "抽象功能、可替换项与不可照搬",
+          "zh": "提炼功能、可替换项与不能照搬的",
           "en": "Abstract functions, replaceable roles and prohibited copying"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/references/stage3-plot-rhythm.md"
       },
       {
         "label": {
-          "zh": "将既定行动、回应与结果写成场景",
-          "en": "Dramatize established action, response and result"
+          "zh": "把定好的行动、回应和结果写成场景",
+          "en": "Write planned action, response and result as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
       {
         "label": {
-          "zh": "原创场景文风与事实边界",
-          "en": "Original-scene voice and facts"
+          "zh": "原创场景的文风与不能改的事实",
+          "en": "Original-scene voice and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -5328,15 +5328,15 @@
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "读者契约与主动性四问",
-          "en": "Reader contract and four agency questions"
+          "zh": "读者期待与主角主动性四问",
+          "en": "Reader expectations and four agency questions"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
       },
@@ -5482,15 +5482,15 @@
     "sources": [
       {
         "label": {
-          "zh": "读者契约、人物选择与收益归属",
+          "zh": "读者期待、人物选择与好处归谁",
           "en": "Reader promises, agency and ownership of gains"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
       },
       {
         "label": {
-          "zh": "改稿保留事实与信息边界",
-          "en": "Preserving facts and knowledge in revision"
+          "zh": "改稿不改事实，也不提前揭示",
+          "en": "Revision keeps facts and does not reveal early"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -5754,7 +5754,7 @@
     "sources": [
       {
         "label": {
-          "zh": "日常索取、冷账对白与清算节奏",
+          "zh": "日常索取、算账对白与清算节奏",
           "en": "Everyday demands, accounting dialogue and reckoning"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/世情打脸.md"
@@ -5768,8 +5768,8 @@
       },
       {
         "label": {
-          "zh": "短篇本书文风与事实边界",
-          "en": "Short-story style and factual boundaries"
+          "zh": "短篇文风与不能改的事实",
+          "en": "Short-story style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
       }
@@ -5899,15 +5899,15 @@
     "sources": [
       {
         "label": {
-          "zh": "特别关注、共同任务与不强制逐节糖点",
+          "zh": "特别关注、共同任务与糖点不必节节有",
           "en": "Special attention, shared tasks and flexible sweet beats"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/甜宠.md"
       },
       {
         "label": {
-          "zh": "短篇本书文风与事实边界",
-          "en": "Short-story style and factual boundaries"
+          "zh": "短篇文风与不能改的事实",
+          "en": "Short-story style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
       },
@@ -6060,8 +6060,8 @@
     "sources": [
       {
         "label": {
-          "zh": "单集兑现、出去压力与风格选择",
-          "en": "Episode delivery, outgoing pressure and style"
+          "zh": "本集兑现、留给下集的压力与风格选择",
+          "en": "Episode payoff, pressure into the next episode, and style"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/episode-design.md"
       },
@@ -6221,7 +6221,7 @@
       },
       {
         "label": {
-          "zh": "动作、对白与场景边界",
+          "zh": "动作、对白与场景划分",
           "en": "Action, dialogue and scene boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/screenplay-format.md"
@@ -6361,7 +6361,7 @@
     "sources": [
       {
         "label": {
-          "zh": "巧合方向、误会行动与澄清残余",
+          "zh": "巧合方向、误会行动与澄清后的余波",
           "en": "Coincidence direction, mistaken action, and aftermath"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/script-craft.md"
@@ -6644,8 +6644,8 @@
       },
       {
         "label": {
-          "zh": "把既定节点演成连续场景",
-          "en": "Dramatize established beats as a continuous scene"
+          "zh": "把定好的情节写成场景",
+          "en": "Turn planned beats into scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
@@ -6924,15 +6924,15 @@
       },
       {
         "label": {
-          "zh": "双进度与独立目标",
-          "en": "Dual progress and independent goals"
+          "zh": "两条感情进度与独立目标",
+          "en": "Two relationship progress lines and independent goals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       },
       {
         "label": {
-          "zh": "作者选择与默认条款",
-          "en": "Author choices and default clauses"
+          "zh": "作者选择优先于默认写法",
+          "en": "Author choices over default methods"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -7074,8 +7074,8 @@
       },
       {
         "label": {
-          "zh": "把既定节点演成连续场景",
-          "en": "Dramatize established beats as a continuous scene"
+          "zh": "把定好的情节写成场景",
+          "en": "Turn planned beats into scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -7217,14 +7217,14 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "查证中间态与实际结果",
+          "zh": "查证过程与结果",
           "en": "Verification steps and actual outcomes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
@@ -7507,15 +7507,15 @@
       },
       {
         "label": {
-          "zh": "动作预算、条件与结果",
-          "en": "Action budget, prerequisites, and results"
+          "zh": "动作量、前提与结果",
+          "en": "How much action, prerequisites and results"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
       },
       {
         "label": {
-          "zh": "起止边界与替代版职责",
-          "en": "Start/end boundaries and replacement responsibilities"
+          "zh": "起止画面与替代动作要保住什么",
+          "en": "Start/end frames and what a replacement must keep"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       }
@@ -7672,7 +7672,7 @@
       },
       {
         "label": {
-          "zh": "准确文字、呈现方法与输入参考检查",
+          "zh": "画面文字、呈现方式与参考图检查",
           "en": "Exact text, presentation, and input-reference checks"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/common-recipe.md"
@@ -7801,8 +7801,8 @@
     "sources": [
       {
         "label": {
-          "zh": "二维限动与图层职责",
-          "en": "2D limited motion and layer roles"
+          "zh": "二维动态漫的有限动作与分层",
+          "en": "2D limited animation and layer split"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/form-cards/二维动态漫.md"
       },
@@ -7822,7 +7822,7 @@
       },
       {
         "label": {
-          "zh": "Q版比例与符号职责",
+          "zh": "Q版比例与符号的作用",
           "en": "Chibi proportions and symbol roles"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/form-cards/Q版表达.md"
@@ -7951,14 +7951,14 @@
     "sources": [
       {
         "label": {
-          "zh": "竖屏多人、交付遮挡与轴线",
-          "en": "Vertical groups, delivery overlays, and axes"
+          "zh": "竖屏多人站位、界面遮挡与轴线",
+          "en": "Vertical groups, on-screen overlays and axes"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/blocking-playbooks.md"
       },
       {
         "label": {
-          "zh": "景别、原文落实与镜头边界",
+          "zh": "景别、不漏原文与镜头起止",
           "en": "Shot scale, source coverage, and boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
@@ -8094,8 +8094,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与表达边界",
-          "en": "Author style and expression boundaries"
+          "zh": "作者文风与写法选择",
+          "en": "Author style and expression choices"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
       }
@@ -8230,8 +8230,8 @@
       },
       {
         "label": {
-          "zh": "文风与信息来源边界",
-          "en": "Style and knowledge-source boundaries"
+          "zh": "改文风不能改信息来源",
+          "en": "Style edits cannot change where information comes from"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
       }
@@ -8376,8 +8376,8 @@
       },
       {
         "label": {
-          "zh": "表达默认值服从本书文风",
-          "en": "Expression defaults follow the book"
+          "zh": "写法以本书文风为准",
+          "en": "Writing choices follow the book's style"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -8527,8 +8527,8 @@
       },
       {
         "label": {
-          "zh": "作者文风裁决",
-          "en": "Author style resolution"
+          "zh": "以作者文风为准",
+          "en": "Author style comes first"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
       }
@@ -9386,7 +9386,7 @@
     "sources": [
       {
         "label": {
-          "zh": "场景议程、转向与静场选择",
+          "zh": "场景目的、转向与静场选择",
           "en": "Scene agenda, turns, and quiet-scene choices"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/script-craft.md"
@@ -9529,8 +9529,8 @@
       },
       {
         "label": {
-          "zh": "因果回应与退出状态",
-          "en": "Causal response and exit state"
+          "zh": "因果回应与场尾处境",
+          "en": "Causal response and where the scene leaves things"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/script-craft.md"
       },
@@ -9672,8 +9672,8 @@
       },
       {
         "label": {
-          "zh": "单元适配、载体替换与制作负担",
-          "en": "Unit suitability, carrier changes, and production burden"
+          "zh": "能否上屏、换可拍的表现与制作负担",
+          "en": "What fits the screen, filmable swaps, production load"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-novel-analyze/references/adaptation-value.md"
       },
@@ -9830,22 +9830,22 @@
     "sources": [
       {
         "label": {
-          "zh": "对白策略、规则分级与反向条件",
-          "en": "Dialogue tactics, defaults and counterconditions"
+          "zh": "对白策略、规则轻重与例外情况",
+          "en": "Dialogue tactics, rule weight and exceptions"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/dialogue-craft.md"
       },
       {
         "label": {
-          "zh": "实际回应与退出事实",
+          "zh": "人物实际回应与场尾处境",
           "en": "Enacted response and exit facts"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/script-craft.md"
       },
       {
         "label": {
-          "zh": "动作和对白边界",
-          "en": "Action and dialogue boundaries"
+          "zh": "动作和对白怎么分开写",
+          "en": "Separating action from dialogue"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/screenplay-format.md"
       }
@@ -10002,7 +10002,7 @@
       },
       {
         "label": {
-          "zh": "作者承诺与开发写法边界",
+          "zh": "创作者承诺与开发阶段的写法",
           "en": "Creator promise and development choices"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/stage-contract.md"
@@ -10410,8 +10410,8 @@
       },
       {
         "label": {
-          "zh": "让选择与结果在场景里发生",
-          "en": "Develop choices and results in scenes"
+          "zh": "把选择和结果写成场景",
+          "en": "Write choices and results as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -10546,15 +10546,15 @@
     "sources": [
       {
         "label": {
-          "zh": "女频种田正文与阶段取舍",
+          "zh": "女频种田正文与各阶段的写法",
           "en": "女频种田: prose and progression"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/女频种田.md"
       },
       {
         "label": {
-          "zh": "让选择与结果在场景里发生",
-          "en": "Develop choices and results in scenes"
+          "zh": "把选择和结果写成场景",
+          "en": "Write choices and results as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -10814,15 +10814,15 @@
     "sources": [
       {
         "label": {
-          "zh": "西方奇幻正文与阶段取舍",
+          "zh": "西方奇幻正文与各阶段的写法",
           "en": "西方奇幻: prose and progression"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/西方奇幻.md"
       },
       {
         "label": {
-          "zh": "让选择与结果在场景里发生",
-          "en": "Develop choices and results in scenes"
+          "zh": "把选择和结果写成场景",
+          "en": "Write choices and results as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -10971,8 +10971,8 @@
       },
       {
         "label": {
-          "zh": "作者选择与默认条款",
-          "en": "Author choices and default clauses"
+          "zh": "作者选择优先于默认写法",
+          "en": "Author choices over default methods"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -11107,15 +11107,15 @@
     "sources": [
       {
         "label": {
-          "zh": "追踪权威与当前视图",
-          "en": "Tracking authority and current views"
+          "zh": "追踪唯一状态与生成视图",
+          "en": "Single tracking state file and generated views"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/tracking-transaction.md"
       },
       {
         "label": {
-          "zh": "改稿后的完整状态重算",
-          "en": "Complete state recalculation after revision"
+          "zh": "改稿后从头核对各项状态",
+          "en": "Recheck all story records after revision"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
       },
@@ -11396,8 +11396,8 @@
       },
       {
         "label": {
-          "zh": "本书表达选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -11539,7 +11539,7 @@
     "sources": [
       {
         "label": {
-          "zh": "都市脑洞正文与阶段取舍",
+          "zh": "都市脑洞正文与各阶段的写法",
           "en": "都市脑洞: prose and progression"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/都市脑洞.md"
@@ -11700,14 +11700,14 @@
       },
       {
         "label": {
-          "zh": "镜头职责与揭示",
-          "en": "Shot responsibilities and reveals"
+          "zh": "镜头作用与揭示",
+          "en": "Shot purpose and reveals"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
       },
       {
         "label": {
-          "zh": "对白发生与跨镜信息连续",
+          "zh": "实际说出的对白与跨镜信息连续",
           "en": "Actual dialogue and cross-shot information"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
@@ -11847,15 +11847,15 @@
     "sources": [
       {
         "label": {
-          "zh": "景别、注意与逐镜运镜",
+          "zh": "景别、观众注意力与逐镜运镜",
           "en": "Framing, attention and camera choices"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
       },
       {
         "label": {
-          "zh": "摄影机区间与声音连续",
-          "en": "Camera intervals and audio continuity"
+          "zh": "运镜时段与声音连续",
+          "en": "Camera timing and audio continuity"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       }
@@ -11990,8 +11990,8 @@
       },
       {
         "label": {
-          "zh": "动作落实、重放与镜头边界",
-          "en": "Action coverage, replay, and boundaries"
+          "zh": "动作归哪一镜、冲击回放与镜头起止",
+          "en": "Which shot carries each action, replays, start and end"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
       }
@@ -12118,21 +12118,21 @@
     "sources": [
       {
         "label": {
-          "zh": "场次声音职责与交接",
-          "en": "Scene sound purpose and handoff"
+          "zh": "每场戏的声音分工与衔接",
+          "en": "Scene sound roles and transitions"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/scene-sound-dramaturgy.md"
       },
       {
         "label": {
-          "zh": "摄影机区间与声音连续",
-          "en": "Camera intervals and audio continuity"
+          "zh": "运镜时段与声音连续",
+          "en": "Camera timing and audio continuity"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       },
       {
         "label": {
-          "zh": "实际声音处理与验收",
+          "zh": "声音处理与验收",
           "en": "Audio treatment and output review"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
@@ -12273,8 +12273,8 @@
     "sources": [
       {
         "label": {
-          "zh": "完整对白与共同时间预算",
-          "en": "Complete speech and shared time budget"
+          "zh": "完整对白与共用的时长",
+          "en": "Complete lines and shared clip time"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
       },
@@ -12287,8 +12287,8 @@
       },
       {
         "label": {
-          "zh": "对白回应与反向条件",
-          "en": "Dialogue response and counterconditions"
+          "zh": "对白回应与方法不适用的情况",
+          "en": "Dialogue response and when a method backfires"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/dialogue-craft.md"
       }
@@ -12427,22 +12427,22 @@
     "sources": [
       {
         "label": {
-          "zh": "参考图职责与观察边界",
-          "en": "Reference roles and observation boundaries"
+          "zh": "参考图的分工与能参考的范围",
+          "en": "What each reference image controls"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/reference-roles.md"
       },
       {
         "label": {
-          "zh": "原生参考登记与文字处理",
-          "en": "Native reference records and text handling"
+          "zh": "参考图登记与画面文字处理",
+          "en": "Reference-image records and on-screen text"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/common-recipe.md"
       },
       {
         "label": {
-          "zh": "绑定备注与生成正文的分离",
-          "en": "Binding notes versus generation prose"
+          "zh": "参考说明与提示词正文分开写",
+          "en": "Keep reference notes apart from the prompt"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
       }
@@ -12592,7 +12592,7 @@
     "sources": [
       {
         "label": {
-          "zh": "代表帧比较与接受",
+          "zh": "代表画面的比较与选定",
           "en": "Representative-frame comparison and acceptance"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/look-development.md"
@@ -12730,8 +12730,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -12869,8 +12869,8 @@
       },
       {
         "label": {
-          "zh": "本书文风与题材默认值的取舍",
-          "en": "Book-specific style and genre defaults"
+          "zh": "本书文风优先于题材默认写法",
+          "en": "Book style over genre defaults"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
       }
@@ -13307,8 +13307,8 @@
       },
       {
         "label": {
-          "zh": "文风与默认建议裁决",
-          "en": "Style and default-method resolution"
+          "zh": "本书文风优先于默认写法",
+          "en": "Book style over default methods"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -13879,7 +13879,7 @@
       },
       {
         "label": {
-          "zh": "作者要求、文风与事实边界",
+          "zh": "作者要求、文风与不能改的事实",
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -14025,8 +14025,8 @@
       },
       {
         "label": {
-          "zh": "作者要求与事实边界",
-          "en": "Author choices and factual boundaries"
+          "zh": "作者要求与不能改的事实",
+          "en": "Author requests and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -14344,8 +14344,8 @@
       },
       {
         "label": {
-          "zh": "正文表达与事实边界",
-          "en": "Prose choices and factual boundaries"
+          "zh": "正文写法与不能改的事实",
+          "en": "Prose choices and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -14635,7 +14635,7 @@
       },
       {
         "label": {
-          "zh": "选段与声音边界",
+          "zh": "选段与在句子间下刀",
           "en": "Clip selection and speech boundaries"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md"
@@ -14781,8 +14781,8 @@
       },
       {
         "label": {
-          "zh": "作者要求与事实边界",
-          "en": "Author choices and factual boundaries"
+          "zh": "作者要求与不能改的事实",
+          "en": "Author requests and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -14941,8 +14941,8 @@
       },
       {
         "label": {
-          "zh": "作者选择与信息边界",
-          "en": "Author choices and information boundaries"
+          "zh": "作者选择与不提前揭底",
+          "en": "Author choices without early reveals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -15206,15 +15206,15 @@
     "sources": [
       {
         "label": {
-          "zh": "改编功能、合并与新增登记",
+          "zh": "人物功能、合并与新增角色",
           "en": "Adaptation functions, mergers, and additions"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/adaptation-craft.md"
       },
       {
         "label": {
-          "zh": "开发候选与接受范围",
-          "en": "Development candidates and acceptance"
+          "zh": "开发方案的备选与确认",
+          "en": "Development options and approval"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
       }
@@ -15349,7 +15349,7 @@
       },
       {
         "label": {
-          "zh": "证据揭示与接收后果",
+          "zh": "证据揭示与引出的后果",
           "en": "Evidence reveals and recipient consequences"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/blocking-playbooks.md"
@@ -15499,8 +15499,8 @@
       },
       {
         "label": {
-          "zh": "文字政策与呈现方法",
-          "en": "Text policy and presentation"
+          "zh": "画面文字的处理方法",
+          "en": "Handling on-screen text"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/common-recipe.md"
       }
@@ -15628,15 +15628,15 @@
     "sources": [
       {
         "label": {
-          "zh": "意义与可表演载体、VO的适用范围",
-          "en": "Meaning, performable carriers, and VO scope"
+          "zh": "把意义落到可演动作上与VO何时用",
+          "en": "Turning meaning into playable action; when to use VO"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/script-craft.md"
       },
       {
         "label": {
-          "zh": "VO与OS的格式及知情通道",
-          "en": "VO and OS syntax and information channels"
+          "zh": "VO与OS的格式及谁能听到",
+          "en": "VO and OS syntax and who can hear them"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/screenplay-format.md"
       }
@@ -15764,7 +15764,7 @@
     "sources": [
       {
         "label": {
-          "zh": "重排、因果补偿与原位置处理",
+          "zh": "重排顺序、补因果与原位置处理",
           "en": "Reordering, causal compensation, and original placement"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/adaptation-craft.md"
@@ -15921,7 +15921,7 @@
     "sources": [
       {
         "label": {
-          "zh": "场景合并、功能与因果桥",
+          "zh": "场景合并、功能与因果衔接",
           "en": "Scene merging, functions, and causal bridges"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/adaptation-craft.md"
@@ -16200,22 +16200,22 @@
     "sources": [
       {
         "label": {
-          "zh": "短剧与漫剧的真实阶段路由",
-          "en": "Actual stage routing for drama and motion comics"
+          "zh": "短剧与漫剧各阶段该用哪个技能",
+          "en": "Which skill handles each drama or comic stage"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/SKILL.md"
       },
       {
         "label": {
-          "zh": "二维限动与图层职责",
-          "en": "2D limited motion and layer roles"
+          "zh": "二维动态漫的有限动作与分层",
+          "en": "2D limited animation and layer split"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/form-cards/二维动态漫.md"
       },
       {
         "label": {
-          "zh": "镜头职责与起止边界",
-          "en": "Shot jobs and boundaries"
+          "zh": "镜头作用与起止",
+          "en": "Shot purpose and start/end"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
       },
@@ -16808,15 +16808,15 @@
     "sources": [
       {
         "label": {
-          "zh": "触发、可见通道与表演落点",
+          "zh": "触发、看得见的表现与表演落点",
           "en": "Triggers, visible channels, and acting landings"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
       },
       {
         "label": {
-          "zh": "表演与起止边界",
-          "en": "Acting within start/end boundaries"
+          "zh": "首尾帧之间的表演",
+          "en": "Acting between the first and last frames"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       }
@@ -17275,8 +17275,8 @@
       },
       {
         "label": {
-          "zh": "字幕时钟与轨道验证边界",
-          "en": "Subtitle clock and track-validation limits"
+          "zh": "字幕时间轴与字幕轨检查",
+          "en": "Subtitle timing and track checks"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/subtitle-track.md"
       },
@@ -17289,7 +17289,7 @@
       },
       {
         "label": {
-          "zh": "字幕烧录开关与合成边界",
+          "zh": "字幕烧录开关与合成步骤",
           "en": "Subtitle burn-in controls and assembly boundaries"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md"
@@ -18194,7 +18194,7 @@
       },
       {
         "label": {
-          "zh": "人物板的相容造型",
+          "zh": "人物板里互不冲突的造型",
           "en": "Compatible looks in character plates"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/character-and-look.md"
@@ -18350,8 +18350,8 @@
     "sources": [
       {
         "label": {
-          "zh": "开发入口与文件归属",
-          "en": "Development entry points and files"
+          "zh": "从哪里开始与文件放在哪",
+          "en": "Where to start and where files go"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
       },
@@ -18826,7 +18826,7 @@
       },
       {
         "label": {
-          "zh": "写作方向讨论与作者范围",
+          "zh": "讨论写作方向与作者定的范围",
           "en": "Direction discussion and author scope"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
@@ -19092,14 +19092,14 @@
     "sources": [
       {
         "label": {
-          "zh": "来源范围、观察证据与改编边界",
-          "en": "Source scope, observation evidence, and adaptation boundaries"
+          "zh": "原作范围、原文依据与改编分寸",
+          "en": "Source scope, textual evidence and how far to adapt"
         },
         "url": "https://github.com/zenstory-ai/oh-story-dsh/blob/d734089bae893783d8bfaf09f8e8fa0a99723ef0/packages/knowledge/novel-to-game/skills/novel-game-analyze/references/gameability-protocol.md"
       },
       {
         "label": {
-          "zh": "选择、人物知情与分支回响",
+          "zh": "选择、人物知道什么与分支回响",
           "en": "Choices, character knowledge, and branch consequences"
         },
         "url": "https://github.com/zenstory-ai/oh-story-dsh/blob/d734089bae893783d8bfaf09f8e8fa0a99723ef0/packages/knowledge/novel-to-game/skills/game-world-design/references/narrative-design-method.md"
@@ -19262,7 +19262,7 @@
       },
       {
         "label": {
-          "zh": "单卷工作流与规划边界",
+          "zh": "单卷写作流程与规划范围",
           "en": "Volume workflow and planning boundaries"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-volume.md"
@@ -19546,8 +19546,8 @@
     "sources": [
       {
         "label": {
-          "zh": "输出时钟、双边界与轨道验证范围",
-          "en": "Output clock, cue boundaries, and track-validation scope"
+          "zh": "输出时间轴、字幕起止与校验范围",
+          "en": "Output timeline, cue timing and check scope"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/subtitle-track.md"
       }
@@ -19675,8 +19675,8 @@
     "sources": [
       {
         "label": {
-          "zh": "一般审稿的范围、原文证据与只读边界",
-          "en": "Scope, source evidence, and read-only boundaries of manuscript review"
+          "zh": "审稿范围、原文证据与只评不改",
+          "en": "Review scope, evidence and a comment-only rule"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md"
       }
@@ -19959,14 +19959,14 @@
     "sources": [
       {
         "label": {
-          "zh": "双男主视差与信物",
+          "zh": "双男主的信息差与信物",
           "en": "Dual-lead information gaps and traces"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/双男主.md"
       },
       {
         "label": {
-          "zh": "视角与作者文风裁决",
+          "zh": "视角选择与作者文风",
           "en": "Viewpoint and author style"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
@@ -20115,8 +20115,8 @@
     "sources": [
       {
         "label": {
-          "zh": "语音台账、来源与真实触发检查",
-          "en": "Voice ledger, sources, and runtime checks"
+          "zh": "配音清单、来源与游戏内播放检查",
+          "en": "Voice line list, sources and in-game playback checks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/tts-production-contract.md"
       }
@@ -20274,7 +20274,7 @@
     "sources": [
       {
         "label": {
-          "zh": "相邻边界、修订与原文落实",
+          "zh": "前后镜头衔接、修改与不漏原文",
           "en": "Adjacent boundaries, revision, and source coverage"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
@@ -20436,8 +20436,8 @@
       },
       {
         "label": {
-          "zh": "另一制作方言、三角标记与OS",
-          "en": "Another production dialect, triangle marks, and OS"
+          "zh": "另一种剧本格式、三角标记与OS",
+          "en": "Another script format, triangle marks and OS"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/production-format-dialect.md"
       }
@@ -20565,8 +20565,8 @@
     "sources": [
       {
         "label": {
-          "zh": "重复描写判断与删除保护",
-          "en": "Repeated description and deletion protection"
+          "zh": "重复描写的判断与哪些不能删",
+          "en": "Judging repetition and what must stay"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md"
       },
@@ -20974,14 +20974,14 @@
       },
       {
         "label": {
-          "zh": "直接情绪与可选反应",
-          "en": "Direct emotion and optional reactions"
+          "zh": "情绪直写与身体反应的取舍",
+          "en": "Direct emotion versus physical reactions"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
       {
         "label": {
-          "zh": "本书文风与不可静默改变的事实",
+          "zh": "本书文风与不能改的事实",
           "en": "Book voice and preserved facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -21094,21 +21094,21 @@
       },
       {
         "label": {
-          "zh": "卷承诺、状态与阶段边界",
-          "en": "Volume promises, states and stage boundaries"
+          "zh": "卷承诺、状态与本卷能揭示什么",
+          "en": "Volume promises, states and what this volume may reveal"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-volume.md"
       },
       {
         "label": {
-          "zh": "把节点与状态变化演成场景",
+          "zh": "把情节点和状态变化写成场景",
           "en": "Dramatize beats and changes of state"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
       {
         "label": {
-          "zh": "本例选择、文风与事实边界",
+          "zh": "本例选择、文风与不能改的事实",
           "en": "Example choices, voice and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -21345,7 +21345,7 @@
       },
       {
         "label": {
-          "zh": "把关系变化演成交流",
+          "zh": "把关系变化写成交流",
           "en": "Dramatize a relationship change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
@@ -21359,8 +21359,8 @@
       },
       {
         "label": {
-          "zh": "本书节奏与事实边界",
-          "en": "Book pacing and factual boundaries"
+          "zh": "本书节奏与不能改的事实",
+          "en": "Book pacing and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -21476,7 +21476,7 @@
     "sources": [
       {
         "label": {
-          "zh": "独立目标、双进度与关系类型",
+          "zh": "独立目标、两条感情进度与关系类型",
           "en": "Independent goals, dual progress, and relationship types"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
@@ -21490,7 +21490,7 @@
       },
       {
         "label": {
-          "zh": "作者结局与表达取舍",
+          "zh": "作者定的结局与表达取舍",
           "en": "Author ending and expression choices"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -21703,8 +21703,8 @@
     "sources": [
       {
         "label": {
-          "zh": "结局条件与历史回读",
-          "en": "Ending conditions and historical reads"
+          "zh": "结局条件与读取玩家过往选择",
+          "en": "Ending conditions and reading past choices"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       },
@@ -21823,7 +21823,7 @@
       },
       {
         "label": {
-          "zh": "人物议程与选择台词",
+          "zh": "人物目的与选择台词",
           "en": "Character agendas and choice dialogue"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/dialogue-design-method.md"
@@ -21954,8 +21954,8 @@
       },
       {
         "label": {
-          "zh": "人物议程与信息边界",
-          "en": "Agendas and knowledge boundaries"
+          "zh": "人物各自的目的与所知信息",
+          "en": "Character aims and what they know"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       }
@@ -22061,7 +22061,7 @@
     "sources": [
       {
         "label": {
-          "zh": "独立变化、证据区间与入出点",
+          "zh": "独立变化、证据片段与入出点",
           "en": "Independent changes, evidence and edit boundaries"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/references/creative-editing-playbook.md"
@@ -22075,8 +22075,8 @@
       },
       {
         "label": {
-          "zh": "必保源区间与顺序的执行检查",
-          "en": "Required source intervals and order checks"
+          "zh": "必须保留的原片段与顺序检查",
+          "en": "Required source clips and order checks"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md"
       }
@@ -22207,8 +22207,8 @@
       },
       {
         "label": {
-          "zh": "前置、归属与表现层读取",
-          "en": "Preconditions, possession, and presentation reads"
+          "zh": "前置条件、物品归属与画面显示",
+          "en": "Preconditions, ownership and what the screen shows"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       }
@@ -22426,15 +22426,15 @@
     "sources": [
       {
         "label": {
-          "zh": "最小证据与有区分力的路径",
+          "zh": "最少证据与能分辨问题的路径",
           "en": "Minimal evidence and discriminating paths"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
       },
       {
         "label": {
-          "zh": "真实候选与六项结果",
-          "en": "Actual candidate and six results"
+          "zh": "实际这一版与六项检查结果",
+          "en": "The actual build and six test results"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/SKILL.md"
       }
@@ -22570,8 +22570,8 @@
       },
       {
         "label": {
-          "zh": "背景表达服从本书文风",
-          "en": "Backstory expression follows the book"
+          "zh": "背景写法以本书文风为准",
+          "en": "Backstory writing follows the book's style"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -22843,8 +22843,8 @@
       },
       {
         "label": {
-          "zh": "按本书表达选择保留事实",
-          "en": "Expression choices with preserved facts"
+          "zh": "按本书文风写，不改事实",
+          "en": "Follow the book's style, keep the facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -23332,8 +23332,8 @@
     "sources": [
       {
         "label": {
-          "zh": "对白、旁白与口部表现",
-          "en": "Dialogue, voiceover and visible mouths"
+          "zh": "对白、旁白与口型",
+          "en": "Dialogue, voiceover and lip sync"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       },
@@ -24085,8 +24085,8 @@
       },
       {
         "label": {
-          "zh": "本书表达选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -24454,22 +24454,22 @@
     "sources": [
       {
         "label": {
-          "zh": "重生题材的开局与屏幕回报",
+          "zh": "重生题材的开局与看得见的回报",
           "en": "Rebirth openings and screen payoff"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/重生穿越.md"
       },
       {
         "label": {
-          "zh": "记忆边界、剧中披露与装置规则",
+          "zh": "记忆范围、剧中揭示与设定规则",
           "en": "Memory boundaries, disclosure and premise rules"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/premise-devices.md"
       },
       {
         "label": {
-          "zh": "当前载体与结论范围",
-          "en": "Current evidence and conclusion scope"
+          "zh": "眼下的证据与能下的结论",
+          "en": "Current evidence and what it can prove"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
       }
@@ -24834,8 +24834,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -25082,8 +25082,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与检查默认值",
-          "en": "Author voice and default checks"
+          "zh": "作者文风优先于默认检查",
+          "en": "Author voice over default checks"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -25210,15 +25210,15 @@
     "sources": [
       {
         "label": {
-          "zh": "公平揭示、方向变化与局部回报",
+          "zh": "公平揭示、方向变化与阶段性回报",
           "en": "Fair disclosure, directional change and local payoff"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/reveal-reversal-payoff.md"
       },
       {
         "label": {
-          "zh": "可见载体与证据结论边界",
-          "en": "Visible evidence and conclusion boundaries"
+          "zh": "可见证据与能下的结论",
+          "en": "Visible evidence and what it can prove"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
       },
@@ -25352,7 +25352,7 @@
     "sources": [
       {
         "label": {
-          "zh": "跨集记忆、信息权限与摘要更新",
+          "zh": "跨集记忆、谁知道什么与摘要更新",
           "en": "Cross-episode memory, knowledge and summary updates"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
@@ -25604,7 +25604,7 @@
     "sources": [
       {
         "label": {
-          "zh": "照料、依赖与家庭边界的屏幕方法",
+          "zh": "照料、依赖与家庭边界的拍法",
           "en": "Screen methods for care, dependence and family boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/家庭关系.md"
@@ -26093,8 +26093,8 @@
       },
       {
         "label": {
-          "zh": "共享场景、持久状态与历史回响",
-          "en": "Shared scenes, persistent states and remembered history"
+          "zh": "共享场景、长期状态与过往选择的回响",
+          "en": "Shared scenes, lasting state and echoes of past choices"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       }
@@ -26335,14 +26335,14 @@
     "sources": [
       {
         "label": {
-          "zh": "可证伪体验、原型保真度与局部修订",
+          "zh": "可检验的体验、原型精细度与局部修改",
           "en": "Falsifiable experience, prototype fidelity and local revision"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
       },
       {
         "label": {
-          "zh": "叙事选择、状态与路径走读",
+          "zh": "叙事选择、状态与逐条路线试走",
           "en": "Narrative choice, state and path walkthroughs"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
@@ -26898,7 +26898,7 @@
       },
       {
         "label": {
-          "zh": "同人设定与命名边界",
+          "zh": "同人设定与起名的分寸",
           "en": "Fanfiction premise and naming"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-special-topics.md"
@@ -27672,7 +27672,7 @@
       },
       {
         "label": {
-          "zh": "音频模式与处理边界",
+          "zh": "音频模式与处理范围",
           "en": "Audio modes and processing boundaries"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
@@ -27686,15 +27686,15 @@
       },
       {
         "label": {
-          "zh": "原片区间、无额外配乐与冻结音乐轨",
+          "zh": "原片时间段、不加配乐与锁定音乐轨",
           "en": "Source intervals, no additional score, and frozen stems"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/source-score.md"
       },
       {
         "label": {
-          "zh": "底轨与已采用旁白的完整声音路径",
-          "en": "Full-sound path for beds and selected narration"
+          "zh": "背景声与选定旁白的完整混音",
+          "en": "Full mix of background sound and chosen narration"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/explicit-audio-mix.md"
       }
@@ -27944,7 +27944,7 @@
     "sources": [
       {
         "label": {
-          "zh": "逐段配音与已定原稿保护",
+          "zh": "逐段配音与不改定稿",
           "en": "Segment voiceover and fixed-text protection"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
@@ -27958,7 +27958,7 @@
       },
       {
         "label": {
-          "zh": "生成时长与待放置元数据",
+          "zh": "生成时长与待放置的配音记录",
           "en": "Generated duration and pending-placement metadata"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
@@ -28298,7 +28298,7 @@
     "sources": [
       {
         "label": {
-          "zh": "快照、事件与回放合同",
+          "zh": "快照、事件与回放规则",
           "en": "Snapshots, events and replay"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -28405,7 +28405,7 @@
     "sources": [
       {
         "label": {
-          "zh": "人物议程、知情与选择回响",
+          "zh": "人物目的、谁知道什么与选择回响",
           "en": "Agendas, knowledge and callbacks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
@@ -28419,7 +28419,7 @@
       },
       {
         "label": {
-          "zh": "对话候选与最终状态提交",
+          "zh": "对话候选与规则确认的最终状态",
           "en": "Dialogue candidates and committed state"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -28526,8 +28526,8 @@
     "sources": [
       {
         "label": {
-          "zh": "证据、知识边界与揭示",
-          "en": "Evidence, knowledge boundaries and reveals"
+          "zh": "证据、谁知道什么与揭示",
+          "en": "Evidence, who knows what, and reveals"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       }
@@ -28640,8 +28640,8 @@
       },
       {
         "label": {
-          "zh": "来源覆盖与改编边界",
-          "en": "Source coverage and adaptation boundaries"
+          "zh": "原作覆盖范围与改编分寸",
+          "en": "Source coverage and how far to adapt"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/novel-game-analyze/references/gameability-protocol.md"
       }
@@ -28765,15 +28765,15 @@
       },
       {
         "label": {
-          "zh": "对白议程与信息边界",
-          "en": "Dialogue agendas and information limits"
+          "zh": "对白目的与人物所知",
+          "en": "Dialogue aims and what characters know"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
       },
       {
         "label": {
-          "zh": "本书表达选择与信息边界",
-          "en": "Book choices and information boundaries"
+          "zh": "本书文风与不能提前揭示的信息",
+          "en": "Book style and information not to reveal early"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -28904,8 +28904,8 @@
       },
       {
         "label": {
-          "zh": "让选择与结果在场景里发生",
-          "en": "Develop choices and results in scenes"
+          "zh": "把选择和结果写成场景",
+          "en": "Write choices and results as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -29043,8 +29043,8 @@
       },
       {
         "label": {
-          "zh": "本书表达选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -29164,8 +29164,8 @@
       },
       {
         "label": {
-          "zh": "本书表达选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -29285,8 +29285,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -29403,22 +29403,22 @@
     "sources": [
       {
         "label": {
-          "zh": "关系进度与行为边界",
+          "zh": "关系进度与行为分寸",
           "en": "Relationship progress and behavior"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       },
       {
         "label": {
-          "zh": "场合、议程与情绪回应",
+          "zh": "场合、目的与情绪回应",
           "en": "Setting, agendas and emotional response"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
       },
       {
         "label": {
-          "zh": "本书表达选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -29538,14 +29538,14 @@
       },
       {
         "label": {
-          "zh": "把节点与状态变化演成场景",
+          "zh": "把情节点和状态变化写成场景",
           "en": "Dramatize beats and changes of state"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
       {
         "label": {
-          "zh": "本例选择、文风与事实边界",
+          "zh": "本例选择、文风与不能改的事实",
           "en": "Example choices, voice and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -29666,8 +29666,8 @@
       },
       {
         "label": {
-          "zh": "普通旁白保护与dub的边界",
-          "en": "Ordinary narration protection and dub boundaries"
+          "zh": "普通旁白与dub模式的区别",
+          "en": "Ordinary narration versus dub mode"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
       }
@@ -29916,8 +29916,8 @@
       },
       {
         "label": {
-          "zh": "目标视口、明度继承与运行验证",
-          "en": "Target viewport, inherited brightness and runtime review"
+          "zh": "目标屏幕、亮度沿用与实机检查",
+          "en": "Target screen, carried-over brightness and in-game checks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/build-brief-contract.md"
       }
@@ -30041,8 +30041,8 @@
       },
       {
         "label": {
-          "zh": "批准方向到实际界面的保真",
-          "en": "Preserving approved direction in the actual interface"
+          "zh": "确认的美术方向如实做进界面",
+          "en": "Carrying the approved art direction into the interface"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/build-brief-contract.md"
       }
@@ -30155,8 +30155,8 @@
       },
       {
         "label": {
-          "zh": "表现读取已提交状态",
-          "en": "Presentation reads committed state"
+          "zh": "画面只显示已生效的状态",
+          "en": "The screen shows only applied state"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       }
@@ -30383,14 +30383,14 @@
     "sources": [
       {
         "label": {
-          "zh": "延期回响与世界回应",
+          "zh": "延后的后果与世界回应",
           "en": "Delayed consequences and world response"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
       },
       {
         "label": {
-          "zh": "到期与重复触发边界",
+          "zh": "到期与重复触发的处理",
           "en": "Deadline and duplicate-trigger boundaries"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -30611,8 +30611,8 @@
       },
       {
         "label": {
-          "zh": "声音与字幕实作范围",
-          "en": "Sound and subtitle implementation scope"
+          "zh": "声音与字幕实际能做什么",
+          "en": "What sound and subtitle tools can actually do"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
       }
@@ -30836,8 +30836,8 @@
     "sources": [
       {
         "label": {
-          "zh": "身份错位任务与知情",
-          "en": "Misidentified roles, tasks and knowledge"
+          "zh": "身份错位、任务与谁知道什么",
+          "en": "Mistaken identities, tasks and who knows what"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/身份错位.md"
       },
@@ -30968,7 +30968,7 @@
       },
       {
         "label": {
-          "zh": "主角选择、阶段性结果与信息权限",
+          "zh": "主角选择、阶段性结果与谁知道什么",
           "en": "Protagonist choice, local result, and knowledge scope"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
@@ -31082,7 +31082,7 @@
       },
       {
         "label": {
-          "zh": "素材可用区间",
+          "zh": "素材可用片段",
           "en": "Usable footage intervals"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/generated-footage.md"
@@ -31317,8 +31317,8 @@
       },
       {
         "label": {
-          "zh": "文风选择与事实归属",
-          "en": "Style choice and factual attribution"
+          "zh": "文风选择与不能改的事实",
+          "en": "Style choices and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -31763,7 +31763,7 @@
       },
       {
         "label": {
-          "zh": "有界改图的目标、保持项与连续影响",
+          "zh": "局部改图的目标、要保留的内容与前后影响",
           "en": "Bounded image-edit targets, preserve set and continuity impact"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/edit-and-revision.md"
@@ -32758,7 +32758,7 @@
       },
       {
         "label": {
-          "zh": "保留动作含义的实现调整",
+          "zh": "换种拍法，保住动作含义",
           "en": "Changing realization while retaining meaning"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
@@ -32865,14 +32865,14 @@
     "sources": [
       {
         "label": {
-          "zh": "观众事实权限与释放时机",
-          "en": "Audience permission and release events"
+          "zh": "观众何时知道哪些事实",
+          "en": "What the audience knows, and when"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/audience-reveal.md"
       },
       {
         "label": {
-          "zh": "证据接收与场面调度",
+          "zh": "看到证据的反应与场面调度",
           "en": "Evidence reception and blocking"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/blocking-playbooks.md"
@@ -33093,14 +33093,14 @@
       },
       {
         "label": {
-          "zh": "把节点与状态变化演成场景",
+          "zh": "把情节点和状态变化写成场景",
           "en": "Dramatize beats and changes of state"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
       {
         "label": {
-          "zh": "本例选择、文风与事实边界",
+          "zh": "本例选择、文风与不能改的事实",
           "en": "Example choices, voice and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -33207,8 +33207,8 @@
     "sources": [
       {
         "label": {
-          "zh": "身份、输入与有限候选",
-          "en": "Role, input and bounded intents"
+          "zh": "玩家身份、输入方式与有限选项",
+          "en": "Player role, input method and limited options"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-concept/references/concept-method.md"
       }
@@ -33428,7 +33428,7 @@
       },
       {
         "label": {
-          "zh": "显式完整字幕轨的替换边界",
+          "zh": "整条替换字幕轨的条件",
           "en": "Complete explicit subtitle-track replacement"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/subtitle-track.md"
@@ -33535,7 +33535,7 @@
     "sources": [
       {
         "label": {
-          "zh": "主要动作、冲击重复与镜头职责",
+          "zh": "主要动作、冲击回放与各镜头分工",
           "en": "Primary actions, deliberate replay and shot jobs"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
@@ -33660,8 +33660,8 @@
       },
       {
         "label": {
-          "zh": "文风优先与事实边界",
-          "en": "Style priority and factual boundaries"
+          "zh": "文风优先，事实不能改",
+          "en": "Style comes first; facts stay fixed"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -33792,8 +33792,8 @@
       },
       {
         "label": {
-          "zh": "文风优先与事实边界",
-          "en": "Style priority and factual boundaries"
+          "zh": "文风优先，事实不能改",
+          "en": "Style comes first; facts stay fixed"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -33924,8 +33924,8 @@
       },
       {
         "label": {
-          "zh": "文风优先与事实边界",
-          "en": "Style priority and factual boundaries"
+          "zh": "文风优先，事实不能改",
+          "en": "Style comes first; facts stay fixed"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -34049,15 +34049,15 @@
       },
       {
         "label": {
-          "zh": "五感、动态描写与文风默认值",
+          "zh": "五感、动态描写与默认写法",
           "en": "Senses, dynamic description and style defaults"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
       },
       {
         "label": {
-          "zh": "文风优先与事实边界",
-          "en": "Style priority and factual boundaries"
+          "zh": "文风优先，事实不能改",
+          "en": "Style comes first; facts stay fixed"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -34188,8 +34188,8 @@
       },
       {
         "label": {
-          "zh": "文风优先与事实边界",
-          "en": "Style priority and factual boundaries"
+          "zh": "文风优先，事实不能改",
+          "en": "Style comes first; facts stay fixed"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -34306,8 +34306,8 @@
     "sources": [
       {
         "label": {
-          "zh": "研究场景、独立来源、事实与创作边界",
-          "en": "Research scope, independent sources and facts versus creation"
+          "zh": "查资料、多方来源与哪些可以虚构",
+          "en": "Research, independent sources and what may be invented"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-setup/references/templates/agents/story-researcher.md"
       }
@@ -34549,7 +34549,7 @@
     "sources": [
       {
         "label": {
-          "zh": "参考图职责与人数边界",
+          "zh": "参考图用途与人数限制",
           "en": "Reference roles and cast boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/reference-roles.md"
@@ -34563,7 +34563,7 @@
       },
       {
         "label": {
-          "zh": "关键帧的可见角色与边界",
+          "zh": "关键帧里的角色与入画范围",
           "en": "Visible cast and keyframe boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/keyframe-craft.md"
@@ -34670,15 +34670,15 @@
     "sources": [
       {
         "label": {
-          "zh": "配乐与环境声的跨镜边界",
+          "zh": "跨镜头的配乐与环境声",
           "en": "Cross-shot music and ambience"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       },
       {
         "label": {
-          "zh": "声音接缝、字幕与实际混音",
-          "en": "Audio seams, captions and enacted mixing"
+          "zh": "声音衔接、字幕与混音",
+          "en": "Audio joins, captions and mixing"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
       },
@@ -34802,15 +34802,15 @@
     "sources": [
       {
         "label": {
-          "zh": "配乐与环境声的跨镜边界",
+          "zh": "跨镜头的配乐与环境声",
           "en": "Cross-shot music and ambience"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       },
       {
         "label": {
-          "zh": "声音接缝、字幕与实际混音",
-          "en": "Audio seams, captions and enacted mixing"
+          "zh": "声音衔接、字幕与混音",
+          "en": "Audio joins, captions and mixing"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
       },
@@ -34923,8 +34923,8 @@
     "sources": [
       {
         "label": {
-          "zh": "声音接缝、字幕与实际混音",
-          "en": "Audio seams, captions and enacted mixing"
+          "zh": "声音衔接、字幕与混音",
+          "en": "Audio joins, captions and mixing"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
       },
@@ -35051,8 +35051,8 @@
       },
       {
         "label": {
-          "zh": "声音接缝、字幕与实际混音",
-          "en": "Audio seams, captions and enacted mixing"
+          "zh": "声音衔接、字幕与混音",
+          "en": "Audio joins, captions and mixing"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
       }
@@ -35158,7 +35158,7 @@
     "sources": [
       {
         "label": {
-          "zh": "固定与移动摄影机的区间",
+          "zh": "固定机位与运镜的时段",
           "en": "Static and moving camera intervals"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
@@ -35293,7 +35293,7 @@
       },
       {
         "label": {
-          "zh": "文风与事实分别裁决",
+          "zh": "文风与事实分开判断",
           "en": "Separate style from facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -35400,8 +35400,8 @@
     "sources": [
       {
         "label": {
-          "zh": "审查范围、证据与作者报告",
-          "en": "Review scope, evidence and author reports"
+          "zh": "审稿范围、证据与给作者的报告",
+          "en": "Review scope, evidence and reports for the author"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md"
       },
@@ -35414,14 +35414,14 @@
       },
       {
         "label": {
-          "zh": "剧情与文笔分层诊断",
+          "zh": "剧情与文笔分开诊断",
           "en": "Diagnose plot and prose separately"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
       },
       {
         "label": {
-          "zh": "文风与事实分别裁决",
+          "zh": "文风与事实分开判断",
           "en": "Separate style from facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -35539,22 +35539,22 @@
     "sources": [
       {
         "label": {
-          "zh": "剧情与文笔分层诊断",
+          "zh": "剧情与文笔分开诊断",
           "en": "Diagnose plot and prose separately"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
       },
       {
         "label": {
-          "zh": "文风与事实分别裁决",
+          "zh": "文风与事实分开判断",
           "en": "Separate style from facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "审查范围、证据与作者报告",
-          "en": "Review scope, evidence and author reports"
+          "zh": "审稿范围、证据与给作者的报告",
+          "en": "Review scope, evidence and reports for the author"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md"
       },
@@ -35681,8 +35681,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author style and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -35795,7 +35795,7 @@
     "sources": [
       {
         "label": {
-          "zh": "细纲规格如何写成场景",
+          "zh": "细纲怎样写成场景",
           "en": "Turn outline requirements into scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
@@ -35809,8 +35809,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author style and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -35923,7 +35923,7 @@
     "sources": [
       {
         "label": {
-          "zh": "事件与实际揭示记录",
+          "zh": "事件与已揭示信息记录",
           "en": "Events and actual revelation records"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/tracking-transaction.md"
@@ -36286,22 +36286,22 @@
       },
       {
         "label": {
-          "zh": "动作实现与剧情信息保护",
-          "en": "Action realization and story preservation"
+          "zh": "换种动作写法，保住剧情信息",
+          "en": "Change how the action is done, keep story information"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
       },
       {
         "label": {
-          "zh": "图片的有界编辑说明",
+          "zh": "局部改图的说明",
           "en": "Bounded image-edit instructions"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/edit-and-revision.md"
       },
       {
         "label": {
-          "zh": "母版与补拍职责",
-          "en": "Main and pickup duties"
+          "zh": "母版与补拍的分工",
+          "en": "Main take and pickup roles"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/pickup-and-alternate.md"
       }
@@ -36414,8 +36414,8 @@
       },
       {
         "label": {
-          "zh": "动作实现与剧情信息保护",
-          "en": "Action realization and story preservation"
+          "zh": "换种动作写法，保住剧情信息",
+          "en": "Change how the action is done, keep story information"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
       },
@@ -36435,7 +36435,7 @@
       },
       {
         "label": {
-          "zh": "入出点与剪后完成状态",
+          "zh": "入出点与剪后动作是否完整",
           "en": "Cuts and readable completion"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/cut-craft.md"
@@ -36770,15 +36770,15 @@
     "sources": [
       {
         "label": {
-          "zh": "正文语法、文字政策与适用限制",
-          "en": "Prompt grammar, text policy, and scoped restrictions"
+          "zh": "提示词写法、画面文字规则与适用限制",
+          "en": "Prompt grammar, on-screen text rules and limits"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
       },
       {
         "label": {
-          "zh": "负面补丁与内容保留检查",
-          "en": "Restriction piles and content preservation"
+          "zh": "负面提示词与保留内容检查",
+          "en": "Negative prompts and content preservation"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-review/references/production-quality-gates.md"
       }
@@ -36884,14 +36884,14 @@
     "sources": [
       {
         "label": {
-          "zh": "多人表演与注意交接",
-          "en": "Group performance and attention transfers"
+          "zh": "多人表演与注意力转移",
+          "en": "Group performance and shifting attention"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
       },
       {
         "label": {
-          "zh": "身份指代与稳定绑定",
+          "zh": "人物指代与固定对应",
           "en": "Identity references and stable bindings"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
@@ -37009,7 +37009,7 @@
     "sources": [
       {
         "label": {
-          "zh": "无旁白音频模式与复制边界",
+          "zh": "不加旁白的声音模式与原样复制",
           "en": "Non-narration modes and copying boundaries"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
@@ -37130,7 +37130,7 @@
     "sources": [
       {
         "label": {
-          "zh": "三层知识与分支回读",
+          "zh": "三层知识与分支的后续呼应",
           "en": "Knowledge layers and branch reads"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
@@ -37144,7 +37144,7 @@
       },
       {
         "label": {
-          "zh": "向未见证者泄密的反例",
+          "zh": "没在场的人却知道秘密的反例",
           "en": "Unwitnessed-knowledge counterexamples"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
@@ -37265,8 +37265,8 @@
       },
       {
         "label": {
-          "zh": "共享场景与历史回响",
-          "en": "Shared scenes and historical echoes"
+          "zh": "共享场景与过往选择的回响",
+          "en": "Shared scenes and echoes of past choices"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       }
@@ -37401,8 +37401,8 @@
       },
       {
         "label": {
-          "zh": "动作、表演与声音预算",
-          "en": "Action, performance, and sound budget"
+          "zh": "动作、表演与声音的时长分配",
+          "en": "Action, performance and sound timing"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
       },
@@ -37537,7 +37537,7 @@
     "sources": [
       {
         "label": {
-          "zh": "镜头职责与视觉选择",
+          "zh": "镜头作用与视觉选择",
           "en": "Shot purpose and visual choices"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
@@ -37558,7 +37558,7 @@
       },
       {
         "label": {
-          "zh": "场景资产与文字政策",
+          "zh": "场景资产与画面文字处理",
           "en": "Location assets and text policy"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/common-recipe.md"
@@ -37797,7 +37797,7 @@
     "sources": [
       {
         "label": {
-          "zh": "多源剪切职责与中间文件",
+          "zh": "多段素材剪切与中间文件",
           "en": "Multi-source cut and intermediate output"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md"
@@ -38214,7 +38214,7 @@
       },
       {
         "label": {
-          "zh": "重名预检与标题同步",
+          "zh": "章节名查重与标题同步",
           "en": "Duplicate precheck and title synchronization"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-chapter.md"
@@ -38355,7 +38355,7 @@
     "sources": [
       {
         "label": {
-          "zh": "关系双进度、独立目标与修罗场收束",
+          "zh": "关系的两条进度、独立目标与修罗场收场",
           "en": "Relationship progress, independent goals, and containing rivalry"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
@@ -38369,8 +38369,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -38471,7 +38471,7 @@
     "sources": [
       {
         "label": {
-          "zh": "正文语言与口语语言的区别",
+          "zh": "提示词语言与台词语言的区别",
           "en": "Instruction versus spoken language"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md"
@@ -38630,8 +38630,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -38742,7 +38742,7 @@
     "sources": [
       {
         "label": {
-          "zh": "议程、情绪承接与对白模式",
+          "zh": "各自目的、情绪承接与对白模式",
           "en": "Agendas, emotional replies, and dialogue modes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
@@ -38756,7 +38756,7 @@
       },
       {
         "label": {
-          "zh": "作者文风与表达裁决",
+          "zh": "作者文风与写法选择",
           "en": "Author voice and expression choices"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -38868,8 +38868,8 @@
     "sources": [
       {
         "label": {
-          "zh": "独立目标与关系双进度",
-          "en": "Independent goals and dual relationship progress"
+          "zh": "独立目标与两条感情进度",
+          "en": "Independent goals and two relationship progress lines"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       },
@@ -38996,22 +38996,22 @@
       },
       {
         "label": {
-          "zh": "双进度与独立目标",
-          "en": "Dual progress and independent goals"
+          "zh": "两条感情进度与独立目标",
+          "en": "Two relationship progress lines and independent goals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       },
       {
         "label": {
-          "zh": "对白议程与真实回应",
-          "en": "Dialogue agendas and responsive exchange"
+          "zh": "对白目的与真实回应",
+          "en": "Dialogue aims and responsive exchange"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
       },
       {
         "label": {
-          "zh": "作者选择优先于题材默认值",
-          "en": "Author choices before genre defaults"
+          "zh": "作者选择优先于题材常规写法",
+          "en": "Author choices before usual genre habits"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -39238,8 +39238,8 @@
     "sources": [
       {
         "label": {
-          "zh": "关系双进度与人物独立目标",
-          "en": "Dual relationship progress and independent goals"
+          "zh": "两条感情进度与人物独立目标",
+          "en": "Two relationship progress lines and independent goals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       },
@@ -39252,15 +39252,15 @@
       },
       {
         "label": {
-          "zh": "对白议程与情绪承接",
-          "en": "Dialogue agendas and emotional replies"
+          "zh": "说话目的与情绪承接",
+          "en": "Speaking goals and emotional replies"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
       },
       {
         "label": {
-          "zh": "作者选择与信息边界",
-          "en": "Author choices and information boundaries"
+          "zh": "作者选择与不提前揭底",
+          "en": "Author choices without early reveals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -39366,8 +39366,8 @@
     "sources": [
       {
         "label": {
-          "zh": "关系双进度与人物独立目标",
-          "en": "Dual relationship progress and independent goals"
+          "zh": "两条感情进度与人物独立目标",
+          "en": "Two relationship progress lines and independent goals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       },
@@ -39380,15 +39380,15 @@
       },
       {
         "label": {
-          "zh": "对白议程与情绪承接",
-          "en": "Dialogue agendas and emotional replies"
+          "zh": "说话目的与情绪承接",
+          "en": "Speaking goals and emotional replies"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
       },
       {
         "label": {
-          "zh": "作者选择与信息边界",
-          "en": "Author choices and information boundaries"
+          "zh": "作者选择与不提前揭底",
+          "en": "Author choices without early reveals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -39526,8 +39526,8 @@
       },
       {
         "label": {
-          "zh": "作者选择与既定信息边界",
-          "en": "Author choices and established information boundaries"
+          "zh": "作者选择与不提前揭底",
+          "en": "Author choices without early reveals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -39654,8 +39654,8 @@
       },
       {
         "label": {
-          "zh": "作者选择与既定信息边界",
-          "en": "Author choices and established information boundaries"
+          "zh": "作者选择与不提前揭底",
+          "en": "Author choices without early reveals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -39773,7 +39773,7 @@
       },
       {
         "label": {
-          "zh": "句末停顿、讲话区间与连续连接检查",
+          "zh": "句末停顿、说话区间与接点检查",
           "en": "Pause windows, speech spans, and continuous joins"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/scripts/sentence_boundaries.py"
@@ -39898,7 +39898,7 @@
     "sources": [
       {
         "label": {
-          "zh": "逐段配音与输出证据",
+          "zh": "逐段配音与输出记录",
           "en": "Segment synthesis and output evidence"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
@@ -39912,8 +39912,8 @@
       },
       {
         "label": {
-          "zh": "当前默认归一设置",
-          "en": "Pinned normalization defaults"
+          "zh": "当前默认音量归一设置",
+          "en": "Current default loudness normalization"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/lib.py"
       },
@@ -40069,8 +40069,8 @@
       },
       {
         "label": {
-          "zh": "本书选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书选择与不能改的事实",
+          "en": "Book choices and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -40219,8 +40219,8 @@
       },
       {
         "label": {
-          "zh": "本书表达选择与事实边界",
-          "en": "Book choices and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -40348,15 +40348,15 @@
     "sources": [
       {
         "label": {
-          "zh": "批准稿保护与部分成功边界",
-          "en": "Approved-text and partial-result boundaries"
+          "zh": "不改定稿与部分失败的处理",
+          "en": "Keep approved text; handle partial failures"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
       },
       {
         "label": {
-          "zh": "保护策略与超窗阻断",
-          "en": "Protection policy and duration blocking"
+          "zh": "定稿文字保护与超时拦截",
+          "en": "Approved-text protection and over-length blocking"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/approved_text_policy.py"
       },
@@ -40494,8 +40494,8 @@
     "sources": [
       {
         "label": {
-          "zh": "分段窗口与段尾停顿契约",
-          "en": "Segment windows and pause contract"
+          "zh": "分段时长与段尾停顿规则",
+          "en": "Segment timing and end-of-segment pause rules"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
       },
@@ -40679,7 +40679,7 @@
       },
       {
         "label": {
-          "zh": "剪后音轨与新目录路由",
+          "zh": "剪后音轨改从新目录读取",
           "en": "Cut audio and new-directory routing"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/references/audio-routing.md"
@@ -40820,15 +40820,15 @@
       },
       {
         "label": {
-          "zh": "已写区间的规划与卷尾追加",
+          "zh": "已写部分的规划与在卷尾追加",
           "en": "Planning for written sections and appending units"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-volume.md"
       },
       {
         "label": {
-          "zh": "作者选择与事实边界",
-          "en": "Author choices and factual boundaries"
+          "zh": "作者选择与不能改的事实",
+          "en": "Author choices and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -40962,15 +40962,15 @@
       },
       {
         "label": {
-          "zh": "故事线、信息差与批次边界",
+          "zh": "故事线、信息差与每批写到哪",
           "en": "Storylines, information gaps, and scoped beats"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-outline.md"
       },
       {
         "label": {
-          "zh": "视角选择与信息边界",
-          "en": "Viewpoint choices and information limits"
+          "zh": "视角选择与人物所知",
+          "en": "Viewpoint choices and what characters know"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -41097,7 +41097,7 @@
     "sources": [
       {
         "label": {
-          "zh": "各方议程与逐句回应",
+          "zh": "各方目的与逐句回应",
           "en": "Individual agendas and responsive dialogue"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
@@ -41118,8 +41118,8 @@
       },
       {
         "label": {
-          "zh": "谈话形式与事实边界",
-          "en": "Dialogue form and factual boundaries"
+          "zh": "谈话形式与不能改的事实",
+          "en": "Dialogue form and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -41246,7 +41246,7 @@
     "sources": [
       {
         "label": {
-          "zh": "真实动机、说法与谈话议程",
+          "zh": "真实动机、说法与谈话目的",
           "en": "Motives, stated explanations, and agendas"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
@@ -41395,21 +41395,21 @@
     "sources": [
       {
         "label": {
-          "zh": "动作前置、物件变化与系统取舍",
+          "zh": "动作前提、物件变化与系统取舍",
           "en": "Action prerequisites, item changes, and system scope"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
       },
       {
         "label": {
-          "zh": "物件去向与后续回读",
-          "en": "Item destinations and later reads"
+          "zh": "物件去向与之后的呼应",
+          "en": "Item destinations and later callbacks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       },
       {
         "label": {
-          "zh": "归属提交、载入与表现边界",
+          "zh": "物品归属确认、读档与显示范围",
           "en": "Committed ownership, loading, and presentation limits"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -41558,7 +41558,7 @@
       },
       {
         "label": {
-          "zh": "实际规则验证与状态提交",
+          "zh": "按规则核验并确认状态",
           "en": "Actual validation and state commitment"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -41849,8 +41849,8 @@
       },
       {
         "label": {
-          "zh": "普通旁白与显式完整混音边界",
-          "en": "Ordinary narration and explicit full-mix boundaries"
+          "zh": "普通旁白与完整混音的区别",
+          "en": "Ordinary narration versus full mix"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
       }
@@ -41977,7 +41977,7 @@
     "sources": [
       {
         "label": {
-          "zh": "起点、有序主体动作与保持项",
+          "zh": "起始画面、主体动作顺序与不变的部分",
           "en": "Starting state, ordered subject motion, and preservation"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
@@ -42119,22 +42119,22 @@
     "sources": [
       {
         "label": {
-          "zh": "选择性变换的触发、范围、终点与保持项",
-          "en": "Selective change: trigger, scope, endpoint, and preservation"
+          "zh": "局部特效的触发、范围、结果与不变项",
+          "en": "Local effects: trigger, scope, result, what stays"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       },
       {
         "label": {
-          "zh": "只读镜头边界与真实结束状态",
+          "zh": "不能改的镜头起止与真实结束状态",
           "en": "Shot boundaries and actual end states"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       },
       {
         "label": {
-          "zh": "高风险实现、分镜拆分与等效表达",
-          "en": "Risky implementation, splitting, and equivalent expression"
+          "zh": "难生成的画面、拆镜与替代写法",
+          "en": "Hard-to-generate shots, splitting and alternatives"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
       }
@@ -42417,7 +42417,7 @@
       },
       {
         "label": {
-          "zh": "主动承担结果与本书承诺",
+          "zh": "主动承担结果与给读者的期待",
           "en": "Chosen consequences and the book’s promise"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
@@ -42545,7 +42545,7 @@
     "sources": [
       {
         "label": {
-          "zh": "对白议程、信息阻力与回应",
+          "zh": "说话目的、信息阻力与回应",
           "en": "Dialogue agendas, information friction, and replies"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
@@ -42559,8 +42559,8 @@
       },
       {
         "label": {
-          "zh": "事实与表达分别裁决",
-          "en": "Separating facts from expression"
+          "zh": "文风与事实分开判断",
+          "en": "Separate style from facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -42694,15 +42694,15 @@
       },
       {
         "label": {
-          "zh": "同名声线的缓存边界与receipt含义",
-          "en": "Named voices, cache limits, and receipt meaning"
+          "zh": "同名声线的缓存范围与生成记录",
+          "en": "Named voices, cache scope and generation records"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/references/index-tts.md"
       },
       {
         "label": {
-          "zh": "成片实际消费的旁白版本",
-          "en": "Narration inputs actually consumed"
+          "zh": "成片实际用到的旁白版本",
+          "en": "Narration version actually used"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
       }
@@ -42978,14 +42978,14 @@
       },
       {
         "label": {
-          "zh": "资源产出、投入与读取",
+          "zh": "资源来源、投入与用途",
           "en": "Resource sources, uses, and readers"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/numeric-design-method.md"
       },
       {
         "label": {
-          "zh": "实际提交与持续状态",
+          "zh": "实际生效的结果与持续状态",
           "en": "Committed effects and persistent state"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -43120,14 +43120,14 @@
       },
       {
         "label": {
-          "zh": "知识、物件与返回回响",
+          "zh": "知识、物件与回访时的呼应",
           "en": "Knowledge, objects, and callbacks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       },
       {
         "label": {
-          "zh": "位置前置与实际归属",
+          "zh": "位置条件与物品实际归属",
           "en": "Location conditions and actual possession"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -43276,8 +43276,8 @@
       },
       {
         "label": {
-          "zh": "文风与故事事实分开裁决",
-          "en": "Separating style from story facts"
+          "zh": "文风与事实分开判断",
+          "en": "Separate style from facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -43404,8 +43404,8 @@
     "sources": [
       {
         "label": {
-          "zh": "对话议程、情绪承接与因果",
-          "en": "Dialogue agendas, emotional replies, and causality"
+          "zh": "对话目的、情绪承接与因果",
+          "en": "Dialogue aims, emotional replies and causality"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
       },
@@ -44007,8 +44007,8 @@
       },
       {
         "label": {
-          "zh": "独立选定速度策略与消费记录",
-          "en": "Independently selected tempo policy and consumption"
+          "zh": "单独选定的变速方式与使用记录",
+          "en": "Separately chosen tempo setting and usage records"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
       },
@@ -44021,8 +44021,8 @@
       },
       {
         "label": {
-          "zh": "独立速度策略的实际校验",
-          "en": "Actual independent tempo-policy validation"
+          "zh": "变速方式的校验",
+          "en": "Checking the tempo setting"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/adoption/narration_binding.py"
       }
@@ -44156,7 +44156,7 @@
       },
       {
         "label": {
-          "zh": "当前状态与历史分开、真实前置",
+          "zh": "当前状态与历史分开，前提要真实",
           "en": "Separate current state/history and actual preconditions"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -44298,14 +44298,14 @@
       },
       {
         "label": {
-          "zh": "因果权、结算权与人物回响",
-          "en": "Causal agency, outcome agency, and character callbacks"
+          "zh": "谁促成结果、谁定胜负与人物回应",
+          "en": "Who causes and settles outcomes, and callbacks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       },
       {
         "label": {
-          "zh": "胜负、持物与事件由规则提交",
+          "zh": "胜负、持物与事件由规则判定",
           "en": "Rules commit outcomes, possession, and events"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -44449,8 +44449,8 @@
       },
       {
         "label": {
-          "zh": "本书表达与事实边界",
-          "en": "Book-specific expression and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -44577,29 +44577,29 @@
     "sources": [
       {
         "label": {
-          "zh": "本轮必发生、禁发生与停笔边界",
-          "en": "Current required events, exclusions, and stopping bounds"
+          "zh": "这次必须写、不能写与停在哪",
+          "en": "What must and must not happen, and where to stop"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
       },
       {
         "label": {
-          "zh": "逐项核情节点与提前底牌",
+          "zh": "逐项核对情节点与提前揭底",
           "en": "Coverage checks and premature endgame reveals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-chapter.md"
       },
       {
         "label": {
-          "zh": "本章禁放信息与执行范围",
-          "en": "Protected chapter information and execution scope"
+          "zh": "本章不能透露的信息与写作范围",
+          "en": "Protected chapter information and writing scope"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writer-prompt-fallback.md"
       },
       {
         "label": {
-          "zh": "表达选择不改变揭露边界",
-          "en": "Expression choices do not alter reveal boundaries"
+          "zh": "表达选择不提前揭底",
+          "en": "Style choices don't move reveals earlier"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -44733,15 +44733,15 @@
       },
       {
         "label": {
-          "zh": "常见整体动作与等效改写",
-          "en": "Ordinary whole-body actions and equivalent revisions"
+          "zh": "常见全身动作与替代写法",
+          "en": "Common full-body moves and alternatives"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
       },
       {
         "label": {
-          "zh": "改景别与拆镜后的职责对账",
-          "en": "Reconcile duties after reframing or splitting"
+          "zh": "改景别或拆镜后核对镜头作用",
+          "en": "Recheck shot purpose after reframing or splitting"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-revision-identity.md"
       }
@@ -44868,7 +44868,7 @@
     "sources": [
       {
         "label": {
-          "zh": "贯穿支撑、接触与允许动作通道",
+          "zh": "持续支撑、接触与允许的动作范围",
           "en": "Persistent support, contact, and allowed movement"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
@@ -45010,22 +45010,22 @@
       },
       {
         "label": {
-          "zh": "证据依据、玩家知识与回读",
+          "zh": "证据依据、玩家知识与后续呼应",
           "en": "Evidence, player knowledge, and callbacks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       },
       {
         "label": {
-          "zh": "前置条件、物件归属与规则裁决",
+          "zh": "前置条件、物品归属与规则判定",
           "en": "Preconditions, possession, and rule adjudication"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       },
       {
         "label": {
-          "zh": "正例、边界路径与重开",
-          "en": "Positive cases, boundary paths, and restart"
+          "zh": "正确解法、反例路线与重开",
+          "en": "Correct solutions, counterexample paths and restart"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
       }
@@ -45173,8 +45173,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -45329,8 +45329,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实边界",
-          "en": "Author voice and factual boundaries"
+          "zh": "作者文风与不能改的事实",
+          "en": "Author style and facts that cannot change"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -45446,14 +45446,14 @@
     "sources": [
       {
         "label": {
-          "zh": "完整声音混音的真实声道矩阵",
-          "en": "Actual full-sound channel matrices"
+          "zh": "完整混音的实际声道分配",
+          "en": "Actual channel layout in a full mix"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/explicit-audio-mix.md"
       },
       {
         "label": {
-          "zh": "采用输入、实际快照与路径区别",
+          "zh": "选用素材、实际快照与路径区别",
           "en": "Selected inputs, snapshots, and path differences"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
@@ -45467,8 +45467,8 @@
       },
       {
         "label": {
-          "zh": "处理混音与原样复制的边界",
-          "en": "Processed mixes and stream-copy boundaries"
+          "zh": "处理混音与原样复制的区别",
+          "en": "Processed mixes versus stream copy"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
       }
@@ -45591,8 +45591,8 @@
       },
       {
         "label": {
-          "zh": "有限来源与可达资源预算",
-          "en": "Finite sources and reachable resource budgets"
+          "zh": "有限来源与能拿到的资源总量",
+          "en": "Finite sources and how much can be gathered"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/numeric-design-method.md"
       },
@@ -45730,7 +45730,7 @@
       },
       {
         "label": {
-          "zh": "本书文风与不可静默改变的事实",
+          "zh": "本书文风与不能改的事实",
           "en": "Book voice and preserved facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
@@ -46152,7 +46152,7 @@
       },
       {
         "label": {
-          "zh": "声音桥与字幕的实际边界",
+          "zh": "声音桥与字幕的起止",
           "en": "Sound bridges and subtitle implementation"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
@@ -46445,8 +46445,8 @@
     "sources": [
       {
         "label": {
-          "zh": "行动、前置条件与权威提交",
-          "en": "Actions, conditions and authoritative submission"
+          "zh": "行动、前置条件与统一更新状态",
+          "en": "Actions, conditions and one place to update state"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       },
@@ -46602,15 +46602,15 @@
       },
       {
         "label": {
-          "zh": "完整采用声音与明确放置",
+          "zh": "整段采用的声音与放置位置",
           "en": "Complete adopted sound and explicit placements"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/explicit-audio-mix.md"
       },
       {
         "label": {
-          "zh": "重剪后采用声音的阶段衔接",
-          "en": "Adopted sound after a recut"
+          "zh": "重剪后改用哪条音轨",
+          "en": "Which sound track to use after a recut"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/references/audio-routing.md"
       },
@@ -46746,7 +46746,7 @@
       },
       {
         "label": {
-          "zh": "完整清单与当前媒体绑定",
+          "zh": "完整字幕条目与当前视频的对应",
           "en": "Complete cues and media binding"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/subtitle-track.md"
@@ -46891,8 +46891,8 @@
       },
       {
         "label": {
-          "zh": "处理与复制边界",
-          "en": "Processed and copied audio"
+          "zh": "处理与原样复制的区别",
+          "en": "Processed versus copied audio"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
       },
@@ -47031,8 +47031,8 @@
       },
       {
         "label": {
-          "zh": "表达选择与事实保留",
-          "en": "Expression and preserved facts"
+          "zh": "按本书文风写，不改事实",
+          "en": "Follow the book's style, keep the facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -47148,14 +47148,14 @@
     "sources": [
       {
         "label": {
-          "zh": "按需历史与当前决策信息",
+          "zh": "按需查看历史与当前选择所需信息",
           "en": "On-demand history and current decision information"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-art-direction/references/art-direction-method.md"
       },
       {
         "label": {
-          "zh": "只读回看、回滚与提交边界",
+          "zh": "只读回看、回退与已确认状态",
           "en": "Read-only history, rollback and committed state"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
@@ -47286,15 +47286,15 @@
     "sources": [
       {
         "label": {
-          "zh": "目标视口、信息层级与非颜色反馈",
-          "en": "Target viewport, hierarchy and non-color feedback"
+          "zh": "目标屏幕、信息层级与不靠颜色的反馈",
+          "en": "Target screen, hierarchy and feedback beyond color"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-art-direction/references/art-direction-method.md"
       },
       {
         "label": {
-          "zh": "界面回调与唯一状态提交",
-          "en": "UI callbacks and committed state"
+          "zh": "界面回调只经规则改状态",
+          "en": "UI callbacks change state only through rules"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       },
@@ -48044,8 +48044,8 @@
     "sources": [
       {
         "label": {
-          "zh": "超长稿一次净删与复检",
-          "en": "One removal-only pass and recheck for excess length"
+          "zh": "超长稿只删一遍与复查",
+          "en": "One cut-only pass for overlong drafts, then recheck"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-chapter.md"
       },
@@ -48189,8 +48189,8 @@
       },
       {
         "label": {
-          "zh": "本书选择与事实边界优先",
-          "en": "Book choices and factual boundaries take priority"
+          "zh": "本书选择与不能改的事实",
+          "en": "Book choices and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -48320,8 +48320,8 @@
       },
       {
         "label": {
-          "zh": "让选择与结果在场景里发生",
-          "en": "Develop choices and results in scenes"
+          "zh": "把选择和结果写成场景",
+          "en": "Write choices and results as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -48451,8 +48451,8 @@
       },
       {
         "label": {
-          "zh": "让选择与结果在场景里发生",
-          "en": "Develop choices and results in scenes"
+          "zh": "把选择和结果写成场景",
+          "en": "Write choices and results as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -48582,8 +48582,8 @@
       },
       {
         "label": {
-          "zh": "让选择与结果在场景里发生",
-          "en": "Develop choices and results in scenes"
+          "zh": "把选择和结果写成场景",
+          "en": "Write choices and results as scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -48713,8 +48713,8 @@
       },
       {
         "label": {
-          "zh": "活跃书目与默认发现的实际实现",
-          "en": "Actual active-book and fallback discovery"
+          "zh": "当前书目与默认找书的实现",
+          "en": "Current book and default book lookup"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-setup/references/templates/hooks/lib/common.sh"
       },
@@ -48727,8 +48727,8 @@
       },
       {
         "label": {
-          "zh": "本书文风与事实边界",
-          "en": "Book-local style and factual boundaries"
+          "zh": "本书文风与不能改的事实",
+          "en": "Book style and fixed facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -48844,14 +48844,14 @@
     "sources": [
       {
         "label": {
-          "zh": "字体覆盖、行宽与阅读边界",
-          "en": "Fonts, line width and reading boundaries"
+          "zh": "字体缺字、行宽与看不看得清",
+          "en": "Font coverage, line width and legibility"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-art-direction/references/art-direction-method.md"
       },
       {
         "label": {
-          "zh": "表现继承方向，状态独立提交",
+          "zh": "画面沿用美术方向，状态由规则单独更新",
           "en": "Implement presentation without independent state changes"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/SKILL.md"
@@ -48975,7 +48975,7 @@
     "sources": [
       {
         "label": {
-          "zh": "声音方案与内置混音的边界",
+          "zh": "声音方案与内置混音的分工",
           "en": "Sound plans and native mixing boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
@@ -49096,8 +49096,8 @@
     "sources": [
       {
         "label": {
-          "zh": "按维度裁决、事实边界与本书白名单",
-          "en": "Dimension-level style resolution, fact boundaries and book-local exemptions"
+          "zh": "逐项定文风、不改事实与本书白名单",
+          "en": "Style decided item by item, fixed facts, and book whitelist"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -49331,14 +49331,14 @@
     "sources": [
       {
         "label": {
-          "zh": "固定与移动摄影机、构图与主体相对运动",
+          "zh": "固定或移动机位、构图与人物运动",
           "en": "Fixed and moving cameras, framing and relative subject movement"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       },
       {
         "label": {
-          "zh": "起止边界、真实参考及动作实现",
+          "zh": "起止画面、真实参考图与动作写法",
           "en": "Start/end boundaries, actual references and motion implementation"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
@@ -49445,15 +49445,15 @@
     "sources": [
       {
         "label": {
-          "zh": "本章状态筛选、新增物核对与处置",
+          "zh": "本章状态、新增人物物件的核对与处理",
           "en": "Chapter state selection, addition review and disposition"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-chapter.md"
       },
       {
         "label": {
-          "zh": "任务范围、人物材料与新增申报",
-          "en": "Task scope, character materials and addition declarations"
+          "zh": "任务范围、人物资料与新增人物说明",
+          "en": "Task scope, character notes and added-character notes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writer-prompt-fallback.md"
       }
@@ -49559,14 +49559,14 @@
     "sources": [
       {
         "label": {
-          "zh": "有序动作、支撑关系与只读终点",
-          "en": "Ordered action, support relationships and accepted endpoints"
+          "zh": "动作顺序、支撑关系与已定终点",
+          "en": "Ordered action, support and the fixed endpoint"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       },
       {
         "label": {
-          "zh": "完成后留时间与超载修订",
+          "zh": "完成后留时间与动作过多时的修改",
           "en": "Time for completion and overload revision"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
@@ -49680,7 +49680,7 @@
     "sources": [
       {
         "label": {
-          "zh": "逐章交接、状态来源与定点查旧信息",
+          "zh": "逐章衔接、状态来源与按需查旧信息",
           "en": "Sequential handoff, state sources and targeted history lookup"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-daily.md"
@@ -49794,21 +49794,21 @@
     "sources": [
       {
         "label": {
-          "zh": "作者稿、实读、批准保护与分段复用",
+          "zh": "作者稿、实际朗读稿、定稿保护与分段复用",
           "en": "Author text, spoken text, approval protection and segment reuse"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
       },
       {
         "label": {
-          "zh": "实际记录的作者文本与合成文本字段",
+          "zh": "记录作者原文与合成文本的字段",
           "en": "Recorded author-text and synthesis-text fields"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
       },
       {
         "label": {
-          "zh": "完整字幕轨、绑定与内容检查边界",
+          "zh": "完整字幕轨、对应关系与内容检查范围",
           "en": "Complete subtitle tracks, binding and content-check limits"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/subtitle-track.md"
@@ -49925,8 +49925,8 @@
     "sources": [
       {
         "label": {
-          "zh": "生成环节按引擎区分语速控制",
-          "en": "Engine-specific generation rate handling"
+          "zh": "不同引擎的语速控制",
+          "en": "Speech-rate control by engine"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
       },
@@ -49946,7 +49946,7 @@
       },
       {
         "label": {
-          "zh": "明确采用的速度策略与试听边界",
+          "zh": "选定的变速方式与试听范围",
           "en": "Explicit adopted tempo policy and listening limits"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
@@ -50065,8 +50065,8 @@
     "sources": [
       {
         "label": {
-          "zh": "视角按作者选择与事实边界裁决",
-          "en": "Resolve viewpoint with author choice and factual boundaries"
+          "zh": "视角按作者选择，事实不能改",
+          "en": "Viewpoint follows the author; facts stay fixed"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
@@ -50197,8 +50197,8 @@
       },
       {
         "label": {
-          "zh": "作者文风与事实揭示边界",
-          "en": "Author style and factual reveal boundaries"
+          "zh": "作者文风与不能提前揭示的信息",
+          "en": "Author style and information not to reveal early"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -50440,8 +50440,8 @@
     "sources": [
       {
         "label": {
-          "zh": "目光起点、有序变化与只读终点",
-          "en": "Starting gaze, ordered motion and read-only endpoint"
+          "zh": "目光起点、变化顺序与已定终点",
+          "en": "Starting gaze, ordered motion and the fixed endpoint"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       },
@@ -50579,15 +50579,15 @@
       },
       {
         "label": {
-          "zh": "后文知情依赖与完整当前快照",
-          "en": "Later knowledge dependencies and complete current snapshots"
+          "zh": "后文谁知道什么与当前完整记录",
+          "en": "Who knows what later, and a full current record"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
       },
       {
         "label": {
-          "zh": "文风不能改信息边界或新增获知",
-          "en": "Style does not change information bounds or invent acquisition"
+          "zh": "文风不能让角色提前知道",
+          "en": "Style cannot let characters learn things early"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -50704,22 +50704,22 @@
     "sources": [
       {
         "label": {
-          "zh": "兑现后低压收益与可选代价",
-          "en": "Quiet gains after payoff and optional costs"
+          "zh": "兑现后的轻松收获与可选代价",
+          "en": "Easy gains after payoff and optional costs"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
       },
       {
         "label": {
-          "zh": "当前要求、本书选择与事实边界",
+          "zh": "当前要求、本书文风与不能改的事实",
           "en": "Current requests, book choices and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       },
       {
         "label": {
-          "zh": "把已定交付演成场景",
-          "en": "Dramatize an established handover"
+          "zh": "把定好的情节写成场景",
+          "en": "Turn planned beats into scenes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
@@ -50835,7 +50835,7 @@
     "sources": [
       {
         "label": {
-          "zh": "观众问题、隐瞒揭示与证据边界",
+          "zh": "观众疑问、何时揭晓与只说有依据的",
           "en": "Viewer questions, reveals and evidence"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/references/creative-editing-playbook.md"
@@ -50959,8 +50959,8 @@
       },
       {
         "label": {
-          "zh": "把交流与交接演成连续场景",
-          "en": "Dramatize an exchange and handoff"
+          "zh": "把对话往来写成连续场景",
+          "en": "Write an exchange as a continuous scene"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       },
@@ -51108,7 +51108,7 @@
       },
       {
         "label": {
-          "zh": "实际声音处理与回听",
+          "zh": "声音处理与回听",
           "en": "Actual sound treatment and listening"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
@@ -51640,7 +51640,7 @@
     "sources": [
       {
         "label": {
-          "zh": "短篇章节标记、段落形态与非定长原则",
+          "zh": "短篇分节标记、段落形式与不定长",
           "en": "Section markers, paragraph forms, and variable length"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/a06c3c5ff39209ef8dcba6e8c4ac1d9920e11e32/skills/story-short-write/references/short-format.md"
@@ -51795,22 +51795,22 @@
       },
       {
         "label": {
-          "zh": "电话不自动归入 VO 的方言边界",
-          "en": "Dialect boundary: a phone call is not automatically VO"
+          "zh": "电话戏不自动算作 VO",
+          "en": "A phone call is not automatically VO"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-write/references/production-format-dialect.md"
       },
       {
         "label": {
-          "zh": "逐字录音交接表与校验范围",
-          "en": "Verbatim recording handoff and validation scope"
+          "zh": "逐字录音单与校验范围",
+          "en": "Verbatim recording sheet and check scope"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-write/assets/voice-record-sheet.jsonl.md"
       },
       {
         "label": {
-          "zh": "录音声道与剧本块的一致性实现",
-          "en": "Implemented channel-to-screenplay checks"
+          "zh": "录音声道与剧本是否一致的检查",
+          "en": "Checking recorded channels against the script"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-write/scripts/voice_sheet_check.py"
       }
@@ -51977,7 +51977,7 @@
       },
       {
         "label": {
-          "zh": "短剧音效尾淡出与混音边界",
+          "zh": "短剧音效结尾淡出与混音范围",
           "en": "Short-drama effect-tail fade and mixing boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-edit/scripts/edit_tool.py"
@@ -52272,7 +52272,7 @@
       },
       {
         "label": {
-          "zh": "局部收益、低压推进与可选代价",
+          "zh": "阶段性收获、平缓推进与可选代价",
           "en": "Limited gains, low-pressure progress, and optional costs"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/a06c3c5ff39209ef8dcba6e8c4ac1d9920e11e32/skills/story-long-write/references/reader-contract-and-progression.md"
@@ -52545,14 +52545,14 @@
     "sources": [
       {
         "label": {
-          "zh": "互动叙事的语言、文化、称呼与因果边界",
-          "en": "Language, culture, address and causal boundaries for interactive narrative"
+          "zh": "互动叙事的语言、文化、称呼与不改因果",
+          "en": "Language, culture, forms of address and fixed causality"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-world-design/references/narrative-design-method.md"
       },
       {
         "label": {
-          "zh": "游戏设计中的语言、文化与交接要求",
+          "zh": "游戏设计里的语言、文化与交付要求",
           "en": "Language, culture and handoff requirements in game design"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-world-design/SKILL.md"
@@ -52688,8 +52688,8 @@
       },
       {
         "label": {
-          "zh": "功能状态、可读边界与运行中检查",
-          "en": "Functional state, readable boundaries and in-game checks"
+          "zh": "功能状态、能否看清与游戏中检查",
+          "en": "Functional state, legibility and in-game checks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-art-direction/references/art-direction-method.md"
       },
@@ -52969,7 +52969,7 @@
       },
       {
         "label": {
-          "zh": "多人对话的议程、身份措辞与场景节奏",
+          "zh": "多人对话的目的、身份措辞与场景节奏",
           "en": "Agendas, status-based voice, and pacing in dialogue"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/a06c3c5ff39209ef8dcba6e8c4ac1d9920e11e32/skills/story-long-write/references/dialogue-mastery.md"
@@ -53098,15 +53098,15 @@
     "sources": [
       {
         "label": {
-          "zh": "导演阐述的视觉、节奏与制作边界",
-          "en": "Visual, rhythmic, and production boundaries for a director's statement"
+          "zh": "导演阐述：视觉、节奏与制作限制",
+          "en": "Director's statement: visuals, rhythm, production limits"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-develop/references/director-brief-craft.md"
       },
       {
         "label": {
-          "zh": "短剧开发中的导演阐述交接",
-          "en": "Director's statement handoff in short-drama development"
+          "zh": "短剧开发中的导演阐述",
+          "en": "Director's statement in short-drama development"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-develop/SKILL.md"
       }
@@ -53248,8 +53248,8 @@
       },
       {
         "label": {
-          "zh": "观众信息的展示与释放边界",
-          "en": "Audience-information display and release boundaries"
+          "zh": "观众信息的展示与揭晓时机",
+          "en": "Showing information to viewers and when to reveal it"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama/references/audience-reveal.md"
       }
@@ -53395,8 +53395,8 @@
       },
       {
         "label": {
-          "zh": "短剧开发中的参考材料入口",
-          "en": "Creative-reference intake in short-drama development"
+          "zh": "短剧开发时怎么用参考材料",
+          "en": "Using reference material in short-drama development"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-develop/SKILL.md"
       }
@@ -53525,15 +53525,15 @@
     "sources": [
       {
         "label": {
-          "zh": "公开视频解说入口与理解阶段暂停点",
-          "en": "Public video-recap entry point and analysis-stage pause"
+          "zh": "视频解说流程与看懂素材后的暂停",
+          "en": "Video recap workflow and the pause after analysis"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
       },
       {
         "label": {
-          "zh": "视频理解中的事实、推断与不确定性边界",
-          "en": "Fact, inference, and uncertainty boundaries in video understanding"
+          "zh": "看懂视频时的事实、推断与拿不准的地方",
+          "en": "Facts, inferences and uncertainty in video analysis"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-understanding/SKILL.md"
       },
@@ -53546,8 +53546,8 @@
       },
       {
         "label": {
-          "zh": "画面事实与粗粒度转写的数据边界",
-          "en": "Data boundaries for frame facts and coarse transcription"
+          "zh": "画面事实与粗略转写各记什么",
+          "en": "What frame facts and rough transcripts record"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-understanding/references/data-schema.md"
       }
@@ -53687,15 +53687,15 @@
     "sources": [
       {
         "label": {
-          "zh": "公开视频解说入口与理解阶段暂停点",
-          "en": "Public video-recap entry point and analysis-stage pause"
+          "zh": "视频解说流程与看懂素材后的暂停",
+          "en": "Video recap workflow and the pause after analysis"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
       },
       {
         "label": {
-          "zh": "视频理解流程与粗粒度转写边界",
-          "en": "Video-understanding workflow and coarse-transcript limits"
+          "zh": "看懂视频的流程与粗略转写的局限",
+          "en": "Video analysis workflow and limits of rough transcripts"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-understanding/SKILL.md"
       },
@@ -53708,8 +53708,8 @@
       },
       {
         "label": {
-          "zh": "粗转写精度与当前文件绑定实现",
-          "en": "Implementation of coarse-timing precision and current-file binding"
+          "zh": "粗略转写的时间精度与文件对应",
+          "en": "Rough-transcript timing and matching the current file"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-understanding/scripts/asr_timing_evidence.py"
       },
@@ -53852,8 +53852,8 @@
       },
       {
         "label": {
-          "zh": "对话议程、回应、人物声线与节奏",
-          "en": "Dialogue agendas, responses, character voice, and pacing"
+          "zh": "说话目的、回应、人物声线与节奏",
+          "en": "Speaking goals, responses, character voice, and pacing"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/a06c3c5ff39209ef8dcba6e8c4ac1d9920e11e32/skills/story-long-write/references/dialogue-mastery.md"
       }
@@ -53996,8 +53996,8 @@
       },
       {
         "label": {
-          "zh": "对话议程、回应、人物声线与节奏",
-          "en": "Dialogue agendas, responses, character voice, and pacing"
+          "zh": "说话目的、回应、人物声线与节奏",
+          "en": "Speaking goals, responses, character voice, and pacing"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/a06c3c5ff39209ef8dcba6e8c4ac1d9920e11e32/skills/story-long-write/references/dialogue-mastery.md"
       }
@@ -54155,7 +54155,7 @@
       },
       {
         "label": {
-          "zh": "玩家行动、世界变化、可读反馈与后续机会",
+          "zh": "玩家行动、世界变化、反馈与后续机会",
           "en": "Player action, world change, readable feedback, and later opportunities"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-world-design/references/world-design-method.md"
@@ -54291,8 +54291,8 @@
     "sources": [
       {
         "label": {
-          "zh": "静态关键帧剪辑入口、字段与核对范围",
-          "en": "Static-keyframe editing entry, fields, and checks"
+          "zh": "静态关键帧剪辑：从哪开始、字段与核对",
+          "en": "Editing static keyframes: where to start, fields, checks"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-edit/SKILL.md"
       },
@@ -54434,7 +54434,7 @@
       },
       {
         "label": {
-          "zh": "声音参考的载体、用途边界与登记方式",
+          "zh": "声音参考的格式、用途与登记方式",
           "en": "Voice-reference media, scope, and registration"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-assets/references/voice-direction.md"
@@ -54577,8 +54577,8 @@
       },
       {
         "label": {
-          "zh": "素材库边界、资源登记与项目入口",
-          "en": "Material-library boundary, resource registry, and project entry point"
+          "zh": "素材库管什么、资源登记与项目接入",
+          "en": "What the library holds, registering assets, project setup"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
       }
@@ -54886,8 +54886,8 @@
     "sources": [
       {
         "label": {
-          "zh": "伪成长否决与局面、能力、理解变化",
-          "en": "False-progression veto and changes in situation, capability, or understanding"
+          "zh": "排除假成长：局面、能力或理解要变",
+          "en": "Rule out fake growth: situation, ability or understanding"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-concept/references/concept-method.md"
       },
@@ -54900,8 +54900,8 @@
       },
       {
         "label": {
-          "zh": "游戏体验与世界设计公开工作流",
-          "en": "Public game-experience and world-design workflow"
+          "zh": "游戏体验与世界设计流程",
+          "en": "Game-experience and world-design workflow"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-world-design/SKILL.md"
       }
@@ -55023,7 +55023,7 @@
     "sources": [
       {
         "label": {
-          "zh": "已渲染透明前景的合成边界",
+          "zh": "已渲染透明前景的合成",
           "en": "Rendered transparent foreground composition"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/foreground-compose.md"
@@ -55044,8 +55044,8 @@
       },
       {
         "label": {
-          "zh": "Video Recap 的公开包装交接",
-          "en": "Public Video Recap packaging handoff"
+          "zh": "Video Recap 的包装步骤",
+          "en": "Video Recap packaging step"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
       }
@@ -55180,15 +55180,15 @@
     "sources": [
       {
         "label": {
-          "zh": "关键场景导演命题比较与选择投影",
-          "en": "Directing-proposition comparison and selected projection for key scenes"
+          "zh": "关键场景不同拍法的比较与选定",
+          "en": "Comparing and choosing ways to shoot key scenes"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/coverage-audition.md"
       },
       {
         "label": {
-          "zh": "短剧正式分镜公开工作流",
-          "en": "Public short-drama storyboarding workflow"
+          "zh": "短剧分镜流程",
+          "en": "Short-drama storyboarding workflow"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/SKILL.md"
       }
@@ -55317,15 +55317,15 @@
     "sources": [
       {
         "label": {
-          "zh": "动作负载、可演的连续动作与超载修订",
-          "en": "Action load, performable action chains, and overload revision"
+          "zh": "动作量、能演的连续动作与删减方法",
+          "en": "Action load, performable chains and how to trim"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-video-prompts/references/performance-action-timing.md"
       },
       {
         "label": {
-          "zh": "短剧视频提示词公开工作流",
-          "en": "Public short-drama video-prompt workflow"
+          "zh": "短剧视频提示词流程",
+          "en": "Short-drama video-prompt workflow"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-video-prompts/SKILL.md"
       }
@@ -55464,15 +55464,15 @@
     "sources": [
       {
         "label": {
-          "zh": "已知危险方向与包含失败的连续过程如何形成期待",
-          "en": "Brief note on expectation from known danger and an unfolding process with failure"
+          "zh": "已知危险与带失败的过程怎样制造期待",
+          "en": "Expectation from known danger and a process with failure"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/references/deconstruction-notes.md"
       },
       {
         "label": {
-          "zh": "长篇小说拆文公开工作流与事实边界",
-          "en": "Public long-fiction analysis workflow and evidence boundaries"
+          "zh": "长篇拆文流程与以原文为据",
+          "en": "Long-fiction analysis workflow, grounded in the text"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/SKILL.md"
       }
@@ -55612,8 +55612,8 @@
     "sources": [
       {
         "label": {
-          "zh": "Video Recap 普通装配与编码边界",
-          "en": "Ordinary Video Recap assembly and encoding boundary"
+          "zh": "Video Recap 普通合成时的复制与重编码",
+          "en": "Copy versus re-encode in ordinary Video Recap assembly"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/assemble.py"
       },
@@ -55816,8 +55816,8 @@
       },
       {
         "label": {
-          "zh": "普通装配的复制与重编码边界",
-          "en": "Copy and re-encode boundary in ordinary assembly"
+          "zh": "普通合成时的复制与重编码",
+          "en": "Copy versus re-encode in ordinary assembly"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/assemble.py"
       },
@@ -55984,15 +55984,15 @@
       },
       {
         "label": {
-          "zh": "功能状态、运行时刻与动态媒体边界",
-          "en": "Functional state, running moments, and dynamic-media boundaries"
+          "zh": "功能状态、出现时机与动态画面的限制",
+          "en": "Functional state, timing and limits on motion"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-art-direction/references/art-direction-method.md"
       },
       {
         "label": {
-          "zh": "表现层只读取已提交状态的合同",
-          "en": "Contract for presentation to read committed state only"
+          "zh": "画面只显示规则确认的状态",
+          "en": "Presentation shows only rule-confirmed state"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-build/references/playable-model-contract.md"
       }
@@ -56132,8 +56132,8 @@
     "sources": [
       {
         "label": {
-          "zh": "短剧资产图片提示词的用途、写法与生产边界",
-          "en": "Purpose, writing method, and production boundary for short-drama asset image prompts"
+          "zh": "短剧资产图提示词：用途、写法与限制",
+          "en": "Short-drama asset image prompts: use, writing, limits"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-image-prompts/SKILL.md"
       },
@@ -56269,22 +56269,22 @@
     "sources": [
       {
         "label": {
-          "zh": "分镜冻结关键帧、参考图与起始帧交接",
-          "en": "Storyboard frozen keyframes, references, and first-frame handoff"
+          "zh": "分镜定稿关键帧、参考图与首帧",
+          "en": "Locked storyboard keyframes, references and first frames"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/SKILL.md"
       },
       {
         "label": {
-          "zh": "镜头起点投影与静态画面检查方法",
+          "zh": "镜头起始画面与静帧检查方法",
           "en": "Shot-start projection and static-frame checks"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/keyframe-craft.md"
       },
       {
         "label": {
-          "zh": "单图任务预览、确认、执行与候选结果边界",
-          "en": "Single-image preview, confirmation, execution, and candidate-result boundary"
+          "zh": "单图生成：预览、确认、执行与候选图",
+          "en": "Single image: preview, confirm, run, candidates"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-produce/SKILL.md"
       }
@@ -56424,7 +56424,7 @@
     "sources": [
       {
         "label": {
-          "zh": "短剧图生视频提示词的真实图片、动作与起终点边界",
+          "zh": "图生视频提示词的参考图、动作与起止画面",
           "en": "Real-image, motion, and boundary rules for short-drama video prompts"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-video-prompts/SKILL.md"
@@ -57116,15 +57116,15 @@
     "sources": [
       {
         "label": {
-          "zh": "游戏化拆书：输入、全书管道与 SOURCE_BIBLE 内容",
-          "en": "Gameable book analysis: inputs, whole-book pipeline and SOURCE_BIBLE contents"
+          "zh": "游戏化拆书：输入、全书流程与 SOURCE_BIBLE 内容",
+          "en": "Book analysis for games: inputs, flow, SOURCE_BIBLE"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/03feee90a6aa2bcda827698f769b4acdb4ee6b8c/skills/novel-game-analyze/SKILL.md"
       },
       {
         "label": {
-          "zh": "逐单元取证、系统候选与四种改编边界",
-          "en": "Per-unit evidence, system candidates and the four adaptation boundaries"
+          "zh": "逐段找原文依据、候选系统与四种改编分寸",
+          "en": "Section evidence, candidate systems, four adaptation levels"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/03feee90a6aa2bcda827698f769b4acdb4ee6b8c/skills/novel-game-analyze/references/gameability-protocol.md"
       },
@@ -57281,15 +57281,15 @@
     "sources": [
       {
         "label": {
-          "zh": "视频理解的处理阶段、依赖与能力边界",
-          "en": "Video-understanding stages, dependencies, and limits"
+          "zh": "看懂视频的处理步骤、依赖与局限",
+          "en": "Video analysis stages, dependencies and limits"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-understanding/SKILL.md"
       },
       {
         "label": {
-          "zh": "理解索引各文件字段与转写证据状态",
-          "en": "Index file fields and transcript evidence status"
+          "zh": "索引文件字段与转写核对状态",
+          "en": "Index file fields and transcript check status"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-understanding/references/data-schema.md"
       },
@@ -57453,15 +57453,15 @@
     "sources": [
       {
         "label": {
-          "zh": "拆片流程、事实与方法分离规则和能力边界",
-          "en": "Breakdown workflow, fact-method separation rules and limits"
+          "zh": "拆片流程、事实与方法分开，以及局限",
+          "en": "Breakdown workflow, facts apart from methods, and limits"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-reference/SKILL.md"
       },
       {
         "label": {
-          "zh": "标注词表、测量与派生值路径、好坏方法示例",
-          "en": "Label vocabulary, measured and derived paths, good and bad methods"
+          "zh": "标注词表、实测与推算值、好坏示例",
+          "en": "Label vocabulary, measured and derived values, examples"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-reference/references/reference-schema.md"
       },

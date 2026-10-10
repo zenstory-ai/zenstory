@@ -54,7 +54,7 @@ test('writing workflow comparison renders three source-backed choices across the
   assert.match([comparison.disclosure.en, ...comparison.boundaries.en].join(' '), /not (?:an )?independent|not a benchmark/i)
   assert.match([comparison.disclosure.zh, ...comparison.boundaries.zh].join(' '), /不是.*独立|不是.*基准|不构成.*独立/)
   assert.match(comparison.answer.en, /both DSH Web and ZenStory.*browser.*host, files and account boundary/i)
-  assert.match(comparison.answer.zh, /DSH Web 和 ZenStory.*浏览器.*宿主、文件与账户边界/)
+  assert.match(comparison.answer.zh, /DSH Web 和 ZenStory.*浏览器.*宿主、文件与账户/)
 
   const outDir = mkdtempSync(join(tmpdir(), 'zenstory-comparison-'))
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
@@ -99,7 +99,7 @@ test('writing workflow comparison renders three source-backed choices across the
   assert.notEqual(dsh.version.en, direct.version.en)
   assert.notEqual(dsh.version.en, workbench.version.en)
   assert.match(`${comparison.disclosure.en} ${workbench.fit.en} ${workbench.environment.en}`, /ZenStory Workbench.*account-based.*Self-hosting is separate/i)
-  assert.match(`${comparison.disclosure.zh} ${workbench.fit.zh} ${workbench.environment.zh}`, /ZenStory 工作台.*自托管是另一回事/)
+  assert.match(`${comparison.disclosure.zh} ${workbench.fit.zh} ${workbench.environment.zh}`, /ZenStory 工作台.*(?:自托管|自己部署)是另一回事/)
   for (const field of ['checklist', 'boundaries']) assert.equal(comparison[field].en.length, comparison[field].zh.length)
 
   for (const lang of LANGS) {
