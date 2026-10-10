@@ -6,6 +6,8 @@ import type { UserSubscription, UsageQuota } from '../types/subscription';
 import { logger } from '../lib/logger';
 import { clearAuthStorage, getApiBase, resolveOwnedAuthSession, tryRefreshToken as tryRefreshTokenSingleFlight } from '../lib/apiClient';
 import { identifyUser, resetAnalytics, trackEvent } from '../lib/analytics';
+import { getEntrySource } from '../lib/entrySource';
+import { getLocale } from '../lib/i18n-helpers';
 import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
 import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
 
@@ -325,11 +327,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const register = async (username: string, email: string, password: string, inviteCode?: string) => {
-    const data = await authApi.register({ username, email, password, invite_code: inviteCode });
+    // The verification email goes out in the language the visitor is using.
+    const data = await authApi.register({ username, email, password, invite_code: inviteCode, language: getLocale() });
     trackEvent('register_success', {
       method: 'password',
       email_verified: data.email_verified,
       invite_code_provided: Boolean(inviteCode?.trim()),
+      entry_source: getEntrySource(),
     });
 
     // Return email and verification status for redirect
@@ -449,6 +453,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       trackEvent('register_success', {
         method: 'google',
         email_verified: true,
+        entry_source: getEntrySource(),
       });
     }
     trackEvent('oauth_callback_success', { is_new_user: isNewUser });

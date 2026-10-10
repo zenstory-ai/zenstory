@@ -502,11 +502,10 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .topic-card p, .reading-list p { color: var(--ink-2); margin: 8px 0 14px; font-size: 14px; }
 .topic-card .guide-list { margin: 12px 0; }
 .topic-more { display: inline-flex; gap: 8px; font-size: 14px; margin-top: 12px; }
-.learning-paths { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 24px 0 48px; }
+.learning-paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 32px; margin: 24px 0 8px; }
 .learning-path { border-left: 2px solid var(--rule-strong); padding-left: 20px; min-width: 0; }
 .learning-path h3 { margin-top: 0; font-size: 18px; }
 .learning-path ol { padding-left: 22px; }
-.learning-path li { padding: 8px 0; }
 .learning-path a { display: flex; gap: 10px; justify-content: space-between; font-size: 14px; }
 .guide-search { margin-top: 24px; max-width: 720px; }
 .guide-search label { display: block; font-weight: 600; margin-bottom: 8px; }
@@ -518,6 +517,66 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .reading-list > li { border-top: 1px solid var(--rule); padding: 18px 0; overflow-wrap: anywhere; }
 .reading-list > li > a { font-size: 18px; font-weight: 600; }
 @media (max-width: 900px) { .topic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .learning-paths { grid-template-columns: 1fr; } }
+/* /guides in four layers (get started → workflows → tasks → revise and look up). */
+.layer-jump ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 22px 0 0; padding: 0; }
+.layer-jump li { margin: 0; }
+.layer-jump a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 1px solid var(--rule-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.layer-jump a:hover { border-color: var(--ink); }
+.layer-n, .layer-step { font: 500 12px/1 var(--mono); color: var(--muted); letter-spacing: .04em; }
+.guide-layer { padding-top: 40px; margin-top: 40px; border-top: 1px solid var(--rule); }
+.guide-layer:first-child { margin-top: 8px; border-top: 0; padding-top: 0; }
+.guide-layer h2 { margin: 6px 0 8px; padding: 0; border: 0; }
+.guide-layer .section-lede { margin: 0 0 8px; }
+.layer-step { margin: 0; }
+.layer-more { margin: 0; }
+.task-index { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; list-style: none; margin: 20px 0 0; padding: 0; }
+.task-index li { margin: 0; min-width: 0; }
+.task-index a { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; height: 100%; min-height: 88px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; }
+.task-index a:hover { border-color: var(--ink); }
+.task-name { font-weight: 600; line-height: 1.35; }
+.task-count { font: 500 12.5px/1 var(--mono); color: var(--muted); }
+.path-start { margin: 0 0 4px; font: 500 12.5px/1.4 var(--mono); color: var(--accent-text); }
+.learning-path li, .skill-list li { display: flex; flex-direction: column; gap: 2px; padding: 6px 0 8px; }
+.skill-list { margin: 16px 0 4px; }
+.skill-list li a { padding: 4px 0 2px; }
+.step-skill { align-self: flex-start; font-size: 12px; }
+.path-direct { margin: 18px 0 0; }
+.path-direct a { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; border: 1px solid var(--rule-strong); border-radius: 8px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.path-direct a:hover { border-color: var(--ink); }
+/* Method provenance: the skill and its method files, at the top of a guide and on each list row. */
+.method-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; margin: 14px 0 0; font-size: 14px; color: var(--ink-2); }
+.method-strip .method-label { margin-right: 10px; color: var(--muted); }
+.method-strip a { color: var(--ink-2); }
+.method-strip a:hover { color: var(--accent-text); }
+.method-strip .skill-chip { text-decoration: none; }
+.method-strip .skill-chip code { font-size: 13px; }
+.method-strip .sep, .method-facts .sep { white-space: pre; color: var(--muted); }
+.method-facts { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.method-facts code { font-size: 12px; }
+/* A step page's place in its workflow, and the step after it. */
+.path-step { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 14px; }
+.path-step a { color: var(--ink-2); text-decoration: none; }
+.path-step a:hover { color: var(--accent-text); }
+.path-step .path-step-next { color: var(--ink); font-weight: 600; }
+.path-next { margin: 40px 0 0; padding: 18px 20px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface); }
+.path-next-place { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.path-next a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.path-next a:hover { color: var(--accent-text); }
+.path-next-label { font-size: 13px; color: var(--accent-text); }
+.path-next a .arrow { margin-left: auto; }
+/* Glossary: a term links the article that teaches it; /guides lists the terms as its reference row. */
+.term-howto { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 18px 0 8px; padding: 14px 16px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface); }
+.term-howto a { display: inline-flex; gap: 8px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.term-howto a:hover { color: var(--accent-text); }
+.term-howto-link { margin-left: .4em; font-weight: 600; white-space: nowrap; }
+.term-row { margin-top: 28px; }
+.term-row ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 8px 0 0; padding: 0; }
+.term-row li { margin: 0; }
+.term-row a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 13px; border: 1px solid var(--rule-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 14px; text-decoration: none; }
+.term-row a:hover { border-color: var(--ink); }
+.term-row .term-all { border-color: transparent; background: none; font-weight: 600; }
+@media (max-width: 960px) { .task-index { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .learning-path { padding-left: 14px; } .learning-path ol { padding-left: 18px; margin: 8px 0 0; } .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-index a { min-height: 76px; padding: 12px 14px; } .guide-layer { padding-top: 32px; margin-top: 32px; } }
 @media (max-width: 600px) { .topic-grid { grid-template-columns: 1fr; } .topic-card { padding: 20px; } }
 
 .library-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 24px; padding: 20px 0 40px; font-size: 14px; }
@@ -691,9 +750,11 @@ html[data-lang="zh"] [data-page="home"] .doc-rows dt { font: 500 12px/1.5 var(--
 [data-page="home"] :is(.stage-band, .closing) .eyebrow { color: #67e3f5; }
 [data-page="home"] .stage-band .section-head .section-lede { max-width: 600px; }
 [data-page="home"] .showcase-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 56px 24px; margin-top: 48px; }
-[data-page="home"] .stage-next { margin-top: 56px; }
-[data-page="home"] .stage-next a { color: var(--stage-ink); }
-[data-page="home"] .stage-next a:hover { color: #67e3f5; }
+/* After the cases: the story thread runs on into the paths, through one pill. */
+[data-page="home"] .stage-next { flex-wrap: nowrap; align-items: center; gap: 20px; margin-top: 64px; }
+[data-page="home"] .stage-next::before, [data-page="home"] .stage-next::after { content: ""; flex: 1; min-width: 24px; border-top: 1.5px dashed var(--thread); opacity: .45; }
+[data-page="home"] .stage-next a { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border: 1px solid var(--rule-strong); border-radius: 999px; background: rgba(247, 237, 216, .04); color: var(--stage-ink); white-space: nowrap; transition: border-color .15s ease, color .15s ease; }
+[data-page="home"] .stage-next a:hover { border-color: #67e3f5; color: #67e3f5; }
 [data-page="home"] .stage-next .arrow { margin-left: 8px; }
 [data-page="home"] .case-card { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 0; min-width: 0; }
 [data-page="home"] .case-card.is-feature { grid-column: span 2; }
@@ -790,8 +851,16 @@ html[data-lang="zh"] [data-page="home"] .home-paths h3 { letter-spacing: 0; }
 [data-page="home"] .path-branches a .arrow { margin: 0; color: var(--muted); }
 [data-page="home"] .path-branches .branch-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
 [data-page="home"] .path-branches .branch-tool { font: 500 12.5px/1.4 var(--mono); letter-spacing: .02em; color: var(--accent-text); }
+/* The branch's own result fills the tile: the manuscript card is two rows tall, so tiles grow and the media takes the room. */
+[data-page="home"] .path-branches .branch-media { position: relative; flex: 1 1 auto; align-self: stretch; min-height: 104px; margin: -6px -6px 0; border-radius: 10px; overflow: hidden; background: var(--navy); box-shadow: inset 0 0 0 1px rgba(10, 15, 31, .08); }
+[data-page="home"] .path-branches .branch-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 35%; transition: transform .3s ease; }
+[data-page="home"] .path-branches a:hover .branch-media img { transform: scale(1.03); }
 [data-page="home"] .home-paths .path-tools { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: auto 0 0; padding-top: 16px; border-top: 1px dashed var(--rule-strong); font-size: 14px; color: var(--muted); }
 [data-page="home"] .home-paths :is(ol, .path-branches) + .path-tools { margin-top: 20px; }
+[data-page="home"] .home-paths .path-direct { margin: 14px 0 0; }
+[data-page="home"] .home-paths .path-direct a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--rule-strong); border-radius: 12px; background: var(--paper); color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.35; text-decoration: none; transition: border-color .15s ease; }
+[data-page="home"] .home-paths .path-direct a:hover { border-color: var(--ink); }
+[data-page="home"] .home-paths .path-direct .arrow { flex: none; color: var(--muted); }
 [data-page="home"] .path-tools-label { font: 500 12px/1.4 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
 html[data-lang="zh"] [data-page="home"] .path-tools-label { font-size: 13px; letter-spacing: .04em; text-transform: none; }
 [data-page="home"] .path-tools a { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }
@@ -931,6 +1000,19 @@ html[data-lang="zh"] [data-page="home"] .library-search label { font-size: 13px;
 @media (max-width: 480px) {
   [data-page="home"] .pipe text.tool { display: none; }
   [data-page="home"] .pipe text { font-size: 19px; }
+}
+/* Header on narrow phones: brand, switch and CTA stay on one row down to 360px (the CTA's arrow is
+   decoration), so `--top-h` keeps matching the header and anchor jumps land below it. */
+@media (max-width: 400px) {
+  .top-row { gap: 0 8px; }
+  .brand { gap: 8px; }
+  .top-tools { gap: 6px; }
+  .lang-switch a, [data-page="home"] .lang-switch a { padding: 0 8px; }
+  .nav-app .arrow { display: none; }
+}
+/* Narrower still, the switch and CTA wrap under the brand: anchors clear all three rows. */
+@media (max-width: 359px) {
+  :root { --top-h: 134px; }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-page="home"] * { transition: none !important; }

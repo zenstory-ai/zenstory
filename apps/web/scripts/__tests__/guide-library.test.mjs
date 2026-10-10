@@ -141,3 +141,90 @@ test('every article belongs to one paginated category; home stays bounded; merge
   }
   for(const item of reading) assert.ok(directory.includes(`](https://zenstory.ai${routeOf(item)})`))
 })
+
+test('the guides index reads in four layers, and every workflow step names its skill and leads to the next step', (t) => {
+  const out=mkdtempSync(join(tmpdir(),'zenstory-layers-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const read=(lang,route)=>readFileSync(join(out,pathOf(lang,route),'index.html'),'utf8')
+  for(const lang of ['en','zh']) {
+    const index=read(lang,'/guides')
+    // Get started → whole workflows → techniques by task → revise and look up, the homepage's knowledge layers in order.
+    const layers=['get-started','learning-paths','browse-topics','revise-and-look-up'].map((id)=>index.indexOf(`<h2 id="${id}">`))
+    assert.ok(layers.every((at,i)=>at>0 && (i===0 || at>layers[i-1])),`${lang}: guide layers out of order ${layers}`)
+    for(const topic of topics) assert.ok(index.includes(`<a href="${pathOf(lang,`/guides/${topic.slug}`)}"><span class="task-name">`),`${lang}: task index misses ${topic.slug}`)
+    const flows=[...index.matchAll(/<div class="learning-path" id="path-([a-z-]+)">([\s\S]*?)<\/ol><\/div>/g)]
+    assert.deepEqual(flows.map((m)=>m[1]),['first-chapter','first-short-drama','first-game','footage-recap'],`${lang}: workflows`)
+    for(const [,id,flow] of flows) {
+      const steps=[...flow.matchAll(/<li><a href="([^"]+)">[\s\S]*?<\/a><code class="step-skill">([a-z0-9-]+)<\/code><\/li>/g)]
+      assert.equal(steps.length,4,`${lang} ${id}: every step is published and names its skill`)
+      steps.forEach(([,href],i)=>{
+        const html=readFileSync(join(out,href,'index.html'),'utf8')
+        assert.ok(html.includes(`<a href="${pathOf(lang,'/guides')}#path-${id}">`),`${lang} ${href}: missing its place in ${id}`)
+        assert.ok(html.includes(lang==='zh' ? `第 ${i+1}/4 步` : `step ${i+1} of 4`),`${lang} ${href}: missing step count`)
+        const next=html.match(/<nav class="path-next"[\s\S]*?<a href="([^"]+)">/)?.[1]
+        assert.equal(next,i<3 ? steps[i+1][1] : `${pathOf(lang,'/guides')}#learning-paths`,`${lang} ${href}: wrong next step`)
+      })
+    }
+  }
+  // Every guide and article says which skill its method comes from, linked at a pinned commit.
+  for(const item of reading) for(const lang of item.langs ?? ['en','zh']) {
+    const strip=read(lang,routeOf(item)).match(/<p class="method-strip">[\s\S]*?<\/p>/)?.[0]
+    assert.ok(strip,`${lang} ${routeOf(item)}: missing method provenance`)
+    assert.match(strip,/class="skill-chip" href="https:\/\/github\.com\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[a-z0-9-]+\/SKILL\.md"/,`${lang} ${routeOf(item)}: skill must link its pinned SKILL.md`)
+  }
+})
+
+test('guide search ranks title matches first, understands question phrasing and synonyms, and finds glossary terms', async (t) => {
+  const { Window } = await import('happy-dom')
+  const out=mkdtempSync(join(tmpdir(),'zenstory-search-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const html=readFileSync(join(out,'zh/guides/index.html'),'utf8')
+  const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m)=>m[1]).find((src)=>src.includes('data-guide-search'))
+  const window=new Window({url:'https://zenstory.ai/zh/guides'})
+  t.after(()=>window.close())
+  window.document.body.innerHTML=html.slice(html.indexOf('<body'),html.lastIndexOf('</body>')).replace(/^<body[^>]*>/,'').replace(/<script[\s\S]*?<\/script>/g,'')
+  window.eval(script)
+  const input=window.document.getElementById('guide-query')
+  const search=(query)=>{
+    input.value=query;input.dispatchEvent(new window.Event('input'))
+    return [...window.document.querySelectorAll('[data-search-results] li')].filter((li)=>!li.hidden).map((li)=>li.querySelector('a').getAttribute('href'))
+  }
+  // The main article outranks every guide that only mentions the phrase or sits in a topic named after it.
+  assert.equal(search('去AI味')[0],'/zh/oh-story/revise-ai-prose')
+  assert.equal(search('对白')[0],'/zh/oh-story/character-dialogue')
+  // Question phrasing and synonyms: 怎么写开头 → the opening guide, 拆文 → the 拆书 guide.
+  assert.equal(search('怎么写开头')[0],'/zh/oh-story/novel-opening')
+  assert.equal(search('拆文')[0],'/zh/oh-story/learn-from-fiction')
+  assert.equal(search('游戏存档怎么做')[0],'/zh/novel-to-game/design-story-game-saves')
+  // Terms with no article of their own come from the glossary.
+  assert.deepEqual(search('扫榜'),['/zh/glossary/saobang'])
+  // Hidden browse layers come back when the query is cleared.
+  search('')
+  assert.ok([...window.document.querySelectorAll('[data-library-browse]')].every((node)=>!node.hidden))
+})
+
+test('the glossary is reference, not navigation: terms link the article that teaches them and are listed on /guides', (t) => {
+  const glossary=content('glossary')
+  const out=mkdtempSync(join(tmpdir(),'zenstory-terms-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const read=(lang,route)=>readFileSync(join(out,route==='/' ? (lang==='en' ? 'org-home' : 'zh') : pathOf(lang,route),'index.html'),'utf8')
+  const published=new Set(reading.map(routeOf))
+  assert.ok(glossary.filter((g)=>g.how_to).length>=10,'most terms need the article that teaches them')
+  for(const lang of ['en','zh']) {
+    const guidesIndex=read(lang,'/guides')
+    assert.doesNotMatch(read(lang,'/').match(/<nav aria-label="(?:Site|站点)">[\s\S]*?<\/nav>/)[0],/glossary/,`${lang}: glossary is not in the main nav`)
+    assert.match(read(lang,'/').match(/<footer[\s\S]*<\/footer>/)[0],new RegExp(`href="${pathOf(lang,'/glossary')}"`),`${lang}: footer keeps the glossary`)
+    for(const g of glossary) {
+      assert.ok(guidesIndex.includes(`href="${pathOf(lang,`/glossary/${g.slug}`)}"`),`${lang}: /guides lists ${g.term}`)
+      if(!g.how_to) continue
+      assert.ok(published.has(g.how_to),`${g.slug}: how_to ${g.how_to} is not a published guide or article`)
+      assert.match(read(lang,`/glossary/${g.slug}`),new RegExp(`<p class="term-howto">[\\s\\S]*?href="${pathOf(lang,g.how_to)}"`),`${lang} ${g.slug}: term page links its how-to article`)
+    }
+  }
+})

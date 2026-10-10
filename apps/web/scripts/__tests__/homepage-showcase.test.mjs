@@ -372,6 +372,16 @@ test('homepage offers three crawlable paths for the visitor’s three input stat
   }
 })
 
+test('the idea path lets a visitor with no agent start writing in the browser workbench', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const paths = elementsWithClass(section(html, 'start-h'), 'learning-path')
+    const signup = `https://app.zenstory.ai/register?lang=${lang}&amp;source=org_home_path`
+    assert.equal(paths[0].split(`href="${signup}"`).length - 1, 1, `${lang}: the idea path needs one direct workbench start`)
+    // The workbench writes novels and scripts; adaptation and recap paths start with their skill packs.
+    for (const path of paths.slice(1)) assert.ok(!path.includes(signup), `${lang}: only paths the workbench can start offer it`)
+  }
+})
+
 test('manuscript path keeps continuation ordered and presents drama or game as alternatives', () => {
   for (const [lang, html] of Object.entries(pages)) {
     const paths = elementsWithClass(section(html, 'start-h'), 'learning-path')
@@ -387,6 +397,10 @@ test('manuscript path keeps continuation ordered and presents drama or game as a
     for (const route of [`${prefix}/drama-skills/novel-to-short-drama`, `${prefix}/novel-to-game/quick-start`]) {
       assert.ok(!orderedLists[0].includes(`href="${route}"`), `${lang}: adaptation route must not appear as a sequential step`)
       assert.ok(branchLists[0].includes(`href="${route}"`), `${lang}: adaptation route must appear as an alternative`)
+    }
+    // Each alternative shows its tool's real result, the same local media the showcase uses.
+    for (const branch of branchLists[0].match(/<li\b[\s\S]*?<\/li>/gi)) {
+      assert.match(branch, /<img src="\/org\/demos\/[a-z0-9-]+\.jpg"[^>]* alt="" loading="lazy"/, `${lang}: adaptation branch needs its showcase media`)
     }
     for (const path of [paths[0], paths[2]]) {
       assert.equal((path.match(/<ol\b[^>]*>[\s\S]*?<\/ol>/gi) ?? []).length, 1, `${lang}: sequential path needs one ordered list`)

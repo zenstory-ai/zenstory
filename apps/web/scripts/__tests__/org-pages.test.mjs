@@ -414,13 +414,18 @@ test('organization generator writes every route in both languages, an apex homep
     assert.match(homepage, /<p class="lede">[^<]*(?:novels|drama|故事|创作|小说)/i)
     // A novel adapts into drama or a game; a recap starts from footage, not from a novel.
     assert.match(homepage, lang === 'en' ? /<p class="lede">[^<]*footage[^<]*recap/ : /<p class="lede">[^<]*视频素材[^<]*解说/)
-    assert.match(homepage, /href="https:\/\/app\.zenstory\.ai">(?:Open ZenStory Workbench|打开 ZenStory 工作台)/)
+    // App links open the app in the page's language, name the slot that sent the visitor, and skip the
+    // app's own landing page: "open the app" signs in, the workbench action starts a signup.
+    assert.match(homepage, new RegExp(`href="https://app\\.zenstory\\.ai/register\\?lang=${lang}&amp;source=org_home_closing">(?:Open ZenStory Workbench|打开 ZenStory 工作台)`))
+    assert.match(homepage, new RegExp(`<a class="nav-app" href="https://app\\.zenstory\\.ai/login\\?lang=${lang}&amp;source=org_header">`))
+    assert.doesNotMatch(homepage, /href="https:\/\/app\.zenstory\.ai\/?"/)
     assert.match(homepage, lang === 'en' ? /Choose by what you want to make/i : /按你想做的作品/)
     assert.match(homepage, lang === 'en' ? /Source on GitHub/ : /GitHub 源码/)
     // Six tool rows, each addressable so a creative path can point at the tool it starts with.
     assert.deepEqual(matches(homepage, /<article class="tool-choice" id="tool-([a-z-]+)">/g).map((m) => m[1]), projects.map((p) => p.slug))
     const siteNav = matches(homepage, /<nav aria-label="(?:Site|站点)">([\s\S]*?)<\/nav>/g)[0][1]
-    assert.deepEqual(matches(siteNav, /href="([^"]+)"/g).map((m) => m[1]), [routeIn(lang, '/projects'), routeIn(lang, '/guides'), routeIn(lang, '/glossary'), org.github])
+    // The glossary left the main nav (2026-10-09); it stays in the footer and on /guides.
+    assert.deepEqual(matches(siteNav, /href="([^"]+)"/g).map((m) => m[1]), [routeIn(lang, '/projects'), routeIn(lang, '/guides'), org.github])
     for (const project of projects) {
       assert.match(homepage, new RegExp(`href="${routeIn(lang, `/${project.slug}`)}"`), `homepage should link /${project.slug}`)
       assert.match(homepage, new RegExp(`href="${project.github.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`), `homepage should link ${project.github}`)

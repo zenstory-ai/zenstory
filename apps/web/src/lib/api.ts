@@ -133,7 +133,7 @@ export const authApi = {
    * });
    * ```
    */
-  register: async (data: { username: string; email: string; password: string; invite_code?: string }) => {
+  register: async (data: { username: string; email: string; password: string; invite_code?: string; language?: 'zh' | 'en' }) => {
     const response = await fetch(`${getApiBase()}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -2,14 +2,14 @@
  * Internationalization (i18n) configuration and initialization.
  *
  * Sets up i18next with React integration for multi-language support.
- * Uses HTTP backend to lazy-load translation files and browser language
- * detection for automatic locale selection.
+ * Uses HTTP backend to lazy-load translation files; the locale comes from an
+ * explicit `?lang=` or the preference stored in localStorage.
  *
  * Architecture:
  * - Uses i18next as the core i18n framework
  * - React integration via react-i18next hooks (useTranslation)
  * - HTTP backend loads JSON translation files from /public/locales/
- * - Browser language detection with localStorage persistence
+ * - `?lang=` (sent by zenstory.ai links) or the stored preference, persisted to localStorage
  *
  * Supported Languages:
  * - Chinese (Simplified): 'zh' - Default/fallback language
@@ -57,19 +57,34 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import Backend from 'i18next-http-backend';
 
+/**
+ * Which language the app opens in. Detection order: an explicit `?lang=` (zenstory.ai links carry the
+ * language of the page the visitor came from), then the preference stored in localStorage; no
+ * browser-language guess. The detected language is cached, so a `?lang=` handoff outlives the first page.
+ */
+export const languageDetection = {
+  order: ['querystring', 'localStorage'],
+  lookupQuerystring: 'lang',
+  caches: ['localStorage'],
+  lookupLocalStorage: 'zenstory-language',
+};
+
+export const languageOptions = {
+  /** Default language when detection fails */
+  fallbackLng: 'zh',
+  /** Languages with available translations */
+  supportedLngs: ['zh', 'en'],
+};
+
 i18n
   // HTTP backend for loading translation files from /public/locales/
   .use(Backend)
-  // Automatic language detection from browser/localStorage
+  // Language detection from `?lang=` or localStorage (see languageDetection)
   .use(LanguageDetector)
   // React integration for hooks and components
   .use(initReactI18next)
   .init({
-    /** Default language when detection fails */
-    fallbackLng: 'zh',
-
-    /** Languages with available translations */
-    supportedLngs: ['zh', 'en'],
+    ...languageOptions,
 
     /**
      * Translation namespaces for organizing content.
@@ -87,14 +102,7 @@ i18n
     },
 
     /** Language detection configuration */
-    detection: {
-      /** Detection order: only explicit user preference stored in localStorage */
-      order: ['localStorage'],
-      /** Cache detected language in localStorage */
-      caches: ['localStorage'],
-      /** localStorage key for storing language preference */
-      lookupLocalStorage: 'zenstory-language',
-    },
+    detection: languageDetection,
 
     /** Interpolation settings */
     interpolation: {

@@ -17,7 +17,7 @@ import { join, resolve } from 'node:path'
 import assert from 'node:assert/strict'
 import { micromark } from 'micromark'
 import { gfm, gfmHtml } from 'micromark-extension-gfm'
-import { SITE, APP, webRoot, esc, orgNode, localized, page } from './site-shell.mjs'
+import { SITE, appHref, webRoot, esc, orgNode, localized, page } from './site-shell.mjs'
 
 const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
 const docsDir = join(webRoot, 'docs')
@@ -133,7 +133,7 @@ function writePage(route, zhMd, enMd) {
     ${sidebar(route)}
     <div class="docs-body">
       <p class="crumbs"><a href="${localized(LANG, '/')}">ZenStory AI</a> <span aria-hidden="true">/</span> <a href="${localized(LANG, '/workbench')}">ZenStory Workbench</a> <span aria-hidden="true">/</span> <a href="/docs">工作台文档</a></p>
-      <p class="docs-note">本页是 <a href="${localized(LANG, '/workbench')}">ZenStory 工作台</a> 的产品文档；工作台在 <a href="${APP}">app.zenstory.ai</a> 运行。${enHtml ? '<a href="#en" lang="en">English below</a>' : ''}</p>
+      <p class="docs-note">本页是 <a href="${localized(LANG, '/workbench')}">ZenStory 工作台</a> 的产品文档；工作台在 <a href="${appHref(LANG, '/login', 'org_docs')}">app.zenstory.ai</a> 运行。${enHtml ? '<a href="#en" lang="en">English below</a>' : ''}</p>
       <section class="prose" id="zh" lang="zh-CN">${zhHtml}</section>
       ${enHtml ? `<hr class="lang">
       <section class="prose" id="en" lang="en">${enHtml}</section>` : ''}
