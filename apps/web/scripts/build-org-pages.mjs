@@ -1219,7 +1219,7 @@ const projectsIndex = () => {
   <header class="page-hero">
     <div class="wrap">
       <p class="eyebrow">${esc(pick(org.tagline))}</p>
-      <h1>${t('Six open-source projects for writing and adapting stories', '写网文、改短剧、做游戏、剪解说：六个开源项目')}</h1>
+      <h1>${t('Six open-source projects for writing and adapting stories', ['写网文、', '改短剧、', '做游戏、', '剪解说：', '六个开源项目'].map((phrase) => `<span class="tok">${phrase}</span>`).join(''))}</h1>
       ${pair(`<p class="lede">${esc(org.intro.en)}</p>`, `<p class="lede">${esc(org.intro.zh)}</p>`)}
       <p class="actions">${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${esc(pick(comparison.title))}${arrowGlyph}</a>`).join('')}</p>
     </div>
