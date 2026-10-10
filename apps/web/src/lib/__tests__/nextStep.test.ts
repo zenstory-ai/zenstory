@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   duplicatesNextStep,
+  isClarificationStop,
   isNextStepDismissed,
+  latestRoundAwaitsReply,
   nextStepKind,
   rememberNextStepDismissed,
 } from '../nextStep'
@@ -88,5 +90,40 @@ describe('next step dismissal', () => {
     })
     expect(() => rememberNextStepDismissed('p1')).not.toThrow()
     expect(isNextStepDismissed('p1')).toBe(false)
+  })
+})
+
+describe('latestRoundAwaitsReply', () => {
+  const ask = { type: 'workflow_stopped', reason: 'clarification_needed', question: '要我按默认设定先写第一章吗？' }
+  const done = { type: 'workflow_complete', reason: 'task_complete' }
+
+  it('is true when the last saved assistant turn ended in a clarification card', () => {
+    expect(latestRoundAwaitsReply([
+      { role: 'user' },
+      { role: 'assistant', statusCards: [ask] },
+    ])).toBe(true)
+  })
+
+  it('is false once the author replied, or the next round ended normally', () => {
+    expect(latestRoundAwaitsReply([{ role: 'assistant', statusCards: [ask] }, { role: 'user' }])).toBe(false)
+    expect(latestRoundAwaitsReply([
+      { role: 'assistant', statusCards: [ask] },
+      { role: 'user' },
+      { role: 'assistant', statusCards: [] },
+    ])).toBe(false)
+  })
+
+  it('reads the round end in display order, and prefers the live round items', () => {
+    expect(latestRoundAwaitsReply([{ role: 'assistant', displayItems: [ask, done] }])).toBe(false)
+    expect(latestRoundAwaitsReply([{ role: 'assistant', statusCards: [ask] }], [done])).toBe(false)
+    expect(latestRoundAwaitsReply([{ role: 'user' }], [{ type: 'content' }, ask])).toBe(true)
+    // Leftover items of an errored round carry no round end: fall back to the saved turn.
+    expect(latestRoundAwaitsReply([{ role: 'assistant', statusCards: [ask] }], [{ type: 'content' }])).toBe(true)
+  })
+
+  it('does not treat a user stop or an error stop as waiting for an answer', () => {
+    expect(isClarificationStop({ type: 'workflow_stopped', reason: 'user_stopped', question: 'x' })).toBe(false)
+    expect(isClarificationStop({ type: 'workflow_stopped', reason: 'error', message: '出错了' })).toBe(false)
+    expect(isClarificationStop({ type: 'workflow_stopped', question: '主角叫什么？' })).toBe(true)
   })
 })

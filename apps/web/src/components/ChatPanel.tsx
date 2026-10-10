@@ -63,7 +63,7 @@ import {
 import { fileVersionApi, projectApi, versionApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
 import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
-import { duplicatesNextStep } from "../lib/nextStep";
+import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
@@ -2072,7 +2072,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       && !isStreaming
       && !isThinking
       && !aiSendBlocked
-      && !resendRepeatsNextStep,
+      && !resendRepeatsNextStep
+      // 历史还没载入时不知道上一轮是不是在等作者回答；AI 正在「等你回复」时，
+      // 卡片固定的「按大纲写第一章正文」答不了它的问题，只会再问一遍。
+      && !isLoadingHistory
+      && !latestRoundAwaitsReply(messages, streamRenderItems),
   );
 
   return (
