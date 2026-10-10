@@ -65,6 +65,11 @@ def _metrics(messages: list[MessageOracle]) -> dict[str, int | float]:
     }
 
 
+def _beijing_midnight_utc(day: date) -> datetime:
+    """Naive-UTC start of a Beijing calendar day (UTC+8, no DST)."""
+    return datetime.combine(day, datetime.min.time()) - timedelta(hours=8)
+
+
 def _expected(case: SummaryCase) -> dict[str, Any]:
     messages = list(case.messages)
     current = {
@@ -81,7 +86,8 @@ def _expected(case: SummaryCase) -> dict[str, Any]:
     for key in ("first_interaction_date", "last_interaction_date"):
         value = current[key]
         current[key] = value.isoformat() if isinstance(value, datetime) else None
-    end = datetime.combine(REFERENCE_DATE + timedelta(days=1), datetime.min.time())
+    # Periods are Beijing calendar days, the same as the quota.
+    end = _beijing_midnight_utc(REFERENCE_DATE + timedelta(days=1))
     starts = {
         "today": REFERENCE_DATE,
         "this_week": REFERENCE_DATE - timedelta(days=REFERENCE_DATE.weekday()),
@@ -89,7 +95,7 @@ def _expected(case: SummaryCase) -> dict[str, Any]:
     }
     expected: dict[str, Any] = {"current": current}
     for period, start in starts.items():
-        lower = datetime.combine(start, datetime.min.time())
+        lower = _beijing_midnight_utc(start)
         selected = [message for message in messages if lower <= message.created_at < end]
         expected[period] = {
             "total": len(selected),

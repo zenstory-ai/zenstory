@@ -1903,3 +1903,102 @@ async def test_displaced_completion_keeps_new_files_pending_empty_guard():
     assert pending is not None and pending["file_id"] == "draft-F"
 
     ToolContext.clear_pending_empty_file()
+
+
+# ---------------------------------------------------------------------------
+# 同一条回复里 "<file>上一集</file> + create_file(下一集)"（短剧连写多集）
+# ---------------------------------------------------------------------------
+
+
+def _chat_text(rounds) -> str:
+    return "".join(
+        sse.data.get("text", "")
+        for batch in rounds
+        for sse in batch
+        if sse.type == EventType.CONTENT
+    )
+
+
+@pytest.mark.unit
+async def test_body_then_next_create_file_saves_previous_and_captures_next():
+    """上一集正文落库、只清上一集的守卫条目，随后进入下一集的捕获，对话里不露 <file>。"""
+    from agent.stream_adapter import create_stream_adapter
+    from agent.tools.mcp_tools import ToolContext
+
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+        adapter._save_file_content = AsyncMock(return_value=True)
+        ToolContext.set_pending_empty_file("ep-1", "第1集")
+        adapter.set_pending_file_write("ep-1", "script", "第1集")
+        # SDK 先执行 create_file(第2集)（on_llm_end 已标记第1集正文写出），守卫放行并置位第2集
+        ToolContext.set_pending_empty_file("ep-2", "第2集")
+
+        rounds = await _drive_per_event(adapter, [
+            LangGraphStreamEvent(
+                type=StreamEventType.TEXT, data={"text": "第1集如下。<file>\n雨夜，她推开门。\n</file>"}
+            ),
+            _create_file_result_event("ep-2", "script", "第2集"),
+        ])
+        assert [e["file_id"] for e in ToolContext.get_pending_empty_files()] == ["ep-2"]
+        assert adapter._pending_file_write is not None
+        assert adapter._pending_file_write.file_id == "ep-2"
+        assert adapter._stream_processor.state == StreamState.WAITING_START
+
+        rounds += await _drive_per_event(adapter, [
+            LangGraphStreamEvent(
+                type=StreamEventType.TEXT, data={"text": "<file>\n天亮了。\n</file>"}
+            ),
+            LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+        ])
+
+        saved = [call.args for call in adapter._save_file_content.await_args_list]
+        assert saved == [("ep-1", "\n雨夜，她推开门。\n"), ("ep-2", "\n天亮了。\n")]
+        chat = _chat_text(rounds)
+        assert "<file>" not in chat and "</file>" not in chat
+        assert "雨夜" not in chat and "天亮了" not in chat
+        assert ToolContext.get_pending_empty_files() == []
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.unit
+async def test_genuine_rejection_keeps_failure_card_and_still_captures_body():
+    """真实拒绝（回复里没有闭合 <file> 就再建）：失败卡保留，模型随后补写的正文照常落库不外露。"""
+    from agent.stream_adapter import create_stream_adapter
+    from agent.tools.mcp_tools import ToolContext
+
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+        adapter._save_file_content = AsyncMock(return_value=True)
+        ToolContext.set_pending_empty_file("ep-A", "第1集")
+        adapter.set_pending_file_write("ep-A", "script", "第1集")
+
+        rejection = {
+            "status": "error",
+            "error_type": "pending_empty_file_unwritten",
+            "error": "文件「第2集」未创建：上一个文件「第1集」正文还是空的。",
+            "pending_file_id": "ep-A",
+        }
+        rounds = await _drive_per_event(adapter, [
+            LangGraphStreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "name": "create_file",
+                    "tool_use_id": "tu-B",
+                    "result": {"content": [{"type": "text", "text": json.dumps(rejection)}]},
+                },
+            ),
+            LangGraphStreamEvent(type=StreamEventType.TEXT, data={"text": "<file>第1集正文</file>"}),
+            LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+        ])
+
+        [card] = [sse for sse in rounds[0] if sse.type == EventType.TOOL_RESULT]
+        assert card.data["tool_name"] == "create_file"
+        assert card.data["status"] == "error"
+        adapter._save_file_content.assert_awaited_once_with("ep-A", "第1集正文")
+        assert "<file>" not in _chat_text(rounds)
+        assert ToolContext.get_pending_empty_files() == []
+    finally:
+        ToolContext.clear_context()

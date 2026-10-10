@@ -144,6 +144,12 @@ export function WritingStreakCard({
                   • {statusDisplay.label}
                 </span>
               </div>
+              {/* 连续天数只算作者亲手写的字；0 天时说明口径（手机端健康度卡不显示说明） */}
+              {streakData.current_streak === 0 && (
+                <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
+                  {t('statistics.projectHealth.indicators.streakInactive')}
+                </p>
+              )}
             </div>
           </div>
         </div>

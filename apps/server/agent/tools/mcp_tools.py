@@ -214,9 +214,17 @@ class _PendingEmptyFileState:
        的线程边界，是典型 TOCTOU：两个任务会同时通过检查。因此对外只暴露
        ``try_reserve``（占坑）+ ``bind``（回填真实 file_id）/``release``（回滚）
        这一组原子操作，调用方不得再自己"先查后置"。
+
+    另有一层"正文已在模型回复里写完"的标记（_streamed）：SDK 的 run loop 在
+    执行本轮工具之前就 await 了 on_llm_end，而 StreamAdapter 是在消费侧滞后
+    处理 </file>、落库后才按 file_id 清条目。同一条回复里"<file>A</file> +
+    create_file(B)"时，create_file(B) 跑在 adapter 落库之前，会被 A 的条目误拒。
+    on_llm_end 钩子确认本条回复里有闭合的 <file> 块后调 mark_body_streamed，
+    try_reserve 只被尚未写出正文的条目挡住；条目本身仍由 adapter 落库后清除，
+    has_pending / latest / snapshot 的语义不变（writing_graph 的边界核验照旧兜底）。
     """
 
-    __slots__ = ("_lock", "_entries", "_reservations", "_reject_count")
+    __slots__ = ("_lock", "_entries", "_reservations", "_reject_count", "_streamed")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -225,6 +233,8 @@ class _PendingEmptyFileState:
         # ticket -> title，正在建库途中（还没拿到真实 file_id）的占坑
         self._reservations: dict[str, str] = {}
         self._reject_count = 0
+        # 正文已以闭合 <file> 块出现在模型回复里、只差 adapter 落库的条目
+        self._streamed: set[str] = set()
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -251,21 +261,38 @@ class _PendingEmptyFileState:
     def add(self, file_id: str, title: str) -> None:
         with self._lock:
             self._entries[file_id] = title
+            # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
+            self._streamed.discard(file_id)
             self._reject_count = 0
+
+    def mark_body_streamed(self, file_id: str) -> None:
+        """记录该待写文件的正文已以闭合 <file> 块完整出现在模型回复里。"""
+        with self._lock:
+            if file_id in self._entries:
+                self._streamed.add(file_id)
+
+    def mark_latest_body_streamed(self) -> None:
+        """同 mark_body_streamed，作用于最近置位的条目（取条目与置位在同一把锁内）。"""
+        with self._lock:
+            if self._entries:
+                self._streamed.add(next(reversed(self._entries)))
 
     def discard(self, file_id: str | None = None) -> None:
         """file_id 为 None 时清空全部，否则只摘掉指定条目。"""
         with self._lock:
             if file_id is None:
                 self._entries.clear()
+                self._streamed.clear()
             else:
                 self._entries.pop(file_id, None)
+                self._streamed.discard(file_id)
             self._reject_count = 0
 
     def clear_all(self) -> None:
         with self._lock:
             self._entries.clear()
             self._reservations.clear()
+            self._streamed.clear()
             self._reject_count = 0
 
     # ---- 原子占坑 ----------------------------------------------------------
@@ -282,13 +309,19 @@ class _PendingEmptyFileState:
                 # 直接拒绝且不计入陈旧计数（对方马上就会 bind 或 release）。
                 return False, next(iter(self._reservations.values()))
 
-            if self._entries:
+            # 正文已在本条回复里写完、只等 adapter 落库的条目不再挡路
+            unwritten = [
+                title_
+                for file_id, title_ in self._entries.items()
+                if file_id not in self._streamed
+            ]
+            if unwritten:
                 # Never discard unfinished artifacts merely because the model
                 # repeated an invalid action. The workflow boundary owns recovery
                 # (finish or roll back); forgetting the marker silently leaves an
                 # empty file in the project.
                 self._reject_count += 1
-                return False, next(reversed(self._entries.values()))
+                return False, unwritten[-1]
 
             self._reservations[ticket] = title
             return True, None
@@ -299,6 +332,8 @@ class _PendingEmptyFileState:
             self._reservations.pop(ticket, None)
             if file_id:
                 self._entries[file_id] = title
+                # 幂等复用命中同一文件时它重新等待正文，旧标记作废
+                self._streamed.discard(file_id)
                 self._reject_count = 0
 
     def release(self, ticket: str) -> None:
@@ -644,6 +679,18 @@ class ToolContext:
         if state is not None:
             return state.latest()
         return _pending_empty_file_var.get()
+
+    @classmethod
+    def mark_latest_pending_body_streamed(cls) -> None:
+        """最近一个待写文件的正文已以闭合 <file> 块完整出现在本条模型回复里。
+
+        由 on_llm_end 钩子在 SDK 执行本轮工具前调用（见 usage_hooks），让同一
+        回复里紧跟的 create_file 不被尚未落库的上一份正文误拒。条目仍留着，
+        等 adapter 落库后清除。未建请求上下文时为 no-op。
+        """
+        state = cls._get_pending_empty_file_state()
+        if state is not None:
+            state.mark_latest_body_streamed()
 
     @classmethod
     def try_reserve_pending_empty_file(

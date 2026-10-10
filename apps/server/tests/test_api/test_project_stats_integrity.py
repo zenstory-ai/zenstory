@@ -267,12 +267,17 @@ async def test_dashboard_ai_periods_follow_supported_client_date(
         chat = ChatSession(project_id=ids["project"], user_id=ids["user"], title="Owned chat")
         seed.add(chat)
         seed.flush()
+        # Ten minutes either side of Beijing midnight (periods are Beijing days;
+        # created_at is naive UTC, Beijing minus 8 hours).
+        beijing_to_utc = timedelta(hours=8)
         seed.add_all([
             ChatMessage(session_id=chat.id, role="assistant", content="Prior response",
-                        created_at=datetime.combine(prior, datetime.min.time()) + timedelta(hours=23, minutes=50),
+                        created_at=datetime.combine(prior, datetime.min.time())
+                        + timedelta(hours=23, minutes=50) - beijing_to_utc,
                         message_metadata='{"usage":{"input_tokens":7,"output_tokens":3}}'),
             ChatMessage(session_id=chat.id, role="assistant", content="Next response",
-                        created_at=datetime.combine(today, datetime.min.time()) + timedelta(minutes=10),
+                        created_at=datetime.combine(today, datetime.min.time())
+                        + timedelta(minutes=10) - beijing_to_utc,
                         message_metadata='{"usage":{"input_tokens":13,"output_tokens":5}}'),
             WritingStats(user_id=ids["user"], project_id=ids["project"], stats_date=prior,
                          word_count=11, words_added=11, edit_sessions=1),

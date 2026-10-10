@@ -140,6 +140,14 @@ def _project(db_session, project_type: str) -> Project:
         ("3集大纲 重逢", 3),
         ("3 开端", 3),
         ("Episode 4", 4),
+        # A title opening with a range is a plan for many episodes, not episode 1.
+        ("1-30集分集大纲", None),
+        ("31-60集分集大纲", None),
+        ("第1集-第30集分集大纲", None),
+        ("1～30集大纲", None),
+        ("1到30集分集大纲", None),
+        ("第1-2章", None),
+        ("1-2 初遇", 1),
     ],
 )
 def test_chapter_number_takes_the_leading_ordinal_and_ignores_book_lengths(title, expected):
@@ -199,6 +207,40 @@ def test_episode_outline_title_range_sets_planned_total(db_session):
     assert stats["completed_chapters"] == 3
     assert stats["planned_total"] == 80
     assert stats["completion_percentage"] == 3
+    # Same denominator as 「按大纲还有 77 集待写」.
+    assert stats["not_started_chapters"] == 77
+
+
+@pytest.mark.parametrize("outline_title", ["1-30集分集大纲", "第1集-第30集分集大纲"])
+def test_outline_titled_with_leading_range_is_the_plan_not_episode_one(db_session, outline_title):
+    """Audit r4: 「1-30集分集大纲」 was paired with 「第1集」 and the plan was lost."""
+    project = _project(db_session, "screenplay")
+    _add(db_session, project, outline_title, "outline", "第1集　寿宴逐客\n- 钩子：雨里。", 0)
+    _add(db_session, project, "第1集", "script", "【场1】日，内，客厅。林晚把蛋糕放在桌上，手机亮了。" * 5, 1)
+
+    stats = writing_stats_service.get_chapter_completion_stats(db_session, project.id)
+
+    assert stats["planned_total"] == 30
+    assert stats["total_chapters"] == 1
+    assert [row["title"] for row in stats["chapter_details"]] == ["第1集"]
+    assert stats["completed_chapters"] == 1
+    assert stats["completion_percentage"] == 3
+    assert stats["not_started_chapters"] == 29
+
+
+def test_several_range_outlines_plan_up_to_the_last_episode(db_session):
+    project = _project(db_session, "screenplay")
+    for order, title in enumerate(["1-30集分集大纲", "31-60集分集大纲", "61-80集分集大纲"]):
+        _add(db_session, project, title, "outline", "剧情。", order)
+    for n in (1, 2, 3):
+        _add(db_session, project, f"第{n}集", "script", "【场1】客厅。" * 20, n)
+
+    stats = writing_stats_service.get_chapter_completion_stats(db_session, project.id)
+
+    assert stats["planned_total"] == 80
+    assert stats["total_chapters"] == 3
+    assert [row["title"] for row in stats["chapter_details"]] == ["第1集", "第2集", "第3集"]
+    assert stats["not_started_chapters"] == 77
 
 
 def test_audited_episode_outline_body_sets_planned_total(db_session):
@@ -261,6 +303,7 @@ def test_no_plan_returns_none_and_keeps_legacy_percentage(db_session):
     assert stats["planned_total"] is None
     assert stats["total_chapters"] == 2
     assert stats["completion_percentage"] == 50
+    assert stats["not_started_chapters"] == 1
 
 
 def test_unwritten_chapter_outlines_are_a_known_plan(db_session):

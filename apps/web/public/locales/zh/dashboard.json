@@ -388,7 +388,7 @@
         "activityInactive": "写几句就能看到进度",
         "streak": "写作连续",
         "streakActive": "保持势头继续加油",
-        "streakInactive": "今天写满 10 个字就开始计天数",
+        "streakInactive": "在编辑器里亲手写满 10 个字开始计天数（AI 写的不算）",
         "aiUsage": "AI 协作",
         "aiActive": "正在使用 AI 辅助",
         "aiInactive": "试试 AI 辅助写作"

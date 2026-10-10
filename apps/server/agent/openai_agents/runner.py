@@ -780,7 +780,7 @@ async def run_openai_agents_streaming_agent(
         from agents.exceptions import MaxTurnsExceeded
 
         from .intra_run_trimmer import IntraRunToolOutputTrimmer
-        from .usage_hooks import build_usage_metering_hooks
+        from .usage_hooks import build_agent_run_hooks
 
         sdk_agent = _build_agent(
             agent_type,
@@ -818,8 +818,9 @@ async def run_openai_agents_streaming_agent(
                 input=api_messages,
                 max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
                 # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
-                # 之后 run 报错/取消也不会丢掉已完成调用的用量。
-                hooks=build_usage_metering_hooks(DEEPSEEK_WRITING_MODEL),
+                # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前
+                # 告诉空文件守卫"上一份正文已在本条回复里写完"（见 usage_hooks）。
+                hooks=build_agent_run_hooks(DEEPSEEK_WRITING_MODEL),
                 # When DeepSeek emits multiple tool_calls in one turn, the SDK would run them
                 # concurrently (asyncio.create_task). Project tools share a single SQLAlchemy
                 # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool

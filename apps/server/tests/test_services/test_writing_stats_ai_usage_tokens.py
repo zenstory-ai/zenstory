@@ -274,3 +274,28 @@ def test_ai_summary_reference_date_and_exclusive_calendar_end(
         assert actual["input_tokens"] == input_tokens
         assert actual["output_tokens"] == output_tokens
         assert actual["total_tokens"] == input_tokens + output_tokens
+
+
+def test_ai_summary_today_is_the_beijing_calendar_day(db_session, ai_usage_project, monkeypatch):
+    """Audit r4drama: messages sent after Beijing midnight (still 10-09 in UTC) are today's."""
+    from datetime import date
+
+    user, project = ai_usage_project
+    chat = _create_chat_session(db_session, user, project)
+    for at in (
+        datetime(2026, 10, 9, 23, 45),  # Beijing 10-10 07:45
+        datetime(2026, 10, 10, 0, 5),  # Beijing 10-10 08:05
+        datetime(2026, 10, 9, 15, 59),  # Beijing 10-09 23:59: yesterday
+    ):
+        db_session.add(ChatMessage(session_id=chat.id, role="user", content="继续写", created_at=at))
+    db_session.commit()
+
+    summary = writing_stats_service.get_ai_usage_summary(
+        db_session, user.id, project.id, reference_date=date(2026, 10, 10),
+    )
+    assert summary["today"]["user"] == 2
+
+    # Without a reference date the default is today in Beijing, not in UTC:
+    # at 15:30Z it is still 10-09 23:30 in Beijing, so only the 15:59Z message counts.
+    monkeypatch.setattr(writing_stats_module, "utcnow", lambda: datetime(2026, 10, 9, 15, 30))
+    assert writing_stats_service.get_ai_usage_summary(db_session, user.id, project.id)["today"]["user"] == 1

@@ -388,7 +388,7 @@
         "activityInactive": "Write a few lines to see progress",
         "streak": "Writing Streak",
         "streakActive": "Keep up the momentum",
-        "streakInactive": "Write 10 words today to start a streak",
+        "streakInactive": "Type 10 words yourself in the editor to start a streak (AI-written words don't count)",
         "aiUsage": "AI Collaboration",
         "aiActive": "Actively using AI assistance",
         "aiInactive": "Try AI for writing help"
