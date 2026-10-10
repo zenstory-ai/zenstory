@@ -31,7 +31,7 @@ import { join, resolve } from 'node:path'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import { SITE, APP, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, HOME_FONTS } from './site-shell.mjs'
+import { SITE, appHref, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, HOME_FONTS } from './site-shell.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
@@ -353,7 +353,7 @@ const projectCard = (p, eyebrow) => `
         <h3><a href="/${p.slug}">${toolName(p)}</a></h3>
         ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
         ${proofRow([proof(esc(pick(p.format)), 'format'), ...projectChips(p)])}
-        <p class="card-actions"><a href="/${p.slug}">${t(p.install ? 'Install and details' : 'Project details', p.install ? '安装与详情' : '项目详情')}${arrowGlyph}</a><a href="${p.github}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${APP}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
+        <p class="card-actions"><a href="/${p.slug}">${t(p.install ? 'Install and details' : 'Project details', p.install ? '安装与详情' : '项目详情')}${arrowGlyph}</a><a href="${p.github}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${appHref(LANG, '/login', 'org_projects')}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
       </article>`
 
 /** Relationship diagram (closing band): idea → novel → short drama / game, and footage → video recap, labelled with the tools. */
@@ -599,7 +599,7 @@ const homePage = () => {
       ${heading(2, 'One story. Different ways to build.', phrases('围绕故事，', '把创作连接起来'), 'model-h')}
     </header>
     <div class="home-system"><figure>${pipelineSvg()}<figcaption>${t('A novel can become a short drama or a game; a recap starts from existing footage.', '一部小说可以改成短剧或游戏；解说视频则从现成的视频素材开始。')}</figcaption></figure></div>
-    <p class="actions"><a class="btn" href="${APP}">${t('Open ZenStory Workbench', '打开 ZenStory 工作台')}${extGlyph}</a><a class="btn ghost" href="#choose-h">${t('Install a skill pack in your agent', '在 Agent 中安装 skill 包')}<span class="arrow" aria-hidden="true">↑</span></a></p>
+    <p class="actions"><a class="btn" href="${appHref(LANG, '/register', 'org_home_closing')}">${t('Open ZenStory Workbench', '打开 ZenStory 工作台')}${extGlyph}</a><a class="btn ghost" href="#choose-h">${t('Install a skill pack in your agent', '在 Agent 中安装 skill 包')}<span class="arrow" aria-hidden="true">↑</span></a></p>
   </div></section>
 </article>
 ${playerScript}`
@@ -613,7 +613,7 @@ const WRITING_ENTRIES = new Set(['oh-story'])
 const needBlock = (p) => {
   const isPack = Boolean(p.install)
   const host = p.slug === 'workbench'
-    ? t(`A browser. The workbench runs at <a href="${APP}">app.zenstory.ai</a>.`, `一个浏览器。工作台运行在 <a href="${APP}">app.zenstory.ai</a>。`)
+    ? t(`A browser. The workbench runs at <a href="${appHref(LANG, '/login', 'org_workbench_need')}">app.zenstory.ai</a>.`, `一个浏览器。工作台运行在 <a href="${appHref(LANG, '/login', 'org_workbench_need')}">app.zenstory.ai</a>。`)
     : p.slug === 'dsh'
       ? t('DeepSeek Harness (DSH) as the host.', '以 DeepSeek Harness（DSH）为宿主。')
       : t(`An agent host: ${org.proof.harnesses.map(esc).join(', ')}.`, `一个 Agent 宿主：${org.proof.harnesses.map(esc).join('、')}。`)
@@ -625,7 +625,7 @@ const needBlock = (p) => {
       <li><b>${t(p.slug === 'workbench' ? 'Where it runs' : 'Host', p.slug === 'workbench' ? '在哪里运行' : '宿主')}</b><span>${host}</span></li>
       ${isPack ? `<li><b>${t('Install', '安装')}</b><span>${t('One command:', '一条命令：')} <code class="cmd">${cmd(p.install)}</code></span></li>` : ''}
       ${p.slug === 'workbench' ? `<li><b>${t('Docs', '文档')}</b><span>${t('The <a href="/docs">workbench documentation</a>: getting started, user guide, reference and troubleshooting.', '<a href="/docs">工作台文档</a>：快速入门、用户指南、参考资料与故障排除。')}</span></li>` : ''}
-      ${WRITING_ENTRIES.has(p.slug) ? `<li><b>${t('Or in the browser', '或在浏览器里')}</b><span>${t(`For novel writing only: the separate <a href="/workbench">ZenStory Workbench</a> at <a href="${APP}">app.zenstory.ai</a>.`, `仅限小说写作：独立的 <a href="/workbench">ZenStory 工作台</a>，<a href="${APP}">app.zenstory.ai</a>。`)}</span></li>` : ''}
+      ${WRITING_ENTRIES.has(p.slug) ? `<li><b>${t('Or in the browser', '或在浏览器里')}</b><span>${t(`For novel writing only: the separate <a href="/workbench">ZenStory Workbench</a> at <a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>.`, `仅限小说写作：独立的 <a href="/workbench">ZenStory 工作台</a>，<a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>。`)}</span></li>` : ''}
     </ul>
   </section>`
 }
@@ -678,7 +678,7 @@ const projectPage = (p) => {
       <p class="actions">
         <a class="btn" href="${p.github}">${t('Source on GitHub', '在 GitHub 查看源码')}${extGlyph}</a>
         ${p.readme_en && p.readme_en !== p.github ? `<a class="btn ghost" href="${p.readme_en}">${t('English README', '英文 README')}${extGlyph}</a>` : ''}
-        ${p.slug === 'workbench' ? `<a class="btn ghost" href="${p.entry}">${t('Open the workbench', '打开工作台')}${extGlyph}</a><a class="btn ghost" href="/docs">${t('Workbench docs', '工作台文档')}${arrowGlyph}</a>` : ''}
+        ${p.slug === 'workbench' ? `<a class="btn ghost" href="${appHref(LANG, '/login', 'org_workbench')}">${t('Open the workbench', '打开工作台')}${extGlyph}</a><a class="btn ghost" href="/docs">${t('Workbench docs', '工作台文档')}${arrowGlyph}</a>` : ''}
       </p>
       ${installBlock(p)}
     </div>

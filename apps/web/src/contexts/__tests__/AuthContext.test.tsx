@@ -529,8 +529,28 @@ describe('AuthContext', () => {
         username: 'newuser',
         email: 'new@example.com',
         password: 'password123',
+        language: 'zh',
       })
       expect(registerResult).toEqual(mockResponse)
+    })
+
+    it('signs up in the visitor language and credits the entry they arrived from', async () => {
+      localStorage.setItem('zenstory-language', 'en')
+      sessionStorage.setItem('zenstory:entry-source', 'org_home_closing')
+      vi.mocked(api.authApi.register).mockResolvedValueOnce({ email: 'new@example.com', email_verified: false })
+
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+      await act(async () => {
+        await result.current.register('newuser', 'new@example.com', 'password123')
+      })
+
+      expect(api.authApi.register).toHaveBeenCalledWith(expect.objectContaining({ language: 'en' }))
+      expect(trackEvent).toHaveBeenCalledWith('register_success', expect.objectContaining({ entry_source: 'org_home_closing' }))
     })
 
     it('does not authenticate user after registration', async () => {
@@ -1456,6 +1476,7 @@ describe('AuthContext', () => {
         email: 'new@example.com',
         password: 'password123',
         invite_code: 'INVITE123',
+        language: 'zh',
       })
     })
 
@@ -1482,6 +1503,7 @@ describe('AuthContext', () => {
         username: 'newuser',
         email: 'new@example.com',
         password: 'password123',
+        language: 'zh',
       })
     })
   })

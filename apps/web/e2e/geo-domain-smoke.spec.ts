@@ -223,7 +223,9 @@ test.describe('organization site', () => {
       links.map((link) => link.getAttribute('href')),
     )
     expect(homeLinks).toEqual(expect.arrayContaining(PROJECT_SLUGS.map((slug) => `/${slug}`)))
-    await expect(page.locator(`a[href="${CANONICAL_APP}"]`).first()).toBeVisible()
+    // App links skip the app's own landing page and carry the page language and the sending slot.
+    await expect(page.locator(`header a.nav-app[href="${CANONICAL_APP}/login?lang=en&source=org_header"]`)).toBeVisible()
+    await expect(page.locator(`article.home a[href="${CANONICAL_APP}/register?lang=en&source=org_home_closing"]`)).toHaveCount(1)
 
     await context.close()
   })
@@ -243,7 +245,8 @@ test.describe('organization site', () => {
     await expect(page.locator('header .lang-switch a[hreflang="en"]')).toHaveAttribute('href', '/')
     const homeLinks = await page.locator('article.home a[href]').evaluateAll((links) => links.map((link) => link.getAttribute('href')))
     expect(homeLinks).toEqual(expect.arrayContaining(PROJECT_SLUGS.map((slug) => `/zh/${slug}`)))
-    await expect(page.locator(`a[href="${CANONICAL_APP}"]`).first()).toBeVisible()
+    await expect(page.locator(`header a.nav-app[href="${CANONICAL_APP}/login?lang=zh&source=org_header"]`)).toBeVisible()
+    await expect(page.locator(`article.home a[href="${CANONICAL_APP}/register?lang=zh&source=org_home_closing"]`)).toHaveCount(1)
     await context.close()
   })
 
@@ -418,11 +421,11 @@ test.describe('organization site', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('ZenStory')
   })
 
-  test('the header app link sends visitors to the app origin from a docs page', async ({ page }) => {
+  test('the header app link sends visitors to the app sign-in from a docs page', async ({ page }) => {
     await page.goto(`${SITE}/docs/getting-started/quick-start`, { waitUntil: 'networkidle' })
     await page.locator('header a.nav-app').first().click()
 
-    await expect(page).toHaveURL(new RegExp(`^${APP.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(?:[?#]|$)`))
+    await expect(page).toHaveURL(new RegExp(`^${APP.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/login\\?lang=zh&source=org_header$`))
   })
 })
 

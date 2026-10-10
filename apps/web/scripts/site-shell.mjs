@@ -16,6 +16,13 @@ import { fileURLToPath } from 'node:url'
 
 export const SITE = 'https://zenstory.ai'
 export const APP = 'https://app.zenstory.ai'
+/**
+ * A link into the workbench app (HTML-escaped). `lang` opens the app in the page's language; `source`
+ * names the slot that sent the visitor, which the app's analytics keeps. "Open the app" links go to
+ * `/login` (a signed-in visitor lands on the dashboard), actions that start writing go to `/register`;
+ * neither passes through the app's own landing page.
+ */
+export const appHref = (lang, path, source) => `${APP}${path}?lang=${lang}&amp;source=${source}`
 export const LANGS = ['en', 'zh']
 /** BCP 47 tag per site language (html lang, hreflang, JSON-LD inLanguage). */
 export const LOCALE = { en: 'en', zh: 'zh-CN' }
@@ -93,7 +100,7 @@ export const nav = (lang, { section = null, switchLinks }) => {
     </nav>
     <div class="top-tools">
       ${langSwitch(lang, switchLinks)}
-      <a class="nav-app" href="${APP}">${t(lang, 'Open app', '打开工作台')}${arrowGlyph}</a>
+      <a class="nav-app" href="${appHref(lang, '/login', 'org_header')}">${t(lang, 'Open app', '打开工作台')}${arrowGlyph}</a>
     </div>
   </div>
 </header>`
@@ -124,7 +131,7 @@ export const footer = (lang) => `
       <nav aria-label="${t(lang, 'Footer: workbench', '页脚：工作台')}">
         <p class="foot-h">${t(lang, 'Workbench', '工作台')}</p>
         <ul>
-          <li><a href="${APP}">${t(lang, 'Open app', '打开工作台')}</a></li>
+          <li><a href="${appHref(lang, '/login', 'org_footer')}">${t(lang, 'Open app', '打开工作台')}</a></li>
           <li><a href="/docs">${t(lang, 'Workbench docs', '工作台文档')}</a></li>
           <li><a href="/privacy-policy">${t(lang, 'Privacy policy', '隐私政策')}</a></li>
           <li><a href="/terms-of-service">${t(lang, 'Terms of service', '服务条款')}</a></li>

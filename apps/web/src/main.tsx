@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { initWebVitalsLogging, initWebVitalsMonitoring } from './lib/webVitals'
 import { initAnalytics } from './lib/analytics'
 import { captureAuthCallbackParams } from './lib/authCallbackParams'
+import { rememberEntrySource } from './lib/entrySource'
 import { installChunkRecoveryHandlers } from './lib/chunkRecovery'
 
 const queryClient = new QueryClient({
@@ -25,6 +26,7 @@ const queryClient = new QueryClient({
 
 // Pull OAuth credentials out of the URL before anything can report it.
 captureAuthCallbackParams()
+rememberEntrySource()
 initAnalytics()
 initWebVitalsMonitoring()
 initWebVitalsLogging()
