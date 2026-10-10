@@ -78,7 +78,7 @@
     "diff-match-patch": "^1.0.5",
     "i18next": "^25.7.4",
     "i18next-browser-languagedetector": "^8.2.0",
-    "i18next-http-backend": "^3.0.5",
+    "i18next-http-backend": "^4.0.2",
     "immer": "^10.1.4",
     "lucide-react": "^0.562.0",
     "posthog-js": "^1.364.1",
