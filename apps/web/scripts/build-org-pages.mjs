@@ -422,7 +422,8 @@ const showcaseImage = (item, eager = false) => `<img src="${esc(item.image.file)
 /** Media shape decides the case's place in the grid: the first case is the feature, a vertical video gets a phone-shaped stage. */
 const caseShape = (item, index) => (index === 0 ? ' is-feature' : item.video && item.video.height > item.video.width ? ' is-tall' : '')
 /** Showcase cards in content order (content/showcases.json is the homepage curation). */
-const showcaseCards = () => showcases.map((item, index) => {
+/** The hero already shows the case with a verified chain; the showcase carries the others. */
+const showcaseCards = () => showcases.filter((item) => !item.chain).map((item, index) => {
   const owner = projects.find((p) => p.slug === item.owner)
   const tall = item.video && item.video.height > item.video.width
   // Native controls stay in the HTML (no-JS playback); playerScript swaps them for one play button until the first play.
@@ -485,6 +486,12 @@ const heroStage = () => {
         <figcaption><span class="stage-case">${t('<cite>Journey to the West</cite> → a playable game', '《西游记》→ 可玩游戏')}</span><a class="stage-method" href="/${item.owner}#start-h" aria-label="${t(`Start adapting: set up ${esc(owner.name.en)}`, `开始改编：安装 ${esc(owner.name.en)}`)}">${t('Start adapting', '开始改编')}${arrowGlyph}</a><a href="${esc(example)}">${t('Case files', '案例源码')}${extGlyph}</a><a href="#examples-h">${t('More demos', '更多演示')}<span class="arrow" aria-hidden="true">↓</span></a></figcaption>
       </figure>`
 }
+/** A knowledge-level entry `workflow:<id>` links that /guides workflow instead of repeating articles the paths already link. */
+const workflowLink = (ref) => {
+  const flow = WORKFLOWS.find((candidate) => `workflow:${candidate.id}` === ref)
+  assert.ok(flow, `Unknown homepage workflow: ${ref}`)
+  return `<li><a href="/guides#path-${flow.id}"><span class="guide-title">${t(...flow.title)}</span><span class="step-count">${t(`${flow.steps.length} steps`, `${flow.steps.length} 步`)}</span>${arrowGlyph}</a></li>`
+}
 const homeReadingItems = (slugs) => slugs.map((slug) => {
   const matches = readingOf().filter((item) => item.slug === slug)
   assert.equal(matches.length, 1, `Unknown or ambiguous homepage reading slug: ${slug} (${LANG})`)
@@ -526,7 +533,9 @@ const setupLink = (p) => (p.install && p.entry
   : `<a href="/${p.slug}">${t(p.slug === 'workbench' ? 'About the workbench' : 'Project details', p.slug === 'workbench' ? '工作台介绍' : '项目详情')}</a>`)
 const toolCards = (list) => list.map((p) => {
   const [en, zh] = taskChoices.find(([, , slug]) => slug === p.slug)
-  return `<article class="tool-choice" id="tool-${p.slug}"><span class="eyebrow">${toolName(p)}</span><h3><a href="/${p.slug}">${t(esc(en), esc(zh))}${arrowGlyph}</a></h3><span class="tool-role">${esc(pick(homeReading.tools[p.slug]))}</span><p class="tool-links">${setupLink(p)} · <a href="${esc(p.github)}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a></p></article>`
+  // The title opens the project page; a separate setup link only when it lands somewhere else (the install steps).
+  const setup = p.install && p.entry ? `${setupLink(p)} · ` : ''
+  return `<article class="tool-choice" id="tool-${p.slug}"><span class="eyebrow">${toolName(p)}</span><h3><a href="/${p.slug}">${t(esc(en), esc(zh))}${arrowGlyph}</a></h3><span class="tool-role">${esc(pick(homeReading.tools[p.slug]))}</span><p class="tool-links">${setup}<a href="${esc(p.github)}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a></p></article>`
 }).join('')
 /** A Chinese heading in phrases: each phrase stays on one line (see `.ph`). */
 const phrases = (...parts) => parts.map((part) => `<span class="ph">${part}</span>`).join('')
@@ -572,7 +581,7 @@ const homePage = () => {
       ${heading(2, 'Real projects. Visible results.', phrases('真实项目，', '看得见的产物'), 'examples-h')}
       <p class="section-lede">${t('Demos and playable prototypes from our project READMEs, each with the method behind it.', '各项目 README 里的演示与可试玩原型，每个都附创作方法。')}</p>
     </header>
-    <p class="swipe-hint" aria-hidden="true">${t(`Swipe to see all ${showcases.length} demos`, `左右滑动，查看全部 ${showcases.length} 个演示`)}<span class="arrow">→</span></p>
+    <p class="swipe-hint" aria-hidden="true">${((n) => t(`Swipe to see all ${n} demos`, `左右滑动，查看全部 ${n} 个演示`))(showcases.filter((item) => !item.chain).length)}<span class="arrow">→</span></p>
     <div class="showcase-grid">${showcaseCards()}</div>
     <p class="more stage-next"><a href="#start-h">${t('Pick a path for what you have', '看看从哪里开始')}<span class="arrow" aria-hidden="true">↓</span></a></p>
   </div></section>
@@ -604,7 +613,7 @@ const homePage = () => {
       <form class="library-search" action="${L('/guides')}" method="get" role="search"><label for="home-search">${t('Search the library', '搜索知识库')}</label><span class="library-search-row"><input id="home-search" name="q" type="search" placeholder="${t('e.g. storyboard, CapCut draft', '例如：去AI味、分镜、剪映草稿')}"><button type="submit">${t('Search', '搜索')}</button></span></form>
       <p class="more"><a href="/guides">${t('Browse the complete library', '浏览完整知识库')}${arrowGlyph}</a></p>
     </div>
-    <div class="knowledge-grid">${levels.map(([en, zh, desc, descZh, slugs, more, label]) => `<article class="knowledge-level"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${homeReadingLinks(slugs)}<a class="topic-more" href="${more}">${esc(pick(label))}${arrowGlyph}</a></article>`).join('')}</div>
+    <div class="knowledge-grid">${levels.map(([en, zh, desc, descZh, slugs, more, label]) => `<article class="knowledge-level"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${slugs.every((slug) => slug.startsWith('workflow:')) ? `<ol>${slugs.map(workflowLink).join('')}</ol>` : homeReadingLinks(slugs)}<a class="topic-more" href="${more}">${esc(pick(label))}${arrowGlyph}</a></article>`).join('')}</div>
   </div></section>
   <section class="band closing" aria-labelledby="model-h"><div class="wrap">
     <header class="section-head">

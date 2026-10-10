@@ -128,7 +128,7 @@ test('homepage generator emits English and Chinese entry documents', () => {
   for (const config of Object.values(languages)) assert.ok(existsSync(join(out, config.file)), config.file)
 })
 
-test('homepage corpus contains exactly five cases, four CDN videos, and four creative owners', () => {
+test('homepage corpus contains exactly five cases, four CDN videos, and four creative owners; the hero case is not repeated below', () => {
   assert.equal(showcases.length, 5)
   assert.equal(showcases.filter((item) => item.video).length, 4)
   assert.deepEqual(
@@ -137,7 +137,9 @@ test('homepage corpus contains exactly five cases, four CDN videos, and four cre
   )
   for (const [lang, html] of Object.entries(pages)) {
     const examples = section(html, 'examples-h')
-    assert.equal(elementsWithClass(examples, 'case-card', 'article').length, 5, `${lang}: wrong rendered case count`)
+    // The hero stage is the case with a verified chain; the showcase carries the other four.
+    assert.equal(elementsWithClass(examples, 'case-card', 'article').length, 4, `${lang}: wrong rendered case count`)
+    assert.ok(!examples.includes(`id="case-${showcases.find((item) => item.chain).slug}"`), `${lang}: the hero case repeats in the showcase`)
     assert.equal((examples.match(/<video\b/gi) ?? []).length, 4, `${lang}: wrong rendered video count`)
   }
 })
@@ -426,10 +428,13 @@ test('homepage condenses the knowledge system into four meaningful levels', () =
     assert.equal(levels.length, 4, `${lang}: expected four knowledge levels`)
     levels.forEach((level, index) => {
       assert.match(textOf(level), languages[lang].knowledgeLabels[index], `${lang}: knowledge level ${index + 1} has the wrong purpose`)
-      const links = anchors(level).filter(({ href }) => href.startsWith('/') && !href.includes('#'))
+      const links = anchors(level).filter(({ href }) => href.startsWith('/')).map(({ href }) => href.split('#')[0])
       assert.ok(links.length >= 1, `${lang}: knowledge level ${index + 1} needs a crawlable route`)
-      for (const { href } of links) assert.ok(localPathExists(href), `${lang}: knowledge level ${index + 1} points to missing route ${href}`)
+      for (const href of links) assert.ok(localPathExists(href), `${lang}: knowledge level ${index + 1} points to missing route ${href}`)
     })
+    // Say it once: the knowledge levels don't re-list articles the creative paths already link.
+    const pathArticles = new Set(anchors(section(html, 'start-h')).map(({ href }) => href).filter((href) => /^\/(?:zh\/)?[a-z-]+\/[a-z0-9-]+$/.test(href)))
+    for (const { href } of anchors(guides)) assert.ok(!pathArticles.has(href), `${lang}: knowledge levels repeat ${href} from the creative paths`)
   }
 })
 
