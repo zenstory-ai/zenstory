@@ -248,3 +248,20 @@ test('project pages lead into craft by workflow and task instead of listing ever
     assert.ok((craft.match(/<a href=/g) ?? []).length < 20,`${lang} /${slug}: craft section still lists articles one by one`)
   }
 })
+
+test('the on-this-page navigation is a closed disclosure in the HTML that wide screens open', (t) => {
+  const out=mkdtempSync(join(tmpdir(),'zenstory-toc-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  for(const item of [guides[0],articles.find((a)=>a.langs.includes('en'))]) for(const lang of ['en','zh']) {
+    const html=readFileSync(join(out,pathOf(lang,routeOf(item)),'index.html'),'utf8')
+    const nav=html.match(/<nav class="guide-contents" aria-label="[^"]+">([\s\S]*?)<\/nav>/)?.[1]
+    assert.ok(nav,`${lang} ${routeOf(item)}: missing on-this-page navigation`)
+    // Phones start on the article, not on the list; no-JS readers can still open it.
+    assert.match(nav,/^<details><summary>/,`${lang} ${routeOf(item)}: navigation must be a disclosure`)
+    assert.doesNotMatch(nav,/<details open/,`${lang} ${routeOf(item)}: closed in the HTML`)
+    assert.match(nav,/matchMedia\('\(min-width: 961px\)'\)\.matches\)document\.currentScript\.previousElementSibling\.open=true/)
+    assert.ok((nav.match(/<a href="#/g) ?? []).length>=3,`${lang} ${routeOf(item)}: sections listed`)
+  }
+})

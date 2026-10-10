@@ -768,6 +768,14 @@ const guideExample = (text) => `
 </section>`
 
 /**
+ * "On this page": a sticky side rail on wide screens; on phones a closed disclosure (one row), so the
+ * article starts on the first screen. The inline script opens it on wide screens before it is painted
+ * beside the article; without JavaScript it stays closed and opens on tap.
+ */
+const tocNav = (entries) => `<nav class="guide-contents" aria-label="${t('On this page', '本页导航')}"><details><summary><b>${t('On this page', '本页导航')}</b><span class="toc-count">${t(`${entries.length} sections`, `${entries.length} 节`)}</span></summary>
+    <ul>${entries.map(([id, text]) => `<li><a href="#${id}">${esc(text)}</a></li>`).join('')}</ul>
+  </details><script>if(matchMedia('(min-width: 961px)').matches)document.currentScript.previousElementSibling.open=true</script></nav>`
+/**
  * Complete workflows on /guides, grouped by what the writer starts with (the homepage's material paths).
  * Steps are `owner/slug` of guides or articles; every step page shows its place in the workflow and the next step.
  */
@@ -840,18 +848,15 @@ const guidePage = (g) => {
   ${methodStrip(g)}
   <p class="actions guide-actions"><a class="crumb" href="/${owner.slug}">${t('Part of', '所属项目')} <b>${esc(owner.name.en)}</b>${arrowGlyph}</a><a class="crumb" href="${owner.github}">${t('Source on GitHub', '在 GitHub 查看源码')}${extGlyph}</a></p>
   </header>
-  <nav class="guide-contents" aria-label="${t('On this page', '本页导航')}">
-    <p><b>${t('On this page', '本页导航')}</b></p>
-    <ul>
-      <li><a href="#before-you-start">${t('Before you start', '开始之前')}</a></li>
-      <li><a href="#steps">${t('Steps', '操作步骤')}</a></li>
-      <li><a href="#example-${LANG}">${t('Example', '示例')}</a></li>
-      ${g.faq?.length ? `<li><a href="#faq">${t('FAQ', '常见问题')}</a></li>` : ''}
-      <li><a href="#expected-files">${t('Expected files', '预期文件')}</a></li>
-      <li><a href="#verify-result">${t('Check the result', '检查结果')}</a></li>
-      <li><a href="#sources">${t('Sources', '来源')}</a></li>
-    </ul>
-  </nav>
+  ${tocNav([
+    ['before-you-start', t('Before you start', '开始之前')],
+    ['steps', t('Steps', '操作步骤')],
+    [`example-${LANG}`, t('Example', '示例')],
+    ...(g.faq?.length ? [['faq', t('FAQ', '常见问题')]] : []),
+    ['expected-files', t('Expected files', '预期文件')],
+    ['verify-result', t('Check the result', '检查结果')],
+    ['sources', t('Sources', '来源')],
+  ])}
   <div class="guide-body">
   ${heading(2, 'Before you start', '开始之前', 'before-you-start')}
   ${pair(list(g.prerequisites.en), list(g.prerequisites.zh), 'cols')}
@@ -935,10 +940,7 @@ const articlePage = (a) => {
   <div class="pair answer"><div class="l-${LANG}"${zhMark}>${md(pick(a.answer))}</div></div>
   ${methodStrip(a)}
   </header>
-  <nav class="guide-contents" aria-label="${t('On this page', '本页导航')}">
-    <p><b>${t('On this page', '本页导航')}</b></p>
-    <ul>${contents.map(([id, text]) => `<li><a href="#${id}">${esc(text)}</a></li>`).join('')}</ul>
-  </nav>
+  ${tocNav(contents)}
   <div class="guide-body article-body"${zhMark}>
   ${a.sections.map((section) => `<section aria-labelledby="${section.id}">
   <h2 id="${section.id}">${esc(pick(section.heading))}</h2>
