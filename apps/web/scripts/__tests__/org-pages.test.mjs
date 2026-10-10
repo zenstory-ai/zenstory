@@ -427,6 +427,9 @@ test('organization generator writes every route in both languages, an apex homep
     // Six tool rows, each addressable so a creative path can point at the tool it starts with.
     assert.deepEqual(matches(homepage, /<article class="tool-choice" id="tool-([a-z-]+)">/g).map((m) => m[1]), projects.map((p) => p.slug))
     const siteNav = matches(homepage, /<nav aria-label="(?:Site|站点)">([\s\S]*?)<\/nav>/g)[0][1]
+    // The language switch stores the choice for the home redirect; the page itself needs no script to show its language.
+    assert.match(homepage, /document\.cookie='zs_lang='\+\(a\.getAttribute\('hreflang'\)==='en'\?'en':'zh'\)/)
+    assert.match(homepage, new RegExp(`<html lang="${lang === 'en' ? 'en' : 'zh-CN'}" data-lang="${lang}">`))
     // The glossary left the main nav (2026-10-09); it stays in the footer and on /guides.
     assert.deepEqual(matches(siteNav, /href="([^"]+)"/g).map((m) => m[1]), [routeIn(lang, '/projects'), routeIn(lang, '/guides'), org.github])
     for (const project of projects) {

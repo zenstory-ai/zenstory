@@ -244,3 +244,13 @@ test('static legal note/email escape markup without rendering unrelated scalar f
     assert.doesNotMatch(terms, /unsafe\(\)|UNUSED-CONTROLLER|UNUSED-SCALAR/)
   } finally { rmSync(fixture, { recursive: true, force: true }) }
 })
+
+test('the organization home remembers a language picked with the switch, on its own host only', () => {
+  const memo = vercelConfig.redirects.filter((r) => r.has?.some((c) => c.type === 'cookie' && c.key === 'zs_lang'))
+  assert.deepEqual(memo.map((r) => [r.source, r.destination, r.has.find((c) => c.type === 'cookie').value]), [['/', '/zh', 'zh'], ['/zh', '/', 'en']])
+  for (const r of memo) {
+    assert.equal(r.permanent, false, 'a remembered choice is a temporary redirect')
+    const hostRule = r.has.find((c) => c.type === 'host')?.value ?? ''
+    assert.match(hostRule, /zenstory\\\.ai/); assert.doesNotMatch(hostRule, /^app|\|app/, 'never on the app host')
+  }
+})

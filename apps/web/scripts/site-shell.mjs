@@ -5,7 +5,8 @@
  * Language model: one language per URL. English pages live at the root
  * (`/oh-story`), Chinese pages under `/zh` (`/zh/oh-story`). Each page names
  * its counterpart with hreflang links; the header language switch is a plain
- * link to that counterpart. No inline language script, no localStorage.
+ * link to that counterpart; clicking it also stores the choice in a cookie the home redirect reads
+ * (langChoiceScript). The page language itself never depends on a script or on storage.
  *
  * The workbench docs are the one exception: they stay on a single URL with the
  * Chinese article first and the English article below (see build-docs-pages).
@@ -95,6 +96,13 @@ input.value=new URL(location.href).searchParams.get('q')||'';form.hidden=false;u
 export const FONTS = 'https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap'
 /** The homepage's own type system (see the `body[data-page="home"]` block in org-pages.css). */
 export const HOME_FONTS = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap'
+
+/**
+ * Remembers a language picked with the switch: a first-party `zs_lang` cookie (one year) that the
+ * organization host's `/` and `/zh` redirects read (build-site-layout.mjs). Only the click sets it;
+ * reading a page never does, and without JavaScript the switch is an ordinary link.
+ */
+export const langChoiceScript = `<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('.lang-switch a[hreflang]');if(!a)return;document.cookie='zs_lang='+(a.getAttribute('hreflang')==='en'?'en':'zh')+';path=/;max-age=31536000;samesite=lax'+(location.protocol==='https:'?';secure':'')})</script>`
 
 /** Header language switch: two links, the current language marked. */
 export const langSwitch = (lang, links) => `<div class="lang-switch" role="group" aria-label="${t(lang, 'Language', '语言')}">
@@ -213,6 +221,7 @@ ${body}
 ${footer(lang)}
 ${copyScript}
 ${guideSearchScript}
+${langChoiceScript}
 </body>
 </html>
 `
