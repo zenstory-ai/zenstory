@@ -265,3 +265,28 @@ test('the on-this-page navigation is a closed disclosure in the HTML that wide s
     assert.ok((nav.match(/<a href="#/g) ?? []).length>=3,`${lang} ${routeOf(item)}: sections listed`)
   }
 })
+
+test('large task pages group their guides by the skill behind them, in compact rows, without losing any guide', (t) => {
+  const labels=content('skill-labels')
+  const out=mkdtempSync(join(tmpdir(),'zenstory-skill-groups-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  for(const lang of ['en','zh']) {
+    const pages=[1,2,3].map((n)=>join(out,pathOf(lang,`/guides/ai-video${n>1?`/page/${n}`:''}`),'index.html')).filter(existsSync).map((file)=>readFileSync(file,'utf8'))
+    const heads=pages.flatMap((html)=>[...html.matchAll(/<h3 class="skill-group"><span class="skill-group-name">([^<]+)<\/span>(?:<a class="skill-chip" href="([^"]+)"><code>([a-z0-9-]+)<\/code><\/a>)?/g)].map((m)=>({label:m[1],url:m[2],name:m[3]})))
+    const named=[...new Set(heads.filter((h)=>h.name).map((h)=>h.name))]
+    // Video prompts, storyboards and editing are the main skills behind AI video; each has a reader-facing name and its pinned SKILL.md.
+    assert.deepEqual(named.slice(0,3),['short-drama-video-prompts','short-drama-storyboard','short-drama-edit'],`${lang}: skill groups ordered by size`)
+    for(const head of heads.filter((h)=>h.name)) {
+      assert.equal(head.label,labels[head.name][lang],`${lang}: ${head.name} label`)
+      assert.match(head.url,new RegExp(`/blob/[a-f0-9]{40}/skills/${head.name}/SKILL\\.md$`))
+    }
+    // Compact rows below "Start here": no per-row description paragraph.
+    const more=pages[0].match(/<section aria-labelledby="topic-more">([\s\S]*?)<\/section>/)[1]
+    assert.doesNotMatch(more,/<\/a><p>(?!<)/,`${lang}: compact rows carry no description`)
+  }
+  // Every skill that heads a group anywhere has a label.
+  const used=new Set(reading.map((item)=>item.skill?.name).filter(Boolean))
+  for(const name of used) assert.ok(labels[name]?.en && labels[name]?.zh,`skill-labels.json lacks ${name}`)
+})

@@ -40,6 +40,8 @@ const glossary = JSON.parse(readFileSync(join(webRoot, 'content/glossary.json'),
 const guides = JSON.parse(readFileSync(join(webRoot, 'content/guides.json'), 'utf8'))
 const comparisons = JSON.parse(readFileSync(join(webRoot, 'content/comparisons.json'), 'utf8'))
 const topics = JSON.parse(readFileSync(join(webRoot, 'content/guide-topics.json'), 'utf8'))
+/** Reader-facing names of the skills behind guides, from each skill's own description (topic page group headings). */
+const skillLabels = JSON.parse(readFileSync(join(webRoot, 'content/skill-labels.json'), 'utf8'))
 const topicIds = new Set(topics.map((topic) => topic.slug))
 assert.equal(topicIds.size, topics.length, 'Duplicate guide topic')
 for (const topic of topics) {
@@ -793,7 +795,9 @@ const workflowItems = (flow) => flow.steps.map((ref) => readingOf().find((candid
  * them as markdown links in their sources. Every link points at a pinned commit of the owner repository.
  */
 const methodOf = (item) => {
-  if (item.skill) return { name: item.skill.name, url: item.skill.url, files: (item.sources ?? []).map((source) => ({ label: pick(source.label), url: source.url })) }
+  // A source labelled only "method used in this article" is named by its file, which says more.
+  const fileLabel = (label, url) => (/^(?:本文方法来源|Method used in this article)$/.test(label) ? url.replace(/[#?].*$/, '').split('/').pop().replace(/\.(?:md|py|sh)$/, '') : label)
+  if (item.skill) return { name: item.skill.name, url: item.skill.url, files: (item.sources ?? []).map((source) => ({ label: fileLabel(pick(source.label), source.url), url: source.url })) }
   const links = [...pick(item.sources).join('\n').matchAll(/\[([^\]]+)\]\((https:\/\/github\.com\/[^)\s]+)\)/g)].map(([, label, url]) => ({ label: label.replace(/`/g, ''), url }))
   // A guide that cites only a skill's reference files still names that skill: its SKILL.md at the same pinned commit.
   const pinned = links.filter((link) => /\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[a-z0-9-]+\//.test(link.url))
@@ -1054,11 +1058,41 @@ const guidesIndex = () => {
   write(route,page({route,title,description,ogType:'website',ld,body}))
 }
 
+/**
+ * A task's guides grouped by the skill behind them, when at least two skills hold three or more;
+ * smaller ones share an "other methods" group. Shows which skill's knowhow a task draws on.
+ */
+const GUIDES_GROUP = '#guides'
+const skillGroups = (items) => {
+  // Step-by-step guides (guides.json) lead the task as their own group; craft articles group by skill.
+  const crafts = items.filter((item) => item.skill)
+  const counts = new Map()
+  for (const item of crafts) counts.set(item.skill.name, (counts.get(item.skill.name) ?? 0) + 1)
+  const major = [...counts].filter(([, count]) => count >= 3).sort((a, b) => b[1] - a[1]).map(([name]) => name)
+  if (major.length < 2) return null
+  const key = (item) => (!item.skill ? GUIDES_GROUP : major.includes(item.skill.name) ? item.skill.name : '')
+  const order = [GUIDES_GROUP, ...major, '']
+  return { order, key, total: new Map(order.map((name) => [name, items.filter((item) => key(item) === name).length])) }
+}
+const skillGroupHead = (name, count, sample) => `<h3 class="skill-group">${name === GUIDES_GROUP
+  ? `<span class="skill-group-name">${t('Step-by-step guides', '操作指南')}</span>`
+  : name
+  ? `<span class="skill-group-name">${esc(skillLabels[name] ? pick(skillLabels[name]) : name)}</span><a class="skill-chip" href="${esc(methodOf(sample).url)}"><code>${esc(name)}</code></a>`
+  : `<span class="skill-group-name">${t('Other methods', '其他方法')}</span>`}<span class="skill-group-count">${t(`${count} guides`, `${count} 篇`)}</span></h3>`
+/** Compact rows: the title and the method behind it; the description lives on the guide itself. */
+const compactList = (items, withSkill) => `<ul class="reading-list compact">${items.map((item) => `<li>${guideLink(item)}${withSkill ? methodFacts(item) : methodFiles(item)}</li>`).join('')}</ul>`
+const methodFiles = (item) => {
+  const method = methodOf(item)
+  return method?.files.length ? `<p class="method-facts">${method.files.slice(0, 2).map((file) => esc(file.label)).join(dot)}</p>` : ''
+}
 const topicPage = (topic, number = 1) => {
   const route = topicRoute(topic, number)
   const items = topicReading(topic)
   const featured = topicFeatured(topic)
-  const rest = items.filter((item) => !featured.includes(item))
+  const unfeatured = items.filter((item) => !featured.includes(item))
+  const groups = skillGroups(unfeatured)
+  // Grouped tasks page through one skill group after another (sort is stable within a group).
+  const rest = groups ? [...unfeatured].sort((a, b) => groups.order.indexOf(groups.key(a)) - groups.order.indexOf(groups.key(b))) : unfeatured
   const ordered = [...featured, ...rest]
   const current = ordered.slice((number - 1) * TOPIC_PAGE_SIZE, number * TOPIC_PAGE_SIZE)
   const count = topicPageCount(topic, LANG)
@@ -1072,7 +1106,9 @@ const topicPage = (topic, number = 1) => {
     <nav class="terms jump" aria-label="${t('Other creative tasks','其他创作任务')}">${topics.filter((other)=>other.slug!==topic.slug && topicReading(other).length).map((other)=>`<a href="/guides/${other.slug}">${esc(pick(other.title))}</a>`).join(' ')}</nav>
   </div></header><div class="wrap page-body">
     ${number === 1 ? `<section aria-labelledby="topic-start"><h2 id="topic-start">${t('Start here','先看这几篇')}</h2>${libraryList(current.filter((item) => featured.includes(item)))}</section>` : ''}
-    ${current.some((item) => !featured.includes(item)) ? `<section aria-labelledby="topic-more"><h2 id="topic-more">${t('More questions and methods','更多问题与方法')}</h2>${libraryList(current.filter((item) => !featured.includes(item)))}</section>` : ''}
+    ${((more) => more.length ? `<section aria-labelledby="topic-more"><h2 id="topic-more">${t('More questions and methods','更多问题与方法')}</h2>${groups
+      ? groups.order.filter((name) => more.some((item) => groups.key(item) === name)).map((name) => `${skillGroupHead(name, groups.total.get(name), more.find((item) => groups.key(item) === name))}${compactList(more.filter((item) => groups.key(item) === name), name === '' || name === GUIDES_GROUP)}`).join('')
+      : compactList(more, true)}</section>` : '')(current.filter((item) => !featured.includes(item)))}
     ${pagination}
   </div></article>`
   const alternates = number <= Math.min(topicPageCount(topic, 'en'), topicPageCount(topic, 'zh')) ? alternatesOf(route) : null
