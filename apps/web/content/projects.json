@@ -13,8 +13,8 @@
       "zh": "Oh Story（网文写作 skill 包）"
     },
     "tagline": {
-      "en": "Turn a coding agent into a complete web-fiction writing workflow — chart scanning, deconstruction, drafting, de-AI editing, covers.",
-      "zh": "把编程 Agent 变成完整的网文写作流程——扫榜、拆文、写作、去AI味、封面图。"
+      "en": "Write web fiction in Claude Code, Codex and other agents: chart scans, breakdowns, drafting, de-AI editing and covers.",
+      "zh": "在 Claude Code、Codex 等 Agent 里写网文：扫榜、拆文、写作、去AI味、做封面。"
     },
     "definition": {
       "en": "Oh Story is an MIT-licensed skill pack that turns Claude Code, Codex and other supported agent hosts into a web-fiction writing workflow. Its 13 skills cover chart research, deconstruction, long-form serials, short stories, revision and covers, and combine writing instructions with chapter blueprints, deterministic checks and file-based project state. `/story-setup` configures the host; specialist agents are orchestrated where the host supports it and run directly where it does not.",
@@ -241,8 +241,8 @@
       "zh": "Drama Skills（AI 短剧 / 漫剧）"
     },
     "tagline": {
-      "en": "Develop ideas or source stories into episode scripts, visual specifications, storyboards and generation prompts, with optional production and review.",
-      "zh": "把点子或原著发展为分集剧本、视觉设定、分镜和生成提示词，按需进入制作与审查。"
+      "en": "Turn an idea or a novel into episode scripts, then visual specs, storyboards and generation prompts; produce and review when you need to.",
+      "zh": "从点子或原著写出分集剧本，再做视觉设定、分镜和生成提示词；需要时再出片、审查。"
     },
     "definition": {
       "en": "Drama Skills is an eleven-skill workflow for AI short-drama and motion-comic creation in agent hosts such as Claude Code and Codex. Start at whichever stage your material needs: development, writing, assets, storyboards, prompts, production, editing or review. Each episode lives in five Markdown files, and media generation runs only after you review the prompts and confirm the spend with your configured provider.",
@@ -404,8 +404,8 @@
       "zh": "Novel to Game（小说改游戏）"
     },
     "tagline": {
-      "en": "A source-grounded workflow for adapting novels into playable game candidates on a chosen target runtime.",
-      "zh": "以原文证据为基础，在选定目标运行环境中构建和验证小说改编游戏的可玩版本。"
+      "en": "Adapt a novel into a playable game build grounded in the source, and check it running on the platform you choose.",
+      "zh": "依据原著把小说改成可试玩的游戏版本，并在你选定的平台上实际运行检查。"
     },
     "definition": {
       "en": "Novel to Game is a seven-skill workflow for Claude Code, Codex and Kimi Code that adapts a novel into a playable game candidate. It builds a cited source bible, compares adaptation concepts, designs gameplay and art direction, and builds for the target runtime you choose. A QA contract records evidence that the build launches, renders, takes input, completes its core loop, reaches an outcome and restarts.",
@@ -546,8 +546,8 @@
       "zh": "Video Recap Skills（视频解说）"
     },
     "tagline": {
-      "en": "Turn supported video files into Chinese-narration recaps with scene understanding, scripting, voiceover, editing and subtitle assembly.",
-      "zh": "把支持的视频文件做成中文解说视频，覆盖场景理解、写稿、配音、剪辑和字幕合成。"
+      "en": "Turn footage into a Chinese-narration recap: understand the scenes, write, voice, edit and subtitle.",
+      "zh": "把视频素材做成中文解说成片：看懂画面、写稿、配音、剪辑、加字幕。"
     },
     "definition": {
       "en": "Video Recap Skills turns a local video into a Chinese-narration recap inside Claude Code: five independent skills plus a thin orchestrator. It runs on local ffmpeg and one MiMo API key for speech recognition, visual understanding and voiceover, with Fish Audio as an optional TTS provider, and needs no GPU. Besides the finished video it can export an editable JianYing/CapCut draft so you can keep cutting in the editor.",
@@ -702,8 +702,8 @@
       "zh": "Oh Story DSH"
     },
     "tagline": {
-      "en": "The whole story stack inside DeepSeek Harness, with a GUI workbench.",
-      "zh": "在 DeepSeek Harness 里用图形工作台跑完整的故事创作链路。"
+      "en": "Use the writing, short-drama, game and recap packs inside DeepSeek Harness's GUI workbenches.",
+      "zh": "在 DeepSeek Harness 的图形工作台里，使用写作、短剧、游戏、解说四套 skill。"
     },
     "definition": {
       "en": "Oh Story DSH is a community plugin for DeepSeek Harness (package `@oh-story/dsh`) that bundles pinned versions of Oh Story, Drama Skills, Novel to Game and Video Recap Skills behind novel, short-drama, game and video workbenches. It runs in your local DSH environment with the model and media services you configure there. The project is independent and not affiliated with DeepSeek.",
@@ -817,8 +817,8 @@
       "zh": "ZenStory 工作台"
     },
     "tagline": {
-      "en": "Chat to create — an agent-driven novel-writing workbench that keeps files, materials, characters, chapters and versions in one place.",
-      "zh": "对话即创作——以文件为中心的 AI 小说写作工作台：素材、人设、章节、版本都在一处。"
+      "en": "Write a novel with AI in the browser: outline, characters, chapters and versions in one project.",
+      "zh": "在浏览器里和 AI 一起写小说：大纲、人设、章节和版本都放在同一个项目里。"
     },
     "definition": {
       "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, manuscripts, characters and settings are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under MIT, and is available as a service at app.zenstory.ai with free and paid plans.",

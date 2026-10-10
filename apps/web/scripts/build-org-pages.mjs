@@ -338,7 +338,7 @@ const taskChoices = [
   ['Produce a short drama or motion comic', '制作短剧或漫剧', 'drama-skills'],
   ['Adapt a novel into a playable game', '把小说改编成可玩的游戏', 'novel-to-game'],
   ['Turn footage into a narrated recap', '把视频做成解说成片', 'video-recap'],
-  ['Use the story stack in DeepSeek Harness', '在 DeepSeek Harness 中使用故事工具链', 'dsh'],
+  ['Use all four packs in DeepSeek Harness', '在 DeepSeek Harness 里用全部 skill', 'dsh'],
   ['Write in ZenStory Workbench', '在 ZenStory 工作台里写作', 'workbench'],
 ]
 
@@ -354,7 +354,7 @@ const projectCard = (p, eyebrow) => `
         <p class="eyebrow">${eyebrow}</p>
         <h3><a href="/${p.slug}">${toolName(p)}</a></h3>
         ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
-        ${proofRow([proof(esc(pick(p.format)), 'format'), ...projectChips(p)])}
+        <p class="card-meta">${[esc(pick(p.format)), p.skills ? t(`${p.skills} skills`, `${p.skills} 个 skill`) : '', p.stars ? `${starGlyph}${num(p.stars)} GitHub ${t('stars', 'star')}` : ''].filter(Boolean).join('<span class="sep" aria-hidden="true"> · </span>')}</p>
         <p class="card-actions">${p.install && p.entry ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}${arrowGlyph}</a>` : ''}<a href="${p.github}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${appHref(LANG, '/login', 'org_projects')}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
       </article>`
 
@@ -1219,7 +1219,7 @@ const projectsIndex = () => {
   <header class="page-hero">
     <div class="wrap">
       <p class="eyebrow">${esc(pick(org.tagline))}</p>
-      <h1>${t('Six open-source projects, one story stack', '六个开源项目，一条故事工具链')}</h1>
+      <h1>${t('Six open-source projects for writing and adapting stories', '写网文、改短剧、做游戏、剪解说：六个开源项目')}</h1>
       ${pair(`<p class="lede">${esc(org.intro.en)}</p>`, `<p class="lede">${esc(org.intro.zh)}</p>`)}
       <p class="actions">${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${esc(pick(comparison.title))}${arrowGlyph}</a>`).join('')}</p>
     </div>
@@ -1238,7 +1238,7 @@ const projectsIndex = () => {
 
   <section class="band band-cream" aria-labelledby="model-h">
     <div class="wrap">
-    ${heading(2, 'How the pieces fit together', '项目如何协作', 'model-h')}
+    ${heading(2, 'How they fit together', '怎么搭配着用', 'model-h')}
     <div class="model">${pair(steps(org.model.en), steps(org.model.zh), 'cols')}</div>
     </div>
   </section>
@@ -1247,7 +1247,7 @@ const projectsIndex = () => {
     <div class="wrap">
     ${heading(2, 'Runs inside the agents you already use', '在你已经使用的 Agent 里运行', 'hosts-h')}
     <p class="terms hosts">${org.proof.harnesses.map((h) => `<span>${esc(h)}</span>`).join(' ')}</p>
-    <p class="facts">${t(`Star counts as of ${esc(org.proof.as_of)}.`, `star 数统计于 ${esc(org.proof.as_of)}。`)}</p>
+    <p class="facts">${t(`GitHub star counts as of ${esc(org.proof.as_of)}.`, `GitHub star 数截至 ${esc(org.proof.as_of)}。`)}</p>
     </div>
   </section>
 </article>`
