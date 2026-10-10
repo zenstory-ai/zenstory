@@ -13,8 +13,10 @@ export const DiffReviewEditPreview = ({ edit }: { edit: PendingEdit }) => {
   const { t } = useTranslation(["editor"]);
   const deleteLabel = t("editor:editLabelDelete");
   const addLabel = t("editor:editLabelAdd");
+  // overscroll-contain 只在 md 起生效：桌面队列是独立滚动区，预览框滚到头不带动队列；
+  // 手机上外层审阅面板是唯一滚动区，contain 会截断从预览框起手的触摸滑动，不能加。
   const previewBodyClass =
-    "max-h-36 overflow-y-auto overscroll-contain pr-1 whitespace-pre-wrap break-words text-sm leading-6 text-[hsl(var(--text-primary))] sm:max-h-40";
+    "max-h-36 overflow-y-auto md:overscroll-contain pr-1 whitespace-pre-wrap break-words text-sm leading-6 text-[hsl(var(--text-primary))] sm:max-h-40";
 
   const renderPanel = (
     kind: "delete" | "add",

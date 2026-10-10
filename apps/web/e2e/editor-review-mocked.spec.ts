@@ -613,3 +613,52 @@ test.describe('footer locale and viewport matrix', () => {
     }
   }
 });
+
+test.describe('narrow review touch scrolling', () => {
+  // Describe-level skip runs before fixtures; CDP touch input exists only in Chromium.
+  test.skip(({ browserName }) => browserName !== 'chromium', 'CDP touch input is Chromium-only');
+  // hasTouch only: isMobile would be rejected by Firefox at context creation, before any skip.
+  test.use({ hasTouch: true });
+  test('a vertical swipe that starts on a short paragraph preview scrolls the review pane', async ({ page }) => {
+    // Eight short paragraphs give eight replace cards whose previews fit without
+    // their own scrollbar, as in the audit (short paragraph cards on 390x844).
+    const original = Array.from({ length: 8 }, (_, i) => `Paragraph ${i + 1} of the local story stays short.`).join('\n\n');
+    const polished = original.replace(/local story/g, 'polished story');
+    const f = await fixture(page, original);
+    await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: polished }) }));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openA(page);
+    await page.locator('#editor-tab').click();
+    await textarea(page).click();
+    await textarea(page).press('ControlOrMeta+a');
+    await page.getByRole('button', { name: 'Humanize', exact: true }).click();
+    await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
+    const pane = page.getByText('Paragraph review', { exact: true }).locator('xpath=ancestor::div[@tabindex="0"][1]');
+    const preview = page.getByText('Original paragraph', { exact: true }).first().locator('xpath=../following-sibling::div[1]');
+    const start = await preview.evaluate(box => {
+      const r = box.getBoundingClientRect();
+      const x = r.x + r.width / 2, y = r.y + r.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      const root = box.closest('div[tabindex="0"]')!;
+      return { x, y, onBox: !!hit && box.contains(hit), fits: box.scrollHeight <= box.clientHeight, paneTop: root.scrollTop, paneScrollable: root.scrollHeight > root.clientHeight };
+    });
+    f.observations.touchStart = start;
+    expect(start, 'precondition: the swipe starts on a non-scrolling preview inside a scrollable pane at the top').toMatchObject({ onBox: true, fits: true, paneTop: 0, paneScrollable: true });
+
+    // Browser-level touch input (not wheel, not scrollTop writes): finger moves up 240px.
+    const session = await page.context().newCDPSession(page);
+    try {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 0, x: start.x, y: start.y }] });
+      for (let step = 1; step <= 12; step++) {
+        await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 0, x: start.x, y: start.y - step * 20 }] });
+      }
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } finally { await session.detach(); }
+    await expect.poll(() => pane.evaluate(root => root.scrollTop), { message: 'the outer review pane must scroll when the swipe starts on a preview' }).toBeGreaterThan(100);
+    f.observations.paneAfterSwipe = await pane.evaluate(root => root.scrollTop);
+
+    // Desktop keeps the inner previews from chaining wheel scroll into the queue.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect.poll(() => preview.evaluate(box => getComputedStyle(box).overscrollBehaviorY)).toBe('contain');
+  });
+});

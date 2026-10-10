@@ -430,6 +430,11 @@
       "today": "今日字数",
       "thisWeek": "本周字数",
       "thisMonth": "本月字数",
+      "mine": {
+        "today": "今日你写",
+        "thisWeek": "本周你写",
+        "thisMonth": "本月你写"
+      },
       "total": "总字数",
       "breakdown": "你写 {{mine}} · AI 写 {{ai}}",
       "words": "{{count}} 字",

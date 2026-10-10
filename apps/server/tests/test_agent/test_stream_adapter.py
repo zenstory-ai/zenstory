@@ -2002,3 +2002,74 @@ async def test_genuine_rejection_keeps_failure_card_and_still_captures_body():
         assert ToolContext.get_pending_empty_files() == []
     finally:
         ToolContext.clear_context()
+
+
+# ---------------------------------------------------------------------------
+# 正文以真实 </file> 收尾后模型多补的空 <file></file>（生产 sse-loop1.txt
+# 事件 18015–18022）：不得作为 content 事件外露，也就不会写进助手消息历史。
+# ---------------------------------------------------------------------------
+
+
+def _text_event(text: str) -> LangGraphStreamEvent:
+    return LangGraphStreamEvent(type=StreamEventType.TEXT, data={"text": text})
+
+
+@pytest.mark.unit
+async def test_prod_empty_file_pair_after_close_is_not_emitted_as_chat():
+    from agent.stream_adapter import create_stream_adapter
+    from agent.tools.mcp_tools import ToolContext
+
+    ToolContext.clear_pending_empty_file()
+    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    adapter._save_file_content = AsyncMock(return_value=True)
+
+    rounds = await _drive_per_event(adapter, [
+        _create_file_result_event("draft-1", "draft", "订婚宴前一天"),
+        _text_event("<file>\n　　我叫温知夏。\n"),
+        _text_event("松开我的手。\n\n　　只是上一世，雨太大，我没看清。\n"),
+        _text_event("</file>\n\n"),
+        *[_text_event(t) for t in ["<", "file", ">\n", "</", "file", ">"]],
+        LangGraphStreamEvent(
+            type=StreamEventType.TOOL_USE,
+            data={
+                "status": "stop",
+                "id": "call-q",
+                "name": "query_files",
+                "input": {"id": "draft-1", "response_mode": "summary"},
+            },
+        ),
+        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "tool_use"}),
+    ])
+    emitted = [e for batch in rounds for e in batch]
+
+    adapter._save_file_content.assert_awaited_once_with(
+        "draft-1", "\n　　我叫温知夏。\n松开我的手。\n\n　　只是上一世，雨太大，我没看清。\n"
+    )
+    assert _chat_text(rounds) == "\n\n"
+    # 空标签对在 tool_call 之前就已被识别丢弃，tool_call 照常发出
+    assert [e.type for e in emitted if e.type == EventType.TOOL_CALL] == [EventType.TOOL_CALL]
+    assert adapter._stream_processor.is_active is False
+
+
+@pytest.mark.unit
+async def test_held_pair_prefix_is_released_before_next_create_file():
+    from agent.stream_adapter import create_stream_adapter
+    from agent.tools.mcp_tools import ToolContext
+
+    ToolContext.clear_pending_empty_file()
+    adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
+    adapter._save_file_content = AsyncMock(return_value=True)
+
+    rounds = await _drive_per_event(adapter, [
+        _create_file_result_event("ch-1", "draft", "第一章"),
+        _text_event("<file>第一章正文</file>"),
+        _text_event("\n<fi"),
+        _create_file_result_event("ch-2", "draft", "第二章"),
+        _text_event("<file>第二章正文</file>"),
+        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+    ])
+
+    saved = [call.args for call in adapter._save_file_content.await_args_list]
+    assert saved == [("ch-1", "第一章正文"), ("ch-2", "第二章正文")]
+    assert _chat_text(rounds) == "\n<fi"
+    assert adapter._stream_processor.is_active is False

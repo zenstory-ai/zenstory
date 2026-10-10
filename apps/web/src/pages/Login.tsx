@@ -7,7 +7,7 @@ import { projectApi } from "../lib/api";
 import { authConfig, hasOAuthProviders } from "../config/auth";
 import { PublicHeader } from "../components/PublicHeader";
 import { LoadingSpinner } from "../components/LoadingSpinner";
-import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, type LoginAttempt } from "../lib/authFlow";
+import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, ownedReturnTarget, type LoginAttempt } from "../lib/authFlow";
 import { handleSsoRedirect } from '../lib/ssoRedirect';
 import { resolveOwnedAuthSession } from '../lib/apiClient';
 
@@ -89,9 +89,18 @@ export const Login: React.FC = () => {
       };
       assertCurrentAttempt();
 
+      const rawUser = localStorage.getItem('user');
+      let userId: string | undefined;
+      try {
+        userId = rawUser ? (JSON.parse(rawUser) as { id?: string }).id : undefined;
+      } catch {
+        userId = undefined;
+      }
+
       // Restore deep-link intent (e.g. homepage CTA → dashboard settings)
-      const from = state?.from as { pathname?: string; search?: string; hash?: string; state?: object } | undefined;
-      if (from && typeof from.pathname === 'string') {
+      // 只恢复属于本次登录账号的回跳目标；别的账号留下的走下面的默认落点。
+      const from = ownedReturnTarget(state, userId);
+      if (from) {
         const destinationState = { ...from.state };
         delete (destinationState as Record<string, unknown>)[LOGIN_ATTEMPT_KEY];
         navigate(`${from.pathname}${from.search ?? ''}${from.hash ?? ''}`, { replace: true, state: destinationState });
@@ -128,13 +137,6 @@ export const Login: React.FC = () => {
           const STORAGE_KEY_PREFIX = 'zenstory_current_project_id';
 
           // Prefer last used project for this user.
-          const rawUser = localStorage.getItem('user');
-          let userId: string | undefined;
-          try {
-            userId = rawUser ? (JSON.parse(rawUser) as { id?: string }).id : undefined;
-          } catch {
-            userId = undefined;
-          }
           const storageKey = userId ? `${STORAGE_KEY_PREFIX}:${userId}` : STORAGE_KEY_PREFIX;
 
           const savedProjectId =

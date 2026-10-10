@@ -298,7 +298,7 @@ import { getRecentMessages } from '../../lib/chatApi'
 import { fetchSuggestions } from '../../lib/agentApi'
 import { toast } from '../../lib/toast'
 import { subscriptionApi } from '../../lib/subscriptionApi'
-import { setOpenEditorFlush } from '../../lib/editorSaveTracker'
+import { notifyEditorContentSaved, setOpenEditorFlush } from '../../lib/editorSaveTracker'
 
 describe('ChatPanel mount smoke', () => {
   beforeEach(() => {
@@ -317,6 +317,9 @@ describe('ChatPanel mount smoke', () => {
     mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
     mockDraft.draft = ''
     mockAttachments.fileIds = []
+    // 进度 mock 每个用例重置，避免中途失败的用例把排队的返回值留给下一个。
+    mockGetProgress.mockReset()
+    mockGetProgress.mockResolvedValue([])
   })
 
   it('mounts without runtime initialization errors', async () => {
@@ -987,6 +990,114 @@ describe('ChatPanel mount smoke', () => {
     localStorage.removeItem('zenstory_next_step_dismissed_project-1')
     render(<ChatPanel />)
     expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  const frameworkReady = [{ project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true }]
+  const proseWritten = [{ project_id: 'project-1', written_units: 1, word_count: 800, framework_ready: false }]
+
+  it('drops the chapter-1 offer as soon as the author saves prose by hand, without waiting for a round', async () => {
+    mockGetProgress.mockResolvedValue(frameworkReady)
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+    const callsBeforeSave = mockGetProgress.mock.calls.length
+
+    mockGetProgress.mockResolvedValue(proseWritten)
+    await act(async () => { notifyEditorContentSaved('project-1') })
+
+    await waitFor(() => expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument())
+    expect(mockGetProgress.mock.calls.length).toBe(callsBeforeSave + 1)
+    expect(mockGetProgress).toHaveBeenLastCalledWith('project-1')
+    expect(mockStartStream).not.toHaveBeenCalled()
+
+    // Once the card is gone, later saves (autosave while typing) ask for nothing more.
+    await act(async () => { notifyEditorContentSaved('project-1') })
+    await act(async () => {})
+    expect(mockGetProgress.mock.calls.length).toBe(callsBeforeSave + 1)
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('ignores saves for another project or without a project id', async () => {
+    mockGetProgress.mockResolvedValue(frameworkReady)
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+    const callsBeforeSave = mockGetProgress.mock.calls.length
+
+    mockGetProgress.mockResolvedValue(proseWritten)
+    await act(async () => {
+      notifyEditorContentSaved('other-project')
+      notifyEditorContentSaved('')
+    })
+    await act(async () => {})
+
+    expect(mockGetProgress.mock.calls.length).toBe(callsBeforeSave)
+    expect(screen.getByTestId('next-step-card')).toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('asks for no progress on save while the framework is not ready and no offer is showing', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: false },
+    ])
+    render(<ChatPanel />)
+    await waitFor(() => expect(mockGetProgress).toHaveBeenCalledTimes(1))
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+
+    await act(async () => { notifyEditorContentSaved('project-1') })
+    await act(async () => {})
+    expect(mockGetProgress).toHaveBeenCalledTimes(1)
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('a slower progress answer from before the save cannot bring the chapter-1 offer back', async () => {
+    mockGetProgress.mockResolvedValue(frameworkReady)
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+
+    // The round-end refresh leaves first but answers last, with the pre-save state.
+    let resolveRoundEnd: (value: unknown) => void = () => {}
+    mockGetProgress.mockImplementationOnce(() => new Promise((resolve) => { resolveRoundEnd = resolve }) as never)
+    await act(async () => {
+      await roundOptions().onComplete([], null, {})
+    })
+    mockGetProgress.mockResolvedValue(proseWritten)
+    await act(async () => { notifyEditorContentSaved('project-1') })
+    await waitFor(() => expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument())
+
+    await act(async () => { resolveRoundEnd(frameworkReady) })
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('asks for no progress on save after the author said 先不用 to the chapter-1 offer', async () => {
+    mockGetProgress.mockResolvedValue(frameworkReady)
+    render(<ChatPanel />)
+    await screen.findByTestId('next-step-card')
+    fireEvent.click(screen.getByText('chat:nextStep.dismiss'))
+    const callsBeforeSave = mockGetProgress.mock.calls.length
+
+    await act(async () => { notifyEditorContentSaved('project-1') })
+    await act(async () => {})
+    expect(mockGetProgress.mock.calls.length).toBe(callsBeforeSave)
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('a save does not bring the chapter-1 offer back while the AI waits for an answer', async () => {
+    mockGetProgress.mockResolvedValue(frameworkReady)
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      clarificationTurn('a-1', '2026-10-10T03:55:18Z'),
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+
+    await act(async () => { notifyEditorContentSaved('project-1') })
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
     mockGetProgress.mockResolvedValue([])
   })
 

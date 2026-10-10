@@ -285,37 +285,37 @@ export default function ProjectDashboardPage() {
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
             />
-            {/* Additional word count details can be added here */}
+            {/* 右卡只统计作者手写（words_*），用「你写」口径与左卡的含 AI 合计区分 */}
             <div className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5">
               <h3 className="text-base font-semibold text-[hsl(var(--text-primary))] mb-4">
                 {t('statistics.wordCount.trend.title', '字数趋势')}
               </h3>
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
+                <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
                   <span className="text-sm text-[hsl(var(--text-secondary))]">
-                    {t('statistics.wordCount.today')}
+                    {t('statistics.wordCount.mine.today')}
                   </span>
                   <span className="text-lg font-semibold text-[hsl(var(--text-primary))]">
                     {stats?.words_today.toLocaleString() ?? 0}
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
+                <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
                   <span className="text-sm text-[hsl(var(--text-secondary))]">
-                    {t('statistics.wordCount.thisWeek')}
+                    {t('statistics.wordCount.mine.thisWeek')}
                   </span>
                   <span className="text-lg font-semibold text-[hsl(var(--text-primary))]">
                     {stats?.words_this_week.toLocaleString() ?? 0}
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
+                <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
                   <span className="text-sm text-[hsl(var(--text-secondary))]">
-                    {t('statistics.wordCount.thisMonth')}
+                    {t('statistics.wordCount.mine.thisMonth')}
                   </span>
                   <span className="text-lg font-semibold text-[hsl(var(--text-primary))]">
                     {stats?.words_this_month.toLocaleString() ?? 0}
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
+                <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
                   <span className="text-sm text-[hsl(var(--text-secondary))]">
                     {t('statistics.wordCount.total')}
                   </span>

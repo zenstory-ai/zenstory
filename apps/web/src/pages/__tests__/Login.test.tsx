@@ -270,6 +270,30 @@ describe("Login", () => {
       { replace: true, state: { source: "guard" } },
     ));
   });
+
+  // 登出 A 后在同一 /login 记录登入 B：A 的回跳目标不能交给 B。
+  it.each([
+    ["different account", "user-b", "/project/pB"],
+    ["same account", "user-a", "/project/pA"],
+  ])("only restores an owned protected deep link for the %s", async (_label, signedInId, expected) => {
+    const user = userEvent.setup();
+    mockLogin.mockImplementation(async () => {
+      localStorage.setItem("user", JSON.stringify({ id: signedInId }));
+    });
+    mockGetAllProjects.mockResolvedValue([{ id: "pB", updated_at: "2026-10-09T00:00:00Z" }]);
+    renderPageAt("/login", { from: { pathname: "/project/pA" }, fromUserId: "user-a" });
+    fireEvent.change(screen.getByTestId("email-input"), { target: { value: "writer@example.com" } });
+    fireEvent.change(screen.getByTestId("password-input"), { target: { value: "SecurePass123!" } });
+
+    await user.click(screen.getByTestId("login-submit"));
+
+    await waitFor(() => expect(finalNavigations().length).toBeGreaterThan(0));
+    expect(finalNavigations().map(([to]) => to)).toEqual([expected]);
+    if (expected === "/project/pA") {
+      expect(mockNavigate).toHaveBeenCalledWith("/project/pA", { replace: true, state: {} });
+      expect(mockGetAllProjects).not.toHaveBeenCalled();
+    }
+  });
   it("asks for both credentials when the form is submitted with a whitespace-only account", () => {
     renderPage();
 

@@ -430,6 +430,11 @@
       "today": "Today",
       "thisWeek": "This Week",
       "thisMonth": "This Month",
+      "mine": {
+        "today": "You wrote today",
+        "thisWeek": "You wrote this week",
+        "thisMonth": "You wrote this month"
+      },
       "total": "Total",
       "breakdown": "You {{mine}} · AI {{ai}}",
       "words": "{{count}} words",
