@@ -985,7 +985,7 @@ const articlePage = (a) => {
   </div>
 </article>`
   const alternates = bilingual ? alternatesOf(route) : null
-  write(route, page({ route, title: `${pick(a.seo_title)} | ZenStory AI`, description: pick(a.description), ld, body, alternates, switchLinks: alternates ?? { en: `/${owner.slug}`, zh: L(route) } }))
+  write(route, page({ route, title: `${pick(a.seo_title).replace(/\s*[｜|]\s*ZenStory(?: AI)?\s*$/, '')} | ZenStory AI`, description: pick(a.description), ld, body, alternates, switchLinks: alternates ?? { en: `/${owner.slug}`, zh: L(route) } }))
 }
 
 // ---------- creator task library ----------

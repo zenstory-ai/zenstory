@@ -166,7 +166,9 @@ test('published craft articles are listed in llms.txt and render in every langua
       assert.equal(matches(html, /<link rel="alternate" hreflang=/g).length, bilingual ? 4 : 0, `${route} (${lang}) hreflang set`)
       if (!bilingual) assert.ok(html.includes(`<a href="/${a.owner}" lang="en" hreflang="en">EN</a>`), `${route}: EN switch leads to the project page`)
       assert.equal(matches(html, /<h1\b/g).length, 1, `${route} (${lang}) has one h1`)
-      assert.ok(html.includes(`<title>${escape(a.seo_title[lang])} | ZenStory AI</title>`))
+      // The brand appears once: a seo_title that already ends with it is not suffixed twice.
+      assert.ok(html.includes(`<title>${escape(a.seo_title[lang].replace(/\s*[｜|]\s*ZenStory(?: AI)?\s*$/, ''))} | ZenStory AI</title>`), `${route} (${lang}) title`)
+      assert.equal(matches(html.match(/<title>[^<]*<\/title>/)[0], /ZenStory/g).length, 1, `${route} (${lang}) repeats the brand in its title`)
       const ids = matches(html, /\sid="([^"]+)"/g).map((m) => m[1])
       assert.equal(ids.length, new Set(ids).size, `${route} (${lang}) duplicate id`)
       for (const [, target] of matches(html, /href="#([^"]+)"/g)) assert.ok(ids.includes(target), `${route} (${lang}) anchor #${target} has no target`)
