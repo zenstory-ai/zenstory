@@ -398,6 +398,10 @@ test('manuscript path keeps continuation ordered and presents drama or game as a
       assert.ok(!orderedLists[0].includes(`href="${route}"`), `${lang}: adaptation route must not appear as a sequential step`)
       assert.ok(branchLists[0].includes(`href="${route}"`), `${lang}: adaptation route must appear as an alternative`)
     }
+    // Each alternative shows its tool's real result, the same local media the showcase uses.
+    for (const branch of branchLists[0].match(/<li\b[\s\S]*?<\/li>/gi)) {
+      assert.match(branch, /<img src="\/org\/demos\/[a-z0-9-]+\.jpg"[^>]* alt="" loading="lazy"/, `${lang}: adaptation branch needs its showcase media`)
+    }
     for (const path of [paths[0], paths[2]]) {
       assert.equal((path.match(/<ol\b[^>]*>[\s\S]*?<\/ol>/gi) ?? []).length, 1, `${lang}: sequential path needs one ordered list`)
       assert.equal((path.match(/<li\b/gi) ?? []).length, 3, `${lang}: sequential path must keep three steps`)

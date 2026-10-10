@@ -494,11 +494,17 @@ const homeReadingLinks = (slugs, labels, branching = false) => {
   const items = homeReadingItems(slugs)
   // An adaptation branch names the tool it needs (the article's owner), so "choose one" reads as one more tool, not two.
   const tool = (item) => toolName(projects.find((p) => p.slug === item.owner))
+  // …and shows that tool's first showcase result (the same local poster or screenshot the showcase uses), so the choice is between outcomes.
+  const branchMedia = (item) => {
+    const shown = showcases.find((s) => s.owner === item.owner)
+    const media = shown?.image ?? (shown?.video && { file: shown.video.poster, width: shown.video.width, height: shown.video.height })
+    return media ? `<span class="branch-media"><img src="${esc(media.file)}" width="${media.width}" height="${media.height}" alt="" loading="lazy" decoding="async"></span>` : ''
+  }
   const links = items.map((item, i) => {
     if (!labels) return `<li>${guideLink(item)}</li>`
     const label = esc(pick(labels[i]))
     return branching && i > 0
-      ? `<li><a href="/${item.owner}/${item.slug}" aria-label="${label} · ${tool(item)}: ${esc(pick(item.title))}"><span class="branch-label">${label}</span><span class="branch-meta"><span class="branch-tool">${tool(item)}</span>${arrowGlyph}</span></a></li>`
+      ? `<li><a href="/${item.owner}/${item.slug}" aria-label="${label} · ${tool(item)}: ${esc(pick(item.title))}">${branchMedia(item)}<span class="branch-label">${label}</span><span class="branch-meta"><span class="branch-tool">${tool(item)}</span>${arrowGlyph}</span></a></li>`
       : `<li><a href="/${item.owner}/${item.slug}" aria-label="${label}: ${esc(pick(item.title))}">${label}${arrowGlyph}</a></li>`
   })
   return branching ? `<ol>${links[0]}</ol><p class="path-branch-label">${t('To adapt it, choose one:', '需要改编时，任选一条：')}</p><ul class="path-branches">${links.slice(1).join('')}</ul>` : `<ol>${links.join('')}</ol>`
