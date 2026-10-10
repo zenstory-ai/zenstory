@@ -30,6 +30,7 @@
       "en": "`/story-long-analyze` starts with a three-chapter preview and asks whether to continue; when the creator has already asked for a complete run, it still writes the preview and then keeps going. Its staged outputs include an overview, analysis report, style notes, chapters, characters, plot material and settings, and the output templates define what each stage records. Sources: [Staged analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [Output templates](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L63-L109).",
       "zh": "`/story-long-analyze` 先拆前三章并产出快速预览，再问是否继续；创作者一开始就要求完整拆解时，照样产出预览，然后直接往下跑。分阶段产物包括概要、拆文报告、文风、章节、角色、剧情素材与设定，每个阶段记录什么由输出模板规定。 源码依据：[阶段化拆文](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [输出模板](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L63-L109)。"
     },
+    "how_to": "/oh-story/learn-from-fiction",
     "related": [
       "saobang",
       "huangjinsanzhang",
@@ -49,6 +50,7 @@
       "en": "`/story-deslop` runs `check-ai-patterns.js` and `check-degeneration.js`, makes bounded minimal edits and scans again. Blocking degeneration such as unrecoverable truncation sends that passage back for regeneration; polishing handles wording-level problems. Sources: [Editing boundaries](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L21-L49) · [Checks and degeneration](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L186-L197).",
       "zh": "`/story-deslop` 运行 `check-ai-patterns.js` 与 `check-degeneration.js`，按边界做最小修改后再扫一遍。遇到不可恢复的截断等阻断级退化，流程会让那一段回去重新生成，润色只处理措辞层面的问题。 源码依据：[编辑边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L21-L49) · [检查与退化信号](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L186-L197)。"
     },
+    "how_to": "/oh-story/revise-ai-prose",
     "related": [
       "chaiwen"
     ]
@@ -66,6 +68,7 @@
       "en": "Drama Skills keeps up to five kinds of creator-readable Markdown documents per episode, and each request creates only the ones it actually needs. Frozen-keyframe prompts and continuity-lock phrases write selected constraints down, and a validator checks them word for word; cross-shot consistency in generated media is checked against the images once they exist. Sources: [Creator-first workflow](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/creator-workflow.md#L3-L34) · [Continuity-lock obligations](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-assets/references/continuity-lock.md#L22-L49).",
       "zh": "Drama Skills 每集按需维护最多五类创作者可直接阅读的 Markdown 文档，一个请求只创建它实际需要的那几份。冻结关键帧提示词与连续性锁把选定的约束写明，并由校验器逐字检查；生成画面是否跨镜一致，出图后再对照画面检查。 源码依据：[按需创作流程](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/creator-workflow.md#L3-L34) · [连续性锁义务](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-assets/references/continuity-lock.md#L22-L49)。"
     },
+    "how_to": "/drama-skills/motion-comic",
     "related": []
   },
   {
@@ -81,6 +84,7 @@
       "en": "Stage 1 of `/story-long-analyze` produces the opening preview and asks whether to continue; when the creator has already asked for a complete run, it still writes the preview and then keeps going. The templates record chapter-level hooks, conflict, pacing and payoffs as craft analysis. Sources: [Preview checkpoint](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [Three-chapter analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L77-L142). For your own serial opening, [how to write the golden three chapters](https://zenstory.ai/oh-story/novel-opening) plans an original first three chapters around what to pay off and which question to hand on.",
       "zh": "`/story-long-analyze` 第一阶段产出开篇预览，再询问是否继续；创作者一开始就要求完整拆解时，照样产出预览，然后直接往下跑。模板逐章记录钩子、冲突、节奏与爽点，结论落在写法分析上。 源码依据：[预览检查点](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [三章拆解字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L77-L142)。 要写自己的连载开头，见[黄金三章怎么写](https://zenstory.ai/oh-story/novel-opening)：用原创三章方案演示先兑现什么、再抛出什么问题。"
     },
+    "how_to": "/oh-story/novel-opening",
     "related": [
       "chaiwen"
     ]
@@ -98,6 +102,7 @@
       "en": "The long-form outline-contract checker requires a 爽点 field. Analysis templates record the source chapter's payoff and its setup separately. Structural validation confirms the planning field is filled in; whether the scene lands emotionally is judged by reading the prose. Sources: [Required outline fields](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L20-L28) · [Payoff analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L128-L150).",
       "zh": "长篇细纲契约检查器把「爽点」列为必填字段。拆文模板分别记录参考章节的爽点与对应铺垫。结构校验确认规划里写了爽点，场景读起来爽不爽，靠作者通读正文来判断。 源码依据：[细纲必填字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L20-L28) · [爽点分析字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L128-L150)。"
     },
+    "how_to": "/oh-story/satisfaction-beats",
     "related": [
       "chaiwen"
     ]
@@ -115,6 +120,7 @@
       "en": "Oh Story's references document 13 chapter-ending forms, 7 chapter-opening forms and paragraph-level hooks. The long-form chapter-blueprint checker requires a 章首钩子 (opening hook) field; the check confirms the field is filled in, and the author judges how well the hook reads. Sources: [Hook forms](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L376-L382) · [Blueprint fields](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L21-L26). To choose and write a chapter-ending hook by type, see [chapter-ending hooks](https://zenstory.ai/oh-story/chapter-ending-hooks).",
       "zh": "Oh Story 的参考文档列出章尾钩子 13 式、章首钩子 7 式和段落级钩子。长篇章节蓝图的结构检查器要求填写「章首钩子」字段；检查确认这一栏已经写上，钩子读起来有没有力，由作者读稿判断。 源码依据：[钩子分类](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L376-L382) · [蓝图字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L21-L26)。 按类型挑选和改写章尾钩子，见[章尾钩子写法](https://zenstory.ai/oh-story/chapter-ending-hooks)。"
     },
+    "how_to": "/oh-story/chapter-ending-hooks",
     "related": [
       "shuangdian",
       "taolu"
@@ -133,6 +139,7 @@
       "en": "The README lays the method out in three steps: scan the charts for genre, character setup and opening angle; deconstruct works into a personal module library; then apply hooks, payoffs and anticipation in commercial writing. The framework runs along four lines: reverse-engineering successful works, recombining plot modules, managing context and state in layers, and keeping a human in the loop. Sources: [Project method](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L13-L23).",
       "zh": "README 把方法论分成三步：扫榜看题材、人设与切入点，拆文建立个人模块库，再在商业化写作中运用钩子、爽感与期待感。整套框架围绕四条线展开：爆款逆向、剧情模块化重组、上下文状态分层管理和人机协同。 源码依据：[项目核心思路](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L13-L23)。"
     },
+    "how_to": "/oh-story/tropes-without-copying",
     "related": [
       "shuangdian",
       "gouzi",
@@ -152,6 +159,7 @@
       "en": "`short-drama-develop` creates or revises an episode map when the creator needs episode planning, loading genre and hook references as needed. A director's statement is an optional candidate, drafted alongside it when the project calls for one. Sources: [Episode-map fields](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/episode-design.md#L328-L340) · [Development scope](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/SKILL.md#L84-L106).",
       "zh": "创作者需要分集规划时，`short-drama-develop` 创建或修订分集地图；题材与钩子参考按需加载。导演阐述是可选的候选文档，项目需要时才一并起草。 源码依据：[分集地图字段](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/episode-design.md#L328-L340) · [开发阶段边界](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/SKILL.md#L84-L106)。"
     },
+    "how_to": "/drama-skills/episode-outline-template",
     "related": [
       "manju",
       "daoyan-chanshu"
@@ -170,6 +178,7 @@
       "en": "Look Development is an optional branch that turns an accepted direction into observable text style-frame specifications before formal storyboarding. It produces specifications and prompts only; actual images go through `short-drama-produce` after the creator confirms the job preview. Sources: [Accepting a director brief](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/director-brief-craft.md#L10-L16) · [Look Development scope](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/look-development.md#L3-L18).",
       "zh": "Look Development 是可选分支，可以在正式分镜前把已接受的方向写成可观察的文本风格帧规格。这一阶段只产出规格和提示词；要实际出图，交给 `short-drama-produce`，由创作者确认任务预览后再生成。 源码依据：[导演阐述生效边界](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/director-brief-craft.md#L10-L16) · [Look Development 边界](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/look-development.md#L3-L18)。"
     },
+    "how_to": "/drama-skills/write-a-short-drama-director-statement",
     "related": [
       "manju",
       "fenji-ditu",
@@ -189,6 +198,7 @@
       "en": "It belongs to storyboarding and describes only its declared boundary, the start by default. An actual image becomes a usable starting-frame reference once it is generated or supplied and bound as a `REF-` asset. A lock constrains the prompt text; consistency in the generated images is checked once they exist. Sources: [Storyboard contract](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-storyboard/SKILL.md#L50-L104) · [Production and reference binding](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-produce/SKILL.md#L15-L23).",
       "zh": "它属于分镜阶段，只描述声明的边界，默认是镜头起点。真实图片要先生成或由创作者提供，再绑定为 `REF-` 资产，才成为可用的起始帧参考。锁面约束的是提示词文字，生成画面是否一致，出图后再对照检查。 源码依据：[分镜契约](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-storyboard/SKILL.md#L50-L104) · [生产与参考绑定](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-produce/SKILL.md#L15-L23)。"
     },
+    "how_to": "/drama-skills/generate-an-ai-storyboard-frame",
     "related": [
       "manju",
       "daoyan-chanshu"

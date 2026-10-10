@@ -564,6 +564,17 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .path-next a:hover { color: var(--accent-text); }
 .path-next-label { font-size: 13px; color: var(--accent-text); }
 .path-next a .arrow { margin-left: auto; }
+/* Glossary: a term links the article that teaches it; /guides lists the terms as its reference row. */
+.term-howto { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 18px 0 8px; padding: 14px 16px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface); }
+.term-howto a { display: inline-flex; gap: 8px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.term-howto a:hover { color: var(--accent-text); }
+.term-howto-link { margin-left: .4em; font-weight: 600; white-space: nowrap; }
+.term-row { margin-top: 28px; }
+.term-row ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 8px 0 0; padding: 0; }
+.term-row li { margin: 0; }
+.term-row a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 13px; border: 1px solid var(--rule-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 14px; text-decoration: none; }
+.term-row a:hover { border-color: var(--ink); }
+.term-row .term-all { border-color: transparent; background: none; font-weight: 600; }
 @media (max-width: 960px) { .task-index { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .learning-path { padding-left: 14px; } .learning-path ol { padding-left: 18px; margin: 8px 0 0; } .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-index a { min-height: 76px; padding: 12px 14px; } .guide-layer { padding-top: 32px; margin-top: 32px; } }
 @media (max-width: 600px) { .topic-grid { grid-template-columns: 1fr; } .topic-card { padding: 20px; } }

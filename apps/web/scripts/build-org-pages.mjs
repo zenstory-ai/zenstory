@@ -1026,6 +1026,7 @@ const guidesIndex = () => {
       ${layerHead(3, t('Check the result, fix what drifted, and look up the terms.', '检查结果，修正跑偏的地方，查不懂的行话。'))}
       ${skillList(topicFeatured(revision))}
       <p class="layer-more">${topicMore(revision)}</p>
+      <div class="term-row"><p class="jump-label">${t('Look up a term', '查术语')}</p><ul>${glossary.map((g) => `<li><a href="/glossary/${g.slug}" lang="zh-CN">${esc(g.term)}</a></li>`).join('')}<li><a class="term-all" href="/glossary">${t('Glossary', '术语表')}${arrowGlyph}</a></li></ul></div>
     </section>
     <section data-search-results hidden aria-labelledby="search-results"><h2 id="search-results">${t('Search results','搜索结果')}</h2>
       <ul class="reading-list">${readingOf().map((item)=>{
@@ -1183,6 +1184,12 @@ const projectsIndex = () => {
 
 // ---------- glossary ----------
 
+/** A term's main how-to article, when one is published in this language (the glossary defines; the article teaches). */
+const termArticle = (g) => (g.how_to && routeExists(LANG, g.how_to) ? readingOf().find((item) => itemRoute(item) === g.how_to) : null)
+const termHowTo = (g) => {
+  const item = termArticle(g)
+  return item ? `<p class="term-howto"><span class="method-label">${t('How to do it', '怎么做')}</span><a href="${g.how_to}"><span class="guide-title">${esc(pick(item.title))}</span>${arrowGlyph}</a></p>` : ''
+}
 const termPage = (g) => {
   const route = `/glossary/${g.slug}`
   const owner = projects.find((p) => p.slug === g.owner)
@@ -1212,6 +1219,7 @@ const termPage = (g) => {
   ${pair(`<h2>Definition</h2>
   <p>${rich(g.definition.en)}</p>`, `<h2>定义</h2>
   <p>${rich(g.definition.zh)}</p>`, 'definition')}
+  ${termHowTo(g)}
 
   ${heading(2, 'In practice', '在工具里')}
   ${pair(`<p>${rich(g.in_practice.en)}</p>`, `<p>${rich(g.in_practice.zh)}</p>`)}
@@ -1249,7 +1257,7 @@ const glossaryIndex = () => {
     return `
     <div class="entry">
     <dt><a href="/glossary/${g.slug}" lang="zh-CN">${esc(g.term)}</a> <span class="bridge">${esc(g.bridge)}</span></dt>
-    <dd>${t(esc(g.definition.en.split('. ')[0]) + '.', esc(g.definition.zh.split(/(?<=。)/)[0]))}${owner ? `<span class="owner">${esc(owner.name.en)}</span>` : ''}</dd>
+    <dd>${t(esc(g.definition.en.split('. ')[0]) + '.', esc(g.definition.zh.split(/(?<=。)/)[0]))}${termArticle(g) ? ` <a class="term-howto-link" href="${g.how_to}">${t('How to do it', '怎么做')}${arrowGlyph}</a>` : ''}${owner ? `<span class="owner">${esc(owner.name.en)}</span>` : ''}</dd>
     </div>`
   }).join('')}
   </dl>

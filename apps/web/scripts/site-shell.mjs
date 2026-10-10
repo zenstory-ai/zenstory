@@ -103,8 +103,8 @@ export const langSwitch = (lang, links) => `<div class="lang-switch" role="group
     </div>`
 
 /**
- * Site header. `section` is the active top-level route ('/projects', '/guides',
- * '/glossary' or null); `switchLinks` are the two language destinations.
+ * Site header. `section` is the active top-level route ('/projects', '/guides'
+ * or null; the glossary is reached from the footer and /guides); `switchLinks` are the two language destinations.
  */
 export const nav = (lang, { section = null, switchLinks }) => {
   const item = (route, label) => `<a href="${localized(lang, route)}"${section === route ? ' aria-current="page"' : ''}>${label}</a>`
@@ -115,7 +115,6 @@ export const nav = (lang, { section = null, switchLinks }) => {
     <nav aria-label="${t(lang, 'Site', '站点')}">
       ${item('/projects', t(lang, 'Projects', '项目'))}
       ${item('/guides', t(lang, 'Guides', '指南'))}
-      ${item('/glossary', t(lang, 'Glossary', '术语'))}
       <a href="${org.github}">GitHub</a>
     </nav>
     <div class="top-tools">

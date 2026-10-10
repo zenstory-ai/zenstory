@@ -206,3 +206,25 @@ test('guide search ranks title matches first, understands question phrasing and 
   search('')
   assert.ok([...window.document.querySelectorAll('[data-library-browse]')].every((node)=>!node.hidden))
 })
+
+test('the glossary is reference, not navigation: terms link the article that teaches them and are listed on /guides', (t) => {
+  const glossary=content('glossary')
+  const out=mkdtempSync(join(tmpdir(),'zenstory-terms-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const read=(lang,route)=>readFileSync(join(out,route==='/' ? (lang==='en' ? 'org-home' : 'zh') : pathOf(lang,route),'index.html'),'utf8')
+  const published=new Set(reading.map(routeOf))
+  assert.ok(glossary.filter((g)=>g.how_to).length>=10,'most terms need the article that teaches them')
+  for(const lang of ['en','zh']) {
+    const guidesIndex=read(lang,'/guides')
+    assert.doesNotMatch(read(lang,'/').match(/<nav aria-label="(?:Site|站点)">[\s\S]*?<\/nav>/)[0],/glossary/,`${lang}: glossary is not in the main nav`)
+    assert.match(read(lang,'/').match(/<footer[\s\S]*<\/footer>/)[0],new RegExp(`href="${pathOf(lang,'/glossary')}"`),`${lang}: footer keeps the glossary`)
+    for(const g of glossary) {
+      assert.ok(guidesIndex.includes(`href="${pathOf(lang,`/glossary/${g.slug}`)}"`),`${lang}: /guides lists ${g.term}`)
+      if(!g.how_to) continue
+      assert.ok(published.has(g.how_to),`${g.slug}: how_to ${g.how_to} is not a published guide or article`)
+      assert.match(read(lang,`/glossary/${g.slug}`),new RegExp(`<p class="term-howto">[\\s\\S]*?href="${pathOf(lang,g.how_to)}"`),`${lang} ${g.slug}: term page links its how-to article`)
+    }
+  }
+})
