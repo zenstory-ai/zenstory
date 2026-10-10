@@ -37,7 +37,7 @@ Specific, modest, bilingual. New UI copy is neutral labels or derived from JSON 
 ## Decisions recorded 2026-09-14
 - Split languages onto separate URLs (`/zh` prefix, hreflang, x-default = English) instead of the toggle-on-one-URL model: engines index one title, description and body per URL, and the panel prompts are two-thirds Chinese while every title used to be English. Existing English URLs did not change.
 - The workbench docs moved off the React app shell onto the organization shell (static, no app bundle) with a sidebar generated from `docsNavigation.ts`, resolved markdown links (a link to a missing page fails the build) and a "Docs" entry on the `/workbench` project page instead of the site navigation. The in-app docs search is not available on these pages; the React `DocsPage` remains for development builds.
-- `llms.txt` lists guides and workbench docs in separate sections and points at the `/zh` corpus.
+- `llms.txt` lists guides and workbench docs in separate sections and points at the `/zh` corpus. A glossary section (added 2026-10-10) lists each term with its English bridge and, where one exists, the guide that teaches it.
 
 ## Implementation constraints
 Generators share `site-shell.mjs`, plain CSS, no new dependencies; isolated generator fixtures copy the complete content directory and generator scripts, while full builds copy public media, no new routes without updating `content/site-routing.json`, `vercel.json` (`--write-config`), `llms.txt` and the sitemap count. Every change is verified with the generator tests, a GEO diff against a baseline build (metadata, JSON-LD, links and text tokens must survive), 390px overflow checks, and axe.
