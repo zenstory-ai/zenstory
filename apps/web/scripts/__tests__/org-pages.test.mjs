@@ -457,7 +457,7 @@ test('only a novel-writing project offers the browser workbench as its alternati
       const need = readOutput(outDir, outPath(lang, `/${project.slug}`)).match(/<section class="need"[\s\S]*?<\/section>/)[0]
       const offersWorkbench = need.includes(`href="${routeIn(lang, '/workbench')}"`)
       assert.equal(offersWorkbench, project.slug === 'oh-story', `${lang} /${project.slug}: the workbench writes novels; it is not an alternative here`)
-      if (offersWorkbench) assert.match(need, lang === 'en' ? /novel writing only/i : /仅限小说写作/)
+      if (offersWorkbench) assert.match(need, lang === 'en' ? /novel writing only/i : /只写小说|仅限小说写作/)
     }
   }
 })

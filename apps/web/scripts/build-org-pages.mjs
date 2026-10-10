@@ -64,12 +64,12 @@ for (const guide of guides) {
   guideRoutes.add(route)
 }
 const comparisonAxes = [
-  ['fit', 'Best fit', '适合场景'],
-  ['environment', 'Working environment', '工作环境'],
-  ['configuration', 'Configuration responsibility', '配置责任'],
-  ['files', 'Files and results', '文件与结果'],
-  ['version', 'Version relationship', '版本关系'],
-  ['review', 'What to review', '需要检查什么'],
+  ['fit', 'Best fit', '适合谁'],
+  ['environment', 'Where it runs', '在哪里用'],
+  ['configuration', 'What you configure', '要自己配置什么'],
+  ['files', 'Files and results', '文件存在哪'],
+  ['version', 'Versions', '版本'],
+  ['review', 'What to check', '用完检查什么'],
 ]
 const comparisonProjects = ['oh-story', 'dsh', 'workbench']
 const comparisonRoutes = new Set()
@@ -278,6 +278,9 @@ const guidesOf = (slug) => guides.filter((g) => g.owner === slug)
 const zhName = (p) => { const m = p.name.zh.match(/^(.*?)(（.*）)$/); return m ? `${esc(m[1])}<span class="paren">${esc(m[2])}</span>` : esc(p.name.zh) }
 /** Project name as a heading: English name, or the Chinese name with its parenthetical subordinate. */
 const projectName = (p) => t(esc(p.name.en), zhName(p))
+/** The Chinese name's parenthetical (网文写作 skill 包), shown as the project page eyebrow so the H1 is just the name. */
+const zhDescriptor = (p) => p.name.zh.match(/（(.*)）$/)?.[1]
+const zhBaseName = (p) => p.name.zh.replace(/（.*）$/, '')
 
 // ---------- small UI glyphs (inline, monochrome; the star keeps the brand cyan) ----------
 
@@ -317,7 +320,6 @@ const roster = (current) => `
 <section class="roster band-cream" aria-labelledby="roster-h">
   <div class="wrap">
   ${heading(2, 'Part of ZenStory AI', 'ZenStory AI 项目', 'roster-h')}
-  ${pair(`<p>${esc(org.intro.en)}</p>`, `<p>${esc(org.intro.zh)}</p>`)}
   <table>
     <thead><tr><th>${t('Project', '项目')}</th><th>${t('Format', '形态')}</th><th>${t('What it does', '用途')}</th></tr></thead>
     <tbody>${projects.map((p) => `
@@ -349,12 +351,12 @@ const projectChips = (p) => [
 ].filter(Boolean)
 
 /** One card component shared by the home page and /projects: task, name, one sentence, two facts, two links. The install command lives on the project page. */
-const projectCard = (p, eyebrow) => `
+const projectCard = (p) => `
       <article class="project-card">
-        <p class="eyebrow">${eyebrow}</p>
+        <p class="eyebrow">${esc(pick(p.format))}</p>
         <h3><a href="/${p.slug}">${toolName(p)}</a></h3>
         ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
-        <p class="card-meta">${[esc(pick(p.format)), p.skills ? t(`${p.skills} skills`, `${p.skills} 个 skill`) : '', p.stars ? `${starGlyph}${num(p.stars)} GitHub ${t('stars', 'star')}` : ''].filter(Boolean).join('<span class="sep" aria-hidden="true"> · </span>')}</p>
+        <p class="card-meta">${[p.skills ? t(`${p.skills} skills`, `${p.skills} 个 skill`) : '', p.stars ? `${starGlyph}${num(p.stars)} ${t('stars', 'star')}<span class="sr-only"> GitHub</span>` : ''].filter(Boolean).join('<span class="sep" aria-hidden="true"> · </span>')}</p>
         <p class="card-actions">${p.install && p.entry ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}${arrowGlyph}</a>` : ''}<a href="${p.github}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${appHref(LANG, '/login', 'org_projects')}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
       </article>`
 
@@ -633,21 +635,19 @@ ${playerScript}`
 /** Projects whose job is novel writing; only these offer the browser workbench as an alternative (it does not run the drama, game or recap packs). */
 const WRITING_ENTRIES = new Set(['oh-story'])
 const needBlock = (p) => {
-  const isPack = Boolean(p.install)
   const host = p.slug === 'workbench'
     ? t(`A browser. The workbench runs at <a href="${appHref(LANG, '/login', 'org_workbench_need')}">app.zenstory.ai</a>.`, `一个浏览器。工作台运行在 <a href="${appHref(LANG, '/login', 'org_workbench_need')}">app.zenstory.ai</a>。`)
     : p.slug === 'dsh'
       ? t('DeepSeek Harness (DSH) as the host.', '以 DeepSeek Harness（DSH）为宿主。')
-      : t(`An agent host: ${org.proof.harnesses.map(esc).join(', ')}.`, `一个 Agent 宿主：${org.proof.harnesses.map(esc).join('、')}。`)
+      : `${t('Any one of these agents:', '下面任一个 Agent：')}<span class="host-chips">${org.proof.harnesses.map((h) => `<span>${esc(h)}</span>`).join('')}</span>`
   return `
   <section class="need" aria-labelledby="need-h">
     ${heading(2, 'What you need', '你需要什么', 'need-h')}
     <ul class="need-list">
       <li><b>${t('License', '许可')}</b><span>${t(`${esc(org.proof.license)}, open source.`, `${esc(org.proof.license)}，开源。`)}</span></li>
       <li><b>${t(p.slug === 'workbench' ? 'Where it runs' : 'Host', p.slug === 'workbench' ? '在哪里运行' : '宿主')}</b><span>${host}</span></li>
-      ${isPack ? `<li><b>${t('Install', '安装')}</b><span>${t('One command:', '一条命令：')} <code class="cmd">${cmd(p.install)}</code></span></li>` : ''}
       ${p.slug === 'workbench' ? `<li><b>${t('Docs', '文档')}</b><span>${t('The <a href="/docs">workbench documentation</a>: getting started, user guide, reference and troubleshooting.', '<a href="/docs">工作台文档</a>：快速入门、用户指南、参考资料与故障排除。')}</span></li>` : ''}
-      ${WRITING_ENTRIES.has(p.slug) ? `<li><b>${t('Or in the browser', '或在浏览器里')}</b><span>${t(`For novel writing only: the separate <a href="/workbench">ZenStory Workbench</a> at <a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>.`, `仅限小说写作：独立的 <a href="/workbench">ZenStory 工作台</a>，<a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>。`)}</span></li>` : ''}
+      ${WRITING_ENTRIES.has(p.slug) ? `<li><b>${t('Or in the browser', '或在浏览器里')}</b><span>${t(`For novel writing only, you can skip the agent setup and use the <a href="/workbench">ZenStory Workbench</a> in the browser (<a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>).`, `只写小说的话，也可以不装 Agent，直接用网页版 <a href="/workbench">ZenStory 工作台</a>（<a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>）。`)}</span></li>` : ''}
     </ul>
   </section>`
 }
@@ -708,14 +708,14 @@ const projectPage = (p) => {
   <header class="page-hero">
     <div class="wrap">
       <p class="crumbs"><a href="/">ZenStory AI</a> <span aria-hidden="true">/</span> <a href="/projects">${t('Projects', '项目')}</a></p>
-      <p class="eyebrow">${esc(pick(p.format))}</p>
-      <h1>${projectName(p)}</h1>
+      <p class="eyebrow">${t(esc(p.format.en), esc(zhDescriptor(p) ?? p.format.zh))}</p>
+      <h1>${t(esc(p.name.en), esc(zhBaseName(p)))}</h1>
       ${pair(`<p class="lede">${esc(p.tagline.en)}</p>`, `<p class="lede">${esc(p.tagline.zh)}</p>`)}
       ${proofRow(projectChips(p))}
-      <p class="actions">
-        <a class="btn" href="${p.github}">${t('Source on GitHub', '在 GitHub 查看源码')}${extGlyph}</a>
-        ${p.readme_en && p.readme_en !== p.github ? `<a class="btn ghost" href="${p.readme_en}">${t('English README', '英文 README')}${extGlyph}</a>` : ''}
-        ${p.slug === 'workbench' ? `<a class="btn ghost" href="${appHref(LANG, '/login', 'org_workbench')}">${t('Open the workbench', '打开工作台')}${extGlyph}</a><a class="btn ghost" href="/docs">${t('Workbench docs', '工作台文档')}${arrowGlyph}</a>` : ''}
+      <p class="actions">${p.slug === 'workbench'
+        // The workbench is used in the browser: opening it comes first, the source last.
+        ? `<a class="btn" href="${appHref(LANG, '/login', 'org_workbench')}">${t('Open the workbench', '打开工作台')}${extGlyph}</a><a class="btn ghost" href="/docs">${t('Workbench docs', '工作台文档')}${arrowGlyph}</a><a class="btn ghost" href="${p.github}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a>`
+        : `<a class="btn" href="${p.github}">${t('Source on GitHub', '在 GitHub 查看源码')}${extGlyph}</a>${p.readme_en && p.readme_en !== p.github ? `<a class="btn ghost" href="${p.readme_en}">${t('English README', '英文 README')}${extGlyph}</a>` : ''}`}
       </p>
       ${installBlock(p)}
     </div>
@@ -764,7 +764,7 @@ const projectPage = (p) => {
 
   <section class="sources" aria-labelledby="sources-h">
   ${heading(2, 'Sources', '来源', 'sources-h')}
-  <p class="facts">${t(`Based on the source as of ${esc(p.sources.checked_on)}${p.stars ? ` (star counts from ${p.sources.checked_on === org.proof.as_of ? 'the same day' : esc(org.proof.as_of)})` : ''}; links point at that version.`, `本页内容依据 ${esc(p.sources.checked_on)} 的源码${p.stars ? `（star 数${p.sources.checked_on === org.proof.as_of ? '同日统计' : `统计于 ${esc(org.proof.as_of)}`}）` : ''}，链接指向该版本。`)}</p>
+  <p class="facts">${t(`Based on the source as of ${esc(p.sources.checked_on)}; links point at that version.`, `本页内容依据 ${esc(p.sources.checked_on)} 的源码，链接指向该版本。`)}</p>
   ${pair(list(p.sources.en), list(p.sources.zh), 'cols')}
   </section>
   </div>
@@ -973,7 +973,7 @@ const articlePage = (a) => {
   <section class="use-skill" aria-labelledby="use-the-skill">
   <h2 id="use-the-skill">${t('Do it with the skill', '用 skill 来做')}</h2>
   ${md(pick(a.skill.text))}
-  ${a.sources?.length > 2 ? `<p>${t('More of the method:', '更多方法依据：')} ${a.sources.slice(2).map((source) => `<a href="${esc(source.url)}">${esc(pick(source.label))}</a>`).join(' · ')}</p>` : ''}
+  ${a.sources?.length > 2 ? `<p>${t('More of the method: ', '更多方法依据：')}${a.sources.slice(2).map((source) => `<a href="${esc(source.url)}">${esc(pick(source.label))}</a>`).join(' · ')}</p>` : ''}
   <p class="actions"><a class="btn ghost" href="/${owner.slug}">${t(`Install and use ${esc(owner.name.en)}`, `安装并使用 ${esc(owner.name.en)}`)}${arrowGlyph}</a></p>
   </section>
   ${workflowNav(a, 'end')}
@@ -1160,7 +1160,7 @@ const comparisonPage = (comparison) => {
 <article class="comparison">
   <header class="page-hero">
     <div class="wrap">
-      <p class="eyebrow">${t('First-party comparison', '自有项目选择指南')}</p>
+      <p class="eyebrow">${t('First-party comparison', '自家项目怎么选')}</p>
       <h1>${esc(pick(comparison.title))}</h1>
       <p class="facts">${t(`Updated ${esc(comparison.checked_on)}`, `更新于 ${esc(comparison.checked_on)}`)}</p>
       ${pair(`<p>${rich(comparison.answer.en)}</p>`, `<p>${rich(comparison.answer.zh)}</p>`, 'answer')}
@@ -1178,12 +1178,12 @@ const comparisonPage = (comparison) => {
     ${heading(2, esc(en), esc(zh), `axis-${field}`)}
     <div class="axis"><div class="pair cols"><div class="l-${LANG}">${axisList(field)}</div></div></div>
   </section>`).join('')}
-  ${heading(2, 'Small reversible trial', '小范围可回退试用')}
+  ${heading(2, 'Try it small first', '先小范围试一下')}
   ${pair(list(comparison.checklist.en), list(comparison.checklist.zh), 'cols')}
-  ${heading(2, 'Comparison boundaries', '比较边界')}
+  ${heading(2, 'Keep in mind', '注意')}
   ${pair(list(comparison.boundaries.en), list(comparison.boundaries.zh), 'cols')}
   <section class="sources" aria-labelledby="versioned-sources">
-  ${heading(2, 'Versioned first-party sources', '版本化第一方来源', 'versioned-sources')}
+  ${heading(2, 'Sources at the checked versions', '本页核对的源码', 'versioned-sources')}
   ${comparison.options.map((option) => {
     const project = optionProject(option)
     return `<section aria-labelledby="sources-${project.slug}">
@@ -1218,21 +1218,17 @@ const projectsIndex = () => {
 <article class="projects-index">
   <header class="page-hero">
     <div class="wrap">
-      <p class="eyebrow">${esc(pick(org.tagline))}</p>
-      <h1>${t('Six open-source projects for writing and adapting stories', ['写网文、', '改短剧、', '做游戏、', '剪解说：', '六个开源项目'].map((phrase) => `<span class="tok">${phrase}</span>`).join(''))}</h1>
-      ${pair(`<p class="lede">${esc(org.intro.en)}</p>`, `<p class="lede">${esc(org.intro.zh)}</p>`)}
-      <p class="actions">${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${esc(pick(comparison.title))}${arrowGlyph}</a>`).join('')}</p>
+      <p class="eyebrow">${t('Six open-source projects · MIT', '六个开源项目 · MIT')}</p>
+      <h1>${t('From one idea to novels, short dramas, games and video.', esc(org.tagline.zh))}</h1>
     </div>
   </header>
 
   <section class="band" aria-labelledby="catalog-h">
     <div class="wrap">
     ${heading(2, 'Start with what you want to make', '从目标开始', 'catalog-h')}
-    <div class="project-grid">${projects.map((p) => {
-      const [taskEn, taskZh] = taskChoices.find(([, , slug]) => slug === p.slug)
-      return projectCard(p, t(esc(taskEn), esc(taskZh)))
-    }).join('')}
+    <div class="project-grid">${projects.map(projectCard).join('')}
     </div>
+    <p class="more">${comparisons.map((comparison) => `<a href="/compare/${comparison.slug}">${t('Not sure where to write? Compare the three writing environments', '不知道在哪写？看看三种写作环境怎么选')}${arrowGlyph}</a>`).join('')}</p>
     </div>
   </section>
 
@@ -1246,8 +1242,7 @@ const projectsIndex = () => {
   <section class="band" aria-labelledby="hosts-h">
     <div class="wrap">
     ${heading(2, 'Runs inside the agents you already use', '在你已经使用的 Agent 里运行', 'hosts-h')}
-    <p class="terms hosts">${org.proof.harnesses.map((h) => `<span>${esc(h)}</span>`).join(' ')}</p>
-    <p class="facts">${t(`GitHub star counts as of ${esc(org.proof.as_of)}.`, `GitHub star 数截至 ${esc(org.proof.as_of)}。`)}</p>
+    <ul class="host-grid">${org.proof.harnesses.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>
     </div>
   </section>
 </article>`
@@ -1307,7 +1302,7 @@ ${roster(g.owner)}`
 const glossaryIndex = () => {
   const route = '/glossary'
   const title = t('ZenStory AI glossary — 扫榜, 拆文, 去AI味, 漫剧 and other terms of the story pipeline', 'ZenStory AI 术语表 — 扫榜、拆文、去AI味、漫剧等故事流程术语')
-  const description = t('Definitions, with English bridges, of the Chinese web-fiction and short-drama craft terms that ZenStory AI tools implement as concrete pipeline steps.', '网文与短剧创作中的行话，附英文对照，以及 ZenStory AI 工具把它们落实为具体流程步骤的方式。')
+  const description = t('Chinese web-fiction and short-drama terms, with English equivalents and how ZenStory AI tools put each one to work.', '网文和短剧创作里的常用说法，附英文对照，并说明在 ZenStory AI 的工具里怎么用。')
   const ld = [
     orgNode,
     { '@type': 'DefinedTermSet', '@id': `${U(route)}#set`, name: t('ZenStory AI glossary', 'ZenStory AI 术语表'), url: U(route), inLanguage: LOCALE[LANG],
