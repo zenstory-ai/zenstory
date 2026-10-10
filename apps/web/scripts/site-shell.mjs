@@ -93,9 +93,10 @@ window.addEventListener('popstate',function(){input.value=new URL(location.href)
 input.value=new URL(location.href).searchParams.get('q')||'';form.hidden=false;update();
 })()</script>`
 
-export const FONTS = 'https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap'
-/** The homepage's own type system (see the `body[data-page="home"]` block in org-pages.css). */
-export const HOME_FONTS = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap'
+/** The site's one type system: Geist for text and headings, Geist Mono for paths and commands (CJK falls back to system fonts). */
+export const FONTS = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap'
+/** Kept for the homepage call site; the same stylesheet as every other page. */
+export const HOME_FONTS = FONTS
 
 /**
  * Remembers a language picked with the switch: a first-party `zs_lang` cookie (one year) that the
