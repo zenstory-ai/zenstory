@@ -4,11 +4,11 @@
   "site": "https://zenstory.ai",
   "tagline": {
     "en": "Create stories. Adapt them. Ship them.",
-    "zh": "让故事从灵感出发，走向小说、短剧、游戏与视频。"
+    "zh": "从一个灵感，到小说、短剧、游戏和视频。"
   },
   "intro": {
-    "en": "Six MIT-licensed projects for writers and story creators. Write web fiction with AI skills inside Claude Code or Codex, turn a novel into short-drama scripts and storyboards, a playable game or a narrated video recap — or write in the browser at the ZenStory Workbench, no agent setup needed.",
-    "zh": "六个 MIT 开源项目，给写小说和做故事的人。在 Claude Code、Codex 里用 AI skill 写网文，把小说改成短剧剧本与分镜、可玩的游戏，或者把视频做成解说成片；不想折腾 Agent，就直接在网页版 ZenStory 工作台里写。"
+    "en": "All MIT-licensed. Write web fiction with skills in Claude Code, Codex and other agents; turn a novel into short-drama scripts and storyboards or a playable game; cut footage into a narrated recap. No agent setup? Write in the browser with ZenStory Workbench.",
+    "zh": "都是 MIT 开源。在 Claude Code、Codex 等 Agent 里装上 skill 写网文；有了小说，可以改成短剧剧本和分镜，或做成可玩的游戏；有视频素材，可以剪成解说成片。不想装 Agent，就直接用网页版 ZenStory 工作台。"
   },
   "category": {
     "primary": "agent skills for story creation and adaptation",
@@ -18,29 +18,29 @@
     "en": [
       [
         "Create",
-        "Start with an idea, an existing manuscript or a chapter to revise. Oh Story supplies reusable fiction-writing workflows in a supported agent; the separate ZenStory Workbench organizes writing in a browser project workspace."
+        "Start from an idea, a manuscript or a chapter to fix: use Oh Story in your agent, or write in the browser with ZenStory Workbench."
       ],
       [
         "Adapt",
-        "Choose the next form of your story: Drama Skills for short-drama scripts and shot planning, Novel to Game for an interactive game candidate, or Video Recap Skills for narrated recaps from footage. Bring source material and the rights to use it."
+        "From a novel, Drama Skills writes short-drama scripts and shots and Novel to Game builds a playable game; from footage, Video Recap Skills makes a narrated recap. Make sure you may use the source."
       ],
       [
-        "Orchestrate",
-        "Already using DeepSeek Harness? Oh Story DSH brings the four skill packs into its workbenches. It is a community plugin for that host, not an extension installed into ordinary DeepSeek web chat."
+        "DeepSeek Harness",
+        "Already on DeepSeek Harness? The Oh Story DSH plugin puts all four packs in its workbenches. It is a community plugin for that app, not something you add to DeepSeek's web chat."
       ]
     ],
     "zh": [
       [
         "创作",
-        "从一个点子、一部已有小说或一章待修改的正文开始。Oh Story 在受支持的 Agent 中提供可复用写作流程；独立的 ZenStory 工作台则在浏览器里围绕项目组织写作。"
+        "从一个点子、一部小说或一章要改的正文开始：在 Agent 里用 Oh Story，或者直接在网页版 ZenStory 工作台里写。"
       ],
       [
         "改编",
-        "按目标形态选工具：Drama Skills 生成短剧剧本与分镜规划，Novel to Game 制作可玩版本（游戏原型），Video Recap Skills 把视频素材组织成旁白解说。准备好源材料及使用权。"
+        "有小说，用 Drama Skills 改成短剧剧本和分镜，用 Novel to Game 做成可玩的游戏；有视频素材，用 Video Recap Skills 做解说。改编前确认你有使用权。"
       ],
       [
-        "编排",
-        "已经使用 DeepSeek Harness？Oh Story DSH 将四套 skill 包整合到它的工作台中。这是该宿主的社区插件，不是安装到普通 DeepSeek 网页聊天里的扩展。"
+        "DeepSeek Harness",
+        "已经在用 DeepSeek Harness？装上 Oh Story DSH 插件，就能在它的工作台里用这四套 skill。它是社区插件，不是装进 DeepSeek 网页聊天的扩展。"
       ]
     ]
   },

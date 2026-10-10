@@ -22,6 +22,8 @@ const previews = `${hosts([PREVIEW_SITE,PREVIEW_APP])}|.*\\.vercel\\.app`
 const prefixPattern = prefixes => `/:path((?:${prefixes.map(escapeRegex).join('|')})(?:/.*)?)`
 const appPaths = prefixPattern(contract.appPrefixes)
 const sitePaths = prefixPattern(contract.sitePrefixes)
+/** Cookie the organization header's language switch sets (see site-shell.mjs langChoiceScript). */
+export const LANG_COOKIE = 'zs_lang'
 const redirect = (source,destination,has) => ({source,destination,permanent:true,...(has ? {has} : {})})
 const rewrite = (source,destination,value) => ({source,destination,...(value ? {has:host(value)} : {})})
 const internalAliases = {
@@ -35,6 +37,10 @@ export const vercelConfig = {
   '$schema':'https://openapi.vercel.sh/vercel.json',
   buildCommand:'npm run build:vercel',outputDirectory:'dist',installCommand:'npm install --legacy-peer-deps',devCommand:'npm run dev',framework:'vite',
   redirects:[
+    // The home remembers a language picked with the header switch (zs_lang cookie, set only by that click):
+    // a temporary redirect on the organization host only. Crawlers carry no cookie; deep links keep their language.
+    {source:'/',destination:'/zh',permanent:false,has:[...host(siteHosts),{type:'cookie',key:LANG_COOKIE,value:'zh'}]},
+    {source:'/zh',destination:'/',permanent:false,has:[...host(siteHosts),{type:'cookie',key:LANG_COOKIE,value:'en'}]},
     ...Object.entries(guideRedirects).flatMap(([source, destination]) => [redirect(source, `${SITE}${destination}`), redirect(`/zh${source}`, `${SITE}/zh${destination}`)]),
     ...Object.entries(internalAliases).map(([source,destination])=>redirect(source,destination)),
     // Explicit document aliases must not leave duplicate HTML URLs indexed.
