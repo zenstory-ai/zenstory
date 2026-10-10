@@ -254,7 +254,7 @@ export const DiffReviewSplitView = ({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onMouseDown={handleRootMouseDown}
-      className="flex flex-1 min-h-0 flex-col overflow-hidden focus:outline-none md:flex-row"
+      className="flex flex-1 min-h-0 flex-col overflow-y-auto focus:outline-none md:flex-row md:overflow-hidden"
     >
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
         <InlineDiffEditor

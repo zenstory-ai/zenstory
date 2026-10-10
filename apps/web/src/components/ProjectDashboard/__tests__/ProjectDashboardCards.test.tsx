@@ -782,6 +782,15 @@ describe('ProjectDashboard cards', () => {
       expect(container.textContent).not.toMatch(/1\s*1\s*day/)
     })
 
+    it('explains how a streak starts when it is 0, also on mobile where health hides descriptions', () => {
+      const idle = { ...baseStats, streak: { ...baseStats.streak, current_streak: 0, streak_status: 'none', days_until_break: null } }
+      const { rerender } = render(<WritingStreakCard stats={idle as never} />)
+      expect(screen.getByText('No current streak')).toBeInTheDocument()
+
+      rerender(<WritingStreakCard stats={baseStats as never} />)
+      expect(screen.queryByText('No current streak')).not.toBeInTheDocument()
+    })
+
     it('shows the stored calendar day as last writing date west of UTC', () => {
       process.env.TZ = 'America/Los_Angeles'
       const stats = { ...baseStats, streak: { ...baseStats.streak, last_writing_date: '2026-10-09' } }

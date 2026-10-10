@@ -15,16 +15,16 @@ from datetime import UTC, date, datetime, time, timedelta
 from sqlite3 import Connection as SQLiteConnection
 from typing import Any, cast
 
-from sqlalchemy import and_, case, func
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import QueryableAttribute, SessionTransaction, load_only
 from sqlmodel import Session, col, select, update
 
 from agent.constants import CONTENT_FILE_TYPES
-from config.datetime_utils import BEIJING_TIMEZONE, utcnow
+from config.datetime_utils import BEIJING_TIMEZONE, beijing_date, utcnow
 from models.entities import ChatMessage, ChatSession
 from models.file_model import FILE_TYPE_OUTLINE, WORD_COUNT_REV, File, cached_word_count
-from models.file_version import CHANGE_SOURCE_AI, FileVersion
+from models.file_version import CHANGE_SOURCE_AI, CHANGE_TYPE_AI_EDIT, FileVersion
 from models.writing_stats import WritingStats, WritingStreak
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -55,6 +55,11 @@ AI_USAGE_INPUT_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_INPUT_COS
 AI_USAGE_OUTPUT_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_OUTPUT_COST_PER_1M_USD", 0.0)
 AI_USAGE_CACHE_READ_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_CACHE_READ_COST_PER_1M_USD", 0.0)
 AI_USAGE_CACHE_WRITE_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_CACHE_WRITE_COST_PER_1M_USD", 0.0)
+
+
+def _beijing_day_start_utc(day: date) -> datetime:
+    """Start of a Beijing calendar day as naive UTC (how created_at columns are stored)."""
+    return datetime.combine(day, time.min, tzinfo=BEIJING_TIMEZONE).astimezone(UTC).replace(tzinfo=None)
 
 
 def _begin_stats_creation_savepoint(session: Session) -> SessionTransaction:
@@ -177,6 +182,9 @@ class WritingStatsService:
     )
     # A bare 「N集大纲」 below this is read as that episode's own outline.
     _WHOLE_BOOK_MIN_BARE_COUNT = 10
+    # 「1-30集分集大纲」「第1集-第30集分集大纲」: a title that opens with an
+    # episode/chapter range covers many chapters, not chapter 1.
+    _LEADING_RANGE_RE = re.compile(r"^第?\s*(\d+)\s*[章集回话]?\s*[-–—~～至到]\s*第?\s*(\d+)\s*[章集回话]")
 
     def _extract_chapter_number(self, title: str | None) -> int | None:
         """
@@ -188,8 +196,15 @@ class WritingStatsService:
         - Chapter 1 / Episode 2 / Ep. 3
         - 1xxx / 2xxx (plain leading numbers), except a book length such as
           「60集分集大纲」on a whole-book outline
+        A title opening with a range (「1-30集分集大纲」「第1集-第30集…」) has no
+        single chapter number.
         """
         if not title:
+            return None
+
+        # Before the ordinal match: 「第1集-第30集分集大纲」 would otherwise be episode 1.
+        leading_range = self._LEADING_RANGE_RE.match(title.strip())
+        if leading_range and int(leading_range.group(1)) < int(leading_range.group(2)):
             return None
 
         # The leftmost 第N章/集/回/节/话 wins, whether N is Arabic or Chinese:
@@ -751,10 +766,14 @@ class WritingStatsService:
         today: date,
     ) -> dict[str, int]:
         """
-        Words the AI added to manuscript files today / this week / this month.
+        Net words the AI wrote into manuscript files today / this week / this month.
 
-        Read-only from file_version: each AI version adds max(0, its word count
-        minus the file's previous version). The previous version may be the
+        Read-only from file_version: each AI version contributes its word count
+        minus the file's previous version (negative when the AI shortened the
+        text); a period sums these and floors at 0, matching the author's net
+        words. AI versions are agent writes (change_source='ai') and accepted AI
+        review edits (change_type='ai_edit', saved with source 'user'), the same
+        notion of AI text as author_edit_guard. The previous version may be the
         author's own save or the pre-AI-write backup, so author typing (already
         counted by /stats/record) is the baseline, never AI words. Days are
         Beijing calendar days, the same as the quota. Outlines and deleted
@@ -766,18 +785,18 @@ class WritingStatsService:
             "this_month": (today.replace(day=1), today),
         }
 
-        def day_start_utc(day: date) -> datetime:
-            # file_version.created_at is naive UTC.
-            return datetime.combine(day, time.min, tzinfo=BEIJING_TIMEZONE).astimezone(UTC).replace(tzinfo=None)
+        window_start = _beijing_day_start_utc(min(start for start, _end in periods.values()))
+        window_end = _beijing_day_start_utc(max(end for _start, end in periods.values()) + timedelta(days=1))
 
-        window_start = day_start_utc(min(start for start, _end in periods.values()))
-        window_end = day_start_utc(max(end for _start, end in periods.values()) + timedelta(days=1))
-
+        is_ai_version = or_(
+            FileVersion.change_source == CHANGE_SOURCE_AI,
+            FileVersion.change_type == CHANGE_TYPE_AI_EDIT,
+        )
         files_with_ai_writes = (
             select(FileVersion.file_id)
             .where(
                 FileVersion.project_id == project_id,
-                FileVersion.change_source == CHANGE_SOURCE_AI,
+                is_ai_version,
                 col(FileVersion.created_at) >= window_start,
                 col(FileVersion.created_at) < window_end,
             )
@@ -790,6 +809,7 @@ class WritingStatsService:
         versions = (
             select(
                 FileVersion.change_source,
+                FileVersion.change_type,
                 FileVersion.created_at,
                 FileVersion.word_count,
                 previous_words.label("previous_words"),
@@ -804,20 +824,17 @@ class WritingStatsService:
             )
             .subquery()
         )
-        added = case(
-            (versions.c.word_count > versions.c.previous_words, versions.c.word_count - versions.c.previous_words),
-            else_=0,
-        )
+        delta = versions.c.word_count - versions.c.previous_words
         sums = [
             func.coalesce(
                 func.sum(
                     case(
                         (
                             and_(
-                                versions.c.created_at >= day_start_utc(start),
-                                versions.c.created_at < day_start_utc(end + timedelta(days=1)),
+                                versions.c.created_at >= _beijing_day_start_utc(start),
+                                versions.c.created_at < _beijing_day_start_utc(end + timedelta(days=1)),
                             ),
-                            added,
+                            delta,
                         ),
                         else_=0,
                     )
@@ -828,11 +845,14 @@ class WritingStatsService:
         ]
         row = session.exec(
             select(*sums).where(
-                versions.c.change_source == CHANGE_SOURCE_AI,
+                or_(
+                    versions.c.change_source == CHANGE_SOURCE_AI,
+                    versions.c.change_type == CHANGE_TYPE_AI_EDIT,
+                ),
                 versions.c.created_at >= window_start,
             )
         ).one()
-        return {name: int(value or 0) for name, value in zip(periods, row, strict=True)}
+        return {name: max(0, int(value or 0)) for name, value in zip(periods, row, strict=True)}
 
     def get_chapter_completion_stats(
         self,
@@ -861,7 +881,9 @@ class WritingStatsService:
         Returns:
             Dict with completion statistics:
             - total_chapters: chapters written or planned
-            - completed_chapters / in_progress_chapters / not_started_chapters
+            - completed_chapters / in_progress_chapters
+            - not_started_chapters: the rest of planned_total when known
+              (planned chapters without a file included), else of total_chapters
             - planned_total: planned chapter count, or None when unknown. Known
               when a whole-book outline states it (「分集大纲（1-80集）」, line-start
               「第N集」 headings) or when chapter outlines still wait for prose;
@@ -1067,7 +1089,8 @@ class WritingStatsService:
             "planned_total": planned_total,
             "completed_chapters": completed_chapters,
             "in_progress_chapters": in_progress_chapters,
-            "not_started_chapters": total_chapters - completed_chapters - in_progress_chapters,
+            # Against the plan when known, matching 「按大纲还有 N 集待写」.
+            "not_started_chapters": completion_base - completed_chapters - in_progress_chapters,
             "completion_percentage": completion_percentage,
             "chapter_details": chapter_details,
         }
@@ -1996,7 +2019,8 @@ class WritingStatsService:
             session: Database session
             user_id: User ID
             project_id: Project ID
-            reference_date: Calendar date for period boundaries (defaults to today UTC)
+            reference_date: Beijing calendar date for period boundaries (defaults to
+                today in Beijing, the same day as the quota and the dashboard)
 
         Returns:
             Dict with:
@@ -2008,9 +2032,10 @@ class WritingStatsService:
         current_stats, session_ids, assistant_messages = self._load_ai_usage_stats(session, user_id, project_id)
 
         # Get today's usage
-        today = reference_date or utcnow().date()
-        today_start = datetime.combine(today, datetime.min.time())
-        period_end = datetime.combine(today + timedelta(days=1), datetime.min.time())
+        # chat_message.created_at is naive UTC; periods are Beijing calendar days.
+        today = reference_date or beijing_date(utcnow())
+        today_start = _beijing_day_start_utc(today)
+        period_end = _beijing_day_start_utc(today + timedelta(days=1))
 
         today_messages = {
             "total": 0,
@@ -2086,12 +2111,12 @@ class WritingStatsService:
 
             # This week
             week_start = today - timedelta(days=today.weekday())
-            week_start_dt = datetime.combine(week_start, datetime.min.time())
+            week_start_dt = _beijing_day_start_utc(week_start)
             week_messages = summarize_messages(week_start_dt)
 
             # This month
             month_start = today.replace(day=1)
-            month_start_dt = datetime.combine(month_start, datetime.min.time())
+            month_start_dt = _beijing_day_start_utc(month_start)
             month_messages = summarize_messages(month_start_dt)
         log_with_context(
             logger,

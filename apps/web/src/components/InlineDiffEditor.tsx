@@ -54,6 +54,9 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
 
   const scrollToEdit = useCallback((editId: string) => {
     if (!editId) return;
+    // 手机上审阅改为上下排列，正文对比区高度为 0、只显示修改卡片列表；此时 scrollIntoView
+    // 会去滚外层审阅容器，把作者刚滑到的「接受/拒绝」按钮又拉回顶部。
+    if (!containerRef.current?.parentElement?.clientHeight) return;
 
     try {
       const el = containerRef.current?.querySelector<HTMLElement>(`[data-edit-id="${editId}"]`);

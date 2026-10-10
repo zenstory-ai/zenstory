@@ -1576,3 +1576,137 @@ async def test_oversized_parallel_payload_keeps_failure_signal():
     assert compact["data"]["any_failed"] is True
     assert compact["data"]["tasks"][0] == {"id": "t1", "status": "failed", "error": "boom", "result": None}
     assert compact["data"]["tasks"][1]["result"]["content_truncated"] is True
+
+
+# ---------------------------------------------------------------------------
+# 同一条回复里 "<file>上一集</file> + create_file(下一集)"：on_llm_end 在执行
+# 工具前标记上一集正文已写出，守卫只被尚未写出正文的条目挡住。
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_streamed_entry_no_longer_blocks_reservation_but_unwritten_one_does():
+    from agent.tools.mcp_tools import _PendingEmptyFileState
+
+    state = _PendingEmptyFileState()
+    state.add("ep1", "第1集")
+
+    # 未标记：真实的"正文还没写就再建"照旧被拒
+    assert state.try_reserve("t1", "第2集") == (False, "第1集")
+
+    state.mark_latest_body_streamed()
+    assert state.try_reserve("t2", "第2集") == (True, None)
+    state.bind("t2", "ep2", "第2集")
+    # 条目本身不删：仍由 adapter 落库后按 file_id 清除
+    assert [e["file_id"] for e in state.snapshot()] == ["ep1", "ep2"]
+    assert state.has_pending() is True
+    assert state.latest() == {"file_id": "ep2", "title": "第2集"}
+
+    # 第2集还没写正文：第3集被第2集（而不是已写出的第1集）挡住
+    assert state.try_reserve("t3", "第3集") == (False, "第2集")
+
+
+@pytest.mark.unit
+def test_streamed_entry_still_blocked_by_in_flight_reservation():
+    from agent.tools.mcp_tools import _PendingEmptyFileState
+
+    state = _PendingEmptyFileState()
+    state.add("ep1", "第1集")
+    state.mark_body_streamed("ep1")
+    assert state.try_reserve("t1", "第2集") == (True, None)
+    # 第2集还在建库途中（未 bind）：并发的第3集仍被拒
+    assert state.try_reserve("t2", "第3集") == (False, "第2集")
+
+
+@pytest.mark.unit
+def test_streamed_mark_is_reset_when_same_file_pends_again():
+    from agent.tools.mcp_tools import _PendingEmptyFileState
+
+    state = _PendingEmptyFileState()
+    state.add("ep1", "第1集")
+    state.mark_body_streamed("ep1")
+    # 幂等复用命中同一文件、重新等待正文：旧标记作废
+    assert state.try_reserve("t1", "第1集") == (True, None)
+    state.bind("t1", "ep1", "第1集")
+    assert state.try_reserve("t2", "第2集") == (False, "第1集")
+
+    state.mark_body_streamed("ep1")
+    state.add("ep1", "第1集")
+    assert state.try_reserve("t3", "第2集") == (False, "第1集")
+
+
+@pytest.mark.unit
+def test_streamed_mark_cleared_with_entries_and_ignored_for_unknown_ids():
+    from agent.tools.mcp_tools import _PendingEmptyFileState
+
+    state = _PendingEmptyFileState()
+    state.mark_body_streamed("ghost")
+    state.mark_latest_body_streamed()
+    state.add("ghost", "幽灵")
+    # 未登记时的标记是 no-op，不会让之后置位的同 id 条目直接放行
+    assert state.try_reserve("t1", "第1集") == (False, "幽灵")
+
+    state.mark_body_streamed("ghost")
+    state.discard("ghost")
+    state.add("ghost", "幽灵")
+    assert state.try_reserve("t2", "第1集") == (False, "幽灵")
+
+    state.mark_body_streamed("ghost")
+    state.clear_all()
+    state.add("ghost", "幽灵")
+    assert state.try_reserve("t3", "第1集") == (False, "幽灵")
+
+    state.mark_body_streamed("ghost")
+    state.discard()
+    state.add("ghost", "幽灵")
+    assert state.try_reserve("t4", "第1集") == (False, "幽灵")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_create_file_allowed_after_previous_body_streamed_in_same_reply(db_session):
+    """上一集的正文已在本条回复里写完（库里还没落）：紧跟的 create_file(下一集) 必须成功。"""
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, "streamed")
+    ToolContext.set_context(
+        session=db_session, user_id=user.id, project_id=project.id, session_id="sess-streamed"
+    )
+    try:
+        first = _parse_payload(await create_file({"title": "第1集", "file_type": "draft"}))
+        first_id = first["data"]["id"]
+
+        ToolContext.mark_latest_pending_body_streamed()
+        second = _parse_payload(
+            await asyncio.create_task(create_file({"title": "第2集", "file_type": "draft"}))
+        )
+        assert second["status"] == "success"
+        second_id = second["data"]["id"]
+        # 两条都还在：第1集等 adapter 落库清除，第2集等自己的正文
+        assert [e["file_id"] for e in ToolContext.get_pending_empty_files()] == [
+            first_id,
+            second_id,
+        ]
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_two_create_files_without_body_in_between_still_rejected(db_session):
+    """同一条回复里只有两个 create_file、中间没写 <file> 正文：第二个照旧被拒。"""
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, "doublecreate")
+    ToolContext.set_context(
+        session=db_session, user_id=user.id, project_id=project.id, session_id="sess-double"
+    )
+    try:
+        first = _parse_payload(await create_file({"title": "第4集", "file_type": "draft"}))
+        assert first["status"] == "success"
+        rejected = _parse_payload(await create_file({"title": "第5集", "file_type": "draft"}))
+        assert rejected["status"] == "error"
+        assert rejected["error_type"] == "pending_empty_file_unwritten"
+        assert rejected["pending_file_id"] == first["data"]["id"]
+    finally:
+        ToolContext.clear_context()

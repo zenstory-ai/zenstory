@@ -272,6 +272,8 @@ for (const conflict of [false, true]) {
     await page.getByRole('button', { name: 'Humanize', exact: true }).click();
     await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
     expect(f.requests.find(r => r.path.endsWith('natural-polish'))?.body).toMatchObject({ selected_text: 'A local story.', project_id: projectA });
+    // Desktop keeps the side-by-side panes and lets the queue list scroll itself.
+    expect(await page.getByText('Paragraph review', { exact: true }).evaluate(el => getComputedStyle(el.closest('div[tabindex="0"]')!).overflowY)).toBe('hidden');
     f.conflict = conflict;
     await page.getByRole('button', { name: /^(Apply changes|Finish review)$/ }).click();
     await expect.poll(() => puts(f).length).toBe(1);
@@ -284,6 +286,82 @@ for (const conflict of [false, true]) {
     f.observations = { conflict, reviewAfterCompletion: await page.getByRole('button', { name: /^(Apply changes|Finish review)$/ }).count() };
   });
 }
+
+test('narrow humanize review: per-paragraph Accept is reachable by scrolling the review pane', async ({ page }) => {
+  // One 30-line paragraph (no blank lines) gives a single replace card whose
+  // original and suggestion previews both hit their height cap, as in the audit.
+  const original = Array.from({ length: 30 }, (_, i) => `line ${i + 1} of the local story.`).join('\n');
+  const polished = original.replace(/line/g, 'Line');
+  const f = await fixture(page, original);
+  await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: polished }) }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openA(page);
+  await page.locator('#editor-tab').click();
+  await textarea(page).click();
+  await textarea(page).press('ControlOrMeta+a');
+  await page.getByRole('button', { name: 'Humanize', exact: true }).click();
+  const finish = page.getByRole('button', { name: /^(Apply changes|Finish review)$/ });
+  await expect(finish).toBeVisible();
+  const header = page.getByText('Paragraph review', { exact: true });
+  const accept = page.getByRole('button', { name: 'Accept', exact: true });
+  await expect(accept).toHaveCount(1);
+  const pane = header.locator('xpath=ancestor::div[@tabindex="0"][1]');
+  // Resolves once the pane's scrollTop has not changed for 10 consecutive frames.
+  const settledScrollTop = () => pane.evaluate(root => new Promise<number>(resolve => {
+    let last = root.scrollTop;
+    let still = 0;
+    const tick = () => {
+      if (root.scrollTop !== last) { last = root.scrollTop; still = 0; } else if (++still >= 10) { resolve(last); return; }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }));
+  // On a phone the inline diff is 0px high, so opening the review must not scroll the pane.
+  expect(await settledScrollTop()).toBe(0);
+  const geometry = () => accept.evaluate(button => {
+    const root = button.closest('div[tabindex="0"]')!;
+    const b = button.getBoundingClientRect();
+    const r = root.getBoundingClientRect();
+    const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+    return { buttonBottom: b.bottom, rootBottom: r.bottom, scrollTop: root.scrollTop, scrollHeight: root.scrollHeight, clientHeight: root.clientHeight, onTop: !!hit && (hit === button || button.contains(hit)), x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  });
+  const before = await geometry();
+  f.observations.beforeScroll = before;
+  expect(before.scrollHeight, 'precondition: the review card is taller than the pane').toBeGreaterThan(before.clientHeight);
+  expect(before.buttonBottom, 'precondition: Accept starts below the visible pane').toBeGreaterThan(before.rootBottom);
+
+  // Real wheel input from the queue header (outside the preview boxes); no
+  // locator auto-scroll, which could move an overflow-hidden ancestor.
+  const headerBox = await header.boundingBox();
+  await page.mouse.move(headerBox!.x + headerBox!.width / 2, headerBox!.y + headerBox!.height / 2);
+  await page.mouse.wheel(0, 800);
+  await expect.poll(async () => (await geometry()).onTop, { message: 'Accept must become the top element after scrolling' }).toBe(true);
+  const after = await geometry();
+  f.observations.afterScroll = after;
+  expect(after.buttonBottom).toBeLessThanOrEqual(after.rootBottom);
+  await page.mouse.click(after.x, after.y);
+
+  // The last pending card was accepted, so the queue switches to "All" and keeps it visible.
+  await expect(page.getByText('0 pending / 1 total', { exact: true })).toBeVisible();
+  await expect(accept).toBeDisabled();
+  await expect(page.getByTitle('Accepted (1)', { exact: true })).toBeVisible();
+
+  // Tapping a card locates it in the inline diff, which is 0px high on a phone:
+  // that must not pull the pane back to the top. (Accepting the last pending card
+  // rebuilds the list under the "All" filter, so the pane may restart at 0 here.)
+  await page.mouse.move(headerBox!.x + headerBox!.width / 2, headerBox!.y + headerBox!.height / 2);
+  await page.mouse.wheel(0, 800);
+  const beforeLocate = await settledScrollTop();
+  expect(beforeLocate, 'precondition: pane is scrolled').toBeGreaterThan(0);
+  // dispatchEvent instead of click(): Playwright's actionability scroll would move the pane itself.
+  await page.getByText('Paragraph #1', { exact: true }).dispatchEvent('click');
+  expect(await settledScrollTop(), 'pane keeps its position after tapping a card').toBe(beforeLocate);
+
+  await finish.click();
+  await expect.poll(() => puts(f).length).toBe(1);
+  expect(puts(f)[0].body).toMatchObject({ content: polished, change_type: 'ai_edit' });
+  await expect(textarea(page)).toHaveValue(polished);
+});
 
 test('narrow mobile panels retain actual textarea and responsive remount loads saved content', async ({ page }) => {
   const f = await fixture(page);

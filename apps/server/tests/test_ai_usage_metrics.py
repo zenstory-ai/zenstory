@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlmodel import Session, SQLModel, create_engine
 
+from config.datetime_utils import beijing_date
 from models.entities import ChatMessage, ChatSession, Project, User
 from services.features.writing_stats_service import writing_stats_service
 
@@ -297,8 +298,10 @@ def test_ai_usage_metrics():
 
             # Step 10: Test AI usage summary
             print("\n10. Testing AI usage summary...")
+            # The summary uses Beijing calendar days; anchor it to the fixture
+            # day so the result does not depend on the time the suite runs.
             summary = writing_stats_service.get_ai_usage_summary(
-                session, test_user.id, test_project.id
+                session, test_user.id, test_project.id, reference_date=beijing_date(test_day)
             )
             print(f"   Current total sessions: {summary['current']['total_sessions']}")
             print(f"   Current total messages: {summary['current']['total_messages']}")

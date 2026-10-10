@@ -1,4 +1,4 @@
-"""AI 写入的字数按北京自然日计入项目统计（只在读侧从 file_version 计算）。"""
+"""AI 写入的净字数按北京自然日计入项目统计（只在读侧从 file_version 计算）。"""
 
 from datetime import UTC, date, datetime
 from uuid import uuid4
@@ -39,13 +39,20 @@ def _file(db_session: Session, project: Project, file_type: str = "draft", title
     return file
 
 
-def _version(db_session: Session, file: File, words: int, source: str, at_utc: datetime) -> FileVersion:
+def _version(
+    db_session: Session,
+    file: File,
+    words: int,
+    source: str,
+    at_utc: datetime,
+    change_type: str | None = None,
+) -> FileVersion:
     """One saved version of ``words`` CJK characters, stamped at a naive-UTC time."""
     version = FileVersionService().create_version(
         db_session,
         file.id,
         "字" * words,
-        change_type="create" if source == "ai" else "edit",
+        change_type=change_type or ("create" if source == "ai" else "edit"),
         change_source=source,
     )
     version.created_at = at_utc
@@ -79,13 +86,58 @@ def test_author_versions_are_baseline_not_ai_words(db_session):
     assert _ai_words(db_session, project)["today"] == 400
 
 
-def test_ai_shrink_counts_zero_not_negative(db_session):
+def test_ai_shrink_is_net_and_a_period_floors_at_zero(db_session):
     project = _project(db_session)
     chapter = _file(db_session, project)
     _version(db_session, chapter, 1000, "ai", datetime(2026, 10, 10, 1, 0))
     _version(db_session, chapter, 400, "ai", datetime(2026, 10, 10, 2, 0))
 
-    assert _ai_words(db_session, project)["today"] == 1000
+    # Net, like the author's words: the chapter holds 400 AI words, not 1000.
+    assert _ai_words(db_session, project)["today"] == 400
+
+    shrunk = _project(db_session)
+    earlier = _file(db_session, shrunk)
+    _version(db_session, earlier, 1000, "ai", datetime(2026, 10, 1, 4, 0))
+    _version(db_session, earlier, 400, "ai", datetime(2026, 10, 10, 2, 0))
+
+    # A day with only a shortening shows 0, never a negative count.
+    assert _ai_words(db_session, shrunk) == {"today": 0, "this_week": 0, "this_month": 400}
+
+
+def test_accepted_ai_review_counts_as_ai_words(db_session):
+    """Editor 「应用更改」 saves AI review text as ai_edit with source 'user'."""
+    project = _project(db_session)
+    chapter = _file(db_session, project)
+    _version(db_session, chapter, 500, "ai", datetime(2026, 10, 10, 1, 0))
+    _version(db_session, chapter, 524, "user", datetime(2026, 10, 10, 2, 0), change_type="ai_edit")
+
+    assert _ai_words(db_session, project)["today"] == 524
+
+
+def test_ai_edit_review_only_file_counts(db_session):
+    """A file whose only AI version today is an accepted review still contributes."""
+    project = _project(db_session)
+    chapter = _file(db_session, project)
+    _version(db_session, chapter, 300, "user", datetime(2026, 10, 10, 1, 0))
+    _version(db_session, chapter, 320, "user", datetime(2026, 10, 10, 2, 0), change_type="ai_edit")
+
+    assert _ai_words(db_session, project)["today"] == 20
+
+
+def test_ai_words_of_a_new_project_match_its_manuscript(db_session):
+    """Audit r4short: AI create, extend, accepted review, shorten, extend; plus a second file."""
+    project = _project(db_session)
+    chapter = _file(db_session, project, title="正文")
+    _version(db_session, chapter, 6422, "ai", datetime(2026, 10, 10, 1, 0))
+    _version(db_session, chapter, 8243, "ai", datetime(2026, 10, 10, 2, 0), change_type="edit")
+    _version(db_session, chapter, 8267, "user", datetime(2026, 10, 10, 3, 0), change_type="ai_edit")
+    _version(db_session, chapter, 8259, "ai", datetime(2026, 10, 10, 4, 0), change_type="edit")
+    _version(db_session, chapter, 8338, "ai", datetime(2026, 10, 10, 5, 0), change_type="edit")
+    extra = _file(db_session, project, title="番外")
+    _version(db_session, extra, 3030, "ai", datetime(2026, 10, 10, 6, 0))
+
+    # Equal to the two files' word counts: 今日字数 == 总字数 for a same-day project.
+    assert _ai_words(db_session, project)["today"] == 8338 + 3030
 
 
 def test_prev_version_before_period_is_the_baseline(db_session):
