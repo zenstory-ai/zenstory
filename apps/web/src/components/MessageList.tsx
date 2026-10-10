@@ -30,6 +30,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
 import { RoundEndNote } from './RoundEndNote';
 import type { RoundStopOutcome } from '../lib/chatRoundEnd';
+import { isClarificationStop as isClarificationStopItem } from '../lib/nextStep';
 
 /** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
 function UserStoppedNote() {
@@ -576,9 +577,7 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
       if (workflowReason === 'user_stopped') {
         return <UserStoppedNote key={item.id} />;
       }
-      const isClarificationStop =
-        workflowReason === 'clarification_needed'
-        || (!workflowReason && Boolean(workflowQuestion || workflowDetails.length > 0));
+      const isClarificationStop = isClarificationStopItem(item);
 
       if (!isClarificationStop) {
         const stopMessage =
@@ -946,12 +945,10 @@ function Row({
                 return <UserStoppedNote key={`status-${idx}`} />;
               }
               if (card.type === 'workflow_stopped') {
-                const workflowQuestion = (card.question ?? card.message ?? "").trim();
+                const workflowQuestion = card.question?.trim() || card.message?.trim() || "";
                 const workflowContext = (card.context ?? "").trim();
                 const workflowDetails = (card.details ?? []).map((d) => d.trim()).filter(Boolean);
-                const isClarificationStop =
-                  card.reason === 'clarification_needed'
-                  || (!card.reason && Boolean(workflowQuestion || workflowDetails.length > 0));
+                const isClarificationStop = isClarificationStopItem(card);
 
                 if (!isClarificationStop) {
                   const stopMessage =

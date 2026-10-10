@@ -861,6 +861,98 @@ describe('ChatPanel mount smoke', () => {
     mockGetProgress.mockResolvedValue([])
   })
 
+  const clarificationTurn = (id: string, created: string) => ({
+    id, session_id: 'session-1', role: 'assistant', content: '第一章现在还写不了，问题出在大纲本身。',
+    created_at: created,
+    metadata: '{"status_cards":[{"type":"workflow_stopped","reason":"clarification_needed","question":"要我按默认设定先写第一章吗？"}]}',
+  })
+
+  it('does not offer chapter 1 while the AI is waiting for the author to answer its question (history)', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'u-1', session_id: 'session-1', role: 'user', content: '按大纲写第一章正文', created_at: '2026-10-10T03:55:17Z' },
+      clarificationTurn('a-1', '2026-10-10T03:55:18Z'),
+    ] as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(mockGetProgress).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('waits for the history before offering chapter 1, so a pending question is known first', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    let resolveHistory: (value: unknown) => void = () => {}
+    vi.mocked(getRecentMessages).mockImplementationOnce(() => new Promise((resolve) => { resolveHistory = resolve }) as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(mockGetProgress).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+
+    await act(async () => { resolveHistory([clarificationTurn('a-1', '2026-10-10T03:55:18Z')]) })
+    await act(async () => {})
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('offers chapter 1 again once the author answered and the next round ended without a question', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      clarificationTurn('a-1', '2026-10-10T03:55:18Z'),
+      { id: 'u-2', session_id: 'session-1', role: 'user', content: '先补第一章细纲', created_at: '2026-10-10T04:00:00Z' },
+      { id: 'a-2', session_id: 'session-1', role: 'assistant', content: '第一章细纲补好了。', created_at: '2026-10-10T04:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+
+    expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('keeps the offer next to a plain-text AI question that is not a clarification card', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '大纲写好了。要我按这份大纲开始写第一章吗？', created_at: '2026-10-10T04:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+
+    expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
+  it('hides the chapter-1 offer when a live round ends by asking the author a question', async () => {
+    mockGetProgress.mockResolvedValue([
+      { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },
+    ])
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('next-step-card')).toBeInTheDocument()
+
+    const options = capturedUseAgentStream.options as {
+      onWorkflowStopped?: (data: Record<string, unknown>) => void
+      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => Promise<void>
+    }
+    act(() => {
+      options.onWorkflowStopped?.({ reason: 'clarification_needed', question: '要我按默认设定先写第一章吗？' })
+    })
+    await act(async () => {
+      await options.onComplete?.([], null, {})
+    })
+    await act(async () => {})
+    expect(mockGetProgress.mock.calls.length).toBeGreaterThan(1)
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    mockGetProgress.mockResolvedValue([])
+  })
+
   it('keeps the chapter-1 offer hidden after the author dismisses it', async () => {
     mockGetProgress.mockResolvedValue([
       { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: true },

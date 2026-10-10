@@ -49,3 +49,56 @@ export function duplicatesNextStep(suggestion: string): boolean {
   if (!text || PLANNING.test(text) || BEFORE_FIRST_UNIT.test(text)) return false;
   return WRITE_FIRST_UNIT_ZH.test(text) || START_FIRST_UNIT_ZH.test(text) || WRITE_FIRST_UNIT_EN.test(text);
 }
+
+/** Fields a workflow stop carries, live (stream item) or replayed (status card). */
+interface WorkflowStopLike {
+  type: string;
+  reason?: string;
+  question?: string;
+  message?: string;
+  details?: string[];
+}
+
+/**
+ * A workflow stop the chat renders as 「等你回复」: the AI is waiting for the
+ * author's answer. Same rule for live stream items and persisted status cards.
+ */
+export function isClarificationStop(item: WorkflowStopLike): boolean {
+  if (item.type !== "workflow_stopped" || item.reason === "user_stopped") return false;
+  if (item.reason === "clarification_needed") return true;
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const question = text(item.question) || text(item.message);
+  const details = (item.details ?? []).some((d) => text(d));
+  return !item.reason && Boolean(question || details);
+}
+
+const ROUND_END_TYPES = new Set(["workflow_stopped", "workflow_complete", "iteration_exhausted"]);
+
+const lastRoundEnd = <T extends WorkflowStopLike>(items: readonly T[] | undefined): T | undefined =>
+  [...(items ?? [])].reverse().find((item) => ROUND_END_TYPES.has(item.type));
+
+interface ChatMessageLike {
+  role: string;
+  displayItems?: readonly WorkflowStopLike[];
+  statusCards?: readonly WorkflowStopLike[];
+}
+
+/**
+ * True while the latest round ended by asking the author something (a structured
+ * clarification), so the "write chapter 1" card must not compete with that question:
+ * its fixed request would not answer it. Uses the in-flight / just-ended round's
+ * stream items first, then the last saved message (history replay keeps the card).
+ * Plain-text offers like 「要我开始写第一章吗？」 are not clarification stops and keep the card.
+ */
+export function latestRoundAwaitsReply(
+  messages: readonly ChatMessageLike[],
+  streamItems?: readonly WorkflowStopLike[],
+): boolean {
+  const streamEnd = lastRoundEnd(streamItems);
+  if (streamEnd) return isClarificationStop(streamEnd);
+  const last = messages[messages.length - 1];
+  if (!last || last.role !== "assistant") return false;
+  // Same source MessageList renders: the saved timeline when there is one, else the status cards.
+  const end = lastRoundEnd(last.displayItems?.length ? last.displayItems : last.statusCards);
+  return end ? isClarificationStop(end) : false;
+}
