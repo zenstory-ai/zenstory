@@ -530,6 +530,9 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .layer-step { margin: 0; }
 .layer-more { margin: 0; }
 .task-index { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; list-style: none; margin: 20px 0 0; padding: 0; }
+.project-path { margin: 20px 0 8px; }
+.task-index-title { margin: 28px 0 0; font-size: 17px; }
+.project .task-index { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
 .task-index li { margin: 0; min-width: 0; }
 .task-index a { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; height: 100%; min-height: 88px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; }
 .task-index a:hover { border-color: var(--ink); }
@@ -576,7 +579,7 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .term-row a:hover { border-color: var(--ink); }
 .term-row .term-all { border-color: transparent; background: none; font-weight: 600; }
 @media (max-width: 960px) { .task-index { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .learning-path { padding-left: 14px; } .learning-path ol { padding-left: 18px; margin: 8px 0 0; } .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-index a { min-height: 76px; padding: 12px 14px; } .guide-layer { padding-top: 32px; margin-top: 32px; } }
+@media (max-width: 600px) { .project .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .learning-path { padding-left: 14px; } .learning-path ol { padding-left: 18px; margin: 8px 0 0; } .task-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-index a { min-height: 76px; padding: 12px 14px; } .guide-layer { padding-top: 32px; margin-top: 32px; } }
 @media (max-width: 600px) { .topic-grid { grid-template-columns: 1fr; } .topic-card { padding: 20px; } }
 
 .library-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 24px; padding: 20px 0 40px; font-size: 14px; }

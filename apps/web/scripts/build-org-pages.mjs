@@ -653,6 +653,18 @@ const startBlock = (p, own) => {
   </section>`
 }
 
+/**
+ * A project's craft articles as a way in, not a dump: the complete workflow built on this project's
+ * skills (if any), then its creative tasks with how many articles each holds, linking the task pages.
+ */
+const projectCraft = (p, craft) => {
+  const flows = WORKFLOWS.filter((flow) => flow.steps.every((ref) => ref.startsWith(`${p.slug}/`)) && workflowItems(flow).length > 1)
+  const tasks = topics.map((topic) => [topic, craft.filter((a) => topicOf(a) === topic.slug).length]).filter(([, count]) => count)
+  return `<p class="section-lede">${t(`${craft.length} craft articles, each built on a method file in this project's skills.${flows.length ? ' Start with the complete workflow, or open a task.' : ''}`, `共 ${craft.length} 篇写作技法，每篇都依据本项目 skill 里的方法文件。${flows.length ? '可以先走一遍完整创作路径，或按任务进入。' : ''}`)}</p>
+  ${flows.map((flow) => `<div class="learning-path project-path" id="path-${flow.id}"><p class="path-start">${t('Complete workflow', '完整创作路径')}</p><h3>${t(...flow.title)}</h3><ol>${workflowItems(flow).map(skillRow).join('')}</ol></div>`).join('')}
+  <h3 class="task-index-title">${t('By creative task', '按任务查看')}</h3>
+  <ul class="task-index">${tasks.map(([topic, count]) => `<li><a href="/guides/${topic.slug}"><span class="task-name">${esc(pick(topic.title))}</span><span class="task-count">${t(`${count} from ${esc(p.name.en)}`, `${count} 篇`)}</span></a></li>`).join('')}</ul>`
+}
 const projectPage = (p) => {
   const route = `/${p.slug}`
   const title = pick(p.seo.title)
@@ -714,7 +726,7 @@ const projectPage = (p) => {
   ${own.length ? `<section aria-labelledby="guides-h">${heading(2, 'Practical guides', '实用指南', 'guides-h')}
   ${guideList(own)}</section>` : ''}
   ${craft.length ? `<section aria-labelledby="craft-h">${heading(2, 'Writing craft', '写作技法', 'craft-h')}
-  ${topics.filter((topic) => craft.some((a) => topicOf(a) === topic.slug)).map((topic) => `<h3>${esc(pick(topic.title))}</h3>${articleList(craft.filter((a) => topicOf(a) === topic.slug))}`).join('')}</section>` : ''}
+  ${projectCraft(p, craft)}</section>` : ''}
 
   <section aria-labelledby="method-h">
   ${heading(2, 'How it works', '流程', 'method-h')}
@@ -868,7 +880,6 @@ const guidePage = (g) => {
 const articlesOf = (slug) => articles.filter((a) => a.owner === slug && a.langs.includes(LANG))
 /** Guides and craft articles (of one project, or all) on the current language's site. */
 const readingOf = (slug) => [...guides, ...articles.filter((a) => a.langs.includes(LANG))].filter((item) => !slug || item.owner === slug)
-const articleList = (items) => `<ul class="guide-list">${items.map((a) => `<li>${listLink(`/${a.owner}/${a.slug}`, esc(a.title.en ?? ''), esc(a.title.zh))}</li>`).join('')}</ul>`
 
 /** Title of an organization route on the current language's site, for related-reading lists. */
 const routeTitle = (route) => {

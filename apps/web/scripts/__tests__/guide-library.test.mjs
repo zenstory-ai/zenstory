@@ -228,3 +228,23 @@ test('the glossary is reference, not navigation: terms link the article that tea
     }
   }
 })
+
+test('project pages lead into craft by workflow and task instead of listing every article', (t) => {
+  const out=mkdtempSync(join(tmpdir(),'zenstory-project-craft-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const flowOf={'oh-story':'first-chapter','drama-skills':'first-short-drama','novel-to-game':'first-game','video-recap':'footage-recap'}
+  for(const lang of ['en','zh']) for(const [slug,flow] of Object.entries(flowOf)) {
+    const html=readFileSync(join(out,pathOf(lang,`/${slug}`),'index.html'),'utf8')
+    const craft=html.match(/<section aria-labelledby="craft-h">([\s\S]*?)<\/section>/)?.[1]
+    assert.ok(craft,`${lang} /${slug}: missing craft section`)
+    const own=articles.filter((a)=>a.owner===slug && a.langs.includes(lang))
+    // The project's own workflow, then one tile per task holding its articles; no per-article dump.
+    assert.ok(craft.includes(`id="path-${flow}"`),`${lang} /${slug}: missing its workflow`)
+    const tiles=[...craft.matchAll(/<li><a href="([^"]+)"><span class="task-name">/g)].map((m)=>m[1])
+    const tasks=new Set(own.map((a)=>a.topic))
+    assert.deepEqual(new Set(tiles),new Set([...tasks].map((topic)=>pathOf(lang,`/guides/${topic}`))),`${lang} /${slug}: task tiles`)
+    assert.ok((craft.match(/<a href=/g) ?? []).length < 20,`${lang} /${slug}: craft section still lists articles one by one`)
+  }
+})
