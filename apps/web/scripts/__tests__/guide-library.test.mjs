@@ -141,3 +141,37 @@ test('every article belongs to one paginated category; home stays bounded; merge
   }
   for(const item of reading) assert.ok(directory.includes(`](https://zenstory.ai${routeOf(item)})`))
 })
+
+test('the guides index reads in four layers, and every workflow step names its skill and leads to the next step', (t) => {
+  const out=mkdtempSync(join(tmpdir(),'zenstory-layers-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const read=(lang,route)=>readFileSync(join(out,pathOf(lang,route),'index.html'),'utf8')
+  for(const lang of ['en','zh']) {
+    const index=read(lang,'/guides')
+    // Get started → whole workflows → techniques by task → revise and look up, the homepage's knowledge layers in order.
+    const layers=['get-started','learning-paths','browse-topics','revise-and-look-up'].map((id)=>index.indexOf(`<h2 id="${id}">`))
+    assert.ok(layers.every((at,i)=>at>0 && (i===0 || at>layers[i-1])),`${lang}: guide layers out of order ${layers}`)
+    for(const topic of topics) assert.ok(index.includes(`<a href="${pathOf(lang,`/guides/${topic.slug}`)}"><span class="task-name">`),`${lang}: task index misses ${topic.slug}`)
+    const flows=[...index.matchAll(/<div class="learning-path" id="path-([a-z-]+)">([\s\S]*?)<\/ol><\/div>/g)]
+    assert.deepEqual(flows.map((m)=>m[1]),['first-chapter','first-short-drama','first-game','footage-recap'],`${lang}: workflows`)
+    for(const [,id,flow] of flows) {
+      const steps=[...flow.matchAll(/<li><a href="([^"]+)">[\s\S]*?<\/a><code class="step-skill">([a-z0-9-]+)<\/code><\/li>/g)]
+      assert.equal(steps.length,4,`${lang} ${id}: every step is published and names its skill`)
+      steps.forEach(([,href],i)=>{
+        const html=readFileSync(join(out,href,'index.html'),'utf8')
+        assert.ok(html.includes(`<a href="${pathOf(lang,'/guides')}#path-${id}">`),`${lang} ${href}: missing its place in ${id}`)
+        assert.ok(html.includes(lang==='zh' ? `第 ${i+1}/4 步` : `step ${i+1} of 4`),`${lang} ${href}: missing step count`)
+        const next=html.match(/<nav class="path-next"[\s\S]*?<a href="([^"]+)">/)?.[1]
+        assert.equal(next,i<3 ? steps[i+1][1] : `${pathOf(lang,'/guides')}#learning-paths`,`${lang} ${href}: wrong next step`)
+      })
+    }
+  }
+  // Every guide and article says which skill its method comes from, linked at a pinned commit.
+  for(const item of reading) for(const lang of item.langs ?? ['en','zh']) {
+    const strip=read(lang,routeOf(item)).match(/<p class="method-strip">[\s\S]*?<\/p>/)?.[0]
+    assert.ok(strip,`${lang} ${routeOf(item)}: missing method provenance`)
+    assert.match(strip,/class="skill-chip" href="https:\/\/github\.com\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[a-z0-9-]+\/SKILL\.md"/,`${lang} ${routeOf(item)}: skill must link its pinned SKILL.md`)
+  }
+})

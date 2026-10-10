@@ -755,6 +755,58 @@ const guideExample = (text) => `
   ${text.split(/\n{2,}/).map(paragraph => `<p>${esc(paragraph)}</p>`).join('\n  ')}
 </section>`
 
+/**
+ * Complete workflows on /guides, grouped by what the writer starts with (the homepage's material paths).
+ * Steps are `owner/slug` of guides or articles; every step page shows its place in the workflow and the next step.
+ */
+const WORKFLOWS = [
+  { id: 'first-chapter', start: ['From an idea', '从一个想法开始'], title: ['Write your first chapter', '写出第一章'], steps: ['oh-story/claude-code-novel-writing', 'oh-story/novel-outline-template', 'oh-story/novel-opening', 'oh-story/revise-ai-prose'] },
+  { id: 'first-short-drama', start: ['From a novel', '已经有小说'], title: ['Make your first short-drama episode', '做出第一集短剧'], steps: ['drama-skills/novel-to-short-drama', 'drama-skills/episode-outline-template', 'drama-skills/script-to-storyboard', 'drama-skills/character-consistency'] },
+  { id: 'first-game', start: ['From a novel', '已经有小说'], title: ['Build a playable game prototype', '做出可玩的游戏原型'], steps: ['novel-to-game/quick-start', 'novel-to-game/choose-gameplay', 'novel-to-game/prototype-a-story-driven-game-vertical-slice', 'novel-to-game/playtest-a-novel-game-adaptation'] },
+  { id: 'footage-recap', start: ['From footage', '已经有视频'], title: ['Turn footage into a recap', '把视频剪成解说'], steps: ['video-recap/video-to-narration', 'video-recap/recap-script', 'video-recap/original-audio-and-narration', 'video-recap/capcut-draft'] },
+]
+const itemRoute = (item) => `/${item.owner}/${item.slug}`
+/** Published steps of a workflow in this language (test fixtures swap the article library; the real one is checked in guide-library tests). */
+const workflowItems = (flow) => flow.steps.map((ref) => readingOf().find((candidate) => `${candidate.owner}/${candidate.slug}` === ref)).filter(Boolean)
+/**
+ * The skill behind a guide or article and the method files it cites. Articles name them; guides cite
+ * them as markdown links in their sources. Every link points at a pinned commit of the owner repository.
+ */
+const methodOf = (item) => {
+  if (item.skill) return { name: item.skill.name, url: item.skill.url, files: (item.sources ?? []).map((source) => ({ label: pick(source.label), url: source.url })) }
+  const links = [...pick(item.sources).join('\n').matchAll(/\[([^\]]+)\]\((https:\/\/github\.com\/[^)\s]+)\)/g)].map(([, label, url]) => ({ label: label.replace(/`/g, ''), url }))
+  // A guide that cites only a skill's reference files still names that skill: its SKILL.md at the same pinned commit.
+  const pinned = links.filter((link) => /\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[a-z0-9-]+\//.test(link.url))
+  if (!pinned.length) return null
+  const skill = pinned.find(({ url }) => /\/SKILL\.md(?:#|$)/.test(url)) ?? pinned[0]
+  const [, base, name] = skill.url.match(/^(.*\/skills\/([a-z0-9-]+))\//)
+  return { name, url: `${base}/SKILL.md`, files: pinned.filter((link) => !/\/SKILL\.md(?:#|$)/.test(link.url)) }
+}
+const dot = '<span class="sep" aria-hidden="true"> · </span>'
+/** Head of a guide or article: the skill whose method it teaches and the first method files, linked at their pinned commit. */
+const methodStrip = (item) => {
+  const method = methodOf(item)
+  if (!method) return ''
+  return `<p class="method-strip"><span class="method-label">${t('Method from', '方法来自')}</span><a class="skill-chip" href="${esc(method.url)}"><code>${esc(method.name)}</code></a>${method.files.slice(0, 2).map((file) => `${dot}<a href="${esc(file.url)}">${esc(file.label)}</a>`).join('')}</p>`
+}
+/** The same provenance as a plain line inside a list row (the row itself is already a link). */
+const methodFacts = (item) => {
+  const method = methodOf(item)
+  return method ? `<p class="method-facts"><code>${esc(method.name)}</code>${method.files.slice(0, 2).map((file) => `${dot}${esc(file.label)}`).join('')}</p>` : ''
+}
+/** Where a step page sits in a workflow: a line at the top, and the next step (or the way back) at the end. */
+const workflowNav = (item, where) => WORKFLOWS.map((flow) => {
+  const items = workflowItems(flow)
+  const index = items.indexOf(item)
+  if (index < 0) return ''
+  const next = items[index + 1]
+  const place = t(`${flow.title[0]}, step ${index + 1} of ${items.length}`, `${flow.title[1]} · 第 ${index + 1}/${items.length} 步`)
+  if (where === 'top') return `<p class="path-step"><a href="/guides#path-${flow.id}">${t('Workflow', '创作路径')}${dot}${place}</a>${next ? `<a class="path-step-next" href="${itemRoute(next)}">${t('Next step', '下一步')}${arrowGlyph}</a>` : ''}</p>`
+  return `<nav class="path-next" aria-label="${t('Workflow', '创作路径')}"><p class="path-next-place">${place}</p>${next
+    ? `<a href="${itemRoute(next)}"><span class="path-next-label">${t('Next step', '下一步')}</span><span class="guide-title">${esc(pick(next.title))}</span>${arrowGlyph}</a>`
+    : `<a href="/guides#learning-paths"><span class="path-next-label">${t('Workflow complete', '这条路径走完了')}</span><span class="guide-title">${t('See the other workflows', '看看其他创作路径')}</span>${arrowGlyph}</a>`}</nav>`
+}).join('')
+
 const guidePage = (g) => {
   const owner = projects.find((p) => p.slug === g.owner)
   const route = `/${g.owner}/${g.slug}`
@@ -771,7 +823,9 @@ const guidePage = (g) => {
   <p class="eyebrow"><a href="/guides/${topicOf(g)}">${esc(pick(topics.find((topic) => topic.slug === topicOf(g)).title))}</a></p>
   <h1>${esc(pick(g.title))}</h1>
   <p class="facts">${t(`${esc(owner.name.en)} · Updated ${esc(g.checked_on)}`, `${esc(owner.name.en)} · 更新于 ${esc(g.checked_on)}`)}</p>
+  ${workflowNav(g, 'top')}
   ${pair(`<p>${rich(g.answer.en)}</p>`, `<p>${rich(g.answer.zh)}</p>`, 'answer')}
+  ${methodStrip(g)}
   <p class="actions guide-actions"><a class="crumb" href="/${owner.slug}">${t('Part of', '所属项目')} <b>${esc(owner.name.en)}</b>${arrowGlyph}</a><a class="crumb" href="${owner.github}">${t('Source on GitHub', '在 GitHub 查看源码')}${extGlyph}</a></p>
   </header>
   <nav class="guide-contents" aria-label="${t('On this page', '本页导航')}">
@@ -801,6 +855,7 @@ const guidePage = (g) => {
   ${pair(list(g.verification.en), list(g.verification.zh), 'cols')}
   ${heading(2, 'Sources', '来源', 'sources')}
   ${pair(list(g.sources.en), list(g.sources.zh), 'cols')}
+  ${workflowNav(g, 'end')}
   <p class="actions guide-end"><a class="btn ghost" href="/${owner.slug}">${t(`More about ${esc(owner.name.en)}`, `了解 ${esc(owner.name.en)}`)}${arrowGlyph}</a><a class="btn ghost" href="/guides">${t('All guides', '全部指南')}${arrowGlyph}</a></p>
   </div>
 </article>`
@@ -865,7 +920,9 @@ const articlePage = (a) => {
   <p class="eyebrow"><a href="/guides/${topicOf(a)}">${esc(pick(topics.find((topic) => topic.slug === topicOf(a)).title))}</a></p>
   <h1>${esc(pick(a.title))}</h1>
   <p class="facts">${t(`${esc(owner.name.en)} · Updated ${esc(a.updated_on)}`, `${esc(owner.name.en)} · 更新于 ${esc(a.updated_on)}`)}</p>
+  ${workflowNav(a, 'top')}
   <div class="pair answer"><div class="l-${LANG}"${zhMark}>${md(pick(a.answer))}</div></div>
+  ${methodStrip(a)}
   </header>
   <nav class="guide-contents" aria-label="${t('On this page', '本页导航')}">
     <p><b>${t('On this page', '本页导航')}</b></p>
@@ -886,6 +943,7 @@ const articlePage = (a) => {
   ${a.sources?.length ? `<p>${t('Read the method:', '查看具体方法：')} ${a.sources.map((source) => `<a href="${esc(source.url)}">${esc(pick(source.label))}</a>`).join(' · ')}</p>` : ''}
   <p class="actions"><a class="btn ghost" href="/${owner.slug}">${t(`About ${esc(owner.name.en)}`, `了解 ${esc(owner.name.en)}`)}${arrowGlyph}</a><a class="btn ghost" href="${skillUrl}">${t(`The ${esc(a.skill.name)} skill on GitHub`, `在 GitHub 查看 ${esc(a.skill.name)}`)}${extGlyph}</a></p>
   </section>
+  ${workflowNav(a, 'end')}
   ${related.length ? `<section aria-labelledby="related">
   <h2 id="related">${t('Related reading', '相关阅读')}</h2>
   <ul class="guide-list">${related.map((r) => { const label = relatedLabel(r); return `<li>${listLink(r, label, label)}</li>` }).join('')}</ul>
@@ -905,25 +963,27 @@ const topicFeatured = (topic) => {
   const first = (topic.featured ?? []).map((slug) => own.find((item) => item.slug === slug)).filter(Boolean)
   return [...first, ...own.filter((item) => !first.includes(item))].slice(0, 3)
 }
-const topicCards = (withLinks = true) => `<div class="topic-grid">${topics.filter((topic) => topicReading(topic).length).map((topic) => `
-<section class="topic-card" aria-labelledby="topic-${topic.slug}">
-  <h3 id="topic-${topic.slug}"><a href="/guides/${topic.slug}">${esc(pick(topic.title))}${arrowGlyph}</a></h3>
-  <p>${esc(pick(topic.description))}</p>
-  ${withLinks ? guideList(topicFeatured(topic)) : ''}
-  <a class="topic-more" href="/guides/${topic.slug}">${t(`See ${topicReading(topic).length} guides`, `查看 ${topicReading(topic).length} 篇文章`)}${arrowGlyph}</a>
-</section>`).join('')}</div>`
-const libraryList = (items) => `<ul class="reading-list">${items.map((item) => `<li>${guideLink(item)}<p>${esc(item.description ? pick(item.description) : summary(pick(item.answer)))}</p></li>`).join('')}</ul>`
-const learningPaths = () => {
-  const paths = [
-    ['Write your first chapter', '写出第一章', ['claude-code-novel-writing', 'novel-outline-template', 'novel-opening', 'revise-ai-prose']],
-    ['Make your first short drama', '做出第一集短剧', ['novel-to-short-drama', 'episode-outline-template', 'script-to-storyboard', 'character-consistency']],
-    ['Turn footage into a recap', '把视频剪成解说', ['video-to-narration', 'recap-script', 'original-audio-and-narration', 'capcut-draft']],
-  ]
-  return `<section aria-labelledby="learning-paths" data-library-browse><h2 id="learning-paths">${t('Start with a complete workflow', '先走完一条创作路径')}</h2><div class="learning-paths">${paths.map(([en, zh, slugs]) => {
-    const items = slugs.map((slug) => readingOf().find((item) => item.slug === slug)).filter(Boolean)
-    return items.length ? `<div class="learning-path"><h3>${t(en, zh)}</h3><ol>${items.map((item) => `<li>${guideLink(item)}</li>`).join('')}</ol></div>` : ''
-  }).join('')}</div></section>`
+const libraryList = (items) => `<ul class="reading-list">${items.map((item) => `<li>${guideLink(item)}<p>${esc(item.description ? pick(item.description) : summary(pick(item.answer)))}</p>${methodFacts(item)}</li>`).join('')}</ul>`
+/** The four workflows, each under the material it starts from; every step names the skill whose method it teaches. */
+/** A guide row that also names the skill behind it (the row link and the skill tag, not nested). */
+const skillRow = (item) => `<li>${guideLink(item)}${methodOf(item) ? `<code class="step-skill">${esc(methodOf(item).name)}</code>` : ''}</li>`
+const skillList = (items) => `<ul class="guide-list skill-list">${items.map(skillRow).join('')}</ul>`
+const learningPaths = () => `<div class="learning-paths">${WORKFLOWS.filter((flow) => workflowItems(flow).length > 1).map((flow) => `<div class="learning-path" id="path-${flow.id}"><p class="path-start">${t(...flow.start)}</p><h3>${t(...flow.title)}</h3><ol>${workflowItems(flow).map(skillRow).join('')}</ol></div>`).join('')}</div>`
+/** All creative tasks as compact tiles: name and how many guides it holds. */
+const taskIndex = () => `<ul class="task-index">${topics.filter((topic) => topicReading(topic).length).map((topic) => `<li><a href="/guides/${topic.slug}"><span class="task-name">${esc(pick(topic.title))}</span><span class="task-count">${t(`${topicReading(topic).length} guides`, `${topicReading(topic).length} 篇`)}</span></a></li>`).join('')}</ul>`
+/** /guides reads in the homepage's four knowledge layers, in order: get started → whole workflows → techniques by task → revise and look up. */
+const GUIDE_LAYERS = [
+  ['get-started', 'Get started', '入门'],
+  ['learning-paths', 'Complete workflows', '完整创作路径'],
+  ['browse-topics', 'Go deeper by task', '按任务深入'],
+  ['revise-and-look-up', 'Revise and look up', '改稿与查询'],
+]
+const layerHead = (index, lede) => {
+  const [id, en, zh] = GUIDE_LAYERS[index]
+  return `<p class="layer-step">${String(index + 1).padStart(2, '0')} / ${String(GUIDE_LAYERS.length).padStart(2, '0')}</p><h2 id="${id}">${t(en, zh)}</h2><p class="section-lede">${lede}</p>`
 }
+const topicBySlug = (slug) => topics.find((topic) => topic.slug === slug)
+const topicMore = (topic) => `<a class="topic-more" href="/guides/${topic.slug}">${t(`All ${topicReading(topic).length} guides in ${esc(pick(topic.title))}`, `${esc(pick(topic.title))}：全部 ${topicReading(topic).length} 篇`)}${arrowGlyph}</a>`
 
 const guidesIndex = () => {
   const route = '/guides'
@@ -931,27 +991,48 @@ const guidesIndex = () => {
   const description = t('Find practical guides by creative task: novel outlines, characters, revision, short drama, AI video, interactive games and video recaps.', '按创作任务查找实用指南：小说大纲、人物对白、去AI味、短剧剧本、AI 视频、互动游戏与视频解说。附模板、原创案例和 skill 方法来源。')
   const groups = topics.filter((topic) => topicReading(topic).length)
   const ld = [orgNode, { '@type':'ItemList', name:t('Writing and adaptation topics','创作与改编主题'), url:U(route), itemListElement:groups.map((topic,i)=>({'@type':'ListItem',position:i+1,name:pick(topic.title),url:U(`/guides/${topic.slug}`)})) }, breadcrumb([['ZenStory AI',U('/')],[t('Guides','指南'),U(route)]])]
+  const starter = topicBySlug('getting-started')
+  const revision = topicBySlug('revision')
   const body = `
 <article class="guides-index">
   <header class="page-hero"><div class="wrap">
     <p class="eyebrow">${t('Writing and adaptation', '写作与改编')}</p>
     <h1>${t('What are you working on?', '你正在写什么、做什么？')}</h1>
-    <p class="lede">${t('Find a method you can use today, with a template, an original example, and the skill behind it.', '按你正在遇到的问题找方法。文章提供模板、原创示例，以及对应的 skill 方法来源。')}</p>
+    <p class="lede">${t('Go from a first draft to revision one layer at a time. Every method comes from a file in our open-source skills, with a template, an original example and the source link.', '从第一稿到改稿，一层层往下走。每篇方法都来自开源 skill 里的具体文件，附模板、原创示例和来源链接。')}</p>
     <form class="guide-search" data-guide-search hidden role="search">
       <label for="guide-query">${t('Search all guides', '搜索全部指南')}</label>
       <div class="guide-search-controls"><input type="search" id="guide-query" name="q" placeholder="${t('Try dialogue, outline, subtitles…','试试：大纲、对白、字幕……')}" autocomplete="off"><button type="reset">${t('Clear','清空')}</button></div>
-      <p data-search-status role="status" aria-live="polite" data-count="${t('guides found','篇结果')}" data-empty="${t('No guides found. Try fewer words or browse a topic below.','没有匹配的文章。试试更短的关键词，或从下方分类浏览。')}"></p>
+      <p data-search-status role="status" aria-live="polite" data-count="${t('guides found','篇结果')}" data-related="${t('No exact match. {n} related guides:','没有完全匹配，下面是 {n} 篇相关文章：')}" data-empty="${t('No guides found. Try fewer words or browse a layer below.','没有匹配的文章。试试更短的关键词，或从下方按层浏览。')}"></p>
     </form>
-    <noscript><p>${t('Browse the topics below to find a guide.', '从下方分类进入完整文章列表。')}</p></noscript>
+    <noscript><p>${t('Browse the layers below to find a guide.', '从下方各层进入完整文章列表。')}</p></noscript>
+    <nav class="layer-jump" aria-label="${t('Guide layers', '指南层次')}"><ol>${GUIDE_LAYERS.map(([id, en, zh], i) => `<li><a href="#${id}"><span class="layer-n">${String(i + 1).padStart(2, '0')}</span>${t(en, zh)}</a></li>`).join('')}</ol></nav>
   </div></header>
   <div class="wrap page-body wide">
-    ${learningPaths()}
-    <section aria-labelledby="browse-topics" data-library-browse><h2 id="browse-topics">${t('Browse by creative task','按创作任务浏览')}</h2>${topicCards()}</section>
+    <section class="guide-layer" aria-labelledby="get-started" data-library-browse>
+      ${layerHead(0, t('Choose where to write and make a first draft.', '选一个写作环境，写出第一稿。'))}
+      ${skillList(topicFeatured(starter))}
+      <p class="layer-more">${topicMore(starter)}</p>
+      <p class="path-direct"><a href="${appHref(LANG, '/register', 'org_guides_start')}">${t('No agent to install? Write in the browser workbench', '不装 Agent，在网页工作台里写')}${extGlyph}</a></p>
+    </section>
+    <section class="guide-layer" aria-labelledby="learning-paths" data-library-browse>
+      ${layerHead(1, t('Pick by what you already have. Each step names the skill behind it, and each step page leads to the next.', '按你手上已有的材料选一条。每一步都标出背后的 skill，读完一步，页面会带你到下一步。'))}
+      ${learningPaths()}
+    </section>
+    <section class="guide-layer" aria-labelledby="browse-topics" data-library-browse>
+      ${layerHead(2, t('Stuck on something specific? Start from one of the creative tasks.', '遇到具体问题时，从下面的创作任务进入。'))}
+      ${taskIndex()}
+    </section>
+    <section class="guide-layer" aria-labelledby="revise-and-look-up" data-library-browse>
+      ${layerHead(3, t('Check the result, fix what drifted, and look up the terms.', '检查结果，修正跑偏的地方，查不懂的行话。'))}
+      ${skillList(topicFeatured(revision))}
+      <p class="layer-more">${topicMore(revision)}</p>
+    </section>
     <section data-search-results hidden aria-labelledby="search-results"><h2 id="search-results">${t('Search results','搜索结果')}</h2>
       <ul class="reading-list">${readingOf().map((item)=>{
         const topic=topics.find((candidate)=>candidate.slug===topicOf(item));const project=projects.find((candidate)=>candidate.slug===item.owner)
         const desc=item.description ? pick(item.description) : summary(pick(item.answer))
-        return `<li data-search-text="${esc([pick(item.title),item.seo_title ? pick(item.seo_title) : '',desc,pick(topic.title),project.name.en].join(' '))}">${guideLink(item)}<p>${esc(desc)}</p><span class="facts">${esc(pick(topic.title))} · ${esc(project.name.en)}</span></li>`
+        const method=methodOf(item)
+        return `<li data-search-title="${esc([pick(item.title),item.seo_title ? pick(item.seo_title) : ''].join(' '))}" data-search-body="${esc([desc,method ? [method.name,...method.files.map((file)=>file.label)].join(' ') : ''].join(' '))}" data-search-topic="${esc([pick(topic.title),project.name.en].join(' '))}">${guideLink(item)}<p>${esc(desc)}</p><span class="facts">${esc(pick(topic.title))} · ${esc(project.name.en)}</span></li>`
       }).join('')}</ul>
     </section>
   </div>
