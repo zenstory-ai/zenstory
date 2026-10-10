@@ -792,6 +792,10 @@ html[data-lang="zh"] [data-page="home"] .home-paths h3 { letter-spacing: 0; }
 [data-page="home"] .path-branches .branch-tool { font: 500 12.5px/1.4 var(--mono); letter-spacing: .02em; color: var(--accent-text); }
 [data-page="home"] .home-paths .path-tools { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: auto 0 0; padding-top: 16px; border-top: 1px dashed var(--rule-strong); font-size: 14px; color: var(--muted); }
 [data-page="home"] .home-paths :is(ol, .path-branches) + .path-tools { margin-top: 20px; }
+[data-page="home"] .home-paths .path-direct { margin: 14px 0 0; }
+[data-page="home"] .home-paths .path-direct a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--rule-strong); border-radius: 12px; background: var(--paper); color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.35; text-decoration: none; transition: border-color .15s ease; }
+[data-page="home"] .home-paths .path-direct a:hover { border-color: var(--ink); }
+[data-page="home"] .home-paths .path-direct .arrow { flex: none; color: var(--muted); }
 [data-page="home"] .path-tools-label { font: 500 12px/1.4 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
 html[data-lang="zh"] [data-page="home"] .path-tools-label { font-size: 13px; letter-spacing: .04em; text-transform: none; }
 [data-page="home"] .path-tools a { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }

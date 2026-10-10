@@ -508,6 +508,10 @@ const pathTools = (slugs) => {
   const list = slugs.map((slug) => projects.find((p) => p.slug === slug))
   return `<p class="path-tools"><span class="path-tools-label">${t('Start with', '起步工具')}</span>${list.map((p) => `<a href="#tool-${p.slug}">${toolName(p)}</a>`).join(`<span class="path-tools-or">${t('or', '或')}</span>`)}</p>`
 }
+/** A path the browser workbench can start: one direct action into its signup, for visitors with no agent to install (on a phone, say). */
+const workbenchStart = (tools) => (tools.includes('workbench')
+  ? `<p class="path-direct"><a href="${appHref(LANG, '/register', 'org_home_path')}">${t('No agent to install? Start writing in your browser', '不装 Agent，在浏览器里直接开写')}${extGlyph}</a></p>`
+  : '')
 /** Where a tool row's setup link lands: the project page's install-and-entry steps when the project has them. */
 const setupLink = (p) => (p.install && p.entry
   ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}</a>`
@@ -569,7 +573,7 @@ const homePage = () => {
       ${heading(2, 'Start with what you have', phrases('你手上有什么，', '就从哪里开始'), 'start-h')}
       <p class="section-lede">${t('Pick one and follow the steps.', '选一条，照步骤做。')}</p>
     </header>
-    <div class="learning-paths home-paths">${paths.map(([number, en, zh, desc, descZh, slugs, labels, tools]) => `<article class="learning-path"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${homeReadingLinks(slugs, labels, number === '02')}${pathTools(tools)}</article>`).join('')}</div>
+    <div class="learning-paths home-paths">${paths.map(([number, en, zh, desc, descZh, slugs, labels, tools]) => `<article class="learning-path"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${homeReadingLinks(slugs, labels, number === '02')}${pathTools(tools)}${workbenchStart(tools)}</article>`).join('')}</div>
   </div></section>
   <section class="band" aria-labelledby="choose-h"><div class="wrap">
     <header class="section-head">

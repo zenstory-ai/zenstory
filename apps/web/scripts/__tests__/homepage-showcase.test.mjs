@@ -372,6 +372,16 @@ test('homepage offers three crawlable paths for the visitor’s three input stat
   }
 })
 
+test('the idea path lets a visitor with no agent start writing in the browser workbench', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const paths = elementsWithClass(section(html, 'start-h'), 'learning-path')
+    const signup = `https://app.zenstory.ai/register?lang=${lang}&amp;source=org_home_path`
+    assert.equal(paths[0].split(`href="${signup}"`).length - 1, 1, `${lang}: the idea path needs one direct workbench start`)
+    // The workbench writes novels and scripts; adaptation and recap paths start with their skill packs.
+    for (const path of paths.slice(1)) assert.ok(!path.includes(signup), `${lang}: only paths the workbench can start offer it`)
+  }
+})
+
 test('manuscript path keeps continuation ordered and presents drama or game as alternatives', () => {
   for (const [lang, html] of Object.entries(pages)) {
     const paths = elementsWithClass(section(html, 'start-h'), 'learning-path')
