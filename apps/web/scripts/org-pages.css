@@ -581,6 +581,8 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .path-next a:hover { color: var(--accent-text); }
 .path-next-label { font-size: 13px; color: var(--accent-text); }
 .path-next a .arrow { margin-left: auto; }
+/* Quoted code lines (sample formats, JSON excerpts) read as one block, not as spaced paragraphs. */
+.guide-body blockquote > p:has(> code:only-child) { margin: 0 0 4px; }
 /* Glossary: a term links the article that teaches it; /guides lists the terms as its reference row. */
 .term-howto { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 18px 0 8px; padding: 14px 16px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface); }
 .term-howto a { display: inline-flex; gap: 8px; color: var(--ink); font-weight: 600; text-decoration: none; }
