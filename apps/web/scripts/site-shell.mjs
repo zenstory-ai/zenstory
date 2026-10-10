@@ -56,16 +56,36 @@ export const extGlyph = '<span class="arrow" aria-hidden="true">↗</span>'
 // Reveals the copy buttons only when a clipboard exists.
 export const copyScript = `<script>(function(){if(navigator.clipboard&&navigator.clipboard.writeText){var c=document.querySelectorAll('button.copy');for(var j=0;j<c.length;j++){c[j].hidden=false;c[j].addEventListener('click',function(){var s=this;if(!(navigator.clipboard&&navigator.clipboard.writeText))return;navigator.clipboard.writeText(s.getAttribute('data-copy')).then(function(){var l=s.querySelector('.copy-idle'),d=s.querySelector('.copy-done');l.hidden=true;d.hidden=false;setTimeout(function(){l.hidden=false;d.hidden=true},1600)},function(){})})}}})()</script>`
 
-/** Progressive enhancement: ordinary topic links work without this script. */
+/**
+ * Progressive enhancement: ordinary topic links work without this script. Ranks matches: a word found
+ * in a title outranks one found in a description; topic and project names only count for a word that
+ * matches no title or description. Question phrasing (怎么写开头, how to …) and a few writer synonyms
+ * (拆文/拆书, 开头/开篇, 对白/台词) are folded in; with no full match, the closest guides are listed.
+ */
 export const guideSearchScript = `<script>(function(){
 var form=document.querySelector('[data-guide-search]');if(!form)return;
-var input=form.querySelector('input'),status=form.querySelector('[data-search-status]'),results=document.querySelector('[data-search-results]'),browse=document.querySelectorAll('[data-library-browse]'),rows=results.querySelectorAll('[data-search-text]');
-function normalize(value){return value.normalize('NFKC').toLocaleLowerCase().trim();}
-function update(){var query=normalize(input.value),terms=query.split(/\\s+/).filter(Boolean),count=0;
-for(var i=0;i<rows.length;i++){var text=normalize(rows[i].getAttribute('data-search-text')),match=terms.every(function(term){return text.indexOf(term)!==-1});rows[i].hidden=!match;if(match)count++;}
-results.hidden=!query;for(var j=0;j<browse.length;j++)browse[j].hidden=!!query&&count>0;
-status.textContent=!query?'':count?count+' '+status.getAttribute('data-count'):status.getAttribute('data-empty');
-var url=new URL(location.href);if(query)url.searchParams.set('q',input.value.trim());else url.searchParams.delete('q');history.replaceState(null,'',url.pathname+url.search+url.hash);}
+var input=form.querySelector('input'),status=form.querySelector('[data-search-status]'),results=document.querySelector('[data-search-results]'),ul=results.querySelector('ul'),browse=document.querySelectorAll('[data-library-browse]');
+var FILLER=/怎么样|怎么|如何|怎样|为什么|什么|哪些|哪个|能不能|可以|请问|一下|吗|呢|吧|啊|的|了/g;
+var STOP={how:1,to:1,a:1,an:1,the:1,do:1,i:1,my:1,for:1,in:1,of:1,with:1,what:1,is:1,and:1,or:1,write:1};
+var ALIAS={'拆文':['拆书','拆解'],'拆书':['拆文','拆解'],'开头':['开篇','黄金三章','第一章'],'开篇':['开头','黄金三章'],'扫榜':['榜单'],'对白':['对话','台词'],'对话':['对白','台词'],'台词':['对白','对话'],'人设':['人物','角色'],'角色':['人物','人设'],'人物':['角色','人设'],'剪映':['capcut'],'capcut':['剪映'],'卡文':['写不下去'],'续写':['接着写'],'opening':['first chapter','hook'],'dialogue':['dialog'],'storyboard':['shot list']};
+function norm(v){return (v||'').normalize('NFKC').toLocaleLowerCase();}
+var data=[].slice.call(ul.children).map(function(row,i){return {row:row,i:i,title:norm(row.getAttribute('data-search-title')),body:norm(row.getAttribute('data-search-body')),topic:norm(row.getAttribute('data-search-topic'))};});
+function words(q){var ws=norm(q).replace(FILLER,' ').split(/[\\s,，。？?！!、;；:：]+/).map(function(w){return /^[写做改用学找][\\u4e00-\\u9fff]{2,}$/.test(w)?w.slice(1):w;}).filter(function(w){return w&&!STOP[w];}),multi=ws.filter(function(w){return !/^[\\u4e00-\\u9fff]$/.test(w);});return multi.length?multi:ws;}
+function hit(text,w){var f=[w].concat(ALIAS[w]||[]);for(var k=0;k<f.length;k++)if(text.indexOf(f[k])!==-1)return true;return false;}
+function strong(d,w){return hit(d.title,w)?10:hit(d.body,w)?3:0;}
+function grams(list){var out=[];list.forEach(function(w){if(/^[\\u4e00-\\u9fff]{3,}$/.test(w)){for(var k=0;k+2<=w.length;k++)out.push(w.slice(k,k+2));}else out.push(w);});return out;}
+function update(){
+var raw=input.value.trim(),list=words(raw),ranked=[],related=false;
+if(list.length){
+var weak=list.map(function(w){return !data.some(function(d){return strong(d,w);});});
+data.forEach(function(d){var s=0;for(var k=0;k<list.length;k++){var v=strong(d,list[k])||(weak[k]&&hit(d.topic,list[k])?1:0);if(!v)return;s+=v;}ranked.push({d:d,s:s});});
+if(!ranked.length){related=true;var g=grams(list);data.forEach(function(d){var s=0;g.forEach(function(w){s+=strong(d,w);});if(s)ranked.push({d:d,s:s});});}
+}
+ranked.sort(function(a,b){return b.s-a.s||a.d.i-b.d.i;});if(related)ranked=ranked.slice(0,20);
+data.forEach(function(d){d.row.hidden=true;});ranked.forEach(function(r){r.d.row.hidden=false;ul.appendChild(r.d.row);});
+results.hidden=!raw;for(var j=0;j<browse.length;j++)browse[j].hidden=!!raw&&ranked.length>0;
+status.textContent=!raw?'':!ranked.length?status.getAttribute('data-empty'):related?status.getAttribute('data-related').replace('{n}',ranked.length):ranked.length+' '+status.getAttribute('data-count');
+var url=new URL(location.href);if(raw)url.searchParams.set('q',raw);else url.searchParams.delete('q');history.replaceState(null,'',url.pathname+url.search+url.hash);}
 form.addEventListener('submit',function(event){event.preventDefault();update();});input.addEventListener('input',update);
 form.addEventListener('reset',function(){input.value='';update();input.focus();});
 window.addEventListener('popstate',function(){input.value=new URL(location.href).searchParams.get('q')||'';update();});

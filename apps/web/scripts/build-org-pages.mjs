@@ -1005,7 +1005,7 @@ const guidesIndex = () => {
       <p data-search-status role="status" aria-live="polite" data-count="${t('guides found','篇结果')}" data-related="${t('No exact match. {n} related guides:','没有完全匹配，下面是 {n} 篇相关文章：')}" data-empty="${t('No guides found. Try fewer words or browse a layer below.','没有匹配的文章。试试更短的关键词，或从下方按层浏览。')}"></p>
     </form>
     <noscript><p>${t('Browse the layers below to find a guide.', '从下方各层进入完整文章列表。')}</p></noscript>
-    <nav class="layer-jump" aria-label="${t('Guide layers', '指南层次')}"><ol>${GUIDE_LAYERS.map(([id, en, zh], i) => `<li><a href="#${id}"><span class="layer-n">${String(i + 1).padStart(2, '0')}</span>${t(en, zh)}</a></li>`).join('')}</ol></nav>
+    <nav class="layer-jump" data-library-browse aria-label="${t('Guide layers', '指南层次')}"><ol>${GUIDE_LAYERS.map(([id, en, zh], i) => `<li><a href="#${id}"><span class="layer-n">${String(i + 1).padStart(2, '0')}</span>${t(en, zh)}</a></li>`).join('')}</ol></nav>
   </div></header>
   <div class="wrap page-body wide">
     <section class="guide-layer" aria-labelledby="get-started" data-library-browse>
@@ -1033,7 +1033,7 @@ const guidesIndex = () => {
         const desc=item.description ? pick(item.description) : summary(pick(item.answer))
         const method=methodOf(item)
         return `<li data-search-title="${esc([pick(item.title),item.seo_title ? pick(item.seo_title) : ''].join(' '))}" data-search-body="${esc([desc,method ? [method.name,...method.files.map((file)=>file.label)].join(' ') : ''].join(' '))}" data-search-topic="${esc([pick(topic.title),project.name.en].join(' '))}">${guideLink(item)}<p>${esc(desc)}</p><span class="facts">${esc(pick(topic.title))} · ${esc(project.name.en)}</span></li>`
-      }).join('')}</ul>
+      }).join('')}${glossary.map((g)=>`<li data-search-title="${esc(`${g.term} ${g.bridge}`)}" data-search-body="${esc(pick(g.definition))}" data-search-topic="${esc(t('Glossary','术语表'))}"><a href="/glossary/${g.slug}"><span class="guide-title"${LANG === 'en' ? ' lang="zh-CN"' : ''}>${esc(g.term)}</span>${arrowGlyph}</a><p>${esc(summary(pick(g.definition)))}</p><span class="facts">${t('Glossary term','术语')} · ${esc(projects.find((p)=>p.slug===g.owner)?.name.en ?? '')}</span></li>`).join('')}</ul>
     </section>
   </div>
 </article>`

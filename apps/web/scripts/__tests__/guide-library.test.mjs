@@ -175,3 +175,34 @@ test('the guides index reads in four layers, and every workflow step names its s
     assert.match(strip,/class="skill-chip" href="https:\/\/github\.com\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[a-z0-9-]+\/SKILL\.md"/,`${lang} ${routeOf(item)}: skill must link its pinned SKILL.md`)
   }
 })
+
+test('guide search ranks title matches first, understands question phrasing and synonyms, and finds glossary terms', async (t) => {
+  const { Window } = await import('happy-dom')
+  const out=mkdtempSync(join(tmpdir(),'zenstory-search-'))
+  t.after(()=>rmSync(out,{recursive:true,force:true}))
+  const result=spawnSync(process.execPath,[new URL('../build-org-pages.mjs',import.meta.url).pathname,out],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  const html=readFileSync(join(out,'zh/guides/index.html'),'utf8')
+  const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m)=>m[1]).find((src)=>src.includes('data-guide-search'))
+  const window=new Window({url:'https://zenstory.ai/zh/guides'})
+  t.after(()=>window.close())
+  window.document.body.innerHTML=html.slice(html.indexOf('<body'),html.lastIndexOf('</body>')).replace(/^<body[^>]*>/,'').replace(/<script[\s\S]*?<\/script>/g,'')
+  window.eval(script)
+  const input=window.document.getElementById('guide-query')
+  const search=(query)=>{
+    input.value=query;input.dispatchEvent(new window.Event('input'))
+    return [...window.document.querySelectorAll('[data-search-results] li')].filter((li)=>!li.hidden).map((li)=>li.querySelector('a').getAttribute('href'))
+  }
+  // The main article outranks every guide that only mentions the phrase or sits in a topic named after it.
+  assert.equal(search('去AI味')[0],'/zh/oh-story/revise-ai-prose')
+  assert.equal(search('对白')[0],'/zh/oh-story/character-dialogue')
+  // Question phrasing and synonyms: 怎么写开头 → the opening guide, 拆文 → the 拆书 guide.
+  assert.equal(search('怎么写开头')[0],'/zh/oh-story/novel-opening')
+  assert.equal(search('拆文')[0],'/zh/oh-story/learn-from-fiction')
+  assert.equal(search('游戏存档怎么做')[0],'/zh/novel-to-game/design-story-game-saves')
+  // Terms with no article of their own come from the glossary.
+  assert.deepEqual(search('扫榜'),['/zh/glossary/saobang'])
+  // Hidden browse layers come back when the query is cleared.
+  search('')
+  assert.ok([...window.document.querySelectorAll('[data-library-browse]')].every((node)=>!node.hidden))
+})
