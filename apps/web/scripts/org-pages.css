@@ -575,13 +575,14 @@ hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 4
 .path-step { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 14px; }
 .path-step a { color: var(--ink-2); text-decoration: none; }
 .path-step a:hover { color: var(--accent-text); }
-.path-step .path-step-next { color: var(--ink); font-weight: 600; }
 .path-next { margin: 40px 0 0; padding: 18px 20px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface); }
 .path-next-place { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
 .path-next a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: var(--ink); font-weight: 600; text-decoration: none; }
 .path-next a:hover { color: var(--accent-text); }
 .path-next-label { font-size: 13px; color: var(--accent-text); }
 .path-next a .arrow { margin-left: auto; }
+/* Quoted code lines (sample formats, JSON excerpts) read as one block, not as spaced paragraphs. */
+.guide-body blockquote > p:has(> code:only-child) { margin: 0 0 4px; }
 /* Glossary: a term links the article that teaches it; /guides lists the terms as its reference row. */
 .term-howto { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 18px 0 8px; padding: 14px 16px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface); }
 .term-howto a { display: inline-flex; gap: 8px; color: var(--ink); font-weight: 600; text-decoration: none; }
@@ -767,7 +768,9 @@ html[data-lang="zh"] [data-page="home"] .doc-rows dt { font: 500 12px/1.5 var(--
 [data-page="home"] .stage-band { margin-top: clamp(64px, 7vw, 104px); padding-top: clamp(64px, 6vw, 88px); }
 [data-page="home"] :is(.stage-band, .closing) .eyebrow { color: #67e3f5; }
 [data-page="home"] .stage-band .section-head .section-lede { max-width: 600px; }
-[data-page="home"] .showcase-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 56px 24px; margin-top: 48px; }
+[data-page="home"] .showcase-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 56px 24px; margin-top: 48px; }
+[data-page="home"] .showcase-grid > .case-card { grid-column: span 3; }
+[data-page="home"] .showcase-grid > .case-card.is-tall { grid-column: span 2; }
 /* After the cases: the story thread runs on into the paths, through one pill. */
 [data-page="home"] .stage-next { flex-wrap: nowrap; align-items: center; gap: 20px; margin-top: 64px; }
 [data-page="home"] .stage-next::before, [data-page="home"] .stage-next::after { content: ""; flex: 1; min-width: 24px; border-top: 1.5px dashed var(--thread); opacity: .45; }
@@ -775,7 +778,7 @@ html[data-lang="zh"] [data-page="home"] .doc-rows dt { font: 500 12px/1.5 var(--
 [data-page="home"] .stage-next a:hover { border-color: #67e3f5; color: #67e3f5; }
 [data-page="home"] .stage-next .arrow { margin-left: 8px; }
 [data-page="home"] .case-card { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 0; min-width: 0; }
-[data-page="home"] .case-card.is-feature { grid-column: span 2; }
+[data-page="home"] .showcase-grid > .case-card.is-feature { grid-column: span 4; }
 [data-page="home"] .case-media { display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0; }
 /* One media frame for every case: same radius, hairline and shadow; 16:10, the feature 16:9. */
 [data-page="home"] .media-frame { position: relative; overflow: hidden; aspect-ratio: 16 / 10; border-radius: var(--frame-radius); background: #050914; box-shadow: var(--frame-shadow); }
@@ -951,6 +954,8 @@ html[data-lang="zh"] [data-page="home"] .library-search label { font-size: 13px;
 }
 @media (max-width: 960px) {
   [data-page="home"] .showcase-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-page="home"] .showcase-grid > .case-card, [data-page="home"] .showcase-grid > .case-card.is-tall { grid-column: span 1; }
+  [data-page="home"] .showcase-grid > .case-card.is-feature { grid-column: span 2; }
   [data-page="home"] .split-head { grid-template-columns: minmax(0, 1fr); }
   [data-page="home"] .home-paths { grid-template-columns: minmax(0, 1fr); }
   [data-page="home"] .home-paths .learning-path:nth-child(n) { grid-column: 1; grid-row: auto; }
@@ -990,7 +995,7 @@ html[data-lang="zh"] [data-page="home"] .library-search label { font-size: 13px;
   [data-page="home"] .stage-case { flex-basis: 100%; }
   [data-page="home"] .stage-band { margin-top: 56px; padding-top: 56px; }
   [data-page="home"] .showcase-grid { grid-template-columns: minmax(0, 1fr); gap: 44px; margin-top: 36px; }
-  [data-page="home"] .case-card.is-feature { grid-column: auto; }
+  [data-page="home"] .showcase-grid > .case-card.is-feature { grid-column: auto; }
   [data-page="home"] .is-tall .media-frame { flex: none; aspect-ratio: 4 / 5; min-height: 0; }
   [data-page="home"] .is-feature h3, [data-page="home"] .case-card h3 { font-size: 20px; }
   [data-page="home"] .tool-choice { grid-template-columns: minmax(0, 1fr); row-gap: 4px; padding: 18px 4px; }
@@ -1031,6 +1036,17 @@ html[data-lang="zh"] [data-page="home"] .library-search label { font-size: 13px;
 /* Narrower still, the switch and CTA wrap under the brand: anchors clear all three rows. */
 @media (max-width: 359px) {
   :root { --top-h: 134px; }
+}
+[data-page="home"] .knowledge-level .step-count { flex: none; margin-left: 10px; font: 500 12px/1 var(--mono); color: var(--muted); }
+/* Phones: the cases scroll sideways (owner decision 2026-10-10) instead of stacking ~3300px; the next card
+   peeks in as the cue, and a phone-only line says how many there are. Every card keeps its full copy. */
+[data-page="home"] .swipe-hint { display: none; }
+@media (max-width: 720px) {
+  [data-page="home"] .swipe-hint { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 22px 0 0; font-size: 13.5px; color: var(--stage-muted); }
+  [data-page="home"] .showcase-grid { display: flex; gap: 14px; margin: 18px calc(-1 * var(--gutter)) 0; padding: 0 var(--gutter) 4px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); overscroll-behavior-x: contain; scrollbar-width: none; }
+  [data-page="home"] .showcase-grid::-webkit-scrollbar { display: none; }
+  [data-page="home"] .case-card, [data-page="home"] .case-card.is-feature { flex: 0 0 84%; display: flex; flex-direction: column; scroll-snap-align: start; }
+  [data-page="home"] .case-card .media-frame, [data-page="home"] .is-tall .media-frame { flex: none; aspect-ratio: 16 / 10; min-height: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-page="home"] * { transition: none !important; }

@@ -30,10 +30,10 @@ test('published articles link immutable specialist skill files and have explicit
   const ids = new Set(topics.map((topic) => topic.slug))
   const repos = {'oh-story':'oh-story-claudecode', 'drama-skills':'drama-skills', 'novel-to-game':'novel-to-game', 'video-recap':'video-recap-skills', dsh:'oh-story-dsh'}
   const skills = {
-    'oh-story':['story-setup','story-import','story-long-write','story-short-write','story-long-analyze','story-review','story-deslop','story-cover'],
+    'oh-story':['story-setup','story-import','story-long-write','story-short-write','story-long-analyze','story-review','story-deslop','story-cover','story-long-scan','story-short-scan','story-short-analyze'],
     'drama-skills':['short-drama','short-drama-develop','short-drama-write','short-drama-novel-analyze','short-drama-image-prompts','short-drama-video-prompts','short-drama-storyboard','short-drama-review','short-drama-edit','short-drama-assets','short-drama-produce'],
-    'novel-to-game':['novel-to-game','game-concept','game-world-design','game-build','game-qa','game-art-direction'],
-    'video-recap':['video-recap','video-script','video-cut','video-assemble','video-voiceover'], dsh:['novel-to-game']
+    'novel-to-game':['novel-to-game','game-concept','game-world-design','game-build','game-qa','game-art-direction','novel-game-analyze'],
+    'video-recap':['video-recap','video-script','video-cut','video-assemble','video-voiceover','video-understanding','video-reference'], dsh:['novel-to-game']
   }
   for (const item of reading) assert.ok(ids.has(item.topic), `${item.slug}: missing task assignment`)
   for (const lang of ['en','zh']) {
@@ -200,8 +200,10 @@ test('guide search ranks title matches first, understands question phrasing and 
   assert.equal(search('怎么写开头')[0],'/zh/oh-story/novel-opening')
   assert.equal(search('拆文')[0],'/zh/oh-story/learn-from-fiction')
   assert.equal(search('游戏存档怎么做')[0],'/zh/novel-to-game/design-story-game-saves')
-  // Terms with no article of their own come from the glossary.
-  assert.deepEqual(search('扫榜'),['/zh/glossary/saobang'])
+  // A term's own article leads, and the glossary entry is still found.
+  const scan=search('扫榜')
+  assert.equal(scan[0],'/zh/oh-story/scan-web-fiction-charts')
+  assert.ok(scan.includes('/zh/glossary/saobang'))
   // Hidden browse layers come back when the query is cleared.
   search('')
   assert.ok([...window.document.querySelectorAll('[data-library-browse]')].every((node)=>!node.hidden))

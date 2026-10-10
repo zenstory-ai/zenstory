@@ -96,8 +96,8 @@
       "Choose an environment and make a first draft.",
       "选好环境，开始第一份草稿。",
       [
-        "agent-skills-for-writers",
-        "claude-code-novel-writing"
+        "claude-code-novel-writing",
+        "ai-novel-writing-prompts"
       ],
       "/guides/getting-started",
       {
@@ -111,9 +111,10 @@
       "Follow a project from raw material to a finished piece.",
       "从原始素材一路做到成品。",
       [
-        "novel-to-short-drama",
-        "quick-start",
-        "video-to-narration"
+        "workflow:first-chapter",
+        "workflow:first-short-drama",
+        "workflow:first-game",
+        "workflow:footage-recap"
       ],
       "/guides#learning-paths",
       {

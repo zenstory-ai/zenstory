@@ -12,6 +12,7 @@
       "en": "`/story-long-scan` prefers platform collectors when available, then ranking data the user supplies; built-in knowledge is a last resort and is labeled as such in the report. The report records evidence, risks and next validation steps, and when data is missing or thin it caps feasibility at medium and says to validate first. Sources: [Purpose and evidence hierarchy](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L44-L170) · [Report and uncertainty rules](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L235-L292).",
       "zh": "`/story-long-scan` 优先使用可用的平台采集脚本，其次使用用户提供的榜单数据，内置知识只作最后的降级来源，并在报告里标明。报告写明证据、风险和下一步验证动作；数据缺失或样本偏少时，可行性评估最高给到「中」，并写明要先验证。 源码依据：[目标与数据优先级](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L44-L170) · [报告与不确定性规则](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L235-L292)。"
     },
+    "how_to": "/oh-story/scan-web-fiction-charts",
     "related": [
       "chaiwen",
       "huangjinsanzhang"

@@ -56444,5 +56444,1034 @@
         "url": "https://kling.ai/quickstart/klingai-video-3-model-user-guide"
       }
     ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "scan-web-fiction-charts",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-10-10",
+    "updated_on": "2026-10-10",
+    "title": {
+      "zh": "网文扫榜怎么做：从榜单样本到可验证的开书方向",
+      "en": "How to Scan Web-Fiction Charts: From Ranking Samples to a Testable Book Direction"
+    },
+    "seo_title": {
+      "zh": "网文扫榜怎么做：从榜单样本到选题验证",
+      "en": "How to Scan Web-Fiction Charts for a Testable Book Idea"
+    },
+    "description": {
+      "zh": "扫榜不是照抄排名靠前的书。按来源顺序收样本，单本当线索、重复模式写成观察，再推读者画像和一个带风险与验证动作的开书方向。附原创手抄样本表示例。",
+      "en": "Read chart samples for repeated patterns: single titles are leads, repeats are observations. Turn them into a reader profile and a testable book direction."
+    },
+    "answer": {
+      "zh": "网文扫榜是读平台榜单和推荐样本，找出题材、主角人设、开篇切入点这些反复出现的模式。先定平台和方向，再按“采集脚本、自己提供的榜单、内置知识”的顺序取样本，用内置知识时要标明只是候选假设。单本排名只是线索，多本、跨榜单重复的模式才写成观察；“读者为什么追”先当假设，并写出下一步怎么验证。最后把观察和你的素材、篇幅、目标平台放在一起，得到 2–3 个带可行性、失败风险和验证动作的候选方向，写哪个由你决定。",
+      "en": "Chart scanning (扫榜) means reading ranking and recommendation samples to find patterns that keep recurring: genre, protagonist setup, opening angle. Fix the platform and direction first, then gather samples in this order: a platform collector, rankings you supply, and built-in knowledge only as a last resort that is labeled a candidate hypothesis. A single title’s rank is a lead; only patterns repeated across several titles and charts count as observations. Treat “why readers follow it” as a hypothesis and name the next check. Finally, set the observations against your material, planned length and target platform to get two or three candidate directions, each with a feasibility rating, failure risks and a validation step. Which one to write is your call."
+    },
+    "sections": [
+      {
+        "id": "collect-samples",
+        "heading": {
+          "zh": "扫榜先收哪些样本：来源顺序与记录字段",
+          "en": "What to Collect: Source Priority and Fields to Record"
+        },
+        "body": {
+          "zh": "先定两件事：看哪个平台，有没有已经关注的方向。有方向就围绕它深挖，没有就先看全榜概览，想比较平台就各扫一份。\n\n| 优先级 | 样本来源 | 用法与限制 |\n|---|---|---|\n| 1 | 平台采集脚本 | 需联网；起点默认不用 Chrome，番茄、晋江、七猫、刺猬猫要先用 `/browser-cdp` 启动 Chrome；页面改版或被验证页拦住会采不到 |\n| 2 | 作者提供的榜单 | 粘贴文字、截图或给链接，整理成统一格式后一样汇总 |\n| 3 | 内置知识 | 只在无法联网、也没有数据时用；报告注明这是历史趋势，未经实时榜单校验只能当候选假设，并列出要复扫的榜单 |\n\n新书榜看新题材、新风向的早期信号，阅读榜、月票榜、畅销榜、金榜这类看已经形成的流量和付费认可，两类搭配着取。每本至少记榜单名、日期、名次、书名、题材、状态、字数、热度（注明在读、收藏还是月票）和简介开头的标签。每次扫榜单独存一份带日期的记录，不往旧记录里追加；哪张榜没取到，结论里写明不含它。",
+          "en": "First settle two things: which platform, and whether you already have a direction in mind. With a direction, dig into it; without one, start with an overview of the whole chart; to compare platforms, scan each one separately.\n\n| Priority | Sample source | Use and limits |\n|---|---|---|\n| 1 | Platform collector scripts | Need network access. Qidian works without Chrome by default; Fanqie, Jinjiang, Qimao and Ciweimao need Chrome launched with `/browser-cdp` first. A redesigned page or a verification wall can stop collection |\n| 2 | Rankings the author supplies | Paste text, screenshots or links; they are put into one format and aggregated the same way |\n| 3 | Built-in knowledge | Only when there is no network and no data. The report says this is historical trend data, usable only as a candidate hypothesis until checked against live charts, and lists the charts to rescan |\n\nNew-book charts give early signals of new genres and shifts; reading, monthly-ticket, best-seller and “gold” charts show traffic and paid support that already exist. Take both kinds. For each title, record at least the chart name, date, position, title, genre, status, word count, heat with its unit (readers, favorites or monthly tickets) and the tags at the start of the blurb. Save each scan as its own dated record rather than appending to an old one. If a chart could not be collected, say the conclusion leaves it out."
+        }
+      },
+      {
+        "id": "lead-or-pattern",
+        "heading": {
+          "zh": "单本排名只是线索，重复出现才算信号",
+          "en": "A Single Rank Is a Lead; Repetition Is the Signal"
+        },
+        "body": {
+          "zh": "榜单只能证明某本书在那里，证明不了需求有多强。story-long-scan 的规则是：单本上榜只记为个例；同类样本跨榜单、跨作者重复出现，才标成趋势候选。\n\n- **数量够不够**：同一方向不到 15 本（刺猬猫这类小平台不到 10 本），汇总会标「少」，即数据稀疏，后面的可行性不能给「高」。\n- **分布广不广**：只在一张榜、一位作者身上出现的组合先当线索；新书榜和阅读类榜单都有，比只在一张榜上更有说服力。\n- **口径同不同**：番茄看流量和完读率，起点看订阅和追读，晋江看收藏和积分。不同平台、不同榜单的数字不横比。\n\n找到的新东西再分级：新题材极少，要有跨榜单、跨作者的重复样本才标趋势；新金手指多是翻新，适合低成本试，但要换题材外壳和情绪触发方式；新噱头最常见，同质化风险高，没有差异化机制就降低优先级。",
+          "en": "A chart proves only that a book is there, not how strong demand is. The rule in story-long-scan: one title on a chart is an isolated case; only when similar samples repeat across charts and authors does a pattern become a trend candidate.\n\n- **Enough samples?** If a direction has fewer than 15 titles (fewer than 10 on a small platform such as Ciweimao), the aggregate marks it “few”, meaning sparse data, and feasibility cannot later be rated high.\n- **Spread wide enough?** A combination seen on one chart or from one author is a lead. Appearing on both new-book and reading-type charts is more persuasive than one chart.\n- **Same unit?** Fanqie measures traffic and completion, Qidian subscriptions and ongoing readership, Jinjiang favorites and points. Do not compare numbers across platforms or across charts.\n\nThen grade anything new. New genres are rare and count as a trend only with repeated samples across charts and authors. New golden fingers (protagonist advantages) are mostly refreshes; they suit low-cost tests but need a different genre shell and emotional trigger. New gimmicks are the most common and carry a high risk of sameness; without a differentiating mechanism, lower their priority."
+        }
+      },
+      {
+        "id": "observation-hypothesis-check",
+        "heading": {
+          "zh": "把结论分成观察、线索、假设和下一步验证",
+          "en": "Sort Every Conclusion: Observation, Lead, Hypothesis, Next Check"
+        },
+        "body": {
+          "zh": "从汇总里依次看题材分布与本数、字数区间、书名常见词、标签热词和代表作简介里的开篇卖点，再对候选方向抽几条原始条目，找新的人设、开篇切入点和桥段。有上一次的汇总才写上升、稳定或下降，没有就只写现状。看完后，每条结论放进一栏：\n\n| 栏目 | 写什么 | 要求 |\n|---|---|---|\n| 观察 | 多个样本都支持的重复模式 | 写清几本、来自哪些榜 |\n| 线索 | 只有一本或只在一张榜出现的新组合 | 记下，下次扫榜再看 |\n| 假设 | 读者为什么追、你的版本能否成立 | 标“待验证”，不写成“会火” |\n| 下一步验证 | 确认或推翻假设的具体动作 | 补样本、拆代表作、试写开头 |\n\n参考同类简介时只提取功能位：问题、利益点、爽点预告、安全感、悬念，不复刻具体剧情和表达。",
+          "en": "In the aggregate, look in turn at genre distribution and counts, word-count ranges, common title words, hot tags and the opening hooks in representative blurbs. Then pull a few raw entries for a candidate direction to spot new character setups, opening angles and set pieces. Write “rising”, “steady” or “falling” only if you have an earlier scan to compare; otherwise describe the present. Then put each conclusion in one column:\n\n| Column | What goes in | Rule |\n|---|---|---|\n| Observation | A repeated pattern that several samples support | Say how many titles and which charts |\n| Lead | A new combination seen in one title or on one chart | Note it; check again next scan |\n| Hypothesis | Why readers follow it; whether your version can work | Mark it “to verify”, never “will be a hit” |\n| Next check | A concrete action that confirms or refutes it | More samples, a breakdown of a representative book, a trial opening |\n\nWhen studying blurbs in the same lane, take only the functional slots: the problem, the benefit, a preview of the payoff, reassurance and suspense. Do not copy specific plot or wording."
+        }
+      },
+      {
+        "id": "reader-profile",
+        "heading": {
+          "zh": "从样本推读者画像：有依据才写，没依据写未知",
+          "en": "Reader Profile: Write What the Samples Support, Mark the Rest Unknown"
+        },
+        "body": {
+          "zh": "画像按九个维度写：平台、标签、阅读量、性别、年龄、地域、学历、阶层、社会角色。标签决定读者预期，看到“系统文”就期待升级节奏；阶层决定什么样的逆袭有共鸣；社会角色决定什么样的日常有代入感。\n\n找共鸣素材用 70/20/10：七成是读者有过的经历，如代际记忆、校园、童年；两成是正在面对的压力，如工作、感情、经济；一成是当下热点。每一维都写依据来自哪几条样本，样本说不出的维度写“未知”，不凭印象补。",
+          "en": "The profile uses nine dimensions: platform, tags, reading volume, gender, age, region, education, class and social role. Tags set expectations: a “system” tag promises a levelling rhythm. Class decides which kind of comeback resonates; social role decides which daily life feels like the reader’s own.\n\nFor resonant material, use 70/20/10: 70% experiences readers have had, such as generational memories, school and childhood; 20% pressures they face now, such as work, relationships and money; 10% current hot topics. For every dimension, note which samples support it. Where the samples say nothing, write “unknown” instead of filling in an impression."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创示例：从手抄样本表到一个待验证方向",
+          "en": "Original Example: From a Hand-Copied Sample Table to a Direction Worth Testing"
+        },
+        "body": {
+          "zh": "以下全部虚构：编号代替书名，不对应任何真实作品、名次或平台数据；表格是假想作者的手写简表，不是 skill 的输出。\n\n作者帮家里的县城家电维修店跑过几年上门，想写都市日常长篇，目标平台已定。没有采集环境，就从新书榜和阅读榜手抄这个方向的 8 条，表头记下榜单名和日期，下表只留和判断有关的列。\n\n| 编号 | 来源 | 简介标签 | 开篇切入点 | 回报方式 |\n|---|---|---|---|---|\n| A1 | 新书榜 | 经营、日常 | 失业回乡，接手快关门的修车铺 | 修好一单，解锁一位熟客 |\n| A2 | 新书榜 | 经营、系统 | 接手外婆的早餐摊，开张当天欠着房租 | 顾客好评换奖励 |\n| A3 | 新书榜 | 日常、手艺 | 被裁员后接手老街钟表铺 | 修好旧表，委托人介绍新客 |\n| A4 | 阅读榜 | 种田、美食 | 回村承包鱼塘 | 签到奖励 |\n| A5 | 阅读榜 | 经营、系统 | 接手师傅留下的配钥匙摊 | 每开一把锁得一次奖励 |\n| A6 | 阅读榜 | 都市、系统 | 退伍回乡开农家乐 | 任务奖励 |\n| A7 | 新书榜 | 经营、悬疑 | 接手舅舅的旧货店，第一单收到来历不明的箱子 | 旧物牵出旧案 |\n| A8 | 阅读榜 | 日常、群像 | 在城中村接手五金店 | 没有金手指，靠邻里人情 |\n\n| 栏目 | 内容 | 依据 |\n|---|---|---|\n| 观察 | 开篇多是接手一家现成的店或摊，两张榜都有 | A1、A2、A3、A5、A7、A8 |\n| 观察 | 回报来得快，完成一单或一项任务就有奖励或熟客 | A1、A2、A3、A5、A6 |\n| 线索 | 失业、裁员、欠租的开局压力 | 只在新书榜：A1–A3 |\n| 线索 | 经营加悬疑；不靠金手指、只靠人情 | 各一本：A7、A8 |\n| 假设 | 读者追的是“一单一结”的确定回报和慢慢变大的熟人网 | 待拆文验证 |\n\n画像只写样本撑得住的：标签以经营、日常为主，读者预期每单有结果；回乡、老街、城中村可接七成怀旧素材；两成当前压力只有新书榜三条，先当假设；热点、性别、年龄、学历没有依据，留空或写“未知”。\n\n候选方向：**县城维修铺，上门修一台旧电器，就卷进一户人家的一件难事。**\n\n- 题材组合：都市日常加经营；按“85% 熟悉 + 15% 惊喜”，沿用接手小店的开局，新意放在上门\n- 回报方式：每修好一单，换来一位回头客或一条新的上门线索\n- 差异化：样本里店是舞台，这里冲突发生在客户家；配件、旧机型和上门规矩来自作者亲历\n- 可行性：中。同方向只有 8 条，会标「少」；没有上次扫榜可比，趋势只写现状；素材够撑开篇，撑不撑长线未验证\n- 失败风险：接手小店的开局太多，首章只写接手会被淹没；不用系统时回报可能偏慢，明确不靠金手指的样本只有 A8；上门单元容易重复成“修好、道谢”\n- 验证动作（计划，尚未执行）：下次扫榜把同方向补到 15 条以上，留意无系统样本和扑街、烂尾的反例；拆 A5、A8 的前三章（一本有系统、一本没有）检验“一单一结”；列上门单元清单，看后面的单元是否还在换冲突，而不只是换电器\n\n这张卡只是候选：作者可以加轻量系统、改走悬疑或放弃；样本补够之前，按 skill 的规则它不能评「高」。",
+          "en": "Everything here is invented. Codes such as A1 replace titles and match no real book, position or platform data. The table is an imaginary author’s hand-made sheet, not the skill’s output.\n\nThe author spent a few years doing house calls for the family’s appliance-repair shop in a county town and wants to write a long novel of everyday urban life for a platform already chosen. With no collector set up, the author copies 8 entries in this direction by hand from the new-book and reading charts, noting chart names and dates in the header. The table keeps only the columns this judgment needs.\n\n| No. | Chart | Blurb tags | Opening angle | Reward pattern |\n|---|---|---|---|---|\n| A1 | New-book | business, daily life | Jobless and back home, takes over a failing car-repair shop | Each fixed job unlocks a regular customer |\n| A2 | New-book | business, system | Takes over grandmother’s breakfast stall, behind on rent on opening day | Good reviews earn rewards |\n| A3 | New-book | daily life, craft | Laid off, takes over a watch-repair shop on an old street | Each repaired watch brings a referral |\n| A4 | Reading | farming, food | Goes back to the village to lease a fish pond | Daily check-in rewards |\n| A5 | Reading | business, system | Takes over a key-cutting stall left by a mentor | Each opened lock earns a reward |\n| A6 | Reading | urban, system | Leaves the army and opens a farm guesthouse | Quest rewards |\n| A7 | New-book | business, mystery | Takes over an uncle’s junk shop; the first deal brings a box of unknown origin | Old objects lead to old cases |\n| A8 | Reading | daily life, ensemble | Takes over a hardware shop in an urban village | No golden finger, only neighbors’ goodwill |\n\n| Column | Content | Basis |\n|---|---|---|\n| Observation | Most openings take over an existing shop or stall, on both charts | A1, A2, A3, A5, A7, A8 |\n| Observation | Rewards come fast: finishing a job or task brings a reward or a regular | A1, A2, A3, A5, A6 |\n| Lead | Opening pressure from job loss, layoffs or overdue rent | New-book chart only: A1–A3 |\n| Lead | Business plus mystery; goodwill instead of a golden finger | One title each: A7, A8 |\n| Hypothesis | Readers follow for the reliable “one job, one payoff” return and a growing circle of familiar faces | To verify by breaking down books |\n\nThe profile covers only what the samples support. Tags lean to business and daily life, so readers expect each job to resolve. Hometowns, old streets and urban villages can feed the 70% of nostalgic material. The 20% of current pressure rests on three new-book entries only, so it stays a hypothesis. Hot topics, gender, age and education have no basis and stay blank or “unknown”.\n\nCandidate direction: **a county-town repair shop where every house call to fix an old appliance pulls the repairer into one household’s trouble.**\n\n- Genre mix: urban daily life plus business. Following “85% familiar, 15% surprise”, keep the familiar takeover opening and put the novelty in the house calls\n- Reward: each repaired job brings a returning customer or a lead to the next house call\n- Difference: in the samples the shop is the stage; here the conflict happens in the customer’s home, and the parts, old models and house-call etiquette come from the author’s own work\n- Feasibility: medium. Only 8 samples in this direction, so the aggregate would mark it “few”; with no earlier scan, the trend can only describe the present; the material covers the opening, but whether it can carry a long book is untested\n- Failure risks: takeover openings are crowded, so a first chapter that only covers the takeover will sink; without a system, rewards may feel slow, and A8 is the only sample that clearly has no golden finger; house-call units can repeat as “fixed it, got thanked”\n- Validation (planned, not yet done): on the next scan, bring this direction to 15 or more samples and look for system-free titles and counterexamples that flopped or were abandoned; break down the first three chapters of A5 and A8 (one with a system, one without) to test the “one job, one payoff” hypothesis; list house-call units and check whether later ones still change the conflict rather than just the appliance\n\nThis card is only a candidate: the author may add a light system, lean toward mystery or drop it. Until the sample is large enough, the skill’s rules do not allow a high rating."
+        }
+      },
+      {
+        "id": "feed-topic-decision",
+        "heading": {
+          "zh": "扫榜结果怎样进入选题，又不替你做决定",
+          "en": "How the Scan Feeds a Topic Decision Without Making It for You"
+        },
+        "body": {
+          "zh": "扫榜报告写给作者，讲市场结论和能写的方向，同时存进本次扫榜目录的 `选题决策.md`；只扫榜、暂不选题，结论也已落盘。\n\n要选题时，skill 先问目标平台、已有素材、擅长题材或写作约束、计划篇幅，每个推荐选题再走四步：\n\n1. **能爆的原因先当假设**：只从重复样本推，标“待拆文验证”。\n2. **市场验证**：同方向几本、趋势如何、有没有扑街或烂尾的反例。\n3. **差异化定位**：你的优势对上市场缺口，说清你的版本和榜上作品有什么不同。\n4. **可行性、失败风险和验证动作**：样本不足不给「高」，只用内置知识时一律给「中」。常见验证是先写[黄金三章](https://zenstory.ai/oh-story/novel-opening)看追读，不行就换。\n\n推荐只给 2–3 个，素材撑不住的方向不列。[拆文](https://zenstory.ai/oh-story/learn-from-fiction)之后回填“能爆的原因”；开书时 story-long-write 可读这份文件作起点，项目在同一文件夹或同级时会自动找到并请你确认。选哪个、怎么改、要不要全部放弃，由你决定。",
+          "en": "The scan report is written for the author, covering market conclusions and directions you could write, and is saved to `选题决策.md` (the topic-decision file) in this scan’s folder. A scan that stops short of choosing a topic still leaves its findings on disk.\n\nWhen you want topics, the skill first asks for your target platform, existing material, strengths or writing constraints, and planned length. Each recommended topic then goes through four steps:\n\n1. **Why it could take off, as a hypothesis**: inferred only from repeated samples and marked “to verify by breakdown”.\n2. **Market check**: how many titles share the direction, the trend, and any counterexamples that flopped or were abandoned.\n3. **Differentiation**: match your strengths to a gap in the market and say how your version differs from what is on the chart.\n4. **Feasibility, failure risk and validation**: no “high” without enough samples, and “medium” for every direction when only built-in knowledge was used. A common check is to write the [first three chapters](https://zenstory.ai/oh-story/novel-opening), see whether readers keep following, and switch if they do not.\n\nIt recommends two or three and leaves out directions your material cannot support. After a [book breakdown](https://zenstory.ai/oh-story/learn-from-fiction), the “why it could take off” line gets filled in. When you start the book, story-long-write can read this file as its starting point; if the project sits in the same folder or next to it, it finds the file and asks you to confirm. Which one to write, how to change it and whether to drop them all is your decision."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "没有采集脚本或 Chrome，还能扫榜吗？",
+          "en": "Can I scan charts without a collector or Chrome?"
+        },
+        "a": {
+          "zh": "能。把目标榜单的文字、截图或链接交给 skill，它会整理成统一格式再汇总；也可以像上面的示例一样手抄。两者都没有时才用内置知识，报告会标明只是候选假设，所有方向的可行性一律给「中」。",
+          "en": "Yes. Give the skill the chart text, screenshots or links and it puts them into one format and aggregates them; you can also copy entries by hand, as in the example. Only with neither does it fall back to built-in knowledge, which the report labels a candidate hypothesis, with every direction rated medium."
+        }
+      },
+      {
+        "q": {
+          "zh": "扫榜要看多少本才够？",
+          "en": "How many titles are enough?"
+        },
+        "a": {
+          "zh": "skill 的门槛是同方向 15 本，刺猬猫这类小平台 10 本；不到就标「少」，可行性最高给「中」。够数只说明样本不稀疏，还要看趋势、反例和你的素材撑不撑得住。",
+          "en": "The skill’s threshold is 15 titles per direction, or 10 on a small platform such as Ciweimao. Below that the aggregate marks it “few” and feasibility tops out at medium. Reaching the number only means the sample is not sparse; the trend, counterexamples and your own material still decide."
+        }
+      },
+      {
+        "q": {
+          "zh": "扫榜和拆书有什么区别？",
+          "en": "How is chart scanning different from breaking down a book?"
+        },
+        "a": {
+          "zh": "扫榜横着看很多本，找重复模式和候选方向；拆书竖着读一本，从原文取证据和可迁移的机制。扫榜推出的“能爆的原因”只是假设，要靠拆代表作回填，做法见[小说拆书怎么拆](https://zenstory.ai/oh-story/learn-from-fiction)。",
+          "en": "Scanning looks across many titles for repeated patterns and candidate directions; a breakdown reads one book closely for textual evidence and transferable mechanics. The “why it could take off” that a scan produces is a hypothesis, filled in by breaking down representative books; see [how to break down a novel](https://zenstory.ai/oh-story/learn-from-fiction)."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-scan",
+      "text": {
+        "zh": "用 $story-long-scan 扫我选定平台上的这个方向：优先用可用的采集脚本，没有就用我提供的榜单，内置知识只作标明的降级来源。单本只记线索，结论分成观察、假设和下一步验证，写清样本数和来源榜单；同方向不足 15 本（小平台 10 本）可行性最高给「中」。再按我的素材、篇幅和目标平台给 2–3 个候选方向，各附失败风险和验证动作；由我选择，不写正文。",
+        "en": "Use $story-long-scan to scan this direction on the platform I chose. Use an available collector first, otherwise the rankings I supply, and built-in knowledge only as a labeled fallback. Treat a single title as a lead; split conclusions into observations, hypotheses and next checks, with sample counts and source charts. With fewer than 15 titles in a direction (10 on a small platform), cap feasibility at medium. Then suggest two or three candidate directions that fit my material, planned length and target platform, each with failure risks and a validation step. I choose; do not write prose."
+      },
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-long-scan/SKILL.md"
+    },
+    "related": [
+      "/glossary/saobang",
+      "/oh-story/learn-from-fiction",
+      "/oh-story/novel-opening",
+      "/oh-story/fanqie-vs-qidian",
+      "/glossary/taolu"
+    ],
+    "topic": "genres",
+    "sources": [
+      {
+        "label": {
+          "zh": "扫榜原则、数据来源优先级与报告",
+          "en": "Scan principles, data-source priority and report"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-long-scan/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "选题四步与可行性上限",
+          "en": "Four topic steps and the feasibility cap"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-long-scan/references/topic-decision.md"
+      },
+      {
+        "label": {
+          "zh": "九维读者画像与 70/20/10",
+          "en": "Nine-dimension reader profile and 70/20/10"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-long-scan/references/reader-profiling.md"
+      },
+      {
+        "label": {
+          "zh": "新题材、新金手指与新噱头的分级",
+          "en": "Grading new genres, golden fingers and gimmicks"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-long-scan/references/genre-trends.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "choose-a-short-story-topic-from-market-samples",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-10-10",
+    "updated_on": "2026-10-10",
+    "title": {
+      "zh": "短篇小说选题怎么找：用榜单样本对上自己的长处",
+      "en": "How to Find a Short-Story Topic: Match Ranking Samples to Your Strengths"
+    },
+    "seo_title": {
+      "zh": "短篇小说选题怎么找：扫榜样本与选题匹配",
+      "en": "Choosing a Short-Story Topic from Ranking Samples"
+    },
+    "description": {
+      "zh": "把盐言式短篇榜单抄成样本文件，读出情绪与题材信号，再和自己的素材交叉成候选方向；附原创扫榜范例和第一次验证。",
+      "en": "Copy a short-fiction chart into samples, read its emotion and genre signals, and match them to your own material. Original scan and first check included."
+    },
+    "answer": {
+      "zh": "短篇选题先看样本，再对照自己。用 `$story-short-scan` 时，点众、黑岩可以用脚本采集（需要 Chrome，黑岩还要登录作者后台）；知乎盐言、番茄短篇、七猫短篇没有脚本，要你提供榜单截图或文字，整理成固定格式后再聚合；都拿不到时只能用历史参考，结论只算候选假设。从聚合表读出反复出现的情绪、题材、开头和篇幅，再和你的素材、能力交叉，得到 2–3 个写明目标情绪、开头钩子、传播引擎、可行性和验证动作的候选。样本少时可行性最高只到“中”；写哪个由你决定，结果不预测成绩，过了复扫日期只当参考。",
+      "en": "Look at the samples first, then at yourself. With `$story-short-scan`, Dianzhong and Heiyan can be collected by script (Chrome is required, and Heiyan also needs you logged in to its author back end). Zhihu Yanyan, Fanqie short fiction and Qimao short fiction have no collector, so you supply ranking screenshots or text, which are put into a fixed format and aggregated. If neither is possible, only historical reference material remains and every conclusion is a candidate hypothesis. From the aggregate, read the recurring emotions, genres, openings and lengths, then cross them with your material and abilities to get two or three candidates, each stating target emotion, opening hook, sharing engine, feasibility and a validation step. With thin samples, feasibility tops out at medium. You decide what to write; the result predicts no performance, and after its re-scan date it is reference only."
+    },
+    "sections": [
+      {
+        "id": "data-sources",
+        "heading": {
+          "zh": "样本从哪来：三种来源各有边界",
+          "en": "Where Samples Come From, and the Limits of Each Source"
+        },
+        "body": {
+          "zh": "`$story-short-scan` 先问看哪个平台、有没有想写的方向：有方向就深扫，没有就做全榜概览，想比较就做平台对比。数据来源按环境选：\n\n| 来源 | 适用与限制 |\n|---|---|\n| 脚本采集 | 点众、黑岩，需先用 `/browser-cdp` 启动 Chrome。黑岩还要你在浏览器里登录作者后台；它的书库列表没有热度字段，只能按列表顺序取代表作，可信度低一档。采集失败就跳过，报告注明结论不含它 |\n| 作者提供 | 知乎盐言、番茄短篇、七猫短篇等没有脚本的平台：发截图、复制的文字或链接，链接抓不到就改发截图或文字 |\n| 内置知识 | 无法联网、你也没有榜单时才用。参考来自历史样本，报告须声明只是候选假设，并列出要复扫的平台页面 |\n\n写盐言式短篇，多半要自己抄样本。这里的[扫榜](https://zenstory.ai/glossary/saobang)是找一批样本里反复出现的模式，不是盯着某一本的名次。",
+          "en": "`$story-short-scan` first asks which platform you want and whether you already have a direction. With a direction it scans that direction in depth; without one it surveys the whole list; for a comparison it compares platforms. The data source depends on the environment:\n\n| Source | Use and limits |\n|---|---|\n| Script collection | Dianzhong and Heiyan, after Chrome is started with `/browser-cdp`. Heiyan also needs you to log in to its author back end in that browser; its library list has no popularity field, so representative titles follow list order and confidence drops a level. A failed platform is skipped and the report says its conclusions exclude it |\n| Author-supplied | Platforms without a collector, such as Zhihu Yanyan, Fanqie short fiction and Qimao short fiction: send screenshots, copied text or a link, and switch to screenshots or text if the link cannot be fetched |\n| Built-in knowledge | Only when there is no web access and you have no ranking. The reference comes from historical samples, so the report must call it a candidate hypothesis and list the platform pages to re-scan |\n\nFor Yanyan-style short fiction you will usually copy the samples yourself. [Chart scanning](https://zenstory.ai/glossary/saobang) here means finding patterns that repeat across a set of samples, not fixating on one title's rank."
+        }
+      },
+      {
+        "id": "manual-rank-input",
+        "heading": {
+          "zh": "没有采集脚本时，怎样把榜单抄成样本",
+          "en": "No Collector? Copy the Ranking into a Sample File"
+        },
+        "body": {
+          "zh": "提供榜单时尽量带上书名、作者、题材/标签、字数、热度（赞同、收藏、在读都行）和简介；只有故事名也能分析，但可信度低一档。skill 会整理成[手动榜单格式](https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/references/manual-rank-input.md)：\n\n> `# 知乎盐言 · 热门榜`\n> `### #1 {书名}`\n> `*{作者} · {题材} · {状态} · {字数}字 · {热度数字}收藏*`\n> `**标签：** {标签1}、{标签2}`\n> `> {简介}`\n\n热度写成“数字 + 口径”（参考文件的例子是 `2.3万收藏`），聚合才认得；缺的字段直接省略，不要补编。\n\n文件存进本次新建的 `扫榜/{YYYYMMDD}/` 目录，再聚合成 `扫榜聚合.md`：按平台、题材列出本数、占比、热度与字数中位、高频标签，同题材少于 10 本标“少”。后续分析只读这张聚合表，需要时再按题材或标签词抽几条原始条目。",
+          "en": "When you supply a ranking, include title, author, genre or tags, word count, popularity (upvotes, saves or current readers all work) and blurb where you can. A bare list of titles can still be analysed, at one level lower confidence. The skill puts your material into the [manual ranking format](https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/references/manual-rank-input.md):\n\n> `# 知乎盐言 · 热门榜`\n> `### #1 {title}`\n> `*{author} · {genre} · {status} · {count}字 · {number}收藏*`\n> `**标签：** {tag 1}、{tag 2}`\n> `> {blurb}`\n\nKeep the Chinese markers (字 = characters, 收藏 = saves, 标签 = tags), because the aggregation script reads them. Write popularity as number plus metric (the reference file's example is `2.3万收藏`, 23,000 saves) so aggregation recognises it, and omit a missing field instead of inventing it.\n\nSave the file in a new `扫榜/{YYYYMMDD}/` folder for this scan, then aggregate it into `扫榜聚合.md`: for each platform and genre it lists count, share, median popularity and length, and frequent tags, and marks any genre with fewer than 10 titles as “少” (thin). Later analysis reads only this aggregate and pulls a few raw entries by genre or tag when it needs them."
+        }
+      },
+      {
+        "id": "read-the-signals",
+        "heading": {
+          "zh": "从样本里读什么：先读情绪，再读题材",
+          "en": "What to Read in the Samples: Emotion Before Genre"
+        },
+        "body": {
+          "zh": "这个 skill 把短篇市场当作情绪市场：读者在短时间内完成一次情绪体验，作品靠完读和分享、收藏、点赞传播。所以扫榜除了题材名，还记高频情绪、触发场景、爆发点和让人想转发的地方。\n\n从聚合表看七项：情绪类型分布、反复出现的设定和场景、篇幅、开头模式、结尾是 HE/BE 还是开放式、书名常见词、主角类型，开头和结尾靠抽样看。盐言这类平台还可以看高赞故事的结构、非头部作者上榜时的题材与开篇、读者愿意为哪些题材付费、热门标签的变化。\n\n三条判断贯穿始终：情绪拉扯力比题材新鲜更重要；开头三句是留存高风险区，要建立冲突、身份差或情绪钩子；反转是常见的传播引擎，不用反转就要靠强共鸣、强话题或强余韵补上。结论写成给作者看的报告，写明样本量、来源和建议复扫日期，不写脚本名和采集状态。",
+          "en": "The skill treats short fiction as an emotion market: readers finish one emotional experience in a short sitting, and a story spreads through completion and through shares, saves and likes. So besides genre names, the scan records frequent emotions, triggering situations, emotional peaks and the moments readers want to pass on.\n\nFrom the aggregate it reads seven things: emotion types, recurring setups and situations, length, opening patterns, ending type (happy, sad or open), common title words and protagonist types, with openings and endings checked by sampling. On a Yanyan-style platform it can also look at the structure of highly upvoted stories, the genres and openings of less established authors who reach the list, which genres readers pay for, and how popular tags shift.\n\nThree judgments run throughout. Emotional pull matters more than genre novelty. The first three sentences are the highest retention risk and must set up conflict, a status gap or an emotional hook. Reversal is a common sharing engine; without one, strong resonance, a strong talking point or a strong aftertaste has to make up for it. The conclusion is a report for the author that states sample size, sources and a suggested re-scan date, and leaves out script names and collection status."
+        }
+      },
+      {
+        "id": "match-topics",
+        "heading": {
+          "zh": "选题匹配：样本强信号 × 你撑得住的素材",
+          "en": "Topic Matching: Strong Signals × Material You Can Sustain"
+        },
+        "body": {
+          "zh": "写完结论，skill 先重读结论文件和聚合表，不靠对话记忆，再结合你给的项目条件做匹配。优先候选是交叉点：当前样本里的强信号，加上你的素材和能力撑得住。反转、打脸结构清晰、验证成本低，算低复杂度；悬疑、虐恋需要伏笔、反转和情绪控制的证据，算高复杂度。\n\n每个方向按[选题匹配模板](https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/references/topic-match.md)写八项：目标情绪、题材与设定、开头钩子、传播引擎、复杂度、可行性、篇幅/平台、开写前的低成本验证动作；一般 2–3 个，可行性高的在前。可行性有硬上限：聚合表标“少”、样本不到 10 篇或只有你给的故事名列表，都不能给“高”；只用内置知识时一律给“中”。\n\n结果写进 `短篇扫榜结论.md`，文件头记扫榜日期、复扫日期（通常是扫榜后 2–4 周）和数据来源，重扫时整节替换。`/story-short-write` 定目标情绪时会读它，所以把小说项目建在扫榜文件夹里或与它同级，否则把这份文件复制到项目根。",
+          "en": "After the conclusion is written, the skill rereads the conclusion file and the aggregate rather than relying on chat memory, then matches them against the project conditions you give. Priority goes to the intersection: a strong signal in the current samples that your material and abilities can support. Reversal and comeuppance stories have clear structures and are cheap to validate, so they count as low complexity; suspense and heartbreak need evidence of foreshadowing, reversal and emotional control, so they count as high complexity.\n\nEach direction follows the [topic-matching template](https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/references/topic-match.md) with eight fields: target emotion, genre and setup, opening hook, sharing engine, complexity, feasibility, length and platform, and a low-cost validation step before drafting. Two or three directions are typical, most feasible first. Feasibility has hard caps: if the aggregate marks the group “少”, the sample has fewer than 10 titles, or it is only a list of titles you supplied, feasibility cannot be “high”; built-in-knowledge mode is always “medium”.\n\nThe result goes into `短篇扫榜结论.md`, whose header records the scan date, the re-scan date (usually two to four weeks later) and the data source; a re-run replaces whole sections. `/story-short-write` reads this file when it sets the target emotion, so create your story project inside the scan folder or beside it, or else copy the file to the project root."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创范例：前房产中介的一次手动扫榜",
+          "en": "Original Example: A Former Housing Agent Scans a Ranking by Hand"
+        },
+        "body": {
+          "zh": "以下作者、样本条目、书名和数字均为本文虚构，不代表任何平台的真实榜单。\n\n**作者条件**：做过五年二手房中介，熟悉带看、定金和挂牌记录；家庭对话写得快，不擅长多线诡计；想写一万字左右的盐言式短篇，还没有方向。\n\n**样本**：她从热门榜两张截图里抄出 14 条，都有题材和标签，多数带简介；9 条看得见收藏数，5 条被截断，热度就空着。其中一条：\n\n> `### #6 弟弟婚房写了谁的名`\n> `*青檐 · 家庭 · 已完结 · 11000字 · 4200收藏*`\n> `**标签：** 家庭、反转`\n> `> 爸妈说房子写弟弟的名字是为了好贷款，我在抽屉里翻到另一份协议。`\n\n聚合后她手工归并成下表（她的笔记，不是脚本原样输出）：\n\n| 方向 | 条数 | 反复出现的东西 |\n|---|---|---|\n| 家庭算计后反转 | 5 | 房和钱，亲戚的说法与凭证对不上 |\n| 虐恋意难平 | 4 | 迟到的真相 |\n| 职业细节悬疑 | 3 | 行业规矩里的破绽 |\n| 沙雕脑洞 | 2 | 一条荒诞规则 |\n\n每组都少于 10 本、标“少”，没有方向能拿“高”。\n\n**选题匹配**按模板填出两个方向（示意）。方向 1，中介视角的卖房反转：目标情绪从愤怒到解气，留一点温情；开头钩子是舅舅要她压价急卖外婆的老房，系统里却显示外婆本人三个月前挂过这套房；传播引擎是旧记录被重新解释；复杂度低；可行性中（同方向 5 篇，素材撑得住）；验证动作是先写导语和前三句。方向 2，带看时发现房内异常的职业悬疑：复杂度高，可行性低，样本只有 3 篇，又压在她的弱项上。虐恋组没有她的素材，未列入。\n\n**她的选择**：方向 2 更新鲜，她还是选了方向 1。这是她的决定，匹配只提供排序和理由。\n\n**第一次验证**：她写下前三句——“舅舅让我把外婆的房子挂出去，比市价低两成，越快越好。我登进系统，这套房三个月前已经挂过一次。挂牌人是外婆，备注栏只写了一句话。”冲突、她的双重身份和钩子都在三句内出现。她抽出同方向 5 条原始条目读简介，4 条从饭桌争吵写起，于是保留从挂牌记录切入。写导语时她发现，结尾的解气只靠外婆当众训话，便改成“我”以经纪人身份拒接这单、要求外婆本人到场确认，舅舅的计划因此卡住。\n\n已经发生的只有这些：正文还没写，读者反应无从得知；复扫定在三周后，到时再看这个方向是否还在样本里。",
+          "en": "The author, sample entries, titles and numbers below are invented for this article and do not represent any platform's actual ranking.\n\n**The author's conditions:** five years as a second-hand housing agent, familiar with viewings, deposits and listing records; quick at family dialogue, weak at puzzles with several interlocking clue lines; wants to write a Yanyan-style short story of about 10,000 characters and has no direction yet.\n\n**The samples:** from two screenshots of a popular list she copies 14 entries. All have genre and tags and most have a blurb; nine show a save count, five are cropped, so their popularity stays empty. One entry:\n\n> `### #6 弟弟婚房写了谁的名`\n> `*青檐 · 家庭 · 已完结 · 11000字 · 4200收藏*`\n> `**标签：** 家庭、反转`\n> `> 爸妈说房子写弟弟的名字是为了好贷款，我在抽屉里翻到另一份协议。`\n\n(Title: “Whose Name Is on My Brother's Wedding Flat”; genre: family; tags: family, reversal. Blurb: my parents say the flat is in my brother's name to make the mortgage easier, then I find a different agreement in a drawer.)\n\nAfter aggregation she groups the result by hand. The table is her note, not the script's output:\n\n| Direction | Count | What recurs |\n|---|---|---|\n| Family scheming, then reversal | 5 | Property and money; relatives' claims don't match the records |\n| Heartbreak, lingering regret | 4 | A truth that arrives too late |\n| Professional-detail suspense | 3 | A flaw hidden in trade rules |\n| Absurd comedy | 2 | One ridiculous rule |\n\nEvery group has fewer than 10 titles and is marked “少”, so no direction can be rated “high”.\n\n**Topic matching** fills in two directions using the template (illustrative). Direction 1, a property-sale reversal seen through an agent's eyes: the target emotion moves from anger to satisfaction with some warmth left over; the opening hook is her uncle asking her to underprice and rush-sell her grandmother's old flat while the system shows the grandmother herself listed it three months ago; the sharing engine is an old record reinterpreted; complexity low; feasibility medium (five samples in this direction, and her material can sustain it); validation is to write the blurb and the first three sentences. Direction 2, professional suspense about something wrong inside a flat during a viewing: complexity high, feasibility low, with only three samples and the weight falling on her weakness. The heartbreak group touches none of her material and is left out.\n\n**Her choice:** Direction 2 is fresher, but she takes Direction 1. That is her decision; the matching only supplied an order and reasons.\n\n**First validation:** she writes three sentences: “My uncle wanted Grandma's flat listed twenty percent under market, the sooner the better. I logged into the system: the flat had already been listed once, three months ago. The seller was Grandma, and the notes field held a single sentence.” Conflict, her double role and the hook all arrive within three sentences. She pulls the five raw entries in this direction and reads their blurbs; four start with a quarrel at a family dinner, so she keeps the listing-record entry point. Drafting her own blurb, she notices the satisfying ending relies only on Grandma scolding the uncle in public, so she changes it: acting as the agent, the narrator refuses the listing until Grandma confirms in person, and the uncle's plan stalls.\n\nThat is all that has happened. The story is unwritten and reader response is unknown; the re-scan is planned for three weeks later, when she will check whether this direction still shows up in the samples."
+        }
+      },
+      {
+        "id": "limits-and-misuse",
+        "heading": {
+          "zh": "结果能决定什么，常见误用怎么改",
+          "en": "What the Result Decides, and Common Misuses"
+        },
+        "body": {
+          "zh": "这份结果能帮你排除方向、给候选排序、写明每个方向的依据和验证动作，并定下复扫日期。它不替你选题，也不预测阅读、收藏、签约或收入；没采到的平台，报告只说明原因并注明结论不含它。\n\n| 误用 | 改法 |\n|---|---|\n| 把内置参考里的平台对照和题材公式当作当前行情 | 当候选假设，等真实样本校验 |\n| 只抄书名，却期待“高”可行性 | 补标签、热度和简介，或接受低一档 |\n| 截图看不清热度，就估一个数 | 省略这个字段 |\n| 过了复扫日期还按旧结论开写 | 重扫，旧结论只当参考 |\n| 把“值得写的方向”当成必写清单 | 按自己的素材取舍，也可以一个都不选 |\n\n找到方向后，可以用 `/story-short-analyze` 拆一篇你手里有原文的同方向作品，或直接用 `/story-short-write` 开写；故事需要更长的展开，就转去 `/story-long-scan`。把方向写成完整短篇，见[一个点子怎么写成短篇小说](https://zenstory.ai/oh-story/short-story-from-idea)。",
+          "en": "The result helps you rule out directions, rank candidates, record the basis and validation step for each one, and set a re-scan date. It does not choose for you and does not predict reads, saves, signing or income. For a platform it could not collect, the report gives the reason and says the conclusions exclude it.\n\n| Misuse | Fix |\n|---|---|\n| Treating the built-in platform comparison and genre formulas as today's market | Treat them as hypotheses until real samples check them |\n| Copying titles only, yet expecting “high” feasibility | Add tags, popularity and blurbs, or accept one level lower |\n| Guessing a cropped popularity number | Omit the field |\n| Drafting from an old conclusion after the re-scan date | Re-scan; keep the old result as reference |\n| Treating “directions worth writing” as a to-do list | Choose by your material, or choose none |\n\nOnce you have a direction, use `/story-short-analyze` to dissect a same-direction story whose text you have, or start drafting with `/story-short-write`. If the story needs a longer arc, move to `/story-long-scan`. To turn the direction into a full piece, see [turning an idea into a short story](https://zenstory.ai/oh-story/short-story-from-idea)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "完全拿不到榜单，还能用这个 skill 选题吗？",
+          "en": "Can I use the skill with no ranking at all?"
+        },
+        "a": {
+          "zh": "能，但只能走内置知识：skill 加载跨平台历史参考，在报告里声明分析基于历史趋势数据、未经实时榜单校验前只是候选假设，列出要复扫的平台页面，所有方向的可行性都写“中”。哪怕只抄到十几条带标签和热度的样本，也比纯历史参考更接近当下，只是可信度仍然偏低。",
+          "en": "Yes, but only through built-in knowledge. The skill loads its historical cross-platform reference, states in the report that the analysis rests on historical trend data and remains a candidate hypothesis until checked against a live ranking, lists the platform pages to re-scan, and rates every direction “medium”. Even a dozen or so copied entries with tags and popularity sit closer to the present, though confidence stays low."
+        }
+      },
+      {
+        "q": {
+          "zh": "样本要多少才算够？",
+          "en": "How many samples are enough?"
+        },
+        "a": {
+          "zh": "聚合时同一题材少于 10 本会标“少”。方向标“少”、样本不到 10 篇，或样本只是你给的书名列表，可行性都不能给“高”。少样本仍能帮你排除方向、比较简介和开头，但不能写成趋势。",
+          "en": "During aggregation, a genre with fewer than 10 titles is marked “少” (thin). If a direction is marked thin, the sample has fewer than 10 titles, or the samples are only a list of titles you supplied, feasibility cannot be “high”. A thin sample can still rule out directions and let you compare blurbs and openings, but it cannot be reported as a trend."
+        }
+      },
+      {
+        "q": {
+          "zh": "扫完多久要再扫一次？",
+          "en": "How soon should I scan again?"
+        },
+        "a": {
+          "zh": "复扫日期通常定在扫榜后 2–4 周，过了这天结论只当参考。重扫时新建日期目录，和上一次的聚合表对比，结论文件里的“扫榜结论”和“选题匹配”整节替换。",
+          "en": "The re-scan date is usually two to four weeks after the scan; after that, the conclusion is reference only. A re-scan uses a new dated folder, compares against the previous aggregate, and replaces the “scan conclusion” and “topic matching” sections of the conclusion file in full."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-short-scan",
+      "text": {
+        "zh": "用 `$story-short-scan` 为我的盐言式短篇做一次手动扫榜和选题匹配。这个平台没有采集脚本：我会贴上从榜单截图转写的条目（书名、题材/标签、字数、看得见的热度口径和简介），请整理成手动榜单格式，缺的字段省略，不要补编，聚合后写扫榜结论。我的条件：[职业或生活素材]、[擅长与不擅长]、[目标篇幅]。给 2–3 个方向，每个写目标情绪、开头钩子、传播引擎、复杂度、可行性和开写前的验证动作，并标明样本数、可信度和复扫日期。不要替我决定写哪个，也不要预测阅读、签约或收入。",
+        "en": "Use `$story-short-scan` to run a manual chart scan and topic match for my Yanyan-style short story. This platform has no collector: I will paste entries transcribed from ranking screenshots (title, genre/tags, word count, any visible popularity metric and blurb). Put them in the manual ranking format, omit missing fields rather than inventing them, aggregate, and write the scan conclusion. My conditions: [work or life material], [strengths and weaknesses], [target length]. Give two or three directions, each with target emotion, opening hook, sharing engine, complexity, feasibility and a validation step before drafting, and state the sample size, confidence and re-scan date. Do not decide which one I write, and do not predict reads, signing or income."
+      },
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/SKILL.md"
+    },
+    "related": [
+      "/glossary/saobang",
+      "/oh-story/short-story-from-idea",
+      "/oh-story/yanyan-stories",
+      "/oh-story/choosing-a-genre",
+      "/oh-story/short-vs-long-fiction"
+    ],
+    "topic": "genres",
+    "sources": [
+      {
+        "label": {
+          "zh": "短篇扫榜流程、数据来源与选题判断",
+          "en": "Short-fiction scan workflow, data sources and matching judgments"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "作者提供榜单的整理格式",
+          "en": "Formatting author-supplied rankings"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/references/manual-rank-input.md"
+      },
+      {
+        "label": {
+          "zh": "选题匹配模板与可行性上限",
+          "en": "Topic-matching template and feasibility caps"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/references/topic-match.md"
+      },
+      {
+        "label": {
+          "zh": "跨平台历史参考与校验要求",
+          "en": "Historical cross-platform reference and its validation requirement"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-scan/references/real-market-data.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "break-down-a-short-story",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-10-10",
+    "updated_on": "2026-10-10",
+    "title": {
+      "zh": "短篇小说怎么拆：导语、情绪线与反转，学机制不抄情节",
+      "en": "How to Deconstruct a Short Story: Lead-In, Emotional Arc and Twist"
+    },
+    "seo_title": {
+      "zh": "短篇拆文怎么拆：导语、情绪线、反转与原创示例",
+      "en": "How to Deconstruct a Short Story: Method and Example"
+    },
+    "description": {
+      "zh": "短篇拆文先找故事核，再看导语钩子、情绪曲线、反转铺垫和结尾回收。附原创短篇手写拆解简表，以及把一个机制换进新场景的示范。",
+      "en": "Find the story core, then trace the lead-in hooks, emotional arc, twist setups and ending. An original sample shows one mechanism moved into a new scene."
+    },
+    "answer": {
+      "zh": "短篇拆文先用一句话写出故事核，再按功能把全文分成开端、发展、高潮、结局；情节节点只记文本里发生的变化，不替作者补动机。接着看导语和每个钩子改变了读者在等什么，情绪在哪里积累、在哪一句爆发，反转靠哪几条可回看的铺垫成立，结尾回收了哪些钩子。最后只带走能换场景复用的机制及其成立条件，物件、事件链和台词留在原作里。",
+      "en": "Start by stating the story core in one sentence and dividing the text by function into opening, development, climax and ending. Record only the changes the text shows, without supplying motives. Then trace how the lead-in and each hook change what the reader is waiting for, where feeling builds and which sentence releases it, which rereadable setups support the twist, and which hooks the ending pays off. Carry away only mechanisms that work in a new setting, with their conditions; leave objects, event chains and lines in the source."
+    },
+    "sections": [
+      {
+        "id": "short-vs-long-breakdown",
+        "heading": {
+          "zh": "短篇拆文和长篇拆书差在哪",
+          "en": "How short-story breakdown differs from novel breakdown"
+        },
+        "body": {
+          "zh": "长篇拆书看多卷循环、跨章剧情问题和伏笔管理，见[小说拆书怎么拆](https://zenstory.ai/oh-story/learn-from-fiction)。skill 自带的对照表把短篇写成单弧线、人物精简、一口气读完，分析重心放在情感设计、写作手法与节奏。落到读者身上就是：开头几句怎样让人在意，情绪怎样攒到一次爆发，反转用多少铺垫换多大冲击。\n\n`story-short-analyze` 按字数分流：一万五千字以下按短篇拆；一万五到两万字先问你；超过两万字建议改用 `story-long-analyze`，你明确说“按短篇继续”才照短篇拆。它没有抓取步骤，原文要你提供文件或直接贴出。题材只作对照标尺，不按推荐比例判源文合格与否。",
+          "en": "Novel breakdown follows volume-level cycles, plot problems that span chapters and long-range setups; see [How to deconstruct a novel](https://zenstory.ai/oh-story/learn-from-fiction). The skill's own comparison table describes a short story as a single arc with a lean cast, read in one sitting, and puts the analytical weight on emotional design, technique and pacing. For the reader, that means: how the first lines make them care, how feeling builds to one release, and how much setup a twist spends for its impact.\n\n`story-short-analyze` routes by length. Under 15,000 Chinese characters it runs as a short story; between 15,000 and 20,000 it asks you; above 20,000 it recommends `story-long-analyze` and stays short only if you explicitly say so. It has no fetching step: you supply the text as a file or paste it in. Genre is a comparison ruler, not a pass/fail test against recommended proportions."
+        }
+      },
+      {
+        "id": "five-stage-pipeline",
+        "heading": {
+          "zh": "五个阶段：每一步回答一个问题",
+          "en": "Five stages, each answering one question"
+        },
+        "body": {
+          "zh": "下表是本文对各阶段的概括，阶段严格串行：\n\n| 阶段 | 回答什么 | 主要记录 |\n|---|---|---|\n| 结构与情节节点 | 这篇卖什么，怎么布局 | 故事核（设定+主题+核心行动）、梗概、4–6 个功能段、按语义变化切的节点 |\n| 情感线与爆点 | 情绪怎样被拉扯 | 至少 5 个情绪变化点（-9 到 +9）、爆点六项 |\n| 反转与写作手法 | 认知怎样被改写 | 反转类型、至少 3 条带位置的铺垫、误导方向；至少 5 项手法 |\n| 人物与开头结尾 | 谁在推动，首尾怎样咬合 | 人物分类与可删除性、前 3 句、结尾落点、钩子回收 |\n| 综合评估 | 哪些能复用 | 带说明的五维评分、共鸣层次、至少 3 条可复用结构及适用场景 |\n\n结果写进 `拆文库/{书名}/`：原文备份、`拆文报告.md`、`情节节点.md`、`写作手法.md`，以及只放字数、题材、进度和结构计数的 `_meta.json`。中断后，它会问你接着拆、存档重拆还是先不拆。\n\n它拒绝推断的部分同样重要：节点只写白描，“她心碎地听见真相”要改成她听见哪句话、手停在哪；不猜作者动机，只分析文本实际制造的读者体验；报告不写“写得好”“写得差”。完成检查有最低计数（如反转铺垫 3 条），原文确实没有时，它用故事话告诉你缺什么，例如“反转前的铺垫线索只找到 1 条”。",
+          "en": "The table summarizes the stages, which run strictly in order:\n\n| Stage | Question | Main record |\n|---|---|---|\n| Structure and plot nodes | What does it sell, and how is it laid out? | Story core (premise + theme + core action), synopsis, 4–6 functional parts, nodes cut where meaning changes |\n| Emotional arc and peaks | How is feeling pulled? | At least five change points scored −9 to +9; six aspects of the peak |\n| Twist and technique | How is understanding rewritten? | Twist type, at least three located setups, misdirection; at least five techniques |\n| Characters, opening, ending | Who drives it; how do the ends connect? | Character roles and deletability, first three sentences, ending landing, hook payoffs |\n| Overall review | What can be reused? | Five scored dimensions with reasons, resonance layers, at least three reusable structures with fit conditions |\n\nResults go to `拆文库/{title}/`: a source backup, `拆文报告.md` (report), `情节节点.md` (plot nodes), `写作手法.md` (technique) and `_meta.json`, which holds only length, genre, progress and structure counts. After an interruption it asks whether to continue, archive and restart, or stop.\n\nWhat it refuses to infer matters as much. Nodes are plain description: “she hears the truth, heartbroken” becomes which line she hears and where her hand stops. It does not guess the author's intent, only the reader experience the text creates, and the report avoids verdicts like “well written” or “badly written.” Completion checks have minimums (three setups for a twist, for example); when the text genuinely lacks something, the skill says so in story terms, such as “only one setup found before the twist.”"
+        }
+      },
+      {
+        "id": "lead-in-hooks-emotion",
+        "heading": {
+          "zh": "导语、钩子和情绪线：只在读者的等待改变处记一笔",
+          "en": "Lead-in, hooks and emotional arc: mark only where the reader’s wait changes"
+        },
+        "body": {
+          "zh": "开头先抄下前 3 句，再查：前 50 字有没有冲突或异常，前 100 字读者是否已知道核心矛盾。投稿向短篇还可看前 150–220 字的导语，找出起因、核心冲突、人设底色、情绪反转，以及具体物件、信息差、留白钩子各落在哪句；写法见[小说导语怎么写](https://zenstory.ai/oh-story/story-lead-in)。\n\n一个边界只有改变了“读者接下来等什么”才算钩子，角色震惊或作者预告不自动算。每个候选点记五项：位置、边界前已知、边界新增、读者的新问题、后文在哪里回应。前一个回应引出下一个问题，才是钩子链；新问题和上一个答案无关，记为“新开谜面”。没有平台信息时，付费断点只报“候选强断点”。\n\n情感曲线只在情绪立场、期待或压力真正变化处取点，用 -9 到 +9 记方向和强度。爆点拆成铺垫、积累、延迟、爆发点、余波、印象六项，爆发点要精确到句子。",
+          "en": "Copy out the first three sentences, then check: is there conflict or something unusual within the first 50 characters, and does the reader know the core conflict by the first 100? For stories aimed at submission, also examine the lead-in, roughly the first 150–220 characters, and find where the inciting cause, core conflict, character foundation and emotional turn sit, along with the concrete object, information gap and open hook; for writing one, see [How to write a story lead-in](https://zenstory.ai/oh-story/story-lead-in).\n\nA break counts as a hook only if it changes what the reader is now waiting for; a shocked character or an author's teaser does not qualify on its own. For each candidate, note five things: location, what was known before, what the break adds, the reader's new question, and where it gets answered. When each answer causes the next question, you have a hook chain; a new question unrelated to the previous answer is logged as a fresh riddle. Without platform data, a paywall position is reported only as a candidate strong break.\n\nPlot the emotional curve only where stance, expectation or pressure actually shifts, scoring direction and strength from −9 to +9. Break the peak into setup, build, delay, release, aftermath and residue, and pin the release to a single sentence."
+        }
+      },
+      {
+        "id": "twist-and-ending",
+        "heading": {
+          "zh": "反转和结尾：先查铺垫，再查回收",
+          "en": "Twist and ending: check the setups, then the payoffs"
+        },
+        "body": {
+          "zh": "先做前置反转检查：故事开始前是否已有谎言或误判。再拆反转：至少 3 条铺垫并写明原文位置，文本把读者往哪引，真相怎么揭开，回看是否失真，发生在全文百分之几处。开头早给过的细节在揭示后换了意思，属于伏笔式反转，要并排记下“初读理解”和“回看理解”。多层反转用删除法检验：删掉任意一层，其余仍成立，说明层与层之间没有因果。\n\n结尾记类型、情绪落点和余韵，再逐条核对全文钩子是已回收、留白还是遗漏。首尾呼应和“重读发现”（开头某句在真相揭开后换了意思）也单独记下。",
+          "en": "Begin with a prior-twist check: was a lie or misjudgment already in place before the story starts? Then take the twist apart: at least three setups with their locations, where the text steers the reader, how the truth comes out, whether it holds up on rereading, and how far through the text it lands. When a detail given early changes meaning after the reveal, it is a foreshadowing twist; record the first-read meaning beside the reread meaning. Test stacked twists by deletion: if removing any layer leaves the others intact, the layers have no causal link.\n\nFor the ending, record its type, emotional landing and lingering effect, then check every hook in the story as paid off, deliberately left open or dropped. Note echoes between opening and ending separately, along with any opening line that reads differently once the truth is known."
+        }
+      },
+      {
+        "id": "worked-example-breakdown",
+        "heading": {
+          "zh": "原创示例：拆一篇《周三的三号机》",
+          "en": "Worked example: breaking down “Machine Three on Wednesdays”"
+        },
+        "body": {
+          "zh": "下面是为本文虚构的短篇梗概。拆解为手工完成，没有经过 skill 实际运行；两张表是手写学习简表，不是 skill 落盘文件的格式。\n\n> **《周三的三号机》**（第一人称，6 节）\n> 1. 外婆把自助洗衣房交给钟晚，只叮嘱：周三十点后别查三号烘干机。第一个周三她就去查：机器还热，投币箱空着，门把上挂着一把店里没有的旧钥匙。\n> 2. 监控里，常客葛姨每周三十点用旧钥匙开门，拎来的都是大号工作服。钟晚认定外婆被占了便宜。\n> 3. 钟晚要回钥匙。葛姨不辩解，先清干净三号机滤网，才把钥匙放上柜台。\n> 4. 钟晚换了锁。下个周三十点，三个穿反光背心的工地学徒拎着湿衣服推不开门，走进雨里。\n> 5. 外婆账本最后几页写着：周三十点后，三号机给工地的孩子烘衣服，电费葛姨月初补。\n> 6. 钟晚把旧钥匙挂回三号机门把，在交接本上补一行：周三十点后，三号机不收币。\n\n| 位置 | 白描事实 | 读者在等什么 |\n|---|---|---|\n| 第1节 | 机器热、投币箱空、挂着陌生钥匙 | 谁在白用（导语钩子） |\n| 第2–3节 | 葛姨用旧钥匙开门；先清滤网再交钥匙 | 会不会撕破脸 |\n| 第4节 | 换锁后学徒在雨里离开 | 这些人是谁（后果反打） |\n| 第5节 | 账本写明用途和电费 | 爆发点：空投币箱改义 |\n| 第6节 | 钥匙挂回，补写规则 | 首尾呼应 |\n\n| 铺垫 | 初读理解 | 回看理解 |\n|---|---|---|\n| 空投币箱 | 有人白用 | 电费走了另一笔账 |\n| 大号工作服 | 替家人蹭洗 | 替学徒烘衣 |\n| 先清滤网再交钥匙 | 讨好 | 一直在照看机器 |\n\n情感曲线大致呈 V 形：好奇，转为不满，门外背影带来内疚，账本处翻转，结尾落在通透。反转类型记为动机反转。",
+          "en": "The outline below is invented for this article. The breakdown was done by hand, not by running the skill, and both tables are study sheets, not the skill's file format.\n\n> **“Machine Three on Wednesdays”** (first person, six sections)\n> 1. Grandma hands her self-service laundromat to Zhong Wan with one instruction: after ten on Wednesdays, don't check dryer three. On the first Wednesday Zhong checks. The machine is warm, the coin box empty, and an old key the shop doesn't own hangs from the door handle.\n> 2. On camera, regular customer Auntie Ge lets herself in with the old key at ten every Wednesday, always with oversized work clothes. Zhong decides Grandma is being exploited.\n> 3. Zhong asks for the key. Auntie Ge offers no defense; she cleans dryer three's lint filter, then sets the key on the counter.\n> 4. Zhong changes the lock. At ten the next Wednesday, three building-site apprentices in reflective vests, holding wet clothes, can't open the door and walk off into the rain.\n> 5. The last pages of Grandma's ledger read: after ten on Wednesdays, dryer three dries clothes for the kids from the site; Auntie Ge pays the electricity each month.\n> 6. Zhong hangs the old key back on dryer three and adds a line to the handover book: after ten on Wednesdays, dryer three takes no coins.\n\n| Place | Plain fact | What the reader awaits |\n|---|---|---|\n| Section 1 | Warm machine, empty coin box, unknown key | Who uses it free? (lead-in hook) |\n| Sections 2–3 | Ge uses the old key; cleans the filter, then returns it | Will it turn ugly? |\n| Section 4 | After the lock change, apprentices leave in the rain | Who are they? (consequence rebound) |\n| Section 5 | Ledger gives purpose and payment | Release: the empty box changes meaning |\n| Section 6 | Key rehung, rule written | Echo of the opening |\n\n| Setup | First read | On rereading |\n|---|---|---|\n| Empty coin box | Someone uses it free | The cost is paid elsewhere |\n| Oversized work clothes | Washing for family on the sly | Drying for the apprentices |\n| Filter cleaned before key returned | Currying favor | She has been looking after the machine |\n\nThe emotional curve is roughly a V: curiosity, resentment, guilt at the backs in the rain, a turn at the ledger and a clear-eyed ending. The twist type is logged as a motive reversal."
+        }
+      },
+      {
+        "id": "transfer-the-mechanism",
+        "heading": {
+          "zh": "把机制换进新场景：带走什么，留下什么",
+          "en": "Moving the mechanism into a new scene: what to take and what to leave"
+        },
+        "body": {
+          "zh": "能带走的是一条机制和它的成立条件：**主角当作证据的一处空缺，在揭示时换了意思；三条铺垫各有说得通的表层解释；揭示由主角自己行动的后果触发，不靠旁人讲出来；结尾回到同一物件。** 失效条件也写下：表层解释太牵强，读者会提前猜到；揭示靠旁人长篇说明，就成了补设定。\n\n留在原作里的是洗衣房、旧钥匙、工地学徒、电费账本、“别查”这句叮嘱，以及“被误会的人在默默帮忙”这条事件链。下面换一个情绪方向不同的原创场景：\n\n> 夜班药师祁满发现，同事每周四交班表上“冷藏柜凌晨温度”一栏都空着。她认定他偷懒，报告给药房主任。铺垫有三条：他只空凌晨那一格，其余照填；他总把一支自带温度计夹在柜门边；主任两次当她的面叮嘱“照正常值填就行”。主任把同事调去白班，下个周四凌晨轮到祁满自己值。那支温度计读数超出范围，柜子自带的屏幕仍显示正常。空着的那一格换了意思：他不肯抄一个自己没核实的数。祁满在那格写下实测读数，签上自己的名字。\n\n两篇共用的只有机制；人物关系、物件、事件顺序和情绪落点（温情和解对揭开隐瞒）都不同。",
+          "en": "Take away one mechanism and the conditions it needs: **a gap the protagonist treats as evidence changes meaning at the reveal; three setups each have a plausible surface explanation; the reveal is triggered by a consequence of the protagonist's own action, not by someone explaining; the ending returns to the same object.** Note how it fails, too: strained surface explanations let readers guess early, and a reveal delivered by another character's long explanation turns into backfilled setting.\n\nThe laundromat, the old key, the apprentices, the ledger, the “don't check” instruction and the event chain of a misjudged person quietly helping all stay with the source. Here is an original scene with a different emotional direction:\n\n> Night-shift pharmacist Qi Man notices that every Thursday her colleague leaves the “fridge temperature, small hours” box on the handover sheet empty. She decides he is slacking and reports him to the pharmacy director. Three setups: he leaves only that box empty and fills in the rest; he keeps his own thermometer clipped by the fridge door; twice, in front of her, the director has told him to “just write the normal value.” The director moves him to day shift, so the next Thursday night Qi Man is on duty herself. His thermometer reads out of range while the fridge's built-in display shows normal. The empty box changes meaning: he would not copy a number he had not checked. Qi Man writes the measured reading in the box and signs her own name.\n\nThe two pieces share only the mechanism. Relationships, objects, event order and emotional landing (warm reconciliation versus exposed concealment) all differ."
+        }
+      },
+      {
+        "id": "common-mistakes",
+        "heading": {
+          "zh": "短篇拆文常见错误",
+          "en": "Common mistakes in short-story breakdowns"
+        },
+        "body": {
+          "zh": "- **把题材标签当故事核。** “追妻”不是故事核；写出设定、主题和核心行动，再合成一句。\n- **为凑节点拆碎动作。** 同一目的下的连续微动作合并为一个节点，节点数没有配额。\n- **只记反转，不记误导。** 没写出文本把读者往哪引，就解释不了冲击从哪来。\n- **改名就当原创。** 下游 `story-short-write` 写下一篇时会同时读拆文报告和原文备份。开写前由你把不照搬的内容写进要求：物件组合、事件顺序、台词和人物关系。",
+          "en": "- **Using a genre label as the story core.** “Winning back the wife” is a genre label, not a core; state the premise, theme and core action, then combine them into one line.\n- **Splitting actions to pad the node list.** Merge consecutive small actions that serve one purpose into a single node; there is no node quota.\n- **Recording the twist but not the misdirection.** Without stating where the text steered the reader, you cannot explain where the impact comes from.\n- **Renaming and calling it original.** When the downstream `story-short-write` drafts the next story, it reads both the breakdown and the source backup. Before drafting, put what must not be copied into your instructions: object combinations, event order, lines and relationships."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "只有几千字的小故事也能这样拆吗？",
+          "en": "Can a story of only a few thousand characters be broken down this way?"
+        },
+        "a": {
+          "zh": "可以。skill 对很短的文本会先只挑关键节点，不为满足节点数量硬拆。结构段和铺垫这类检查项仍有最低要求；原文确实没有时，报告会写明缺什么，交给你决定。",
+          "en": "Yes. For a very short text the skill first picks only the key nodes rather than forcing a count. Checks such as structural parts and setups still have minimums; where the text genuinely lacks them, the report names what is missing and leaves the decision to you."
+        }
+      },
+      {
+        "q": {
+          "zh": "没有反转的短篇怎么拆？",
+          "en": "How do I break down a short story with no twist?"
+        },
+        "a": {
+          "zh": "复仇爽文、甜宠、喜剧可以没有传统反转，反转类型记“无反转”是合法选项，铺垫条数不再阻断。复仇类改拆报应设计：每条恶行对应什么报应、爽感从哪来；甜宠和喜剧在五维评分里，用“甜度曲线”“反差萌浓度”替换“情感拉扯力”“反转设计”。",
+          "en": "Revenge, sweet romance and comedy can lack a conventional twist, and “no twist” is a valid twist type, so the setup count no longer blocks completion. Revenge stories get a payback design instead: each wrong, the consequence that answers it and where the satisfaction comes from. For sweet romance and comedy, the five-dimension review replaces emotional pull and twist design with a sweetness curve and contrast-charm density."
+        }
+      },
+      {
+        "q": {
+          "zh": "拆完能直接让 AI 照着写一篇吗？",
+          "en": "Can AI write a new story straight from the breakdown?"
+        },
+        "a": {
+          "zh": "skill 拆完会建议下一步用 story-short-write，它会读拆文报告、情节节点、写作手法和原文备份。先由你定新故事的人物、物件和情绪方向，并写明哪些只学机制。拆文本身不保证新作品的阅读数据或过稿。",
+          "en": "After the breakdown, the skill suggests story-short-write as the next step, and that skill reads the report, plot nodes, technique notes and source backup. Decide the new story's characters, objects and emotional direction yourself first, and state which elements are mechanism only. A breakdown does not guarantee readership or acceptance for the new work."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-short-analyze",
+      "text": {
+        "zh": "用 $story-short-analyze 拆我提供的这篇短篇原文（我有使用权）。先报字数和题材，再按故事核与结构、情感线与爆点、反转与写作手法、人物与首尾、综合评估的顺序拆。节点只写白描，不猜作者动机，不评价写得好坏；原文缺的铺垫或钩子直接说缺什么，不要补；没有平台信息时，付费断点只报候选。只拆不写，不续写正文。",
+        "en": "Use $story-short-analyze on the short story text I provide (I have the right to use it). Report word count and genre first, then work through core and structure, emotional arc and peaks, twist and technique, characters and opening/ending, and the overall review. Describe plot nodes plainly, do not guess the author's intent or grade the writing, name missing setups or hooks instead of filling them, and report paywall breaks only as candidates without platform data. Analyze only; do not draft prose."
+      },
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-analyze/SKILL.md"
+    },
+    "related": [
+      "/oh-story/learn-from-fiction",
+      "/glossary/chaiwen",
+      "/oh-story/short-story-suspense-chain",
+      "/oh-story/plot-twists",
+      "/oh-story/tropes-without-copying"
+    ],
+    "topic": "revision",
+    "sources": [
+      {
+        "label": {
+          "zh": "短篇拆解顺序与拆解约束",
+          "en": "Short-story analysis order and constraints"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-analyze/references/analysis-method.md"
+      },
+      {
+        "label": {
+          "zh": "故事核、情节节点、情感曲线与爆点",
+          "en": "Story core, plot nodes, emotional curve and peaks"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-analyze/references/stage2-3-structure-emotion.md"
+      },
+      {
+        "label": {
+          "zh": "反转铺垫、首尾分析与可复用结构",
+          "en": "Twist setups, opening and ending analysis, reusable structures"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-analyze/references/stage4-6-reversal-summary.md"
+      },
+      {
+        "label": {
+          "zh": "钩子成立条件、钩子链与付费断点",
+          "en": "Hook conditions, hook chains and paywall breaks"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/79b2970096d91d2771915dc3f9270e807c6c97c3/skills/story-short-analyze/references/analysis-short-hooks.md"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "analyze-a-novel-for-game-adaptation",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-10-10",
+    "updated_on": "2026-10-10",
+    "title": {
+      "zh": "小说改游戏先拆什么：整理带原文出处的原著设定集",
+      "en": "How to Analyze a Novel for Game Adaptation: A Source Bible with Citations"
+    },
+    "seo_title": {
+      "zh": "小说改游戏怎么拆原著",
+      "en": "Analyze a Novel for Game Adaptation"
+    },
+    "description": {
+      "zh": "把小说、全量拆文或写作工程整理成带原文位置的 SOURCE_BIBLE：先定覆盖，再记世界规则、玩家动词、空间与角色意志，标出四种改编边界和仍未知的事。附原创节选与证据表。",
+      "en": "Turn a novel into a SOURCE_BIBLE with source locations: world rules, player verbs, spaces, character will and four adaptation boundaries."
+    },
+    "answer": {
+      "zh": "先拆会改变玩家动作、世界回应或视听身份的事实，并给关键事实标上原文位置；这一步不评文笔，也不选游戏类型。顺序是：确定来源版本与覆盖范围 → 逐章（逐单元）取证 → 检查覆盖 → 按阶段和全书聚合 → 回查原文 → 压缩成一份 `SOURCE_BIBLE.md`。改编边界表里的每一项只用 immutable、adaptable、open、conflicted 四种标签之一；角色说法、推断和原文没写的部分分开记，不替原作补完。",
+      "en": "Extract the facts that change player actions, world responses or audiovisual identity, and attach a source location to each key fact. At this stage you do not judge the prose or choose a genre. The order is: fix the edition and coverage range → collect evidence chapter by chapter (unit by unit) → check coverage → aggregate by stage and across the book → check back against the text → compress everything into one `SOURCE_BIBLE.md`. Every entry in the adaptation-boundary table takes exactly one of four labels: immutable, adaptable, open or conflicted. Keep character claims, inferences and what the source never says apart, and do not complete the novel on its behalf."
+    },
+    "sections": [
+      {
+        "id": "where-it-sits",
+        "heading": {
+          "zh": "拆原著这一步负责什么",
+          "en": "What source analysis is responsible for"
+        },
+        "body": {
+          "zh": "NovelToGame 先起草 `PRODUCT_BRIEF.md`，再由 `novel-game-analyze` 生成 `SOURCE_BIBLE.md`，然后才比较玩法、做设计和构建（见[小说改游戏怎么做](https://zenstory.ai/novel-to-game/quick-start)）。这一步只建立事实层：有什么规则、谁想做什么、在哪里做、世界怎样回应。它不评文笔，不选类型，也不写状态键、scene_id 或界面结构，这些属于 GAME_DESIGN。两份上游文件，下游不得静默改写。\n\n有 brief 就先读：它的分级、核心幻想和已锁类型决定先为哪些动作、关系和场面取证。\n\n可参照 zenstory.ai 首页的《西游记》案例：规则“西行是一条受约束的路”，依据是火焰山挡住必经之路（第59回），改编目标是恢复通路、不许用筋斗云跳过（这一步属于后面的设计）。下文用原创小说演示取证。",
+          "en": "NovelToGame drafts `PRODUCT_BRIEF.md` first, then runs `novel-game-analyze` to produce `SOURCE_BIBLE.md`, and only then compares gameplay, designs and builds (see the [full novel-to-game workflow](https://zenstory.ai/novel-to-game/quick-start)). This step builds the factual layer: which rules exist, who wants what, where things happen and how the world responds. It does not judge the prose, choose a genre, or write state keys, scene_id or interface structure; those belong to GAME_DESIGN. Later stages may not silently rewrite either upstream file.\n\nIf a brief exists, read it first: its rating, core fantasy and any locked genre decide which actions, relationships and set pieces get evidence first.\n\nThe *Journey to the West* case on the zenstory.ai homepage is a useful reference: the rule “the westward road is constrained” rests on Flaming Mountain blocking the only road west (chapter 59), and the adaptation goal is to reopen the road with no somersault-cloud skip (that goal belongs to the later design step). Below, an original novel shows the same evidence work."
+        }
+      },
+      {
+        "id": "coverage-first",
+        "heading": {
+          "zh": "先定来源范围和覆盖",
+          "en": "Fix the source range and coverage first"
+        },
+        "body": {
+          "zh": "有写作工程或**全量**拆文产物就复用，只回原文补关键证据；只有原始小说才走全书管道：建立边界 → 逐单元提取 → 覆盖门禁 → 分层聚合 → 回查原文 → 压缩交付。只覆盖黄金三章或快速预览的分析，只能帮助判断开篇。\n\n来源范围记版本、改编范围、单元边界、缺失部分和授权边界；下载日期、校验值等获取记录，复现不需要就不写。\n\n覆盖逐单元记状态：读过但无相关发现也算覆盖，未读或失败单独标出；表头写来源单元数和成功数，覆盖集合须与来源单元一致。互不重叠的章节可以分批并行，但用同一提取契约，聚合和回查保持串行，不能改成抽样。除非你明确只改编某卷或片段，来源未覆盖全文就不进入概念设计。",
+          "en": "If you already have a writing project or a **full** deconstruction library, reuse it and return to the text only for key evidence. Run the whole-book pipeline only when all you have is the raw novel: set boundaries → extract unit by unit → pass the coverage gate → aggregate in layers → check back against the text → compress and deliver. An analysis covering only the first three chapters or a quick preview can help you judge the opening, nothing more.\n\nThe source range records the edition, adaptation range, unit boundaries, missing parts and rights boundaries. Acquisition details such as download dates and checksums stay out unless reproduction needs them.\n\nTrack coverage per unit. A chapter read with no relevant finding still counts as covered; unread or failed units are marked separately. The table header states the number of source units and how many succeeded, and the covered set must match the source units. Non-overlapping chapter batches may run in parallel, but they share one extraction contract, aggregation and fact-checking stay sequential, and nothing falls back to sampling. Unless you explicitly limit the adaptation to one volume or excerpt, an analysis that does not cover the whole text does not move on to concept design."
+        }
+      },
+      {
+        "id": "what-to-extract",
+        "heading": {
+          "zh": "逐单元记什么：只留影响玩法的事实",
+          "en": "What to record per unit: only facts that affect play"
+        },
+        "body": {
+          "zh": "协议列出十个审阅维度：客观变化、动作候选、规则证据、行动者、空间、物件与能力、知识与信息差、节奏与感受、视听锚点、证据与边界。它们是读每个单元时要问的问题，不是每章必填的表；只记有依据、影响玩家动作、世界回应或视听身份的发现，不用空字段占位，不复述剧情。\n\n其中三项直接决定后面能不能谈玩法：\n\n- **动作候选**：玩家可重复执行、有选择、反馈或熟练差异的动作，含有原作依据的命令、委托或代办；\n- **规则证据**：触发条件、代价、例外、反制和可观察后果；\n- **行动者**：目标、默认行动、资源、底线，以及能下达或承接什么事。\n\n空间记出入口、门槛、地标、风险和可改变处；信息差记谁知道、误信、隐瞒或说谎，靠什么载体。硬规则、关键角色目标、玩家身份依据、转折结局和标志性锚点要带章节位置，推断要标明。原文与策划语言不同时，引用保留原文、附必要译文，维护统一术语表，礼制和宗教不换成别的文化的近似标签。",
+          "en": "The protocol lists ten review dimensions: objective change, action candidates, rule evidence, actors, space, items and abilities, knowledge gaps, pacing and feeling, audiovisual anchors, and evidence and boundaries. They are questions to ask while reading each unit, not a form to fill in for every chapter. Record only evidenced findings that affect player actions, world responses or audiovisual identity; leave no placeholder fields and do not retell the plot.\n\nThree of them decide whether there is anything to play later:\n\n- **Action candidates**: actions a player could repeat with choice, feedback or room for skill, including source-backed orders, commissions and errands;\n- **Rule evidence**: triggers, costs, exceptions, counters and observable consequences;\n- **Actors**: goals, default behaviour, resources, limits, and what they can order or take on.\n\nFor space, record ways in and out, thresholds, landmarks, risks and what can change; for knowledge gaps, who knows, misbelieves, hides or lies, and through what carrier. Hard rules, key character goals, grounds for the player role, turning points and endings, and signature anchors need chapter locations, and inferences must be labelled. When the source language differs from the design language, quote the original, add the translations a decision needs, keep one shared glossary, and do not swap rites or religion for another culture’s near-equivalent label."
+        }
+      },
+      {
+        "id": "original-example",
+        "heading": {
+          "zh": "原创示例：《榆城夜信》第一章节选",
+          "en": "Original example: chapter 1 of Night Letters from Elm City"
+        },
+        "body": {
+          "zh": "《榆城夜信》是本文虚构的长篇，人物、城市和规则均为原创。行号用来标证据位置。\n\n> L1 榆城九门，三更鼓后一律落闩，不得出入。\n>\n> L2 只有持红漆木牌者能叫开北门；木牌须在次日辰时前交回驿站，由守门人画押。逾期不还，驿站一个月不再发牌。\n>\n> L3 苏禾跑信三年，最熟的是从驿站穿染坊后巷到北门的路，比走大街近一半。\n>\n> L4 二更将尽，药铺掌柜杜七塞给她一封蜡封的信：“城外庄子有人发高热，药方在里面，今夜务必送到。”\n>\n> L5 驿丞梁砚递给她一块红牌：“我已差人告诉北门老温，给你留门。”\n>\n> L6 苏禾跑到北门时三更鼓刚落，门闩已经放下。老温说，今夜驿站没派人来过。\n>\n> L7 老温验过红牌，又看蜡封：“我认牌，不认话。要开门，先在门册上写清送的是什么。”\n>\n> L8 苏禾不知道信里写了什么。她停了一会儿，写下“药方”。\n>\n> L9 城外田埂被夜雨泡软，她两次陷进泥里，回到北门时天已发白，红牌上全是泥点。\n>\n> L10 老温在门册上画了押，没把红牌还她：“辰时以前，我自己送去驿站。”\n\n下面是本文手写的证据简表，只作示范，不是 skill 的原生输出或运行结果：\n\n| 维度 | 记录与位置 |\n|---|---|\n| 规则证据 | 三更后九门落闩（L1）；红牌可开北门（L2、L7）；辰时前还牌画押，逾期停发一月（L2），本节未见执行 |\n| 动作候选 | 跑信赶时限，已三年（L3、L6、L9）；出示凭证（L7）；登记所送之物（L7、L8）；还牌（L2、L10） |\n| 行动者 | 苏禾：熟路，不知信的内容（L3、L8）；老温：认牌不认话，主动承接还牌（L7、L10）；梁砚：称已差人传话（L5） |\n| 空间 | 驿站 → 染坊后巷 → 北门（门闩、门册）→ 泥泞田埂（L3、L6、L9） |\n| 信息差 | “药方”只是杜七的说法（L4），苏禾未核实就登记（L8）；驿站是否派人，两人说法相反（L5、L6） |\n| 视听锚点 | 三更鼓声（L1、L6）、沾泥的红牌（L9）、蜡封（L4） |",
+          "en": "*Night Letters from Elm City* is a novel invented for this article; its characters, city and rules are original. Line numbers mark evidence locations.\n\n> L1 Elm City has nine gates. After the drum sounds the third watch, every gate is barred and no one passes.\n>\n> L2 Only someone holding a red-lacquered wooden token can have the north gate opened. The token must be returned to the post station before the hour of the Dragon next morning, countersigned by the gatekeeper. If it comes back late, the station issues no tokens for a month.\n>\n> L3 Su He has run letters for three years. The route she knows best goes from the post station through the alley behind the dye works to the north gate, half the distance of the main street.\n>\n> L4 Near the end of the second watch, Du Qi, who keeps the apothecary, presses a wax-sealed letter on her: “Someone at the farm outside the walls has a high fever. The prescription is inside. It must arrive tonight.”\n>\n> L5 Station master Liang Yan hands her a red token. “I’ve sent word to Old Wen at the north gate to keep it open for you.”\n>\n> L6 Su He reaches the north gate just as the third-watch drum dies away; the bar is already down. Old Wen says no one from the station has come tonight.\n>\n> L7 Old Wen checks the token, then the wax seal. “I go by tokens, not by word of mouth. If you want the gate open, write in the gate ledger what you’re carrying.”\n>\n> L8 Su He does not know what the letter says. She hesitates, then writes “prescription”.\n>\n> L9 Night rain has soaked the field paths outside the walls. She sinks into the mud twice, and by the time she is back at the north gate the sky is pale and the token is spattered with mud.\n>\n> L10 Old Wen countersigns the ledger but keeps the token. “I’ll take it to the station myself before the hour of the Dragon.”\n\nBelow is an evidence table written by hand for demonstration only. It is not the skill’s native output or the result of a run:\n\n| Dimension | Record and location |\n|---|---|\n| Rule evidence | All nine gates barred after the third watch (L1); a red token opens the north gate (L2, L7); return and countersign before the hour of the Dragon, or no tokens for a month (L2), not seen enforced here |\n| Action candidates | Running letters against the curfew, for three years (L3, L6, L9); showing a token (L7); declaring what is carried (L7, L8); returning the token (L2, L10) |\n| Actors | Su He: knows the routes, not the letter’s contents (L3, L8); Old Wen: trusts tokens, not words, volunteers to return the token (L7, L10); Liang Yan: says he sent word (L5) |\n| Space | Post station → alley behind the dye works → north gate (bar, ledger) → muddy field paths (L3, L6, L9) |\n| Knowledge gaps | “Prescription” is only Du Qi’s claim (L4), entered in the ledger unverified (L8); the two men disagree on whether the station sent anyone (L5, L6) |\n| Audiovisual anchors | The third-watch drum (L1, L6), the mud-spattered token (L9), the wax seal (L4) |"
+        }
+      },
+      {
+        "id": "evidence-to-rules-and-verbs",
+        "heading": {
+          "zh": "从证据到可玩规则与玩家动词",
+          "en": "From evidence to gameable rules and player verbs"
+        },
+        "body": {
+          "zh": "别把叙事元素直接对应成类型。对反复动作、规则、关系、地点、信息差和情绪承诺各问四件事：玩家能做什么决定？世界怎样反馈？什么状态留到下一步？重复后能否学到东西或得到不同结果？一次性高潮只留作标志性场面，不当核心循环。\n\n“跑信赶时限”有三年依据，路线、鼓声和泥泞都影响能否按时到达，可列为系统候选。“在门册申报所送之物”是老温开门的条件（L7），让人在不知真相时留下可核对的记录，也可保留，但是否每次都要求，要靠全书确认。“驿站传话没到”只出现一次：原作**反复成立**的“下令不等于办成”才能成为系统候选，单次传话推不出委托系统。先记为待全书确认，追问谁下令、谁执行、经过哪些人和地点、留下什么证据、何时再成问题。\n\n改编边界必须写成表，只用四种标签：immutable（不可改）、adaptable（可调整）、open（开放设计）、conflicted（证据冲突）。以下是本例在节选内的判断：\n\n| 条目 | 边界类型 | 证据位置 |\n|---|---|---|\n| 三更后九门落闩，红牌可开北门 | immutable | L1、L2、L7 |\n| 红牌辰时前交回，逾期停发一月 | immutable | L2 |\n| 后巷比大街近一半 | adaptable | L3 |\n| 信的真实内容 | open | L4、L8 |\n| 驿站是否派人到北门 | conflicted | L5、L6 |\n| 老温是否按时还牌 | open | L10 |\n\n两句传话都是角色说法，不等于世界事实；保留两处证据，不替原作判谁说谎。相邻人物或物件的属性也不能互相挪用。玩家身份未锁定时，再比较苏禾、原创角色、驿站这类势力或观察者各能接触的动作与决定。",
+          "en": "Do not map narrative elements straight onto genres. For recurring actions, rules, relationships, places, information gaps and emotional promises, ask four things: What decision can the player make? How does the world respond? What state carries into the next step? Does repetition produce learning or different results? A one-off climax stays a signature set piece, not the core loop.\n\n“Running letters against the curfew” rests on three years of deliveries, and route, drum and mud all affect whether she arrives in time, so it is a system candidate. “Declaring in the ledger what you carry” is Old Wen’s condition for opening the gate (L7) and makes someone leave a checkable record without knowing the truth. It stays as a candidate too, though only the whole book can show whether the condition always applies. “The station’s message never arrived” happens once. Only when “an order is not the same as a job done” **holds repeatedly** in the source can it become a system candidate; one undelivered message cannot justify a delegation system. Record it as something to confirm across the book, and ask who gave the order, who carried it out, which people and places it passed through, what evidence it left and when it becomes a problem again.\n\nAdaptation boundaries must be a table using only four labels: immutable, adaptable, open (open design space) and conflicted (conflicting evidence). These are this example’s judgments within the excerpt:\n\n| Item | Boundary type | Evidence |\n|---|---|---|\n| Nine gates barred after the third watch; a red token opens the north gate | immutable | L1, L2, L7 |\n| Token returned before the hour of the Dragon, or no tokens for a month | immutable | L2 |\n| The back alley is half the distance of the main street | adaptable | L3 |\n| What the letter really says | open | L4, L8 |\n| Whether the station sent anyone to the north gate | conflicted | L5, L6 |\n| Whether Old Wen returns the token on time | open | L10 |\n\nBoth statements about the message are character claims, not world facts. Keep both pieces of evidence and do not decide for the novel who lied. Nor may attributes migrate between neighbouring characters or objects. While the player role is still open, compare which actions and decisions Su He, an original character, the post station as a faction, or an observer could reach."
+        }
+      },
+      {
+        "id": "record-what-is-unknown",
+        "heading": {
+          "zh": "把还不知道的事写出来",
+          "en": "Write down what you still do not know"
+        },
+        "body": {
+          "zh": "节选答不了下面的问题。它们进入设计空白或待查清单，不由策划顺手补完：\n\n- 信里写了什么，杜七为何坚持今夜送达（L4、L8 只有说法）；\n- 停发一月是否执行过，老温是否按时还牌（L2 只陈述，节选止于 L10）；\n- 其他八门有无例外（L1 只说一律落闩）；\n- 传话落空在全书是否反复出现。\n\n全书聚合时，结论引用最早建立、典型运作、重要反例和最终回收的位置，以免把只在开篇成立的现象写成硬规则；数值、能力边界、关系、死亡和结局都回查原文。只有这段节选时，设定集标为部分分析，未读章节标为未审；除非你明确只改编这一章，否则不进入概念设计（范围取舍见[小说改游戏要还原全部剧情吗](https://zenstory.ai/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team)）。\n\n概念选定段落后，此 skill 再为该段补一张 `事实 | 证据位置 | 边界类型` 表追加进设定集，含入镜角色的服饰、兵器、体量和位置，原文没写填“原文未明确”。节选没写苏禾穿什么，就不能替她添一件蓑衣当原作。设定集完成后，再[按原作的反复行动选玩法](https://zenstory.ai/novel-to-game/choose-gameplay)。",
+          "en": "The excerpt cannot answer the following. These go into design gaps or a to-check list instead of being filled in on the fly:\n\n- What the letter says, and why Du Qi insists it arrive tonight (L4 and L8 offer only claims);\n- Whether the month-long ban is ever enforced, and whether Old Wen returns the token on time (L2 only states the rule; the excerpt ends at L10);\n- Whether the other eight gates have exceptions (L1 says only that all are barred);\n- Whether the lost message recurs across the book.\n\nWhen aggregating across the book, cite where a conclusion is first established, how it typically operates, its key counterexamples and its final payoff, so an opening-only pattern does not become a hard rule; check numbers, ability limits, relationships, deaths and endings against the text. With only this excerpt, mark the bible as a partial analysis and list unread chapters as not reviewed. Unless you explicitly limit the adaptation to this chapter, it does not move on to concept design (for choosing a range, see [how much of a novel a game should adapt](https://zenstory.ai/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team)).\n\nAfter the concept stage selects a passage, the skill runs again to append a `fact | evidence location | boundary type` table for it to the bible, including the clothing, weapons, build and position of every on-screen character, with “not specified in the source” where the text is silent. The excerpt never says what Su He wears, so you cannot give her a straw raincoat and call it the original. Once the bible is complete, [choose gameplay from the source’s repeated actions](https://zenstory.ai/novel-to-game/choose-gameplay)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "只有黄金三章的拆文结果，能直接拿来改游戏吗？",
+          "en": "Can I adapt from a deconstruction that only covers the first three chapters?"
+        },
+        "a": {
+          "zh": "它只能帮助判断开篇。改编整本书时，覆盖要与来源单元一致；缺的章节先补读，或者明确只改编这几章，并在设定集的来源范围里写清。",
+          "en": "It only helps you judge the opening. For a whole-book adaptation, coverage must match the source units, so read the missing chapters first, or state explicitly that only those chapters are being adapted and record that in the bible’s source range."
+        }
+      },
+      {
+        "q": {
+          "zh": "原作没写的系统，比如数值成长，可以写进设定集吗？",
+          "en": "Can systems the novel never describes, such as numeric progression, go into the bible?"
+        },
+        "a": {
+          "zh": "不能写成原作事实。已锁类型需要而原作没有系统提供时，在设计空白里注明“原作无系统化的对应体系，属下游发明”，具体规则留给后续设计阶段。",
+          "en": "Not as source facts. When a locked genre needs a system the novel does not provide in systematic form, note under design gaps that the source has no systematic equivalent and the system is a downstream invention. The actual rules are left to the later design stage."
+        }
+      },
+      {
+        "q": {
+          "zh": "这和写小说用的人物设定集有什么不同？",
+          "en": "How is this different from a novelist’s story bible?"
+        },
+        "a": {
+          "zh": "写作用的[设定集](https://zenstory.ai/oh-story/story-bible-template)帮作者让稳定事实、当前状态和知识边界保持一致；SOURCE_BIBLE 服务改编决策，记录玩家能做什么、世界怎样回应、哪些不能改，并为关键事实给出原文位置。它不放下游的游戏设计，也不替原作补设定。",
+          "en": "A writer’s [story bible](https://zenstory.ai/oh-story/story-bible-template) keeps stable facts, current state and knowledge boundaries consistent while drafting. A SOURCE_BIBLE serves adaptation decisions: it records what a player could do, how the world responds and what must not change, with source locations for key facts. It holds no downstream game design and does not fill in the novel’s setting."
+        }
+      }
+    ],
+    "skill": {
+      "name": "novel-game-analyze",
+      "text": {
+        "zh": "用 $novel-game-analyze 把我提供的小说全文（或已有的全量拆文库、写作工程）整理成 `analysis/SOURCE_BIBLE.md`，有 `PRODUCT_BRIEF.md` 就先读。先写来源范围和逐单元覆盖，再按原文位置记录世界规则、可玩动词、空间、角色意志、信息差和视觉锚点；改编边界用“条目 | 边界类型 | 证据位置”表，只用四种边界标签。推断、角色说法和原文直述分开，原文没写的进设计空白。这一步不选游戏类型，不写状态键或界面结构；来源未覆盖全文时报告缺口，不进入概念设计。",
+        "en": "Use $novel-game-analyze to turn the full novel I provide (or my existing full deconstruction library or writing project) into `analysis/SOURCE_BIBLE.md`, reading `PRODUCT_BRIEF.md` first if it exists. Start with the source range and per-unit coverage, then record world rules, playable verbs, spaces, character will, information gaps and visual anchors with source locations. Write adaptation boundaries as an “item | boundary type | evidence location” table using only the four boundary labels. Keep inferences, character claims and direct source statements apart, and put anything the source leaves undefined into design gaps. Do not choose a genre or write state keys or interface structure at this stage; if the source is not fully covered, report the gap instead of moving on to concept design."
+      },
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/03feee90a6aa2bcda827698f769b4acdb4ee6b8c/skills/novel-game-analyze/SKILL.md"
+    },
+    "related": [
+      "/novel-to-game/quick-start",
+      "/novel-to-game/choose-gameplay",
+      "/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team",
+      "/oh-story/story-bible-template",
+      "/oh-story/learn-from-fiction"
+    ],
+    "topic": "interactive-games",
+    "sources": [
+      {
+        "label": {
+          "zh": "游戏化拆书：输入、全书管道与 SOURCE_BIBLE 内容",
+          "en": "Gameable book analysis: inputs, whole-book pipeline and SOURCE_BIBLE contents"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/03feee90a6aa2bcda827698f769b4acdb4ee6b8c/skills/novel-game-analyze/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "逐单元取证、系统候选与四种改编边界",
+          "en": "Per-unit evidence, system candidates and the four adaptation boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/03feee90a6aa2bcda827698f769b4acdb4ee6b8c/skills/novel-game-analyze/references/gameability-protocol.md"
+      },
+      {
+        "label": {
+          "zh": "拆解阶段在小说改游戏总流程中的位置",
+          "en": "Where source analysis sits in the novel-to-game pipeline"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/03feee90a6aa2bcda827698f769b4acdb4ee6b8c/skills/novel-to-game/SKILL.md"
+      }
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "understand-footage-before-a-recap",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-10-10",
+    "updated_on": "2026-10-10",
+    "title": {
+      "zh": "做视频解说前怎么看懂素材：先建索引，再回原片核对",
+      "en": "How to Understand Your Footage Before Writing a Video Recap"
+    },
+    "seo_title": {
+      "zh": "视频解说前怎么看懂素材：场景、转写与逐场观察",
+      "en": "Understand Your Footage Before Writing a Video Recap"
+    },
+    "description": {
+      "zh": "说明视频理解索引里的场景、转写、逐场观察、安静窗口和创作简报各回答什么，给出写稿前的核对顺序，并用原创三分钟短片演示怎样在写旁白前抓出一条错误观察。",
+      "en": "What the scene index, transcript, per-scene notes and writing brief each answer, how to check them, and how to catch a wrong observation."
+    },
+    "answer": {
+      "zh": "做视频解说前，先运行视频理解阶段，把素材整理成一套索引：场景切点、粗分段的对白转写、每场的画面描述与帧级事实、安静窗口，以及把它们放到同一条时间轴上的融合时间线和创作简报。写旁白前按顺序核对：先看转写证据状态和素材警告，再用联系表检查场景切分，逐场对照描述与帧级事实，找出不同文件之间的矛盾，最后回原片看清解说要依靠的动作、人名和原话。这些观察都由模型生成，只是写稿线索；动机、镜头外的事、哪里该留沉默，仍要你看过原片后决定。只处理你拥有或获准使用的素材。",
+      "en": "Before writing a video recap, run the video-understanding stage to turn the footage into an index: scene cuts, a coarse dialogue transcript, per-scene descriptions with frame-level facts, quiet windows, and a fused timeline and writing brief that put them on one time axis. Check it in order before writing narration: read the transcript evidence status and any material warnings, check scene splits against the contact sheet, compare each description with its frame facts, look for contradictions between files, and finally rewatch the footage for every action, name, and line the narration will rely on. A model generates these observations, so treat them as leads for writing. Motive, off-screen events, and where silence should stay are still yours to decide after watching. Process only footage you own or have permission to use."
+    },
+    "sections": [
+      {
+        "id": "index-files",
+        "heading": {
+          "zh": "理解索引里有哪些文件，各回答什么",
+          "en": "What the index contains and what each file answers"
+        },
+        "body": {
+          "zh": "video-understanding 是写稿前的分析阶段，角色是素材观察员（场记），不是导演：把源视频转成一组文件供写稿读取，自己不写解说词。\n\n| 文件 | 回答什么，怎么用 |\n|---|---|\n| `scenes.json` | 切点与每场起止，含废片段过滤结果；一场不等于一个剧情节拍 |\n| `asr_result.json` | 粗分段的对白文字；只用来找对白大致位置 |\n| `asr_timing_evidence.json` | 转写是否可用、精度边界、人名表修正前后的文字 |\n| `silence_periods.json` | 安静窗口与 `has_speech`；放旁白的候选位置 |\n| `vlm_analysis.json` | 逐场描述、深层分析和按时间点记录的 `frame_facts` |\n| `timeline_fusion.json` | 把画面、对白和安静窗口对齐到每一场 |\n| `agent_narration_brief.md` | 写稿前首先阅读的创作简报 |\n\n另有原片联系表 `storyboard/source_storyboard.jpg`，以及默认生成、同样由模型汇总的全局故事索引 `understanding_index.md`。",
+          "en": "video-understanding is the analysis stage that runs before writing. Its role is footage observer, a script supervisor rather than a director: it turns the source video into a set of files for the writing stage and does not write narration itself.\n\n| File | What it answers and how to use it |\n|---|---|\n| `scenes.json` | Cut points and each scene’s start and end, with junk segments filtered; a scene is not a story beat |\n| `asr_result.json` | Dialogue text in coarse windows; use it only to find roughly where speech is |\n| `asr_timing_evidence.json` | Whether the transcript is usable, its precision limits, and text before and after name-list correction |\n| `silence_periods.json` | Quiet windows with `has_speech`; candidate places for narration |\n| `vlm_analysis.json` | Per-scene description, depth analysis, and timestamped `frame_facts` |\n| `timeline_fusion.json` | Visuals, dialogue, and quiet windows aligned scene by scene |\n| `agent_narration_brief.md` | The writing brief read first before scripting |\n\nThere is also a source contact sheet, `storyboard/source_storyboard.jpg`, and a global story index, `understanding_index.md`, which is produced by default and is also a model-written summary."
+        }
+      },
+      {
+        "id": "before-you-run",
+        "heading": {
+          "zh": "运行前：素材权利、依赖和背景资料",
+          "en": "Before you run it: rights, dependencies, and background research"
+        },
+        "body": {
+          "zh": "- **素材权利**：只处理你拥有或获准使用的视频。抽出的画面帧和音频会发给远程模型服务，发送前确认授权，并查看服务商的隐私与计费条款。\n- **本地工具**：用 `python3` 运行 `scripts/understand.py`，需要 `ffmpeg`；中间文件写进 `--work-dir`。\n- **模型服务**：转写用 `mimo-v2.5-asr`，画面观察用 `mimo-v2.5`，都需要 `MIMO_API_KEY`。`--skip-asr` 只跳过转写，还会把已有转写覆盖成 `[]`，不能用来绕过缺 key。\n- **背景资料（可选）**：`work_dir/background_research.json` 里的梗概和角色名会折进画面分析，`--context` 可再补一条提示。这让描述能叫出人名，也可能把名字安错人，查法见[影视解说写稿前怎么查资料](https://zenstory.ai/video-recap/recap-background-research)。\n- **缓存**：产物只在与当前视频和相关设置一致时复用；需要全部重算时加 `--force`。",
+          "en": "- **Rights**: process only video you own or have permission to use. Extracted frames and audio are sent to a remote model service, so confirm your rights and read the provider’s privacy and billing terms first.\n- **Local tools**: run `scripts/understand.py` with `python3`; `ffmpeg` is required. Intermediate files go into `--work-dir`.\n- **Model services**: transcription uses `mimo-v2.5-asr` and visual observation uses `mimo-v2.5`; both need `MIMO_API_KEY`. `--skip-asr` skips only transcription and overwrites any existing transcript with `[]`, so it is no way around a missing key.\n- **Background research (optional)**: the synopsis and character names in `work_dir/background_research.json` are folded into visual analysis, and `--context` can add one more hint. Descriptions can then name people, but a name can also land on the wrong person. For how to research, see [How to Research Before Writing a Video Recap](https://zenstory.ai/video-recap/recap-background-research).\n- **Caching**: outputs are reused only when they match the current video and relevant settings; add `--force` to recompute everything."
+        }
+      },
+      {
+        "id": "check-order",
+        "heading": {
+          "zh": "写旁白前，按这个顺序核对索引",
+          "en": "Check the index in this order before writing narration"
+        },
+        "body": {
+          "zh": "1. **先看状态。** 简报会打印转写证据状态：`AVAILABLE_COARSE` 表示有粗转写；`UNAVAILABLE_NO_KEY`、`FAILED_PROVIDER` 等表示这次没有可用对白；`MISSING_OR_STALE` 表示证据缺失或与当前文件对不上。转写或画面观察过薄时会有素材警告，此时少下结论。\n2. **用联系表查场景切分。** 漏切会把两场混成一条描述，多切会把一个动作拆散；被过滤掉的片段里也不能有你要用的镜头。不对就调整 `--scene-threshold` 重跑。\n3. **逐场对照描述和 `frame_facts`。** 描述里的动作、物件去向和人名，都应在某条帧标签里找到。帧标签只记录抽到的帧，两帧之间发生了什么是模型补的。\n4. **把深层分析当假设。** 提示模板要求依据可见证据分析情绪、关系和潜台词，信息不足时直说；它仍是模型的判断。\n5. **查会改变意思的字。** 人名、否定词、数字先回听；被人名表修改过的窗口，对照前后两版。空文本不等于已证实的静音。\n6. **找跨文件矛盾。** 融合时间线把每场画面和对白放在一起；后一场的对白否定前一场的描述，最该回看。\n7. **回原片看清每一拍。** 结果写进自己的核对笔记并注明人工回看，不把手改的内容当成模型原始输出。",
+          "en": "1. **Read the status first.** The brief prints the transcript evidence status: `AVAILABLE_COARSE` means a coarse transcript exists; `UNAVAILABLE_NO_KEY`, `FAILED_PROVIDER`, and similar values mean this run has no usable dialogue; `MISSING_OR_STALE` means the evidence is missing or does not match the current files. When transcription or visual observation is thin, you get a material warning; draw fewer conclusions.\n2. **Check scene splits on the contact sheet.** A missed cut merges two scenes into one description; an extra cut splits one action apart. Make sure nothing filtered out is a shot you need. If the splits are wrong, adjust `--scene-threshold` and rerun.\n3. **Compare each description with its `frame_facts`.** Every action, object movement, and name in a description should appear in some frame tag. Tags cover only the sampled frames; what happens between two of them is filled in by the model.\n4. **Treat depth analysis as a hypothesis.** The prompt template asks the model to read emotion, relationships, and subtext from visible evidence and to say so when information is insufficient. It is still the model’s judgment.\n5. **Check words that change the meaning.** Listen first to names, negatives, and numbers; for windows the name list altered, compare both versions. Empty text is not proven silence.\n6. **Look for contradictions across files.** The fused timeline sets each scene’s visuals beside its dialogue. When a later scene’s dialogue contradicts an earlier description, rewatch there first.\n7. **Rewatch every beat you will rely on.** Record findings in your own check notes, marked as rewatched by hand, and never pass hand edits off as the model’s original output."
+        }
+      },
+      {
+        "id": "market-scale-example",
+        "heading": {
+          "zh": "原创例子：三分钟早市短片里的一条错误观察",
+          "en": "Original example: one wrong observation in a three-minute market short"
+        },
+        "body": {
+          "zh": "以下短片、人物和时间均为本文虚构，没有真实运行模型；JSON 为手写示意，只沿用 data-schema 的字段名并省略部分字段，不是该技能的实际输出。\n\n**素材**：作者在早市自拍的三分钟短片《借来的秤》。鱼摊的秤坏了，摊主苗姨让侄女小禾去隔壁老钱摊借秤，老钱说中午前要还。约 2:06，小禾抱着秤走进两摊之间的过道；约 2:38，老钱过来问秤在哪；片尾，小禾从自家柜台下拿出秤递给他。\n\n融合时间线节选（`scene_id` 从 0 数，简报显示为第 5 场）：\n\n> `{`\n> `  \"scene_id\": 4,`\n> `  \"time_range\": [126.0, 152.0],`\n> `  \"visual_description\": \"小禾抱着秤走到老钱摊前，把秤还给老钱\",`\n> `  \"depth_analysis\": \"她按约定在中午前归还\",`\n> `  \"frame_facts\": {`\n> `    \"128.0\": [\"小禾双手抱着秤走进过道\"],`\n> `    \"136.0\": [\"小禾站在两摊之间，手里已经没有秤\"]`\n> `  },`\n> `  \"narration_slots\": [{\"start\": 141.0, \"end\": 149.0, \"duration\": 8.0}]`\n> `}`\n\n下一场的一行转写（`asr_result.json`）：\n\n> `{\"start\": 158.0, \"end\": 168.0, \"text\": \"秤呢？说好中午前还我的。\"}`\n\n照索引直接写，141—149 秒的安静窗口很容易填成“秤按时还了”。核对时，问题露在三处：\n\n- **描述超出帧标签**：帧标签只有“抱着秤”和“手里已经没有秤”，没有一帧拍到老钱接秤，“还给老钱”是模型补的。\n- **跨文件矛盾**：下一场有人问秤在哪。转写不标说话人，先记作“有人问秤”。\n- **回到原片**：126—140 秒里，小禾把秤放在自家柜台角，转身招呼客人，老钱不在画面中。\n\n核对笔记：第 5 场改为“小禾把秤放在自家柜台角，没有交给老钱”（人工回看 126—140 秒）；删去“按约定归还”；158 秒附近的问话出自老钱，逐字回听后再引用。\n\n故事因此变了：从“守约还秤”变成“说好中午前还，却忘了，片尾才补上”。那段安静要不要放旁白，由作者看过原片后决定；若放，只说画面能证明的：秤还在自家柜台上。",
+          "en": "The short film, people, and times below are invented for this article; no model was actually run. The JSON is hand-written for illustration, borrows field names from data-schema, omits some fields, and is not real output from the skill.\n\n**Footage**: *The Borrowed Scale*, a three-minute short the author filmed at a morning market. The fish stall’s scale has broken, so the owner, Aunt Miao, sends her niece Xiaohe to borrow one from Old Qian’s stall next door. Qian wants it back before noon. Around 2:06, Xiaohe carries the scale into the aisle between the stalls; around 2:38, Qian comes over and asks where it is; at the end, Xiaohe takes the scale from under her own counter and hands it to him.\n\nAn excerpt from the fused timeline (`scene_id` counts from 0, so the brief shows scene 5):\n\n> `{`\n> `  \"scene_id\": 4,`\n> `  \"time_range\": [126.0, 152.0],`\n> `  \"visual_description\": \"Xiaohe carries the scale to Qian and returns it\",`\n> `  \"depth_analysis\": \"She returns it before noon as agreed\",`\n> `  \"frame_facts\": {`\n> `    \"128.0\": [\"Xiaohe carries the scale into the aisle\"],`\n> `    \"136.0\": [\"Xiaohe stands between the stalls, no scale in hand\"]`\n> `  },`\n> `  \"narration_slots\": [{\"start\": 141.0, \"end\": 149.0, \"duration\": 8.0}]`\n> `}`\n\nOne transcript line from the next scene (`asr_result.json`):\n\n> `{\"start\": 158.0, \"end\": 168.0, \"text\": \"Where's the scale? You said before noon.\"}`\n\nWritten straight from the index, the quiet window at 141–149 s could easily become “The scale went back on time.” Checking turns up the problem in three places:\n\n- **The description goes past the frame tags.** The tags say only “carries the scale” and “no scale in hand.” No frame shows Qian taking it; “returns it” is the model’s fill-in.\n- **The files contradict each other.** In the next scene someone asks where the scale is. The transcript does not mark speakers, so note it as “someone asks about the scale.”\n- **The footage settles it.** In 126–140 s, Xiaohe sets the scale on the corner of her own counter and turns to serve a customer; Qian is not in frame.\n\nCheck note: scene 5 becomes “Xiaohe leaves the scale on the corner of her own counter and does not hand it to Qian” (rewatched 126–140 s); the “as agreed” analysis is dropped; the question near 158 s is Qian’s, quoted only after listening word by word.\n\nThe story changes with it: a promise kept becomes a promise to return the scale before noon, forgotten and put right only at the end. Whether that quiet window gets narration is the author’s call after watching the footage. If it does, it says only what the picture proves: the scale is still on their own counter."
+        }
+      },
+      {
+        "id": "index-limits",
+        "heading": {
+          "zh": "索引回答不了的问题",
+          "en": "What the index cannot tell you"
+        },
+        "body": {
+          "zh": "- **对白边界和说话人**：转写的 `start/end` 是固定分片形成的粗窗口，不是逐字对齐，也不标谁在说，见[ASR时间戳不准怎么剪视频](https://zenstory.ai/video-recap/edit-video-with-coarse-asr-timestamps)。\n- **两帧之间的动作**：交接、藏物、谁先动手，要看连续画面。\n- **动机、镜头外的事和之后的结果**：素材没拍到的就是未知，见[AI分析视频乱编剧情怎么办](https://zenstory.ai/video-recap/stop-ai-video-analysis-from-inventing-the-story)。\n- **安静该不该留**：`has_speech` 为 false 只说明这段较安静、没有与检测到的转写语音重叠；沉默本身是不是表演，由你判断。\n- **人名对不对**：名字可能来自背景资料或人名表修正，长相、服装相近的人会被安错。\n- **故事方向**：简报里的解说风格只是 `--style` 的值，默认“纪录片”；观众问题和主视角属于写稿阶段，见[影视解说文案怎么写](https://zenstory.ai/video-recap/recap-script)。\n- **能不能用这段素材**：索引不判断版权与授权。",
+          "en": "- **Dialogue boundaries and speakers.** Transcript `start/end` values are coarse windows formed from fixed chunks, not word alignment, and they do not say who is speaking; see [How to Edit Video With Inaccurate ASR Timestamps](https://zenstory.ai/video-recap/edit-video-with-coarse-asr-timestamps).\n- **Action between frames.** Hand-offs, hiding an object, and who moved first need continuous viewing.\n- **Motive, off-screen events, and what happens afterward.** Whatever the footage did not capture is unknown; see [How to Stop AI Video Analysis From Inventing the Story](https://zenstory.ai/video-recap/stop-ai-video-analysis-from-inventing-the-story).\n- **Whether a silence should stay.** `has_speech` set to false only means the stretch is quiet and does not overlap detected transcript speech. Whether the silence is itself the performance is your call.\n- **Whether names are right.** Names may come from background research or the name-list correction, and people who look or dress alike get mislabeled.\n- **Story direction.** The style in the brief is just the `--style` value, documentary by default. The viewer question and point of view belong to the writing stage; see [How to Write a Recap Script](https://zenstory.ai/video-recap/recap-script).\n- **Whether you may use the footage.** The index does not judge copyright or permission."
+        }
+      },
+      {
+        "id": "common-mistakes",
+        "heading": {
+          "zh": "常见误用与修法",
+          "en": "Common mistakes and fixes"
+        },
+        "body": {
+          "zh": "| 误用 | 修法 |\n|---|---|\n| 只读 `visual_description` | 对照 `frame_facts`，多出的动作回原片看 |\n| 把 `depth_analysis` 写成事实 | 改成可见动作，或找对白与连续行为支持 |\n| 安静窗口一律填满旁白 | 先判断这段沉默是否在承担内容 |\n| 素材换了版本仍用旧索引 | 对当前文件重跑；搬动工作目录用 `cp -p` 等保留文件时间 |\n| 用 `--brief-only` 改正画面观察 | 它只用现有产物重建简报，不重新看画面 |",
+          "en": "| Mistake | Fix |\n|---|---|\n| Reading only `visual_description` | Compare it with `frame_facts`; rewatch any action it adds |\n| Writing `depth_analysis` as fact | Rewrite it as visible action, or find supporting dialogue and continuous behavior |\n| Filling every quiet window with narration | First decide whether the silence is doing work |\n| Keeping an old index after the footage changed | Rerun on the current file; preserve file times, for example with `cp -p`, when moving a work directory |\n| Running `--brief-only` to fix a visual observation | It rebuilds the brief from existing outputs and does not look at the frames again |"
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "没有 MiMo API key，还能生成理解索引吗？",
+          "en": "Can I build the index without a MiMo API key?"
+        },
+        "a": {
+          "zh": "完整理解需要 `MIMO_API_KEY`：对白转写和画面观察都调用 MiMo 模型。没有 key 时重跑，只会复用已经缓存的转写、画面分析和故事索引，需要请求模型的汇总会记为跳过。不要用 `--skip-asr` 绕过：它会把已有转写替换成空列表，画面观察也仍然需要 key。",
+          "en": "A full run needs `MIMO_API_KEY`, because both transcription and visual observation call MiMo models. Without a key, a rerun only reuses cached transcripts, visual analysis, and story index, and any summary step that would call a model is recorded as skipped. Do not use `--skip-asr` as a workaround: it replaces an existing transcript with an empty list, and visual observation still needs the key."
+        }
+      },
+      {
+        "q": {
+          "zh": "索引里出现了人名，可以直接写进解说吗？",
+          "en": "The index names people. Can I use those names in the narration?"
+        },
+        "a": {
+          "zh": "先核对。人名可能来自 `background_research.json` 或 `--context` 折进画面分析的上下文，也可能来自转写的人名表修正；长相、服装相近的人容易被安错。用片中字幕、对白里的称呼或创作者提供的人物表确认后再写；确认不了，就用身份或动作来指代。",
+          "en": "Check them first. Names may come from `background_research.json` or `--context` folded into the visual analysis, or from name-list corrections in the transcript, and people who look or dress alike are easily mislabeled. Confirm each name from on-screen text, how characters address each other, or a cast list from the creator. If you cannot confirm it, refer to the person by role or action."
+        }
+      },
+      {
+        "q": {
+          "zh": "素材重新导出或剪过一版，旧索引还能用吗？",
+          "en": "If the footage was re-exported or re-edited, is the old index still usable?"
+        },
+        "a": {
+          "zh": "按新素材对待。各阶段只有在产物和来源记录都匹配当前视频与相关设置时才复用；转写证据记录了源视频、音频和转写文件的大小与修改时间，对不上时简报显示 `MISSING_OR_STALE`。旧索引里的时间和描述，只能当作旧版本的线索。",
+          "en": "Treat it as new footage. Each stage is reused only when its outputs and provenance records match the current video and relevant settings. The transcript evidence records the size and modification time of the source video, audio, and transcript, and the brief shows `MISSING_OR_STALE` when they no longer match. Times and descriptions in an old index are only leads about the old version."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-understanding",
+      "text": {
+        "zh": "用 $video-recap 分析这段我有权使用的本地视频，只运行到视频理解阶段（video-understanding）写出创作简报后的暂停点：生成场景、转写、安静窗口、逐场观察、融合时间线和创作简报后停止，不写解说词。先报告转写证据状态和素材警告，再逐场列出描述里没有帧级事实支持的动作与人名，供我回原片核对。",
+        "en": "Use $video-recap to analyze this local video that I have the right to use, running only through its video-understanding stage and stopping at the pause after the writing brief: produce the scenes, transcript, quiet windows, per-scene observations, fused timeline and writing brief, then stop without writing narration. Report the transcript evidence status and any material warnings first, then list, scene by scene, the actions and names in descriptions that no frame fact supports, so I can check them against the footage."
+      },
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-understanding/SKILL.md"
+    },
+    "related": [
+      "/video-recap/stop-ai-video-analysis-from-inventing-the-story",
+      "/video-recap/edit-video-with-coarse-asr-timestamps",
+      "/video-recap/recap-background-research",
+      "/video-recap/recap-script",
+      "/video-recap/video-to-narration"
+    ],
+    "topic": "video-recaps",
+    "sources": [
+      {
+        "label": {
+          "zh": "视频理解的处理阶段、依赖与能力边界",
+          "en": "Video-understanding stages, dependencies, and limits"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-understanding/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "理解索引各文件字段与转写证据状态",
+          "en": "Index file fields and transcript evidence status"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-understanding/references/data-schema.md"
+      },
+      {
+        "label": {
+          "zh": "逐场描述、帧标签与深层分析的提问模板",
+          "en": "Prompt for scene descriptions, frame tags, and depth analysis"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-understanding/references/prompt-templates.md"
+      },
+      {
+        "label": {
+          "zh": "背景调研如何并入画面分析",
+          "en": "How background research feeds visual analysis"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-understanding/references/research-guide.md"
+      }
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "learn-pacing-from-a-reference-recap",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-10-10",
+    "updated_on": "2026-10-10",
+    "title": {
+      "zh": "参考别人的解说视频怎么学节奏：量化对照，不照搬内容",
+      "en": "How to Learn Pacing From a Reference Recap Without Copying It"
+    },
+    "seo_title": {
+      "zh": "参考解说视频怎么学节奏与声音分工",
+      "en": "Learn Pacing From a Reference Video Recap"
+    },
+    "description": {
+      "zh": "用 video-reference 测出参考解说片的切点、镜长与响度，标注旁白和原声分工，把原片事实与可迁移方法分开；附原创纸面例，手工对照自己的稿后只改两处。",
+      "en": "Measure a reference recap's cuts, shot lengths and loudness, keep its facts apart from reusable methods, and adapt two pacing choices by hand."
+    },
+    "answer": {
+      "zh": "参考别人的解说视频时，把它当成测量对象，而不是模板。用 `video-reference` 在本地测出切点、镜长和响度，看图复核可疑切点，再由你标注声音归属（旁白、原声对白等）和叙事段落，得到各段切点密度、旁白占比、旁白语速和第一段原声出现的位置。“这条片做了什么”只留在本地，导出的只有“什么条件下怎么做”的方法和测得的数值。写自己的稿时逐条决定采用、改用或跳过；与自己素材冲突时以素材为准。参考片的画面、旁白原文和段落安排都不带走。",
+      "en": "Treat a reference recap as something to measure, not a template. Run `video-reference` locally to measure cuts, shot lengths and loudness, check the doubtful cuts by eye, then label who owns the sound (narration, original dialogue and so on) and the story sections. That gives you cut density per section, narration share, narration speed and where the first original dialogue arrives. What this video did stays on your machine; the export holds only conditional methods and measured numbers. When you write your own recap, decide for each method whether to adopt, adapt or skip it, and let your own footage win any conflict. The reference’s footage, narration text and section layout stay behind."
+    },
+    "sections": [
+      {
+        "id": "reference-is-evidence-not-template",
+        "heading": {
+          "zh": "先说清：拆参考片是为下一条片攒方法和数值",
+          "en": "First, what a reference breakdown is for"
+        },
+        "body": {
+          "zh": "`video-reference` 是按需使用的拆片技能，不在默认生产路径上。它把一部**已完成的成片**拆成两层：这条片怎么做的（事实），换一份素材还能怎么用（方法）。事实只留在本地，导出的 `production_reference.json` 只含方法和测得的数值。\n\n它不调用 MiMo 或任何 LLM，不打分，也不判断你的新片和参考差多少。下次写稿时，`video-script` 只在 `work_dir` 里有这个文件时读它，优先级是：用户指令 > 本片证据 > 参考。数值是参考值，不是配额，与你素材里的声音归属、完整台词或表演冲突时，以素材为准。\n\n[剪辑节奏](https://zenstory.ai/video-recap/editing-rhythm)那篇按单个剪点取舍；这篇先拿到一组能复核的数字，再逐条决定用不用。",
+          "en": "`video-reference` is an on-demand breakdown skill outside the default production path. It splits a **finished video** into two layers: how this video was made (facts) and what would still work with different footage (methods). Facts stay on your machine; the exported `production_reference.json` holds only methods and measured numbers.\n\nIt calls neither MiMo nor any other LLM, scores nothing and does not judge how far your new edit is from the reference. The next time you write, `video-script` reads the file only if it is in `work_dir`, with this priority: user instructions, then evidence from your own footage, then the reference. The numbers are reference values, not quotas. When they conflict with sound ownership, complete lines or performances in your footage, the footage wins.\n\nThe [editing rhythm](https://zenstory.ai/video-recap/editing-rhythm) article weighs individual cuts. This one starts with a set of checkable numbers and then decides, method by method, what to use."
+        }
+      },
+      {
+        "id": "breakdown-workflow",
+        "heading": {
+          "zh": "拆片五步：测量、复核、标注、写方法、导出",
+          "en": "Five steps: measure, review, label, write methods, export"
+        },
+        "body": {
+          "zh": "输入是成片文件，最好加上对它跑出的视频理解产物（建议 5 秒 ASR 窗口）；没有也能跑，只是旁白语速为空。视频理解是另一个技能，是否联网看它自己的说明；`video-reference` 本身只在本地用 ffmpeg 解码。\n\n1. **measure**：一次解码整片，写出切点、镜长分布和响度；成片不变时复用缓存。\n2. **frames 复核**：固定阈值在真实成片上两头都会错，所以每次都看待复核窗口（`--review`）和最长 5 个镜头（`--longest 5`）的截帧，把漏切、误报写进 `cut_fixes`；看过无需改动也写 `{}`。\n3. **标注**：声音归属（旁白、原声对白、动作声、环境声、音乐、静音）和叙事段落（钩子、铺垫、转折、升级、兑现）；声音边界放在实际开口与停下处，不按字幕。\n4. **写事实与方法**：事实带时间或测量锚点；方法写规则、适用与避免条件、作用于哪份策划文件和证据，数字只引用测量路径，不手写。\n5. **check → export**：零 error 才导出；叙事结构、节奏、镜头剪辑、旁白字幕、音画分工五个维度，各至少一条方法，或写明跳过原因。",
+          "en": "The input is the finished file, ideally with video-understanding output produced for it (5-second ASR windows are recommended). Without that output the breakdown still runs, but narration speed stays empty. Video understanding is a separate skill whose own instructions say whether it goes online; `video-reference` itself only decodes locally with ffmpeg.\n\n1. **measure**: one pass over the whole video writes cuts, the shot-length distribution and loudness; an unchanged file reuses the cache.\n2. **frames review**: a fixed threshold is wrong in both directions on real videos, so every run needs a look at the frame sheets for flagged windows (`--review`) and the five longest shots (`--longest 5`). Record missed and false cuts in `cut_fixes`; if you looked and nothing needs changing, write `{}`.\n3. **Label**: who owns the sound (narration, original dialogue, action sound, ambience, music, silence) and each section’s story function (hook, setup, turn, escalation, payoff). Place sound boundaries where the sound actually starts and stops, not at the subtitles.\n4. **Write facts and methods**: each fact has a time or measurement anchor. Each method gives a rule, when to use and avoid it, which planning file it serves and its evidence; numbers only point at measurement paths and are never typed by hand.\n5. **check → export**: export only with zero errors. Narrative structure, pacing, shots and editing, narration and subtitles, and sound-picture handoff each need at least one method or a stated reason for skipping."
+        }
+      },
+      {
+        "id": "what-gets-measured",
+        "heading": {
+          "zh": "量到什么，精度到哪一层",
+          "en": "What gets measured, and how precise it is"
+        },
+        "body": {
+          "zh": "| 数值 | 怎么来 |\n|---|---|\n| 切点与镜长 | ffmpeg 场景分数：≥10 分必算，≥4 分须是前后 0.3 秒内的孤立峰。得出镜长中位数、p10/p90、短于 1 秒与长于 8 秒的占比、每分钟切点和 10 秒窗口曲线。复核过标 `reviewed`，否则 `measured` |\n| 响度 | 整体响度、响度范围 LRA、真峰值、逐秒短期响度；`measured` |\n| 各声音归属 | 时长、占比、块时长中位数、段内每分钟切点、平均响度；旁白还可按作用（背景、因果、伏笔、解读、过渡）分占比 |\n| 各叙事段落 | 时长、每分钟切点、旁白占比，位置按全片比例记 |\n| 旁白语速 | 每秒字数，只用旁白覆盖 ≥80% 的 ASR 窗口，是粗窗口精度，不是逐词对齐 |\n| 换手对齐 | 声音归属切换落在画面切点 ±0.25 秒内的比例 |\n| 第一段原声 | 原声对白（含原片自带画外音）首次出现的位置，导出只留全片比例 |\n| 字幕形态 | 是否烧录、最多几行、原声台词的标记 |\n\n后六项来自你的标注（导出的节奏数值标 `labeled`），只和标注一样准。",
+          "en": "| Value | Where it comes from |\n|---|---|\n| Cuts and shot lengths | ffmpeg scene scores: 10 or above always counts; 4 or above counts only as an isolated peak within 0.3 seconds. Gives median shot length, p10/p90, share under 1 second and over 8 seconds, cuts per minute and a 10-second curve. `reviewed` after your frame check, otherwise `measured` |\n| Loudness | Integrated loudness, loudness range (LRA), true peak and 1-second short-term loudness; `measured` |\n| Each sound owner | Seconds, share, median block length, cuts per minute inside it, mean loudness; narration can also be split by job (context, causal link, foreshadowing, interpretation, transition) |\n| Each story section | Seconds, cuts per minute and narration share, with positions as fractions of the running time |\n| Narration speed | Characters per second from ASR windows at least 80% covered by narration; coarse-window precision, not word alignment |\n| Handoffs on cuts | Share of sound-ownership changes within ±0.25 seconds of a picture cut |\n| First original dialogue | Where original dialogue (including the source’s own voice-over) first appears, exported only as a fraction |\n| Subtitle form | Burned in or not, maximum lines, how original lines are marked |\n\nThe last six come from your labels (exported pacing values are marked `labeled`) and are only as accurate as those labels."
+        }
+      },
+      {
+        "id": "limits-and-rights",
+        "heading": {
+          "zh": "测不到的，和不能带走的",
+          "en": "What it cannot measure, and what you cannot take"
+        },
+        "body": {
+          "zh": "**测不到、不判断**：慢叠化测不到；运动后的暗场硬切、0.3 秒内分数相近的两个切点不会自动算，只进待复核窗口。检查规则不判断语义，方法的方向要你对照派生值来写。数值只说明参考片这样做了，不说明这样好看，也不说明适合你的题材。\n\n**不能带走**：\n\n- 导出前会拦下原片人名、与台词或资料共有连续 8 个汉字的句子、绝对时间码和路径；它只拦字面泄漏，拦不住改写过的剧情。\n- `U/` 里的拆解文件和截帧含原片事实与画面，只留本地，不进新项目，也不提交。\n- 参考片的画面、旁白原文和逐段安排都不进你的片子，也不要逐句改写它的旁白。技能自己的反例之一就是“照着这部片的结构做”：没有条件，无法迁移。\n- 参考片要你本地已有；能否获取、分析和使用，由你自己确认。\n\n这与[短剧对标片段拆视听](https://zenstory.ai/drama-skills/adapt-spatial-pressure-from-a-reference-drama)的边界一致：迁移做法，不迁移内容。",
+          "en": "**What it cannot measure or judge**: slow dissolves go undetected, and a hard cut into darkness after motion or two similar-scoring cuts within 0.3 seconds are not counted automatically; they only enter the review windows. The checks do not judge meaning, so you must make each method’s direction agree with the derived values. A number shows only that the reference did something, not that it worked or that it suits your material.\n\n**What you cannot take**:\n\n- Before export the check blocks source names, sentences sharing 8 consecutive Chinese characters with dialogue or research, absolute timecodes and paths. It catches only literal leaks, not a paraphrased plot.\n- The breakdown files and frame sheets in `U/` contain source facts and images. Keep them local, out of new projects and out of commits.\n- The reference’s footage, narration text and section-by-section layout do not go into your video, and you should not rewrite its narration line by line. One of the skill’s own bad examples is “follow this video’s structure”: it has no conditions and cannot transfer.\n- You need your own local copy of the reference. Whether you may obtain, analyze and use it is yours to confirm.\n\nThis matches the boundary in [analyzing a reference drama’s audiovisual choices](https://zenstory.ai/drama-skills/adapt-spatial-pressure-from-a-reference-drama): transfer the approach, not the content."
+        }
+      },
+      {
+        "id": "ferry-recap-example",
+        "heading": {
+          "zh": "原创纸面例：拿参考片的节奏对照渡口解说稿",
+          "en": "Original paper example: a reference profile against a ferry recap draft"
+        },
+        "body": {
+          "zh": "以下全部为本文虚构：参考片 R 是假想的 6 分钟悬疑短片解说，不对应任何真实频道、作品或视频；数值只作示意，没有实际运行、剪辑或试听。\n\nR 导出的两条方法（示意）：\n\n- **m1｜叙事结构，用于故事方案**：开场一句旁白交代处境，随后让第一段原声冲突接管。适用：冲突原声能独立听懂；避免：台词要靠大量前情才听得懂。\n- **m2｜音画分工，用于画面声音板**：旁白段用较长镜头，原声段保留原片自身的剪辑节奏。避免：靠动作声推进的段落。\n\n我的片子是已获授权的 8 分钟原创短片：末班渡轮开船前，售票员阿澄发现乘客的船票印着明天的日期；争执戏是一个很长的双人镜头。我按自己的分镜表手算草稿数值：\n\n| 项目 | 参考 R（示意）→ 我的草稿（手算） |\n|---|---|\n| 第一段原声位置 | 0.04 → 约 0.19（开场约 95 秒全是旁白） |\n| 旁白占比 | 0.55 → 约 0.72 |\n| 旁白段每分钟切点 | 12 → 约 15（缆绳、灯的插镜多） |\n| 原声段每分钟切点 | 24 → 约 8（原片长镜头） |\n| 旁白语速 | 4.1 字/秒（粗窗口）→ 约 4.6（稿字数 ÷ 计划时长） |\n\n这张表是我手工做的对照，不是技能输出。逐条决定：\n\n1. **m1 改用**：开场旁白删到一句“末班船还剩十分钟，窗口只剩阿澄一个人”，接乘客递票，让她那句“这张票是明天的”提前到约 0.07。不追到 0.04：观众先看见递票，这句原声才听得懂。\n2. **m2 只用一半**：旁白段删掉重复插镜，约降到 11；原声段跳过参考的 24——阿澄盖章前的停顿要靠不切来保留，以素材为准。\n\n旁白占比随之降到约 0.62，不再为接近 0.55 继续删；语速等配音后按正常速度听过再定。两条都在 `recap_story_plan.json` 的可选字段 `reference_methods` 里记为 `adapt`，并写明理由。这次只改了两处方案，不证明新稿更好看；R 的段落顺序、旁白和画面都没有进入这份稿。",
+          "en": "Everything below is invented for this article. Reference R is an imaginary 6-minute recap of a mystery short and matches no real channel, work or video. The numbers are illustrative only; nothing was actually run, edited or listened to.\n\nTwo methods exported from R (illustrative):\n\n- **m1 | narrative structure, for the story plan**: one opening narration line sets up the situation, then the first original-dialogue conflict takes over. Use when the conflict line can be followed on its own; avoid when it needs a lot of backstory.\n- **m2 | sound-picture handoff, for the visual-audio board**: longer shots under narration, the source’s own cutting rhythm in original-dialogue sections. Avoid in sections driven by action sound.\n\nMy project is a licensed 8-minute original short. Before the last ferry leaves, the ticket clerk A-Cheng notices that a passenger’s ticket is printed with tomorrow’s date; the argument plays as one long two-shot. I estimated my draft’s numbers by hand from my own shot list:\n\n| Item | Reference R (illustrative) → my draft (by hand) |\n|---|---|\n| First original dialogue | 0.04 → about 0.19 (about 95 opening seconds of narration) |\n| Narration share | 0.55 → about 0.72 |\n| Cuts per minute, narration | 12 → about 15 (many rope and lamp inserts) |\n| Cuts per minute, original dialogue | 24 → about 8 (the source’s long take) |\n| Narration speed | 4.1 characters/s (coarse windows) → about 4.6 (script characters ÷ planned time) |\n\nI made this comparison by hand; it is not skill output. Decisions, one method at a time:\n\n1. **Adapt m1**: cut the opening narration to one line, “Ten minutes before the last ferry, A-Cheng is alone at the window,” go to the passenger handing over the ticket, and bring her line “This ticket is for tomorrow” forward to about 0.07. I stop short of 0.04 because viewers must see the handover before her line makes sense.\n2. **Use half of m2**: drop the repeated inserts under narration, bringing that rate to about 11. Skip the reference’s 24 for original dialogue: A-Cheng’s pause before she stamps the ticket survives only if I do not cut. The footage decides.\n\nNarration share falls to about 0.62, and I stop there instead of cutting more to approach 0.55. Narration speed waits until the voice-over exists and I have heard it at normal speed. Both decisions go into the optional `reference_methods` field in `recap_story_plan.json` as `adapt`, each with its reason. This changed two plan decisions; it does not prove the new draft plays better, and none of R’s section order, narration or images entered this draft."
+        }
+      },
+      {
+        "id": "common-mistakes",
+        "heading": {
+          "zh": "五种常见误用",
+          "en": "Five common misuses"
+        },
+        "body": {
+          "zh": "- **逐项追平参考值**：先问方法的适用条件你的素材满不满足，再看数字。\n- **只看全片每分钟切点**：全片平均会混掉原声段和旁白段的差别，要看分声音归属、分段落的值。\n- **不复核就用镜头数**：暗场硬切可能只有 5–7 分，快速运动的单个镜头每 0.2 秒就有一个 7–8 分的峰；重新测量后待复核窗口变了，要按新窗口重看。\n- **按字幕定声音边界**：按字幕出现帧定的旁白结束点实测晚 0.24–0.42 秒，而换手对齐只容差 ±0.25 秒，边界放错，这个比例只反映标注习惯。\n- **把方法写成剧情摘要**：带人名、复述发生了什么、写具体时间点的条目都无法迁移，要改写成“什么情况下怎么做”。",
+          "en": "- **Matching every reference value**: first ask whether your footage meets the method’s conditions, then look at the number.\n- **Reading only whole-video cuts per minute**: the overall average blurs the difference between original-dialogue and narration sections. Read the values split by sound owner and by section.\n- **Using shot counts without review**: a hard cut into darkness may score only 5–7, while one fast-moving shot can produce a 7–8 peak every 0.2 seconds. If a new measurement changes the review windows, look at the new windows again.\n- **Setting sound boundaries from subtitles**: narration end points taken from subtitle frames were measured 0.24–0.42 seconds late, while handoff alignment tolerates only ±0.25 seconds, so misplaced boundaries make that share reflect labeling habits.\n- **Writing methods as plot summaries**: entries with names, retellings of events or specific time points cannot transfer. Rewrite them as “under these conditions, do this.”"
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "参考片的段落结构可以直接套到我的稿上吗？",
+          "en": "Can I apply the reference’s section structure directly to my draft?"
+        },
+        "a": {
+          "zh": "不建议整套套用。写稿在自由创作（CREATE）模式下，可以把参考的结构当作一个候选假设，与素材自己长出的假设比较后再选；按指令写或返修（DIRECTED / REVISION）时默认不套用。即使选中，借用的也只是段落功能和由谁的声音主导，具体内容来自你的素材。",
+          "en": "Not wholesale. In free creation (CREATE) mode the writer may treat the reference structure as one candidate hypothesis and compare it with hypotheses grown from your own footage; in directed or revision modes (DIRECTED / REVISION) it is not applied by default. Even when chosen, you borrow only section functions and which sound leads, never the content."
+        }
+      },
+      {
+        "q": {
+          "zh": "能用 video-reference 比较我的成片和参考片、算出差距吗？",
+          "en": "Can video-reference compare my finished video with the reference and score the gap?"
+        },
+        "a": {
+          "zh": "不能。它不打分，不调用任何模型，也不做新片与参考的差距判定；没有脚本读取导出物，它的存在也不改变任何阶段的通过与否。本文的对照表是作者按自己分镜表手算的纸面对照。",
+          "en": "No. It scores nothing, calls no model and makes no judgment about the gap between a new video and the reference. No script reads the export, and its presence does not change whether any stage passes. The comparison table in this article was worked out by hand from the writer’s own shot list."
+        }
+      },
+      {
+        "q": {
+          "zh": "没有 ASR 或理解产物还能拆吗？",
+          "en": "Can I break down a reference without ASR or understanding output?"
+        },
+        "a": {
+          "zh": "能测切点、镜长和响度，也能标注声音归属和段落。旁白语速会为空，人名泄漏扫描只剩你在事实里写的实体词，检查会给出警告；看画面改用全片每 2 秒取帧的接触表。",
+          "en": "Yes for cuts, shot lengths and loudness, and you can still label sound ownership and sections. Narration speed stays empty, the name-leak scan only uses the entities you write in facts, and the check warns you. To view the picture, use a contact sheet sampled every 2 seconds across the whole video."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-reference",
+      "text": {
+        "zh": "用 $video-reference 拆我本地提供的这条参考解说成片（以及它的视频理解产物目录，如有）。先 measure，再看待复核窗口和最长镜头的截帧并写 cut_fixes；按声音实际起止标注声音归属与叙事段落，原片事实与可迁移方法分开写，target 只引用测量路径；check 零 error 后再 export 到我下一次制作的 work_dir。不要给参考片或我的片子打分，不做新片与参考的差距判定；导出物里不能有原片人名、台词或时间码，breakdown 与截帧只留本地。",
+        "en": "Use $video-reference to break down the reference recap I provide locally (plus its video-understanding output folder, if any). Run measure, view the frame sheets for flagged windows and the longest shots, and record cut_fixes; label sound ownership and story sections at the actual sound boundaries, write source facts separately from transferable methods, and point targets only at measurement paths. Export to my next project’s work_dir only after check reports zero errors. Do not score either video or judge the gap between my edit and the reference; keep source names, dialogue and timecodes out of the export, and keep the breakdown and frame sheets local."
+      },
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-reference/SKILL.md"
+    },
+    "related": [
+      "/video-recap/editing-rhythm",
+      "/video-recap/original-audio-and-narration",
+      "/video-recap/organize-reusable-video-editing-assets",
+      "/video-recap/edit-video-with-coarse-asr-timestamps",
+      "/drama-skills/adapt-spatial-pressure-from-a-reference-drama"
+    ],
+    "topic": "video-recaps",
+    "sources": [
+      {
+        "label": {
+          "zh": "拆片流程、事实与方法分离规则和能力边界",
+          "en": "Breakdown workflow, fact-method separation rules and limits"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-reference/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "标注词表、测量与派生值路径、好坏方法示例",
+          "en": "Label vocabulary, measured and derived paths, good and bad methods"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-reference/references/reference-schema.md"
+      },
+      {
+        "label": {
+          "zh": "写稿阶段读取参考的优先级与 reference_methods 记录",
+          "en": "How the writing stage weighs a reference and records reference_methods"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/539168622918e058bd250c793b82f043eced31e0/skills/video-script/SKILL.md"
+      }
+    ]
   }
 ]

@@ -2,9 +2,12 @@
   "story": { "en": "Toolbox entry", "zh": "工具箱入口" },
   "story-setup": { "en": "Setup", "zh": "环境部署" },
   "story-import": { "en": "Import an existing novel", "zh": "导入已有小说" },
+  "story-long-scan": { "en": "Long-form chart scanning", "zh": "长篇扫榜" },
+  "story-short-scan": { "en": "Short-story chart scanning", "zh": "短篇扫榜" },
   "story-long-write": { "en": "Long-form planning and writing", "zh": "长篇规划与写作" },
   "story-short-write": { "en": "Short-story writing", "zh": "短篇写作" },
   "story-long-analyze": { "en": "Long-form deconstruction", "zh": "长篇拆文" },
+  "story-short-analyze": { "en": "Short-story deconstruction", "zh": "短篇拆文" },
   "story-deslop": { "en": "De-AI editing", "zh": "去AI味" },
   "story-review": { "en": "Multi-perspective review", "zh": "多视角审查" },
   "story-cover": { "en": "Cover generation", "zh": "封面生成" },
@@ -31,5 +34,6 @@
   "video-script": { "en": "Edit plan and narration script", "zh": "剪辑策划与解说稿" },
   "video-cut": { "en": "Cutting source footage", "zh": "原片剪辑" },
   "video-voiceover": { "en": "Voiceover", "zh": "配音" },
-  "video-assemble": { "en": "Final assembly: audio, subtitles, loudness", "zh": "成片合成：混音、字幕与响度" }
+  "video-assemble": { "en": "Final assembly: audio, subtitles, loudness", "zh": "成片合成：混音、字幕与响度" },
+  "video-reference": { "en": "Reference recap breakdown", "zh": "参考片拆解" }
 }

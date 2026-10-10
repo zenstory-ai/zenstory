@@ -19,6 +19,18 @@ Overview page: https://zenstory.ai/projects (中文: https://zenstory.ai/zh/proj
 
 ## Guides
 
+- [网文扫榜怎么做：从榜单样本到可验证的开书方向](https://zenstory.ai/zh/oh-story/scan-web-fiction-charts)
+- [How to Scan Web-Fiction Charts: From Ranking Samples to a Testable Book Direction](https://zenstory.ai/oh-story/scan-web-fiction-charts)
+- [短篇小说选题怎么找：用榜单样本对上自己的长处](https://zenstory.ai/zh/oh-story/choose-a-short-story-topic-from-market-samples)
+- [How to Find a Short-Story Topic: Match Ranking Samples to Your Strengths](https://zenstory.ai/oh-story/choose-a-short-story-topic-from-market-samples)
+- [短篇小说怎么拆：导语、情绪线与反转，学机制不抄情节](https://zenstory.ai/zh/oh-story/break-down-a-short-story)
+- [How to Deconstruct a Short Story: Lead-In, Emotional Arc and Twist](https://zenstory.ai/oh-story/break-down-a-short-story)
+- [小说改游戏先拆什么：整理带原文出处的原著设定集](https://zenstory.ai/zh/novel-to-game/analyze-a-novel-for-game-adaptation)
+- [How to Analyze a Novel for Game Adaptation: A Source Bible with Citations](https://zenstory.ai/novel-to-game/analyze-a-novel-for-game-adaptation)
+- [做视频解说前怎么看懂素材：先建索引，再回原片核对](https://zenstory.ai/zh/video-recap/understand-footage-before-a-recap)
+- [How to Understand Your Footage Before Writing a Video Recap](https://zenstory.ai/video-recap/understand-footage-before-a-recap)
+- [参考别人的解说视频怎么学节奏：量化对照，不照搬内容](https://zenstory.ai/zh/video-recap/learn-pacing-from-a-reference-recap)
+- [How to Learn Pacing From a Reference Recap Without Copying It](https://zenstory.ai/video-recap/learn-pacing-from-a-reference-recap)
 - [民国言情怎么写：让时代局势改变爱情选择](https://zenstory.ai/zh/oh-story/write-republican-era-romance)
 - [How to Write Romance Set in Republican-Era China](https://zenstory.ai/oh-story/write-republican-era-romance)
 - [赘婿逆袭小说怎么写：隐忍有理由，翻盘有证据](https://zenstory.ai/zh/oh-story/write-a-son-in-law-comeback-novel)
