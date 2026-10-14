@@ -120,7 +120,7 @@ agent/
 
 每条序列之后都可能经自动质检门或显式交接进入 quality_reviewer。`plan_workflow_agents` 按用户范围裁剪：`write_content=false` 剔除 writer，`read_only=true` 整条清空。交接有三种：
 显式 `handoff_to_agent`；按 `workflow_agents` 的计划交接；自动质检门（writer 本轮写进 draft / script 的字数达到阈值后交给
-quality_reviewer）。审查最多 `MAX_REVIEW_ROUNDS` 轮，返修稿不再自动送审。
+quality_reviewer；计划内 planner→writer 同一交付的成功正文写入接续计算）。审查最多 `MAX_REVIEW_ROUNDS` 轮，返修稿不再自动送审。
 
 ### Router
 
@@ -161,6 +161,8 @@ quality_reviewer）。审查最多 `MAX_REVIEW_ROUNDS` 轮，返修稿不再自�
   quality_reviewer 时在 HANDOFF 前发 `CHAT_HOLD(discard)`，由审稿人（或返修后的 writer）写唯一总结，writer 的问题以
   `[内容创作者要问作者的问题]` 交给它们；不送审时扣着的文字在下一个 agent / 交接 / 收尾 / 出错事件前或流结束时原样放出
   （run 中途的 STEERING_RECEIVED 不放出）。CHAT_HOLD 不发给前端。[single-summary][n-summary]
+  质量门可用且作者要正文时，计划下一位为 writer 的 planner 也按成功正文写入扣留；实际交给 writer 且没有收尾问题才丢弃，
+  正文记录接续给 writer。只有规划、失败写入、未执行交接和提问原样释放。[planned-body-review][n-planned-body]
 - **送审证据用落库后的事实**：送审交接附 `[本轮正文字数]`（落库后的 `count_words`）和 `[作者的篇幅要求]`
   （`review_evidence.find_length_requirements`），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
   放不进预算的长文件只附本请求改动的那段（写入前正文由 `ToolContext.remember_pre_write_content` 记下）。
@@ -308,6 +310,7 @@ quality_reviewer）。审查最多 `MAX_REVIEW_ROUNDS` 轮，返修稿不再自�
 [n-offer]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-author-edit-guard-reads-the-ais-offer.md
 [n-narration]: ../../../.agents/notes/implemented/bug-fix/2026-10-09-agent-text-no-english-narration-or-glue.md
 [n-summary]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-author-reply-single-summary-and-real-word-counts.md
+[n-planned-body]: ../../../.agents/notes/implemented/bug-fix/2026-10-14-planned-planner-body-review-and-summary.md
 [n-length]: ../../../.agents/notes/implemented/feature/2026-10-14-writer-delivery-author-requirements.md
 [n-thinking]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-thinking-loop-contradictory-inputs.md
 [n-breaker]: ../../../.agents/notes/implemented/bug-fix/2026-10-03-agent-tool-failure-circuit-breaker.md
