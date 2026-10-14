@@ -207,11 +207,16 @@ async def test_planned_planner_question_is_released_even_when_writer_continues()
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.parametrize("writer_addition", ["", "补" * 450], ids=["silent-writer", "combined-review"])
+@pytest.mark.parametrize(
+    "writer_addition", ["", "补" * 200, "补" * 450],
+    ids=["silent-writer", "below-threshold", "combined-review"],
+)
 async def test_small_planner_delivery_keeps_summary_and_carries_body_count(writer_addition):
     """规划师仅写 100 字时先保留说明；writer 后续补写仍能累计达到质检门槛。"""
     calls: list[str] = []
     summary = "第一章开头已保存。"
+    writer_summary = "第一章已补完，人物关系和账目疑点都已展开。"
+    reviewer_summary = "第一章核对结束。\n[TASK_COMPLETE]"
 
     async def fake_agent(state, agent_type, *_args, **_kwargs):
         calls.append(agent_type)
@@ -222,15 +227,23 @@ async def test_small_planner_delivery_keeps_summary_and_carries_body_count(write
         elif agent_type == "writer" and writer_addition:
             for event in edit_file_events("writer-addition", writer_addition, file_id="draft-1"):
                 yield event
+            yield _text(writer_summary)
         elif agent_type == "quality_reviewer":
-            yield _text(REVIEWER_SUMMARY)
+            yield _text(reviewer_summary)
 
     events = await _run_graph(
         fake_agent, generation_mode="quality", initial_agent="planner", workflow_agents=["writer"],
         routing_metadata=PLANNED_PROSE, auto_review_threshold=500,
     )
-    assert summary in await _author_visible_text(events)
-    assert calls == ["planner", "writer", *(["quality_reviewer"] if writer_addition else [])]
+    visible = await _author_visible_text(events)
+    assert summary in visible
+    review_expected = len(writer_addition) == 450
+    assert calls == ["planner", "writer", *(["quality_reviewer"] if review_expected else [])]
+    if review_expected:
+        assert writer_summary not in visible
+        assert "第一章核对结束。" in visible
+    elif writer_addition:
+        assert writer_summary in visible
     assert not any(
         e.type == StreamEventType.CHAT_HOLD and e.data.get("reason") == "superseded_by_planned_writer"
         for e in events
