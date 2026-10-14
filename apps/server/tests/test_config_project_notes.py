@@ -180,6 +180,78 @@ def test_merge_proposal_is_not_promoted_by_a_bare_agreement():
 _BATCH = ['主角不会游泳', '魂灯点一次少活一年', '女主第五章才出场']
 _SHOWN_BATCH = list(enumerate(_BATCH, start=1))
 
+_GROUPED_PARTS = [
+    '账本里每月那笔汇款的代号，是旧灯塔当年的值守编号',
+    '收款方是岛外一家早已注销的船务公司，父亲十年的钱是在替某个不在岛上的人，养着一条船的名义。后续可让沈岚顺着邮局的汇款底单去查这个代号。',
+    '信封上“沈岚”三字的写法，出自父亲教她写字时用的旧字帖',
+    '2016年那封寄给父亲、署名“沈岚”的信，是父亲照着这个写法替不在岛上的女儿署的名，写给他自己的。后续可让沈岚在旧字帖或童年作业本上找到同一写法来印证。',
+]
+_GROUPED_BATCH = ['；'.join(_GROUPED_PARTS[:2]), '；'.join(_GROUPED_PARTS[2:])]
+_GROUPED_CURRENT = PROPOSALS_HEADER + '\n' + '\n'.join(
+    f'{index}. {text}' for index, text in enumerate(_GROUPED_BATCH, start=1)
+)
+_GROUPED_SHOWN = presented_project_proposals(
+    '目前完整的待确认提议，共 2 条：\n\n'
+    + '\n'.join(f'{index}. {text}' for index, text in enumerate(_GROUPED_BATCH, start=1))
+    + '\n\n下一轮你可以回「确认第1、2条」或「确认以上全部提议」。'
+)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(('reply', 'accepted'), [
+    ('确认以上全部提议', [0, 1, 2, 3]),
+    ('确认第1条', [0, 1]),
+    ('确认第2条', [2, 3]),
+])
+def test_reference_confirms_all_semicolon_parts_of_selected_presented_groups(reply, accepted):
+    merged = merge_project_notes(
+        _GROUPED_CURRENT, notes='；'.join(_GROUPED_BATCH), proposals=None,
+        author_quotes=[reply], author_messages=[reply], previous_proposals=_GROUPED_SHOWN,
+    )
+    assert merged.confirmed_added == [_GROUPED_PARTS[index] for index in accepted]
+    remaining = [entry for index, entry in enumerate(_GROUPED_PARTS) if index not in accepted]
+    sections = split_project_notes(merged.text)
+    assert sections.confirmed == ['；'.join(_GROUPED_PARTS[index] for index in accepted)]
+    assert len(sections.proposals) == (1 if remaining else 0)
+    for entry in remaining:
+        assert entry in sections.proposals[0]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('shown', [
+    [(1, _GROUPED_BATCH[0]), (2, _GROUPED_PARTS[2])],
+    [(1, _GROUPED_BATCH[0] + '；父亲还藏着另一条船'), (2, _GROUPED_BATCH[1])],
+    [(1, _GROUPED_PARTS[0] + '；' + _GROUPED_PARTS[0]), (2, _GROUPED_BATCH[1])],
+    [(1, _GROUPED_BATCH[0]), (2, _GROUPED_BATCH[1].replace('旧字帖', '旧手稿'))],
+    [(1, _GROUPED_BATCH[0]), (2, '；'), (3, _GROUPED_BATCH[1])],
+    [(1, _GROUPED_BATCH[0]), (3, _GROUPED_BATCH[1])],
+])
+def test_group_reference_rejects_incomplete_changed_duplicate_or_empty_parts(shown):
+    reply = '确认以上全部提议'
+    merged = merge_project_notes(
+        _GROUPED_CURRENT, notes='；'.join(_GROUPED_BATCH), proposals=None,
+        author_quotes=[reply], author_messages=[reply], previous_proposals=shown,
+    )
+    sections = split_project_notes(merged.text)
+    assert merged.confirmed_added == []
+    assert sections.confirmed == []
+    assert sections.proposals == split_project_notes(_GROUPED_CURRENT).proposals
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(('reply', 'accepted'), [
+    ('确认以上全部提议', [0, 1, 2, 3]),
+    ('确认第1条', [2, 3]),
+    ('确认第2条', [0, 1]),
+])
+def test_reordered_complete_groups_keep_the_displayed_selection_indices(reply, accepted):
+    merged = merge_project_notes(
+        _GROUPED_CURRENT, notes='；'.join(_GROUPED_BATCH), proposals=None,
+        author_quotes=[reply], author_messages=[reply],
+        previous_proposals=[(1, _GROUPED_BATCH[1]), (2, _GROUPED_BATCH[0])],
+    )
+    assert merged.confirmed_added == [_GROUPED_PARTS[index] for index in accepted]
+
 
 @pytest.mark.unit
 @pytest.mark.parametrize(

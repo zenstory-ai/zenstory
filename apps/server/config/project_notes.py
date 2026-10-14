@@ -282,14 +282,19 @@ def _confirmed_proposal_references(
 ) -> set[str]:
     """只解析明确编号 / 全批确认；编号来自服务端抽取的上一轮选项，不来自工具参数。"""
     keys = [_entry_key(entry) for line in proposals for entry in _split_line(line)[1]]
-    shown = [(index, _entry_key(text)) for index, text in (presented or [])]
+    shown = [
+        (index, [_entry_key(entry) for entry in _split_line(text)[1]])
+        for index, text in (presented or [])
+    ]
+    shown_keys = [key for _, group in shown for key in group]
     # 必须是当前尚未确认的同一整批；新增、删减、改写、重复或截断时不猜所指。
     if (
         not keys
         or len(keys) != len(set(keys))
-        or [index for index, _ in shown] != list(range(1, len(keys) + 1))
-        or len(shown) != len(keys)
-        or {key for _, key in shown} != set(keys)
+        or [index for index, _ in shown] != list(range(1, len(shown) + 1))
+        or any(not group for _, group in shown)
+        or len(shown_keys) != len(keys)
+        or set(shown_keys) != set(keys)
         or not author_messages
     ):
         return set()
@@ -321,7 +326,7 @@ def _confirmed_proposal_references(
     indices = {int(number) for number in re.findall(r"\d+", match.group("indices"))}
     if not indices.issubset({index for index, _ in shown}):
         return set()
-    return {key for index, key in shown if index in indices}
+    return {key for index, group in shown if index in indices for key in group}
 
 
 def merge_project_notes(
