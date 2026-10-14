@@ -234,13 +234,24 @@ def test_invalid_persisted_order_is_domain_rejection_and_atomic(order_engine, ef
     assert sql_errors == [], "Input-domain rejection must happen before out-of-range SQL"
 
 
-CREATE_CONTROLS = [(writer, value) for writer in ["web", "agent", "tool"] for value in [17, MAX_ORDER]] + [
-    (writer, value) for writer in ["web", "tool"] for value in [MIN_ORDER, -7]
-] + [("agent", 0)]
+CREATE_CONTROLS = [
+    (writer, value, value)
+    for writer in ["web", "agent", "tool"]
+    for value in [17, MAX_ORDER]
+] + [
+    (writer, value, value)
+    for writer in ["web", "tool"]
+    for value in [MIN_ORDER, -7]
+] + [
+    # Agent order=0 is the unset sentinel, so sibling allocation chooses 42.
+    ("agent", 0, 42),
+]
 
 
-@pytest.mark.parametrize(("writer", "order"), CREATE_CONTROLS)
-def test_valid_explicit_create_bounds_keep_content_baseline(order_engine, effects, record_property, writer, order):
+@pytest.mark.parametrize(("writer", "order", "expected_order"), CREATE_CONTROLS)
+def test_valid_explicit_create_bounds_keep_content_baseline(
+    order_engine, effects, record_property, writer, order, expected_order,
+):
     ids = _seed(order_engine)
     before = _snapshot(order_engine, ids["project"])
     background = BackgroundTasks()
@@ -252,7 +263,8 @@ def test_valid_explicit_create_bounds_keep_content_baseline(order_engine, effect
         file_id = result["id"] if isinstance(result, dict) else result.id
     after = _snapshot(order_engine, ids["project"])
     row = next(f for f in after["files"] if f["id"] == file_id)
-    assert row["order"] == order and row["content"] == "Created baseline body" and row["parent_id"] == ids["a"]
+    assert row["order"] == expected_order
+    assert row["content"] == "Created baseline body" and row["parent_id"] == ids["a"]
     versions = [v for v in after["versions"] if v["file_id"] == file_id]
     assert len(versions) == 1 and versions[0]["version_number"] == 1 and versions[0]["is_base_version"]
     assert versions[0]["content"] == "Created baseline body"
@@ -398,13 +410,20 @@ def test_invalid_order_preserves_attached_fields_before_rollback(order_engine, e
     assert _snapshot(order_engine, ids["project"]) == before
 
 
-def test_later_invalid_reorder_preserves_earlier_attached_row(order_engine, effects):
+def test_later_invalid_reorder_preserves_earlier_attached_row(order_engine, effects, monkeypatch):
     ids = _seed(order_engine)
-    with Session(order_engine) as setup:
-        setup.get(File, ids["peer"]).title = f"Chapter {MAX_ORDER + 1}"
-        setup.get(File, ids["peer"]).file_type = "draft"
-        setup.commit()
     before = _snapshot(order_engine, ids["project"])
+    original_resolver = web.resolve_persisted_sequence_order
+    calls = 0
+
+    def fail_second_resolution(raw_order, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise ValueError("injected second-order resolution failure")
+        return original_resolver(raw_order, **kwargs)
+
+    monkeypatch.setattr(web, "resolve_persisted_sequence_order", fail_second_resolution)
     with Session(order_engine) as session:
         rows = [session.get(File, ids[k]) for k in ["target", "peer"]]
         attached_before = [row.model_dump() for row in rows]

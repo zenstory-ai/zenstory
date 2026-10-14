@@ -38,6 +38,19 @@ def test_sequence_parser_only_reads_a_leading_heading():
 
 
 @pytest.mark.unit
+def test_sequence_parser_exact_unit_context_does_not_conflate_chapters():
+    assert extract_sequence_number("Chapter 12 Return", unit="章") == 12
+    assert extract_sequence_number("第12章 回归", unit="章") == 12
+    assert extract_sequence_number("第12集 分镜", unit="章") is None
+    assert extract_sequence_number("第1节 开端", unit="章") is None
+    assert extract_sequence_number("第一卷", unit="章") is None
+    assert extract_sequence_number("卷一", unit="章") is None
+    assert extract_sequence_number("2026-03-20 日志", unit="章") is None
+    assert extract_sequence_number("卷一", unit="卷") == 1
+    assert extract_sequence_number("第一章", unit="章集") is None
+
+
+@pytest.mark.unit
 def test_build_sequence_sort_key_preserves_nonzero_stored_order():
     assert build_sequence_sort_key(580, title="第58章 真相", file_type="draft") == (580, 58)
     assert build_sequence_sort_key(-7, title="第58章 真相", file_type="draft") == (-7, 58)

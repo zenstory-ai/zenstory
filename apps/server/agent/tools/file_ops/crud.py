@@ -940,7 +940,7 @@ class FileCRUD:
 
         if is_postgres:
             lock_ctx = contextlib.nullcontext()
-        elif recursive is True:
+        elif recursive is True and protect_author_content:
             preliminary = load_live_subtree_postorder(self.session, file)
             lock_ctx = _acquire_file_write_locks([item.id for item in preliminary])
         else:

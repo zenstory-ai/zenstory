@@ -42,6 +42,7 @@ _CHINESE_NUMS: Final[dict[str, int]] = {
 
 # Common "第X{unit}" units we want to support.
 _SEQ_UNITS: Final[str] = "章集回节话幕场卷"
+_SEQ_UNIT_VALUES: Final[frozenset[str]] = frozenset(_SEQ_UNITS)
 
 # Heading patterns are deliberately anchored.  A subtitle such as
 # ``第12章 第一节课`` must not let ``第一节`` replace the chapter ordinal.
@@ -51,8 +52,11 @@ _RE_CN_SEQ: Final[re.Pattern[str]] = re.compile(
 _RE_ARABIC_SEQ: Final[re.Pattern[str]] = re.compile(
     rf"^\s*第\s*(\d+)\s*([{_SEQ_UNITS}])"
 )
+_RE_PREFIX_VOLUME: Final[re.Pattern[str]] = re.compile(
+    r"^\s*卷\s*([零一二三四五六七八九十百千\d]+)"
+)
 _RE_EN_CHAPTER: Final[re.Pattern[str]] = re.compile(
-    r"^\s*(?:chapter|episode|ep\.?)\s+(\d+)\b(?!\s*[-–—~～]\s*\d)",
+    r"^\s*(chapter|episode|ep\.?)\s+(\d+)\b(?!\s*[-–—~～]\s*\d)",
     re.IGNORECASE,
 )
 _RE_LEADING_NUM: Final[re.Pattern[str]] = re.compile(r"^\s*(\d+)\b")
@@ -108,43 +112,59 @@ def parse_chinese_number(value: str | None) -> int | None:
     return result if result > 0 else None
 
 
-def extract_sequence_number(title: str | None) -> int | None:
+def extract_sequence_number(title: str | None, *, unit: str | None = None) -> int | None:
     """
     Extract a sequence number from a title.
 
     Supported examples:
     - 第1章 / 第十章 / 第十一章
     - 第1集 / 第10集
+    - 第一卷 / 卷一
     - Chapter 12
     - 12. Something / 12 Something
+
+    When ``unit`` is supplied, only an exact compatible heading is accepted;
+    generic leading numbers are ordering hints, not typed unit evidence.
     """
     text = (title or "").strip()
     if not text:
         return None
+    if unit is not None and unit not in _SEQ_UNIT_VALUES:
+        return None
 
     match = _RE_CN_SEQ.match(text)
-    if match:
+    if match and (unit is None or match.group(2) == unit):
         parsed = parse_chinese_number(match.group(1))
         if parsed:
             return parsed
 
     match = _RE_ARABIC_SEQ.match(text)
-    if match:
+    if match and (unit is None or match.group(2) == unit):
         try:
             parsed = int(match.group(1))
         except ValueError:
             parsed = 0
         return parsed if parsed > 0 else None
+
+    match = _RE_PREFIX_VOLUME.match(text)
+    if match and (unit is None or unit == "卷"):
+        token = match.group(1)
+        parsed = int(token) if token.isdigit() else parse_chinese_number(token)
+        return parsed if parsed and parsed > 0 else None
 
     match = _RE_EN_CHAPTER.match(text)
     if match:
+        heading = match.group(1).lower()
+        compatible_unit = "章" if heading == "chapter" else "集"
+        if unit is not None and unit != compatible_unit:
+            return None
         try:
-            parsed = int(match.group(1))
+            parsed = int(match.group(2))
         except ValueError:
             parsed = 0
         return parsed if parsed > 0 else None
 
-    match = _RE_LEADING_NUM.match(text)
+    match = _RE_LEADING_NUM.match(text) if unit is None else None
     if match:
         try:
             parsed = int(match.group(1))
@@ -282,7 +302,7 @@ def extract_chapter_like_sequence_number(title: str | None) -> int | None:
     match = _RE_EN_CHAPTER.match(text)
     if match:
         try:
-            parsed = int(match.group(1))
+            parsed = int(match.group(2))
         except ValueError:
             parsed = 0
         return parsed if parsed > 0 else None

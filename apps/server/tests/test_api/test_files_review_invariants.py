@@ -1,7 +1,7 @@
 from io import BytesIO
 
 import pytest
-from fastapi import BackgroundTasks, UploadFile
+from fastapi import UploadFile
 
 from api.files import ReorderFilesRequest, reorder_files, upload_drafts
 from core.error_handler import APIException
@@ -39,7 +39,7 @@ def test_reorder_accepts_root_siblings(db_session, file_tree):
     db_session.commit()
     result = reorder_files(project.id, ReorderFilesRequest(ordered_ids=[other.id, root.id]), current_user=user, session=db_session)
     assert result["count"] == 2
-    assert (other.order, root.order) == (0, 1)
+    assert (other.order, root.order) == (1, 2)
 
 
 async def test_draft_upload_rejects_deleted_destination_folder(db_session, file_tree):

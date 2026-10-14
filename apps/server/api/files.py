@@ -59,7 +59,9 @@ from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 from utils.title_sequence import (
     build_sequence_sort_key,
+    extract_sequence_number,
     resolve_persisted_sequence_order,
+    validate_persisted_file_order,
 )
 
 logger = get_logger(__name__)
@@ -236,7 +238,10 @@ def _strip_heading_line(content: str, heading: str) -> str:
     return content
 
 
-def _build_draft_chapters(base_title: str, content: str) -> list[tuple[str, str]]:
+def _build_draft_chapters(
+    base_title: str,
+    content: str,
+) -> list[tuple[str, str, int | None, int | None]]:
     """
     Build draft chapter list from uploaded novel text.
     Splits by chapter headings ONLY — no length-based splitting.
@@ -252,16 +257,44 @@ def _build_draft_chapters(base_title: str, content: str) -> list[tuple[str, str]
         if lines and lines[0].strip() and CHAPTER_HEADING_PATTERN.match(lines[0].strip()):
             heading = lines[0].strip()
             body = _strip_heading_line(content, heading)
-            return [(normalized, body)]
-        return [(normalized, content)]
+            return [(
+                normalized,
+                body,
+                extract_sequence_number(heading),
+                extract_sequence_number(heading, unit="章"),
+            )]
+        return [(
+            normalized,
+            content,
+            extract_sequence_number(normalized),
+            extract_sequence_number(normalized, unit="章"),
+        )]
 
     chapters = []
     for heading, chapter_content in chapter_segments:
         label = _truncate_title(heading or "章节", 60)
         body = _strip_heading_line(chapter_content, heading)
-        chapters.append((f"{normalized} - {label}", body))
+        chapters.append(
+            (
+                f"{normalized} - {label}",
+                body,
+                extract_sequence_number(heading),
+                extract_sequence_number(heading, unit="章"),
+            )
+        )
 
     return chapters
+
+
+def _resolve_uploaded_draft_order(
+    *,
+    fallback_order: int,
+    inferred_order: int | None,
+) -> int:
+    """Prefer the source ordinal; otherwise validate the generated append slot."""
+    if inferred_order is not None:
+        return validate_persisted_file_order(inferred_order)
+    return validate_persisted_file_order(fallback_order)
 
 
 # Request/Response schemas
@@ -1689,26 +1722,24 @@ def upload_drafts(
             chapters = _build_draft_chapters(base_title, content)
             pending_drafts: list[File] = []
 
-            for chapter_title, chapter_content in chapters:
+            for chapter_title, chapter_content, ordering_number, chapter_number in chapters:
                 _reject_embedded_nul(chapter_title)
                 _reject_embedded_nul(chapter_content)
                 word_count = count_words(chapter_content)
 
-                metadata = {
+                metadata: dict[str, Any] = {
                     "source": "upload",
                     "original_filename": upload_file.filename,
                     "char_count": len(chapter_content),
                     "word_count": word_count,
                 }
+                if chapter_number is not None:
+                    metadata["chapter_number"] = chapter_number
 
-                resolved_order = resolve_persisted_sequence_order(
-                    next_order + order_index + len(pending_drafts),
-                    title=chapter_title,
-                    metadata=metadata,
-                    file_type="draft",
+                resolved_order = _resolve_uploaded_draft_order(
+                    fallback_order=next_order + order_index + len(pending_drafts),
+                    inferred_order=ordering_number,
                 )
-                if resolved_order > MAX_FILE_ORDER:
-                    raise ValueError("resolved file order exceeds the storage limit")
 
                 draft = File(
                     project_id=project_id,
