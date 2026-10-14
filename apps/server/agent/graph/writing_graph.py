@@ -2952,7 +2952,11 @@ async def run_writing_workflow_streaming(
                 and body_words_written(writer_body_writes) > 0
             ):
                 carried_writer_body_writes = writer_body_writes
-                if chat_hold_started and not ended_with_question:
+                if (
+                    chat_hold_started
+                    and not ended_with_question
+                    and body_words_written(writer_body_writes) >= auto_review_threshold
+                ):
                     yield StreamEvent(
                         type=StreamEventType.CHAT_HOLD,
                         data={"action": CHAT_HOLD_DISCARD, "reason": "superseded_by_planned_writer"},

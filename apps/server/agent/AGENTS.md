@@ -161,7 +161,7 @@ quality_reviewer；计划内 planner→writer 同一交付的成功正文写入�
   quality_reviewer 时在 HANDOFF 前发 `CHAT_HOLD(discard)`，由审稿人（或返修后的 writer）写唯一总结，writer 的问题以
   `[内容创作者要问作者的问题]` 交给它们；不送审时扣着的文字在下一个 agent / 交接 / 收尾 / 出错事件前或流结束时原样放出
   （run 中途的 STEERING_RECEIVED 不放出）。CHAT_HOLD 不发给前端。[single-summary][n-summary]
-  质量门可用且作者要正文时，计划下一位为 writer 的 planner 也按成功正文写入扣留；实际交给 writer 且没有收尾问题才丢弃，
+  质量门可用且作者要正文时，计划下一位为 writer 的 planner 也按成功正文写入扣留；其正文达到送审门槛、实际交给 writer 且没有收尾问题才丢弃，
   正文记录接续给 writer。只有规划、失败写入、未执行交接和提问原样释放。[planned-body-review][n-planned-body]
 - **送审证据用落库后的事实**：送审交接附 `[本轮正文字数]`（落库后的 `count_words`）和 `[作者的篇幅要求]`
   （`review_evidence.find_length_requirements`），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，

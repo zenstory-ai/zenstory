@@ -207,6 +207,61 @@ async def test_planned_planner_question_is_released_even_when_writer_continues()
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+@pytest.mark.parametrize("writer_addition", ["", "补" * 450], ids=["silent-writer", "combined-review"])
+async def test_small_planner_delivery_keeps_summary_and_carries_body_count(writer_addition):
+    """规划师仅写 100 字时先保留说明；writer 后续补写仍能累计达到质检门槛。"""
+    calls: list[str] = []
+    summary = "第一章开头已保存。"
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "planner":
+            for event in create_file_events("draft-1", "第一章"):
+                yield event
+            yield _text(f"<file>{'雨' * 100}</file>\n\n{summary}")
+        elif agent_type == "writer" and writer_addition:
+            for event in edit_file_events("writer-addition", writer_addition, file_id="draft-1"):
+                yield event
+        elif agent_type == "quality_reviewer":
+            yield _text(REVIEWER_SUMMARY)
+
+    events = await _run_graph(
+        fake_agent, generation_mode="quality", initial_agent="planner", workflow_agents=["writer"],
+        routing_metadata=PLANNED_PROSE, auto_review_threshold=500,
+    )
+    assert summary in await _author_visible_text(events)
+    assert calls == ["planner", "writer", *(["quality_reviewer"] if writer_addition else [])]
+    assert not any(
+        e.type == StreamEventType.CHAT_HOLD and e.data.get("reason") == "superseded_by_planned_writer"
+        for e in events
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_planned_writer_early_failure_releases_its_partial_delivery_text():
+    """上游已到审查门槛，writer 提前出错时，原有错误及已写出的部分交付说明仍可见。"""
+    partial_summary = "第一章已保存，后续核对尚未完成。"
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        if agent_type == "planner":
+            for event in create_file_events("draft-1", "第一章"):
+                yield event
+            yield _text(f"<file>{BODY * 2}</file>\n\n第一章已保存。")
+        else:
+            yield _text(partial_summary)
+            raise RuntimeError("mock writer failed")
+
+    events = await _run_graph(
+        fake_agent, generation_mode="quality", initial_agent="planner", workflow_agents=["writer"],
+        routing_metadata=PLANNED_PROSE, auto_review_threshold=500,
+    )
+    assert any(e.type == StreamEventType.ERROR for e in events)
+    assert partial_summary in await _author_visible_text(events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 @pytest.mark.parametrize("case", ["outline", "failed", "unplanned", "auto-off", "last-iteration", "planning-only", "read-only"])
 async def test_planner_body_carry_requires_successful_planned_prose_handoff(case):
     """大纲、失败写入、未计划交接、关闭质检、无剩余轮次和只做规划不扩展送审范围。"""
