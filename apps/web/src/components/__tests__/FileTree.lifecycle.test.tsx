@@ -280,11 +280,45 @@ for (const mobile of [false, true]) {
       expect(mocks.loggerError).not.toHaveBeenCalled();
     });
 
-    it('shows the existing empty state after a non-abort load failure', async () => {
+    it('distinguishes an initial read failure from an empty tree and retries only the read', async () => {
       mocks.getTree.mockRejectedValue(new Error('offline'));
       mountTree(mobile);
-      expect(await screen.findByText('editor:fileTree.folderEmpty')).toBeInTheDocument();
+      expect(await screen.findByRole('alert')).toHaveTextContent('editor:fileTree.loadFailed');
+      expect(screen.queryByText('editor:fileTree.folderEmpty')).not.toBeInTheDocument();
+      expect(screen.queryByText('editor:fileTree.createWithAI')).not.toBeInTheDocument();
       expect(mocks.loggerError).toHaveBeenCalledTimes(1);
+      mocks.getTree.mockResolvedValue({ tree: [node('restored', 'Saved chapter')] });
+      fireEvent.click(screen.getByRole('button', { name: 'common:retry' }));
+      await screen.findByText('Saved chapter');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(mocks.getTree).toHaveBeenCalledTimes(2);
+      expect(mocks.create).not.toHaveBeenCalled();
+      expect(mocks.delete).not.toHaveBeenCalled();
+    });
+
+    it('keeps the existing tree and selected file after a silent refresh fails, then recovers', async () => {
+      const view = mountTree(mobile);
+      await screen.findByText('Author');
+      const selectedItem: SelectedItem = { id: 'file', title: 'Author', type: 'character' };
+      view.update({ selectedItem });
+      mocks.getTree.mockRejectedValueOnce(new Error('cutover timeout'));
+      view.update({ fileTreeVersion: 1 });
+      expect(await screen.findByRole('alert')).toHaveTextContent('editor:fileTree.loadFailed');
+      expect(screen.getByText('Author')).toBeInTheDocument();
+      expect(mocks.select).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'common:retry' }));
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+      expect(screen.getByText('Author')).toBeInTheDocument();
+      expect(mocks.getTree).toHaveBeenCalledTimes(3);
+      expect(mocks.select).not.toHaveBeenCalled();
+    });
+
+    it('shows the ordinary empty state only after a successful empty read', async () => {
+      mocks.getTree.mockResolvedValue({ tree: [] });
+      mountTree(mobile);
+      expect(await screen.findByText('editor:fileTree.folderEmpty')).toBeInTheDocument();
+      expect(screen.getByText('editor:fileTree.createWithAI')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
     it('cancels the StrictMode request and the current request on unmount without reporting errors', async () => {
