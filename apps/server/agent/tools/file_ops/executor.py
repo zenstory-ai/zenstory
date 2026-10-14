@@ -10,6 +10,7 @@ providing a unified interface over all file-related capabilities.
 Extracted from the monolithic file_executor.py for better maintainability.
 """
 
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from sqlmodel import Session
@@ -61,6 +62,7 @@ class FileToolExecutor:
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
         normalize_quotes: bool = False,
+        protect_author_content: bool = False,
     ) -> dict[str, Any]:
         """
         Create a new file.
@@ -89,6 +91,7 @@ class FileToolExecutor:
             order=order,
             metadata=metadata,
             normalize_quotes=normalize_quotes,
+            protect_author_content=protect_author_content,
         )
 
     def update_file(
@@ -100,6 +103,8 @@ class FileToolExecutor:
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
         normalize_quotes: bool = False,
+        protect_author_content: bool = False,
+        expected_updated_at: str | None = None,
     ) -> dict[str, Any]:
         """
         Update an existing file.
@@ -127,12 +132,15 @@ class FileToolExecutor:
             order=order,
             metadata=metadata,
             normalize_quotes=normalize_quotes,
+            protect_author_content=protect_author_content,
+            expected_updated_at=expected_updated_at,
         )
 
     def delete_file(
         self,
         id: str,
         recursive: bool = False,
+        protect_author_content: bool = False,
     ) -> bool:
         """
         Delete a file.
@@ -148,7 +156,11 @@ class FileToolExecutor:
             PermissionError: If user doesn't have permission
             ValueError: If file not found
         """
-        return self._crud.delete_file(id=id, recursive=recursive)
+        return self._crud.delete_file(
+            id=id,
+            recursive=recursive,
+            protect_author_content=protect_author_content,
+        )
 
     def query_files(
         self,
@@ -270,6 +282,7 @@ class FileToolExecutor:
         notes: str | None = None,
         title: str | None = None,
         author_requested: bool = False,
+        notes_transform: Callable[[str | None], str] | None = None,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -282,8 +295,8 @@ class FileToolExecutor:
             notes: Additional notes for AI assistant
             title: Work title; renames the project while it still carries a
                 default name or the name AI auto-naming gave it
-            author_requested: The author explicitly asked for this rename;
-                overrides the author-name lock
+            author_requested: Legacy parameter, ignored; model claims never grant authority.
+            notes_transform: Internal locked merge callback; never populated from model args.
 
         Returns:
             Updated project status fields
@@ -292,15 +305,18 @@ class FileToolExecutor:
             PermissionError: If user doesn't have permission
             ValueError: If project not found
         """
-        return self._project.update_project_status(
-            project_id=project_id,
-            summary=summary,
-            current_phase=current_phase,
-            writing_style=writing_style,
-            notes=notes,
-            title=title,
-            author_requested=author_requested,
-        )
+        kwargs: dict[str, Any] = {
+            "project_id": project_id,
+            "summary": summary,
+            "current_phase": current_phase,
+            "writing_style": writing_style,
+            "notes": notes,
+            "title": title,
+            "author_requested": author_requested,
+        }
+        if notes_transform is not None:
+            kwargs["notes_transform"] = notes_transform
+        return self._project.update_project_status(**kwargs)
 
     def execute_update_plan(
         self,
@@ -308,6 +324,7 @@ class FileToolExecutor:
         tasks: list[dict[str, Any]],
         user_id: str | None = None,
         project_id: str | None = None,
+        written_artifact_ids: Sequence[str] | None = None,
     ) -> dict[str, Any]:
         """
         Execute update_plan tool - save tasks to Redis task board.
@@ -324,12 +341,15 @@ class FileToolExecutor:
         Raises:
             ValueError: If Redis connection fails
         """
-        return self._project.execute_update_plan(
-            session_id=session_id,
-            tasks=tasks,
-            user_id=user_id,
-            project_id=project_id,
-        )
+        kwargs: dict[str, Any] = {
+            "session_id": session_id,
+            "tasks": tasks,
+            "user_id": user_id,
+            "project_id": project_id,
+        }
+        if written_artifact_ids is not None:
+            kwargs["written_artifact_ids"] = written_artifact_ids
+        return self._project.execute_update_plan(**kwargs)
 
 
 __all__ = [

@@ -104,6 +104,9 @@ class PendingFileWrite:
     # （剧本分集重复创建）会返回一个**已经写满正文**的文件，此时任何"没等到
     # </file> 的自动补全"都不能整体覆盖它——那会用几百字残稿抹掉整集。
     original_content_length: int = 0
+    # Optimistic token observed in create_file's result. A full-body finalization
+    # must not overwrite any author/external/AI write committed after this point.
+    baseline_updated_at: str | None = None
 
 
 class StreamAdapter:
@@ -261,6 +264,7 @@ class StreamAdapter:
         file_type: str,
         title: str,
         original_content_length: int = 0,
+        baseline_updated_at: str | None = None,
     ) -> None:
         """
         Set a pending file write operation.
@@ -296,6 +300,11 @@ class StreamAdapter:
             file_type=file_type,
             title=title,
             original_content_length=max(int(original_content_length or 0), 0),
+            baseline_updated_at=(
+                baseline_updated_at.strip()
+                if isinstance(baseline_updated_at, str) and baseline_updated_at.strip()
+                else None
+            ),
         )
         self._stream_processor.start_file_write(file_id)
 
@@ -307,6 +316,7 @@ class StreamAdapter:
             file_type=file_type,
             title=title,
             original_content_length=self._pending_file_write.original_content_length,
+            has_optimistic_baseline=self._pending_file_write.baseline_updated_at is not None,
         )
 
     async def process_workflow_events(
@@ -877,6 +887,7 @@ class StreamAdapter:
             file_type,
             file_data.get("title", ""),
             original_content_length=original_content_length,
+            baseline_updated_at=file_data.get("updated_at"),
         )
 
     @staticmethod
@@ -1163,11 +1174,19 @@ class StreamAdapter:
         )
 
         try:
+            pending = self._pending_file_write
+            baseline_updated_at = (
+                pending.baseline_updated_at
+                if pending is not None and pending.file_id == file_id
+                else None
+            )
+            save_args: tuple[Any, ...] = (file_id, content)
+            if baseline_updated_at is not None:
+                save_args = (*save_args, baseline_updated_at)
             saved, content_changed = await asyncio.wait_for(
                 asyncio.to_thread(
                     self._save_file_content_sync,
-                    file_id,
-                    content,
+                    *save_args,
                 ),
                 timeout=STREAM_FILE_SAVE_TIMEOUT_S,
             )
@@ -1200,7 +1219,12 @@ class StreamAdapter:
             )
             return False
 
-    def _save_file_content_sync(self, file_id: str, content: str) -> tuple[bool, bool]:
+    def _save_file_content_sync(
+        self,
+        file_id: str,
+        content: str,
+        expected_updated_at: str | None = None,
+    ) -> tuple[bool, bool]:
         """Persist streamed file content with a fresh sync DB session.
 
         This is an in-app agent write, so draft/script bodies get their double
@@ -1217,7 +1241,13 @@ class StreamAdapter:
                     session=session,
                     user_id=self.config.user_id,
                 )
-                result = executor.update_file(id=file_id, content=content, normalize_quotes=True)
+                result = executor.update_file(
+                    id=file_id,
+                    content=content,
+                    normalize_quotes=True,
+                    protect_author_content=True,
+                    expected_updated_at=expected_updated_at,
+                )
             finally:
                 with contextlib.suppress(StopIteration):
                     next(session_gen)
@@ -1227,7 +1257,13 @@ class StreamAdapter:
                     session=session,
                     user_id=self.config.user_id,
                 )
-                result = executor.update_file(id=file_id, content=content, normalize_quotes=True)
+                result = executor.update_file(
+                    id=file_id,
+                    content=content,
+                    normalize_quotes=True,
+                    protect_author_content=True,
+                    expected_updated_at=expected_updated_at,
+                )
 
         log_with_context(
             logger,

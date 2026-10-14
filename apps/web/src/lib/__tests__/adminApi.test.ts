@@ -1235,6 +1235,21 @@ describe('adminApi', () => {
       })
     })
 
+    it.each(['contest_writer', 'qasim', 'democracy_writer', 'smoke_reader'])(
+      'does not infer a test account from incidental tokens in %s',
+      async (username) => {
+        const { getSubscriptions } = await import('../adminApi')
+        mockApi.get.mockResolvedValue({
+          items: [{ id: 'sub-real', user_id: 'real', username, email: `${username}@personal.test` }],
+          total: 1,
+        })
+
+        const result = await getSubscriptions()
+
+        expect(result.items[0].is_test_account).toBe(false)
+      },
+    )
+
     it('covers inspiration and feedback admin APIs', async () => {
       const {
         getInspirations,

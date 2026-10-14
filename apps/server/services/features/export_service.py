@@ -154,8 +154,7 @@ def _sort_by_sequence(files: list[File]) -> None:
     #   clearly contains a chapter/episode number (e.g. 第2集 / 第一章).
     #   In that case, treat `order == 0` as "unset" and fall back to parsing the
     #   sequence from the title for a more intuitive export ordering.
-    # - For chapter-like draft/outline/script files, title sequence is canonical.
-    # - Also recover from obvious order typos like 580 for "第58章".
+    # - Explicit nonzero order wins; compatible metadata precedes leading titles.
     def sort_key(f: File):
         effective_order, seq_num = build_sequence_sort_key(
             getattr(f, "order", 0),

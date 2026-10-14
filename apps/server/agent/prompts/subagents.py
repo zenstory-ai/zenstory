@@ -44,6 +44,7 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
   - “先列大纲再写第一章”“规划后写第1章”“写/续写/改写第N章” → true
 - read_only：用户是否**明确**要求不改动文件（“不要改文件/别动我的文件/只回答/只分析/只看看/先别改”）。没有明说时为 false（A 补问作答时沿用上一轮；C 选方案时为 false）。
 - scope：用户明确限定的交付范围，<=40字，如“大纲+只写第1章”“只写第3章”“只要两个主角人设”；没有限定时为空字符串（A 补问作答沿用上一轮，B 确认提议写提议的那一步）。
+- requested_file_types：作者本轮明确要写入的文件类型列表，只能选 outline/draft/script/character/lore/snippet/document，不能重复。讨论、提问或被明确拒绝的产物不列入；只读请求为空。大纲对应 outline，小说正文对应 draft，剧本对应 script。补问作答沿用上一轮的列表。
 
 ## 输出（必须严格 JSON，仅输出一个对象，不要 markdown）
 {
@@ -52,6 +53,7 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
   \"write_content\": true,
   \"read_only\": false,
   \"scope\": \"\",
+  \"requested_file_types\": [],
   \"reason\": \"<=40字\",
   \"confidence\": 0.0
 }
@@ -62,7 +64,7 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 # Shared protocol is included for every role; these instructions refine its scope.
 CLARIFICATION_PROTOCOL = """## 澄清
 真正缺少关键信息才使用 request_clarification(question=..., context=..., details=...)。
-不要输出 [NEEDS_CLARIFICATION] 或依赖文本标记暂停；能根据现有信息完成的任务直接完成。
+需要等作者回答时必须调用这个工具；普通问句、问号和文本标记不会暂停工作流。不要输出 [NEEDS_CLARIFICATION]；能根据现有信息完成的任务直接完成。
 """
 
 # 每个角色共用的交接读取规则：交接/待审内容里已有的东西直接用，只补缺失或截断的部分。

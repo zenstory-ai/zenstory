@@ -159,26 +159,34 @@ def normalize_file_markers(content: str) -> str:
     """
     original = content
 
-    # 1. 保护需要保留的内容（用占位符替换）
-    placeholders = {}
-    placeholder_idx = 0
+    # 先在原始字符串上记录受保护区间，再只归一化区间之间的文本。不能把受保护
+    # 内容换成可预测的文本哨兵：作者正文里可能本来就含有同名字符串，后续全局
+    # replace 会把那段正文错误替换成代码内容。
+    spans = sorted(
+        (match.start(), match.end())
+        for pattern in ESCAPED_FILE_PATTERNS
+        for match in re.finditer(pattern, original)
+    )
+    protected: list[tuple[int, int]] = []
+    for start, end in spans:
+        if protected and start <= protected[-1][1]:
+            protected[-1] = (protected[-1][0], max(protected[-1][1], end))
+        else:
+            protected.append((start, end))
 
-    for pattern in ESCAPED_FILE_PATTERNS:
-        for match in re.finditer(pattern, content):
-            placeholder = f"__FILE_PLACEHOLDER_{placeholder_idx}__"
-            placeholders[placeholder] = match.group(0)
-            content = content.replace(match.group(0), placeholder, 1)
-            placeholder_idx += 1
+    def normalize_unprotected(text: str) -> str:
+        text = FILE_START_PATTERN.sub("<file>", text)
+        return FILE_END_PATTERN.sub("</file>", text)
 
-    # 2. 标准化开始和结束标记
-    content = FILE_START_PATTERN.sub('<file>', content)
-    content = FILE_END_PATTERN.sub('</file>', content)
+    parts: list[str] = []
+    cursor = 0
+    for start, end in protected:
+        parts.append(normalize_unprotected(original[cursor:start]))
+        parts.append(original[start:end])
+        cursor = end
+    parts.append(normalize_unprotected(original[cursor:]))
+    content = "".join(parts)
 
-    # 3. 恢复被保护的内容
-    for placeholder, original_text in placeholders.items():
-        content = content.replace(placeholder, original_text)
-
-    # 4. 记录变体情况
     if content != original:
         log_with_context(
             logger,

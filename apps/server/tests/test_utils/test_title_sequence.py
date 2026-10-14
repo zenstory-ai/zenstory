@@ -5,9 +5,6 @@ from utils.title_sequence import (
     extract_chapter_like_sequence_number,
     extract_sequence_number,
     extract_sequence_number_from_metadata,
-    extract_title_first_sequence_number,
-    has_sequence_locked_order,
-    normalize_explicit_sequence_order,
     resolve_persisted_sequence_order,
 )
 
@@ -28,42 +25,32 @@ def test_extract_chapter_like_sequence_number_ignores_leading_number_only():
 
 @pytest.mark.unit
 def test_extract_sequence_number_from_metadata_prefers_numeric_hints():
-    assert extract_sequence_number_from_metadata({"chapter_number": 58}) == 58
-    assert extract_sequence_number_from_metadata({"episode_number": "12"}) == 12
-    assert extract_sequence_number_from_metadata({"section_number": " 7 "}) == 7
+    assert extract_sequence_number_from_metadata({"chapter_number": 58}, file_type="draft") == 58
+    assert extract_sequence_number_from_metadata({"episode_number": "12"}, file_type="script") == 12
+    assert extract_sequence_number_from_metadata({"section_number": " 7 "}, file_type="draft") is None
 
 
 @pytest.mark.unit
-def test_extract_title_first_sequence_number_prefers_visible_title_over_metadata():
-    assert (
-        extract_title_first_sequence_number(
-            "第58章 真相",
-            {"chapter_number": 99},
-        )
-        == 58
-    )
+def test_sequence_parser_only_reads_a_leading_heading():
+    assert extract_sequence_number("第12章 第一节课") == 12
+    assert extract_sequence_number("第2章 第一场雪") == 2
+    assert extract_sequence_number("前言：第12章 第一节课") is None
 
 
 @pytest.mark.unit
-def test_normalize_explicit_sequence_order_collapses_trailing_zero_typos():
-    assert normalize_explicit_sequence_order(580, sequence_number=58) == 58
-    assert normalize_explicit_sequence_order(5800, sequence_number=58) == 58
-    assert normalize_explicit_sequence_order(59, sequence_number=58) == 59
-
-
-@pytest.mark.unit
-def test_build_sequence_sort_key_normalizes_suspicious_order_mismatch():
-    assert build_sequence_sort_key(580, title="第58章 真相") == (58, 58)
+def test_build_sequence_sort_key_preserves_nonzero_stored_order():
+    assert build_sequence_sort_key(580, title="第58章 真相", file_type="draft") == (580, 58)
+    assert build_sequence_sort_key(-7, title="第58章 真相", file_type="draft") == (-7, 58)
     assert build_sequence_sort_key(0, title="第58章 真相") == (58, 58)
 
 
 @pytest.mark.unit
-def test_build_sequence_sort_key_locks_chapter_like_drafts_to_title_sequence():
+def test_build_sequence_sort_key_explicit_order_wins_title_sequence():
     assert build_sequence_sort_key(
         1,
         title="第58章 真相",
         file_type="draft",
-    ) == (58, 58)
+    ) == (1, 58)
 
 
 @pytest.mark.unit
@@ -76,28 +63,30 @@ def test_build_sequence_sort_key_does_not_lock_non_chapter_like_numbered_drafts(
 
 
 @pytest.mark.unit
-def test_has_sequence_locked_order_only_for_writing_file_types():
-    assert has_sequence_locked_order("draft", sequence_number=58) is True
-    assert has_sequence_locked_order("outline", sequence_number=58) is True
-    assert has_sequence_locked_order("script", sequence_number=58) is True
-    assert has_sequence_locked_order("character", sequence_number=58) is False
+def test_metadata_sequence_wins_conflicting_title_when_order_is_unset():
+    assert build_sequence_sort_key(
+        0,
+        title="第58章 真相",
+        metadata={"chapter_number": 99},
+        file_type="draft",
+    ) == (99, 99)
 
 
 @pytest.mark.unit
-def test_resolve_persisted_sequence_order_prefers_title_sequence_for_chapter_files():
+def test_resolve_persisted_sequence_order_preserves_explicit_order_for_chapter_files():
     assert resolve_persisted_sequence_order(
         1,
         title="第58章 真相",
         file_type="draft",
-    ) == 58
+    ) == 1
     assert resolve_persisted_sequence_order(
         1,
         title="角色设定 1",
         file_type="character",
     ) == 1
     assert resolve_persisted_sequence_order(
-        1,
+        0,
         title="剧情大纲",
         metadata={"chapter_number": 58},
         file_type="draft",
-    ) == 1
+    ) == 58

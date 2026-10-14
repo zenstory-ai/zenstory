@@ -280,8 +280,8 @@ def test_update_file_content(executor, test_project, db_session):
     assert result["content"] == "New content"
 
 
-def test_update_file_prefers_title_sequence_over_explicit_order_for_chapter_files(executor, test_project, db_session):
-    """章节型写作文件更新时应以标题序号为准。"""
+def test_update_file_preserves_explicit_order_for_chapter_files(executor, test_project, db_session):
+    """章节型写作文件更新时显式 order 仍是结构化事实。"""
     file = File(
         project_id=test_project.id,
         title="第57章 魔君",
@@ -299,7 +299,7 @@ def test_update_file_prefers_title_sequence_over_explicit_order_for_chapter_file
     )
 
     assert result["title"] == "第58章 真相"
-    assert result["order"] == 58
+    assert result["order"] == 1
 
 
 def test_update_file_move_to_root(executor, test_project, db_session):

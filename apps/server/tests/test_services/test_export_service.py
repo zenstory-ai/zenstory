@@ -233,25 +233,25 @@ class TestGetSortedDrafts:
         assert drafts[3].title == "第10章"
         assert drafts[4].title == "第20章"
 
-    def test_normalizes_trailing_zero_order_typos(self, db_session: Session, test_project, test_user, create_draft_file):
-        """Bad stored orders like 580 for 第58章 should still export in chapter order."""
+    def test_preserves_nonzero_stored_order_without_trailing_zero_guessing(self, db_session: Session, test_project, test_user, create_draft_file):
+        """Export sorting does not rewrite a nonzero stored order from its title."""
         create_draft_file("第57章", "Content 57", order=57)
         create_draft_file("第58章", "Content 58", order=580)
         create_draft_file("第59章", "Content 59", order=59)
 
         drafts = get_sorted_drafts(db_session, test_project.id)
 
-        assert [draft.title for draft in drafts] == ["第57章", "第58章", "第59章"]
+        assert [draft.title for draft in drafts] == ["第57章", "第59章", "第58章"]
 
-    def test_prefers_title_sequence_for_chapter_like_drafts(self, db_session: Session, test_project, test_user, create_draft_file):
-        """Chapter-like drafts should follow title order even when stored order conflicts."""
+    def test_prefers_nonzero_stored_order_for_chapter_like_drafts(self, db_session: Session, test_project, test_user, create_draft_file):
+        """Chapter-like drafts preserve an explicit stored ordering decision."""
         create_draft_file("第57章", "Content 57", order=57)
         create_draft_file("第58章", "Content 58", order=1)
         create_draft_file("第59章", "Content 59", order=59)
 
         drafts = get_sorted_drafts(db_session, test_project.id)
 
-        assert [draft.title for draft in drafts] == ["第57章", "第58章", "第59章"]
+        assert [draft.title for draft in drafts] == ["第58章", "第57章", "第59章"]
 
     def test_only_includes_draft_type(self, db_session: Session, test_project, test_user, create_draft_file):
         """Test that only draft type files are included."""

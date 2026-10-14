@@ -529,8 +529,8 @@ async def test_get_file_tree_treats_zero_order_as_missing_for_episode_titles(cli
 
 
 @pytest.mark.integration
-async def test_get_file_tree_normalizes_trailing_zero_order_typos(client: AsyncClient, db_session):
-    """File tree should recover when bad data stores 第58章 with order=580."""
+async def test_get_file_tree_preserves_nonzero_stored_order(client: AsyncClient, db_session):
+    """File tree must not rewrite a nonzero stored order from title similarity."""
     from services.core.auth_service import hash_password
 
     user = User(
@@ -572,12 +572,12 @@ async def test_get_file_tree_normalizes_trailing_zero_order_typos(client: AsyncC
     assert folder_item is not None
 
     titles = [child["title"] for child in folder_item["children"]]
-    assert titles == ["第57章 魔君", "第58章 真相", "第59章 潜入"]
+    assert titles == ["第57章 魔君", "第59章 潜入", "第58章 真相"]
 
 
 @pytest.mark.integration
-async def test_get_file_tree_prefers_title_sequence_for_chapter_like_writing_files(client: AsyncClient, db_session):
-    """Chapter-like draft/outline/script files should always follow title sequence."""
+async def test_get_file_tree_prefers_nonzero_stored_order_to_title_sequence(client: AsyncClient, db_session):
+    """Nonzero stored order remains authoritative for chapter-like files."""
     from services.core.auth_service import hash_password
 
     user = User(
@@ -619,7 +619,7 @@ async def test_get_file_tree_prefers_title_sequence_for_chapter_like_writing_fil
     assert folder_item is not None
 
     titles = [child["title"] for child in folder_item["children"]]
-    assert titles == ["第57章 魔君", "第58章 真相", "第59章 潜入"]
+    assert titles == ["第58章 真相", "第57章 魔君", "第59章 潜入"]
 
 
 @pytest.mark.integration
@@ -1468,8 +1468,8 @@ async def test_create_file_infers_order_from_episode_title_when_omitted(client: 
 
 
 @pytest.mark.integration
-async def test_create_file_normalizes_suspicious_explicit_order_from_title(client: AsyncClient, db_session):
-    """Explicit chapter order like 580 should normalize back to 58 on create."""
+async def test_create_file_does_not_collapse_trailing_zero_in_explicit_order(client: AsyncClient, db_session):
+    """A nonzero explicit order is not corrected from a similar-looking title."""
     from services.core.auth_service import hash_password
 
     user = User(
@@ -1512,12 +1512,12 @@ async def test_create_file_normalizes_suspicious_explicit_order_from_title(clien
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == "第58章 真相"
-    assert data["order"] == 58
+    assert data["order"] == 580
 
 
 @pytest.mark.integration
-async def test_create_file_prefers_title_sequence_over_explicit_order_for_chapter_files(client: AsyncClient, db_session):
-    """Chapter-like writing files should persist title-derived order even when caller disagrees."""
+async def test_create_file_preserves_explicit_order_for_chapter_files(client: AsyncClient, db_session):
+    """Chapter-like writing files preserve a supplied nonzero order."""
     from services.core.auth_service import hash_password
 
     user = User(
@@ -1560,7 +1560,53 @@ async def test_create_file_prefers_title_sequence_over_explicit_order_for_chapte
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == "第58章 真相"
-    assert data["order"] == 58
+    assert data["order"] == 1
+
+
+@pytest.mark.integration
+async def test_create_file_prefers_compatible_metadata_to_conflicting_title(client: AsyncClient, db_session):
+    """When order is unset, typed metadata wins a conflicting title label."""
+    from services.core.auth_service import hash_password
+
+    user = User(
+        username="user5e",
+        email="user5e@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    login_response = await client.post(
+        "/api/auth/login",
+        data={"username": "user5e", "password": "password123"},
+    )
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+
+    project = Project(name="Test Project", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+
+    folder = File(project_id=project.id, title="正文", file_type="folder", order=0)
+    db_session.add(folder)
+    db_session.commit()
+
+    response = await client.post(
+        f"/api/v1/projects/{project.id}/files",
+        json={
+            "title": "第58章 真相",
+            "file_type": "draft",
+            "content": "Draft content",
+            "parent_id": folder.id,
+            "metadata": {"chapter_number": 99},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["order"] == 99
 
 
 @pytest.mark.integration
@@ -1789,8 +1835,8 @@ async def test_update_file_success(client: AsyncClient, db_session):
 
 
 @pytest.mark.integration
-async def test_update_file_prefers_title_sequence_over_explicit_order_for_chapter_files(client: AsyncClient, db_session):
-    """Updating a chapter-like writing file should keep order aligned with title sequence."""
+async def test_update_file_preserves_explicit_order_for_chapter_files(client: AsyncClient, db_session):
+    """Updating a chapter-like writing file preserves supplied nonzero order."""
     from services.core.auth_service import hash_password
 
     user = User(
@@ -1826,12 +1872,12 @@ async def test_update_file_prefers_title_sequence_over_explicit_order_for_chapte
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == "第58章 真相"
-    assert data["order"] == 58
+    assert data["order"] == 1
 
 
 @pytest.mark.integration
-async def test_reorder_files_keeps_chapter_like_writing_files_aligned_to_title_sequence(client: AsyncClient, db_session):
-    """Reorder endpoint should not persist custom order for chapter-like writing files."""
+async def test_reorder_files_reorders_chapter_like_writing_files(client: AsyncClient, db_session):
+    """A direct reorder action must not be undone by title-derived ordinals."""
     from services.core.auth_service import hash_password
 
     user = User(
@@ -1866,10 +1912,17 @@ async def test_reorder_files_keeps_chapter_like_writing_files_aligned_to_title_s
     )
     assert response.status_code == 200
 
-    db_session.refresh(file57)
-    db_session.refresh(file58)
-    db_session.refresh(file59)
-    assert (file57.order, file58.order, file59.order) == (57, 58, 59)
+    tree_response = await client.get(
+        f"/api/v1/projects/{project.id}/file-tree",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert tree_response.status_code == 200
+    folder_item = next(item for item in tree_response.json()["tree"] if item["id"] == folder.id)
+    assert [child["title"] for child in folder_item["children"]] == [
+        "第59章 潜入",
+        "第58章 真相",
+        "第57章 魔君",
+    ]
 
 
 @pytest.mark.integration

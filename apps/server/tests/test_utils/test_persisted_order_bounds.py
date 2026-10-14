@@ -26,10 +26,14 @@ def test_storage_validator_rejects_out_of_range_final_orders(value):
 
 
 @pytest.mark.parametrize("metadata", [None, {"chapter_number": MAX_FILE_ORDER + 1}])
-def test_final_title_override_can_replace_out_of_range_provisional_order(metadata):
-    assert resolve_persisted_sequence_order(
-        MAX_FILE_ORDER + 1, title=f"Chapter {MAX_FILE_ORDER}", metadata=metadata, file_type="draft",
-    ) == MAX_FILE_ORDER
+def test_out_of_range_explicit_order_cannot_be_replaced_by_inference(metadata):
+    with pytest.raises(ValueError):
+        resolve_persisted_sequence_order(
+            MAX_FILE_ORDER + 1,
+            title=f"Chapter {MAX_FILE_ORDER}",
+            metadata=metadata,
+            file_type="draft",
+        )
 
 
 @pytest.mark.parametrize("source", ["title", "metadata"])

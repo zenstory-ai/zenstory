@@ -533,13 +533,49 @@ class TestContextAssembler:
         assert [f["title"] for f in inventory["draft"]][:2] == ["第3章", "第10章"]
         assert [f["title"] for f in inventory["outline"]][:2] == ["第3章大纲", "第10章大纲"]
 
-    def test_file_inventory_normalizes_trailing_zero_order_typos(
+    def test_file_inventory_uses_metadata_before_title_but_after_explicit_order(
         self,
         db_session,
         test_project,
         create_file,
     ):
-        """Regression: bad persisted order like 580 should not push 第58章 to the end."""
+        """Inventory uses the same order > metadata > leading-title precedence."""
+        create_file(
+            file_type="draft",
+            title="第1章 元数据十二",
+            content="内容",
+            file_metadata='{"chapter_number": 12}',
+            order=0,
+        )
+        create_file(
+            file_type="draft",
+            title="第2章 标题二",
+            content="内容",
+            order=0,
+        )
+        create_file(
+            file_type="draft",
+            title="第99章 显式三",
+            content="内容",
+            file_metadata='{"chapter_number": 50}',
+            order=3,
+        )
+
+        inventory = ContextAssembler()._get_file_inventory(db_session, test_project.id)
+
+        assert [item["title"] for item in inventory["draft"]][:3] == [
+            "第2章 标题二",
+            "第99章 显式三",
+            "第1章 元数据十二",
+        ]
+
+    def test_file_inventory_preserves_explicit_trailing_zero_order(
+        self,
+        db_session,
+        test_project,
+        create_file,
+    ):
+        """Persisted nonzero structured order wins over title parsing, including 580."""
         create_file(
             file_type="draft",
             title="第57章",
@@ -562,15 +598,15 @@ class TestContextAssembler:
         assembler = ContextAssembler()
         inventory = assembler._get_file_inventory(db_session, test_project.id)
 
-        assert [f["title"] for f in inventory["draft"]][:3] == ["第57章", "第58章", "第59章"]
+        assert [f["title"] for f in inventory["draft"]][:3] == ["第57章", "第59章", "第58章"]
 
-    def test_file_inventory_prefers_title_sequence_for_chapter_like_writing_files(
+    def test_file_inventory_prefers_explicit_order_for_chapter_like_writing_files(
         self,
         db_session,
         test_project,
         create_file,
     ):
-        """Chapter-like writing files should follow title sequence even with conflicting order."""
+        """Chapter-like writing files also follow conflicting nonzero structured order."""
         create_file(
             file_type="draft",
             title="第57章",
@@ -593,7 +629,7 @@ class TestContextAssembler:
         assembler = ContextAssembler()
         inventory = assembler._get_file_inventory(db_session, test_project.id)
 
-        assert [f["title"] for f in inventory["draft"]][:3] == ["第57章", "第58章", "第59章"]
+        assert [f["title"] for f in inventory["draft"]][:3] == ["第58章", "第57章", "第59章"]
 
     def test_assemble_project_status(
         self,
@@ -1508,7 +1544,7 @@ def test_project_notes_copied_back_from_context_keep_their_sections():
 
 
 @pytest.mark.unit
-def test_project_notes_copied_back_with_a_new_quoted_entry_only_add_that_entry():
+def test_project_notes_copied_back_with_a_new_quoted_entry_keeps_it_as_proposal():
     from agent.context.assembler import _render_project_notes
     from config.project_notes import merge_project_notes, split_project_notes
 
@@ -1522,5 +1558,5 @@ def test_project_notes_copied_back_with_a_new_quoted_entry_only_add_that_entry()
     )
     after = split_project_notes(merged.text)
     assert after.unlabeled == ["主角冷静"]
-    assert after.confirmed == ["女主要到第五章才出场", "反派第20章揭露"]
-    assert after.proposals == ["沧不夺舍"]
+    assert after.confirmed == ["女主要到第五章才出场"]
+    assert after.proposals == ["沧不夺舍", "反派第20章揭露"]

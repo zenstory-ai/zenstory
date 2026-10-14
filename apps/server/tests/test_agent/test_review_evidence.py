@@ -461,3 +461,28 @@ async def test_auto_review_payload_falls_back_to_writer_output_when_read_fails(
 
     assert calls == ["writer", "quality_reviewer"]
     assert '他推开门："我回来了。"' in reviewer_messages[0].split("[待审查内容]\n", 1)[1]
+
+
+@pytest.mark.unit
+def test_review_neighbors_use_metadata_sequence_before_misleading_title(db_session, novel_project):
+    from sqlmodel import Session
+
+    from agent.graph.writing_graph import _collect_review_auto_checks
+    from agent.tools.mcp_tools import ToolContext
+
+    add = novel_project["add"]
+    previous = add("第1章 误导标题", "相邻参照正文", order=0)
+    previous.set_metadata({"chapter_number": 12})
+    target = add("第13章", "本章正文", order=13)
+    future = add("第2章 也是误导标题", "未来正文不应当作前章", order=0)
+    future.set_metadata({"chapter_number": 14})
+    db_session.add_all([previous, future])
+    db_session.commit()
+    ToolContext.set_context(None, novel_project["project"].owner_id, novel_project["project"].id, None,
+                            create_session_func=lambda: Session(db_session.get_bind()))
+    try:
+        with patch("agent.graph.writing_graph.find_repetition_evidence", return_value=[]) as finder:
+            _collect_review_auto_checks([target.id])
+        assert finder.call_args.args[2] == [(previous.title, previous.content)]
+    finally:
+        ToolContext.clear_context()

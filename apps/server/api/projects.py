@@ -1,6 +1,7 @@
 """
 Project management API endpoints
 """
+import json
 import logging
 from typing import Literal
 
@@ -12,6 +13,9 @@ from sqlmodel import Session, col, func, select
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from config.project_status import (
     PROJECT_STATUS_MAX_LENGTHS,
+    PROJECT_TITLE_AUTHOR_TOOL,
+    PROJECT_TITLE_LEDGER_ACTION,
+    PROJECT_TITLE_SOURCE_AUTHOR,
     normalize_project_status_payload,
 )
 from config.project_templates import (
@@ -25,6 +29,7 @@ from core.error_handler import APIException
 from core.project_access import verify_project_ownership
 from database import get_session
 from models import (
+    AgentArtifactLedger,
     File,
     Project,
     User,
@@ -32,6 +37,7 @@ from models import (
 from services.project_progress import get_projects_progress
 from services.project_service import (
     create_project_with_default_folders,
+    project_metadata_write_lock,
     resolve_template_lang,
 )
 from utils.logger import get_logger, log_with_context
@@ -256,17 +262,34 @@ def update_project(
     session: Session = Depends(get_session)
 ):
     """Update a project."""
-    db_project = verify_project_ownership(project_id, current_user, session)
+    with project_metadata_write_lock(project_id):
+        verify_project_ownership(project_id, current_user, session)
+        session.exec(
+            select(Project).where(Project.id == project_id).with_for_update()
+            .execution_options(populate_existing=True)
+        ).one()
+        db_project = verify_project_ownership(project_id, current_user, session)
 
-    project_data = request.model_dump(exclude_unset=True)
-    for key, value in project_data.items():
-        setattr(db_project, key, value)
+        project_data = request.model_dump(exclude_unset=True)
+        for key, value in project_data.items():
+            setattr(db_project, key, value)
 
-    db_project.updated_at = utcnow()
-    session.add(db_project)
-    session.commit()
-    session.refresh(db_project)
-    return db_project
+        if "name" in project_data:
+            # An explicit human title choice is durable provenance, including same-name
+            # saves and returning to a name once proposed by AI.
+            session.add(AgentArtifactLedger(
+                project_id=project_id,
+                user_id=current_user.id,
+                action=PROJECT_TITLE_LEDGER_ACTION,
+                tool_name=PROJECT_TITLE_AUTHOR_TOOL,
+                artifact_ref=f"project:{project_id}",
+                payload=json.dumps({"project_name": db_project.name, "source": PROJECT_TITLE_SOURCE_AUTHOR}, ensure_ascii=False),
+            ))
+        db_project.updated_at = utcnow()
+        session.add(db_project)
+        session.commit()
+        session.refresh(db_project)
+        return db_project
 
 
 @router.delete("/projects/{project_id}")
@@ -312,35 +335,41 @@ def patch_project(
     - writing_style: Writing style guidelines for AI
     - notes: Additional notes for AI assistant
     """
-    project = verify_project_ownership(project_id, current_user, session)
+    with project_metadata_write_lock(project_id):
+        verify_project_ownership(project_id, current_user, session)
+        session.exec(
+            select(Project).where(Project.id == project_id).with_for_update()
+            .execution_options(populate_existing=True)
+        ).one()
+        project = verify_project_ownership(project_id, current_user, session)
 
-    # Update only provided fields
-    update_data = request.model_dump(exclude_unset=True)
-    try:
-        normalized_status = normalize_project_status_payload(
-            {
-                "summary": update_data.get("summary"),
-                "current_phase": update_data.get("current_phase"),
-                "writing_style": update_data.get("writing_style"),
-                "notes": update_data.get("notes"),
-            }
-        )
-    except ValueError as exc:
-        raise APIException(
-            error_code=ErrorCode.VALIDATION_ERROR,
-            status_code=422,
-            detail=str(exc),
-        ) from exc
+        # Update only provided fields
+        update_data = request.model_dump(exclude_unset=True)
+        try:
+            normalized_status = normalize_project_status_payload(
+                {
+                    "summary": update_data.get("summary"),
+                    "current_phase": update_data.get("current_phase"),
+                    "writing_style": update_data.get("writing_style"),
+                    "notes": update_data.get("notes"),
+                }
+            )
+        except ValueError as exc:
+            raise APIException(
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=422,
+                detail=str(exc),
+            ) from exc
 
-    for field_name, field_value in normalized_status.items():
-        update_data[field_name] = field_value
+        for field_name, field_value in normalized_status.items():
+            update_data[field_name] = field_value
 
-    for key, value in update_data.items():
-        setattr(project, key, value)
+        for key, value in update_data.items():
+            setattr(project, key, value)
 
-    project.updated_at = utcnow()
-    session.add(project)
-    session.commit()
-    session.refresh(project)
+        project.updated_at = utcnow()
+        session.add(project)
+        session.commit()
+        session.refresh(project)
 
-    return project
+        return project

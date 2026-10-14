@@ -10,8 +10,8 @@ from services.features.natural_polish_service import (
     DEFAULT_NATURAL_POLISH_PROMPT_EN,
     DEFAULT_NATURAL_POLISH_PROMPT_ZH,
     NATURAL_POLISH_MAX_TOKENS,
+    NaturalPolishProtocolError,
     NaturalPolishService,
-    apply_full_rewrite,
     apply_line_edits,
     guard_line_sentences,
     is_protected_sentence,
@@ -41,7 +41,7 @@ async def test_natural_polish_calls_llm_with_single_round_settings():
     service = NaturalPolishService()
     llm_client = MagicMock()
     llm_client.MODEL_QUALITY = "quality-model"
-    llm_client.acomplete = AsyncMock(return_value="rewritten")
+    llm_client.acomplete = AsyncMock(return_value="原：" + "x" * 6000 + "\n改：rewritten")
 
     with patch(
         "services.features.natural_polish_service.get_llm_client",
@@ -68,6 +68,49 @@ async def test_natural_polish_calls_llm_with_single_round_settings():
             user_id="user-1", source="polish", project_id="project-1"
         ),
     )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model_output",
+    [
+        "rewritten prose",
+        "原：原文",
+        "原：原文\n改：改文\n解释：这样更自然",
+        "原文：原文\n改写：改文",
+        "OLD:original\nNEW:revision\ntrailing junk",
+    ],
+)
+async def test_natural_polish_rejects_malformed_protocol_output(model_output: str):
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    llm_client.MODEL_QUALITY = "quality-model"
+    llm_client.acomplete = AsyncMock(return_value=model_output)
+
+    with (
+        patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
+        pytest.raises(NaturalPolishProtocolError),
+    ):
+        await service.natural_polish(selected_text="原文", language="zh")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_natural_polish_rejects_an_ambiguous_duplicate_old_anchor():
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    llm_client.MODEL_QUALITY = "quality-model"
+    llm_client.acomplete = AsyncMock(return_value="原：重复的一行。\n改：改过的一行。")
+
+    with (
+        patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
+        pytest.raises(NaturalPolishProtocolError),
+    ):
+        await service.natural_polish(
+            selected_text="重复的一行。\n重复的一行。",
+            language="zh",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -197,15 +240,6 @@ def test_script_lines_keep_one_prefix_when_a_sentence_is_restored():
     )
 
     assert text == f"{dialogue}\n\n{action}"
-
-
-@pytest.mark.unit
-def test_full_rewrite_with_other_line_count_that_drops_a_theme_sentence_returns_the_original():
-    original = f"　　窗外下着雨。\n\n{_THEME_LINE}"
-
-    assert apply_full_rewrite(original, "窗外下着雨。可她把所有的错都揽到了自己身上。") == original
-    # 没删有内容的句子时，整段改写照常保留（只还原引号体例）。
-    assert apply_full_rewrite("　　他心中一震。\n\n　　门开了。", "他回过头。门开了。") == "他回过头。门开了。"
 
 
 def test_latin_sentence_end_check_is_linear_on_long_punctuation_runs():

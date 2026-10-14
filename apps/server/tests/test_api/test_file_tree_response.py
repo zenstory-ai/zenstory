@@ -356,7 +356,7 @@ async def test_explicit_legacy_missing_parent_is_promoted(tree_probe, include_co
     })
 
 
-async def test_sequence_order_and_repeated_ties_preserve_current_behavior(tree_probe, record_property):
+async def test_nonzero_order_precedes_metadata_title_and_repeated_ties(tree_probe, record_property):
     tree_probe.seed([
         _row(tree_probe.project.id, "root"),
         _row(tree_probe.project.id, "second", parent_id="root", title="第2章", file_type="draft", order=580),
@@ -372,8 +372,9 @@ async def test_sequence_order_and_repeated_ties_preserve_current_behavior(tree_p
         _assert_projection(statements, False)
         children = response.json()["tree"][0]["children"]
         orders.append([node["id"] for node in children])
-    assert orders[0][:3] == ["first", "second", "metadata-third"]
-    assert set(orders[0][3:]) == {"tie-a", "tie-b"}
+    assert orders[0][0] == "metadata-third"
+    assert set(orders[0][1:3]) == {"tie-a", "tie-b"}
+    assert orders[0][3:] == ["first", "second"]
     # Characterizes repeated requests on this SQLite fixture, not a cross-DB tie guarantee.
     assert orders[0] == orders[1]
     _record(record_property, {"shape": "sequence and frozen ties", "orders": orders, "file_selects_per_request": 1})

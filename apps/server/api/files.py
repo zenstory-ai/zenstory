@@ -1242,7 +1242,8 @@ def reorder_files(
     files_to_update = []
     parent_id = None
 
-    for idx, file_id in enumerate(request.ordered_ids):
+    # Zero is the legacy unset order; an explicit reorder uses positive ranks.
+    for idx, file_id in enumerate(request.ordered_ids, start=1):
         file = requested_files.get(file_id)
         if file is None:
             # Preserve foreign/missing error distinctions without locking a
@@ -1362,7 +1363,7 @@ def get_file_tree(
     Get the complete file tree for a project.
 
     Returns a hierarchical structure with folders and their contents.
-    Files are sorted by chapter number (extracted from title) then by creation date.
+    Files are sorted by explicit order, typed sequence fallback, then creation date.
     """
     # Check project ownership
     verify_project_ownership(project_id, current_user, session)
@@ -1374,9 +1375,8 @@ def get_file_tree(
         `order` historically defaulted to 0 for many agent-created files. In that
         case, we treat `order == 0` as "unset" and fall back to parsing the
         episode/chapter sequence from the title for a more intuitive ordering.
-        For chapter-like draft/outline/script files, title sequence is treated as
-        canonical ordering. We also normalize obvious LLM typos such as 580 for
-        "第58章".
+        Explicit nonzero order wins. With unset order, compatible metadata wins
+        a leading title ordinal; subtitles never determine chapter identity.
         """
         effective_order, seq_num = build_sequence_sort_key(
             item.get("order", 0),

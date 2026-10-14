@@ -121,15 +121,13 @@ class TestParseRouterResponse:
         assert decision.agent_type == "planner"
         assert decision.workflow_type == "standard"
 
-    def test_parse_router_response_legacy_reviewer_defaults_to_writer(self):
-        """Legacy reviewer alias should no longer map to quality_reviewer."""
+    def test_parse_router_response_rejects_legacy_reviewer_alias(self):
+        """Invalid agent tokens are rejected rather than substring/alias coerced."""
         from agent.graph.router import _parse_router_response
 
         response = {"content": [{"type": "text", "text": '{"agent":"reviewer","workflow":"review_only"}'}]}
-        decision = _parse_router_response(response)
-
-        assert decision.agent_type == "writer"
-        assert decision.workflow_type == "review_only"
+        with pytest.raises(ValueError):
+            _parse_router_response(response)
 
     def test_parse_router_response_extracts_relevant_json_when_multiple_objects_present(self):
         """Should prefer JSON object containing routing keys over unrelated objects."""
@@ -191,7 +189,7 @@ class TestNormalizeRouterPayload:
         assert normalized["agent_type"] == "hook_designer"
         assert normalized["workflow_type"] == "hook_focus"
 
-    def test_normalize_router_payload_unknown_workflow_falls_back_to_quick(self):
+    def test_normalize_router_payload_does_not_salvage_unknown_workflow_token(self):
         from agent.graph.router import _normalize_router_payload
 
         normalized = _normalize_router_payload(
@@ -199,7 +197,7 @@ class TestNormalizeRouterPayload:
         )
 
         assert normalized["agent_type"] == "planner"
-        assert normalized["workflow_type"] == "quick"
+        assert normalized["workflow_type"] == "mystery"
         assert normalized["confidence"] == 0.0
 
 

@@ -13,8 +13,8 @@ from models import Project, User
 from models.subscription import UsageQuota
 from services.core.auth_service import hash_password
 from services.features.natural_polish_service import (
+    NaturalPolishProtocolError,
     NaturalPolishResult,
-    apply_full_rewrite,
     apply_line_edits,
     build_attention_hints,
     parse_line_edits,
@@ -348,6 +348,55 @@ async def test_natural_polish_llm_failure_returns_500(client: AsyncClient, db_se
     )
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("refund_succeeds", [True, False])
+async def test_natural_polish_protocol_failure_attempts_one_refund_and_never_returns_review_text(
+    client: AsyncClient,
+    db_session: Session,
+    refund_succeeds: bool,
+):
+    admin = _create_user(
+        db_session,
+        username=f"np_protocol_fail_{refund_succeeds}",
+        email=f"np_protocol_fail_{refund_succeeds}@example.com",
+        is_superuser=True,
+    )
+    project = _create_project(db_session, owner_id=admin.id)
+    token = await _login(client, admin.username)
+
+    with (
+        patch("api.editor.quota_service.check_ai_conversation_quota", return_value=(True, 0, 20)),
+        patch(
+            "api.editor.quota_service.reserve_ai_conversation",
+            return_value=_CHARGED_PERIOD,
+        ) as mock_reserve,
+        patch(
+            "api.editor.quota_service.release_ai_conversation",
+            return_value=refund_succeeds,
+        ) as mock_refund,
+        patch(
+            "api.editor.natural_polish_service.natural_polish",
+            new=AsyncMock(side_effect=NaturalPolishProtocolError("invalid natural polish response")),
+        ),
+    ):
+        response = await client.post(
+            "/api/v1/editor/natural-polish",
+            json={"project_id": str(project.id), "selected_text": "原文"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "ERR_INTERNAL_SERVER_ERROR"
+    assert "text" not in response.json()
+    assert "unchanged" not in response.json()
+    mock_reserve.assert_called_once_with(db_session, admin.id)
+    mock_refund.assert_called_once_with(
+        db_session,
+        admin.id,
+        period_start=_CHARGED_PERIOD,
+    )
+
+
 def _ai_messages_used(db_session: Session, user_id: str) -> int:
     db_session.expire_all()
     quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user_id)).first()
@@ -576,24 +625,21 @@ def test_script_action_and_dialogue_lines_cannot_be_deleted():
     assert text == original
 
 
-def test_no_change_marker_and_unanchored_edits_leave_text_unchanged():
+def test_no_change_marker_is_valid_and_unanchored_edits_are_protocol_failures():
     assert parse_line_edits("无改动") == []
     assert parse_line_edits("NO CHANGES") == []
 
-    text, dropped = apply_line_edits("母亲在剥蒜。", parse_line_edits("原：完全不存在的一句\n改：别的"))
-
-    assert text == "母亲在剥蒜。"
-    assert dropped == 1
+    with pytest.raises(NaturalPolishProtocolError, match="unmatched OLD anchor"):
+        apply_line_edits("母亲在剥蒜。", parse_line_edits("原：完全不存在的一句\n改：别的"))
 
 
-def test_output_that_only_echoes_old_lines_is_no_change_not_a_full_rewrite():
+def test_output_that_only_echoes_old_lines_is_a_protocol_failure():
     # 真实模型复跑（2026-10-09）里出现过：每行都抄成「原：」，一组「改：」都没有。
     # 以前当成整段改写，「原：」前缀被写进了正文。
-    original = "　　我又想起葬礼上。\n\n　　不是愧疚，是心疼。"
     output = "原：　　我又想起葬礼上。\n\n原：　　不是愧疚，是心疼。"
 
-    assert parse_line_edits(output) == []
-    assert apply_line_edits(original, parse_line_edits(output)) == (original, 0)
+    with pytest.raises(NaturalPolishProtocolError, match="expected NEW marker"):
+        parse_line_edits(output)
 
 
 def test_sentence_level_edit_is_spliced_into_its_paragraph():
@@ -650,12 +696,6 @@ async def test_service_sends_attention_hints_after_the_static_prompt():
     assert system_prompt.startswith(NaturalPolishService._resolve_prompt("zh"))
     assert "「他心中一震。」：心中一震" in system_prompt
     assert result.polished_text == text
-
-
-def test_full_rewrite_fallback_restores_indentation_per_line():
-    original = "　　第一段。\n\n　　她指节泛白。"
-
-    assert apply_full_rewrite(original, "第一段。\n\n她攥紧了拳。") == "　　第一段。\n\n　　她攥紧了拳。"
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 """按作者这一轮的要求收窄工作流：笼统的要求先问清楚、规划没落进文件时补写、
-作者已经要正文时规划师的提问不截停交接。
+工作流等待只由结构化澄清事件控制。
 
 2026-10-09 新用户审计：
 - P2-16：发「帮我优化一下」，AI 不问优化哪里，一次改了三集。
@@ -44,65 +44,6 @@ def is_vague_edit_request(message: str) -> bool:
     return bool(_VAGUE_EDIT_RE.match(normalized))
 
 
-# 上一轮收尾提问里「提议修改」的说法。
-_PROPOSED_EDIT_WORDS: tuple[str, ...] = (
-    "改",
-    "优化",
-    "润色",
-    "调整",
-    "精简",
-    "加强",
-    "打磨",
-    "修一下",
-    "修正",
-    "重写",
-    "收紧",
-    "压缩",
-    "完善",
-)
-_PROPOSAL_SPLIT_RE = re.compile(r"(?:\n|还是|或者|或是|；|;)")
-_PREVIOUS_QUESTION_TAIL_LINES = 4
-# 选项行（「1. …」「- …」「A、…」）或问句行才是在给作者选；「我把节奏改快了一些。」这类
-# 交代做了什么的句子不是提议。
-_OPTION_LINE_RE = re.compile(r"^(?:[-*•·]|\d+[.、)）]|[（(]\d+[)）]|[A-Da-d][.、)）]|[①②③④⑤])")
-_QUESTION_LINE_RE = re.compile(r"(?:[？?]|吗|要不要|要我|需不需要|是否)")
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！!？?])")
-# 「改」开头却不是提议修改：「命运从此改变」「改天」。
-_NON_EDIT_GAI_RE = re.compile(r"改(?:变|天|日|革|口|观)")
-
-
-def _proposes_edit(part: str) -> bool:
-    cleaned = _NON_EDIT_GAI_RE.sub("", part)
-    return any(word in cleaned for word in _PROPOSED_EDIT_WORDS)
-
-
-def previous_question_offers_one_edit(reply_text: str) -> bool:
-    """上一轮 AI 收尾的提问 / 选项里，是不是只提了一处修改。
-
-    「要我继续写第5章，还是先把第4章开头改紧凑一点？」只有一处：作者回「帮我优化一下」
-    「改改」就是答应这一处，不用再问。选项里有两处以上修改（「1. 把开头改紧 2. 优化第3章
-    对话」）或一处都没有（「要我继续写第5章吗？」）时，这句笼统的话没说清改哪里。
-    只看收尾的选项行和问句行：「我把节奏改快了一些。」是交代做了什么，不是给作者的选项。
-    """
-    text = reply_text or ""
-    close = text.lower().rfind("</file>")
-    if close != -1:
-        text = text[close + len("</file>"):]
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    offered: list[str] = []
-    for line in lines[-_PREVIOUS_QUESTION_TAIL_LINES:]:
-        if _OPTION_LINE_RE.match(line):
-            offered.append(line)
-            continue
-        offered.extend(
-            sentence for sentence in _SENTENCE_SPLIT_RE.split(line) if _QUESTION_LINE_RE.search(sentence)
-        )
-    proposals = [
-        part for part in _PROPOSAL_SPLIT_RE.split("\n".join(offered)) if _proposes_edit(part)
-    ]
-    return len(proposals) == 1
-
-
 def has_selected_text(user_message: str) -> bool:
     return any(marker in (user_message or "") for marker in _SELECTED_TEXT_MARKERS)
 
@@ -130,36 +71,10 @@ def clarify_first_route() -> dict[str, Any]:
 
 PLANNING_AGENTS: frozenset[str] = frozenset({"planner", "hook_designer"})
 
-PLANNED_WRITER_AFTER_QUESTION_NOTE = (
-    "规划师在结尾向作者提了问题，但作者本轮已经要求直接写正文：不要再问，"
-    "按规划里推荐的（没有推荐就按第一个）方案写；在给作者的回复里用一句话说明按哪个方案写的，"
-    "作者想换可以直接说。"
-)
-
 SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING = (
     "作者本轮已经要求写正文：规划 / 设计完成后直接交接 writer 写正文，"
     "结尾不要问作者要不要开始写。"
 )
-
-
-def planning_question_keeps_writer(
-    agent_type: str | None,
-    routing_metadata: dict[str, Any] | None,
-    workflow_agents: list[str],
-) -> bool:
-    """规划类角色以提问收尾时，计划序列里的 writer 还要不要留着。
-
-    作者本轮已经明确要正文（write_content=True）时留着：作者的话就是答案，
-    再让作者回一句「写吧」要多花一条额度。write_content 为 False / None（只要规划、
-    旧格式路由）时照旧清空，等作者回答。
-    """
-    return (
-        agent_type in PLANNING_AGENTS
-        and isinstance(routing_metadata, dict)
-        and routing_metadata.get("write_content") is True
-        and "writer" in workflow_agents
-    )
-
 
 PLANNED_HANDOFF_SCOPE_NOTE = (
     "上一位已经完成的部分（见已完成列表）不要重做，也不要修改刚交付的文件；"
@@ -175,71 +90,6 @@ _PLAN_LINE_RE = re.compile(
 )
 CHAT_PLAN_MIN_UNITS = 5
 CHAT_PLAN_MIN_CHARS = 200
-
-# 作者要的是一份规划（要落进大纲文件）：「前十章大纲」「分集规划」。
-_PLAN_DELIVERABLE_WORDS: tuple[str, ...] = (
-    "大纲", "细纲", "章纲", "分章", "分集", "规划", "梗概", "目录", "outline",
-)
-# 只想先聊聊：「前十章大纲你怎么看」「先讨论一下规划」，规划贴在对话里就够了。
-_DISCUSSION_WORDS: tuple[str, ...] = (
-    "聊聊", "聊一下", "聊一聊", "讨论", "说说", "商量", "怎么看", "建议", "意见", "想法", "觉得",
-)
-_PRODUCE_RE = re.compile(
-    r"(?:写(?!得)|做|出|列|整理|生成|给我|帮我|存|保存|补|拟|来一份|来个|弄|搞|规划一下|"
-    r"\bwrite\b|\bmake\b|\bcreate\b|\bdraft\b|\bgive\b|\blist\b)"
-)
-# 在讨论怎么做：「前十章大纲怎么写比较好」。
-_DISCUSSION_QUESTION_RE = re.compile(r"(?:怎么|如何|是否|好不好|行不行|合不合理|合理吗|为什么|为啥)")
-# 在评价 / 回答：「大纲没问题」「这个分集规划挺好」。
-_VERDICT_RE = re.compile(r"(?:没问题|可以|挺好|不错|满意|同意|就这样|ok|行|好的)")
-# 明确叫 AI 动手：讨论 / 问句里有这些也算要交付物（「大纲帮我列一下，你觉得十章够吗」）。
-_IMPERATIVE_RE = re.compile(r"(?:帮我|给我|请|麻烦)")
-# 拿规划当依据：「按大纲写第5章」「根据分集规划写第3集」不是要一份新规划。
-_PLAN_REFERENCE_RE = re.compile(r"(?:按|按照|根据|参考|照着|依照|对照|沿用|结合)[^，,。！？!?；;]{0,6}$")
-_CLAUSE_SPLIT_RE = re.compile(r"[，,。！？!?；;\n]")
-_BARE_PLAN_REQUEST_MAX_CHARS = 12
-
-
-def request_asks_for_a_plan(message: str) -> bool:
-    """作者这一轮是不是要 AI 产出一份规划（大纲 / 分章 / 分集规划），而不是聊聊或回答。
-
-    看提到规划的那一分句：要有叫 AI 产出的说法（写 / 列 / 做 / 整理 / 给我…），或者整句就是
-    「前十章大纲」这样的短要求；讨论（「先聊聊大纲」「大纲怎么写比较好」）不算，除非同一分句
-    里明确叫 AI 动手（帮我 / 给我 / 请）；回答 / 评价（「大纲没问题」「分集规划挺好」）不算。
-    拿规划当依据的（「按大纲写第5章」）不算。
-    """
-    text = re.sub(r"\s+", "", message or "").lower()
-    for clause in _CLAUSE_SPLIT_RE.split(text):
-        for word in _PLAN_DELIVERABLE_WORDS:
-            position = clause.find(word)
-            while position != -1:
-                if not _PLAN_REFERENCE_RE.search(clause[:position]) and _clause_asks_for_plan(clause):
-                    return True
-                position = clause.find(word, position + 1)
-    return False
-
-
-# 问进度 / 在哪：「大纲写了吗」「大纲好了没」「我的大纲在哪」。
-_STATUS_QUESTION_RE = re.compile(
-    r"(?:(?:写|做|列|出|整理|生成|弄|搞|存|保存|补)(?:了|好了|完了|好|完)(?:吗|么|没|没有)|"
-    r"好了(?:吗|么|没)|在哪|哪里|哪儿|有没有)"
-)
-# 问句 / 意见：「大纲好了吗」「你的大纲有问题」「这个大纲第5章节奏太慢」。改规划要作者
-# 明说（「把大纲第5章改快一点」走修改大纲文件，不是补一份新规划）。
-_QUESTION_OR_FEEDBACK_RE = re.compile(r"(?:吗|么|呢|有问题|不对|不行|不好|太|看不懂|不满意)")
-
-
-def _clause_asks_for_plan(clause: str) -> bool:
-    if _STATUS_QUESTION_RE.search(clause):
-        return bool(_IMPERATIVE_RE.search(clause))
-    if any(word in clause for word in _DISCUSSION_WORDS) or _DISCUSSION_QUESTION_RE.search(clause):
-        return bool(_IMPERATIVE_RE.search(clause))
-    if _PRODUCE_RE.search(clause):
-        return True
-    if _VERDICT_RE.search(clause) or _QUESTION_OR_FEEDBACK_RE.search(clause):
-        return False
-    return len(clause) <= _BARE_PLAN_REQUEST_MAX_CHARS
-
 
 def chat_only_plan_units(tail_text: str) -> list[int]:
     """收尾文本里逐行列出的章 / 集号（至少 CHAT_PLAN_MIN_UNITS 个才算一份规划）。

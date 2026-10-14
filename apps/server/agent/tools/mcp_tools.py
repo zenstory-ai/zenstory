@@ -12,7 +12,7 @@ import json
 import os
 import re
 import threading
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any
 from uuid import uuid4
 
@@ -22,17 +22,11 @@ from sqlmodel import Session, and_, select
 from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
 from agent.tools.author_edit_guard import (
-    AUTHOR_EDIT_PROTECTED_ERROR,
+    AuthorContentProtectionError,
+    AuthorEditProtectedError,
     AuthorEditRefusals,
     AuthorScope,
-    OfferItem,
-    latest_text_is_authors,
-    protected_refusal_message,
     protected_user_message,
-    request_deletes_file,
-    request_deletes_folder,
-    request_targets_file,
-    resolve_offer_context_file,
 )
 from agent.tools.file_ops import FileToolExecutor
 from agent.tools.file_ops.edit import (
@@ -46,7 +40,6 @@ from agent.tools.file_ops.edit import (
     StaleContentError,
     edit_error_user_message,
 )
-from agent.tools.file_ops.project import author_message_asks_rename
 from agent.tools.file_ops.serialization import (
     QUERY_FILES_DEFAULT_LIMIT,
     QUERY_FILES_FULL_MODE_DEFAULT_LIMIT,
@@ -57,7 +50,6 @@ from agent.tools.permissions import NotFoundError
 from config.project_notes import (
     ProjectNotesMerge,
     merge_project_notes,
-    presented_project_proposals,
     split_project_notes,
 )
 from config.project_status import PROJECT_STATUS_MAX_LENGTHS
@@ -110,6 +102,7 @@ def _should_offload_tool_execution() -> bool:
 def _run_sync_tool_with_owned_session_cleanup(
     sync_func: Callable[[dict[str, Any]], dict[str, Any]],
     args: dict[str, Any],
+    *extra_args: Any,
 ) -> dict[str, Any]:
     """
     Run a sync tool helper and deterministically close any ToolContext-owned session.
@@ -152,7 +145,7 @@ def _run_sync_tool_with_owned_session_cleanup(
         _tool_context_var.set(isolated_context)
 
     try:
-        return sync_func(args)
+        return sync_func(args, *extra_args)
     finally:
         ToolContext._cleanup_owned_session()
 
@@ -528,25 +521,19 @@ class ToolContext:
         focus_file_id: str | None = None,
         referenced_file_ids: Iterable[str] | None = None,
         author_edit_refusals: AuthorEditRefusals | None = None,
-        author_previous_offer: Iterable[OfferItem] | None = None,
-        author_previous_offer_context: Iterable[str] | None = None,
         read_snapshots: dict[str, str] | None = None,
     ) -> None:
         """Set the execution context for tools (request-scoped).
 
         Args:
             author_message: 作者这一轮的原话（不含选中文本、上下文等拼接内容）。
-                服务端据此判断「作者是否明确要求改项目名」，见 update_project。
+                它只标识应用内对话并提供模型上下文，不授予删除、整份覆盖或改名权限。
             author_steering: 本轮运行中作者追加的消息（service 的 consumed_steering，
-                同一个 list 对象，运行中会继续追加），和 author_message 一起判断。
+                同一个 list 对象，运行中会继续追加），只作为模型上下文。
             focus_file_id: 作者正开着的文件。
             referenced_file_ids: 作者本轮附加的文件、引用的选中文本所在的文件。
             author_edit_refusals: 本轮因为作者手改过而没删 / 没整份重写的文件（service 持有，
                 交接给下一个 agent 时说明它们保持原样）。
-            author_previous_offer: 上一轮 AI 收尾时给作者的提议（选项 / 问句），作者答应或选中
-                整份重写某个文件的那一项时放行它。
-            author_previous_offer_context: 上一轮 AI 回复和作者上一条话的原文；提议没点名
-                文件时，据此找上一轮在谈的那个文件。以上几项见 agent/tools/author_edit_guard.py。
             recorded_skill_ids: 本次请求里已记录过用量的技能（显式选择的技能），
                 load_skill 不再为它们重复记用量。
             skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
@@ -570,12 +557,6 @@ class ToolContext:
             "focus_file_id": focus_file_id or None,
             "referenced_file_ids": frozenset(str(item) for item in (referenced_file_ids or []) if item),
             "author_edit_refusals": author_edit_refusals,
-            "author_previous_offer": tuple(
-                item for item in (author_previous_offer or ()) if isinstance(item, OfferItem)
-            ),
-            "author_previous_offer_context": tuple(
-                item for item in (author_previous_offer_context or ()) if isinstance(item, str) and item
-            ),
             "pre_write_contents": _PreWriteContents(),
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
         })
@@ -694,14 +675,10 @@ class ToolContext:
             return None
         focus = context.get("focus_file_id")
         referenced = context.get("referenced_file_ids")
-        offer = context.get("author_previous_offer")
-        offer_context = context.get("author_previous_offer_context")
         return AuthorScope(
             messages=tuple(cls.get_author_messages()),
             referenced_file_ids=referenced if isinstance(referenced, frozenset) else frozenset(),
             focus_file_id=focus if isinstance(focus, str) and focus else None,
-            previous_offer=offer if isinstance(offer, tuple) else (),
-            previous_offer_context=offer_context if isinstance(offer_context, tuple) else (),
         )
 
     @classmethod
@@ -1044,6 +1021,7 @@ class ToolContext:
                     File.title,
                     File.file_type,
                     File.order,
+                    File.file_metadata,
                     File.created_at,
                 ).where(
                     File.project_id == project_id,
@@ -1056,13 +1034,22 @@ class ToolContext:
             key: [] for key in inventory
         }
 
-        for file_id, title, file_type, file_order, created_at in file_rows:
+        for file_id, title, file_type, file_order, file_metadata, created_at in file_rows:
             if file_type not in inventory:
                 continue
 
+            metadata: dict[str, Any] = {}
+            if isinstance(file_metadata, str) and file_metadata:
+                try:
+                    parsed_metadata = json.loads(file_metadata)
+                    if isinstance(parsed_metadata, dict):
+                        metadata = parsed_metadata
+                except (json.JSONDecodeError, TypeError):
+                    pass
             effective_order, seq_num = build_sequence_sort_key(
                 file_order,
                 title=title,
+                metadata=metadata,
                 file_type=file_type,
             )
             sort_key = (effective_order, seq_num, created_at, file_id)
@@ -1986,14 +1973,8 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             metadata=args.get("metadata"),
             # 应用内 agent 写正文：draft/script 的双引号按稿件体例规范化。
             normalize_quotes=True,
+            protect_author_content=ToolContext.get_author_scope() is not None,
         )
-
-        # 剧本分集的幂等复用命中了作者手改过的同名剧集：接下来的 <file> 正文会整份覆盖
-        # 作者的字，作者本轮没点名它时不复用（占坑在 finally 里释放）。
-        if result.get("reused_existing") and int(result.get("original_content_length") or 0) > 0:
-            refusal = _author_edit_refusal(str(result.get("id") or ""), tool_name=tool_name)
-            if refusal is not None:
-                return refusal
 
         # 如果创建的是空文件，把占坑换成真实 file_id
         # folder 例外：文件夹是纯容器节点，永远不会收到 <file>…</file> 正文，
@@ -2022,6 +2003,8 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             },
             tool_name=tool_name,
         )
+    except AuthorContentProtectionError as e:
+        return _author_content_protection_payload(e, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
     finally:
@@ -2031,157 +2014,34 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             ToolContext.release_pending_empty_file(reservation)
 
 
-_AUTHOR_GUARD_MAX_FOLDER_FILES = 500
-
-
-def _folder_descendant_files(session: Session, folder: Any, project_id: str | None) -> list[Any]:
-    """文件夹下（含子文件夹）未删除的非文件夹文件，最多 _AUTHOR_GUARD_MAX_FOLDER_FILES 个。"""
-    from models import File
-
-    descendants: list[Any] = []
-    frontier = [folder.id]
-    seen = {folder.id}
-    while frontier and len(descendants) < _AUTHOR_GUARD_MAX_FOLDER_FILES:
-        statement = select(File).where(
-            File.parent_id.in_(frontier),  # type: ignore[attr-defined]
-            File.is_deleted.is_(False),  # type: ignore[attr-defined]
-        )
-        if project_id:
-            statement = statement.where(File.project_id == project_id)
-        children = list(session.exec(statement).all())
-        frontier = []
-        for child in children:
-            if child.id in seen:
-                continue
-            seen.add(child.id)
-            if child.file_type == "folder":
-                frontier.append(child.id)
-            else:
-                descendants.append(child)
-    return descendants[:_AUTHOR_GUARD_MAX_FOLDER_FILES]
-
-
-def _offer_context_file_id(session: Session, scope: AuthorScope, project_id: str) -> str | None:
-    """上一轮提议没点名文件时，上一轮在谈的那个作者手改过的文件（见 resolve_offer_context_file）。
-
-    守卫整体出错时放行写入；这一步只用来放开文件，出错时返回 None（不放开）。
-    """
-    if not scope.previous_offer_context:
-        return None
-    from models import File
-
-    def is_protected(candidate_id: str) -> bool:
-        candidate = session.get(File, candidate_id)
-        return candidate is not None and latest_text_is_authors(session, candidate)
-
-    try:
-        rows = session.exec(
-            select(File.id, File.title, File.file_type).where(
-                File.project_id == project_id,
-                File.is_deleted.is_(False),  # type: ignore[attr-defined]
-                File.file_type != "folder",
-            )
-        ).all()
-        return resolve_offer_context_file(
-            scope.previous_offer_context,
-            ((str(row[0]), str(row[1] or ""), str(row[2] or "")) for row in rows),
-            is_protected,
-        )
-    except Exception as exc:
-        logger.warning("Offer-context lookup failed; not unlocking", extra={"error": str(exc)})
-        return None
-
-
-def _author_edit_refusal(
-    file_id: str,
+def _author_content_protection_payload(
+    error: AuthorContentProtectionError,
     *,
     tool_name: str,
-    recursive: bool = False,
-) -> dict[str, Any] | None:
-    """作者手改过、本轮又没点名的文件：返回拒绝结果；可以改时返回 None。
-
-    规则见 agent/tools/author_edit_guard.py。读不到文件或判定出错时不拦（交给后面的
-    正常路径报「文件不存在」等错误），守卫只在确认是作者写下的正文时生效。
-    - 文件夹：只有递归删除时检查。作者没明说删这个文件夹（点名并说删）时逐个看里面的文件，
-      作者手改过的文件要作者点名并在那一处说删才跟着删。
-    - delete_file 删单个文件：同样要点名并在那一处说删（request_deletes_file）。
-    - create_file：只在复用了同名的已有剧集时调用（接下来的 <file> 正文会整份覆盖它）。
-    """
-    scope = ToolContext.get_author_scope()
-    if scope is None or not file_id:
-        return None
-    protected: tuple[str, str] | None = None  # (被保护文件的 id, 标题)
-    action = "rewrite" if tool_name == "create_file" else "delete"
-    try:
-        from models import File
-
-        project_id = ToolContext.get_project_id()
-        with ToolContext.short_lived_session() as session:
-            file = session.get(File, file_id)
-            if file is None or file.is_deleted or (project_id and file.project_id != project_id):
-                return None
-            if file.file_type == "folder":
-                if not recursive or request_deletes_folder(
-                    scope, file_id=file.id, title=str(file.title or "")
-                ):
-                    return None
-                for child in _folder_descendant_files(session, file, project_id):
-                    if not latest_text_is_authors(session, child):
-                        continue
-                    if request_deletes_file(scope, file_id=child.id, title=str(child.title or "")):
-                        continue
-                    protected = (str(child.id), str(child.title or ""))
-                    action = "folder"
-                    break
-                if protected is None:
-                    return None
-            else:
-                if not latest_text_is_authors(session, file):
-                    return None
-                title = str(file.title or "")
-                file_type = str(file.file_type or "")
-                # 删除要作者在点名它的那一处说删（「第3章改一下，把废稿删了」不是删第3章）。
-                if tool_name == "delete_file":
-                    if request_deletes_file(scope, file_id=file.id, title=title):
-                        return None
-                elif request_targets_file(
-                    scope,
-                    file_id=file.id,
-                    title=title,
-                    file_type=file_type,
-                    offer_context_file=lambda: _offer_context_file_id(session, scope, file.project_id),
-                ):
-                    return None
-                protected = (str(file.id), title)
-    except Exception as exc:
-        logger.warning(
-            "Author-edit guard check failed; letting the write proceed",
-            extra={"file_id": file_id, "error": str(exc)},
+) -> dict[str, Any]:
+    """Render a typed locked-domain refusal as an MCP result."""
+    if isinstance(error, AuthorEditProtectedError):
+        ToolContext.record_author_edit_refusal(error.file_id)
+        log_with_context(
+            logger,
+            20,
+            "Refused destructive app-chat write to author-owned text",
+            tool_name=tool_name,
+            protected_file_id=error.file_id,
+            agent_type=ToolContext.get_current_agent(),
         )
-        return None
-
-    protected_id, title = protected
-    ToolContext.record_author_edit_refusal(protected_id)
-    log_with_context(
-        logger,
-        20,  # INFO
-        "Refused AI write to a file the author edited and did not ask to change",
-        tool_name=tool_name,
-        file_id=file_id,
-        protected_file_id=protected_id,
-        agent_type=ToolContext.get_current_agent(),
-    )
     payload: dict[str, Any] = {
         "status": "error",
-        "error": protected_refusal_message(title, action=action),
-        "error_type": AUTHOR_EDIT_PROTECTED_ERROR,
-        "user_message": protected_user_message(title),
-        "id": file_id,
-        "title": title,
+        "error": str(error),
+        "error_type": error.error_type,
+        "id": error.file_id,
         "mutation_applied": False,
     }
-    if tool_name == "edit_file":
-        payload["edits_applied"] = 0
+    if isinstance(error, AuthorEditProtectedError):
+        payload["title"] = error.title
+        payload["user_message"] = protected_user_message(
+            error.title, action=error.action
+        )
     return _make_mcp_payload(payload, tool_name=tool_name)
 
 
@@ -2371,17 +2231,10 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
         # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
         recursive = coerce_bool(args.get("recursive"))
-        delete_id = args.get("id", "")
-        refusal = _author_edit_refusal(
-            delete_id.strip() if isinstance(delete_id, str) else "",
-            tool_name=tool_name,
-            recursive=recursive,
-        )
-        if refusal is not None:
-            return refusal
         result = executor.delete_file(
             id=args.get("id", ""),
             recursive=recursive,
+            protect_author_content=ToolContext.get_author_scope() is not None,
         )
         _record_artifact_ledger(
             action=tool_name,
@@ -2393,6 +2246,8 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             {"status": "success", "mutation_applied": result is True, "data": result},
             tool_name=tool_name,
         )
+    except AuthorContentProtectionError as e:
+        return _author_content_protection_payload(e, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
 
@@ -2448,15 +2303,7 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
                 query_kwargs[key] = value
 
         read_ticket = ToolContext.read_ticket() if has_id else None
-        try:
-            result = executor.query_files(**query_kwargs)
-        except TypeError as exc:
-            # Backward compatibility for older executors that don't support new args yet.
-            if not _is_query_files_param_mismatch(exc):
-                raise
-            for key in optional_keys:
-                query_kwargs.pop(key, None)
-            result = executor.query_files(**query_kwargs)
+        result = executor.query_files(**query_kwargs)
 
         payload = {"status": "success", "data": result}
         if has_id and len(json.dumps(payload, ensure_ascii=False)) <= TOOL_RESULT_MAX_CHARS:
@@ -2477,14 +2324,6 @@ def _note_file_read(result: Any, *, ticket: int | None = None) -> None:
     content = row.get("content")
     if file_id and isinstance(content, str) and not row.get("content_truncated"):
         ToolContext.record_read_snapshot(file_id, content, ticket=ticket)
-
-
-def _is_query_files_param_mismatch(exc: TypeError) -> bool:
-    """Check if TypeError is due to unsupported query_files kwargs."""
-    message = str(exc)
-    if "unexpected keyword argument" not in message:
-        return False
-    return any(param in message for param in ("id", "response_mode", "content_preview_chars", "include_content"))
 
 
 # 剧本项目按「集」记进度（「已写至第3集」），小说 / 短篇按「章」。
@@ -2586,75 +2425,56 @@ def _suggest_auto_current_phase_from_drafts(project_id: str) -> str | None:
     return f"已写至第{inferred_latest}{unit}"
 
 
-def _coerce_bool_arg(value: Any) -> bool:
-    """模型有时把布尔参数写成字符串（"true"）；只认明确的真值。"""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"true", "1", "yes"}
-    return False
-
-
-async def update_project(args: dict[str, Any]) -> dict[str, Any]:
+async def update_project(
+    args: dict[str, Any],
+    *,
+    written_artifact_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
     """更新项目信息和任务计划。"""
     if _should_offload_tool_execution():
-        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _update_project_sync, args)
-    return _update_project_sync(args)
+        if written_artifact_ids is None:
+            return await asyncio.to_thread(
+                _run_sync_tool_with_owned_session_cleanup,
+                _update_project_sync,
+                args,
+            )
+        return await asyncio.to_thread(
+            _run_sync_tool_with_owned_session_cleanup,
+            _update_project_sync,
+            args,
+            written_artifact_ids,
+        )
+    return _update_project_sync(args, written_artifact_ids)
 
 
-def _author_quotes_arg(raw: Any) -> list[str]:
-    if isinstance(raw, str):
-        return [raw]
-    if isinstance(raw, list):
-        return [item for item in raw if isinstance(item, str)]
-    return []
+class ProjectNotesBudgetError(ValueError):
+    """A locked notes merge exceeded the shared persisted notes budget."""
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.payload = payload
+        super().__init__(str(payload.get("error") or "notes over budget"))
 
 
-def _merge_notes_by_source(project_id: str, normalized_args: dict[str, Any]) -> ProjectNotesMerge:
+def _merge_notes_by_source(
+    existing_notes: str | None,
+    normalized_args: dict[str, Any],
+    *,
+    author_messages: list[str] | None,
+) -> ProjectNotesMerge:
     """把 update_project 的 notes / proposals 合进现有备注，按来源分区（见 config/project_notes）。
 
-    新条目逐条核对作者原话；已有提议也可核对作者对上一轮同批列表的明确引用。
-    上一轮列表由服务端历史上下文提供，不能由工具参数自报。拿不到作者原话
-    （不是应用内对话）时不核对，和以前一样照单记下。
+    应用内对话只能管理 AI 提议；作者确认和未标来源条目由合并器原样保留。
+    没有作者消息的非对话调用保留原来的直接编辑语义。
     """
-    from models import Project
-
-    # 合并要基于库里当前的备注（作者可能刚在 AI 记忆里改过），不用会话里缓存的旧实例
-    project = ToolContext.get_session().get(Project, project_id, populate_existing=True)
-    existing = getattr(project, "notes", None) if project is not None else None
-    author_messages = (
-        ToolContext.get_author_messages()
-        if isinstance(ToolContext._get_context().get("author_message"), str)
-        else None
-    )
     notes_arg = normalized_args.get("notes")
     proposals_arg = normalized_args.get("proposals")
-    context = ToolContext._get_context()
-    previous_context = context.get("author_previous_offer_context", ())
-    # 历史 helper 会省略空 assistant：只有原回复与前一条作者消息都在，或已有从
-    # assistant 抽出的选项作来源依据时，第一段才可作为上一轮 AI 的展示原文。
-    previous_reply = (
-        previous_context[0]
-        if previous_context and (len(previous_context) > 1 or context.get("author_previous_offer"))
-        else ""
-    )
     merged = merge_project_notes(
-        existing,
+        existing_notes,
         notes=notes_arg if isinstance(notes_arg, str) else None,
         proposals=proposals_arg if isinstance(proposals_arg, str) else None,
-        author_quotes=_author_quotes_arg(normalized_args.get("author_quotes")),
+        author_quotes=None,
         author_messages=author_messages,
-        # 保留上一轮完整列表及原索引，不截取收尾、不按当前提议筛选或重排。
-        previous_proposals=presented_project_proposals(previous_reply),
     )
-    if merged.downgraded:
-        log_with_context(
-            logger,
-            20,  # INFO
-            "update_project notes without author words recorded as AI proposals",
-            project_id=project_id,
-            downgraded_count=len(merged.downgraded),
-        )
     return merged
 
 
@@ -2672,7 +2492,7 @@ def _notes_over_budget_error(merged: ProjectNotesMerge) -> dict[str, Any] | None
     notes_chars = sum(len(line) for line in [*sections.unlabeled, *sections.confirmed])
     proposals_chars = sum(len(line) for line in sections.proposals)
     downgraded_part = (
-        f"（其中 {len(merged.downgraded)} 条是这次没核对到作者原话、记成提议的）"
+        f"（其中 {len(merged.downgraded)} 条是这次模型新增、记成提议的）"
         if merged.downgraded
         else ""
     )
@@ -2693,7 +2513,10 @@ def _notes_over_budget_error(merged: ProjectNotesMerge) -> dict[str, Any] | None
     }
 
 
-def _update_project_sync(args: dict[str, Any]) -> dict[str, Any]:
+def _update_project_sync(
+    args: dict[str, Any],
+    written_artifact_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
     """Synchronous update_project implementation."""
     tool_name = "update_project"
     executor = ToolContext.get_executor()
@@ -2708,50 +2531,69 @@ def _update_project_sync(args: dict[str, Any]) -> dict[str, Any]:
         normalized_args = _normalize_update_project_args(args)
         result = {}
 
-        # 备注按来源分区：notes 里没有作者原话支撑的条目记成 AI 提议（见 config/project_notes）
+        # 备注按来源分区：应用内模型新增或改写的 notes 一律记成 AI 提议；已有作者事实保留。
         downgraded_notes: list[str] = []
+        notes_transform: Callable[[str | None], str] | None = None
+        merged_notes: ProjectNotesMerge | None = None
         if normalized_args.get("notes") is not None or normalized_args.get("proposals") is not None:
-            merged_notes = _merge_notes_by_source(project_id, normalized_args)
-            over_budget = _notes_over_budget_error(merged_notes)
-            if over_budget is not None:
-                return _make_mcp_payload(over_budget, tool_name=tool_name)
-            normalized_args["notes"] = merged_notes.text
-            downgraded_notes = merged_notes.downgraded
+            author_messages = (
+                ToolContext.get_author_messages()
+                if isinstance(ToolContext._get_context().get("author_message"), str)
+                else None
+            )
+
+            def transform_notes(existing_notes: str | None) -> str:
+                nonlocal merged_notes
+                merged_notes = _merge_notes_by_source(
+                    existing_notes,
+                    normalized_args,
+                    author_messages=author_messages,
+                )
+                over_budget = _notes_over_budget_error(merged_notes)
+                if over_budget is not None:
+                    raise ProjectNotesBudgetError(over_budget)
+                return merged_notes.text
+
+            notes_transform = transform_notes
 
         # 更新项目状态（支持空字符串清空字段）
         status_keys = ["summary", "current_phase", "writing_style", "notes"]
-        has_status_update_args = any(k in normalized_args for k in status_keys)
-        # title：作品名。项目还叫默认名或 AI 自动起的名字时改名；作者起的名字只在
-        # author_requested=true（作者明确要求改名）时改（见 ProjectOperations）。
-        # author_requested 不只听模型的：作者这一轮的原话里得真有改名的说法
-        # （author_message_asks_rename），否则按没传处理，作者起的名字照样不动。
+        has_status_update_args = (
+            any(k in normalized_args for k in status_keys)
+            or notes_transform is not None
+        )
+        # App chat/model calls never carry human rename authority.  Direct human project APIs do
+        # not use this tool and keep their existing behavior.
         title_arg = normalized_args.get("title")
         has_title_arg = title_arg is not None
         title_kwargs: dict[str, Any] = {}
         if has_title_arg:
             title_kwargs["title"] = title_arg
-            if _coerce_bool_arg(normalized_args.get("author_requested")):
-                if any(
-                    author_message_asks_rename(text) for text in ToolContext.get_author_messages()
-                ):
-                    title_kwargs["author_requested"] = True
-                else:
+            title_kwargs["author_requested"] = False
+        if has_status_update_args or has_title_arg:
+            status_kwargs: dict[str, Any] = {
+                "project_id": project_id,
+                "summary": normalized_args.get("summary"),
+                "current_phase": normalized_args.get("current_phase"),
+                "writing_style": normalized_args.get("writing_style"),
+                "notes": None if notes_transform is not None else normalized_args.get("notes"),
+                **title_kwargs,
+            }
+            if notes_transform is not None:
+                status_kwargs["notes_transform"] = notes_transform
+            status_result = executor.update_project_status(
+                **status_kwargs,
+            )
+            if merged_notes is not None:
+                downgraded_notes = merged_notes.downgraded
+                if downgraded_notes:
                     log_with_context(
                         logger,
-                        20,  # INFO
-                        "update_project author_requested ignored: no rename request in author message",
+                        20,
+                        "update_project model notes recorded as AI proposals",
                         project_id=project_id,
-                        user_id=user_id,
+                        downgraded_count=len(downgraded_notes),
                     )
-        if has_status_update_args or has_title_arg:
-            status_result = executor.update_project_status(
-                project_id=project_id,
-                summary=normalized_args.get("summary"),
-                current_phase=normalized_args.get("current_phase"),
-                writing_style=normalized_args.get("writing_style"),
-                notes=normalized_args.get("notes"),
-                **title_kwargs,
-            )
             result["project_status"] = status_result
             # Backward compatibility: keep common fields at top level for older clients.
             result["project_id"] = status_result.get("project_id")
@@ -2768,18 +2610,28 @@ def _update_project_sync(args: dict[str, Any]) -> dict[str, Any]:
                     result[key] = status_result[key]
 
         # 更新任务计划（允许传空数组以清空任务板）
+        plan_rejected = False
         if "tasks" in normalized_args and session_id:
+            plan_kwargs: dict[str, Any] = {
+                "session_id": session_id,
+                "tasks": normalized_args.get("tasks", []),
+                "user_id": user_id,
+                "project_id": project_id,
+            }
+            if written_artifact_ids is not None:
+                plan_kwargs["written_artifact_ids"] = written_artifact_ids
             plan_result = executor.execute_update_plan(
-                session_id=session_id,
-                tasks=normalized_args.get("tasks", []),
-                user_id=user_id,
-                project_id=project_id,
+                **plan_kwargs,
             )
             result["plan"] = plan_result
+            plan_rejected = (
+                isinstance(plan_result, dict)
+                and str(plan_result.get("status") or "").lower() in {"ignored", "error"}
+            )
 
         # 任务板-only 更新是正常路径（prompt 和 workflow completion hook 都会这样调用）。
         # 这里仅做信息性记录，并尝试自动前推 current_phase（单调不回退）。
-        if "tasks" in normalized_args and not has_status_update_args:
+        if "tasks" in normalized_args and not has_status_update_args and not plan_rejected:
             tasks_arg = normalized_args.get("tasks", [])
             task_count = len(tasks_arg) if isinstance(tasks_arg, list) else None
             log_with_context(
@@ -2823,6 +2675,26 @@ def _update_project_sync(args: dict[str, Any]) -> dict[str, Any]:
                     error=str(exc),
                 )
 
+        if plan_rejected:
+            project_mutated = bool(result.get("updated_fields")) or coerce_bool(
+                result.get("project_name_updated")
+            )
+            plan = result.get("plan") if isinstance(result.get("plan"), dict) else {}
+            return _make_result(
+                {
+                    "status": "partial" if project_mutated else "error",
+                    "error_type": "update_plan_rejected",
+                    "error": str(
+                        plan.get("error")
+                        or plan.get("message")
+                        or "任务计划板未更新"
+                    ),
+                    "mutation_applied": project_mutated,
+                    "data": result,
+                },
+                tool_name=tool_name,
+            )
+
         _record_artifact_ledger(
             action=tool_name,
             tool_name=tool_name,
@@ -2836,13 +2708,14 @@ def _update_project_sync(args: dict[str, Any]) -> dict[str, Any]:
         if downgraded_notes:
             result["notes_recorded_as_proposals"] = downgraded_notes
             result["notes_note"] = (
-                "这些条目未核对到作者本轮原话或对上一轮同批提议的明确确认，"
+                "这些是应用内 AI 新增或改写的条目，"
                 "已记在备注的「AI 提议·待作者确认」里，不算作者定下的设定：" + "；".join(downgraded_notes)
-                + "。如果作者确实这样说过，用作者的原话写这一条、把原话放进 author_quotes 再记一次；"
-                "确认已有提议时照抄原提议、author_quotes 放完整确认答复；未明确同意的留在提议里。"
+                + "。需要成为作者事实时，请作者在 AI 记忆面板中保存；不要让作者发送口令或重试工具。"
             )
 
         return _make_result({"status": "success", "data": result}, tool_name=tool_name)
+    except ProjectNotesBudgetError as e:
+        return _make_mcp_payload(e.payload, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
 

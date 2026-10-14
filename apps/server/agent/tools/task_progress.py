@@ -1,20 +1,19 @@
-"""任务计划板的任务与实际产物的对照（按「第 N 章 / 集 / 卷」编号）。
+"""任务计划板的结构化交付契约与实际文件证据。
 
-任务板上的任务是模型按计划写的（「撰写第2-5集剧本」「第一卷正文（第1-119章）」），
-状态是否属实要看项目里是不是真有对应的文件。这里只做两件事：
+任务声明产物类型、稳定文件引用和编号范围；实际交付由当前项目中仍有效、非空且
+类型匹配的文件证明。编号优先读取兼容的 metadata，其次只认标题开头的有界语法；
+单个正文范围标题不能制造多章交付。旧任务文本的编号解析仅作明确类型下的兼容输入。
 
-- 从任务文本里取出它要交付的编号范围（单位 + 编号集合）；
-- 从文件标题里取出已经存在的编号。
-
-writing_graph 收尾时据此判断 in_progress 任务能不能标为 done（只完成一部分时保持
-in_progress 并写明已写 / 待写），update_project 在模型自己标 done 时据此提醒缺了哪些。
-取不到编号的任务不在这里判断。
+writing_graph 收尾与 ProjectOperations 共用这些证据规则。任务进度由后端从已核验
+文件引用重算；新的完成声明缺少证据时不写任务板，不只是向模型发出警告。
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 from utils.title_sequence import parse_chinese_number
 
@@ -35,6 +34,27 @@ _SINGLE_RE = re.compile(rf"第\s*({_NUMBER})\s*([{_UNITS}])")
 _PREFIX_SINGLE_RE = re.compile(rf"(卷)\s*({_NUMBER})(?![{_UNITS}])")
 # 一个任务的范围过大时（模型把整本书写成一个任务）照样按编号核对，只是不再展开超过这个数。
 _MAX_RANGE_SPAN = 2000
+_UNIT_VALUES = frozenset(_UNITS)
+_ARTIFACT_FILE_TYPES = frozenset(
+    {"outline", "draft", "script", "character", "lore", "snippet", "document"}
+)
+_METADATA_KEY_BY_UNIT = {
+    "章": "chapter_number",
+    "集": "episode_number",
+    "节": "section_number",
+}
+_LEADING_RANGE_RE = re.compile(
+    rf"^\s*第\s*({_NUMBER})\s*([{_UNITS}])?\s*{_RANGE_SEP}\s*第?\s*({_NUMBER})\s*([{_UNITS}])"
+)
+_LEADING_SINGLE_RE = re.compile(rf"^\s*第\s*({_NUMBER})\s*([{_UNITS}])")
+_LEADING_PREFIX_RANGE_RE = re.compile(
+    rf"^\s*(卷)\s*({_NUMBER})\s*{_RANGE_SEP}\s*卷?\s*({_NUMBER})"
+)
+_LEADING_PREFIX_SINGLE_RE = re.compile(rf"^\s*(卷)\s*({_NUMBER})(?![{_UNITS}])")
+_LEADING_ENGLISH_SINGLE_RE = re.compile(
+    r"^\s*(chapter|episode|ep\.?)\s+(\d+)\b(?!\s*[-–—~～]\s*\d)",
+    re.IGNORECASE,
+)
 
 
 def _to_int(token: str) -> int | None:
@@ -91,6 +111,144 @@ class UnitSpec:
     numbers: frozenset[int]
 
 
+@dataclass(frozen=True)
+class ArtifactEvidence:
+    """Live typed file evidence used to verify task delivery."""
+
+    id: str
+    title: str
+    file_type: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+def _valid_unit_spec(value: Any) -> UnitSpec | None:
+    if not isinstance(value, Mapping) or set(value) != {"unit", "numbers"}:
+        return None
+    unit = value.get("unit")
+    numbers = value.get("numbers")
+    if not isinstance(unit, str) or unit not in _UNIT_VALUES:
+        return None
+    if not isinstance(numbers, list) or not numbers:
+        return None
+    if any(isinstance(number, bool) or not isinstance(number, int) or number <= 0 for number in numbers):
+        return None
+    if len(set(numbers)) != len(numbers):
+        return None
+    if max(numbers) - min(numbers) > _MAX_RANGE_SPAN:
+        return None
+    return UnitSpec(unit=unit, numbers=frozenset(numbers))
+
+
+def validate_task_artifact_fields(task: Mapping[str, Any]) -> None:
+    """Validate optional structured artifact evidence fields on a task."""
+    if "artifact_file_type" in task:
+        file_type = task.get("artifact_file_type")
+        if not isinstance(file_type, str) or file_type not in _ARTIFACT_FILE_TYPES:
+            raise ValueError("artifact_file_type must be a supported file type")
+
+    if "artifact_refs" in task:
+        refs = task.get("artifact_refs")
+        if not isinstance(refs, list) or any(
+            not isinstance(ref, str) or not ref.strip() or ref != ref.strip()
+            for ref in refs
+        ):
+            raise ValueError("artifact_refs must be an array of non-empty file IDs")
+
+    if "unit_spec" in task and _valid_unit_spec(task.get("unit_spec")) is None:
+        raise ValueError("unit_spec must contain a valid unit and unique positive integers")
+
+
+def task_artifact_type(task: Mapping[str, Any]) -> str | None:
+    """Return the validated expected artifact type, failing closed if malformed."""
+    file_type = task.get("artifact_file_type")
+    return file_type if isinstance(file_type, str) and file_type in _ARTIFACT_FILE_TYPES else None
+
+
+def task_evidence_spec(task: Mapping[str, Any]) -> UnitSpec | None:
+    """Return structured units, or typed legacy range text for old task data."""
+    if "unit_spec" in task:
+        return _valid_unit_spec(task.get("unit_spec"))
+    if task_artifact_type(task) is None:
+        return None
+    return task_unit_spec(task_text(dict(task)))
+
+
+def _positive_metadata_unit(artifact: ArtifactEvidence, unit: str) -> int | None:
+    key = _METADATA_KEY_BY_UNIT.get(unit)
+    if key is None:
+        return None
+    if artifact.file_type == "draft" and key != "chapter_number":
+        return None
+    if artifact.file_type == "script" and key not in {"episode_number", "section_number"}:
+        return None
+    value = artifact.metadata.get(key) if isinstance(artifact.metadata, Mapping) else None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        parsed = int(value.strip())
+        return parsed if parsed > 0 else None
+    return None
+
+
+def _leading_title_units(title: str, unit: str, *, allow_range: bool) -> set[int]:
+    text = title or ""
+    match = _LEADING_RANGE_RE.match(text)
+    if match:
+        if allow_range:
+            first_unit = match.group(2)
+            final_unit = match.group(4)
+            if final_unit == unit and (first_unit is None or first_unit == unit):
+                return _expand(_to_int(match.group(1)), _to_int(match.group(3)))
+        return set()
+    match = _LEADING_PREFIX_RANGE_RE.match(text)
+    if match:
+        if allow_range and unit == "卷":
+            return _expand(_to_int(match.group(2)), _to_int(match.group(3)))
+        return set()
+
+    match = _LEADING_SINGLE_RE.match(text)
+    if match and match.group(2) == unit:
+        number = _to_int(match.group(1))
+        return {number} if number is not None else set()
+    match = _LEADING_PREFIX_SINGLE_RE.match(text)
+    if match and unit == "卷":
+        number = _to_int(match.group(2))
+        return {number} if number is not None else set()
+    match = _LEADING_ENGLISH_SINGLE_RE.match(text)
+    if match:
+        heading = match.group(1).lower()
+        compatible_unit = "章" if heading == "chapter" else "集"
+        if compatible_unit == unit:
+            return {int(match.group(2))}
+    return set()
+
+
+def artifact_units(
+    artifacts: list[ArtifactEvidence], unit: str, file_type: str,
+) -> set[int]:
+    """Collect units proven by exact-type live artifact evidence."""
+    if unit not in _UNIT_VALUES or file_type not in {"outline", "draft", "script"}:
+        return set()
+    numbers: set[int] = set()
+    for artifact in artifacts:
+        if artifact.file_type != file_type:
+            continue
+        metadata_number = _positive_metadata_unit(artifact, unit)
+        if metadata_number is not None:
+            numbers.add(metadata_number)
+            continue
+        numbers.update(
+            _leading_title_units(
+                artifact.title,
+                unit,
+                allow_range=file_type == "outline",
+            )
+        )
+    return numbers
+
+
 def task_unit_spec(text: str) -> UnitSpec | None:
     """任务文本要交付的编号范围；取不到时返回 None。
 
@@ -139,9 +297,14 @@ def task_text(task: dict) -> str:
 
 
 __all__ = [
+    "ArtifactEvidence",
     "UnitSpec",
+    "artifact_units",
     "format_units",
+    "task_artifact_type",
+    "task_evidence_spec",
     "task_text",
     "task_unit_spec",
     "title_units",
+    "validate_task_artifact_fields",
 ]

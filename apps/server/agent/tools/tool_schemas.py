@@ -239,11 +239,12 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
     "description": (
         "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格、备注）和任务列表。"
         "同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending。"
-        "summary/current_phase/writing_style/notes 传值即整体替换该字段，不是追加："
-        "新增内容时必须把现有内容与新条目合并后整段传入，否则原有内容会丢失。"
-        "notes 只记作者定下的约定（附 author_quotes 作者原话）；你自己的推断或建议放 proposals。"
+        "summary/current_phase/writing_style 传值即整体替换；新增内容时先合并现有内容。"
+        "notes 中已有作者确认和未标来源条目由系统保留；新增或改写内容只进入 AI 提议。"
+        "新的非文件完成任务须明确 task_kind=conversation；文件任务必须有对应类型的实际产物证据。"
+        "进度和已完成文件引用由系统维护，不要提交或推断这些字段。"
         "给作品定了名字时传 title：项目还叫默认名（如「我的小说」）或之前由 AI 起的名字时会改名，"
-        "作者自己起的名字不会被改。作者在对话里明确要求改项目名时，传 title 加 author_requested=true。"
+        "作者自己起的名字不会由 Agent 改，作者可通过项目设置中的改名入口操作。"
     ),
     "input_schema": {
         "type": "object",
@@ -256,14 +257,6 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
                     "这时把 title_note 里的手动改名入口原样告诉作者，不要自己编入口"
                 ),
                 "maxLength": 30,
-            },
-            "author_requested": {
-                "type": "boolean",
-                "description": (
-                    "只在作者本人在对话里明确要求改项目名时传 true（例如「把项目名改成《雾港来信》」），"
-                    "这时即使是作者自己起过的名字也会改；系统会核对作者这一轮的原话，没有改名的说法就不改。"
-                    "AI 自己想换名、或只是写进大纲里的书名，不传；被拒绝后不要带上它重试"
-                ),
             },
             "summary": {
                 "type": "string",
@@ -283,25 +276,12 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             "notes": {
                 "type": "string",
                 "description": (
-                    "作者定下的写作约定、禁忌等需要长期记住的备注。整体替换："
-                    "必须把现有备注（项目状态里「作者确认」和「未标来源」两块）逐字照抄、再合并新条目后整段传入，"
-                    "只传新条目会抹掉原有约定。只写作者亲口说过或明确同意的内容，"
-                    "新条目用作者本轮的原话写（一句话或其中连续的一段，标点、数字写法不限，不加作者没说的内容），"
-                    "并把原话放进 author_quotes；系统逐条核对，核对不到的条目会被记成 AI 提议。"
-                    "不要在条目里自己标「已定」「作者确认」。notes 和 proposals 存在同一个备注字段里，合计不超过 4000 字"
+                    "需要长期记住的内容。Agent 新增或改写的条目只记录为 AI 提议，不表示作者确认。"
+                    "作者确认和未标来源的已有内容由系统保留，不能由你删除或改写；"
+                    "作者可以直接在 AI 记忆文本框中编辑这些内容。"
+                    "notes 和 proposals 存在同一个备注字段里，合计不超过 4000 字"
                 ),
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"],
-            },
-            "author_quotes": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": (
-                    "这次新记进 notes 的条目所依据的作者原话，从作者本轮的消息里逐字摘录"
-                    "（如作者说「记住，女主第五章才出场」就摘「女主第五章才出场」，notes 里这条也这样写）。"
-                    "每条新条目得是其中某句原话本身或它连续的一段；确认已有 AI 提议时 notes 照抄原提议。"
-                    "上一轮完整列出了与当前 proposals 相同的一批提议时，可摘完整的编号或全批确认答复（如「确认第1、3条」「确认以上全部提议」）；否则摘作者提到这条内容的那句。"
-                    "系统逐条核对，作者没说过的、或原话撑不住的条目不算"
-                ),
             },
             "proposals": {
                 "type": "string",
@@ -327,6 +307,11 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
                             "description": "任务状态；同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending",
                             "enum": ["pending", "in_progress", "done"]
                         },
+                        "task_kind": {
+                            "type": "string",
+                            "enum": ["file", "conversation"],
+                            "description": "file 为文件交付任务，conversation 为明确的对话里程碑。不能把文件任务改成对话任务绕过产物验证。",
+                        },
                         "phase_id": {
                             "type": "string",
                             "description": "阶段ID（可选，用于轻量 phase 状态机关联）"
@@ -335,12 +320,34 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
                             "type": "string",
                             "description": "任务产出物（可选，例如文件名或里程碑）"
                         },
+                        "artifact_file_type": {
+                            "type": "string",
+                            "enum": ["outline", "draft", "script", "character", "lore", "snippet", "document"],
+                            "description": "文件交付任务的产物类型。缺少类型的旧任务不会自动标完成；大纲不能证明正文交付。",
+                        },
+                        "artifact_refs": {
+                            "type": "array",
+                            "items": {"type": "string", "minLength": 1},
+                            "uniqueItems": True,
+                            "description": "任务对应的实际 file_id 列表，不是文件名或展示路径。",
+                        },
+                        "unit_spec": {
+                            "type": "object",
+                            "properties": {
+                                "unit": {"type": "string", "enum": ["章", "集", "回", "幕", "卷", "节", "话"]},
+                                "numbers": {"type": "array", "items": {"type": "integer", "minimum": 1}, "minItems": 1, "maxItems": 2001, "uniqueItems": True},
+                            },
+                            "required": ["unit", "numbers"],
+                            "additionalProperties": False,
+                            "description": "明确的交付编号。每章/集正文须有对应类型的实际文件，标题里的编号范围不算多章正文。",
+                        },
                         "done_when": {
                             "type": "string",
                             "description": "任务完成判定标准（可选）"
                         }
                     },
-                    "required": ["task", "status"]
+                    "required": ["task", "status"],
+                    "additionalProperties": False,
                 }
             }
         },

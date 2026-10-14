@@ -150,11 +150,18 @@ async def test_create_file_with_order_and_default_append(client: AsyncClient, db
     explicit = await client.post(url, headers=_h(key), json={"title": "Alpha", "parent_id": folder.id, "order": 7})
     appended = await client.post(url, headers=_h(key), json={"title": "Beta", "parent_id": folder.id})
     chapter = await client.post(url, headers=_h(key), json={"title": "第3章 相遇", "parent_id": folder.id, "order": 30})
+    assert chapter.status_code == 200
+    chapter_updated = await client.put(
+        f"/api/v1/agent/files/{chapter.json()['id']}",
+        headers=_h(key),
+        json={"title": "第4章 重逢", "order": 70},
+    )
 
     assert explicit.status_code == 200 and explicit.json()["order"] == 7
     assert appended.status_code == 200 and appended.json()["order"] == 8
-    # Same rule as the web API: a chapter-like title sorts by its number.
-    assert chapter.status_code == 200 and chapter.json()["order"] == 3
+    # Same rule as the web API: nonzero structured order wins over title labels.
+    assert chapter.json()["order"] == 30
+    assert chapter_updated.status_code == 200 and chapter_updated.json()["order"] == 70
     assert explicit.json()["parent_id"] == folder.id
 
 

@@ -73,8 +73,6 @@ from .skills.content_budget import split_selected_budget
 from .stream_adapter import create_stream_adapter
 from .tools.author_edit_guard import (
     AuthorEditRefusals,
-    previous_offer_context_from_history,
-    previous_offer_from_history,
     referenced_file_ids_from_metadata,
 )
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
@@ -121,6 +119,7 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
         "read_only": routing_metadata.get("read_only") is True,
         "write_content": write_content if isinstance(write_content, bool) else None,
         "scope": scope.strip() if isinstance(scope, str) else "",
+        "requested_file_types": routing_metadata.get("requested_file_types", []),
         # last_agent：这一轮最后说话的 agent；owner_agent：负责这一轮任务的 agent。
         # writer 写完经自动质量门控 / 送审交给审稿人时，last_agent 变成 quality_reviewer，
         # owner_agent 仍是 writer：作者回答审稿人的提问时要回到 writer（审稿人没有写工具）。
@@ -1207,19 +1206,16 @@ class AgentService:
                 skill_tokens_used=sum(
                     int(selected.get("instructions_tokens") or 0) for selected in selected_skills
                 ),
-                # 作者原话：update_project 据此确认 author_requested 真是作者要求的改名
+                # 作者原话标识应用内对话并提供上下文，不授予删除、整份覆盖或改名权限。
                 author_message=message,
                 author_steering=consumed_steering,
-                # 作者手改过的文件：删除、整份覆盖要作者点名（agent/tools/author_edit_guard.py）；
-                # 修改不再拦，作者改了什么见 <author_edits>（agent/tools/author_changes.py）。
+                # 作者手改过的文件：应用内对话一律不能删除或整份覆盖；局部修改不拦，
+                # 作者改了什么见 <author_edits>（agent/tools/author_changes.py）。
                 focus_file_id=focus_file_id if isinstance(focus_file_id, str) else None,
                 referenced_file_ids=referenced_file_ids_from_metadata(metadata),
                 author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
                 read_snapshots=getattr(session_data, "read_snapshots", None),
-                # 上一轮 AI 的提议：作者答应 / 选中改某个文件的那一项时放行它。
-                author_previous_offer=previous_offer_from_history(history_messages),
-                author_previous_offer_context=previous_offer_context_from_history(history_messages),
             )
 
             # Build WritingState for workflow execution

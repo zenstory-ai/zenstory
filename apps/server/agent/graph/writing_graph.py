@@ -32,7 +32,6 @@ from agent.core.workflow_events import (
 )
 from agent.graph.author_scope import (
     PLANNED_HANDOFF_SCOPE_NOTE,
-    PLANNED_WRITER_AFTER_QUESTION_NOTE,
     PLANNING_AGENTS,
     SCOPE_DIRECTIVE_CLARIFY_FIRST,
     SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING,
@@ -42,9 +41,6 @@ from agent.graph.author_scope import (
     has_selected_text,
     is_vague_edit_request,
     outline_covers_units,
-    planning_question_keeps_writer,
-    previous_question_offers_one_edit,
-    request_asks_for_a_plan,
 )
 from agent.graph.body_writes import (
     BodyWrite,
@@ -66,10 +62,8 @@ from agent.graph.review_evidence import (
     find_repetition_evidence,
 )
 from agent.graph.router import (
-    _ended_with_question,
     _last_assistant_message,
     _previous_routing,
-    _reply_text,
     get_next_node,
     inherit_routing_after_clarification,
     resume_route_after_exhaustion,
@@ -80,7 +74,14 @@ from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.runner import extract_text_from_message_content
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.tools.mcp_tools import ToolContext, update_project
-from agent.tools.task_progress import format_units, task_text, task_unit_spec, title_units
+from agent.tools.task_progress import (
+    ArtifactEvidence,
+    artifact_units,
+    format_units,
+    task_artifact_type,
+    task_evidence_spec,
+    validate_task_artifact_fields,
+)
 from config.agent_runtime import (
     AGENT_AUTO_REVIEW_THRESHOLD_CHARS,
     AGENT_COLLABORATION_MAX_ITERATIONS,
@@ -333,13 +334,7 @@ def _build_scope_directive(
 
 
 def _should_clarify_first(state: WritingState) -> bool:
-    """作者这一轮只说了「帮我优化一下」这类笼统的话：先问清楚改哪里（P2-16）。
-
-    不问的情况：带着选中文本、附加或引用了文件（改哪里已经清楚）；上一轮是结构化澄清卡，
-    或上一轮 AI 收尾的提问里只提了一处修改（「要不要把第4章开头改紧一点？」，作者这句就是
-    答应它）；上一轮已经为笼统要求问过一次（只问一次）。上一轮只是以选项 / 问句收尾
-    （回复协议要求每轮都给选项）不算作者在回答，照样先问。
-    """
+    """Ask about a vague edit unless selected context or a recorded clarification exists."""
     message = str(state.get("router_message") or state.get("user_message") or "")
     if not is_vague_edit_request(message):
         return False
@@ -353,15 +348,6 @@ def _should_clarify_first(state: WritingState) -> bool:
         if _previous_routing(previous).get("clarify_first") is True:
             return False
         if previous.get("clarification_pending") is True:
-            return False
-        reply = _reply_text(previous.get("content"))
-        # 「要不要我把大纲那一行改成新落点？你说改我就改，不改就留着。」结尾不是问号，
-        # 也是在问作者（I06）：作者回「改」答应的就是这一处。
-        from agent.tools.author_edit_guard import ends_with_conditional_offer
-
-        if (
-            _ended_with_question(previous) or ends_with_conditional_offer(reply)
-        ) and previous_question_offers_one_edit(reply):
             return False
     return True
 
@@ -624,13 +610,21 @@ def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[st
     from utils.title_sequence import build_sequence_sort_key
 
     def _sort_key(row: Any) -> tuple:
-        effective_order, seq_num = build_sequence_sort_key(row.order, title=row.title, file_type=row.file_type)
+        try:
+            metadata = json.loads(row.file_metadata or "{}")
+        except (TypeError, ValueError):
+            metadata = {}
+        effective_order, seq_num = build_sequence_sort_key(
+            row.order, title=row.title, metadata=metadata if isinstance(metadata, dict) else {},
+            file_type=row.file_type,
+        )
         return (effective_order, seq_num, row.created_at, row.id)
 
     with ToolContext.short_lived_session() as session:
         rows = session.exec(
             select(
-                File.id, File.title, File.file_type, File.parent_id, File.order, File.created_at, File.content
+                File.id, File.title, File.file_type, File.parent_id, File.order, File.created_at,
+                File.content, File.file_metadata,
             ).where(
                 File.project_id == project_id,
                 File.id.in_(file_ids),
@@ -662,7 +656,7 @@ def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[st
                 File.parent_id.is_(None) if target.parent_id is None else File.parent_id == target.parent_id
             )
             siblings = session.exec(
-                select(File.id, File.title, File.file_type, File.order, File.created_at).where(
+                select(File.id, File.title, File.file_type, File.order, File.created_at, File.file_metadata).where(
                     File.project_id == project_id,
                     parent_clause,
                     File.file_type == target.file_type,
@@ -1155,138 +1149,112 @@ def _format_file_inventory(inventory: dict[str, list[dict[str, Any]]]) -> str:
     return "\n".join(parts) if parts else ""
 
 
-def _normalize_artifact_title(text: str) -> str:
-    return re.sub(r"[\s《》「」『』\"'“”]+", "", text or "").lower()
-
-
-def _artifact_written(artifact: str, written_titles: list[str]) -> bool:
-    """任务的产出物（文件名）是不是本请求实际写出的某个文件。"""
-    target = _normalize_artifact_title(artifact)
-    if not target:
-        return False
-    for title in written_titles:
-        normalized = _normalize_artifact_title(title)
-        if normalized and (target in normalized or normalized in target):
-            return True
-    return False
+def _artifact_written(artifact: str, written: list[ArtifactEvidence]) -> bool:
+    """A legacy label requires exact title identity, never a substring."""
+    return bool(artifact.strip()) and any(artifact.strip() == item.title.strip() for item in written)
 
 
 def _build_completion_task_payload(
     tasks: list[dict[str, Any]],
-    written_titles: list[str],
-    live_titles: list[str] | None = None,
+    written_artifacts: list[ArtifactEvidence],
+    live_artifacts: list[ArtifactEvidence] | None = None,
 ) -> list[dict[str, Any]] | None:
-    """按本请求实际写出的文件给 in_progress 任务收尾；没有可改的返回 None。
-
-    written_titles 是本请求写过、现在仍存在且有正文的文件标题（见 _existing_written_titles）。
-    live_titles 是项目里现在仍存在且有正文的全部文件标题；给了时，前几轮记下的 done_units
-    只保留还找得到文件的编号（作者在两次请求之间删掉的那一集不算已写）。
-
-    - 任务写了编号范围（「撰写第2-5集剧本」「第一卷正文（第1-119章）」）：范围里每个编号都有
-      对应文件才标 done；只写了一部分时保持 in_progress，记下已写 / 待写（done_units / progress，
-      跨请求累计：模型重存任务板时由 execute_update_plan 把同名任务的 done_units 接过去）；
-      一个都没写时不动。编号只认工作流在写入时记下的，不拿项目里已有的同编号文件凑数——
-      「重写第2-5集」开始前这几集都在，按已有文件算就会只重写一集就标 done。
-    - 任务写了产出物（artifact）：本请求写出了这个文件才标 done，否则不动。
-    - 其余任务：本请求确实写出了文件才标 done。
-    - pending 任务只认确切证据：编号范围或产出物被本请求写出的文件对上时同样收尾（模型常常一次
-      写完几集却只把第一集标成 in_progress）；没有编号也没有产出物的 pending 任务不动。
-    - 本请求什么都没写：一律不动。
-    """
-    if not written_titles:
+    """Complete file tasks only from live, typed evidence written in this request."""
+    written = [item for item in written_artifacts if isinstance(item, ArtifactEvidence)]
+    if not written:
         return None
-
     updated_tasks: list[dict[str, Any]] = []
     has_updates = False
-
     for task in tasks:
         if not isinstance(task, dict):
             continue
-
-        normalized_task = dict(task)
-        status = normalized_task.get("status")
-        spec = task_unit_spec(task_text(normalized_task)) if status in ("in_progress", "pending") else None
-        artifact = str(normalized_task.get("artifact") or "").strip()
-        if status != "in_progress" and not (status == "pending" and (spec is not None or artifact)):
-            updated_tasks.append(normalized_task)
+        updated = dict(task)
+        if updated.get("status") not in {"in_progress", "pending"}:
+            updated_tasks.append(updated)
             continue
-
+        try:
+            validate_task_artifact_fields(updated)
+        except ValueError:
+            updated_tasks.append(updated)
+            continue
+        file_type = task_artifact_type(updated)
+        if file_type is None:
+            updated_tasks.append(updated)
+            continue
+        refs = set(updated.get("artifact_refs") or [])
+        matching = [item for item in written if item.file_type == file_type and (not refs or item.id in refs)]
+        if not matching:
+            updated_tasks.append(updated)
+            continue
+        spec = task_evidence_spec(updated)
+        label = str(updated.get("artifact") or "").strip()
         if spec is not None:
-            recorded = {
-                number
-                for number in normalized_task.get("done_units") or []
-                if isinstance(number, int) and number in spec.numbers
-            }
-            prior = set(recorded)
-            if live_titles is not None:
-                prior &= title_units(live_titles, spec.unit)
-            covered = (title_units(written_titles, spec.unit) & spec.numbers) | prior
+            prior_ids = set(updated.get("completed_artifact_refs") or [])
+            live_prior = [
+                item for item in live_artifacts or []
+                if item.id in prior_ids and item.file_type == file_type and (not refs or item.id in refs)
+            ]
+            relevant = [
+                item for item in matching + live_prior
+                if artifact_units([item], spec.unit, file_type) & spec.numbers
+            ]
+            if not relevant:
+                updated_tasks.append(updated)
+                continue
+            updated["completed_artifact_refs"] = sorted({item.id for item in relevant})
+            covered = artifact_units(relevant, spec.unit, file_type) & spec.numbers
             missing = set(spec.numbers) - covered
             if not missing:
-                normalized_task["status"] = "done"
-                normalized_task.pop("progress", None)
-                normalized_task.pop("done_units", None)
-                has_updates = True
-            elif covered != recorded:
-                if covered:
-                    normalized_task["status"] = "in_progress"
-                    normalized_task["done_units"] = sorted(covered)
-                    normalized_task["progress"] = (
-                        f"已写：{format_units(covered, spec.unit)}；"
-                        f"待写：{format_units(missing, spec.unit)}"
-                    )
-                else:
-                    normalized_task.pop("done_units", None)
-                    normalized_task.pop("progress", None)
-                has_updates = True
-        elif artifact:
-            if _artifact_written(artifact, written_titles):
-                normalized_task["status"] = "done"
-                has_updates = True
-        else:
-            normalized_task["status"] = "done"
-            has_updates = True
-        updated_tasks.append(normalized_task)
-
+                updated["status"] = "done"
+                updated.pop("progress", None)
+                updated.pop("done_units", None)
+            else:
+                updated["status"] = "in_progress"
+                updated["done_units"] = sorted(covered)
+                updated["progress"] = f"已写：{format_units(covered, spec.unit)}；待写：{format_units(missing, spec.unit)}"
+        elif refs:
+            prior_ids = set(updated.get("completed_artifact_refs") or [])
+            live_prior = [item for item in live_artifacts or [] if item.id in prior_ids and item.file_type == file_type and item.id in refs]
+            covered_ids = {item.id for item in matching + live_prior}
+            updated["completed_artifact_refs"] = sorted(covered_ids)
+            if refs <= covered_ids:
+                updated["status"] = "done"
+        elif label and _artifact_written(label, matching):
+            updated["status"] = "done"
+            updated["completed_artifact_refs"] = sorted(item.id for item in matching if item.title.strip() == label)
+        has_updates |= updated != task
+        updated_tasks.append(updated)
     return updated_tasks if has_updates else None
 
 
-def _existing_written_titles(file_ids: list[str]) -> list[str]:
-    """本请求写过的文件里，现在仍存在且有正文的那些的标题（删掉的、空的不算产物）。"""
+def _existing_written_artifacts(file_ids: list[str]) -> list[ArtifactEvidence]:
+    """Read nonempty live files scoped to this request's project."""
     if not file_ids:
         return []
     from sqlmodel import select
 
     from models import File
-
     with ToolContext.short_lived_session() as session:
-        rows = session.exec(
-            select(File.title, File.content).where(
-                File.id.in_(file_ids),  # type: ignore[attr-defined]
-                File.is_deleted.is_(False),  # type: ignore[attr-defined]
-            )
-        ).all()
-    return [str(title or "") for title, content in rows if str(content or "").strip()]
+        query = select(File).where(File.id.in_(file_ids), File.is_deleted.is_(False))
+        project_id = ToolContext.get_project_id()
+        if project_id:
+            query = query.where(File.project_id == project_id)
+        rows = session.exec(query).all()
+        return [ArtifactEvidence(row.id, row.title, row.file_type, row.get_metadata()) for row in rows if row.content.strip()]
 
 
-def _live_project_titles(project_id: str) -> list[str] | None:
-    """项目里现在仍存在且有正文的全部文件标题；查不到时返回 None（不据此删掉已记的进度）。"""
+def _live_project_artifacts(project_id: str) -> list[ArtifactEvidence] | None:
+    """Current typed file evidence for revalidating persisted progress."""
     from sqlmodel import select
 
     from models import File
-
     try:
         with ToolContext.short_lived_session() as session:
-            rows = session.exec(
-                select(File.title, File.content).where(
-                    File.project_id == project_id,
-                    File.is_deleted.is_(False),  # type: ignore[attr-defined]
-                )
-            ).all()
+            rows = session.exec(select(File).where(File.project_id == project_id, File.is_deleted.is_(False))).all()
+            return [ArtifactEvidence(row.id, row.title, row.file_type, row.get_metadata()) for row in rows if row.content.strip()]
     except Exception as exc:
-        logger.debug(f"Live project titles lookup skipped: {exc}")
+        logger.warning("Unable to verify live task artifacts", extra={"error_type": type(exc).__name__})
         return None
-    return [str(title or "") for title, content in rows if str(content or "").strip()]
 
 
 async def _auto_finalize_task_board_on_completion(
@@ -1321,20 +1289,20 @@ async def _auto_finalize_task_board_on_completion(
             isinstance(task, dict) and task.get("status") in ("in_progress", "pending") for task in current_tasks
         ):
             return []
-        written_titles = await asyncio.to_thread(_existing_written_titles, written_ids)
-        live_titles: list[str] | None = None
+        written_artifacts = await asyncio.to_thread(_existing_written_artifacts, written_ids)
+        live_artifacts: list[ArtifactEvidence] | None = None
         if project_id and any(
-            isinstance(task, dict) and task.get("status") == "in_progress" and task.get("done_units")
+            isinstance(task, dict) and task.get("completed_artifact_refs")
             for task in current_tasks
         ):
-            live_titles = await asyncio.to_thread(_live_project_titles, project_id)
+            live_artifacts = await asyncio.to_thread(_live_project_artifacts, project_id)
         completion_tasks = _build_completion_task_payload(
-            current_tasks, written_titles, live_titles
+            current_tasks, written_artifacts, live_artifacts
         )
         if not completion_tasks:
             return []
 
-        tool_result = await update_project({"tasks": completion_tasks})
+        tool_result = await update_project({"tasks": completion_tasks}, written_artifact_ids=written_ids)
         tool_use_id = "workflow_auto_completion"
         return [
             StreamEvent(
@@ -1717,7 +1685,6 @@ async def run_writing_workflow_streaming(
         # 本请求是否已经为「规划只贴在对话里」补写过一次大纲文件（只补一次）。
         chat_plan_corrected = False
         # 规划师以提问收尾、但作者已经要正文时，计划交接给 writer 时附上的说明。
-        planned_writer_after_question = False
 
         yield StreamEvent(
             type=StreamEventType.ROUTER_DECIDED,
@@ -2308,9 +2275,7 @@ async def run_writing_workflow_streaming(
                 and not clarify_first_request
                 and iteration < max_iterations
                 # 作者要的是一份规划（「前十章大纲」）；「先聊聊前十章怎么安排」这类讨论不补写。
-                and request_asks_for_a_plan(
-                    str(state.get("router_message") or state.get("user_message") or "")
-                )
+                and "outline" in routing_metadata.get("requested_file_types", [])
             ):
                 plan_units = chat_only_plan_units(agent_tail_text)
                 if plan_units:
@@ -2571,41 +2536,7 @@ async def run_writing_workflow_streaming(
                 terminated_via_break = True
                 break
 
-            # agent 以向用户提问收尾：它在等用户回答，计划交接不能越过用户继续跑
-            # （否则 planner 刚问完“这个方向可以吗？”，writer 已经按没确认的方向写完
-            # 了正文）。显式 handoff 是 agent 自己的明确决定，不受影响。
-            # 自动质检门不看这个信号：它只审已经写完的稿子（审稿人没有写权限），
-            # 而 writer 收尾时习惯性地问一句“需要我继续写第二章吗？”——按提问拦下
-            # 会让用户选了高质量模式（generation_mode=quality）的请求实际不送审。
-            awaiting_user_reply = not next_agent and ended_with_question
-            if (
-                awaiting_user_reply
-                and workflow_agents
-                and planning_question_keeps_writer(
-                    current_agent_type, routing_metadata, workflow_agents
-                )
-            ):
-                # 作者本轮已经要正文（「…大纲，然后直接写第一章」）：规划师结尾的提问
-                # （典型是「要我按这份大纲开始写第一章吗？」）不截停计划交接，作者的话就是
-                # 答案（P2-21）。writer 收到的交接说明里写明按推荐方案写、不再问。
-                log_with_context(
-                    logger,
-                    20,  # INFO
-                    "Planning agent ended with a question but the author already asked for prose; keeping planned writer",
-                    agent_type=current_agent_type,
-                    workflow_agents=list(workflow_agents),
-                )
-                planned_writer_after_question = True
-                awaiting_user_reply = False
-            if awaiting_user_reply and workflow_agents:
-                log_with_context(
-                    logger,
-                    20,  # INFO
-                    "Agent ended with a question to the user; skipping planned handoff",
-                    agent_type=current_agent_type,
-                    skipped_workflow_agents=list(workflow_agents),
-                )
-                workflow_agents.clear()
+            # Waiting is controlled by the structured clarification event handled above.
 
             # Determine upcoming handoff after stop checks.
             # Explicit handoff requests still take precedence over completion checks.
@@ -2660,9 +2591,6 @@ async def run_writing_workflow_streaming(
                 # 不重做、不扩大交付（P2-16：首轮规划师已经交付了大纲和前三集剧本，
                 # 计划交接后 writer 又给三集追加了作者没要的「拍摄执行版」）。
                 handoff_context += f"。{PLANNED_HANDOFF_SCOPE_NOTE}"
-                if planned_writer_after_question and next_planned == "writer":
-                    handoff_context += f"\n{PLANNED_WRITER_AFTER_QUESTION_NOTE}"
-                    planned_writer_after_question = False
                 planned_guard = _guard_from_state(state)
                 handoff_packet = {
                     "target_agent": next_planned,
