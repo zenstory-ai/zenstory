@@ -86,11 +86,11 @@ export default function ProjectDashboardPage() {
             <section className={panelClass} aria-labelledby="project-overview-title">
               <h2 id="project-overview-title" className="sr-only">{t('projectStatistics.overview')}</h2>
               <dl className="grid grid-cols-2 divide-x divide-[hsl(var(--border-color))]">
-                <div className="min-w-0 p-4 sm:p-5 md:p-6">
+                <div className="min-w-0 p-3 min-[360px]:p-4 sm:p-5 md:p-6">
                   <dt className="text-sm text-[hsl(var(--text-secondary))]">{t('statistics.wordCount.total')}</dt>
                   <dd className={figureSize}>{format(stats.total_word_count)}</dd>
                 </div>
-                <div className="min-w-0 p-4 sm:p-5 md:p-6">
+                <div className="min-w-0 p-3 min-[360px]:p-4 sm:p-5 md:p-6">
                   <dt className="text-sm text-[hsl(var(--text-secondary))]">{t(`statistics.wordCount.${period.label}`)}</dt>
                   <dd className={figureSize}>{format(mine + ai)}</dd>
                   <dd className="mt-2 text-xs leading-5 text-[hsl(var(--text-secondary))]">
@@ -106,7 +106,7 @@ export default function ProjectDashboardPage() {
                       type="button"
                       aria-pressed={timeRange === item.id}
                       onClick={() => setTimeRange(item.id)}
-                      className={`min-h-11 flex-1 whitespace-nowrap rounded-lg px-2 text-sm sm:px-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${timeRange === item.id ? 'bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))]' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]'}`}
+                      className={`min-h-11 flex-1 whitespace-nowrap rounded-lg px-1 text-sm min-[360px]:px-2 sm:px-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${timeRange === item.id ? 'bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))]' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]'}`}
                     >
                       {t(`projectStatistics.periods.${item.id}`)}
                     </button>
