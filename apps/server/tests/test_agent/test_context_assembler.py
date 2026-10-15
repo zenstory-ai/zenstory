@@ -1497,7 +1497,7 @@ class TestContextPrioritizer:
 
 @pytest.mark.unit
 def test_project_notes_render_ai_proposals_apart_from_author_confirmed():
-    """备注里的 AI 提议单独成块、写明不是设定；作者确认与未标来源各自标明。"""
+    """备注来源分区保留，并区分本轮使用与长期作者约定。"""
     from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
 
     notes = (
@@ -1513,7 +1513,9 @@ def test_project_notes_render_ai_proposals_apart_from_author_confirmed():
     assert confirmed_at < context.index("主角不会游泳") < unlabeled_at
     assert unlabeled_at < context.index("反派身份第20章前不得揭露") < proposals_at
     assert proposals_at < context.index("反派其实是主角的父亲")
-    assert "不是设定" in context[proposals_at:]
+    assert "尚未存为作者约定" in context[proposals_at:]
+    assert "本轮按作者要求使用" in context[proposals_at:]
+    assert "长期采用请在 AI 记忆中采纳" in context[proposals_at:]
 
 
 _ROUND_TRIP_NOTES = (
