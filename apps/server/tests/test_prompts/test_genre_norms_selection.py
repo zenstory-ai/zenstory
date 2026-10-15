@@ -1,4 +1,4 @@
-"""题材规范的选择逻辑：只给短篇和短剧，接在 DB 配置之后；不比对规范全文。"""
+"""题材规范按项目类型选择，接在 DB 配置之后；不比对规范全文。"""
 
 import pytest
 
@@ -34,8 +34,8 @@ def db_configs(monkeypatch):
     return configs
 
 
-@pytest.mark.parametrize("project_type", ["short", "screenplay"])
-def test_short_and_screenplay_get_their_own_norms_after_db_config(db_configs, project_type):
+@pytest.mark.parametrize("project_type", ["novel", "short", "screenplay"])
+def test_each_project_type_gets_its_own_norms_after_db_config(db_configs, project_type):
     rendered = prompts.get_prompt_for_project_type(project_type, "project-1", FOLDER_IDS)
 
     norms = prompts.get_genre_norms(project_type)
@@ -46,18 +46,21 @@ def test_short_and_screenplay_get_their_own_norms_after_db_config(db_configs, pr
     assert not any(other in rendered for other in others)
 
 
-def test_novel_gets_no_genre_norms(db_configs):
-    rendered = prompts.get_prompt_for_project_type("novel", "project-1", FOLDER_IDS)
+def test_unlisted_type_keeps_its_db_config_without_borrowing_norms(db_configs):
+    db_configs["custom"] = _config("DB custom")
+    rendered = prompts.get_prompt_for_project_type("custom", "project-1", FOLDER_IDS)
 
-    assert prompts.get_genre_norms("novel") == ""
+    assert "DB custom guidelines" in rendered
+    assert prompts.get_genre_norms("custom") == ""
     assert not any(norms in rendered for norms in prompts.GENRE_NORMS.values())
 
 
-def test_missing_db_config_still_raises_503_before_norms(monkeypatch):
-    monkeypatch.setattr(prompts, "_load_db_configs", lambda: {"novel": _config("DB novel")})
+@pytest.mark.parametrize("project_type", ["novel", "short", "screenplay"])
+def test_missing_db_config_still_raises_503_before_norms(monkeypatch, project_type):
+    monkeypatch.setattr(prompts, "_load_db_configs", lambda: {})
 
     with pytest.raises(APIException) as excinfo:
-        prompts.get_prompt_for_project_type("short", "project-1", FOLDER_IDS)
+        prompts.get_prompt_for_project_type(project_type, "project-1", FOLDER_IDS)
 
     assert excinfo.value.status_code == 503
 
