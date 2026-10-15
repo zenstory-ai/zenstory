@@ -6,6 +6,8 @@
    ======================================== */
 
 :root {
+    --app-viewport-height: 100dvh;
+    --app-viewport-top: 0px;
     /* Font System - Literary serif for reading, sans-serif for UI */
     --font-display: "Crimson Pro", "Noto Serif SC", Georgia, serif;
     --font-body: "Source Serif 4", "Noto Serif SC", Georgia, serif;
@@ -354,6 +356,29 @@ body {
 /* Keep layout width stable when pages have different scroll heights */
 html {
     scrollbar-gutter: stable both-edges;
+}
+
+/* Only app-like pages lock the document. Auth/docs keep natural page scrolling.
+   Safari may pan the visual viewport as well as shrink it when an input focuses. */
+@media (max-width: 1023px) {
+    html:has(.viewport-shell),
+    html:has(.viewport-shell) body {
+        overflow: hidden;
+    }
+
+    .viewport-shell,
+    .viewport-overlay {
+        position: fixed;
+        top: var(--app-viewport-top);
+        bottom: auto;
+        left: 0;
+        right: 0;
+        height: var(--app-viewport-height);
+    }
+
+    .viewport-overlay > [role="dialog"] {
+        max-height: 100%;
+    }
 }
 
 /* NOTE:
@@ -1514,7 +1539,7 @@ code, pre, .font-mono {
    ======================================== */
 
 /* Prevent iOS auto-zoom on input focus */
-@media (max-width: 767px) {
+@media (max-width: 767px), (max-width: 1023px) and (hover: none) and (pointer: coarse) {
     input,
     select,
     textarea {

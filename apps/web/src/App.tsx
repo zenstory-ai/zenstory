@@ -40,6 +40,7 @@ import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "./lib
 import type { SelectedItem, TreeNodeType } from "./types";
 import { lazyRoute } from "./lib/chunkRecovery";
 import { inspirationsConfig } from "./config/inspirations";
+import { useVisualViewport } from "./hooks/useVisualViewport";
 
 // 懒加载路由组件 - 按需加载，减少首屏 bundle 大小
 const HomePage = lazyRoute(() => import("./pages/HomePage"), "HomePage");
@@ -563,6 +564,7 @@ function ProjectEditor() {
 }
 
 function App() {
+  useVisualViewport();
   return (
     <HelmetProvider>
       <BrowserRouter>

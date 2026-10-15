@@ -306,7 +306,7 @@ export const Modal: React.FC<ModalProps> & {
 
   const sizeClasses = getSizeClasses(size);
 
-  const overlayClasses = `fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-6 ${overlayClassName}`;
+  const overlayClasses = `viewport-overlay fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-6 ${overlayClassName}`;
 
   // `ui-sans-headings`: dialogs are control surfaces (portaled outside the dashboard's <main>).
   const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] shadow-xl w-full ${sizeClasses} animate-scale-in flex flex-col max-h-[90vh] ${className}`;
@@ -362,7 +362,7 @@ export const Modal: React.FC<ModalProps> & {
           )}
 
           {/* Main content - scrollable */}
-          <div className={cn("flex-1 overflow-y-auto px-6 pb-4", bodyClassName)}>{children}</div>
+          <div className={cn("flex-1 min-h-0 overflow-y-auto px-6 pb-4", bodyClassName)}>{children}</div>
 
           {/* Footer */}
           {footer && (

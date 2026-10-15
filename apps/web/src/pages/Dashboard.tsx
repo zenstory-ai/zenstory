@@ -371,7 +371,7 @@ function DashboardContent() {
   );
 
   return (
-    <div className="dashboard-shell h-dvh min-h-0 overflow-hidden bg-[hsl(var(--bg-primary))] flex">
+    <div className="viewport-shell dashboard-shell h-dvh min-h-0 overflow-hidden bg-[hsl(var(--bg-primary))] flex">
       {/* Tablet: Collapsed Sidebar (icons only) */}
       {isTablet && (
         <aside className="w-20 flex-shrink-0 bg-[hsl(var(--bg-secondary))] border-r border-[hsl(var(--border-color))] flex flex-col h-full min-h-0 z-40">

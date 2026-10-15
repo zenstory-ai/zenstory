@@ -183,7 +183,7 @@ const TabletLayout: React.FC<LayoutProps> = ({ middle, right }) => {
   }, [openSearch]);
 
   return (
-    <div className="h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0" data-testid="app-layout">
+    <div className="viewport-shell h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0" data-testid="app-layout">
       <Header />
       <main className="flex-1 overflow-hidden min-h-0">
         <Group orientation="horizontal" className="h-full">
@@ -235,7 +235,6 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
   const { openSearch } = useFileSearchContext();
   const { currentProjectId } = useProject();
   const { saveScrollPosition, restoreScrollPosition } = useScrollMemory(currentProjectId || 'default');
-  const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
   const filesPanelRef = useRef<HTMLDivElement>(null);
   const editorPanelRef = useRef<HTMLDivElement>(null);
@@ -291,12 +290,13 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
 
   // Track visual viewport changes on mobile to avoid keyboard/input overlap.
   useEffect(() => {
-    let baselineViewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const getViewportHeight = () => window.visualViewport
+      ? window.visualViewport.height * window.visualViewport.scale
+      : window.innerHeight;
+    let baselineViewportHeight = getViewportHeight();
 
     const updateMobileViewportState = () => {
-      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      const roundedViewportHeight = Math.max(0, Math.round(viewportHeight));
-      setMobileViewportHeight(roundedViewportHeight);
+      const viewportHeight = getViewportHeight();
 
       const heightDelta = baselineViewportHeight - viewportHeight;
       const keyboardLikelyOpen =
@@ -403,8 +403,7 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
 
   return (
     <div
-      className="h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0"
-      style={mobileViewportHeight ? { height: `${mobileViewportHeight}px` } : undefined}
+      className="viewport-shell h-dvh overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] flex flex-col fixed inset-0"
     >
       {/* Header */}
       <Header />

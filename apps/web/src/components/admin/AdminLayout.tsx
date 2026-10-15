@@ -29,7 +29,7 @@ export const AdminLayout: React.FC = () => {
   });
 
   return (
-    <div className="admin-shell ui-sans-headings fixed inset-0 flex h-dvh flex-col overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))]">
+    <div className="viewport-shell admin-shell ui-sans-headings fixed inset-0 flex h-dvh flex-col overflow-hidden bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))]">
       <AdminHeader
         onMenuClick={() => setSidebarOpen((open) => !open)}
         menuOpen={menuOpen}

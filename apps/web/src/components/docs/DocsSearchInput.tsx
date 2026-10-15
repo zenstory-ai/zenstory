@@ -107,7 +107,7 @@ export function DocsSearchInput({ onResultClick, active = true }: DocsSearchInpu
       {showResults && query && (
         <div className="absolute top-full left-0 right-0 mt-1
                         bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))]
-                        rounded-lg shadow-lg max-h-[min(20rem,50dvh)] overflow-y-auto z-50">
+                        rounded-lg shadow-lg max-h-[min(20rem,calc(var(--app-viewport-height)*0.5))] overflow-y-auto z-50">
           {isSearching ? (
             <div className="px-4 py-3 text-sm text-[hsl(var(--text-tertiary))]">
               {t('loading', "正在加载…")}

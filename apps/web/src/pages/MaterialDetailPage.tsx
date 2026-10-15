@@ -595,7 +595,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   }
 
   return (
-    <div className="ui-sans-headings h-screen flex flex-col bg-[hsl(var(--bg-primary))]">
+    <div className="viewport-shell ui-sans-headings h-dvh flex flex-col overflow-hidden bg-[hsl(var(--bg-primary))]">
       {/* Header */}
       <div className="shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]">
         <div className={`flex gap-3 ${isMobile ? 'flex-col items-stretch px-3 py-2' : 'items-center justify-between px-4 py-3'}`}>

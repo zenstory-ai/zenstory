@@ -322,17 +322,20 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className={`bg-[hsl(var(--bg-secondary))] rounded-xl shadow-2xl z-50 overflow-hidden ${
+          className={`flex flex-col bg-[hsl(var(--bg-secondary))] rounded-xl shadow-2xl z-50 overflow-hidden ${
             isMobile
               // Pinned to the viewport: an ancestor-relative, translated panel
               // spilled off a 390px screen when the title was long.
               ? 'fixed left-4 right-4 top-12'
               : 'absolute top-full mt-2 left-0 w-80 max-w-[calc(100vw-2rem)]'
           }`}
-          style={{ maxHeight: "calc(100vh - 100px)" }}
+          style={{
+            maxHeight: "calc(var(--app-viewport-height) - 100px)",
+            ...(isMobile ? { top: "calc(var(--app-viewport-top) + 48px)" } : {}),
+          }}
         >
           {/* Search Input */}
-          <div className="p-3">
+          <div className="shrink-0 p-3">
             <input
               type="text"
               placeholder={t('editor:projectSwitcher.searchPlaceholder')}
@@ -344,7 +347,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
           </div>
 
           {/* Project List */}
-          <div className="max-h-96 overflow-y-auto">
+          <div className="min-h-0 max-h-96 overflow-y-auto">
             {loading ? (
               <div className="p-8 text-center text-[hsl(var(--text-secondary))] text-sm">
                 {t('editor:projectSwitcher.loading')}
@@ -444,7 +447,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
           </div>
 
           {/* Footer - Create Project */}
-          <div className="p-2 bg-[hsl(var(--bg-tertiary)/0.3)]">
+          <div className="shrink-0 p-2 bg-[hsl(var(--bg-tertiary)/0.3)]">
             {isCreating ? (
               <div className="flex gap-2">
                 <input

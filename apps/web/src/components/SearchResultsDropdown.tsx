@@ -191,7 +191,7 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   // Render loading state with spinner text
   if (loading) {
     return (
-      <div className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[50vh] sm:max-h-[280px] overflow-y-auto">
+      <div className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
         <div className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
           {t('common:loading')}
         </div>
@@ -202,7 +202,7 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   // Render empty state when no results found
   if (results.length === 0) {
     return (
-      <div className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[50vh] sm:max-h-[280px] overflow-y-auto">
+      <div className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
         <div className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
           {t('editor:fileTree.noSearchResults')}
         </div>
@@ -211,9 +211,9 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   }
 
   return (
-    <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[50vh] sm:max-h-[280px] overflow-y-auto">
+    <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
       {/* Results list with max height for 8 items */}
-      <div className="max-h-[50vh] sm:max-h-[280px] overflow-y-auto" role="listbox">
+      <div className="max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto" role="listbox">
         {results.map((result, index) => {
           const isSelected = index === selectedIndex;
 
