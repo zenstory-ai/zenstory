@@ -10,7 +10,7 @@ Open Forgot Password from Login, request a six-digit code with your registered e
 
 ### What does Free include?
 
-3 AI messages per day, 3 projects, and 3 owned custom skills; Materials Library breakdowns are a Pro benefit. Messages reset at 00:00 Beijing time. TXT export is included. See [Plans & Benefits](../user-guide/billing-benefits.md).
+Free includes 3 AI messages per day, 3 projects, 3 owned custom skills, and TXT export. Materials breakdowns are a Pro benefit; when a free trial is offered, follow the entry's limits to try it. Messages reset at 00:00 Beijing time. See [Plans & Benefits](../user-guide/billing-benefits.md).
 
 ### Why is Pro missing after payment?
 
@@ -48,7 +48,7 @@ There is no user-facing file or project trash. An existing project snapshot may 
 
 ### Does export include the whole project?
 
-TXT includes saved drafts and scripts only. Keep characters, outlines, materials, chat, memory, and history separately. See [export](../user-guide/export.md).
+**Export manuscript** includes saved drafts and scripts. **Export outline and text** also includes outlines. Keep characters, materials, chat, memory, and history separately. See [export](../user-guide/export.md).
 
 ### Can I work offline?
 
@@ -62,7 +62,7 @@ Official skills show their purpose and can be used after adding. Your own skills
 
 ### Are material results accurate?
 
-They may omit or misinterpret details. Use summaries to locate passages, then check the source. There is no universal accuracy guarantee. See [material analysis](../advanced/material-analysis.md).
+They may omit or misinterpret details. Use summaries to locate passages, then check the source. See [material analysis](../advanced/material-analysis.md).
 
 ### Where is the Inspirations Library?
 

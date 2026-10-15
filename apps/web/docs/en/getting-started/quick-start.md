@@ -41,6 +41,6 @@ Save important notes before sending. For a local edit, select the passage, choos
 
 Autosave runs after about three seconds without typing. Use **Save** or `Command/Ctrl + S` to submit sooner. Check save status before leaving; compare both copies if a conflict appears.
 
-**Export manuscript** in the project header downloads saved draft and script files as TXT. Keep separate copies of characters, outlines, materials, chat, and history when needed.
+**Export manuscript** in the project header downloads saved draft and script files as TXT. Choose **Export outline and text** to include outlines. Keep separate copies of characters, materials, chat, and history when needed.
 
 Next: [Write your first short story](first-project.md), or explore the [interface](../user-guide/interface-overview.md).

@@ -12,7 +12,7 @@ Autosave runs after about three seconds without typing. Choose **Save** or press
 
 Autosave pauses while AI edits the same file or diff review remains open. Finish that round before checking the current draft.
 
-Saving current content does not always add a history version. Small changes or a full history allowance may save prose only. See [version history](version-history.md).
+Consecutive manual edits close together may merge into one history version. When the allowance is full and merging is unavailable, your prose is still saved without adding a version. See [version history](version-history.md).
 
 ## Quote and revise a passage
 

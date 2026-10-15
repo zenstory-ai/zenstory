@@ -1,6 +1,6 @@
 # Staging API cutover validation
 
-This is an operator-run staging check for #214. It does not deploy, change cloud
+This operator-run check observes a coordinated staging API switch. It does not deploy, change cloud
 settings, refresh authentication, write a manuscript, or invoke a model. Keep
 the existing Git integration as the only deployment producer.
 

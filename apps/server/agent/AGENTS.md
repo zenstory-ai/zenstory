@@ -120,7 +120,7 @@ agent/
 
 每条序列之后都可能经自动质检门或显式交接进入 quality_reviewer。`plan_workflow_agents` 按用户范围裁剪：`write_content=false` 剔除 writer，`read_only=true` 整条清空。交接有三种：
 显式 `handoff_to_agent`；按 `workflow_agents` 的计划交接；自动质检门（writer 本轮写进 draft / script 的字数达到阈值后交给
-quality_reviewer；到 writer 为止的原计划可写前缀中，同一交付的成功正文写入跨角色接续计算，中间只读程也接续；计划外跳转不纳入）。审查最多 `MAX_REVIEW_ROUNDS` 轮，返修稿不再自动送审。
+quality_reviewer；同一交付在 writer 及其之前的计划内可写角色中成功写入的正文累计，中间经过只读角色不清零，计划外跳转不累计）。审查最多 `MAX_REVIEW_ROUNDS` 轮，返修稿不再自动送审。
 
 ### Router
 
@@ -132,16 +132,14 @@ quality_reviewer；到 writer 为止的原计划可写前缀中，同一交付�
   `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`requested_file_types`；ROUTER_PROMPT 要求 scope <= 40 字，`MAX_SCOPE_CHARS`=80 硬截断）。
 - 决策记录：[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
 
-### 用户范围与交接的不变量
-
-每条一句规则 + 负责的代码 + 决策记录。改动前先读记录，不要只看这里的摘要。
+### 用户范围与交接规则
 
 - **等作者回答使用结构化事件**：需要回答才能继续时调用 `request_clarification`，普通问号和条件句不控制计划交接；跨轮延续只认落库的 `clarification_pending`，不从回复标点猜等待状态。参见 [typed-boundaries][n-typed-boundaries]。
 - **计划交接不扩大交付**：交接说明固定追加 `author_scope.PLANNED_HANDOFF_SCOPE_NOTE`（已完成的不重做、不改刚交付的文件、
   不追加作者没要的产出）。[vague-and-plan-files][n-vague]
 - **笼统要求先问清楚**：`author_scope.is_vague_edit_request` 命中时不走路由，writer 单独一轮先问（`state["clarify_first"]`，写文件
   工具以 `error_type="clarify_first"` 拒绝，显式交接丢弃）；上一轮只提了一处修改或已经问过一次时不问。[vague-and-plan-files][n-vague]
-- **规划补写只认 typed intent**：Router 明确给出 `requested_file_types` 且包含 outline 时，规划师在聊天里交付多章规划、未写入大纲文件才有一次纠偏；缺少/非法类型或未请求大纲不从作者措辞补写。参见 [typed-boundaries][n-typed-boundaries]。
+- **规划补写只认结构化请求类型**：Router 明确给出 `requested_file_types` 且包含 outline 时，规划师在聊天里交付多章规划、未写入大纲文件才有一次纠偏；缺少/非法类型或未请求大纲不从作者措辞补写。参见 [typed-boundaries][n-typed-boundaries]。
 - **作者改了什么给模型看，不猜授权**：`tools/author_changes.py` 按版本历史算净差异放进 `<author_edits>`（`query_files` 按 id 读全文时也带）；
   `edit_file` 在锁内比对本请求模型看过的正文（`mcp_tools._ReadSnapshots`，读到的内容由 `usage_hooks.ReadSnapshotPromotionMixin`
   在下一次模型调用起生效），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。
@@ -184,7 +182,7 @@ quality_reviewer；到 writer 为止的原计划可写前缀中，同一交付�
   [file-stream-continuation][n-continue]
 - **「已保存 / 已还原 / 已修改」不做文字检测**：靠 `prompts/base.py` 的 `UNIFIED_EXECUTION_PROTOCOL` 约束（只有本轮对应工具成功后才这样说，
   没改就直说没改）。[file-stream-continuation][n-continue]
-- **任务板使用 typed artifacts**：文件任务声明 artifact_file_type、artifact_refs/file_id 或 unit_spec；收尾只用本请求写过、仍存在非空且类型匹配的项目文件。正文范围每个编号须有实际正文产物，大纲标题不能证明正文；新 done 声明缺证据时不保存任务板。缺类型的旧任务可读但不自动收尾。参见 [typed-boundaries][n-typed-boundaries]。
+- **任务板声明产物类型和来源**：文件任务声明 artifact_file_type、artifact_refs/file_id 或 unit_spec；收尾只用本请求写过、仍存在非空且类型匹配的项目文件。正文范围每个编号须有实际正文产物，大纲标题不能证明正文；新 done 声明缺证据时不保存任务板。缺类型的旧任务可读但不自动收尾。参见 [typed-boundaries][n-typed-boundaries]。
 - **重复建挡路的空文件**：空文件守卫（一次只流式写一个文件）挡住的 create_file，若要建的正是挡路的那个空文件，返回那个文件
   （`content=""` + `next_step`）；挡路的是别的文件时照旧 `pending_empty_file_unwritten`（`mcp_tools._repeat_of_pending_empty_file`）。
   [repeat-create][n-repeat]
@@ -206,7 +204,7 @@ quality_reviewer；到 writer 为止的原计划可写前缀中，同一交付�
   [graceful-stop][n-stop]、[abort-flushes-capture][n-flush]、[stop-output-definition][n-output]
 - 墙钟时限由 `SSEStreamPump` 执行：到点先发真实超时终态再等生产者收尾。[platform-deadline][n-deadline]、[deadline-terminal][n-deadline2]
 - 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。[steering-busy-409][n-steer]
-- SSE 事件类型以 `core/events.py` 的 `EventType` 为准，不在这里抄表。
+- SSE 事件类型见 `core/events.py` 的 `EventType`。
 
 ## 上下文与跨轮记忆
 

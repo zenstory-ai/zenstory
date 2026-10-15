@@ -34,7 +34,7 @@ When imports partly succeed, inspect created chapters before handling failed fil
 
 ## Material analysis fails
 
-Inspect task errors and quota status. Check TXT format, size, and chapter headings. If a completed task has an empty category, check its actual analysis scope; free trials process the first 20 chapters only.
+Inspect task errors and quota status. Check TXT format, size, and chapter headings. If a completed task has an empty category, check its actual analysis scope; free trials process only the scope stated by the trial entry. Check the chapters actually retained for that task.
 
 Follow Retry when offered instead of repeatedly uploading. See [Materials](../user-guide/materials.md).
 
@@ -42,7 +42,7 @@ Follow Retry when offered instead of repeatedly uploading. See [Materials](../us
 
 Confirm prose is saved and draft or script files exist. Check page errors and browser downloads. TXT uses UTF-8; open with that encoding and keep the original before converting.
 
-Characters and outlines are outside the export scope. See [export](../user-guide/export.md).
+Characters are outside the export scope. Choose **Export outline and text** when you need outlines, and check the download. See [export](../user-guide/export.md).
 
 ## Slow pages
 

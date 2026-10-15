@@ -1,4 +1,4 @@
-<!-- Last synced with README.md: 2026-09-24 -->
+<!-- Last synced with README.md: 2026-10-15 -->
 
 <p align="center">
   <img src="https://zenstory.ai/brand/zenstory-ai-mark.svg" alt="" width="76" height="76">
@@ -32,19 +32,19 @@
   <a href="https://github.com/zenstory-ai/zenstory/issues"><img alt="GitHub Issues" src="https://img.shields.io/badge/GitHub%20Issues-181717?style=for-the-badge&logo=github&logoColor=white"></a>
 </p>
 
-> **The official hosted app is now available: open [app.zenstory.ai](https://app.zenstory.ai/), sign up or sign in, and start creating without self-hosting.**
+> **Use the hosted app at [app.zenstory.ai](https://app.zenstory.ai/): sign up or sign in to start creating.**
 
 ![The ZenStory three-panel workbench](docs/screenshots/workspace.png)
 
-File tree on the left, editor in the middle, AI chat on the right.
+The workspace puts the file tree on the left, the editor in the middle and AI chat on the right.
 
 ## What it is
 
 ZenStory Workbench is a place to write fiction in the browser. Outlines, chapters, character sheets, settings and reference material are all files in a project. You talk to the AI on the right, and it creates and edits those files directly, with no copy-paste in between. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or host it yourself under the MIT license.
 
 - **Edit files from the chat**: ask for "a villain, brooding, with a tragic past" and the Agent creates a character sheet in the Characters folder, streaming it into the editor as it writes. Continuing or rewriting a chapter works the same way: the change lands in the file.
-- **One router, four specialist agents**: the router reads only your message and picks one of five paths; then the Planner, Hook Designer, Writer and Quality Reviewer take turns. Once the Writer's output in a turn reaches 500+ characters and it has written to a file, the reviewer is called automatically. The reviewer has no file-editing tools and sends problems back for a rewrite.
-- **Every edit from the chat leaves a version**: each edit the in-app AI makes to a file saves a version, and the edit card in chat has a one-click Undo. Your own saves record a version only when the text length changes by more than 10 characters. When an AI reply finishes normally, the whole project gets a snapshot.
+- **One router, four specialist agents**: the router uses your current request and relevant context from the previous turn to choose a workflow. The Planner, Hook Designer, Writer and Quality Reviewer work within your requested scope: an outline request stops at the outline. In Quality mode, automatic review normally starts when successful manuscript writes total 500 characters; chat and outlines do not count. The reviewer reads and reports, handing back only issues that need revision.
+- **Version history for revisions**: AI edits from chat record versions and can be undone from the edit card. Consecutive editor saves coalesce into the latest manual version within a time window; later saves create a new one. Reaching the manual-version quota still allows the text to save. A normally completed AI turn also records a project snapshot.
 - **Each turn carries the right material**: within a budget of about 32,000 tokens the AI gets the four AI Memory fields (Project Summary, Writing Style, Current Phase, Notes; long ones are shortened), the project's file list, the file you are editing, the previous chapter and a few recently edited files from the same folder, and recently edited characters and lore.
 - **Other agents can plug in**: generate an API key in Settings, sign in with `npx zenstory login` and install the skill with `npx zenstory skill install`, and agents such as Claude Code, Codex or OpenClaw can read and write your projects.
 
@@ -65,30 +65,30 @@ ZenStory Workbench is a place to write fiction in the browser. Outlines, chapter
 
 ```mermaid
 flowchart LR
-    R["Router<br/>reads only your message"] -->|quick| W["Writer"]
-    R -->|standard| P["Planner"] --> W
-    R -->|full| P2["Planner"] --> H["Hook Designer"] --> W
-    R -->|hook_focus| H2["Hook Designer"] --> W
+    R["Router<br/>current request and relevant previous-turn context"] -->|quick| W["Writer"]
+    R -->|standard| P["Planner"] -->|when prose requested| W
+    R -->|full| P2["Planner"] --> H["Hook Designer"] -->|when prose requested| W
+    R -->|hook_focus| H2["Hook Designer"] -->|when prose requested| W
     R -->|review_only| Q["Quality Reviewer"]
-    W -. 500+ characters of output in a turn .-> Q
+    W -. Quality mode: successful manuscript writes reach the default 500 characters .-> Q
     Q -. problems found .-> W
 ```
 
 | Path | Who works | When it runs |
 | --- | --- | --- |
 | quick | the Writer writes directly | everyday continuing and expanding; also the fallback when the router is unsure |
-| standard | outline first, then write | you ask for an outline, plan, synopsis or chapter structure |
-| full | outline → hook design → write | you explicitly ask for the full treatment, a key chapter or a climax |
-| hook_focus | design payoffs, twists and pacing, then write | you say it's flat, not satisfying enough, or needs a twist |
+| standard | plan first; write prose only when requested | you ask for an outline, plan, synopsis or chapter structure |
+| full | planning, hook design and writing within your requested scope | you explicitly ask for the full treatment, a key chapter or a climax |
+| hook_focus | design payoffs, twists and pacing; revise prose when requested | you say it's flat, not satisfying enough, or needs a twist |
 | review_only | review only, no edits | you ask for a check, an assessment or a read-on score |
 
-The input box switches between Quality and Fast mode; both use the same model. Quality, the default, runs the router and the length-based automatic review. Fast skips the router and that automatic review and goes straight to the Writer, whose own prompt still tells it to hand drafts over 500 characters to the reviewer, so a review can still happen.
+The input box switches between Quality and Fast; both use the same model. Quality runs the router and automatically reviews successful manuscript writes at the configured length. Fast goes straight to the Writer and disables that automatic check. The writing prompt still requests a reviewer handoff for longer drafts, so review can also occur in Fast mode. Planning and revisions stay within your current request.
 
 While the AI is working you can type a follow-up instruction. The agent that is running doesn't see it during its current run; when that run ends, the next agent picks it up, or, if none is planned, the same agent gets one more round to act on it. What is being written is not interrupted.
 
 ### 13 built-in skills
 
-The skill names are Chinese in the product; the file ids are given here.
+The product uses the Chinese skill names below, with English labels for reference.
 
 | Category | Skills |
 | --- | --- |
@@ -98,20 +98,22 @@ The skill names are Chinese in the product; the file ids are given here.
 | Character | 创建角色 `create-character` |
 | Worldbuilding | 世界观设定 `worldbuilding` |
 
-Each skill is a `SKILL.md` in the open Agent Skills format ([`apps/server/agent/skills/builtin/`](apps/server/agent/skills/builtin/)) describing what it is for and the method the AI should follow, optionally with `references/` files. Add a skill under Skills → Discover, then use it: each turn the AI sees only the names and purposes of your enabled skills and loads a skill’s full method when your request matches it; you can also type `/` in the input box or click a skill in the sidebar to attach it to that message as a chip (up to 3). You can write your own skills, or import and export them as `.zip` / `.md` packages; scripts inside a package are never executed and are dropped on import with a warning. Shared skills go public after an admin approves them.
+Official skill descriptions and instructions live in the database; see [writing-guidance maintenance](docs/agent-writing-guidance.md). Add one under Skills → Discover. Each turn, the AI first sees the names and purposes of enabled skills and loads the full method when needed. Type `/` in chat or select a skill in the sidebar to attach it to a message, up to 3 at once.
+
+Custom skills use the open Agent Skills `SKILL.md` format, optionally with `references/` resources, and can be imported or exported as `.zip` / `.md` packages. Scripts in imported packages are discarded with a warning. Shared skills become public after admin approval.
 
 ### Versions, snapshots and export
 
 ![Version history of a single file](docs/screenshots/version-history.png)
 
-- Autosave runs about 3 seconds after you stop typing. A version is recorded when the text length changes by more than 10 characters; each AI edit records its own version, labelled AI Edited.
-- The History button at the bottom of the editor opens the current file's versions: compare any two line by line, or roll the file back. Rollback deletes no versions; while the file's version allowance has room, the restored text is recorded as a new version. The text being replaced is not saved first, so check that it already has a version.
-- The history icon in the top bar (tooltip: Version History) lists whole-project snapshots. Compare two snapshots, or roll the whole project back to one. A snapshot points at each file's latest version instead of copying its text, so edits that never became a version are lost on rollback, and a full rollback also removes files created after the snapshot.
-- Export Manuscript merges the project's chapter and script files into one TXT in chapter order; outlines, character sheets and lore are left out.
+- Autosave runs about 3 seconds after you stop typing. By default, consecutive manual saves within 10 minutes coalesce into the latest manual version; later saves create a new version. Small edits are included too. AI edits record separate AI Edited versions and do not use the manual-version allowance.
+- The History button at the bottom of the editor opens the current file's versions: compare any two line by line, or roll the file back. Rollback deletes no versions; while the file's version allowance has room, the restored text is recorded as a new version. Current prose that has not entered history is backed up before restoration; if that backup fails, restoration is cancelled. Preserve unsaved editor text first.
+- The history icon in the top bar (tooltip: Version History) lists whole-project snapshots. Compare two snapshots, or roll the whole project back to one. A snapshot records file versions and structure; the server creates a pre-rollback snapshot before restoration. Whole-project restoration also removes later files absent from the target snapshot. Check the scope and preserve unsaved browser drafts first.
+- Export Manuscript merges chapters and scripts into one TXT in chapter order. Export outline and text also includes outlines; character sheets and lore are outside both exports.
 
 ### Material library and inspiration library
 
-- **Material library**: upload a reference novel as TXT (up to 300,000 characters) and by default the backend extracts per-chapter summaries, a whole-book synopsis, character profiles, the world setting, and cheat abilities (金手指, the protagonist's special edge). Per-chapter plot points and what is built on them (cross-chapter arcs and storylines, character relationships) are off by default; enable them with the `MATERIAL_ENABLE_*` flags (see `apps/server/.env.example`). Each chapter's full text is still sent twice, for the summary and for character extraction (three times with plot points on). The AI does not browse the library on its own; attach entries to the chat or import them into the project (see the [FAQ](#does-the-ai-consult-my-material-library-automatically)). On the hosted service the material library is a Pro feature.
+- **Material library**: upload a reference novel as TXT (up to 300,000 characters) and by default the backend extracts per-chapter summaries, a whole-book synopsis, character profiles, the world setting, and cheat abilities (金手指, the protagonist's special edge). Per-chapter plot points and what is built on them (cross-chapter arcs and storylines, character relationships) are off by default; enable them with the `MATERIAL_ENABLE_*` flags (see `apps/server/.env.example`). Each chapter's full text is still sent twice, for the summary and for character extraction (three times with plot points on). The AI does not browse the library on its own; attach entries to the chat or import them into the project (see the [FAQ](#does-the-ai-consult-my-material-library-automatically)). On the hosted service, the full material library requires Pro. Where the free trial is enabled, the app offers a one-time trial and states the chapter limit; only those opening chapters are retained and analysed.
 - **Inspiration library (optional, disabled by default)**: complete project templates, either published by the admins or submitted by users and approved by an admin. Once enabled, Use This Template creates a new project with a copy of every file. Set `INSPIRATIONS_ENABLED=true` on the server and `VITE_INSPIRATIONS_ENABLED=true` on the frontend, then restart the server and rebuild the frontend (restart Vite in development). Quick-start Docker only needs `INSPIRATIONS_ENABLED=true` followed by container recreation. Disabling it hides library entry points, featured templates, submissions and related benefits, and disables both user and admin APIs. Existing data and creating projects from your own ideas are unaffected.
 
 ### Also
@@ -218,11 +220,11 @@ For PostgreSQL + Redis, more accounts, other ports and similar details, see [doc
 
 ## See what it produces
 
-The first section is the Writer agent's own instructions. The other two come from a real run: a clean checkout started with the [Self-hosted](#self-hosted) steps above, and a novel project called 失物招领 (Lost and Found) created through the API. The chapter titles and text were typed in as test data; the run did not call the AI. Omissions are marked "……".
+The first section preserves historical examples of prose revision. The other two come from an API run: a clean checkout started with the [Self-hosted](#self-hosted) steps, then created a novel project called 失物招领 (Lost and Found) and wrote test chapters. The chapter text was entered without an AI call; omissions are marked "……".
 
-### What the Writer agent is told to avoid
+### Historical prose-revision examples
 
-The Writer's prompt ([`apps/server/agent/prompts/subagents.py`](apps/server/agent/prompts/subagents.py)) has a section on writing that doesn't read like AI. An excerpt, in the original Chinese:
+These examples come from an [earlier writing prompt](https://github.com/zenstory-ai/zenstory/blob/bc780ae03ec95440f3277c992ad2c464a74ac49f/apps/server/agent/prompts/subagents.py). The original Chinese is preserved; the word-ban rule has since been replaced.
 
 ```markdown
 ### 禁用词汇
@@ -236,7 +238,7 @@ The Writer's prompt ([`apps/server/agent/prompts/subagents.py`](apps/server/agen
 - ❌ '"你好。"他说道' → ✅ '"你好。"他点了点头'
 ```
 
-It bans stock phrases such as "as if", "a trace of", "took a deep breath" and "slowly", and gives replacements: "he felt a trace of anger" becomes "he clenched his fists"; "surprise flashed in her eyes" becomes "she froze for a second"; a bare "he said" becomes a gesture. The same prompt sets chapters at 2,000–3,000 characters and has them end on an action, a line of dialogue or suspense, never a summary like "that day he learned a lot".
+The pairs compare generic emotion statements with visible reactions: "he felt a trace of anger" becomes "he clenched his fists"; "surprise flashed in her eyes" becomes "she froze for a second"; a bare "he said" becomes a gesture. The [current prompt](apps/server/agent/prompts/subagents.py) preserves meaning, viewpoint, clues, hooks and character voice, and fixes located problems rather than applying word bans or deletion targets. Length and endings follow the author's request and the work's form.
 
 ### Chapters sort by the number in the title, and export follows
 
@@ -286,6 +288,7 @@ If you self-host, add `--api-base https://your-server/api/v1` to the login comma
 With the skill installed, the agent works through the ZenStory CLI (`zenstory`). The skill's workflow for continuing a chapter:
 
 ```bash
+dir=$(mktemp -d)                                                             # temporary manuscript directory
 zenstory files list <projectId> --type draft --fields id,title --json          # list drafts
 zenstory context <projectId> --file <chapterId> --query "what happens next" --json   # relevant context
 zenstory files get <chapterId> --fields updated_at --json                      # note updated_at
@@ -334,15 +337,15 @@ Neither. Export Manuscript produces one TXT: UTF-8 with a BOM, so Windows Notepa
 
 ### Does the AI ask before it changes my manuscript? How do I undo a bad edit?
 
-It doesn't ask. Edits the Agent makes from chat are saved straight to the file, along with an AI Edited version. The edit card in chat lists each change with before/after snippets, and Undo returns the file to the previous version; you can also open History at the bottom of the editor and roll the file back to any version. If you only want to discuss, say "don't create or change any files" in the request; that is an instruction to the AI, not a read-only switch. Selecting text in the editor and choosing Humanize works differently: the rewrite opens as a paragraph-by-paragraph diff, and it is saved only after you accept or reject each change.
+It doesn't ask. Edits the Agent makes from chat are saved straight to the file, along with an AI Edited version. The edit card in chat lists each change with before/after snippets, and Undo returns the file to the previous version; you can also open History at the bottom of the editor and roll the file back to any version. If you only want to discuss, say "don't create or change any files" in the request; a request classified as read-only is also blocked from calling file-write tools. Check the reply to confirm that the requested scope was followed. Selecting text in the editor and choosing Humanize works differently: the rewrite opens as a paragraph-by-paragraph diff, and it is saved only after you accept or reject each change.
 
 ### In a long chat, does the AI still remember what I said at the start?
 
-Not from the chat history. Only the most recent ~32,000 tokens of conversation go to the model each turn; older messages are dropped, not summarized, and files read or edited in the last turn or two are attached in full at their current version (within a cap). Project material has a separate budget of about 32,000 tokens: AI Memory, the project's file list, the current file, the previous chapter and a few recently edited files from the same folder, and recently edited characters and lore; a long Project Summary or Notes is shortened, and a large project's file list is cut off. Keep lasting points short in AI Memory and put the details in character and lore files. The AI is also instructed to update AI Memory when you state a genre, style or rule; the tool result in chat, or the AI Memory panel, shows whether it did.
+Not from the chat history. Only the most recent ~32,000 tokens of conversation go to the model each turn; older messages are dropped, not summarized, and files read or edited in the last turn or two are attached in full at their current version (within a cap). Project material has a separate budget of about 32,000 tokens: AI Memory, the project's file list, the current file, the previous chapter and a few recently edited files from the same folder, and recently edited characters and lore; a long Project Summary or Notes is shortened, and a large project's file list is cut off. Keep lasting points short in AI Memory and put the details in character and lore files. Confirm lasting requirements in AI Memory. AI updates to Notes remain proposals, while confirmed and existing entries are preserved; check the panel for the saved state.
 
 ### What's the difference between Fast and Quality mode?
 
-Same model; Fast just skips the router and the length-based automatic review (see [Multi-agent roles](#multi-agent-roles)). The reviewer gives a read-on score from 1 to 10; from the third review round on it is told to pass anything scoring 5 or more, so the loop doesn't go on forever.
+Both use the same model. Fast skips routing and length-triggered automatic review; Quality assigns roles within your request and checks manuscript writes (see [Multi-agent roles](#multi-agent-roles)). Review prioritizes your requirements, continuity and causality rather than a mandatory subjective score. Each request allows at most two review rounds, then stops automatic rework.
 
 ### Does the AI consult my material library automatically?
 
@@ -350,7 +353,7 @@ No. To let it read an entry, use Attach to Chat in the project's Novel Reference
 
 ### What does the free plan include?
 
-Hosted free plan: 3 AI messages a day (reset at 00:00 Beijing time, UTC+8), up to 3 projects, 10 versions per file (your text still saves after that, just without new versions), TXT export, up to 3 custom skills; the Materials Library is Pro. The free plan does not expire. Inline suggestions don't count toward daily AI messages.
+Hosted free plan: 3 AI messages a day (reset at 00:00 Beijing time, UTC+8), up to 3 projects, 10 manual-version slots per file (text still saves after the quota, and eligible consecutive saves can still coalesce), TXT export and up to 3 custom skills. The full Materials Library requires Pro. The app shows a one-time free trial and its scope where enabled. The free plan does not expire. Inline suggestions don't count toward daily AI messages.
 
 ### Can I bring in a manuscript I've already written?
 
@@ -389,10 +392,10 @@ zenstory/
     ├── api/                  #   routes: auth, projects, files, agent, agent_api, materials, admin …
     ├── agent/                #   the writing agents
     │   ├── graph/            #     orchestration loop: routing, handoffs, auto-review
-    │   ├── tools/            #     the 9 agent tools
+    │   ├── tools/            #     file, project, skill and handoff tools
     │   ├── context/          #     per-turn context assembly, budget and priorities
-    │   ├── prompts/          #     prompts per project type and per agent
-    │   └── skills/           #     skill loading and injection, incl. the 13 built-ins
+    │   ├── prompts/          #     shared protocols and role prompts; project writing configuration is in DB
+    │   └── skills/           #     skill loading and injection; official instructions live in DB
     ├── flows/                #   material decomposition pipeline (Prefect)
     ├── services/             #   business logic
     └── models/               #   data models

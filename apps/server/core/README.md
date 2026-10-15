@@ -1,95 +1,59 @@
-# Core Module - Error Code System
+# 错误码与统一异常响应
 
-## 概述
+`core/error_codes.py` 定义 `ErrorCode` 常量、`ERROR_MESSAGES` 中英文消息和 `get_error_message(error_code, lang)`。`core/error_handler.py` 将异常转换为 API 响应，前端按错误码显示译文。
 
-本模块实现了错误码系统，为国际化支持提供后端基础设施。
+## 异常与响应
 
-## 文件说明
+`apps/server/main.py` 注册五类处理器：
 
-### 1. `error_codes.py` - 错误码定义
+| 异常 | 处理器 | 响应 |
+| --- | --- | --- |
+| `APIException` | `api_exception_handler` | 保留 HTTP 状态，返回 `detail`、`error_code` 和 `error_detail` |
+| `StarletteHTTPException` | `http_exception_handler` | 保留状态和响应头，返回字符串 `detail` |
+| `RequestValidationError` | `validation_exception_handler` | 422，返回 `ERR_VALIDATION_ERROR` 和字段错误列表 |
+| `IntegrityError` | `integrity_error_handler` | 409，返回 `ERR_RESOURCE_CONFLICT` |
+| 其他未捕获异常 | `general_exception_handler` | 500，返回 `ERR_INTERNAL_SERVER_ERROR`，可附 `request_id` |
 
-定义了所有错误码常量和中英文错误消息映射。
+验证错误只保留 `loc`、`type`、`msg`，不返回提交值；未捕获异常的 SQL、堆栈和内部消息留在服务端日志。HTTP 响应头包括鉴权或限流需要的 `WWW-Authenticate`、`Retry-After`。
 
-**错误码格式**: `ERR_{MODULE}_{SPECIFIC_ERROR}`
-
-**模块分类**:
-- 1xxx: 通用错误 (Common errors)
-- 2xxx: 认证授权错误 (Authentication & authorization)
-- 3xxx: 项目错误 (Project errors)
-- 4xxx: 文件错误 (File errors)
-- 5xxx: 版本错误 (Version errors)
-- 6xxx: 快照错误 (Snapshot errors)
-- 7xxx: 导出错误 (Export errors)
-- 8xxx: 聊天错误 (Chat errors)
-- 9xxx: 语音错误 (Voice errors)
-
-**主要类和函数**:
-- `ErrorCode`: 错误码常量类
-- `ERROR_MESSAGES`: 错误消息映射字典（支持 zh 和 en）
-- `get_error_message(error_code, lang)`: 根据错误码和语言获取错误消息
-
-### 2. `error_handler.py` - 统一错误处理器
-
-提供了自定义异常类和全局异常处理。
-
-**主要类**:
-- `APIException`: 自定义 API 异常类，支持错误码
-
-**主要函数**:
-- `api_exception_handler()`: 处理 APIException 实例
-- `http_exception_handler()`: 处理标准 HTTPException（向后兼容）
-- `validation_exception_handler()`: 处理请求验证错误
-- `general_exception_handler()`: 处理所有未处理的异常
-
-### 3. `error_codes.py` 中的错误消息映射
-
-错误消息翻译直接在 `ERROR_MESSAGES` 字典中维护，包含中文和英文两种语言。
-
-### 4. `main.py` - 全局异常处理器注册
-
-在应用启动时注册了四个全局异常处理器：
-1. `APIException` → `api_exception_handler`
-2. `StarletteHTTPException` → `http_exception_handler`
-3. `RequestValidationError` → `validation_exception_handler`
-4. `Exception` → `general_exception_handler`
-
-## 使用方法
-
-### 1. 在 API 中抛出错误
+## 在 API 中抛出错误
 
 ```python
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 
-# 方式 1: 使用自定义 APIException（推荐）
 raise APIException(
     error_code=ErrorCode.PROJECT_NOT_FOUND,
     status_code=404
 )
+```
 
-# 方式 2: 标准 HTTPException（向后兼容，不推荐）
+对应响应：
+
+```json
+{
+  "detail": "ERR_PROJECT_NOT_FOUND",
+  "error_code": "ERR_PROJECT_NOT_FOUND",
+  "error_detail": "ERR_PROJECT_NOT_FOUND"
+}
+```
+
+调用方传入 `detail` 时，附加说明放在 `error_detail`，`detail` 和 `error_code` 仍是错误码。标准 `HTTPException` 也有处理器，但其 `detail` 不会自动变成错误码：
+
+```python
 from fastapi import HTTPException
 raise HTTPException(status_code=404, detail="Project not found")
 ```
 
-### 2. 响应格式
-
-**使用 APIException**:
-```json
-{
-  "detail": "ERR_PROJECT_NOT_FOUND",
-  "error_code": "ERR_PROJECT_NOT_FOUND"
-}
-```
-
-**使用 HTTPException**:
 ```json
 {
   "detail": "Project not found"
 }
 ```
 
-### 3. 错误码示例
+## 错误码与翻译
+
+错误码是 `ERR_...` 字符串，覆盖通用错误、鉴权、项目、文件、版本、快照、导出、聊天、语音、订阅、配额、兑换、积分和 Agent 流。新增错误时在 `ErrorCode` 中声明，并维护对应消息：
 
 ```python
 # 认证错误
@@ -106,22 +70,4 @@ ErrorCode.FILE_NOT_FOUND            # 文件不存在
 ErrorCode.FILE_TYPE_INVALID         # 文件类型无效
 ```
 
-## 错误消息翻译
-
-前端使用后端返回的错误码，通过 i18n 系统查找对应的翻译消息。
-
-**中文翻译位置**: `apps/web/public/locales/zh/errors.json`
-**英文翻译位置**: `apps/web/public/locales/en/errors.json`
-
-## Phase 1 完成内容
-
-✅ 创建错误码定义文件 `core/error_codes.py`（包含错误消息映射）
-✅ 实现统一错误处理器 `core/error_handler.py`
-✅ 注册全局异常处理器到 `main.py`
-✅ 所有文件通过 Python 编译验证
-
-## 后续阶段
-
-- **Phase 2**: 重构核心 API 文件（auth.py, projects.py, files.py）使用错误码
-- **Phase 3**: 重构其他后端模块（versions.py, chat.py, voice.py, export.py, agent.py, services, middleware）
-- **Phase 4-6**: 前端基础设施和组件改造
+前端译文位于 `apps/web/public/locales/zh/errors.json` 和 `apps/web/public/locales/en/errors.json`。新增或调整对外错误码时同步核对这两份译文；处理器回归见 `apps/server/tests/test_core/test_error_handler.py`。

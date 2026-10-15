@@ -14,7 +14,7 @@ pnpm e2e:zenstory:local:release
 pnpm e2e:zenstory:local:full
 ```
 
-这些入口使用 `scripts/ci/ci.sh e2e --lite`。具体文件列表以该脚本为准：smoke 覆盖基础路径，default 覆盖账号与主要业务，nightly 覆盖历史和技能，release 包含视觉、性能、大文档、并发和语音，full 使用完整入口。名称是测试范围，不代表已满足生产发布门禁。
+这些本地入口使用 `scripts/ci/ci.sh e2e --lite`，与 GitHub 工作流同名 lane 的文件选择不完全相同。具体本地文件列表以该脚本为准：smoke 覆盖基础路径，default 覆盖账号与主要业务，nightly 覆盖历史和技能，本地 release 包含视觉、性能、大文档、并发和语音，full 打开本地脚本列出的可选场景。名称是测试范围，不代表已满足生产发布门禁。
 
 `pnpm gate` 使用 `scripts/ci/local-gha.sh` 跑本地门禁；`pnpm gate:e2e` 增加浏览器测试。先核对运行环境，使用本地测试数据和 mock，不连接生产服务或付费模型。
 
@@ -22,7 +22,7 @@ pnpm e2e:zenstory:local:full
 
 - `CI / ci-summary` 汇总变更检测与相关检查，相关任务不能靠 skipped 通过。
 - `E2E Tests / e2e-summary` 汇总浏览器任务。
-- main push 的 E2E 使用完整浏览器套件并分片；scheduled、release 和 smoke 的选择由 `.github/workflows/e2e.yml` 控制。
+- `.github/workflows/e2e.yml` 在 main/develop push、定时与手动调用时触发，没有 PR 触发器。push 和手动 default 使用八个 Chromium 分片，手动 full 额外加入 Firefox；nightly、release、smoke 使用各自固定范围。
 - 生产提升要求同一 main 提交的两项总结成功，不用 PR 上另一 SHA 的结果替代。
 
 工作流和发布条件见[发布流程](../ops/release-ci-cd.md)。

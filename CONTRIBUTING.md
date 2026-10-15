@@ -1,6 +1,6 @@
 # Contributing to ZenStory
 
-Thank you for your interest in contributing! ZenStory is an AI-assisted novel writing workbench built as a monorepo with a React frontend and FastAPI backend.
+ZenStory is an AI-assisted writing workbench with a React frontend and FastAPI backend in one repository.
 
 ## Development Setup
 
@@ -8,7 +8,7 @@ Thank you for your interest in contributing! ZenStory is an AI-assisted novel wr
 
 - Node.js 20.19+ (or 22.12+)
 - Python 3.12 or 3.13 (CI tests 3.12; the Docker image uses 3.13)
-- pnpm 10 (recommended) or npm
+- pnpm 10 (CI uses 10.29.3); use the root workspace lockfile
 
 ### Backend
 
@@ -46,7 +46,11 @@ Registration needs an invite code by default, and email sign-up needs Redis plus
 ```bash
 cd apps/server && source venv/bin/activate
 # use your own email and a password of at least 12 characters
-ZENSTORY_ADMIN_EMAIL=you@example.com ZENSTORY_ADMIN_PASSWORD='CHANGE-ME' python scripts/create_admin.py
+export ZENSTORY_ADMIN_EMAIL=you@example.com
+read -r -s ZENSTORY_ADMIN_PASSWORD
+export ZENSTORY_ADMIN_PASSWORD
+python scripts/create_admin.py
+unset ZENSTORY_ADMIN_PASSWORD
 ```
 
 ## Code Style

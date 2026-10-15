@@ -25,10 +25,8 @@ files change and all skipped otherwise:
   tests, and production Prefect deployment registration.
 
 `E2E Tests` applies the same detector rules. Scheduled and manually dispatched
-runs force E2E execution even when there is no meaningful Git diff. Its reviewed
-revision was enabled after production-policy approval on 2026-10-03. Activation
-is not a passing-test claim: check the latest exact-SHA run and report a pending
-or failed E2E result explicitly. The local/mocked lane starts PostgreSQL, Redis,
+runs force E2E execution even when there is no meaningful Git diff. Check the
+exact-SHA run and report a pending or failed E2E result explicitly. The local/mocked lane starts PostgreSQL, Redis,
 the backend, and the web
 app; it uses test API keys and does not call a paid model provider. Push,
 `default` and `full` runs split the whole suite into eight Chromium shards
@@ -132,9 +130,8 @@ run ID, checks only the canonical public origins, uses no credentials, and
 executes only the trusted main readiness controls (never supplied-source code), and
 records `providerSourceBinding: NOT_VERIFIED` until provider deployment metadata
 is read back independently. It is post-deployment observability, **not** a
-pre-deployment or pre-promotion gate. Its reviewed revision was enabled after
-production-policy approval on 2026-10-03. Query the live workflow state rather
-than inferring activation or successful execution from this file.
+pre-deployment or pre-promotion gate. Query the live workflow state and exact
+run before claiming successful execution.
 
 After an exact provider source readback, run a bounded receipt for a known
 deployed production commit:

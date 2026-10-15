@@ -1,8 +1,8 @@
 # ZenStory CLI
 
-Command-line client for [ZenStory](https://zenstory.ai) novel projects, plus a standard
-[Agent Skill](https://agentskills.io) that teaches coding agents (Claude Code, Codex,
-OpenClaw, ...) how to use it. It talks to the public ZenStory Agent API.
+Read, write and organize [ZenStory](https://zenstory.ai) projects from the command
+line. The package includes a standard [Agent Skill](https://agentskills.io) for
+Claude Code, Codex, OpenClaw and other coding agents. Both use the public ZenStory Agent API.
 
 - Zero runtime dependencies, Node.js ≥ 20.
 - Human-readable output by default, `--json` on every command for agents.
@@ -81,8 +81,9 @@ and server stale-write errors use `STALE_WRITE`. Re-read and merge before retryi
 naive timestamps are UTC, and microseconds must not be rounded.
 
 `files put` refuses to shrink a file below half its size without `--allow-shrink`. Every
-content change is kept as a server-side version (unless the plan's per-file version quota
-is full — then the CLI warns and only the local backup remains), so a bad edit can be undone:
+CLI content change is kept as a server-side version (unless the plan's per-file version quota
+is full, in which case the CLI warns and the local backup remains available). Inspect history
+before choosing a version to restore:
 
 ```bash
 zenstory files versions $CHAPTER                 # newest first
@@ -90,7 +91,7 @@ zenstory files version $CHAPTER 3 -o v3.md       # inspect version 3
 zenstory files rollback $CHAPTER 3 --yes         # restore it (recorded as a new version)
 ```
 
-As a second net, `files put` also saves the previous server content to
+`files put` also backs up the previous server content to
 `~/.cache/zenstory/backups/` (respects `XDG_CACHE_HOME`, mode 0600) before writing.
 
 ## Agent Skill
@@ -110,11 +111,9 @@ An existing installation is only replaced with `--force`, and only if it is a pr
 ZenStory skill install (a `SKILL.md` named `zenstory` plus `references/`); any other
 directory is left alone. A symlink at the destination is never followed.
 
-Notes on directories: Codex loads user-scope skills from `$HOME/.agents/skills` (older
-Codex CLI builds read `~/.codex/skills` — use `--target ~/.codex/skills` if yours does not
-pick the skill up). OpenClaw loads managed skills from `~/.openclaw/skills`
-(`$OPENCLAW_STATE_DIR/skills` when set) and, in its default state, personal skills from
-`~/.agents/skills`. Restart the agent after installing.
+The `codex` target installs into `~/.agents/skills`; `openclaw` uses
+`$OPENCLAW_STATE_DIR/skills` when set, otherwise `~/.openclaw/skills`. Use
+`--target <directory>` for another skills directory. Restart the agent after installing.
 
 ## Environment variables
 

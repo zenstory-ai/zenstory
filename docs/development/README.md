@@ -57,7 +57,7 @@ ruff check agent/ api/ services/
 
 公开操作说明只改 `apps/web/docs`，同一路径下中英文同步更新。导航在 `apps/web/src/data/docsNavigation.ts`，页面由 `build-docs-pages.mjs` 静态生成。保留既有公开 URL；新增页面需同步导航和生成检查。
 
-仓库 `docs/` 不再复制用户指南全文。当前开发说明放在相应目录，旧方案标明历史；历史验证记录不能改写为当前验收结论。
+仓库 `docs/` 不再复制用户指南全文。当前开发说明放在相应目录，旧方案保留在历史目录；历史验证记录不能改写为当前验收结论。
 
 ## 提交与发布
 

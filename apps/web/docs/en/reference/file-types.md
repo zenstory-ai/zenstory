@@ -6,7 +6,7 @@ A type identifies a file's purpose. Titles, folders, and types are related, but 
 
 | Type | Contents and export |
 | --- | --- |
-| Outline `outline` | Direction, chapter goals, scene changes. Not exported. |
+| Outline `outline` | Direction, chapter goals, scene changes. Included with **Export outline and text**. |
 | Draft `draft` | Novel or short-story prose. Exported. |
 | Character `character` | Goals, relationships, background, knowledge. Not exported. |
 | Lore `lore` | Places, rules, history, ability limits. Not exported. |

@@ -1,118 +1,38 @@
-# Quality Check Scripts
+# Quality checks
 
-Unified code quality checking for backend and frontend.
-
-## check-quality.sh - Unified Quality Checker
-
-### Usage
+Run from the repository root with the existing dependencies. Frontend development requires Node.js 20.19+ or 22.12+ and pnpm 10; backend checks use the project Python 3.12/3.13 environment. `check-quality.sh` selects `.venv312`, `.venv` or `venv` under `apps/server`.
 
 ```bash
 ./scripts/quality/check-quality.sh [all|backend|frontend|security|i18n]
 ```
 
-### Check Types
+## Exact helper coverage
 
-| Type       | Description                                    |
-|------------|------------------------------------------------|
-| `all`      | Run all checks (backend + frontend) - default  |
-| `backend`  | Ruff, MyPy, Bandit, Safety                     |
-| `frontend` | CSS token check, ESLint, TypeScript check     |
-| `security` | Bandit + Safety (security focused)             |
-| `i18n`     | Hardcoded Chinese text detection               |
+| Selection | Commands |
+| --- | --- |
+| `all` (default) | Backend followed by frontend |
+| `backend` | Ruff on `agent/ api/ services/`; MyPy on `agent/ api/`; Bandit and Safety when installed |
+| `frontend` | CSS-token check, ESLint and `tsc --noEmit` |
+| `security` | Bandit and Safety when installed |
+| `i18n` | Heuristic search for hardcoded Chinese text |
 
-### Backend Checks
+Missing optional backend tools are skipped with warnings. A zero exit does not establish that every listed tool ran. The frontend helper's `tsc --noEmit` also does not replace the repository's TypeScript project build or generated-site checks.
 
-| Tool    | Purpose                    |
-|---------|----------------------------|
-| Ruff    | Python linting             |
-| MyPy    | Type checking              |
-| Bandit  | Security linting           |
-| Safety  | Dependency vulnerabilities |
-
-### Frontend Checks
-
-| Tool         | Purpose                               |
-|--------------|---------------------------------------|
-| CSS Token    | Detect undefined `var(--token)` usage |
-| ESLint       | JavaScript/TypeScript linting         |
-| tsc          | TypeScript type checking              |
-
-### Examples
+Use the actual CI entry points for their contracts:
 
 ```bash
-# Run all checks
-./scripts/quality/check-quality.sh all
-
-# Backend only
-./scripts/quality/check-quality.sh backend
-
-# Frontend only
-./scripts/quality/check-quality.sh frontend
-
-# Security focused
-./scripts/quality/check-quality.sh security
-
-# i18n check
-./scripts/quality/check-quality.sh i18n
+pnpm --dir apps/web lint
+pnpm --dir apps/web lint:tokens
+pnpm --dir apps/web lint:i18n-keys
+pnpm --dir apps/web build:typecheck
+pnpm --dir apps/web test:site
 ```
 
-### Prerequisites
+## Translation checks
 
-**Backend:**
-- Virtual environment at `apps/server/venv`
-- Tools installed: `ruff`, `mypy`, `bandit`, `safety`
+`check-i18n-defaultvalue-keys.mjs` verifies that `t("ns:key", { defaultValue: ... })` calls in non-test frontend source have the key in both language namespaces. Translations live in `apps/web/public/locales/{zh,en}/{namespace}.json`.
 
-```bash
-cd apps/server
-source venv/bin/activate
-pip install ruff mypy bandit safety
-```
-
-**Frontend:**
-- Node.js 18+ with pnpm
-- Dependencies installed
-
-```bash
-cd apps/web
-pnpm install
-```
-
-### Exit Codes
-
-- `0`: All checks passed
-- `1`: One or more checks failed
-
-## check-hardcoded-text.sh - i18n Hardcoded Text Detection
-
-Detects hardcoded Chinese text in frontend source files that should be internationalized.
-
-### Usage
-
-```bash
-./scripts/quality/check-hardcoded-text.sh
-```
-
-### What It Detects
-
-- Chinese characters (`\u4e00-\u9fa5`) in `.tsx` and `.ts` files
-
-### What It Excludes
-
-- Comment lines (`//`)
-- Lines using `useTranslation`
-- Lines with `t('...')` or `t("...")`
-- Lines with `i18n`
-- Lines with `getLocale`
-- Import statements
-
-### Manual Review Required
-
-The script may produce false positives for:
-- String template variables
-- Log messages
-- API response handling
-
-### i18n Best Practices
+The hardcoded-text shell checks identify candidates for manual review. They depend on `grep -P` support and skip several line patterns; their output is not a complete translation-coverage result. Keep API fields, examples and author text separate from UI labels when reviewing matches.
 
 ```tsx
 // Bad - Hardcoded
@@ -123,42 +43,8 @@ const { t } = useTranslation();
 <button>{t('common.submit')}</button>
 ```
 
-### Related Files
+## CSS-token checks
 
-- `apps/web/public/locales/en/translation.json`
-- `apps/web/public/locales/zh/translation.json`
+`check-web-css-token-vars.mjs` scans frontend TS/TSX/JS/JSX/CSS for `var(--token)` references and CSS definitions. It fails when a referenced token has no definition; visual contrast, focus and layout still require the checks appropriate to the UI change.
 
-## check-web-css-token-vars.mjs - CSS Token Guardrail
-
-Detects undefined CSS custom properties used via `var(--token)` in `apps/web/src`.
-
-### Usage
-
-```bash
-cd apps/web
-pnpm lint:tokens
-```
-
-### What It Checks
-
-- Scans `.ts`, `.tsx`, `.js`, `.jsx`, `.css` files under `apps/web/src`
-- Collects all `var(--token)` references
-- Collects all CSS custom property definitions (`--token:`) from web CSS files
-- Fails if any referenced token has no definition
-
-## check-i18n-defaultvalue-keys.mjs - defaultValue 翻译键覆盖校验
-
-用于检测 `t("ns:key", { defaultValue: ... })` 场景下，`zh/en` locale 是否都存在对应 key，防止上线后 fallback 到默认文案。
-
-### Usage
-
-```bash
-cd apps/web
-pnpm lint:i18n-keys
-```
-
-### What It Checks
-
-- 扫描 `apps/web/src` 非测试文件中的 `t("ns:key", { defaultValue: ... })`
-- 校验 `apps/web/public/locales/{zh,en}/{ns}.json` 是否存在对应嵌套键
-- 缺失时输出 `[locale] ns:key` 与示例源码文件，并返回非 0 退出码
+The [development guide](../../docs/development/README.md) lists targeted test commands. CI workflow YAML and release controls have their own checks under `scripts/ci/`.

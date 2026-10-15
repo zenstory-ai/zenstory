@@ -1,8 +1,8 @@
 # Private upload storage bridge
 
-The API supports `UPLOAD_STORAGE_BACKEND=local` (default) and `s3`. S3 mode is
-strict: all variables below are required and invalid configuration fails the
-request instead of falling back to local disk.
+The API supports `UPLOAD_STORAGE_BACKEND=local` (default) and `s3`. S3 mode requires
+all variables below. Invalid configuration fails the request; it does not fall
+back to local disk.
 
 - `UPLOAD_S3_ENDPOINT`
 - `UPLOAD_S3_REGION`
@@ -18,8 +18,8 @@ token route into a per-flow temporary file, which is removed on success or
 failure. Screenshot downloads remain superuser-only. Legacy local references
 remain readable beneath their configured trusted roots.
 
-`python scripts/migrate_upload_storage.py --manifest /private/path.json` is a
-dry run. Add `--apply` only with a complete S3 configuration; add `--user-id`
+From `apps/server`, `python scripts/migrate_upload_storage.py --manifest /private/path.json`
+validates a migration without applying it. Add `--apply` only with a complete S3 configuration; add `--user-id`
 to restrict a staging batch. Apply verifies a private GET by size and SHA-256,
 writes and fsyncs a mode-0600 restoration entry before each DB commit, preserves
 all local files, and skips running ingestion jobs and unsafe/symlinked paths.

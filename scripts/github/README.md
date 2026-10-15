@@ -1,6 +1,6 @@
 # GitHub Utilities
 
-Unified GitHub CLI operations for CI workflows and PR management.
+Inspect Actions runs and create pull requests with the existing GitHub CLI helpers.
 
 ## gh-utils.sh - Unified GitHub Operations
 
@@ -15,8 +15,8 @@ Unified GitHub CLI operations for CI workflows and PR management.
 | Command        | Description                              |
 |----------------|------------------------------------------|
 | `logs <run-id>`| Fetch CI logs for a specific run         |
-| `watch`        | Watch CI status for current branch       |
-| `pr <title>`   | Create PR and watch CI                   |
+| `watch`        | List the latest run for this branch, then open `gh run watch` |
+| `pr <title>`   | Create a PR with a generic body, then open the watcher |
 | `help`         | Show help message                        |
 
 ### Examples
@@ -39,6 +39,8 @@ gh run list --branch $(git branch --show-current)
 
 - GitHub CLI (`gh`) installed and authenticated
 - Repository with GitHub Actions enabled
+
+The helper does not bind the watcher to the listed run ID. For an exact result, select the intended run or use `gh run watch <run-id>`. After creating a PR, replace the generic body with the problem, change and validation evidence.
 
 ### Common Workflows
 

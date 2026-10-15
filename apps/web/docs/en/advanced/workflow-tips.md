@@ -1,6 +1,6 @@
 # Writing workflow
 
-Leave an adoptable result each turn and a clear starting point for the next. Work by scene, chapter, or complete short story; clear goals and evidence matter most.
+At the end of each turn, save the text and decisions you accept, and record where to continue. Work by scene, chapter, or complete short story, with a clear goal and supporting notes.
 
 ## Choose this turn's deliverable
 
@@ -39,7 +39,7 @@ If suspicion becomes certainty in a sentence, fix the knowledge boundary before 
 
 When the plot changes, review affected characters, outline, and prose separately. A language polish should not quietly choose a different ending.
 
-## End with a continuation card
+## Record progress at the end
 
 ```text
 Complete: Scene 2 saved. The patch was checked; the bag remains at the desk.

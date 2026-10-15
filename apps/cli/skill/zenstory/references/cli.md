@@ -81,12 +81,12 @@ projects, because it could not access them.
 | `zenstory files move <fileId> --parent <folderId\|root> [--order n]` | `POST /agent/files/{id}/move` | write |
 | `zenstory files delete <fileId> --yes` | `DELETE /agent/files/{id}` (soft delete) | write |
 
-Details:
+File behavior:
 
 - `--type`: `outline | draft | character | lore | snippet | script | document | folder`.
   `material` is accepted as an alias for `snippet`. Unknown types are rejected locally.
-- `files list` defaults to `--fields id,title,file_type,parent_id,order,updated_at` (no
-  content, cheap). Add `content` to the list to fetch bodies. Valid fields: `id,
+- `files list` defaults to `--fields id,title,file_type,parent_id,order,updated_at` (without
+  content). Add `content` to the list to fetch bodies. Valid fields: `id,
   project_id, title, content, file_type, parent_id, order, file_metadata, created_at,
   updated_at`. `--parent` returns only direct children. Results are ordered by `order`
   ascending, then newest first, then id. JSON shape: `{ "files": [...], "total", "limit", "offset" }`.
@@ -110,8 +110,9 @@ Details:
   `order` N (same rule as the web app). Non-empty content is recorded as version 1 unless
   the per-file version quota is full (then `version_quota_exceeded: true` and a warning).
   An empty `parent_id` is rejected (HTTP 400); omit `--parent` for the project root.
-- `files put` replaces the whole content (and/or title). It first GETs the current file,
-  then:
+- `files put` replaces the whole content when content is provided; title/order-only
+  updates leave content intact. For a content update or timestamp check, it first GETs
+  the current file, then:
   - `--if-updated-at <ts>`: refuses (exit 1, code `STALE_WRITE`) when the server's
     `updated_at` differs — the user edited the file since you read it.
   - refuses new content shorter than 50% of the current content unless `--allow-shrink`,
@@ -122,8 +123,9 @@ Details:
   The server also records a file version for every content change, so the change can be
   rolled back (see [Versions](#versions)) — unless the plan's per-file version quota is
   full: the content is still saved, the response has `version_quota_exceeded: true` (also
-  in `--json`), the CLI prints a warning on stderr, and the backup is the only copy of the
-  previous content. Request body: `{title?, content?, order?}`;
+  in `--json`), and the CLI prints a warning on stderr. Retain the local backup of the
+  previous non-empty content; the new text may have no server version. Request body: `{title?, content?, order?, base_updated_at?}`;
+  `--if-updated-at` sends `base_updated_at` for an additional server-side locked check.
   `--order` alone (no content) makes no backup and no version. Metadata cannot be changed
   via the API; use `files move` to change the parent.
 - `files move`: body `{parent_id, order?}`; `--parent root` sends `parent_id: null`
@@ -148,8 +150,10 @@ Details:
 - `files version` prints version `n`'s full content; `-o` uses the same safe writer as
   `files get -o` (new file, mode 0600, never follows symlinks, `--force` to overwrite a
   regular file). `--json` adds the metadata fields above plus `content`.
-- `files rollback` replaces the current content with version `n`. History is kept: the
-  restored content becomes a new version (`change_type: restore`). `--json`:
+- `files rollback` replaces the current content with version `n` and keeps history.
+  Before replacing current text not already in history, the server saves it as a system
+  backup version; a backup failure aborts the restore. The restored text becomes a new
+  version (`change_type: restore`) when the user version quota permits. `--json`:
   `{success, message, file_id, restored_version, new_version_number, snapshot_created,
   version_quota_exceeded, updated_at}`. When the per-file version quota is full the
   content is still restored but `new_version_number` is `null` and
@@ -194,7 +198,9 @@ Response:
 }
 ```
 
-The server caps the payload at ~50 KB and times out after 10 s (HTTP 504).
+Each content preview contains at most 500 original characters, followed by `...`
+when truncated. The server caps the summed serialized entry lengths near 50 K characters
+and times out assembly after 10 s (HTTP 504); full capacity returns HTTP 503.
 
 ## Skill management
 

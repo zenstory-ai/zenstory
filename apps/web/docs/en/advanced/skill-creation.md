@@ -26,7 +26,7 @@ Retain confirmed actions and outcomes.
 Suggest changes in chat first. Do not edit files or invent biographies.
 ```
 
-A skill does not automatically fill its context. Open the target, quote text, or name evidence files when sending. Do not use `{{selectedText}}` or `{{currentFile}}` as automatic substitution variables.
+A skill provides a method. Supply this turn's material by opening the target, quoting text, or naming files to read. `{{selectedText}}` and `{{currentFile}}` are not automatically replaced with project content.
 
 ## Trigger phrases and explicit selection
 

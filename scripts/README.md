@@ -1,130 +1,60 @@
-# Scripts Directory
+# Development and maintenance scripts
 
-Unified entry point for development, CI, and GitHub CLI utilities.
+Run these commands from the repository root. Use Node.js 20.19+ or 22.12+ and pnpm 10 (CI uses 10.29.3); the backend uses a Python 3.12 or 3.13 project environment. Keep the root `pnpm-lock.yaml` as the workspace lockfile.
 
-## Directory Structure
+## Choose an entry point
 
-```
-scripts/
-├── dev/              # Local developer helpers
-│   ├── docker-up.sh  # Start zenstory main-site compose (build + detached)
-│   └── docker-down.sh # Stop zenstory main-site compose and remove volumes
-├── ci/               # CI and local testing
-│   ├── ci.sh         # Unified CI runner (--docker/--lite modes)
-│   └── README-LOCAL-CI.md
-├── github/           # GitHub CLI utilities
-│   └── gh-utils.sh   # Unified GitHub operations (logs, watch, pr)
-├── quality/          # Code quality checks
-│   ├── check-quality.sh      # Unified quality checker (backend/frontend/security/i18n)
-│   └── check-hardcoded-text.sh  # i18n hardcoded text detection
-└── wait-for-services.sh      # Utility: Wait for Docker services
-```
+| Directory | Purpose |
+| --- | --- |
+| `dev/` | Start local Compose or deliberately remove its containers and volumes |
+| `ci/` | Local lint/test/browser orchestration and release-control checks |
+| `quality/` | Selected static and translation checks |
+| `github/` | Inspect GitHub Actions and create PRs with `gh` |
+| `wait-for-services.sh` | Check local test-service readiness |
 
-## Quick Reference
-
-### CI Testing
+## Local checks
 
 ```bash
-# Full CI with Docker (default)
-./scripts/ci/ci.sh all
+# Lint and tests, using Docker test services
+pnpm gate
 
-# Full CI with SQLite (lightweight, no Docker)
-./scripts/ci/ci.sh all --lite
+# Lint and tests in SQLite mode
+pnpm gate:lite
 
-# Backend tests only
-./scripts/ci/ci.sh backend --lite
+# Include browser checks (uses Docker)
+pnpm gate:e2e
 
-# Frontend tests only
-./scripts/ci/ci.sh frontend
-
-# E2E tests (requires Docker)
-./scripts/ci/ci.sh e2e
-
-# Start/stop Docker services
-./scripts/ci/ci.sh start
-./scripts/ci/ci.sh stop
+# Local browser smoke, with managed SQLite backend/frontend
+pnpm e2e:zenstory:local
 ```
 
-### Docker Compose（zenstory 主站）
+The local runner and GitHub workflows cover different scopes. Before using the runner, read the [CI guide](ci/README.md): some modes write backend test environment files or replace `.env`, and Lite E2E starts fresh servers on ports 8000/5173. Use an isolated test checkout. Production releases follow [the release contract](../docs/ops/release-ci-cd.md).
+
+## Docker Compose
 
 ```bash
-# 从任意目录启动（脚本会自动切回仓库根目录）
-./scripts/dev/docker-up.sh
-
-# 停止并清理卷
-./scripts/dev/docker-down.sh
+./scripts/dev/docker-up.sh     # build and start local Compose
+docker compose down           # stop, retaining named volumes
 ```
 
-也可直接使用：
+`scripts/dev/docker-down.sh` runs `docker compose down -v`: it also deletes named volumes. Use it only for an intended data reset with any needed backup. Deployment setup and data locations are described in [Docker Compose](../docs/docker-compose.md).
+
+## Quality checks
 
 ```bash
-docker compose up -d --build
-docker compose down -v
-```
-
-### Quality Checks
-
-```bash
-# All checks (backend + frontend)
-./scripts/quality/check-quality.sh all
-
-# Backend only (Ruff, MyPy, Bandit, Safety)
 ./scripts/quality/check-quality.sh backend
-
-# Frontend only (ESLint, TypeScript)
 ./scripts/quality/check-quality.sh frontend
-
-# Security focused (Bandit + Safety)
 ./scripts/quality/check-quality.sh security
-
-# i18n hardcoded text detection
 ./scripts/quality/check-quality.sh i18n
 ```
 
-### GitHub Operations
+The quality helper skips missing optional backend tools with warnings; its success alone does not prove all CI checks ran. See [quality commands](quality/README.md) for exact coverage.
+
+## GitHub helpers
 
 ```bash
-# Watch CI for current branch
-./scripts/github/gh-utils.sh watch
-
-# Fetch logs for a specific run
 ./scripts/github/gh-utils.sh logs <run-id>
-
-# Create PR and watch CI
-./scripts/github/gh-utils.sh pr "Fix authentication bug"
+./scripts/github/gh-utils.sh watch
 ```
 
-## Detailed Documentation
-
-- **CI Scripts**: See `ci/README-LOCAL-CI.md` for detailed CI usage
-- **Quality Scripts**: Run with `--help` for usage information
-- **GitHub Utilities**: Run `./scripts/github/gh-utils.sh help` for commands
-
-## Prerequisites
-
-### Backend
-- Python 3.11+ with virtual environment at `apps/server/venv`
-- Ruff, MyPy, Bandit, Safety installed in venv
-
-### Frontend
-- Node.js 18+ with pnpm
-- Dependencies installed (`pnpm install`)
-
-### Docker Mode (CI)
-- Docker and docker-compose installed
-- Docker daemon running
-
-## Integration with IDE
-
-Add these as run configurations or tasks in your IDE:
-
-```json
-{
-  "name": "Quality Check",
-  "command": "./scripts/quality/check-quality.sh all"
-},
-{
-  "name": "CI Test (Lite)",
-  "command": "./scripts/ci/ci.sh all --lite"
-}
-```
+The PR helper creates a PR with a generic body. For a reviewable change description, use `gh pr create --body-file <file>` or edit the PR body afterwards. See [GitHub helpers](github/README.md) and [optional act usage](ci/README-LOCAL-CI.md).

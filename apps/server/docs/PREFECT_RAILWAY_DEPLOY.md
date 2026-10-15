@@ -1,112 +1,64 @@
-# Prefect Railway 部署指南
+# Railway 上的 Prefect 素材处理服务
 
-## 概述
+素材库用 Prefect 调度小说拆解。API 接收上传并登记任务，Prefect Server 保存调度状态，process Worker 执行流程并通过 API 内部下载接口读取素材。API 与 Worker 使用业务数据库；Prefect Server 使用自己的元数据库连接。
 
-本指南介绍如何在 Railway 上部署 Prefect Server 和 Worker，用于素材库小说拆解流程。
+发布门禁、迁移和运行中任务保护遵循[发布流程](../../../docs/ops/release-ci-cd.md)。本页说明服务配置，不代表某个环境已完成部署或启用素材处理。
 
-## 架构
+## 服务与镜像
 
-```
-┌─────────────────┐     ┌─────────────────┐
-│  Prefect Server │◄────│  Prefect Worker │
-│   (调度服务器)   │     │   (执行节点)     │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────┐     ┌─────────────────┐
-│   PostgreSQL    │     │   API Server    │
-│   (Prefect DB)  │     │   (业务数据库)   │
-└─────────────────┘     └─────────────────┘
-```
+三个服务都以仓库根目录为构建上下文：
 
-## 部署步骤
+| 服务 | Dockerfile | 启动入口 |
+| --- | --- | --- |
+| API | `apps/server/Dockerfile` | API 服务，内部素材下载接口 |
+| Prefect Server | `apps/server/docker/Dockerfile.prefect-server` | `start-prefect-server.sh` |
+| Prefect Worker | `apps/server/docker/Dockerfile.prefect-worker` | `start-prefect-worker.sh` |
 
-### 1. 使用现有 PostgreSQL 数据库
+Server 镜像固定 Prefect `3.6.28` 和 FastAPI `0.123.7`，Worker 从 `apps/server/requirements.txt` 一次安装依赖。版本兼容由 CI 的 `Prefect compatibility` 检查验证，更新时同步核对镜像与依赖。
 
-项目已有 PostgreSQL 服务，Prefect Server 将复用该数据库。
+在已核实的 Railway 项目、服务和环境中设置 Dockerfile 路径。仓库中的 Dockerfile 路径相对构建上下文；不要依赖本地目录猜测云服务归属。
 
-### 2. 在 Railway Web UI 配置 Dockerfile 路径
+## 环境隔离
 
-**重要**: Railway CLI 不支持直接指定 Dockerfile 路径，需要在 Web UI 中配置。
+| 配置 | Staging | Production |
+| --- | --- | --- |
+| Git 来源 | `main` | `release-production`，由已授权的 `prod-v*` tag 提升 |
+| `PREFECT_WORK_POOL` | `zenstory-staging-pool` | `zenstory-pool` |
+| API、业务数据库、Redis、上传存储、Prefect Server | 各自独立 | 各自独立 |
 
-1. 打开 Railway 项目: https://railway.com/project/cbe4812b-c4fd-4d4d-ae13-b06395b2c7f0
-2. 点击 `prefect-server` 服务
-3. 进入 **Settings** → **Build**
-4. 设置 **Dockerfile Path**: `apps/server/docker/Dockerfile.prefect-server`
-5. 对 `prefect-worker` 服务重复上述步骤，设置路径为: `apps/server/docker/Dockerfile.prefect-worker`
+Server 的 `PREFECT_API_DATABASE_CONNECTION_URL` 使用 PostgreSQL 异步驱动连接，例如 `postgresql+asyncpg://user:pass@host:5432/prefect`。`start-prefect-server.sh` 监听 `0.0.0.0`，使用 Railway 提供的 `PORT`，缺省为 `4200`。
 
-### 3. 部署 Prefect Server
+API 与 Worker 必须连同一环境的 Prefect Server；Worker 的业务数据库也必须属于该环境。
 
-#### 环境变量
+| 变量 | 配置位置与用途 |
+| --- | --- |
+| `PREFECT_API_URL` | API、Worker：对应环境的 Prefect API，含 `/api` |
+| `PREFECT_WORK_POOL` | Worker：当前环境的工作池 |
+| `DATABASE_URL` | API、Worker：当前环境的业务数据库 |
+| `API_SERVER_INTERNAL_URL` | Worker：可达的 API 内网地址，如 `http://server.railway.internal:8080` |
+| `MATERIAL_INTERNAL_TOKEN` | API、Worker：一致的内部素材下载鉴权 token |
+| `DEEPSEEK_API_KEY` | Worker：素材分析模型凭证，由部署环境注入 |
+| `DEEPSEEK_BASE_URL` | Worker：模型 API 地址，配置方式见 `.env.example` |
 
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `PREFECT_API_DATABASE_CONNECTION_URL` | PostgreSQL 连接字符串 | `postgresql+asyncpg://user:pass@host:5432/prefect` |
-| `PORT` | 服务端口 (Railway 自动设置) | `4200` |
+上传对象存储的凭证只放在 API。Worker 通过内部下载接口取得临时文件，完成或失败后清理；本地与 S3 引用处理见[私有上传存储](upload-storage-bridge.md)。
 
-#### 部署命令
+## Worker 启动与发布顺序
 
-```bash
-# 在 Railway 项目中添加服务
-railway link
-railway up --service prefect-server
-```
-
-### 3. 部署 Prefect Worker
-
-#### 环境变量
-
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `PREFECT_API_URL` | Prefect Server API 地址 | `https://prefect-server.railway.app/api` |
-| `PREFECT_WORK_POOL` | 工作池名称 | `zenstory-pool` |
-| `DATABASE_URL` | 业务数据库连接 | `postgresql://...` |
-| `API_SERVER_INTERNAL_URL` | API 服务内网地址（用于下载上传文件） | `http://server.railway.internal:8080` |
-| `MATERIAL_INTERNAL_TOKEN` | Worker/API 共享内部鉴权 token | `your-random-secret` |
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | 运行时注入 |
-| `DEEPSEEK_BASE_URL` | DeepSeek API 基础 URL（可选） | `https://api.deepseek.com` |
-
-#### 部署命令
+`start-prefect-worker.sh` 等待 Prefect `/health`，创建 process 工作池，读取 `prefect.yaml` 中的 deployment 名称，逐一向 `PREFECT_WORK_POOL` 登记，再启动 Worker。具名登记使用：
 
 ```bash
-railway up --service prefect-worker
+prefect deploy --name "$deployment_name" --pool "$POOL_NAME"
 ```
 
-### 4. 创建工作池
+Prefect `3.6.28` 在多 deployment 的 `--all` 模式下会忽略 `--pool` 覆盖。当前启动脚本逐个登记，避免 staging 误用 YAML 中的生产默认池。`prefect.yaml` 的工作目录为容器内 `/app`，不要直接当作本地流程目录运行。
 
-部署完成后，需要在 Prefect Server 中创建工作池：
+替换已有 Worker 前，按发布流程暂停目标工作池，确认没有 pending、running、cancelling、paused flow 或 processing ingestion job，再进行已授权的发布。新 Worker 心跳正常且旧部署状态为 `REMOVED` 后才恢复工作池；仅看到新 Worker online 不足以恢复。生产流程须同时通过精确源码的 main CI、E2E 和发布授权。
 
-```bash
-# 设置 API URL
-export PREFECT_API_URL=https://your-prefect-server.railway.app/api
+## 验证与定位
 
-# 创建工作池
-prefect work-pool create zenstory-pool --type process
-```
+核对服务的源码 SHA、Prefect Server 健康、deployment 所属工作池和 Worker 心跳；检查任务前先确认目标环境。素材拆解会调用模型，测试使用 mock；真实拆解需要单独授权。
 
-### 5. 部署流程
-
-```bash
-# 部署所有流程
-prefect deploy --all
-```
-
-## 验证部署
-
-1. 访问 Prefect Server UI: `https://your-prefect-server.railway.app`
-2. 检查工作池状态
-3. 检查 Worker 是否在线
-
-## 故障排除
-
-### Worker 无法连接到 Server
-
-检查 `PREFECT_API_URL` 是否正确设置。
-
-同时检查文件下载链路配置：
-- `API_SERVER_INTERNAL_URL` 必须使用内网域名（`server.railway.internal`），不要使用公网域名。
-- API 服务与 Worker 服务都必须设置相同的 `MATERIAL_INTERNAL_TOKEN`。
-
-### 数据库连接失败
-
-确保 PostgreSQL 服务正常运行，连接字符串格式正确。
+- Worker 连不上 Server：核对 `PREFECT_API_URL`、Server 健康和网络可达性。
+- 素材下载失败：核对 API 内网地址以及两端 `MATERIAL_INTERNAL_TOKEN` 是否一致。
+- Worker 启动失败：查启动日志中的依赖检查、健康等待和具名 deployment 登记结果。
+- 数据库错误：分清业务数据库与 Prefect 元数据库，核对当前环境的连接与迁移状态。

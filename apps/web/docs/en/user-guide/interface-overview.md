@@ -1,6 +1,6 @@
 # Interface overview
 
-The workbench home starts and manages projects. The project page is where you write. Knowing this distinction makes the common controls easier to find.
+Start and manage your work on the workbench home. Open a project to organize files, write, and chat with the AI.
 
 ## Workbench home
 
@@ -21,7 +21,7 @@ The Inspirations Library is coming soon. You can already start from your own ide
 | Editor | Write, edit titles, quote selections, save, and inspect file history |
 | AI chat | Describe tasks, choose skills and references, read replies and file-operation results |
 
-Desktop and tablet show the areas side by side, with draggable dividers. On phones, use **Files**, **Edit**, and **AI** at the bottom. Switching panels retains current editing and chat state.
+Wide screens show the areas side by side, with draggable dividers. On phones, use **Files**, **Edit**, and **AI** at the bottom. Switching panels retains current editing and chat state.
 
 ## Project header
 

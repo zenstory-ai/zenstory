@@ -14,7 +14,9 @@ Open **Plans & Benefits** in the workbench to check your plan, today's messages,
 
 Free messages reset at 00:00 Beijing time (UTC+8). Monthly material allowance resets on the first day of the month. Custom skills count those you currently own; deleting an unused owned skill frees a slot.
 
-When messages are exhausted, the round pauses. Retain your idea and draft, wait for reset, or get Pro.
+When the free-trial entry is available, accounts without Materials access can try the first chapters of one book. This is separate from the Pro monthly allowance; check the entry for the trial limits.
+
+When today's messages are used up, save your idea and draft. Continue after the reset or get Pro.
 
 ## Compare plans
 

@@ -9,7 +9,7 @@ Use history to read older prose, compare changes, or restore content. Choose the
 | History in the editor | Retained versions of one file | Read, compare, or restore a file |
 | Project history in the header | Project file state at a moment | Compare file changes or restore a project |
 
-Consecutive manual saves close together may share one history version. Your text can still be saved when the history allowance is full.
+Consecutive manual saves close together may share one history version, including small edits. The allowance counts manual versions; AI changes and system backups do not use it. A full allowance still permits merging into an existing version. If merging is unavailable, your text is saved without adding a version.
 
 ## Read and compare file versions
 

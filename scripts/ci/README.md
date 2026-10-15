@@ -1,233 +1,75 @@
-# CI Scripts
+# Local CI scripts
 
-Unified CI runner for local testing and development.
+`ci.sh` orchestrates local lint, tests and browser suites. `local-gha.sh` selects common combinations. The GitHub workflows remain the source for merge and release gates; a local run is evidence for the commands it actually executed.
 
-## ci.sh - Unified CI Entry Point
+Run from a clean, isolated test checkout with installed frontend dependencies, a backend virtual environment and disposable data. Docker migrations and Docker E2E overwrite `apps/server/.env` with test settings. Lite E2E replaces listeners on ports 8000/5173. These scripts are local test tools, not production deployment commands.
 
-The main script that combines functionality from the legacy `ci-local.sh` and `local-ci.sh`.
-
-### Usage
+## ci.sh
 
 ```bash
 ./scripts/ci/ci.sh <command> [--docker|--lite]
 ```
 
-### Commands
+| Command | Checks |
+| --- | --- |
+| `all` | Lint, frontend/CLI/backend tests and browser tests |
+| `frontend` | Frontend lint and coverage tests |
+| `backend` | Backend lint and pytest |
+| `lint` | Frontend ESLint and backend Ruff |
+| `test` | Frontend, CLI and backend tests, without browser E2E |
+| `e2e` | Browser suite selected by `E2E_SUITE` |
+| `start` / `stop` | Start test Docker services / remove test services and volumes |
+| `help` | Command help |
 
-| Command   | Description                                    |
-|-----------|------------------------------------------------|
-| `all`     | Run full CI pipeline (lint + test + e2e)       |
-| `frontend`| Run frontend lint and tests only               |
-| `backend` | Run backend lint and tests only                |
-| `lint`    | Run lint checks only                           |
-| `test`    | Run unit tests only (no e2e)                   |
-| `e2e`     | Run E2E tests only (`--docker` or `--lite`)    |
-| `start`   | Start Docker services (--docker mode only)     |
-| `stop`    | Stop Docker services (--docker mode only)      |
-| `help`    | Show help message                              |
+`--docker` is the default. It uses `apps/server/docker-compose.test.yml` with PostgreSQL on 5433 and Redis on 6380. `--lite` uses `apps/server/test_zenstory.db`; it sets a Redis URL on port 6379 but does not start Redis. Ordinary backend tests mock Redis; cases requiring a real Redis service still need their dedicated setup.
 
-### Modes
-
-| Mode      | Description                                    |
-|-----------|------------------------------------------------|
-| `--docker`| Use Docker environment (PostgreSQL + Redis) - default |
-| `--lite`  | Use SQLite lightweight mode (no Docker required) |
-
-### Examples
+The script selects `.venv312`, `.venv` or `venv` and checks the Python runtime. It sets synthetic model/auth test values. Docker bootstrap creates tables and stamps the disposable schema at Alembic head; it does not test an existing production database upgrade.
 
 ```bash
-# Full CI with Docker (default)
-./scripts/ci/ci.sh all
-
-# Full CI with SQLite (lightweight)
-./scripts/ci/ci.sh all --lite
-
-# Backend tests with SQLite
 ./scripts/ci/ci.sh backend --lite
-
-# Frontend tests only
 ./scripts/ci/ci.sh frontend
-
-# E2E tests (Docker)
-./scripts/ci/ci.sh e2e
-
-# E2E tests (SQLite lite mode)
 ./scripts/ci/ci.sh e2e --lite
-
-# Start/stop Docker services
-./scripts/ci/ci.sh start
-./scripts/ci/ci.sh stop
 ```
 
-### Environment Variables
+## Local browser lanes
 
-The script sets these test environment variables automatically:
-
-| Variable              | Docker Mode Value                    | Lite Mode Value          |
-|-----------------------|-------------------------------------|--------------------------|
-| `DATABASE_URL`        | `postgresql://...@localhost:5433`   | `sqlite:///./test.db`    |
-| `REDIS_URL`           | `redis://localhost:6380/1`          | `redis://localhost:6379/1`|
-| `OPENAI_API_KEY`      | `test-key-for-ci-testing`           | Same                     |
-| `JWT_SECRET_KEY`      | `test-secret-key-...`               | Same                     |
-| `DEEPSEEK_API_KEY`    | `test-key-for-ci-testing`           | Same                     |
-
-### Browser lane selection
-
-`ci.sh e2e` now supports explicit browser lanes via `E2E_SUITE`:
-
-| E2E_SUITE | Purpose | Default CI role |
-|---|---|---|
-| `smoke` | Fast release-signal browser sanity | Local default |
-| `default` | Default required web functional gate | PR required |
-| `nightly` | Higher-value restored suites with dedicated fixtures | Nightly only |
-| `release` | Expensive or baseline-driven browser checks | Release/manual |
-| `full` | Everything currently automated via flags | Manual / branch-wide |
-
-Examples:
+| `E2E_SUITE` | Local selection |
+| --- | --- |
+| `smoke` (default) | `e2e/smoke.spec.ts`, Chromium |
+| `default` | Fixed account and business-flow list in `run_playwright_suite`, Chromium |
+| `nightly` | Versions and skill creation/flow files, with their feature flags |
+| `release` | Visual, performance, large-document, concurrent and voice files, with their flags |
+| `full` | Chromium suite with the listed opt-in flags enabled |
 
 ```bash
-# Required PR-style browser lane
 E2E_SUITE=default ./scripts/ci/ci.sh e2e --lite
-
-# Nightly lane
 E2E_SUITE=nightly ./scripts/ci/ci.sh e2e --lite
-
-# Release/manual lane
 E2E_SUITE=release ./scripts/ci/ci.sh e2e --lite
 ```
 
-## zenstory lane policy
+The script seeds test users and enables the optional inspiration module for managed browser servers. To test its disabled state, set both inspiration flags to false. A local lane and the GitHub lane with the same name can select different files; inspect `.github/workflows/e2e.yml` before comparing results.
 
-维护者治理说明见：
-
-- `docs/archive/design/e2e-lane-governance-2026-04.md`
-
-### Default required
-- `auth.spec.ts`
-- `session.spec.ts`
-- `projects.spec.ts`
-- `points.spec.ts`
-- `onboarding-persona.spec.ts`
-- `public-skills.spec.ts`
-- `referral.spec.ts`
-- `security.spec.ts`
-- `subscription.spec.ts`
-- `settings-regression.spec.ts`
-- `settings.spec.ts`
-- `smoke.spec.ts`
-
-### Nightly
-- `versions.spec.ts`
-- `skills.spec.ts`
-- `skills-flow.spec.ts`
-
-### Permanent opt-in / release-manual
-- `visual.spec.ts`
-- `performance.spec.ts`
-- `large-document.spec.ts`
-- `concurrent.spec.ts`
-- `voice.spec.ts` real interaction chain
-
-## Promotion rules
-
-### opt-in -> nightly
-- 7 consecutive days green
-- failure rate < 5%
-- no manual step required
-- seeded fixture / persona documented
-- reproducible in clean env
-
-### nightly -> default required
-- 14 consecutive days green
-- failure rate < 1%
-- fits PR runtime budget
-- no dependency on unstable external service
-- failures are diagnosable and reproducible
-
-### Docker Services
-
-In Docker mode, the script uses `apps/server/docker-compose.test.yml`:
-
-- **PostgreSQL**: Port 5433 (test database)
-- **Redis**: Port 6380 (test cache)
-
-### Cleanup
-
-- **Docker mode**: Automatic cleanup on script exit (via trap)
-- **Lite mode**: Automatic SQLite test database cleanup
-
-### Related Files
-
-- `apps/server/docker-compose.test.yml` - Docker test services configuration
-- `scripts/wait-for-services.sh` - Service health check utility
-
-## local-gha.sh - GitHub Workflow Local Mirror
-
-Run a GitHub-style local gate before push (especially useful when Actions quota is tight).
-
-### Usage
+## local-gha.sh
 
 ```bash
-./scripts/ci/local-gha.sh [--with-e2e] [--skip-db-tests]
-```
-
-### Examples
-
-```bash
-# Default local gate (lint + unit tests)
 ./scripts/ci/local-gha.sh
-
-# Include browser E2E
-./scripts/ci/local-gha.sh --with-e2e
-
-# Run zenstory nightly browser lane locally
-ZENSTORY_E2E_SUITE=nightly ./scripts/ci/local-gha.sh --with-e2e
-
-# Run without Docker (skip DB integration checks)
 ./scripts/ci/local-gha.sh --skip-db-tests
+./scripts/ci/local-gha.sh --with-e2e
+ZENSTORY_E2E_SUITE=nightly ./scripts/ci/local-gha.sh --with-e2e
 ```
 
-### Notes
+This wrapper runs lint and tests in Docker mode by default. `--skip-db-tests` chooses Lite mode for those stages, rather than skipping all database-backed tests. `--with-e2e` always invokes Docker E2E, even when combined with `--skip-db-tests`. The wrapper attempts to activate pnpm 10.29.3 through Corepack and prints the version actually used.
 
-- Script pins/activates pnpm `10.29.3` locally to match lockfile behavior.
-- zenstory checks reuse existing `ci.sh` Docker flow.
-- `--skip-db-tests` is available for environments where Docker is unavailable.
+## GitHub checks
 
-## changed-path-quick-gate.sh - Changed-path 快速门禁
+`.github/workflows/ci.yml` detects changed backend, frontend, CLI and CI paths, then requires the relevant jobs through `ci-summary`. Backend pytest has three shards and a combined 80% coverage gate. `.github/workflows/e2e.yml` owns browser runs and `e2e-summary`; exact-source main CI and E2E are required for production promotion.
 
-用于 PR 快速反馈：按变更路径只执行对应子集检查（不替代 full gate）。
+The historical 7/14-day suite-promotion criteria are recorded in the [April lane design](../../docs/archive/design/e2e-lane-governance-2026-04.md). They are not implemented as automatic gates. Change execution scope explicitly in the current scripts/workflow and review its fixtures, runtime and failure evidence.
 
-### Usage
+## Other helpers
 
-```bash
-CHANGED_SERVER_BACKEND=false \
-CHANGED_WEB_FRONTEND=false \
-CHANGED_CI=true \
-bash scripts/ci/changed-path-quick-gate.sh
-```
+- `diagnose-gha-failfast.sh <run-id>` or `--sha <commit>` reads check annotations when Actions fail before test execution.
+- `changed-path-quick-gate.sh` is an unconnected helper with stale references to deleted workflows. It is not a supported substitute for the current gates.
+- `check-workflow-results.mjs` validates CI/E2E result states. Deployment promotion, read-only receipts and staging cutover each have dedicated controls in this directory.
 
-### 在 CI 中
-
-- 由 `.github/workflows/quick-gate.yml` 通过 `dorny/paths-filter` 注入变更标记。
-- 典型检查：
-  - zenstory backend：ruff + 状态机契约测试子集
-  - web frontend：关键 vitest 子集
-  - CI 目录：shell 语法检查 + workflow YAML lint（若可用）
-
-## diagnose-gha-failfast.sh - 快速定位 Actions“秒失败”原因
-
-当 GitHub Actions 任务在 1-3 秒内全部失败时，可用该脚本快速读取 check-run annotation，定位是否为账号配额/计费问题。
-
-### Usage
-
-```bash
-./scripts/ci/diagnose-gha-failfast.sh <run-id>
-./scripts/ci/diagnose-gha-failfast.sh --sha <commit-sha>
-```
-
-### Examples
-
-```bash
-./scripts/ci/diagnose-gha-failfast.sh 22803763630
-./scripts/ci/diagnose-gha-failfast.sh --sha 4c3ece4974a7a9209186029bc769456b9182d8d6
-```
+For browser authoring, reports and fixtures, see [the Playwright guide](../../apps/web/e2e/README.md). For production authorization, source receipts, migrations and Worker draining, use [the release contract](../../docs/ops/release-ci-cd.md).

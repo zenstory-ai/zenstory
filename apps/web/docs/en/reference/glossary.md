@@ -2,7 +2,7 @@
 
 These terms describe workbench content and actions. Follow the related guides for unfamiliar labels.
 
-## Projects and evidence
+## Projects and materials
 
 | Term | Meaning |
 | --- | --- |
@@ -10,7 +10,7 @@ These terms describe workbench content and actions. Follow the related guides fo
 | File tree | A hierarchical list of files and folders |
 | Draft / Script | Text types included in manuscript TXT export |
 | Outline | Chosen direction and chapter or scene plan |
-| Character / Lore | Character evidence and story rules |
+| Character / Lore | Character notes and story rules |
 | Project material | Reference text in the tree, attachable to chat |
 | Materials Library | Your account's reference novels and breakdown results |
 
@@ -42,6 +42,6 @@ See [AI assistant](../user-guide/ai-assistant.md) and [AI Memory](../advanced/ai
 | Project snapshot | Project file state and version references at a moment |
 | Diff review | Accept or reject changes between old and proposed text |
 | Restore / Rollback | Replace a file or project with a selected historical state |
-| Export | Download saved drafts and scripts as an independent TXT |
+| Export | Download saved drafts and scripts as a TXT, optionally including outlines |
 
 See the [editor](../user-guide/editor.md), [version history](../user-guide/version-history.md), and [export](../user-guide/export.md).

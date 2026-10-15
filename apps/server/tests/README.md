@@ -1,566 +1,143 @@
-# 测试文档
+# 后端测试
 
-zenstory 后端测试套件使用 pytest 和相关工具为 FastAPI 应用提供全面的测试覆盖。
+ZenStory 后端用 pytest 测试 API、服务、写作 Agent、数据模型和素材处理流程。从 `apps/server` 运行以下命令；CI 的分片与 PostgreSQL 专项入口见[仓库 E2E 与 CI](../../../docs/development/e2e.md)。
 
-## 目录
+## 环境与快速检查
 
-- [测试目录结构](#测试目录结构)
-- [快速开始](#快速开始)
-- [运行测试](#运行测试)
-- [常见 Fixtures](#常见-fixtures)
-- [测试标记](#测试标记)
-- [Mock 外部依赖](#mock-外部依赖)
-- [测试示例](#测试示例)
-- [最佳实践](#最佳实践)
-
-## 测试目录结构
-
-```
-tests/
-├── conftest.py                  # 共享 fixtures 和 pytest 配置
-├── __init__.py
-├── test_api/                    # API 集成测试
-│   ├── __init__.py
-│   ├── test_auth.py            # 认证 API 测试
-│   ├── test_projects.py        # 项目 API 测试
-│   ├── test_files.py           # 文件 API 测试
-│   ├── test_versions.py        # 版本历史 API 测试
-│   ├── test_agent.py           # Agent API 测试
-│   ├── test_chat.py            # Chat API 测试
-│   └── test_export.py          # 导出 API 测试
-├── test_services/               # 服务层单元测试
-│   ├── __init__.py
-│   ├── test_file_version_service.py
-│   ├── test_snapshot_service.py
-│   ├── test_verification_service.py
-│   └── test_export_service.py
-├── test_agent/                  # Agent 系统测试
-│   ├── __init__.py
-│   ├── test_service.py         # Agent 核心服务
-│   ├── test_context_assembler.py
-│   ├── test_context_budget.py
-│   └── test_file_executor.py
-├── test_models/                 # 数据模型测试
-│   ├── __init__.py
-│   ├── test_entities.py        # 实体模型
-│   └── test_file_model.py      # 文件模型
-├── test_middleware/             # 中间件测试
-│   ├── __init__.py
-│   └── test_logging_middleware.py
-├── test_core/                   # 核心功能测试
-│   ├── __init__.py
-│   └── test_error_handler.py
-└── test_utils/                  # 工具函数测试
-    ├── __init__.py
-    └── test_security.py
-```
-
-## 快速开始
-
-### 前置要求
-
-1. **Python 环境**: Python 3.11 或 3.12
-2. **虚拟环境**:
-   ```bash
-   cd apps/server
-   # 推荐：优先使用 Python 3.12 环境（项目当前兼容性最佳）
-   python3.12 -m venv .venv312
-   source .venv312/bin/activate  # Windows: .venv312\Scripts\activate
-   ```
-
-3. **安装依赖**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### 运行测试
+使用 Python 3.12 或 3.13 的项目虚拟环境；CI 的后端测试使用 3.12，API 镜像使用 3.13。安装仓库已声明的依赖：
 
 ```bash
-# 运行所有测试
-pytest
-
-# 运行测试并显示详细输出
-pytest -v
-
-# 运行特定测试文件
-pytest tests/test_api/test_auth.py
-
-# 运行特定测试函数
-pytest tests/test_api/test_auth.py::test_register_success
-
-# 运行测试并生成覆盖率报告
-pytest --cov=. --cov-report=html --cov-report=term
-```
-
-### 使用 Makefile
-
-```bash
-# 检查当前测试环境解释器和关键依赖
+cd apps/server
+python3.12 -m venv .venv312
+source .venv312/bin/activate  # Windows: .venv312\Scripts\activate
+pip install -r requirements.txt
 make env-check
+```
 
-# 运行所有测试
+`Makefile` 依次选择 `.venv312`、`.venv`、`venv`，也可传 `make VENV=<path> ...`。普通测试用临时 SQLite 库和 mock 外部调用；PostgreSQL、Redis 的专项测试需要隔离服务。`tests/real_llm` 需显式开启 `RUN_REAL_LLM_TESTS`，文档整理和常规回归不启用付费模型调用。
+
+```bash
+# 单文件回归，不生成覆盖率
+pytest tests/test_api/test_auth.py -q --no-cov
+
+# 单个用例
+pytest tests/test_api/test_auth.py::test_register_success -q --no-cov
+
+# 按当前配置运行全部测试
 make test
 
-# 运行测试并生成覆盖率报告
-make test-cov
-
-# 只运行单元测试
-make test-unit
-
-# 只运行集成测试
-make test-integration
-
-# 运行测试（详细输出）
-make test-verbose
-```
-
-## 运行测试
-
-### 本地测试
-
-测试使用 SQLite 文件数据库（临时文件）进行，无需启动 PostgreSQL 或 Redis。
-
-```bash
-# 基础测试运行
-pytest
-
-# 建立不受默认 addopts 影响的收集/基线口径
+# 只收集，不继承默认覆盖率和并行参数
 pytest -o addopts='' --collect-only -q tests
 
-# 三条推荐 lane
+# 按风险范围分组
 make test-fast
 make test-risk
 make test-deep
-
-# 带覆盖率报告
-pytest --cov=. --cov-report=html
-# 查看 HTML 报告: open htmlcov/index.html
 ```
 
-### 使用 Docker 服务（可选）
+`pytest.ini` 默认开启 xdist、按模块分配和覆盖率报告。小范围检查可传 `-n 0 --no-cov`；彻底替换默认参数用 `-o addopts=''`。`test-fast` 覆盖服务、模型、工具、核心与中间件；`test-risk` 选择鉴权、文件、订阅和素材 API；`test-deep` 覆盖 Agent 与流程。各 lane 是选定范围，不替代 CI 全部门禁。
 
-如果需要测试 PostgreSQL 或 Redis 集成：
+## 目录与共享 Fixtures
 
-```bash
-# 启动测试环境
-make test-env-up
-# 或
-docker-compose -f docker-compose.test.yml up -d
+| 目录 | 内容 |
+| --- | --- |
+| `test_api/` | API 和权限、配额、并发契约 |
+| `test_services/` | 服务逻辑、版本、存储、导出和权益 |
+| `test_agent/` | 上下文、工具、编排、SSE 和交付证据 |
+| `test_flows/` | 素材处理的单元与集成测试 |
+| `test_prompts/` | 提示模板与加载器 |
+| `test_models/` | 数据模型与约束 |
+| `test_core/`、`test_middleware/`、`test_utils/`、`test_scripts/` | 错误处理、中间件、工具和维护脚本 |
+| `e2e/` | 后端端到端契约 |
+| `real_llm/` | 需显式开启的真实模型测试 |
 
-# 运行测试
-pytest
+`conftest.py` 提供：
 
-# 停止测试环境
-make test-env-down
-```
+- `db_session`：每个测试独立会话，结束后清理测试库；额度计量与写作配置也接到隔离数据库。
+- `client`：带 `ASGITransport` 的 `httpx.AsyncClient`，通过依赖覆盖使用 `db_session`，请求需 `await`。
+- `writing_prompt_configs`：创建合成的项目写作配置，供需要启动写作工作流的测试使用。
 
-## 常见 Fixtures
+另开数据库会话、后台任务或外部服务时，fixture 要同时管理其测试连接和清理。普通测试默认移除开发环境的 `REDIS_URL`；专项真实 Redis 连接遵循测试中的专用变量，不能接生产资源。
 
-### db_session
+## 编写数据与 API 测试
 
-提供测试数据库会话，每个测试后自动清理数据。
+项目通过 `owner_id` 关联作者。下面的 fixture 可供本文件中的服务测试使用：
 
 ```python
 import pytest
-from sqlmodel import Session
-from models import User
+from models import Project, User
 
-@pytest.mark.unit
-def test_create_user(db_session: Session):
+@pytest.fixture
+def test_project(db_session):
     user = User(
         username="testuser",
         email="test@example.com",
-        hashed_password="hashed"
+        hashed_password="fixture-only",
+        email_verified=True,
     )
     db_session.add(user)
     db_session.commit()
-    db_session.refresh(user)
-
-    assert user.id is not None
-    assert user.username == "testuser"
+    project = Project(name="Test Project", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+    return project
 ```
 
-### client (AsyncClient)
-
-提供异步 HTTP 客户端用于测试 FastAPI 端点。
+登录测试使用真实密码哈希；邮箱、模型和支付等外部服务在调用处替换。API 鉴权示例见 `tests/test_api/test_auth.py`，导出示例见 `tests/test_services/test_export_service.py`。注册成功测试还需配置邀请码策略并 mock 验证码发送，不能依赖开发机是否配置邮件服务。
 
 ```python
 import pytest
 from httpx import AsyncClient
 
 @pytest.mark.integration
-async def test_register_user(client: AsyncClient):
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "username": "testuser",
-            "email": "test@example.com",
-            "password": "password123"
-        }
-    )
+async def test_health(client: AsyncClient):
+    response = await client.get("/health")
     assert response.status_code == 200
-    data = response.json()
-    assert data["email"] == "test@example.com"
-```
-
-### 创建测试数据的 Fixtures
-
-```python
-@pytest.fixture
-def test_user(db_session: Session):
-    """创建测试用户"""
-    from services.core.auth_service import hash_password
-    user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password=hash_password("password123"),
-        email_verified=True,
-        is_active=True
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    return user
-
-@pytest.fixture
-def test_project(db_session: Session, test_user):
-    """创建测试项目"""
-    project = Project(
-        name="Test Project",
-        description="A test project",
-        user_id=test_user.id
-    )
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-    return project
-```
-
-## 测试标记
-
-使用 pytest 标记来分类测试：
-
-- `@pytest.mark.unit`: 单元测试（快速，隔离）
-- `@pytest.mark.integration`: 集成测试（较慢，可能使用外部服务）
-- `@pytest.mark.slow`: 慢速测试（可能超过 1 秒）
-- `@pytest.mark.asyncio`: 异步测试
-
-```python
-@pytest.mark.unit
-def test_user_model(db_session: Session):
-    """单元测试示例"""
-    pass
-
-@pytest.mark.integration
-async def test_api_endpoint(client: AsyncClient):
-    """集成测试示例"""
-    pass
-```
-
-运行特定标记的测试：
-
-```bash
-# 只运行单元测试
-pytest -m unit
-
-# 只运行集成测试
-pytest -m integration
-
-# 排除慢速测试
-pytest -m "not slow"
 ```
 
 ## Mock 外部依赖
 
-### Mock DeepSeek/OpenAI-compatible API
-
-使用 `pytest-mock` 的 `mocker` fixture：
+在使用对象的模块中 patch 导入名称。验证码服务使用同步 Redis 辅助函数，经 `asyncio.to_thread` 调用；mock 这些函数，而非构造不存在的服务类：
 
 ```python
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from services.features import verification_service
 
-@pytest.mark.integration
-async def test_agent_stream(mocker, client: AsyncClient):
-    # Mock DeepSeek/OpenAI-compatible 客户端
-    mock_llm = AsyncMock()
-    mock_llm.chat.completions.create.return_value = MagicMock(
-        choices=[MagicMock(message=MagicMock(content="Test response")))]
-    )
+@pytest.mark.unit
+async def test_verification_code(mocker):
+    prefix = "services.features.verification_service"
+    mocker.patch(f"{prefix}.get_verification_attempts", return_value=0)
+    mocker.patch(f"{prefix}.get_verification_code", return_value="123456")
+    mocker.patch(f"{prefix}.consume_verification_code", return_value=True)
+    mocker.patch(f"{prefix}.reset_verification_attempts", return_value=True)
 
-    # 注入 mock
-    mocker.patch("agent.core.deepseek_client.get_deepseek_client", return_value=mock_llm)
-
-    # 测试代码
-    response = await client.post("/agent/stream", json={...})
-    assert response.status_code == 200
+    result = await verification_service.verify_code("test@example.com", "123456")
+    assert result == (True, None)
 ```
 
-### Mock Redis 客户端
+邮件发送的底层调用是 `services.infra.email_client.resend.Emails.send`，应用服务常在自己的导入名称上 mock `send_verification_email`。Agent 回归按实际调用层替换模型，参考 `tests/test_agent/test_service.py`；SSE 流式事件需要可异步迭代的 mock，不能用普通消息对象冒充流。
 
-```python
-@pytest.mark.unit
-async def test_verification_service(mocker):
-    # Mock Redis 客户端
-    mock_redis = AsyncMock()
-    mock_redis.set.return_value = True
-    mock_redis.get.return_value = "123456"
-    mock_redis.delete.return_value = 1
+## 测试标记
 
-    mocker.patch(
-        "services.infra.redis_client.get_redis_client",
-        return_value=mock_redis
-    )
+| 标记 | 用途 |
+| --- | --- |
+| `unit` | 隔离的单元测试 |
+| `integration` | API、服务组合或外部基础设施集成 |
+| `e2e` | 完整链路契约 |
+| `real_llm` | 真实模型调用，仍须显式环境开关 |
+| `slow` | 慢速用例 |
+| `asyncio` | 异步用例；仓库配置为 `asyncio_mode=auto` |
 
-    # 测试验证码服务
-    from services.features.verification_service import VerificationService
-    result = await VerificationService.verify_code("test@example.com", "123456")
-    assert result is True
-```
-
-### Mock 邮件服务
-
-```python
-@pytest.mark.unit
-async def test_email_sending(mocker):
-    # Mock Resend 客户端
-    mock_resend = mocker.patch("resend.Resend")
-
-    # 测试发送邮件
-    from services.infra.email_client import EmailClient
-    await EmailClient.send_verification_email("test@example.com", "123456")
-
-    # 验证 mock 被调用
-    mock_resend.return_value.emails.send.assert_called_once()
-```
-
-## 测试示例
-
-### API 测试示例
-
-```python
-"""
-tests/test_api/test_auth.py
-"""
-import pytest
-from httpx import AsyncClient
-from models import User
-from services.core.auth_service import hash_password
-
-@pytest.mark.integration
-async def test_register_success(client: AsyncClient):
-    """测试用户注册"""
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "username": "testuser",
-            "email": "test@example.com",
-            "password": "password123",
-            "language": "zh"
-        }
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["email"] == "test@example.com"
-    assert data["email_verified"] is False
-
-
-@pytest.mark.integration
-async def test_login_success(client: AsyncClient, db_session):
-    """测试用户登录"""
-    # 创建测试用户
-    user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password=hash_password("password123"),
-        email_verified=True,
-        is_active=True
-    )
-    db_session.add(user)
-    db_session.commit()
-
-    # 测试登录
-    response = await client.post(
-        "/api/auth/login",
-        data={  # OAuth2 使用 form data
-            "username": "test@example.com",
-            "password": "password123"
-        }
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert "refresh_token" in data
-
-
-@pytest.mark.integration
-async def test_protected_route(client: AsyncClient):
-    """测试受保护的路由"""
-    # 无 token 访问
-    response = await client.get("/api/auth/me")
-    assert response.status_code == 401
-
-    # 有 token 访问
-    token = "your_test_token_here"
-    response = await client.get(
-        "/api/auth/me",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 200
-```
-
-### 服务层测试示例
-
-```python
-"""
-tests/test_services/test_export_service.py
-"""
-import pytest
-from sqlmodel import Session
-from models import File, Project, User
-from services.features.export_service import export_drafts_to_txt
-
-@pytest.fixture
-def test_user(db_session: Session):
-    """创建测试用户"""
-    user = User(
-        email="test@example.com",
-        username="testuser",
-        hashed_password="hashed",
-        email_verified=True,
-        is_active=True
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-def test_project(db_session: Session, test_user):
-    """创建测试项目"""
-    project = Project(
-        name="Test Project",
-        description="Test description",
-        user_id=test_user.id
-    )
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-    return project
-
-
-@pytest.mark.unit
-def test_export_single_draft(db_session: Session, test_project):
-    """测试导出单个草稿"""
-    # 创建草稿文件
-    draft = File(
-        title="第一章",
-        content="这是第一章的内容",
-        file_type="draft",
-        project_id=test_project.id,
-        order=1
-    )
-    db_session.add(draft)
-    db_session.commit()
-
-    # 测试导出
-    result = export_drafts_to_txt(db_session, test_project.id)
-
-    assert "第一章" in result
-    assert "这是第一章的内容" in result
-```
-
-### 模型测试示例
-
-```python
-"""
-tests/test_models/test_entities.py
-"""
-import pytest
-from sqlmodel import Session
-from models import User, Project
-from sqlalchemy import select
-
-@pytest.mark.unit
-def test_user_model_fields(db_session: Session):
-    """测试 User 模型字段验证"""
-    user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed_password_123",
-        is_active=True,
-        email_verified=True
-    )
-
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    # 验证所有字段
-    assert user.id is not None
-    assert user.username == "testuser"
-    assert user.email == "test@example.com"
-    assert user.is_active is True
-    assert user.created_at is not None
-    assert user.updated_at is not None
-
-
-@pytest.mark.unit
-def test_user_unique_email(db_session: Session):
-    """测试邮箱唯一约束"""
-    # 第一个用户
-    user1 = User(
-        username="user1",
-        email="duplicate@example.com",
-        hashed_password="password1"
-    )
-    db_session.add(user1)
-    db_session.commit()
-
-    # 第二个用户（相同邮箱）
-    user2 = User(
-        username="user2",
-        email="duplicate@example.com",
-        hashed_password="password2"
-    )
-    db_session.add(user2)
-
-    # 应该抛出异常
-    with pytest.raises(Exception):  # IntegrityError
-        db_session.commit()
-
-
-@pytest.mark.unit
-def test_user_project_relationship(db_session: Session):
-    """测试用户-项目关系"""
-    # 创建用户
-    user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed"
-    )
-    db_session.add(user)
-    db_session.commit()
-
-    # 创建项目
-    project = Project(
-        name="Test Project",
-        user_id=user.id
-    )
-    db_session.add(project)
-    db_session.commit()
-
-    # 验证关系
-    assert project.user_id == user.id
-    assert project.user.username == "testuser"
+```bash
+pytest -m unit
+pytest -m integration
+pytest -m "not slow"
 ```
 
 ## 最佳实践
 
 ### 1. 测试隔离
 
-每个测试应该独立，不依赖其他测试的状态：
+每个测试独立准备数据，不依赖其他测试的执行顺序：
 
 ```python
 # ❌ 不好：依赖测试顺序
@@ -603,7 +180,7 @@ def test_2():
 
 ### 3. 测试命名
 
-使用描述性的测试名称：
+测试名称说明触发条件和预期结果：
 
 ```python
 # ❌ 不好
@@ -635,19 +212,7 @@ def test_user_update(db_session: Session):
 
 ### 5. 测试边界情况
 
-```python
-@pytest.mark.unit
-def test_delete_nonexistent_file(db_session: Session):
-    """测试删除不存在的文件"""
-    with pytest.raises(Exception):
-        delete_file(db_session, file_id=99999)
-
-@pytest.mark.unit
-def test_create_file_with_empty_title(db_session: Session):
-    """测试创建空标题文件"""
-    with pytest.raises(ValidationError):
-        File(title="", content="content")
-```
+在实际 API 或服务入口验证不存在的资源、空值、越权和并发冲突，断言具体状态或异常类型。请求验证由 API schema 负责，不能用数据库模型构造代替。参考 `tests/test_api/test_files.py` 和 `tests/test_models/test_file_model.py`。
 
 ### 6. 使用 Fixture 复用代码
 
@@ -682,7 +247,7 @@ def test_user(db_session: Session):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_async_endpoint(client: AsyncClient):
-    response = await client.get("/api/projects")
+    response = await client.get("/health")
     assert response.status_code == 200
 ```
 
@@ -700,76 +265,28 @@ def test_user_password():
 assert user.hashed_password == "plaintext_password"
 ```
 
-## 调试测试
-
-### 查看输出
+## 调试与覆盖率
 
 ```bash
-# 显示 print 输出
-pytest -s
-
-# 显示详细输出
-pytest -vv
-
-# 只显示失败的测试详情
-pytest --tb=short
-```
-
-### 停在第一个失败
-
-```bash
-pytest -x
-```
-
-### 进入调试器
-
-```python
-def test_something():
-    import pdb; pdb.set_trace()
-    # 测试代码
-```
-
-或使用 pytest 的断点：
-
-```bash
-pytest --pdb
-```
-
-## 覆盖率报告
-
-### 生成覆盖率报告
-
-```bash
-# HTML 报告
-pytest --cov=. --cov-report=html
-open htmlcov/index.html
-
-# 终端报告
-pytest --cov=. --cov-report=term
-
-# XML 报告（用于 CI）
+pytest -s                # 显示输出
+pytest -vv              # 详细结果
+pytest --tb=short        # 简短失败堆栈
+pytest -x               # 首个失败后停止
+pytest --pdb -n 0        # 在单进程中调试
+pytest --cov=. --cov-report=html --cov-report=term
 pytest --cov=. --cov-report=xml
 ```
 
-### 覆盖率目标
-
-- **整体覆盖率**: 目标 > 80%
-- **核心模块**: 目标 > 90%
-- **API 路由**: 目标 > 85%
+HTML 报告位于 `htmlcov/index.html`。CI 合并后端分片后执行整体覆盖率 `--fail-under=80`；单次本地 pytest 的默认门槛为 0，不代表 CI 已通过。覆盖率只说明执行范围，不能代替具体行为断言。
 
 ## 常见问题
 
-### 1. 测试数据库连接错误
+- 数据库连接错误：核对是否使用 `db_session`，额外会话是否连接同一测试库。
+- 异步测试失败：核对 `async/await` 和 fixture 类型；需要显式事件循环行为时参考相邻测试。
+- Mock 不生效：核对调用模块实际绑定的导入名称，避免 patch 了定义模块却漏掉使用方。
+- 数据污染：结束后台任务并关闭额外会话；不要让测试资源指向开发或生产数据。
 
-确保使用 `db_session` fixture 而不是创建新的数据库连接。
-
-### 2. 异步测试失败
-
-确保使用 `@pytest.mark.asyncio` 和 `async/await`。
-
-### 3. Mock 不生效
-
-确保 mock 的路径与实际导入路径一致：
+Mock 路径对照：
 
 ```python
 # ❌ 不好
@@ -779,13 +296,4 @@ mocker.patch("module.Class", ...)
 mocker.patch("actual.import.path.module.Class", ...)
 ```
 
-### 4. 测试间数据污染
-
-每个测试后 `db_session` 会自动清理，但如果使用原生 SQL 或其他 session，需要手动清理。
-
-## 更多资源
-
-- [Pytest 文档](https://docs.pytest.org/)
-- [FastAPI 测试文档](https://fastapi.tiangolo.com/tutorial/testing/)
-- [SQLModel 文档](https://sqlmodel.tiangolo.com/)
-- [项目 CLAUDE.md](../../CLAUDE.md)
+项目规则见[根 AGENTS.md](../../../AGENTS.md)，写作 Agent 契约见[子系统指南](../agent/AGENTS.md)。

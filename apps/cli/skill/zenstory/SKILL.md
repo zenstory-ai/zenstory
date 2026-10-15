@@ -11,9 +11,9 @@ metadata:
 
 # ZenStory
 
-ZenStory is an AI-assisted novel writing workbench. Everything in a project is a **file**
-(outline, draft chapter, character, lore, material, folder) arranged in a folder tree. This
-skill operates those files with the `zenstory` CLI, which wraps the public Agent API.
+ZenStory is an AI-assisted novel writing workbench. Projects hold outlines, draft
+chapters, characters, lore and materials as **files** in a folder tree. Use this skill
+to read and update those files through the `zenstory` CLI and public Agent API.
 
 ## Running the CLI
 
@@ -72,8 +72,8 @@ and what writing-context returns.
    ```bash
    zenstory context <projectId> --file <chapterId> --query "what happens next" --json
    ```
-   This returns AI-ranked snippets (parent outline, previous chapter, characters, lore,
-   retrieved passages). Open any item you need in full with `zenstory files get <source_file_id>`.
+   This returns snippets ranked by the context assembler (parent outline, previous
+   chapter, characters, lore and retrieved passages). Read any needed item in full with `zenstory files get <source_file_id>`.
 3. Note the chapter's current `updated_at`, then read it into a private temp directory
    (use one directory per session and name files by file id):
    ```bash
@@ -89,9 +89,8 @@ and what writing-context returns.
      --if-updated-at <updated_at> --json
    ```
    If it fails with "changed on the server", re-read, re-merge, and retry with the new
-   `updated_at`. The server records a version of every content change unless the plan's
-   per-file version quota is full (see [Undo](#undo-a-change)); the CLI also saves the
-   previous content locally and prints `backupPath` as a second safety net.
+   `updated_at`. The CLI returns a local `backupPath` for previous non-empty content; see
+   [Undo](#undo-a-change) for server history and quota limits.
 
 `files put` **replaces the whole content**. Never put a partial chapter or a summary back.
 It refuses content shorter than half of the current text unless you pass `--allow-shrink`
@@ -107,8 +106,9 @@ zenstory files create <projectId> --type draft --title "第十三章 关山对�
 ```
 
 Match the title pattern of existing chapters (look at `files list --type draft`) and pass
-`--order <chapter number>` so chapters sort in reading order (without it the new file goes
-after its last sibling; chapter titles like `第N章` / `Chapter N` always sort by N). For a chapter
+`--order <chapter number>` so chapters sort in reading order. Without it, the server uses a chapter number
+from the title or metadata, then falls back to placing the file after its last sibling.
+Chapter titles like `第N章` / `Chapter N` take priority over explicit order. For a chapter
 outline use `--type outline` under the outline folder. Fix the order of an existing file
 with `files put <fileId> --order <n>`.
 
@@ -141,10 +141,11 @@ source with `files get <id>` before asserting a fact. Search reads the current f
 
 ## Undo a change
 
-Every content change made through the CLI (and the web editor) is recorded as a version,
+Every content change made through the CLI is recorded as a version,
 unless the plan's per-file version quota is full: then the content is still saved, the CLI
-prints a warning (`version_quota_exceeded: true` in `--json`) and only the local
-`backupPath` copy of the previous content remains. Tell the user when that happens.
+prints a warning (`version_quota_exceeded: true` in `--json`). Keep the local
+`backupPath` for the previous non-empty content; do not assume the new content has a
+server version. Tell the user when that happens.
 
 ```bash
 zenstory files versions <fileId> --json            # newest first, no content
@@ -152,8 +153,10 @@ zenstory files version <fileId> <n> -o "$dir/<fileId>-v<n>.md"   # inspect versi
 zenstory files rollback <fileId> <n> --yes --json  # restore it; prints new_version_number
 ```
 
-A rollback keeps the history: the restored content becomes a new version, so it can be
-undone too. Ask the user before rolling back. If `new_version_number` is `null`, the
+A rollback keeps existing history and records the restored content as a new version
+when the quota permits. Current text not already in history is backed up as a system
+version before the restore; if that backup fails, the restore is rejected. Ask the user
+before rolling back. If `new_version_number` is `null`, the
 content was restored but no new version was recorded — because the per-file version quota
 is full when `version_quota_exceeded` is `true`, otherwise because the snapshot could not
 be saved. Files created with content
@@ -176,7 +179,6 @@ second net (e.g. for files whose history started before the CLI touched them).
 - **Stay in scope.** Only touch the project the user named. If a command fails with exit
   `3` on write, the key likely lacks the `write` scope or is limited to other projects —
   report it instead of retrying.
-- Prefer `--json` for anything you parse; use human output only to show the user.
 
 ## Reference
 

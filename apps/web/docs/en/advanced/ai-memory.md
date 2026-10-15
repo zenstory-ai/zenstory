@@ -44,7 +44,7 @@ Do not change files or memory yet.
 
 Save the accepted correction yourself or ask the AI to update named fields. Correcting memory does not automatically repair prose. If the plot changes, decide separately which files need revision.
 
-## Leave a starting point for a new chat
+## Record progress before a new chat
 
 Record completed work, open decisions, and the next task. A new chat retains project memory, but it does not include every old message or the whole book in full. Open the target and quote key evidence before continuing.
 

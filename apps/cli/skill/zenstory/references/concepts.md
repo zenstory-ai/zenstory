@@ -16,12 +16,12 @@ Derived from the ZenStory backend (`models/file_model.py`, `config/project_templ
 
 ## Projects
 
-A project is one work. `project_type` is one of:
+A project contains one work. Its `project_type` is one of:
 
 | Type | Meaning |
 |---|---|
 | `novel` | Long-form serialized novel (the default) |
-| `short` | Stand-alone short story (5k–20k characters) |
+| `short` | Stand-alone short story; the project type imposes no word-count limit |
 | `screenplay` | Short-drama / screenplay project; body text uses `script` files |
 
 ## Files and file types
@@ -59,7 +59,7 @@ Folder titles are Chinese or English depending on the user's language at creatio
 (Agent API: the `Accept-Language` header, Chinese by default). Users may rename or delete
 folders and add subfolders (e.g. per volume: `第一卷`) — check `zenstory files tree`.
 
-Rules of thumb:
+Working with folders:
 
 - Put each file under the folder for its type. The API only accepts a folder of the same
   project as parent; move misplaced files with `files move <fileId> --parent <folderId>`.
@@ -75,20 +75,22 @@ in its title or metadata (`chapter_number`, `episode_number`, ...), else it goes
 last sibling. For `draft`, `outline` and `script` files a chapter-like title (`第N章`,
 `第N集`, `Chapter N`) always sorts by N — the title wins over an explicit `--order`,
 exactly as in the web app. The writing-context
-engine picks the "previous chapter" by `order`, so give chapters their number.
+assembler uses `order` to find the previous chapter; use chapter numbers for this field.
 
 ## Version history
 
-Each file has a version history shared with the web app's history panel. A version is
-recorded when a file is created with content and whenever its content changes (web
-editor, ZenStory AI, or `files put`); title/order-only updates and moves record none.
+Each file has a version history shared with the web app's history panel. The Agent
+API records non-empty creation and content changes; title/order-only updates and moves
+record none. Web-editor saves may coalesce into one recent user version, while the
+built-in writing agent records AI versions under its own path.
 Versions are numbered from 1 per file; `files versions` lists them newest first.
-`files rollback <fileId> <n> --yes` restores version n and records the restored content
-as a new version, so nothing is lost. Versions are recorded unless the plan's per-file
-version quota is full: then creates, edits and rollbacks still save the content but add no
-new version (`version_quota_exceeded: true`), the CLI prints a warning, and the only copy
-of the previous content is the local backup `files put` keeps
-(`~/.cache/zenstory/backups`).
+`files rollback <fileId> <n> --yes` restores version n, recording a new restore version
+when the user quota permits. Before a restore, current text not already in history is
+saved as a system backup version; a backup failure aborts the restore.
+
+The Agent API saves content even when the user version quota is full, returning
+`version_quota_exceeded: true`. The CLI warns. For `files put`, retain the local
+pre-write backup in `~/.cache/zenstory/backups`; the new text may have no server version.
 
 ## Writing context
 
@@ -102,12 +104,13 @@ assembler the built-in ZenStory AI uses. It can include:
 
 Items are deduplicated, ranked by priority and query relevance, and trimmed to a token
 budget. Each item has `type` (`outline`, `character`, `lore`, `snippet`, `quote`, ...),
-`title`, `content_snippet` (≤ 500 chars), `source_file_id` and `relevance`. Note: body
+`title`, `content_snippet` (up to 500 original characters plus `...` when truncated), `source_file_id` and `relevance`. Note: body
 text files (`draft`, `script`, `document`) are currently reported with `type: "outline"`
 — check the real type with `files get <source_file_id> --fields file_type --json` when it
 matters. Snippets are
 previews: fetch full text with `zenstory files get <source_file_id>` when details matter.
-`--max-items` is 1–30 (default 10); the whole payload is capped near 50 KB.
+`--max-items` is 1–30 (default 10); the server caps the summed serialized entry
+lengths near 50 K characters.
 
 ## Search
 
