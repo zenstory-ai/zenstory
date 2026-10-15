@@ -440,10 +440,10 @@
         "thisMonth": "本月你写"
       },
       "total": "总字数",
-      "breakdown": "你写 {{mine}} · AI 写 {{ai}}",
-      "words": "{{count}} 字",
-      "words_one": "{{count}} 字",
-      "words_other": "{{count}} 字",
+      "breakdown": "你写 {{mine}} · AI 写 {{ai}}",
+      "words": "{{formatted}} 字",
+      "words_one": "{{formatted}} 字",
+      "words_other": "{{formatted}} 字",
       "trend": {
         "title": "字数趋势",
         "daily": "每日",
@@ -459,7 +459,7 @@
       "total_other": "共 {{count}} 章",
       "percentage": "{{percent}}% 完成",
       "noChapters": "暂无章节",
-      "planned": "计划中",
+      "planned": "还没开始",
       "inProgress": "写作中",
       "finished": "已完成"
     },
@@ -711,7 +711,7 @@
   },
   "projectStatistics": {
     "back": "返回创作",
-    "loading": "正在加载统计",
+    "loading": "正在加载统计…",
     "empty": "暂无统计数据",
     "refreshError": "刷新失败，已保留上次数据",
     "overview": "写作概况",
@@ -723,9 +723,8 @@
       "monthly": "本月"
     },
     "progress": "正文进度",
-    "noPlan": "尚未设置计划总数",
     "trendNote": "仅统计你在编辑器里写的净字数，不含 AI 写入",
-    "trendLoading": "正在加载趋势",
+    "trendLoading": "正在加载趋势…",
     "trendError": "字数趋势加载失败",
     "trendRetry": "重试趋势",
     "streakNote": "连续天数仅计手写满 10 字的日期，不含 AI",

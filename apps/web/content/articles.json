@@ -17706,12 +17706,12 @@
       "en": "How to Design a Game Level"
     },
     "description": {
-      "zh": "用进入时的状态、新决定、场景反馈和段落收尾组织关卡，让后一段重新使用已学规则，而非重复堆敌人与谜题。",
-      "en": "Plan level pacing with entry states, new decisions, visible responses, and end markers; recombine learned rules instead of adding enemies and puzzles."
+      "zh": "用进入时的状态、本段作用、场景反馈和段落收尾组织关卡，让后一段重新使用已学规则，而非重复堆敌人与谜题。",
+      "en": "Plan level pacing with entry states, segment purposes, visible responses, and end markers; recombine learned rules instead of adding enemies and puzzles."
     },
     "answer": {
-      "zh": "游戏关卡节奏来自玩家判断怎样变化，不只来自敌人更多或时间更紧。先写玩家进入本段时已经会什么，再安排一个新的决定，用空间或局面让这个决定有分量；结果要有看得见的反馈和明确的收尾提示。后一段再重组旧规则，让默认动作失效、冲突或承担新代价。",
-      "en": "Game-level pacing comes from changes in the decisions players make, not just from adding enemies or tightening time limits. First note what players know when they enter a segment. Then introduce a new decision and build a space or situation that makes it matter. The outcome should produce a visible response and an observable end marker. In the next segment, recombine earlier rules so the default action fails, conflicts with another demand, or carries a new cost."
+      "zh": "游戏关卡节奏来自玩家判断怎样变化，不只来自敌人更多或时间更紧。先写玩家进入本段时已经会什么，再定下本段作用（教学、组合运用、练习、恢复或收束），用空间或局面承载它；结果要有看得见的反馈和明确的收尾提示。后一段再重组旧规则，让默认动作失效、冲突或承担新代价。",
+      "en": "Game-level pacing comes from changes in the decisions players make, not just from adding enemies or tightening time limits. First note what players know when they enter a segment. Then decide the segment’s purpose (teaching, combining rules, practice, recovery, or closing) and build a space or situation that carries it. The outcome should produce a visible response and an observable end marker. In the next segment, recombine earlier rules so the default action fails, conflicts with another demand, or carries a new cost."
     },
     "sections": [
       {
@@ -17817,8 +17817,8 @@
     "skill": {
       "name": "game-world-design",
       "text": {
-        "zh": "在已有 SOURCE_BIBLE.md、选定 CONCEPT.md 与 PRODUCT_BRIEF.md 的项目中，用 `/game-world-design`（Codex 用 `$game-world-design`）写关卡路线：逐段列进入状态、新决定、玩家动作、世界回应、结束标记和下一段重组，并做默认动作与删除测试。只交付设计，不构建或宣称完成试玩。",
-        "en": "In a project that already has SOURCE_BIBLE.md, a selected CONCEPT.md, and PRODUCT_BRIEF.md, use `/game-world-design` (or `$game-world-design` in Codex) to write a level route. For each segment, list its entry state, new decision, player action, world response, end marker, and the next recombination, then run the default-action and deletion tests. Deliver the design only; do not build it or claim that playtesting is complete."
+        "zh": "在已有 SOURCE_BIBLE.md、选定 CONCEPT.md 与 PRODUCT_BRIEF.md 的项目中，用 `/game-world-design`（Codex 用 `$game-world-design`）写关卡路线：逐段列进入状态、本段作用、玩家动作、世界回应、结束标记和下一段重组，并做默认动作与删除测试。只交付设计，不构建或宣称完成试玩。",
+        "en": "In a project that already has SOURCE_BIBLE.md, a selected CONCEPT.md, and PRODUCT_BRIEF.md, use `/game-world-design` (or `$game-world-design` in Codex) to write a level route. For each segment, list its entry state, segment purpose, player action, world response, end marker, and the next recombination, then run the default-action and deletion tests. Deliver the design only; do not build it or claim that playtesting is complete."
       },
       "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md"
     },
@@ -20880,8 +20880,8 @@
       "zh": "小说结尾怎么写才满足"
     },
     "description": {
-      "en": "Trace the story’s promises, make the final choice cost something, and give the protagonist a concrete new state in the last scene.",
-      "zh": "从开篇承诺倒推结尾，让最终选择付出代价，并在末场交代主角的新处境。"
+      "en": "Trace the story’s promises, show what the protagonist’s key choice produced, and give the protagonist a concrete new state in the last scene.",
+      "zh": "从开篇承诺倒推结尾，展示主角关键选择带来的结果，并在末场交代主角的新处境。"
     },
     "answer": {
       "en": "A satisfying ending pays off the story’s main promise and shows the result of the protagonist’s key choice or contribution. List the questions you opened, decide which must be answered on-page, then let the final scene demonstrate established consequences and the new normal.",

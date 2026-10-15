@@ -15,6 +15,8 @@ const periods = [
   { id: 'monthly', mine: 'words_this_month', ai: 'ai_words_this_month', label: 'thisMonth' },
 ] as const;
 const panelClass = 'rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]';
+// Seven-digit totals stay on one line on a 320px phone; the size shrinks rather than splitting the number.
+const figureClass = 'mt-2 whitespace-nowrap text-[clamp(1.25rem,6.5vw,1.875rem)] font-semibold tabular-nums md:text-4xl';
 
 /** Show useful project facts immediately; only long lists and trends need opening. */
 export default function ProjectDashboardPage() {
@@ -42,8 +44,8 @@ export default function ProjectDashboardPage() {
     <main className="ui-sans-headings min-h-dvh bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))]">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
         <header className="mb-5">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{t('dashboard.title')}</h1>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <h1 className="min-w-0 text-2xl font-semibold tracking-tight">{t('dashboard.title')}</h1>
             <div className="flex shrink-0 items-center gap-2">
               <IconButton
                 label={t('common.refresh', '刷新')}
@@ -82,27 +84,27 @@ export default function ProjectDashboardPage() {
             <section className={panelClass} aria-labelledby="project-overview-title">
               <h2 id="project-overview-title" className="sr-only">{t('projectStatistics.overview')}</h2>
               <dl className="grid grid-cols-2 divide-x divide-[hsl(var(--border-color))]">
-                <div className="min-w-0 p-5 md:p-6">
+                <div className="min-w-0 p-4 sm:p-5 md:p-6">
                   <dt className="text-sm text-[hsl(var(--text-secondary))]">{t('statistics.wordCount.total')}</dt>
-                  <dd className="mt-2 break-words text-3xl font-semibold tabular-nums md:text-4xl">{format(stats.total_word_count)}</dd>
+                  <dd className={figureClass}>{format(stats.total_word_count)}</dd>
                 </div>
-                <div className="min-w-0 p-5 md:p-6">
+                <div className="min-w-0 p-4 sm:p-5 md:p-6">
                   <dt className="text-sm text-[hsl(var(--text-secondary))]">{t(`statistics.wordCount.${period.label}`)}</dt>
-                  <dd className="mt-2 break-words text-3xl font-semibold tabular-nums md:text-4xl">{format(mine + ai)}</dd>
+                  <dd className={figureClass}>{format(mine + ai)}</dd>
                   <dd className="mt-2 text-xs leading-5 text-[hsl(var(--text-secondary))]">
                     {t('statistics.wordCount.breakdown', { mine: format(mine), ai: format(ai) })}
                   </dd>
                 </div>
               </dl>
               <div className="border-t border-[hsl(var(--border-color))] px-4 py-3 md:flex md:items-center md:justify-between md:gap-4">
-                <div className="flex rounded-xl bg-[hsl(var(--bg-primary))] p-1 md:min-w-72" role="group" aria-label={t('projectStatistics.period')}>
+                <div className="flex rounded-xl bg-[hsl(var(--bg-primary))] p-1 md:min-w-72 md:shrink-0" role="group" aria-label={t('projectStatistics.period')}>
                   {periods.map(item => (
                     <button
                       key={item.id}
                       type="button"
                       aria-pressed={timeRange === item.id}
                       onClick={() => setTimeRange(item.id)}
-                      className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${timeRange === item.id ? 'bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))]' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]'}`}
+                      className={`min-h-11 flex-1 whitespace-nowrap rounded-lg px-2 text-sm sm:px-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ${timeRange === item.id ? 'bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))]' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]'}`}
                     >
                       {t(`projectStatistics.periods.${item.id}`)}
                     </button>
@@ -120,7 +122,7 @@ export default function ProjectDashboardPage() {
                     {t(statsUnitKey(stats, 'written'), { count: writtenChapters(stats.chapter_completion) })}
                   </p>
                   <p className="text-sm text-[hsl(var(--text-secondary))]">
-                    {planned === null ? t('projectStatistics.noPlan') : t(statsUnitKey(stats, 'plannedCount'), { count: planned })}
+                    {planned === null ? t(statsUnitKey(stats, 'noPlanHint')) : t(statsUnitKey(stats, 'plannedCount'), { count: planned })}
                   </p>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[hsl(var(--text-secondary))]">
@@ -168,8 +170,8 @@ export default function ProjectDashboardPage() {
                             <>
                               <span className="min-w-0 break-words text-sm font-medium">{chapter.title}</span>
                               <span className="mt-1 block text-xs text-[hsl(var(--text-secondary))]">
-                                {t(`statistics.chapterCompletion.${state}`)} · {t('statistics.wordCount.words', { count: chapter.word_count })}
-                                {chapter.target_word_count ? ` / ${t('statistics.wordCount.words', { count: chapter.target_word_count })}` : ''}
+                                {t(`statistics.chapterCompletion.${state}`)} · {t('statistics.wordCount.words', { count: chapter.word_count, formatted: format(chapter.word_count) })}
+                                {chapter.target_word_count ? ` / ${t('statistics.wordCount.words', { count: chapter.target_word_count, formatted: format(chapter.target_word_count) })}` : ''}
                               </span>
                             </>
                           );

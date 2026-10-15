@@ -111,6 +111,46 @@ for (const width of [390, 768, 1440]) for (const locale of ['zh', 'en']) for (co
   });
 }
 
+for (const width of [320, 360]) for (const locale of ['zh', 'en']) {
+  test(`million-word totals stay on one line without sideways scrolling at ${width}px ${locale}`, async ({ page }) => {
+    test.skip(baseline, 'The baseline screenshots have their own read-only capture below');
+    await page.setViewportSize({ width, height: 740 });
+    await fixture(page, locale);
+    await page.route(`**/api/v1/projects/${projectId}/stats?**`, route => route.fulfill({ json: {
+      ...facts, total_word_count: 12345678, words_today: 1180000, ai_words_today: 98000,
+    } }));
+    await page.goto(`/project/${projectId}/dashboard`);
+    for (const value of ['12,345,678', '1,278,000']) {
+      const figure = page.getByText(value, { exact: true });
+      await expect(figure).toBeVisible();
+      const lineHeight = await figure.evaluate(element => parseFloat(getComputedStyle(element).lineHeight));
+      expect((await figure.boundingBox())!.height).toBeLessThan(lineHeight * 1.5);
+      expect(await figure.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    }
+    const periodGroup = page.getByRole('group', { name: locale === 'zh' ? '字数周期' : 'Word count period' });
+    expect(await periodGroup.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.locator('html').evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  });
+}
+
+for (const width of [768, 1440]) {
+  test(`English period labels stay on one line at ${width}px`, async ({ page }) => {
+    test.skip(baseline, 'The baseline screenshots have their own read-only capture below');
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page, 'en');
+    await page.goto(`/project/${projectId}/dashboard`);
+    const buttons = page.getByRole('group', { name: 'Word count period' }).getByRole('button');
+    await expect(buttons).toHaveCount(3);
+    // Stretched flex items share a height, so count rendered text lines instead.
+    const lines = await buttons.evaluateAll(items => items.map(button => {
+      const range = document.createRange();
+      range.selectNodeContents(button);
+      return new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size;
+    }));
+    expect(lines).toEqual([1, 1, 1]);
+  });
+}
+
 for (const width of [390, 1440]) {
   test(`comparison capture ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });

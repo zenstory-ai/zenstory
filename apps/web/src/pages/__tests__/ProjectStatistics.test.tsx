@@ -133,7 +133,7 @@ describe('project statistics as one factual page', () => {
     view();
     expect(screen.getByText('已写 3 章')).toBeInTheDocument();
     expect(screen.getByText('你写 200 · AI 写 0')).toBeInTheDocument();
-    expect(screen.getByText('尚未设置计划总数')).toBeInTheDocument();
+    expect(screen.getByText('在大纲里写明全书共几章，这里就会显示完成比例')).toBeInTheDocument();
     expand('查看分章明细（3 条）');
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/100%|全部完成/)).not.toBeInTheDocument();
@@ -252,5 +252,25 @@ describe('project statistics as one factual page', () => {
     expect(screen.getByRole('heading', { name: 'Project statistics' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Writing overview' })).toBeInTheDocument();
     expect(screen.getByText('You 200 · AI 800')).toBeInTheDocument();
+    expect(screen.getByText('Total words')).toBeInTheDocument();
+    expect(screen.getByText('Words today')).toBeInTheDocument();
+    expect(screen.getByText('Current streak')).toBeInTheDocument();
+    expand('View episode details (3)');
+    expect(screen.getByRole('link', { name: /Episode|第一集/ })).toHaveTextContent('Finished · 1,500 words / 1,500 words');
+    expect(screen.getByRole('link', { name: /下一集细纲/ })).toHaveTextContent('Not started · 0 words');
+  });
+
+  it('formats chapter word counts like the summary and explains where a plan comes from', () => {
+    stats!.chapter_completion.chapter_details[0].word_count = 12000;
+    delete stats!.chapter_completion.planned_total;
+    view();
+    expect(screen.getByText('在分集大纲里写明共几集，这里就会显示完成比例')).toBeInTheDocument();
+    expand('查看分集明细（3 条）');
+    expect(screen.getByRole('link', { name: /第一集/ })).toHaveTextContent('已完成 · 12,000 字 / 1,500 字');
+  });
+
+  it('names the statistics page in the English load error', () => {
+    locale = 'en'; stats = null; error = new Error('offline'); view();
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t load project statistics');
   });
 });

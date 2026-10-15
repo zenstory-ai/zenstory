@@ -28,7 +28,7 @@
       "statistics": "Statistics"
     },
     "error": {
-      "title": "Failed to Load Dashboard",
+      "title": "Couldn’t load project statistics",
       "message": "Click Retry to load it again."
     },
     "realInspirationsTitle": "If you haven't decided yet, start here:",
@@ -431,19 +431,19 @@
     },
     "wordCount": {
       "title": "Word Count",
-      "today": "Today",
-      "thisWeek": "This Week",
-      "thisMonth": "This Month",
+      "today": "Words today",
+      "thisWeek": "Words this week",
+      "thisMonth": "Words this month",
       "mine": {
         "today": "You wrote today",
         "thisWeek": "You wrote this week",
         "thisMonth": "You wrote this month"
       },
-      "total": "Total",
-      "breakdown": "You {{mine}} · AI {{ai}}",
-      "words": "{{count}} words",
-      "words_one": "{{count}} word",
-      "words_other": "{{count}} words",
+      "total": "Total words",
+      "breakdown": "You {{mine}} · AI {{ai}}",
+      "words": "{{formatted}} words",
+      "words_one": "{{formatted}} word",
+      "words_other": "{{formatted}} words",
       "trend": {
         "title": "Word Count Trend",
         "daily": "Daily",
@@ -459,13 +459,13 @@
       "total_other": "{{count}} chapters",
       "percentage": "{{percent}}% complete",
       "noChapters": "No chapters yet",
-      "planned": "Planned",
-      "inProgress": "In Progress",
+      "planned": "Not started",
+      "inProgress": "In progress",
       "finished": "Finished"
     },
     "streak": {
       "title": "Writing Streak",
-      "currentStreak": "Current Streak",
+      "currentStreak": "Current streak",
       "longestStreak": "Longest Streak",
       "days": "{{count}} days",
       "days_one": "{{count}} day",
@@ -720,7 +720,7 @@
   },
   "projectStatistics": {
     "back": "Back to writing",
-    "loading": "Loading statistics",
+    "loading": "Loading statistics…",
     "empty": "No statistics available",
     "refreshError": "Refresh failed. Your previous statistics are still shown.",
     "overview": "Writing overview",
@@ -732,9 +732,8 @@
       "monthly": "This month"
     },
     "progress": "Manuscript progress",
-    "noPlan": "No planned total set",
     "trendNote": "Your net edits in the editor only; AI-written words are not included",
-    "trendLoading": "Loading trend",
+    "trendLoading": "Loading trend…",
     "trendError": "Could not load the word trend",
     "trendRetry": "Retry trend",
     "streakNote": "Only days with at least 10 handwritten words count toward the streak. AI edits do not count.",
