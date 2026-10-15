@@ -145,7 +145,7 @@
   },
   "terms": {
     "title": "Terms of Service",
-    "lastUpdated": "Last Updated: February 20, 2026",
+    "lastUpdated": "Last Updated: October 15, 2026",
     "sections": {
       "acceptance": {
         "title": "1. Acceptance of Terms",
@@ -179,8 +179,8 @@
         "content": "Paid features are governed by the plan details, billing cycle, and pricing displayed at checkout. Unless stated otherwise, listed prices do not include applicable taxes. You authorize us to charge your selected payment method for subscription fees."
       },
       "autoRenewalCancellation": {
-        "title": "7. Auto-Renewal and Cancellation",
-        "content": "Subscriptions renew automatically by default. To avoid renewal, cancel before the end of the current billing period. Cancellation takes effect at period end, and you may continue using paid features until then."
+        "title": "7. Expiry and Renewal",
+        "content": "Subscriptions use one-time Alipay payments, with no automatic renewal or charges. Manually renewing an active subscription extends its current expiry date. When it expires, Free plan benefits apply."
       },
       "refundPolicy": {
         "title": "8. Refund Policy",
