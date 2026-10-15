@@ -1522,9 +1522,8 @@ async def run_writing_workflow_streaming(
     # 交接决策，若不暂存，模型这一轮请求的目标 agent（例如 WRITER_PROMPT 强制
     # 要求的 quality_reviewer 送审）会连同 handoff_packet 一起被静默吞掉。
     deferred_handoff: dict[str, Any] | None = None
-    # 纠偏轮是被打断那一轮 writer 的延续：把上一轮的正文与写工具信号接续过来，
-    # 否则自动质检门（按本轮字数 + 是否动过写工具判定）会因为纠偏轮本身只补了
-    # 一小段而永远不触发。
+    # 纠偏/续写轮接续上一轮的正文和写入记录；计划内 planner→writer 只接续正文
+    # 写入记录。否则前一程已经写完正文、writer 只补几字时会绕过自动质检门。
     carried_agent_content: str = ""
     carried_writer_body_writes: list[BodyWrite] = []
     # writer 送审前写给作者的文字被图丢掉了（审稿人的回复会取代它）：审稿人交回 writer
@@ -1830,8 +1829,9 @@ async def run_writing_workflow_streaming(
                     )
                     work_log_text += (
                         f"\n\n[本请求没有删除或重写的文件]: 对 {refused_labels} 的删除或整份重写被作者手改保护拒绝了"
-                        "（作者手动改过它们），文件保持原样；不要因此要求返工，"
-                        "确实要删或整份重写时在给作者的回复里问作者。"
+                        "（作者手动改过它们），文件保持原样；不要因此要求返工。"
+                        "删除请引导作者使用现有文件菜单；不要以再次聊天确认重试被保护的删除或同名覆写；"
+                        "常规文本编辑仍按现有读写保护执行。"
                     )
 
                 # 刷新文件清单
@@ -1919,7 +1919,7 @@ async def run_writing_workflow_streaming(
             clarification_stopped = False
             tool_call_exhausted = False
             invalid_handoff_stopped = False
-            # writer 本 run 写进正文类文件（draft / script）的内容，自动质检门只看它
+            # 本 run 写进正文类文件（draft / script）的内容，自动质检门只看它
             # （body_writes.py）。只认成功的写入：写工具全部失败（例如数据库被锁）时
             # 不送审，否则审稿人会把 writer 叫回来重试同一个失败的写入。
             body_tracker = BodyWriteTracker()
@@ -1927,8 +1927,15 @@ async def run_writing_workflow_streaming(
             # 真的送审时丢掉（审稿人或返修后的 writer 写唯一一份总结），不送审时原样放出。
             # 审稿只可能来自自动质检门或计划好的 quality_reviewer：两者都没有时不扣。
             reviewer_planned_next = bool(workflow_agents) and workflow_agents[0] == "quality_reviewer"
+            planner_body_delivery = (
+                current_agent_type == "planner"
+                and bool(workflow_agents)
+                and workflow_agents[0] == "writer"
+                and routing_metadata.get("write_content") is True
+                and enable_graph_auto_review
+            )
             chat_hold_eligible = (
-                current_agent_type == "writer"
+                (current_agent_type == "writer" or planner_body_delivery)
                 and generation_mode != "fast"
                 and not read_only_request
                 and not rework_from_reviewer
@@ -1936,6 +1943,15 @@ async def run_writing_workflow_streaming(
                 and (enable_graph_auto_review or reviewer_planned_next)
             )
             chat_hold_started = False
+            # 正文可能已由计划内的 planner 写完：writer 只读稿或小修，也要扣住
+            # 将被审稿取代的总结，不依赖它再次调用写工具才开始扣留。
+            if (
+                chat_hold_eligible
+                and current_agent_type == "writer"
+                and measured_body_words(carried_writer_body_writes) >= auto_review_threshold
+            ):
+                chat_hold_started = True
+                yield StreamEvent(type=StreamEventType.CHAT_HOLD, data={"action": CHAT_HOLD_BEGIN})
             # 范围约束按这次要跑的 agent 生成：规划类角色专用的那句不给 writer / 审稿人。
             agent_scope_directive = _build_scope_directive(
                 routing_metadata, agent_type=current_agent_type
@@ -2077,7 +2093,7 @@ async def run_writing_workflow_streaming(
                         yield notice
                     yield event
 
-                if current_agent_type == "writer" and event.type in (
+                if (current_agent_type == "writer" or planner_body_delivery) and event.type in (
                     StreamEventType.TOOL_USE,
                     StreamEventType.TOOL_RESULT,
                 ):
@@ -2088,6 +2104,9 @@ async def run_writing_workflow_streaming(
                         and not chat_hold_started
                         and (
                             reviewer_planned_next
+                            # 计划里的 writer 将接手同一范围；是否丢掉这份说明仍等到
+                            # 真正交接时判断，提问或交接未执行时适配器原样释放。
+                            or planner_body_delivery
                             # create_file 的正文还没写出来，字数要等 <file> 块，可能送审。
                             or body_write.text_offset is not None
                             # edit_file / write_chapter 的字数已知：到了送审阈值才可能送审，
@@ -2113,8 +2132,8 @@ async def run_writing_workflow_streaming(
             if isinstance(updated_messages, list):
                 state["messages"] = updated_messages
 
-            # 接续上一轮被纠偏打断的 writer 产出（正文 + 写工具信号），让后面的
-            # 自动质检门、待审查内容提取看到完整的一轮写作，而不是只看到补写片段。
+            # 接续纠偏/续写或计划内 planner→writer 的正文记录，让自动质检门看到
+            # 完整的一轮写作；整段文字只在纠偏/续写时接续，不拼接 planner 的聊天。
             if carried_agent_content or carried_writer_body_writes:
                 agent_content = f"{carried_agent_content}{agent_content}"
                 writer_body_writes = [*carried_writer_body_writes, *writer_body_writes]
@@ -2703,7 +2722,7 @@ async def run_writing_workflow_streaming(
             if (
                 pending_next_agent == "quality_reviewer"
                 and current_agent_type == "writer"
-                and agent_content.strip()
+                and (agent_content.strip() or writer_body_writes)
             ):
                 event_context = ""
                 if pending_handoff_event_data is not None:
@@ -2715,23 +2734,32 @@ async def run_writing_workflow_streaming(
                 # as inventory_text which includes file ids) instead of inlining the full
                 # draft body, which can reach ~9k chars and pile up across review rounds.
                 # 送审内容优先取本请求写过的正文落库后的样子（引号已规范），
-                # 没写文件或读不到时退回模型输出里的 <file> 块 / 全文。
+                # 读不到时原输出只作片段，不能冒充最新落库正文；明确补读当前文件。
                 payload_guard = _guard_from_state(state)
+                written_ids = payload_guard.written_file_ids() if payload_guard else []
                 persisted_payload = (
-                    await _review_payload_text(payload_guard.written_file_ids()) if payload_guard else None
+                    await _review_payload_text(written_ids) if payload_guard else None
                 )
                 review_payload = _format_review_payload(
                     persisted_payload or _extract_review_payload(agent_content)
                 )
+                source_note = ""
+                if written_ids and not persisted_payload:
+                    source_note = (
+                        "[当前落库正文未读取]\n"
+                        "下面仅为创作输出片段，不代表当前落库正文。"
+                        "先用 query_files 按这些文件 ID 读取当前正文后再判断事实或总结："
+                        f"{', '.join(written_ids)}。文件标题和类型见当前项目文件清单。\n\n"
+                    )
                 handoff_context = (
                     f"{base_context}\n\n"
+                    f"{source_note}"
                     f"[待审查内容]\n{review_payload}"
                 ).strip()
 
                 # 字数和篇幅要求给审稿人确定的数（I05）：writer 在 <file> 正文后面同一次回复里
                 # 写的「约N字」是还没有工具结果时的估计；作者早先说过、写进项目设定的篇幅
                 # 要求，审稿人原来只看本轮原话时看不到。
-                written_ids = payload_guard.written_file_ids() if payload_guard else []
                 review_reads = await _bounded_review_reads(
                     {
                         "body_word_counts": functools.partial(_collect_body_word_counts, written_ids),
@@ -2889,6 +2917,24 @@ async def run_writing_workflow_streaming(
             # agent never speaks). Suppress it on the final iteration and let the loop
             # fall through to the exhaustion branch instead.
             will_run_next_agent = bool(pending_next_agent) and iteration < max_iterations
+
+            if (
+                planner_body_delivery
+                and chat_hold_eligible
+                and will_run_next_agent
+                and pending_next_agent == "writer"
+                and body_words_written(writer_body_writes) > 0
+            ):
+                carried_writer_body_writes = writer_body_writes
+                if (
+                    chat_hold_started
+                    and not ended_with_question
+                    and body_words_written(writer_body_writes) >= auto_review_threshold
+                ):
+                    yield StreamEvent(
+                        type=StreamEventType.CHAT_HOLD,
+                        data={"action": CHAT_HOLD_DISCARD, "reason": "superseded_by_planned_writer"},
+                    )
 
             if (
                 chat_hold_started
