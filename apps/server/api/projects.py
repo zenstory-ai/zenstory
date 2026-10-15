@@ -79,6 +79,8 @@ class PatchProjectRequest(BaseModel):
     current_phase: str | None = Field(default=None, max_length=PROJECT_STATUS_MAX_LENGTHS["current_phase"])
     writing_style: str | None = Field(default=None, max_length=PROJECT_STATUS_MAX_LENGTHS["writing_style"])
     notes: str | None = Field(default=None, max_length=PROJECT_STATUS_MAX_LENGTHS["notes"])
+    # Optional exact draft origin; omitted by legacy unconditional callers.
+    expected_notes: str | None = None
 
 
 # ==================== Project CRUD ====================
@@ -334,6 +336,7 @@ def patch_project(
     - current_phase: Current writing phase description
     - writing_style: Writing style guidelines for AI
     - notes: Additional notes for AI assistant
+    - expected_notes: Optional notes baseline, checked only when notes is written
     """
     with project_metadata_write_lock(project_id):
         verify_project_ownership(project_id, current_user, session)
@@ -345,6 +348,16 @@ def patch_project(
 
         # Update only provided fields
         update_data = request.model_dump(exclude_unset=True)
+        expected_notes_provided = "expected_notes" in update_data
+        expected_notes = update_data.pop("expected_notes", None)
+        # Compare before normalizing or mutating any field. Empty and NULL both
+        # mean no notes, while all other draft-origin text is compared verbatim.
+        if "notes" in update_data and expected_notes_provided and (expected_notes or "") != (project.notes or ""):
+            raise APIException(
+                error_code=ErrorCode.RESOURCE_CONFLICT,
+                status_code=409,
+                detail="Project notes have changed. Review the latest notes before saving this draft.",
+            )
         try:
             normalized_status = normalize_project_status_payload(
                 {

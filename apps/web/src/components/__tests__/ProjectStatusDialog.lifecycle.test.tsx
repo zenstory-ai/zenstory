@@ -151,6 +151,109 @@ afterEach(async () => {
 
 for (const strict of [false, true]) {
   describe(strict ? 'actual project-status dialog root StrictMode' : 'actual project-status dialog default root', () => {
+    it('adopts all displayed proposal groups through one human notes PATCH without saving other drafts', async () => {
+      const user = await mount(strict)
+      const source = '旧约定\n\n【作者确认】\n原有确认\n\n【AI 提议·待作者确认】\n提议甲；甲的补充\n提议乙；乙的补充'
+      const adopted = '旧约定\n\n【作者确认】\n原有确认\n\n提议甲；甲的补充\n提议乙；乙的补充'
+      await finish(reads('A'), { ...project('A'), notes: source })
+      change('summary', 'local summary draft')
+      await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
+      expect(writes()).toHaveLength(1)
+      expect(writes()[0].body).toEqual({ notes: adopted, expected_notes: source })
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(adopted)
+      await finish(writes(), { ...project('A'), notes: adopted })
+      expect(state()).toMatchObject({ open: true, closeCount: 0 })
+      expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('local summary draft')
+      expect(screen.queryByRole('button', { name: 'Adopt all proposals' })).not.toBeInTheDocument()
+      expect(requests.every(request => ['GET', 'PATCH'].includes(request.method))).toBe(true)
+    })
+
+    it('keeps the actual notes draft base through repeated dirty background refreshes', async () => {
+      const user = await initial(strict)
+      change('notes', 'local notes draft')
+      event('A')
+      await finish([reads('A').at(-1)!], project('A', 'remote-1'))
+      event('A')
+      await finish([reads('A').at(-1)!], project('A', 'remote-2'))
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('local notes draft')
+      await click(user, screen.getByRole('button', { name: 'Save' }))
+      expect(writes()[0].body).toEqual({ notes: 'local notes draft', expected_notes: project('A').notes })
+    })
+
+    it('does not roll a saved adoption or its base back when an older background read arrives', async () => {
+      const user = await mount(strict)
+      const source = '【AI 提议·待作者确认】\n原提议'
+      const adopted = '【作者确认】\n原提议'
+      await finish(reads('A'), { ...project('A'), notes: source })
+      event('A')
+      const olderRead = reads('A').at(-1)!
+      await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
+      await finish(writes(), { ...project('A'), notes: adopted })
+      await finish([olderRead], { ...project('A'), notes: source })
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(adopted)
+      expect(screen.queryByRole('button', { name: 'Adopt all proposals' })).not.toBeInTheDocument()
+      change('notes', adopted + '\n本地新约定')
+      await click(user, screen.getByRole('button', { name: 'Save' }))
+      expect(writes()[1].body).toEqual({ notes: adopted + '\n本地新约定', expected_notes: adopted })
+    })
+
+    it.each(['use-latest', 'save-mine', 'conflict-again'] as const)('keeps conflicted input through a failed/read-only preview before explicit %s', async choice => {
+      const user = await mount(strict)
+      const source = '【AI 提议·待作者确认】\n原提议'
+      await finish(reads('A'), { ...project('A'), notes: source })
+      change('summary', 'keep local summary')
+      await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
+      await finish(writes(), { error: { code: 'ERR_RESOURCE_CONFLICT', message: 'notes changed' } }, 409)
+      expect(state()).toMatchObject({ open: true, closeCount: 0 })
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+      expect(screen.getByRole('alert')).toHaveTextContent('Notes changed elsewhere. Your changes have not been saved.')
+      expect(writes()).toHaveLength(1)
+      expect(screen.queryByRole('button', { name: 'Save my version' })).not.toBeInTheDocument()
+      const beforePreview = reads('A').length
+      await click(user, screen.getByRole('button', { name: 'View latest notes' }))
+      await finish([reads('A').at(-1)!], { detail: 'Read unavailable' }, 503)
+      expect(reads('A')).toHaveLength(beforePreview + 1)
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+      expect(screen.queryByRole('button', { name: 'Save my version' })).not.toBeInTheDocument()
+      await click(user, screen.getByRole('button', { name: 'View latest notes' }))
+      const latest = '【作者确认】\n另一端确认\n\n【AI 提议·待作者确认】\n原提议\n新提议'
+      await finish([reads('A').at(-1)!], { ...project('A', 'latest'), notes: latest })
+      expect(screen.getByLabelText('Latest notes')).toHaveValue(latest)
+      expect(screen.getByLabelText('Latest notes')).toHaveAttribute('readonly')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+      expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('keep local summary')
+      expect(writes()).toHaveLength(1) // Viewing or retrying a GET never replays the PATCH.
+      if (choice === 'use-latest') {
+        await click(user, screen.getByRole('button', { name: 'Use latest notes' }))
+        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(latest)
+        expect(writes()).toHaveLength(1)
+        await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
+        expect(writes()[1].body).toEqual({ notes: '【作者确认】\n另一端确认\n\n原提议\n新提议', expected_notes: latest })
+      } else {
+        await click(user, screen.getByRole('button', { name: 'Save my version' }))
+        expect(writes()[1].body).toEqual({ notes: '【作者确认】\n原提议', expected_notes: latest })
+        await finish([writes()[1]], choice === 'save-mine' ? { ...project('A'), notes: '【作者确认】\n原提议' } : { detail: 'Changed again' }, choice === 'save-mine' ? 200 : 409)
+        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+        expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('keep local summary')
+        expect(screen.queryByRole('textbox', { name: 'Latest notes' })).not.toBeInTheDocument()
+        expect(screen.queryAllByRole('button', { name: 'View latest notes' })).toHaveLength(choice === 'save-mine' ? 0 : 1)
+      }
+      expect(writes()).toHaveLength(2)
+    })
+
+    it('does not apply an old adoption response or baseline to another project', async () => {
+      const user = await mount(strict)
+      await finish(reads('A'), { ...project('A'), notes: '【AI 提议·待作者确认】\nA proposal' })
+      await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
+      await click(user, screen.getByRole('button', { name: 'Select B' }))
+      await finish(reads('B'), project('B'))
+      await finish(writes(), { ...project('A'), notes: '【作者确认】\nA proposal' })
+      change('notes', 'B draft')
+      await click(user, screen.getByRole('button', { name: 'Save' }))
+      expect(writes()[1]).toMatchObject({ projectId: 'B', body: { notes: 'B draft', expected_notes: project('B').notes } })
+      expect(state()).toMatchObject({ selected: 'B', open: true, closeCount: 0 })
+    })
+
     it.each(['success', 'error'] as const)('latest event settles initial loader; old initial %s cannot overwrite or log', async outcome => {
       await mount(strict)
       const oldInitial = [...reads('A')]
@@ -205,7 +308,7 @@ for (const strict of [false, true]) {
         await finish([aWrite], aOutcome === 'success' ? { ...project('A'), notes: 'A pending save' } : { detail: 'Old A save rejected' }, aOutcome === 'success' ? 200 : 503)
         return // The above soft assertions keep this case RED; no skip/PASS claim.
       }
-      expect(bWrite.body).toEqual({ notes: 'B pending save' })
+      expect(bWrite.body).toEqual({ notes: 'B pending save', expected_notes: project('B').notes })
       expect(screen.getByRole('button', { name: "Saving…" })).toBeDisabled()
       const logs = errorLogSpy.mock.calls.length
       const toastCount = toasts.length
@@ -264,7 +367,7 @@ for (const strict of [false, true]) {
       await click(user, screen.getByRole('button', { name: 'Save' }))
       await waitFor(() => expect(writes()).toHaveLength(1))
       expect(writes()[0].projectId).toBe('B') // Actual save target is B; old request itself is not forbidden.
-      expect(writes()[0].body).toEqual({ notes: 'B local notes' })
+      expect(writes()[0].body).toEqual({ notes: 'B local notes', expected_notes: project('B').notes })
     })
 
     it.each(['A', 'B'])('control: conditional unmount/reopen %s preserves new dirty input after old load', async next => {

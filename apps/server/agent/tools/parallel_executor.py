@@ -59,6 +59,8 @@ PARALLEL_EXECUTE_TOOL: dict[str, Any] = {
 Use this when you need several independent operations at once, such as:
 - Reading several files in one call (query_files with {"id": ...} returns full content)
 - Editing or deleting multiple files concurrently
+  Protected author text (including a folder containing it) cannot be deleted
+  through chat; the author uses the file menu. A chat reply does not unlock it.
 
 New chapters / new prose files should normally be written with a single
 create_file call followed by streamed <file>...</file> content, NOT via

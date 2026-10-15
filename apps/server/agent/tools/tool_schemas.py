@@ -137,7 +137,10 @@ EDIT_FILE_TOOL: dict[str, Any] = {
 # Tool: delete_file
 DELETE_FILE_TOOL: dict[str, Any] = {
     "name": "delete_file",
-    "description": "删除文件。支持递归删除子文件。",
+    "description": (
+        "删除文件，支持递归删除子文件。受保护的作者正文及含它的文件夹不能通过聊天删除，"
+        "作者须使用文件菜单；对话确认不解除保护。"
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
@@ -278,7 +281,7 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
                 "description": (
                     "需要长期记住的内容。Agent 新增或改写的条目只记录为 AI 提议，不表示作者确认。"
                     "作者确认和未标来源的已有内容由系统保留，不能由你删除或改写；"
-                    "作者可以直接在 AI 记忆文本框中编辑这些内容。"
+                    "作者可在 AI 记忆中采纳提议或编辑约定；对话回复不改变来源。"
                     "notes 和 proposals 存在同一个备注字段里，合计不超过 4000 字"
                 ),
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"],
@@ -286,9 +289,9 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             "proposals": {
                 "type": "string",
                 "description": (
-                    "你提出或推断、作者还没同意的设定和建议（备注里的「AI 提议·待作者确认」一块，整体替换；"
+                    "尚未通过 AI 记忆采纳的设定和建议（备注里的「AI 提议·待作者确认」一块，整体替换；"
                     "不传则保留原有提议，传空串清空）。它们之后会作为未确认的提议提供给你，不会当成设定。"
-                    "和 notes 共用备注字段的 4000 字"
+                    "本轮可按作者要求使用，不自动改变长期来源。和 notes 共用备注字段的 4000 字"
                 ),
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"],
             },

@@ -25,6 +25,7 @@ export interface PatchProjectRequest {
   current_phase?: string;
   writing_style?: string;
   notes?: string;
+  expected_notes?: string;
 }
 
 // ==================== File Model (Unified) ====================

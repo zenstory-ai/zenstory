@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useId } from "react";
 import { Save, Brain, Loader2, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,9 @@ import { inspirationsApi, projectApi } from "../lib/api";
 import { subscribeProjectStatusUpdated } from "../lib/projectStatusEvents";
 import type { Project, PatchProjectRequest } from "../types";
 import { Modal } from "./ui/Modal";
+import { Button } from "./ui/Button";
+import { ApiError } from "../lib/apiClient";
+import { adoptAllProjectProposals } from "../lib/projectNotes";
 import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
 import { inspirationsConfig } from "../config/inspirations";
@@ -23,6 +26,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
 }) => {
   const { t } = useTranslation('project', { keyPrefix: 'statusDialog' });
   const navigate = useNavigate();
+  const fieldId = useId();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submittingInspiration, setSubmittingInspiration] = useState(false);
@@ -32,6 +36,13 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   const [writingStyle, setWritingStyle] = useState("");
   const [currentPhase, setCurrentPhase] = useState("");
   const [notes, setNotes] = useState("");
+  const [notesConflict, setNotesConflict] = useState(false);
+  const [latestNotes, setLatestNotes] = useState<string | null>(null);
+  const [loadingLatestNotes, setLoadingLatestNotes] = useState(false);
+  const [latestNotesFailed, setLatestNotesFailed] = useState(false);
+  const notesBaseRef = useRef("");
+  const notesInputRef = useRef<HTMLTextAreaElement>(null);
+  const latestNotesReadRef = useRef<object | null>(null);
 
   const projectRef = useRef<Project | null>(null);
   const formValuesRef = useRef({
@@ -55,6 +66,12 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     setWritingStyle("");
     setCurrentPhase("");
     setNotes("");
+    notesBaseRef.current = "";
+    setNotesConflict(false);
+    setLatestNotes(null);
+    setLoadingLatestNotes(false);
+    setLatestNotesFailed(false);
+    latestNotesReadRef.current = null;
     setSaving(false);
     setLoading(Boolean(owner));
 
@@ -91,6 +108,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
         setWritingStyle(nextWritingStyle);
         setCurrentPhase(nextCurrentPhase);
         setNotes(nextNotes);
+        notesBaseRef.current = nextNotes;
         return;
       }
 
@@ -100,12 +118,15 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
       const summaryDirty = prevValues.summary.trim() !== (prevProject.summary || "");
       const writingStyleDirty = prevValues.writingStyle.trim() !== (prevProject.writing_style || "");
       const currentPhaseDirty = prevValues.currentPhase.trim() !== (prevProject.current_phase || "");
-      const notesDirty = prevValues.notes.trim() !== (prevProject.notes || "");
+      const notesDirty = prevValues.notes.trim() !== notesBaseRef.current.trim();
 
       if (!summaryDirty) setSummary(nextSummary);
       if (!writingStyleDirty) setWritingStyle(nextWritingStyle);
       if (!currentPhaseDirty) setCurrentPhase(nextCurrentPhase);
-      if (!notesDirty) setNotes(nextNotes);
+      if (!notesDirty || prevValues.notes.trim() === nextNotes.trim()) {
+        setNotes(nextNotes);
+        notesBaseRef.current = nextNotes;
+      }
     },
     []
   );
@@ -154,9 +175,44 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     });
   }, [isOpen, projectId, loadProject]);
 
-  const handleSave = async () => {
+  const viewLatestNotes = async () => {
     const owner = ownerRef.current;
-    if (!owner || owner.projectId !== projectId || project?.id !== projectId || activeSaveRef.current) return;
+    if (!owner || latestNotesReadRef.current) return;
+    const readToken = {};
+    latestNotesReadRef.current = readToken;
+    const ownsRead = () => ownerRef.current === owner && latestNotesReadRef.current === readToken;
+    setLoadingLatestNotes(true);
+    setLatestNotesFailed(false);
+    try {
+      const data = await projectApi.get(owner.projectId);
+      if (ownsRead()) setLatestNotes(data.notes || "");
+    } catch (err) {
+      if (ownsRead()) {
+        logger.error("Failed to load latest project notes:", err);
+        setLatestNotesFailed(true);
+      }
+    } finally {
+      if (ownsRead()) {
+        latestNotesReadRef.current = null;
+        setLoadingLatestNotes(false);
+      }
+    }
+  };
+
+  const useLatestNotes = () => {
+    if (latestNotes === null) return;
+    setNotes(latestNotes);
+    notesBaseRef.current = latestNotes;
+    setProject(current => current ? { ...current, notes: latestNotes } : current);
+    setNotesConflict(false);
+    setLatestNotes(null);
+    notesInputRef.current?.focus();
+  };
+
+  const handleSave = async (options?: { notes: string; expectedNotes?: string; adopting?: boolean }) => {
+    const owner = ownerRef.current;
+    if (!owner || owner.projectId !== projectId || project?.id !== projectId || activeSaveRef.current ||
+      (notesConflict && options?.expectedNotes === undefined)) return;
     const saveToken = {};
     activeSaveRef.current = saveToken;
     const ownsSave = () => ownerRef.current === owner &&
@@ -167,24 +223,42 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
       const nextSummary = summary.trim();
       const nextWritingStyle = writingStyle.trim();
       const nextCurrentPhase = currentPhase.trim();
-      const nextNotes = notes.trim();
+      const notesOnly = options !== undefined;
+      const nextNotes = (options?.notes ?? notes).trim();
 
       const patch: PatchProjectRequest = {};
-      if ((project.summary || "") !== nextSummary) patch.summary = nextSummary;
-      if ((project.writing_style || "") !== nextWritingStyle)
+      if (!notesOnly && (project.summary || "") !== nextSummary) patch.summary = nextSummary;
+      if (!notesOnly && (project.writing_style || "") !== nextWritingStyle)
         patch.writing_style = nextWritingStyle;
-      if ((project.current_phase || "") !== nextCurrentPhase)
+      if (!notesOnly && (project.current_phase || "") !== nextCurrentPhase)
         patch.current_phase = nextCurrentPhase;
-      if ((project.notes || "") !== nextNotes) patch.notes = nextNotes;
+      if (notesOnly || (project.notes || "") !== nextNotes) {
+        patch.notes = nextNotes;
+        patch.expected_notes = options?.expectedNotes ?? notesBaseRef.current;
+      }
+      if (notesOnly) {
+        setNotes(nextNotes);
+        notesInputRef.current?.focus();
+      }
 
       const updated = await projectApi.patch(projectId, patch);
       if (!ownsSave()) return;
+      // A notes-only save leaves the dialog open; older GETs must not undo it.
+      owner.loadSequence++;
       setProject(updated);
-      onClose();
+      if (patch.notes !== undefined) notesBaseRef.current = updated.notes || "";
+      setNotesConflict(false);
+      setLatestNotes(null);
+      if (notesOnly) toast.success(t(options.adopting ? 'proposalsAdopted' : 'notesSaved'));
+      else onClose();
     } catch (err) {
       if (ownsSave()) {
         logger.error("Failed to save project status:", err);
-        toast.error(t('saveFailed'));
+        if (err instanceof ApiError && err.status === 409) {
+          setNotesConflict(true);
+          setLatestNotes(null);
+        }
+        else toast.error(t('saveFailed'));
       }
     } finally {
       if (ownsSave()) {
@@ -222,6 +296,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   const originalWritingStyle = project?.writing_style || "";
   const originalCurrentPhase = project?.current_phase || "";
   const originalNotes = project?.notes || "";
+  const adoptedNotes = adoptAllProjectProposals(notes);
 
   const hasChanges =
     summary.trim() !== originalSummary ||
@@ -266,29 +341,22 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               </button>
             </>
           )}
-          <button
+          <Button variant="secondary" size="touch"
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] rounded-lg text-sm hover:bg-[hsl(var(--border-color))] transition-colors"
+            className="w-full sm:w-auto"
           >
             {t('cancel')}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || loading || !hasChanges}
-            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-[hsl(var(--accent-primary))] text-white rounded-lg text-sm hover:bg-[hsl(var(--accent-dark))] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          </Button>
+          <Button size="touch"
+            onClick={() => void handleSave()}
+            disabled={saving || loading || !hasChanges || notesConflict}
+            className="w-full sm:w-auto"
+            isLoading={saving}
+            loadingText={t('saving')}
+            leftIcon={<Save size={14} />}
           >
-            {saving ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                {t('saving')}
-              </>
-            ) : (
-              <>
-                <Save size={14} />
-                {t('save')}
-              </>
-            )}
-          </button>
+            {t('save')}
+          </Button>
         </div>
       }
     >
@@ -307,10 +375,11 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[hsl(var(--text-primary))]">
+            <label htmlFor={`${fieldId}-summary`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('projectSummary')}
             </label>
             <textarea
+              id={`${fieldId}-summary`}
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               placeholder={t('placeholders.summary')}
@@ -320,10 +389,11 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[hsl(var(--text-primary))]">
+            <label htmlFor={`${fieldId}-style`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('writingStyle')}
             </label>
             <textarea
+              id={`${fieldId}-style`}
               value={writingStyle}
               onChange={(e) => setWritingStyle(e.target.value)}
               placeholder={t('placeholders.writingStyle')}
@@ -333,10 +403,11 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[hsl(var(--text-primary))]">
+            <label htmlFor={`${fieldId}-phase`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('currentPhase')}
             </label>
             <textarea
+              id={`${fieldId}-phase`}
               value={currentPhase}
               onChange={(e) => setCurrentPhase(e.target.value)}
               placeholder={t('placeholders.currentPhase')}
@@ -346,16 +417,50 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[hsl(var(--text-primary))]">
-              {t('notes')}
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor={`${fieldId}-notes`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
+                {t('notes')}
+              </label>
+              {adoptedNotes !== null && (
+                <Button variant="secondary" size="touch" disabled={saving || notesConflict}
+                  onClick={() => void handleSave({ notes: adoptedNotes, adopting: true })}>
+                  {t('adoptAllProposals')}
+                </Button>
+              )}
+            </div>
             <textarea
+              id={`${fieldId}-notes`}
+              ref={notesInputRef}
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => {
+                setNotes(e.target.value);
+                if (e.target.value.trim() === (projectRef.current?.notes || "").trim()) {
+                  notesBaseRef.current = projectRef.current?.notes || "";
+                }
+              }}
               placeholder={t('placeholders.notes')}
               rows={3}
               className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
             />
+            {notesConflict && (
+              <div className="space-y-2">
+                <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{t('notesConflict')}</p>
+                {latestNotes === null ? <>
+                  {latestNotesFailed && <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{t('latestNotesFailed')}</p>}
+                  <Button variant="secondary" size="touch" isLoading={loadingLatestNotes}
+                    onClick={() => void viewLatestNotes()}>{t('viewLatestNotes')}</Button>
+                </> : <>
+                  <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
+                  <textarea id={`${fieldId}-latest-notes`} value={latestNotes} readOnly rows={3}
+                    className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] resize-y" />
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>
+                    <Button variant="secondary" size="touch" disabled={saving}
+                      onClick={() => void handleSave({ notes, expectedNotes: latestNotes })}>{t('saveMyNotes')}</Button>
+                  </div>
+                </>}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -2504,8 +2504,7 @@ def _notes_over_budget_error(merged: ProjectNotesMerge) -> dict[str, Any] | None
             f"这次合并后约定部分约 {notes_chars} 字、AI 提议块约 {proposals_chars} 字"
             f"{downgraded_part}，加上分区标题共 {total} 字。"
             "这次调用的其他字段（title、summary、tasks 等）也都没有写入。"
-            "下一步：传 proposals 删掉过时或作者已否定的提议（proposals=\"\" 清空整块），"
-            "或在作者同意的前提下精简 notes，然后整次重新调用 update_project。"
+            "请精简 AI 提议；作者约定需由作者在 AI 记忆中编辑保存。"
         ),
         "notes_chars": notes_chars,
         "proposals_chars": proposals_chars,
@@ -2710,7 +2709,7 @@ def _update_project_sync(
             result["notes_note"] = (
                 "这些是应用内 AI 新增或改写的条目，"
                 "已记在备注的「AI 提议·待作者确认」里，不算作者定下的设定：" + "；".join(downgraded_notes)
-                + "。需要成为作者事实时，请作者在 AI 记忆面板中保存；不要让作者发送口令或重试工具。"
+                + "。长期采用可在 AI 记忆中点击「采纳全部提议」；本轮写作仍按作者要求执行。"
             )
 
         return _make_result({"status": "success", "data": result}, tool_name=tool_name)

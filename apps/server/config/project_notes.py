@@ -17,7 +17,7 @@ UNLABELED_HEADER = "【未标来源】"
 
 CONFIRMED_EXPLANATION = "作者确认过的约定；应用内 AI 不能修改或删除"
 UNLABELED_EXPLANATION = "作者在记忆面板保存或历史遗留的约定；应用内 AI 不能修改或删除"
-PROPOSALS_EXPLANATION = "AI 提出或推断的内容，不是设定；只有作者在记忆面板保存后才成为事实"
+PROPOSALS_EXPLANATION = "尚未存为作者约定；本轮按作者要求使用，长期采用请在 AI 记忆中采纳"
 
 _HEADER_PREFIX = r"^\s*【\s*(?:备注\s*[·・]\s*)?"
 _HEADER_SUFFIX = r"\s*】\s*(?:[（(].*[)）])?\s*$"

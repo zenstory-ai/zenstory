@@ -12,7 +12,7 @@ Tests project CRUD operations:
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
+from sqlmodel import Session, select
 
 from config.project_status import PROJECT_STATUS_MAX_LENGTHS
 from models import File, Project, User
@@ -643,6 +643,200 @@ async def test_patch_project_metadata_rejects_too_long_fields(client: AsyncClien
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("competing_writer", ["ai_proposal", "manual_patch"])
+def test_notes_patch_rejects_stale_baseline_after_another_writer(db_session, competing_writer):
+    """A stale manual draft cannot erase a committed AI proposal or another author's edit."""
+    from agent.tools.file_ops.project import ProjectOperations
+    from api.projects import PatchProjectRequest, patch_project
+    from config.project_notes import CONFIRMED_HEADER, merge_project_notes
+    from core.error_codes import ErrorCode
+    from core.error_handler import APIException
+
+    owner = User(username="notes-race", email="notes-race@example.com", hashed_password="unused")
+    db_session.add(owner)
+    db_session.commit()
+    baseline = f"{CONFIRMED_HEADER}\n旧事实"
+    project = Project(
+        name="Notes race", owner_id=owner.id, notes=baseline,
+        summary="Original summary", current_phase="Original phase", writing_style="Original style",
+    )
+    db_session.add(project)
+    db_session.commit()
+    project_id, owner_id = project.id, owner.id
+    request = PatchProjectRequest(
+        expected_notes=baseline, notes=f"{CONFIRMED_HEADER}\n旧事实\n我的草稿",
+        summary="Stale summary", current_phase="Stale phase", writing_style="Stale style",
+    )
+
+    with Session(db_session.get_bind()) as competing_session:
+        if competing_writer == "ai_proposal":
+            ProjectOperations(competing_session, owner_id).update_project_status(
+                project_id,
+                notes_transform=lambda existing: merge_project_notes(
+                    existing, notes=None, proposals="刚到达的 AI 提议",
+                    author_quotes=None, author_messages=["继续写"],
+                ).text,
+            )
+        else:
+            patch_project(
+                project_id,
+                PatchProjectRequest(expected_notes=baseline, notes="另一端刚保存的作者约定"),
+                current_user=competing_session.get(User, owner_id),
+                session=competing_session,
+            )
+        winner = competing_session.get(Project, project_id)
+        winner_notes, winner_updated_at = winner.notes, winner.updated_at
+
+    assert project.notes == baseline  # The request session still holds its original ORM snapshot.
+    with pytest.raises(APIException) as exc:
+        patch_project(project_id, request, current_user=owner, session=db_session)
+    assert exc.value.status_code == 409
+    assert exc.value.error_code == ErrorCode.RESOURCE_CONFLICT
+
+    with Session(db_session.get_bind()) as reader:
+        persisted = reader.get(Project, project_id)
+        assert persisted.notes == winner_notes
+        assert persisted.summary == "Original summary"
+        assert persisted.current_phase == "Original phase"
+        assert persisted.writing_style == "Original style"
+        assert persisted.updated_at == winner_updated_at
+    assert project.notes == winner_notes  # Compare against the fresh, locked row.
+    assert project.summary == "Original summary"  # No dirty partial update remains in this session.
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("stored_notes", "expected_notes", "next_notes", "saved_notes"),
+    [
+        (None, "", "New memory", "New memory"),
+        ("", None, "New memory", "New memory"),
+        ("Old memory", "Old memory", "", ""),
+        ("Old memory", "Old memory", None, None),
+        ("  Legacy memory  ", "  Legacy memory  ", "  New memory  ", "New memory"),
+    ],
+)
+async def test_notes_patch_matching_baseline_saves_and_clears(
+    client: AsyncClient, db_session, stored_notes, expected_notes, next_notes, saved_notes,
+):
+    """The condition uses the exact draft origin; null and empty both represent no notes."""
+    from services.core.auth_service import hash_password
+
+    owner = User(
+        username="notes-matching", email="notes-matching@example.com",
+        hashed_password=hash_password("password123"), email_verified=True, is_active=True,
+    )
+    db_session.add(owner)
+    db_session.commit()
+    project = Project(name="Matching notes", owner_id=owner.id, notes=stored_notes)
+    db_session.add(project)
+    db_session.commit()
+    login = await client.post(
+        "/api/auth/login", data={"username": owner.username, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    response = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"notes": next_notes, "expected_notes": expected_notes, "summary": "  New summary  "},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["notes"] == saved_notes
+    assert response.json()["summary"] == "New summary"
+    assert "expected_notes" not in response.json()
+    db_session.refresh(project)
+    assert project.notes == saved_notes
+    assert not hasattr(project, "expected_notes")
+
+    stale_response = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"notes": "Stale replacement", "expected_notes": expected_notes, "summary": "Stale summary"},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    assert stale_response.status_code == 409
+    assert stale_response.json()["error_code"] == "ERR_RESOURCE_CONFLICT"
+    db_session.refresh(project)
+    assert project.notes == saved_notes
+    assert project.summary == "New summary"
+
+
+@pytest.mark.parametrize("expected_notes", ["", None, "  Current memory  "])
+def test_notes_patch_empty_or_trimmed_baseline_does_not_match_nonempty_notes(db_session, expected_notes):
+    """Falsy conditions are still conditions, and comparing them must not trim the stored text."""
+    from api.projects import PatchProjectRequest, patch_project
+    from core.error_handler import APIException
+
+    owner = User(username="notes-empty", email="notes-empty@example.com", hashed_password="unused")
+    db_session.add(owner)
+    db_session.commit()
+    project = Project(name="Nonempty notes", owner_id=owner.id, notes="Current memory", summary="Before")
+    db_session.add(project)
+    db_session.commit()
+
+    with pytest.raises(APIException) as exc:
+        patch_project(
+            project.id, PatchProjectRequest(expected_notes=expected_notes, notes="", summary="After"),
+            current_user=owner, session=db_session,
+        )
+    assert exc.value.status_code == 409
+    db_session.refresh(project)
+    assert project.notes == "Current memory"
+    assert project.summary == "Before"
+
+
+def test_notes_patch_condition_alone_does_not_block_other_metadata(db_session):
+    """A notes baseline has no effect when the request does not write notes."""
+    from api.projects import PatchProjectRequest, patch_project
+
+    owner = User(username="notes-only", email="notes-only@example.com", hashed_password="unused")
+    db_session.add(owner)
+    db_session.commit()
+    project = Project(name="Other metadata", owner_id=owner.id, notes="Current memory")
+    db_session.add(project)
+    db_session.commit()
+
+    result = patch_project(
+        project.id, PatchProjectRequest(expected_notes="Stale memory", summary="New summary"),
+        current_user=owner, session=db_session,
+    )
+
+    assert result.summary == "New summary"
+    assert result.notes == "Current memory"
+    assert not hasattr(result, "expected_notes")
+
+
+@pytest.mark.integration
+async def test_notes_patch_checks_ownership_before_reporting_conflict(client: AsyncClient, db_session):
+    """A foreign project cannot be written or probed through its baseline condition."""
+    from services.core.auth_service import hash_password
+
+    owner = User(username="notes-owner", email="notes-owner@example.com", hashed_password="unused")
+    other_user = User(
+        username="notes-other", email="notes-other@example.com",
+        hashed_password=hash_password("password123"), email_verified=True, is_active=True,
+    )
+    db_session.add_all([owner, other_user])
+    db_session.commit()
+    project = Project(name="Private notes", owner_id=owner.id, notes="Private memory")
+    db_session.add(project)
+    db_session.commit()
+    login = await client.post(
+        "/api/auth/login", data={"username": other_user.username, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    response = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"notes": "Foreign change", "expected_notes": ""},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+
+    assert response.status_code == 403
+    db_session.refresh(project)
+    assert project.notes == "Private memory"
 
 
 @pytest.mark.integration
