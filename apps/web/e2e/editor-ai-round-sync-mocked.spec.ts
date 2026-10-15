@@ -300,7 +300,6 @@ test('leaving before deciding where both rewrote the same words keeps the author
   expect(f.errors).toEqual([]);
 });
 
-
 for (const width of [390, 1280]) {
 test(`an AI deletion retains a downloadable dirty draft at ${width}px without refetching the deleted file`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
@@ -335,3 +334,39 @@ test(`an AI deletion retains a downloadable dirty draft at ${width}px without re
 });
 
 }
+
+test('direct edits fulfill created files without file_content_end or unintended saves', async ({ page }) => {
+  const f = await setup(page);
+  await page.goto(`/project/${projectId}?file=ch1`);
+  await expect(titleInput(page)).toHaveValue(f.files.ch1.title);
+  await page.getByTestId('chat-input').fill('建立设定和角色文件');
+  await page.getByTestId('send-button').click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __sse: { opened: () => boolean } }).__sse.opened())).toBe(true);
+  const generated = [
+    { id: 'setting', file_type: 'lore', title: '设定文件', content: '已经保存的设定正文。' },
+    { id: 'character', file_type: 'character', title: '角色文件', content: '已经保存的角色正文。' },
+  ];
+  for (const [index, file] of generated.entries()) {
+    f.files[file.id] = { ...f.files.ch1, ...file, content: '', order: index + 1, updated_at: token0 };
+    await push(page, 'tool_result', { tool_name: 'create_file', status: 'success', data: { ...file, content: '' } });
+    await push(page, 'file_created', { file_id: file.id, file_type: file.file_type, title: file.title });
+    await expect(titleInput(page)).toHaveValue(file.title);
+    f.files[file.id] = { ...f.files[file.id], content: file.content, updated_at: tokenV1 };
+    await push(page, 'tool_result', { tool_name: 'edit_file', status: 'success', data: { id: file.id, new_length: file.content.length } });
+    await push(page, 'file_edit_start', { file_id: file.id, title: file.title, total_edits: 1, file_type: file.file_type });
+    await push(page, 'file_edit_applied', { file_id: file.id, edit_index: 0, op: 'append', success: true });
+    await push(page, 'file_edit_end', { file_id: file.id, edits_applied: 1, new_length: file.content.length, file_type: file.file_type, title: file.title });
+    // A committed direct edit must become visible before the round ends,
+    // although this legal path never sends file_content or file_content_end.
+    await expect(textarea(page)).toHaveValue(file.content);
+    await page.waitForTimeout(3300);
+  }
+  await push(page, 'done', { assistant_message_id: 'direct-edit-reply', session_id: 's1', file_mutated: true });
+  await page.evaluate(() => (window as unknown as { __sse: { close: () => void } }).__sse.close());
+  await expect(textarea(page)).toHaveValue(generated[1].content);
+  for (const file of generated) {
+    expect(f.files[file.id].content).toBe(file.content);
+    expect(f.requests.filter(request => request.method === 'PUT' && request.path.endsWith(`/files/${file.id}`))).toHaveLength(0);
+  }
+  expect(f.errors).toEqual([]);
+});

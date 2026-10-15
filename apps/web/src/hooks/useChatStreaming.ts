@@ -1376,7 +1376,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
          */
         onFileEditEnd: (
           fileId: string,
-          _editsApplied: number,
+          editsApplied: number,
           _newLength: number,
           newContent?: string,
           originalContent?: string,
@@ -1389,6 +1389,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
           setEditProgress(null);
           setAiEditingFileId?.(null);
           scheduleFileTreeRefresh();
+
+          // Direct edit_file can fill a create_file placeholder without <file>
+          // chunks or file_content_end. Its committed body now owns the editor.
+          if (editsApplied > 0 && !outcome?.allFailed) finishFileStreaming(fileId);
 
           // 批量编辑可以部分失败：不提示的话用户只看到"编辑完成"，
           // 实际上有若干条 edit 根本没落地（失败原因只藏在 data 里）。

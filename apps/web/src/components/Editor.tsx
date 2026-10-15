@@ -1525,7 +1525,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
   if (file) {
     // Check if this file is currently being streamed
     const isStreaming = file.id === streamingFileId;
-    const displayContent = isStreaming ? streamingContent : editContent;
 
     // Check if this file is in diff review mode
     const isInReviewMode = diffReviewState?.isReviewing && diffReviewState.fileId === file.id;
@@ -1540,7 +1539,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
       fileTitle: editTitle,
       baseUpdatedAt: file.updated_at,
       title: editTitle,
-      content: displayContent,
+      content: editContent,
+      streamingContent: isStreaming ? streamingContent : undefined,
       onTitleChange: setEditTitle,
       onContentChange: setEditContent,
       onSave: handleSaveFile,

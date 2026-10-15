@@ -70,7 +70,10 @@ interface SimpleEditorProps {
   fileTitle?: string;
   baseUpdatedAt?: string;
   title: string;
+  /** The author's editable body; streaming previews must never become a saved draft. */
   content: string;
+  /** Display only while streaming; excluded from draft, dirty and save-token state. */
+  streamingContent?: string;
   onTitleChange: (title: string) => void;
   onContentChange: (content: string) => void;
   onSave: (submission: SaveSubmission) => Promise<SaveResult>;
@@ -130,6 +133,7 @@ export const SimpleEditor = ({
   baseUpdatedAt,
   title,
   content,
+  streamingContent,
   onTitleChange,
   onContentChange,
   onSave,
@@ -151,6 +155,7 @@ export const SimpleEditor = ({
   onRejectAllEdits,
   onFinishReview,
 }: SimpleEditorProps) => {
+  const displayContent = isStreaming ? streamingContent ?? content : content;
   const { t } = useTranslation(['editor', 'versions']);
   const { addQuote } = useTextQuote();
   // 只读 QuotaBadge 已经拉好的额度缓存，不为一个按钮提示另发请求；
@@ -392,7 +397,7 @@ export const SimpleEditor = ({
     const isFocused =
       typeof document !== "undefined" && document.activeElement === textareaRef.current;
     adjustTextareaHeight(!isFocused);
-  }, [content, adjustTextareaHeight]);
+  }, [displayContent, adjustTextareaHeight]);
 
   // When switching files, force a full recalculation so short files don't leave huge height.
   useEffect(() => {
@@ -804,7 +809,7 @@ export const SimpleEditor = ({
         });
       }
     }
-  }, [content, isStreaming]);
+  }, [displayContent, isStreaming]);
 
   // Auto-save with debounce
   useEffect(() => {
@@ -1192,7 +1197,7 @@ export const SimpleEditor = ({
             <div className="relative">
               <textarea
                 ref={textareaRef}
-                value={content}
+                value={displayContent}
                 onChange={handleContentChange}
                 onSelect={(event) => handleSelection(event.currentTarget)}
                 onMouseUp={(event) => handleSelection(event.currentTarget)}
@@ -1213,7 +1218,7 @@ export const SimpleEditor = ({
               {/* Mirror div for calculating selection position */}
               <div ref={mirrorRef} aria-hidden="true" />
               {/* Typing cursor for streaming */}
-              {isStreaming && content && (
+              {isStreaming && displayContent && (
                 <span className="inline-block w-0.5 h-5 bg-[hsl(var(--accent-primary))] ml-0.5 animate-pulse absolute" style={{ transform: 'translateY(-1px)' }} />
               )}
             </div>
@@ -1234,10 +1239,10 @@ export const SimpleEditor = ({
               title={t('editor:wordCountHint')}
               className="cursor-help text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
             >
-              {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(content)}</strong>
+              {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
             </button>
             <span>
-              {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{content.split(/\n\n+/).filter(Boolean).length}</strong>
+              {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{displayContent.split(/\n\n+/).filter(Boolean).length}</strong>
             </span>
             {/* Zoom indicator - only show when zoomed */}
             {zoom !== 1 && (

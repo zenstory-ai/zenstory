@@ -614,7 +614,6 @@ describe('AI writes the open chapter twice in one round', () => {
   });
 });
 
-
 describe('deleted open file terminal state', () => {
   const mountOpenFile = async () => {
     const view = render(<ProjectProvider><Harness /></ProjectProvider>);
@@ -800,7 +799,6 @@ describe('deleted open file terminal state', () => {
       const chunkReload = new Event(BEFORE_CHUNK_RELOAD_EVENT, { cancelable: true });
       window.dispatchEvent(chunkReload);
       expect(chunkReload.defaultPrevented).toBe(true);
-
 
       expect(server.update).not.toHaveBeenCalled();
     } finally { write.mockRestore(); }
@@ -1001,4 +999,85 @@ describe('deleted open file terminal state', () => {
     expect(putsFor(CH2_ID)).toHaveLength(0);
   });
 
+});
+
+describe('AI fulfills a pending empty file', () => {
+  for (const writePath of ['direct edit', 'file stream'] as const) {
+    it(`${writePath} keeps ten files without saving the streaming display`, async () => {
+      const view = render(<ProjectProvider><Harness initialSelection={false} /></ProjectProvider>);
+      await settle();
+      act(() => callbacks().onStart());
+      const generated = Array.from({ length: 10 }, (_, index) => ({
+        ...CH1, id: `generated-${index}`, title: `File ${index + 1}`,
+        file_type: index < 3 ? 'lore' : 'character', content: `Saved body ${index + 1}.`.repeat(12),
+      }));
+      const displayedAfterWrite: string[] = [];
+      for (const file of generated) {
+        server.files.set(file.id, { ...file, content: '', updated_at: T_CREATED });
+        act(() => {
+          callbacks().onToolResult('create_file', 'success', { id: file.id, content: '' });
+          callbacks().onFileCreated(file.id, file.file_type, file.title);
+        });
+        await settle();
+        if (writePath === 'file stream') {
+          act(() => callbacks().onFileContent(file.id, file.content));
+          await advance(50);
+          server.files.set(file.id, { ...file, updated_at: T_V1 });
+          act(() => callbacks().onFileContentEnd(file.id));
+        } else {
+          // The adapter supports edit_file filling an empty file without ever
+          // receiving <file>. It emits no file_content_end for that capture.
+          server.files.set(file.id, { ...file, updated_at: T_V1 });
+          act(() => {
+            callbacks().onToolResult('edit_file', 'success', { id: file.id });
+            callbacks().onFileEditStart(file.id, file.title, 1, file.file_type);
+            callbacks().onFileEditApplied(file.id, 0, 'append');
+            callbacks().onFileEditEnd(file.id, 1, file.content.length, undefined, undefined, file.file_type, file.title);
+          });
+        }
+        await advance(300); await settle();
+        displayedAfterWrite.push(textarea().value);
+        // Exercise the next file's switch flush before the debounce expires.
+        await advance(2200);
+      }
+      // The last file exercises the debounce without another file switch.
+      await advance(3500); await settle();
+      await act(async () => { await callbacks().onComplete([], null, { confirmedFileMutation: true }); });
+      await advance(3500); await settle();
+      for (const file of generated) {
+        act(() => harness.project!.setSelectedItem({ id: file.id, type: file.file_type as 'lore' | 'character', title: file.title }));
+        await settle();
+        expect(textarea()).toHaveValue(file.content);
+      }
+      view.unmount(); await settle();
+      expect(server.update).not.toHaveBeenCalled();
+      expect(displayedAfterWrite).toEqual(generated.map(file => file.content));
+      for (const file of generated) expect(server.files.get(file.id)!.content).toBe(file.content);
+    });
+  }
+});
+
+it('saves an intentional author deletion of the entire body', async () => {
+  await runRoundUntilV1();
+  fireEvent.change(textarea(), { target: { value: '' } });
+  await advance(3100); await settle();
+  expect(putsFor(CH2_ID)).toHaveLength(1);
+  expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: '', base_updated_at: T_V1 });
+  expect(server.files.get(CH2_ID)!.content).toBe('');
+});
+
+it('keeps the committed body when a direct edit is followed by a stream error', async () => {
+  await runRoundUntilV1();
+  act(() => callbacks().onFileCreated(CH2_ID, 'draft', '第2章'));
+  await settle();
+  server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
+  act(() => {
+    callbacks().onFileEditStart(CH2_ID, '第2章', 1, 'draft');
+    callbacks().onFileEditEnd(CH2_ID, 1, V2.length, undefined, undefined, 'draft', '第2章');
+    callbacks().onError('Stopped stream');
+  });
+  await advance(3500); await settle();
+  expect(textarea()).toHaveValue(V2);
+  expect(putsFor(CH2_ID)).toHaveLength(0);
+  expect(server.files.get(CH2_ID)!.content).toBe(V2);
 });

@@ -1271,4 +1271,25 @@ describe('SimpleEditor', () => {
     }
   });
 
+  it('keeps streaming display text out of the save baseline and author draft', async () => {
+    vi.useFakeTimers();
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: 'saved-token' });
+    const onFlushReady = vi.fn();
+    const props = { fileId: 'file-1', title: 'File', onTitleChange: vi.fn(), onContentChange: vi.fn(), onSave, onFlushReady };
+    const view = render(<SimpleEditor {...props} content="Original body" baseUpdatedAt="old-token"
+      isStreaming streamingContent="Partial preview" />);
+    expect(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder')).toHaveValue('Partial preview');
+    view.rerender(<SimpleEditor {...props} content="Committed server body" baseUpdatedAt="new-token"
+      isStreaming streamingContent="" serverBaseline={{ version: 1, fileId: 'file-1', title: 'File', content: 'Committed server body', updatedAt: 'new-token' }} />);
+    expect(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder')).toHaveValue('');
+    expect(screen.queryByText('editor:unsaved')).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    await act(async () => { expect(await onFlushReady.mock.calls.at(-1)?.[0]()).toBe('saved'); });
+    fireEvent.keyDown(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), { key: 's', ctrlKey: true });
+    view.unmount();
+    await act(async () => Promise.resolve());
+    expect(onSave).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
 });
