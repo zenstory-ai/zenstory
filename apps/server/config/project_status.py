@@ -9,6 +9,11 @@ Keeping limits centralized prevents prompt bloat and keeps behavior consistent a
 
 from collections.abc import Mapping
 
+PROJECT_TITLE_LEDGER_ACTION = "project_title"
+PROJECT_TITLE_SOURCE_AI = "ai_auto"
+PROJECT_TITLE_SOURCE_AUTHOR = "user"
+PROJECT_TITLE_AUTHOR_TOOL = "author_project_rename"
+
 # Per-field max lengths (characters)
 PROJECT_STATUS_MAX_LENGTHS: dict[str, int] = {
     "summary": 4000,

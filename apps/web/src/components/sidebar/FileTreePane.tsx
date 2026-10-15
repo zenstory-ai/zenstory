@@ -49,6 +49,7 @@ export const FileTreePane: React.FC = () => {
   const [tree, setTree] = useState<FileTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // UI states
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
@@ -116,9 +117,7 @@ export const FileTreePane: React.FC = () => {
     const abortController = new AbortController();
     loadAbortControllerRef.current = abortController;
 
-    if (showLoading) {
-      setLoading(true);
-    }
+    setLoading(showLoading);
     try {
       // Try to load from new File API first
       const response = await fileApi.getTree(currentProjectId, {
@@ -128,6 +127,7 @@ export const FileTreePane: React.FC = () => {
         return;
       }
       setTree(response.tree || []);
+      setLoadError(false);
       if (selectedAtRequest && selectedItemRef.current?.id === selectedAtRequest.id
         && findAncestorFolderIds(previousTree, selectedAtRequest.id) !== null
         && findAncestorFolderIds(response.tree || [], selectedAtRequest.id) === null) {
@@ -145,13 +145,10 @@ export const FileTreePane: React.FC = () => {
         return;
       }
       logger.error("Failed to load file tree:", error);
-      // Fallback: tree is empty, folders will be created on first use
-      setTree([]);
+      setLoadError(true);
     } finally {
       if (requestId === loadRequestIdRef.current) {
-        if (showLoading) {
-          setLoading(false);
-        }
+        setLoading(false);
         setIsInitialLoad(false);
       }
     }
@@ -192,6 +189,7 @@ export const FileTreePane: React.FC = () => {
     // Files from the previous project must not remain selectable while loading.
     activeProjectIdRef.current = currentProjectId;
     setTree([]);
+    setLoadError(false);
     if (currentProjectId) {
       // Show loading only on initial load or when switching projects
       setIsInitialLoad(true);
@@ -701,6 +699,15 @@ export const FileTreePane: React.FC = () => {
     );
   };
 
+  const loadErrorNotice = loadError ? (
+    <div role="alert" className="p-3 text-sm text-[hsl(var(--text-secondary))]">
+      <p>{t('editor:fileTree.loadFailed')}</p>
+      <button type="button" className="btn-secondary mt-2 min-h-11" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
+        {t(loading ? 'common:loading' : 'common:retry')}
+      </button>
+    </div>
+  ) : null;
+
   if (loading && isInitialLoad && tree.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center text-[hsl(var(--text-secondary))]">
@@ -712,9 +719,11 @@ export const FileTreePane: React.FC = () => {
   if (tree.length === 0) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
-        <Folder size={48} className="mb-4 opacity-30" />
-        <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
-        <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
+        {loadErrorNotice || <>
+          <Folder size={48} className="mb-4 opacity-30" />
+          <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
+          <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
+        </>}
       </div>
     );
   }
@@ -776,6 +785,7 @@ export const FileTreePane: React.FC = () => {
       </div>
 
       {/* File Tree */}
+      {loadErrorNotice}
       {tree.map((node) => renderNode(node, 0))}
 
       <ConfirmDialog

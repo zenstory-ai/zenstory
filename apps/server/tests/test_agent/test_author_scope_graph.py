@@ -18,13 +18,10 @@ from agent.core.author_facing_text import (
 )
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.author_scope import (
-    PLANNED_WRITER_AFTER_QUESTION_NOTE,
     SCOPE_DIRECTIVE_CLARIFY_FIRST,
     SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING,
     chat_only_plan_units,
     is_vague_edit_request,
-    previous_question_offers_one_edit,
-    request_asks_for_a_plan,
 )
 
 
@@ -87,9 +84,8 @@ def _tool(name: str, call_id: str = "t1") -> StreamEvent:
 # ------------------------------------------------------------------ P2-21
 
 
-async def test_planner_question_keeps_writer_when_author_asked_for_prose():
-    """作者首条就要「…大纲，然后直接写第一章」：规划师按老习惯问一句「要我开始写吗？」，
-    不能把计划里的 writer 清掉——作者的话就是答案。"""
+async def test_structured_route_keeps_planned_writer_independent_of_planner_punctuation():
+    """Typed route controls planned handoff; planner prose punctuation does not."""
     calls: list[str] = []
     seen: dict[str, dict] = {}
 
@@ -110,21 +106,19 @@ async def test_planner_question_keeps_writer_when_author_asked_for_prose():
 
     events = await _run(
         _route({"agent_type": "planner", "workflow_type": "standard", "write_content": True,
-                "scope": "大纲+第1章"}),
+                "requested_file_types": ["outline", "draft"], "scope": "大纲+第1章"}),
         fake_agent,
         message="帮我构思一个都市异能故事的大纲，然后直接写第一章",
     )
 
     assert calls == ["planner", "writer"]
     assert SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING in seen["planner"]["scope"]
-    # writer 知道规划师问过、作者已经要正文：按推荐方案写，不再问。
-    assert PLANNED_WRITER_AFTER_QUESTION_NOTE in seen["writer"]["message"]
     # 不重做、不扩大交付范围（P2-16 首轮自动交接追加了「拍摄执行版」）。
     assert "不追加作者没要的产出" in seen["writer"]["message"]
     assert any(e.type == StreamEventType.HANDOFF for e in events)
 
 
-async def test_planner_question_still_waits_when_author_only_asked_for_a_framework():
+async def test_outline_only_structured_route_has_no_writer_handoff():
     calls: list[str] = []
 
     async def fake_agent(_state, agent_type, **_kwargs):
@@ -133,7 +127,8 @@ async def test_planner_question_still_waits_when_author_only_asked_for_a_framewo
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "要我按这份大纲开始写第一章吗？"})
 
     await _run(
-        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False}),
+        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False,
+                "requested_file_types": ["outline"]}),
         fake_agent,
         message="先帮我搭个故事框架",
     )
@@ -234,15 +229,13 @@ async def test_vague_request_after_an_options_list_still_asks_first():
     assert seen["clarify_first"] is True
 
 
-async def test_vague_reply_to_a_single_proposed_edit_goes_ahead():
-    """上一轮只提了一处修改（「要不要把第4章开头改紧凑一点？」）：「改改」就是答应它。"""
+async def test_vague_reply_to_prose_offer_still_requires_structured_clarification():
+    """Previous assistant prose is not authority to resolve an otherwise vague edit request."""
     seen: dict[str, object] = {}
 
     async def fake_agent(state, agent_type, **_kwargs):
         seen["clarify_first"] = state.get("clarify_first")
-        for event in _edit_done():
-            yield event
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "改好了。"})
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "想改哪一个文件、哪一处？"})
 
     history = [
         {"role": "user", "content": "继续写下一章"},
@@ -255,7 +248,8 @@ async def test_vague_reply_to_a_single_proposed_edit_goes_ahead():
     route = _route({"agent_type": "writer", "workflow_type": "quick", "write_content": True})
     await _run(route, fake_agent, message="改改", messages=history)
 
-    assert seen["clarify_first"] is not True
+    route.assert_not_called()
+    assert seen["clarify_first"] is True
 
 
 def test_clarify_first_tools_refuse_with_their_own_reason():
@@ -326,7 +320,8 @@ async def test_plan_left_only_in_chat_is_saved_to_an_outline_file():
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": _TEN_CHAPTER_PLAN})
 
     await _run(
-        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False}),
+        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False,
+                "requested_file_types": ["outline"]}),
         fake_agent,
         message="先给我列一下前十章的大纲",
     )
@@ -345,7 +340,8 @@ async def test_plan_discussion_is_not_turned_into_an_outline_file():
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": _TEN_CHAPTER_PLAN})
 
     await _run(
-        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False}),
+        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False,
+                "requested_file_types": []}),
         fake_agent,
         message="先聊聊前十章怎么安排比较好",
     )
@@ -365,46 +361,13 @@ async def test_plan_already_written_to_a_file_is_not_redone():
         )
 
     await _run(
-        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False}),
+        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": False,
+                "requested_file_types": ["outline"]}),
         fake_agent,
         message="先给我列一下前十章的大纲",
     )
 
     assert calls == ["planner"]
-
-
-@pytest.mark.parametrize(
-    ("message", "asks"),
-    [
-        ("先给我列一下前十章的大纲", True),
-        ("前十章大纲", True),
-        ("帮我做个分集规划", True),
-        ("能列一下前十章大纲吗", True),
-        ("大纲帮我列一下，你觉得十章够吗", True),
-        # 讨论：规划贴在对话里就够了。
-        ("先聊聊前十章大纲怎么安排", False),
-        ("你觉得前十章大纲怎么写比较好", False),
-        # 回答 / 评价上一轮的规划。
-        ("大纲没问题，开始写第一章吧", False),
-        ("这个分集规划挺好", False),
-        ("大纲写得不错", False),
-        # 拿规划当依据。
-        ("按大纲写第5章", False),
-        ("根据分集规划写第3集", False),
-        # 回答规划师的提问，没提规划。
-        ("爽文，主角叫陈默", False),
-        # 问进度 / 在哪、提意见：不是要一份新规划（不该多一轮补写大纲文件）。
-        ("大纲好了吗", False),
-        ("大纲写了吗", False),
-        ("我的大纲在哪", False),
-        ("你的大纲有问题", False),
-        ("这个大纲第5章节奏太慢", False),
-        ("大纲写好了没", False),
-        ("大纲还没写吧，帮我列一下前十章大纲", True),
-    ],
-)
-def test_plan_backstop_needs_the_author_to_ask_for_a_plan(message, asks):
-    assert request_asks_for_a_plan(message) is asks
 
 
 async def test_answer_approving_a_plan_is_not_turned_into_an_outline_file():
@@ -422,22 +385,6 @@ async def test_answer_approving_a_plan_is_not_turned_into_an_outline_file():
     )
 
     assert calls == ["planner"]
-
-
-@pytest.mark.parametrize(
-    ("reply", "one_edit"),
-    [
-        ("第4章写好了。\n要我继续写第5章，还是先把第4章开头改紧凑一点？", True),
-        ("第4章写好了。\n接下来你可以：\n- 把第4章开头改紧凑一点\n- 继续写第5章", True),
-        ("第4章写好了。\n接下来你可以：\n- 把开头改紧凑一点\n- 优化第3章的对话\n- 继续写第5章", False),
-        # 交代做了什么的句子不是提议：选项里一处修改都没有。
-        ("第4章写好了，我把节奏改快了一些。\n接下来你可以：\n1. 继续写第5章\n2. 补一份人设", False),
-        ("第4章写好了，我把节奏改快了一些。要我继续写第5章吗？", False),
-        ("要我继续写第5章吗？主角的命运会在那里改变。", False),
-    ],
-)
-def test_single_proposed_edit_is_read_from_the_offered_options_only(reply, one_edit):
-    assert previous_question_offers_one_edit(reply) is one_edit
 
 
 async def test_vague_request_after_a_report_and_no_edit_option_still_asks_first():
@@ -532,14 +479,13 @@ def test_review_rule_jargon_is_not_shown_to_authors():
     assert "阈值" not in author_facing_text("重复47字，超过15字阈值，按阻断处理，需要改")
 
 
-async def test_vague_reply_to_a_conditional_offer_goes_ahead():
-    """I06：AI 问「要不要我把大纲那一行同步改成新落点？」后又补一句「你说改我就改」，
-    结尾不是问号；作者回「改」就是答应这一处，不再先问一遍。"""
+async def test_vague_reply_to_conditional_offer_prose_still_asks_first():
+    """Conditional-offer wording does not replace a structured clarification event."""
     seen: dict[str, object] = {}
 
     async def fake_agent(state, agent_type, **_kwargs):
         seen["clarify_first"] = state.get("clarify_first")
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "改好了。"})
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "想改哪一个文件、哪一处？"})
 
     history = [
         {"role": "user", "content": "结局换成主角留在岛上"},
@@ -553,4 +499,5 @@ async def test_vague_reply_to_a_conditional_offer_goes_ahead():
     route = _route({"agent_type": "writer", "workflow_type": "quick", "write_content": True})
     await _run(route, fake_agent, message="改", messages=history)
 
-    assert seen["clarify_first"] is not True
+    route.assert_not_called()
+    assert seen["clarify_first"] is True

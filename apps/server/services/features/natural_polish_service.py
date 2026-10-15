@@ -47,6 +47,7 @@ DEFAULT_NATURAL_POLISH_PROMPT_ZH = """
 - 每组之间空一行。没改的行不要输出。
 - 如果一处都不需要改，只输出：无改动
 - 不要输出任何解释、说明、标题、编号或其他文字，不要调用工具。
+- 格式不完整或多出任何文字都会让本次请求失败；不要退回整段正文作为兜底。
 """.strip()
 
 SCRIPT_NATURAL_POLISH_RULES_ZH = """
@@ -82,6 +83,7 @@ Output format (follow it exactly):
 - Put a blank line between pairs. Do not output unchanged lines.
 - If nothing needs changing, output only: NO CHANGES
 - Output nothing else: no explanations, notes, headings or numbering. Do not call tools.
+- An incomplete pair or any extra text makes the request fail; never fall back to returning the full rewritten passage.
 """.strip()
 
 SCRIPT_NATURAL_POLISH_RULES_EN = """
@@ -126,9 +128,8 @@ def is_noop_rewrite(original: str, rewritten: str) -> bool:
 # 行级改动协议：解析「原：/改：」并套回原文
 # ---------------------------------------------------------------------------
 
-_EDIT_OLD_RE = re.compile(r"^\s*(?:原|OLD)\s*[:：]\s?(.*)$", re.IGNORECASE)
-_EDIT_NEW_RE = re.compile(r"^\s*(?:改|NEW)\s*[:：]\s?(.*)$", re.IGNORECASE)
-_NO_CHANGE_RE = re.compile(r"^\W*(无改动|没有改动|无需改动|NO\s+CHANGES?)\W*$", re.IGNORECASE)
+_EDIT_OLD_RE = re.compile(r"^(原：|OLD:)(.*)$")
+_EDIT_NEW_RE = re.compile(r"^(改：|NEW:)(.*)$")
 _DELETE_PLACEHOLDERS = {"（删除）", "(删除)", "删除", "（删去）", "[delete]", "(delete)", "[deleted]"}
 
 _SCRIPT_HEADING_RE = re.compile(r"^(?:【[^】]*】|第\s*[0-9一二三四五六七八九十百]+\s*[集场幕]|人物\s*[:：]|Characters?\s*:|Episode\s+\d+)", re.IGNORECASE)
@@ -143,53 +144,69 @@ class LineEdit:
     new: str
 
 
-def parse_line_edits(output: str) -> list[LineEdit] | None:
-    """Parse the model's edit list.
+class NaturalPolishProtocolError(ValueError):
+    """The model response did not satisfy the natural-polish edit protocol."""
 
-    Returns the edits ([] for an explicit「无改动」, or for output that only echoes「原：」
-    lines without any「改：」), or None when the output does not follow the protocol at
-    all (the caller then treats it as a full rewrite).
+
+def _marker_payload(match: "re.Match[str]") -> str:
+    """Return marker payload while accepting the prompt's optional one ASCII space."""
+    payload = match.group(2)
+    return payload[1:] if payload.startswith(" ") else payload
+
+
+def parse_line_edits(output: str) -> list[LineEdit]:
+    """Parse a complete ``原：/改：`` or ``OLD:/NEW:`` response.
+
+    The model output is an internal wire format, not prose. Partial pairs, aliases,
+    multiline revisions, mixed marker dialects and any explanatory text are rejected
+    rather than being written into the author's document or downgraded to a no-op.
     """
+    stripped = output.strip()
+    if stripped in {"无改动", "NO CHANGES"}:
+        return []
+    if not stripped:
+        raise NaturalPolishProtocolError("empty natural polish response")
+
+    lines = stripped.splitlines()
     edits: list[LineEdit] = []
-    old: str | None = None
-    new_parts: list[str] | None = None
-    new_closed = False
-    saw_old_marker = False
-
-    def flush() -> None:
-        nonlocal old, new_parts, new_closed
-        if old is not None and new_parts is not None:
-            edits.append(LineEdit(old=old, new="".join(new_parts)))
-        old, new_parts, new_closed = None, None, False
-
-    for raw in output.splitlines():
-        old_match = _EDIT_OLD_RE.match(raw)
-        if old_match:
-            flush()
-            old = old_match.group(1)
-            saw_old_marker = True
+    dialect: str | None = None
+    index = 0
+    while index < len(lines):
+        if not lines[index].strip():
+            index += 1
             continue
-        new_match = _EDIT_NEW_RE.match(raw)
-        if new_match and old is not None and new_parts is None:
-            new_parts = [new_match.group(1)]
-            continue
-        if new_parts is not None and not new_closed:
-            if raw.strip():
-                # 「改：」后面意外换了行：拼回同一行，绝不让一行变成两段。
-                new_parts.append(raw.strip())
-            else:
-                new_closed = True
-    flush()
 
-    if edits:
-        return edits
-    if _NO_CHANGE_RE.match(output.strip()):
-        return []
-    if saw_old_marker:
-        # 模型只把原文一行行抄成「原：」、一组「改：」都没给（真实模型复跑里出现过）。
-        # 当整段改写处理会把「原：」前缀写进正文；这等于一处都没改。
-        return []
-    return None
+        old_match = _EDIT_OLD_RE.fullmatch(lines[index])
+        if old_match is None:
+            raise NaturalPolishProtocolError(f"expected OLD marker at line {index + 1}")
+        old = _marker_payload(old_match)
+        if not old:
+            raise NaturalPolishProtocolError(f"empty OLD anchor at line {index + 1}")
+
+        index += 1
+        if index >= len(lines):
+            raise NaturalPolishProtocolError("incomplete natural polish edit pair")
+        new_match = _EDIT_NEW_RE.fullmatch(lines[index])
+        if new_match is None:
+            raise NaturalPolishProtocolError(f"expected NEW marker at line {index + 1}")
+
+        old_marker = old_match.group(1)
+        new_marker = new_match.group(1)
+        if (
+            (old_marker == "原：") != (new_marker == "改：")
+            or (dialect is not None and old_marker != dialect)
+        ):
+            raise NaturalPolishProtocolError(f"mixed edit marker dialect at line {index + 1}")
+        dialect = old_marker
+        edits.append(LineEdit(old=old, new=_marker_payload(new_match)))
+        index += 1
+
+        if index < len(lines) and lines[index].strip():
+            raise NaturalPolishProtocolError(f"unexpected text at line {index + 1}")
+
+    if not edits:
+        raise NaturalPolishProtocolError("natural polish response contains no edit pairs")
+    return edits
 
 
 def _leading_ws(text: str) -> str:
@@ -269,26 +286,34 @@ def _guard_line(original_line: str, proposed: str, *, is_script: bool, full_orig
 def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | None = None) -> tuple[str, int]:
     """Apply「原：/改：」pairs to the original; unmentioned lines stay byte-identical.
 
-    Returns (text, dropped) where dropped counts edits that could not be anchored.
+    Returns ``(text, 0)`` for the existing helper contract. Invalid or ambiguous
+    anchors now raise ``NaturalPolishProtocolError`` instead of being dropped.
     """
     is_script = file_type == FILE_TYPE_SCRIPT
     lines = original.split("\n")
     current: list[str | object] = list(lines)
     keys = [normalize_for_noop_comparison(line) for line in lines]
     replaced: set[int] = set()
-    dropped = 0
     restored = 0
+    seen_anchors: set[str] = set()
 
     for edit in edits:
         old_key = normalize_for_noop_comparison(edit.old)
         if not old_key:
-            dropped += 1
-            continue
-        index = next(
-            (i for i, key in enumerate(keys) if key == old_key and i not in replaced and current[i] is not _DELETE),
-            None,
-        )
-        if index is not None:
+            raise NaturalPolishProtocolError("empty normalized OLD anchor")
+        if old_key in seen_anchors:
+            raise NaturalPolishProtocolError("duplicate OLD anchor")
+        seen_anchors.add(old_key)
+
+        exact_candidates = [
+            i
+            for i, key in enumerate(keys)
+            if key == old_key and i not in replaced and current[i] is not _DELETE
+        ]
+        if len(exact_candidates) > 1:
+            raise NaturalPolishProtocolError("ambiguous OLD anchor")
+        if exact_candidates:
+            index = exact_candidates[0]
             replaced.add(index)
             guarded = _guard_line(lines[index], edit.new, is_script=is_script, full_original=original)
             current[index], count = _keep_protected_sentences(lines[index], guarded)
@@ -299,15 +324,17 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
         # 引号映射是一字符换一字符，按映射后的位置切原串不会错位，
         # 所以模型抄的时候顺手换了引号也能对上。
         needle = edit.old.strip().translate(_QUOTE_TRANSLATION)
-        candidates = [
-            i
-            for i, line in enumerate(current)
-            if isinstance(line, str) and needle and needle in line.translate(_QUOTE_TRANSLATION)
-        ]
+        candidates: list[tuple[int, int]] = []
+        for i, line in enumerate(current):
+            if not isinstance(line, str) or not needle:
+                continue
+            normalized_line = line.translate(_QUOTE_TRANSLATION)
+            occurrences = normalized_line.count(needle)
+            candidates.extend((i, occurrence) for occurrence in range(occurrences))
         if len(candidates) != 1:
-            dropped += 1
-            continue
-        index = candidates[0]
+            reason = "unmatched" if not candidates else "ambiguous"
+            raise NaturalPolishProtocolError(f"{reason} OLD anchor")
+        index = candidates[0][0]
         working = current[index]
         assert isinstance(working, str)
         position = working.translate(_QUOTE_TRANSLATION).find(needle)
@@ -342,37 +369,7 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
         result.pop()
     while result and not result[0].strip() and lines and lines[0].strip():
         result.pop(0)
-    return "\n".join(result), dropped
-
-
-def apply_full_rewrite(original: str, rewritten: str, *, file_type: str | None = None) -> str:
-    """Fallback when the model ignored the edit protocol and returned the whole text.
-
-    With the same line count, each changed line goes through the same format and
-    sentence guards. Otherwise the lines cannot be paired: if the rewrite dropped a
-    protected sentence anywhere, the original comes back unchanged; if not, the rewrite
-    is kept as-is apart from the quote style.
-    """
-    is_script = file_type == FILE_TYPE_SCRIPT
-    original_lines = original.split("\n")
-    rewritten_lines = rewritten.strip("\n").split("\n")
-    if len(original_lines) != len(rewritten_lines):
-        original_sentences = [s for line in original_lines for s in split_sentences(line.strip())]
-        rewritten_sentences = [s for line in rewritten_lines for s in split_sentences(line.strip())]
-        _, restored = restore_dropped_sentences(original_sentences, rewritten_sentences)
-        if restored:
-            return original
-        return _restore_quote_style(rewritten, original)
-
-    result: list[str] = []
-    for original_line, rewritten_line in zip(original_lines, rewritten_lines, strict=True):
-        if rewritten_line == original_line or (not original_line.strip() and not rewritten_line.strip()):
-            result.append(original_line)
-            continue
-        guarded = _guard_line(original_line, rewritten_line, is_script=is_script, full_original=original)
-        kept, _ = _keep_protected_sentences(original_line, guarded)
-        result.append(original_line if kept is _DELETE else kept)  # type: ignore[arg-type]
-    return "\n".join(result)
+    return "\n".join(result), 0
 
 
 def _keep_protected_sentences(original_line: str, guarded: str | object) -> tuple[str | object, int]:
@@ -756,18 +753,7 @@ class NaturalPolishService:
         )
 
         edits = parse_line_edits(raw_output)
-        if edits is None:
-            polished_text = apply_full_rewrite(selected_text, raw_output, file_type=file_type)
-        else:
-            polished_text, dropped = apply_line_edits(selected_text, edits, file_type=file_type)
-            if dropped:
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Natural polish dropped edits that did not match the selection",
-                    dropped=dropped,
-                    total=len(edits),
-                )
+        polished_text, _ = apply_line_edits(selected_text, edits, file_type=file_type)
 
         return NaturalPolishResult(
             polished_text=polished_text,

@@ -113,6 +113,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   const [tree, setTree] = useState<FileTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // UI states
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -174,9 +175,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     const abortController = new AbortController();
     loadAbortControllerRef.current = abortController;
 
-    if (showLoading) {
-      setLoading(true);
-    }
+    setLoading(showLoading);
     try {
       const response = await fileApi.getTree(currentProjectId, {
         signal: abortController.signal,
@@ -185,6 +184,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         return;
       }
       setTree(response.tree || []);
+      setLoadError(false);
       if (selectedAtRequest && selectedItemRef.current?.id === selectedAtRequest.id
         && findAncestorFolderIds(previousTree, selectedAtRequest.id) !== null
         && findAncestorFolderIds(response.tree || [], selectedAtRequest.id) === null) {
@@ -202,12 +202,10 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         return;
       }
       logger.error("Failed to load file tree:", error);
-      setTree([]);
+      setLoadError(true);
     } finally {
       if (requestId === loadRequestIdRef.current) {
-        if (showLoading) {
-          setLoading(false);
-        }
+        setLoading(false);
         setIsInitialLoad(false);
       }
     }
@@ -246,6 +244,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     // Files from the previous project must not remain selectable while loading.
     activeProjectIdRef.current = currentProjectId;
     setTree([]);
+    setLoadError(false);
     if (currentProjectId) {
       setIsInitialLoad(true);
       loadData(true);
@@ -764,6 +763,15 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     t,
   ]);
 
+  const loadErrorNotice = loadError ? (
+    <div role="alert" className="p-3 text-sm text-[hsl(var(--text-secondary))]">
+      <p>{t('editor:fileTree.loadFailed')}</p>
+      <button type="button" className="btn-secondary mt-2 min-h-11" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
+        {t(loading ? 'common:loading' : 'common:retry')}
+      </button>
+    </div>
+  ) : null;
+
   // Loading state
   if (loading && isInitialLoad && tree.length === 0) {
     return (
@@ -802,9 +810,11 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           />
         </div>
         <div className="flex-1 flex flex-col items-center justify-center text-[hsl(var(--text-secondary))] p-4">
-          <Folder size={48} className="mb-4 opacity-30" />
-          <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
-          <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
+          {loadErrorNotice || <>
+            <Folder size={48} className="mb-4 opacity-30" />
+            <p className="text-sm">{t('editor:fileTree.folderEmpty')}</p>
+            <p className="text-xs mt-1">{t('editor:fileTree.createWithAI')}</p>
+          </>}
         </div>
       </div>
     );
@@ -849,6 +859,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         </div>
       </div>
 
+      {loadErrorNotice}
       {uploadError && (
         <div className="mx-3 mt-2 px-3 py-2 bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded text-[hsl(var(--error))] text-xs">
           {uploadError}

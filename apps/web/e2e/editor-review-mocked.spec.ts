@@ -138,6 +138,61 @@ async function receipt(page: Page, info: TestInfo) {
 }
 test.afterEach(async ({ page }, info) => receipt(page, info));
 
+for (const width of [390, 768, 1440]) {
+  test(`read failure keeps saved files and history distinct from empty at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const locale = width === 390 ? 'zh' : 'en';
+    const f = await fixture(page, 'Saved manuscript stays intact.', locale);
+    let treeRecovered = false;
+    let chatRecovered = false;
+    const readRequests: { path: string; method: string }[] = [];
+    await page.route('**/api/v1/projects/*/file-tree', async route => {
+      readRequests.push({ path: new URL(route.request().url()).pathname, method: route.request().method() });
+      if (treeRecovered) return route.fallback();
+      return route.fulfill({ status: 502, contentType: 'application/json', body: '{}' });
+    });
+    await page.route('**/api/v1/chat/session/*/recent?*', async route => {
+      readRequests.push({ path: new URL(route.request().url()).pathname, method: route.request().method() });
+      return route.fulfill({ status: chatRecovered ? 200 : 502, contentType: 'application/json', body: JSON.stringify(
+        chatRecovered ? Array.from({ length: 4 }, (_, index) => ({
+          id: `saved-message-${index}`, session_id: 'saved-session', role: index % 2 ? 'assistant' : 'user',
+          content: `Saved conversation ${index + 1}`, created_at: token0,
+        })) : {},
+      ) });
+    });
+    await page.goto(`/project/${projectA}?file=A`);
+    if (width < 768) await page.locator('#chat-tab').click();
+    const chatError = page.getByTestId('message-list').getByRole('alert');
+    await expect(chatError).toContainText(locale === 'zh' ? '对话暂时没能加载，请重试' : "Couldn't load this chat. Please try again.");
+    await expect(page.getByText(locale === 'zh' ? '我是你的创作伙伴，有什么可以帮你的？' : "I'm your creative partner. How can I help?", { exact: true })).toHaveCount(0);
+    const input = page.getByTestId('chat-input');
+    await input.fill('Keep this local cutover draft');
+    await expect(page.getByTestId('send-button')).toBeDisabled();
+    await page.screenshot({ path: info.outputPath(`read-error-chat-${width}.png`), fullPage: true, animations: 'disabled' });
+    chatRecovered = true;
+    await chatError.getByRole('button', { name: locale === 'zh' ? '重试' : 'Retry', exact: true }).click();
+    await expect(page.getByText('Saved conversation 4', { exact: true })).toBeVisible();
+    await expect(input).toHaveValue('Keep this local cutover draft');
+    if (width < 768) await page.locator('#files-tab').click();
+    const treeError = page.getByRole('alert').filter({ hasText: locale === 'zh' ? '文件暂时没能加载，请重试' : "Couldn't load files. Please try again." });
+    await expect(treeError).toBeVisible();
+    const retry = treeError.getByRole('button', { name: locale === 'zh' ? '重试' : 'Retry', exact: true });
+    const bounds = await retry.boundingBox();
+    expect(bounds?.height).toBeGreaterThanOrEqual(44);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: info.outputPath(`read-error-files-${width}.png`), fullPage: true, animations: 'disabled' });
+    treeRecovered = true;
+    await retry.click();
+    await expect(page.getByText('Chapter Alpha', { exact: true }).first()).toBeVisible();
+    await expect(treeError).toHaveCount(0);
+    expect(readRequests.every(request => request.method === 'GET')).toBe(true);
+    expect(f.requests.filter(request => /\/agent\/(suggest|stream)$/.test(request.path))).toEqual([]);
+    expect(puts(f)).toEqual([]);
+    expect(f.files.A.content).toBe('Saved manuscript stays intact.');
+    await page.screenshot({ path: info.outputPath(`read-recovered-${width}.png`), fullPage: true, animations: 'disabled' });
+  });
+}
+
 test('actual textarea: counts, native undo, clean shortcut, manual/debounce saves and file switch', async ({ page }) => {
   const f = await fixture(page);
   await openA(page);

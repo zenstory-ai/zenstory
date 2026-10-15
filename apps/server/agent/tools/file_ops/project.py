@@ -10,14 +10,28 @@ Extracted from the monolithic file_executor.py for better maintainability.
 
 import json
 import re
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from sqlmodel import Session, desc, select
 
 from agent.tools.permissions import check_project_ownership
-from agent.tools.task_progress import format_units, task_text, task_unit_spec, title_units
+from agent.tools.task_progress import (
+    ArtifactEvidence,
+    artifact_units,
+    format_units,
+    task_artifact_type,
+    task_evidence_spec,
+    validate_task_artifact_fields,
+)
 from config.datetime_utils import utcnow
-from config.project_status import normalize_project_status_payload
+from config.project_status import (
+    PROJECT_TITLE_AUTHOR_TOOL,
+    PROJECT_TITLE_LEDGER_ACTION,
+    PROJECT_TITLE_SOURCE_AI,
+    PROJECT_TITLE_SOURCE_AUTHOR,
+    normalize_project_status_payload,
+)
 from config.project_templates import PROJECT_TEMPLATES_BY_LANG
 from models import AgentArtifactLedger, File, Project
 from utils.logger import get_logger, log_with_context
@@ -40,13 +54,11 @@ DEFAULT_PROJECT_NAMES = frozenset(
 TITLE_SKIPPED_AUTHOR_NAMED = "author_named"
 TITLE_SKIPPED_INVALID = "invalid_title"
 TITLE_SKIPPED_UNCHANGED = "unchanged"
+TITLE_SOURCE_UNAVAILABLE = "provenance_unavailable"
 
 # 每次 update_project 改了项目名，都在 agent_artifact_ledger 记一行（同一次提交）。
 # 项目表没有元数据字段，「现在这个名字是不是 AI 自己起的」只能靠这条记录判断：
 # 最近一条记录是 AI 自动命名、且名字和项目现在的名字一样，才算 AI 起的名。
-PROJECT_TITLE_LEDGER_ACTION = "project_title"
-PROJECT_TITLE_SOURCE_AI = "ai_auto"
-PROJECT_TITLE_SOURCE_AUTHOR = "author_requested"
 
 # 拒绝改名时写进工具结果的说明。必须给出界面上真实存在的入口，模型才不会自己编一个。
 # 这里不提 author_requested：每次拒绝都会带这段话，写了就等于教模型「再带上标记重试」。
@@ -55,30 +67,6 @@ AUTHOR_NAMED_TITLE_NOTE = (
     "需要提到改名时告诉作者：点顶部的项目名打开项目切换器，"
     "再点项目名旁的铅笔（「编辑项目名称」）就能自己改。"
 )
-
-# author_requested 只在作者这一轮的原话里确实提到改名时才生效（服务端判断，不靠模型）。
-# 两种说法算数：直接说改名（「改名」「重命名」「rename」…），
-# 或者同时提到作品名称（「项目名」「书名」…）和改动（「改」「换」「叫」…）。
-_RENAME_DIRECT = re.compile(
-    r"改名|改个名|换名|换个名|重命名|重新命名|更名|rename",
-    re.IGNORECASE,
-)
-# 只认作品级的名称。「标题」「title」不算：章节标题、大纲标题也这么叫。
-_RENAME_NOUN = re.compile(
-    r"项目名|项目的名|书名|剧名|作品名|作品的名|小说名|小说的名|故事名"
-    r"|书的名|剧的名|故事的名|(?:book|novel|story|project)\s*(?:title|name)",
-    re.IGNORECASE,
-)
-_RENAME_VERB = re.compile(r"改|换|叫|定|设|用|变|change|set|call|switch|update|make", re.IGNORECASE)
-
-
-def author_message_asks_rename(message: Any) -> bool:
-    """作者这一轮的原话里有没有要求改项目名（author_requested 的服务端闸门）。"""
-    if not isinstance(message, str) or not message.strip():
-        return False
-    if _RENAME_DIRECT.search(message):
-        return True
-    return bool(_RENAME_NOUN.search(message) and _RENAME_VERB.search(message))
 
 _TITLE_STRIP_CHARS = re.compile(r"[《》“”]")
 _WHITESPACE_RUN = re.compile(r"\s+")
@@ -125,17 +113,14 @@ class ProjectOperations:
         return f"phase:{normalized_phase}"
 
     @classmethod
-    def _normalize_task_phase_identity(cls, task: dict[str, Any]) -> str | None:
+    def _normalize_task_phase_identity(cls, task: dict[str, Any]) -> tuple[str, str | None] | None:
         """Return normalized phase identity key with task name to avoid phase_id reuse collisions."""
         phase_key = cls._normalize_task_phase(task)
         if not phase_key:
             return None
 
         task_key = cls._normalize_task_name(task)
-        if not task_key:
-            return phase_key
-
-        return f"{phase_key}|{task_key}"
+        return (phase_key, task_key)
 
     @staticmethod
     def _normalize_task_name(task: dict[str, Any]) -> str | None:
@@ -180,10 +165,14 @@ class ProjectOperations:
         Rules:
         1) At most one in_progress task in the current batch.
         2) Block rollback from done -> in_progress compared with previous board.
-        3) Keep legacy format compatible (task/status remains sufficient).
+        3) Legacy task/status supports pending/in_progress and historical done.
+           New done needs an explicit conversation kind or typed file evidence.
         """
         in_progress_count = 0
         valid_statuses = {"pending", "in_progress", "done"}
+        previous_by_identity = {
+            self._task_identity(task): task for task in previous_tasks or [] if isinstance(task, dict)
+        }
 
         for index, task in enumerate(tasks):
             if not isinstance(task, dict):
@@ -193,6 +182,20 @@ class ProjectOperations:
             if not isinstance(task_name, str) or not task_name.strip():
                 raise ValueError(f"Invalid task at index {index}: 'task' is required")
 
+            validate_task_artifact_fields(task)
+            if "task_kind" in task and task["task_kind"] not in {"file", "conversation"}:
+                raise ValueError("task_kind must be file or conversation")
+            if task.get("task_kind") == "conversation" and any(
+                field in task for field in ("artifact_file_type", "artifact_refs", "unit_spec")
+            ):
+                raise ValueError("conversation tasks cannot claim file delivery fields")
+            prior = previous_by_identity.get(self._task_identity(task))
+            legacy_prior = previous_by_identity.get((None, self._normalize_task_name(task)))
+            if task.get("task_kind") == "conversation" and any(
+                entry and (entry.get("task_kind") == "file" or task_artifact_type(entry) is not None)
+                for entry in (prior, legacy_prior)
+            ):
+                raise ValueError("file delivery tasks cannot be reclassified as conversation")
             status = task.get("status")
             if status not in valid_statuses:
                 raise ValueError(
@@ -209,7 +212,7 @@ class ProjectOperations:
             )
 
         historical_tasks = previous_tasks or []
-        done_phase_keys: set[str] = set()
+        done_phase_keys: set[tuple[str, str | None]] = set()
         done_legacy_task_keys: set[str] = set()
         for previous in historical_tasks:
             if not isinstance(previous, dict) or previous.get("status") != "done":
@@ -256,99 +259,139 @@ class ProjectOperations:
                 f"Invalid task transition: done -> in_progress rollback is not allowed ({targets})"
             )
 
-    # 工作流按实际写出的文件记在任务上的进度（writing_graph._build_completion_task_payload）。
-    _RECORDED_PROGRESS_FIELDS = ("done_units", "progress")
-    # message_manager 渲染任务板时接在任务名后的进度（「撰写第2-5集剧本（已写：第2集；待写：第3–5集）」）。
+    _ARTIFACT_CONTRACT_FIELDS = ("task_kind", "artifact_file_type", "artifact_refs", "unit_spec", "artifact")
+    _SERVER_PROGRESS_FIELDS = ("done_units", "progress", "completed_artifact_refs")
     _RENDERED_PROGRESS_SUFFIX_RE = re.compile(r"\s*[（(]已写：[^（）()]*[）)]\s*$")
 
     @classmethod
-    def _carry_recorded_progress(
-        cls,
-        tasks: list[Any],
-        previous_tasks: list[dict[str, Any]],
-    ) -> None:
-        """模型重存任务板时，把旧任务上记下的进度带到同名任务上（原地修改 tasks）。
+    def _task_identity(cls, task: dict[str, Any]) -> tuple[str | None, str | None]:
+        # Phase-aware identities never fall back to a same-name task in another phase.
+        return cls._normalize_task_phase_identity(task) or (None, cls._normalize_task_name(task))
 
-        done_units / progress 不在工具 schema 里，模型只看到渲染成文字的任务板，重存时不会带上；
-        不接过来的话，前几轮写过的编号就丢了，范围任务永远凑不齐、进度里还会把已有的写成待写。
-        只认任务名完全相同（去首尾空白）的任务；标为 done 的任务不再需要进度，不带。
-        这一次自己带了 done_units 的（工作流收尾那一次）以它为准。
-        """
-        recorded: dict[str, dict[str, Any]] = {}
-        for previous in previous_tasks:
-            if not isinstance(previous, dict) or not previous.get("done_units"):
-                continue
-            key = cls._normalize_task_name(previous)
-            if key:
-                recorded[key] = {
-                    field: previous[field]
-                    for field in cls._RECORDED_PROGRESS_FIELDS
-                    if previous.get(field)
-                }
-        if not recorded:
-            return
+    @classmethod
+    def _carry_artifact_contract(
+        cls, tasks: list[Any], previous_tasks: list[dict[str, Any]],
+    ) -> None:
+        recorded = {cls._task_identity(task): task for task in previous_tasks if isinstance(task, dict)}
         for task in tasks:
-            if not isinstance(task, dict) or "done_units" in task:
+            if not isinstance(task, dict):
                 continue
-            # 模型照抄渲染出来的任务板时会把「（已写：…）」当成任务名的一部分发回来。
             name = task.get("task")
             if isinstance(name, str):
-                stripped = cls._RENDERED_PROGRESS_SUFFIX_RE.sub("", name.strip())
-                if stripped and stripped != name.strip():
-                    task["task"] = stripped
-            if task.get("status") == "done":
+                task["task"] = cls._RENDERED_PROGRESS_SUFFIX_RE.sub("", name.strip())
+            prior = recorded.get(cls._task_identity(task))
+            if not prior or any(
+                field in task and task[field] != prior.get(field)
+                for field in cls._ARTIFACT_CONTRACT_FIELDS
+            ):
                 continue
-            key = cls._normalize_task_name(task)
-            if key and key in recorded:
-                task.update(recorded[key])
+            for field in cls._ARTIFACT_CONTRACT_FIELDS:
+                if field in prior:
+                    task.setdefault(field, prior[field])
 
-    def _unverified_done_tasks(
+    def _live_artifacts(self, project_id: str | None) -> list[ArtifactEvidence]:
+        if not project_id:
+            return []
+        rows = self.session.exec(
+            select(File).where(File.project_id == project_id, File.is_deleted.is_(False))
+            .execution_options(populate_existing=True)
+        ).all()
+        return [
+            ArtifactEvidence(row.id, row.title, row.file_type, row.get_metadata())
+            for row in rows if row.content.strip()
+        ]
+
+    @staticmethod
+    def _matching_artifacts(task: dict[str, Any], artifacts: list[ArtifactEvidence]) -> list[ArtifactEvidence]:
+        file_type = task_artifact_type(task)
+        refs = set(task.get("artifact_refs") or [])
+        matching = [item for item in artifacts if item.file_type == file_type and (not refs or item.id in refs)]
+        spec = task_evidence_spec(task)
+        if spec:
+            return [item for item in matching if artifact_units([item], spec.unit, file_type) & spec.numbers]
+        title = str(task.get("artifact") or "").strip()
+        return matching if refs else [item for item in matching if title and title == item.title.strip()]
+
+    @staticmethod
+    def _missing_artifact_evidence(task: dict[str, Any], matching: list[ArtifactEvidence]) -> str:
+        file_type = task_artifact_type(task)
+        if file_type is None:
+            return "明确的产物类型；非文件任务须显式标记 task_kind=conversation"
+        refs = set(task.get("artifact_refs") or [])
+        if refs and not refs <= {item.id for item in matching}:
+            return "对应类型的产物文件"
+        spec = task_evidence_spec(task)
+        if spec is not None:
+            missing = set(spec.numbers) - artifact_units(matching, spec.unit, file_type)
+            return format_units(missing, spec.unit) if missing else ""
+        if refs or task.get("artifact"):
+            return "" if matching else "完全同名、对应类型的产物文件"
+        return "明确的产物引用或编号"
+
+    def _refresh_verified_progress(
         self,
         tasks: list[dict[str, Any]],
         previous_tasks: list[dict[str, Any]],
         project_id: str | None,
+        written_artifact_ids: Sequence[str] | None,
     ) -> list[dict[str, str]]:
-        """这次新标为 done、写了编号范围、项目里却找不到其中一部分文件的任务。
+        """Only persisted backend file IDs and trusted writes can retain progress.
 
-        只提醒、不拒绝：标题不带编号的文件对不上号，拒绝会让模型永远标不了 done；
-        done 也不能再改回 in_progress（见 _validate_update_plan_tasks），所以提醒里只要求
-        如实告诉作者。查不到文件时不提醒。
+        Model-supplied counters/IDs are stripped before this method. A new manual
+        file completion is checked against current project files; conversational
+        completion is explicit, never inferred from task wording.
         """
-        if not project_id:
-            return []
-        previously_done = {
-            key
-            for previous in previous_tasks
-            if isinstance(previous, dict) and previous.get("status") == "done"
-            and (key := self._normalize_task_name(previous))
-        }
-        candidates = []
-        for task in tasks:
-            if task.get("status") != "done" or self._normalize_task_name(task) in previously_done:
-                continue
-            spec = task_unit_spec(task_text(task))
-            if spec is not None:
-                candidates.append((task, spec))
-        if not candidates:
-            return []
+        recorded = {self._task_identity(task): task for task in previous_tasks if isinstance(task, dict)}
+        needs_files = any(task_artifact_type(task) is not None for task in tasks)
         try:
-            rows = self.session.exec(
-                select(File.title, File.content).where(
-                    File.project_id == project_id,
-                    File.is_deleted.is_(False),  # type: ignore[attr-defined]
-                )
-            ).all()
-            titles = [str(title or "") for title, content in rows if str(content or "").strip()]
+            artifacts = self._live_artifacts(project_id) if needs_files else []
         except Exception as exc:
-            logger.debug(f"Task done check skipped: {exc}")
-            return []
-        unverified: list[dict[str, str]] = []
-        for task, spec in candidates:
-            missing = set(spec.numbers) - title_units(titles, spec.unit)
-            if missing:
-                unverified.append(
-                    {"task": str(task.get("task") or ""), "missing": format_units(missing, spec.unit)}
-                )
+            logger.warning("Task artifact verification unavailable", extra={"error_type": type(exc).__name__})
+            artifacts = []
+        written_ids = set(written_artifact_ids or [])
+        unverified = []
+        for task in tasks:
+            prior = recorded.get(self._task_identity(task))
+            same_contract = bool(prior) and all(
+                task.get(field) == prior.get(field) for field in self._ARTIFACT_CONTRACT_FIELDS
+            )
+            file_type = task_artifact_type(task)
+            is_conversation = task.get("task_kind") == "conversation"
+            if file_type is None:
+                # Retain legacy completed history, but do not create new untyped facts.
+                historical_done = same_contract and prior.get("status") == "done"
+                if task.get("status") == "done" and not is_conversation and not historical_done:
+                    unverified.append({"task": str(task["task"]), "missing": self._missing_artifact_evidence(task, [])})
+                continue
+
+            matching = self._matching_artifacts(task, artifacts)
+            prior_refs = set(prior.get("completed_artifact_refs") or []) if same_contract else set()
+            verified = [item for item in matching if item.id in prior_refs | written_ids]
+            if task.get("status") == "done":
+                missing = self._missing_artifact_evidence(task, matching)
+                if missing:
+                    # A previously verified completion can become stale after human edits.
+                    # Correct that fact instead of retaining a false done status.
+                    if same_contract and prior.get("status") == "done" and prior_refs:
+                        task["status"] = "pending"
+                    else:
+                        unverified.append({"task": str(task["task"]), "missing": missing})
+                        continue
+                else:
+                    verified = matching
+            if verified:
+                task["completed_artifact_refs"] = sorted(item.id for item in verified)
+            spec = task_evidence_spec(task)
+            if spec:
+                covered = artifact_units(verified, spec.unit, file_type) & spec.numbers
+                missing_units = set(spec.numbers) - covered
+                if covered and not missing_units and not self._missing_artifact_evidence(task, verified):
+                    task["status"] = "done"
+                elif covered:
+                    task["done_units"] = sorted(covered)
+                    task["progress"] = f"已写：{format_units(covered, spec.unit)}；待写：{format_units(missing_units, spec.unit)}"
+            elif verified and not self._missing_artifact_evidence(task, verified):
+                task["status"] = "done"
         return unverified
 
     def update_project_status(
@@ -360,6 +403,29 @@ class ProjectOperations:
         notes: str | None = None,
         title: str | None = None,
         author_requested: bool = False,
+        *,
+        notes_transform: Callable[[str | None], str] | None = None,
+    ) -> dict[str, Any]:
+        """Update metadata using fresh locked state, including any source-aware note merge."""
+        from services.project_service import project_metadata_write_lock
+
+        with project_metadata_write_lock(project_id):
+            return self._update_project_status_locked(
+                project_id, summary, current_phase, writing_style, notes, title,
+                author_requested, notes_transform=notes_transform,
+            )
+
+    def _update_project_status_locked(
+        self,
+        project_id: str,
+        summary: str | None = None,
+        current_phase: str | None = None,
+        writing_style: str | None = None,
+        notes: str | None = None,
+        title: str | None = None,
+        author_requested: bool = False,
+        *,
+        notes_transform: Callable[[str | None], str] | None = None,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -372,26 +438,28 @@ class ProjectOperations:
             notes: Additional notes for AI assistant
             title: Work title (≤30 chars, no 《》). Renames the project while
                 it still has a default name or the name AI auto-naming gave it;
-                a name the author chose is kept unless ``author_requested``.
-            author_requested: The author explicitly asked to rename the
-                project in this conversation; overrides the author-name lock.
+                a name the author chose is always kept.
+            author_requested: Legacy parameter, ignored; model claims never grant authority.
 
         Returns:
             Updated project status fields; with ``title``, also
             ``project_name_updated`` and, when not renamed, ``title_skipped``
-            (author_named / invalid_title / unchanged)
+            (author_named / invalid_title / unchanged / provenance_unavailable)
 
         Raises:
             PermissionError: If user doesn't have permission
             ValueError: If project not found
         """
-        # Check project permission
-        check_project_ownership(self.session, project_id, self.user_id)
+        # Serialize with the author's explicit rename, and refresh stale ORM state
+        # before deciding whether the current title is still AI-owned.
+        self.session.exec(
+            select(Project).where(Project.id == project_id).with_for_update()
+            .execution_options(populate_existing=True)
+        ).first()
+        project = check_project_ownership(self.session, project_id, self.user_id)
 
-        # Get project
-        project = self.session.get(Project, project_id)
-        if not project:
-            raise ValueError(f"Project not found: {project_id}")
+        if notes_transform is not None:
+            notes = notes_transform(project.notes)
 
         # Track what was updated
         updated_fields = []
@@ -443,8 +511,9 @@ class ProjectOperations:
         """改项目名。
 
         - 默认名、或 AI 自动命名留下的名字：直接改成新作品名。
-        - 作者自己起的名字：不改，除非 ``author_requested``（作者在对话里明确要求改名）。
+        - 作者自己起的名字：不能由 Agent 改，作者使用项目设置中的明确改名操作。
         """
+        del author_requested  # Model/tool booleans do not grant author-title authority.
         title = normalize_project_title(raw_title)
         if title is None:
             return {
@@ -457,10 +526,15 @@ class ProjectOperations:
         current_name = (project.name or "").strip()
         if current_name == title:
             return {"project_name_updated": False, "title_skipped": TITLE_SKIPPED_UNCHANGED}
-        if (
-            not author_requested
-            and current_name not in DEFAULT_PROJECT_NAMES
-            and not self._is_ai_auto_named(project, current_name)
+        title_source = self._current_title_source(project, current_name)
+        if title_source == TITLE_SOURCE_UNAVAILABLE:
+            return {
+                "project_name_updated": False,
+                "title_skipped": TITLE_SOURCE_UNAVAILABLE,
+                "title_note": "无法确认项目名的命名来源，本次未改名；作者可以通过项目设置直接改名。",
+            }
+        if title_source == PROJECT_TITLE_SOURCE_AUTHOR or (
+            current_name not in DEFAULT_PROJECT_NAMES and title_source != PROJECT_TITLE_SOURCE_AI
         ):
             return {
                 "project_name_updated": False,
@@ -478,11 +552,7 @@ class ProjectOperations:
                 payload=json.dumps(
                     {
                         "project_name": title,
-                        "source": (
-                            PROJECT_TITLE_SOURCE_AUTHOR
-                            if author_requested
-                            else PROJECT_TITLE_SOURCE_AI
-                        ),
+                        "source": PROJECT_TITLE_SOURCE_AI,
                     },
                     ensure_ascii=False,
                 ),
@@ -490,9 +560,20 @@ class ProjectOperations:
         )
         return {"project_name_updated": True, "project_name": title}
 
-    def _is_ai_auto_named(self, project: Project, current_name: str) -> bool:
-        """项目现在的名字是不是 AI 自动命名写进去的（之后作者没再改过）。"""
+    def _current_title_source(self, project: Project, current_name: str) -> str | None:
+        """Explicit human title events override older AI naming, even after A→B→A."""
         try:
+            # Human ownership is permanent in this tool's contract. Do not let
+            # timestamp ties (or clock skew) resurrect an older AI naming grant.
+            author_event = self.session.exec(
+                select(AgentArtifactLedger.id).where(
+                    AgentArtifactLedger.project_id == project.id,
+                    AgentArtifactLedger.action == PROJECT_TITLE_LEDGER_ACTION,
+                    AgentArtifactLedger.tool_name == PROJECT_TITLE_AUTHOR_TOOL,
+                ).limit(1)
+            ).first()
+            if author_event is not None:
+                return PROJECT_TITLE_SOURCE_AUTHOR
             payload = self.session.exec(
                 select(AgentArtifactLedger.payload)
                 .where(
@@ -510,18 +591,27 @@ class ProjectOperations:
                 project_id=project.id,
                 error=str(exc),
             )
-            return False
+            return TITLE_SOURCE_UNAVAILABLE
+        if payload is None:
+            return None
         if not isinstance(payload, str):
-            return False
+            return TITLE_SOURCE_UNAVAILABLE
         try:
             record = json.loads(payload)
         except (TypeError, ValueError):
-            return False
-        return (
-            isinstance(record, dict)
-            and record.get("source") == PROJECT_TITLE_SOURCE_AI
-            and str(record.get("project_name") or "").strip() == current_name
-        )
+            return TITLE_SOURCE_UNAVAILABLE
+        if not isinstance(record, dict):
+            return TITLE_SOURCE_UNAVAILABLE
+        # Source is durable authority; name equality only checks legacy AI-state consistency.
+        if record.get("source") == PROJECT_TITLE_SOURCE_AUTHOR:
+            return PROJECT_TITLE_SOURCE_AUTHOR
+        if record.get("source") == PROJECT_TITLE_SOURCE_AI:
+            if str(record.get("project_name") or "").strip() == current_name:
+                return PROJECT_TITLE_SOURCE_AI
+            # Legacy/direct writes did not record a source event. A name newer
+            # than the last AI event is protected, never granted AI authority.
+            return PROJECT_TITLE_SOURCE_AUTHOR
+        return TITLE_SOURCE_UNAVAILABLE
 
     def execute_update_plan(
         self,
@@ -529,6 +619,8 @@ class ProjectOperations:
         tasks: list[dict[str, Any]],
         user_id: str | None = None,
         project_id: str | None = None,
+        *,
+        written_artifact_ids: Sequence[str] | None = None,
     ) -> dict[str, Any]:
         """
         Execute update_plan tool - save tasks to Redis task board.
@@ -587,6 +679,8 @@ class ProjectOperations:
 
                 normalized_task = dict(task)
                 self._coerce_task_name_field(normalized_task)
+                for field in self._SERVER_PROGRESS_FIELDS:
+                    normalized_task.pop(field, None)
                 normalized_tasks.append(normalized_task)
 
             tasks_payload = normalized_tasks
@@ -597,7 +691,7 @@ class ProjectOperations:
                 user_id=user_id,
                 project_id=project_id,
             ) or []
-            self._carry_recorded_progress(tasks_payload, previous_tasks)
+            self._carry_artifact_contract(tasks_payload, previous_tasks)
 
             try:
                 self._validate_update_plan_tasks(tasks=tasks_payload, previous_tasks=previous_tasks)
@@ -646,6 +740,16 @@ class ProjectOperations:
             # Now safe to treat payload as list[dict], because validation succeeded.
             validated_tasks = cast(list[dict[str, Any]], tasks_payload)
 
+            unverified = self._refresh_verified_progress(
+                validated_tasks, previous_tasks, project_id, written_artifact_ids
+            )
+            if unverified:
+                return {
+                    "status": "ignored", "reason": "unverified_done",
+                    "message": "任务计划板未更新：完成状态缺少可核验的对应产物",
+                    "unverified_done": unverified, "tasks": validated_tasks,
+                }
+
             # Save tasks to Redis
             success = task_board_service.save_tasks(
                 session_id,
@@ -683,24 +787,6 @@ class ProjectOperations:
                 },
                 "tasks": validated_tasks,
             }
-            # 模型把范围任务标成 done，项目里却缺其中的文件（「第2-5集」只有第2集）：
-            # 写进结果提醒模型，回复里要如实说哪些还没写。
-            unverified = self._unverified_done_tasks(validated_tasks, previous_tasks, project_id)
-            if unverified:
-                result["unverified_done"] = unverified
-                details = "；".join(f"「{item['task']}」缺{item['missing']}" for item in unverified)
-                result["message"] = (
-                    "任务计划板已更新。注意：以下任务标为 done，但项目里没有找到对应的文件："
-                    f"{details}。如果这些还没写，回复里如实告诉作者哪些还没写，不要说已全部完成。"
-                )
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Task marked done without matching files",
-                    session_id=session_id,
-                    project_id=project_id,
-                    unverified=len(unverified),
-                )
             return result
 
         except Exception as e:

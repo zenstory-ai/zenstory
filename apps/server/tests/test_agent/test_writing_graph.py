@@ -11,6 +11,7 @@ import pytest
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.openai_agents.repeat_read_guard import ReadPlan
 from agent.tools.mcp_tools import ToolContext
+from agent.tools.task_progress import ArtifactEvidence
 from tests.test_agent.body_write_events import create_file_events
 
 
@@ -72,13 +73,18 @@ class TestWritingGraphCompletionHooks:
                     "services.infra.task_board_service.task_board_service.get_tasks",
                     return_value=[
                         {"task": "step-1", "status": "done"},
-                        {"task": "step-2", "status": "in_progress"},
+                        {
+                            "task": "step-2",
+                            "status": "in_progress",
+                            "artifact_file_type": "draft",
+                            "artifact_refs": ["file-1"],
+                        },
                         {"task": "step-3", "status": "pending"},
                     ],
                 ),
                 patch(
-                    "agent.graph.writing_graph._existing_written_titles",
-                    return_value=["第一章"],
+                    "agent.graph.writing_graph._existing_written_artifacts",
+                    return_value=[ArtifactEvidence("file-1", "第一章", "draft")],
                 ),
                 patch("agent.graph.writing_graph.update_project", mock_update_project),
             ):
@@ -757,11 +763,16 @@ class TestWritingGraphAutoReviewGate:
                 patch("agent.graph.writing_graph.run_streaming_agent", new=fake_run_streaming_agent),
                 patch(
                     "services.infra.task_board_service.task_board_service.get_tasks",
-                    return_value=[{"task": "step-2", "status": "in_progress"}],
+                    return_value=[{
+                        "task": "step-2",
+                        "status": "in_progress",
+                        "artifact_file_type": "draft",
+                        "artifact_refs": ["file-1"],
+                    }],
                 ),
                 patch(
-                    "agent.graph.writing_graph._existing_written_titles",
-                    return_value=["第一章"],
+                    "agent.graph.writing_graph._existing_written_artifacts",
+                    return_value=[ArtifactEvidence("file-1", "第一章", "draft")],
                 ),
                 patch("agent.graph.writing_graph.update_project", mock_update_project),
             ):
@@ -1404,13 +1415,8 @@ class TestWritingGraphUserScope:
         assert "大纲+只写第1章" in captured["writer"]
 
     @pytest.mark.asyncio
-    async def test_question_to_user_stops_planned_handoff(self):
-        """planner 以提问收尾、路由没说作者要不要正文时等用户回答，不按计划自动交给 writer。
-
-        作者已经明确要正文（write_content=true）时不在此列，见
-        test_author_scope_graph.py::test_planner_question_keeps_writer_when_author_asked_for_prose
-        （2026-10-09-planner-question-keeps-requested-prose）。
-        """
+    async def test_question_prose_does_not_stop_structured_planned_handoff(self):
+        """Only a structured clarification stop can block the typed planned handoff."""
         calls: list[str] = []
 
         async def fake_agent(_state, agent_type, **_kwargs):
@@ -1426,13 +1432,18 @@ class TestWritingGraphUserScope:
             )
 
         events = await self._run(
-            self._route({"agent_type": "planner", "workflow_type": "standard"}),
+            self._route({
+                "agent_type": "planner",
+                "workflow_type": "standard",
+                "write_content": True,
+                "requested_file_types": ["outline", "draft"],
+            }),
             fake_agent,
             message="帮我规划一下故事",
         )
 
-        assert calls == ["planner"]
-        assert not any(event.type == StreamEventType.HANDOFF for event in events)
+        assert calls == ["planner", "writer"]
+        assert any(event.type == StreamEventType.HANDOFF for event in events)
         assert not any(event.type == StreamEventType.ITERATION_EXHAUSTED for event in events)
 
     @pytest.mark.asyncio

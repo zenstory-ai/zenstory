@@ -205,12 +205,20 @@ def test_reply_to_clarification_card_inherits_full_routing():
 
 
 @pytest.mark.unit
-def test_short_yes_to_trailing_question_keeps_writer_and_drops_delivered_scope():
+@pytest.mark.parametrize(
+    "assistant_content",
+    [
+        "第一章写好了。需要我继续写第二章吗？\n\n[此前的工具操作]\n- 创建了《第一章》(id=c1)",
+        "第一章写好了。如果你愿意，我可以继续写第二章。",
+    ],
+)
+def test_short_yes_to_question_or_conditional_prose_routes_normally_without_structured_clarification(
+    assistant_content,
+):
     from agent.graph.router import inherit_routing_after_clarification
 
     previous = {
-        # session_loader 把工具面包屑追加在正文之后：结尾判断要先剥掉它
-        "content": "第一章写好了。需要我继续写第二章吗？\n\n[此前的工具操作]\n- 创建了《第一章》(id=c1)",
+        "content": assistant_content,
         "routing": {
             "initial_agent": "writer",
             "workflow_type": "quick",
@@ -220,13 +228,7 @@ def test_short_yes_to_trailing_question_keeps_writer_and_drops_delivered_scope()
             "last_agent": "writer",
         },
     }
-    result = inherit_routing_after_clarification(_state("可以", previous))
-
-    assert result is not None
-    assert result["current_agent"] == "writer"
-    assert result["workflow_plan"] == "quick"
-    assert result["routing_metadata"]["write_content"] is True
-    assert result["routing_metadata"]["scope"] == ""
+    assert inherit_routing_after_clarification(_state("可以", previous)) is None
 
 
 @pytest.mark.unit
@@ -332,6 +334,7 @@ _WRITER_TASK_REVIEWED = {
     "read_only": False,
     "write_content": True,
     "scope": "第四节",
+    "requested_file_types": ["draft"],
     "last_agent": "quality_reviewer",
 }
 
@@ -351,11 +354,12 @@ _WRITER_TASK_REVIEWED = {
           "owner_agent": "quality_reviewer"}, "quality_reviewer"),
     ],
 )
-def test_reply_after_an_auto_review_question_goes_to_the_task_owner(routing, expected):
+def test_reply_after_a_recorded_review_clarification_goes_to_the_task_owner(routing, expected):
     from agent.graph.router import build_router_user_message, inherit_routing_after_clarification
 
     previous = {
-        "content": "第四节写好了。三条可选建议：要不要把那句交代写实一点？",
+        "content": "[workflow_stopped]\nreason: clarification_needed\nquestion: 要把那句交代写实一点吗？",
+        "clarification_pending": True,
         "routing": routing,
     }
     result = inherit_routing_after_clarification(_state("可以", previous))
@@ -833,6 +837,7 @@ async def test_routing_round_trips_from_save_to_next_turn_resume(
         "read_only": True,
         "write_content": False,
         "scope": "前60章",
+        "requested_file_types": [],
         "last_agent": "quality_reviewer",
         "owner_agent": "quality_reviewer",
     }
@@ -868,6 +873,14 @@ async def test_reviewer_reached_by_handoff_is_not_saved_as_the_task_owner(
         yield _text("第四节写好了，我再通读核对一遍。")
         yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "quality_reviewer"})
         yield _text("没发现需要返工的地方。要不要把那句交代写实一点？")
+        yield StreamEvent(
+            type=StreamEventType.WORKFLOW_STOPPED,
+            data={
+                "reason": "clarification_needed",
+                "agent_type": "quality_reviewer",
+                "message": "要不要把那句交代写实一点？",
+            },
+        )
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
     with patch("agent.service.run_writing_workflow_streaming", return_value=workflow()):

@@ -14,6 +14,8 @@ Web 端 `POST /api/v1/projects` 与 Agent API `POST /api/v1/agent/projects` 都�
 """
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlmodel import Session
 
@@ -30,9 +32,28 @@ logger = get_logger(__name__)
 __all__ = [
     "create_project_with_default_folders",
     "resolve_template_lang",
+    "project_metadata_write_lock",
 ]
 
 _DEFAULT_LANG = "zh"
+
+
+@contextmanager
+def project_metadata_write_lock(project_id: str) -> Iterator[None]:
+    """SQLite metadata writers share one in-process gate; PostgreSQL uses row locks.
+
+    Reuse the existing bounded striped lock implementation. As with SQLite file
+    writes, this does not serialize writers in separate processes.
+    """
+    from database import is_postgres
+
+    if is_postgres:
+        yield
+    else:
+        from agent.tools.file_ops.edit import acquire_file_write_lock
+
+        with acquire_file_write_lock(f"project:{project_id}"):
+            yield
 
 
 def resolve_template_lang(accept_language: str | None) -> str:

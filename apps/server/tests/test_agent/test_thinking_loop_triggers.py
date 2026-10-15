@@ -121,7 +121,6 @@ def _assert_in_order(payload: str, appended: str) -> None:
 
 @pytest.fixture
 def long_novel(db_session, monkeypatch):
-    from agent.tools.file_ops.crud import FileCRUD
     from agent.tools.mcp_tools import ToolContext
     from models import File, Project, User
     from services.features.activation_event_service import activation_event_service
@@ -331,8 +330,11 @@ async def test_reviewer_is_told_which_files_author_edit_protection_refused():
     # 2026-10-12 起只有删除 / 整份重写会被拒；只说发生了什么，修改照常用 edit_file。
     assert "删除或整份重写" in reviewer_messages[0] and "不要因此要求返工" in reviewer_messages[0]
     assert "工具不会修改" not in reviewer_messages[0]
-    # 不引导用 edit_file 把新内容写进作者那一集（整份覆盖仍受保护）。
-    assert "edit_file" not in reviewer_messages[0]
+    # 229 后聊天同意不会解除删除/同名覆写保护；普通文本编辑不是一律禁止。
+    assert "删除请引导作者使用现有文件菜单" in reviewer_messages[0]
+    assert "不要以再次聊天确认重试被保护的删除或同名覆写" in reviewer_messages[0]
+    assert "常规文本编辑仍按现有读写保护执行" in reviewer_messages[0]
+    assert "确实要删或整份重写时在给作者的回复里问作者" not in reviewer_messages[0]
 
 
 @pytest.mark.asyncio

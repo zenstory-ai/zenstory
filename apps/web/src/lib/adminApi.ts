@@ -165,13 +165,8 @@ function asBoolean(value: unknown, fallback: boolean = false): boolean {
   return fallback;
 }
 
-function isLikelyTestAccount(email: string, username: string): boolean {
-  const normalizedEmail = email.toLowerCase();
-  const tokenSource = `${username} ${email}`.toLowerCase();
-  if (normalizedEmail.endsWith("@example.com")) {
-    return true;
-  }
-  return ["test", "qa", "demo", "smoke"].some((token) => tokenSource.includes(token));
+function isReservedTestAccount(email: string): boolean {
+  return email.toLowerCase().endsWith("@example.com");
 }
 
 function asIsoDate(value: unknown, fallback: string = FALLBACK_TIMESTAMP): string {
@@ -365,7 +360,7 @@ function normalizeSubscription(subscription: unknown): Subscription {
     is_test_account:
       typeof raw.is_test_account === "boolean"
         ? raw.is_test_account
-        : isLikelyTestAccount(email, username),
+        : isReservedTestAccount(email),
   };
 }
 

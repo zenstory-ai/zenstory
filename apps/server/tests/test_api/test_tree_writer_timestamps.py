@@ -3,7 +3,6 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from fastapi import BackgroundTasks
 
 from agent.tools.file_ops.crud import FileCRUD
 from api import files as files_api
@@ -107,8 +106,8 @@ def test_partial_reorder_advances_selected_tokens_and_leaves_unlisted_sibling_un
 
     assert result["count"] == 2
     for file, expected_order, expected_body in (
-        (second, 0, "Beta body"),
-        (first, 1, "Alpha body"),
+        (second, 1, "Beta body"),
+        (first, 2, "Alpha body"),
     ):
         db_session.refresh(file)
         assert file.order == expected_order

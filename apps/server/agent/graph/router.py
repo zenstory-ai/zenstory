@@ -7,9 +7,9 @@ intent and route to the appropriate writing agent.
 
 import json
 import re
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from agent.core.deepseek_client import get_deepseek_client
 from agent.graph.state import WritingState
@@ -25,6 +25,7 @@ AgentType = Literal["planner", "hook_designer", "writer", "quality_reviewer"]
 
 # Workflow type definitions
 WorkflowType = Literal["quick", "standard", "full", "hook_focus", "review_only"]
+ArtifactFileType = Literal["outline", "draft", "script", "character", "lore", "snippet", "document"]
 
 # Workflow type to agent sequence mapping
 # 每个工作流定义了初始 Agent 之后的 Agent 序列（上限）。实际计划交接序列由
@@ -63,6 +64,14 @@ class RouterDecision(BaseModel):
     write_content: bool | None = None
     read_only: bool = False
     scope: str = ""
+    requested_file_types: list[ArtifactFileType] = Field(default_factory=list, max_length=7)
+
+    @field_validator("requested_file_types")
+    @classmethod
+    def _unique_file_types(cls, value: list[ArtifactFileType]) -> list[ArtifactFileType]:
+        if len(value) != len(set(value)):
+            raise ValueError("requested_file_types must be unique")
+        return value
 
 
 def plan_workflow_agents(decision: RouterDecision) -> list[str]:
@@ -420,15 +429,8 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         or "writer"
     ).strip().lower()
 
-    agent_type: AgentType = "writer"
-    if "planner" in agent_raw:
-        agent_type = "planner"
-    elif "hook_designer" in agent_raw:
-        agent_type = "hook_designer"
-    elif "quality_reviewer" in agent_raw:
-        agent_type = "quality_reviewer"
-    elif "writer" in agent_raw:
-        agent_type = "writer"
+    # Values are enum tokens, not sentences containing an enum token.
+    agent_type = agent_raw
 
     workflow_raw = str(
         payload.get("workflow_type")
@@ -439,17 +441,7 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
     if not workflow_raw:
         workflow_raw = _infer_workflow_from_agent(agent_type)
 
-    workflow_type: WorkflowType = "quick"
-    if "full" in workflow_raw:
-        workflow_type = "full"
-    elif "standard" in workflow_raw:
-        workflow_type = "standard"
-    elif "hook_focus" in workflow_raw:
-        workflow_type = "hook_focus"
-    elif "review_only" in workflow_raw:
-        workflow_type = "review_only"
-    elif "quick" in workflow_raw:
-        workflow_type = "quick"
+    workflow_type = workflow_raw
 
     confidence_raw = payload.get("confidence", 0.0)
     try:
@@ -474,6 +466,7 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         # 由 write_content 和各 agent 提示词去约束范围。
         "read_only": _coerce_optional_bool(payload.get("read_only")) is True,
         "scope": scope,
+        "requested_file_types": payload.get("requested_file_types", []),
     }
 
 
@@ -721,6 +714,7 @@ def _inherited_scope_fields(routing: dict[str, Any], *, keep_scope: bool = True)
         "write_content": write_content if isinstance(write_content, bool) else None,
         "read_only": routing.get("read_only") is True,
         "scope": scope,
+        "requested_file_types": routing.get("requested_file_types", []),
     }
 
 
@@ -812,37 +806,11 @@ def task_owner_agent(routing: dict[str, Any]) -> str | None:
     return last or owner or initial
 
 
-def _ended_with_question(previous: dict[str, Any]) -> bool:
-    # 延迟导入：nodes 依赖 runner，router 会被轻量测试单独导入。
-    from agent.graph.nodes import ends_with_question_to_user
-
-    return ends_with_question_to_user(_reply_text(previous.get("content")))
-
-
 def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] | None:
-    """上一轮以提问收尾、用户简短作答时，沿用上一轮落库的路由，不再调用 LLM 路由。
+    """Resume a recorded clarification, never infer a wait state from assistant prose.
 
-    路由器只看用户本条原话：「可以」「B」「主角叫陈默」这类回答被单独分类时，
-    常被判给别的 agent，或把 write_content 判成 false（随后以最高优先级下发
-    「不要写正文」）。上一轮的路由已经落库，回答它的问题时直接沿用更可靠。
-
-    触发条件（全部满足）：
-    - 上一条 assistant 消息带着落库的 routing；
-    - 它以结构化澄清卡收尾（clarification_pending），或模型自己的话以问句收尾；
-    - 用户本条回复不超过 CLARIFICATION_REPLY_MAX_CHARS 字，且没有「先别写 / 不要正文 /
-      只要大纲 / 不用写」这类明确的收窄说法；
-    - 回复里没有只读 / 审查意图（只审不改 / 别改 / 看看 / 审查 / 检查 / 有没有问题 /
-      review / don't change …）——这类回复要交给 LLM 路由判成 review_only 并挂只读护栏；
-    - 问句收尾时，回复里也没有转去规划的说法（大纲 / 规划 / 人设 / 设定 / outline …）。
-
-    沿用的内容：
-    - 澄清卡（任务还没做，在等补充信息）：agent、workflow、write_content、read_only、
-      scope 全部沿用。
-    - 只以问句收尾（多半是做完后问「要不要接着写第二章？」）：上一轮若是只读或不要
-      正文，这句问话很可能就在征求放开限制，沿用会把用户的「可以」变成禁令，所以
-      交回 LLM 路由；否则沿用 agent、workflow、write_content、read_only，scope 清空——
-      上一轮的范围已经交付，问的是下一步。
-    返回 None 表示照常路由。
+    New narrowing/read-only instructions go through normal routing. A short answer to a
+    structured clarification retains the recorded task owner and requested deliverables.
     """
     user_message = str(state.get("router_message") or state.get("user_message") or "").strip()
     if not user_message or len(user_message) > CLARIFICATION_REPLY_MAX_CHARS:
@@ -858,14 +826,8 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
     if not routing:
         return None
 
-    clarification = previous.get("clarification_pending") is True
-    if not clarification:
-        if not _ended_with_question(previous):
-            return None
-        if any(marker in lowered for marker in _PLANNING_INTENT_MARKERS):
-            return None
-        if routing.get("read_only") is True or routing.get("write_content") is False:
-            return None
+    if previous.get("clarification_pending") is not True:
+        return None
 
     initial_agent = _valid_agent(routing.get("initial_agent"))
     agent_type = task_owner_agent(routing) or "writer"
@@ -878,9 +840,9 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
     decision = RouterDecision(
         agent_type=agent_type,  # type: ignore[arg-type]
         workflow_type=workflow_type,  # type: ignore[arg-type]
-        reason="inherit_after_clarification" if clarification else "inherit_after_question",
+        reason="inherit_after_clarification",
         confidence=1.0,
-        **_inherited_scope_fields(routing, keep_scope=clarification),
+        **_inherited_scope_fields(routing),
     )
     workflow_agents = plan_workflow_agents(decision)
     log_with_context(
@@ -889,7 +851,7 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
         "Short reply to the previous turn's question; reusing its routing (router skipped)",
         agent_type=agent_type,
         workflow_type=workflow_type,
-        clarification_card=clarification,
+        clarification_card=True,
         read_only=decision.read_only,
         write_content=decision.write_content,
     )
@@ -916,6 +878,7 @@ _ROUTER_PREV_ROUTING_KEYS: tuple[str, ...] = (
     "write_content",
     "read_only",
     "scope",
+    "requested_file_types",
 )
 
 _STATUS_CARD_HEADERS: tuple[str, ...] = ("[workflow_stopped]", "[iteration_exhausted]")
@@ -974,6 +937,15 @@ def _previous_routing_summary(previous: dict[str, Any]) -> str:
         elif key == "scope":
             if isinstance(value, str) and value.strip():
                 summary[key] = value.strip()[:MAX_SCOPE_CHARS]
+        elif key == "requested_file_types":
+            allowed = get_args(ArtifactFileType)
+            if (
+                isinstance(value, list)
+                and len(value) <= len(allowed)
+                and all(isinstance(item, str) and item in allowed for item in value)
+                and len(value) == len(set(value))
+            ):
+                summary[key] = value
         elif isinstance(value, str) and value.strip():
             summary[key] = value.strip()
     return json.dumps(summary, ensure_ascii=False) if summary else ""

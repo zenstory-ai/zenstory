@@ -129,31 +129,24 @@ quality_reviewer；计划内 planner→writer 同一交付的成功正文写入�
   ROUTER_PROMPT 区分补问作答（沿用上一轮全部路由字段）和确认提议的下一步（按那一步路由，不沿用
   read_only=true / write_content=false / 已交付的 scope）。
 - 输出：`current_agent`、`workflow_plan`、`workflow_agents`（已裁剪）、`routing_metadata`（`RouterDecision` 全量，含
-  `write_content`（None = 旧格式未给出）、`read_only`、`scope`；ROUTER_PROMPT 要求 scope <= 40 字，`MAX_SCOPE_CHARS`=80 硬截断）。
+  `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`requested_file_types`；ROUTER_PROMPT 要求 scope <= 40 字，`MAX_SCOPE_CHARS`=80 硬截断）。
 - 决策记录：[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
 
 ### 用户范围与交接的不变量
 
 每条一句规则 + 负责的代码 + 决策记录。改动前先读记录，不要只看这里的摘要。
 
-- **以提问收尾就停下**：最后一次工具调用之后的文字以问号结尾（`nodes.ends_with_question_to_user`）时不走计划交接，等作者回答；
-  `request_clarification` 仍是首选信号；显式 handoff 和自动质检门不看这个信号；规划类角色以提问收尾但 `write_content=true`
-  且计划里还有 writer 时保留 writer、交接说明写明按推荐方案写（`author_scope.planning_question_keeps_writer`）。
-  [scope][n-scope]、[planner-question][n-planner-q]
+- **等作者回答使用结构化事件**：需要回答才能继续时调用 `request_clarification`，普通问号和条件句不控制计划交接；跨轮延续只认落库的 `clarification_pending`，不从回复标点猜等待状态。参见 [typed-boundaries][n-typed-boundaries]。
 - **计划交接不扩大交付**：交接说明固定追加 `author_scope.PLANNED_HANDOFF_SCOPE_NOTE`（已完成的不重做、不改刚交付的文件、
   不追加作者没要的产出）。[vague-and-plan-files][n-vague]
 - **笼统要求先问清楚**：`author_scope.is_vague_edit_request` 命中时不走路由，writer 单独一轮先问（`state["clarify_first"]`，写文件
   工具以 `error_type="clarify_first"` 拒绝，显式交接丢弃）；上一轮只提了一处修改或已经问过一次时不问。[vague-and-plan-files][n-vague]
-- **规划要落进文件**：作者要了规划、规划师却把至少 5 个「第 N 章 / 集」只贴在对话里且本请求的大纲文件没覆盖时，同一规划师补一轮
-  写进大纲文件（每请求一次，`author_scope.chat_only_plan_units` / `request_asks_for_a_plan`）。[vague-and-plan-files][n-vague]
+- **规划补写只认 typed intent**：Router 明确给出 `requested_file_types` 且包含 outline 时，规划师在聊天里交付多章规划、未写入大纲文件才有一次纠偏；缺少/非法类型或未请求大纲不从作者措辞补写。参见 [typed-boundaries][n-typed-boundaries]。
 - **作者改了什么给模型看，不猜授权**：`tools/author_changes.py` 按版本历史算净差异放进 `<author_edits>`（`query_files` 按 id 读全文时也带）；
   `edit_file` 在锁内比对本请求模型看过的正文（`mcp_tools._ReadSnapshots`，读到的内容由 `usage_hooks.ReadSnapshotPromotionMixin`
   在下一次模型调用起生效），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。
   [author-edits-shown-not-guessed][n-author-edits]
-- **删除和整份覆盖仍拦**：作者本轮没点名要删 / 重写、也不是正开着它提出时，`delete_file`（含递归删除）和剧本 `create_file` 复用同名
-  剧集不执行，返回 `error_type="author_edit_protected"` 让 agent 问作者；作者在消息里点名这个文件并在那一处说删（或整份重写）时才执行
-  （`tools/author_edit_guard.py`），工作集也标注这类文件；前端卡片把它和
-  `clarify_first` 显示成「保留了你改过的内容」/「先问清楚再改」，不显示失败。[respects-manual-edits][n-manual]、[guard-reads-offer][n-offer]
+- **受保护稿件不由聊天删除或整份覆盖**：作者保存过正文的文件，在应用内对话中的 delete_file（含递归删除）和 create_file 同名剧集复用会拒绝；附加、焦点、点名、否定词、上一轮提议不授予权限，核验失败也不放行。作者使用现有文件菜单/编辑器；普通 edit_file、AI 自己的产物和直接人工 API 保持既有路径。参见 [typed-boundaries][n-typed-boundaries]。
 - **作者可见文字**：每个 agent run 的 TEXT 经 `core/author_facing_text.AgentTextShaper` 补段落空行；作者写中文时，紧接工具调用的
   英文过程句不发给作者。[no-english-narration][n-narration]
 - **只给作者一份总结**：writer（非快速模式、非返修、未到审查上限，且开着自动质检门或计划里下一个是 quality_reviewer）写正文类文件、
@@ -166,6 +159,7 @@ quality_reviewer；计划内 planner→writer 同一交付的成功正文写入�
 - **送审证据用落库后的事实**：送审交接附 `[本轮正文字数]`（落库后的 `count_words`）和 `[作者的篇幅要求]`
   （`review_evidence.find_length_requirements`），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
   放不进预算的长文件只附本请求改动的那段（写入前正文由 `ToolContext.remember_pre_write_content` 记下）。
+  多文件在既有总预算内逐文件分配，每份保留来源文件 ID 与 `updated_at`；未附全文的部分明确标注，按 ID 精确 `query_files` 读取，不把省略部分当作已经核对。
   [single-summary][n-summary]、[writer-delivery-requirements][n-length]、[thinking-loop-inputs][n-thinking]
 - **自动质检门只认成功的正文写入**：按 `graph/body_writes.py` 计 draft / script 里实际写进的字数；改大纲、设定、角色和聊天文字不算；
   写入全部失败时不送审。[single-summary][n-summary]、[tool-failure-breaker][n-breaker]、[review-gating][n-review]
@@ -190,17 +184,11 @@ quality_reviewer；计划内 planner→writer 同一交付的成功正文写入�
   [file-stream-continuation][n-continue]
 - **「已保存 / 已还原 / 已修改」不做文字检测**：靠 `prompts/base.py` 的 `UNIFIED_EXECUTION_PROTOCOL` 约束（只有本轮对应工具成功后才这样说，
   没改就直说没改）。[file-stream-continuation][n-continue]
-- **任务板只按实际产物收尾**：`_auto_finalize_task_board_on_completion` 只按本请求实际写出、仍存在且有正文的文件收尾 in_progress 任务；
-  编号范围（`tools/task_progress.py`）全部有文件才 done，否则记 `done_units` / `progress`（模型重存任务板时同名任务的记录接过去）；
-  带 `artifact` 的要写出这个文件；本请求什么都没写不补；模型自己标 done 而
-  缺文件时 `execute_update_plan` 返回 `unverified_done`。[file-stream-continuation][n-continue]
+- **任务板使用 typed artifacts**：文件任务声明 artifact_file_type、artifact_refs/file_id 或 unit_spec；收尾只用本请求写过、仍存在非空且类型匹配的项目文件。正文范围每个编号须有实际正文产物，大纲标题不能证明正文；新 done 声明缺证据时不保存任务板。缺类型的旧任务可读但不自动收尾。参见 [typed-boundaries][n-typed-boundaries]。
 - **重复建挡路的空文件**：空文件守卫（一次只流式写一个文件）挡住的 create_file，若要建的正是挡路的那个空文件，返回那个文件
   （`content=""` + `next_step`）；挡路的是别的文件时照旧 `pending_empty_file_unwritten`（`mcp_tools._repeat_of_pending_empty_file`）。
   [repeat-create][n-repeat]
-- **项目备注分来源**：未标来源 / 【作者确认】/ 【AI 提议·待作者确认】三块（`apps/server/config/project_notes.py`）；`update_project` 的 notes
-  条目只有逐字出现在作者本轮消息里的 `author_quotes` 原话才进「作者确认」，否则记成 AI 提议（`notes_recorded_as_proposals`），一句原话不给别的条目作保；
-  `proposals` 整体替换 AI 提议块，与 notes 共用 4000 字（超出返回 `notes_over_budget`，不写任何字段）；上下文分开渲染
-  （`render_project_notes`），标题行能解析回原分区，AI 提议写明不是设定。[project-notes][n-notes]
+- **项目备注由作者维护确认来源**：Agent 的新/改写条目仅为 AI 提议，引文、编号或答应文字不能升格；旧的作者确认和未标来源条目即使漏传或 notes="" 也保留。proposals 只替换提议区，三块共用4000字；作者直接保存 AI 记忆文本框仍可编辑整个字段。作者自己的项目名也不能由模型布尔值或原话放行改名。参见 [typed-boundaries][n-typed-boundaries]。
 - **回复语言跟随作者最近一条消息**（`message_manager.detect_author_language`），系统提示末尾写明本轮语言，所有角色共用；界面语言只在
   看不出时兜底。[reply-language][n-lang]
 
@@ -328,3 +316,5 @@ quality_reviewer；计划内 planner→writer 同一交付的成功正文写入�
 [n-context]: ../../../.agents/notes/implemented/bug-fix/2026-10-08-agent-context-full-text-and-working-set.md
 [n-lore]: ../../../.agents/notes/implemented/bug-fix/2026-10-08-agent-context-keeps-characters-and-core-lore.md
 [n-two-replies]: ../../../.agents/notes/implemented/bug-fix/2026-10-10-file-streaming-protocol-two-replies.md
+
+[n-typed-boundaries]: ../../../.agents/notes/implemented/architecture/2026-10-14-typed-authority-and-delivery-evidence.md

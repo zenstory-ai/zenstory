@@ -53,7 +53,7 @@ from services.file_tree_rules import (
 from utils.cjk_quotes import normalize_double_quotes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import (
-    extract_title_first_sequence_number,
+    extract_sequence_number_with_metadata,
     resolve_persisted_sequence_order,
 )
 
@@ -61,6 +61,7 @@ from .edit import (
     NORMALIZED_QUOTE_FILE_TYPES,
     acquire_file_write_lock,
     attach_author_edits_for_agent,
+    file_write_lock,
     remember_pre_write_content,
     resolve_write_quote_style,
     stage_pre_ai_write_backup,
@@ -74,6 +75,77 @@ from .serialization import (
 )
 
 logger = get_logger(__name__)
+
+_SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS = 4
+
+
+class ConcurrentFileWriteError(RuntimeError):
+    """The file changed after a full-body write captured its baseline."""
+
+
+@contextlib.contextmanager
+def _acquire_file_write_locks(file_ids: list[str]):
+    """Acquire each SQLite stripe once in stable order for a subtree mutation."""
+    representatives: dict[int, str] = {}
+    for file_id in file_ids:
+        lock = file_write_lock(file_id)
+        representatives.setdefault(id(lock), file_id)
+    with contextlib.ExitStack() as stack:
+        for lock_id in sorted(representatives):
+            stack.enter_context(acquire_file_write_lock(representatives[lock_id]))
+        yield
+
+
+def _file_write_lock_ids(file_ids: list[str]) -> set[int]:
+    """Return the SQLite stripe identities covered by ``file_ids``."""
+    return {id(file_write_lock(file_id)) for file_id in file_ids}
+
+
+@contextlib.contextmanager
+def _acquire_protected_recursive_delete_locks(session: Session, root: File):
+    """Hold every stripe represented by a fresh recursive-delete target set.
+
+    SQLite has no project row lock. A child can therefore appear after the
+    preliminary subtree read but before those stripes are acquired. Reload the
+    subtree while holding the candidate stripes and retry whenever that fresh
+    membership includes another stripe. No provenance check or mutation may
+    run until one fresh target set is completely covered.
+    """
+    from agent.tools.author_edit_guard import AuthorEditProtectionUnavailableError
+
+    root_id = root.id
+    action = "folder" if root.file_type == "folder" else "delete"
+    candidate_ids = [item.id for item in load_live_subtree_postorder(session, root)]
+    # The preliminary membership read is only a lock-discovery hint. End its
+    # transaction before any locked provenance read so a pre-existing SQLite
+    # snapshot cannot hide a writer that committed before stripe acquisition.
+    session.rollback()
+
+    for _attempt in range(_SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS):
+        fresh_targets: list[File] = []
+        fresh_ids: list[str] = []
+        with _acquire_file_write_locks(candidate_ids):
+            fresh_root = session.exec(
+                select(File)
+                .where(File.id == root_id)
+                .execution_options(populate_existing=True)
+            ).first()
+            if not fresh_root or fresh_root.is_deleted:
+                raise ValueError("文件不存在或已删除")
+
+            fresh_targets = load_live_subtree_postorder(session, fresh_root)
+            fresh_ids = [item.id for item in fresh_targets]
+            held_stripes = _file_write_lock_ids(candidate_ids)
+            if all(id(file_write_lock(file_id)) in held_stripes for file_id in fresh_ids):
+                yield fresh_root, fresh_targets
+                return
+
+        # End any SQLite read snapshot before the next membership scan. There
+        # are deliberately no staged writes before this point.
+        session.rollback()
+        candidate_ids.extend(file_id for file_id in fresh_ids if file_id not in candidate_ids)
+
+    raise AuthorEditProtectionUnavailableError(root_id, action=action)
 
 
 def find_nearest_folder_ancestor(
@@ -139,6 +211,7 @@ class FileCRUD:
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
         normalize_quotes: bool = False,
+        protect_author_content: bool = False,
     ) -> dict[str, Any]:
         """
         Create a new file.
@@ -363,7 +436,11 @@ class FileCRUD:
             title = normalized_title
 
         # Pre-compute sequence number for ordering + screenplay episode safeguards.
-        seq_num = extract_title_first_sequence_number(title, metadata)
+        seq_num = extract_sequence_number_with_metadata(
+            title,
+            metadata,
+            file_type="script" if project.project_type == "screenplay" else file_type,
+        )
 
         is_screenplay_project = project.project_type == "screenplay"
         screenplay_script_folder_id = f"{project_id}-script-folder"
@@ -405,7 +482,7 @@ class FileCRUD:
             log_with_context(
                 logger,
                 30,  # WARNING
-                "Resolved chapter-like file order from parsed sequence",
+                "Resolved unset file order from structured sequence evidence",
                 project_id=project_id,
                 user_id=self.user_id,
                 parent_id=parent_id,
@@ -456,24 +533,46 @@ class FileCRUD:
                     None,
                 )
                 if candidate is not None:
-                    changed = False
-                    promoted = False
+                    lock_ctx = (
+                        contextlib.nullcontext()
+                        if is_postgres
+                        else acquire_file_write_lock(candidate.id)
+                    )
+                    with lock_ctx:
+                        if not is_postgres:
+                            candidate = self.session.get(
+                                File, candidate.id, populate_existing=True
+                            )
+                            if candidate is None or candidate.is_deleted:
+                                raise ValueError("文件不存在或已删除")
 
-                    if candidate.file_type != "script":
-                        candidate.file_type = "script"
-                        promoted = True
-                        changed = True
+                        if protect_author_content:
+                            from agent.tools.author_edit_guard import (
+                                enforce_author_content_protection,
+                            )
 
-                    # Keep episode ordering stable: only fill order when it's unset (0).
-                    if (candidate.order or 0) == 0 and resolved_order > 0:
-                        candidate.order = resolved_order
-                        changed = True
+                            enforce_author_content_protection(
+                                self.session, [candidate], action="rewrite"
+                            )
 
-                    if changed:
-                        candidate.updated_at = advance_timestamp(candidate.updated_at, now=utcnow())
-                        self.session.add(candidate)
-                        self.session.commit()
-                        self.session.refresh(candidate)
+                        changed = False
+                        promoted = False
+
+                        if candidate.file_type != "script":
+                            candidate.file_type = "script"
+                            promoted = True
+                            changed = True
+
+                        # Keep episode ordering stable: only fill order when it's unset (0).
+                        if (candidate.order or 0) == 0 and resolved_order > 0:
+                            candidate.order = resolved_order
+                            changed = True
+
+                        if changed:
+                            candidate.updated_at = advance_timestamp(candidate.updated_at, now=utcnow())
+                            self.session.add(candidate)
+                            self.session.commit()
+                            self.session.refresh(candidate)
 
                     log_with_context(
                         logger,
@@ -591,6 +690,8 @@ class FileCRUD:
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
         normalize_quotes: bool = False,
+        protect_author_content: bool = False,
+        expected_updated_at: str | None = None,
     ) -> dict[str, Any]:
         """
         Update an existing file.
@@ -627,7 +728,8 @@ class FileCRUD:
 
         if is_postgres:
             return self._update_file_impl(
-                id, title, content, parent_id, order, metadata, normalize_quotes
+                id, title, content, parent_id, order, metadata, normalize_quotes,
+                protect_author_content, expected_updated_at,
             )
         # SQLite has no row locks: serialize same-file writes with the
         # in-process per-file lock (shared with edit_file) so concurrent
@@ -640,7 +742,8 @@ class FileCRUD:
         # acquire 版本在工作线程里语义完全不变，只在事件循环线程上改为有界等待。
         with acquire_file_write_lock(id):
             return self._update_file_impl(
-                id, title, content, parent_id, order, metadata, normalize_quotes
+                id, title, content, parent_id, order, metadata, normalize_quotes,
+                protect_author_content, expected_updated_at,
             )
 
     def _update_file_impl(
@@ -652,6 +755,8 @@ class FileCRUD:
         order: int | None,
         metadata: dict[str, Any] | None,
         normalize_quotes: bool = False,
+        protect_author_content: bool = False,
+        expected_updated_at: str | None = None,
     ) -> dict[str, Any]:
         log_with_context(
             logger,
@@ -693,6 +798,18 @@ class FileCRUD:
 
         # Check permission (target must belong to the current tool-context project)
         check_file_access_in_tool_context(self.session, file, self.user_id)
+
+        if expected_updated_at is not None:
+            current_updated_at = file.updated_at.isoformat() if file.updated_at else None
+            if current_updated_at != expected_updated_at:
+                raise ConcurrentFileWriteError(
+                    "文件在流式写入期间已被修改，本次整篇内容未保存"
+                )
+
+        if protect_author_content and content is not None:
+            from agent.tools.author_edit_guard import enforce_author_content_protection
+
+            enforce_author_content_protection(self.session, [file], action="rewrite")
 
         # Store old content for version history
         old_content = file.content
@@ -822,6 +939,7 @@ class FileCRUD:
         self,
         id: str,
         recursive: bool = False,
+        protect_author_content: bool = False,
     ) -> bool:
         """
         Delete a file.
@@ -874,21 +992,45 @@ class FileCRUD:
         lock_project_for_files(self.session, file.project_id, exclusive=True)
         from database import is_postgres
 
-        lock_ctx = contextlib.nullcontext() if is_postgres else acquire_file_write_lock(id)
-        with lock_ctx:
-            query = select(File).where(File.id == id)
-            if is_postgres:
-                query = query.with_for_update(key_share=True)
-            file = self.session.exec(query.execution_options(populate_existing=True)).first()
-            if not file or file.is_deleted:
-                raise ValueError("文件不存在或已删除")
+        if is_postgres:
+            lock_ctx = contextlib.nullcontext()
+        elif recursive is True and protect_author_content:
+            lock_ctx = _acquire_protected_recursive_delete_locks(self.session, file)
+        else:
+            lock_ctx = acquire_file_write_lock(id)
+        with lock_ctx as locked_recursive_state:
+            if locked_recursive_state is not None:
+                file, targets = locked_recursive_state
+            else:
+                query = select(File).where(File.id == id)
+                if is_postgres:
+                    query = query.with_for_update(key_share=True)
+                file = self.session.exec(query.execution_options(populate_existing=True)).first()
+                if not file or file.is_deleted:
+                    raise ValueError("文件不存在或已删除")
+                targets = (
+                    load_live_subtree_postorder(self.session, file)
+                    if recursive is True
+                    else [file]
+                )
             check_file_access_in_tool_context(self.session, file, self.user_id)
 
-            deleted: list[File] = []
+            if protect_author_content:
+                from agent.tools.author_edit_guard import enforce_author_content_protection
+
+                enforce_author_content_protection(
+                    self.session,
+                    targets,
+                    action="folder" if recursive is True and file.file_type == "folder" else "delete",
+                )
 
             # Delete recursively if requested
             if recursive is True:
-                deleted = self._delete_recursive(file)
+                deleted = targets
+                for item in deleted:
+                    item.is_deleted = True
+                    item.deleted_at = utcnow()
+                    item.updated_at = advance_timestamp(item.updated_at, now=utcnow())
             else:
                 # Soft delete: mark as deleted instead of removing from database
                 file.is_deleted = True
@@ -1245,15 +1387,6 @@ class FileCRUD:
                 filtered.append(file)
 
         return filtered
-
-    def _delete_recursive(self, file: File) -> list[File]:
-        """Soft-delete the loaded subtree once each, children before parents."""
-        deleted = load_live_subtree_postorder(self.session, file)
-        for item in deleted:
-            item.is_deleted = True
-            item.deleted_at = utcnow()
-            item.updated_at = advance_timestamp(item.updated_at, now=utcnow())
-        return deleted
 
     def _serialize_metadata(self, metadata: dict[str, Any] | None) -> str | None:
         """Serialize metadata dict to JSON string."""

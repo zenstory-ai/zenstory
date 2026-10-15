@@ -8,7 +8,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
-from api.admin.subscriptions import _normalize_status, _resolve_effective_status
+from api.admin.subscriptions import _is_test_account, _normalize_status, _resolve_effective_status
 from config.datetime_utils import utcnow
 from core.error_handler import APIException
 from models import User
@@ -36,6 +36,17 @@ async def create_user(
     db_session.commit()
     db_session.refresh(user)
     return user
+
+
+@pytest.mark.parametrize("username", ["contest_writer", "qasim", "democracy_writer", "smoke_reader"])
+def test_incidental_name_tokens_do_not_make_a_test_account(username):
+    user = User(username=username, email=f"{username}@personal.test", hashed_password="unused")
+    assert _is_test_account(user) is False
+
+
+def test_reserved_example_domain_is_a_test_account():
+    user = User(username="reader", email="reader@example.com", hashed_password="unused")
+    assert _is_test_account(user) is True
 
 
 async def login_user(client: AsyncClient, username: str, password: str = "password123") -> str:
@@ -586,7 +597,7 @@ async def test_admin_get_user_subscription_not_found_returns_404(
 
 
 @pytest.mark.integration
-async def test_admin_list_subscriptions_marks_test_accounts_using_username_or_email(
+async def test_admin_list_subscriptions_only_marks_reserved_test_domain(
     client: AsyncClient, db_session: Session
 ):
     admin = await create_user(db_session, "admin_sub_filter_5", "admin_sub_filter_5@example.com", is_superuser=True)
@@ -602,7 +613,7 @@ async def test_admin_list_subscriptions_marks_test_accounts_using_username_or_em
     assert response.status_code == 200
     users_by_id = {item["user_id"]: item for item in response.json()["items"]}
 
-    assert users_by_id[demo_user.id]["is_test_account"] is True
+    assert users_by_id[demo_user.id]["is_test_account"] is False
     assert users_by_id[normal_user.id]["is_test_account"] is False
 
 

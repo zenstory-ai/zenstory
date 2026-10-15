@@ -275,7 +275,7 @@ async def test_planned_writer_early_failure_releases_its_partial_delivery_text()
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.parametrize("case", ["outline", "failed", "unplanned", "auto-off", "last-iteration", "planning-only", "read-only"])
+@pytest.mark.parametrize("case", ["outline", "failed", "unplanned", "auto-off", "last-iteration", "planning-only", "read-only", "fast"])
 async def test_planner_body_carry_requires_successful_planned_prose_handoff(case):
     """大纲、失败写入、未计划交接、关闭质检、无剩余轮次和只做规划不扩展送审范围。"""
     calls: list[str] = []
@@ -297,13 +297,54 @@ async def test_planner_body_carry_requires_successful_planned_prose_handoff(case
 
     events = await _run_graph(
         fake_agent, initial_agent="planner", workflow_agents=[] if case == "unplanned" else ["writer"],
+        generation_mode="fast" if case == "fast" else "",
         routing_metadata={**PLANNED_PROSE, "write_content": case != "planning-only", "read_only": case == "read-only"},
         auto_review="false" if case == "auto-off" else "true", auto_review_threshold=500,
         max_iterations=1 if case == "last-iteration" else 12,
     )
     assert "quality_reviewer" not in calls
     assert not any(e.type == StreamEventType.CHAT_HOLD and e.data.get("action") == CHAT_HOLD_DISCARD for e in events)
-    assert PLANNER_SUMMARY in await _author_visible_text(events)
+    visible = await _author_visible_text(events)
+    if case == "fast":
+        assert calls == ["writer"], "快速模式沿用直接 writer 的既有路由，不运行规划师"
+        assert not any(e.type == StreamEventType.CHAT_HOLD for e in events)
+        assert "核对结束。" in visible
+    else:
+        assert PLANNER_SUMMARY in visible
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("stop", ["clarification", "tool-budget"])
+async def test_planned_planner_stop_releases_saved_delivery_without_continuing(stop):
+    """已写正文后结构化澄清或工具预算终止仍停在规划师，扣留说明原样释放。"""
+    calls: list[str] = []
+    summary = "第一章已保存，需要作者确认下一步。"
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        for event in edit_file_events("planner-body", BODY * 2, file_id="draft-1"):
+            yield event
+        yield _text(summary)
+        if stop == "clarification":
+            yield StreamEvent(
+                type=StreamEventType.WORKFLOW_STOPPED,
+                data={"reason": "clarification_needed", "agent_type": "planner", "message": "请选择结尾方向"},
+            )
+        else:
+            yield StreamEvent(
+                type=StreamEventType.ITERATION_EXHAUSTED,
+                data={"layer": "tool_call", "agent_type": "planner"},
+            )
+
+    events = await _run_graph(
+        fake_agent, generation_mode="quality", initial_agent="planner", workflow_agents=["writer"],
+        routing_metadata=PLANNED_PROSE, auto_review_threshold=500,
+    )
+    assert calls == ["planner"]
+    assert not any(event.type == StreamEventType.HANDOFF for event in events)
+    assert [event.data["action"] for event in events if event.type == StreamEventType.CHAT_HOLD] == [CHAT_HOLD_BEGIN]
+    assert summary in await _author_visible_text(events)
 
 
 @pytest.mark.asyncio
@@ -723,6 +764,41 @@ async def test_review_handoff_carries_editor_count_and_earlier_length_requiremen
     assert "「第一人称，每章约2500字左右」（项目写作风格）" in requirements
     packet = next(e for e in events if e.type == StreamEventType.HANDOFF).data["handoff_packet"]
     assert f"《第三章》编辑器字数 {count_words(BODY)}" in packet["evidence"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("writer_chat", ["创作输出声称第三章已经全部核对。", ""], ids=["writer-chat", "no-chat"])
+async def test_review_read_failure_requires_current_file_read_before_judgment(writer_chat):
+    """落库读取返回 None 时，原输出不能冒充当前正文；无聊天也必须传精确读取任务。"""
+    reviewer_messages: list[str] = []
+    calls: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "writer":
+            state["repeat_read_guard"]._record_write("draft-current", "第三章")
+            for event in edit_file_events("write-current", BODY * 2, file_id="draft-current"):
+                yield event
+            if writer_chat:
+                yield _text(writer_chat)
+        else:
+            reviewer_messages.append(state["user_message"])
+            yield _text("需要先读取第三章。")
+
+    with patch("agent.graph.writing_graph._review_payload_text", AsyncMock(return_value=None)) as read:
+        await _run_graph(fake_agent, generation_mode="quality", auto_review_threshold=500)
+
+    assert calls == ["writer", "quality_reviewer"]
+    read.assert_awaited_once_with(["draft-current"])
+    assert len(reviewer_messages) == 1
+    task = reviewer_messages[0]
+    assert "当前落库正文未读取" in task
+    assert "创作输出片段，不代表当前落库正文" in task
+    assert "query_files" in task and "draft-current" in task
+    assert "读取当前正文后再判断事实或总结" in task
+    if writer_chat:
+        assert writer_chat in task
 
 
 @pytest.mark.asyncio

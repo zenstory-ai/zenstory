@@ -517,8 +517,8 @@ class TestCorrectionRoundKeepsUserScope:
     """空文件纠偏轮不能冲掉「等用户回答」，只读请求不安排补写。"""
 
     @pytest.mark.asyncio
-    async def test_question_survives_correction_round(self):
-        """planner 以提问收尾又留了空文件：纠偏补齐后仍要停下等用户，不跑计划内 writer。"""
+    async def test_question_prose_does_not_cancel_plan_after_correction_round(self):
+        """planner 的普通问句不是控制信号；纠偏补齐后仍按计划运行 writer。"""
         calls: list[str] = []
 
         async def fake_agent(state, agent_type, *_args, **_kwargs):
@@ -544,12 +544,11 @@ class TestCorrectionRoundKeepsUserScope:
             },
         )
 
-        assert calls == ["planner", "planner"]
+        assert calls == ["planner", "planner", "writer"]
 
     @pytest.mark.asyncio
     async def test_writer_question_survives_correction_but_auto_review_still_fires(self):
-        """writer 以提问收尾又留了空文件：纠偏补齐后，提问信号跨过纠偏轮保留
-        （仍拦计划交接），但不拦用户开启的自动质检——补齐的稿子照常送审。"""
+        """writer 的普通问句不妨碍纠偏后的自动质检。"""
         calls: list[str] = []
 
         async def fake_agent(state, agent_type, *_args, **_kwargs):
@@ -571,9 +570,8 @@ class TestCorrectionRoundKeepsUserScope:
         assert calls == ["writer", "writer", "quality_reviewer"]
 
     @pytest.mark.asyncio
-    async def test_writer_question_survives_correction_and_blocks_planned_handoff(self):
-        """同一场景下排着计划交接（writer 之后是 quality_reviewer）：提问跨纠偏轮保留，
-        计划交接被拦下；自动质检阈值调高，排除它的干扰。"""
+    async def test_writer_question_prose_does_not_block_planned_handoff_after_correction(self):
+        """普通问句不是控制信号；纠偏后仍执行计划内 quality_reviewer。"""
         calls: list[str] = []
 
         async def fake_agent(state, agent_type, *_args, **_kwargs):
@@ -598,7 +596,49 @@ class TestCorrectionRoundKeepsUserScope:
             },
         )
 
+        assert calls == ["writer", "writer", "quality_reviewer"]
+
+    @pytest.mark.asyncio
+    async def test_structured_clarification_in_correction_round_blocks_planned_handoff(self):
+        """纠偏轮明确发出 clarification_needed 时，必须停下等待回答。"""
+        calls: list[str] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            if len(calls) == 1:
+                ToolContext.set_pending_empty_file("file-X", "第五章")
+                yield _create_file_done()
+                yield _text(LONG_TEXT)
+            elif agent_type == "writer":
+                ToolContext.clear_pending_empty_file()
+                yield _text("正文已补齐，但结局方向需要确认。")
+                yield StreamEvent(
+                    type=StreamEventType.WORKFLOW_STOPPED,
+                    data={
+                        "reason": "clarification_needed",
+                        "agent_type": "writer",
+                        "message": "结尾要走悲剧还是圆满？",
+                    },
+                )
+            else:
+                yield _text("不应运行审稿。")
+
+        events = await _run_graph(
+            fake_agent,
+            router_result={
+                "current_agent": "writer",
+                "workflow_plan": "full",
+                "workflow_agents": ["quality_reviewer"],
+                "routing_metadata": {},
+            },
+        )
+
         assert calls == ["writer", "writer"]
+        assert any(
+            event.type == StreamEventType.WORKFLOW_STOPPED
+            and event.data.get("reason") == "clarification_needed"
+            for event in events
+        )
 
     @pytest.mark.asyncio
     async def test_read_only_request_rolls_back_instead_of_correcting(self):

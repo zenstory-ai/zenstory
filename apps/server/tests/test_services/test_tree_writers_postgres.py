@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from threading import Event
 
 import pytest
-from fastapi import BackgroundTasks
 from sqlalchemy import event, text
 from sqlmodel import Session, select
 
@@ -261,7 +260,7 @@ def test_reorder_uses_committed_title_and_timestamp_not_cached_identity(pg_engin
         )
     with Session(pg_engine) as verify:
         file = verify.get(File, a_id)
-        assert file.order == 7
+        assert file.order == 1
         assert file.updated_at > future
         assert (file.title, file.content) == ("Chapter 7", "Winner body")
 

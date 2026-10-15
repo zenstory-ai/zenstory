@@ -218,3 +218,25 @@ def test_router_prompt_rules_for_replies_and_write_content():
     # 检查并修改仍交给 writer；只审不改仍是 review_only
     assert re.search(r"检查并修改.*→ writer \+ quick", ROUTER_PROMPT)
     assert re.search(r"只审不改.*→ quality_reviewer \+ review_only", ROUTER_PROMPT)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("file_types", [["outline", "draft"], []])
+async def test_router_previous_summary_preserves_exact_requested_file_types(file_types):
+    previous = {
+        "content": "已记录范围。",
+        "routing": {**WRITER_ROUTING, "requested_file_types": file_types},
+    }
+    _, messages = await _route(_state("只补充人物动机", previous))
+    summary = messages[1]["content"].split("\n[上一轮路由]\n")[1].split("\n[用户本轮原话]\n")[0]
+    assert json.loads(summary)["requested_file_types"] == file_types
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("malformed", ["outline", ["outline", "outline"], ["outline", "unknown"], [None], [["outline"]], ["outline"] * 8])
+def test_router_previous_summary_does_not_coerce_malformed_file_type_evidence(malformed):
+    from agent.graph.router import _previous_routing_summary
+
+    summary = _previous_routing_summary({"routing": {**WRITER_ROUTING, "requested_file_types": malformed}})
+    assert "requested_file_types" not in json.loads(summary)

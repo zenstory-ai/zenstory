@@ -49,10 +49,8 @@ def _normalize_status(status_value: str) -> str:
 
 
 def _is_test_account(user: User) -> bool:
-    token_source = f"{user.username} {user.email}".lower()
-    if user.email.lower().endswith("@example.com"):
-        return True
-    return any(token in token_source for token in ("test", "smoke", "qa", "demo"))
+    """Only the explicitly reserved test domain carries the legacy test badge."""
+    return user.email.lower().endswith("@example.com")
 
 
 def _resolve_effective_status(sub: UserSubscription | None) -> str:

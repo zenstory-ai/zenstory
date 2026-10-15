@@ -6,6 +6,7 @@ from agent.core.stream_processor import (
     BUFFER_MAX_SIZE,
     StreamProcessor,
     StreamState,
+    normalize_file_markers,
 )
 
 
@@ -48,6 +49,40 @@ def test_whitespace_end_marker_split_across_chunks_is_detected():
     assert completed.final_content == "body text"
     # Trailing text after the (variant) end marker is normal conversation.
     assert _all_conversation(results).endswith("tail")
+
+
+def test_marker_normalization_does_not_collide_with_literal_placeholder_text():
+    content = "__FILE_PLACEHOLDER_0__ `</File>` < FILE name=\"chapter\" >正文< /FILE >"
+
+    assert normalize_file_markers(content) == (
+        "__FILE_PLACEHOLDER_0__ `</File>` <file>正文</file>"
+    )
+
+
+def test_marker_normalization_preserves_code_spans_and_normalizes_real_markers():
+    content = (
+        "`< FILE >` and ```txt\n< File name=\"sample\" >\n</ FILE >\n```\n"
+        "< FILE data-id=\"real\" >正文</ File >"
+    )
+
+    assert normalize_file_markers(content) == (
+        "`< FILE >` and ```txt\n< File name=\"sample\" >\n</ FILE >\n```\n"
+        "<file>正文</file>"
+    )
+
+
+def test_streaming_marker_normalization_preserves_literal_sentinel_and_code():
+    results, proc = _drive(
+        [
+            "__FILE_PLACEHOLDER_0__ 示例 `<File>`\n"
+            "< FILE data-id=\"real\" >正文里的 `</File>` 是字面量。</ FILE >"
+        ]
+    )
+
+    assert proc.state == StreamState.IDLE
+    completed = next(result for result in results if result.file_complete)
+    assert completed.final_content == "正文里的 `</File>` 是字面量。"
+    assert _all_conversation(results) == "__FILE_PLACEHOLDER_0__ 示例 `<File>`\n"
 
 
 def test_overflow_drains_tail_instead_of_leaking_to_chat():

@@ -25,7 +25,7 @@ from utils.title_sequence import (
     MAX_FILE_ORDER as MAX_FILE_ORDER,
 )
 from utils.title_sequence import (
-    extract_title_first_sequence_number,
+    extract_sequence_number_with_metadata,
     resolve_persisted_sequence_order,
     validate_persisted_file_order,
 )
@@ -220,12 +220,11 @@ def resolve_new_file_order(
 ) -> int:
     """新建文件时要落库的 order。Web 与 Agent API 的建文件入口共用这一份。
 
-    - 调用方显式给了 order：按 resolve_persisted_sequence_order 归一化——
-      「第N章 / Chapter N」这类章节式标题以标题序号为准，覆盖显式值。
-    - 没给 order 但标题/metadata 带序号：用该序号。
+    - 非零显式 order 是调用方提供的结构化事实，原样保留（含负数）。
+    - order 未给或为零时，先用类型兼容的 metadata，再用标题开头的序号。
     - 都没有：排到同一父节点下现有兄弟的末尾。
     """
-    if requested_order is not None:
+    if requested_order not in (None, 0):
         return resolve_persisted_sequence_order(
             requested_order,
             title=title,
@@ -233,7 +232,9 @@ def resolve_new_file_order(
             file_type=file_type,
         )
 
-    sequence_number = extract_title_first_sequence_number(title, metadata)
+    sequence_number = extract_sequence_number_with_metadata(
+        title, metadata, file_type=file_type,
+    )
     resolved_order: int
     if sequence_number is not None:
         resolved_order = validate_persisted_file_order(sequence_number)

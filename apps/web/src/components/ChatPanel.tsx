@@ -1456,10 +1456,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    */
   // Load chat history when project changes
   const loadChatHistory = useCallback(async (projectId: string, recoverSession = false): Promise<Message[] | null> => {
-    if (recoverSession) {
-      sessionRecoveryBlockedRef.current = projectId;
-      setSessionRecoveryError(null);
-    }
+    sessionRecoveryBlockedRef.current = projectId;
+    setSessionRecoveryError(null);
     const requestId = ++historyRequestSeqRef.current;
     setIsLoadingHistory(true);
     try {
@@ -1493,9 +1491,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       });
 
       setMessages(loadedMessages);
+      sessionRecoveryBlockedRef.current = null;
+      setSessionRecoveryError(null);
       if (recoverSession) {
-        sessionRecoveryBlockedRef.current = null;
-        setSessionRecoveryError(null);
         currentAgentSessionIdRef.current = historyMessages.at(-1)?.session_id ?? null;
       }
       return loadedMessages;
@@ -1507,13 +1505,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
       setMessages([]);
       setFeedbackPendingMessageId(null);
-      if (recoverSession) {
-        setSessionRecoveryError(projectId);
-        return null;
-      }
-      // Opening history retains the existing empty-state behavior. A failed
-      // session mutation instead requires an explicit read before sending.
-      return [];
+      setSessionRecoveryError(projectId);
+      setSuggestionDisplayState("ready");
+      return null;
     } finally {
       if (requestId === historyRequestSeqRef.current && currentProjectIdRef.current === projectId) {
         setIsLoadingHistory(false);
@@ -2354,6 +2348,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       // 历史还没载入时不知道上一轮是不是在等作者回答；AI 正在「等你回复」时，
       // 卡片固定的「按大纲写第一章正文」答不了它的问题，只会再问一遍。
       && !isLoadingHistory
+      && sessionRecoveryError !== currentProjectId
       && !latestRoundAwaitsReply(messages, streamRenderItems),
   );
 

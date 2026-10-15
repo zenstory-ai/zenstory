@@ -1232,6 +1232,8 @@ class TestSaveFileContent:
                 id="file-1",
                 content="Test content",
                 normalize_quotes=True,
+                protect_author_content=True,
+                expected_updated_at=None,
             )
             assert saved is True
 

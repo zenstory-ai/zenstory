@@ -154,8 +154,10 @@ INVALID_CASES = [
     (writer, "update", kind) for writer in ["web", "agent", "tool"]
     for kind in ["title", "metadata"]
 ] + [("agent", "move", kind) for kind in ["title", "metadata"]] + [
-    ("web", "reorder", kind) for kind in ["title", "metadata"]
-] + [(writer, operation, "below-min") for writer in ["web", "tool"] for operation in ["create", "update"]]
+    (writer, operation, "below-min")
+    for writer in ["web", "tool"]
+    for operation in ["create", "update"]
+]
 
 
 @pytest.mark.parametrize(("writer", "operation", "kind"), INVALID_CASES)
@@ -232,13 +234,24 @@ def test_invalid_persisted_order_is_domain_rejection_and_atomic(order_engine, ef
     assert sql_errors == [], "Input-domain rejection must happen before out-of-range SQL"
 
 
-CREATE_CONTROLS = [(writer, value) for writer in ["web", "agent", "tool"] for value in [17, MAX_ORDER]] + [
-    (writer, value) for writer in ["web", "tool"] for value in [MIN_ORDER, -7]
-] + [("agent", 0)]
+CREATE_CONTROLS = [
+    (writer, value, value)
+    for writer in ["web", "agent", "tool"]
+    for value in [17, MAX_ORDER]
+] + [
+    (writer, value, value)
+    for writer in ["web", "tool"]
+    for value in [MIN_ORDER, -7]
+] + [
+    # Agent order=0 is the unset sentinel, so sibling allocation chooses 42.
+    ("agent", 0, 42),
+]
 
 
-@pytest.mark.parametrize(("writer", "order"), CREATE_CONTROLS)
-def test_valid_explicit_create_bounds_keep_content_baseline(order_engine, effects, record_property, writer, order):
+@pytest.mark.parametrize(("writer", "order", "expected_order"), CREATE_CONTROLS)
+def test_valid_explicit_create_bounds_keep_content_baseline(
+    order_engine, effects, record_property, writer, order, expected_order,
+):
     ids = _seed(order_engine)
     before = _snapshot(order_engine, ids["project"])
     background = BackgroundTasks()
@@ -250,7 +263,8 @@ def test_valid_explicit_create_bounds_keep_content_baseline(order_engine, effect
         file_id = result["id"] if isinstance(result, dict) else result.id
     after = _snapshot(order_engine, ids["project"])
     row = next(f for f in after["files"] if f["id"] == file_id)
-    assert row["order"] == order and row["content"] == "Created baseline body" and row["parent_id"] == ids["a"]
+    assert row["order"] == expected_order
+    assert row["content"] == "Created baseline body" and row["parent_id"] == ids["a"]
     versions = [v for v in after["versions"] if v["file_id"] == file_id]
     assert len(versions) == 1 and versions[0]["version_number"] == 1 and versions[0]["is_base_version"]
     assert versions[0]["content"] == "Created baseline body"
@@ -309,8 +323,8 @@ def test_web_move_does_not_resolve_order_from_legacy_title_metadata(order_engine
     _record(record_property, {"writer": "web", "operation": "move", "kind": kind, "stored_order": 13, "derived_order": False})
 
 
-@pytest.mark.parametrize(("title", "expected"), [(f"Chapter {MAX_ORDER}", MAX_ORDER), ("Plain target", 17)])
-def test_valid_agent_move_resolves_bound_and_advances_parent_token(order_engine, effects, record_property, title, expected):
+@pytest.mark.parametrize("title", [f"Chapter {MAX_ORDER}", "Plain target"])
+def test_valid_agent_move_preserves_explicit_order_and_advances_parent_token(order_engine, effects, record_property, title):
     ids = _seed(order_engine)
     with Session(order_engine) as setup:
         setup.get(File, ids["target"]).title = title
@@ -322,13 +336,13 @@ def test_valid_agent_move_resolves_bound_and_advances_parent_token(order_engine,
     after = _snapshot(order_engine, ids["project"])
     old = next(f for f in before["files"] if f["id"] == ids["target"])
     moved = next(f for f in after["files"] if f["id"] == ids["target"])
-    assert moved["order"] == expected and moved["parent_id"] == ids["b"]
+    assert moved["order"] == 17 and moved["parent_id"] == ids["b"]
     assert moved["updated_at"] > old["updated_at"] and moved["content"] == old["content"]
     _record(record_property, {"writer": "agent", "operation": "move", "control_title": title,
-                              "stored_order": expected, "parent_token_advanced": True})
+                              "stored_order": 17, "parent_token_advanced": True})
 
 
-def test_valid_reorder_retains_title_max_and_other_sibling(order_engine, effects, record_property):
+def test_valid_reorder_uses_requested_positions_not_title_sequence(order_engine, effects, record_property):
     ids = _seed(order_engine)
     with Session(order_engine) as setup:
         setup.get(File, ids["target"]).title = f"Chapter {MAX_ORDER}"
@@ -339,10 +353,10 @@ def test_valid_reorder_retains_title_max_and_other_sibling(order_engine, effects
     after = _snapshot(order_engine, ids["project"])
     target = next(f for f in after["files"] if f["id"] == ids["target"])
     peer = next(f for f in after["files"] if f["id"] == ids["peer"])
-    assert target["order"] == MAX_ORDER and peer["order"] == 1
+    assert target["order"] == 1 and peer["order"] == 2
     assert target["content"] == "Original body" and after["versions"] == before["versions"]
     assert all(not v for v in effects.values())
-    _record(record_property, {"writer": "web", "operation": "reorder", "control": "title-max", "stored_orders": [MAX_ORDER, 1]})
+    _record(record_property, {"writer": "web", "operation": "reorder", "control": "title-max", "stored_orders": [1, 2]})
 
 
 @pytest.mark.parametrize("model", [web.FileCreate, web.FileUpdate, agent_api.FileCreate, agent_api.FileUpdate, agent_api.FileMove])
@@ -396,13 +410,20 @@ def test_invalid_order_preserves_attached_fields_before_rollback(order_engine, e
     assert _snapshot(order_engine, ids["project"]) == before
 
 
-def test_later_invalid_reorder_preserves_earlier_attached_row(order_engine, effects):
+def test_later_invalid_reorder_preserves_earlier_attached_row(order_engine, effects, monkeypatch):
     ids = _seed(order_engine)
-    with Session(order_engine) as setup:
-        setup.get(File, ids["peer"]).title = f"Chapter {MAX_ORDER + 1}"
-        setup.get(File, ids["peer"]).file_type = "draft"
-        setup.commit()
     before = _snapshot(order_engine, ids["project"])
+    original_resolver = web.resolve_persisted_sequence_order
+    calls = 0
+
+    def fail_second_resolution(raw_order, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise ValueError("injected second-order resolution failure")
+        return original_resolver(raw_order, **kwargs)
+
+    monkeypatch.setattr(web, "resolve_persisted_sequence_order", fail_second_resolution)
     with Session(order_engine) as session:
         rows = [session.get(File, ids[k]) for k in ["target", "peer"]]
         attached_before = [row.model_dump() for row in rows]

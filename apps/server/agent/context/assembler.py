@@ -8,6 +8,7 @@ and assembles it into a formatted prompt with priority-based selection.
 # Standard library
 import contextlib
 import hashlib
+import json
 import os
 import re
 import time
@@ -30,6 +31,17 @@ from .budget import TokenBudget, truncate_text_to_tokens
 from .prioritizer import ContextPrioritizer
 
 logger = get_logger(__name__)
+
+
+def _decode_file_metadata(raw_metadata: str | None) -> dict[str, Any]:
+    """Decode a projected metadata column without trusting legacy JSON shape."""
+    if not raw_metadata:
+        return {}
+    try:
+        value = json.loads(raw_metadata)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 # Floor for the item-selection token budget after reserving header/framing
 # overhead, so a large project-status + inventory header can never starve the
@@ -1162,6 +1174,7 @@ class ContextAssembler:
                 File.title,
                 File.file_type,
                 File.order,
+                File.file_metadata,
                 File.created_at,
             ).where(
                 File.project_id == project_id,
@@ -1176,7 +1189,7 @@ class ContextAssembler:
             key: [] for key in inventory
         }
 
-        for file_id, title, file_type, file_order, created_at in file_rows:
+        for file_id, title, file_type, file_order, file_metadata, created_at in file_rows:
             # 未知/新增的类型也建桶，绝不静默丢弃——「看不见的文件」正是本缺陷
             # 的根因，宁可多渲染一节「其他文件」也不能让文件凭空消失。
             bucket = grouped.setdefault(file_type, [])
@@ -1184,12 +1197,12 @@ class ContextAssembler:
             word_count = None
 
             # Keep inventory ordering aligned with file-tree/export behavior:
-            # chapter-like writing files follow title sequence, while still
-            # recovering from legacy order=0 data and obvious typos like
-            # 580 for 第58章.
+            # nonzero stored order is authoritative; otherwise compatible
+            # structured metadata precedes the leading title ordinal.
             effective_order, seq_num = build_sequence_sort_key(
                 file_order,
                 title=title,
+                metadata=_decode_file_metadata(file_metadata),
                 file_type=file_type,
             )
 
