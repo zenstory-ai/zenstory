@@ -2,7 +2,7 @@
   {
     "owner": "novel-to-game",
     "slug": "quick-start",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Adapt a novel into a game: pick a playable slice, then build",
       "zh": "小说改游戏怎么做：先选一段可玩剧情，再做出第一版"
@@ -18,7 +18,7 @@
         "An available engine and target runtime, or a documented plan for obtaining them. Model, media and tool services may require separate configuration or cost approval."
       ],
       "zh": [
-        "小说文件、目录或链接，以及明确的改编与素材使用边界。能读到文本之外，还要单独确认改编许可。",
+        "小说文件、目录或链接，以及明确的改编与素材使用边界。能读到文本不代表拥有改编权，需另行确认授权。",
         "已配置的 Agent 宿主。安装表区分 Claude Code 的 `/novel-to-game`、Codex 的 `$novel-to-game` 与 Kimi Code 的 `/skill:novel-to-game`，请选择对应适配器。",
         "可用的引擎和目标运行环境，或明确的准备计划。模型、媒体与工具服务可能需要另行配置或费用授权。"
       ]
@@ -47,7 +47,7 @@
         ],
         [
           "Design and build a small candidate",
-          "Follow `design/GAME_DESIGN.md`, a risk-matched whitebox where needed, `design/ART_DIRECTION.md` and `build/BUILD_BRIEF.md`. Size the first candidate to exercise one complete loop, and stop adding features once it does."
+          "Use `design/GAME_DESIGN.md` to build a whitebox prototype that tests the largest design risk. Review the observed result, revise the affected design, then complete `design/ART_DIRECTION.md` and `build/BUILD_BRIEF.md` and build the production candidate. Keep its scope focused on one complete loop."
         ],
         [
           "Describe the next change in the author’s terms",
@@ -69,7 +69,7 @@
         ],
         [
           "确定产品简报",
-          "要求建立 `PRODUCT_BRIEF.md`，明确范围、语言、体验类型、平台、引擎、目标运行环境、实际测试环境、输入与显示要求、内容尺度及权利/素材边界。普通假设可以记录；实质分支或安全敏感决策必须解决。"
+          "要求建立 `PRODUCT_BRIEF.md`，明确范围、语言、体验类型、平台、引擎、目标运行环境、实际测试环境、输入与显示要求、内容尺度及权利/素材边界。普通假设可以记录；会改变游戏方向或涉及权利、内容尺度、平台风险的决定须先明确。"
         ],
         [
           "先说清来源范围，再挑制作切片",
@@ -85,7 +85,7 @@
         ],
         [
           "设计并构建小范围候选版本",
-          "依次依据 `design/GAME_DESIGN.md`、按需的风险匹配白盒、`design/ART_DIRECTION.md` 与 `build/BUILD_BRIEF.md` 推进。首个候选版本的范围以能验证一次完整循环为准，功能加到这一步为止。"
+          "先依据 `design/GAME_DESIGN.md` 制作白盒原型，验证最关键的设计风险。根据实际试玩结果修订相关设计，再完成 `design/ART_DIRECTION.md`、`build/BUILD_BRIEF.md` 并构建正式候选版本。首版范围以能验证一次完整循环为准。"
         ],
         [
           "把作者反馈变成一次有范围的修改",
@@ -149,7 +149,8 @@
         "[Whitebox feedback pinned to its rule, owner and smallest change](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/world-design-method.md#L51-L57)",
         "[Presentation reads committed state and leaves the result intact](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-build/references/playable-model-contract.md#L7-L13)",
         "[Existing state and separate concept, design and art owners](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L21-L28)",
-        "[Revision impact, existing saves and owner-directed resume](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)"
+        "[Revision impact, existing saves and owner-directed resume](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/novel-to-game/blob/25e264dc32a82ee2e481b21d22d40874ea84ab27/skills/novel-to-game/SKILL.md#L10-L39)"
       ],
       "zh": [
         "[按工具安装、调用命令与 quick 模式](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L100)",
@@ -166,7 +167,8 @@
         "[白盒试玩反馈对到规则、负责环节与最小改动](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/world-design-method.md#L51-L57)",
         "[画面只显示规则确认的状态，不改结果](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-build/references/playable-model-contract.md#L7-L13)",
         "[现有进度与概念、设计、美术各自负责的文件](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L21-L28)",
-        "[改动影响、旧存档与问题退回对应环节](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)"
+        "[改动影响、旧存档与问题退回对应环节](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/novel-to-game/blob/25e264dc32a82ee2e481b21d22d40874ea84ab27/skills/novel-to-game/SKILL.md#L10-L39)"
       ]
     },
     "topic": "interactive-games"
@@ -174,7 +176,7 @@
   {
     "owner": "video-recap",
     "slug": "capcut-draft",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Export a video recap as an editable CapCut or JianYing draft",
       "zh": "剪映草稿导出：视频解说导进剪映 / CapCut 继续精剪"
@@ -185,16 +187,16 @@
     },
     "prerequisites": {
       "en": [
-        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, ffprobe, and a completed `timeline.json` with accessible media references. Replace the `/ABS/` placeholders below. If no recap timeline exists yet, start with the [video-to-narration workflow](https://zenstory.ai/video-recap/video-to-narration); the separate voice and caption tracks come from that timeline, while a finished MP4 has them flattened into its picture and sound.",
-        "If starting before assembly, prepare the source video and `work_dir/tts_meta.json`. Local assembly needs ffmpeg; burned subtitles need its libass/subtitles filter. MiMo supplies remote ASR/VLM/default TTS; optional Fish Audio replaces TTS only.",
+        "A repository checkout containing `skills/video-assemble/scripts/export_jianying.py`, or the `scripts/export_jianying.py` file inside an installed video-assemble skill; Python 3.10+, ffprobe, and a `schema_version: 2` timeline from the current assembler with accessible media references. Replace the `/ABS/` placeholders below. If no recap timeline exists yet, start with the [video-to-narration workflow](https://zenstory.ai/video-recap/video-to-narration); separate voice and caption tracks come from that timeline, while a finished MP4 has them flattened into its picture and sound.",
+        "If starting before assembly, prepare the source video and `work_dir/tts_meta.json`. Local assembly needs ffmpeg; burned subtitles need its libass/subtitles filter. MiMo supplies remote ASR/VLM/default TTS; optional Fish Audio or a self-hosted IndexTTS service can replace TTS only.",
         "A JianYing or CapCut desktop installation in which you can test the exported folder. Export is an optional sidecar; the recap MP4 renders without it.",
-        "Decide the revision scope: the thought to keep, the source line or action that must remain audible/visible, and whether you are retaining the existing voice recording or requesting a new one. If a timeline explicitly requests reverse playback without a prepared reversed file, export can invoke local ffmpeg to create and bundle that material."
+        "Decide the revision scope: the thought to keep, the source line or action that must remain audible/visible, and whether you are retaining the existing voice recording or requesting a new one. Add reverse playback, speed changes and transitions in the target editor."
       ],
       "zh": [
-        "本地仓库或已安装的 skill 目录中有 `skills/video-assemble/scripts/export_jianying.py`，已准备 Python、ffprobe、生成完毕的 `timeline.json`，且媒体引用可访问。替换下方 `/ABS/` 占位路径。尚无解说时间轴时，先从[视频解说完整流程](https://zenstory.ai/video-recap/video-to-narration)开始；分开的旁白轨和字幕轨来自这份时间轴，成片 MP4 里它们已经和画面、声音合在一起。",
-        "若尚未合成，先准备源视频与 `work_dir/tts_meta.json`。本地合成需要 ffmpeg；烧录字幕需要 libass/subtitles filter。MiMo 提供远程 ASR/VLM/默认 TTS；可选 Fish Audio 只替换 TTS。",
+        "本地仓库中有 `skills/video-assemble/scripts/export_jianying.py`，或已安装 video-assemble 技能目录内的 `scripts/export_jianying.py`；准备 Python 3.10+、ffprobe，以及当前合成器生成、媒体引用可访问的 `schema_version: 2` 时间轴。替换下方 `/ABS/` 占位路径。尚无解说时间轴时，先从[视频解说完整流程](https://zenstory.ai/video-recap/video-to-narration)开始；分开的旁白轨和字幕轨来自这份时间轴，成片 MP4 里它们已经和画面、声音合在一起。",
+        "若尚未合成，先准备源视频与 `work_dir/tts_meta.json`。本地合成需要 ffmpeg；烧录字幕需要 libass/subtitles filter。MiMo 提供远程 ASR/VLM/默认 TTS；可选 Fish Audio 或自托管 IndexTTS 只替换 TTS。",
         "能用于实际测试草稿的剪映或 CapCut 桌面安装。草稿是可选的附加导出，渲染解说 MP4 用不到它。",
-        "先决定修改范围：要留下的意思、必须听见的原话或看见的动作，以及保留现有配音还是另外申请新配音。若时间轴明确要求倒放却没有已备好的倒放文件，导出可以调用本地 ffmpeg 生成并打包该素材。"
+        "先决定修改范围：要留下的意思、必须听见的原话或看见的动作，以及保留现有配音还是另外申请新配音。倒放、变速和转场在目标编辑器中制作。"
       ]
     },
     "steps": {
@@ -304,7 +306,7 @@
         "检查三份草稿 JSON 与引用媒体，再在实际目标桌面/地区版本中测试打开；兼容性以你实际打开的版本为准。",
         "针对排练练习，指令、手势、第二次起拍要保持顺序，并在需要处听得清。既看新旁白位置，也看旧位置的原声音量关键帧；把实际说的话与显示字幕对照。20/16秒两版是示意时长，最终长度以实际素材为准。",
         "检查旁白尾字、音画同步、原声衔接、BGM 音量、字幕断行与剪点。草稿引用源媒体，原素材自带的硬字幕会留在画面里，需要时在编辑器里遮罩。",
-        "导出 smoke test 覆盖的是本地草稿格式；远程生成、桌面编辑器打开和最终成片要分别检查。"
+        "本地导出检查只验证草稿格式；远程生成、桌面编辑器打开和最终成片要分别检查。"
       ]
     },
     "sources": {
@@ -320,7 +322,9 @@
         "[Separate narration, optional music and displayed subtitle segments](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
         "[Video source ranges and volume keyframes in the draft](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
         "[Audio materials and segment placement in the draft](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L546-L610)",
-        "[Subtitle text is built as a separate text material](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)"
+        "[Subtitle text is built as a separate text material](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-assemble/scripts/jianying/timeline_contract.py#L119-L156)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-voiceover/SKILL.md#L60-L99)"
       ],
       "zh": [
         "[合成输入、cut 模式源视频与导出参数](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L33-L68)",
@@ -334,7 +338,9 @@
         "[单独的旁白轨、可选配乐与字幕轨](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
         "[草稿中的原片时间段与音量关键帧](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
         "[草稿中的音频素材与片段放置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L546-L610)",
-        "[字幕文字作为独立文本素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)"
+        "[字幕文字作为独立文本素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-assemble/scripts/jianying/timeline_contract.py#L119-L156)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-voiceover/SKILL.md#L60-L99)"
       ]
     },
     "faq": [
@@ -374,14 +380,14 @@
   {
     "owner": "oh-story",
     "slug": "agent-skills-for-writers",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Agent skills for writers: prompts, skill packs, plugins, MCP",
       "zh": "写作 Skill 是什么：和提示词、插件、MCP 怎么分"
     },
     "answer": {
-      "en": "An agent skill is a folder of instructions and reference files that a coding agent such as Claude Code or Codex loads when a matching task comes up. You do not write code to use one. For a novelist the tasks are turning an idea into an outline, importing a manuscript, or revising a chapter against project notes. Oh Story is a pack of 13 such skills for fiction; it runs inside the agent host and uses the model that host is configured with. Skills differ from prompts (they live on disk and are reused), plugins (a distribution wrapper) and MCP servers (tools exposed over a protocol). Pick the writing job first, then the host. The example below compares two investigation openings in chat before any planning files are created.",
-      "zh": "Agent Skill 是一个装着任务说明和参考资料的文件夹，Claude Code、Codex 这类编程 Agent 遇到匹配任务时会自动加载它。用它不需要写代码。对小说作者来说，任务是把灵感整理成细纲、导入已有书稿，或结合项目设定改一章。Oh Story 是包含 13 个此类 skill 的小说写作技能包，装在 Agent 工具里运行，调用该工具已配置的模型。Skill 和提示词（存在磁盘上、可复用）、插件（打包分发的形式）、MCP 服务器（通过协议暴露工具）各不相同。先定写作任务，再选运行环境。下面的示例先在聊天里比较两个调查开端，再创建规划文件。"
+      "en": "An agent skill is a folder of instructions and reference files that a compatible agent host such as Claude Code or Codex can load for a matching task. You do not write code to use one. For a novelist the tasks include turning an idea into an outline, importing a manuscript or revising a chapter against project notes. Oh Story is a pack of 13 fiction skills that use the model configured in the host. A prompt expresses a request and can be saved as a template; a skill packages a reusable process and its resources. A plugin distributes capabilities, while an MCP server exposes tools through a protocol. Pick the writing job first, then the host. The example below compares two investigation openings in chat before any planning files are created.",
+      "zh": "Agent Skill 是一个装着任务说明和参考资料的文件夹，Claude Code、Codex 这类兼容宿主可在处理匹配任务时按需读取。用它不需要写代码。对小说作者来说，任务可以是把灵感整理成细纲、导入已有书稿，或结合项目设定改一章。Oh Story 包含 13 个小说写作 skill，调用宿主已配置的模型。提示词表达一次请求，也可以保存成模板；Skill 把可复用流程与资料组织在一起，插件负责打包分发能力，MCP 服务器则通过协议提供工具。先定写作任务，再选运行环境。下面的示例先在聊天里比较两个调查开端，再创建规划文件。"
     },
     "prerequisites": {
       "en": [
@@ -417,11 +423,11 @@
         ],
         [
           "Can I plan the novel without having AI write it?",
-          "Yes: a new-book request such as /story-long-write 帮我开书 defaults to planning and stops before prose unless you also ask for a chapter or daily writing. Planning still writes files: settings and outlines first, then tracking once the outline stage is complete. If you only want to compare ideas, ask in ordinary chat: “Discuss two possible structures in this reply only; do not start the new-book workflow or create or change files.” That sentence is a boundary you set in the request; file access itself stays under the host's permission settings. A bare /story-long-write diagnoses the project and offers next steps; the full plan comes from a new-book request."
+          "Yes: a new-book request such as /story-long-write 帮我开书 defaults to planning and stops before prose unless you also ask for a chapter or daily writing. Planning writes the requested settings and outlines. Tracking is initialized when you explicitly move a new book into chapter drafting. If you only want to compare ideas, ask in ordinary chat: “Discuss two possible structures in this reply only; do not start the new-book workflow or create or change files.” That sentence is a boundary you set in the request; file access itself stays under the host's permission settings. A bare /story-long-write diagnoses the project and offers next steps; the full plan comes from a new-book request."
         ],
         [
           "Ask for the whole-book structure, then chapter outlines in batches",
-          "Name the deliverables: the whole-book volume overview, volume outlines and the first batch of up to ten chapter outlines. The volume overview maps the larger direction; chapter outlines specify what characters do in the next stretch. Later chapter outlines follow in rolling batches, one plot unit at a time, so by default “plan the whole book” delivers the structure and the first batch. An explicit chapter range can be delivered in successive batches. For an existing book, name the unfinished range and skip the new-book workflow, which is for starting a project; use the scoped revision example in [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter) to protect already agreed material."
+          "Name the deliverables: the whole-book volume overview, volume outlines and the first batch of up to ten chapter outlines. The volume overview maps the larger direction; chapter outlines specify what characters do in the next stretch. Later chapter outlines follow in rolling batches, one plot unit at a time. A request to “plan the whole book” delivers the requested book or volume structure; ask explicitly for chapter outlines when you want them. An explicit chapter range can be delivered in successive batches. For an existing book, name the unfinished range and skip the new-book workflow, which is for starting a project; use the scoped revision example in [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter) to protect already agreed material."
         ],
         [
           "Resolve author decisions without approving every small detail",
@@ -455,11 +461,11 @@
         ],
         [
           "能不能只让 AI 规划小说，不代写正文？",
-          "可以。新书请求如 /story-long-write 帮我开书，默认只做规划，在正文前停下；同次明确要求写章或日更才会进入正文。规划阶段同样会写文件：先写入设定、大纲，大纲阶段完成后再初始化追踪状态。如果只是想比较点子，用普通聊天说明：“只在本次回复里讨论两种结构，不启动开书流程，不创建或修改文件。”这句话是你在请求里划定的操作边界，文件读写权限仍由宿主的权限设置管理。裸调用 /story-long-write 只诊断项目、列出下一步；要拿到完整规划，就发开书请求。"
+          "可以。新书请求如 /story-long-write 帮我开书，默认只做规划，在正文前停下；同次明确要求写章或日更才会进入正文。规划会写入所请求的设定与大纲；明确进入新书正文写作时，才初始化追踪状态。如果只是想比较点子，用普通聊天说明：“只在本次回复里讨论两种结构，不启动开书流程，不创建或修改文件。”这句话是你在请求里划定的操作边界，文件读写权限仍由宿主的权限设置管理。裸调用 /story-long-write 只诊断项目、列出下一步；要拿到完整规划，就发开书请求。"
         ],
         [
           "要全书结构，章级细纲分批来",
-          "把交付物说具体：全书卷级鸟瞰、卷纲，以及首批最多十章细纲。卷级鸟瞰交代全书大方向，细纲说明接下来一段中人物具体做什么。后续按剧情单元滚动补纲，“规划整本书”默认交付全书结构和首批细纲；明确指定章节范围时，也可以分批连续交付。已有书稿应点名待补的区间，不要重新启动开书；用[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)里的限定范围修订示例，保护已经确认的内容。"
+          "把交付物说具体：全书卷级鸟瞰、卷纲，以及首批最多十章细纲。卷级鸟瞰交代全书大方向，细纲说明接下来一段中人物具体做什么。后续按剧情单元滚动补纲。“规划整本书”交付所请求的全书或卷级结构；需要章级细纲时再明确提出，指定章节范围也可以分批连续交付。已有书稿应点名待补的区间，不要重新启动开书；用[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)里的限定范围修订示例，保护已经确认的内容。"
         ],
         [
           "作者裁定关键选择，不必逐项批准所有小细节",
@@ -480,7 +486,7 @@
         "For the optional chat-only first request: two proposed openings, their first actions, obstacles and author choices. The comparison lives in the chat reply; project files and whole-book planning come with the later new-book request.",
         "Setup creates the host-specific skill/configuration files for the chosen installation. Those files make up the working environment around your book.",
         "Planning files include settings, 大纲/大纲.md (the whole-book volume overview), 大纲/卷纲_第X卷.md (volume outlines) and separate 大纲/细纲_第XXX章.md chapter outlines. Report the range actually completed and the unresolved decisions; call the whole book planned only after the sections that depend on those decisions are done.",
-        "After the outline stage is complete, including necessary author decisions and the affected outlines, the new-book workflow initializes a checkpoint, a continuation context card and empty clue/timeline views and directories. These are starting records made before any chapter exists. Planned reveals stay in the outlines and move into tracking once the text has actually written them. For an imported book, inspect its reconstructed project before asking for continuation.",
+        "When you explicitly request the new book’s first chapter, the writing workflow initializes its tracking state before drafting: a chapter-zero checkpoint, a continuation context card and empty clue/timeline views. Planning alone does not create these records. Planned reveals stay in the outlines until prose establishes them. For an imported book, inspect its reconstructed project before requesting continuation.",
         "Chapter continuity comes from project records such as tracking state, so preserve the writing folder and back up material you want to keep.",
         "Once a chapter plan exists, use [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter) to turn abstract plot labels into visible evidence, choices and consequences, without forcing a twist into every chapter."
       ],
@@ -488,7 +494,7 @@
         "可选的聊天首轮交付：两个候选开端、各自的第一步、阻力与作者选择。这份比较只在回复里；项目文件和全书规划在之后的开书请求中生成。",
         "环境部署生成所选宿主的技能与配置文件。这些文件构成写作的工作环境。",
         "规划文件包括设定、全书卷级鸟瞰 大纲/大纲.md、卷纲 大纲/卷纲_第X卷.md，以及逐章独立的 大纲/细纲_第XXX章.md。交付时说明实际完成的章节范围和未决问题；依赖裁定的部分补齐之后，才算整本规划完成。",
-        "必要的作者裁定完成、受影响细纲补齐，大纲阶段完成后，新书流程才初始化检查点、续写状态卡，以及空的伏笔/时间线视图与目录。这些是正文开写前的起始记录；未来揭示留在大纲里，等正文真正写到才记入追踪。已有小说导入后，先读重建的项目材料，再要求续写。",
+        "明确请求写新书第一章后，写作流程才在动笔前初始化追踪状态：第0章检查点、续写状态卡，以及空的伏笔与时间线视图。只做规划不建立这些记录。未来揭示留在大纲，等正文真正写到才记入追踪；已有小说导入后，先读重建的项目材料，再要求续写。",
         "章节连续性依靠追踪状态等项目记录，所以要保留写作目录，并备份需要保存的材料。",
         "已有章纲时，接着看[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)：把剧情标签变成可见证据、选择与后果，不给每章硬塞反转。"
       ]
@@ -516,7 +522,9 @@
         "[Rolling outline batches and explicit chapter ranges](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L184-L195)",
         "[Existing-outline locks and future facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L263-L270)",
         "[Reusable settings and author decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
-        "[Planning artifacts and initial tracking](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)"
+        "[Planning artifacts and initial tracking](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/SKILL.md#L40-L72)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-chapter.md#L9-L34)"
       ],
       "zh": [
         "[Agent Skills：格式与按需加载](https://agentskills.io/home)",
@@ -530,7 +538,9 @@
         "[边写边补大纲与指定章节范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L184-L195)",
         "[锁定已有大纲，未写情节不进追踪](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L263-L270)",
         "[复用设定与作者决定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
-        "[规划文件与初始追踪记录](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)"
+        "[规划文件与初始追踪记录](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/SKILL.md#L40-L72)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-chapter.md#L9-L34)"
       ]
     },
     "topic": "getting-started"
@@ -538,7 +548,7 @@
   {
     "owner": "dsh",
     "slug": "deepseek-novel-writing",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Write a novel with DeepSeek: pick a workspace, keep drafting",
       "zh": "DeepSeek写小说：选对工作区，从已有稿件接着写"
@@ -550,15 +560,15 @@
     "prerequisites": {
       "en": [
         "For ordinary chat, bring only the excerpt and constraints needed for that one task. Keep your own manuscript as the durable source, and copy any chat answer you want to keep back into the writing project yourself.",
-        "For the local DSH route, use Node.js 24+ and a folder you are comfortable granting to the DSH workspace. The pinned installation below uses DSH `0.1.5-rc.1` and the community plugin `@oh-story/dsh@0.1.9`.",
-        "Configure a model/provider in DSH before asking it to generate text. The source supports adding a provider and API key under Settings → Models, or setting `DEEPSEEK_API_KEY` before launch. DSH owns models, credentials, permissions and sessions; the plugin never touches the credentials.",
+        "For the local DSH route, use Node.js 24+ and a folder you are comfortable granting to the DSH workspace. The pinned installation below uses DSH `0.2.0-rc.2` and the community plugin `@oh-story/dsh@0.1.15`.",
+        "Configure a model/provider in DSH before asking it to generate text. The source supports adding a provider and API key under Settings → Models, or setting `DEEPSEEK_API_KEY` before launch. DSH owns model configuration, model credentials, permissions and sessions; the plugin adds creation skills and workbench views.",
         "For ZenStory Workbench, use `https://app.zenstory.ai` as a separate account-based workflow. A local DSH workspace, the DSH plugin installation and ordinary DeepSeek chat history each stay in their own environment.",
         "For an existing draft, keep a separate backup and name the manuscript files, any unfinished chapter, and the relevant settings or old plan. A discarded outline stays a proposal; nothing in it has happened in the story. State whether this turn may only discuss options, create planning files, or change prose."
       ],
       "zh": [
         "使用普通聊天时，只带上这次任务所需的片段和约束，并由你自己保管权威稿件；想保留的聊天回答要自己复制回写作项目。",
-        "使用本地 DSH 路线时，准备 Node.js 24+，以及一个愿意交给 DSH workspace 管理的作品目录。下方固定版本安装使用 DSH `0.1.5-rc.1` 与社区插件 `@oh-story/dsh@0.1.9`。",
-        "让 DSH 生成文本前先配置模型/Provider。源码说明可以在“设置 → 模型”中添加 Provider 和 API Key，或在启动前设置 `DEEPSEEK_API_KEY`。模型、凭据、权限和会话都由 DSH 管理，插件不接触凭据。",
+        "使用本地 DSH 路线时，准备 Node.js 24+，以及一个愿意交给 DSH workspace 管理的作品目录。下方固定版本安装使用 DSH `0.2.0-rc.2` 与社区插件 `@oh-story/dsh@0.1.15`。",
+        "让 DSH 生成文本前先配置模型/Provider。源码说明可以在“设置 → 模型”中添加 Provider 和 API Key，或在启动前设置 `DEEPSEEK_API_KEY`。模型配置、模型凭据、权限和会话由 DSH 管理，插件提供创作技能与工作台界面。",
         "ZenStory 工作台位于 `https://app.zenstory.ai`，属于独立的账户化流程。本地 DSH workspace、插件安装和普通 DeepSeek 聊天历史都留在各自的环境里。",
         "已有稿件时先留独立备份，点名原稿文件、未完成章节，以及相关设定或旧续写设想。没有采纳的细纲只算设想，故事里还没有发生；说明本轮只讨论、可以写规划文件，还是允许修改正文。"
       ]
@@ -575,7 +585,7 @@
         ],
         [
           "Configure the model at the host layer",
-          "In DSH, add the provider and model under Settings → Models, or start DSH with `DEEPSEEK_API_KEY` present when that is the provider you intend to use. This configuration belongs to DSH; the Oh Story plugin leaves models alone. Viewing existing work can be deferred without a model key, but generating new prose requires a configured model."
+          "In DSH, add the provider and model under Settings → Models, or start DSH with `DEEPSEEK_API_KEY` present when that is the provider you intend to use. This configuration belongs to DSH; the Oh Story plugin leaves models alone. You can read existing files before configuring a model, but generating new prose requires a configured model."
         ],
         [
           "Open the writing folder before prompting",
@@ -583,7 +593,7 @@
         ],
         [
           "New book: start with a bounded brief",
-          "Use `/story-long-write 帮我开书` (or the English intent in the example) and state genre, reader promise, protagonist, central pressure, length target, viewpoint, tone, hard exclusions and the desired stopping point. The bundled workflow's default opening path creates the project, core settings, volume outline and the first ten chapter blueprints, then stops before prose. Review the direction first, and ask for the novel one stage at a time."
+          "Use `/story-long-write 帮我开书` (or the English intent in the example) and state genre, reader promise, protagonist, central pressure, length target, viewpoint, tone, hard exclusions and the desired stopping point. The bundled opening workflow asks you to confirm the direction, core settings, volume outline and first batch of ten chapter blueprints in turn. It advances after each confirmation and stops before prose."
         ],
         [
           "New chapter: name the chapter and its ending",
@@ -603,7 +613,7 @@
         ],
         [
           "Later sessions: have the agent read the state files first",
-          "When settings and foreshadowing live only in the chat history, the transcript keeps growing and the facts this chapter needs get diluted by everything else. The bundled long-form workflow therefore manages the project in files: `追踪/_tracking-state.json` is the single structured source of truth, `追踪/上下文.md` is the continuation state card read in full for each chapter, and core characters' current snapshots sit in `追踪/角色状态/`. Before drafting, it keeps only what the chapter would get wrong without: character state, the causes behind foreshadowing, and world rules. If the chapter outline is missing, DSH's `tools/pre-execute` hook blocks the prose write; run `/story-long-write 补纲` first. In a new session, paste this and replace the brackets: “/story-long-write 写第[N]章. Treat the project files as canon and the chat history as background. Before drafting, read `追踪/上下文.md` and the chapter [N] outline in `大纲/`; list the current state of every character in this chapter, the foreshadowing to advance or pay off, and the rules in play. If the files disagree with each other or with this message, report the conflict and wait for me. Write only chapter [N] into `正文/`, stop at the outline's closing beat, and leave the next chapter alone.” For how the state files divide the work, see the [long-novel continuity guide](https://zenstory.ai/oh-story/long-novel-continuity)."
+          "When settings and foreshadowing live only in the chat history, the transcript keeps growing and the facts this chapter needs get diluted by everything else. The bundled long-form workflow therefore manages the project in files: `追踪/_tracking-state.json` is the single structured source of truth, `追踪/上下文.md` is the continuation state card read in full for each chapter, and core characters' current snapshots sit in `追踪/角色状态/`. Before drafting, it keeps only what the chapter would get wrong without: character state, the causes behind foreshadowing, and world rules. If the chapter outline is missing or contains fewer than 30 characters after removing `#` and whitespace, DSH's `tools/pre-execute` hook blocks the prose write; run `/story-long-write 补纲` first. In a new session, paste this and replace the brackets: “/story-long-write 写第[N]章. Treat the project files as canon and the chat history as background. Before drafting, read `追踪/上下文.md` and the chapter [N] outline in `大纲/`; list the current state of every character in this chapter, the foreshadowing to advance or pay off, and the rules in play. If the files disagree with each other or with this message, report the conflict and wait for me. Write only chapter [N] into `正文/`, stop at the outline's closing beat, and leave the next chapter alone.” For how the state files divide the work, see the [long-novel continuity guide](https://zenstory.ai/oh-story/long-novel-continuity)."
         ]
       ],
       "zh": [
@@ -625,7 +635,7 @@
         ],
         [
           "从零开书：给出有边界的请求",
-          "输入 `/story-long-write 帮我开书`，并写清题材、读者承诺、主角、核心压力、预计篇幅、视角、语气、明确禁区和本轮停靠点。内置流程默认先建立项目、核心设定、卷纲与首批十章细纲，然后停在正文前。先审方向，不要一轮要求生成整本小说。"
+          "输入 `/story-long-write 帮我开书`，并写清题材、读者承诺、主角、核心压力、预计篇幅、视角、语气、明确禁区和本轮停靠点。内置开书流程依次让你确认方向、核心设定、卷纲与首批十章细纲，每个确认点说继续才往下，最远停在正文前。"
         ],
         [
           "写新章：点名章节与停笔点",
@@ -645,23 +655,23 @@
         ],
         [
           "之后续写：让 Agent 先读状态文件",
-          "设定和伏笔只留在聊天记录里时，前文越积越多，本章真正要用的事实就被无关内容稀释。随包长篇流程因此用文件管理项目：`追踪/_tracking-state.json` 是唯一的结构化权威状态，`追踪/上下文.md` 是续写时每章整份读取的状态卡，核心人物的当前快照放在 `追踪/角色状态/`；动笔前只挑出“不知道就会写错”的人物状态、伏笔前因和世界规则。细纲缺失时，写入正文会被 DSH 的 `tools/pre-execute` 钩子拦下，先用 `/story-long-write 补纲`。换会话后可以粘贴下面这段，替换方括号内容：「/story-long-write 写第[N]章。以项目文件为准，聊天记录只作参考。动笔前先读 `追踪/上下文.md` 和 `大纲/` 里第[N]章的细纲，列出本章出场人物的当前状态、要推进或回收的伏笔、会用到的规则限制；文件之间或文件与这条消息有冲突，先报告并等我确认。只写第[N]章，写入 `正文/`，停在细纲的章尾节拍，不继续下一章。」状态文件怎么分工，见[长篇连贯性指南](https://zenstory.ai/oh-story/long-novel-continuity)。"
+          "设定和伏笔只留在聊天记录里时，前文越积越多，本章真正要用的事实就被无关内容稀释。随包长篇流程因此用文件管理项目：`追踪/_tracking-state.json` 是唯一的结构化权威状态，`追踪/上下文.md` 是续写时每章整份读取的状态卡，核心人物的当前快照放在 `追踪/角色状态/`；动笔前只挑出“不知道就会写错”的人物状态、伏笔前因和世界规则。细纲缺失，或去掉 `#` 和空白后不足 30 字时，写入正文会被 DSH 的 `tools/pre-execute` 钩子拦下，先用 `/story-long-write 补纲`。换会话后可以粘贴下面这段，替换方括号内容：「/story-long-write 写第[N]章。以项目文件为准，聊天记录只作参考。动笔前先读 `追踪/上下文.md` 和 `大纲/` 里第[N]章的细纲，列出本章出场人物的当前状态、要推进或回收的伏笔、会用到的规则限制；文件之间或文件与这条消息有冲突，先报告并等我确认。只写第[N]章，写入 `正文/`，停在细纲的章尾节拍，不继续下一章。」状态文件怎么分工，见[长篇连贯性指南](https://zenstory.ai/oh-story/long-novel-continuity)。"
         ]
       ]
     },
     "example": {
-      "en": "Suggested input (original example):\n\nTerminal — install the pinned plugin and start DSH Web:\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.1.5-rc.1 dsh plugin --profile web add @oh-story/dsh@0.1.9 &&\nnpx -y @deepseek-ai/dsh@0.1.5-rc.1 web\n\nIn the DSH session for your chosen empty workspace:\n/story-long-write 帮我开书\nCreate a 240,000-word near-future mystery serial for adult readers.\nPremise: a municipal archivist discovers that one ordinary resident disappears from every public record at 02:17 each night, but her handwritten corrections return by morning.\nReader promise: procedural investigation plus the cost of deciding which version of a person deserves to survive.\nProtagonist: meticulous, conflict-averse, and personally implicated by a missing sibling.\nUse close third person, restrained prose, and no omniscient explanation of the system in the opening volume.\nFor this turn, create the project settings, volume outline and first ten chapter blueprints only. Stop before prose and list the files created.\n\nAfter reviewing the plan:\n/story-long-write 写第1章\nUse the approved chapter blueprint. Write only chapter 1, preserve the reveal boundary, and end when the protagonist sees correction handwriting with the same missing-stroke habit as her own in a file she has never opened; do not yet establish who wrote it. Save the prose in the project; do not continue to chapter 2.\n\nEXISTING-DRAFT EXERCISE: original editorial fiction\nThe archivist is named Ji Ning for this worked example. The following are excerpts\nwith illustrative paths. Replace them with your own files and give the agent\nthe full relevant manuscript.\n\nMaterials supplied by the author:\n- 原稿/第001章.md: accepted, complete chapter 1; the ending below is its final beat.\n- 原稿/第002章_未完.md: the unfinished opening of chapter 2.\n- 参考/旧续写设想.md: an unaccepted proposal, kept for reference only.\n- 参考/本书设定.md: the approved brief, including the missing sibling and limited viewpoint.\n\nAccepted chapter 1 ending:\nJi Ning opened file 417 for the first time. At the foot of the page,\nthe handwritten Chinese word 更正, “correction,” caught her eye: the final stroke\nof 更 was missing, exactly the habit she had never managed to change.\n\nUnfinished chapter 2 opening:\nShe pushed the request card toward the desk. The duty clerk held it down.\n“To request the original register, you have to leave your employee number.”\nJi Ning held her pen just above the signature box.\n[The author stopped here. No signature, submitted request or register access yet.]\n\nOld, unaccepted chapter 2 proposal:\n“Steal the original register from storage and confirm that her missing sibling\nforged the handwriting.” This is only a plot proposal, nothing established yet;\nadopting it would change the proposed investigation and reveal timing.\n\nFirst request — natural-language Chat only, no writing skill needed:\nRead only the four named files. Chapter 1 is complete; chapter 2 is unfinished.\nSeparate accepted events, the partial chapter’s proposed situation, and old planning.\nWhat does Ji Ning actually know? What is she merely suspecting?\nGive two ways to pursue the original register without confirming the writer’s identity.\nFor each, name her action, the resistance and the visible change by the scene’s end.\nKeep close third person; no omniscient explanation, automatic access or off-page signature.\nReply only in Chat. Do not create, move or edit files, generate prose or call media services.\n\nEditorial reading of these materials:\n- Chapter 1 establishes a recognizable handwriting habit in a file she had not opened.\n  Whether she wrote it, whether her sibling forged it and whether time travel occurred all remain open.\n- The partial opening places a pen above a box. Even within that fragment she has not signed.\n  The clerk states a requirement for this scene; whether it is archive-wide is still unwritten.\n- If the author retains that opening, chapter 2 starts with an unresolved decision.\n  Until completed, its events must not be treated as a completed chapter in tracking.\n- The investigation can advance without identifying the writer: obtain a traceable request,\n  or make another person confront the question. Both stop short of receiving the register.\n\nTwo NEW candidate scene plans (fictional choices, not yet in the project):\nA. Accept personal exposure. Ji Ning signs her own employee number and states that she\n   wants to check the correction handwriting. The clerk accepts the request and gives\n   a receipt number while the register stays in storage. She gains a way to follow up, but the signed\n   request now connects her to the investigation. End on the handover itself;\n   do not imply that access has been granted or that anyone has identified the writer.\nB. Seek a witness without signing. Ji Ning asks the clerk to look at the disputed page\n   with her. He refuses to assess it on his own and reaches for the phone to call a supervisor.\n   End before a call connects: she has not obtained access, and keeping the inquiry quiet\n   now requires her to respond to another person’s initiative. The clerk need not recognize\n   her handwriting, know the secret, or be a villain for this resistance to work.\n\nChoose A if this chapter should make a conflict-averse investigator take responsibility\nin her own name. Choose B if it should put her attempt at secrecy under immediate social\npressure. Pick one; do not silently combine them into one sequence.\n\nAn editorial candidate ending for A (a short prose illustration):\n“Reason for the request?”\nJi Ning lowered the pen and wrote her employee number in the signature box.\nBelow it she added: Check the correction handwriting.\nShe pushed the signed card across. The clerk tore off the receipt. An application number; no access decision.\nShe folded the slip. The signed request stayed on his side of the desk.\nThis resolves whether she puts her name to the inquiry; who wrote the correction stays open.\n\nBefore writing — choose the material state:\nIf these are still standalone files, either keep discussing them or explicitly choose\nfull import. For import, confirm the scope, target book and unfinished-tail strategy first;\nchoose “continue from the partial chapter” if retaining it. Notes under 参考/ are separate\nfrom the manuscript source directory. Do not describe a Chat discussion as completed import.\nFor an already initialized, current-format project, do not import the book again.\n\nAfter the project is ready, a planning-only request:\n/story-long-write 补纲\nI choose A and retain the unfinished opening. Plan only chapter 2; stop before prose.\nDo not adopt the unaccepted theft/forgery proposal. I authorize setting the chapter 2 plan\nto the signed-request scene.\nDo not change other chapters, the accepted chapter 1, or established tracking facts.\nThe receipt records a submitted request; access is still pending. Keep the writer’s identity unknown.\n\nAfter reviewing that plan, when a chapter 2 partial file already exists:\n/story-long-write 修改第2章\nThis is an unfinished chapter: complete it in place, without skipping ahead or treating it as a blank new chapter.\nFirst identify and back up its actual file; show the opening you will preserve and the\nproposed completion boundary. Wait for my confirmation before changing prose.\nThen complete only chapter 2 using the approved A plan. Preserve the existing opening;\nend with the signed request handed over and a receipt, without access or identity confirmation.\nDo not rewrite chapter 1, count the old fragment as a finished chapter, or continue to chapter 3.\nIf the actual files or tracking disagree with this description, report the conflict first.\n\nIf no chapter 2 prose file exists at all, use the named-new-chapter route instead.\nDecide from the actual files; the last Chat message is only a pointer.",
-      "zh": "建议输入（原创示例）：\n\n终端——安装固定版本插件并启动 DSH Web：\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.1.5-rc.1 dsh plugin --profile web add @oh-story/dsh@0.1.9 &&\nnpx -y @deepseek-ai/dsh@0.1.5-rc.1 web\n\n在你选定的空 workspace 对应 DSH 会话中输入：\n/story-long-write 帮我开书\n写一部约 24 万字、面向成年读者的近未来悬疑连载。\n核心梗：市档案员发现，每晚 02:17 都有一名普通居民从全部公共记录中消失，但她手写的修订次日又会恢复。\n读者承诺：程序化调查，以及“哪个版本的人值得留下”带来的选择代价。\n主角：严谨、回避冲突，并因失踪的手足与事件有私人关联。\n使用第三人称限知和克制文风；第一卷不得全知解释系统真相。\n本轮只建立项目设定、卷纲和首批十章细纲，停在正文前，并列出创建的文件。\n\n检查并确认计划后输入：\n/story-long-write 写第1章\n严格使用已确认的本章细纲，只写第 1 章，保留信息揭示边界；在主角发现一份从未打开的档案里出现了与她有相同缺笔习惯的修订笔迹时收尾；此时先不揭晓是谁写的。正文写入项目文件，不要继续第 2 章。\n\n已有稿件练习——原创编辑示例\n这次给档案员取名“纪宁”。下文是相关摘录，文件路径只作示意。\n实际使用时换成你的真实文件名，并提供相关的完整原稿。\n\n作者提供的材料：\n- 原稿/第001章.md：作者已确认的完整第一章，以下摘录就是章尾。\n- 原稿/第002章_未完.md：第二章未完成的开头。\n- 参考/旧续写设想.md：没有采纳的提议，只作参考。\n- 参考/本书设定.md：已确认的创作简报，包括失踪手足与限知视角。\n\n已确认的第一章末尾：\n纪宁第一次翻开417号档案。页脚那行“准予更正”里，“更”字少了最后一捺，\n正是她多年改不掉的写法。\n\n第二章未完开头：\n她把调阅卡推到窗口。值班员压住卡片：“申请调原始登记，得留你的工号。”\n纪宁把笔尖停在签名栏上方。\n［作者写到这里停下。尚未签字、递交申请或拿到登记册。］\n\n旧的、尚未采纳的第二章设想：\n“潜入保管室偷走原始登记册，确认是失踪的手足伪造了笔迹。”\n这只是剧情提议，尚未成立；采纳它会改变调查方式与揭示时机。\n\n第一轮请求——自然语言 Chat 讨论，不必启动写作 Skill：\n只读上述四份文件。第一章已完，第二章未完。\n分开列出已确认事件、残稿提出的当前情境，以及旧规划。\n纪宁实际知道什么，又只是在怀疑什么？\n给出两个继续追查原始登记的方向，不确认笔迹作者。\n每个方向说明她采取什么行动、遇到什么阻力、场末发生什么可见变化。\n保持第三人称限知，不全知解释，不自动获准调阅，不跳过签字动作。\n只在 Chat 回复，不创建、移动或修改文件，不生成正文，不调用媒体服务。\n\n编辑对材料的阅读：\n- 第一章确立了：她在从未翻开的档案里认出一种笔迹习惯。\n  尚不能推出“就是她写的”“手足伪造”或“发生了时间穿越”。\n- 残稿停在笔尖悬空；即使只看这个片段，她也还没签字。\n  值班员说需要工号，只是这一场里的要求，整座档案馆是否都如此还没写到。\n- 作者若保留这个开头，第二章要接住的是尚未作出的决定；章没完成前，\n  不能把残稿情节当成已完成章节写入追踪检查点。\n- 调查不必马上查明笔迹作者也能前进：留下可追问的申请，或让另一个人\n  面对这个疑点；这两条路都还没拿到登记册。\n\n两个新增的候选场景（虚构创作选择，项目里尚未写入）：\nA．承担署名代价。纪宁签下自己的工号，写明要核对修订笔迹；值班员收下申请，\n   给的是回执编号，登记册仍在库里。她获得了可追问的线索，也让签名把自己与调查\n   联系起来。章尾落在交出申请：动作已经做出，但不能暗示调阅已获批或身份已查明。\nB．不签字，先求一个见证。纪宁请值班员和她一起看有疑点的那一页。\n   他不愿独自判断，伸手拿电话准备叫主管。停在尚未接通时：她没有取得调阅权，\n   想悄悄调查却必须应对另一个人的主动行动。值班员不必认得她的笔迹、知道秘密，\n   更不必先被写成反派，这个阻力就可以成立。\n\n选 A，是让回避冲突的主角第一次用自己的名字承担调查；选 B，是让她保密的打算\n受到当场的人际压力。两者二选一，不要悄悄拼成一段既成剧情。\n\nA 的候选收束（编辑写的短段示意）：\n“申请理由？”\n纪宁让笔尖落下，在签名栏写完自己的工号。\n她在下面补了一行：核对修订笔迹，再把签好的卡片推过去。\n值班员撕下回执。上面只有申请编号，没有调阅结果。\n她折好纸条，签过工号的申请留在窗口里面。\n这里回答的是“她是否署名追查”，“谁写了那行修订”仍然悬着。\n\n准备落稿前——先区分材料状态：\n如果仍是松散文件，可以继续只讨论，也可以明确选择完整导入。导入前先确认范围、\n目标书目和尾稿策略；要保留开头就选“基于残章续写”。参考/下的规划笔记要与原稿\n目录分开。不要把 Chat 讨论说成已经导入；已有当前格式工程则不重复导入整本书。\n\n工程准备好之后，先只规划：\n/story-long-write 补纲\n我选 A，保留残稿开头。本轮只规划第二章，停在正文前。\n不要采纳未确认的旧第二章续写设想。我授权将本章细纲定为署名申请这一场戏。\n其他章、已确认的第一章和既有追踪事实不变。\n回执只说明申请已递交，调阅尚未获批；笔迹作者仍然未知。\n\n审过细纲后，如果第二章的残稿文件已经存在：\n/story-long-write 修改第2章\n这是未完成章节：在原文件上补完，不跳到下一章，也不当作空白新章覆盖。\n先定位并备份实际文件，列出将保留的开头和本次补完边界；等我确认后再改正文。\n然后只按已确认的 A 方案补完第二章，保留已有开头；在交出署名申请、拿到回执时\n收尾，不获得调阅权、不确认笔迹作者。\n不重写第一章，残稿在补完前按未完成处理，不继续第三章。\n真实文件或追踪状态如果与这些描述冲突，先报告。\n\n如果实际上根本没有第二章正文文件，才用“写第2章”的新章入口。\n以真实文件为准来区分，上一条 Chat 消息只作参考。"
+      "en": "Suggested input (original example):\n\nTerminal — install the pinned plugin and start DSH Web:\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.2.0-rc.2 dsh plugin --profile web add @oh-story/dsh@0.1.15 &&\nnpx -y @deepseek-ai/dsh@0.2.0-rc.2 web\n\nIn the DSH session for your chosen empty workspace:\n/story-long-write 帮我开书\nCreate a 240,000-word near-future mystery serial for adult readers.\nPremise: a municipal archivist discovers that one ordinary resident disappears from every public record at 02:17 each night, but her handwritten corrections return by morning.\nReader promise: procedural investigation plus the cost of deciding which version of a person deserves to survive.\nProtagonist: meticulous, conflict-averse, and personally implicated by a missing sibling.\nUse close third person, restrained prose, and no omniscient explanation of the system in the opening volume.\nFor this turn, create the project settings, volume outline and first ten chapter blueprints only. Stop before prose and list the files created.\n\nAfter reviewing the plan:\n/story-long-write 写第1章\nUse the approved chapter blueprint. Write only chapter 1, preserve the reveal boundary, and end when the protagonist sees correction handwriting with the same missing-stroke habit as her own in a file she has never opened; do not yet establish who wrote it. Save the prose in the project; do not continue to chapter 2.\n\nEXISTING-DRAFT EXERCISE: original editorial fiction\nThe archivist is named Ji Ning for this worked example. The following are excerpts\nwith illustrative paths. Replace them with your own files and give the agent\nthe full relevant manuscript.\n\nMaterials supplied by the author:\n- 原稿/第001章.md: accepted, complete chapter 1; the ending below is its final beat.\n- 原稿/第002章_未完.md: the unfinished opening of chapter 2.\n- 参考/旧续写设想.md: an unaccepted proposal, kept for reference only.\n- 参考/本书设定.md: the approved brief, including the missing sibling and limited viewpoint.\n\nAccepted chapter 1 ending:\nJi Ning opened file 417 for the first time. At the foot of the page,\nthe handwritten Chinese word 更正, “correction,” caught her eye: the final stroke\nof 更 was missing, exactly the habit she had never managed to change.\n\nUnfinished chapter 2 opening:\nShe pushed the request card toward the desk. The duty clerk held it down.\n“To request the original register, you have to leave your employee number.”\nJi Ning held her pen just above the signature box.\n[The author stopped here. No signature, submitted request or register access yet.]\n\nOld, unaccepted chapter 2 proposal:\n“Steal the original register from storage and confirm that her missing sibling\nforged the handwriting.” This is only a plot proposal, nothing established yet;\nadopting it would change the proposed investigation and reveal timing.\n\nFirst request — natural-language Chat only, no writing skill needed:\nRead only the four named files. Chapter 1 is complete; chapter 2 is unfinished.\nSeparate accepted events, the partial chapter’s proposed situation, and old planning.\nWhat does Ji Ning actually know? What is she merely suspecting?\nGive two ways to pursue the original register without confirming the writer’s identity.\nFor each, name her action, the resistance and the visible change by the scene’s end.\nKeep close third person; no omniscient explanation, automatic access or off-page signature.\nReply only in Chat. Do not create, move or edit files, generate prose or call media services.\n\nEditorial reading of these materials:\n- Chapter 1 establishes a recognizable handwriting habit in a file she had not opened.\n  Whether she wrote it, whether her sibling forged it and whether time travel occurred all remain open.\n- The partial opening places a pen above a box. Even within that fragment she has not signed.\n  The clerk states a requirement for this scene; whether it is archive-wide is still unwritten.\n- If the author retains that opening, chapter 2 starts with an unresolved decision.\n  Until completed, its events must not be treated as a completed chapter in tracking.\n- The investigation can advance without identifying the writer: obtain a traceable request,\n  or make another person confront the question. Both stop short of receiving the register.\n\nTwo NEW candidate scene plans (fictional choices, not yet in the project):\nA. Accept personal exposure. Ji Ning signs her own employee number and states that she\n   wants to check the correction handwriting. The clerk accepts the request and gives\n   a receipt number while the register stays in storage. She gains a way to follow up, but the signed\n   request now connects her to the investigation. End on the handover itself;\n   do not imply that access has been granted or that anyone has identified the writer.\nB. Seek a witness without signing. Ji Ning asks the clerk to look at the disputed page\n   with her. He refuses to assess it on his own and reaches for the phone to call a supervisor.\n   End before a call connects: she has not obtained access, and keeping the inquiry quiet\n   now requires her to respond to another person’s initiative. The clerk need not recognize\n   her handwriting, know the secret, or be a villain for this resistance to work.\n\nChoose A if this chapter should make a conflict-averse investigator take responsibility\nin her own name. Choose B if it should put her attempt at secrecy under immediate social\npressure. Pick one; do not silently combine them into one sequence.\n\nAn editorial candidate ending for A (a short prose illustration):\n“Reason for the request?”\nJi Ning lowered the pen and wrote her employee number in the signature box.\nBelow it she added: Check the correction handwriting.\nShe pushed the signed card across. The clerk tore off the receipt. An application number; no access decision.\nShe folded the slip. The signed request stayed on his side of the desk.\nThis resolves whether she puts her name to the inquiry; who wrote the correction stays open.\n\nBefore writing — choose the material state:\nIf these are still standalone files, either keep discussing them or explicitly choose\nfull import. For import, confirm the scope, target book and unfinished-tail strategy first;\nchoose “continue from the partial chapter” if retaining it. Notes under 参考/ are separate\nfrom the manuscript source directory. Do not describe a Chat discussion as completed import.\nFor an already initialized, current-format project, do not import the book again.\n\nAfter the project is ready, a planning-only request:\n/story-long-write 补纲\nI choose A and retain the unfinished opening. Plan only chapter 2; stop before prose.\nDo not adopt the unaccepted theft/forgery proposal. I authorize setting the chapter 2 plan\nto the signed-request scene.\nDo not change other chapters, the accepted chapter 1, or established tracking facts.\nThe receipt records a submitted request; access is still pending. Keep the writer’s identity unknown.\n\nAfter reviewing that plan, when a chapter 2 partial file already exists:\n/story-long-write 修改第2章\nThis is an unfinished chapter: complete it in place, without skipping ahead or treating it as a blank new chapter.\nFirst identify and back up its actual file; show the opening you will preserve and the\nproposed completion boundary. Wait for my confirmation before changing prose.\nThen complete only chapter 2 using the approved A plan. Preserve the existing opening;\nend with the signed request handed over and a receipt, without access or identity confirmation.\nDo not rewrite chapter 1, count the old fragment as a finished chapter, or continue to chapter 3.\nIf the actual files or tracking disagree with this description, report the conflict first.\n\nIf no chapter 2 prose file exists at all, use the named-new-chapter route instead.\nDecide from the actual files; the last Chat message is only a pointer.",
+      "zh": "建议输入（原创示例）：\n\n终端——安装固定版本插件并启动 DSH Web：\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.2.0-rc.2 dsh plugin --profile web add @oh-story/dsh@0.1.15 &&\nnpx -y @deepseek-ai/dsh@0.2.0-rc.2 web\n\n在你选定的空 workspace 对应 DSH 会话中输入：\n/story-long-write 帮我开书\n写一部约 24 万字、面向成年读者的近未来悬疑连载。\n核心梗：市档案员发现，每晚 02:17 都有一名普通居民从全部公共记录中消失，但她手写的修订次日又会恢复。\n读者承诺：程序化调查，以及“哪个版本的人值得留下”带来的选择代价。\n主角：严谨、回避冲突，并因失踪的手足与事件有私人关联。\n使用第三人称限知和克制文风；第一卷不得全知解释系统真相。\n本轮只建立项目设定、卷纲和首批十章细纲，停在正文前，并列出创建的文件。\n\n检查并确认计划后输入：\n/story-long-write 写第1章\n严格使用已确认的本章细纲，只写第 1 章，保留信息揭示边界；在主角发现一份从未打开的档案里出现了与她有相同缺笔习惯的修订笔迹时收尾；此时先不揭晓是谁写的。正文写入项目文件，不要继续第 2 章。\n\n已有稿件练习——原创编辑示例\n这次给档案员取名“纪宁”。下文是相关摘录，文件路径只作示意。\n实际使用时换成你的真实文件名，并提供相关的完整原稿。\n\n作者提供的材料：\n- 原稿/第001章.md：作者已确认的完整第一章，以下摘录就是章尾。\n- 原稿/第002章_未完.md：第二章未完成的开头。\n- 参考/旧续写设想.md：没有采纳的提议，只作参考。\n- 参考/本书设定.md：已确认的创作简报，包括失踪手足与限知视角。\n\n已确认的第一章末尾：\n纪宁第一次翻开417号档案。页脚那行“准予更正”里，“更”字少了最后一捺，\n正是她多年改不掉的写法。\n\n第二章未完开头：\n她把调阅卡推到窗口。值班员压住卡片：“申请调原始登记，得留你的工号。”\n纪宁把笔尖停在签名栏上方。\n［作者写到这里停下。尚未签字、递交申请或拿到登记册。］\n\n旧的、尚未采纳的第二章设想：\n“潜入保管室偷走原始登记册，确认是失踪的手足伪造了笔迹。”\n这只是剧情提议，尚未成立；采纳它会改变调查方式与揭示时机。\n\n第一轮请求——自然语言 Chat 讨论，不必启动写作 Skill：\n只读上述四份文件。第一章已完，第二章未完。\n分开列出已确认事件、残稿提出的当前情境，以及旧规划。\n纪宁实际知道什么，又只是在怀疑什么？\n给出两个继续追查原始登记的方向，不确认笔迹作者。\n每个方向说明她采取什么行动、遇到什么阻力、场末发生什么可见变化。\n保持第三人称限知，不全知解释，不自动获准调阅，不跳过签字动作。\n只在 Chat 回复，不创建、移动或修改文件，不生成正文，不调用媒体服务。\n\n编辑对材料的阅读：\n- 第一章确立了：她在从未翻开的档案里认出一种笔迹习惯。\n  尚不能推出“就是她写的”“手足伪造”或“发生了时间穿越”。\n- 残稿停在笔尖悬空；即使只看这个片段，她也还没签字。\n  值班员说需要工号，只是这一场里的要求，整座档案馆是否都如此还没写到。\n- 作者若保留这个开头，第二章要接住的是尚未作出的决定；章没完成前，\n  不能把残稿情节当成已完成章节写入追踪检查点。\n- 调查不必马上查明笔迹作者也能前进：留下可追问的申请，或让另一个人\n  面对这个疑点；这两条路都还没拿到登记册。\n\n两个新增的候选场景（虚构创作选择，项目里尚未写入）：\nA．承担署名代价。纪宁签下自己的工号，写明要核对修订笔迹；值班员收下申请，\n   给的是回执编号，登记册仍在库里。她获得了可追问的线索，也让签名把自己与调查\n   联系起来。章尾落在交出申请：动作已经做出，但不能暗示调阅已获批或身份已查明。\nB．不签字，先求一个见证。纪宁请值班员和她一起看有疑点的那一页。\n   他不愿独自判断，伸手拿电话准备叫主管。停在尚未接通时：她没有取得调阅权，\n   想悄悄调查却必须应对另一个人的主动行动。值班员不必认得她的笔迹、知道秘密，\n   更不必先被写成反派，这个阻力就可以成立。\n\n选 A，是让回避冲突的主角第一次用自己的名字承担调查；选 B，是让她保密的打算\n受到当场的人际压力。两者二选一，不要悄悄拼成一段既成剧情。\n\nA 的候选收束（编辑写的短段示意）：\n“申请理由？”\n纪宁让笔尖落下，在签名栏写完自己的工号。\n她在下面补了一行：核对修订笔迹，再把签好的卡片推过去。\n值班员撕下回执。上面只有申请编号，没有调阅结果。\n她折好纸条，签过工号的申请留在窗口里面。\n这里回答的是“她是否署名追查”，“谁写了那行修订”仍然悬着。\n\n准备落稿前——先区分材料状态：\n如果仍是松散文件，可以继续只讨论，也可以明确选择完整导入。导入前先确认范围、\n目标书目和尾稿策略；要保留开头就选“基于残章续写”。参考/下的规划笔记要与原稿\n目录分开。不要把 Chat 讨论说成已经导入；已有当前格式工程则不重复导入整本书。\n\n工程准备好之后，先只规划：\n/story-long-write 补纲\n我选 A，保留残稿开头。本轮只规划第二章，停在正文前。\n不要采纳未确认的旧第二章续写设想。我授权将本章细纲定为署名申请这一场戏。\n其他章、已确认的第一章和既有追踪事实不变。\n回执只说明申请已递交，调阅尚未获批；笔迹作者仍然未知。\n\n审过细纲后，如果第二章的残稿文件已经存在：\n/story-long-write 修改第2章\n这是未完成章节：在原文件上补完，不跳到下一章，也不当作空白新章覆盖。\n先定位并备份实际文件，列出将保留的开头和本次补完边界；等我确认后再改正文。\n然后只按已确认的 A 方案补完第二章，保留已有开头；在交出署名申请、拿到回执时\n收尾，不获得调阅权、不确认笔迹作者。\n不重写第一章，残稿在补完前按未完成处理，不继续第三章。\n真实文件或追踪状态如果与这些描述冲突，先报告。\n\n如果实际上根本没有第二章正文文件，才用“写第2章”的新章入口。\n以真实文件为准来区分，上一条 Chat 消息只作参考。"
     },
     "outputs": {
       "en": [
-        "After the default book-opening pass, expect creator-readable files for positioning and relationships under `设定/`, a book and volume outline plus per-chapter blueprints under `大纲/`, and initialized continuity state under `追踪/`. The bundled workflow says the first pass normally stops after the first ten chapter blueprints.",
+        "After confirming the book-opening stages, expect creator-readable files for positioning and relationships under `设定/`, a book and volume outline plus per-chapter blueprints under `大纲/`, with tracking under `追踪/` initialized only when you explicitly enter first-chapter drafting. The opening workflow advances through confirmation points and stops by the first ten chapter blueprints.",
         "After an explicit chapter request, prose is written by chapter under `正文/` (for example `正文/第001章_章名.md`) and the continuity views are updated through the writing workflow. Review the manuscript file itself; the chat message only points to it.",
         "The DSH novel workbench presents the same project as a file tree, editor and Chat. ZenStory Workbench is a separate account-based web app, and its projects live apart from the local DSH workspace.",
         "For full import, manuscript text is migrated as written. A partial chapter can be present in the prose files while `last_chapter` and current-state snapshots still end at the last complete chapter; the unfinished-tail strategy belongs in continuity risks. Judge chapter completion by `last_chapter` and the state snapshots."
       ],
       "zh": [
-        "默认开书完成后，通常会得到 `设定/` 下供作者阅读的题材定位与关系等文件，`大纲/` 下的全书/卷级大纲和逐章细纲，以及 `追踪/` 下初始化的连续性状态。内置流程说明第一轮默认停在首批十章细纲之后。",
+        "逐项确认并完成开书流程后，通常会得到 `设定/` 下供作者阅读的题材定位与关系等文件，`大纲/` 下的全书/卷级大纲和逐章细纲；`追踪/` 下的连续性状态在明确进入首章正文写作时才初始化。开书按确认点推进，最远停在首批十章细纲交付。",
         "明确请求写章后，正文按章写入 `正文/`（例如 `正文/第001章_章名.md`），连续性视图也由写作流程更新。需要审的是稿件文件本身，Chat 里的完成消息只指路。",
         "DSH 小说工作台用文件树、编辑器和 Chat 呈现同一项目。ZenStory 工作台是另一套账户化的网页应用，项目与本地 DSH workspace 分开存放。",
         "完整导入会原样迁移原文。残章可以出现在正文文件中，但 `last_chapter` 与当前状态快照仍截至最后完整章，尾稿处理策略写入连贯性风险；判断一章是否完成，看 `last_chapter` 和状态快照。"
@@ -696,7 +706,9 @@
         "[Named chapter, planning, daily continuation and revision boundaries](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L59-L83)",
         "[Locate, back up and scope an existing-chapter revision](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/references/workflow-revision.md#L7-L50)",
         "[DSH-provided roles override external-host deployment instructions](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L16-L35)",
-        "[Bundled skill discovery and native provider registration](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)"
+        "[Bundled skill discovery and native provider registration](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-dsh/blob/69c6f05c042686af458959bc039f5da50029d6a7/packages/dsh-plugin/package.json#L33-L104)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-dsh/blob/83cc99046338c9b74b9dd135ff6b2e80bb3cd35e/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L40-L72)"
       ],
       "zh": [
         "[社区插件说明、DSH 管什么与小说工作台](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L15-L23)",
@@ -712,7 +724,9 @@
         "[指定章、补纲、日更与修改范围](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L59-L83)",
         "[定位、备份与限定已有章节的修改范围](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/references/workflow-revision.md#L7-L50)",
         "[DSH 自带角色，替代其他工具的部署步骤](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L16-L35)",
-        "[自带 Skill 的查找与在 DSH 里注册](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)"
+        "[自带 Skill 的查找与在 DSH 里注册](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-dsh/blob/69c6f05c042686af458959bc039f5da50029d6a7/packages/dsh-plugin/package.json#L33-L104)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-dsh/blob/83cc99046338c9b74b9dd135ff6b2e80bb3cd35e/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L40-L72)"
       ]
     },
     "faq": [
@@ -742,8 +756,8 @@
           "en": "Can DeepSeek generate video for a short drama?"
         },
         "a": {
-          "zh": "不能。DeepSeek 负责写剧本、分镜和提示词；生图、生视频、生音乐由 `short-drama-produce` 调用 GPT Image 2、Seedance、MiniMax H3 或 MiniMax Music 完成，Key 在启动 DSH 前写入宿主机环境变量，每次调用前先预览、经你确认才执行。没有视频 Key 也能写完每集的五份文档，配好图片 Key 还能生成关键帧图片；分集与分镜的做法见[小说改编短剧](https://zenstory.ai/drama-skills/novel-to-short-drama)。",
-          "en": "No. DeepSeek writes the screenplay, storyboard and prompts; images, video and music come from `short-drama-produce` calling GPT Image 2, Seedance, MiniMax H3 or MiniMax Music, with keys set as host environment variables before DSH starts, and every call is previewed and runs only after you confirm it. Without a video key you can still finish all five documents per episode, and with an image key you can generate keyframe images; for episodes and storyboards, see [novel to short drama](https://zenstory.ai/drama-skills/novel-to-short-drama)."
+          "zh": "不能。DeepSeek 负责写剧本、分镜和提示词；生图、生视频、生音乐由 `short-drama-produce` 调用 GPT Image 2、Seedance、MiniMax H3 或 MiniMax Music 完成，Key 在启动 DSH 前写入宿主机环境变量，每次调用前先预览、经你确认才执行。没有视频 Key 也能写每集所需的核心创作文档，配好图片 Key 还能生成关键帧图片；分集与分镜的做法见[小说改编短剧](https://zenstory.ai/drama-skills/novel-to-short-drama)。",
+          "en": "No. DeepSeek writes the screenplay, storyboard and prompts; images, video and music come from `short-drama-produce` calling GPT Image 2, Seedance, MiniMax H3 or MiniMax Music, with keys set as host environment variables before DSH starts, and every call is previewed and runs only after you confirm it. Without a video key you can still prepare the core creative documents each episode needs, and with an image key you can generate keyframe images; for episodes and storyboards, see [novel to short drama](https://zenstory.ai/drama-skills/novel-to-short-drama)."
         }
       }
     ],
@@ -752,7 +766,7 @@
   {
     "owner": "oh-story",
     "slug": "import-and-continue",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Continue your unfinished novel with AI: import into Oh Story",
       "zh": "AI续写已有书稿：导入 Oh Story，接上设定与前史"
@@ -797,7 +811,7 @@
         ],
         [
           "Do not rewrite old chapters to fill a new template",
-          "Historical chapter blueprints are reconstructed descriptions of the chapters as written. The import records each chapter’s measured original length, always marks the opening and closing hooks [待补充], and marks relationship changes and side plots [待补充] whenever the chapter summaries cannot settle them; it invents nothing to fill the gaps. A [待补充] field records what the import could not confirm from the manuscript, and you decide later whether anything belongs there. Preserve the old prose; make future-facing choices in the next chapter’s plan."
+          "Historical chapter blueprints are reconstructed descriptions of the chapters as written. The import records each chapter’s measured original length, marks hooks, relationship changes and side plots [待补充] when the chapter summaries cannot establish them; it invents nothing to fill the gaps. A [待补充] field records what the import could not confirm from the manuscript, and you decide later whether anything belongs there. Preserve the old prose; make future-facing choices in the next chapter’s plan."
         ],
         [
           "Restore the unwritten intention before prose",
@@ -831,7 +845,7 @@
         ],
         [
           "别为了补齐模板，把旧章重写一遍",
-          "历史章节细纲是对已写章节的反推描述。导入记录原章的实测长度；章首钩子和章尾钩子一律标 [待补充]，关系变化、副线这类单凭章节摘要定不下来的字段也标 [待补充]，不靠编造填满。标着 [待补充] 的字段只表示导入没能从原稿确认这一项，以后要不要补、补成什么，由作者决定。保留旧正文，把面向未来的决定放进下一章规划。"
+          "历史章节细纲是对已写章节的反推描述。导入记录原章的实测长度；钩子、关系变化和副线等无法从章节摘要稳定判断的字段标 [待补充]，不靠编造填满。标着 [待补充] 的字段只表示导入没能从原稿确认这一项，以后要不要补、补成什么，由作者决定。保留旧正文，把面向未来的决定放进下一章规划。"
         ],
         [
           "补回未写出的意图，再要正文",
@@ -886,7 +900,8 @@
         "[Next-chapter context: prior prose, current state, characters and commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
         "[Explicit next-chapter, daily continuation and revision routes](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
         "[Reconstructed history, unknown fields and future events kept out of past checkpoints](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
-        "[Next-chapter intent, approved blueprint and limits on premature outcomes](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
+        "[Next-chapter intent, approved blueprint and limits on premature outcomes](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-import/references/outline-reverse-rules.md#L5-L30)"
       ],
       "zh": [
         "[安装方法、命令前缀与导入后续写的顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L82-L142)",
@@ -898,7 +913,8 @@
         "[下一章上下文：上章正文、当前状态、角色与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
         "[点名写章、日更续写与大改旧章的不同做法](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
         "[反推前史、未知项留空，不把后面的事写进当时的状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
-        "[下一章意图、已确认的细纲与不能提前给的结果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
+        "[下一章意图、已确认的细纲与不能提前给的结果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-import/references/outline-reverse-rules.md#L5-L30)"
       ]
     },
     "topic": "getting-started"
@@ -906,14 +922,14 @@
   {
     "owner": "drama-skills",
     "slug": "novel-to-short-drama",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Novel to short drama: episodes, scripts and storyboards",
       "zh": "小说改编短剧怎么做：分集、剧本与分镜衔接"
     },
     "answer": {
-      "en": "Start from the source facts you must keep and the changes you allow, then cut episodes at dramatic turning points and write one pilot before storyboarding. Drama Skills is an open-source agent skill suite that can help analyze the source, plan how episodes connect, write a pilot and develop its visual specifications and storyboard. Image, video, voice and music generation is a separate step: it shows you a preview and calls an external provider only after you confirm. This guide stops at the written script. Its original repair-shop example turns prose into visible action, then compares one-episode and three-episode versions and shows how to compress while keeping the reason for the protagonist’s choice. The same private thought is also compared as subjective VO and spoken dialogue, separating what the audience learns from what another character hears. A small dialogue revision lets the mother show concern while the rent problem stays and the decision remains her daughter’s.",
-      "zh": "改编前先分清原著里必须保留的事实和允许改动的范围，再按剧情转折切集、试写一集，最后衔接视觉设定和分镜。Drama Skills 是开源 Agent 技能合集，可以辅助原著分析、分集衔接规划、试写一集，以及视觉设定和分镜设计。图片、视频、配音和音乐的生成是另一步：先给你看预览，你明确确认后才调用外部服务。本指南只讲到文字剧本：用原创维修铺案例把小说文字转成可见行动，再比较一集与三集两种切法，说明压缩时怎样保住主角作出选择的理由。另用同一句心里话比较内心旁白与当面对白，分清观众听见和现场人物听见。最后用一段对白改稿，示范怎样让母亲表达体谅，同时保留租金难题，决定仍由女儿自己作出。"
+      "en": "Start from the source facts you must keep and the changes you allow, then cut episodes at dramatic turning points and write one pilot before storyboarding. Drama Skills is an open-source agent skill suite that can help analyze the source, plan how episodes connect, write a pilot and develop its visual specifications and storyboard. Image, video, voice and music generation is a separate step: it shows you a preview and calls an external provider only after you confirm. This guide focuses on written creative handoffs before media production. Its original repair-shop example turns prose into visible action, then compares one-episode and three-episode versions and shows how to compress while keeping the reason for the protagonist’s choice. The same private thought is also compared as subjective VO and spoken dialogue, separating what the audience learns from what another character hears. A small dialogue revision lets the mother show concern while the rent problem stays and the decision remains her daughter’s.",
+      "zh": "改编前先分清原著里必须保留的事实和允许改动的范围，再按剧情转折切集、试写一集，最后衔接视觉设定和分镜。Drama Skills 是开源 Agent 技能合集，可以辅助原著分析、分集衔接规划、试写一集，以及视觉设定和分镜设计。图片、视频、配音和音乐的生成是另一步：先给你看预览，你明确确认后才调用外部服务。本指南聚焦媒体制作前的文字交接：用原创维修铺案例把小说文字转成可见行动，再比较一集与三集两种切法，说明压缩时怎样保住主角作出选择的理由。另用同一句心里话比较内心旁白与当面对白，分清观众听见和现场人物听见。最后用一段对白改稿，示范怎样让母亲表达体谅，同时保留租金难题，决定仍由女儿自己作出。"
     },
     "prerequisites": {
       "en": [
@@ -1013,7 +1029,7 @@
         "Shot descriptions and repeated continuity phrases are text requirements; if you later produce media, review the real faces, props, motion and voices against them."
       ],
       "zh": [
-        "把试写集与原著、分集地图对照着读：观众是否看到了理解转折所需的信息，下一集是否继承了真实的出口状态？新增内容由作者决定。",
+        "把试写集与原著、分集地图对照着读：观众是否看到了理解转折所需的信息，下一集是否继承了上一集结束时的真实状态？新增内容由作者决定。",
         "镜头描述和重复的连续性词句只是文字要求；生成的人脸、道具、动作或声音是否一致，要在以后制作媒体时对照真实素材逐一审看。"
       ]
     },
@@ -1039,7 +1055,8 @@
         "[Observable subtext and the option of direct admission](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/dialogue-craft.md#L141-L159)",
         "[Facts before craft; new details come from established causes](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/script-craft.md#L34-L50)",
         "[Existing-scene entry and scoped screenplay revision](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/SKILL.md#L17-L37)",
-        "[Speaker, response and the distinction between VO and OS](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/screenplay-format.md#L100-L126)"
+        "[Speaker, response and the distinction between VO and OS](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/screenplay-format.md#L100-L126)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/skills/short-drama-develop/SKILL.md#L27-L112)"
       ],
       "zh": [
         "[安装与在各工具里的调用方式](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/README_EN.md#L19-L85)",
@@ -1062,7 +1079,8 @@
         "[看得出的潜台词与何时让人物直说](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/dialogue-craft.md#L141-L159)",
         "[先保事实，再选表达；新增事实来自已建立的因果](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/script-craft.md#L34-L50)",
         "[按手头材料开始与只改点名的地方](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/SKILL.md#L17-L37)",
-        "[说话者、回应以及 VO 与 OS 的区分](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/screenplay-format.md#L100-L126)"
+        "[说话者、回应以及 VO 与 OS 的区分](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/screenplay-format.md#L100-L126)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/skills/short-drama-develop/SKILL.md#L27-L112)"
       ]
     },
     "topic": "short-drama"
@@ -1070,7 +1088,7 @@
   {
     "owner": "video-recap",
     "slug": "video-to-narration",
-    "checked_on": "2026-10-02",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Make a video recap with Chinese narration from local footage",
       "zh": "视频解说怎么做：把本地视频做成有依据的中文解说"
@@ -1083,12 +1101,12 @@
       "en": [
         "Install Video Recap Skills in a supported agent host using the current route on the [project page](https://zenstory.ai/video-recap), then open the authorized video’s workspace. In manual commands, /ABS/video-recap-skills stands for the absolute path of the installed checkout.",
         "A local .mp4, .mov, .mkv or .webm that you own or may process, plus Python 3.10+, ffmpeg on PATH and space for frames, WAV files and renders. Burned subtitles require ffmpeg’s libass/subtitles filter.",
-        "A Xiaomi MiMo API key for remote ASR, VLM and default TTS. Fish Audio can replace TTS only and needs its own key; ASR/VLM still use MiMo. These are remote services, so check each provider’s privacy, region and billing terms before sending authorized material."
+        "A Xiaomi MiMo API key for remote ASR, VLM and default TTS. Fish Audio can replace TTS with its own key, or you can explicitly select a self-hosted IndexTTS endpoint; ASR/VLM still use MiMo. MiMo and Fish Audio are external services; the chosen self-hosted endpoint determines where IndexTTS requests go. Check the relevant services’ privacy, region and billing terms before sending authorized material."
       ],
       "zh": [
         "先在受支持的 Agent 宿主中安装并配置 Video Recap Skills；按[项目页](https://zenstory.ai/video-recap)选择当前宿主的安装方式，再用该宿主打开获准视频所在工作区。下文手工命令中的 /ABS/video-recap-skills，指你安装的 skill 仓库的绝对路径。",
         "一个你拥有或获准处理的本地 .mp4、.mov、.mkv 或 .webm，以及 Python 3.10+、PATH 中的 ffmpeg 和足够的中间文件空间。烧录字幕需要 ffmpeg 的 libass/subtitles filter。",
-        "远程 ASR、VLM 与默认 TTS 需要 Xiaomi MiMo API key。Fish Audio 只能替换 TTS，并需要独立 key；ASR/VLM 仍用 MiMo。这些都是远程服务，发送获准素材前先查看服务商当前的隐私、地区与计费条款。"
+        "远程 ASR、VLM 与默认 TTS 需要 Xiaomi MiMo API key。可用独立 key 选择 Fish Audio，或显式选择自托管 IndexTTS 端点替换 TTS；ASR/VLM 仍用 MiMo。MiMo 和 Fish Audio 是外部服务，IndexTTS 请求的数据流向取决于所选自托管端点。发送获准素材前，先查看相应服务的隐私、地区与计费条款。"
       ]
     },
     "steps": {
@@ -1215,7 +1233,8 @@
         "[Compare story angles and pay off a supported viewer promise](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L32-L56)",
         "[Write narration only when it has a job](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L95-L118)",
         "[Honor a directed brief and freeze untargeted revision decisions](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)",
-        "[Voiceover scope, authorized references and capability boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)"
+        "[Voiceover scope, authorized references and capability boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-voiceover/SKILL.md#L60-L99)"
       ],
       "zh": [
         "[运行环境前提与远程 MiMo 配置](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L53-L70)",
@@ -1234,7 +1253,8 @@
         "[比较叙事角度，兑现有依据的观众期待](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L32-L56)",
         "[旁白只在有明确作用时才写](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L95-L118)",
         "[按指定方向改，这轮没提到的不动](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)",
-        "[配音定位、授权参考音频与实际能做什么](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)"
+        "[配音定位、授权参考音频与实际能做什么](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-voiceover/SKILL.md#L60-L99)"
       ]
     },
     "topic": "video-recaps"
@@ -1382,14 +1402,14 @@
   {
     "owner": "drama-skills",
     "slug": "character-consistency",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "AI short drama character consistency across shots",
       "zh": "AI短剧角色一致性：人物、造型与镜头状态怎么保持"
     },
     "answer": {
-      "en": "Cross-shot consistency in AI short drama breaks on costume, props and eyelines far more often than on faces. Drama Skills separates three things: persistent character identity, the look that fits the scene, and each shot's changing state. It then asks what each reference image is allowed to control in the current frame, and marks references as prompt-only, planned, or actually checked. Existing images do not have to be regenerated. The three-shot archive example below includes a reference-selection exercise. Text constraints reduce drift; confirm consistency by watching the generated shots.",
-      "zh": "AI 短剧的跨镜穿帮，出在服装、道具和视线上的远多于出在脸上。Drama Skills 把三件事分开：长期的人物身份、这场戏该有的造型、每镜变化的状态；再问每张参考图在这一镜里管哪些东西，并把参考图分成“只是提示词”“计划提供”“已实际检查”三种状态。已有图片不必重新生成。下面的档案馆三镜示例附一个挑图练习。文字约束用来减少漂移，生成结果仍要逐镜看片确认。"
+      "en": "Cross-shot consistency in AI short drama includes costumes, props and eyelines as well as faces. Drama Skills separates three things: persistent character identity, the look that fits the scene, and each shot's changing state. It then asks what each reference image is allowed to control in the current frame, and marks references as prompt-only, planned, or actually checked. Existing images do not have to be regenerated. The three-shot archive example below includes a reference-selection exercise. Text constraints reduce drift; confirm consistency by watching the generated shots.",
+      "zh": "AI 短剧的跨镜一致性既包括人脸，也包括服装、道具和视线。Drama Skills 把三件事分开：长期的人物身份、这场戏该有的造型、每镜变化的状态；再问每张参考图在这一镜里管哪些东西，并把参考图分成“只是提示词”“计划提供”“已实际检查”三种状态。已有图片不必重新生成。下面的档案馆三镜示例附一个挑图练习。文字约束用来减少漂移，生成结果仍要逐镜看片确认。"
     },
     "prerequisites": {
       "en": [
@@ -1415,7 +1435,7 @@
         ],
         [
           "Lock only the invariant visible surface",
-          "A LOCK is justified when the fact appears across at least two shots, viewers could notice a mismatch and the story does not change it. Use the minimal phrase “dark-teal matte hooded work jacket, hood down, two rows of silver snaps on the left cuff” across the affected `IMG-*` body, frozen keyframe and `MOTION-*` body. The key’s position, hand pose and gaze change, so they stay in each shot’s state record."
+          "A LOCK is justified when the fact appears in at least two shots, or in a shot and an asset board, viewers could notice a mismatch and the story does not change it. Use the minimal phrase “dark-teal matte hooded work jacket, hood down, two rows of silver snaps on the left cuff” across the affected `IMG-*` body, frozen keyframe and `MOTION-*` body. The key’s position, hand pose and gaze change, so they stay in each shot’s state record."
         ],
         [
           "Chain three shots with explicit states",
@@ -1445,11 +1465,11 @@
         ],
         [
           "再写本场相容的 Look",
-          "先引用 Character，只补本场能同时存在的服装、发型、妆伤与天气化。林岚本场是低束发，穿墨绿色哑光连帽工作夹克，左袖有双排银色按扣。黄铜钥匙仍是 Prop，由谁拿着记在镜头状态里。"
+          "先引用 Character，只补本场能同时存在的服装、发型、妆容、伤痕和雨水、灰尘等外观状态。林岚本场是低束发，穿墨绿色哑光连帽工作夹克，左袖有双排银色按扣。黄铜钥匙仍是 Prop，由谁拿着记在镜头状态里。"
         ],
         [
           "只锁真正不变的可见表面",
-          "同一事实跨至少两镜可见、观众能发现不一致、剧情又不会改变它，才写 LOCK。示例锁面是“墨绿色哑光连帽工作夹克，帽子放下，左袖双排银色按扣”，在受影响的 `IMG-*` 正文、冻结关键帧和 `MOTION-*` 正文中原样携带。钥匙位置、手势和视线会变化，留在每镜的状态记录里。"
+          "同一事实在至少两镜，或一镜和一张资产板中可见、观众能发现不一致、剧情又不会改变它，才写 LOCK。示例中要保持一致的描述是“墨绿色哑光连帽工作夹克，帽子放下，左袖双排银色按扣”，在受影响的 `IMG-*` 正文、冻结关键帧和 `MOTION-*` 正文中原样携带。钥匙位置、手势和视线会变化，留在每镜的状态记录里。"
         ],
         [
           "用状态链写三镜",
@@ -1485,7 +1505,7 @@
       ],
       "zh": [
         "`剧集/<EP>/视觉设定.md`：Character 条目、一个相容 Look、独立 Prop、有范围的状态，以及必要的连续性 LOCK。",
-        "`剧集/<EP>/图片提示词.md`：携带身份锚点与 LOCK 锁面的可复制 `IMG-*` 提示词；它是文本交付，出图另行进行。",
+        "`剧集/<EP>/图片提示词.md`：携带身份锚点与 LOCK 描述的可复制 `IMG-*` 提示词；它是文本交付，出图另行进行。",
         "`剧集/<EP>/分镜.md`：镜头状态链、冻结帧、逐帧视觉依据与真实的REF、PLAN或待补状态。被请求时，视频提示词可使用完整且已接受的外部PLAN；交给short-drama-produce前，还要把实际文件放进项目。"
       ]
     },
@@ -1495,7 +1515,7 @@
         "Before using a reference, distinguish inspected images from described or planned ones and check what the current frame actually needs. REF files must exist and match their declared purpose; PLAN locators must resolve to current entries and go to suite production only after real files are bound. Judge generated-media quality and continuity by reviewing the output itself."
       ],
       "zh": [
-        "逐镜做编辑核对：Character 锚点不变，Look 内部相容，LOCK 锁面在所需位置原样出现；每镜起点的双手、持物与视线都接得上前镜终点。",
+        "逐镜做编辑核对：Character 锚点不变，Look 内部相容，LOCK 描述在所需位置原样出现；每镜起点的双手、持物与视线都接得上前镜终点。",
         "使用参考前，分清已检查图片与描述/计划，并核对当前画框真正需要什么。REF文件须真实存在且符合声明用途；PLAN须解析到当前条目，绑定真实文件后才交本套件生产。生成媒体的质量与连续性，出片后看片核对。"
       ]
     },
@@ -1511,7 +1531,8 @@
         "[Supplied images without invented prompt entries and mixed reference examples](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L138-L172)",
         "[Three image-preparation paths, with suite generation as one way to add project images](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L33-L40)",
         "[Frame-specific visual basis and per-shot reference bindings](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L121)",
-        "[Actual video/tail frames and accepted-start conflicts in continuation](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
+        "[Actual video/tail frames and accepted-start conflicts in continuation](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/skills/short-drama-assets/references/continuity-lock.md#L24-L104)"
       ],
       "zh": [
         "[资产范围：身份、造型变体、单镜临时状态与连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/SKILL.md#L18-L50)",
@@ -1524,7 +1545,8 @@
         "[已有图不用编提示词条目，及混合参考示例](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L138-L172)",
         "[三种图片准备选择，本套件出图是往项目里放图的一种做法](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L33-L40)",
         "[每帧画面依据与参考图逐镜重新确认](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L121)",
-        "[续接时的实际视频、尾帧与已定起点不符](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
+        "[续接时的实际视频、尾帧与已定起点不符](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/skills/short-drama-assets/references/continuity-lock.md#L24-L104)"
       ]
     },
     "topic": "ai-video"
@@ -1532,7 +1554,7 @@
   {
     "owner": "video-recap",
     "slug": "original-audio-and-narration",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Video recap audio: keep the original sound or add narration?",
       "zh": "视频解说原声和旁白怎么搭配：逐段决定谁来出声"
@@ -1569,11 +1591,11 @@
         ],
         [
           "Use the right clock after cutting",
-          "The cut plan selects source-video intervals. In the orchestrated cut flow, `edited_source.mp4` is created before narration is written on output time; `clip_plan_validated.json` records both source and output intervals. Write against that real mapping; the arithmetic in the example below is a draft. Full mode uses the original timeline; the older one-stage cut mapping follows its own path."
+          "The cut plan selects source-video intervals. In the orchestrated cut flow, `edited_source.mp4` is created before narration is written on output time; `clip_plan_validated.json` records both source and output intervals. Write against that real mapping; the arithmetic in the example below is a draft. Full mode uses the original timeline."
         ],
         [
           "Turn the audio plan into actual narration windows",
-          "`audio_owner` lives in the planning board; the assembler works from the actual `narration.json` blocks, clear intervals for original sound, speech evidence and mix settings, so carry out each decision there. `overlaps_speech` records overlap; a true quiet slot comes from real speech evidence. Either value only sets how far the source is ducked, so the source stays in the mix. Check where source sound returns: ducking continues until a safe pause, or to the timeline end when no reliable release anchor exists."
+          "`audio_owner` lives in the planning board; the assembler works from the actual `narration.json` blocks, clear intervals for original sound, speech evidence and mix settings, so carry out each decision there. `overlaps_speech` records overlap; a true quiet slot comes from real speech evidence. Either value selects the source ducking level, with source audio still in the mix. After narration, the standard mix holds source audio down for at most three more seconds, using a nearby sentence-end pause to place its recovery. Listen to the actual handoff after assembly."
         ],
         [
           "Shorten words before stealing the next line’s time",
@@ -1603,11 +1625,11 @@
         ],
         [
           "剪完以后，换到正确的时钟",
-          "剪辑计划选择的是原片区间。编排式 cut 流程先生成 `edited_source.mp4`，再按成片输出时间写旁白；`clip_plan_validated.json` 同时记录原片与输出区间。真正写稿时读取这份映射；下文示例里的时间加法只是草拟。full 模式沿用原片时间，旧版单阶段 cut 映射走另一条路径。"
+          "剪辑计划选择的是原片区间。编排式 cut 流程先生成 `edited_source.mp4`，再按成片输出时间写旁白；`clip_plan_validated.json` 同时记录原片与输出区间。真正写稿时读取这份映射；下文示例里的时间加法只是草拟。full 模式沿用原片时间。"
         ],
         [
           "让声音方案落实到实际旁白窗口",
-          "`audio_owner` 只写在方案表里，合成器按真实的 `narration.json` 段落、原声留白、对白证据与混音设置工作，声音决定要落实到这几处。`overlaps_speech` 记录是否与对白重叠；真正无对白的窗口来自对白证据。这个值取 true 还是 false，只决定原声压低到哪一档，原片声音都留在混音里。还要看原声何时恢复：旁白结束后原声会继续压低到安全停顿，没有可靠恢复锚点时一直压低到时间线末尾。"
+          "`audio_owner` 只写在方案表里，合成器按真实的 `narration.json` 段落、原声留白、对白证据与混音设置工作，声音决定要落实到这几处。`overlaps_speech` 记录是否与对白重叠；真正无对白的窗口来自对白证据。这个值取 true 还是 false，只决定原声压低到哪一档，原片声音都留在混音里。默认旁白混音在旁白结束后最多再延续压低三秒，利用附近的句末停顿安排原声恢复。合成后仍要听实际交接。"
         ],
         [
           "先减字，不抢下一句原声的时间",
@@ -1646,12 +1668,12 @@
     "verification": {
       "en": [
         "Listen for the intended handoff: context ends, the complete original line becomes audible, the switch click and waiting survive, and the closing line plays to its end. Check this by ear in the assembled file; board labels only record the plan.",
-        "The workflow ducks source audio around narration and holds it down until the next reliable pause, or to the timeline end when there is none, so ducking extends past the written narration block. Inspect the actual mix and revise the affected placement or finish it in the editor.",
+        "Listen to the actual source-volume recovery around each narration block. Adjust the affected placement or finish it in the editor when the handoff covers a line or restores source sound too abruptly.",
         "This editorial example was prepared as text only. A real project configures its own model and media services and confirms source permissions; the narration share follows each beat’s needs, and the mix is judged by listening to it."
       ],
       "zh": [
         "听实际交接：背景旁白结束后，整句原话是否清楚；开关声与等待是否保住；收尾原句是否被截断。这些要在合成文件里用耳朵确认，board 里的标签只记录计划。",
-        "工作流会在旁白附近压低原声，一直压到下一处可靠停顿才恢复，没有锚点时压到时间线末尾，所以压低会延续到书面旁白区间之后。听实际混音，调整受影响的放置，或在编辑器内精修。",
+        "逐处听旁白前后的实际原声音量变化。交接盖住台词或恢复过于突然时，调整受影响的放置，或在编辑器内精修。",
         "本编辑示例全程是文字方案。实际项目要自行配置模型/媒体服务并确认素材授权；旁白占比按每拍需要决定，混音效果以实际试听为准。"
       ]
     },
@@ -1667,7 +1689,8 @@
         "[Overlap inferred from speech and quiet-window evidence](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/scripts/speech_ownership.py#L103-L143)",
         "[Bounded revision and creative ownership](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L25-L33)",
         "[Oral phrasing, evidence and non-mechanical shortening](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L157-L167)",
-        "[Caption cues and optional packaging after the edit is locked](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L79-L89)"
+        "[Caption cues and optional packaging after the edit is locked](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L79-L89)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-assemble/SKILL.md#L17-L98)"
       ],
       "zh": [
         "[主要声音与旁白的分工](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
@@ -1680,7 +1703,8 @@
         "[依据对白与静音证据判断重叠](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/scripts/speech_ownership.py#L103-L143)",
         "[只改点名部分与该改哪一层](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L25-L33)",
         "[口语化写作、证据与不机械删字](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L157-L167)",
-        "[剪辑定稿后的字幕提示与可选包装](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L79-L89)"
+        "[剪辑定稿后的字幕提示与可选包装](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L79-L89)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/skills/video-assemble/SKILL.md#L17-L98)"
       ]
     },
     "topic": "video-recaps"
@@ -1688,14 +1712,14 @@
   {
     "owner": "oh-story",
     "slug": "long-novel-continuity",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "zh": "AI 写长篇忘设定怎么办：人物、伏笔与时间线管理",
       "en": "AI Keeps Forgetting Your Novel? Track Characters and Plot"
     },
     "answer": {
-      "en": "AI drifts over a long novel when the model is asked to remember the whole book. Oh Story keeps the state in files instead: what is true in the story, what each character knows and what the reader has seen are recorded separately in the project's tracking directory, and each new chapter loads only the current state and promises not yet paid off. Anything still in the plan stays in the plan until the chapter that shows it is written. The three-chapter example below shows how the state carries from one chapter to the next, plus an optional clue design that separates a visible clue from a plausible misreading and gives the reveal consequences. The method targets two failures in particular: forgetting, and characters knowing answers too early.",
-      "zh": "AI 写长篇会崩人设，通常是因为让模型“记住整本书”。Oh Story 改用文件记状态：故事里真正发生了什么、每个角色知道什么、读者看到了什么，分别写在项目的追踪目录里，续写每一章只加载当前状态和还没兑现的承诺。还只是计划的事留在规划里，正文真正写出后才登记为已发生。下面的三章示例演示章与章之间怎么接上，另附一条可选线索设计：分开可见线索与合理误读，并让揭晓产生后果。这套做法主要减少两类错误：遗忘，以及角色提前知道答案。"
+      "en": "AI drifts over a long novel when the model is asked to remember the whole book. Oh Story keeps the state in files instead: what is true in the story, what each character knows and what the reader has seen are recorded separately in the project's tracking directory, and each new chapter reads the current state, relevant prior material, its outline and promises not yet paid off. Anything still in the plan stays in the plan until the chapter that shows it is written. The three-chapter example below shows how the state carries from one chapter to the next, plus an optional clue design that separates a visible clue from a plausible misreading and gives the reveal consequences. The method targets two failures in particular: forgetting, and characters knowing answers too early.",
+      "zh": "AI 写长篇会崩人设，通常是因为让模型“记住整本书”。Oh Story 改用文件记状态：故事里真正发生了什么、每个角色知道什么、读者看到了什么，分别写在项目的追踪目录里，续写每章前读取当前状态、相关前情、本章细纲和还没兑现的承诺。还只是计划的事留在规划里，正文真正写出后才登记为已发生。下面的三章示例演示章与章之间怎么接上，另附一条可选线索设计：分开可见线索与合理误读，并让揭晓产生后果。这套做法主要减少两类错误：遗忘，以及角色提前知道答案。"
     },
     "prerequisites": {
       "en": [
@@ -1830,7 +1854,8 @@
         "[Recalculate tracking and identify affected later prose](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L56-L75)",
         "[Future outlines stay separate from established tracking facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
         "[Questions, planted clues and plausible misleading hints](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L26-L46)",
-        "[Chapter movement through evidence and a local state change](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L93)"
+        "[Chapter movement through evidence and a local state change](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L93)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-chapter.md#L9-L34)"
       ],
       "zh": [
         "[续写输入、状态卡与下一章承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
@@ -1842,7 +1867,8 @@
         "[重算追踪并指出受影响后文](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L56-L75)",
         "[还没写的细纲与已写成的事实分开](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
         "[疑问、伏笔与可信的误导提示](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L26-L46)",
-        "[用新证据推进，并在本章兑现一项变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L93)"
+        "[用新证据推进，并在本章兑现一项变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L93)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-chapter.md#L9-L34)"
       ]
     },
     "topic": "revision"
@@ -1850,7 +1876,7 @@
   {
     "owner": "oh-story",
     "slug": "outline-to-chapter",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "zh": "按大纲写小说怎么避免流水账：从细纲到正文",
       "en": "How to Draft a Novel Chapter from an Outline"
@@ -1962,12 +1988,12 @@
     "verification": {
       "en": [
         "Identify the carriers of each required change and whether a reaction has a process that makes it credible. Repeated labels can go; a paragraph without a new event can stay when it provides character depth, a felt situation or a needed pause. Such paragraphs come from the material, with no per-chapter quota.",
-        "Check causality: the evidence must exist before it changes the choice; the cost must belong to someone; the ending must follow from the approved action, with any twist approved in advance.",
+        "Check causality: the evidence must exist before it changes the choice; the cost must belong to someone; the ending must follow from the approved action, with author approval for any twist that changes established facts, the mainline or an agreed reveal boundary.",
         "Check against the chosen task: planning-only work stops before prose; a chat exercise returns only its scoped excerpt and leaves saved files and tracking unchanged; manuscript editing needs separate explicit authorization. In every case, locked material changes only with authorization, and future plans stay recorded as plans. For wording-level revision, use [the prose revision guide](https://zenstory.ai/oh-story/revise-ai-prose)."
       ],
       "zh": [
         "逐点指出可见载体与人物处境变化，再看反应是否有成立过程。重复标签可以删；没有新增事件的段落，只要提供了人物层次、处境感或必要停顿，就可以留下。这种余韵由材料自然长出，不为凑数另加。",
-        "证据须先出现再改变选择；代价有承担者；章尾来自批准行动，反转也要事先获批。",
+        "证据须先出现再改变选择；代价有承担者；章尾来自批准行动，反转若改变既定事实、主线或约定的揭示边界，先由作者决定。",
         "按所选任务检查范围：只排纲时停在正文之前；聊天试写时只交约定片段，保存文件和追踪保持原样；正式编辑时另有明确授权。每种任务下，锁定内容都要经授权才改，未来规划始终记作规划。落笔后只改措辞，可看[具体改稿指南](https://zenstory.ai/oh-story/revise-ai-prose)。"
       ]
     },
@@ -1985,7 +2011,8 @@
         "[Opening goals and staged background within the web-fiction rubric](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L37-L65)",
         "[Limited viewpoint and optional narrative dimensions](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L273-L304)",
         "[Early chapters establish tone without forcing a formula](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-craft.md#L287-L303)",
-        "[Character depth as an exemption from plot-only cutting](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L240-L253)"
+        "[Character depth as an exemption from plot-only cutting](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L240-L253)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-outline.md#L1-L71)"
       ],
       "zh": [
         "[从细纲写成看得见的场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L257-L271)",
@@ -2000,7 +2027,8 @@
         "[网文开篇的目标与分批交代背景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L37-L65)",
         "[限知视角，叙述角度不硬凑](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L273-L304)",
         "[早期章节定调，不强求公式](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-craft.md#L287-L303)",
-        "[人物余韵：删稿规则的例外](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L240-L253)"
+        "[人物余韵：删稿规则的例外](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L240-L253)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-outline.md#L1-L71)"
       ]
     },
     "topic": "plot-and-outline"
@@ -2008,7 +2036,7 @@
   {
     "owner": "oh-story",
     "slug": "preserve-author-voice",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Keep your writing voice when AI continues your novel",
       "zh": "AI续写怎么保持文风：拆成具体特点，附上短样本"
@@ -2049,7 +2077,7 @@
         ],
         [
           "Treat memory as an explicit scoped action",
-          "Repeated corrections or inferred sample patterns remain pending until confirmed; pending items do not constrain writing. An explicit long-term request uses record and returns an Author Memory Receipt; a preference counts as remembered once that receipt comes back. A book-specific exception applies to that book and leaves the global habit in place; a one-off request applies once and leaves both untouched."
+          "Repeated corrections and patterns inferred from samples are discussed, not automatically recorded. Only an author statement that may be enduring but has unclear scope can become a pending item; pending items do not constrain writing. An explicit long-term request uses record and returns an Author Memory Receipt; a preference counts as remembered once that receipt comes back. A book-specific exception applies to that book and leaves the global habit in place; a one-off request applies once and leaves both untouched."
         ],
         [
           "Revise the preference when your intention changes",
@@ -2075,7 +2103,7 @@
         ],
         [
           "记住偏好，要明确范围和回执",
-          "重复修改或样本推断先进入待确认；pending 项不约束正文。明确的长期声明通过 record 记录，并返回 Author Memory Receipt；拿到回执才算记住。本书例外只作用于本书，全局习惯保留；一次性要求只管这一次，两者都保持原样。"
+          "重复修改和样本推断只用于讨论，不自动记录；只有作者亲口表达、可能长期有效但范围含糊的偏好，才记为待确认。pending 项不约束正文。明确的长期声明通过 record 记录，并返回 Author Memory Receipt；拿到回执才算记住。本书例外只作用于本书，全局习惯保留；一次性要求只管这一次，两者都保持原样。"
         ],
         [
           "意图变了，再替换或停用",
@@ -2120,7 +2148,8 @@
         "[Conflict, replacement, book exceptions and forgetting](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L80-L87)",
         "[Source and status validation](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L308-L335)",
         "[Activation, replacement and forgetting transitions](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L480-L544)",
-        "[Single-event receipts and active preference query](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
+        "[Single-event receipts and active preference query](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/author-memory.md#L5-L70)"
       ],
       "zh": [
         "[文风逐项定优先级，最后统一判断](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-resolution.md#L5-L18)",
@@ -2130,7 +2159,8 @@
         "[冲突、替换、本书例外与忘掉偏好](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/author-memory.md#L80-L87)",
         "[偏好来源与状态校验](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L308-L335)",
         "[确认、替换与停用状态变更](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L480-L544)",
-        "[单条记录回执与 active 偏好查询](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
+        "[单条记录回执与 active 偏好查询](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/author-memory.md#L5-L70)"
       ]
     },
     "topic": "revision"
@@ -2138,7 +2168,7 @@
   {
     "owner": "oh-story",
     "slug": "review-and-revise",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Turn AI manuscript feedback into a focused revision plan",
       "zh": "AI审稿意见怎么改：分清必改、可选与后续影响"
@@ -2150,12 +2180,12 @@
     "prerequisites": {
       "en": [
         "A manuscript you own or are authorized to edit, its chapter plan and the relevant preceding/following passage. Include the book’s viewpoint, intended reader experience and facts or reveal timing that must stay. List any missing context as an explicit gap for the author to fill.",
-        "The original review comments and passages they refer to. Oh Story findings include severity, category, location, evidence, issue and a proposed fix. Evidence is what points a comment at the sentence or story decision that should change.",
+        "The original review comments and passages they refer to. Oh Story reports give a priority, location, evidence, issue and a proposed fix. Evidence is what points a comment at the sentence or story decision that should change.",
         "The commands below assume an existing long-form Oh Story project open in Claude Code, in the correct writing folder. The chapter-revision commands run inside that long-form project; a short story keeps its own writing workflow, and the decision sheet works for both. For a long-form manuscript not yet in a tracked project, follow the [import guide](https://zenstory.ai/oh-story/import-and-continue) before a project-level revision that requires existing tracking state."
       ],
       "zh": [
         "你有权编辑的稿件、本章细纲及相关前后文。带上本书视角、希望交付的阅读感受，以及必须保留的事实或揭示时机。缺少的材料明确列为缺口，留给作者补充。",
-        "原始审稿意见及对应段落。Oh Story 的 finding 包括严重度、类别、位置、证据、问题和建议修法。意见带着依据，才能指向该改的那句话或那项故事决定。",
+        "原始审稿意见及对应段落。Oh Story 的审稿报告包括修改优先级、位置、证据、问题和建议修法。意见带着依据，才能指向该改的那句话或那项故事决定。",
         "下方命令示例假定你已在 Claude Code 中打开正确的 Oh Story 长篇项目。章节修订命令在长篇项目里运行；短篇改稿沿用短篇自己的写作流程，编辑决策单两边都能用。若长篇稿件尚未建立追踪，先按[导入指南](https://zenstory.ai/oh-story/import-and-continue)建立项目，再进行需要现有追踪状态的工程级修订。"
       ]
     },
@@ -2167,7 +2197,7 @@
         ],
         [
           "Prioritize damage before stylistic preference",
-          "The bundled rubric uses S1 for damage to the main story, motivation, world rules or reader trust; S2 for substantial chapter problems; S3 for local issues; and S4 for optional refinements. The levels set the order of work inside this workflow. Resolve a supported contradiction before polishing its sentences. A factual conflict needs resolving whatever the author prefers; an unsupported criticism needs evidence first."
+          "The author-facing report groups findings as must fix, suggested fixes or optional changes. Problems that break the main story, motivation, world rules or reader trust come first; substantial chapter problems also need repair before local polish. Resolve a supported contradiction before polishing its sentences. A factual conflict needs resolving whatever the author prefers; an unsupported criticism needs evidence first."
         ],
         [
           "Choose an action for each comment",
@@ -2197,7 +2227,7 @@
         ],
         [
           "先修有依据的损伤，再谈审美偏好",
-          "随包尺度用 S1 表示破坏主线、动机、世界规则或读者信任的问题，S2 表示明显影响章节效果的问题，S3 表示局部问题，S4 表示建议性微调。这套分级用来在本工作流内排出修改顺序。先解决有依据的矛盾，再打磨其句子。事实冲突无论作者偏好如何都要处理；没有证据的批评先补证。"
+          "面向作者的报告按“必须改”“建议改”“可以不改”组织问题。破坏主线、动机、世界规则或读者信任的问题优先处理，明显影响章节效果的问题也先于局部润色。先解决有依据的矛盾，再打磨句子；事实冲突要先确定如何统一，没有证据的批评先补证。"
         ],
         [
           "为每条意见选定修复动作",
@@ -2227,13 +2257,13 @@
     },
     "outputs": {
       "en": [
-        "A review report with located evidence, severity, actual review mode, missing context and disagreements. The author fills in a separate decision sheet with accepted fixes and protected facts.",
+        "A review report with located evidence, priority, actual review mode, missing context and disagreements. The author fills in a separate decision sheet with accepted fixes and protected facts.",
         "After an explicit revision, the selected chapter changes within the agreed scope, with an original-copy backup and a report of later impacts. The documented workflow updates tracking through its transaction; check the files themselves to confirm the manuscript and state were saved.",
         "Review modes have different write boundaries. Solo leaves story tracking untouched; batch review can save unresolved findings in .story-review/state.md. Full/lean may maintain tracking through the prescribed transaction when existing prose proves a recorded fact is wrong or missing. This is why the example requests a single-chapter solo report and excludes file edits in the request itself.",
         "A chat-only trial, if that is what you requested, stays a proposal in the reply, with its stopping point and unresolved obligations stated. Saving the chapter and running the tracking transaction wait for a formal revision."
       ],
       "zh": [
-        "一份带位置、证据、严重度、实际审查模式、缺失材料与分歧的报告。决策单由作者另列，写明采纳修法与受保护事实。",
+        "一份带位置、证据、修改优先级、实际审查模式、缺失材料与分歧的报告。决策单由作者另列，写明采纳修法与受保护事实。",
         "明确请求修订后，目标章按约定范围修改，保留原稿备份，并报告后续影响。按文档流程，追踪经修订事务更新；正文和状态是否已保存，以文件本身为准。",
         "审稿模式的写入边界不同。solo 不修改故事追踪；分批审稿可以把未解决发现保存在 .story-review/state.md。full/lean 在现有正文证明追踪事实错误或缺失时，可经规定事务维护追踪。因此示例选择单章 solo，并在请求里写明不改文件。",
         "明确只要聊天试稿时，得到的是回复中的方案，附带停靠点和尚未履行的要求；保存章节和追踪事务留给正式修订。"
@@ -2260,7 +2290,8 @@
         "[Tracking-maintenance boundaries and workflow handoff](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L475-L495)",
         "[Chapter scope, adjacent context and original backup](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L16-L50)",
         "[Revision transaction and later-chapter impacts](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L56-L72)",
-        "[Blueprint boundaries and changes that need planning](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
+        "[Blueprint boundaries and changes that need planning](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L34-L43)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-review/SKILL.md#L25-L65)"
       ],
       "zh": [
         "[审稿模式与实际执行](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L25-L30)",
@@ -2270,7 +2301,8 @@
         "[审稿收尾的追踪维护与转去改稿](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/SKILL.md#L475-L495)",
         "[章节范围、前后章与原稿备份](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L16-L50)",
         "[改稿后统一更新追踪与后文影响](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L56-L72)",
-        "[以细纲为准与需要先改细纲的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
+        "[以细纲为准与需要先改细纲的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L34-L43)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-review/SKILL.md#L25-L65)"
       ]
     },
     "topic": "revision"
@@ -2418,7 +2450,7 @@
   {
     "owner": "oh-story",
     "slug": "character-dialogue",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-15",
     "title": {
       "en": "Distinct character dialogue: goals, knowledge, relationships",
       "zh": "小说人物对话怎么写出区分度：按目标、信息与关系来分"
@@ -2431,12 +2463,12 @@
       "en": [
         "A scene you own or are authorized to revise, its participants, viewpoint and intended outcome. Identify exactly what may change: dialogue only, speaker tags, or specified transitions as well. The plot stays as approved, however much sharper the exchange becomes.",
         "For each participant, note the immediate request, what they want to protect, what they know and what the listener knows. Separate private author knowledge from information established for this viewpoint; consult the [continuity guide](https://zenstory.ai/oh-story/long-novel-continuity) for longer projects.",
-        "Bring any established character speech patterns and this book’s overall prose style. Treat character voice and the author’s narration as separate layers: see [preserving author voice](https://zenstory.ai/oh-story/preserve-author-voice). The command example runs in an existing Oh Story writing project in Claude Code; ZenStory Workbench is a separate product. Import a loose manuscript as a project first."
+        "Bring any established character speech patterns and this book’s overall prose style. Treat character voice and the author’s narration as separate layers: see [preserving author voice](https://zenstory.ai/oh-story/preserve-author-voice). The command example runs in an existing Oh Story writing project in Claude Code; ZenStory Workbench is a separate product. Import a loose manuscript first if you intend to run the project-revision command; a chat-only dialogue exercise can work directly from the supplied scene."
       ],
       "zh": [
         "你有权修改的场景、在场人物、视角与既定结果。说清能改什么：只改台词、能改说话人标记，还是也允许修改点名的衔接段。对白改得再有张力，情节也按既定结果保持不变。",
         "为每位在场者记下眼前请求、想保护的东西、本人所知与听者所知。把作者私下的事实与当前视角已经成立的信息分开；长篇可参考[连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)。",
-        "带上已经形成的人物说话习惯与本书整体文风。人物声音和作者的旁白声音分开处理，可对照[保留作者文风](https://zenstory.ai/oh-story/preserve-author-voice)。命令示例在 Claude Code 里已有的 Oh Story 写作项目中运行，ZenStory 工作台是另一个产品；散稿要先导入成项目。"
+        "带上已经形成的人物说话习惯与本书整体文风。人物声音和作者的旁白声音分开处理，可对照[保留作者文风](https://zenstory.ai/oh-story/preserve-author-voice)。命令示例在 Claude Code 里已有的 Oh Story 写作项目中运行，ZenStory 工作台是另一个产品；要对散稿运行工程级修订命令时，先导入成项目；只在聊天里练习对白，可以直接使用提供的场景。"
       ]
     },
     "steps": {
@@ -2529,7 +2561,8 @@
         "[Information serves the present conversational goal](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L154-L159)",
         "[Voice dimensions and changes across relationships](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L174-L186)",
         "[Plot and reveal boundaries come before expression](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/references/style-resolution.md#L5-L18)",
-        "[Local scope, context, backup and downstream checks](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L7-L75)"
+        "[Local scope, context, backup and downstream checks](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L7-L75)",
+        "[Current workflow source (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-revision.md#L7-L76)"
       ],
       "zh": [
         "[对白功能与情绪回应](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L32-L38)",
@@ -2538,7 +2571,8 @@
         "[信息服务眼前对话目的](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L154-L159)",
         "[说话方式的差异与关系变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L174-L186)",
         "[情节和揭示时机优先于写法](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/references/style-resolution.md#L5-L18)",
-        "[修改范围、上下文、备份与后续影响检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L7-L75)"
+        "[修改范围、上下文、备份与后续影响检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L7-L75)",
+        "[当前工作流来源 (2026-10-15)](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/workflow-revision.md#L7-L76)"
       ]
     },
     "topic": "characters-and-dialogue"

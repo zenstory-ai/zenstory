@@ -23,7 +23,7 @@
         },
         "environment": {
           "en": "Install the skill pack using the adapter documented for your host, then run its setup/check workflow in the intended project. Integrations are not identical: some hosts use skills-only or solo/direct execution rather than every custom agent and hook.",
-          "zh": "按你用的 Agent 安装对应的 skill 包，在写作项目里运行 setup/check。各 Agent 的支持程度不同：有的只能装 skill，或只能单线程直接执行，没有完整的自定义 Agent 和 hooks。"
+          "zh": "按你用的 Agent 安装对应的 skill 包，在写作项目里运行 setup/check。安装与编排按宿主区分，可能采用 skills-only 或直接执行；自定义 Agent 与 hooks 的支持请按各端说明确认。"
         },
         "configuration": {
           "en": "The pack supplies skills and reference material; it is not a model bundle. Review the selected host’s model, tool, permission and data-processing configuration. A local skills directory alone does not establish offline inference or private processing.",
