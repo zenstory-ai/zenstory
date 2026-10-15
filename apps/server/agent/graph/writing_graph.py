@@ -1528,6 +1528,8 @@ async def run_writing_workflow_streaming(
     current_agent_type: str | None = None
     handoff_context: str = ""
     workflow_agents: list[str] = []  # Planned agents to execute after initial
+    # 只接续同一次原计划的正文交付；计划外跳转不能借残留计划重新加入累计。
+    planned_delivery_active = True
     accumulated_content: str = ""  # Track content for auto-review threshold
     review_round: int = 0  # 跟踪 writer-quality_reviewer 循环次数
     previous_agent: str | None = None  # 跟踪上一个 agent
@@ -1541,7 +1543,7 @@ async def run_writing_workflow_streaming(
     # 交接决策，若不暂存，模型这一轮请求的目标 agent（例如 WRITER_PROMPT 强制
     # 要求的 quality_reviewer 送审）会连同 handoff_packet 一起被静默吞掉。
     deferred_handoff: dict[str, Any] | None = None
-    # 纠偏/续写轮接续上一轮的正文和写入记录；计划内 planner→writer 只接续正文
+    # 纠偏/续写轮接续上一轮的正文和写入记录；计划内正文交付只接续正文
     # 写入记录。否则前一程已经写完正文、writer 只补几字时会绕过自动质检门。
     carried_agent_content: str = ""
     carried_writer_body_writes: list[BodyWrite] = []
@@ -1946,15 +1948,22 @@ async def run_writing_workflow_streaming(
             # 真的送审时丢掉（审稿人或返修后的 writer 写唯一一份总结），不送审时原样放出。
             # 审稿只可能来自自动质检门或计划好的 quality_reviewer：两者都没有时不扣。
             reviewer_planned_next = bool(workflow_agents) and workflow_agents[0] == "quality_reviewer"
-            planner_body_delivery = (
-                current_agent_type == "planner"
-                and bool(workflow_agents)
-                and workflow_agents[0] == "writer"
+            # 快照保留到 writer 为止的可写计划前缀；交接决策会弹出/裁剪原列表。
+            planned_body_targets = (
+                workflow_agents[: workflow_agents.index("writer") + 1]
+                if "writer" in workflow_agents else []
+            )
+            planned_body_delivery = (
+                planned_delivery_active
+                and current_agent_type != "writer"
+                and _agent_can_write_files(current_agent_type)
+                and bool(planned_body_targets)
+                and all(_agent_can_write_files(agent) for agent in planned_body_targets)
                 and routing_metadata.get("write_content") is True
                 and enable_graph_auto_review
             )
             chat_hold_eligible = (
-                (current_agent_type == "writer" or planner_body_delivery)
+                (current_agent_type == "writer" or planned_body_delivery)
                 and generation_mode != "fast"
                 and not read_only_request
                 and not rework_from_reviewer
@@ -1962,11 +1971,10 @@ async def run_writing_workflow_streaming(
                 and (enable_graph_auto_review or reviewer_planned_next)
             )
             chat_hold_started = False
-            # 正文可能已由计划内的 planner 写完：writer 只读稿或小修，也要扣住
+            # 正文可能已由计划内的上游写完：后续角色只读稿或小修，也要扣住
             # 将被审稿取代的总结，不依赖它再次调用写工具才开始扣留。
             if (
                 chat_hold_eligible
-                and current_agent_type == "writer"
                 and measured_body_words(carried_writer_body_writes) >= auto_review_threshold
             ):
                 chat_hold_started = True
@@ -2112,7 +2120,7 @@ async def run_writing_workflow_streaming(
                         yield notice
                     yield event
 
-                if (current_agent_type == "writer" or planner_body_delivery) and event.type in (
+                if (current_agent_type == "writer" or planned_body_delivery) and event.type in (
                     StreamEventType.TOOL_USE,
                     StreamEventType.TOOL_RESULT,
                 ):
@@ -2123,9 +2131,9 @@ async def run_writing_workflow_streaming(
                         and not chat_hold_started
                         and (
                             reviewer_planned_next
-                            # 计划里的 writer 将接手同一范围；是否丢掉这份说明仍等到
+                            # 计划里的后续角色将接手同一范围；是否丢掉这份说明仍等到
                             # 真正交接时判断，提问或交接未执行时适配器原样释放。
-                            or planner_body_delivery
+                            or planned_body_delivery
                             # create_file 的正文还没写出来，字数要等 <file> 块，可能送审。
                             or body_write.text_offset is not None
                             # edit_file / write_chapter 的字数已知：到了送审阈值才可能送审，
@@ -2151,8 +2159,8 @@ async def run_writing_workflow_streaming(
             if isinstance(updated_messages, list):
                 state["messages"] = updated_messages
 
-            # 接续纠偏/续写或计划内 planner→writer 的正文记录，让自动质检门看到
-            # 完整的一轮写作；整段文字只在纠偏/续写时接续，不拼接 planner 的聊天。
+            # 接续纠偏/续写或计划内交付的正文记录，让自动质检门看到完整的一轮
+            # 写作；整段文字只在纠偏/续写时接续，不拼接上游角色的聊天。
             if carried_agent_content or carried_writer_body_writes:
                 agent_content = f"{carried_agent_content}{agent_content}"
                 writer_body_writes = [*carried_writer_body_writes, *writer_body_writes]
@@ -2938,10 +2946,10 @@ async def run_writing_workflow_streaming(
             will_run_next_agent = bool(pending_next_agent) and iteration < max_iterations
 
             if (
-                planner_body_delivery
+                planned_body_delivery
                 and chat_hold_eligible
                 and will_run_next_agent
-                and pending_next_agent == "writer"
+                and pending_next_agent in planned_body_targets
                 and body_words_written(writer_body_writes) > 0
             ):
                 carried_writer_body_writes = writer_body_writes
@@ -2982,6 +2990,11 @@ async def run_writing_workflow_streaming(
             previous_agent = current_agent_type
 
             # Apply next agent decision
+            planned_delivery_active = (
+                planned_body_delivery
+                and will_run_next_agent
+                and pending_next_agent in planned_body_targets
+            )
             current_agent_type = pending_next_agent if will_run_next_agent else None
             rework_from_reviewer = (
                 previous_agent == "quality_reviewer" and current_agent_type is not None

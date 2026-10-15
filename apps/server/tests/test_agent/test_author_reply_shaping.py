@@ -186,6 +186,185 @@ async def test_planned_planner_body_is_reviewed_after_writer_and_has_one_summary
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("initial", "plan", "amounts", "skip_hook"),
+    [
+        ("hook_designer", ["writer"], {"hook_designer": 700}, False),
+        ("planner", ["hook_designer", "writer"], {"planner": 700}, False),
+        ("planner", ["hook_designer", "writer"], {"planner": 180, "hook_designer": 180, "writer": 180}, False),
+        ("planner", ["hook_designer", "writer"], {"planner": 100, "hook_designer": 100}, False),
+        ("planner", ["hook_designer", "writer"], {"planner": 700}, True),
+    ],
+    ids=["hook-body", "full-with-read-only-middle", "combined-threshold", "small-delivery", "planned-jump"],
+)
+async def test_planned_body_delivery_carries_across_writable_roles(initial, plan, amounts, skip_hook):
+    """计量跟随同一计划的真实正文交付，而非特定角色或紧邻 writer 的形状。"""
+    calls: list[str] = []
+    summaries = {agent: f"{agent} 本程内容已保存。" for agent in ("planner", "hook_designer", "writer")}
+    final_summary = "本轮正文已核对。\n[TASK_COMPLETE]"
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "quality_reviewer":
+            yield _text(final_summary)
+            return
+        amount = amounts.get(agent_type, 0)
+        if amount:
+            for event in edit_file_events(f"{agent_type}-body", "雨" * amount, file_id="draft-current"):
+                yield event
+        yield _text(summaries[agent_type])
+        if skip_hook and agent_type == "planner":
+            yield _handoff("writer", "核对已保存正文")
+
+    events = await _run_graph(
+        fake_agent, generation_mode="quality", initial_agent=initial, workflow_agents=plan,
+        routing_metadata={**PLANNED_PROSE, "agent_type": initial}, auto_review_threshold=500,
+    )
+    review_expected = sum(amounts.values()) >= 500
+    expected = [initial, *(["writer"] if skip_hook else plan)]
+    assert calls == [*expected, *(["quality_reviewer"] if review_expected else [])]
+    visible = await _author_visible_text(events)
+    cumulative = 0
+    for agent in expected:
+        cumulative += amounts.get(agent, 0)
+        if review_expected and cumulative >= 500:
+            assert summaries[agent] not in visible
+        else:
+            assert summaries[agent] in visible, "尚未到门槛的小额交付说明不能被扣掉"
+    if review_expected:
+        assert final_summary.replace("[TASK_COMPLETE]", "").strip() in visible
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_planned_body_delivery_does_not_resume_after_an_unplanned_hop():
+    """残留计划仍有 writer，也不能把计划外角色的正文重新纳入本次接续。"""
+    calls: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type in ("hook_designer", "planner"):
+            for event in edit_file_events(f"{agent_type}-body", "雨" * 700, file_id="draft-current"):
+                yield event
+        yield _text(f"{agent_type} 内容已保存。")
+        if agent_type == "hook_designer":
+            yield _handoff("planner", "先核对结构")
+
+    events = await _run_graph(
+        fake_agent, generation_mode="quality", initial_agent="hook_designer", workflow_agents=["writer"],
+        routing_metadata={**PLANNED_PROSE, "agent_type": "hook_designer"}, auto_review_threshold=500,
+    )
+    assert calls == ["hook_designer", "planner", "writer"]
+    assert not any(e.type == StreamEventType.CHAT_HOLD and e.data.get("action") == CHAT_HOLD_DISCARD for e in events)
+    visible = await _author_visible_text(events)
+    assert "hook_designer 内容已保存。" in visible
+    assert "planner 内容已保存。" in visible
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("case", ["outline", "failed", "auto-off", "planning-only", "read-only", "fast", "last-iteration", "review-limit", "unplanned"])
+async def test_planned_hook_body_keeps_existing_review_boundaries(case):
+    from contextlib import nullcontext
+
+    calls: list[str] = []
+    summary = "设计与已有正文已核对。"
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "hook_designer":
+            for event in edit_file_events(
+                "hook-body", "雨" * 700, file_id="draft-current",
+                file_type="outline" if case == "outline" else "draft",
+                status="error" if case == "failed" else "success",
+            ):
+                yield event
+            yield _text(summary)
+            if case == "unplanned":
+                yield _handoff("writer", "核对现稿")
+        else:
+            yield _text("核对结束。")
+
+    limit = patch("agent.graph.writing_graph.MAX_REVIEW_ROUNDS", 0) if case == "review-limit" else nullcontext()
+    with limit:
+        events = await _run_graph(
+            fake_agent, initial_agent="hook_designer", workflow_agents=[] if case == "unplanned" else ["writer"],
+            generation_mode="fast" if case == "fast" else "",
+            routing_metadata={**PLANNED_PROSE, "agent_type": "hook_designer", "write_content": case != "planning-only", "read_only": case == "read-only"},
+            auto_review="false" if case == "auto-off" else "true", auto_review_threshold=500,
+            max_iterations=1 if case == "last-iteration" else 12,
+        )
+    assert "quality_reviewer" not in calls
+    assert not any(e.type == StreamEventType.CHAT_HOLD and e.data.get("action") == CHAT_HOLD_DISCARD for e in events)
+    visible = await _author_visible_text(events)
+    if case == "fast":
+        assert calls == ["writer"]
+        assert not any(e.type == StreamEventType.CHAT_HOLD for e in events)
+    else:
+        assert summary in visible
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("stop", ["clarification", "tool-budget", "failure", "last-iteration"])
+async def test_planned_body_middle_stop_releases_partial_explanation(stop):
+    calls: list[str] = []
+    summary = "已核对部分正文，尚未完成后续工作。"
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "planner":
+            for event in edit_file_events("planner-body", "雨" * 700, file_id="draft-current"):
+                yield event
+            yield _text("正文已保存。")
+            return
+        yield _text(summary)
+        if stop == "clarification":
+            yield StreamEvent(type=StreamEventType.WORKFLOW_STOPPED, data={"reason": "clarification_needed", "agent_type": agent_type})
+        elif stop == "tool-budget":
+            yield StreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data={"layer": "tool_call", "agent_type": agent_type})
+        elif stop == "failure":
+            raise RuntimeError("mock middle failure")
+
+    events = await _run_graph(
+        fake_agent, generation_mode="quality", initial_agent="planner", workflow_agents=["hook_designer", "writer"],
+        routing_metadata=PLANNED_PROSE, auto_review_threshold=500,
+        max_iterations=2 if stop == "last-iteration" else 12,
+    )
+    assert calls == ["planner", "hook_designer"]
+    assert summary in await _author_visible_text(events)
+    assert not any(e.type == StreamEventType.HANDOFF and e.data.get("target_agent") == "writer" for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_reviewer_rework_does_not_start_planned_body_carry():
+    """审稿返工有剩余计划也不能开启新的上游正文累计或重复审查。"""
+    calls: list[str] = []
+    summary = "指定局部已修好。"
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "quality_reviewer":
+            yield _handoff("hook_designer", "只修已指出的问题")
+        elif agent_type == "hook_designer":
+            for event in edit_file_events("hook-rework", "雨" * 700, file_id="draft-current"):
+                yield event
+            yield _text(summary)
+        else:
+            yield _text("核对结束。")
+
+    events = await _run_graph(
+        fake_agent, generation_mode="quality", initial_agent="quality_reviewer",
+        workflow_agents=["hook_designer", "writer"], routing_metadata=PLANNED_PROSE, auto_review_threshold=500,
+    )
+    assert calls == ["quality_reviewer", "hook_designer", "writer"]
+    assert not any(event.type == StreamEventType.CHAT_HOLD for event in events)
+    assert summary in await _author_visible_text(events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_planned_planner_question_is_released_even_when_writer_continues():
     """作者已要正文，既有计划继续 writer，但规划师向作者提出的问题不能随总结丢掉。"""
     question = "第一章已经保存。\n\n需要保留这个悬念吗？"
