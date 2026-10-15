@@ -246,6 +246,7 @@ quality_reviewer；计划内 planner→writer 同一交付的成功正文写入�
 
 ## 提示词
 
+- 真实失败稿用于回归和正确反例，不把样例人物、账目、物件或情节关键词写成提示词/Agent 的特判。先定位通用的范围、输入、执行证据或权限缺口；提示策略变更须验证跨题材效果与误改，不能只证明已知样例修好了。
 - `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议。
 - `prompts/subagents.py`：`ROUTER_PROMPT`、`PLANNER_PROMPT`、`HOOK_DESIGNER_PROMPT`、`WRITER_PROMPT`、`QUALITY_REVIEWER_PROMPT`。
 - `prompts/suggestions.py`：建议生成。
