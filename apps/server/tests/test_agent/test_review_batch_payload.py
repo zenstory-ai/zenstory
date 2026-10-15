@@ -78,3 +78,23 @@ def test_review_truncation_includes_its_omission_marker_in_the_budget():
     payload = _format_review_payload("甲" * 12000, max_chars=1000)
     assert len(payload) <= 1000
     assert "省略" in payload
+
+
+@pytest.mark.unit
+def test_eight_local_edits_take_priority_over_surrounding_unchanged_paragraphs(review_project, db_session):
+    files = []
+    for number in range(1, 9):
+        before = (f"旧开头{number}。\n" * 150) + "旧中段。\n" + (f"旧结尾{number}。\n" * 150)
+        content = before.replace("旧中段。", f"本轮唯一修改{number}。")
+        file = File(project_id=review_project.id, title=f"第{number}章", file_type="draft", content=content)
+        db_session.add(file)
+        files.append(file)
+        ToolContext.remember_pre_write_content(file.id, before)
+    db_session.commit()
+
+    payload = _format_review_payload(_collect_review_payload_text([file.id for file in files]) or "")
+
+    assert len(payload) <= REVIEW_PAYLOAD_MAX_CHARS
+    for number, file in enumerate(files, 1):
+        assert f"本轮唯一修改{number}。" in payload
+        assert file.id in payload

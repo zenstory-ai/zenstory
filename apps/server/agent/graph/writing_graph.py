@@ -749,25 +749,44 @@ def _review_payload_block(
     """
     words = count_words(content)
     body = content.strip()
+    header = f"[《{title}》编辑器字数 {words}]\n"
     span = _changed_span(before, content) if before and before.strip() else None
-    if span is None or len(body) <= max_chars:
-        return f"[《{title}》编辑器字数 {words}]\n{body}"
+    if span is None or len(header) + len(body) <= max_chars:
+        return f"{header}{body}"
     start, end = span
-    context_start = max(0, start - _REVIEW_CHANGED_CONTEXT_CHARS)
+
+    def excerpt_note(leading_words: int, trailing_words: int) -> str:
+        return (
+            f"[《{title}》编辑器字数 {words}。下面是本请求改动的部分和前后少量原文；"
+            f"它前面的 {leading_words} 字、后面的 {trailing_words} 字"
+            "本请求没有改动，没有附上，核对前文事实时再读取]\n"
+        )
+
+    # 先为标注和改动本身预留空间；邻接旧文不能挤掉真正的新改句。
+    note_budget = len(excerpt_note(words, words))
+    compact_note = "[本请求改动片段；其余原文没有附上，请读取文件核对]\n"
+    if note_budget >= max_chars:
+        note_budget = len(compact_note)
+    body_budget = max(0, max_chars - note_budget)
+    if not body_budget:
+        return compact_note[:max_chars]
+    changed = content[start:end]
+    context_chars = min(_REVIEW_CHANGED_CONTEXT_CHARS, max(0, body_budget - len(changed)) // 2)
+    context_start = max(0, start - context_chars)
     line_break = content.find("\n", context_start, start)
     if context_start > 0 and line_break != -1:
         context_start = line_break + 1
-    context_end = min(len(content), end + _REVIEW_CHANGED_CONTEXT_CHARS)
+    context_end = min(len(content), end + context_chars)
     line_break = content.rfind("\n", end, context_end)
     if context_end < len(content) and line_break != -1:
         context_end = line_break
-    excerpt = content[context_start:context_end].strip()
-    note = (
-        f"[《{title}》编辑器字数 {words}。下面是本请求改动的部分和前后少量原文；"
-        f"它前面的 {count_words(content[:context_start])} 字、后面的 {count_words(content[context_end:])} 字"
-        "本请求没有改动，没有附上，核对前文事实时再读取]"
+    excerpt = _format_review_payload(content[context_start:context_end], max_chars=body_budget)
+    note = excerpt_note(
+        count_words(content[:context_start]), count_words(content[context_end:])
     )
-    return f"{note}\n{excerpt}"
+    if len(note) > note_budget:
+        note = compact_note
+    return f"{note}{excerpt}"
 
 
 def _collect_review_payload_text(file_ids: list[str]) -> str | None:
