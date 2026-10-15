@@ -112,7 +112,7 @@ function fixture(strict: boolean, pendingRecord = false, recordFailure = false, 
   const count = (id: string, kind: string) => requests.filter(r => r.projectId === id && r.kind === kind).length;
   const ready = async (id: string) => {
     await waitFor(() => expect(screen.getByLabelText('current project')).toHaveTextContent(id));
-    const trendToggle = screen.getByRole('button', { name: /手写字数趋势|Your net word trend|projectStatistics.trend/ });
+    const trendToggle = screen.getByRole('button', { name: /手写字数趋势|net word trend|projectStatistics.trend/ });
     if (trendToggle.getAttribute('aria-expanded') === 'false') {
       expect(count(id, 'trend')).toBe(0);
       fireEvent.click(trendToggle);

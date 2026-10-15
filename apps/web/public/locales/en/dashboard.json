@@ -589,7 +589,8 @@
         "plannedCount": "Planned: {{count}} chapters",
         "plannedCount_one": "Planned: {{count}} chapter",
         "plannedCount_other": "Planned: {{count}} chapters",
-        "detailsTitle": "Chapter details"
+        "viewDetails": "View chapter details ({{count}})",
+        "hideDetails": "Hide chapter details"
       },
       "short": {
         "completionTitle": "Completion",
@@ -627,7 +628,8 @@
         "plannedCount": "Planned: {{count}} stories",
         "plannedCount_one": "Planned: {{count}} story",
         "plannedCount_other": "Planned: {{count}} stories",
-        "detailsTitle": "Manuscript details"
+        "viewDetails": "View manuscript details ({{count}})",
+        "hideDetails": "Hide manuscript details"
       },
       "screenplay": {
         "completionTitle": "Episode Completion",
@@ -665,7 +667,8 @@
         "plannedCount": "Planned: {{count}} episodes",
         "plannedCount_one": "Planned: {{count}} episode",
         "plannedCount_other": "Planned: {{count}} episodes",
-        "detailsTitle": "Episode details"
+        "viewDetails": "View episode details ({{count}})",
+        "hideDetails": "Hide episode details"
       }
     }
   },
@@ -730,16 +733,16 @@
     },
     "progress": "Manuscript progress",
     "noPlan": "No planned total set",
-    "records": "More records",
-    "trend": "Your net word trend",
     "trendNote": "Your net edits in the editor only; AI-written words are not included",
     "trendLoading": "Loading trend",
     "trendError": "Could not load the word trend",
     "trendRetry": "Retry trend",
-    "streakNote": "Only days when you type at least 10 words in the editor count. AI-written words do not count.",
-    "lastWriting": "Last writing date",
-    "totalSent": "Total sent",
-    "todaySent": "Sent today",
-    "conversations": "Conversations"
+    "streakNote": "Only days with at least 10 handwritten words count toward the streak. AI edits do not count.",
+    "lastWriting": "Last handwritten edit",
+    "activity": "Handwritten activity",
+    "noActivity": "No handwritten activity yet",
+    "trendShow": "View your net word trend",
+    "trendHide": "Hide your net word trend",
+    "completedPercentage": "{{percent}}% completed"
   }
 }

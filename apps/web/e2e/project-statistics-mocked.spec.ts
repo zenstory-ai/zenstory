@@ -57,7 +57,7 @@ async function fixture(page: Page, locale = 'zh', theme = 'light') {
 for (const width of [390, 768, 1440]) for (const locale of ['zh', 'en']) for (const theme of ['light', 'dark']) {
   test(`statistics stay factual and readable at ${width}px ${locale} ${theme}`, async ({ page }) => {
     test.skip(baseline, 'The baseline screenshots have their own read-only capture below');
-    await page.setViewportSize({ width, height: 900 });
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     const trends = await fixture(page, locale, theme);
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -69,8 +69,27 @@ for (const width of [390, 768, 1440]) for (const locale of ['zh', 'en']) for (co
     await page.getByRole('button', { name: locale === 'zh' ? '本周' : 'This week', exact: true }).click();
     await expect(page.getByText('9,000', { exact: true })).toBeVisible();
     expect(trends).toHaveLength(0);
-    for (const label of locale === 'zh' ? ['分集明细', '手写字数趋势', '更多记录'] : ['Episode details', 'Your net word trend', 'More records']) {
-      const toggle = page.getByRole('button', { name: label, exact: true });
+    const progress = page.getByRole('region', { name: locale === 'zh' ? '正文进度' : 'Manuscript progress' });
+    const activity = page.getByRole('region', { name: locale === 'zh' ? '手写活动' : 'Handwritten activity' });
+    await expect(progress.getByText(locale === 'zh' ? '3 集已完成' : '3 episodes finished', { exact: true })).toBeVisible();
+    await expect(progress.getByText(locale === 'zh' ? '1 集写作中' : '1 episode in progress', { exact: true })).toBeVisible();
+    await expect(page.getByText(locale === 'zh' ? '更多记录' : 'More records', { exact: true })).toHaveCount(0);
+    const lastEdit = activity.getByText(locale === 'zh' ? '最近手写' : 'Last handwritten edit', { exact: true });
+    await expect(lastEdit).toBeVisible();
+    if (width === 390) {
+      const lastEditBox = (await lastEdit.boundingBox())!;
+      expect(lastEditBox.y + lastEditBox.height).toBeLessThanOrEqual(844);
+    }
+    if (width === 1440) {
+      const progressBox = (await progress.boundingBox())!;
+      const activityBox = (await activity.boundingBox())!;
+      expect(activityBox.x).toBeGreaterThan(progressBox.x + progressBox.width);
+      expect(Math.abs(activityBox.y - progressBox.y)).toBeLessThanOrEqual(16);
+    }
+    const chapterToggle = page.locator('[aria-controls="project-chapter-details"]');
+    await expect(chapterToggle).toHaveText(locale === 'zh' ? '查看分集明细（5 条）' : 'View episode details (5)');
+    const trendToggle = page.getByRole('button', { name: /手写字数趋势|net word trend/ });
+    for (const toggle of [chapterToggle, trendToggle]) {
       await toggle.scrollIntoViewIfNeeded();
       await toggle.focus();
       await page.keyboard.press('Enter');

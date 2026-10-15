@@ -84,13 +84,18 @@ describe('project statistics as one factual page', () => {
     expect(within(overview).getByText('12,000')).toBeInTheDocument();
     expect(within(overview).getByText('1,000')).toBeInTheDocument();
     expect(within(overview).getByText('你写 200 · AI 写 800')).toBeInTheDocument();
-    expect(within(overview).getByText('已写 3 集')).toBeInTheDocument();
-    expect(within(overview).getByText('计划 80 集')).toBeInTheDocument();
+    const progress = screen.getByRole('region', { name: '正文进度' });
+    expect(within(progress).getByText('已写 3 集')).toBeInTheDocument();
+    expect(within(progress).getByText('计划 80 集')).toBeInTheDocument();
+    expect(within(progress).getByText('2 集已完成')).toBeInTheDocument();
+    expect(within(progress).getByText('1 集写作中')).toBeInTheDocument();
+    expect(within(progress).getByText('77 集还没开始')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     expect(screen.queryByText(/项目状态|下一步行动|接下来可以做|连续写作小贴士|AI 使用建议|状态不错|AI 活跃/)).not.toBeInTheDocument();
     expect(screen.getByText(/北京时间/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '分集明细' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: '更多记录' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: '查看分集明细（3 条）' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: '更多记录' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '手写活动' })).toBeInTheDocument();
   });
 
   it('switches the period once, without duplicating period numbers or fetching collapsed trends', () => {
@@ -111,7 +116,7 @@ describe('project statistics as one factual page', () => {
   ] as const)('names %s units and links only exact existing files', (type, unit, detailsTitle) => {
     stats!.project_type = type; view();
     expect(screen.getByText(`已写 3 ${unit}`)).toBeInTheDocument();
-    expand(detailsTitle);
+    expand(`查看${detailsTitle}（3 条）`);
     const progress = screen.getByRole('progressbar');
     expect(progress).toHaveAttribute('aria-valuenow', '2.5');
     expect(screen.getByText(`77 ${unit}还没开始`)).toBeInTheDocument();
@@ -129,27 +134,36 @@ describe('project statistics as one factual page', () => {
     expect(screen.getByText('已写 3 章')).toBeInTheDocument();
     expect(screen.getByText('你写 200 · AI 写 0')).toBeInTheDocument();
     expect(screen.getByText('尚未设置计划总数')).toBeInTheDocument();
-    expand('分章明细');
+    expand('查看分章明细（3 条）');
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/100%|全部完成/)).not.toBeInTheDocument();
+  });
+
+  it('keeps progress visible without offering an empty file-list disclosure', () => {
+    stats!.chapter_completion.chapter_details = [];
+    view();
+    const progress = screen.getByRole('region', { name: '正文进度' });
+    expect(within(progress).getByText('已写 3 集')).toBeInTheDocument();
+    expect(within(progress).getByText('还没有剧本')).toBeInTheDocument();
+    expect(within(progress).queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('labels negative handwritten trends separately from AI-inclusive totals and loads them on demand', () => {
     view();
     expect(queryOptions().enabled).toBe(false);
-    expand('手写字数趋势');
+    expand('查看手写字数趋势');
     expect(queryOptions().enabled).toBe(true);
     expect(queryOptions().queryKey).toEqual(['writing-stats-word-trend', 'project-1', 'daily', 14]);
     expect(screen.getByText('仅统计你在编辑器里写的净字数，不含 AI 写入')).toBeInTheDocument();
     expect(screen.getByText('-47')).toBeInTheDocument();
     expand('本月');
     expect(queryOptions().queryKey).toEqual(['writing-stats-word-trend', 'project-1', 'monthly', 365]);
-    expand('手写字数趋势');
+    expand('收起手写字数趋势');
     expect(queryOptions().enabled).toBe(false);
   });
 
   it('has independent retry for failed trends, rather than a successful empty state', () => {
-    trendError = new Error('offline'); view(); expand('手写字数趋势');
+    trendError = new Error('offline'); view(); expand('查看手写字数趋势');
     expect(screen.getByRole('alert')).toHaveTextContent('字数趋势加载失败');
     fireEvent.click(screen.getByRole('button', { name: '重试趋势' }));
     expect(trendRetry).toHaveBeenCalledOnce();
@@ -158,7 +172,7 @@ describe('project statistics as one factual page', () => {
 
   it('distinguishes a pending trend request from a successful empty series', () => {
     useQuery.mockImplementation(() => ({ data: undefined, isLoading: true, error: null }));
-    const rendered = view(); expand('手写字数趋势');
+    const rendered = view(); expand('查看手写字数趋势');
     expect(screen.getByRole('status')).toHaveTextContent('正在加载趋势');
     expect(screen.queryByText('暂无数据')).not.toBeInTheDocument();
     useQuery.mockImplementation(() => ({ data: { data: [] }, isLoading: false, error: null }));
@@ -167,22 +181,44 @@ describe('project statistics as one factual page', () => {
     expect(screen.getByText('暂无数据')).toBeInTheDocument();
   });
 
-  it('preserves the writer-only streak and author-message count, not all AI/tool messages', () => {
-    view(); expand('更多记录');
-    expect(screen.getByText('只计算你在编辑器里亲手写满 10 字的日期，AI 写入不计')).toBeInTheDocument();
-    expect(screen.getByText('只算本项目里你发给 AI 的消息。')).toBeInTheDocument();
-    expect(screen.getByText('9 条消息')).toBeInTheDocument();
-    expect(screen.getByText('3 条消息')).toBeInTheDocument();
-    expect(screen.queryByText(/999|400 条/)).not.toBeInTheDocument();
-    expect(screen.getByText(/2026.*10.*10/)).toBeInTheDocument();
+  it('shows recent handwritten activity directly, without mixing in AI telemetry or a record drawer', () => {
+    view();
+    const activity = screen.getByRole('region', { name: '手写活动' });
+    expect(within(activity).getByText('连续天数仅计手写满 10 字的日期，不含 AI')).toBeInTheDocument();
+    expect(within(activity).getByText('最近手写')).toBeInTheDocument();
+    expect(within(activity).getByText(/2026.*10.*10/)).toBeInTheDocument();
+    expect(within(activity).getByText('0 天')).toBeInTheDocument();
+    expect(screen.queryByText('更多记录')).not.toBeInTheDocument();
+    expect(screen.queryByText('AI 使用统计')).not.toBeInTheDocument();
+    expect(screen.queryByText(/条消息|最长连续|累计发出|今日发出|对话次数/)).not.toBeInTheDocument();
   });
 
-  it('shows unavailable author-message counts as unavailable, never as total_messages', () => {
-    delete (stats!.ai_usage.current as Partial<ProjectDashboardStatsResponse['ai_usage']['current']>).user_messages;
-    delete (stats!.ai_usage.today as Partial<ProjectDashboardStatsResponse['ai_usage']['today']>).user;
-    view(); expand('更多记录');
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByText(/999|400 条/)).not.toBeInTheDocument();
+  it('uses a quiet empty activity state without inventing dates or showing longest streak', () => {
+    stats!.streak.last_writing_date = null;
+    stats!.streak.current_streak = 0;
+    view();
+    const activity = screen.getByRole('region', { name: '手写活动' });
+    expect(within(activity).getByText('暂无手写记录')).toBeInTheDocument();
+    expect(within(activity).queryByText('最近手写')).not.toBeInTheDocument();
+    expect(within(activity).queryByText('9 天')).not.toBeInTheDocument();
+    expect(within(activity).getByRole('button', { name: '查看手写字数趋势' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it.each(['broken', 'none'] as const)('does not call a stored old streak current when its status is %s', status => {
+    stats!.streak.streak_status = status;
+    stats!.streak.current_streak = 5;
+    view();
+    const activity = screen.getByRole('region', { name: '手写活动' });
+    expect(within(activity).queryByText('5 天')).not.toBeInTheDocument();
+    expect(within(activity).getByText('0 天')).toBeInTheDocument();
+    expect(within(activity).getByText(/2026.*10.*10/)).toBeInTheDocument();
+  });
+
+  it.each(['active', 'at_risk'] as const)('preserves a current streak while its status is %s', status => {
+    stats!.streak.streak_status = status;
+    stats!.streak.current_streak = 5;
+    view();
+    expect(within(screen.getByRole('region', { name: '手写活动' })).getByText('5 天')).toBeInTheDocument();
   });
 
   it('retains content while refreshing and clearly reports a failed background refresh', () => {
