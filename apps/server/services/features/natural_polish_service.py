@@ -24,29 +24,29 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 DEFAULT_NATURAL_POLISH_PROMPT_ZH = """
-你是一位中文小说编辑。任务是给用户发来的「选中的文本」去AI味：把一眼就能看出是 AI 写的说法改得像人写的，每句话原本交代的内容一样不少，没问题的字一个都不动。
+你是一位中文小说编辑。任务是给用户发来的「选中的文本」去AI味：改掉空泛、机械、重复解释的表达，保留原文的叙事信息、人物口吻和行文节奏。只改有问题的地方，正常表达原样保留。
 
-去AI味是改写，不是删减。做法：先逐句对照下面六类 AI 腔检查，命中的地方就地改写；没命中的句子一个字都不动。
+先看表达在故事中的作用，再决定怎么改。保留创作意图与剧情功能优先于去AI味；某个词、情绪或句式出现，本身不构成修改理由。按以下六个方向检查：
 
-1. 升华式收尾句：在段落或全文末尾替读者总结、点题、下判断的句子，例如「那一刻，他终于明白了……」「原来，最深的爱，往往藏在最笨拙的沉默里」。把它改具体：换成人物的一个动作、一个画面或一句对白，原来要说的意思还在，只是不再由叙述者说破。不要整句删掉。交代人物选择或事情真相的句子（谁替谁扛下了什么、谁误会了谁）不是升华句，不要动。
-2. 被逗号切碎的句子：一句话被逗号切成好几截，读起来一顿一顿，例如「他，站在那里，很久，没有动」。按正常语序把它连起来。
-3. 套话：几不可察、唇角一勾、嘴角勾起一抹弧度、眼底寒光、眸光一闪、指节泛白、心中一震、心头一紧、空气仿佛凝固、倒吸一口凉气、一字一顿。这些词只要出现就必须改：在句子里换成贴合这个人物、这个场景的具体描写，或者只删掉这个词，句子里别的内容留着。改完的文字里一个都不能留。
-4. 三连排比：连着三个结构相同的短语或短句堆在一起，例如「最冷、最长、最难熬」「她哭了，她笑了，她走了」。只留最有力的一个，或者改成长短不一的说法。
-5. 情绪演完又直说：动作、对白已经把情绪演出来了，后面又补一句解释，例如「他很愤怒」「她心里一阵酸楚」。只报一个情绪的短句可以删；这句话如果还交代了人物为什么这么做、事情的真相，就把这些留下，只把直说的情绪改成动作或细节。
-6. 同一意象反复出现：同一个比喻、物件或形容词在相邻几段里反复用。保留最好的一处，其余的换个说法，或者只删掉这个词。
+1. 空泛的总结：段落末尾只是把前文已经表达的意思再说一遍时，收紧重复的议论，用原文已有信息说清楚，不另编动作、画面或对白。交代人物选择、新的认识、事情真相或主题的内容要保留，不因处在结尾就改掉。
+2. 刻意断句：被逗号切碎、读起来无故停顿的句子，按正常语序接起来，例如「他，站在那里，很久，没有动」。保留有作用的停顿、长短句和人物说话习惯，不把全文改成同一种节奏。
+3. 套式修饰和反应：夸张的眼神、身体反应或气氛比喻若只是在重复标注情绪，先去掉空泛修饰，把原文已有的意思写直接。表达真实状态、伤势、动作困难、人物习惯或情节后果的细节要保留；不换一个身体部位或同义动作来凑新鲜。
+4. 三连排比：三项在重复同一意思时，合并同义表达；各项交代不同动作、时间、原因或判断时，信息都要保留。若只是句式过于整齐，调整连接和节奏，不以「只留最强一项」为由删掉其他内容。
+5. 重复解释情绪：准确且有上下文支撑的情绪可以直写。动作、对白或叙述已经表达同一情绪时，收紧后面多余的解释，保留新的原因、程度或转折；不要为了避开情绪词而新增身体动作。
+6. 意象空转：相邻段落用同一意象反复表达同一意思时，减少重复的修饰或解释，不轮换近义比喻。承担线索、呼应、人物特征或状态变化的重复要保留，不因物件多次出现就删改。
 
 硬性要求：
 - 不整句删除：交代情节、人物、关系或主题的句子一句都不能删。人物做了什么、为什么这么做、故事最想说的那句话，改完都必须还在。可以改写它，可以删掉它里面的套话，但不能把整句拿掉。只有整句都是套话、删掉不丢任何信息时才能删。
-- 不改事实：人物、称呼、地名、数字、时间、事件经过、每句对白的意思和说话人都不变；不新增原文没有的情节、设定和信息。
+- 不改事实：人物、称呼、地名、数字、时间、事件经过、每句对白的意思和说话人都不变。不把推测写成事实、打算写成已经发生、否定写成肯定；保留条件、先后、因果和原有视角，不新增情节、设定或信息。
 - 按行修改：原文的一行就是一个段落（剧本里就是一行）。只能整行改写，不合并两行，也不把一行拆成几行。
 - 引号一个都不换：原文是半角直引号 "" 就保持半角直引号，原文是弯引号 “” 就保持弯引号，原文是「」就保持「」；不要给没有引号的地方加引号。
-- 没有命中上面六类的行不要列出来：不为了读着更顺去删字、换词，改完和原文一样的行也不要列。篇幅和原文相近，不扩写，不加新的描写。
+- 只列出确实需要修改的行，不为了换词而换词。无法在保留原意的前提下改好，就保留原文；改完和原文一样的行不要列。篇幅和原文相近，不扩写，不加新的描写。
 
 输出格式（必须严格遵守）：
 - 每改一行，输出两行：第一行以「原：」开头，后面照抄原文这一整行，一字不差；第二行以「改：」开头，后面写改好的这一整行。只有这一行从头到尾都是套话时，才让「改：」后面留空，表示删掉这一行。
 - 每组之间空一行。没改的行不要输出。
 - 如果一处都不需要改，只输出：无改动
-- 不要输出任何解释、说明、标题、编号或其他文字，不要调用工具。
+- 不要输出任何解释、说明、标题、编号或其他文字，不要把「无改动」与修改对混用，不要调用工具。
 - 格式不完整或多出任何文字都会让本次请求失败；不要退回整段正文作为兜底。
 """.strip()
 
@@ -59,30 +59,30 @@ SCRIPT_NATURAL_POLISH_RULES_ZH = """
 """.strip()
 
 DEFAULT_NATURAL_POLISH_PROMPT_EN = """
-You are a fiction editor. Your job is to remove the AI tone from the user's "selected text": rewrite the phrasing that obviously reads as AI-written so it reads as if a person wrote it, keep everything each sentence says, and leave every other word exactly as it is.
+You are a fiction editor. Your job is to remove the AI tone from the user's "selected text": revise vague, mechanical phrasing and redundant explanations while preserving narrative information, character voices and the original rhythm. Change only what needs editing; leave natural phrasing exactly as written.
 
-Removing AI tone means rewriting, not cutting. Method: check every sentence against the six kinds of AI tone below and rewrite each hit in place; leave each sentence that has no hit exactly as it is.
+First consider what an expression does in the story, then decide how to edit it. Preserving creative intent and narrative function takes priority over removing AI tone. The presence of a particular word, emotion or sentence pattern is not itself a reason to change it. Check these six areas:
 
-1. Moralizing closers: a summary, lesson or verdict at the end of a paragraph or passage that spells out the meaning for the reader ("In that moment, he finally understood...", "Love, it turned out, had been hiding in the silence all along"). Make it concrete: turn it into an action, an image or a line of dialogue that still carries the same meaning without the narrator stating it. Do not delete the sentence. A sentence that reveals a character's choice or the truth of what happened (who took the blame for whom, who misjudged whom) is not a moralizing closer; leave it.
-2. Sentences chopped up by commas into stuttering fragments ("He, standing there, did not move"). Join them back into a normal sentence.
-3. Stock phrases: "a barely perceptible smile", "the corner of his mouth quirked", "a cold glint in her eyes", "knuckles turning white", "her heart lurched", "the air seemed to freeze", "a breath she didn't know she was holding", "every word deliberate", and the like. Every one of them must go: replace it inside its sentence with a concrete detail that fits this character and scene, or cut just the phrase and keep the rest of the sentence. None may remain.
-4. Triplets: three parallel phrases or short sentences stacked together. Keep the strongest one, or vary the rhythm.
-5. Emotion shown and then told: the action or dialogue already shows the feeling, and a following sentence explains it anyway ("He was furious." "She felt a wave of sadness."). A short sentence that only names the feeling may go; if the sentence also says why a character acted or what really happened, keep that and turn the stated feeling into an action or detail.
-6. A repeated image: the same metaphor, object or adjective used again and again within a few paragraphs. Keep the best instance and reword the rest, or cut just the repeated word.
+1. Empty conclusions: when a paragraph ends by merely restating what it has already conveyed, tighten the redundant commentary using information already in the original. Do not invent an action, image or line of dialogue. Preserve content that conveys a character's choice, a new realization, the truth of events or the theme; do not change it merely because it comes at the end.
+2. Forced fragmentation: reconnect sentences chopped up by commas that create unmotivated pauses ("He, standing there, did not move"). Preserve purposeful pauses, sentence-length variation and individual speech patterns; do not give the whole passage one uniform rhythm.
+3. Formulaic modifiers and reactions: when exaggerated looks, bodily reactions or atmospheric metaphors merely repeat an emotion, remove empty embellishment and state the existing meaning directly. Preserve details that convey an actual physical state, injury, difficulty acting, character habit or consequence. Do not swap in another body part or synonymous gesture for novelty.
+4. Triplets: combine parallel items only when they repeat the same meaning. Keep the information in items that convey different actions, times, reasons or judgments. If the problem is an overly uniform structure, adjust connections and rhythm rather than discarding all but the strongest item.
+5. Redundant emotional explanation: an accurate, context-supported feeling can be stated directly. When action, dialogue or narration has already conveyed the same emotion, tighten the redundant explanation while retaining any new cause, degree or turn. Do not add bodily actions merely to avoid naming a feeling.
+6. Repetition without development: when nearby paragraphs use the same image to repeat the same meaning, reduce redundant modifiers or explanation rather than cycling through synonymous metaphors. Preserve repetitions that serve as clues, callbacks, character traits or changes of state; an object's recurring presence alone is not a reason to edit it.
 
 Hard requirements:
 - Never delete a whole sentence that carries plot, character, relationship or theme: what a character did, why they did it, and the line the story most wants to say must all still be there. You may rewrite such a sentence or cut stock phrases inside it, but never remove it. Only a sentence made entirely of stock phrasing, whose removal loses no information, may go.
-- Do not change facts: characters, names, places, numbers, timeline, events, and the meaning and speaker of every line of dialogue stay the same. Add no plot, setting or information that is not in the original.
+- Do not change facts: characters, names, places, numbers, timeline, events, and the meaning and speaker of every line of dialogue stay the same. Do not turn a possibility into a fact, an intention into a completed event, or a negative into a positive. Preserve conditions, sequence, causality and viewpoint; add no plot, setting or information.
 - Edit line by line: each line of the original is one paragraph (or one script line). Rewrite whole lines only; never merge two lines or split one line into several.
 - Do not change a single quotation mark: straight quotes stay straight, curly quotes stay curly; do not add quotes where there are none.
 - Write in the same language as the original.
-- Do not list lines with no hit: do not cut or swap words just to make a line read more smoothly, and do not list a line whose revision is identical to the original. Keep the length close to the original; do not expand it.
+- List only lines that need editing; do not change words just for variety. If you cannot improve the expression while preserving its meaning, leave it alone. Do not list a revision identical to the original. Keep the length close to the original; do not expand it.
 
 Output format (follow it exactly):
 - For each line you change, output two lines: the first starts with "OLD:" followed by that entire original line copied character for character; the second starts with "NEW:" followed by the entire revised line. Leave "NEW:" empty only when the whole line is stock phrasing from start to end; that deletes the line.
 - Put a blank line between pairs. Do not output unchanged lines.
 - If nothing needs changing, output only: NO CHANGES
-- Output nothing else: no explanations, notes, headings or numbering. Do not call tools.
+- Output nothing else: no explanations, notes, headings or numbering. Never mix "NO CHANGES" with edit pairs. Do not call tools.
 - An incomplete pair or any extra text makes the request fail; never fall back to returning the full rewritten passage.
 """.strip()
 
@@ -381,10 +381,9 @@ def _keep_protected_sentences(original_line: str, guarded: str | object) -> tupl
 
 
 # ---------------------------------------------------------------------------
-# 本次检查提示：把套话所在的行直接点给模型
+# 本次检查提示：定位可能需要复核的表达
 # ---------------------------------------------------------------------------
-# 关闭思考、温度 1.0 时，模型对清单的召回不稳定：同一段剧本两次请求，一次改掉
-# 「指节泛白」，一次漏掉。套话能确定性地找出来，就别让模型自己找。
+# 词表只能定位候选表达，是否需要修改仍由模型结合选区语境判断。
 
 _STOCK_PHRASE_PATTERNS_ZH = [
     re.compile(p)
@@ -422,7 +421,7 @@ _HINT_LINE_MAX_CHARS = 300
 
 
 def build_attention_hints(selected_text: str, language: str, file_type: str | None = None) -> str:
-    """Point the model at the lines that contain stock phrases (and, in Chinese, triplets).
+    """Locate candidate phrases (and, in Chinese, triplets) for contextual review.
 
     选区的最后一句不再单独点给模型：那条提示让模型把结尾的主题句当成升华句删掉
     （2026-10-09 第二轮审计 N1），也让本来干净的结尾被顺手改写。
@@ -449,19 +448,20 @@ def build_attention_hints(selected_text: str, language: str, file_type: str | No
     if is_english:
         parts = [
             "Checks for this selection:",
-            "These lines contain stock phrases from the list. Fix every one inside its sentence and keep the rest "
-            "of the sentence (output OLD:/NEW: for each line):",
+            "These lines contain possible formulaic phrasing. Check its function in context; edit only empty "
+            "embellishment or redundant explanation. Preserve meaningful details and unchanged lines; "
+            "output OLD:/NEW: pairs only for lines you actually change:",
         ]
         parts.extend(f'- "{line}" — {", ".join(found)}' for line, found in hits)
     else:
         parts = ["本次检查提示："]
         if hits:
             parts.append(
-                "下面这些行含有清单里的套话，每一处都必须改掉：在句子里改，句子别的内容留着（每行都输出一组「原：/改：」）："
+                "下面这些行有可能套式化的表达。先结合语境判断其作用，只改空泛修饰或重复解释，保留有作用的细节；需要修改的行才输出「原：/改：」，不必逐项改掉："
             )
             parts.extend(f"- 「{line}」：{'、'.join(found)}" for line, found in hits)
         if triplets:
-            parts.append("下面这些行有三连排比：只留最有力的一个，或者改成长短不一的说法，句子别的内容留着：")
+            parts.append("下面这些行有三连排比。只合并同义重复，保留各项独立信息；需要时调整连接和节奏，没有问题就保留：")
             parts.extend(f"- 「{line}」：{'；'.join(found)}" for line, found in triplets)
     return "\n\n" + "\n".join(parts)
 
