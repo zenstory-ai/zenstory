@@ -251,7 +251,7 @@ export interface ProjectDashboardStatsResponse {
   words_today: number;
   words_this_week: number;
   words_this_month: number;
-  /** Words the AI added to manuscripts (absent from older servers: 0). words_* are the author's own. */
+  /** AI net manuscript changes per period, floored at 0 (older servers omit these). words_* are the author's net edits. */
   ai_words_today?: number;
   ai_words_this_week?: number;
   ai_words_this_month?: number;

@@ -18,7 +18,7 @@
     "contactSupport": "Contact support"
   },
   "dashboard": {
-    "title": "Project Dashboard",
+    "title": "Project statistics",
     "subtitle": "Track your writing progress",
     "tabs": {
       "overview": "Overview"
@@ -585,7 +585,11 @@
         "countInProgress_other": "{{count}} chapters in progress",
         "countPlanned": "{{count}} chapters not started",
         "countPlanned_one": "{{count}} chapter not started",
-        "countPlanned_other": "{{count}} chapters not started"
+        "countPlanned_other": "{{count}} chapters not started",
+        "plannedCount": "Planned: {{count}} chapters",
+        "plannedCount_one": "Planned: {{count}} chapter",
+        "plannedCount_other": "Planned: {{count}} chapters",
+        "detailsTitle": "Chapter details"
       },
       "short": {
         "completionTitle": "Completion",
@@ -619,7 +623,11 @@
         "countInProgress_other": "{{count}} pieces in progress",
         "countPlanned": "{{count}} pieces not started",
         "countPlanned_one": "{{count}} piece not started",
-        "countPlanned_other": "{{count}} pieces not started"
+        "countPlanned_other": "{{count}} pieces not started",
+        "plannedCount": "Planned: {{count}} stories",
+        "plannedCount_one": "Planned: {{count}} story",
+        "plannedCount_other": "Planned: {{count}} stories",
+        "detailsTitle": "Manuscript details"
       },
       "screenplay": {
         "completionTitle": "Episode Completion",
@@ -653,7 +661,11 @@
         "countInProgress_other": "{{count}} episodes in progress",
         "countPlanned": "{{count}} episodes not started",
         "countPlanned_one": "{{count}} episode not started",
-        "countPlanned_other": "{{count}} episodes not started"
+        "countPlanned_other": "{{count}} episodes not started",
+        "plannedCount": "Planned: {{count}} episodes",
+        "plannedCount_one": "Planned: {{count}} episode",
+        "plannedCount_other": "Planned: {{count}} episodes",
+        "detailsTitle": "Episode details"
       }
     }
   },
@@ -702,5 +714,32 @@
     "open": "Start writing",
     "preparing": "Preparing your writing space…",
     "failed": "Your writing space is not ready yet. Retry, or create a project from your own idea."
+  },
+  "projectStatistics": {
+    "back": "Back to writing",
+    "loading": "Loading statistics",
+    "empty": "No statistics available",
+    "refreshError": "Refresh failed. Your previous statistics are still shown.",
+    "overview": "Writing overview",
+    "timezone": "Today, this week and this month use Beijing time",
+    "period": "Word count period",
+    "periods": {
+      "daily": "Today",
+      "weekly": "This week",
+      "monthly": "This month"
+    },
+    "progress": "Manuscript progress",
+    "noPlan": "No planned total set",
+    "records": "More records",
+    "trend": "Your net word trend",
+    "trendNote": "Your net edits in the editor only; AI-written words are not included",
+    "trendLoading": "Loading trend",
+    "trendError": "Could not load the word trend",
+    "trendRetry": "Retry trend",
+    "streakNote": "Only days when you type at least 10 words in the editor count. AI-written words do not count.",
+    "lastWriting": "Last writing date",
+    "totalSent": "Total sent",
+    "todaySent": "Sent today",
+    "conversations": "Conversations"
   }
 }

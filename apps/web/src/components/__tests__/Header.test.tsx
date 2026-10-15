@@ -44,7 +44,7 @@ const headerTranslations: Record<string, string> = {
   'editor:header.projectDashboard': '项目统计',
   'editor:header.helpDocs': '帮助文档',
   'common:feedback.entry': '问题反馈',
-  'editor:header.exportWithOutline': '导出大纲和正文（TXT）',
+  'editor:header.exportWithOutline': '导出大纲与正文',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
 }
 
@@ -419,7 +419,7 @@ describe('Header', () => {
       render(<Header />)
 
       fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲和正文（TXT）'))
+      fireEvent.click(screen.getByText('导出大纲与正文'))
 
       await waitFor(() => {
         expect(mockExportDrafts).toHaveBeenCalledWith({ includeOutline: true })
@@ -436,7 +436,7 @@ describe('Header', () => {
       render(<Header />)
 
       fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲和正文（TXT）'))
+      fireEvent.click(screen.getByText('导出大纲与正文'))
 
       await waitFor(() => {
         expect(mockToastInfo).toHaveBeenCalledWith('这次只导出了正文，大纲没能一起导出，请过几分钟再试')
@@ -454,7 +454,7 @@ describe('Header', () => {
       render(<Header />)
 
       fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲和正文（TXT）'))
+      fireEvent.click(screen.getByText('导出大纲与正文'))
 
       await waitFor(() => {
         expect(mockToastInfo).toHaveBeenCalledWith('这部作品还没有写好的大纲，这次导出了正文')
@@ -469,7 +469,7 @@ describe('Header', () => {
       render(<Header />)
 
       fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲和正文（TXT）'))
+      fireEvent.click(screen.getByText('导出大纲与正文'))
 
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith('已导出为 TXT 文件')

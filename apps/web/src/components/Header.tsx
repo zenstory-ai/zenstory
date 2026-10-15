@@ -371,7 +371,7 @@ export const Header: React.FC<HeaderProps> = () => {
                 className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
                 role="menuitem"
               >
-                <FileText size={18} />
+                <FileText size={18} className="shrink-0" />
                 {t('editor:header.exportWithOutline')}
               </button>
             )}

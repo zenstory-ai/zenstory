@@ -38,18 +38,19 @@ for (const viewport of viewports) {
     await search.clear();
 
     await page.goto('/project/responsive-project-1/dashboard');
-    const heading = page.getByRole('heading', { name: responsiveProjects[1].name, exact: true });
+    await expect(page.getByRole('heading', { name: '项目统计', exact: true })).toBeVisible();
+    const heading = page.getByText(responsiveProjects[1].name, { exact: true });
     const refresh = page.getByRole('button', { name: '刷新', exact: true });
     const headingBox = await box(heading);
     const refreshBox = await box(refresh);
     expect(headingBox.x + headingBox.width + 8).toBeLessThanOrEqual(refreshBox.x);
-    expect(refreshBox.width).toBeGreaterThanOrEqual(44);
-    expect(refreshBox.height).toBeGreaterThanOrEqual(44);
-    for (const label of ['字数统计', '章节完成', '写作连续', 'AI 协作']) {
+    expect(refreshBox.width).toBeGreaterThanOrEqual(viewport.width < 768 ? 44 : 32);
+    expect(refreshBox.height).toBeGreaterThanOrEqual(viewport.width < 768 ? 44 : 32);
+    for (const label of ['分章明细', '手写字数趋势', '更多记录']) {
       const tab = page.getByRole('button', { name: label, exact: true });
       await tab.scrollIntoViewIfNeeded();
       await tab.click();
-      await expect(tab).toHaveAttribute('aria-pressed', 'true');
+      await expect(tab).toHaveAttribute('aria-expanded', 'true');
     }
     await page.screenshot({ path: `/tmp/zenstory-ui-audit/app-project-stats-${viewport.width}.png` });
 

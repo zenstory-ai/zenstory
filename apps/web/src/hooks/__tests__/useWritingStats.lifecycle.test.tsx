@@ -79,7 +79,7 @@ function Host({ projectId, onRecord }: { projectId: string | undefined; onRecord
     <button onClick={() => void refetch()}>refresh statistics</button>
     <button onClick={() => onRecord(recordStats({ word_count: 1500, words_added: 500 }))}>record statistics</button>
     <output aria-label="current project">{stats?.project_id}</output>
-    <WordCountTrendChart projectId={projectId} stats={stats} />
+    <WordCountTrendChart projectId={projectId} />
   </>;
 }
 function fixture(strict: boolean, pendingRecord = false, recordFailure = false, initialId: string | null = 'A') {
@@ -112,6 +112,11 @@ function fixture(strict: boolean, pendingRecord = false, recordFailure = false, 
   const count = (id: string, kind: string) => requests.filter(r => r.projectId === id && r.kind === kind).length;
   const ready = async (id: string) => {
     await waitFor(() => expect(screen.getByLabelText('current project')).toHaveTextContent(id));
+    const trendToggle = screen.getByRole('button', { name: /手写字数趋势|Your net word trend|projectStatistics.trend/ });
+    if (trendToggle.getAttribute('aria-expanded') === 'false') {
+      expect(count(id, 'trend')).toBe(0);
+      fireEvent.click(trendToggle);
+    }
     await waitFor(() => expect(client.getQueryCache().findAll({ queryKey: ['writing-stats-word-trend', id] })[0]?.state.data).toBeDefined());
   };
   return { client, post, view, node, count, ready, requests, outcome: () => recordOutcome };

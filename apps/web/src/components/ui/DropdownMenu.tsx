@@ -221,7 +221,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
       {isOpen && (
         <div
           id={menuId}
-          className="absolute right-0 top-full mt-1 min-w-[160px] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-md shadow-lg z-50 py-1"
+          className="absolute right-0 top-full mt-1 w-max min-w-[160px] max-w-[calc(100vw-1rem)] bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-md shadow-lg z-50 py-1"
           role="menu"
           onKeyDown={handleMenuKeyDown}
           data-testid={menuTestId}
@@ -246,9 +246,9 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
               >
                 <Icon
                   size={16}
-                  className={isLoading ? "animate-pulse" : ""}
+                  className={`shrink-0 ${isLoading ? "animate-pulse" : ""}`}
                 />
-                <span>{isLoading ? `${item.label}...` : item.label}</span>
+                <span className="min-w-0 break-words">{isLoading ? `${item.label}...` : item.label}</span>
               </button>
             );
           })}

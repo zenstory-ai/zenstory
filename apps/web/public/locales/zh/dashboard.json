@@ -18,7 +18,7 @@
     "contactSupport": "联系客服"
   },
   "dashboard": {
-    "title": "项目数据统计",
+    "title": "项目统计",
     "subtitle": "追踪你的写作进度",
     "tabs": {
       "overview": "总览"
@@ -585,7 +585,9 @@
         "countInProgress_other": "{{count}} 章写作中",
         "countPlanned": "{{count}} 章还没开始",
         "countPlanned_one": "{{count}} 章还没开始",
-        "countPlanned_other": "{{count}} 章还没开始"
+        "countPlanned_other": "{{count}} 章还没开始",
+        "plannedCount": "计划 {{count}} 章",
+        "detailsTitle": "分章明细"
       },
       "short": {
         "completionTitle": "完成情况",
@@ -619,7 +621,9 @@
         "countInProgress_other": "{{count}} 篇写作中",
         "countPlanned": "{{count}} 篇还没开始",
         "countPlanned_one": "{{count}} 篇还没开始",
-        "countPlanned_other": "{{count}} 篇还没开始"
+        "countPlanned_other": "{{count}} 篇还没开始",
+        "plannedCount": "计划 {{count}} 篇",
+        "detailsTitle": "正文明细"
       },
       "screenplay": {
         "completionTitle": "剧集完成",
@@ -653,7 +657,9 @@
         "countInProgress_other": "{{count}} 集写作中",
         "countPlanned": "{{count}} 集还没开始",
         "countPlanned_one": "{{count}} 集还没开始",
-        "countPlanned_other": "{{count}} 集还没开始"
+        "countPlanned_other": "{{count}} 集还没开始",
+        "plannedCount": "计划 {{count}} 集",
+        "detailsTitle": "分集明细"
       }
     }
   },
@@ -699,5 +705,32 @@
     "open": "开始写作",
     "preparing": "正在准备你的写作空间…",
     "failed": "写作空间暂未准备好，你可以重试，或先用自己的想法创建项目。"
+  },
+  "projectStatistics": {
+    "back": "返回创作",
+    "loading": "正在加载统计",
+    "empty": "暂无统计数据",
+    "refreshError": "刷新失败，已保留上次数据",
+    "overview": "写作概况",
+    "timezone": "今日、本周和本月均按北京时间统计",
+    "period": "字数周期",
+    "periods": {
+      "daily": "今日",
+      "weekly": "本周",
+      "monthly": "本月"
+    },
+    "progress": "正文进度",
+    "noPlan": "尚未设置计划总数",
+    "records": "更多记录",
+    "trend": "手写字数趋势",
+    "trendNote": "仅统计你在编辑器里写的净字数，不含 AI 写入",
+    "trendLoading": "正在加载趋势",
+    "trendError": "字数趋势加载失败",
+    "trendRetry": "重试趋势",
+    "streakNote": "只计算你在编辑器里亲手写满 10 字的日期，AI 写入不计",
+    "lastWriting": "上次写作",
+    "totalSent": "累计发出",
+    "todaySent": "今日发出",
+    "conversations": "对话次数"
   }
 }

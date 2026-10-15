@@ -30,7 +30,7 @@
     "subscriptionRenewalSoon": "{{days}} days left",
     "exportQuotaBlockedTitle": "This export is not available on your current plan",
     "exportQuotaBlockedDesc": "Upgrade your plan to use this export.",
-    "exportWithOutline": "Export outline and text (TXT)",
+    "exportWithOutline": "Export outline & manuscript",
     "exportWithOutlineSuccess": "Outline and text exported as a TXT file",
     "exportOutlineSkipped": "Only the text was exported this time. The outline could not be included; please try again in a few minutes.",
     "exportNoOutlineYet": "This work has no written outline yet, so the text was exported.",

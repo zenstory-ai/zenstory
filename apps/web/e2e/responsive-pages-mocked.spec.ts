@@ -24,7 +24,7 @@ const readyHeadings: Record<string, string> = {
   "/dashboard/skills": "技能管理",
   "/dashboard/billing": "订阅权益",
   "/project/responsive-project-0": "开始写作",
-  "/project/responsive-project-0/dashboard": "小屏布局回归项目",
+  "/project/responsive-project-0/dashboard": "项目统计",
   "/materials/responsive-material": "素材标题：很长的人物选择与情节发展"
 };
 

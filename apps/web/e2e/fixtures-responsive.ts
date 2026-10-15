@@ -111,8 +111,11 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
             data = { recommendations: [] };
         else if (path.endsWith('/stats/word-count-trend'))
             data = { data: [{ date: '2026-10-01', net_words: 120 }, { date: '2026-10-02', net_words: 260 }] };
-        else if (path.endsWith('/stats'))
-            data = stats;
+        else if (path.endsWith('/stats')) {
+            const projectId = path.match(/\/projects\/([^/]+)\/stats$/)?.[1];
+            const project = responsiveProjects.find(project => project.id === projectId) ?? responsiveProjects[0];
+            data = { ...stats, project_id: project.id, project_name: project.name, project_type: project.project_type };
+        }
         else if (path.endsWith('/public-skills/categories'))
             data = { categories: [{ name: 'Writing', count: 1 }] };
         else if (path === '/api/v1/public-skills')
