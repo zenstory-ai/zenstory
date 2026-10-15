@@ -714,7 +714,7 @@ async def _review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]
     return None
 
 
-# 送审内容的总预算（_format_review_payload 按它截头尾）。
+# 送审内容的总预算；先逐文件分配，避免拼接后截掉中间整章。
 REVIEW_PAYLOAD_MAX_CHARS = 9000
 # 只附改动段时，改动前后各带多少字符的原文（按整行对齐）。
 _REVIEW_CHANGED_CONTEXT_CHARS = 600
@@ -735,7 +735,9 @@ def _changed_span(before: str, after: str) -> tuple[int, int] | None:
     return start, end_after
 
 
-def _review_payload_block(title: str, content: str, before: str | None) -> str:
+def _review_payload_block(
+    title: str, content: str, before: str | None, *, max_chars: int = REVIEW_PAYLOAD_MAX_CHARS
+) -> str:
     """一个文件的送审块：系统标注（文件名 + 编辑器字数）+ 正文或本请求改动的那一段。
 
     - 字数由系统按编辑器口径算好：审稿人「第一行报文件名和字数」「篇幅是否达标」不必为了
@@ -748,7 +750,7 @@ def _review_payload_block(title: str, content: str, before: str | None) -> str:
     words = count_words(content)
     body = content.strip()
     span = _changed_span(before, content) if before and before.strip() else None
-    if span is None or len(body) <= REVIEW_PAYLOAD_MAX_CHARS:
+    if span is None or len(body) <= max_chars:
         return f"[《{title}》编辑器字数 {words}]\n{body}"
     start, end = span
     context_start = max(0, start - _REVIEW_CHANGED_CONTEXT_CHARS)
@@ -785,26 +787,55 @@ def _collect_review_payload_text(file_ids: list[str]) -> str | None:
 
     with ToolContext.short_lived_session() as session:
         rows = session.exec(
-            select(File.id, File.title, File.content).where(
+            select(File.id, File.title, File.content, File.updated_at).where(
                 File.project_id == project_id,
                 File.id.in_(file_ids),
                 File.file_type.in_(CONTENT_FILE_TYPES),
                 File.is_deleted.is_(False),
             )
         ).all()
-    files = {row.id: (row.title or "", row.content or "") for row in rows if (row.content or "").strip()}
-    ordered = [file_id for file_id in file_ids if file_id in files]
+    files = {
+        row.id: (row.title or "", row.content or "", row.updated_at)
+        for row in rows
+        if (row.content or "").strip()
+    }
+    ordered = list(dict.fromkeys(file_id for file_id in file_ids if file_id in files))
     if not ordered:
         return None
-    blocks = [
-        _review_payload_block(files[file_id][0], files[file_id][1], ToolContext.pre_write_content(file_id))
+    prefix = ""
+    if len(ordered) > 1:
+        counts = "、".join(f"《{files[file_id][0]}》{count_words(files[file_id][1])}" for file_id in ordered)
+        prefix = f"[本请求写过的正文（编辑器字数）：{counts}]\n\n"
+    sources = [
+        f'[来源 id={file_id} updated_at={files[file_id][2].isoformat()}；'
+        f"省略内容用 query_files(id={file_id}) 读取后再核对]"
         for file_id in ordered
     ]
-    if len(ordered) > 1:
-        # 多个文件拼起来超出预算时，中间几个文件的标注会被截掉；字数清单放在最前面。
-        counts = "、".join(f"《{files[file_id][0]}》{count_words(files[file_id][1])}" for file_id in ordered)
-        blocks.insert(0, f"[本请求写过的正文（编辑器字数）：{counts}]")
-    return "\n\n".join(blocks)
+    available = REVIEW_PAYLOAD_MAX_CHARS - len(prefix) - sum(len(source) + 1 for source in sources)
+    available -= 2 * (len(ordered) - 1)
+    if available <= 0:
+        # 极大批次连清单也放不下时，不把部分片段冒充完整送审正文。
+        return _format_review_payload(
+            "[本轮正文未附：文件清单超出预算，须按交接读写记录和文件清单读取正文后核对]\n"
+            + "\n".join(sources)
+        )
+    share = max(1, available // len(ordered))
+    blocks = [
+        _review_payload_block(
+            files[file_id][0], files[file_id][1], ToolContext.pre_write_content(file_id), max_chars=share
+        )
+        for file_id in ordered
+    ]
+    # 短文件先完整容纳，其余正文平分剩余预算，省略标记也在预算内。
+    allocations = [0] * len(blocks)
+    for rank, index in enumerate(sorted(range(len(blocks)), key=lambda index: len(blocks[index]))):
+        allocation = min(len(blocks[index]), available // (len(blocks) - rank))
+        allocations[index] = allocation
+        available -= allocation
+    return prefix + "\n\n".join(
+        source + "\n" + (_format_review_payload(block, max_chars=allocation) if allocation else "")
+        for source, block, allocation in zip(sources, blocks, allocations, strict=True)
+    )
 
 
 async def _review_payload_text(file_ids: list[str]) -> str | None:
@@ -1059,8 +1090,13 @@ def _format_review_payload(text: str, *, max_chars: int = REVIEW_PAYLOAD_MAX_CHA
     if max_chars <= 0 or len(normalized) <= max_chars:
         return normalized
 
-    head_chars = int(max_chars * 0.7)
-    tail_chars = max_chars - head_chars
+    # 省略标记也计入预算；先以全文字数的位数预留上界，避免外层再截断拼接结果。
+    hint_budget = len(f"\n\n...[中间省略 {count_words(normalized)} 字]...\n\n")
+    if max_chars <= hint_budget:
+        return "[正文未附，请读取文件]"[:max_chars]
+    body_budget = max_chars - hint_budget
+    head_chars = int(body_budget * 0.7)
+    tail_chars = body_budget - head_chars
     head = normalized[:head_chars].rstrip()
     tail = normalized[-tail_chars:].lstrip() if tail_chars > 0 else ""
     omitted = len(normalized) - len(head) - len(tail)
