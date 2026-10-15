@@ -15,8 +15,9 @@ const periods = [
   { id: 'monthly', mine: 'words_this_month', ai: 'ai_words_this_month', label: 'thisMonth' },
 ] as const;
 const panelClass = 'rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]';
-// Seven-digit totals stay on one line on a 320px phone; the size shrinks rather than splitting the number.
-const figureClass = 'mt-2 whitespace-nowrap text-[clamp(1.25rem,6.5vw,1.875rem)] font-semibold tabular-nums md:text-4xl';
+// Numbers never split across lines; a long pair gets a smaller phone size so wide fallback fonts still fit a 320px column.
+const figureClass = (length: number) => `mt-2 whitespace-nowrap font-semibold tabular-nums md:text-4xl ${
+  length > 7 ? 'text-[clamp(1rem,5vw,1.875rem)]' : 'text-[clamp(1.25rem,6.5vw,1.875rem)]'}`;
 
 /** Show useful project facts immediately; only long lists and trends need opening. */
 export default function ProjectDashboardPage() {
@@ -31,6 +32,7 @@ export default function ProjectDashboardPage() {
   const period = periods.find(item => item.id === timeRange)!;
   const mine = stats?.[period.mine] ?? 0;
   const ai = stats?.[period.ai] ?? 0;
+  const figureSize = figureClass(Math.max(format(stats?.total_word_count).length, format(mine + ai).length));
   const completion = stats?.chapter_completion;
   const planned = plannedTotal(completion);
   const percentage = completion ? Math.min(100, Math.max(0, completion.completion_percentage)) : 0;
@@ -86,11 +88,11 @@ export default function ProjectDashboardPage() {
               <dl className="grid grid-cols-2 divide-x divide-[hsl(var(--border-color))]">
                 <div className="min-w-0 p-4 sm:p-5 md:p-6">
                   <dt className="text-sm text-[hsl(var(--text-secondary))]">{t('statistics.wordCount.total')}</dt>
-                  <dd className={figureClass}>{format(stats.total_word_count)}</dd>
+                  <dd className={figureSize}>{format(stats.total_word_count)}</dd>
                 </div>
                 <div className="min-w-0 p-4 sm:p-5 md:p-6">
                   <dt className="text-sm text-[hsl(var(--text-secondary))]">{t(`statistics.wordCount.${period.label}`)}</dt>
-                  <dd className={figureClass}>{format(mine + ai)}</dd>
+                  <dd className={figureSize}>{format(mine + ai)}</dd>
                   <dd className="mt-2 text-xs leading-5 text-[hsl(var(--text-secondary))]">
                     {t('statistics.wordCount.breakdown', { mine: format(mine), ai: format(ai) })}
                   </dd>

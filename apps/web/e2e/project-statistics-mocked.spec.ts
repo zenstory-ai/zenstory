@@ -116,6 +116,12 @@ for (const width of [320, 360]) for (const locale of ['zh', 'en']) {
     test.skip(baseline, 'The baseline screenshots have their own read-only capture below');
     await page.setViewportSize({ width, height: 740 });
     await fixture(page, locale);
+    // Prefer wide-digit fonts (Verdana on macOS, DejaVu where installed) so the fit does not hinge on the runner's default font.
+    await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
+      document.head.append(style);
+    }));
     await page.route(`**/api/v1/projects/${projectId}/stats?**`, route => route.fulfill({ json: {
       ...facts, total_word_count: 12345678, words_today: 1180000, ai_words_today: 98000,
     } }));
