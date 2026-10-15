@@ -69,6 +69,7 @@ for (const { width, language, theme } of [
     await expect(dialog.getByRole('textbox', { name: language === 'zh' ? '最新备注' : 'Latest notes', exact: true })).toHaveValue(notes);
     await expect(notesInput).toHaveValue(patches[0].notes + '\n本地新约定');
     expect(patches).toHaveLength(2);
+    await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-latest.jpg`, type: 'jpeg' });
     await dialog.getByRole('button', { name: useLatest, exact: true }).click();
     await expect(notesInput).toHaveValue(notes);
     await dialog.getByRole('button', { name: adopt, exact: true }).click();
