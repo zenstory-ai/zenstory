@@ -46,7 +46,7 @@ const createEditorTranslator = () => (key: string) => editorTranslations[key] ||
 
 // Mock SimpleEditor component
 vi.mock('../SimpleEditor', () => ({
-  SimpleEditor: ({ fileId, fileTitle, baseUpdatedAt, content, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, onEnterDiffReview, isStreaming }: { fileId: string; fileTitle: string; baseUpdatedAt?: string; content: string; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string; baseUpdatedAt?: string }) => Promise<SaveResult>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; onEnterDiffReview?: (fileId: string, originalContent: string, newContent: string) => void; isStreaming?: boolean }) => {
+  SimpleEditor: ({ fileId, fileTitle, baseUpdatedAt, content, streamingContent, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, onEnterDiffReview, isStreaming }: { fileId: string; fileTitle: string; baseUpdatedAt?: string; content: string; streamingContent?: string; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string; baseUpdatedAt?: string }) => Promise<SaveResult>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; onEnterDiffReview?: (fileId: string, originalContent: string, newContent: string) => void; isStreaming?: boolean }) => {
     const dirtyRef = React.useRef(false)
     const draftRef = React.useRef({ fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: 'Test Chapter' })
     if (!dirtyRef.current) draftRef.current = { fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: fileTitle }
@@ -91,7 +91,7 @@ vi.mock('../SimpleEditor', () => ({
       <button data-testid="natural-polish-review-button" onClick={() => onEnterDiffReview?.(fileId, content, 'Polished content')}>
         Natural Polish
       </button>
-      <div data-testid="content-display">{content}</div>
+      <div data-testid="content-display">{isStreaming ? streamingContent ?? content : content}</div>
       {isStreaming && <div data-testid="streaming-indicator">Streaming...</div>}
     </div>
   },
@@ -850,6 +850,12 @@ describe('Editor', () => {
     await waitFor(() => {
       // The streaming content should be displayed in the editor
       expect(screen.getByTestId('content-display')).toHaveTextContent('Streaming content...')
+    })
+    fireEvent.click(screen.getByTestId('save-button'))
+    await waitFor(() => {
+      expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
+        content: mockFile.content,
+      }))
     })
   })
 
