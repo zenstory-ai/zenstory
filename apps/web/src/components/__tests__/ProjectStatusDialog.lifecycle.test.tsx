@@ -197,6 +197,27 @@ for (const strict of [false, true]) {
       expect(writes()[1].body).toEqual({ notes: adopted + '\n本地新约定', expected_notes: adopted })
     })
 
+    it('keeps explicit use-latest content and its base when an older background read arrives', async () => {
+      const user = await initial(strict)
+      change('notes', 'local notes draft')
+      event('A')
+      const olderRead = reads('A').at(-1)!
+      await click(user, screen.getByRole('button', { name: 'Save' }))
+      await finish(writes(), { error: { code: 'ERR_RESOURCE_CONFLICT', message: 'changed' } }, 409)
+      await click(user, screen.getByRole('button', { name: 'View latest notes' }))
+      const latest = '【作者确认】\n新的远端约定'
+      await finish([reads('A').at(-1)!], { ...project('A'), notes: latest })
+      await click(user, screen.getByRole('button', { name: 'Use latest notes' }))
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(latest)
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      await finish([olderRead], project('A'))
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(latest)
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      change('notes', latest + '\n本地补充')
+      await click(user, screen.getByRole('button', { name: 'Save' }))
+      expect(writes()[1].body).toEqual({ notes: latest + '\n本地补充', expected_notes: latest })
+    })
+
     it.each(['use-latest', 'save-mine', 'conflict-again'] as const)('keeps conflicted input through a failed/read-only preview before explicit %s', async choice => {
       const user = await mount(strict)
       const source = '【AI 提议·待作者确认】\n原提议'

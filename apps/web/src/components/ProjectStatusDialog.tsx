@@ -200,7 +200,9 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   };
 
   const useLatestNotes = () => {
-    if (latestNotes === null) return;
+    const owner = ownerRef.current;
+    if (latestNotes === null || !owner || owner.projectId !== projectId) return;
+    owner.loadSequence++;
     setNotes(latestNotes);
     notesBaseRef.current = latestNotes;
     setProject(current => current ? { ...current, notes: latestNotes } : current);
