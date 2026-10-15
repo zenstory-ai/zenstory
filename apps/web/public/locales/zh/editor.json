@@ -56,6 +56,7 @@
     "emptyFolder": "暂无内容，点击 + 开始创作",
     "emptyMaterialFolder": "放本项目要参考的文本，点 + 上传 .txt / .md，可添加到对话让 AI 参考",
     "folderEmpty": "还没有文件",
+    "loadFailed": "文件暂时没能加载，请重试",
     "createWithAI": "告诉 AI 你想写什么，它会帮你建好大纲和章节",
     "uploading": "正在上传…",
     "uploadSuccess": "已上传「{{name}}」，点「添加到对话」就能让 AI 参考它",

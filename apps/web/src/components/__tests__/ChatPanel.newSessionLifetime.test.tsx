@@ -150,6 +150,38 @@ afterEach(async () => {
 })
 
 describe.each([false, true])('actual mounted ChatPanel new session rootStrict=%s', strict => {
+  it.each(['history', 'empty'] as const)('initial history failure blocks generation and retries only GET without losing the draft (%s)', async result => {
+    const normal = route; let recovered = false
+    const savedHistory = Array.from({ length: 4 }, (_, index) => ({
+      ...history('a')[0], id: `saved-${index}`, role: index % 2 ? 'assistant' : 'user', content: `SAVED MESSAGE ${index + 1}`,
+    }))
+    route = (path, body) => path === '/api/v1/chat/session/a/recent'
+      ? Promise.resolve(recovered ? json(result === 'history' ? savedHistory : []) : json({}, 502))
+      : normal(path, body)
+    mount(strict); await until(() => has('Current chat could not be synced'))
+    expect(has('panel.welcome')).toBe(false)
+    expect(has('panel.suggestions')).toBe(false)
+    expect(suggestionRequests()).toHaveLength(0)
+    fireEvent.change(screen.getByTestId('chat-input'), { target: { value: 'Keep this cutover draft' } })
+    fireEvent.click(screen.getByTestId('send-button'))
+    expect(requests.filter(request => request.path === '/api/v1/agent/stream')).toHaveLength(0)
+    expect(screen.getByTestId('chat-input')).toHaveValue('Keep this cutover draft')
+    const beforeRetry = requests.length
+    recovered = true
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await until(() => !has('Current chat could not be synced') && (result === 'history' ? has('SAVED MESSAGE 4') : has('panel.welcome')))
+    expect(requests.slice(beforeRetry).map(({ path, method }) => ({ path, method }))).toEqual([
+      { path: '/api/v1/chat/session/a/recent', method: 'GET' },
+    ])
+    expect(suggestionRequests()).toHaveLength(0)
+    expect(screen.getByTestId('chat-input')).toHaveValue('Keep this cutover draft')
+    expect(screen.getByTestId('send-button')).toBeEnabled()
+    if (result === 'history') {
+      savedHistory.forEach(message => expect(has(message.content)).toBe(true))
+      expect(has('panel.welcome')).toBe(false)
+    } else expect(has('panel.suggestions')).toBe(true)
+  })
+
   it('control: ordinary current A new session clears A history using enabled toolbar and actual API', async () => {
     mount(strict); await until(() => has('A HISTORY KEEP') && has('A OWN SUGGESTION'))
     const session = gate({ id: 'a-new-session', project_id: 'a' }); const normal = route; route = (path, body) => path === '/api/v1/chat/session/a/new' ? session.promise : normal(path, body)

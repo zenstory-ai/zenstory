@@ -56,6 +56,7 @@
     "emptyFolder": "Empty, click + to start creating",
     "emptyMaterialFolder": "Reference texts for this project. Click + to upload a .txt / .md, then add it to the chat for the AI to use",
     "folderEmpty": "No files yet",
+    "loadFailed": "Couldn't load files. Please try again.",
     "createWithAI": "Tell the AI what you want to write — it can set up the outline and chapters.",
     "uploading": "Uploading…",
     "uploadSuccess": "Uploaded \"{{name}}\". Click \"Add to chat\" to let the AI use it",
