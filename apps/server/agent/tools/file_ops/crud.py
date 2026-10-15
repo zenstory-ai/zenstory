@@ -76,6 +76,8 @@ from .serialization import (
 
 logger = get_logger(__name__)
 
+_SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS = 4
+
 
 class ConcurrentFileWriteError(RuntimeError):
     """The file changed after a full-body write captured its baseline."""
@@ -92,6 +94,58 @@ def _acquire_file_write_locks(file_ids: list[str]):
         for lock_id in sorted(representatives):
             stack.enter_context(acquire_file_write_lock(representatives[lock_id]))
         yield
+
+
+def _file_write_lock_ids(file_ids: list[str]) -> set[int]:
+    """Return the SQLite stripe identities covered by ``file_ids``."""
+    return {id(file_write_lock(file_id)) for file_id in file_ids}
+
+
+@contextlib.contextmanager
+def _acquire_protected_recursive_delete_locks(session: Session, root: File):
+    """Hold every stripe represented by a fresh recursive-delete target set.
+
+    SQLite has no project row lock. A child can therefore appear after the
+    preliminary subtree read but before those stripes are acquired. Reload the
+    subtree while holding the candidate stripes and retry whenever that fresh
+    membership includes another stripe. No provenance check or mutation may
+    run until one fresh target set is completely covered.
+    """
+    from agent.tools.author_edit_guard import AuthorEditProtectionUnavailableError
+
+    root_id = root.id
+    action = "folder" if root.file_type == "folder" else "delete"
+    candidate_ids = [item.id for item in load_live_subtree_postorder(session, root)]
+    # The preliminary membership read is only a lock-discovery hint. End its
+    # transaction before any locked provenance read so a pre-existing SQLite
+    # snapshot cannot hide a writer that committed before stripe acquisition.
+    session.rollback()
+
+    for _attempt in range(_SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS):
+        fresh_targets: list[File] = []
+        fresh_ids: list[str] = []
+        with _acquire_file_write_locks(candidate_ids):
+            fresh_root = session.exec(
+                select(File)
+                .where(File.id == root_id)
+                .execution_options(populate_existing=True)
+            ).first()
+            if not fresh_root or fresh_root.is_deleted:
+                raise ValueError("文件不存在或已删除")
+
+            fresh_targets = load_live_subtree_postorder(session, fresh_root)
+            fresh_ids = [item.id for item in fresh_targets]
+            held_stripes = _file_write_lock_ids(candidate_ids)
+            if all(id(file_write_lock(file_id)) in held_stripes for file_id in fresh_ids):
+                yield fresh_root, fresh_targets
+                return
+
+        # End any SQLite read snapshot before the next membership scan. There
+        # are deliberately no staged writes before this point.
+        session.rollback()
+        candidate_ids.extend(file_id for file_id in fresh_ids if file_id not in candidate_ids)
+
+    raise AuthorEditProtectionUnavailableError(root_id, action=action)
 
 
 def find_nearest_folder_ancestor(
@@ -941,20 +995,26 @@ class FileCRUD:
         if is_postgres:
             lock_ctx = contextlib.nullcontext()
         elif recursive is True and protect_author_content:
-            preliminary = load_live_subtree_postorder(self.session, file)
-            lock_ctx = _acquire_file_write_locks([item.id for item in preliminary])
+            lock_ctx = _acquire_protected_recursive_delete_locks(self.session, file)
         else:
             lock_ctx = acquire_file_write_lock(id)
-        with lock_ctx:
-            query = select(File).where(File.id == id)
-            if is_postgres:
-                query = query.with_for_update(key_share=True)
-            file = self.session.exec(query.execution_options(populate_existing=True)).first()
-            if not file or file.is_deleted:
-                raise ValueError("文件不存在或已删除")
+        with lock_ctx as locked_recursive_state:
+            if locked_recursive_state is not None:
+                file, targets = locked_recursive_state
+            else:
+                query = select(File).where(File.id == id)
+                if is_postgres:
+                    query = query.with_for_update(key_share=True)
+                file = self.session.exec(query.execution_options(populate_existing=True)).first()
+                if not file or file.is_deleted:
+                    raise ValueError("文件不存在或已删除")
+                targets = (
+                    load_live_subtree_postorder(self.session, file)
+                    if recursive is True
+                    else [file]
+                )
             check_file_access_in_tool_context(self.session, file, self.user_id)
 
-            targets = load_live_subtree_postorder(self.session, file) if recursive is True else [file]
             if protect_author_content:
                 from agent.tools.author_edit_guard import enforce_author_content_protection
 

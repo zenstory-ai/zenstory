@@ -169,6 +169,7 @@ def parse_line_edits(output: str) -> list[LineEdit]:
 
     lines = stripped.splitlines()
     edits: list[LineEdit] = []
+    dialect: str | None = None
     index = 0
     while index < len(lines):
         if not lines[index].strip():
@@ -191,8 +192,12 @@ def parse_line_edits(output: str) -> list[LineEdit]:
 
         old_marker = old_match.group(1)
         new_marker = new_match.group(1)
-        if (old_marker == "原：") != (new_marker == "改："):
+        if (
+            (old_marker == "原：") != (new_marker == "改：")
+            or (dialect is not None and old_marker != dialect)
+        ):
             raise NaturalPolishProtocolError(f"mixed edit marker dialect at line {index + 1}")
+        dialect = old_marker
         edits.append(LineEdit(old=old, new=_marker_payload(new_match)))
         index += 1
 

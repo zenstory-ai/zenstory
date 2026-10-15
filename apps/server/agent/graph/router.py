@@ -7,7 +7,7 @@ intent and route to the appropriate writing agent.
 
 import json
 import re
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -937,6 +937,15 @@ def _previous_routing_summary(previous: dict[str, Any]) -> str:
         elif key == "scope":
             if isinstance(value, str) and value.strip():
                 summary[key] = value.strip()[:MAX_SCOPE_CHARS]
+        elif key == "requested_file_types":
+            allowed = get_args(ArtifactFileType)
+            if (
+                isinstance(value, list)
+                and len(value) <= len(allowed)
+                and all(isinstance(item, str) and item in allowed for item in value)
+                and len(value) == len(set(value))
+            ):
+                summary[key] = value
         elif isinstance(value, str) and value.strip():
             summary[key] = value.strip()
     return json.dumps(summary, ensure_ascii=False) if summary else ""

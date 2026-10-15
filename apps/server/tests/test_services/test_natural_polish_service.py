@@ -113,6 +113,29 @@ async def test_natural_polish_rejects_an_ambiguous_duplicate_old_anchor():
         )
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("reverse", [False, True])
+def test_line_edit_response_rejects_dialect_switch_between_complete_pairs(reverse):
+    pairs = ["原：第一行。\n改：甲。", "OLD:Second.\nNEW:Beta."]
+    if reverse:
+        pairs.reverse()
+
+    with pytest.raises(NaturalPolishProtocolError):
+        parse_line_edits("\n\n".join(pairs))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("markers", [("原：", "改："), ("OLD:", "NEW:")])
+def test_line_edit_response_preserves_multiple_pairs_in_one_dialect(markers):
+    old_marker, new_marker = markers
+    output = f"{old_marker}First.\n{new_marker}Alpha.\n\n{old_marker}Second.\n{new_marker}Beta."
+
+    assert [(edit.old, edit.new) for edit in parse_line_edits(output)] == [
+        ("First.", "Alpha."),
+        ("Second.", "Beta."),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 只改写不删减（第二轮审计 N1）：提示词 + 整句删除守卫
 # ---------------------------------------------------------------------------

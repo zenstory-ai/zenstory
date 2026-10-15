@@ -1,6 +1,7 @@
 """Destructive app-chat boundary for author-owned file text."""
 
 import json
+import threading
 
 import pytest
 from sqlmodel import Session
@@ -13,7 +14,10 @@ from agent.tools.author_edit_guard import (
     referenced_file_ids_from_metadata,
 )
 from agent.tools.file_ops import FileToolExecutor
+from agent.tools.file_ops.edit import file_write_lock
 from api import files as files_api
+from core.error_codes import ErrorCode
+from core.error_handler import APIException
 from models import File, Project, User
 from services.features.activation_event_service import activation_event_service
 from services.features.file_version_service import FileVersionService
@@ -254,6 +258,192 @@ async def test_recursive_delete_locks_and_checks_all_descendants_before_mutation
     assert db_session.get(File, folder.id).is_deleted is False
     assert db_session.get(File, first.id).is_deleted is False
     assert db_session.get(File, second.id).is_deleted is False
+
+
+async def test_recursive_delete_does_not_save_then_delete_late_author_child(
+    db_session, owner_project, monkeypatch
+):
+    """A child discovered after the preliminary scan must still hold its write stripe."""
+    from agent.tools import author_edit_guard
+    from agent.tools.file_ops import crud as crud_module
+
+    user, project = owner_project
+    folder = File(project_id=project.id, title="正文", file_type="folder")
+    db_session.add(folder)
+    db_session.commit()
+
+    late_id = next(
+        candidate
+        for index in range(256)
+        if file_write_lock(candidate := f"late-child-{index}") is not file_write_lock(folder.id)
+    )
+    engine = db_session.get_bind()
+    original_acquire = crud_module._acquire_file_write_locks
+    late_child_created = False
+
+    def create_late_child_before_lock(file_ids):
+        nonlocal late_child_created
+        if not late_child_created:
+            late_child_created = True
+            with Session(engine) as seed_session:
+                late = File(
+                    id=late_id,
+                    project_id=project.id,
+                    parent_id=folder.id,
+                    title="迟到章节",
+                    file_type="draft",
+                    content=AI_CH3,
+                )
+                seed_session.add(late)
+                seed_session.flush()
+                FileVersionService().create_version(
+                    seed_session,
+                    late.id,
+                    AI_CH3,
+                    change_type="create",
+                    change_source="ai",
+                    commit=False,
+                )
+                seed_session.commit()
+        return original_acquire(file_ids)
+
+    monkeypatch.setattr(crud_module, "_acquire_file_write_locks", create_late_child_before_lock)
+
+    original_enforce = author_edit_guard.enforce_author_content_protection
+    save_started = threading.Event()
+    save_finished = threading.Event()
+    save_finished_while_delete_held_locks: list[bool] = []
+    save_outcome: dict[str, object] = {}
+    save_thread: threading.Thread | None = None
+
+    def save_as_author() -> None:
+        save_started.set()
+        try:
+            with Session(engine) as author_session:
+                files_api.update_file(
+                    late_id,
+                    files_api.FileUpdate(content=AUTHOR_CH3),
+                    current_user=user,
+                    session=author_session,
+                )
+        except Exception as exc:  # expected after the locked delete wins
+            save_outcome["error"] = exc
+        else:
+            save_outcome["saved"] = True
+        finally:
+            save_finished.set()
+
+    def enforce_then_start_real_author_save(*args, **kwargs):
+        nonlocal save_thread
+        original_enforce(*args, **kwargs)
+        assert file_write_lock(late_id).locked()
+        save_thread = threading.Thread(target=save_as_author, daemon=True)
+        save_thread.start()
+        assert save_started.wait(timeout=1)
+        save_finished_while_delete_held_locks.append(save_finished.wait(timeout=0.2))
+
+    monkeypatch.setattr(
+        author_edit_guard,
+        "enforce_author_content_protection",
+        enforce_then_start_real_author_save,
+    )
+
+    payload = await _run(
+        mcp_tools.delete_file,
+        db_session,
+        user,
+        project,
+        {"id": folder.id, "recursive": True},
+        message="删掉正文文件夹",
+    )
+
+    assert save_thread is not None
+    save_thread.join(timeout=2)
+    assert not save_thread.is_alive()
+    assert save_finished_while_delete_held_locks == [False]
+    assert save_outcome.get("saved") is not True
+    assert isinstance(save_outcome.get("error"), APIException)
+    assert save_outcome["error"].error_code == ErrorCode.FILE_NOT_FOUND
+    assert payload["status"] == "success"
+    db_session.expire_all()
+    stored = db_session.get(File, late_id)
+    assert stored is not None and stored.is_deleted is True
+    assert stored.content == AI_CH3
+
+
+async def test_recursive_delete_membership_instability_fails_closed_without_mutation(
+    db_session, owner_project, monkeypatch
+):
+    from agent.tools.file_ops import crud as crud_module
+
+    user, project = owner_project
+    folder = File(
+        project_id=project.id,
+        title="正文",
+        file_type="folder",
+        order=17,
+        file_metadata='{"kept": true}',
+    )
+    db_session.add(folder)
+    db_session.commit()
+    db_session.refresh(folder)
+    original_state = (folder.title, folder.order, folder.file_metadata, folder.updated_at)
+
+    engine = db_session.get_bind()
+    original_acquire = crud_module._acquire_file_write_locks
+    created_ids: list[str] = []
+
+    def add_an_uncovered_child_before_every_lock(file_ids):
+        held_locks = {file_write_lock(file_id) for file_id in file_ids}
+        child_id = next(
+            candidate
+            for index in range(1024)
+            if (candidate := f"unstable-child-{len(created_ids)}-{index}") not in created_ids
+            and file_write_lock(candidate) not in held_locks
+        )
+        with Session(engine) as seed_session:
+            seed_session.add(
+                File(
+                    id=child_id,
+                    project_id=project.id,
+                    parent_id=folder.id,
+                    title=f"迟到 {len(created_ids)}",
+                    file_type="draft",
+                    content=AI_CH3,
+                )
+            )
+            seed_session.commit()
+        created_ids.append(child_id)
+        return original_acquire(file_ids)
+
+    monkeypatch.setattr(
+        crud_module,
+        "_acquire_file_write_locks",
+        add_an_uncovered_child_before_every_lock,
+    )
+
+    payload = await _run(
+        mcp_tools.delete_file,
+        db_session,
+        user,
+        project,
+        {"id": folder.id, "recursive": True},
+        message="删掉正文文件夹",
+    )
+
+    assert payload["error_type"] == "author_edit_protection_unavailable"
+    assert payload["mutation_applied"] is False
+    assert len(created_ids) == crud_module._SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS
+    db_session.expire_all()
+    stored_folder = db_session.get(File, folder.id)
+    assert stored_folder is not None and stored_folder.is_deleted is False
+    assert (
+        stored_folder.title,
+        stored_folder.order,
+        stored_folder.file_metadata,
+        stored_folder.updated_at,
+    ) == original_state
+    assert all(db_session.get(File, child_id).is_deleted is False for child_id in created_ids)
 
 
 async def test_same_name_whole_rewrite_is_refused_even_when_explicit(
