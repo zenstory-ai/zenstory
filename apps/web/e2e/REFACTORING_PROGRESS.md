@@ -1,4 +1,6 @@
-# Test Refactoring Plan
+# Historical Test Refactoring Plan
+
+This plan and its counts were imported in commit `3ef311e6` on 2026-04-29. The checklist below records that historical plan. For current test commands and conventions, use the [E2E README](README.md) and the [contribution guide](../../../CONTRIBUTING.md).
 
 ## Summary
 - **Total waitForTimeout occurrences**: 360+

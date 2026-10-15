@@ -17,8 +17,8 @@
       "zh": "在 Claude Code、Codex 等 Agent 里写网文：扫榜、拆文、写作、去AI味、做封面。"
     },
     "definition": {
-      "en": "Oh Story is an MIT-licensed skill pack that turns Claude Code, Codex and other supported agent hosts into a web-fiction writing workflow. Its 13 skills cover chart research, deconstruction, long-form serials, short stories, revision and covers, and combine writing instructions with chapter blueprints, deterministic checks and file-based project state. `/story-setup` configures the host; specialist agents are orchestrated where the host supports it and run directly where it does not.",
-      "zh": "Oh Story 是 MIT 开源的网文写作 skill 包，装进 Claude Code、Codex 等 Agent 后，就能按完整流程写书。13 个 skill 覆盖扫榜选题、拆文、长篇连载、短篇、修改和封面：每章先有细纲，写完有自动检查，项目进度都存成文件。先用 `/story-setup` 配置；Agent 支持多角色分工时按分工来，不支持就直接执行。"
+      "en": "Oh Story is an MIT-licensed skill pack for writing web fiction in Claude Code, Codex and other supported agent hosts. Its 13 skills cover chart research, deconstruction, long-form serials, short stories, revision and covers. Long-form writing uses chapter blueprints, deterministic checks and file-based project state. `/story-setup` configures the host; specialist agents are orchestrated where supported, with direct execution available on other hosts.",
+      "zh": "Oh Story 是 MIT 开源的网文写作 skill 包，在 Claude Code、Codex 等 Agent 中提供扫榜选题、拆文、长篇连载、短篇、修改和封面共 13 个 skill。长篇写作先做章节细纲，再写正文、运行检查，并用文件保存项目进度。先用 `/story-setup` 配置；宿主支持多角色分工时按分工执行，其余宿主直接执行流程。"
     },
     "seo": {
       "title": {
@@ -50,11 +50,11 @@
         ],
         [
           "How do I start writing in Claude Code?",
-          "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate ZenStory Workbench. “No prose” still creates planning files; tracking is initialized after the outline stage is complete. For a first reply before project creation, [the writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) compares two concrete investigation openings and carries the chosen direction into a separate planning request. For a detailed character profile that still does not generate action, [character motivation](https://zenstory.ai/oh-story/character-motivation) moves from a relay plan into an original scene of resistance and shared credit, without treating an agreement as a completed delivery."
+          "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate ZenStory Workbench. “No prose” still creates planning files; tracking is initialized when the creator explicitly requests the first prose chapter. For a first reply before project creation, [the writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) compares two concrete investigation openings and carries the chosen direction into a separate planning request. For a detailed character profile that still does not generate action, [character motivation](https://zenstory.ai/oh-story/character-motivation) moves from a relay plan into an original scene of resistance and shared credit, without treating an agreement as a completed delivery."
         ],
         [
           "How do I make the first three chapters invite continued reading?",
-          "Give each of the first three chapters one job: chapter 1 puts the protagonist into a conflict with a stated goal, chapter 2 escalates and lands a payoff, chapter 3 shows the long-term goal readers will follow. The [golden three chapters guide](https://zenstory.ai/oh-story/novel-opening) has a copyable opening checklist, an original before/after rewrite and a self-check scorecard; for the last line of every chapter, see [types of cliffhangers](https://zenstory.ai/oh-story/chapter-ending-hooks)."
+          "Read the first three chapters together: establish the protagonist’s situation, goal and story promise, then check what progress or payoff readers actually receive and what invites them onward. Adjust the sequence to the book’s genre and intended pace. The [golden three chapters guide](https://zenstory.ai/oh-story/novel-opening) includes an opening checklist and an original before/after rewrite; [chapter-ending hooks](https://zenstory.ai/oh-story/chapter-ending-hooks) covers ways to carry expectation into the next chapter."
         ],
         [
           "Can one premise become a complete short story rather than a serial opening?",
@@ -108,11 +108,11 @@
         ],
         [
           "Claude Code 装好后，怎么开始写小说？",
-          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 工作台。 “不写正文”仍会建立规划文件；大纲阶段完成后才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。 如果人设很完整、人物却不行动，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)从中继规划写到争取、抵抗与分享功劳的原创场景，不把达成约定当成已完成送达。"
+          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 工作台。 “不写正文”仍会建立规划文件；明确请求写新书首章时才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。 如果人设很完整、人物却不行动，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)从中继规划写到争取、抵抗与分享功劳的原创场景，不把达成约定当成已完成送达。"
         ],
         [
           "黄金三章怎么写，前三章怎样让人想接着看？",
-          "前三章各管一件事：第一章让主角在冲突里登场、交代目标，第二章升级矛盾并兑现爽点，第三章亮出读者要追的长线目标。[黄金三章指南](https://zenstory.ai/oh-story/novel-opening)附可复制的开篇清单、原创改写示例和自查评分表；每章最后一句怎么留，见[网文断章技巧](https://zenstory.ai/oh-story/chapter-ending-hooks)。"
+          "把前三章放在一起读：主角的处境、目标与本书看点是否清楚，读者实际得到了什么进展或回报，又为什么愿意接着看。各项的顺序与分量按本书题材和节奏调整。[黄金三章指南](https://zenstory.ai/oh-story/novel-opening)附开篇检查表与原创改写示例；[网文断章技巧](https://zenstory.ai/oh-story/chapter-ending-hooks)说明怎样把期待带到下一章。"
         ],
         [
           "只有一个梗，怎么写成完整短篇而不是连载开头？",
@@ -179,7 +179,7 @@
     "stars": 7170,
     "skills": 13,
     "sources": {
-      "checked_on": "2026-09-29",
+      "checked_on": "2026-10-15",
       "en": [
         "[Import entry, source types and author decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L98)",
         "[Scan inputs, historical fallback and unavailable sources](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
@@ -196,7 +196,9 @@
         "[From outline specification to staged scene](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
         "[State-change and dialogue-function review](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
         "[Dimension-level style precedence and shared decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
-        "[Receipts, explicit choices, pending inference and scope](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)"
+        "[Receipts, explicit choices, pending inference and scope](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
+        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: opening defaults and book-specific requirements](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/opening-design.md#L25-L33)",
+        "[2026-10-15: author requirements override reference defaults](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/style-resolution.md#L5-L11)"
       ],
       "zh": [
         "[导入入口、材料类型与作者决定](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L98)",
@@ -214,7 +216,9 @@
         "[从细纲规格到可见场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
         "[状态变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
         "[按维度的文风优先级与统一取舍](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
-        "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)"
+        "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
+        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：开篇默认参照与本书要求](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/opening-design.md#L25-L33)",
+        "[2026-10-15：作者要求优先于参考默认写法](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/style-resolution.md#L5-L11)"
       ]
     },
     "vocabulary": [
@@ -245,8 +249,8 @@
       "zh": "从点子或原著写出分集剧本，再做视觉设定、分镜和生成提示词；需要时再出片、审查。"
     },
     "definition": {
-      "en": "Drama Skills is an eleven-skill workflow for AI short-drama and motion-comic creation in agent hosts such as Claude Code and Codex. Start at whichever stage your material needs: development, writing, assets, storyboards, prompts, production, editing or review. Each episode lives in five Markdown files, and media generation runs only after you review the prompts and confirm the spend with your configured provider.",
-      "zh": "Drama Skills 是一套给 Claude Code、Codex 等 Agent 用的 AI 短剧和漫剧 skill，共 11 个。手上有什么就从哪一步开始：开发、写剧本、做资产、分镜、写提示词、出片、剪辑或审查。每集只用五份 Markdown 文件；图片和视频要等你看过提示词、确认服务商和费用后才会生成。"
+      "en": "Drama Skills is an eleven-skill workflow for AI short-drama and motion-comic creation in agent hosts such as Claude Code and Codex. Start at the stage your material needs: development, writing, assets, storyboards, prompts, production, editing or review. Create the five core creative Markdown document types as needed, with cut lists and review reports for their respective stages. Media generation runs after you review the prompts and confirm the spend with your configured provider.",
+      "zh": "Drama Skills 是一套给 Claude Code、Codex 等 Agent 用的 AI 短剧和漫剧 skill，共 11 个。按手上材料选择开发、写剧本、做资产、分镜、写提示词、出片、剪辑或审查。五类核心创作 Markdown 文档用到再建，剪辑和审查另有各自的剪辑单与报告；图片和视频要等你看过提示词、确认服务商和费用后才会生成。"
     },
     "seo": {
       "title": {
@@ -255,7 +259,7 @@
       },
       "description": {
         "en": "Eleven Claude Code / Codex skills that take an idea or a novel to episode scripts, character assets, storyboards and image and video prompts.",
-        "zh": "11 个 Claude Code / Codex skill，把点子或原著做成分集剧本、角色资产、分镜和图片/视频提示词，按需进入制作与审查。来自上千个漫剧项目的产线经验。"
+        "zh": "11 个 Claude Code / Codex skill，把点子或原著做成分集剧本、角色资产、分镜和图片/视频提示词，按需进入制作与审查。"
       }
     },
     "audience": {
@@ -348,7 +352,7 @@
         "Only image files that were actually generated or supplied, and are bound to the project, become production references."
       ],
       "zh": [
-        "每集最多用五类文档：剧本、视觉设定、分镜、图片提示词和视频提示词，用到再建，不必一开始建齐。",
+        "五类核心创作文档分别是剧本、视觉设定、分镜、图片提示词和视频提示词，用到再建。",
         "检查规则分得清：哪些是能自动查出的结构错误，哪些要人来判断，哪些只是默认做法或个人口味。",
         "每次生成前都要你确认一次，确认只对那一版内容有效；写好提示词不等于同意付费生成。",
         "只有真实生成或提供、并已绑定到项目的图片文件，才能作为制作参考。"
@@ -359,7 +363,7 @@
     "stars": 2383,
     "skills": 11,
     "sources": {
-      "checked_on": "2026-09-29",
+      "checked_on": "2026-10-15",
       "en": [
         "[Episode cuts follow dramatic results, not chapter counts](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
         "[Creator-first entry and on-demand documents](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
@@ -368,7 +372,8 @@
         "[Real image references and explicit spend confirmation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
         "[Character anchors and compatible Look definitions](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[Where continuity-lock text must be carried](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
-        "[Real REF images, planned inputs and non-production states](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)"
+        "[Real REF images, planned inputs and non-production states](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
+        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: core creator documents and the additional cut list](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/README.md#L35-L49)"
       ],
       "zh": [
         "[按戏剧结果而非章节数量切集](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
@@ -378,7 +383,8 @@
         "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
         "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
-        "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)"
+        "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
+        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：核心创作文档与另增剪辑单](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/README.md#L35-L49)"
       ]
     },
     "vocabulary": [
@@ -550,8 +556,8 @@
       "zh": "把视频素材做成中文解说成片：看懂画面、写稿、配音、剪辑、加字幕。"
     },
     "definition": {
-      "en": "Video Recap Skills turns a local video into a Chinese-narration recap inside Claude Code: five independent skills plus a thin orchestrator. It runs on local ffmpeg and one MiMo API key for speech recognition, visual understanding and voiceover, with Fish Audio as an optional TTS provider, and needs no GPU. Besides the finished video it can export an editable JianYing/CapCut draft so you can keep cutting in the editor.",
-      "zh": "Video Recap Skills 在 Claude Code 里把本地视频做成中文解说成片：5 个 skill，外加一个把它们串起来的总入口。只需本地 ffmpeg 和一个 MiMo API key 就能完成语音识别、画面理解和配音，不需要 GPU；Fish Audio 是可选的配音服务。除了直接出片，还能导出可编辑的剪映草稿，方便在剪映里继续精剪。"
+      "en": "Video Recap Skills turns local footage into a Chinese-narration recap in a supported agent host such as Claude Code or Codex. Seven skills cover five production stages, an orchestrator and optional reference analysis. Local ffmpeg handles media; a MiMo API key enables remote speech recognition, visual understanding and voiceover, with Fish Audio as an optional TTS provider. No local GPU is required. The finished video can also be exported as an editable JianYing/CapCut draft for further editing.",
+      "zh": "Video Recap Skills 在 Claude Code、Codex 等受支持的 Agent 中，把本地视频做成中文解说成片。七个技能包括五个制作阶段、一个总入口和一个按需参考拆片技能。本地 ffmpeg 处理媒体，一个 MiMo API key 提供远程语音识别、画面理解和配音；Fish Audio 是可选配音服务，不需要本地 GPU。成片还可导出可编辑的剪映草稿，供后续精剪。"
     },
     "seo": {
       "title": {
@@ -652,9 +658,9 @@
     "install": "npx skills add zenstory-ai/video-recap-skills -y -g",
     "entry": "/video-recap",
     "stars": 541,
-    "skills": 6,
+    "skills": 7,
     "sources": {
-      "checked_on": "2026-09-29",
+      "checked_on": "2026-10-15",
       "en": [
         "[Creative planning and stage handoffs](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
         "[Five stages plus the orchestrator](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
@@ -666,7 +672,8 @@
         "[Mixing, bounded fit and safe source-audio restoration](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
         "[Source and output clocks in the cut workflow](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
         "[Visual understanding can skip transcription, not remote VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)",
-        "[Video/audio/subtitle separation and authored volume placement](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)"
+        "[Video/audio/subtitle separation and authored volume placement](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)",
+        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: seven skills, supported hosts and remote providers](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/README.md#L41-L50)"
       ],
       "zh": [
         "[编导规划与各阶段衔接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
@@ -679,7 +686,8 @@
         "[混音、时长边界与安全恢复原声](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
         "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
         "[视觉理解可跳过转写，不等于跳过远程 VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)",
-        "[视频、音频与字幕的分离及音量位置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)"
+        "[视频、音频与字幕的分离及音量位置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)",
+        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：七个技能、受支持宿主与远程服务](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/README.md#L41-L50)"
       ]
     },
     "vocabulary": [
@@ -908,12 +916,12 @@
     },
     "distinctive": {
       "en": [
-        "Files are the core unit: every file keeps a version history you can compare and roll back, and the whole project can be snapshotted.",
+        "Saved files support version comparison and recovery, and the whole project can be snapshotted. New version entries depend on the save type, plan quota and coalescing of consecutive manual saves.",
         "Under the privacy policy, your writing is not used to train general models by default; AI processing is done by third-party model services, as the policy describes.",
         "ZenStory Workbench needs no agent skill pack, only a browser; self-hosting means configuring the backend and model services yourself."
       ],
       "zh": [
-        "以文件为核心：每个文件都有历史版本，可以对比、回滚，整个项目也能拍快照。",
+        "已保存文件支持版本对比与恢复，整个项目也能拍快照。是否新增版本记录取决于保存来源、套餐配额，以及连续手动保存是否合并。",
         "按隐私政策，你的作品默认不会用于训练通用模型；AI 处理由第三方模型服务完成，详见隐私政策。",
         "ZenStory 工作台不用装 Agent skill 包，打开浏览器就能写；自托管需要自己配置后端和模型服务。"
       ]
@@ -923,7 +931,7 @@
     "stars": 56,
     "skills": 13,
     "sources": {
-      "checked_on": "2026-09-29",
+      "checked_on": "2026-10-15",
       "en": [
         "[Agent API, file editing and version features](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
         "[Self-hosting prerequisites and model configuration](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
@@ -932,7 +940,8 @@
         "[Empty-idea quick creation](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
         "[Focused file, attachments and quotes](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
         "[Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
-        "[Project memory is budget-bound context](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)"
+        "[Project memory is budget-bound context](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)",
+        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: user-version quota and save coalescing](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L332-L391) · [Plan quota for user versions](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L817-L852)"
       ],
       "zh": [
         "[Agent API、文件编辑与版本功能](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
@@ -942,7 +951,8 @@
         "[空灵感快速创建](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
         "[焦点文件、附件与引用](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
         "[导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
-        "[项目记忆受上下文预算约束](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)"
+        "[项目记忆受上下文预算约束](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)",
+        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：用户版本配额与保存合并](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L332-L391) · [用户版本的套餐配额](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L817-L852)"
       ]
     },
     "vocabulary": []
