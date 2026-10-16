@@ -21,6 +21,7 @@ from sqlalchemy.orm import QueryableAttribute, load_only
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import beijing_date, normalize_datetime_to_utc, utcnow
+from config.feature_flags import is_points_pro_redemption_enabled
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models.entities import User
@@ -573,8 +574,14 @@ class PointsService:
             dict with success, points_spent, pro_days, new_period_end
 
         Raises:
-            APIException: If insufficient points
+            APIException: If redemption is disabled or points are insufficient
         """
+        if not is_points_pro_redemption_enabled():
+            raise APIException(
+                error_code=ErrorCode.POINTS_REDEMPTION_DISABLED,
+                status_code=403,
+            )
+
         # Validate supported durations and calculate cost
         cost = REDEEM_DURATION_COSTS.get(days)
         if cost is None:

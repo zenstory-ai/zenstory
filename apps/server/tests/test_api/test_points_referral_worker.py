@@ -50,6 +50,8 @@ def test_only_no_await_referral_services_change_calling_convention():
 async def test_ledger_route_sql_executes_off_loop(
     tmp_path, monkeypatch, module, method, path, handler, payload, status
 ):
+    if handler == "redeem_for_pro":
+        monkeypatch.setenv("POINTS_PRO_REDEMPTION_ENABLED", "true")
     database = tmp_path / "ledger-worker.db"
     engine = create_engine(f"sqlite:///{database}", connect_args={"check_same_thread": False})
     user_id = uuid4().hex

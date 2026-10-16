@@ -173,6 +173,7 @@ class ErrorCode:
     POINTS_ALREADY_CHECKED_IN = "ERR_POINTS_ALREADY_CHECKED_IN"
     POINTS_INVALID_AMOUNT = "ERR_POINTS_INVALID_AMOUNT"
     POINTS_REDEMPTION_MINIMUM_NOT_MET = "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET"
+    POINTS_REDEMPTION_DISABLED = "ERR_POINTS_REDEMPTION_DISABLED"
 
     # ==================== Agent Stream Errors (14xxx) ====================
 
@@ -301,6 +302,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "兑换请求过于频繁，请稍后重试",
 
         "ERR_POINTS_INSUFFICIENT_BALANCE": "积分余额不足",
+        "ERR_POINTS_REDEMPTION_DISABLED": "积分兑换 Pro 已关闭",
         "ERR_POINTS_ALREADY_CHECKED_IN": "今日已签到",
         "ERR_POINTS_INVALID_AMOUNT": "积分数量无效",
         "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "兑换最低需要 7 天",
@@ -426,6 +428,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "Too many redemption attempts, please try again later",
 
         "ERR_POINTS_INSUFFICIENT_BALANCE": "Insufficient points balance",
+        "ERR_POINTS_REDEMPTION_DISABLED": "Redeeming points for Pro is disabled",
         "ERR_POINTS_ALREADY_CHECKED_IN": "Already checked in today",
         "ERR_POINTS_INVALID_AMOUNT": "Invalid points amount",
         "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "Minimum redemption is 7 days",

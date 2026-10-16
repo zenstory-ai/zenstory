@@ -479,6 +479,12 @@ class TestGetTransactions:
         assert response.status_code == 422
 
 
+@pytest.fixture
+def points_pro_redemption_enabled(monkeypatch):
+    monkeypatch.setenv("POINTS_PRO_REDEMPTION_ENABLED", "true")
+
+
+@pytest.mark.usefixtures("points_pro_redemption_enabled")
 @pytest.mark.integration
 class TestRedeemForPro:
     """Tests for POST /api/v1/points/redeem endpoint."""

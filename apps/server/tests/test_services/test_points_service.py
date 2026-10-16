@@ -670,7 +670,13 @@ class TestGetCheckInStatus:
         }
 
 
+@pytest.fixture
+def points_pro_redemption_enabled(monkeypatch):
+    monkeypatch.setenv("POINTS_PRO_REDEMPTION_ENABLED", "true")
+
+
 @pytest.mark.unit
+@pytest.mark.usefixtures("points_pro_redemption_enabled")
 class TestRedeemForPro:
     """Tests for redeem_for_pro function."""
 

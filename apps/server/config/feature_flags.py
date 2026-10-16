@@ -24,6 +24,11 @@ def _get_bool_env(name: str, *, default: bool = False) -> bool:
     return default
 
 
+def is_points_pro_redemption_enabled() -> bool:
+    """Allow point-funded Pro only after an explicit operational opt-in."""
+    return _get_bool_env("POINTS_PRO_REDEMPTION_ENABLED", default=False)
+
+
 def is_inspirations_enabled() -> bool:
     """Return whether the inspiration-library module is enabled right now."""
     return _get_bool_env("INSPIRATIONS_ENABLED", default=False)

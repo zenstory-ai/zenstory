@@ -114,7 +114,9 @@ async def test_points_check_in_status_and_transactions_contract_roundtrip(
 async def test_points_redeem_contract_upgrades_to_pro_and_records_spend(
     client: AsyncClient,
     db_session: Session,
+    monkeypatch,
 ):
+    monkeypatch.setenv("POINTS_PRO_REDEMPTION_ENABLED", "true")
     user = await _create_user(db_session, prefix="points_redeem_contract")
     _ensure_plan(db_session, name="free", display_name="Free", features={"max_projects": 1})
     _ensure_plan(db_session, name="pro", display_name="Pro", features={"max_projects": 8})
@@ -165,7 +167,9 @@ async def test_points_redeem_contract_upgrades_to_pro_and_records_spend(
 async def test_points_redeem_contract_rejects_insufficient_balance_with_required_amount(
     client: AsyncClient,
     db_session: Session,
+    monkeypatch,
 ):
+    monkeypatch.setenv("POINTS_PRO_REDEMPTION_ENABLED", "true")
     user = await _create_user(db_session, prefix="points_redeem_insufficient")
     _ensure_plan(db_session, name="pro", display_name="Pro", features={"max_projects": 8})
 
