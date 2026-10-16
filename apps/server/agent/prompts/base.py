@@ -27,7 +27,6 @@ def get_base_prompt(
     parts = []
 
     # 1. 顶层上下文 (Context)
-    parts.append(f"## 当前项目 ID: {project_id}")
     parts.append(config["role_definition"])
     parts.append("")
     parts.append(PRODUCT_IDENTITY_PROTOCOL)  # 产品身份，不依赖数据库里的角色定义
@@ -66,6 +65,9 @@ def get_base_prompt(
     parts.append(config.get("character_detection", get_default_character_detection(folder_ids)))
     parts.append("")
     parts.append(IMPACT_ANALYSIS_EXAMPLES)
+
+    # 项目标识放在基础提示末尾，让不同项目也能复用前面的固定协议前缀。
+    parts.append(f"## 当前项目 ID: {project_id}")
 
     return "\n".join(parts)
 

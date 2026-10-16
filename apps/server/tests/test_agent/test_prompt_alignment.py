@@ -4,9 +4,63 @@ These tests ensure that the system prompt does not instruct the model to call
 tools that are not available in the Tool registry.
 """
 
+from os.path import commonprefix
+from uuid import UUID, uuid5
+
 import pytest
 
-from agent.prompts.base import get_base_prompt
+from agent.prompts.base import (
+    AUTHOR_REPLY_PROTOCOL,
+    OUTPUT_PROTOCOL,
+    PRODUCT_IDENTITY_PROTOCOL,
+    UNIFIED_EXECUTION_PROTOCOL,
+    get_base_prompt,
+)
+
+
+@pytest.mark.unit
+def test_project_ids_preserve_shared_protocol_prefix_and_folder_isolation():
+    """项目 UUID 不能挡在共用协议之前，项目目录仍必须各自准确。"""
+    project_ids = (
+        "09ab1059-6f47-440c-8ef3-8a47bfb38943",
+        "c236c601-6b1a-46c6-b870-f3b978d8cb16",
+    )
+    folder_types = ("lore", "character", "outline", "draft", "script", "material")
+    folders = [
+        {kind: str(uuid5(UUID(project_id), kind)) for kind in folder_types}
+        for project_id in project_ids
+    ]
+    config = {
+        "role_definition": "你是一位资深网文编辑",
+        "capabilities": "项目写作能力",
+        "directory_structure": "\n".join(f"{kind}: {{{kind}}}" for kind in folder_types),
+        "content_structure": "项目内容结构",
+        "file_types": "项目文件类型",
+        "writing_guidelines": "项目写作指导",
+    }
+    rendered = [
+        get_base_prompt(project_id, folder_ids, config)
+        for project_id, folder_ids in zip(project_ids, folders, strict=True)
+    ]
+
+    shared_prefix = commonprefix(rendered)
+    for protocol in (
+        PRODUCT_IDENTITY_PROTOCOL, OUTPUT_PROTOCOL, AUTHOR_REPLY_PROTOCOL, UNIFIED_EXECUTION_PROTOCOL,
+    ):
+        assert protocol in shared_prefix
+
+    normalized = []
+    for index, prompt in enumerate(rendered):
+        assert f"## 当前项目 ID: {project_ids[index]}" in prompt
+        assert prompt.count(project_ids[index]) == 1
+        assert project_ids[1 - index] not in prompt
+        normalized_prompt = prompt.replace(project_ids[index], "<project_id>")
+        for kind, folder_id in folders[index].items():
+            assert f"parent_id='{folder_id}'" in prompt
+            assert folders[1 - index][kind] not in prompt
+            normalized_prompt = normalized_prompt.replace(folder_id, f"<{kind}_folder_id>")
+        normalized.append(normalized_prompt)
+    assert normalized[0] == normalized[1]
 
 
 @pytest.mark.unit
