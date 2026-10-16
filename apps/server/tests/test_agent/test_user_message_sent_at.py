@@ -25,11 +25,18 @@ from tests.test_agent.test_service import wait_for_stream_start
 pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("writing_prompt_configs")]
 
 ROUND_SECONDS = 0.4
-SLACK = timedelta(seconds=0.25)
 
 
-def _now() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
+@pytest.fixture
+def message_clock(monkeypatch):
+    from models import ChatMessage
+
+    clock = {"now": datetime(2026, 10, 12, 9, 13)}
+    monkeypatch.setattr("agent.service.utcnow", lambda: clock["now"].replace(tzinfo=UTC))
+    monkeypatch.setattr(
+        ChatMessage.model_fields["created_at"], "default_factory", lambda: clock["now"]
+    )
+    return clock
 
 
 def _ordered(rows):
@@ -37,21 +44,22 @@ def _ordered(rows):
 
 
 async def test_full_round_user_row_keeps_the_send_time(
-    round3_service, round3_user_with_project, db_session: Session
+    round3_service, round3_user_with_project, db_session: Session, message_clock
 ):
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
     project = round3_user_with_project["project"]
     user = round3_user_with_project["user"]
+    sent_at = message_clock["now"]
+    completed_at = sent_at + timedelta(minutes=2)
 
     async def slow_stream():
-        await asyncio.sleep(ROUND_SECONDS)
+        message_clock["now"] = completed_at
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": CHAPTER})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
     bind = db_session.get_bind()
     events: list[str] = []
-    sent_at = _now()
     with (
         patch("agent.service.run_writing_workflow_streaming", return_value=slow_stream()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
@@ -64,18 +72,20 @@ async def test_full_round_user_row_keeps_the_send_time(
     rows = _ordered(_rows(db_session, _session_id_from_events(events)))
     assert [row.role for row in rows] == ["user", "assistant"]
     user_row, assistant_row = rows
-    assert user_row.created_at - sent_at < SLACK
-    assert assistant_row.created_at - user_row.created_at >= timedelta(seconds=ROUND_SECONDS) - SLACK
+    assert user_row.created_at == sent_at
+    assert assistant_row.created_at == completed_at
 
 
 async def test_stopped_round_partial_save_keeps_the_send_time(
-    round3_service, round3_user_with_project, db_session: Session
+    round3_service, round3_user_with_project, db_session: Session, message_clock
 ):
     """停止 / 断线：补偿保存（_save_partial_history_sync）也用发出时间。"""
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
     project = round3_user_with_project["project"]
     user = round3_user_with_project["user"]
+    sent_at = message_clock["now"]
+    stopped_at = sent_at + timedelta(minutes=2)
     started = asyncio.Event()
 
     async def writes_then_hangs():
@@ -93,14 +103,13 @@ async def test_stopped_round_partial_save_keeps_the_send_time(
         ):
             events.append(event)
 
-    sent_at = _now()
     with (
         patch("agent.service.run_writing_workflow_streaming", return_value=writes_then_hangs()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
     ):
         task = asyncio.create_task(consume())
         await wait_for_stream_start(started, task)
-        await asyncio.sleep(ROUND_SECONDS)
+        message_clock["now"] = stopped_at
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -108,18 +117,19 @@ async def test_stopped_round_partial_save_keeps_the_send_time(
 
     rows = _ordered(rows)
     assert [row.role for row in rows] == ["user", "assistant"]
-    assert rows[0].created_at - sent_at < SLACK
-    assert rows[1].created_at - rows[0].created_at >= timedelta(seconds=ROUND_SECONDS) - SLACK
+    assert rows[0].created_at == sent_at
+    assert rows[1].created_at == stopped_at
 
 
 async def test_round_without_output_keeps_the_send_time(
-    round3_service, round3_user_with_project, db_session: Session
+    round3_service, round3_user_with_project, db_session: Session, message_clock
 ):
     """一个字都没产出就取消：只留用户消息（_append_user_messages_sync），时间仍是发出时间。"""
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
     project = round3_user_with_project["project"]
     user = round3_user_with_project["user"]
+    sent_at = message_clock["now"]
     started = asyncio.Event()
 
     async def never_yields():
@@ -136,21 +146,20 @@ async def test_round_without_output_keeps_the_send_time(
         ):
             events.append(event)
 
-    sent_at = _now()
     with (
         patch("agent.service.run_writing_workflow_streaming", return_value=never_yields()),
         patch("agent.service.create_session", side_effect=lambda: Session(bind)),
     ):
         task = asyncio.create_task(consume())
         await wait_for_stream_start(started, task)
-        await asyncio.sleep(ROUND_SECONDS)
+        message_clock["now"] = sent_at + timedelta(minutes=2)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
         rows = await _poll_rows(db_session, _session_id_from_events(events), expected=1)
 
     assert [(row.role, row.content) for row in rows] == [("user", "帮我写第五章")]
-    assert rows[0].created_at - sent_at < SLACK
+    assert rows[0].created_at == sent_at
 
 
 async def test_steering_after_the_save_stays_after_the_reply(
