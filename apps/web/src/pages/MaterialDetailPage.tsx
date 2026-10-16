@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { materialEnumLabel } from "../lib/materialEnumLabels";
 import i18n from "../lib/i18n";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LazyMarkdown } from "../components/LazyMarkdown";
 import {
   ChevronLeft,
@@ -110,11 +110,8 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItem, setSelectedItem] = useState<TreeItem | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
-  const [folderErrors, setFolderErrors] = useState<Set<string>>(new Set());
   // 移动端：是否显示内容详情（false = 显示文件树）
   const [showMobileContent, setShowMobileContent] = useState(false);
-  const activeNovelIdRef = useRef(novelId);
 
   // Fetch material details
   const {
@@ -166,70 +163,113 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
     }
   };
 
+  // Progress changes create fresh query identities; late older reads stay in their own cache.
+  const materialVersion = material
+    ? [
+        material.status,
+        material.updated_at,
+        material.chapters_count,
+        material.characters_count,
+        material.plots_count,
+        material.stories_count,
+        material.story_lines_count,
+        material.relationships_count,
+        material.golden_fingers_count,
+        material.has_world_view,
+      ].join(":")
+    : "";
+  const enabledStages = material?.enabled_stages;
+  const folderVisibility: Record<string, boolean> = {
+    chapters: true,
+    characters: shouldShowFolder(isStageEnabled(enabledStages, "characters"), material?.characters_count),
+    stories: shouldShowFolder(isStageEnabled(enabledStages, "stories"), material?.stories_count),
+    plots: shouldShowFolder(isStageEnabled(enabledStages, "plots"), material?.plots_count),
+    storylines: shouldShowFolder(
+      isStageEnabled(enabledStages, enabledStages?.storylines === undefined ? "stories" : "storylines"),
+      material?.story_lines_count,
+    ),
+    relationships: (materialsConfig.relationshipsEnabled || Number(material?.relationships_count) > 0)
+      && shouldShowFolder(isStageEnabled(enabledStages, "relationships"), material?.relationships_count),
+    goldenfingers: shouldShowFolder(isStageEnabled(enabledStages, "meta"), material?.golden_fingers_count),
+    worldview: shouldShowFolder(isStageEnabled(enabledStages, "meta"), material?.has_world_view),
+  };
+  const shouldLoadFolder = (folderId: string) => Boolean(
+    novelId && material && folderVisibility[folderId]
+    && (expandedFolders.has(folderId) || searchQuery.trim()),
+  );
+
   // Fetch chapters
-  const { data: chapters = [], refetch: refetchChapters, isFetching: isFetchingChapters } = useQuery({
-    queryKey: ["material-chapters", novelId],
+  const chaptersQuery = useQuery({
+    queryKey: ["material-chapters", novelId, materialVersion],
     queryFn: async () => {
       const tree = await materialsApi.getTree(novelId!);
       return tree.tree.filter((node) => node.type === "chapter");
     },
-    enabled: false,
+    enabled: shouldLoadFolder("chapters"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
   // Fetch characters
-  const { data: characters = [], refetch: refetchCharacters, isFetching: isFetchingCharacters } = useQuery({
-    queryKey: ["material-characters", novelId],
+  const charactersQuery = useQuery({
+    queryKey: ["material-characters", novelId, materialVersion],
     queryFn: () => materialsApi.getCharacters(novelId!),
-    enabled: false,
+    enabled: shouldLoadFolder("characters"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
   // Fetch stories
-  const { data: stories = [], refetch: refetchStories, isFetching: isFetchingStories } = useQuery({
-    queryKey: ["material-stories", novelId],
+  const storiesQuery = useQuery({
+    queryKey: ["material-stories", novelId, materialVersion],
     queryFn: () => materialsApi.getStories(novelId!),
-    enabled: false,
+    enabled: shouldLoadFolder("stories"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
   // Fetch plots
-  const { data: plots = [], refetch: refetchPlots, isFetching: isFetchingPlots } = useQuery({
-    queryKey: ["material-plots", novelId],
+  const plotsQuery = useQuery({
+    queryKey: ["material-plots", novelId, materialVersion],
     queryFn: () => materialsApi.getPlots(novelId!),
-    enabled: false,
+    enabled: shouldLoadFolder("plots"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
   // Fetch storylines
-  const { data: storylines = [], refetch: refetchStorylines, isFetching: isFetchingStorylines } = useQuery({
-    queryKey: ["material-storylines", novelId],
+  const storylinesQuery = useQuery({
+    queryKey: ["material-storylines", novelId, materialVersion],
     queryFn: () => materialsApi.getStoryLines(novelId!),
-    enabled: false,
+    enabled: shouldLoadFolder("storylines"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
   // Fetch relationships
-  const { data: relationships = [], refetch: refetchRelationships, isFetching: isFetchingRelationships } = useQuery({
-    queryKey: ["material-relationships", novelId],
+  const relationshipsQuery = useQuery({
+    queryKey: ["material-relationships", novelId, materialVersion],
     queryFn: () => materialsApi.getRelationships(novelId!),
-    enabled: false,
+    enabled: shouldLoadFolder("relationships"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
   // Fetch golden fingers
-  const { data: goldenFingers = [], refetch: refetchGoldenFingers, isFetching: isFetchingGoldenFingers } = useQuery({
-    queryKey: ["material-goldenfingers", novelId],
+  const goldenfingersQuery = useQuery({
+    queryKey: ["material-goldenfingers", novelId, materialVersion],
     queryFn: () => materialsApi.getGoldenFingers(novelId!),
-    enabled: false,
+    enabled: shouldLoadFolder("goldenfingers"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
   // Fetch worldview
-  const { data: worldview, refetch: refetchWorldview, isFetching: isFetchingWorldview } = useQuery({
-    queryKey: ["material-worldview", novelId],
+  const worldviewQuery = useQuery({
+    queryKey: ["material-worldview", novelId, materialVersion],
     queryFn: () => materialsApi.getWorldView(novelId!),
-    enabled: false,
+    enabled: shouldLoadFolder("worldview"),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 
@@ -241,105 +281,39 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
     staleTime: 30 * 1000,
   });
 
-  // Loading states mapping
-  const loadingStates: Record<string, boolean> = {
-    chapters: isFetchingChapters,
-    characters: isFetchingCharacters,
-    stories: isFetchingStories,
-    plots: isFetchingPlots,
-    storylines: isFetchingStorylines,
-    relationships: isFetchingRelationships,
-    goldenfingers: isFetchingGoldenFingers,
-    worldview: isFetchingWorldview,
+  const { data: chapters = [] } = chaptersQuery;
+  const { data: characters = [] } = charactersQuery;
+  const { data: stories = [] } = storiesQuery;
+  const { data: plots = [] } = plotsQuery;
+  const { data: storylines = [] } = storylinesQuery;
+  const { data: relationships = [] } = relationshipsQuery;
+  const { data: goldenFingers = [] } = goldenfingersQuery;
+  const { data: worldview } = worldviewQuery;
+  const folderQueries: Record<string, {
+    isFetching: boolean;
+    isSuccess: boolean;
+    isError: boolean;
+    refetch: () => Promise<unknown>;
+  }> = {
+    chapters: chaptersQuery,
+    characters: charactersQuery,
+    stories: storiesQuery,
+    plots: plotsQuery,
+    storylines: storylinesQuery,
+    relationships: relationshipsQuery,
+    goldenfingers: goldenfingersQuery,
+    worldview: worldviewQuery,
   };
-
-  // Trigger load function
-  const triggerLoad = useCallback((folderId: string, force = false) => {
-    const isFolderLoading = {
-      chapters: isFetchingChapters,
-      characters: isFetchingCharacters,
-      stories: isFetchingStories,
-      plots: isFetchingPlots,
-      storylines: isFetchingStorylines,
-      relationships: isFetchingRelationships,
-      goldenfingers: isFetchingGoldenFingers,
-      worldview: isFetchingWorldview,
-    }[folderId];
-    if ((!force && loadedFolders.has(folderId)) || isFolderLoading) return;
-    const requestNovelId = novelId;
-    const refetchByFolder: Record<string, () => Promise<{ status: string }>> = {
-      chapters: refetchChapters,
-      characters: refetchCharacters,
-      stories: refetchStories,
-      plots: refetchPlots,
-      storylines: refetchStorylines,
-      relationships: refetchRelationships,
-      goldenfingers: refetchGoldenFingers,
-      worldview: refetchWorldview,
-    };
-
-    const refetchFolder = refetchByFolder[folderId];
-    if (!refetchFolder) return;
-    setFolderErrors((prev) => {
-      const next = new Set(prev);
-      next.delete(folderId);
-      return next;
-    });
-
-    void refetchFolder().then((result) => {
-      if (activeNovelIdRef.current !== requestNovelId) return;
-      if (result.status !== "success") {
-        setFolderErrors((prev) => new Set(prev).add(folderId));
-        setLoadedFolders((prev) => {
-          const next = new Set(prev);
-          next.delete(folderId);
-          return next;
-        });
-        return;
-      }
-      setFolderErrors((prev) => {
-        const next = new Set(prev);
-        next.delete(folderId);
-        return next;
-      });
-      setLoadedFolders((prev) => new Set(prev).add(folderId));
-    });
-  }, [
-    isFetchingChapters,
-    isFetchingCharacters,
-    isFetchingGoldenFingers,
-    isFetchingPlots,
-    isFetchingRelationships,
-    isFetchingStories,
-    isFetchingStorylines,
-    isFetchingWorldview,
-    loadedFolders,
-    novelId,
-    refetchChapters,
-    refetchCharacters,
-    refetchGoldenFingers,
-    refetchPlots,
-    refetchRelationships,
-    refetchStories,
-    refetchStorylines,
-    refetchWorldview,
-  ]);
+  const loadingStates = Object.fromEntries(
+    Object.entries(folderQueries).map(([id, query]) => [id, query.isFetching]),
+  );
+  const folderErrors = new Set(
+    Object.entries(folderQueries).filter(([, query]) => query.isError).map(([id]) => id),
+  );
 
   // Build tree structure - folders always visible, children lazy loaded
   const buildTree = (): TreeItem[] => {
     const tree: TreeItem[] = [];
-    const enabledStages = material?.enabled_stages;
-    const charactersEnabled = isStageEnabled(enabledStages, "characters");
-    const storiesEnabled = isStageEnabled(enabledStages, "stories");
-    // Older snapshots have no `storylines` key: storylines followed `stories` then.
-    const storylinesEnabled = isStageEnabled(
-      enabledStages,
-      enabledStages?.storylines === undefined ? "stories" : "storylines",
-    );
-    const plotsEnabled = isStageEnabled(enabledStages, "plots");
-    const relationshipsEnabled = isStageEnabled(enabledStages, "relationships");
-    const metaEnabled = isStageEnabled(enabledStages, "meta");
-
     // Chapters folder - always show
     tree.push({
       id: "chapters",
@@ -355,7 +329,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       })),
     });
 
-    if (shouldShowFolder(charactersEnabled, material?.characters_count)) tree.push({
+    if (folderVisibility.characters) tree.push({
       id: "characters",
       type: "folder",
       title: t("materials:detail.characters"),
@@ -367,7 +341,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       })),
     });
 
-    if (shouldShowFolder(storiesEnabled, material?.stories_count)) tree.push({
+    if (folderVisibility.stories) tree.push({
       id: "stories",
       type: "folder",
       title: t("materials:detail.stories"),
@@ -383,7 +357,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       })),
     });
 
-    if (shouldShowFolder(plotsEnabled, material?.plots_count)) tree.push({
+    if (folderVisibility.plots) tree.push({
       id: "plots",
       type: "folder",
       title: t("materials:detail.plots"),
@@ -395,7 +369,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       })),
     });
 
-    if (shouldShowFolder(storylinesEnabled, material?.story_lines_count)) tree.push({
+    if (folderVisibility.storylines) tree.push({
       id: "storylines",
       type: "folder",
       title: t("materials:detail.storylines"),
@@ -407,10 +381,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       })),
     });
 
-    if (
-      (materialsConfig.relationshipsEnabled || Number(material?.relationships_count) > 0)
-      && shouldShowFolder(relationshipsEnabled, material?.relationships_count)
-    ) {
+    if (folderVisibility.relationships) {
       tree.push({
         id: "relationships",
         type: "folder",
@@ -424,7 +395,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       });
     }
 
-    if (shouldShowFolder(metaEnabled, material?.golden_fingers_count)) tree.push({
+    if (folderVisibility.goldenfingers) tree.push({
       id: "goldenfingers",
       type: "folder",
       title: t("materials:detail.goldenfingers"),
@@ -436,7 +407,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       })),
     });
 
-    if (shouldShowFolder(metaEnabled, material?.has_world_view)) tree.push({
+    if (folderVisibility.worldview) tree.push({
       id: "worldview",
       type: "folder",
       title: t("materials:detail.worldview"),
@@ -452,45 +423,6 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   };
 
   const treeData = buildTree();
-  const visibleFolderIds = treeData
-    .filter((item) => item.type === "folder")
-    .map((item) => item.id);
-  const visibleFolderKey = visibleFolderIds.join(":");
-  const materialVersion = material
-    ? [
-        material.status,
-        material.updated_at,
-        material.chapters_count,
-        material.characters_count,
-        material.plots_count,
-        material.stories_count,
-        material.story_lines_count,
-        material.relationships_count,
-        material.golden_fingers_count,
-        material.has_world_view,
-      ].join(":")
-    : "";
-  const previousMaterialRef = useRef<{ novelId?: string; version: string } | undefined>(undefined);
-
-  useEffect(() => {
-    const previous = previousMaterialRef.current;
-    previousMaterialRef.current = { novelId, version: materialVersion };
-    if (!previous || previous.novelId !== novelId || previous.version === materialVersion) return;
-
-    const currentVisibleFolderIds = visibleFolderKey ? visibleFolderKey.split(":") : [];
-    const foldersToReload = searchQuery.trim()
-      ? currentVisibleFolderIds
-      : currentVisibleFolderIds.filter((folderId) => expandedFolders.has(folderId));
-    foldersToReload.forEach((folderId) => triggerLoad(folderId, true));
-  }, [
-    expandedFolders,
-    materialVersion,
-    novelId,
-    searchQuery,
-    triggerLoad,
-    visibleFolderKey,
-  ]);
-
   // Filter tree based on search
   const filterTree = (items: TreeItem[], query: string): TreeItem[] => {
     if (!query) return items;
@@ -502,7 +434,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
           if (filteredChildren.length > 0) {
             return { ...item, children: filteredChildren };
           }
-          if (loadingStates[item.id] || !loadedFolders.has(item.id)) {
+          if (loadingStates[item.id] || !folderQueries[item.id]?.isSuccess) {
             return { ...item, children: [] };
           }
         }
@@ -525,7 +457,6 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
         next.delete(folderId);
       } else {
         next.add(folderId);
-        triggerLoad(folderId);
       }
       return next;
     });
@@ -637,7 +568,9 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
                   const query = e.target.value;
                   setSearchQuery(query);
                   if (query.trim()) {
-                    visibleFolderIds.forEach((folderId) => triggerLoad(folderId));
+                    Object.entries(folderQueries).forEach(([folderId, folderQuery]) => {
+                      if (folderVisibility[folderId] && folderQuery.isError) void folderQuery.refetch();
+                    });
                   }
                 }}
                 placeholder={t("materials:detail.searchPlaceholder")}
@@ -713,7 +646,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
                   onItemClick={handleItemClick}
                   loadingStates={loadingStates}
                   folderErrors={folderErrors}
-                  onRetryFolder={(folderId) => triggerLoad(folderId, true)}
+                  onRetryFolder={(folderId) => { void folderQueries[folderId]?.refetch(); }}
                   searchActive={Boolean(searchQuery.trim())}
                 />
               </div>
@@ -732,7 +665,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
                   onItemClick={handleItemClick}
                   loadingStates={loadingStates}
                   folderErrors={folderErrors}
-                  onRetryFolder={(folderId) => triggerLoad(folderId, true)}
+                  onRetryFolder={(folderId) => { void folderQueries[folderId]?.refetch(); }}
                   searchActive={Boolean(searchQuery.trim())}
                 />
               </div>

@@ -320,30 +320,34 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
     keys = [normalize_for_noop_comparison(line) for line in lines]
     replaced: set[int] = set()
     restored = 0
-    seen_anchors: set[str] = set()
+    seen_substring_anchors: set[str] = set()
 
     for edit in edits:
-        old_key = normalize_for_noop_comparison(edit.old)
+        old_line = edit.old.strip()
+        old_key = normalize_for_noop_comparison(old_line)
         if not old_key:
             raise NaturalPolishProtocolError("empty normalized OLD anchor")
-        if old_key in seen_anchors:
-            raise NaturalPolishProtocolError("duplicate OLD anchor")
-        seen_anchors.add(old_key)
-
-        exact_candidates = [
-            i
-            for i, key in enumerate(keys)
-            if key == old_key and i not in replaced and current[i] is not _DELETE
-        ]
-        if len(exact_candidates) > 1:
+        # Marker parsing may consume one boundary space; indentation is not identity.
+        # Internal whitespace and quote styles still distinguish complete lines.
+        # Count all original lines so a previous edit cannot resolve a genuine ambiguity.
+        matching_lines = [i for i, line in enumerate(lines) if line.strip() == old_line]
+        if not matching_lines:
+            matching_lines = [i for i, key in enumerate(keys) if key == old_key]
+        if len(matching_lines) > 1:
             raise NaturalPolishProtocolError("ambiguous OLD anchor")
-        if exact_candidates:
-            index = exact_candidates[0]
+        if matching_lines:
+            index = matching_lines[0]
+            if index in replaced:
+                raise NaturalPolishProtocolError("duplicate OLD anchor")
             replaced.add(index)
             guarded = _guard_line(lines[index], edit.new, is_script=is_script, full_original=original)
             current[index], count = _keep_protected_sentences(lines[index], guarded)
             restored += count
             continue
+
+        if old_key in seen_substring_anchors:
+            raise NaturalPolishProtocolError("duplicate OLD anchor")
+        seen_substring_anchors.add(old_key)
 
         # 模型只抄了一句而不是整行：在唯一包含这句话的行里做子串替换。
         # 引号映射是一字符换一字符，按映射后的位置切原串不会错位，

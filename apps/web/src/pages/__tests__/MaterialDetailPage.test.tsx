@@ -422,7 +422,8 @@ describe("MaterialDetailPage", () => {
 
     const search = screen.getByPlaceholderText("materials:detail.searchPlaceholder");
     fireEvent.change(search, { target: { value: "Retry Search" } });
-    await waitFor(() => expect(mockGetCharacters).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("加载失败。")).toBeInTheDocument();
+    expect(mockGetCharacters).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: /materials:detail.characters/ })).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: "Retry Search Hero" } });
@@ -670,6 +671,90 @@ describe("MaterialDetailPage", () => {
 
     expect(await screen.findByText("Late Hero")).toBeInTheDocument();
     expect(mockGetCharacters).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes a previously loaded collapsed folder after processing completes", async () => {
+    const activeMaterial = {
+      id: "novel-1", title: "Growing Novel", status: "processing",
+      chapters_count: 1, characters_count: 1,
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    mockGet.mockReset().mockResolvedValue(activeMaterial);
+    mockGetCharacters.mockReset()
+      .mockResolvedValueOnce([{ id: "early", name: "Early Hero" }])
+      .mockResolvedValueOnce([
+        { id: "early", name: "Early Hero" },
+        { id: "late", name: "Late Hero" },
+      ]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter><MaterialDetailPage /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Growing Novel")).toBeInTheDocument();
+    const folder = () => screen.getByRole("button", { name: /materials:detail.characters/ });
+    expect(mockGetCharacters).not.toHaveBeenCalled();
+
+    fireEvent.click(folder());
+    expect(await screen.findByText("Early Hero")).toBeInTheDocument();
+    fireEvent.click(folder());
+    fireEvent.click(folder());
+    expect(screen.getByText("Early Hero")).toBeInTheDocument();
+    expect(mockGetCharacters).toHaveBeenCalledTimes(1);
+    fireEvent.click(folder());
+
+    await act(async () => {
+      queryClient.setQueryData(["material", "novel-1"], {
+        ...activeMaterial, status: "completed", characters_count: 2,
+        updated_at: "2026-01-01T00:00:03Z",
+      });
+    });
+    await waitFor(() => expect(screen.queryByText("materials:status.processing")).not.toBeInTheDocument());
+    // A collapsed folder stays lazy; opening it must fetch the completed results.
+    expect(mockGetCharacters).toHaveBeenCalledTimes(1);
+    fireEvent.click(folder());
+    expect(screen.getByText("Early Hero")).toBeInTheDocument();
+    expect(await screen.findByText("Late Hero")).toBeInTheDocument();
+    expect(mockGetCharacters).toHaveBeenCalledTimes(2);
+  });
+
+  it("loads completed results while an older folder request is still pending", async () => {
+    const activeMaterial = {
+      id: "novel-1", title: "Growing Novel", status: "processing",
+      chapters_count: 1, characters_count: 0,
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    mockGet.mockReset().mockResolvedValue(activeMaterial);
+    let resolveEarlierRequest!: (value: unknown[]) => void;
+    mockGetCharacters.mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveEarlierRequest = resolve; }))
+      .mockResolvedValueOnce([{ id: "late", name: "Late Hero" }]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter><MaterialDetailPage /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Growing Novel")).toBeInTheDocument();
+    const folder = () => screen.getByRole("button", { name: /materials:detail.characters/ });
+    fireEvent.click(folder());
+    await waitFor(() => expect(folder().querySelector(".animate-spin")).toBeInTheDocument());
+
+    try {
+      await act(async () => {
+        queryClient.setQueryData(["material", "novel-1"], {
+          ...activeMaterial, status: "completed", characters_count: 1,
+          updated_at: "2026-01-01T00:00:03Z",
+        });
+      });
+      expect(await screen.findByText("Late Hero")).toBeInTheDocument();
+      expect(mockGetCharacters).toHaveBeenCalledTimes(2);
+    } finally {
+      await act(async () => { resolveEarlierRequest([]); });
+    }
+    // The pre-completion response must not replace the current version's results.
+    expect(screen.getByText("Late Hero")).toBeInTheDocument();
   });
 
   it("renders loading and not-found states", async () => {

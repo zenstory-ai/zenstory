@@ -114,6 +114,115 @@ async def test_natural_polish_rejects_an_ambiguous_duplicate_old_anchor():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("first", "second", "revised_first", "revised_second"),
+    [
+        (
+            "他，站在那里，很久，没有动。",
+            "他，站在那里， 很久，没有动。",
+            "他在那儿站了很久，没动。",
+            "他站了很久，始终没动。",
+        ),
+        (
+            "他说：“你，不要，动。”",
+            "他说：「你，不要，动。」",
+            "他说：“你不要动。”",
+            "他说：「你别动。」",
+        ),
+    ],
+    ids=["internal-space", "quote-style"],
+)
+@pytest.mark.parametrize("edit_both", [False, True])
+def test_exact_line_anchors_distinguish_normalized_collisions(
+    first: str,
+    second: str,
+    revised_first: str,
+    revised_second: str,
+    edit_both: bool,
+):
+    original = f"{first}\n\n{second}"
+    output = f"原：{first}\n改：{revised_first}"
+    if edit_both:
+        output += f"\n\n原：{second}\n改：{revised_second}"
+
+    text, _ = apply_line_edits(original, parse_line_edits(output))
+
+    assert text == f"{revised_first}\n\n{revised_second if edit_both else second}"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("indent", [" ", "    "], ids=["one-space", "four-spaces"])
+def test_optional_marker_space_cannot_select_the_wrong_indented_line(indent: str):
+    line = "他，站在那里，很久，没有动。"
+    first = f"{indent}{line}"
+    second = f"{indent[1:]}{line}"
+    output = f"原：{first}\n改：他在那儿站了很久，没动。"
+
+    with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
+        apply_line_edits(f"{first}\n{second}", parse_line_edits(output))
+
+
+@pytest.mark.unit
+def test_trailing_whitespace_does_not_disambiguate_otherwise_identical_lines():
+    line = "他，站在那里，很久，没有动。"
+    output = f"原：{line} \n改：他在那儿站了很久，没动。"
+
+    with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
+        apply_line_edits(f"{line} \n{line}  ", parse_line_edits(output))
+
+
+@pytest.mark.unit
+def test_unique_line_anchor_preserves_original_indentation_and_trailing_whitespace():
+    original = "    他，站在那里，很久，没有动。  \n\n　　窗外下着雨。"
+    output = "原：    他，站在那里，很久，没有动。  \n改：他在那儿站了很久，没动。"
+
+    text, _ = apply_line_edits(original, parse_line_edits(output))
+
+    assert text == "    他在那儿站了很久，没动。  \n\n　　窗外下着雨。"
+
+
+@pytest.mark.unit
+def test_normalized_line_anchor_still_matches_a_unique_original():
+    original = '　　他说："不。"他心中一震。\n\n　　窗外下着雨。'
+    output = "原：他说：“不。”他心中一震。\n改：他说：“不。”"
+
+    text, _ = apply_line_edits(original, parse_line_edits(output))
+
+    assert text == '　　他说："不。"\n\n　　窗外下着雨。'
+
+
+@pytest.mark.unit
+def test_normalized_line_anchor_rejects_multiple_candidates_without_an_exact_match():
+    original = "他，站在那里，很久，没有动。\n他，站在那里， 很久，没有动。"
+    output = "原：他，站在那里，  很久，没有动。\n改：他站了很久，没动。"
+
+    with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
+        apply_line_edits(original, parse_line_edits(output))
+
+
+@pytest.mark.unit
+def test_one_original_line_cannot_be_replaced_twice_using_different_quote_styles():
+    original = '他说："你，不要，动。"'
+    output = (
+        f'原：{original}\n改：他说："你不要动。"\n\n'
+        "原：他说：“你，不要，动。”\n改：他说：“你别动。”"
+    )
+
+    with pytest.raises(NaturalPolishProtocolError, match="duplicate OLD anchor"):
+        apply_line_edits(original, parse_line_edits(output))
+
+
+@pytest.mark.unit
+def test_distinct_substring_edits_in_one_line_remain_supported():
+    original = "　　他心中一震，回头。她倒吸一口凉气，退后。"
+    output = "原：他心中一震，回头。\n改：他回头。\n\n原：她倒吸一口凉气，退后。\n改：她退后。"
+
+    text, _ = apply_line_edits(original, parse_line_edits(output))
+
+    assert text == "　　他回头。她退后。"
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize("reverse", [False, True])
 def test_line_edit_response_rejects_dialect_switch_between_complete_pairs(reverse):
     pairs = ["原：第一行。\n改：甲。", "OLD:Second.\nNEW:Beta."]
