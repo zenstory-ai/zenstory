@@ -89,6 +89,8 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
         let data: unknown = [];
         if (path === '/api/auth/me')
             data = responsiveUser;
+        else if (path === '/api/announcements/current')
+            data = null;
         else if (path === '/api/v1/workspace/first-work' && route.request().method() === 'GET')
             data = { status: 'ineligible', project_id: null, file_id: null, available: false, static_guidance: false, opened_at: null, first_manual_write_at: null, first_ai_requested_at: null };
         else if (path === '/api/v1/projects')

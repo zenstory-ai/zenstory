@@ -106,7 +106,7 @@ describe("PricingPage checkout when online payment is off", () => {
     });
   });
 
-  it("sends the buyer to the billing page for a redeem code, since this page has no 兑换码 button", async () => {
+  it("sends the buyer to billing support without opening legacy code activation", async () => {
     renderPricingPage();
 
     const [upgradeButton] = await screen.findAllByRole("button", { name: /开通 Pro/ });
@@ -114,9 +114,9 @@ describe("PricingPage checkout when online payment is off", () => {
     fireEvent.click(upgradeButton);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。");
-    expect(alert).not.toHaveTextContent("点页面上的「兑换码」");
+    expect(alert).toHaveTextContent("暂时无法在线支付，请稍后重试。如需帮助，可在「订阅权益」页查看客服联系方式。");
+    expect(alert).not.toHaveTextContent("兑换码");
     expect(screen.queryByRole("button", { name: "兑换码" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "去订阅权益页" })).toHaveAttribute("href", "/dashboard/billing?plan=pro");
+    expect(screen.getByRole("link", { name: "去订阅权益页" })).toHaveAttribute("href", "/dashboard/billing");
   });
 });

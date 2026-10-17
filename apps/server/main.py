@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.admin import router as admin_router
+from api.announcements import router as announcements_router
 from api.agent import router as agent_router
 from api.agent_api import router as agent_api_router
 from api.agent_api_keys import router as agent_api_keys_router
@@ -180,6 +181,7 @@ app.include_router(public_skills_router)
 app.include_router(inspirations_router)
 app.include_router(materials_router)
 app.include_router(admin_router)
+app.include_router(announcements_router)
 app.include_router(referral_router)
 app.include_router(persona_router)
 app.include_router(workspace_onboarding_router)

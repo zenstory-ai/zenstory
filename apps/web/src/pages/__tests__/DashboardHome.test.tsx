@@ -210,6 +210,10 @@ vi.mock('../../lib/onboardingPersonaApi', () => ({
   },
 }))
 
+vi.mock('../../lib/announcementApi', () => ({
+  announcementApi: { getCurrent: vi.fn().mockResolvedValue(null) },
+}))
+
 vi.mock('../../config/dashboardOnboarding', () => ({
   dashboardOnboardingFlags: mockDashboardOnboardingFlags,
 }))

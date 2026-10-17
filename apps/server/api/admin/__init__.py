@@ -6,6 +6,7 @@ All endpoints are exposed under the /api/admin prefix.
 """
 from fastapi import APIRouter
 
+from .announcements import router as announcements_router
 from .audit import router as audit_router
 from .checkin import router as checkin_router
 from .codes import router as codes_router
@@ -28,6 +29,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # Include all sub-module routers (they inherit the prefix from parent)
 router.include_router(users_router)
+router.include_router(announcements_router)
 router.include_router(prompts_router)
 router.include_router(skills_router)
 router.include_router(inspirations_router)

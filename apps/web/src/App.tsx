@@ -74,6 +74,7 @@ const SubscriptionPlanManagement = lazyRoute(() => import("./pages/admin/Subscri
 const AuditLogPage = lazyRoute(() => import("./pages/admin/AuditLogPage"), "AuditLogPage");
 const InspirationManagement = lazyRoute(() => import("./pages/admin/InspirationManagement"), "InspirationManagement");
 const FeedbackManagement = lazyRoute(() => import("./pages/admin/FeedbackManagement"), "FeedbackManagement");
+const AnnouncementManagement = lazyRoute(() => import("./pages/admin/AnnouncementManagement"), "AnnouncementManagement");
 // Commercial pages
 const PointsManagement = lazyRoute(() => import("./pages/admin/PointsManagement"), "PointsManagement");
 const CheckInStatsPage = lazyRoute(() => import("./pages/admin/CheckInStatsPage"), "CheckInStatsPage");
@@ -427,6 +428,7 @@ function App() {
                       <Route path="audit-logs" element={<AuditLogPage />} />
                       <Route path="inspirations" element={inspirationsConfig.enabled ? <InspirationManagement /> : <Navigate to="/admin" replace />} />
                       <Route path="feedback" element={<FeedbackManagement />} />
+                      <Route path="announcements" element={<AnnouncementManagement />} />
                       {/* Commercial routes */}
                       <Route path="points" element={<PointsManagement />} />
                       <Route path="check-in" element={<CheckInStatsPage />} />

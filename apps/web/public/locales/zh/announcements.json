@@ -1,0 +1,33 @@
+{
+  "banner": {
+    "regionLabel": "站内公告",
+    "close": "关闭公告"
+  },
+  "admin": {
+    "navigation": "站内公告",
+    "title": "站内公告",
+    "subtitle": "维护工作台首页当前展示的一条轻量公告",
+    "current": "当前公告",
+    "visible": "正在展示",
+    "hidden": "未展示",
+    "version": "版本 {{version}}",
+    "fields": {
+      "title": "标题",
+      "description": "说明",
+      "actionLabel": "按钮文案（可选）",
+      "actionUrl": "按钮链接（可选）"
+    },
+    "linkHint": "按钮文案和链接都填写时才会展示；链接仅支持站内根路径或 HTTPS 地址",
+    "saveAndShow": "保存并展示",
+    "stop": "停止展示",
+    "saving": "保存中…",
+    "saved": "公告已保存并展示",
+    "stopped": "公告已停止展示",
+    "loadFailed": "公告配置加载失败",
+    "saveFailed": "保存失败，请重试",
+    "conflict": "公告已被其他管理员更新，请刷新后重试",
+    "conflictDraftKept": "你的输入已保留。加载最新配置会替换当前草稿，再继续编辑。",
+    "reloadLatest": "加载最新配置",
+    "reloading": "加载中…"
+  }
+}

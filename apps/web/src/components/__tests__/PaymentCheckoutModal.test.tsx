@@ -1,4 +1,4 @@
-vi.mock('../../lib/subscriptionApi', () => ({ subscriptionApi: { getCatalog: vi.fn(async () => ({ tiers: [{ name: 'pro', entitlements: { material_decompositions_monthly: 5 } }] })) } }))
+vi.mock('../../lib/subscriptionApi', () => ({ subscriptionApi: { getCatalog: vi.fn(async () => ({ tiers: [{ name: 'pro', entitlements: { ai_conversations_per_day: -1, active_projects_limit: -1, material_decompositions_monthly: 5 } }] })) } }))
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -63,6 +63,7 @@ function renderModal(
   upgradeSource?: string,
   isRenewal?: boolean,
   redeemEntry?: PaymentRedeemEntry,
+  prices: { monthlyPriceCents?: number; yearlyPriceCents?: number } = { monthlyPriceCents: 1900, yearlyPriceCents: 19000 },
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -72,8 +73,7 @@ function renderModal(
           isOpen
           onClose={vi.fn()}
           initialCycle={initialCycle}
-          monthlyPriceCents={1900}
-          yearlyPriceCents={19000}
+          {...prices}
           upgradeSource={upgradeSource}
           isRenewal={isRenewal}
           redeemEntry={redeemEntry}
@@ -125,6 +125,20 @@ describe('PaymentCheckoutModal', () => {
     expect(submittedForm.querySelector<HTMLInputElement>('input[name="type"]')?.value).toBe('alipay')
   })
 
+  it.each([
+    ['month' as const, { yearlyPriceCents: 19000 }],
+    ['year' as const, { monthlyPriceCents: 1900 }],
+    ['month' as const, { monthlyPriceCents: 0 }],
+    ['year' as const, { yearlyPriceCents: Number.NaN }],
+  ])('does not create a %s order before a valid selected price is displayed', async (cycle, prices) => {
+    renderModal(cycle, undefined, undefined, undefined, prices)
+    await screen.findByText('AI 消息不限条数 · 项目不限 · 每月 5 次素材拆解')
+    const pay = screen.getByRole('button', { name: /^去支付/ })
+    expect(pay).toBeDisabled()
+    fireEvent.click(pay)
+    expect(paymentApi.createOrder).not.toHaveBeenCalled()
+  })
+
   it('does not submit a checkout response with an untrusted action', async () => {
     const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => undefined)
     vi.mocked(paymentApi.createOrder).mockResolvedValue({
@@ -145,27 +159,27 @@ describe('PaymentCheckoutModal', () => {
     expect(submit).not.toHaveBeenCalled()
   })
 
-  it('disables checkout and points to the billing page redeem entry by default', async () => {
+  it('disables checkout and points to the billing page support by default', async () => {
     vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: false, payment_methods: [] })
     renderModal()
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。')
-    expect(screen.getByRole('link', { name: '去订阅权益页' })).toHaveAttribute('href', '/dashboard/billing?plan=pro')
+    expect(alert).toHaveTextContent('暂时无法在线支付，请稍后重试。如需帮助，可在「订阅权益」页查看客服联系方式。')
+    expect(screen.getByRole('link', { name: '去订阅权益页' })).toHaveAttribute('href', '/dashboard/billing')
     expect(screen.getByRole('button', { name: /去支付/ })).toBeDisabled()
   })
 
-  it('points to the redeem button on the page when the page has one', async () => {
+  it('points to support on the billing page without a redemption prompt', async () => {
     vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: false, payment_methods: [] })
     renderModal('month', undefined, false, 'on-page')
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')
+    expect(alert).toHaveTextContent('暂时无法在线支付，请稍后重试。如需帮助，可在本页底部查看客服联系方式。')
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
   it.each([
-    ['billing-page' as const, '暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。'],
-    ['on-page' as const, '暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。'],
-  ])('names the %s redeem entry when order creation reports payments are off', async (redeemEntry, text) => {
+    ['billing-page' as const, '暂时无法在线支付，请稍后重试。如需帮助，可在「订阅权益」页查看客服联系方式。'],
+    ['on-page' as const, '暂时无法在线支付，请稍后重试。如需帮助，可在本页底部查看客服联系方式。'],
+  ])('names the %s support location when order creation reports payments are off', async (redeemEntry, text) => {
     vi.mocked(paymentApi.createOrder).mockRejectedValue(new ApiError(503, 'ERR_PAYMENT_UNAVAILABLE'))
     renderModal('month', undefined, false, redeemEntry)
     const payButton = await screen.findByRole('button', { name: /去支付/ })

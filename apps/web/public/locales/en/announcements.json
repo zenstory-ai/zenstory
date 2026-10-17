@@ -1,0 +1,33 @@
+{
+  "banner": {
+    "regionLabel": "Announcement",
+    "close": "Dismiss announcement"
+  },
+  "admin": {
+    "navigation": "Announcements",
+    "title": "Announcements",
+    "subtitle": "Manage the single lightweight announcement shown on the dashboard home",
+    "current": "Current announcement",
+    "visible": "Visible",
+    "hidden": "Not visible",
+    "version": "Version {{version}}",
+    "fields": {
+      "title": "Title",
+      "description": "Description",
+      "actionLabel": "Button label (optional)",
+      "actionUrl": "Button link (optional)"
+    },
+    "linkHint": "The button appears only when both fields are set. Links must be root-relative or HTTPS.",
+    "saveAndShow": "Save and show",
+    "stop": "Stop showing",
+    "saving": "Saving…",
+    "saved": "Announcement saved and shown",
+    "stopped": "Announcement hidden",
+    "loadFailed": "Could not load the announcement settings",
+    "saveFailed": "Could not save. Try again.",
+    "conflict": "Another administrator updated this announcement. Refresh and try again.",
+    "conflictDraftKept": "Your input is preserved. Loading the latest settings will replace this draft before you continue editing.",
+    "reloadLatest": "Load latest settings",
+    "reloading": "Loading…"
+  }
+}

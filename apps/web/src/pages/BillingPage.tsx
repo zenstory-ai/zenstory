@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Check, Crown, Mail, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Crown, Mail, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { Button } from "../components/ui/Button";
@@ -20,8 +20,7 @@ import {
   getSubscriptionStatusLine,
   getYearlySavings,
 } from "../lib/subscriptionEntitlements";
-import type { SubscriptionCatalogTier } from "../types/subscription";
-import type { QuotaResponse } from "../types/subscription";
+import type { QuotaResponse, SubscriptionCatalogTier } from "../types/subscription";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackUpgradeClick, trackUpgradeConversion } from "../lib/upgradeAnalytics";
 import { trackEvent } from "../lib/analytics";
@@ -56,7 +55,6 @@ export default function BillingPage() {
   }, []);
   const [isProPlanIntentHandled, setIsProPlanIntentHandled] = useState(() => searchParams.get("plan") !== "pro");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const attributionSource = useMemo(() => {
     const rawSource = searchParams.get("source");
     if (!rawSource) {
@@ -111,8 +109,6 @@ export default function BillingPage() {
     queryFn: () => subscriptionApi.getQuota(),
   });
 
-  // Online checkout stays hidden until the server reports Zpay as configured;
-  // until then Pro is activated with redeem codes, as before payments existed.
   const {
     data: paymentOptions,
     isLoading: isPaymentOptionsLoading,
@@ -123,15 +119,13 @@ export default function BillingPage() {
     retry: false,
   });
   const isCheckoutEnabled = paymentOptions?.enabled === true;
-  // Only the server's explicit "off" means checkout is off. A failed options request is
-  // unknown, not off: keep offering 开通 Pro (the checkout dialog asks again and explains
-  // if paying online really is unavailable) instead of steering everyone to redeem codes.
+  // A failed options request is unknown, not explicitly off; let checkout check again.
   const isCheckoutKnownOff = paymentOptions?.enabled === false;
   const showCheckoutButton = isCheckoutEnabled || isPaymentOptionsError;
-  // A ?plan=pro deep link opens whichever activation path is available once known.
+  // Preserve activation behavior for existing ?plan=pro links; no manual code entry is advertised.
   const isProPlanIntentReady = !isProPlanIntentHandled && !isPaymentOptionsLoading;
   const isPaymentModalOpen = showPaymentModal || (isProPlanIntentReady && showCheckoutButton);
-  const isRedeemCodeModalOpen = showRedeemCodeModal || (isProPlanIntentReady && isCheckoutKnownOff);
+  const isRedeemCodeModalOpen = isProPlanIntentReady && isCheckoutKnownOff;
 
   const usageItems = useMemo(
     () =>
@@ -157,14 +151,10 @@ export default function BillingPage() {
 
   const formatPrice = (cents: number, cycle: "month" | "year"): string => {
     if (cents === 0) return t("dashboard:billing.free", "免费");
-    const locale = i18n.language?.startsWith("en") ? "en-US" : "zh-CN";
-    const amount = (cents / 100).toLocaleString(locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     const unit = cycle === "month" ? t("dashboard:billing.perMonth", "/月") : t("dashboard:billing.perYear", "/年");
-    return `¥${amount}${unit}`;
+    return `${formatYuan(cents, i18n.language)}${unit}`;
   };
 
-  // Yearly is the offer we lead with: spell out the monthly equivalent and the
-  // saving next to the two prices instead of leaving the maths to the reader.
   const formatPlanPrice = (plan: SubscriptionCatalogTier): string => {
     const monthly = formatPrice(plan.price_monthly_cents, "month");
     if (plan.price_monthly_cents === 0 && plan.price_yearly_cents === 0) return monthly;
@@ -191,7 +181,7 @@ export default function BillingPage() {
   };
 
   const usageProgress = (metric?: QuotaResponse[UsageKey]) => {
-    if (!metric || metric.limit <= 0 || metric.limit === -1) return 0;
+    if (!metric || metric.limit <= 0) return 0;
     return Math.min(100, Math.round((metric.used / metric.limit) * 100));
   };
 
@@ -205,16 +195,15 @@ export default function BillingPage() {
   // A paid author's header button renews; keep it apart from upgrades in attribution.
   const checkoutSource = isPaidTier && !attributionSource ? RENEW_SOURCE : effectiveUpgradeSource;
   const statusLine = status ? getSubscriptionStatusLine(status, t) : null;
-  // Online checkout off (isCheckoutKnownOff, above): "开通 Pro" would only open the redeem
-  // dialog, so say so and offer the redeem code itself.
+  // Checkout availability stays factual; the footer offers support contacts only.
   const subtitle = isUpgradableTier
     ? isCheckoutKnownOff
-      ? t("dashboard:billing.subtitleRedeemOnly", "查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。")
-      : t("dashboard:billing.subtitle", "查看当前套餐和用量，需要更多额度时可升级或使用兑换码。")
+      ? t("dashboard:billing.subtitleRedeemOnly", "查看当前套餐和用量。在线支付暂不可用。")
+      : t("dashboard:billing.subtitle", "查看当前套餐和用量，需要更多额度时可升级。")
     : isPaidTier
     ? isCheckoutKnownOff
-      ? t("dashboard:billing.subtitlePaidRedeemOnly", "查看当前套餐和用量，到期前可以用兑换码续期。")
-      : t("dashboard:billing.subtitlePaid", "查看当前套餐和用量，到期前可以续费 Pro 或使用兑换码。")
+      ? t("dashboard:billing.subtitlePaidRedeemOnly", "查看当前套餐和用量。在线支付暂不可用。")
+      : t("dashboard:billing.subtitlePaid", "查看当前套餐和用量，到期前可按需续费 Pro。")
     : t("dashboard:billing.subtitleNeutral", "查看当前套餐和用量。");
 
   return (
@@ -222,43 +211,26 @@ export default function BillingPage() {
       <DashboardPageHeader
         title={t("dashboard:billing.title", "订阅权益")}
         subtitle={subtitle}
-        action={
-          <div className="flex items-center gap-2">
-            {showCheckoutButton ? (
-              <Button
-                size={headerActionSize}
-                onClick={() => {
-                  trackUpgradeClick(
-                    checkoutSource,
-                    "direct",
-                    "checkout",
-                    "page"
-                  );
-                  setShowPaymentModal(true);
-                }}
-              >
-                {isUpgradableTier
-                  ? t("dashboard:billing.ctaBuyPro", "开通 Pro")
-                  : isPaidTier
-                  ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
-                  : t("dashboard:billing.ctaProNeutral", "开通或续费 Pro")}
-              </Button>
-            ) : null}
-            <Button
-              size={headerActionSize}
-              // The only way to get Pro while checkout is off: make it the main button.
-              variant={isCheckoutKnownOff && isUpgradableTier ? "primary" : "secondary"}
-              onClick={() => {
-                if (isCheckoutKnownOff && isUpgradableTier) {
-                  trackUpgradeClick(effectiveUpgradeSource, "direct", "redeem", "page");
-                }
-                setShowRedeemCodeModal(true);
-              }}
-            >
-              {t("settings:subscription.redeemCode", "兑换码")}
-            </Button>
-          </div>
-        }
+        action={showCheckoutButton && (
+          <Button
+            size={headerActionSize}
+            onClick={() => {
+              trackUpgradeClick(
+                checkoutSource,
+                "direct",
+                "checkout",
+                "page"
+              );
+              setShowPaymentModal(true);
+            }}
+          >
+            {isUpgradableTier
+              ? t("dashboard:billing.ctaBuyPro", "开通 Pro")
+              : isPaidTier
+              ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
+              : t("dashboard:billing.ctaProNeutral", "开通或续费 Pro")}
+          </Button>
+        )}
       />
 
       {isCheckoutKnownOff && isUpgradableTier && (
@@ -266,7 +238,7 @@ export default function BillingPage() {
           data-testid="billing-checkout-unavailable"
           className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-secondary))]"
         >
-          {t("dashboard:billing.checkoutUnavailableNotice", "暂时不能在线付款。有兑换码的话，点「兑换码」就能开通 Pro。")}
+          {t("dashboard:billing.checkoutHelpNotice", "暂时不能在线付款，请稍后重试；如需帮助，可在页尾查看客服联系方式。")}
         </p>
       )}
 
@@ -297,6 +269,96 @@ export default function BillingPage() {
             </div>
           </div>
         </div>
+      </Card>
+
+      <Card variant="outlined" padding="lg">
+        <div className="flex items-center gap-2 mb-4">
+          <Crown className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
+          <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
+            {t("dashboard:billing.compareTitle", "选一个适合你的方案")}
+          </h2>
+        </div>
+        {isCatalogPendingState ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <div key={index} className="h-56 animate-pulse rounded-xl bg-[hsl(var(--bg-tertiary))]" />
+            ))}
+          </div>
+        ) : sortedPlans.length === 0 ? (
+          <div className="text-sm text-[hsl(var(--text-secondary))] py-2">
+            {t("common:noData", "暂无数据")}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {sortedPlans.map((plan) => {
+              const isCurrent = status?.tier === plan.name;
+              return (
+                <div
+                  key={plan.id}
+                  className={`rounded-xl border p-4 ${
+                    isCurrent
+                      ? "border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.06)]"
+                      : "border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
+                        {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
+                      </h3>
+                      <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+                        {formatPlanPrice(plan)}
+                      </div>
+                    </div>
+                    {isCurrent ? (
+                      <Badge variant="info" className="shrink-0 whitespace-nowrap">
+                        {t("dashboard:billing.current", "当前")}
+                      </Badge>
+                    ) : plan.recommended ? (
+                      <Badge variant="purple" className="shrink-0 whitespace-nowrap">
+                        {t("dashboard:billing.recommended", "推荐")}
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    {metricDefinitions.map((metric) => {
+                      // A limit of 0 means the plan does not include the feature
+                      // (shown as 「不含」): a neutral cross, not a green check.
+                      const included = metric.compareValue(plan) !== 0;
+                      return (
+                        <div
+                          key={metric.key}
+                          className="flex items-center justify-between text-sm gap-3"
+                          data-testid={`billing-plan-metric-${metric.key}`}
+                          data-included={included}
+                        >
+                          <div className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
+                            {included ? (
+                              <Check className="w-3.5 h-3.5 text-[hsl(var(--success))]" aria-hidden="true" />
+                            ) : (
+                              <X className="w-3.5 h-3.5 text-[hsl(var(--text-tertiary))]" aria-hidden="true" />
+                            )}
+                            <span>{metric.label}</span>
+                          </div>
+                          <span
+                            className={`font-medium ${
+                              included
+                                ? "text-[hsl(var(--text-primary))]"
+                                : "text-[hsl(var(--text-tertiary))]"
+                            }`}
+                          >
+                            {metric.value(plan)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       <Card variant="outlined" padding="lg">
@@ -393,114 +455,31 @@ export default function BillingPage() {
         )}
       </Card>
 
-      <Card variant="outlined" padding="lg">
-        <div className="flex items-center gap-2 mb-4">
-          <Crown className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
-          <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {t("dashboard:billing.compareTitle", "选一个适合你的方案")}
-          </h2>
+      <details data-testid="billing-help" className="group border-t border-[hsl(var(--border-color))]">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm text-[hsl(var(--text-secondary))] rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden">
+          {t("dashboard:billing.helpAndSupport", "帮助与支持")}
+          <ChevronDown size={15} aria-hidden="true" className="group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 pb-3">
+          <p
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[hsl(var(--text-secondary))]"
+            data-testid="billing-support-email"
+          >
+            <Mail size={16} className="shrink-0" aria-hidden="true" />
+            <span>{t("dashboard:billing.supportHint", "订阅、扣费或退款有疑问？请联系客服：")}</span>
+            <a
+              href={SUPPORT_MAILTO}
+              className="text-[hsl(var(--accent-primary))] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] rounded"
+            >
+              {SUPPORT_EMAIL}
+            </a>
+          </p>
         </div>
-        {isCatalogPendingState ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {Array.from({ length: 2 }).map((_, index) => (
-              <div key={index} className="h-56 animate-pulse rounded-xl bg-[hsl(var(--bg-tertiary))]" />
-            ))}
-          </div>
-        ) : sortedPlans.length === 0 ? (
-          <div className="text-sm text-[hsl(var(--text-secondary))] py-2">
-            {t("common:noData", "暂无数据")}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {sortedPlans.map((plan) => {
-              const isCurrent = status?.tier === plan.name;
-              return (
-                <div
-                  key={plan.id}
-                  className={`rounded-xl border p-4 ${
-                    isCurrent
-                      ? "border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.06)]"
-                      : "border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                        {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
-                      </h3>
-                      <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-                        {formatPlanPrice(plan)}
-                      </div>
-                    </div>
-                    {isCurrent ? (
-                      <Badge variant="info">
-                        {t("dashboard:billing.current", "当前")}
-                      </Badge>
-                    ) : plan.recommended ? (
-                      <Badge variant="purple">
-                        {t("dashboard:billing.recommended", "推荐")}
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    {metricDefinitions.map((metric) => {
-                      // A limit of 0 means the plan does not include the feature
-                      // (shown as 「不含」): a neutral cross, not a green check.
-                      const included = metric.compareValue(plan) !== 0;
-                      return (
-                        <div
-                          key={metric.key}
-                          className="flex items-center justify-between text-sm gap-3"
-                          data-testid={`billing-plan-metric-${metric.key}`}
-                          data-included={included}
-                        >
-                          <div className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
-                            {included ? (
-                              <Check className="w-3.5 h-3.5 text-[hsl(var(--success))]" aria-hidden="true" />
-                            ) : (
-                              <X className="w-3.5 h-3.5 text-[hsl(var(--text-tertiary))]" aria-hidden="true" />
-                            )}
-                            <span>{metric.label}</span>
-                          </div>
-                          <span
-                            className={`font-medium ${
-                              included
-                                ? "text-[hsl(var(--text-primary))]"
-                                : "text-[hsl(var(--text-tertiary))]"
-                            }`}
-                          >
-                            {metric.value(plan)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-
-      <p
-        className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[hsl(var(--text-secondary))]"
-        data-testid="billing-support-email"
-      >
-        <Mail size={16} className="shrink-0" aria-hidden="true" />
-        <span>{t("dashboard:billing.supportHint", "订阅、扣费或退款有疑问？请联系客服：")}</span>
-        <a
-          href={SUPPORT_MAILTO}
-          className="text-[hsl(var(--accent-primary))] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] rounded"
-        >
-          {SUPPORT_EMAIL}
-        </a>
-      </p>
+      </details>
 
       <RedeemCodeModal
         isOpen={isRedeemCodeModalOpen}
         onClose={() => {
-          setShowRedeemCodeModal(false);
           setIsProPlanIntentHandled(true);
         }}
         source={effectiveUpgradeSource}

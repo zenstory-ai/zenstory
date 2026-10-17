@@ -254,6 +254,43 @@ describe('BillingPage', () => {
     vi.stubGlobal('location', { assign: assignSpy })
   })
 
+  it('restores visible current plan, usage and comparison instead of a sales-only offer', () => {
+    render(<BillingPage />)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Billing')
+    expect(screen.getByText('Current plan')).toBeVisible()
+    expect(screen.getByText('Usage')).toBeVisible()
+    expect(screen.getByText('Plan comparison')).toBeVisible()
+    expect(screen.getByText('Usage').closest('details')).toBeNull()
+    expect(screen.getByText('Plan comparison').closest('details')).toBeNull()
+    expect(screen.queryByTestId('billing-pro-offer')).not.toBeInTheDocument()
+  })
+
+  it.each(['free', 'pro'])('puts plan comparison before usage for %s accounts', (tier) => {
+    statusResponse = { ...statusResponse, data: { ...(statusResponse.data as object), tier } }
+    render(<BillingPage />)
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual([
+      'Plan comparison',
+      'Usage',
+    ])
+  })
+
+  it('keeps support available without a manual redemption entry', () => {
+    render(<BillingPage />)
+    const help = screen.getByTestId('billing-help')
+    expect(help).not.toHaveAttribute('open')
+    fireEvent.click(within(help).getByText('帮助与支持'))
+    expect(screen.queryByRole('button', { name: 'Redeem Code' })).not.toBeInTheDocument()
+    expect(within(help).getByRole('link', { name: 'support@zenstory.ai' })).toHaveAttribute('href', 'mailto:support@zenstory.ai')
+    expect(screen.queryByText('Redeem modal')).not.toBeInTheDocument()
+  })
+
+  it('preserves explicit monthly intent when restoring the original page', () => {
+    sessionStorage.setItem('payment_cycle_intent', 'month')
+    currentSearch = 'plan=pro'
+    render(<StrictMode><BillingPage /></StrictMode>)
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-cycle', 'month')
+  })
+
   it('shows the free price once while preserving paid billing periods', () => {
     render(<BillingPage />)
 
@@ -268,7 +305,7 @@ describe('BillingPage', () => {
   it('keeps online checkout as the main action when it is available', () => {
     render(<BillingPage />)
     expect(screen.getByRole('button', { name: 'Buy Pro Online' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Redeem Code' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Redeem Code' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('billing-checkout-unavailable')).not.toBeInTheDocument()
     expect(screen.getByText('Manage plans')).toBeInTheDocument()
   })
@@ -279,7 +316,7 @@ describe('BillingPage', () => {
       data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
     }
     render(<BillingPage />)
-    expect(screen.getByText('查看当前套餐和用量，到期前可以续费 Pro 或使用兑换码。')).toBeInTheDocument()
+    expect(screen.getByText('查看当前套餐和用量，到期前可按需续费 Pro。')).toBeInTheDocument()
     expect(screen.queryByText('Manage plans')).not.toBeInTheDocument()
   })
 
@@ -378,7 +415,7 @@ describe('BillingPage', () => {
     expect(within(skillsUsage).queryByText(/Monthly quotas reset/)).not.toBeInTheDocument()
   })
 
-  it('tracks attribution, renders current usage, and supports upgrade and redeem actions', async () => {
+  it('tracks attribution, renders current usage, and supports checkout without a redemption entry', async () => {
     render(<BillingPage />)
 
     expect(trackUpgradeConversion).toHaveBeenCalledWith('chat_quota_blocked', 'billing')
@@ -394,12 +431,11 @@ describe('BillingPage', () => {
     expect(trackUpgradeClick).toHaveBeenCalled()
     expect(assignSpy).not.toHaveBeenCalled()
     expect(await screen.findByText('Payment modal')).toBeInTheDocument()
-    // This page has its own 兑换码 button, so the unavailable notice may point to it.
+    // Payment-unavailable guidance points to support on this page, not redemption.
     expect(screen.getByText('Payment modal')).toHaveAttribute('data-redeem-entry', 'on-page')
     expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'checkout', 'page')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Redeem Code' }))
-    expect(await screen.findByText('Redeem modal')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Redeem Code' })).not.toBeInTheDocument()
   })
 
   it('opens activation directly for a selected Pro plan', () => {
@@ -474,20 +510,19 @@ describe('BillingPage', () => {
       }
     })
 
-    it('says online payment is off and offers the redeem code itself, not a "开通 Pro" that only opens it', async () => {
+    it('reports offline payment without advertising a manual redemption action', async () => {
       render(<BillingPage />)
 
       expect(screen.queryByRole('button', { name: 'Buy Pro Online' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Upgrade Pro' })).not.toBeInTheDocument()
       expect(screen.queryByText(/微信|WeChat|AIchuangzuo/)).not.toBeInTheDocument()
       expect(screen.getByTestId('billing-checkout-unavailable')).toHaveTextContent(
-        '暂时不能在线付款。有兑换码的话，点「兑换码」就能开通 Pro。',
+        '暂时不能在线付款，请稍后重试；如需帮助，可在页尾查看客服联系方式。',
       )
-      expect(screen.getByText('查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。')).toBeInTheDocument()
+      expect(screen.getByText('查看当前套餐和用量。在线支付暂不可用。')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Redeem Code' }))
-      expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'redeem', 'page')
-      expect(await screen.findByText('Redeem modal')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Redeem Code' })).not.toBeInTheDocument()
+      expect(screen.queryByText('Redeem modal')).not.toBeInTheDocument()
       expect(screen.queryByText('Payment modal')).not.toBeInTheDocument()
     })
 
@@ -506,9 +541,9 @@ describe('BillingPage', () => {
       render(<BillingPage />)
       expect(screen.queryByRole('button', { name: 'Renew Pro' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Upgrade Pro' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Redeem Code' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Redeem Code' })).not.toBeInTheDocument()
       expect(screen.queryByTestId('billing-checkout-unavailable')).not.toBeInTheDocument()
-      expect(screen.getByText('查看当前套餐和用量，到期前可以用兑换码续期。')).toBeInTheDocument()
+      expect(screen.getByText('查看当前套餐和用量。在线支付暂不可用。')).toBeInTheDocument()
     })
   })
 
@@ -522,7 +557,7 @@ describe('BillingPage', () => {
       render(<BillingPage />)
       expect(screen.getByRole('button', { name: 'Buy Pro Online' })).toBeInTheDocument()
       expect(screen.queryByTestId('billing-checkout-unavailable')).not.toBeInTheDocument()
-      expect(screen.queryByText('查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。')).not.toBeInTheDocument()
+      expect(screen.queryByText('查看当前套餐和用量。在线支付暂不可用。')).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: 'Buy Pro Online' }))
       expect(screen.getByText('Payment modal')).toBeInTheDocument()

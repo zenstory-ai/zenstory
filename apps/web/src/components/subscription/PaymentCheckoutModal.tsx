@@ -9,7 +9,7 @@ import { paymentApi, paymentQueryKeys } from '../../lib/paymentApi'
 import { ApiError } from '../../lib/apiClient'
 import { trackEvent } from '../../lib/analytics'
 import { formatYuan, getYearlySavings } from '../../lib/subscriptionEntitlements'
-import { useProMaterialDecompositionsLimit } from '../../hooks/useProMaterialDecompositionsLimit'
+import { subscriptionApi } from '../../lib/subscriptionApi'
 import type { PaymentCycle, PaymentCheckout } from '../../types/payment'
 
 // Codes whose errors: translation tells the buyer what to do next.
@@ -27,11 +27,11 @@ const UPGRADE_SOURCE_PATTERN = /^[A-Za-z0-9_:-]{1,64}$/
 const VALIDATION_ERROR_CODE = 'ERR_VALIDATION_ERROR'
 const PAYMENT_UNAVAILABLE_CODE = 'ERR_PAYMENT_UNAVAILABLE'
 
-// Where the buyer can find the redeem-code entry when online payment is off.
+// Where payment-unavailable help is shown (retain the existing prop for callers).
 export type PaymentRedeemEntry = 'on-page' | 'billing-page'
 
-// ?plan=pro opens the redeem modal on the billing page while checkout is off.
-const BILLING_REDEEM_PATH = '/dashboard/billing?plan=pro'
+// Help navigation must not trigger the legacy activation deep link.
+const BILLING_SUPPORT_PATH = '/dashboard/billing'
 
 function paymentErrorCode(cause: unknown): string | null {
   if (!(cause instanceof ApiError)) return null
@@ -82,7 +82,7 @@ interface PaymentCheckoutModalProps {
   /** The buyer already has Pro: the purchase extends it, so say "renew". */
   isRenewal?: boolean
   /**
-   * 'on-page' only when the opening page has its own 兑换码 button (the billing
+   * 'on-page' when support is available in the opening page's footer help (billing
    * page); anywhere else the unavailable notice points to the billing page.
    */
   redeemEntry?: PaymentRedeemEntry
@@ -102,15 +102,32 @@ export function PaymentCheckoutModal({
     ? rawUpgradeSource
     : undefined
   const { t, i18n } = useTranslation(['dashboard', 'common', 'errors'])
-  const materialLimit = useProMaterialDecompositionsLimit(isOpen)
+  const { data: benefitCatalog, isPending: isCatalogPending } = useQuery({
+    queryKey: ['public-subscription-catalog'],
+    queryFn: () => subscriptionApi.getCatalog(),
+    staleTime: 60_000,
+    enabled: isOpen,
+  })
+  const entitlements = benefitCatalog?.tiers.find(plan => plan.name === 'pro')?.entitlements
+  const aiLimit = entitlements?.ai_conversations_per_day
+  const projectLimit = entitlements?.active_projects_limit
+  const materialLimit = entitlements?.material_decompositions_monthly
+  const benefitParts = [
+    aiLimit === -1 ? t('dashboard:billing.paymentAiUnlimited', 'AI 消息不限条数')
+      : typeof aiLimit === 'number' ? t('dashboard:billing.paymentAiFinite', '每日 AI 消息 {{limit}} 条', { limit: aiLimit }) : null,
+    projectLimit === -1 ? t('dashboard:billing.paymentProjectsUnlimited', '项目不限')
+      : typeof projectLimit === 'number' ? t('dashboard:billing.paymentProjectsFinite', '最多 {{limit}} 个项目', { limit: projectLimit }) : null,
+    materialLimit === -1 ? t('dashboard:billing.paymentMaterialsUnlimited', '素材拆解不限次数')
+      : typeof materialLimit === 'number' && materialLimit > 0 ? t('dashboard:billing.paymentMaterialsFinite', '每月 {{limit}} 次素材拆解', { limit: materialLimit }) : null,
+  ].filter(Boolean)
   const [cycle, setCycle] = useState<PaymentCycle>(initialCycle)
   const [error, setError] = useState('')
   // Set once the order exists and the form is submitted: until the browser has
   // left the page another click would create a second order.
   const [redirecting, setRedirecting] = useState(false)
   const paymentUnavailableText = redeemEntry === 'on-page'
-    ? t('dashboard:billing.paymentUnavailableOnPage', '暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')
-    : t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。')
+    ? t('dashboard:billing.paymentUnavailableOnPage', '暂时无法在线支付，请稍后重试。如需帮助，可在本页底部查看客服联系方式。')
+    : t('dashboard:billing.paymentUnavailable', '暂时无法在线支付，请稍后重试。如需帮助，可在「订阅权益」页查看客服联系方式。')
 
   useEffect(() => {
     // Back-navigation from the cashier can restore this page from bfcache with
@@ -156,7 +173,7 @@ export function PaymentCheckoutModal({
       if (code === VALIDATION_ERROR_CODE) {
         setError(t('dashboard:billing.paymentPageOutdated', '页面已更新，请刷新页面后重试'))
       } else if (code === PAYMENT_UNAVAILABLE_CODE) {
-        // The errors: copy has no page context; say where the redeem entry is.
+        // The errors: copy has no page context; say where help is available.
         setError(paymentUnavailableText)
       } else {
         setError(code ? t(`errors:${code}`, fallback) : fallback)
@@ -166,13 +183,14 @@ export function PaymentCheckoutModal({
   const isBusy = createOrder.isPending || redirecting
   const yearlySavings = getYearlySavings(monthlyPriceCents, yearlyPriceCents)
   const selectedPrice = cycle === 'month' ? monthlyPriceCents : yearlyPriceCents
+  const hasSelectedPrice = typeof selectedPrice === 'number' && Number.isSafeInteger(selectedPrice) && selectedPrice > 0
 
   const alipayEnabled = optionsQuery.data?.enabled === true
     && optionsQuery.data.payment_methods.includes('alipay')
   const isUnavailable = optionsQuery.isError || (!optionsQuery.isLoading && !alipayEnabled)
 
   const handlePay = () => {
-    if (!alipayEnabled || isBusy) return
+    if (!alipayEnabled || !hasSelectedPrice || isBusy) return
     setError('')
     trackEvent('checkout_started', { cycle, upgrade_source: upgradeSource })
     createOrder.mutate()
@@ -198,11 +216,7 @@ export function PaymentCheckoutModal({
     >
       <Modal.Body>
         <div className="space-y-4">
-          <p className="text-sm text-[hsl(var(--text-secondary))]">
-            {materialLimit === null
-              ? t('dashboard:billing.paymentBenefitsBase', 'AI 消息不限条数 · 项目不限')
-              : t('dashboard:billing.paymentBenefits', 'AI 消息不限条数 · 项目不限 · 每月 {{limit}} 次素材拆解', { limit: materialLimit })}
-          </p>
+          {benefitParts.length > 0 && <p className="text-sm text-[hsl(var(--text-secondary))]">{benefitParts.join(' · ')}</p>}
           <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
@@ -230,7 +244,7 @@ export function PaymentCheckoutModal({
                       : t('dashboard:billing.yearlyDuration', '年付 · 365 天')}
                     {selected && <Check className="h-4 w-4 shrink-0 text-[hsl(var(--accent-primary))]" />}
                   </span>
-                  {itemPrice !== undefined && (
+                  {typeof itemPrice === 'number' && Number.isSafeInteger(itemPrice) && itemPrice > 0 && (
                     <span className="mt-1 block text-xl font-semibold text-[hsl(var(--text-primary))]">
                       {formatYuan(itemPrice, i18n.language)}
                     </span>
@@ -271,11 +285,18 @@ export function PaymentCheckoutModal({
           {optionsQuery.isLoading && (
             <p role="status">{t('common:loading', "加载中…")}</p>
           )}
+          {!hasSelectedPrice && (
+            <p role={isCatalogPending ? 'status' : 'alert'} className="text-sm text-[hsl(var(--text-secondary))]">
+              {isCatalogPending
+                ? t('dashboard:billing.paymentPriceLoading', '正在加载价格…')
+                : t('dashboard:billing.paymentPriceUnavailable', '暂时无法确认价格，请刷新页面后重试。')}
+            </p>
+          )}
           {isUnavailable && (
             <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-[hsl(var(--warning))]" role="alert">
               {paymentUnavailableText}
               {redeemEntry === 'billing-page' && (
-                <Link to={BILLING_REDEEM_PATH} className="ml-1 font-medium underline">
+                <Link to={BILLING_SUPPORT_PATH} className="ml-1 font-medium underline">
                   {t('dashboard:billing.paymentUnavailableOpenBilling', '去订阅权益页')}
                 </Link>
               )}
@@ -292,12 +313,12 @@ export function PaymentCheckoutModal({
         <Button size="touch" variant="secondary" onClick={handleClose} disabled={isBusy}>
           {t('common:cancel', '取消')}
         </Button>
-        <Button size="touch" onClick={handlePay} disabled={!alipayEnabled || isBusy || optionsQuery.isLoading}>
+        <Button size="touch" onClick={handlePay} disabled={!alipayEnabled || !hasSelectedPrice || isBusy || optionsQuery.isLoading}>
           {redirecting
             ? t('dashboard:billing.paymentRedirecting', "正在前往支付宝…")
             : createOrder.isPending
             ? t('dashboard:billing.paymentCreating', "正在创建订单…")
-            : selectedPrice !== undefined
+            : hasSelectedPrice
             ? t('dashboard:billing.goToPayAmount', '去支付 {{price}}', { price: formatYuan(selectedPrice, i18n.language) })
             : t('dashboard:billing.goToPay', '去支付')}
         </Button>

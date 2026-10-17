@@ -44,6 +44,7 @@ import { inspirationsConfig } from "../config/inspirations";
 import { FirstWorkEntry } from "../components/dashboard/FirstWorkEntry";
 import { useDashboardProjectType } from "../hooks/useDashboardProjectType";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
+import { AnnouncementBanner } from "../components/announcements/AnnouncementBanner";
 
 const SUPPORTED_PROJECT_TYPES: ProjectType[] = ["novel", "short", "screenplay"];
 
@@ -600,6 +601,7 @@ export default function DashboardHome() {
   return (
     <>
       <section className="dashboard-start" aria-label={t("inspiration.title")}>
+      {userId && <AnnouncementBanner accountId={userId} />}
       {/* Header Section */}
       <DashboardPageHeader
         title={t('hero.greeting', { name: user?.nickname || user?.username || t('hero.defaultName') })}

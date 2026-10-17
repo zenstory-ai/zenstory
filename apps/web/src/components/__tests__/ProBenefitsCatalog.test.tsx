@@ -73,3 +73,22 @@ describe.each(['payment', 'points'] as const)('%s Pro benefits', (kind) => {
     expect(screen.queryByText(/每月 \d+ 次素材拆解/)).not.toBeInTheDocument()
   })
 })
+
+describe('checkout catalog consistency', () => {
+  it('shows finite AI and project limits rather than promising unlimited access', async () => {
+    vi.mocked(subscriptionApi.getCatalog).mockResolvedValue({ tiers: [{ name: 'pro', entitlements: {
+      ai_conversations_per_day: 12, active_projects_limit: 8, material_decompositions_monthly: 2,
+    } }] } as SubscriptionCatalogResponse)
+    await show('payment', 'zh')
+    expect(await screen.findByText('每日 AI 消息 12 条 · 最多 8 个项目 · 每月 2 次素材拆解')).toBeInTheDocument()
+    expect(screen.queryByText(/AI 消息不限|项目不限/)).not.toBeInTheDocument()
+    expect(paymentApi.createOrder).not.toHaveBeenCalled()
+  })
+
+  it('does not promise AI or project benefits when those catalog fields are absent', async () => {
+    vi.mocked(subscriptionApi.getCatalog).mockResolvedValue(catalog(7))
+    await show('payment', 'en')
+    expect(await screen.findByText('7 material breakdowns per month')).toBeInTheDocument()
+    expect(screen.queryByText(/Unlimited AI|Unlimited projects/)).not.toBeInTheDocument()
+  })
+})

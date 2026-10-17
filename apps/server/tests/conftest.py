@@ -153,6 +153,7 @@ def db_session():
         cleanup_session.exec(Custom("DELETE FROM ai_cost_reservation"))
         cleanup_session.exec(Custom("DELETE FROM ai_cost_daily_budget"))
         cleanup_session.exec(Custom("DELETE FROM admin_audit_log"))
+        cleanup_session.exec(Custom("DELETE FROM announcement_config"))
         cleanup_session.exec(Custom("DELETE FROM subscription_history"))
         cleanup_session.exec(Custom("DELETE FROM upgrade_funnel_event"))
         # Activation milestones are written by agent tools and auth flows;

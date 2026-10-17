@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowLeft, X, LayoutDashboard, Users, FileText, Zap, Ticket, CreditCard, Lightbulb, ScrollText, Package, Coins, CalendarCheck, Gift, ChartBar, Bug, Activity, Receipt, type LucideIcon } from "lucide-react";
+import { ArrowLeft, X, LayoutDashboard, Users, FileText, Zap, Ticket, CreditCard, Lightbulb, ScrollText, Package, Coins, CalendarCheck, Gift, ChartBar, Bug, Activity, Receipt, Megaphone, type LucideIcon } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { useTranslation } from "react-i18next";
 import { inspirationsConfig } from "../../config/inspirations";
@@ -24,7 +24,7 @@ interface MenuGroup {
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ onClose }) => {
   const location = useLocation();
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation(["admin", "announcements"]);
 
   // Grouped by what the operator is doing; paths stay the same so old links work.
   const menuGroups: MenuGroup[] = [
@@ -69,6 +69,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ onClose }) => {
         { key: "skills", label: t("sidebar.skills", "技能审核"), icon: Zap, path: "/admin/skills" },
         { key: "inspirations", label: t("sidebar.inspirations", "灵感管理"), icon: Lightbulb, path: "/admin/inspirations" },
         { key: "feedback", label: t("sidebar.feedback", "问题反馈"), icon: Bug, path: "/admin/feedback" },
+        { key: "announcements", label: t("announcements:admin.navigation", "站内公告"), icon: Megaphone, path: "/admin/announcements" },
       ],
     },
     {

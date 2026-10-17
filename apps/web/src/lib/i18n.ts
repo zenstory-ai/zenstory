@@ -90,7 +90,7 @@ i18n
      * Translation namespaces for organizing content.
      * Each namespace corresponds to a separate JSON file per language.
      */
-    ns: ['common', 'auth', 'dashboard', 'editor', 'chat', 'settings', 'home', 'privacy', 'errors', 'project', 'versions', 'admin', 'skills', 'materials', 'points', 'referral', 'onboarding', 'inspirations', 'docs'],
+    ns: ['common', 'auth', 'dashboard', 'editor', 'chat', 'settings', 'home', 'privacy', 'errors', 'project', 'versions', 'admin', 'announcements', 'skills', 'materials', 'points', 'referral', 'onboarding', 'inspirations', 'docs'],
 
     /** Default namespace when not specified in useTranslation() */
     defaultNS: 'common',
