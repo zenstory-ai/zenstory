@@ -377,6 +377,9 @@ class MessageManager:
             # assistant 为空时 message_count 会越记越多，分页与"最近 N 条"全错。
             chat_session.message_count += rows_added
             chat_session.updated_at = utcnow()
+            # IDs are generated on construction; reading the expired row after
+            # commit would reload its entire message payload just to get the ID.
+            assistant_message_id = assistant_chat_message.id if assistant_chat_message else None
             session.commit()
 
             log_with_context(
@@ -392,7 +395,7 @@ class MessageManager:
                 stop_reason=assistant_stop_reason,
                 rows_added=rows_added,
             )
-            return assistant_chat_message.id if assistant_chat_message else None
+            return assistant_message_id
 
         except Exception as e:
             session.rollback()
