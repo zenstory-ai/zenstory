@@ -13,12 +13,12 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, cast
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import InstrumentedAttribute, defer, load_only
 from sqlmodel import col, select
 
 from agent.context.assembler import ContextAssembler
@@ -252,7 +252,10 @@ class ProjectUpdate(BaseModel):
 # ==================== Helpers ====================
 
 
-def _load_accessible_file(session, user_id: str, api_key, file_id: str, *, for_write: bool = False) -> File:
+def _load_accessible_file(
+    session, user_id: str, api_key, file_id: str, *,
+    for_write: bool = False, include_content: bool = True,
+) -> File:
     """Load a live file the key may use: another user's file is 404, a project outside the key's allowlist 403."""
     if for_write:
         from database import is_postgres
@@ -266,7 +269,10 @@ def _load_accessible_file(session, user_id: str, api_key, file_id: str, *, for_w
         else:
             file = session.get(File, file_id, populate_existing=True)
     else:
-        file = session.get(File, file_id)
+        file = session.get(
+            File, file_id,
+            options=None if include_content else [defer(cast(InstrumentedAttribute[str], File.content))],
+        )
     if not file or file.is_deleted:
         raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
@@ -1047,7 +1053,7 @@ def list_file_versions(
     """
     session, user_id, api_key = context
 
-    file = _load_accessible_file(session, user_id, api_key, file_id)
+    file = _load_accessible_file(session, user_id, api_key, file_id, include_content=False)
     service = get_file_version_service()
     versions = service.get_versions(
         session=session,

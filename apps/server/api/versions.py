@@ -7,12 +7,13 @@ Provides REST endpoints for managing file version history.
 
 import contextlib
 from datetime import datetime
-from typing import Literal
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from services.auth import get_current_active_user
 from services.file_version import get_file_version_service
+from sqlalchemy.orm import InstrumentedAttribute, defer
 from sqlmodel import Session, select
 
 from core.error_codes import ErrorCode
@@ -30,9 +31,14 @@ router = APIRouter(prefix="/api/v1", tags=["versions"])
 # ==================== Helper Functions ====================
 
 
-def verify_file_ownership(session: Session, file_id: str, user: User) -> File:
-    """Verify that the user owns the file's project."""
-    file = session.get(File, file_id)
+def verify_file_ownership(
+    session: Session, file_id: str, user: User, *, include_content: bool = True
+) -> File:
+    """Verify ownership, optionally deferring the body for metadata-only reads."""
+    file = session.get(
+        File, file_id,
+        options=None if include_content else [defer(cast(InstrumentedAttribute[str], File.content))],
+    )
     if not file or file.is_deleted:
         raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
@@ -167,7 +173,7 @@ def get_file_versions(
     )
 
     # Check file exists and user has access
-    file = verify_file_ownership(session, file_id, current_user)
+    file = verify_file_ownership(session, file_id, current_user, include_content=offset == 0)
 
     service = get_file_version_service()
     versions = service.get_versions(

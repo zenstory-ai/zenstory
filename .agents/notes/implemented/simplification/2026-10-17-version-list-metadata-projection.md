@@ -32,3 +32,7 @@ get_versions 已新增 keyword-only include_content=True，保留现有默认完
 - 初次落地误把Web读取选项加到logging kwargs，4个实际SQL回归及时失败，修正为service调用后191全通过，未放宽断言；失败日志保留。早期mixed probe一次失败来自合成auth对象commit后过期的DetachedInstanceError，修正仅是临时fixture持有方式，不计产品故障/收益。
 - 只本地验证/commit，无push、PR、部署、云变更、付费模型调用；完整冻结源码、no-change control、各次样本与门禁日志在本地performance-goal `frontend-backend-local-20261017`。
 - 独立code-review覆盖5文件，代码/安全/兼容性/查询/实测均0发现。该review lane因没有LSP diagnostics工具，将正式建议标为COMMENT（无修改要求），不是无条件APPROVE；leader同样未发现该工具，按事先声明的真实测试+Ruff+mypy 0-new差分门禁接受此本地批次，保留类型诊断缺口，不安装新工具或掩盖既存错误。
+
+## Follow-up
+
+本记录当时将当前File.content的省略保留为独立候选，未混入版本行投影。后续经独立当前正文测量，按[版本元数据权限读取不预载当前全文](2026-10-17-version-ownership-body-deferral.md)实施：helper默认完整、Web第一页需要的正文和写锁刷新仍保留，仅纯元数据列表省略无用当前正文。本记录原有FileVersion投影、默认完整service及历史兼容决定不变。
