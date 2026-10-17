@@ -41,13 +41,11 @@ def get_base_prompt(
     parts.append("")
 
     # 3. 工具使用指南 (The Hands) - 紧跟逻辑
-    parts.append(get_tool_usage_guide(folder_ids))
+    parts.append(TOOL_USAGE_PROTOCOL)
     parts.append("")
 
     # 4. 项目具体资料 (The Knowledge)
     parts.append(config["capabilities"])
-    parts.append("")
-    parts.append(config["directory_structure"].format(**folder_ids))
     parts.append("")
     parts.append(config["content_structure"])
     parts.append("")
@@ -61,12 +59,16 @@ def get_base_prompt(
         parts.append(DIALOGUE_GUIDELINES)
         parts.append("")
 
-    # 6. 最后的守门员 (Triggers + Reference)
-    parts.append(config.get("character_detection", get_default_character_detection(folder_ids)))
-    parts.append("")
+    # 6. 固定参考 (Reference)
     parts.append(IMPACT_ANALYSIS_EXAMPLES)
 
-    # 项目标识放在基础提示末尾，让不同项目也能复用前面的固定协议前缀。
+    # 项目资料集中在末尾，让目录 UUID 不再打断固定协议和写作指导的公共前缀。
+    parts.append("")
+    parts.append(get_folder_reference(folder_ids))
+    parts.append("")
+    parts.append(config["directory_structure"].format(**folder_ids))
+    parts.append("")
+    parts.append(config.get("character_detection", get_default_character_detection(folder_ids)))
     parts.append(f"## 当前项目 ID: {project_id}")
 
     return "\n".join(parts)
@@ -173,8 +175,8 @@ OUTPUT_PROTOCOL = """## 双模态输出协议 [绝对准则]
 直接输出这些格式而不调用工具是严重错误，会导致用户数据丢失。"""
 
 
-def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
-    """Generate tool usage guide with appropriate folder IDs."""
+def get_folder_reference(folder_ids: dict[str, str]) -> str:
+    """Render only the current project's real folder mappings."""
 
     # Build folder reference based on available folders
     folder_refs = []
@@ -192,8 +194,15 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
         folder_refs.append(f"- 创建素材(snippet) → parent_id='{folder_ids['material']}'")
 
     folder_refs_str = "\n".join(folder_refs)
+    return f"### 创建文件时的 parent_id\n{folder_refs_str}"
 
-    return f"""## 工具使用规则
+
+def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
+    """Generate the complete tool guide with its project folder mappings."""
+    return f"{TOOL_USAGE_PROTOCOL}\n\n{get_folder_reference(folder_ids)}"
+
+
+TOOL_USAGE_PROTOCOL = """## 工具使用规则
 
 你有以下工具可用：
 - create_file: 创建新文件（必须指定正确的 parent_id；创建后用 <file>...</file> 流式写入内容）
@@ -201,7 +210,7 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 - delete_file: 删除未受作者正文保护的文件；受保护正文及含它的文件夹请作者用文件菜单删除；修改或重写用 edit_file
 - query_files: 查询/读取文件（query_files(id=...) 读取该文件全文；query_files(query=...) 按标题/内容定位文件）
 - update_project: 更新项目状态和 AI 提议；备注里的作者约定由 AI 记忆面板维护
-- update_project(tasks=[...]): 管理任务计划板；文件任务用 task_kind=file 并写明 artifact_file_type；对话里程碑用 task_kind=conversation，不能用它绕过文件验证；编号范围用 unit_spec={{"unit":"章","numbers":[1,2]}}，已创建产物用 artifact_refs 传 file_id；只有对应类型的实际文件存在且非空才标 done，标题不证明交付
+- update_project(tasks=[...]): 管理任务计划板；文件任务用 task_kind=file 并写明 artifact_file_type；对话里程碑用 task_kind=conversation，不能用它绕过文件验证；编号范围用 unit_spec={"unit":"章","numbers":[1,2]}，已创建产物用 artifact_refs 传 file_id；只有对应类型的实际文件存在且非空才标 done，标题不证明交付
 - parallel_execute: 一次并行执行多个**相互独立**的任务（批量提速）
 
 ### parallel_execute 使用场景 [批量提速]
@@ -212,7 +221,7 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 - 批量删除多个文件、同时对多个**不同**文件做互不影响的编辑
 - 读取也可以批量，但最简单的做法是在同一条回复里并列发出多个 query_files(id=…) 调用
 
-**调用格式**：`parallel_execute(tasks=[{{"type": ..., "description": ..., "params": {{...}}}}, ...])`
+**调用格式**：`parallel_execute(tasks=[{"type": ..., "description": ..., "params": {...}}, ...])`
 - 支持的 type：`edit_file`、`delete_file`、`query_files`、`write_chapter`
 - 每个 task 的 params 与对应单体工具完全一致（如 edit_file 用 `id`+`edits`，query_files 用 `id` 读全文）
 - 最多 5 个任务
@@ -440,10 +449,7 @@ create_file(title='第1章 初入江湖')
    - 思考过程使用作者的语言。
 
 **禁止**：
-- 用技术性语言描述操作（如'调用 create_file 工具'）
-
-### 创建文件时的 parent_id
-{folder_refs_str}"""
+- 用技术性语言描述操作（如'调用 create_file 工具'）"""
 
 
 DIALOGUE_GUIDELINES = """## 对话写作
