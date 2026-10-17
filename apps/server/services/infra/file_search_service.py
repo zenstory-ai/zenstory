@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import or_
+from sqlalchemy.orm import load_only
 from sqlmodel import Session, col, select
 
 from models import File
@@ -390,6 +391,15 @@ class FileSearchService:
 
         stmt = (
             select(File)
+            .options(
+                load_only(
+                    File.id,
+                    File.title,
+                    File.content,
+                    File.file_type,
+                    File.updated_at,
+                )
+            )
             .where(
                 File.project_id == project_id,
                 File.file_type != "folder",
