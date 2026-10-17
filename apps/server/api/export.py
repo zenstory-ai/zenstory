@@ -143,14 +143,14 @@ def export_project_drafts(
     )
 
     # 4. Add UTF-8 BOM for Windows Notepad compatibility
-    content_with_bom = '\ufeff' + content
+    content = '\ufeff' + content
 
     # 5. Build filename with RFC 5987 encoding for Chinese characters
     encoded_filename = quote(filename)
 
     # 6. Return as downloadable file
     return Response(
-        content=content_with_bom.encode('utf-8'),
+        content=content.encode('utf-8'),
         media_type="text/plain; charset=utf-8",
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
