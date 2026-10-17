@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   Book, FileText, Clapperboard, ArrowRight, Sparkles, Check, Zap,
   TrendingUp, Mic, Paperclip, Brain, History, Cloud, Download,
-  Edit3, User, Loader2
+  Edit3, User, Loader2, FolderOpen
 } from "../components/icons";
 import { useAuth } from "../contexts/AuthContext";
 import { usePreloadRoute } from "../hooks/usePreloadRoute";
@@ -317,23 +317,18 @@ export default function HomePage() {
                 
                 {/* Card content */}
                 <div className="relative bg-[hsl(var(--bg-secondary))] rounded-2xl overflow-hidden">
-                  {/* Window bar */}
-                  <div className="h-10 md:h-12 bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--border-color))] flex items-center px-3 md:px-4 gap-2 md:gap-3">
-                    <div className="flex gap-1.5 md:gap-2">
-                      <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-red-400" />
-                      <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-yellow-400" />
-                      <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-green-400" />
+                  <div className="h-11 md:h-12 bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--border-color))] flex items-center justify-between px-3 md:px-4 gap-3">
+                    <div className="min-w-0 flex items-center gap-2 text-xs md:text-sm font-medium text-[hsl(var(--text-primary))]">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0 text-[hsl(var(--accent-primary))]" />
+                      <span className="truncate">{t('home:demo.projectName')}</span>
                     </div>
-                    <div className="flex-1 flex justify-center">
-                      <div className="h-6 md:h-7 px-3 md:px-5 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] text-[10px] md:text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1.5 md:gap-2">
-                        <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5 text-[hsl(var(--accent-primary))]" />
-                        {t('home:demo.projectName')}
-                      </div>
-                    </div>
+                    <span className="shrink-0 rounded-full bg-[hsl(var(--accent-primary)/0.1)] px-2 py-1 text-[9px] md:text-[10px] font-semibold text-[hsl(var(--accent-primary))]">
+                      {t('home:demo.badge')}
+                    </span>
                   </div>
                   
                   {/* Scene content with transition */}
-                  <div className={prefersReducedMotion ? 'opacity-100' : `transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+                  <div data-testid="home-demo-scene" className={prefersReducedMotion ? 'opacity-100' : `transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
                     {renderSceneContent(SCENES[activeScene].id)}
                   </div>
                 </div>
@@ -359,26 +354,30 @@ export default function HomePage() {
               </div>
 
               {!prefersReducedMotion && (
-                <div className="mt-3 flex justify-center">
+                <div data-testid="home-demo-playback-controls" className="mt-3 flex items-center justify-center gap-3">
                   <button
                     type="button"
                     onClick={() => setIsDemoPaused((paused) => !paused)}
-                    className="min-h-11 px-3 text-xs rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                    className="h-11 shrink-0 px-3 text-xs rounded-lg border border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
                   >
                     {isDemoPaused ? t('home:demo.resume') : t('home:demo.pause')}
                   </button>
-                </div>
-              )}
-
-              {/* Carousel controls */}
-              {!prefersReducedMotion && (
-                <div className="mt-3 flex justify-center">
-                  <div className="w-28 md:w-36 h-1 rounded-full bg-[hsl(var(--bg-tertiary))] overflow-hidden">
+                  <div
+                    role="progressbar"
+                    aria-label={t('home:demo.progressLabel')}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(sceneProgress)}
+                    className="w-28 md:w-36 h-1 rounded-full bg-[hsl(var(--bg-tertiary))] overflow-hidden"
+                  >
                     <div
                       className="h-full bg-[hsl(var(--accent-primary))] transition-[width] duration-100"
                       style={{ width: `${sceneProgress}%` }}
                     />
                   </div>
+                  <span className="shrink-0 text-[11px] tabular-nums text-[hsl(var(--text-secondary))]">
+                    {activeScene + 1} / {SCENES.length}
+                  </span>
                 </div>
               )}
 
@@ -395,27 +394,21 @@ export default function HomePage() {
             <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">{t('home:projectTypes.subtitle')}</p>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-fr gap-4 md:gap-5">
             {[
               {
                 icon: Book,
                 type: 'novel' as ProjectType,
-                colorClass: "text-[hsl(var(--text-primary))]",
-                bgClass: "bg-white/5",
                 popular: true
               },
               {
                 icon: FileText,
                 type: 'short' as ProjectType,
-                colorClass: "text-[hsl(var(--success-text))]",
-                bgClass: "bg-[hsl(var(--success)/0.1)]",
                 popular: false
               },
               {
                 icon: Clapperboard,
                 type: 'screenplay' as ProjectType,
-                colorClass: "text-[hsl(var(--text-primary))]",
-                bgClass: "bg-white/5",
                 popular: false
               }
             ].map((item) => {
@@ -440,24 +433,22 @@ export default function HomePage() {
                 }}
                 onFocus={handleGetStartedHover}
                 onPointerEnter={handleGetStartedHover}
-                className="group relative w-full text-left p-4 md:p-5 rounded-xl bg-[hsl(var(--bg-primary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.5)] hover:shadow-[0_0_40px_rgba(74,158,255,0.15)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
+                className="group relative flex h-full w-full flex-col text-left p-4 md:p-5 rounded-xl bg-[hsl(var(--bg-primary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.5)] hover:shadow-[0_0_40px_rgba(74,158,255,0.15)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
               >
-                {/* Popular badge */}
-                {item.popular && (
-                  <div className="absolute top-3 md:top-4 right-3 md:right-4 px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning-text))] text-[10px] md:text-[11px] font-bold flex items-center gap-0.5 md:gap-1">
+                <div data-card-slot="header" className="mb-4 md:mb-5 flex min-h-12 items-start justify-between gap-3">
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <item.icon className="w-5 h-5 md:w-6 md:h-6 text-[hsl(var(--text-primary))]" />
+                  </div>
+                  <div aria-hidden={!item.popular} className={`px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))] text-[10px] md:text-[11px] font-bold flex items-center gap-0.5 md:gap-1 ${item.popular ? '' : 'invisible'}`}>
                     <TrendingUp className="w-2.5 h-2.5 md:w-3 md:h-3" />
                     {t('home:demo.popular')}
                   </div>
-                )}
-
-                <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl ${item.bgClass} flex items-center justify-center mb-4 md:mb-5 group-hover:scale-105 transition-transform`}>
-                  <item.icon className={`w-5 h-5 md:w-6 md:h-6 ${item.colorClass}`} />
                 </div>
-                <h3 className="text-[17px] md:text-[19px] font-bold text-[hsl(var(--text-primary))] mb-1.5 md:mb-2">{projectType}</h3>
-                <p className="text-xs md:text-sm text-[hsl(var(--text-secondary))] mb-3 md:mb-5 leading-relaxed">{projectDesc}</p>
-                <div className="flex flex-wrap gap-1.5 md:gap-2">
+                <h3 className="text-[17px] md:text-[19px] font-bold text-[hsl(var(--text-primary))] mb-1.5 md:mb-2 lg:min-h-15">{projectType}</h3>
+                <p data-card-slot="description" className="text-xs md:text-sm text-[hsl(var(--text-secondary))] mb-3 md:mb-5 leading-relaxed lg:h-[4.5rem]">{projectDesc}</p>
+                <div data-card-slot="features" className="mt-auto lg:mt-0 flex min-h-16 flex-wrap content-start gap-1.5 md:gap-2">
                   {projectFeatures.map((f, j) => (
-                    <span key={j} className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full ${item.bgClass} ${item.colorClass} font-medium`}>
+                    <span key={j} className="text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] border border-[hsl(var(--border-color))] font-medium">
                       {String(f)}
                     </span>
                   ))}
@@ -526,9 +517,6 @@ export default function HomePage() {
             <h2 className="text-2xl md:text-3xl font-bold text-[hsl(var(--text-primary))] mb-3">
               {t('home:pricingTeaser.title', '先免费开始，按需升级')}
             </h2>
-            <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">
-              {t('home:pricingTeaser.subtitle', '免费版就能完整写作；需要更多 AI 消息和项目时再开 Pro。')}
-            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 max-w-3xl mx-auto">
@@ -634,311 +622,170 @@ export default function HomePage() {
 // Scene Components
 // ============================================
 
-// Scene 1: Create Character - Shows tool call card
-function SceneCreate() {
+type DemoScene = 'create' | 'suggest' | 'edit';
+
+const DEMO_SCENE_TRANSLATION_KEY = {
+  create: 'sceneCreate',
+  suggest: 'sceneSuggest',
+  edit: 'sceneEdit',
+} as const;
+
+const DEMO_SCENE_STATUS_KEY = {
+  create: 'created',
+  suggest: 'writing',
+  edit: 'updated',
+} as const;
+
+const DEMO_FILES = [
+  { key: 'worldBuilding', icon: FolderOpen },
+  { key: 'characters', icon: User },
+  { key: 'outline', icon: FileText },
+  { key: 'currentFile', icon: Book },
+] as const;
+
+function DemoFileTree() {
   const { t } = useTranslation(['home']);
   return (
-    <div className="flex flex-col md:flex-row h-auto md:h-[380px]">
-      {/* Sidebar - 20% */}
-      <div className="w-full md:w-[20%] min-w-[120px] bg-[hsl(var(--bg-secondary))] border-b md:border-b-0 md:border-r border-[hsl(var(--border-color))] p-3 shrink-0">
-        <div className="text-[10px] text-[hsl(var(--text-secondary))] uppercase tracking-wider font-semibold mb-2">{t('home:preview.projectFiles')}</div>
-        <div className="grid grid-cols-2 gap-0.5 md:block md:space-y-0.5">
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>📁</span>
-            <span className="truncate">{t('home:preview.worldBuilding')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)] text-[hsl(var(--accent-primary))] text-xs font-medium">
-            <span>👤</span>
-            <span className="truncate">{t('home:preview.characters')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>📝</span>
-            <span className="truncate">{t('home:preview.outline')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>📖</span>
-            <span className="truncate">{t('home:preview.draft')}</span>
-          </div>
-        </div>
+    <aside className="hidden md:block md:w-[21%] min-w-[128px] bg-[hsl(var(--bg-secondary))] border-r border-[hsl(var(--border-color))] p-3 shrink-0">
+      <div className="text-[10px] text-[hsl(var(--text-secondary))] uppercase tracking-wider font-semibold mb-2">
+        {t('home:preview.projectFiles')}
       </div>
-
-      {/* Editor content - 45% */}
-      <div className="w-full md:w-[45%] p-4 bg-[hsl(var(--bg-primary))] overflow-hidden">
-        <div className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-3 flex items-center gap-2">
-          <User className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
-          {t('home:preview.sceneCreate.character.name')}
-        </div>
-        <div className="space-y-2 text-xs leading-relaxed">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[hsl(var(--text-secondary))]">
-            <span><span>{t('home:preview.sceneCreate.character.gender')}</span> {t('home:preview.sceneCreate.character.genderValue')}</span>
-            <span><span>{t('home:preview.sceneCreate.character.age')}</span> {t('home:preview.sceneCreate.character.ageValue')}</span>
-            <span><span>{t('home:preview.sceneCreate.character.identity')}</span> {t('home:preview.sceneCreate.character.identityValue')}</span>
-          </div>
-          <div className="text-[hsl(var(--text-secondary))] pt-2 border-t border-[hsl(var(--border-color))]">
-            <span className="mb-1 block text-[10px]">{t('home:preview.sceneCreate.character.personality')}</span>
-            {t('home:preview.sceneCreate.character.personalityDesc')}
-          </div>
-          <div className="text-[hsl(var(--text-primary))]">
-            <span className="text-[hsl(var(--text-secondary))] mb-1 block text-[10px]">{t('home:preview.sceneCreate.character.secret')}</span>
-            <span className="text-[hsl(var(--accent-primary))] font-medium">{t('home:preview.sceneCreate.character.secretDesc')}</span>
-            <span className="inline-block w-0.5 h-3.5 bg-[hsl(var(--accent-primary))] ml-1 align-middle animate-pulse" />
-          </div>
-        </div>
+      <div className="space-y-0.5">
+        {DEMO_FILES.map(({ key, icon: Icon }) => {
+          const selected = key === 'currentFile';
+          return (
+            <div
+              key={key}
+              className={`flex items-center gap-2 min-h-8 px-2 rounded-md text-[11px] ${selected
+                ? 'bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))] font-medium'
+                : 'text-[hsl(var(--text-secondary))]'}`}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{t(`home:preview.${key}`)}</span>
+            </div>
+          );
+        })}
       </div>
-
-      {/* Chat panel - 35% */}
-      <div className="w-full md:w-[35%] min-w-[180px] bg-[hsl(var(--bg-secondary))] border-l border-[hsl(var(--border-color))] flex flex-col shrink-0">
-        <div className="h-10 px-3 border-b border-[hsl(var(--border-color))] flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))]" />
-          <span className="text-[10px] text-[hsl(var(--text-secondary))] font-semibold uppercase tracking-wider">{t('home:preview.sceneCreate.ai.title')}</span>
-        </div>
-        <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
-          {/* User message */}
-          <div className="flex justify-end">
-            <div className="max-w-[90%] px-3 py-1.5 rounded-xl rounded-br-sm bg-[hsl(var(--accent-primary))] text-[11px] text-white">
-              {t('home:preview.sceneCreate.ai.input')}
-            </div>
-          </div>
-
-          {/* AI reply */}
-          <div className="flex justify-start">
-            <div className="max-w-[90%] px-3 py-1.5 rounded-xl rounded-bl-sm bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] text-[11px] text-[hsl(var(--text-secondary))]">
-              {t('home:preview.sceneCreate.ai.response')}
-            </div>
-          </div>
-
-          {/* Tool call card */}
-          <div className="rounded-lg bg-[hsl(var(--success)/0.08)] border border-[hsl(var(--success)/0.25)] p-2.5">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="w-4 h-4 rounded-full bg-[hsl(var(--success))] flex items-center justify-center">
-                <Check className="w-2.5 h-2.5 text-white" />
-              </div>
-              <span className="text-[11px] font-semibold text-[hsl(var(--success-text))]">{t('home:preview.sceneCreate.ai.created')}</span>
-            </div>
-            <div className="text-[11px] text-[hsl(var(--text-primary))] font-medium">{t('home:preview.sceneCreate.character.name')}</div>
-            <div className="text-[10px] text-[hsl(var(--text-secondary))] mt-1">{t('home:preview.sceneCreate.ai.desc')}</div>
-          </div>
-        </div>
-
-        {/* Input area */}
-        <div className="p-2.5 border-t border-[hsl(var(--border-color))]">
-          <div className="h-8 px-3 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] flex items-center justify-between">
-            <span className="text-[11px] text-[hsl(var(--text-secondary))]">{t('home:preview.sceneCreate.ai.placeholder')}</span>
-            <Mic className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />
-          </div>
-        </div>
-      </div>
-    </div>
+    </aside>
   );
 }
 
-// Scene 2: Smart Suggestion - Shows suggestion bubble + voice button
-function SceneSuggest() {
+function DemoAssistant({ scene }: { scene: DemoScene }) {
   const { t } = useTranslation(['home']);
+  const isWriting = scene === 'suggest';
+  const statusIcon = scene === 'create' ? Check : scene === 'edit' ? History : Edit3;
+  const StatusIcon = statusIcon;
+  const translationKey = DEMO_SCENE_TRANSLATION_KEY[scene];
+
   return (
-    <div className="flex flex-col md:flex-row h-auto md:h-[380px]">
-      {/* Sidebar - 20% */}
-      <div className="w-full md:w-[20%] min-w-[120px] bg-[hsl(var(--bg-secondary))] border-b md:border-b-0 md:border-r border-[hsl(var(--border-color))] p-3 shrink-0">
-        <div className="text-[10px] text-[hsl(var(--text-secondary))] uppercase tracking-wider font-semibold mb-2">{t('home:preview.projectFiles')}</div>
-        <div className="grid grid-cols-2 gap-0.5 md:block md:space-y-0.5">
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>📁</span>
-            <span className="truncate">{t('home:preview.worldBuilding')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>👤</span>
-            <span className="truncate">{t('home:preview.characters')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>📝</span>
-            <span className="truncate">{t('home:preview.outline')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)] text-[hsl(var(--accent-primary))] text-xs font-medium">
-            <span>📖</span>
-            <span className="truncate">{t('home:preview.sceneSuggest.chapter').split(' · ')[1]}</span>
-          </div>
-        </div>
+    <section className="w-full md:w-[35%] min-w-[180px] bg-[hsl(var(--bg-secondary))] border-t md:border-t-0 md:border-l border-[hsl(var(--border-color))] flex flex-col shrink-0">
+      <div className="h-10 px-3 border-b border-[hsl(var(--border-color))] flex items-center gap-2">
+        <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))]" />
+        <span className="text-[10px] text-[hsl(var(--text-secondary))] font-semibold uppercase tracking-wider">
+          {t('home:preview.assistant')}
+        </span>
       </div>
-
-      {/* Editor content - 45% */}
-      <div className="w-full md:w-[45%] p-4 bg-[hsl(var(--bg-primary))] relative overflow-hidden">
-        {/* AI writing progress bar */}
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-[hsl(var(--accent-primary)/0.2)] overflow-hidden">
-          <div className="h-full w-full" style={{
-            background: 'linear-gradient(90deg, transparent 0%, hsl(var(--accent-primary)) 50%, transparent 100%)',
-            backgroundSize: '200% 100%',
-            animation: 'shimmer 2s ease-in-out infinite'
-          }} />
+      <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
+        <div className="flex justify-end">
+          <div className="max-w-[92%] px-3 py-1.5 rounded-xl rounded-br-sm bg-[hsl(var(--accent-primary))] text-[11px] text-white">
+            {t(`home:preview.${translationKey}.ai.input`)}
+          </div>
         </div>
-
-        <div className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-3">{t('home:preview.sceneSuggest.chapter')}</div>
-        <div className="space-y-2 text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
-          <p>{t('home:preview.sceneSuggest.content1')}</p>
-          <p>{t('home:preview.sceneSuggest.content2')}</p>
-          <p className="text-[hsl(var(--text-primary))]">
-            {t('home:preview.sceneSuggest.content3')}
-            <span className="inline-block w-0.5 h-3.5 bg-[hsl(var(--accent-primary))] ml-1 align-middle animate-pulse" />
+        <div className="flex justify-start">
+          <div className="max-w-[92%] px-3 py-1.5 rounded-xl rounded-bl-sm bg-[hsl(var(--bg-tertiary))] text-[11px] text-[hsl(var(--text-secondary))]">
+            {t(`home:preview.${translationKey}.ai.response`)}
+          </div>
+        </div>
+        <div className="rounded-lg bg-[hsl(var(--accent-primary)/0.07)] p-2.5">
+          <div className="flex items-center gap-2">
+            <StatusIcon className={`w-3.5 h-3.5 text-[hsl(var(--accent-primary))] ${isWriting ? 'animate-pulse motion-reduce:animate-none' : ''}`} />
+            <span className="text-[11px] font-semibold text-[hsl(var(--accent-primary))]">
+              {t(`home:preview.${translationKey}.ai.${DEMO_SCENE_STATUS_KEY[scene]}`)}
+            </span>
+          </div>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-[hsl(var(--text-secondary))]">
+            {t(`home:preview.${translationKey}.ai.desc`)}
           </p>
         </div>
       </div>
-
-      {/* Chat panel - 35% */}
-      <div className="w-full md:w-[35%] min-w-[180px] bg-[hsl(var(--bg-secondary))] border-l border-[hsl(var(--border-color))] flex flex-col shrink-0">
-        <div className="h-10 px-3 border-b border-[hsl(var(--border-color))] flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))]" />
-          <span className="text-[10px] text-[hsl(var(--text-secondary))] font-semibold uppercase tracking-wider">{t('home:preview.sceneSuggest.ai.title')}</span>
-        </div>
-        <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
-          {/* User message */}
-          <div className="flex justify-end">
-            <div className="max-w-[90%] px-3 py-1.5 rounded-xl rounded-br-sm bg-[hsl(var(--accent-primary))] text-[11px] text-white">
-              {t('home:preview.sceneSuggest.ai.input')}
-            </div>
-          </div>
-
-          {/* AI reply */}
-          <div className="flex justify-start">
-            <div className="max-w-[90%] px-3 py-1.5 rounded-xl rounded-bl-sm bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] text-[11px] text-[hsl(var(--text-secondary))]">
-              {t('home:preview.sceneSuggest.ai.response')}
-            </div>
-          </div>
-
-          {/* Tool call - writing in progress */}
-          <div className="rounded-lg bg-[hsl(var(--accent-primary)/0.08)] border border-[hsl(var(--accent-primary)/0.25)] p-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[hsl(var(--accent-primary))] flex items-center justify-center">
-                <Edit3 className="w-2.5 h-2.5 text-white" />
-              </div>
-              <span className="text-[11px] font-semibold text-[hsl(var(--accent-primary))]">{t('home:preview.sceneSuggest.ai.writing')}</span>
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex-1 h-1 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
-                <div className="h-full w-3/4 bg-[hsl(var(--accent-primary))] rounded-full" />
-              </div>
-              <span className="text-[10px] text-[hsl(var(--text-secondary))]">75%</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Smart suggestion bubble */}
-        <div className="px-2.5 pb-1.5">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[hsl(var(--accent-primary)/0.08)] border border-[hsl(var(--accent-primary)/0.15)] w-fit">
-            <Sparkles className="w-3 h-3 text-[hsl(var(--accent-primary))]" />
-            <span className="text-[10px] text-[hsl(var(--accent-primary))] font-medium">{t('home:preview.sceneSuggest.ai.action')}</span>
-            <span className="text-[9px] text-[hsl(var(--text-secondary))] px-1 py-0.5 bg-[hsl(var(--bg-tertiary))] rounded text-[8px]">Tab</span>
-          </div>
-        </div>
-
-        {/* Input area */}
-        <div className="p-2.5 border-t border-[hsl(var(--border-color))]">
-          <div className="h-8 px-3 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] flex items-center justify-between">
-            <span className="text-[11px] text-[hsl(var(--text-secondary))]">{t('home:preview.sceneSuggest.ai.placeholder')}</span>
-            <Mic className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
-          </div>
+      <div className="p-2.5 border-t border-[hsl(var(--border-color))]">
+        <div className="h-8 px-3 rounded-lg bg-[hsl(var(--bg-tertiary))] flex items-center justify-between">
+          <span className="text-[11px] text-[hsl(var(--text-secondary))]">{t('home:preview.inputPlaceholder')}</span>
+          <Mic className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />
         </div>
       </div>
+    </section>
+  );
+}
+
+function DemoWorkspace({ scene, children }: { scene: DemoScene; children: ReactNode }) {
+  return (
+    <div className="flex flex-col md:flex-row h-auto md:h-[380px]">
+      <DemoFileTree />
+      <div className="w-full md:w-[44%] min-h-[220px] p-4 bg-[hsl(var(--bg-primary))] overflow-hidden">
+        {children}
+      </div>
+      <DemoAssistant scene={scene} />
     </div>
   );
 }
 
-// Scene 3: Edit/Expand - Shows edit tool call card
+function SceneCreate() {
+  const { t } = useTranslation(['home']);
+  return (
+    <DemoWorkspace scene="create">
+      <div className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-3">{t('home:preview.currentFile')}</div>
+      <div className="space-y-3 text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
+        <p>{t('home:preview.sceneCreate.content1')}</p>
+        <p>{t('home:preview.sceneCreate.content2')}</p>
+        <div className="rounded-lg bg-[hsl(var(--bg-secondary))] p-3">
+          <div className="mb-2 text-[10px] font-semibold text-[hsl(var(--text-secondary))]">{t('home:preview.sceneCreate.contextTitle')}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {[t('home:preview.outline'), t('home:preview.characters'), t('home:preview.worldBuilding')].map(label => (
+              <span key={label} className="rounded-full bg-[hsl(var(--bg-tertiary))] px-2 py-1 text-[10px] text-[hsl(var(--text-primary))]">{label}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </DemoWorkspace>
+  );
+}
+
+function SceneSuggest() {
+  const { t } = useTranslation(['home']);
+  return (
+    <DemoWorkspace scene="suggest">
+      <div className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-3">{t('home:preview.currentFile')}</div>
+      <div className="space-y-2 text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
+        <p>{t('home:preview.sceneSuggest.content1')}</p>
+        <p>{t('home:preview.sceneSuggest.content2')}</p>
+        <p className="text-[hsl(var(--text-primary))]">
+          {t('home:preview.sceneSuggest.content3')}
+          <span className="inline-block w-0.5 h-3.5 bg-[hsl(var(--accent-primary))] ml-1 align-middle animate-pulse motion-reduce:animate-none" />
+        </p>
+      </div>
+    </DemoWorkspace>
+  );
+}
+
 function SceneEdit() {
   const { t } = useTranslation(['home']);
   return (
-    <div className="flex flex-col md:flex-row h-auto md:h-[380px]">
-      {/* Sidebar - 20% */}
-      <div className="w-full md:w-[20%] min-w-[120px] bg-[hsl(var(--bg-secondary))] border-b md:border-b-0 md:border-r border-[hsl(var(--border-color))] p-3 shrink-0">
-        <div className="text-[10px] text-[hsl(var(--text-secondary))] uppercase tracking-wider font-semibold mb-2">{t('home:preview.projectFiles')}</div>
-        <div className="grid grid-cols-2 gap-0.5 md:block md:space-y-0.5">
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>📁</span>
-            <span className="truncate">{t('home:preview.worldBuilding')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>👤</span>
-            <span className="truncate">{t('home:preview.characters')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)] text-[hsl(var(--accent-primary))] text-xs font-medium">
-            <span>📝</span>
-            <span className="truncate">{t('home:preview.outline')}</span>
-          </div>
-          <div className="flex items-center gap-2 h-8 px-2 rounded-md text-[hsl(var(--text-secondary))] text-xs">
-            <span>📖</span>
-            <span className="truncate">{t('home:preview.draft')}</span>
-          </div>
+    <DemoWorkspace scene="edit">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="text-sm font-semibold text-[hsl(var(--text-primary))]">{t('home:preview.currentFile')}</div>
+        <span className="text-[10px] text-[hsl(var(--text-secondary))]">{t('home:preview.sceneEdit.version')}</span>
+      </div>
+      <div className="space-y-2.5 text-xs leading-relaxed">
+        <div className="rounded-lg bg-[hsl(var(--bg-secondary))] p-3">
+          <div className="mb-1 text-[10px] text-[hsl(var(--text-secondary))]">{t('home:preview.sceneEdit.original')}</div>
+          <p className="text-[hsl(var(--text-secondary))]">{t('home:preview.sceneEdit.originalText')}</p>
+        </div>
+        <div className="rounded-lg bg-[hsl(var(--accent-primary)/0.07)] p-3">
+          <div className="mb-1 text-[10px] font-medium text-[hsl(var(--accent-primary))]">{t('home:preview.sceneEdit.suggestion')}</div>
+          <p className="text-[hsl(var(--text-primary))]">{t('home:preview.sceneEdit.suggestionText')}</p>
         </div>
       </div>
-
-      {/* Editor content - 45% */}
-      <div className="w-full md:w-[45%] p-4 bg-[hsl(var(--bg-primary))] overflow-hidden">
-        <div className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-3">{t('home:preview.sceneEdit.chapter')}</div>
-        <div className="space-y-2 text-xs leading-relaxed">
-          <div className="p-2.5 rounded-lg bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))]">
-            <div className="text-[10px] text-[hsl(var(--text-secondary))] mb-0.5">{t('home:preview.sceneEdit.scene1')}</div>
-            <div className="text-[hsl(var(--text-primary))]">{t('home:preview.sceneEdit.scene1Desc')}</div>
-          </div>
-          <div className="p-2.5 rounded-lg bg-[hsl(var(--accent-primary)/0.05)] border border-[hsl(var(--accent-primary)/0.2)]">
-            <div className="text-[10px] text-[hsl(var(--accent-primary))] mb-0.5">{t('home:preview.sceneEdit.scene2')}</div>
-            <div className="text-[hsl(var(--text-primary))]">{t('home:preview.sceneEdit.scene2Desc')}</div>
-          </div>
-          <div className="p-2.5 rounded-lg bg-[hsl(var(--accent-primary)/0.05)] border border-[hsl(var(--accent-primary)/0.2)]">
-            <div className="text-[10px] text-[hsl(var(--accent-primary))] mb-0.5">{t('home:preview.sceneEdit.scene3')}</div>
-            <div className="text-[hsl(var(--text-primary))]">
-              {t('home:preview.sceneEdit.scene3Desc')}
-              <span className="inline-block w-0.5 h-3.5 bg-[hsl(var(--accent-primary))] ml-1 align-middle animate-pulse" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Chat panel - 35% */}
-      <div className="w-full md:w-[35%] min-w-[180px] bg-[hsl(var(--bg-secondary))] border-l border-[hsl(var(--border-color))] flex flex-col shrink-0">
-        <div className="h-10 px-3 border-b border-[hsl(var(--border-color))] flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))]" />
-          <span className="text-[10px] text-[hsl(var(--text-secondary))] font-semibold uppercase tracking-wider">{t('home:preview.sceneEdit.ai.title')}</span>
-        </div>
-        <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
-          {/* User message */}
-          <div className="flex justify-end">
-            <div className="max-w-[90%] px-3 py-1.5 rounded-xl rounded-br-sm bg-[hsl(var(--accent-primary))] text-[11px] text-white">
-              {t('home:preview.sceneEdit.ai.input')}
-            </div>
-          </div>
-
-          {/* AI reply */}
-          <div className="flex justify-start">
-            <div className="max-w-[90%] px-3 py-1.5 rounded-xl rounded-bl-sm bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] text-[11px] text-[hsl(var(--text-secondary))]">
-              {t('home:preview.sceneEdit.ai.response')}
-            </div>
-          </div>
-
-          {/* Tool call card */}
-          <div className="rounded-lg bg-[hsl(var(--accent-primary)/0.08)] border border-[hsl(var(--accent-primary)/0.25)] p-2.5">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="w-4 h-4 rounded-full bg-[hsl(var(--accent-primary))] flex items-center justify-center">
-                <Edit3 className="w-2.5 h-2.5 text-white" />
-              </div>
-              <span className="text-[11px] font-semibold text-[hsl(var(--accent-primary))]">{t('home:preview.sceneEdit.ai.updated')}</span>
-            </div>
-            <div className="text-[11px] text-[hsl(var(--text-primary))] font-medium">{t('home:preview.sceneEdit.ai.updatedFile')}</div>
-            <div className="text-[10px] text-[hsl(var(--text-secondary))] mt-1">{t('home:preview.sceneEdit.ai.newScenes')}</div>
-
-            {/* Undo hint */}
-            <div className="mt-2 pt-1.5 border-t border-[hsl(var(--border-color))] flex items-center gap-1">
-              <History className="w-3 h-3 text-[hsl(var(--text-secondary))]" />
-              <span className="text-[9px] text-[hsl(var(--text-secondary))]">{t('home:preview.sceneEdit.ai.undo')}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Input area */}
-        <div className="p-2.5 border-t border-[hsl(var(--border-color))]">
-          <div className="h-8 px-3 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] flex items-center justify-between">
-            <span className="text-[11px] text-[hsl(var(--text-secondary))]">{t('home:preview.sceneEdit.ai.placeholder')}</span>
-            <Mic className="w-3.5 h-3.5 text-[hsl(var(--text-secondary))]" />
-          </div>
-        </div>
-      </div>
-    </div>
+    </DemoWorkspace>
   );
 }

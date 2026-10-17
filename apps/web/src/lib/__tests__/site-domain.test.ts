@@ -26,9 +26,10 @@ describe('getBoundaryDestination', () => {
   it('moves public site routes from the app to the matching site host', () => {
     expect(getBoundaryDestination('https://app.zenstory.ai/docs/guide?q=one#install')).toBeNull()
     expect(getBoundaryDestination('https://zenstory.ai/docs/guide?q=one#install')).toBeNull()
-    expect(getBoundaryDestination('https://app.zenstory.ai/privacy-policy')).toBe(
-      'https://zenstory.ai/privacy-policy',
-    )
+    expect(getBoundaryDestination('https://app.zenstory.ai/privacy-policy')).toBeNull()
+    expect(getBoundaryDestination('https://app.zenstory.ai/terms-of-service')).toBeNull()
+    expect(getBoundaryDestination('https://zenstory.ai/privacy-policy')).toBeNull()
+    expect(getBoundaryDestination('https://zenstory.ai/terms-of-service')).toBeNull()
     expect(getBoundaryDestination('https://app.zenstory.ai/')).toBeNull()
   })
 

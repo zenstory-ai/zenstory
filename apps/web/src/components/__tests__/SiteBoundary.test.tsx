@@ -59,6 +59,18 @@ describe('SiteBoundary', () => {
     expect(replace).not.toHaveBeenCalled()
   })
 
+  it.each([
+    'https://app.zenstory.ai/privacy-policy',
+    'https://app.zenstory.ai/terms-of-service',
+    'https://app-preview.zenstory.ai/privacy-policy',
+    'https://app-preview.zenstory.ai/terms-of-service',
+  ])('keeps the App legal reader on %s', href => {
+    const replace = vi.fn()
+    renderBoundary(href, replace, <div>App legal reader</div>)
+    expect(screen.getByText('App legal reader')).toBeInTheDocument()
+    expect(replace).not.toHaveBeenCalled()
+  })
+
   it('intercepts a hydrated apex Link to the static root before the SPA router handles it', () => {
     const replace = vi.fn()
     renderBoundary(

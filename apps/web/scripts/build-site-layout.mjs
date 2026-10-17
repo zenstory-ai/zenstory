@@ -24,6 +24,7 @@ const prefixPattern = prefixes => `/:path((?:${prefixes.map(escapeRegex).join('|
 const appPaths = prefixPattern(contract.appPrefixes)
 const sitePaths = prefixPattern(contract.sitePrefixes)
 const sharedPaths = prefixPattern(contract.sharedPrefixes)
+const sharedImplementationPaths = `/_site/:path((?:${contract.sharedPrefixes.map(escapeRegex).join('|')})(?:/.*)?)`
 /** Cookie the organization header's language switch sets (see site-shell.mjs langChoiceScript). */
 export const LANG_COOKIE = 'zs_lang'
 const redirect = (source,destination,has) => ({source,destination,permanent:true,...(has ? {has} : {})})
@@ -33,7 +34,7 @@ const internalAliases = {
   '/_app':`${APP}/`, '/_app/':`${APP}/`, '/_app/index.html':`${APP}/`, '/_app/home.html':`${APP}/`,
   '/_app/pricing.html':`${APP}/pricing`,
   '/_app/robots.txt':`${APP}/robots.txt`, '/_app/sitemap.xml':`${APP}/sitemap.xml`,
-  '/_site/docs/:path*':`${SITE}/docs/:path*`,
+  [sharedImplementationPaths]:`${SITE}/:path`,
   '/_site/robots.txt':`${SITE}/robots.txt`, '/_site/sitemap.xml':`${SITE}/sitemap.xml`,
 }
 export const vercelConfig = {

@@ -30,11 +30,11 @@
     "guides",
     "compare",
     "glossary",
-    "privacy-policy",
-    "terms-of-service",
     "llms.txt"
   ],
   "sharedPrefixes": [
-    "docs"
+    "docs",
+    "privacy-policy",
+    "terms-of-service"
   ]
 }

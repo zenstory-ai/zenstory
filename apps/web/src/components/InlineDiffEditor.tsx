@@ -109,16 +109,15 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
         ? "opacity-45"
         : "";
 
-    const activeClass = isActive
-      ? "outline outline-2 outline-[hsl(var(--accent-primary)/0.55)] outline-offset-2"
+    const clickable = editId && onSelectEdit
+      ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-[hsl(var(--accent-primary))] focus-visible:outline-offset-2"
       : "";
-
-    const clickable = editId && onSelectEdit ? "cursor-pointer" : "";
     const onClick = editId && onSelectEdit ? () => onSelectEdit(editId) : undefined;
     const onKeyDown = editId && onSelectEdit
       ? (event: ReactKeyboardEvent<HTMLSpanElement>) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
+            event.stopPropagation();
             onSelectEdit(editId);
           }
         }
@@ -128,6 +127,7 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
           role: "button" as const,
           tabIndex: 0,
           onKeyDown,
+          "aria-current": isActive ? "true" as const : undefined,
           "aria-label": t("editor:locateChangeIndexed", {
             defaultValue: "定位到第 {{index}} 处修改",
             index: (segment.editIndex ?? 0) + 1,
@@ -144,9 +144,8 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
           onClick={onClick}
           {...interactiveProps}
           className={cn(
-            "diff-remove rounded-sm border-l border-[hsl(var(--diff-remove-text)/0.75)] px-1.5 py-0.5",
+            "diff-remove",
             statusClass,
-            activeClass,
             clickable
           )}
         >
@@ -164,9 +163,8 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
           onClick={onClick}
           {...interactiveProps}
           className={cn(
-            "diff-add rounded-sm border-l border-[hsl(var(--diff-add-text)/0.75)] px-1.5 py-0.5",
+            "diff-add",
             statusClass,
-            activeClass,
             clickable
           )}
         >
@@ -182,12 +180,12 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
         data-status={status}
         onClick={onClick}
         {...interactiveProps}
-        className={cn("inline-flex rounded-sm overflow-hidden", statusClass, activeClass, clickable)}
+        className={cn("inline-flex", statusClass, clickable)}
       >
-        <span className="diff-remove border-l border-[hsl(var(--diff-remove-text)/0.75)] px-1.5 py-0.5">
+        <span className="diff-remove px-1.5 py-0.5">
           {segment.text}
         </span>
-        <span className="diff-add border-r border-[hsl(var(--diff-add-text)/0.75)] px-1.5 py-0.5">
+        <span className="diff-add px-1.5 py-0.5">
           {segment.newText}
         </span>
       </span>

@@ -7,6 +7,7 @@ import { extname, join, resolve } from 'node:path';
 // These pages are generated HTML, not Vite's development SPA. Build one isolated
 // copy per worker and serve it through the browser fixture in local and CI runs.
 const webRoot = resolve(import.meta.dirname, '../..');
+const sharedPrefixes = (JSON.parse(readFileSync(join(webRoot, 'content/site-routing.json'), 'utf8')) as { sharedPrefixes: string[] }).sharedPrefixes;
 const types: Record<string, string> = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json',
@@ -30,7 +31,8 @@ export const test = base.extend<{ staticSite: void }, { staticDir: string }>({
     const origin = new URL(baseURL!).origin;
     await page.route(`${origin}/**`, async route => {
       const pathname = new URL(route.request().url()).pathname;
-      let file = join(staticDir, /^\/docs(?:\/|$)/.test(pathname) ? '_site' : '', pathname);
+      const rootPrefix = pathname.split('/')[1];
+      let file = join(staticDir, sharedPrefixes.includes(rootPrefix) ? '_site' : '', pathname);
       if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
       if (!existsSync(file)) file = join(webRoot, 'public', pathname);
       if (!existsSync(file) || statSync(file).isDirectory()) {

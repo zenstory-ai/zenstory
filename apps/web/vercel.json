@@ -519,8 +519,8 @@
       "permanent": true
     },
     {
-      "source": "/_site/docs/:path*",
-      "destination": "https://zenstory.ai/docs/:path*",
+      "source": "/_site/:path((?:docs|privacy-policy|terms-of-service)(?:/.*)?)",
+      "destination": "https://zenstory.ai/:path",
       "permanent": true
     },
     {
@@ -556,12 +556,12 @@
       ]
     },
     {
-      "source": "/:path((?:zh|projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary|privacy-policy|terms-of-service)(?:/.*)?)/index.html",
+      "source": "/:path((?:zh|projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary)(?:/.*)?)/index.html",
       "destination": "https://zenstory.ai/:path",
       "permanent": true
     },
     {
-      "source": "/:path((?:docs)(?:/.*)?)/index.html",
+      "source": "/:path((?:docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html",
       "destination": "https://app.zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -572,7 +572,7 @@
       ]
     },
     {
-      "source": "/:path((?:docs)(?:/.*)?)/index.html",
+      "source": "/:path((?:docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html",
       "destination": "https://app-preview.zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -583,7 +583,7 @@
       ]
     },
     {
-      "source": "/:path((?:docs)(?:/.*)?)/index.html",
+      "source": "/:path((?:docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html",
       "destination": "https://zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -616,7 +616,7 @@
       ]
     },
     {
-      "source": "/:path((?:zh|projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
+      "source": "/:path((?:zh|projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary|llms\\.txt)(?:/.*)?)",
       "destination": "https://zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -627,7 +627,7 @@
       ]
     },
     {
-      "source": "/:path((?:zh|projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
+      "source": "/:path((?:zh|projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary|llms\\.txt)(?:/.*)?)",
       "destination": "https://geo-preview.zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -738,7 +738,7 @@
       ]
     },
     {
-      "source": "/:path((?:docs)(?:/.*)?)",
+      "source": "/:path((?:docs|privacy-policy|terms-of-service)(?:/.*)?)",
       "destination": "/_site/:path",
       "has": [
         {

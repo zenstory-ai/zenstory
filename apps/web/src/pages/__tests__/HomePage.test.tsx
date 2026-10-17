@@ -148,6 +148,38 @@ describe("HomePage reduced-motion carousel behavior", () => {
     expect(suggestButton.className).toContain("text-white");
   });
 
+  it("keeps playback actions, progress, and scene position in one control row", () => {
+    setupMatchMedia(false);
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    const controls = screen.getByTestId("home-demo-playback-controls");
+    expect(controls).toContainElement(screen.getByRole("button", { name: "home:demo.pause" }));
+    expect(controls).toContainElement(screen.getByRole("progressbar", { name: "home:demo.progressLabel" }));
+    expect(controls).toHaveTextContent("1 / 3");
+  });
+
+  it("gives every project type card the same anchored content slots", () => {
+    setupMatchMedia(true);
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    for (const type of ["novel", "short", "screenplay"]) {
+      const card = screen.getByTestId(`home-project-type-card-${type}`);
+      expect(card.querySelector('[data-card-slot="header"]')).not.toBeNull();
+      expect(card.querySelector('[data-card-slot="description"]')).not.toBeNull();
+      expect(card.querySelector('[data-card-slot="features"]')).not.toBeNull();
+    }
+  });
+
   it("does not render invented social-proof metrics", () => {
     setupMatchMedia(true);
 

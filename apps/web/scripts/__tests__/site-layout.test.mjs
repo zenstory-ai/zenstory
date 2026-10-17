@@ -76,8 +76,8 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     for (const f of ['index.html','robots.txt','sitemap.xml']) assert.equal(existsSync(join(dir,f)), false)
     assert.match(readFileSync(join(dir,'_app/home.html'),'utf8'), /href="https:\/\/app\.zenstory\.ai\/"/)
     assert.doesNotMatch(readFileSync(join(dir,'_app/index.html'),'utf8'), /rel="canonical"/)
-    const privacy = readFileSync(join(dir, 'privacy-policy/index.html'), 'utf8')
-    const terms = readFileSync(join(dir, 'terms-of-service/index.html'), 'utf8')
+    const privacy = readFileSync(join(dir, '_site/privacy-policy/index.html'), 'utf8')
+    const terms = readFileSync(join(dir, '_site/terms-of-service/index.html'), 'utf8')
     for (const html of [privacy, terms]) {
       assert.match(html, /<main\b/)
       assert.match(html, /<h1\b[^>]*>[^<]+<\/h1>/)
@@ -109,6 +109,8 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     assert.doesNotMatch(appMap, /\/docs|\/dashboard|\/login/)
     assert.match(readFileSync(join(dir,'_site/robots.txt'),'utf8'), /Sitemap: https:\/\/zenstory\.ai\/sitemap.xml/)
     assert.equal(readFileSync(join(dir,'_site/docs/example/index.html'),'utf8'), '<html>Existing content</html>')
+    assert.equal(existsSync(join(dir, 'privacy-policy')), false)
+    assert.equal(existsSync(join(dir, 'terms-of-service')), false)
     assert.equal(existsSync(join(dir, INDEXNOW_FILE)), false)
     for (const path of ['_site/sitemap.xml', '_app/sitemap.xml', '_site/robots.txt', '_app/robots.txt']) {
       assert.doesNotMatch(readFileSync(join(dir, path), 'utf8'), new RegExp(INDEXNOW_KEY))
@@ -122,6 +124,10 @@ test('all protected/public route roots are classified and aliases covered', () =
   for (const p of projects) assert.ok(contract.sitePrefixes.includes(p.slug))
   assert.ok(contract.sitePrefixes.includes('compare'))
   assert.ok(contract.sitePrefixes.includes('zh'), 'the Chinese site lives under /zh on the organization host')
+  for (const prefix of ['docs', 'privacy-policy', 'terms-of-service']) {
+    assert.ok(contract.sharedPrefixes.includes(prefix), `${prefix} must have an App React reader and an organization static reader`)
+    assert.equal(contract.sitePrefixes.includes(prefix), false, `${prefix} must not force the App onto the organization host`)
+  }
   const aliasRedirect = vercelConfig.redirects.find(r => r.source.startsWith('/:path') && r.source.endsWith('/index.html'))
   for (const prefix of contract.sitePrefixes.filter(p => p !== 'llms.txt')) assert.ok(aliasRedirect.source.includes(`|${prefix}|`) || aliasRedirect.source.includes(`(?:${prefix}|`) || aliasRedirect.source.includes(`|${prefix})`), `index.html alias redirect must cover ${prefix}`)
   assert.ok(vercelConfig.redirects.some(r => r.source.includes('(?:zh|') && r.destination === 'https://zenstory.ai/:path' && r.has), 'app host must send /zh/* to the organization host')
@@ -173,7 +179,9 @@ test('sitemap lastmod follows each page dateModified, not publication, other nod
   render('/docs/example', [{ '@type': 'TechArticle', url: 'https://zenstory.ai/docs/example', datePublished: '2024-01-01' }])
   const build = () => {
     writeFileSync(join(dir, 'index.html'), '<html><head><title>App</title></head><body><div id="root"></div></body></html>')
-    if (existsSync(join(dir, '_site/docs'))) renameSync(join(dir, '_site/docs'), join(dir, 'docs'))
+    for (const prefix of ['docs', 'privacy-policy', 'terms-of-service']) {
+      if (existsSync(join(dir, '_site', prefix))) renameSync(join(dir, '_site', prefix), join(dir, prefix))
+    }
     finalizeSite(dir)
     return readFileSync(join(dir, '_site/sitemap.xml'), 'utf8')
   }
@@ -220,7 +228,7 @@ test('static privacy retains the same rights note and contact email as React', a
     mkdirSync(join(dir, 'org-home'))
     writeFileSync(join(dir, 'org-home/index.html'), '<html>Org</html>')
     finalizeSite(dir)
-    const privacy = readFileSync(join(dir, 'privacy-policy/index.html'), 'utf8')
+    const privacy = readFileSync(join(dir, '_site/privacy-policy/index.html'), 'utf8')
     const source = JSON.parse(readFileSync(new URL('../../public/locales/en/privacy.json', import.meta.url), 'utf8'))
     const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
     await t.test('nested content-data subsection remains complete', () => {
@@ -265,11 +273,11 @@ test('static legal note/email escape markup without rendering unrelated scalar f
     writeFileSync(join(fixture, 'output/org-home/index.html'), '<html>Org</html>')
     const { finalizeSite: finalizeFixture } = await import(pathToFileURL(join(fixture, 'scripts/build-site-layout.mjs')).href)
     finalizeFixture(join(fixture, 'output'))
-    const privacy = readFileSync(join(fixture, 'output/privacy-policy/index.html'), 'utf8')
+    const privacy = readFileSync(join(fixture, 'output/_site/privacy-policy/index.html'), 'utf8')
     const escaped = '<p>&lt;img src=x onerror=&quot;unsafe()&quot;> &amp; support</p>'
     assert.equal(privacy.split(escaped).length - 1, 2)
     assert.doesNotMatch(privacy, /<img src=x|UNUSED-CONTROLLER|UNUSED-SCALAR/)
-    const terms = readFileSync(join(fixture, 'output/terms-of-service/index.html'), 'utf8')
+    const terms = readFileSync(join(fixture, 'output/_site/terms-of-service/index.html'), 'utf8')
     assert.match(terms, /Terms of Service/)
     assert.doesNotMatch(terms, /unsafe\(\)|UNUSED-CONTROLLER|UNUSED-SCALAR/)
   } finally { rmSync(fixture, { recursive: true, force: true }) }
@@ -286,12 +294,16 @@ test('the organization home remembers a language picked with the switch, on its 
 })
 
 
-test('docs retain the app reader and organization static reader without cross-host redirects', () => {
+test('shared documents retain App readers and organization static readers without cross-host redirects', () => {
   for (const domain of ['app.zenstory.ai', 'app-preview.zenstory.ai', 'zenstory.ai', 'geo-preview.zenstory.ai']) {
     const matched = vercelConfig.redirects.filter(rule => rule.has?.some(item => item.type === 'host' && new RegExp(`^(?:${item.value})$`).test(domain)));
-    for (const path of ['/docs', '/docs/user-guide/editor']) {
+    for (const path of ['/docs', '/docs/user-guide/editor', '/privacy-policy', '/terms-of-service']) {
       assert.ok(!matched.some(rule => rule.source.startsWith('/:path(') && rule.source.endsWith(')') && new RegExp(`^(?:${rule.source.slice(7, -1)})$`).test(path.slice(1))), `${domain}${path} stays on its host`);
     }
   }
-  assert.ok(vercelConfig.rewrites.some(rule => rule.source === '/:path((?:docs)(?:/.*)?)' && rule.destination === '/_site/:path' && rule.has));
+  assert.ok(vercelConfig.rewrites.some(rule => rule.source === '/:path((?:docs|privacy-policy|terms-of-service)(?:/.*)?)' && rule.destination === '/_site/:path' && rule.has));
+  const implementationAlias = vercelConfig.redirects.find(rule => rule.source.startsWith('/_site/:path('))
+  assert.ok(implementationAlias, 'shared implementation paths must be canonicalized')
+  assert.equal(implementationAlias.destination, 'https://zenstory.ai/:path')
+  for (const prefix of ['docs', 'privacy-policy', 'terms-of-service']) assert.match(implementationAlias.source, new RegExp(prefix))
 });

@@ -30,10 +30,12 @@
     "pauseAutoplay": "暂停轮播",
     "resumeAutoplay": "继续轮播",
     "scenes": {
-      "create": "角色建档",
+      "create": "整理项目上下文",
       "suggest": "按上下文续写",
-      "edit": "章节级改写"
-    }
+      "edit": "审阅与回退"
+    },
+    "badge": "产品演示",
+    "progressLabel": "演示播放进度"
   },
   "whyChoose": {
     "title": "为长篇写作准备的工具",
@@ -84,17 +86,17 @@
     "subtitle": "每种类型都预设好目录结构和 AI 写作方式",
     "novel": {
       "name": "长篇连载小说",
-      "description": "适合 5 万字以上的连载，长期维护世界观，一章章往下写",
+      "description": "适合 5 万字以上的连载，在同一项目里维护设定并逐章写作",
       "features": [
         "拖拽调整章节顺序",
-        "AI 记住角色关系",
+        "写作时引用角色卡与设定",
         "引用素材库（Pro）",
         "版本对比与回退"
       ]
     },
     "short": {
       "name": "中短篇小说",
-      "description": "适合 5000–20000 字，从构思到结尾一次写完",
+      "description": "适合 5000–20000 字的故事，集中完成构思、大纲和正文",
       "features": [
         "围绕冲突列大纲",
         "快速写出关键场景",
@@ -114,18 +116,17 @@
   },
   "pricingTeaser": {
     "title": "先免费开始，按需升级",
-    "subtitle": "免费版就能完整写作；需要更多 AI 消息和项目时再开 Pro。",
     "viewPricing": "查看套餐权益",
     "primaryCta": "免费创建项目",
     "free": {
       "badge": "免费",
-      "title": "先写起来",
-      "desc": "每天 3 条 AI 消息、最多 3 个项目，先把开头写出来。"
+      "title": "3 条 AI 消息/天",
+      "desc": "大纲、角色卡和正文放在同一项目里管理。"
     },
     "pro": {
       "badge": "Pro",
-      "title": "写得更多更快",
-      "desc": "AI 消息和项目不限，可用素材库拆解参考小说，自定义技能更多。"
+      "title": "按月或按年购买",
+      "desc": "AI 消息、项目和素材拆解额度见套餐对比。"
     }
   },
   "cta": {
@@ -143,60 +144,42 @@
     "characters": "角色卡",
     "outline": "大纲",
     "draft": "正文",
+    "currentFile": "第一章 · 废柴觉醒",
+    "assistant": "AI 助手",
+    "inputPlaceholder": "输入想法",
     "sceneCreate": {
-      "character": {
-        "name": "苏婉 · 神秘女配",
-        "gender": "性别",
-        "genderValue": "女",
-        "age": "年龄",
-        "ageValue": "19岁",
-        "identity": "身份",
-        "identityValue": "内门弟子",
-        "personality": "性格",
-        "personalityDesc": "外表冷若冰霜，实则内心细腻，对林逸有着复杂的情感。",
-        "secret": "秘密",
-        "secretDesc": "真实身份是上古神族后裔"
-      },
+      "content1": "青云山巅，云雾漫过石阶。林逸站在崖边，望着脚下深谷。",
+      "content2": "玉牌边角磨得发白，背面的裂纹却像新刻上去的。林逸伸手去接，指尖还未碰到，苏婉先收紧了手。",
+      "contextTitle": "本次对话可引用",
       "ai": {
-        "title": "AI 助手",
-        "input": "帮我的玄幻小说创建一个神秘的女配角",
-        "response": "好的！我来创建一个神秘女配角。",
-        "created": "已创建角色",
-        "desc": "青云宗内门弟子，身份神秘。",
-        "placeholder": "输入想法"
+        "input": "先读取项目文件，再续写这一章",
+        "response": "已读取当前章节及相关项目文件。",
+        "created": "上下文已就绪",
+        "desc": "当前文件、大纲、角色卡和世界观已加入本次对话。"
       }
     },
     "sceneSuggest": {
-      "chapter": "第一章 · 废柴觉醒",
-      "content1": "青云山巅，云雾缭绕。",
-      "content2": "林逸站在悬崖边，看着脚下万丈深渊，苦笑一声。三年前觉醒废柴体质的那刻，就注定了今天。",
-      "content3": "忽然，一道银色身影从云雾中走出，竟是那个从不与人交谈的苏婉师姐",
+      "content1": "青云山巅，云雾漫过石阶。林逸站在崖边，望着脚下深谷。",
+      "content2": "三年前，他在觉醒仪式上被判定为废脉，从此再没踏进过内门。",
+      "content3": "身后忽然传来脚步声。苏婉拨开雾气，把一枚刻着林家旧纹的玉牌放在他面前。",
       "ai": {
-        "title": "AI 助手",
-        "input": "帮我写第一章的开头",
-        "response": "好的！我来写一个悬念十足的开篇。",
+        "input": "接着写，让苏婉带来一条新线索",
+        "response": "我会沿用当前章节和角色设定续写。",
         "writing": "正在写入…",
-        "action": "描写苏婉出场",
-        "placeholder": "输入想法"
+        "desc": "续写内容会直接写入当前章节。"
       }
     },
     "sceneEdit": {
-      "chapter": "第三章 · 青云大比",
-      "scene1": "场景一",
-      "scene1Desc": "青云大比开幕，各方势力齐聚",
-      "scene2": "场景二 · 新增",
-      "scene2Desc": "林逸首战对阵师兄张耀，展现惊人实力",
-      "scene3": "场景三 · 新增",
-      "scene3Desc": "苏婉在观众席注视林逸，眼中闪过复杂神色",
+      "version": "版本 12",
+      "original": "原段落",
+      "originalText": "苏婉从雾中走来，把玉牌递给林逸。",
+      "suggestion": "建议修改",
+      "suggestionText": "苏婉拨开雾气，把一枚刻着林家旧纹的玉牌放在林逸面前。",
       "ai": {
-        "title": "AI 助手",
-        "input": "扩展第三章大纲，加入战斗和苏婉的暗线",
-        "response": "好的！我来增加战斗和苏婉暗线。",
-        "updated": "已更新文件",
-        "updatedFile": "第三章大纲",
-        "newScenes": "新增 2 个场景",
-        "undo": "可一键撤销",
-        "placeholder": "输入想法"
+        "input": "把苏婉出场写得更具体",
+        "response": "已根据当前章节改写这一段。",
+        "updated": "修改待审阅",
+        "desc": "接受后保存新版本，也可以回到修改前的版本。"
       }
     }
   },

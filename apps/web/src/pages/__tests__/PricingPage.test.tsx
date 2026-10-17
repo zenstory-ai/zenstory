@@ -179,13 +179,13 @@ describe("PricingPage", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
-  it("omits comparison controls and disables paid actions when the catalog fails", async () => {
+  it("omits comparison controls and paid actions when the catalog fails", async () => {
     mockGetCatalog.mockRejectedValue(new Error("offline"));
     render(<PricingPage />, { wrapper: createWrapper() });
     await screen.findByText("加载失败");
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
-    for (const cta of screen.getAllByRole("button", { name: "开通 Pro" })) expect(cta).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "开通 Pro" })).not.toBeInTheDocument();
   });
 
   beforeEach(() => {
@@ -247,7 +247,7 @@ describe("PricingPage", () => {
     expect(screen.getAllByText("自定义技能").length).toBeGreaterThan(0);
   });
 
-  it("covers monthly/yearly switch with annual saving hint", async () => {
+  it("shows only the selected billing cycle price and keeps the annual saving in the cycle control", async () => {
     mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
 
     render(<PricingPage />, { wrapper: createWrapper() });
@@ -262,11 +262,14 @@ describe("PricingPage", () => {
     expect(monthlyControl).not.toBeNull();
     expect(yearlyControl).not.toBeNull();
     expect(monthlyControl).toHaveAttribute("role", "radio");
-    // Yearly is the default offer and shows its saving up front.
+    // Yearly is the default offer. Its saving belongs to the cycle control,
+    // while each plan card shows only the selected cycle's price.
     expect(yearlyControl).toHaveAttribute("aria-checked", "true");
     expect(monthlyControl).toHaveAttribute("aria-checked", "false");
     expect(screen.getByText(/¥399\/年|¥399\/year/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/省|节省|save/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/¥49\/月|¥49\/month/i)).not.toBeInTheDocument();
+    expect(yearlyControl).toHaveTextContent(/省\s*32%|save\s*32%/i);
+    expect(screen.getAllByText(/省\s*32%|save\s*32%/i)).toHaveLength(1);
 
     if (monthlyControl) {
       fireEvent.click(monthlyControl);
@@ -274,6 +277,7 @@ describe("PricingPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/¥49\/月|¥49\/month/i)).toBeInTheDocument();
+      expect(screen.queryByText(/¥399\/年|¥399\/year/i)).not.toBeInTheDocument();
       expect(monthlyControl).toHaveAttribute("aria-checked", "true");
     });
   });
@@ -308,15 +312,37 @@ describe("PricingPage", () => {
     expect(screen.getAllByText("每日 AI 消息").length).toBeGreaterThan(0);
   });
 
-  it("covers distinct CTA copy for free-start and pro-upgrade", async () => {
+  it("renders one action per plan without a duplicate page-level action bar", async () => {
     mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
 
     render(<PricingPage />, { wrapper: createWrapper() });
 
-    await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: /免费开始|Start Free|Create Project Free/i }).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i }).length).toBeGreaterThan(0);
-    });
+    await screen.findAllByText("每日 AI 消息");
+    expect(screen.getAllByRole("button", { name: /免费开始|Start Free|Create Project Free/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i })).toHaveLength(1);
+  });
+
+  it("does not claim unlimited Pro benefits when the catalog supplies finite limits", async () => {
+    const [freeTier, proTier] = createDefaultTiers();
+    mockGetCatalog.mockResolvedValue(
+      createCatalog([
+        freeTier,
+        {
+          ...proTier,
+          entitlements: {
+            ...proTier.entitlements,
+            ai_conversations_per_day: 12,
+            active_projects_limit: 8,
+          },
+        },
+      ])
+    );
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("12 条/天")).toBeInTheDocument();
+    expect(screen.getByText("8 个")).toBeInTheDocument();
+    expect(screen.queryByText(/不限|unlimited/i)).not.toBeInTheDocument();
   });
 
   it("opens checkout with the selected yearly cycle for an authenticated user", async () => {
@@ -347,16 +373,6 @@ describe("PricingPage", () => {
     expect(screen.queryByText(/^0 次\/月$/)).not.toBeInTheDocument();
     expect(screen.getByText("3 条/天")).toBeInTheDocument();
     expect(screen.getByText("免费版")).toBeInTheDocument();
-  });
-
-  it("spells out the yearly saving and the monthly alternative", async () => {
-    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
-
-    render(<PricingPage />, { wrapper: createWrapper() });
-
-    expect(await screen.findByText("年付省 32%，折合每月 ¥33.25")).toBeInTheDocument();
-    fireEvent.click(getControlByName(/月付|Monthly/i)!);
-    expect(await screen.findByText("按年买 ¥399/年，比月付省 ¥189")).toBeInTheDocument();
   });
 
   it("offers renewal to a signed-in Pro user", async () => {

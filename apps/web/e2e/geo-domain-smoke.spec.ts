@@ -66,6 +66,11 @@ const APP_PUBLIC_DOCUMENTS = [
   { name: 'app pricing', path: '/pricing', ogType: 'website' },
 ] as const
 
+const APP_LEGAL_DOCUMENTS = [
+  { name: 'app privacy policy', path: '/privacy-policy' },
+  { name: 'app terms of service', path: '/terms-of-service' },
+] as const
+
 type SchemaNode = {
   type: string
   references: Array<{
@@ -438,6 +443,17 @@ test.describe('anonymous app boundary', () => {
       await expect(page.locator('link[rel="canonical"]')).toHaveCount(1)
       await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', canonical)
       await expectFullOpenGraph(page, canonical, document.ogType)
+    })
+  }
+
+  for (const document of APP_LEGAL_DOCUMENTS) {
+    test(`${document.name} stays in the React App while preserving the public canonical`, async ({ page }) => {
+      await page.goto(`${APP}${document.path}`, { waitUntil: 'networkidle' })
+
+      expect(new URL(page.url()).origin).toBe(APP)
+      expect(new URL(page.url()).pathname).toBe(document.path)
+      await expect(page.locator('#root main h1').first()).toBeVisible()
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${CANONICAL_SITE}${document.path}`)
     })
   }
 

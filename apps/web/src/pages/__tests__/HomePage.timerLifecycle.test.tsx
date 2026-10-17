@@ -116,7 +116,26 @@ function expectScene(scene: 'create' | 'suggest' | 'edit') {
   }
 }
 
+function expectConsistentWorkspace() {
+  const demo = screen.getByRole('region', { name: enHome.hero.secondaryCta });
+  expect(demo).toHaveTextContent(enHome.demo.projectName);
+  expect(demo).toHaveTextContent(enHome.preview.currentFile);
+  expect(demo).not.toHaveTextContent('75%');
+  expect(demo).not.toHaveTextContent('Tab');
+}
+
 describe.each([false, true])('HomePage real timer lifetime (root StrictMode=%s)', (strict) => {
+  it('keeps every scene in the same project and current file without invented completion UI', () => {
+    show(strict);
+    expectConsistentWorkspace();
+    select('suggest');
+    advance(300);
+    expectConsistentWorkspace();
+    select('edit');
+    advance(300);
+    expectConsistentWorkspace();
+  });
+
   it('pauses rotation, allows manual selection, and resumes from that scene', () => {
     show(strict);
     advance(5040);

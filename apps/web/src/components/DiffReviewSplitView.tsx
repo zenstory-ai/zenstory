@@ -278,7 +278,7 @@ export const DiffReviewSplitView = ({
                 {t("editor:pendingDefaultAcceptedHint")}
               </div>
             </div>
-            <div className="shrink-0 whitespace-nowrap rounded-full bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--text-secondary))] ring-1 ring-[hsl(var(--border-primary)/0.32)]">
+            <div className="shrink-0 whitespace-nowrap py-1 text-[11px] font-medium text-[hsl(var(--text-secondary))]">
               {t("editor:reviewQueueCount", {
                 pending: counts.pending,
                 all: counts.all,
@@ -287,7 +287,7 @@ export const DiffReviewSplitView = ({
           </div>
 
           <div className="mt-3 flex items-center gap-2">
-            <div className="grid flex-1 grid-cols-4 gap-1 rounded-full bg-[hsl(var(--bg-primary)/0.92)] p-1 ring-1 ring-[hsl(var(--border-primary)/0.32)]">
+            <div className="grid flex-1 grid-cols-4 gap-1 rounded-lg bg-[hsl(var(--bg-secondary))] p-1">
               {([
                 { key: "all" as const, label: t("editor:filterAll"), count: counts.all },
                 { key: "pending" as const, label: t("editor:filterPending"), count: counts.pending },
@@ -298,9 +298,9 @@ export const DiffReviewSplitView = ({
                   key={item.key}
                   onClick={() => setFilter(item.key)}
                   className={cn(
-                    "flex items-center justify-center gap-1 rounded-full px-2 py-1.5 text-[11px] leading-none transition-colors",
+                    "flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] leading-none transition-colors",
                     filter === item.key
-                      ? "bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] shadow-sm"
+                      ? "bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))]"
                       : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
                   )}
                   title={`${item.label} (${item.count})`}
@@ -312,7 +312,7 @@ export const DiffReviewSplitView = ({
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-2 ring-1 ring-[hsl(var(--border-primary)/0.3)]">
+          <div className="mt-3 flex items-center justify-between gap-2 py-1">
             <div className="flex items-center gap-1">
               <button
                 onClick={goPrev}
@@ -361,21 +361,22 @@ export const DiffReviewSplitView = ({
                   <div
                     key={edit.id}
                     data-index={index}
-                    className="pb-3"
+                    className="pb-5"
                   >
                     <div
                       onClick={() => locateEdit(edit.id)}
+                      aria-current={resolvedActiveEditId === edit.id ? "true" : undefined}
                       className={cn(
-                        "cursor-pointer rounded-2xl bg-[hsl(var(--bg-primary)/0.96)] p-3.5 ring-1 transition-all",
+                        "cursor-pointer border-l-2 px-3.5 py-1 transition-colors",
                         resolvedActiveEditId === edit.id
-                          ? "ring-[hsl(var(--accent-primary)/0.5)]"
-                          : "ring-[hsl(var(--border-primary)/0.24)] hover:ring-[hsl(var(--accent-primary)/0.2)]"
+                          ? "border-l-[hsl(var(--accent-primary))]"
+                          : "border-l-transparent"
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-[hsl(var(--bg-secondary))] px-2 py-0.5 text-[10px] font-mono text-[hsl(var(--text-tertiary))]">
+                            <span className="py-0.5 text-[10px] font-mono text-[hsl(var(--text-secondary))]">
                               {t("editor:reviewParagraphLabel")} #{getDisplayNumber(edit.id) ?? index + 1}
                             </span>
                             <span

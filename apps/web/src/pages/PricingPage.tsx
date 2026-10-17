@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Check, Minus, ArrowRight, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, Minus, RefreshCw, ShieldCheck } from "lucide-react";
 import { PublicHeader } from "../components/PublicHeader";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -19,8 +19,6 @@ import {
 import { buildUpgradeUrl } from "../config/upgradeExperience";
 import { useAuth } from "../contexts/AuthContext";
 import { authConfig } from "../config/auth";
-import { useIsMobile } from "../hooks/useMediaQuery";
-import type { SubscriptionCatalogTier } from "../types/subscription";
 import { trackUpgradeConversion } from "../lib/upgradeAnalytics";
 import { trackEvent } from "../lib/analytics";
 import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckoutModal";
@@ -36,7 +34,6 @@ export default function PricingPage() {
   const { user, loading } = useAuth();
   const userId = user?.id ?? null;
   const isAuthenticated = Boolean(userId);
-  const isMobile = useIsMobile();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("year");
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -112,9 +109,6 @@ export default function PricingPage() {
     [i18n.language, t, sortedPlans]
   );
 
-  const getPlanYearlySavings = (plan: SubscriptionCatalogTier) =>
-    getYearlySavings(plan.price_monthly_cents, plan.price_yearly_cents);
-
   // Only Pro is paid, so the plan with the largest yearly saving is the offer.
   const bestYearlySavings = useMemo(
     () =>
@@ -124,20 +118,6 @@ export default function PricingPage() {
       }, null),
     [sortedPlans]
   );
-
-  const getSummary = (summaryKey: string): string => {
-    if (summaryKey === "creator") {
-      return t("dashboard:billing.summaryCreator", "AI 消息不限条数、项目不限，适合日更、长篇连载。");
-    }
-    return t("dashboard:billing.summaryStarter", "免费就能写，从一个想法写到第一稿。");
-  };
-
-  const getTargetUser = (targetUserKey: string): string => {
-    if (targetUserKey === "daily_writer") {
-      return t("dashboard:billing.targetDailyWriter", "日更作者、长篇连载创作者");
-    }
-    return t("dashboard:billing.targetExplorer", "刚开始写或偶尔写的作者");
-  };
 
   const handlePrimaryCta = () => {
     const destination = user
@@ -208,31 +188,21 @@ export default function PricingPage() {
   return (
     <div className="public-page min-h-screen bg-[hsl(var(--bg-primary))]">
       <PublicHeader maxWidth="max-w-6xl" />
-      <main className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-14 pb-28 md:pb-14 space-y-6 md:space-y-8">
+      <main className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-14 pb-14 space-y-6 md:space-y-8">
         <section className="text-center space-y-2 md:space-y-3">
           <h1 className="text-3xl md:text-4xl font-bold text-[hsl(var(--text-primary))]">
             {isCatalogLoading ? t("common:loading", "加载中…") : t("dashboard:billing.compareTitle", "选一个适合你的方案")}
           </h1>
           <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">
-            {t("dashboard:billing.catalogSubtitle", "免费版每天 3 条 AI 消息，够你先写起来；要日更连载，再开 Pro。")}
+            {t("dashboard:billing.catalogSubtitle", "免费版每天包含 3 条 AI 消息。")}
           </p>
         </section>
 
         <section className="sticky top-14 z-20 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary)/0.9)] p-3 md:p-4 backdrop-blur-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <p id="billing-cycle-label" className="text-sm font-medium text-[hsl(var(--text-primary))]">
-                {t("dashboard:billing.billingCycleLabel", "购买时长")}
-              </p>
-              <p className="text-xs text-[hsl(var(--text-secondary))]">
-                {bestYearlySavings
-                  ? t("dashboard:billing.yearlyMaxSaveHint", "年付省 {{percent}}，折合每月 {{monthly}}", {
-                      percent: `${bestYearlySavings.percent}%`,
-                      monthly: formatCurrency(bestYearlySavings.monthlyEquivalent),
-                    })
-                  : t("dashboard:billing.yearlyMaxSaveHintFallback", "可按月或按年购买")}
-              </p>
-            </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p id="billing-cycle-label" className="text-sm font-medium text-[hsl(var(--text-primary))]">
+              {t("dashboard:billing.billingCycleLabel", "购买时长")}
+            </p>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div
@@ -266,7 +236,11 @@ export default function PricingPage() {
                   >
                     {cycle === "month"
                       ? t("dashboard:billing.monthlyToggle", "月付")
-                      : t("dashboard:billing.yearlyToggle", "年付")}
+                      : bestYearlySavings
+                        ? t("dashboard:billing.yearlyToggleWithSavings", "年付 · 省 {{percent}}%", {
+                            percent: bestYearlySavings.percent,
+                          })
+                        : t("dashboard:billing.yearlyToggle", "年付")}
                   </button>
                 ))}
               </div>
@@ -310,7 +284,7 @@ export default function PricingPage() {
           <Card variant="outlined" padding="lg">
             <div className="flex flex-col items-center gap-3 py-2">
               <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{t("common:error", "加载失败")}</p>
-              <Button size={isMobile ? "touch" : "sm"} variant="secondary" onClick={() => void refetch()}>
+              <Button size="sm" variant="secondary" onClick={() => void refetch()}>
                 {t("common:retry", "重试")}
               </Button>
             </div>
@@ -333,60 +307,26 @@ export default function PricingPage() {
                 variant="outlined"
                 padding="lg"
                 className={cn(
-                  "rounded-2xl relative flex flex-col border! overflow-hidden",
+                  "rounded-2xl relative flex flex-col border!",
                   plan.recommended
-                    ? "border-[hsl(var(--accent-primary)/0.5)]! bg-[linear-gradient(180deg,hsl(var(--accent-primary)/0.14),hsl(var(--bg-secondary))_46%)] shadow-[0_16px_36px_hsl(var(--accent-primary)/0.16)]"
+                    ? "border-[hsl(var(--accent-primary)/0.55)]!"
                     : "border-[hsl(var(--border-color))]"
                 )}
               >
-                {plan.recommended && (
-                  <div aria-hidden="true" className="absolute left-0 right-0 top-0 h-1 bg-[hsl(var(--accent-primary))]" />
-                )}
-                <div className="flex items-start justify-between gap-3 mb-3 pt-1 lg:min-h-36">
+                <div className="flex items-start justify-between gap-3 mb-5">
                   <div>
                     <h2 className="text-xl font-semibold text-[hsl(var(--text-primary))]">
                       {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
                     </h2>
-                    <div className="mt-1 flex items-center flex-wrap gap-2">
-                      <p className="text-lg font-semibold text-[hsl(var(--text-primary))]">
-                        {formatPrice(
-                          billingCycle === "month" ? plan.price_monthly_cents : plan.price_yearly_cents,
-                          billingCycle
-                        )}
-                      </p>
-                      {billingCycle === "year" && getPlanYearlySavings(plan) && (
-                        <Badge variant="purple">
-                          {t("dashboard:billing.yearlySaveBadge", "年付省 {{amount}} · {{percent}}%", {
-                            amount: formatCurrency(getPlanYearlySavings(plan)?.amount ?? 0),
-                            percent: getPlanYearlySavings(plan)?.percent ?? 0,
-                          })}
-                        </Badge>
+                    <p className="mt-2 text-2xl font-semibold text-[hsl(var(--text-primary))]">
+                      {formatPrice(
+                        billingCycle === "month" ? plan.price_monthly_cents : plan.price_yearly_cents,
+                        billingCycle
                       )}
-                    </div>
-                    {billingCycle === "month" && getPlanYearlySavings(plan) && (
-                      <p className="text-xs text-[hsl(var(--text-secondary))]">
-                        {t("dashboard:billing.alternateYearlyPrice", "按年买 {{price}}，比月付省 {{amount}}", {
-                          price: formatPrice(plan.price_yearly_cents, "year"),
-                          amount: formatCurrency(getPlanYearlySavings(plan)?.amount ?? 0),
-                        })}
-                      </p>
-                    )}
-                    {billingCycle === "year" && plan.price_monthly_cents > 0 && (
-                      <p className="text-xs text-[hsl(var(--text-secondary))]">
-                        {t("dashboard:billing.alternateMonthlyPrice", "月付 {{price}}", {
-                          price: formatPrice(plan.price_monthly_cents, "month"),
-                        })}
-                      </p>
-                    )}
-                    <p className="text-sm text-[hsl(var(--text-secondary))] mt-2">
-                      {getSummary(plan.summary_key)}
-                    </p>
-                    <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
-                      {t("dashboard:billing.forUsers", "适合：{{target}}", { target: getTargetUser(plan.target_user_key) })}
                     </p>
                   </div>
                   {plan.recommended && (
-                    <Badge variant="purple">
+                    <Badge variant="neutral">
                       {t("dashboard:billing.recommended", "推荐")}
                     </Badge>
                   )}
@@ -456,34 +396,7 @@ export default function PricingPage() {
           ))}
         </section>
 
-        {!isMobile && (
-          <section className="flex justify-center gap-3">
-            <Button onClick={handlePrimaryCta} rightIcon={<ArrowRight className="w-4 h-4" />}>
-              {user
-                ? t("home:nav.goDashboard", "进入工作台")
-                : t("dashboard:billing.ctaFreeStart", "免费开始")}
-            </Button>
-            <Button onClick={handleUpgradeCta} variant="outline" disabled={!proPlan || isError}>
-              {upgradeCtaLabel}
-            </Button>
-          </section>
-        )}
       </main>
-
-      {isMobile && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary)/0.95)] backdrop-blur-sm">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2">
-            <Button size="touch" className="flex-1" onClick={handlePrimaryCta} rightIcon={<ArrowRight className="w-4 h-4" />}>
-              {user
-                ? t("home:nav.goDashboard", "进入工作台")
-                : t("dashboard:billing.ctaFreeStart", "免费开始")}
-            </Button>
-            <Button size="touch" className="flex-1" onClick={handleUpgradeCta} variant="outline" disabled={!proPlan || isError}>
-              {upgradeCtaLabel}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {showPaymentModal && (
         <PaymentCheckoutModal

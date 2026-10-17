@@ -364,6 +364,29 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.getByTitle('待审 (10)', { exact: true })).toBeVisible();
       await page.screenshot({ path: info.outputPath('review-full.png'), animations: 'disabled' });
       await pane.locator('xpath=..').screenshot({ path: info.outputPath('review-detail.png'), animations: 'disabled' });
+      if (width >= 768) {
+        const inline = pane.locator('[data-edit-id]').first();
+        const decorations = await inline.evaluate(el => {
+          const style = getComputedStyle(el);
+          return { outline: style.outlineStyle === 'none' ? 0 : parseFloat(style.outlineWidth), borders: Array.from(el.children).map(child => {
+            const s = getComputedStyle(child);
+            return parseFloat(s.borderLeftWidth) + parseFloat(s.borderRightWidth);
+          }) };
+        });
+        expect(decorations.outline, 'paragraphs have no persistent selection rectangle').toBe(0);
+        expect(decorations.borders, 'diff tint does not need repeated red/green edges').toEqual([0, 0]);
+      }
+      const cards = pane.locator('[data-index] > div');
+      await expect(pane.locator('[data-index] > [aria-current="true"]')).toHaveCount(1);
+      for (const card of (await cards.all()).slice(0, 2)) {
+        expect(await card.evaluate(el => getComputedStyle(el).boxShadow), 'review entries have no enclosing ring').toBe('none');
+        // Both source/suggestion groups are plain editorial text, not nested surfaces.
+        for (const label of ['原段落', '建议段落']) {
+          const group = card.getByText(label, { exact: true }).locator('xpath=../..');
+          const style = await group.evaluate(el => ({ background: getComputedStyle(el).backgroundColor, radius: getComputedStyle(el).borderRadius }));
+          expect(style).toEqual({ background: 'rgba(0, 0, 0, 0)', radius: '0px' });
+        }
+      }
       const contrast = await pane.evaluate((root, width) => {
         // Same canvas/sRGB measurement as visual-standard-mocked, compositing
         // every ancestor because review previews and semantic fills are translucent.
@@ -385,6 +408,18 @@ for (const theme of ['light', 'dark'] as const) {
       await info.attach('review-contrast', { body: JSON.stringify(contrast), contentType: 'application/json' });
       for (const item of contrast) expect(item.ratio, `${theme} ${item.selector} readable without relying on hue`).toBeGreaterThanOrEqual(4.5);
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+      if (width >= 768) {
+        await pane.focus();
+        await page.keyboard.press('Tab');
+        const target = pane.getByRole('button', { name: '定位到第 1 处修改', exact: true });
+        await expect(target).toBeFocused();
+        expect(await target.evaluate(el => parseFloat(getComputedStyle(el).outlineWidth)), 'keyboard focus remains visible without a persistent paragraph box').toBeGreaterThanOrEqual(2);
+        await pane.getByRole('button', { name: '定位到第 2 处修改', exact: true }).press('Enter');
+        await expect(cards.nth(1)).toHaveAttribute('aria-current', 'true');
+        await pane.getByRole('button', { name: '定位到第 1 处修改', exact: true }).press('Space');
+        await expect(cards.first()).toHaveAttribute('aria-current', 'true');
+        expect(puts(f), 'locating a paragraph must not apply the review through the editor Enter shortcut').toHaveLength(0);
+      }
       await pane.focus(); await pane.press('y');
       await expect(page.getByTitle('已接受 (1)', { exact: true })).toBeVisible();
       await pane.press('n');

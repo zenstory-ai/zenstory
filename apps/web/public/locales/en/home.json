@@ -30,10 +30,12 @@
     "pauseAutoplay": "Pause",
     "resumeAutoplay": "Resume",
     "scenes": {
-      "create": "Character Builder",
-      "suggest": "Context-Aware Drafting",
-      "edit": "Chapter Rewrites"
-    }
+      "create": "Load project context",
+      "suggest": "Draft with context",
+      "edit": "Review and restore"
+    },
+    "badge": "Product demo",
+    "progressLabel": "Demo playback progress"
   },
   "whyChoose": {
     "title": "Tools built for long-form writing",
@@ -84,17 +86,17 @@
     "subtitle": "Each type comes with a ready folder structure and matching AI writing style",
     "novel": {
       "name": "Long-form Serialized Novel",
-      "description": "For serials over 50k words: keep your world consistent and write chapter by chapter",
+      "description": "For serials over 50k words, with world notes and chapters kept in one project",
       "features": [
         "Drag to reorder chapters",
-        "AI remembers character relationships",
+        "Reference character sheets and world notes",
         "Use your Materials Library (Pro)",
         "Compare and restore versions"
       ]
     },
     "short": {
       "name": "Short and Novelette Fiction",
-      "description": "For 5k–20k word stories, from idea to ending in one go",
+      "description": "For 5k–20k word stories, with planning, outlining, and drafting in one focused project",
       "features": [
         "Outline around the conflict",
         "Draft key scenes fast",
@@ -114,18 +116,17 @@
   },
   "pricingTeaser": {
     "title": "Start free, upgrade when needed",
-    "subtitle": "The free plan covers the full writing flow. Get Pro when you need more AI messages and projects.",
     "viewPricing": "View plans",
     "primaryCta": "Create a Free Project",
     "free": {
       "badge": "Free",
-      "title": "Start writing",
-      "desc": "3 AI messages a day and up to 3 projects — enough to get your opening down."
+      "title": "3 AI messages a day",
+      "desc": "Keep outlines, character sheets, and drafts together in one project."
     },
     "pro": {
       "badge": "Pro",
-      "title": "Write more, faster",
-      "desc": "Unlimited AI messages and projects, Materials Library breakdowns of reference novels, and more custom skills."
+      "title": "Monthly or yearly plans",
+      "desc": "Compare the AI message, project, and material analysis allowances."
     }
   },
   "cta": {
@@ -143,60 +144,42 @@
     "characters": "Character Sheets",
     "outline": "Outline",
     "draft": "Manuscript",
+    "currentFile": "Chapter 1 · The Broken Meridian",
+    "assistant": "AI Assistant",
+    "inputPlaceholder": "Enter an idea",
     "sceneCreate": {
-      "character": {
-        "name": "Su Wan · Enigmatic Supporting Female",
-        "gender": "Gender",
-        "genderValue": "Female",
-        "age": "Age",
-        "ageValue": "19",
-        "identity": "Identity",
-        "identityValue": "Inner Disciple",
-        "personality": "Personality",
-        "personalityDesc": "Cold as ice on the outside, but delicate on the inside, with complex feelings for Lin Yi.",
-        "secret": "Secret",
-        "secretDesc": "True identity is a descendant of an ancient god clan"
-      },
+      "content1": "Mist rolled over the stone steps at the summit of Qingyun Mountain. Lin Yi stood at the cliff edge and looked into the valley below.",
+      "content2": "The edges of the jade were worn smooth, but the crack on its back looked fresh. Lin Yi reached for it. Before his fingers touched it, Su Wan tightened her grip.",
+      "contextTitle": "Available to this conversation",
       "ai": {
-        "title": "AI Assistant",
-        "input": "Create a mysterious supporting female character for my fantasy novel",
-        "response": "Great! I'll create a mysterious female supporting character.",
-        "created": "Character Sheet Created",
-        "desc": "Inner disciple of Qingyun Sect, mysterious identity.",
-        "placeholder": "Enter your idea"
+        "input": "Read the project files, then continue this chapter",
+        "response": "I have loaded the current chapter and related project files.",
+        "created": "Context ready",
+        "desc": "The current file, outline, character sheets, and world notes are available in this conversation."
       }
     },
     "sceneSuggest": {
-      "chapter": "Chapter 1 · Awakening of the Useless",
-      "content1": "At the summit of Qingyun Mountain, clouds and mist shroud everything.",
-      "content2": "Lin Yi stood at the cliff edge, looking at the abyss beneath him, smiling bitterly. Three years ago, the moment he awakened his useless constitution sealed his fate today.",
-      "content3": "Suddenly, a silver figure walked out from the clouds and mist—it was Su Wan, that senior sister who never spoke to anyone.",
+      "content1": "Mist rolled over the stone steps at the summit of Qingyun Mountain. Lin Yi stood at the cliff edge and looked into the valley below.",
+      "content2": "Three years earlier, the awakening ceremony had declared his meridians broken. He had not entered the inner court since.",
+      "content3": "Footsteps sounded behind him. Su Wan stepped through the mist and set a jade token bearing the old Lin crest before him.",
       "ai": {
-        "title": "AI Assistant",
-        "input": "Help me write the opening of Chapter 1",
-        "response": "Great! I'll write a suspenseful opening.",
-        "writing": "Writing…",
-        "action": "Describe Su Wan's appearance",
-        "placeholder": "Enter your idea"
+        "input": "Continue with Su Wan bringing a new clue",
+        "response": "I will continue from the current chapter and character context.",
+        "writing": "Writing to file…",
+        "desc": "The continuation is written directly to the current chapter."
       }
     },
     "sceneEdit": {
-      "chapter": "Chapter 3 · Qingyun Grand Competition",
-      "scene1": "Scene 1",
-      "scene1Desc": "Qingyun Grand Competition opens, forces from all sides gather",
-      "scene2": "Scene 2 · Added",
-      "scene2Desc": "Lin Yi's first battle against senior brother Zhang Yao, shows amazing strength",
-      "scene3": "Scene 3 · Added",
-      "scene3Desc": "Su Wan watches Lin Yi in the audience, complex look in her eyes",
+      "version": "Version 12",
+      "original": "Original paragraph",
+      "originalText": "Su Wan walked out of the mist and handed the jade token to Lin Yi.",
+      "suggestion": "Suggested edit",
+      "suggestionText": "Su Wan stepped through the mist and set a jade token bearing the old Lin crest before him.",
       "ai": {
-        "title": "AI Assistant",
-        "input": "Expand Chapter 3 outline, add combat and Su Wan's subplot",
-        "response": "Great! I'll add combat and Su Wan's subplot.",
-        "updated": "File Updated",
-        "updatedFile": "Chapter 3 Outline",
-        "newScenes": "Added 2 scenes",
-        "undo": "One-click undo available",
-        "placeholder": "Enter your idea"
+        "input": "Make Su Wan’s entrance more specific",
+        "response": "I rewrote the paragraph using the current chapter.",
+        "updated": "Edit ready for review",
+        "desc": "Accept to save a new version, or return to the version before this edit."
       }
     }
   },

@@ -27,14 +27,8 @@ export const DiffReviewEditPreview = ({ edit }: { edit: PendingEdit }) => {
     const Icon = isDelete ? Minus : Plus;
 
     return (
-      <div
-        className={
-          isDelete
-            ? "rounded-xl bg-[hsl(var(--error)/0.04)] p-3"
-            : "rounded-xl bg-[hsl(var(--success)/0.05)] p-3"
-        }
-      >
-        <div className="mb-2 flex items-center gap-1.5 pb-2">
+      <div>
+        <div className="mb-1.5 flex items-center gap-1.5">
           <Icon
             className={
               isDelete
@@ -65,7 +59,7 @@ export const DiffReviewEditPreview = ({ edit }: { edit: PendingEdit }) => {
 
   if (edit.op === "replace") {
     return (
-      <div className="space-y-2.5">
+      <div className="space-y-4">
         {renderPanel("delete", deleteLabel, edit.oldText ?? "")}
         {renderPanel("add", addLabel, edit.newText ?? "")}
       </div>
