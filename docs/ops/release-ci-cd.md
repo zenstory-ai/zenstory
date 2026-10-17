@@ -147,6 +147,18 @@ Do not substitute arbitrary URLs, credentials, a moving `main` reference, or a
 "latest successful" run. Record the resulting run ID/attempt and retain the
 downloaded receipt alongside the provider deployment IDs and source readback.
 
+## Staging ingestion test windows
+
+Hosted staging Prefect Server/Worker may be stopped outside explicitly opened
+material-test windows; the API, databases and volumes remain running. Repository
+CI/E2E uses local Prefect and does not wake these hosted services. Before testing
+hosted material ingestion, follow [the staging test-window runbook](staging-ingestion-test-windows.md).
+Before pushing or merging a change that triggers the staging worker Git deployment
+(current watch pattern: `/apps/server/**`), open that window first: a new worker
+needs the hosted Server and does not wake it automatically. After deployment and
+testing, close using the new source/deployment receipt, never revive old code.
+This does not authorize production changes or add a deployment workflow.
+
 ## Database migrations before promotion
 
 Neither environment runs Alembic on deploy: the Railway API service has no
