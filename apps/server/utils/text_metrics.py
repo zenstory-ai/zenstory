@@ -19,6 +19,11 @@ def count_words(content: str | None) -> int:
     if not content:
         return 0
 
-    chinese_chars = len(_CHINESE_CHAR_PATTERN.findall(content))
+    # Han matches are one code point, so windows can bound the temporary list.
+    # Keep variable-length Latin tokens whole below, including across windows.
+    chinese_chars = sum(
+        len(_CHINESE_CHAR_PATTERN.findall(content, start, start + 4096))
+        for start in range(0, len(content), 4096)
+    )
     latin_tokens = len(_LATIN_TOKEN_PATTERN.findall(content))
     return chinese_chars + latin_tokens
