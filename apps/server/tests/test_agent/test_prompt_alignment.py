@@ -15,6 +15,7 @@ from agent.prompts.base import (
     PRODUCT_IDENTITY_PROTOCOL,
     UNIFIED_EXECUTION_PROTOCOL,
     get_base_prompt,
+    get_tool_usage_guide,
 )
 
 
@@ -49,6 +50,9 @@ def test_project_ids_preserve_shared_protocol_prefix_and_folder_isolation():
     ):
         assert protocol in shared_prefix
 
+    fixed_tool_rules = get_tool_usage_guide({}).replace("\n\n### 创建文件时的 parent_id\n", "").rstrip()
+    assert fixed_tool_rules in shared_prefix, "项目目录 ID 不应打断固定的流式写入、标题或交互协议"
+
     normalized = []
     for index, prompt in enumerate(rendered):
         assert f"## 当前项目 ID: {project_ids[index]}" in prompt
@@ -61,6 +65,34 @@ def test_project_ids_preserve_shared_protocol_prefix_and_folder_isolation():
             normalized_prompt = normalized_prompt.replace(folder_id, f"<{kind}_folder_id>")
         normalized.append(normalized_prompt)
     assert normalized[0] == normalized[1]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("folder_types", [
+    (),
+    ("lore",),
+    ("character",),
+    ("outline",),
+    ("draft",),
+    ("script",),
+    ("material",),
+    ("material", "draft", "character"),
+    ("lore", "character", "outline", "draft", "script", "material"),
+])
+def test_tool_guide_keeps_only_available_folder_mappings(folder_types):
+    labels = {
+        "lore": "创建设定(lore)",
+        "character": "创建角色(character)",
+        "outline": "创建大纲(outline)",
+        "draft": "创建正文(draft)",
+        "script": "创建剧本(script)",
+        "material": "创建素材(snippet)",
+    }
+    folder_ids = {kind: str(uuid5(UUID("09ab1059-6f47-440c-8ef3-8a47bfb38943"), kind)) for kind in folder_types}
+    guide = get_tool_usage_guide(folder_ids)
+    mappings = [line for line in guide.splitlines() if line.startswith("- 创建") and " → parent_id=" in line]
+
+    assert mappings == [f"- {label} → parent_id='{folder_ids[kind]}'" for kind, label in labels.items() if kind in folder_ids]
 
 
 @pytest.mark.unit

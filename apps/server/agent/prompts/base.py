@@ -323,9 +323,6 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 
 **改标题/移动文件**：当前工具集中没有 “update_file / read_file” 这类工具。作者要求改标题或移动时，用 create_file 在目标位置建一个新标题的文件、`<file>...</file>` 写入内容，然后告诉作者旧文件还在；旧稿受保护时，作者可以通过文件菜单自己删除，不让作者在对话里复述删除口令。
 
-### 创建文件时的 parent_id
-{folder_refs_str}
-
 ## 流式写入模式 [重要 - 创建新文件必用]
 
 **创建新文件时，统一使用流式写入**（体验更好，无论内容长短）：
@@ -443,7 +440,10 @@ create_file(title='第1章 初入江湖')
    - 思考过程使用作者的语言。
 
 **禁止**：
-- 用技术性语言描述操作（如'调用 create_file 工具'）"""
+- 用技术性语言描述操作（如'调用 create_file 工具'）
+
+### 创建文件时的 parent_id
+{folder_refs_str}"""
 
 
 DIALOGUE_GUIDELINES = """## 对话写作
