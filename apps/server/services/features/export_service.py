@@ -222,6 +222,19 @@ def export_drafts_to_txt(
     Returns:
         Merged text content, or empty string when there is nothing to export
     """
+    return _export_drafts_to_txt_with_outline_state(
+        session, project_id, title=title, include_outline=include_outline
+    )[0]
+
+
+def _export_drafts_to_txt_with_outline_state(
+    session: Session,
+    project_id: str,
+    *,
+    title: str | None = None,
+    include_outline: bool = False,
+) -> tuple[str, bool]:
+    """Render TXT and report whether the rendered content includes outlines."""
     log_with_context(
         logger,
         20,  # INFO
@@ -247,7 +260,7 @@ def export_drafts_to_txt(
             "export_drafts_to_txt: No drafts found",
             project_id=project_id,
         )
-        return ""
+        return "", False
 
     log_with_context(
         logger,
@@ -272,4 +285,4 @@ def export_drafts_to_txt(
             parts.extend((CHAPTER_SEPARATOR, body_heading, "\n\n"))
     parts.extend(_file_parts(drafts))
 
-    return "".join(parts)
+    return "".join(parts), bool(outlines)
