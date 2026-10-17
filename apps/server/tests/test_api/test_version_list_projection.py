@@ -181,7 +181,7 @@ def test_metadata_option_reuses_already_loaded_file(version_projection_fixture, 
 )
 async def test_single_version_reads_defer_only_the_ownership_body(version_projection_fixture, route, number):
     engine, user_id, file_id, key, _, metadata, live_content = version_projection_fixture
-    file_selects, selects, sessions = [], [], []
+    file_selects, version_selects, selects, sessions = [], [], [], []
 
     def capture(_conn, _cursor, statement, _params, _context, _many):
         sql = " ".join(statement.split())
@@ -189,6 +189,8 @@ async def test_single_version_reads_defer_only_the_ownership_body(version_projec
             selects.append(sql)
         if sql.startswith("SELECT") and "FROM file " in sql:
             file_selects.append(sql)
+        elif sql.startswith("SELECT") and "FROM file_version " in sql:
+            version_selects.append(sql)
 
     def request_session():
         with Session(engine) as session:
@@ -244,6 +246,9 @@ async def test_single_version_reads_defer_only_the_ownership_body(version_projec
     assert len(selects) == expected_selects[route]
     assert len(file_selects) == 1
     assert "file.content" not in file_selects[0].split("FROM", 1)[0]
+    if route in {"metadata", "latest"}:
+        assert len(version_selects) == 1
+        assert "file_version.content" not in version_selects[0].split("FROM", 1)[0]
 
 
 @pytest.mark.parametrize("route", ["metadata", "content", "compare", "latest", "agent"])
@@ -328,3 +333,32 @@ async def test_agent_version_detail_keeps_scope_and_allowlist_checks(version_pro
     finally:
         app.dependency_overrides.pop(get_session, None)
     assert response.status_code == 403, response.text
+
+
+@pytest.mark.parametrize(("lookup", "number"), [("by_id", 1), ("by_id", 12), ("latest", 12)])
+def test_single_version_service_defaults_keep_detached_stored_body(version_projection_fixture, lookup, number):
+    engine, _, file_id, _, stored, _, _ = version_projection_fixture
+    service = FileVersionService()
+    with Session(engine) as session:
+        version = (
+            service.get_version(session, f"version-{number}")
+            if lookup == "by_id" else service.get_latest_version(session, file_id)
+        )
+        assert version.version_number == number
+        assert "content" not in inspect(version).unloaded
+    assert version.content == stored[number]
+
+
+@pytest.mark.parametrize(("lookup", "number"), [("by_id", 1), ("by_id", 12), ("latest", 12)])
+def test_single_version_metadata_option_keeps_warm_full_identity(version_projection_fixture, lookup, number):
+    engine, _, file_id, _, stored, _, _ = version_projection_fixture
+    service = FileVersionService()
+    with Session(engine) as session:
+        loaded = session.get(FileVersion, f"version-{number}")
+        version = (
+            service.get_version(session, loaded.id, include_content=False)
+            if lookup == "by_id" else service.get_latest_version(session, file_id, include_content=False)
+        )
+        assert version is loaded
+        assert "content" not in inspect(version).unloaded
+    assert version.content == stored[number]

@@ -307,10 +307,22 @@ class FileVersionService:
         return list(session.exec(query).all())
 
     def get_version(
-        self, session: Session, version_id: str
+        self,
+        session: Session,
+        version_id: str,
+        *,
+        include_content: bool = True,
     ) -> FileVersion | None:
-        """Get a specific version by ID."""
-        return session.get(FileVersion, version_id)
+        """Get a specific version by ID, loading its stored body by default."""
+        return session.get(
+            FileVersion,
+            version_id,
+            options=(
+                None
+                if include_content
+                else [defer(cast(InstrumentedAttribute[str], FileVersion.content))]
+            ),
+        )
 
     def get_version_by_number(
         self, session: Session, file_id: str, version_number: int
@@ -324,13 +336,20 @@ class FileVersionService:
         ).first()
 
     def get_latest_version(
-        self, session: Session, file_id: str
+        self,
+        session: Session,
+        file_id: str,
+        *,
+        include_content: bool = True,
     ) -> FileVersion | None:
-        """Get the latest version for a file."""
+        """Get the latest version, loading its stored body by default."""
+        query = select(FileVersion).where(FileVersion.file_id == file_id)
+        if not include_content:
+            query = query.options(
+                defer(cast(InstrumentedAttribute[str], FileVersion.content))
+            )
         query = (
-            select(FileVersion)
-            .where(FileVersion.file_id == file_id)
-            .order_by(FileVersion.version_number.desc())  # type: ignore[attr-defined]
+            query.order_by(FileVersion.version_number.desc())  # type: ignore[attr-defined]
             .limit(1)
         )
         return session.exec(query).first()

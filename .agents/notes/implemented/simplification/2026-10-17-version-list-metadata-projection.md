@@ -36,3 +36,5 @@ get_versions 已新增 keyword-only include_content=True，保留现有默认完
 ## Follow-up
 
 本记录当时将当前File.content的省略保留为独立候选，未混入版本行投影。后续经独立当前正文测量，按[版本元数据权限读取不预载当前全文](2026-10-17-version-ownership-body-deferral.md)实施：helper默认完整、Web第一页需要的正文和写锁刷新仍保留，仅纯元数据列表省略无用当前正文。本记录原有FileVersion投影、默认完整service及历史兼容决定不变。
+
+本条保留列表投影的原决策；[单版本元数据投影](2026-10-17-single-version-metadata-projection.md)另行测量并将相同显式模式用于Web按ID/最新元数据的单行历史记录，service默认完整及所有内容消费者仍保持，不追认成原列表批次的收益。

@@ -325,7 +325,7 @@ def get_version(
 ):
     """Get a specific version by ID."""
     service = get_file_version_service()
-    version = service.get_version(session, version_id)
+    version = service.get_version(session, version_id, include_content=False)
 
     if not version:
         raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404)
@@ -493,7 +493,7 @@ def get_latest_version(
     verify_file_ownership(session, file_id, current_user, include_content=False)
 
     service = get_file_version_service()
-    version = service.get_latest_version(session, file_id)
+    version = service.get_latest_version(session, file_id, include_content=False)
 
     if not version:
         raise APIException(error_code=ErrorCode.VERSION_NO_VERSIONS_FOUND, status_code=404)
