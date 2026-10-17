@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { LazyMarkdown } from './LazyMarkdown';
+import { MaterialReadingContent } from './materials/MaterialReadingContent';
 import { BookOpen, Plus, MessageSquarePlus } from 'lucide-react';
 import type { MaterialPreviewResponse } from '../lib/materialsApi';
 
@@ -65,8 +65,8 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
 
       {/* Markdown content */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="prose prose-sm dark:prose-invert max-w-none">
-          <LazyMarkdown>{preview.markdown}</LazyMarkdown>
+        <div className="material-detail material-analysis mx-auto max-w-[44rem]">
+          <MaterialReadingContent content={preview.markdown} />
         </div>
       </div>
     </div>

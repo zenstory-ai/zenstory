@@ -106,7 +106,14 @@
     "timeLabel": "时间",
     "notEnabled": "未启用",
     "folderLoadError": "加载失败。",
-    "loadError": "素材详情加载失败，请重试。"
+    "loadError": "素材详情加载失败，请重试。",
+    "characterOverview": "人物概述",
+    "storySynopsis": "剧情梗概",
+    "plotEvent": "事件经过",
+    "storylineOverview": "故事线概述",
+    "relationshipDescription": "关系说明",
+    "abilityDescription": "能力说明",
+    "characterArchetype": "角色定位"
   },
   "quota": {
     "uploadTitle": "素材库是 Pro 功能",
@@ -182,7 +189,19 @@
       "bloodline": "血脉",
       "other": "其他"
     },
-    "other": "其他"
+    "other": "其他",
+    "sentiment": {
+      "positive": "正面",
+      "negative": "负面",
+      "neutral": "中立",
+      "complex": "复杂"
+    },
+    "archetype": {
+      "protagonist": "主角",
+      "antagonist": "反派",
+      "supporting": "配角",
+      "minor": "次要角色"
+    }
   },
   "trialStart": "免费试拆一本（前 {{chapters}} 章）",
   "trialUploadNote": "免费试拆：整本上传即可，只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",

@@ -106,7 +106,14 @@
     "timeLabel": "Time",
     "notEnabled": "Not enabled",
     "folderLoadError": "Unable to load this folder.",
-    "loadError": "Unable to load material details. Please retry."
+    "loadError": "Unable to load material details. Please retry.",
+    "characterOverview": "Character overview",
+    "storySynopsis": "Story synopsis",
+    "plotEvent": "What happens",
+    "storylineOverview": "Storyline overview",
+    "relationshipDescription": "Relationship details",
+    "abilityDescription": "Ability details",
+    "characterArchetype": "Character role"
   },
   "quota": {
     "uploadTitle": "The Materials Library is a Pro feature",
@@ -182,7 +189,19 @@
       "bloodline": "Bloodline",
       "other": "Other"
     },
-    "other": "Other"
+    "other": "Other",
+    "sentiment": {
+      "positive": "Positive",
+      "negative": "Negative",
+      "neutral": "Neutral",
+      "complex": "Complex"
+    },
+    "archetype": {
+      "protagonist": "Protagonist",
+      "antagonist": "Antagonist",
+      "supporting": "Supporting",
+      "minor": "Minor"
+    }
   },
   "trialStart": "Try one book free (first {{chapters}} chapters)",
   "trialUploadNote": "Free trial: upload the whole book; only its first {{chapters}} chapters are broken down, once per account. If it fails on our side, you get the trial back.",

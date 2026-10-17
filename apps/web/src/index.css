@@ -911,6 +911,27 @@ code, pre, .font-mono {
     .material-reader-manuscript { font-size: 1.0625rem; }
 }
 
+/* Reference sheets share the manuscript measure, with a distinct scan hierarchy. */
+.material-analysis { color: hsl(var(--text-primary)); }
+.material-analysis :where(h1, h2, h3, h4, dt, dd) { font-family: var(--font-sans); }
+.material-analysis-header { padding-block-end: 1.5rem; border-block-end: 1px solid hsl(var(--separator-color)); }
+.material-analysis-header > :not(:first-child) { margin-block-start: 0.75rem; }
+.material-analysis-facts { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; font-size: 0.875rem; line-height: 1.6; }
+.material-analysis-facts:empty { display: none; }
+.material-analysis-fact { display: flex; flex-wrap: wrap; gap: 0.25rem 0.625rem; min-width: 0; }
+.material-analysis-fact dt { color: hsl(var(--text-secondary)); }
+.material-analysis-fact dd { margin: 0; }
+.material-analysis-section { padding-block: 1.5rem; }
+.material-analysis-section + .material-analysis-section { border-block-start: 1px solid hsl(var(--separator-color)); }
+.material-analysis-section > h3 { margin-block-end: 0.75rem; font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.material-analysis .material-reader-prose { font-size: 1rem; line-height: 1.85; }
+.material-analysis .material-reader-prose p { white-space: pre-wrap; }
+.material-analysis-records { list-style: none; margin: 0; padding: 0; }
+.material-analysis-records > li + li { margin-block-start: 1.25rem; padding-block-start: 1.25rem; border-block-start: 1px solid hsl(var(--separator-color)); }
+.material-analysis-records h4 { margin-block-end: 0.5rem; font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.material-analysis-records .material-analysis-facts:not(:last-child) { margin-block-end: 0.75rem; }
+.material-analysis-records .material-reader-prose + .material-analysis-facts { margin-block-start: 0.75rem; }
+
 .editor-content {
     @apply outline-none min-h-full;
     line-height: 1.8;

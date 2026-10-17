@@ -1,10 +1,14 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/apiClient";
+import {
+  referenceMaterial, referenceCharacter, referenceStory, referencePlot, referenceStoryline,
+  referenceRelationship, referenceGoldenFinger, referenceWorldview,
+} from "../../test/materialReaderFixtures";
 
 const mockNavigate = vi.fn();
 const mockGet = vi.fn();
@@ -63,6 +67,7 @@ vi.mock("react-i18next", () => ({
       ) {
         return `${key} ${String(defaultValueOrOptions.number)}`;
       }
+      if (typeof defaultValueOrOptions === "object" && defaultValueOrOptions && "range" in defaultValueOrOptions) return `${key} ${String(defaultValueOrOptions.range)}`;
       return key;
     },
   }),
@@ -230,6 +235,79 @@ describe("MaterialDetailPage", () => {
     });
 
     expect(screen.queryByText("materials:detail.relationships")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { folder: 'characters', node: /^沈砚$/, title: '沈砚', fields: ['protagonist', '阿砚', '守灯人', '离乡十年的修灯匠', '查明旧信的来历'], section: 'characterOverview' },
+    { folder: 'stories', node: /^归乡与旧信$/, title: '归乡与旧信', fields: ['沈砚循着一封旧信', '找到写信的人', '保护故人与追索真相', '真相与代价', '1–12'], section: 'storySynopsis' },
+    { folder: 'plots', node: /^老人递来的信封/, title: 'materials:detail.plotTitle', fields: ['沈砚意识到', '温掌柜'], section: 'plotEvent' },
+    { folder: 'storylines', node: /^守灯人的约定$/, title: '守灯人的约定', fields: ['每次接近真相', '陆青禾', '守约', '4'], section: 'storylineOverview' },
+    { folder: 'relationships', node: /^沈砚 - 温掌柜$/, title: '沈砚 - 温掌柜', fields: ['温掌柜曾教沈砚修灯', '沈砚依旧愿意信任他'], section: 'relationshipDescription' },
+    { folder: 'goldenfingers', node: /^听灯$/, title: '听灯', fields: ['触碰旧灯时', '初醒', '辨声', '暴雨之夜', '第一次听见兄长', '12'], section: 'abilityDescription' },
+    { folder: 'worldview', node: /^materials:detail.worldviewItem$/, title: 'materials:detail.worldview', fields: ['心火感知旧物', '新旧两套秩序', '旧灯铺', '巡夜司', '温掌柜', '陆青禾', '山海关', '同一段记忆只能'], section: 'powerSystem' },
+  ])('gives $folder a complete named reading structure without dropping its fields', async ({ folder, node, title, fields, section }) => {
+    mockGet.mockResolvedValue(referenceMaterial);
+    mockGetCharacters.mockResolvedValue([referenceCharacter]);
+    mockGetStories.mockResolvedValue([referenceStory]);
+    mockGetPlots.mockResolvedValue([referencePlot]);
+    mockGetStoryLines.mockResolvedValue([referenceStoryline]);
+    mockGetRelationships.mockResolvedValue([referenceRelationship]);
+    mockGetGoldenFingers.mockResolvedValue([referenceGoldenFinger]);
+    mockGetWorldView.mockResolvedValue(referenceWorldview);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^materials:detail.${folder}`) }));
+    fireEvent.click(await screen.findByRole('button', { name: node }));
+    const article = await screen.findByRole('article', { name: title });
+    expect(within(article).getByRole('heading', { level: 2, name: title })).toBeInTheDocument();
+    expect(within(article).getByRole('region', { name: `materials:detail.${section}` })).toBeInTheDocument();
+    await waitFor(() => {
+      for (const field of fields) expect(article).toHaveTextContent(field);
+    });
+    expect(mockGetChapter).not.toHaveBeenCalled();
+    expect(mockRetry).not.toHaveBeenCalled();
+  });
+
+  it("keeps zero-valued reference facts and omits absent sections", async () => {
+    mockGetCharacters.mockResolvedValue([{ ...referenceCharacter, aliases: [], archetype: null, description: null, first_appearance_chapter: 0 }]);
+    mockGetStoryLines.mockResolvedValue([{ ...referenceStoryline, stories_count: 0, description: null, themes: [], main_characters: [] }]);
+    mockGetGoldenFingers.mockResolvedValue([{ ...referenceGoldenFinger, description: null, evolution_history: [{ chapter: 0 }] }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole('button', { name: /^materials:detail.characters/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^沈砚$/ }));
+    let article = await screen.findByRole('article', { name: '沈砚' });
+    expect(article).toHaveTextContent('materials:detail.chapter 0');
+    expect(within(article).queryByRole('region')).not.toBeInTheDocument();
+    expect(article).not.toHaveTextContent('materials:detail.aliases');
+    expect(article).not.toHaveTextContent('materials:detail.characterArchetype');
+    fireEvent.click(screen.getByRole('button', { name: /^materials:detail.storylines/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^守灯人的约定$/ }));
+    article = await screen.findByRole('article', { name: '守灯人的约定' });
+    expect(article).toHaveTextContent('materials:detail.storiesCount0');
+    expect(within(article).queryByRole('region')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^materials:detail.goldenfingers/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^听灯$/ }));
+    article = await screen.findByRole('article', { name: '听灯' });
+    expect(within(article).getByRole('listitem')).toHaveTextContent('materials:detail.chapterLabel0');
+    expect(article).not.toHaveTextContent('1003');
+  });
+
+  it("preserves a free-form character role from the existing API", async () => {
+    mockGetCharacters.mockResolvedValue([{ ...referenceCharacter, archetype: 'Reluctant hero' }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole('button', { name: /^materials:detail.characters/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^沈砚$/ }));
+    const article = await screen.findByRole('article', { name: '沈砚' });
+    expect(article).toHaveTextContent('Reluctant hero');
+  });
+
+  it.each(['归乡, 承诺', '["归乡","承诺"]'])('preserves legacy story themes format %s', async themes => {
+    mockGetStories.mockResolvedValue([{ ...referenceStory, themes }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole('button', { name: /^materials:detail.stories/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^归乡与旧信$/ }));
+    const themesSection = await screen.findByRole('region', { name: 'materials:detail.themes' });
+    expect(within(themesSection).getByText('归乡')).toBeInTheDocument();
+    expect(within(themesSection).getByText('承诺')).toBeInTheDocument();
   });
 
   it("exposes folder expansion without loading unopened folders", async () => {
@@ -430,7 +508,7 @@ describe("MaterialDetailPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /Li Wei/ }));
     expect(await screen.findByText("A fearless lead")).toBeInTheDocument();
-    expect(screen.getByText(/materials:detail.firstAppearance/)).toHaveTextContent("7");
+    expect(screen.getByText(/materials:detail.firstAppearance/).closest("div")).toHaveTextContent("7");
 
     fireEvent.click(screen.getByRole("button", { name: /materials:detail.stories/ }));
     await waitFor(() => {

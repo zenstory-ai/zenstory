@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { materialEnumLabel } from "../lib/materialEnumLabels";
 import i18n from "../lib/i18n";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LazyMarkdown } from "../components/LazyMarkdown";
+import { MaterialReadingContent as MarkdownContent } from "../components/materials/MaterialReadingContent";
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
@@ -787,11 +787,42 @@ function FileTree({ items, selectedId, expandedFolders, onItemClick, loadingStat
   );
 }
 
-// Markdown 内容渲染组件
-function MarkdownContent({ content, className = "" }: { content: string; className?: string }) {
+// Shared structure for the seven reference types; chapter layout stays independent.
+function DetailHeader({ id, icon, title, children }: { id: string; icon: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className={`prose material-reader-prose ${className}`}>
-      <LazyMarkdown>{content}</LazyMarkdown>
+    <header className="material-analysis-header">
+      <div className="flex items-start gap-3">
+        <span className="mt-1.5 shrink-0 text-[hsl(var(--text-secondary))]" aria-hidden="true">{icon}</span>
+        <h2 id={id} className="text-2xl font-semibold leading-snug tracking-tight text-[hsl(var(--text-primary))]">{title}</h2>
+      </div>
+      {children}
+    </header>
+  );
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section className="material-analysis-section" aria-labelledby={id}>
+      <h3 id={id}>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function DetailMetadata({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="material-analysis-fact">
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+function DetailTags({ values }: { values: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {values.map((value, index) => <Badge key={index} variant="neutral" size="md">{value}</Badge>)}
     </div>
   );
 }
@@ -803,6 +834,7 @@ interface ContentDetailProps {
 
 function ContentDetail({ item }: ContentDetailProps) {
   const { t } = useTranslation(["materials"]);
+  const titleId = useId();
 
   if (item.type === "chapter") {
     const chapter = item.data as MaterialChapter;
@@ -839,413 +871,241 @@ function ContentDetail({ item }: ContentDetailProps) {
 
   if (item.type === "character") {
     const character = item.data as MaterialCharacter;
-    const firstAppearanceChapter = character.first_appearance_chapter;
     return (
-      <div className="material-detail">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <User className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
-            <h2 className="break-words text-xl font-semibold text-[hsl(var(--text-primary))]">
-              {character.name}
-            </h2>
-          </div>
-          {character.aliases && character.aliases.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-[hsl(var(--text-secondary))]">
-              <span>{t("materials:detail.aliases")}:</span>
-              <span>{character.aliases.join(i18n.language === 'zh' ? '、' : ', ')}</span>
-            </div>
-          )}
-        </div>
-
+      <article className="material-detail material-analysis" aria-labelledby={titleId}>
+        <DetailHeader id={titleId} icon={<User className="w-5 h-5" />} title={character.name}>
+          <dl className="material-analysis-facts">
+            {character.archetype && (
+              <DetailMetadata label={t("materials:detail.characterArchetype")}>
+                {t(`materials:enums.archetype.${character.archetype.trim().toLowerCase()}`, { defaultValue: character.archetype })}
+              </DetailMetadata>
+            )}
+            {!!character.aliases?.length && (
+              <DetailMetadata label={t("materials:detail.aliases")}>
+                {character.aliases.join(i18n.language === 'zh' ? '、' : ', ')}
+              </DetailMetadata>
+            )}
+            {character.first_appearance_chapter != null && (
+              <DetailMetadata label={t("materials:detail.firstAppearance")}>
+                {t("materials:detail.chapter", { number: character.first_appearance_chapter })}
+              </DetailMetadata>
+            )}
+          </dl>
+        </DetailHeader>
         {character.description && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.description")}
-            </h3>
+          <DetailSection title={t("materials:detail.characterOverview")}>
             <MarkdownContent content={character.description} />
-          </div>
+          </DetailSection>
         )}
-
-        {firstAppearanceChapter != null && (
-          <div className="text-sm text-[hsl(var(--text-secondary))]">
-            {t("materials:detail.firstAppearance")}: {t("materials:detail.chapter", { number: firstAppearanceChapter })}
-          </div>
-        )}
-      </div>
+      </article>
     );
   }
 
   if (item.type === "story") {
     const story = item.data as MaterialStory;
-
     const parseThemes = (themes: string | null | undefined): string[] => {
       if (!themes) return [];
-      if (typeof themes === 'string') {
-        try {
-          const parsed = JSON.parse(themes);
-          return Array.isArray(parsed) ? parsed : [themes];
-        } catch {
-          return themes.split(',').map(t => t.trim()).filter(Boolean);
-        }
+      try {
+        const parsed = JSON.parse(themes);
+        return Array.isArray(parsed) ? parsed : [themes];
+      } catch {
+        return themes.split(',').map(theme => theme.trim()).filter(Boolean);
       }
-      return [];
     };
-
+    const themes = parseThemes(story.themes);
     return (
-      <div className="material-detail">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
-            <h2 className="break-words text-xl font-semibold text-[hsl(var(--text-primary))]">
-              {story.title}
-            </h2>
-          </div>
-          {story.story_type && (
-            <Badge variant="neutral" size="md">
-              {materialEnumLabel(t, 'storyType', story.story_type)}
-            </Badge>
-          )}
-        </div>
-
-        <div className="mb-6">
-          <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-            {t("materials:detail.description")}
-          </h3>
-          <MarkdownContent content={story.synopsis} />
-        </div>
-
-        {story.core_objective && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.coreObjective")}
-            </h3>
-            <MarkdownContent content={story.core_objective} />
-          </div>
-        )}
-
-        {story.core_conflict && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.coreConflict")}
-            </h3>
-            <MarkdownContent content={story.core_conflict} />
-          </div>
-        )}
-
-        {story.themes && parseThemes(story.themes).length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.themes")}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {parseThemes(story.themes).map((theme, index) => (
-                <Badge key={index} variant="neutral" size="md">
-                  {theme}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {story.chapter_range && (
-          <div>
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.relatedChapters")}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              <span
-                className="px-3 py-1 rounded-lg bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))]"
-              >
+      <article className="material-detail material-analysis" aria-labelledby={titleId}>
+        <DetailHeader id={titleId} icon={<Sparkles className="w-5 h-5" />} title={story.title}>
+          {story.story_type && <Badge variant="neutral" size="md">{materialEnumLabel(t, 'storyType', story.story_type)}</Badge>}
+          {story.chapter_range && (
+            <dl className="material-analysis-facts">
+              <DetailMetadata label={t("materials:detail.relatedChapters")}>
                 {t("materials:detail.chapterRange", { range: story.chapter_range })}
-              </span>
-            </div>
-          </div>
+              </DetailMetadata>
+            </dl>
+          )}
+        </DetailHeader>
+        {story.synopsis && (
+          <DetailSection title={t("materials:detail.storySynopsis")}>
+            <MarkdownContent content={story.synopsis} />
+          </DetailSection>
         )}
-      </div>
+        {story.core_objective && (
+          <DetailSection title={t("materials:detail.coreObjective")}>
+            <MarkdownContent content={story.core_objective} />
+          </DetailSection>
+        )}
+        {story.core_conflict && (
+          <DetailSection title={t("materials:detail.coreConflict")}>
+            <MarkdownContent content={story.core_conflict} />
+          </DetailSection>
+        )}
+        {!!themes.length && (
+          <DetailSection title={t("materials:detail.themes")}>
+            <DetailTags values={themes} />
+          </DetailSection>
+        )}
+      </article>
     );
   }
 
   if (item.type === "plot") {
     const plot = item.data as MaterialPlot;
     return (
-      <div className="material-detail">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <File className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
-            <h2 className="break-words text-xl font-semibold text-[hsl(var(--text-primary))]">
-              {t("materials:detail.plotTitle")}
-            </h2>
-          </div>
-          <Badge variant="neutral" size="md">
-            {materialEnumLabel(t, 'plotType', plot.plot_type)}
-          </Badge>
-        </div>
-
-        <div className="mb-6">
-          <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-            {t("materials:detail.description")}
-          </h3>
-          <MarkdownContent content={plot.description} />
-        </div>
-
-        {plot.characters && plot.characters.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.involvedCharacters")}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {plot.characters.map((char: string, index: number) => (
-                <Badge key={index} variant="neutral" size="md">
-                  {char}
-                </Badge>
-              ))}
-            </div>
-          </div>
+      <article className="material-detail material-analysis" aria-labelledby={titleId}>
+        <DetailHeader id={titleId} icon={<File className="w-5 h-5" />} title={t("materials:detail.plotTitle")}>
+          <Badge variant="neutral" size="md">{materialEnumLabel(t, 'plotType', plot.plot_type)}</Badge>
+        </DetailHeader>
+        {plot.description && (
+          <DetailSection title={t("materials:detail.plotEvent")}>
+            <MarkdownContent content={plot.description} />
+          </DetailSection>
         )}
-      </div>
+        {!!plot.characters?.length && (
+          <DetailSection title={t("materials:detail.involvedCharacters")}>
+            <DetailTags values={plot.characters} />
+          </DetailSection>
+        )}
+      </article>
     );
   }
 
   if (item.type === "storyline") {
     const storyline = item.data as MaterialStoryLine;
     return (
-      <div className="material-detail">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <GitBranch className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
-            <h2 className="break-words text-xl font-semibold text-[hsl(var(--text-primary))]">
-              {storyline.title}
-            </h2>
-          </div>
-        </div>
-
+      <article className="material-detail material-analysis" aria-labelledby={titleId}>
+        <DetailHeader id={titleId} icon={<GitBranch className="w-5 h-5" />} title={storyline.title}>
+          <dl className="material-analysis-facts">
+            <DetailMetadata label={t("materials:detail.storiesCount")}>{storyline.stories_count}</DetailMetadata>
+          </dl>
+        </DetailHeader>
         {storyline.description && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.description")}
-            </h3>
+          <DetailSection title={t("materials:detail.storylineOverview")}>
             <MarkdownContent content={storyline.description} />
-          </div>
+          </DetailSection>
         )}
-
-        {storyline.main_characters && storyline.main_characters.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.mainCharacters")}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {storyline.main_characters.map((char: string, index: number) => (
-                <Badge key={index} variant="neutral" size="md">
-                  {char}
-                </Badge>
-              ))}
-            </div>
-          </div>
+        {!!storyline.main_characters?.length && (
+          <DetailSection title={t("materials:detail.mainCharacters")}>
+            <DetailTags values={storyline.main_characters} />
+          </DetailSection>
         )}
-
-        {storyline.themes && storyline.themes.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.themes")}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {storyline.themes.map((theme: string, index: number) => (
-                <Badge key={index} variant="neutral" size="md">
-                  {theme}
-                </Badge>
-              ))}
-            </div>
-          </div>
+        {!!storyline.themes?.length && (
+          <DetailSection title={t("materials:detail.themes")}>
+            <DetailTags values={storyline.themes} />
+          </DetailSection>
         )}
-
-        <div className="text-sm text-[hsl(var(--text-secondary))]">
-          {t("materials:detail.storiesCount")}: {storyline.stories_count}
-        </div>
-      </div>
+      </article>
     );
   }
 
   if (item.type === "relationship") {
     const relationship = item.data as MaterialCharacterRelationship;
+    // Known values are localized; free-form historical descriptions remain intact.
+    const sentiment = relationship.sentiment && t(`materials:enums.sentiment.${relationship.sentiment.trim().toLowerCase()}`, { defaultValue: relationship.sentiment });
     return (
-      <div className="material-detail">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Users className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
-            <h2 className="break-words text-xl font-semibold text-[hsl(var(--text-primary))]">
-              {relationship.character_a_name} - {relationship.character_b_name}
-            </h2>
-          </div>
-          <Badge variant="neutral" size="md">
-            {materialEnumLabel(t, 'relationshipType', relationship.relationship_type)}
-          </Badge>
-        </div>
-
-        {relationship.sentiment && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.sentiment")}
-            </h3>
-            <MarkdownContent content={relationship.sentiment} />
-          </div>
-        )}
-
+      <article className="material-detail material-analysis" aria-labelledby={titleId}>
+        <DetailHeader id={titleId} icon={<Users className="w-5 h-5" />} title={`${relationship.character_a_name} - ${relationship.character_b_name}`}>
+          <Badge variant="neutral" size="md">{materialEnumLabel(t, 'relationshipType', relationship.relationship_type)}</Badge>
+        </DetailHeader>
         {relationship.description && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.description")}
-            </h3>
+          <DetailSection title={t("materials:detail.relationshipDescription")}>
             <MarkdownContent content={relationship.description} />
-          </div>
+          </DetailSection>
         )}
-      </div>
+        {sentiment && (
+          <DetailSection title={t("materials:detail.sentiment")}>
+            <MarkdownContent content={sentiment} />
+          </DetailSection>
+        )}
+      </article>
     );
   }
 
   if (item.type === "goldenfinger") {
     const goldenfinger = item.data as MaterialGoldenFinger;
     return (
-      <div className="material-detail">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Zap className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
-            <h2 className="break-words text-xl font-semibold text-[hsl(var(--text-primary))]">
-              {goldenfinger.name}
-            </h2>
-          </div>
-          <Badge variant="neutral" size="md">
-            {materialEnumLabel(t, 'goldenFingerType', goldenfinger.type)}
-          </Badge>
-        </div>
-
+      <article className="material-detail material-analysis" aria-labelledby={titleId}>
+        <DetailHeader id={titleId} icon={<Zap className="w-5 h-5" />} title={goldenfinger.name}>
+          <Badge variant="neutral" size="md">{materialEnumLabel(t, 'goldenFingerType', goldenfinger.type)}</Badge>
+        </DetailHeader>
         {goldenfinger.description && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.description")}
-            </h3>
+          <DetailSection title={t("materials:detail.abilityDescription")}>
             <MarkdownContent content={goldenfinger.description} />
-          </div>
+          </DetailSection>
         )}
-
-        {goldenfinger.evolution_history && goldenfinger.evolution_history.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.evolutionHistory")}
-            </h3>
-            <div className="space-y-3">
-              {goldenfinger.evolution_history.map((item, index) => (
-                <div
-                  key={index}
-                  className="p-4 rounded-lg bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))]"
-                >
-                  {item.stage && (
-                    <h4 className="font-semibold text-[hsl(var(--text-primary))] mb-2">
-                      {item.stage}
-                    </h4>
-                  )}
-                  {item.description && (
-                    <div className="mb-2">
-                      <MarkdownContent content={item.description} className="text-sm" />
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-3 text-xs text-[hsl(var(--text-tertiary))]">
-                    {item.chapter && (
-                      <span>
-                        <span className="font-medium">{t("materials:detail.chapterLabel")}:</span> {item.chapter}
-                      </span>
+        {!!goldenfinger.evolution_history?.length && (
+          <DetailSection title={t("materials:detail.evolutionHistory")}>
+            <ol className="material-analysis-records" role="list">
+              {goldenfinger.evolution_history.map((record, index) => (
+                <li key={index}>
+                  {record.stage && <h4>{record.stage}</h4>}
+                  {(record.chapter != null || record.timestamp) && <dl className="material-analysis-facts">
+                    {record.chapter != null && (
+                      <DetailMetadata label={t("materials:detail.chapterLabel")}>
+                        {record.chapter}
+                      </DetailMetadata>
                     )}
-                    {item.timestamp && (
-                      <span>
-                        <span className="font-medium">{t("materials:detail.timeLabel")}:</span> {item.timestamp}
-                      </span>
+                    {record.timestamp && (
+                      <DetailMetadata label={t("materials:detail.timeLabel")}>
+                        {record.timestamp}
+                      </DetailMetadata>
                     )}
-                  </div>
-                </div>
+                  </dl>}
+                  {record.description && <MarkdownContent content={record.description} />}
+                </li>
               ))}
-            </div>
-          </div>
+            </ol>
+          </DetailSection>
         )}
-      </div>
+      </article>
     );
   }
 
   if (item.type === "worldview") {
     const worldview = item.data as MaterialWorldView;
     return (
-      <div className="material-detail">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Globe className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
-            <h2 className="break-words text-xl font-semibold text-[hsl(var(--text-primary))]">
-              {t("materials:detail.worldview")}
-            </h2>
-          </div>
-        </div>
-
+      <article className="material-detail material-analysis" aria-labelledby={titleId}>
+        <DetailHeader id={titleId} icon={<Globe className="w-5 h-5" />} title={t("materials:detail.worldview")} />
         {worldview.power_system && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.powerSystem")}
-            </h3>
+          <DetailSection title={t("materials:detail.powerSystem")}>
             <MarkdownContent content={worldview.power_system} />
-          </div>
+          </DetailSection>
         )}
-
         {worldview.world_structure && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.worldStructure")}
-            </h3>
+          <DetailSection title={t("materials:detail.worldStructure")}>
             <MarkdownContent content={worldview.world_structure} />
-          </div>
+          </DetailSection>
         )}
-
-        {worldview.key_factions && worldview.key_factions.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.keyFactions")}
-            </h3>
-            <div className="space-y-3">
+        {!!worldview.key_factions?.length && (
+          <DetailSection title={t("materials:detail.keyFactions")}>
+            <ul className="material-analysis-records" role="list">
               {worldview.key_factions.map((faction, index) => (
-                <div
-                  key={index}
-                  className="p-4 rounded-lg bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))]"
-                >
-                  <h4 className="font-semibold text-[hsl(var(--text-primary))] mb-2">
-                    {faction.name}
-                  </h4>
-                  {faction.description && (
-                    <div className="mb-2">
-                      <MarkdownContent content={faction.description} className="text-sm" />
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-3 text-xs text-[hsl(var(--text-tertiary))]">
+                <li key={index}>
+                  <h4>{faction.name}</h4>
+                  {faction.description && <MarkdownContent content={faction.description} />}
+                  {(faction.leader || faction.territory) && <dl className="material-analysis-facts">
                     {faction.leader && (
-                      <span>
-                        <span className="font-medium">{t("materials:detail.leader")}:</span> {faction.leader}
-                      </span>
+                      <DetailMetadata label={t("materials:detail.leader")}>
+                        {faction.leader}
+                      </DetailMetadata>
                     )}
                     {faction.territory && (
-                      <span>
-                        <span className="font-medium">{t("materials:detail.territory")}:</span> {faction.territory}
-                      </span>
+                      <DetailMetadata label={t("materials:detail.territory")}>
+                        {faction.territory}
+                      </DetailMetadata>
                     )}
-                  </div>
-                </div>
+                  </dl>}
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </DetailSection>
         )}
-
         {worldview.special_rules && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
-              {t("materials:detail.specialRules")}
-            </h3>
+          <DetailSection title={t("materials:detail.specialRules")}>
             <MarkdownContent content={worldview.special_rules} />
-          </div>
+          </DetailSection>
         )}
-      </div>
+      </article>
     );
   }
 

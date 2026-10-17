@@ -126,6 +126,8 @@ export interface MaterialCharacter {
   name: string;
   /** Alternative names or nicknames */
   aliases?: string[];
+  /** Existing API classification; historical/free-form values are preserved. */
+  archetype?: string | null;
   /** Character description and traits */
   description?: string;
   /** ID of the chapter where the character first appears */
