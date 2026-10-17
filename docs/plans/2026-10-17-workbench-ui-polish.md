@@ -1,6 +1,6 @@
 # 工作台细节打磨任务清单
 
-本批次仅本地开发与验证，不包含 PR 合并、生产发布或法律正文改写。基线为 `5b9a6b7c`；上一轮审阅界面仅降低颜色强度，未解决线框密度，T1 重新打开。
+最初范围为本地开发与验证；用户最新授权整体 review 通过后创建 PR 并合并到 main，仍不包含生产发布或法律正文改写。基线为 `5b9a6b7c`；上一轮审阅界面仅降低颜色强度，未解决线框密度，T1 重新打开。
 
 ## Tasks
 
@@ -32,7 +32,12 @@
 
 ## Final evidence and boundaries
 
-- 当前结果为本地实现与验证，不包含 PR/merge、真实 Preview/生产部署或云操作。新 `app-legal-built.spec.ts` 在真实 App/preview 页面 URL 下提供本地 production bundle，属于产品运行时证明，不是 Vercel 线上部署证明；上线前仍需运行 `geo-domain-smoke.spec.ts`。
+- 当前表内证据为本地实现与验证；后续 PR/merge 依用户最新授权执行，不将本地证据当作真实 Preview/生产部署。新 `app-legal-built.spec.ts` 在真实 App/preview 页面 URL 下提供本地 production bundle，属于产品运行时证明，不是 Vercel 线上部署证明；上线前仍需运行 `geo-domain-smoke.spec.ts`。
 - 本地证据目录：`.omx/verification/workbench-ui-polish/`；完整截图及前后对比：`.omx/design/workbench-ui-polish/final/index.html`。证据不随 Git 提交。
 - 浏览器汇总：review 15 pass/1 skip，Home 18 pass，公开价格/页脚/静态法律页 16 pass，生产构建法律页 8 pass。跳过为既有 WebKit 不提供 Chromium CDP 触摸接口，不代表手机滚动测试未跑；两引擎的窄屏 wheel/操作/保存均通过。
 - [ ] F1（另行处理，非本批生产回归）：React 19 dev StrictMode 与旧 Helmet 开发态双挂载兼容性会清掉 metadata。只读对照确认该组合自初始提交存在；生产 bundle 的直接载入、页脚 SPA 导航和刷新均通过 metadata 回归。本批不禁用 StrictMode、不升级依赖、不改全局 SEO。
+
+- 用户指出免费卡“免费版 / 免费”仍重复：重新打开 T3，删除免费套餐的独立价格行；只给桌面对比头保留统一行高，手机自然收紧。复用现有周期/结算回归，并补权益首行和按钮对齐几何检查，不为改字添加镜像单测。
+
+- 免费卡追加修正完成：删除独立“免费”价格行，Pro 周期价格保留；电脑两卡权益与按钮仍对齐，手机自然收紧。新鲜验证：206 个单测、8 个价格浏览器用例（双语/浅深色/390与1440）通过，targeted lint、token/i18n、类型构建与 finalizer 通过。
+- 用户随后授权：整体复审，所有必需检查通过后创建 PR 并 merge main；生产发布仍不在范围内。

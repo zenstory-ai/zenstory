@@ -48,6 +48,12 @@ for (const language of ['zh', 'en']) {
           const headings = await page.locator('main h2').all();
           const a = (await headings[0].boundingBox())!, b = (await headings[1].boundingBox())!;
           expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+          const cards = headings.map(heading => heading.locator('xpath=../../..'));
+          const metric = language === 'zh' ? '每日 AI 消息' : 'Daily AI messages';
+          const firstRows = await Promise.all(cards.map(card => card.getByText(metric, { exact: true }).boundingBox()));
+          expect(Math.abs(firstRows[0]!.y - firstRows[1]!.y), 'plan rights remain aligned when the Free card omits its redundant price').toBeLessThanOrEqual(1);
+          const actions = await Promise.all(cards.map(card => card.getByRole('button').boundingBox()));
+          expect(Math.abs(actions[0]!.y - actions[1]!.y)).toBeLessThanOrEqual(1);
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.screenshot({ path: info.outputPath('pricing-month.png'), fullPage: true, animations: 'disabled' });

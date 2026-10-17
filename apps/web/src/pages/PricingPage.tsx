@@ -313,17 +313,19 @@ export default function PricingPage() {
                     : "border-[hsl(var(--border-color))]"
                 )}
               >
-                <div className="flex items-start justify-between gap-3 mb-5">
+                <div className="flex items-start justify-between gap-3 mb-5 lg:min-h-[68px]">
                   <div>
                     <h2 className="text-xl font-semibold text-[hsl(var(--text-primary))]">
                       {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
                     </h2>
-                    <p className="mt-2 text-2xl font-semibold text-[hsl(var(--text-primary))]">
-                      {formatPrice(
-                        billingCycle === "month" ? plan.price_monthly_cents : plan.price_yearly_cents,
-                        billingCycle
-                      )}
-                    </p>
+                    {plan.name !== "free" && (
+                      <p className="mt-2 text-2xl font-semibold text-[hsl(var(--text-primary))]">
+                        {formatPrice(
+                          billingCycle === "month" ? plan.price_monthly_cents : plan.price_yearly_cents,
+                          billingCycle
+                        )}
+                      </p>
+                    )}
                   </div>
                   {plan.recommended && (
                     <Badge variant="neutral">
