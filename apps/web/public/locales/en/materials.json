@@ -61,6 +61,8 @@
     "message": "This novel and everything decomposed from it will be deleted and can't be recovered. Files you've added to projects are kept."
   },
   "detail": {
+    "contents": "Contents",
+    "contentLabel": "Material content",
     "failedBanner": "Breakdown failed",
     "partialBanner": "Some content wasn't decomposed",
     "chapters": "Chapters",

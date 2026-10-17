@@ -232,6 +232,47 @@ describe("MaterialDetailPage", () => {
     expect(screen.queryByText("materials:detail.relationships")).not.toBeInTheDocument();
   });
 
+  it("exposes folder expansion without loading unopened folders", async () => {
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const chapters = await screen.findByRole("button", { name: /materials:detail.chapters/ });
+    expect(chapters).toHaveAttribute("aria-expanded", "false");
+    expect(mockGetTree).not.toHaveBeenCalled();
+    fireEvent.click(chapters);
+    expect(await screen.findByRole("button", { name: /Opening Chapter/ })).toBeInTheDocument();
+    expect(chapters).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(chapters);
+    expect(chapters).toHaveAttribute("aria-expanded", "false");
+    expect(mockGetCharacters).not.toHaveBeenCalled();
+  });
+
+  it("preserves original manuscript newlines in scoped reading typography without losing Markdown or escaping", async () => {
+    mockGetChapter.mockResolvedValueOnce({
+      id: "chapter-1", title: "Opening Chapter", chapter_number: 1,
+      content: '第一段原文。\n“第二段对白。”\n\n第三段 **重点**。\n\n<script>alert("unsafe")</script>',
+    });
+    const { container } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole("button", { name: /materials:detail.chapters/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Opening Chapter/ }));
+    const paragraph = await screen.findByText(/第一段原文/);
+    expect(paragraph.textContent).toBe('第一段原文。\n“第二段对白。”');
+    expect(paragraph.closest(".material-reader-manuscript")).not.toBeNull();
+    expect(screen.getByText("重点").tagName).toBe("STRONG");
+    expect(container.querySelector("script")).toBeNull();
+  });
+
+  it("shows a recoverable chapter read error without restarting decomposition", async () => {
+    mockGetChapter.mockRejectedValueOnce(new Error("chapter read offline"));
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole("button", { name: /materials:detail.chapters/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Opening Chapter/ }));
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("素材详情加载失败，请重试。");
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(await screen.findByText("Chapter body")).toBeInTheDocument();
+    expect(mockGetChapter).toHaveBeenCalledTimes(2);
+    expect(mockRetry).not.toHaveBeenCalled();
+  });
+
   it("shows stored historical relationships while the global producer flag is off", async () => {
     mockGet.mockResolvedValueOnce({
       id: "novel-1", title: "Historical Novel", status: "completed", chapters_count: 1,
@@ -353,6 +394,20 @@ describe("MaterialDetailPage", () => {
       expect(mockGetCharacters).toHaveBeenCalledTimes(2);
     });
     expect(await screen.findByText("Retry Hero")).toBeInTheDocument();
+  });
+
+  it("offers an accessible folder read retry without paid decomposition", async () => {
+    mediaState.isMobile = true;
+    mockGetCharacters.mockRejectedValueOnce(new Error("offline"));
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole("button", { name: /materials:detail.characters/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("加载失败。");
+    const retry = screen.getByRole("button", { name: "重试" });
+    expect(retry).toHaveClass("min-h-[44px]");
+    fireEvent.click(retry);
+    expect(await screen.findByRole("button", { name: /Li Wei/ })).toBeInTheDocument();
+    expect(mockGetCharacters).toHaveBeenCalledTimes(2);
+    expect(mockRetry).not.toHaveBeenCalled();
   });
 
   it("loads folder content and renders chapter, character, and story details", async () => {

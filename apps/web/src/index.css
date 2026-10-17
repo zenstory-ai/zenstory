@@ -860,6 +860,57 @@ code, pre, .font-mono {
     font-family: var(--font-display);
 }
 
+/* Material reference content: scoped because the app has no typography plugin. */
+.material-detail {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.material-reader-prose {
+    color: hsl(var(--text-primary));
+    font-size: 0.9375rem;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}
+
+.material-reader-prose :where(p, ul, ol, blockquote, pre, table) {
+    margin-block: 0 1em;
+}
+
+.material-reader-prose :where(h1, h2, h3, h4) {
+    margin-block: 1.5em 0.6em;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.material-reader-prose :where(h1, h2) { font-size: 1.3em; }
+.material-reader-prose :where(h3, h4) { font-size: 1.1em; }
+.material-reader-prose ul { list-style: disc; padding-inline-start: 1.5em; }
+.material-reader-prose ol { list-style: decimal; padding-inline-start: 1.5em; }
+.material-reader-prose li + li { margin-block-start: 0.35em; }
+.material-reader-prose li > p { margin-block-end: 0.35em; }
+.material-reader-prose a { color: hsl(var(--accent-primary)); text-decoration: underline; text-underline-offset: 3px; }
+.material-reader-prose blockquote { border-inline-start: 2px solid hsl(var(--border-color)); padding-inline-start: 1em; color: hsl(var(--text-secondary)); }
+.material-reader-prose pre { overflow-x: auto; padding: 1em; border-radius: 12px; background: hsl(var(--bg-primary)); }
+.material-reader-prose pre code { white-space: pre; overflow-wrap: normal; }
+.material-reader-prose table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.material-reader-prose :where(th, td) { padding: 0.5em 0.75em; border: 1px solid hsl(var(--border-color)); text-align: start; }
+.material-reader-prose img { max-width: 100%; height: auto; }
+.material-reader-prose > div > :first-child { margin-block-start: 0; }
+.material-reader-prose > div > :last-child { margin-block-end: 0; }
+
+.material-reader-manuscript {
+    font-size: 1rem;
+    line-height: 1.9;
+}
+
+/* Keep original soft newlines visible without rewriting text or changing code blocks. */
+.material-reader-manuscript p { white-space: pre-wrap; }
+
+@media (min-width: 768px) {
+    .material-reader-manuscript { font-size: 1.0625rem; }
+}
+
 .editor-content {
     @apply outline-none min-h-full;
     line-height: 1.8;

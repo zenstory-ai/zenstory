@@ -81,6 +81,16 @@ Applies to the dashboard pages, settings dialog and dashboard dialogs. Evidence:
 - Desktop chat textarea minimum64px, saved input-panel floor144px; mobile44px controls remain. Empty placeholder is a concise idea prompt; long typed text/accessories remain scrollable. Tool status stays together; filenames wrap fully rather than losing text.
 - All reachable React routes and generated static template families are checked at small laptop, tablet and mobile viewports. A scrollbar alone is not a defect: preserve legitimate file/message/table/code/long-page scroll, repair clipping and competing outer scroll boundaries.
 
+## Material reference reader
+
+Applies to `/materials/:novelId`, a standalone reading surface, not a dashboard embedded inside another navigation shell. Keep the existing lazy/versioned directory reads, historical-stage visibility, free-trial access, decomposition accounting and phone directory/content switch.
+
+Use the workbench HSL surfaces and shared search, back, retry and neutral badge primitives. The directory is a quiet neutral rail (256px on tablets, 288px on larger screens); the selected row alone has a pale user-accent tint. Folder buttons expose expansion; leaf buttons identify the current item. On phones directory rows and back/retry controls remain at least44px. Returning from content preserves the search and expanded folders.
+
+Reading content is centered on the secondary surface, at most704px wide, with16px phone/17px desktop body type and1.9 line-height. Manuscript and chapter titles retain literary serif fonts; navigation, metadata and extracted-entity headings use the existing sans hierarchy. Summary is a quiet inset, not a competing feature card. Decomposition tags are neutral, not a rainbow category system.
+
+`material-reader-prose` owns explicit local Markdown spacing because the app has no typography plugin. Only manuscript paragraphs preserve soft newlines with `white-space: pre-wrap`; do not rewrite stored source text, alter global `.prose`, or change fenced-code whitespace. Chapter read failure offers a read-only retry, distinct from paid decomposition retry. Verify real computed styles/newline positions, independent scroll regions, light/dark, 390/768/1280/1920 and mobile back/search behavior. Screenshots use synthetic content rather than production manuscripts.
+
 ## Admin growth views
 Evidence: `AdminDashboard.tsx`, `StatsCard.tsx`, `AdminPageState.tsx`, admin HSL tokens, existing usage and payment endpoints. Active scope: authenticated `app.zenstory.ai/admin`; operator job is to compare acquisition, actual AI activity, registration-cohort activation, actual payment and operating costs.
 

@@ -61,6 +61,8 @@
     "message": "删除后，这本小说和拆出的内容都无法恢复。已添加到项目的文件会保留。"
   },
   "detail": {
+    "contents": "目录",
+    "contentLabel": "素材内容",
     "failedBanner": "拆解失败",
     "partialBanner": "部分内容没有拆出来",
     "chapters": "章节",
