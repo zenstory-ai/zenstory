@@ -20,7 +20,7 @@ def test_export_releases_pre_bom_text_before_encoding(monkeypatch, character, pe
     # Construct inside the measured request, with no fixture reference retaining
     # the service's returned text after the route replaces it with BOM text.
     monkeypatch.setattr(
-        export_api, "_export_drafts_to_txt_with_outline_state", lambda *args, **kwargs: (character * 500_000, False)
+        export_api, "export_drafts_to_txt_with_outline_state", lambda *args, **kwargs: (character * 500_000, False)
     )
     monkeypatch.setattr(export_api.quota_service, "get_user_plan", lambda *args: None)
     gc.collect()

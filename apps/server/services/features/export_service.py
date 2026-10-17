@@ -222,12 +222,12 @@ def export_drafts_to_txt(
     Returns:
         Merged text content, or empty string when there is nothing to export
     """
-    return _export_drafts_to_txt_with_outline_state(
+    return export_drafts_to_txt_with_outline_state(
         session, project_id, title=title, include_outline=include_outline
     )[0]
 
 
-def _export_drafts_to_txt_with_outline_state(
+def export_drafts_to_txt_with_outline_state(
     session: Session,
     project_id: str,
     *,

@@ -8,7 +8,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from services.auth import get_current_active_user
-from services.export_service import _export_drafts_to_txt_with_outline_state
+from services.export_service import export_drafts_to_txt_with_outline_state
 from sqlmodel import Session
 
 from core.error_codes import ErrorCode
@@ -103,7 +103,7 @@ def export_project_drafts(
             )
 
     # 3. Generate export content
-    content, has_outlines = _export_drafts_to_txt_with_outline_state(
+    content, has_outlines = export_drafts_to_txt_with_outline_state(
         session,
         project_id,
         title=project.name,

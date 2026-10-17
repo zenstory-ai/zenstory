@@ -244,8 +244,7 @@ def schedule_llm_usage_record(
             return None
         from services.usage.cost_budget import call_started_at
         occurred_at = call_started_at(attribution.user_id) or utcnow()
-        task_context = _logging_only_context()
-        callback_context = _logging_only_context()
+        context = _logging_only_context()
         task = asyncio.get_running_loop().create_task(
             asyncio.to_thread(
                 record_llm_usage,
@@ -254,10 +253,10 @@ def schedule_llm_usage_record(
                 tokens=counted,
                 occurred_at=occurred_at,
             ),
-            context=task_context,
+            context=context,
         )
         _pending_records.add(task)
-        task.add_done_callback(_on_record_done, context=callback_context)
+        task.add_done_callback(_on_record_done, context=context)
         return task
     except Exception as exc:
         log_with_context(

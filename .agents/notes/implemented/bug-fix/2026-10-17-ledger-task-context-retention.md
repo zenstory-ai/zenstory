@@ -10,9 +10,9 @@ Status: implemented
 
 ## Decision
 
-`services/usage/llm_usage_service.py` 在调度前先冻结 token、归属、模型和 `call_started_at` 时间戳，再分别为后台 task 与 done callback 创建两个独立的轻量 `contextvars.Context`。每个轻量上下文只通过现有 `utils.request_context.get_log_context` 和 `bind_request_context` 携带 `request_id`、`trace_id`、`agent_run_id`，不继承 `ToolContext`、成本预留上下文或请求内的其他 ContextVar。
+`services/usage/llm_usage_service.py` 在调度前先冻结 token、归属、模型和 `call_started_at` 时间戳，再为后台 task 与 done callback 创建一个共用的轻量 `contextvars.Context`。该上下文只通过现有 `utils.request_context.get_log_context` 和 `bind_request_context` 携带 `request_id`、`trace_id`、`agent_run_id`，不继承 `ToolContext`、成本预留上下文或请求内的其他 ContextVar。
 
-task 和 callback 必须使用不同的 Context 对象，避免共享可变执行状态，也确保二者各自保留异常日志关联。模块级 `_pending_records` 强引用、异常消费、非阻塞调度与 `drain_pending_usage_records` 的 shutdown 收尾语义保持不变。
+task 与 callback 共用该 Context 是安全的：asyncio 只在 task 最后一步退出该 Context 之后才调度 done callback，二者不会同时进入；`asyncio.to_thread` 另在工作线程中使用其副本。二者都保留异常日志关联。模块级 `_pending_records` 强引用、异常消费、非阻塞调度与 `drain_pending_usage_records` 的 shutdown 收尾语义保持不变。
 
 回归覆盖阻塞写入时的大快照释放、task 的非阻塞与 pending/drain 生命周期、线程内和 callback 异常日志关联、计费归属与 model/token 参数，以及跨高峰/低谷和北京时间日界线时仍使用模型调用起始时刻。
 
@@ -28,5 +28,5 @@ task 和 callback 必须使用不同的 Context 对象，避免共享可变执�
 - 收益：在途账本写入不再延长正文快照及其他请求级重对象的生命周期，并发模型调用下可降低 API 进程峰值和滞留内存。
 - 收益：账本线程与完成回调的错误日志仍包含 request、trace、agent run 三个关联 ID。
 - 不变：模型、token、用户/项目/来源归属、调用起始时间、价格档位和北京日归属不变；账本仍为 fire-and-forget，进程关闭仍会 drain 当前事件循环的任务。
-- 代价：每次调度创建两个很小的 Context，并绑定最多三个日志字符串；相较数据库线程任务成本可忽略。
+- 代价：每次调度创建一个很小的 Context，并绑定最多三个日志字符串；相较数据库线程任务成本可忽略。
 - 边界：此修复只消除账本后台任务造成的 ContextVar 引用滞留，不代表 API 的全部长期内存增长都已解决，也不直接等价于 Railway 账单降幅。

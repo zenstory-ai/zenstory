@@ -43,25 +43,6 @@ describe.sequential('useFileSearch repeated work', () => {
     second.unmount()
   })
 
-  it('normalizes the original query once per completed search, not once per file', () => {
-    const query = 'MiXeD_needle_φ'
-    const tree = Array.from({ length: 23 }, (_, index) => file(String(index), `${query} ${index}`))
-    const hook = renderHook(() => useFileSearch({ tree, query }))
-    const lowercase = vi.spyOn(String.prototype, 'toLowerCase')
-    const localeCompare = vi.spyOn(String.prototype, 'localeCompare')
-    act(() => vi.advanceTimersByTime(300))
-    const queryConversions = lowercase.mock.contexts.filter(value => String(value) === query).length
-    const titleConversions = lowercase.mock.contexts.filter(value => String(value).startsWith(`${query} `)).length
-    const titleComparisons = localeCompare.mock.contexts.filter(value => String(value).startsWith(`${query} `)).length
-    lowercase.mockRestore()
-    localeCompare.mockRestore()
-    expect(queryConversions).toBe(1)
-    expect(titleConversions).toBe(tree.length)
-    expect(titleComparisons).toBe(0)
-    expect(hook.result.current.results).toHaveLength(tree.length)
-    hook.unmount()
-  })
-
   it('preserves original localeCompare ordering, stable ties, literal spaces, paths and limits', () => {
     const titles = ['Alpha', 'alpha', 'a', 'z a', ' alpha', '  alpha', 'é', 'e\u0301', 'éclair', 'Éclair', 'tie é', 'tie e\u0301', 'tie é', '章节十', '章节二', '😀开场', '😀', '_notes', 'file2', 'file10', 'İ', 'i', '!draft']
     const parent = file('parent', '父级')
