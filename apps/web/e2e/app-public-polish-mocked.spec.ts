@@ -63,6 +63,30 @@ for (const language of ['zh', 'en']) {
       });
     }
   }
+  test(`public pricing retry stays touch-sized and recovers ${language}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(language => localStorage.setItem('zenstory-language', language), language);
+    let recovered = false;
+    const writes: string[] = [];
+    await page.route('**/api/**', route => {
+      const request = route.request();
+      if (request.method() !== 'GET') writes.push(request.url());
+      if (!request.url().includes('/subscription/catalog')) return route.fulfill({ json: null });
+      return recovered
+        ? route.fulfill({ json: catalog })
+        : route.fulfill({ status: 503, json: { detail: 'Synthetic catalog outage' } });
+    });
+    await page.goto('/pricing');
+    const retry = page.getByRole('button', { name: language === 'zh' ? '重试' : 'Retry', exact: true });
+    await expect(retry).toBeVisible({ timeout: 15_000 });
+    expect((await retry.boundingBox())!.height, 'error recovery is a 44px phone touch target').toBeGreaterThanOrEqual(44);
+    recovered = true;
+    await retry.click();
+    await expect(page.getByRole('heading', { name: 'Pro', exact: true })).toBeVisible();
+    await expect(retry).toHaveCount(0);
+    expect(writes).toEqual([]);
+  });
+
   for (const path of ['/privacy-policy', '/terms-of-service']) {
     test(`App footer opens its own legal reader ${language} ${path}`, async ({ page }, info) => {
       await page.setViewportSize({ width: 1440, height: 1000 });

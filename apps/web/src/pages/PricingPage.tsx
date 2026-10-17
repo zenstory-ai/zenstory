@@ -284,7 +284,7 @@ export default function PricingPage() {
           <Card variant="outlined" padding="lg">
             <div className="flex flex-col items-center gap-3 py-2">
               <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{t("common:error", "加载失败")}</p>
-              <Button size="sm" variant="secondary" onClick={() => void refetch()}>
+              <Button size="sm" className="max-md:min-h-11" variant="secondary" onClick={() => void refetch()}>
                 {t("common:retry", "重试")}
               </Button>
             </div>

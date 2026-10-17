@@ -12,7 +12,7 @@
 | T4 | 本地通过 | 首页演示贴近真实文件工作台 | 同一项目、同一文件；无虚构百分比/Tab 补全；播放按钮与进度同行；reduced motion 可手动切换 | 12 个双语 320–1920px 浏览器控制用例通过；34 个 Home/计时单测通过；稳定帧截图与独立视觉 PASS |
 | T5 | 本地通过 | 三类创作卡片统一纵向节奏 | 图标、两行标题、说明和首个特性真实元素对齐；空白留在特性下方；手机自然排布 | 双语 × 1024/1280/1920px 共 6 个实际几何断言通过；390px 截图；独立视觉 PASS |
 | T6 | 本地通过，未部署 | App 法律页保留工作台版本 | App 原 URL 为 React 页；组织站同路径仍静态双语；正式/预览路由规则一致，正文不变 | Domain/Boundary 26 单测、站点 68 测试；4 个组织站 JS-off 浏览器用例；8 个生产构建离线真实宿主 URL 用例验证 SPA 进入/刷新后 canonical、OG、title |
-| T7 | 本地通过，未发布 | 整体回归、截图与独立 review | 受影响单测、lint、token/i18n、类型与构建通过；浅深色/电脑手机截图；验证缺口单独记录 | 206 个单测、68 个站点测试、57 个浏览器用例通过，1 个 WebKit CDP 能力跳过；lint 0 errors/3 个既有 warnings；token/i18n/typecheck/build/finalizer 通过；设计 PASS、代码 APPROVE、架构 CLEAR；记录见本地 evidence |
+| T7 | 本地通过，未发布 | 整体回归、截图与独立 review | 受影响单测、lint、token/i18n、类型与构建通过；浅深色/电脑手机截图；验证缺口单独记录 | 206 个单测、68 个站点测试、59 个浏览器用例通过，1 个 WebKit CDP 能力跳过；lint 0 errors/3 个既有 warnings；token/i18n/typecheck/build/finalizer 通过；设计 PASS、代码 APPROVE、架构 CLEAR；记录见本地 evidence |
 
 ## Cleanup plan
 
@@ -34,10 +34,12 @@
 
 - 当前表内证据为本地实现与验证；后续 PR/merge 依用户最新授权执行，不将本地证据当作真实 Preview/生产部署。新 `app-legal-built.spec.ts` 在真实 App/preview 页面 URL 下提供本地 production bundle，属于产品运行时证明，不是 Vercel 线上部署证明；上线前仍需运行 `geo-domain-smoke.spec.ts`。
 - 本地证据目录：`.omx/verification/workbench-ui-polish/`；完整截图及前后对比：`.omx/design/workbench-ui-polish/final/index.html`。证据不随 Git 提交。
-- 浏览器汇总：review 15 pass/1 skip，Home 18 pass，公开价格/页脚/静态法律页 16 pass，生产构建法律页 8 pass。跳过为既有 WebKit 不提供 Chromium CDP 触摸接口，不代表手机滚动测试未跑；两引擎的窄屏 wheel/操作/保存均通过。
+- 浏览器汇总：review 15 pass/1 skip，Home 18 pass，公开价格/页脚/静态法律页 18 pass，生产构建法律页 8 pass。跳过为既有 WebKit 不提供 Chromium CDP 触摸接口，不代表手机滚动测试未跑；两引擎的窄屏 wheel/操作/保存均通过。
 - [ ] F1（另行处理，非本批生产回归）：React 19 dev StrictMode 与旧 Helmet 开发态双挂载兼容性会清掉 metadata。只读对照确认该组合自初始提交存在；生产 bundle 的直接载入、页脚 SPA 导航和刷新均通过 metadata 回归。本批不禁用 StrictMode、不升级依赖、不改全局 SEO。
 
 - 用户指出免费卡“免费版 / 免费”仍重复：重新打开 T3，删除免费套餐的独立价格行；只给桌面对比头保留统一行高，手机自然收紧。复用现有周期/结算回归，并补权益首行和按钮对齐几何检查，不为改字添加镜像单测。
 
 - 免费卡追加修正完成：删除独立“免费”价格行，Pro 周期价格保留；电脑两卡权益与按钮仍对齐，手机自然收紧。新鲜验证：206 个单测、8 个价格浏览器用例（双语/浅深色/390与1440）通过，targeted lint、token/i18n、类型构建与 finalizer 通过。
 - 用户随后授权：整体复审，所有必需检查通过后创建 PR 并 merge main；生产发布仍不在范围内。
+
+- 最终整体代码 review 找出手机错误恢复按钮触控尺寸回归：sm 按钮实测 34px。补上双语失败→重试成功浏览器回归（修复前预期失败），复用现有 max-md:min-h-11 恢复至少 44px，桌面尺寸不变。修复后 10 个价格浏览器用例、206 个单测、定向 lint/类型与构建通过，再送独立复审；该问题未带入 PR。
