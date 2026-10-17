@@ -254,7 +254,7 @@ export const DiffReviewSplitView = ({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onMouseDown={handleRootMouseDown}
-      className="flex flex-1 min-h-0 flex-col overflow-y-auto focus:outline-none md:flex-row md:overflow-hidden"
+      className="diff-review flex flex-1 min-h-0 flex-col overflow-y-auto focus:outline-none md:flex-row md:overflow-hidden"
     >
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
         <InlineDiffEditor
@@ -278,7 +278,7 @@ export const DiffReviewSplitView = ({
                 {t("editor:pendingDefaultAcceptedHint")}
               </div>
             </div>
-            <div className="shrink-0 whitespace-nowrap rounded-full bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--text-secondary))] shadow-[0_6px_18px_-16px_hsl(var(--text-primary)/0.5)] ring-1 ring-[hsl(var(--border-primary)/0.32)]">
+            <div className="shrink-0 whitespace-nowrap rounded-full bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-1 text-[11px] font-medium text-[hsl(var(--text-secondary))] ring-1 ring-[hsl(var(--border-primary)/0.32)]">
               {t("editor:reviewQueueCount", {
                 pending: counts.pending,
                 all: counts.all,
@@ -287,7 +287,7 @@ export const DiffReviewSplitView = ({
           </div>
 
           <div className="mt-3 flex items-center gap-2">
-            <div className="grid flex-1 grid-cols-4 gap-1 rounded-full bg-[hsl(var(--bg-primary)/0.92)] p-1 shadow-[0_8px_24px_-20px_hsl(var(--text-primary)/0.45)] ring-1 ring-[hsl(var(--border-primary)/0.32)]">
+            <div className="grid flex-1 grid-cols-4 gap-1 rounded-full bg-[hsl(var(--bg-primary)/0.92)] p-1 ring-1 ring-[hsl(var(--border-primary)/0.32)]">
               {([
                 { key: "all" as const, label: t("editor:filterAll"), count: counts.all },
                 { key: "pending" as const, label: t("editor:filterPending"), count: counts.pending },
@@ -312,7 +312,7 @@ export const DiffReviewSplitView = ({
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-2 shadow-[0_10px_28px_-22px_hsl(var(--text-primary)/0.55)] ring-1 ring-[hsl(var(--border-primary)/0.3)]">
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl bg-[hsl(var(--bg-primary)/0.92)] px-2.5 py-2 ring-1 ring-[hsl(var(--border-primary)/0.3)]">
             <div className="flex items-center gap-1">
               <button
                 onClick={goPrev}
@@ -366,9 +366,9 @@ export const DiffReviewSplitView = ({
                     <div
                       onClick={() => locateEdit(edit.id)}
                       className={cn(
-                        "cursor-pointer rounded-2xl bg-[hsl(var(--bg-primary)/0.96)] p-3.5 shadow-[0_10px_30px_-24px_hsl(var(--text-primary)/0.6)] ring-1 transition-all",
+                        "cursor-pointer rounded-2xl bg-[hsl(var(--bg-primary)/0.96)] p-3.5 ring-1 transition-all",
                         resolvedActiveEditId === edit.id
-                          ? "ring-[hsl(var(--accent-primary)/0.5)] shadow-[0_18px_44px_-28px_hsl(var(--accent-primary)/0.55)]"
+                          ? "ring-[hsl(var(--accent-primary)/0.5)]"
                           : "ring-[hsl(var(--border-primary)/0.24)] hover:ring-[hsl(var(--accent-primary)/0.2)]"
                       )}
                     >
@@ -381,17 +381,17 @@ export const DiffReviewSplitView = ({
                             <span
                               className={cn(
                                 "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                                edit.status === "pending" && "bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))]",
-                                edit.status === "accepted" && "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]",
-                                edit.status === "rejected" && "bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))]"
+                                edit.status === "pending" && "bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning-text))]",
+                                edit.status === "accepted" && "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))]",
+                                edit.status === "rejected" && "bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))]"
                               )}
                             >
                               {getStatusLabel(edit.status)}
                             </span>
-                            <span className="rounded-full bg-[hsl(var(--bg-secondary))] px-2 py-0.5 text-[10px] text-[hsl(var(--text-secondary))]">
+                            <span className="px-1 py-0.5 text-[10px] text-[hsl(var(--text-secondary))]">
                               {getOpLabel(edit.op)}
                             </span>
-                            <span className="rounded-full bg-[hsl(var(--bg-secondary))] px-2 py-0.5 text-[10px] text-[hsl(var(--text-tertiary))]">
+                            <span className="px-1 py-0.5 text-[10px] text-[hsl(var(--text-tertiary))]">
                               {t("editor:paragraphLength", { count: getEditSize(edit) })}
                             </span>
                           </div>
@@ -421,7 +421,7 @@ export const DiffReviewSplitView = ({
                             acceptEdit(edit.id);
                           }}
                           disabled={edit.status === "accepted"}
-                          className="flex-1 rounded-xl bg-[hsl(var(--success)/0.12)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--success))] transition-colors hover:bg-[hsl(var(--success)/0.16)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--success)/0.12)]"
+                          className="flex-1 rounded-xl bg-[hsl(var(--success)/0.06)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--success-text))] transition-colors hover:bg-[hsl(var(--success)/0.1)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--success)/0.06)]"
                           title={t("editor:acceptChange")}
                         >
                           <span className="flex items-center justify-center gap-1.5">
@@ -435,7 +435,7 @@ export const DiffReviewSplitView = ({
                             rejectEdit(edit.id);
                           }}
                           disabled={edit.status === "rejected"}
-                          className="flex-1 rounded-xl bg-[hsl(var(--error)/0.08)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--error))] transition-colors hover:bg-[hsl(var(--error)/0.12)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--error)/0.08)]"
+                          className="flex-1 rounded-xl bg-[hsl(var(--error)/0.04)] px-2.5 py-2 text-xs font-medium text-[hsl(var(--error-text))] transition-colors hover:bg-[hsl(var(--error)/0.08)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[hsl(var(--error)/0.04)]"
                           title={t("editor:rejectChange")}
                         >
                           <span className="flex items-center justify-center gap-1.5">

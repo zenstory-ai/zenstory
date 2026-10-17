@@ -344,6 +344,63 @@ test('file history restore confirmation opens above the history modal and comple
   await expect(textarea(page)).toHaveValue('Restored v1 body');
 });
 
+for (const theme of ['light', 'dark'] as const) {
+  for (const width of [390, 1920]) {
+    test(`review reading contrast and preserved decisions ${theme} ${width}`, async ({ page }, info) => {
+      await page.setViewportSize({ width, height: 1000 });
+      const paragraphs = Array.from({ length: 10 }, (_, i) => `雨停后的第${i + 1}天，沈砚回到旧灯铺。\n他先检查门口的灯，再把那封信放在桌上。\n掌柜没有问他的来意，只给他倒了一碗热茶。`);
+      const revise = (text: string) => text.replace('先检查门口的灯', '看了一眼门口的灯');
+      const original = paragraphs.join('\n\n');
+      const f = await fixture(page, original, 'zh');
+      await page.addInitScript(value => localStorage.setItem('zenstory-theme', value), theme);
+      await page.route('**/api/v1/editor/natural-polish', route => route.fulfill({ json: { text: paragraphs.map(revise).join('\n\n') } }));
+      await page.goto(`/project/${projectA}?file=A`);
+      if (width < 768) await page.locator('#editor-tab').click();
+      await expect(textarea(page)).toHaveValue(original);
+      await textarea(page).click();
+      await textarea(page).press('ControlOrMeta+a');
+      await page.getByRole('button', { name: '去AI味', exact: true }).click();
+      const pane = page.getByText('段落审阅', { exact: true }).locator('xpath=ancestor::div[@tabindex="0"][1]');
+      await expect(page.getByTitle('待审 (10)', { exact: true })).toBeVisible();
+      await page.screenshot({ path: info.outputPath('review-full.png'), animations: 'disabled' });
+      await pane.locator('xpath=..').screenshot({ path: info.outputPath('review-detail.png'), animations: 'disabled' });
+      const contrast = await pane.evaluate((root, width) => {
+        // Same canvas/sRGB measurement as visual-standard-mocked, compositing
+        // every ancestor because review previews and semantic fills are translucent.
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext('2d')!;
+        const rgba = (css: string) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return Array.from(ctx.getImageData(0, 0, 1, 1).data); };
+        const blend = (front: number[], back: number[]) => front.slice(0, 3).map((c, i) => c * front[3] / 255 + back[i] * (1 - front[3] / 255));
+        const luminance = (rgb: number[]) => rgb.slice(0, 3).map(c => { const s = c / 255; return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4; }).reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i], 0);
+        const selectors = width < 768 ? ['[title="接受 (Y)"]', '[title="拒绝 (N)"]'] : ['.diff-add', '.diff-remove', '[title="接受 (Y)"]', '[title="拒绝 (N)"]'];
+        return selectors.map(selector => {
+          const el = root.querySelector(selector)!;
+          const ancestors: Element[] = []; for (let node: Element | null = el; node; node = node.parentElement) ancestors.unshift(node);
+          const background = ancestors.reduce((color, node) => blend(rgba(getComputedStyle(node).backgroundColor), color), [255, 255, 255]);
+          const foreground = blend(rgba(getComputedStyle(el).color), background);
+          const a = luminance(foreground), b = luminance(background);
+          return { selector, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
+        });
+      }, width);
+      await info.attach('review-contrast', { body: JSON.stringify(contrast), contentType: 'application/json' });
+      for (const item of contrast) expect(item.ratio, `${theme} ${item.selector} readable without relying on hue`).toBeGreaterThanOrEqual(4.5);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+      await pane.focus(); await pane.press('y');
+      await expect(page.getByTitle('已接受 (1)', { exact: true })).toBeVisible();
+      await pane.press('n');
+      await expect(page.getByTitle('已拒绝 (1)', { exact: true })).toBeVisible();
+      await page.getByTitle('全部 (10)', { exact: true }).click();
+      await page.getByText('段落 #1', { exact: true }).click();
+      await pane.focus(); await pane.press('u');
+      await expect(page.getByTitle('已接受 (0)', { exact: true })).toBeVisible();
+      await expect(page.getByTitle('待审 (9)', { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: /^(完成审阅|应用修改)$/ }).click();
+      await expect.poll(() => puts(f).length).toBe(1);
+      expect(puts(f)[0].body).toMatchObject({ content: paragraphs.map((text, i) => i === 1 ? text : revise(text)).join('\n\n'), base_updated_at: token0, change_type: 'ai_edit' });
+    });
+  }
+}
+
 for (const conflict of [false, true]) {
   test(`humanize real selection and diff apply ${conflict ? '409 retains review' : 'success'}`, async ({ page }) => {
     const f = await fixture(page, 'A local story.');
@@ -430,7 +487,11 @@ test('narrow humanize review: per-paragraph Accept is reachable by scrolling the
   // Tapping a card locates it in the inline diff, which is 0px high on a phone:
   // that must not pull the pane back to the top. (Accepting the last pending card
   // rebuilds the list under the "All" filter, so the pane may restart at 0 here.)
-  await page.mouse.move(headerBox!.x + headerBox!.width / 2, headerBox!.y + headerBox!.height / 2);
+  const currentHeaderBox = await header.boundingBox();
+  // Finish becomes Apply after the last decision; on phones that toolbar can
+  // wrap to a new row. Use the live header, not pre-decision coordinates.
+  f.observations.reviewHeaderAfterAccept = { before: headerBox, after: currentHeaderBox };
+  await page.mouse.move(currentHeaderBox!.x + currentHeaderBox!.width / 2, currentHeaderBox!.y + currentHeaderBox!.height / 2);
   await page.mouse.wheel(0, 800);
   const beforeLocate = await settledScrollTop();
   expect(beforeLocate, 'precondition: pane is scrolled').toBeGreaterThan(0);

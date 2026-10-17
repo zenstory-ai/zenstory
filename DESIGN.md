@@ -81,6 +81,10 @@ Applies to the dashboard pages, settings dialog and dashboard dialogs. Evidence:
 - Desktop chat textarea minimum64px, saved input-panel floor144px; mobile44px controls remain. Empty placeholder is a concise idea prompt; long typed text/accessories remain scrollable. Tool status stays together; filenames wrap fully rather than losing text.
 - All reachable React routes and generated static template families are checked at small laptop, tablet and mobile viewports. A scrollbar alone is not a defect: preserve legitimate file/message/table/code/long-page scroll, repair clipping and competing outer scroll boundaries.
 
+## Paragraph review
+
+Keep the existing split layout, full original/suggestion previews, accept/reject/reset/locate/keyboard actions, pending-default adoption, and mobile/desktop scroll boundaries. Review-only `.diff-review` styles use readable ink on pale semantic fills, preserving deletion strikes and colored edge marks. Semantic labels, decision text and status badges use existing AA text tokens; card selection remains visible without a glow. Auxiliary metadata has no competing filled pills. Do not change global diff tokens: history and chat diffs keep their own presentation. Compact toolbar, preview height caps and mobile touch-scroll chaining stay unchanged. Verify computed text contrast, keyboard decisions through saved bytes, phone gestures and both themes with synthetic actual-app captures.
+
 ## Material reference reader
 
 Applies to `/materials/:novelId`, a standalone reading surface, not a dashboard embedded inside another navigation shell. Keep the existing lazy/versioned directory reads, historical-stage visibility, free-trial access, decomposition accounting and phone directory/content switch.

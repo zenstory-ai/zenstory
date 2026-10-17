@@ -30,23 +30,23 @@ export const DiffReviewEditPreview = ({ edit }: { edit: PendingEdit }) => {
       <div
         className={
           isDelete
-            ? "rounded-2xl bg-[hsl(var(--diff-remove-bg)/0.72)] p-3 shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.38)] ring-1 ring-[hsl(var(--diff-remove-text)/0.1)]"
-            : "rounded-2xl bg-[hsl(var(--diff-add-bg)/0.72)] p-3 shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.38)] ring-1 ring-[hsl(var(--diff-add-text)/0.1)]"
+            ? "rounded-xl bg-[hsl(var(--error)/0.04)] p-3"
+            : "rounded-xl bg-[hsl(var(--success)/0.05)] p-3"
         }
       >
-        <div className="mb-2 flex items-center gap-1.5 border-b border-[hsl(var(--border-primary)/0.22)] pb-2">
+        <div className="mb-2 flex items-center gap-1.5 pb-2">
           <Icon
             className={
               isDelete
-                ? "h-3.5 w-3.5 text-[hsl(var(--diff-remove-text)/0.82)]"
-                : "h-3.5 w-3.5 text-[hsl(var(--diff-add-text)/0.82)]"
+                ? "h-3.5 w-3.5 text-[hsl(var(--error-text))]"
+                : "h-3.5 w-3.5 text-[hsl(var(--success-text))]"
             }
           />
           <span
             className={
               isDelete
-                ? "text-[11px] font-semibold tracking-[0.01em] text-[hsl(var(--diff-remove-text)/0.88)]"
-                : "text-[11px] font-semibold tracking-[0.01em] text-[hsl(var(--diff-add-text)/0.88)]"
+                ? "text-[11px] font-semibold tracking-[0.01em] text-[hsl(var(--error-text))]"
+                : "text-[11px] font-semibold tracking-[0.01em] text-[hsl(var(--success-text))]"
             }
           >
             {label}

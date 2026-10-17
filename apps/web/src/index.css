@@ -845,6 +845,18 @@ code, pre, .font-mono {
     }
 }
 
+/* Review-only ink and pale semantic fills; history/chat diffs keep their palette. */
+.diff-review .diff-add {
+    background-color: hsl(var(--success) / 0.06);
+    color: hsl(var(--text-primary));
+    border-color: hsl(var(--success) / 0.3);
+}
+.diff-review .diff-remove {
+    background-color: hsl(var(--error) / 0.05);
+    color: hsl(var(--text-secondary));
+    border-color: hsl(var(--error) / 0.3);
+}
+
 /* ========================================
    Editor Styles
    ======================================== */
