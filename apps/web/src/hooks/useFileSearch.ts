@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FileTreeNode } from '../types';
 import { logger } from "../lib/logger";
 
+let compareTitles: Intl.Collator['compare'] | undefined;
+
 /**
  * Search result item with parent path information
  */
@@ -88,9 +90,8 @@ function flattenTree(
  * - Prefix match: 2
  * - Contains match: 1
  */
-function getMatchScore(title: string, query: string): number {
+function getMatchScore(title: string, lowerQuery: string): number {
   const lowerTitle = title.toLowerCase();
-  const lowerQuery = query.toLowerCase();
 
   if (lowerTitle === lowerQuery) {
     return 3; // Exact match
@@ -154,6 +155,7 @@ export function useFileSearch({
     debounceRef.current = setTimeout(() => {
       // Flatten the tree
       const flatFiles = flattenTree(tree);
+      const lowerQuery = query.toLowerCase();
 
       // Filter and search
       const searchResults: Array<{
@@ -167,7 +169,7 @@ export function useFileSearch({
 
       for (const file of flatFiles) {
         // Calculate match score
-        const score = getMatchScore(file.title, query);
+        const score = getMatchScore(file.title, lowerQuery);
 
         if (score > 0) {
           searchResults.push({
@@ -182,7 +184,8 @@ export function useFileSearch({
         if (b.score !== a.score) {
           return b.score - a.score;
         }
-        return a.title.localeCompare(b.title, 'zh-CN');
+        compareTitles ??= new Intl.Collator('zh-CN').compare;
+        return compareTitles(a.title, b.title);
       });
 
       // Limit results
