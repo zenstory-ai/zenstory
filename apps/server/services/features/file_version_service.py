@@ -12,10 +12,11 @@ import os
 import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import InstrumentedAttribute, defer
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
@@ -273,6 +274,8 @@ class FileVersionService:
         limit: int = 50,
         offset: int = 0,
         include_auto_save: bool = False,
+        *,
+        include_content: bool = True,
     ) -> list[FileVersion]:
         """
         Get version history for a file.
@@ -283,11 +286,14 @@ class FileVersionService:
             limit: Maximum number of versions to return
             offset: Number of versions to skip
             include_auto_save: Whether to include auto-save versions
+            include_content: Load stored bodies/diffs (false for metadata-only lists)
 
         Returns:
             List of FileVersion objects (newest first)
         """
         query = select(FileVersion).where(FileVersion.file_id == file_id)
+        if not include_content:
+            query = query.options(defer(cast(InstrumentedAttribute[str], FileVersion.content)))
 
         if not include_auto_save:
             query = query.where(FileVersion.change_type != CHANGE_TYPE_AUTO_SAVE)

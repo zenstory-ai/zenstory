@@ -176,6 +176,7 @@ def get_file_versions(
         limit=limit,
         offset=offset,
         include_auto_save=include_auto_save,
+        include_content=False,
     )
 
     total = service.get_version_count(
