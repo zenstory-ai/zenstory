@@ -24,8 +24,11 @@ for (const width of [390, 1440]) {
     await page.route('**/*', route => {
       const request = route.request();
       const url = new URL(request.url());
-      if (url.origin !== origin) return route.abort('blockedbyclient');
-      if (!url.pathname.startsWith('/api/')) return route.fallback();
+      // Dev builds call the API on its own origin (localhost:8000), so only
+      // non-API requests are pinned to the page origin.
+      if (!url.pathname.startsWith('/api/')) {
+        return url.origin === origin ? route.fallback() : route.abort('blockedbyclient');
+      }
       const json = (data: unknown) => route.fulfill({ json: data });
       if (request.method() === 'GET' && url.pathname.endsWith('/file-tree')) {
         return json({ tree: [{ id: 'search-folder', title: 'Drafts', file_type: 'folder', parent_id: null, order: 0, metadata: { folder_type: 'draft' }, children: files.map(file => ({ ...file, children: [] })) }] });
