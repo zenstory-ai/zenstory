@@ -1101,7 +1101,7 @@ def get_file_version(
     """
     session, user_id, api_key = context
 
-    _load_accessible_file(session, user_id, api_key, file_id)
+    _load_accessible_file(session, user_id, api_key, file_id, include_content=False)
     version = _require_version(session, file_id, version_number)
     content = get_file_version_service().get_content_at_version(session, file_id, version_number)
 

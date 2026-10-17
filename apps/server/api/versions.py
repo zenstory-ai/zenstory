@@ -331,7 +331,7 @@ def get_version(
         raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404)
 
     # Verify ownership
-    verify_file_ownership(session, version.file_id, current_user)
+    verify_file_ownership(session, version.file_id, current_user, include_content=False)
 
     return FileVersionResponse(
         id=version.id,
@@ -363,7 +363,7 @@ def get_version_content(
     Reconstructs content from diffs if necessary.
     """
     # Verify ownership
-    verify_file_ownership(session, file_id, current_user)
+    verify_file_ownership(session, file_id, current_user, include_content=False)
 
     service = get_file_version_service()
 
@@ -410,7 +410,7 @@ def compare_versions(
     Returns a unified diff and structured HTML diff data.
     """
     # Check file exists and user has access
-    verify_file_ownership(session, file_id, current_user)
+    verify_file_ownership(session, file_id, current_user, include_content=False)
 
     service = get_file_version_service()
 
@@ -490,7 +490,7 @@ def get_latest_version(
 ):
     """Get the latest version for a file."""
     # Verify ownership
-    verify_file_ownership(session, file_id, current_user)
+    verify_file_ownership(session, file_id, current_user, include_content=False)
 
     service = get_file_version_service()
     version = service.get_latest_version(session, file_id)

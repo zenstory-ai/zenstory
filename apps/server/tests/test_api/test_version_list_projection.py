@@ -1,4 +1,4 @@
-"""Metadata-only version lists must not hydrate every stored body/diff."""
+"""Version reads must hydrate only bodies required by their response."""
 
 from datetime import datetime, timedelta
 
@@ -9,6 +9,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.agent_api import _load_accessible_file
 from api.versions import verify_file_ownership
+from core.error_codes import ErrorCode
 from database import get_session
 from main import app
 from models import AgentApiKey, File, FileVersion, Project, User
@@ -171,3 +172,159 @@ def test_metadata_option_reuses_already_loaded_file(version_projection_fixture, 
         assert "content" not in inspect(file).unloaded
         assert not file_selects
     assert file.content == live_content
+
+
+@pytest.mark.parametrize(
+    ("route", "number"),
+    [("metadata", 1), ("metadata", 12), ("content", 1), ("content", 12),
+     ("compare", 12), ("latest", 12), ("agent", 1), ("agent", 12)],
+)
+async def test_single_version_reads_defer_only_the_ownership_body(version_projection_fixture, route, number):
+    engine, user_id, file_id, key, _, metadata, live_content = version_projection_fixture
+    file_selects, selects, sessions = [], [], []
+
+    def capture(_conn, _cursor, statement, _params, _context, _many):
+        sql = " ".join(statement.split())
+        if sql.startswith("SELECT"):
+            selects.append(sql)
+        if sql.startswith("SELECT") and "FROM file " in sql:
+            file_selects.append(sql)
+
+    def request_session():
+        with Session(engine) as session:
+            state = {"cold": len(session.identity_map) == 0, "closed": False}
+            sessions.append(state)
+            try:
+                yield session
+            finally:
+                session.close()
+                state["closed"] = True
+
+    urls = {
+        "metadata": f"/api/v1/versions/version-{number}",
+        "content": f"/api/v1/files/{file_id}/versions/{number}/content",
+        "compare": f"/api/v1/files/{file_id}/versions/compare?v1=1&v2={number}",
+        "latest": f"/api/v1/files/{file_id}/versions/latest",
+        "agent": f"/api/v1/agent/files/{file_id}/versions/{number}",
+    }
+    headers = {"X-Agent-API-Key": key} if route == "agent" else {
+        "Authorization": "Bearer " + create_access_token({"sub": user_id})
+    }
+    expected = metadata[number - 1].copy()
+    requested = f"\u3000\u3000第一行。\n第二行第{number}版🙂\n"
+    if route == "content":
+        expected = {field: expected[field] for field in ("file_id", "version_number", "word_count", "char_count", "created_at")}
+        expected["content"] = requested
+    elif route == "agent":
+        expected["content"] = requested
+    elif route == "compare":
+        with Session(engine) as check:
+            expected = FileVersionService().compare_versions(check, file_id, 1, number)
+    event.listen(engine, "before_cursor_execute", capture)
+    app.dependency_overrides[get_session] = request_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(urls[route], headers=headers)
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+        event.remove(engine, "before_cursor_execute", capture)
+
+    assert response.status_code == 200, response.text
+    assert response.json() == expected
+    assert response.headers["content-type"] == "application/json"
+    assert response.headers["content-length"] == str(len(response.content))
+    assert sessions and all(state == {"cold": True, "closed": True} for state in sessions)
+    with Session(engine) as check:
+        assert check.get(File, file_id).content == live_content
+        assert FileVersionService().get_content_at_version(check, file_id, number) == requested
+    # Snapshot/delta contents and complete responses pass before the old code
+    # fails this column contract. Exactly one file read also rules out lazy N+1.
+    expected_selects = {"metadata": 4, "content": 5 if number == 1 else 7, "compare": 7,
+                        "latest": 4, "agent": 7 if number == 1 else 9}
+    assert len(selects) == expected_selects[route]
+    assert len(file_selects) == 1
+    assert "file.content" not in file_selects[0].split("FROM", 1)[0]
+
+
+@pytest.mark.parametrize("route", ["metadata", "content", "compare", "latest", "agent"])
+@pytest.mark.parametrize("denial", ["foreign_owner", "deleted_file", "deleted_project", "missing_version"])
+async def test_single_version_reads_preserve_access_and_missing_errors(version_projection_fixture, route, denial):
+    engine, user_id, file_id, key, _, _, _ = version_projection_fixture
+    with Session(engine) as session:
+        file = session.get(File, file_id)
+        project = session.get(Project, file.project_id)
+        if denial == "foreign_owner":
+            session.add(User(id="other-owner", username="other-owner", email="other@example.test", hashed_password="unused"))
+            project.owner_id = "other-owner"
+            session.add(project)
+        elif denial == "deleted_file":
+            file.is_deleted = True
+            session.add(file)
+        elif denial == "deleted_project":
+            project.is_deleted = True
+            session.add(project)
+        elif route == "latest":
+            for version in session.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all():
+                session.delete(version)
+        session.commit()
+
+    number = 999 if denial == "missing_version" else 12
+    urls = {
+        "metadata": f"/api/v1/versions/version-{number}",
+        "content": f"/api/v1/files/{file_id}/versions/{number}/content",
+        "compare": f"/api/v1/files/{file_id}/versions/compare?v1=1&v2={number}",
+        "latest": f"/api/v1/files/{file_id}/versions/latest",
+        "agent": f"/api/v1/agent/files/{file_id}/versions/{number}",
+    }
+    headers = {"X-Agent-API-Key": key} if route == "agent" else {
+        "Authorization": "Bearer " + create_access_token({"sub": user_id})
+    }
+
+    def request_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = request_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(urls[route], headers=headers)
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+    expected_status = 403 if denial == "foreign_owner" and route != "agent" else 404
+    expected_code = ErrorCode.FILE_NOT_FOUND
+    if denial == "missing_version":
+        expected_code = ErrorCode.VERSION_NO_VERSIONS_FOUND if route == "latest" else ErrorCode.VERSION_NOT_FOUND
+    elif denial == "foreign_owner" and route != "agent":
+        expected_code = ErrorCode.NOT_AUTHORIZED
+    elif denial == "deleted_project" and route != "agent":
+        expected_code = ErrorCode.PROJECT_NOT_FOUND
+    assert response.status_code == expected_status, response.text
+    assert response.json()["error_code"] == expected_code
+
+
+@pytest.mark.parametrize("restriction", ["write_only", "other_project"])
+async def test_agent_version_detail_keeps_scope_and_allowlist_checks(version_projection_fixture, restriction):
+    engine, user_id, file_id, key, _, _, _ = version_projection_fixture
+    with Session(engine) as session:
+        api_key = session.exec(select(AgentApiKey).where(AgentApiKey.user_id == user_id)).one()
+        if restriction == "write_only":
+            api_key.scopes = ["write"]
+        else:
+            api_key.project_ids = ["another-project"]
+        session.add(api_key)
+        session.commit()
+
+    def request_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = request_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                f"/api/v1/agent/files/{file_id}/versions/12", headers={"X-Agent-API-Key": key}
+            )
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+    assert response.status_code == 403, response.text
