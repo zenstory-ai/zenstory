@@ -106,11 +106,13 @@ for (const viewport of viewports) {
     await expect(edit).not.toBeVisible();
 
     await page.goto('/dashboard/billing');
-    await page.getByRole('button', { name: '兑换码', exact: true }).click();
-    const redeem = page.getByRole('dialog');
-    await expect(redeem).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(redeem).not.toBeVisible();
+    const help = page.getByTestId('billing-help');
+    await expect(help).not.toHaveAttribute('open', '');
+    await help.locator('summary').click();
+    await expect(page.getByTestId('billing-support-email').getByRole('link')).toHaveAttribute('href', /^mailto:/);
+    await expect(page.getByRole('button', { name: '兑换码', exact: true })).toHaveCount(0);
+    await help.locator('summary').click();
+    await expect(help).not.toHaveAttribute('open', '');
 
     await page.goto('/dashboard/projects');
     const settings = await openSettings(page, viewport.width);

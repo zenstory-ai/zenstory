@@ -319,7 +319,6 @@ async function navigateToSubscriptionSettings(page: Page, request: APIRequestCon
 const SUBSCRIPTION_UI = {
   subscriptionTab: '[data-testid="settings-tab-subscription"]',
   tierBadge: '.rounded-full',
-  redeemButton: 'button:has-text("兑换码"), button:has-text("Redeem")',
   redeemModal: '[role="dialog"]:has-text("使用兑换码"), [role="dialog"]:has-text("Redeem")',
   codeInput: 'input[placeholder*="ERG"]',
   submitRedeem: 'button[type="submit"]:has-text("兑换"), button[type="submit"]:has-text("Redeem")',
@@ -327,6 +326,15 @@ const SUBSCRIPTION_UI = {
   errorMessage: '.bg-red-50, .bg-red-900\\/20',
   quotaBadge: '.rounded-full:has(svg)',
 };
+
+// Manual code entry is intentionally absent. Existing activation links remain supported
+// only when online checkout is explicitly off; exercise that compatibility path directly.
+async function openLegacyRedeemModal(page: Page) {
+  await page.route('**/api/v1/payments/options', route =>
+    route.fulfill({ json: { enabled: false, payment_methods: [] } }));
+  await page.goto('/dashboard/billing?plan=pro');
+  await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
+}
 
 // The badge follows the glossary by tier: 免费版 / Free and Pro.
 function getPlanNameLocator(page: Page, planName: 'Free' | 'Pro') {
@@ -401,8 +409,7 @@ test.describe('Quota Display', () => {
     await navigateToSubscriptionSettings(page, request);
 
     await expect(page.getByText('9/10').first()).toBeVisible({ timeout: 5000 });
-    // An upgrade path is offered: 「开通 Pro」 with online checkout, or the redeem code with the
-    // checkout-unavailable notice when checkout is off (the local stack has no payment provider).
+    // Show online checkout or the checkout-unavailable notice; do not advertise manual codes.
     await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro"), [data-testid="billing-checkout-unavailable"]').first()).toBeVisible({ timeout: 5000 });
   });
 
@@ -413,8 +420,7 @@ test.describe('Quota Display', () => {
     await navigateToSubscriptionSettings(page, request);
 
     await expect(page.getByText('10/10').first()).toBeVisible({ timeout: 5000 });
-    // An upgrade path is offered: 「开通 Pro」 with online checkout, or the redeem code with the
-    // checkout-unavailable notice when checkout is off (the local stack has no payment provider).
+    // Show online checkout or the checkout-unavailable notice; do not advertise manual codes.
     await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro"), [data-testid="billing-checkout-unavailable"]').first()).toBeVisible({ timeout: 5000 });
   });
 });
@@ -425,11 +431,9 @@ test.describe('Redeem Code Modal', () => {
     await navigateToSubscriptionSettings(page, request);
   });
 
-  test('should open redeem modal when clicking redeem button', async ({ page }) => {
-    // Click redeem button
-    const redeemButton = page.locator(SUBSCRIPTION_UI.redeemButton);
-    await expect(redeemButton).toBeVisible({ timeout: 5000 });
-    await redeemButton.click();
+  test('should open redeem modal from a legacy activation link when checkout is off', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /^(兑换码|Redeem Code)$/ })).toHaveCount(0);
+    await openLegacyRedeemModal(page);
 
     // Check modal is visible
     const modal = page.locator(SUBSCRIPTION_UI.redeemModal);
@@ -442,7 +446,7 @@ test.describe('Redeem Code Modal', () => {
 
   test('should close modal when clicking cancel', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Click cancel button
@@ -454,7 +458,7 @@ test.describe('Redeem Code Modal', () => {
 
   test('should close modal when clicking outside', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Click outside modal (overlay area near page corner)
@@ -466,7 +470,7 @@ test.describe('Redeem Code Modal', () => {
 
   test('should convert input to uppercase', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Type lowercase code
@@ -487,7 +491,7 @@ test.describe('Redeem Code Validation', () => {
 
   test('should show error for empty code', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Submit without entering code
@@ -497,7 +501,7 @@ test.describe('Redeem Code Validation', () => {
 
   test('should show error for invalid format', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Enter invalid format
@@ -513,7 +517,7 @@ test.describe('Redeem Code Validation', () => {
 
   test('should show error for invalid code', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Enter invalid but correctly formatted code
@@ -528,7 +532,7 @@ test.describe('Redeem Code Validation', () => {
 
   test('should show error for already used code', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Enter already used code
@@ -544,7 +548,7 @@ test.describe('Redeem Code Validation', () => {
 
   test('should show error for expired code', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Enter expired code
@@ -567,7 +571,7 @@ test.describe('Redeem Code Success', () => {
 
   test('should successfully redeem valid code', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Enter valid code
@@ -582,7 +586,7 @@ test.describe('Redeem Code Success', () => {
 
   test('should refresh subscription status after successful redeem', async ({ page }) => {
     // Open modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Enter valid code
@@ -663,14 +667,15 @@ test.describe('Subscription Responsive Design', () => {
 
     // Check elements are visible on mobile
     await expect(page.locator('text=/Free|免费/i').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator(SUBSCRIPTION_UI.redeemButton)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByTestId('billing-help')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(兑换码|Redeem Code)$/ })).toHaveCount(0);
   });
 
   test('redeem modal works on mobile', async ({ page, request }) => {
     await navigateToSubscriptionSettings(page, request);
 
     // Open redeem modal
-    await page.locator(SUBSCRIPTION_UI.redeemButton).click();
+    await openLegacyRedeemModal(page);
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Input should be usable on mobile
@@ -693,6 +698,7 @@ test.describe('Subscription - Tablet View', () => {
 
     // Check UI renders correctly on tablet
     await expect(getPlanNameLocator(page, 'Free')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator(SUBSCRIPTION_UI.redeemButton)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByTestId('billing-help')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(兑换码|Redeem Code)$/ })).toHaveCount(0);
   });
 });

@@ -19,13 +19,12 @@ test.describe('dashboard buttons and type', () => {
   test('solid and ghost buttons have no visible outline; secondary keeps its border', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await mockResponsiveApp(page, null, 'free');
-    // Online checkout explicitly off (a failed options request would count as unknown),
-    // so 「兑换码」 is the page's one solid action. Routes added later take precedence.
+    // Online checkout is available, so the existing Pro purchase is the solid action.
     await page.route('**/api/v1/payments/options', (route) =>
-      route.fulfill({ json: { enabled: false, payment_methods: [] } }));
+      route.fulfill({ json: { enabled: true, payment_methods: ['alipay'] } }));
 
     await page.goto('/dashboard/billing');
-    const solid = page.getByRole('main').getByRole('button', { name: '兑换码', exact: true });
+    const solid = page.getByRole('main').getByRole('button', { name: '开通 Pro', exact: true });
     await expect(solid).toBeVisible();
     await expect(solid).toHaveClass(/bg-\[hsl\(var\(--primary\)\)\]/);
     // It turns primary once the payment options arrive, and `transition-all` animates the border.
