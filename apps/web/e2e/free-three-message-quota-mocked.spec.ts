@@ -15,14 +15,14 @@ for (const language of ['zh', 'en']) {
     await page.addInitScript(lang => localStorage.setItem('zenstory-language', lang), language);
     await page.route('**/api/**', route => route.fulfill({ json: catalog }));
     await page.goto('/');
-    await expect(page.getByText(language === 'zh'
-      ? '每天 3 条 AI 消息、最多 3 个项目，先把开头写出来。'
-      : '3 AI messages a day and up to 3 projects — enough to get your opening down.', { exact: true })).toBeAttached();
+    await expect(page.getByRole('heading', { name: language === 'zh'
+      ? /^3\s*条\s*AI\s*消息\/天$/
+      : /^3 AI messages a day$/i })).toBeAttached();
     await page.goto('/pricing');
     await expect(page.getByText(language === 'zh' ? '3 条/天' : '3/day', { exact: true })).toBeVisible();
     await expect(page.getByText(language === 'zh'
-      ? '免费版每天 3 条 AI 消息，够你先写起来；要日更连载，再开 Pro。'
-      : 'Free gives you 3 AI messages a day to get started. Writing daily? Get Pro.', { exact: true })).toBeVisible();
+      ? /免费版每天包含\s*3\s*条\s*AI\s*消息/
+      : /Free includes 3 AI messages per day/i)).toBeVisible();
     await expect(page.getByText(language === 'zh' ? '不限' : 'Unlimited', { exact: true }).first()).toBeAttached();
   });
 }

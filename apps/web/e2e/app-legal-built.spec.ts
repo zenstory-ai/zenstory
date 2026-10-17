@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test';
+import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
 
@@ -10,19 +11,37 @@ const mime: Record<string, string> = {
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.woff2': 'font/woff2', '.ico': 'image/x-icon',
 };
+
+const outputState = (path: string) => {
+  if (!existsSync(path)) return null;
+  const stat = statSync(path);
+  return { size: stat.size, mtimeMs: stat.mtimeMs };
+};
+
 // Helmet's dev StrictMode lifecycle differs from production. This regression
 // exercises the actual production React bundle, not jsdom or the Vite dev shell.
 const test = base.extend<object, { appBuild: string }>({
   appBuild: [async ({ browserName }, provide) => {
     void browserName;
-    const dir = mkdtempSync(join(tmpdir(), 'zenstory-app-legal-'));
+    const workspace = mkdtempSync(join(tmpdir(), 'zenstory-app-legal-'));
+    const productionOutputs = [join(webRoot, 'dist', 'sitemap.xml'), join(webRoot, 'stats.html')];
+    const initialOutputState = productionOutputs.map(outputState);
     try {
-      execFileSync(process.execPath, [join(webRoot, 'node_modules/vite/bin/vite.js'), 'build', '--outDir', dir], {
-        cwd: webRoot, env: { ...process.env, NODE_ENV: 'production' }, stdio: 'pipe', timeout: 120_000,
+      for (const file of ['index.html', 'package.json', 'postcss.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts']) {
+        copyFileSync(join(webRoot, file), join(workspace, file));
+      }
+      for (const dir of ['content', 'docs', 'node_modules', 'public', 'src']) {
+        symlinkSync(join(webRoot, dir), join(workspace, dir), 'dir');
+      }
+      execFileSync(process.execPath, [join(webRoot, 'node_modules/vite/bin/vite.js'), 'build'], {
+        cwd: workspace, env: { ...process.env, NODE_ENV: 'production' }, stdio: 'pipe', timeout: 120_000,
       });
-      await provide(dir);
+      assert.ok(existsSync(join(workspace, 'dist', 'sitemap.xml')), 'the production sitemap plugin must run in the isolated workspace');
+      assert.ok(existsSync(join(workspace, 'stats.html')), 'the production bundle visualizer must run in the isolated workspace');
+      assert.deepEqual(productionOutputs.map(outputState), initialOutputState, 'isolated legal fixture must not touch the real web build outputs');
+      await provide(join(workspace, 'dist'));
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(workspace, { recursive: true, force: true });
     }
   }, { scope: 'worker', timeout: 150_000 }],
 });
