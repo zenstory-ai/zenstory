@@ -57,6 +57,7 @@ function seed(value: typeof a, cached: boolean) {
 function storage() { return Object.fromEntries(['access_token', 'refresh_token', 'user', 'auth_validated_at', 'zenstory_current_project_id:A', 'zenstory_current_project_id:B'].map(key => [key, localStorage.getItem(key)])) }
 function callsTo(path: string) { return calls.filter(call => call.path === path) }
 async function ordinary(call: Call) {
+  if (call.method === 'GET' && call.path === '/api/announcements/current') return json(null)
   if (call.method === 'GET' && call.path === '/api/v1/subscription/me') return json({ tier: 'free', features: { materials_library_access: false } })
   if (call.method === 'GET' && call.path === '/api/v1/projects') return json([])
   if (call.method === 'GET' && call.path === '/api/v1/project-templates') return json({})
