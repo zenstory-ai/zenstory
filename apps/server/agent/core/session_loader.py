@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -56,6 +57,10 @@ _BREADCRUMB_VERBS_EN = {
     "query_files": "Read file",
 }
 _FAILED_TOOL_STATUSES = {"error", "failed", "failure"}
+
+_HISTORY_INITIAL_PAGE_SIZE = 20
+_HISTORY_MAX_PAGE_SIZE = 200
+_HISTORY_PAGE_TEXT_BYTES = 4 * 1024 * 1024
 
 
 @dataclass
@@ -650,12 +655,14 @@ class SessionLoader:
         session: Session,
         chat_session_id: str,
         token_budget: int,
-        page_size: int = 200,
+        page_size: int | None = None,
     ) -> list[dict[str, Any]]:
         """
         Load a newest-first sliding window under token budget without reading all rows.
 
-        This avoids O(total_messages) memory/time behavior for long chat sessions.
+        Default reads start small, then grow for short messages. The observed string
+        payload caps growth heuristically; it is not a hard memory limit. Explicit
+        page_size retains fixed paging. Neither mode changes the replay window.
         """
         from models import ChatMessage
 
@@ -681,6 +688,10 @@ class SessionLoader:
         used_tokens = 0
         cursor_created_at = None
         cursor_id = None
+        adaptive = page_size is None
+        read_page_size = (
+            _HISTORY_INITIAL_PAGE_SIZE if adaptive else max(1, int(page_size or 200))
+        )
 
         while True:
             msg_stmt = select(ChatMessage).where(
@@ -702,7 +713,7 @@ class SessionLoader:
                 )
 
             msg_stmt = msg_stmt.order_by(desc(ChatMessage.created_at), desc(ChatMessage.id)).limit(
-                max(1, int(page_size or 200))
+                read_page_size
             )
             page = session.exec(msg_stmt).all()
             if not page:
@@ -730,10 +741,26 @@ class SessionLoader:
             last = page[-1]
             cursor_created_at = last.created_at
             cursor_id = last.id
-
-            # Safety: stop if we somehow keep fetching but never make progress.
-            if len(page) == 0:
-                break
+            if adaptive:
+                # Reasoning and persisted tool/UI JSON occupy memory even when they
+                # contribute few or no replay tokens. Measure existing buffers, not
+                # encoded copies, before deciding how much more to fetch.
+                text_bytes = sum(
+                    sys.getsizeof(value)
+                    for row in page
+                    for value in (
+                        row.content, row.reasoning_content, row.tool_calls, row.message_metadata
+                    )
+                    if isinstance(value, str)
+                )
+                read_page_size = min(
+                    _HISTORY_MAX_PAGE_SIZE,
+                    read_page_size * 2,
+                    max(
+                        _HISTORY_INITIAL_PAGE_SIZE,
+                        len(page) * _HISTORY_PAGE_TEXT_BYTES // max(text_bytes, 1),
+                    ),
+                )
 
         return list(reversed(selected_reversed))
 

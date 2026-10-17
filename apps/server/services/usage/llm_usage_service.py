@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Callable, Mapping
+from contextvars import Context
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -20,6 +21,7 @@ from config.datetime_utils import utcnow
 from models.llm_usage import LLMUsageEvent
 from services.usage.pricing import PRICING_VERSION, naive_utc, price_band
 from utils.logger import get_logger, log_with_context
+from utils.request_context import bind_request_context, get_log_context
 
 logger = get_logger(__name__)
 
@@ -190,6 +192,19 @@ def record_llm_usage(
 _pending_records: set[asyncio.Task[bool]] = set()
 
 
+def _logging_only_context() -> Context:
+    """Return a fresh context containing only structured-log identifiers."""
+    values = get_log_context()
+    context = Context()
+    context.run(
+        bind_request_context,
+        request_id=values.get("request_id"),
+        trace_id=values.get("trace_id"),
+        agent_run_id=values.get("agent_run_id"),
+    )
+    return context
+
+
 def _on_record_done(task: asyncio.Task[bool]) -> None:
     _pending_records.discard(task)
     if task.cancelled():
@@ -229,6 +244,8 @@ def schedule_llm_usage_record(
             return None
         from services.usage.cost_budget import call_started_at
         occurred_at = call_started_at(attribution.user_id) or utcnow()
+        task_context = _logging_only_context()
+        callback_context = _logging_only_context()
         task = asyncio.get_running_loop().create_task(
             asyncio.to_thread(
                 record_llm_usage,
@@ -236,10 +253,11 @@ def schedule_llm_usage_record(
                 model=model,
                 tokens=counted,
                 occurred_at=occurred_at,
-            )
+            ),
+            context=task_context,
         )
         _pending_records.add(task)
-        task.add_done_callback(_on_record_done)
+        task.add_done_callback(_on_record_done, context=callback_context)
         return task
     except Exception as exc:
         log_with_context(
