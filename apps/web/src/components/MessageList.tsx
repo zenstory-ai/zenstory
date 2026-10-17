@@ -659,10 +659,10 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
 }
 
 interface RowDataProps {
-  /** Array of all messages (for context awareness) */
-  messages: Message[];
-  /** ID of currently streaming message */
-  streamingMessageId?: string;
+  message: Message;
+  previousRole?: Message['role'];
+  nextRole?: Message['role'];
+  isStreaming: boolean;
   /** Function to format timestamps for display */
   formatTime: (date: Date) => string;
   /** Callback to undo a file edit */
@@ -671,8 +671,7 @@ interface RowDataProps {
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
   /** Callback to submit message feedback */
   onSubmitFeedback?: (message: Message, vote: MessageFeedbackVote) => void | Promise<void>;
-  /** Message ID currently submitting feedback */
-  feedbackPendingMessageId?: string | null;
+  isFeedbackPending: boolean;
   /** Stop notes may mention today's AI message count */
   showDailyCount?: boolean;
   /** Callback invoked when user chooses a guided action after iteration exhaustion */
@@ -691,32 +690,27 @@ interface RowDataProps {
  * Consecutive messages from the same role are grouped together with
  * the avatar only shown on the first message.
  *
- * @param props - Component props including index and RowDataProps
+ * @param props - The message and its row-local display state
  * @returns React element for the message row
  */
-function Row({
-  index,
-  messages,
-  streamingMessageId,
+const Row = React.memo(function Row({
+  message,
+  previousRole,
+  nextRole,
+  isStreaming,
   formatTime,
   onUndo,
   onOpenFile,
   onSubmitFeedback,
-  feedbackPendingMessageId,
+  isFeedbackPending,
   showDailyCount = true,
   onIterationAssistAction,
   streamingThinkingContent,
   isThinking,
-}: {
-  index: number;
-} & RowDataProps): React.ReactElement {
+}: RowDataProps): React.ReactElement {
   const { t } = useTranslation(['chat']);
   const { user } = useAuth();
   const { isMobile } = useMobileLayout();
-  const message = messages[index];
-  if (!message) return <div />;
-
-  const isStreaming = message.id === streamingMessageId;
   // Show streaming thinking content only for the currently streaming message
   const showStreamingThinking = isStreaming && streamingThinkingContent;
   const displayContent =
@@ -729,14 +723,11 @@ function Row({
     message.role === 'assistant' && Boolean(onSubmitFeedback) && !message.feedbackUnavailable;
   const canSubmitFeedback = shouldShowFeedbackActions && Boolean(message.backendMessageId);
   const selectedFeedbackVote = message.feedback?.vote;
-  const isFeedbackPending = feedbackPendingMessageId === message.id;
   const isFeedbackDisabled = isFeedbackPending || !canSubmitFeedback;
 
   // Check if this is a consecutive message from the same role
-  const prevMessage = index > 0 ? messages[index - 1] : null;
-  const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
-  const isConsecutiveSameRole = prevMessage?.role === message.role;
-  const isLastInRoleGroup = nextMessage?.role !== message.role;
+  const isConsecutiveSameRole = previousRole === message.role;
+  const isLastInRoleGroup = nextRole !== message.role;
 
   // Always show timestamp for the last message in a role group, or for standalone messages
   const shouldShowTimestamp = isLastInRoleGroup;
@@ -1079,7 +1070,7 @@ function Row({
       </div>
     </div>
   );
-};
+});
 
 /**
  * Main chat message list component that displays conversation history.
@@ -1242,18 +1233,19 @@ export const MessageList = React.memo(
       {visibleMessages.map((message, index) => (
         <Row
           key={message.id}
-          index={index}
-          messages={visibleMessages}
-          streamingMessageId={streamingMessageId}
+          message={message}
+          previousRole={visibleMessages[index - 1]?.role}
+          nextRole={visibleMessages[index + 1]?.role}
+          isStreaming={message.id === streamingMessageId}
           formatTime={formatTime}
           onUndo={onUndo}
           onOpenFile={onOpenFile}
           onSubmitFeedback={onSubmitFeedback}
-          feedbackPendingMessageId={feedbackPendingMessageId}
+          isFeedbackPending={feedbackPendingMessageId === message.id}
           showDailyCount={showDailyCount}
           onIterationAssistAction={onIterationAssistAction}
-          streamingThinkingContent={streamingThinkingContent}
-          isThinking={isThinking}
+          streamingThinkingContent={message.id === streamingMessageId ? streamingThinkingContent : undefined}
+          isThinking={message.id === streamingMessageId ? isThinking : undefined}
         />
       ))}
 
