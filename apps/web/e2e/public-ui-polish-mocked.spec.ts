@@ -14,8 +14,8 @@ test('demo decoration never intercepts pause or manual scene clicks', async ({ p
   await page.getByRole('button', { name: '查看演示', exact: true }).click();
   await page.getByRole('button', { name: '暂停演示', exact: true }).click();
   await expect(page.getByRole('button', { name: '继续演示', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '章节级改写', exact: true }).click();
-  await expect(page.getByRole('button', { name: '章节级改写', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '审阅与回退', exact: true }).click();
+  await expect(page.getByRole('button', { name: '审阅与回退', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '继续演示', exact: true }).click();
   await expect(page.getByRole('button', { name: '暂停演示', exact: true })).toBeVisible();
 });
