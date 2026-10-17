@@ -7,6 +7,7 @@
 ## Decision
 
 - 在既有 `select(File)` 上使用 SQLAlchemy `load_only`，只加载 `id`、`title`、`content`、`file_type`、`updated_at`。
+- 使用仓库既有的 `cast(InstrumentedAttribute[...], File.<字段>)` 类型桥接，让 SQLModel 的实例字段注解与 SQLAlchemy 的类级映射属性契约衔接；`cast` 不改变运行时对象或 SQL，不引入类型忽略或新抽象。
 - 不改变项目、删除、文件类型和文本过滤，不改变 `updated_at` 候选排序、候选上限、打分、时间预算、截断或完整正文返回规则。
 - 用真实 SQLite ORM 回归检查候选 SQL 不再选择大元数据列，且结果组装只执行一次查询，不因延迟列产生 N+1；同时覆盖大元数据、删除/跨项目/类型隔离和 `include_content` 两种输出。
 

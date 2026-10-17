@@ -8,10 +8,10 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import or_
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import InstrumentedAttribute, load_only
 from sqlmodel import Session, col, select
 
 from models import File
@@ -393,11 +393,11 @@ class FileSearchService:
             select(File)
             .options(
                 load_only(
-                    File.id,
-                    File.title,
-                    File.content,
-                    File.file_type,
-                    File.updated_at,
+                    cast(InstrumentedAttribute[str], File.id),
+                    cast(InstrumentedAttribute[str], File.title),
+                    cast(InstrumentedAttribute[str], File.content),
+                    cast(InstrumentedAttribute[str], File.file_type),
+                    cast(InstrumentedAttribute[datetime], File.updated_at),
                 )
             )
             .where(
