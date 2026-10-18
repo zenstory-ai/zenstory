@@ -776,8 +776,7 @@ test.describe('Version History - Diff View Modes', () => {
     await expect(compareButton).toBeVisible()
     await openVersionComparison(page, compareButton)
 
-    // Look for split view button (Eye icon)
-    const splitViewButton = page.getByRole('dialog').locator('button:has(svg.lucide-eye)')
+    const splitViewButton = page.getByRole('dialog').getByRole('button', { name: /^(并排视图|Split view)$/ })
     await expect(splitViewButton).toBeVisible()
     await splitViewButton.click()
 
@@ -806,8 +805,7 @@ test.describe('Version History - Diff View Modes', () => {
     await expect(compareButton).toBeVisible()
     await openVersionComparison(page, compareButton)
 
-    // Look for inline view button (AlignLeft icon)
-    const inlineViewButton = page.getByRole('dialog').locator('button:has(svg.lucide-align-left)')
+    const inlineViewButton = page.getByRole('dialog').getByRole('button', { name: /^(内联视图|Inline view)$/ })
     await expect(inlineViewButton).toBeVisible()
     await inlineViewButton.click()
 

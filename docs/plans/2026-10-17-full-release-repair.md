@@ -104,6 +104,8 @@ PR #259 已合并为 `3c03449d`，精确 push CI/E2E/CodeQL 成功（默认 E2E 
 - [x] 归因历史 compare 全局选择器、跨会话/Accessibility 未提交导航、订阅 reload 后重复登录及滚动 RPC 计时。
 - [x] 最小修复对应 5 个 E2E 文件，产品源码/重试/超时/阈值/skip 不改；版本至少两行改为断言，移除隐藏比较的条件空跑。
 - [ ] 冻结双引擎相关文件实跑及独立审阅；新 PR 正常合并后，再按新精确 main push→full 顺序验证。
-- [ ] Vercel 登录尚未恢复；生产备份/迁移、worker pause/drain 与 provider gate 仍须在 full 首轮通过后完成，未打 tag 或改生产。
+- [x] 用户最新范围：本批次仅完成修复/测试并保持 main 正常；不创建 tag、不发布生产，不做生产迁移或工作池操作。Vercel 登录不再是本批次阻塞。
 
 候选 `9848f10f` 原 5 处失败相关双引擎定向 15/15，retries=0，clean/stable。独立 code-reviewer/architect 又指出本次触及的 rollback/cancel/split/inline 四处必需控件仍有旧 visibility 条件；已改为可见性断言后无条件交互，保留终态断言，待新候选精确源码实跑。
+
+`4f99ec45` 必需控件双引擎首轮 7 passed / 2 failed，红灯准确揭示旧 AlignLeft CSS class 已不匹配实际图标；页面快照中「内联视图」按钮存在。改用 dialog 内的真实 accessible name（split 同步使用标题语义），不改产品或加入条件略过。
