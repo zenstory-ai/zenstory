@@ -74,7 +74,7 @@ describe('QuotaBadge compact', () => {
     renderWithQuery(<QuotaBadge />)
 
     expect(await screen.findByText('今日 AI 消息 10/10 条')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '开通 Pro' })).toHaveTextContent('开通 Pro')
+    expect(await screen.findByRole('button', { name: '开通 Pro' })).toHaveTextContent('开通 Pro')
     expect(screen.queryByTestId('quota-badge-compact')).not.toBeInTheDocument()
   })
 })

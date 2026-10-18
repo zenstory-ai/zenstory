@@ -127,7 +127,8 @@ async function ensureActiveFolderExpanded(page: Page): Promise<void> {
 }
 
 /**
- * Helper function to edit file content and trigger auto-save
+ * Seed committed content and history through the API. Refresh the editor once
+ * in openVersionHistory, after the complete version sequence has been created.
  */
 async function editFileContent(page: Page, content: string): Promise<void> {
   if (!activeTestFileId) {
@@ -155,14 +156,13 @@ async function editFileContent(page: Page, content: string): Promise<void> {
     },
   })
   expect(versionResponse.ok()).toBeTruthy()
-  await page.waitForTimeout(500)
-  await refreshAndReselectActiveFile(page)
 }
 
 /**
  * Helper function to open version history panel
  */
 async function openVersionHistory(page: Page): Promise<void> {
+  await refreshAndReselectActiveFile(page)
   // File-scoped history action in the editor status bar
   const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ }).first()
   await expect(historyButton).toBeVisible({ timeout: 5000 })
@@ -197,7 +197,13 @@ async function confirmRollback(page: Page): Promise<void> {
     { timeout: 5000 }
   )
   await confirmButton.click()
-  await rollbackResponse
+  const response = await rollbackResponse
+  expect(response.ok()).toBe(true)
+  expect(await response.json()).toMatchObject({
+    success: true,
+    file_id: activeTestFileId,
+    snapshot_created: true,
+  })
 }
 
 function getVersionItems(page: Page) {
@@ -488,9 +494,9 @@ test.describe('Version History', () => {
     const modifiedContent = '修改后的内容，不应该保留'
     await editFileContent(page, modifiedContent)
 
-    // Verify current content is the modified version
-    // Open version history
     await openVersionHistory(page)
+    const editor = page.locator('[data-editor-scroll-container="true"] textarea').first()
+    await expect(editor).toHaveValue(modifiedContent)
 
     // Find rollback button on an older version (not the latest)
     const versionItems = getVersionItems(page)
@@ -503,9 +509,7 @@ test.describe('Version History', () => {
     await rollbackButton.click()
     await confirmRollback(page)
 
-    // Verify rollback succeeded - content should be restored
-    // The version list should refresh
-    await expect(page.locator('text=/恢复|restore|success/i').first()).toBeVisible({ timeout: 5000 })
+    await expect(editor).toHaveValue(originalContent)
   })
 
   test('rollback creates a new version with restored content', async ({ page }) => {
@@ -518,24 +522,18 @@ test.describe('Version History', () => {
     // Open version history and note version count
     await openVersionHistory(page)
 
-    let versionItems = getVersionItems(page)
+    const versionItems = getVersionItems(page)
     const initialCount = await getVersionCountFromApi(page)
 
     // Perform rollback
-    if (initialCount >= 2) {
-      const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
-      if (await rollbackButton.isVisible()) {
-        await rollbackButton.click()
-        await confirmRollback(page)
+    expect(initialCount).toBeGreaterThanOrEqual(2)
+    const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
+    await expect(rollbackButton).toBeVisible()
+    await rollbackButton.click()
+    await confirmRollback(page)
 
-        // Reload version list
-        versionItems = getVersionItems(page)
-        const newCount = await getVersionCountFromApi(page)
-
-        // Verify new version was created
-        expect(newCount).toBeGreaterThanOrEqual(initialCount)
-      }
-    }
+    // Verify a new rollback version was created.
+    expect(await getVersionCountFromApi(page)).toBe(initialCount + 1)
   })
 
   test('rollback preserves version history', async ({ page }) => {
@@ -549,23 +547,18 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    let versionItems = getVersionItems(page)
+    const versionItems = getVersionItems(page)
     const initialCount = await getVersionCountFromApi(page)
 
     // Perform rollback
-    if (initialCount >= 2) {
-      const rollbackButton = versionItems.nth(Math.min(2, initialCount - 1)).locator('button:has(svg.lucide-rotate-ccw)')
-      if (await rollbackButton.isVisible()) {
-        await rollbackButton.click()
-        await confirmRollback(page)
+    expect(initialCount).toBeGreaterThanOrEqual(3)
+    const rollbackButton = versionItems.nth(2).locator('button:has(svg.lucide-rotate-ccw)')
+    await expect(rollbackButton).toBeVisible()
+    await rollbackButton.click()
+    await confirmRollback(page)
 
-        // All previous versions should still exist
-        // Version count should increase (new rollback version) or stay same
-        versionItems = getVersionItems(page)
-        const finalCount = await getVersionCountFromApi(page)
-        expect(finalCount).toBeGreaterThanOrEqual(initialCount)
-      }
-    }
+    // Preserve existing history and add the rollback snapshot.
+    expect(await getVersionCountFromApi(page)).toBe(initialCount + 1)
   })
 
   // ==================== Auto-save Version Creation ====================

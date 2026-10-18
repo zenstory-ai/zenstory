@@ -52,6 +52,10 @@ CI trace 进一步证明导航 URL 改变不代表项目组件已提交：back �
 
 Keyboard-only 创建用例以实际 `create-project-button` 焦点和键盘 Enter 捕获创建响应，不以过期文案或「有控件可聚焦」替代完成。项目搜索使用两个免费额度内的真实 owned 项目和始终提供的 ProjectSwitcher 搜索，明确不声称覆盖 >6 项才出现的 Dashboard 搜索。版本 fixture 的直接 API 操作沿用 config.apiBaseUrl；UI 仍走真实页面，fixture 不经 Vite proxy 引入额外转发等待，也不增加网络重试。
 
+冻结候选 `bfc98fb` 的三文件双引擎为 160 passed / 1 failed：Firefox rollback-history 在 60 秒总限时耗尽。trace 显示每轮 seed 后 hard navigation 都被失败的 Google Fonts 阻塞样式拖延约 10.2 秒，版本 API 仅需 20–65ms；不增加限时或改产品字体。所有版本 seed 均发生在首次历史面板打开之前，因此保留每次 API 提交完成断言，将编辑器刷新移到进入历史 UI 前一次，删除无依据的 500ms 等待。回滚必须实际成功、创建快照并增加一个版本，真实编辑器正文须恢复；不允许必需控件条件空跑或以「恢复失败」提示匹配成功。
+
+同候选 PR CI 的唯一前端失败是 QuotaBadge 单测在 quota 已显示、异步订阅状态尚未完成时同步取升级按钮。改为等待实际按钮，与相邻 compact 用例一致；不改变产品查询、订阅 mock 或显示契约。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。
