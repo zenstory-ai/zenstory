@@ -48,6 +48,8 @@ const aiCalls = (calls: { path: string }[]) => calls.filter(call => /\/agent\/(s
 for (const theme of ['light', 'dark'] as const) {
 for (const width of [390, 768, 1440]) {
   for (const language of ['zh', 'en'] as const) {
+    test.describe(`${language} browser locale`, () => {
+    test.use({ locale: language });
     test(`static first work ${language} ${width} ${theme}: direct manuscript, focus only, exhausted quota manual save`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       const fixture = await firstWorkFixture(page, language);
@@ -103,9 +105,13 @@ for (const width of [390, 768, 1440]) {
       expect(fixture.calls.filter(call => call.path === '/api/v1/workspace/first-work' && call.method === 'POST')).toHaveLength(1);
       expect(aiCalls(fixture.calls)).toHaveLength(0); expect(errors).toEqual([]);
     });
+    });
   }
 }
 }
+
+test.describe('English browser locale', () => {
+test.use({ locale: 'en' });
 
 test('first-work initialization failure retries explicitly; a deleted first work is never recreated', async ({ page }) => {
   const fixture = await firstWorkFixture(page, 'en', { failInitialize: true, deleted: true });
@@ -140,4 +146,5 @@ test('billing continuation keeps its route and does not initialize first work', 
   expect(page.url()).toContain('/dashboard/billing?plan=pro&cycle=yearly&source=landing');
   expect(fixture.calls.filter(call => call.path.endsWith('/first-work'))).toHaveLength(0);
   expect(aiCalls(fixture.calls)).toHaveLength(0);
+});
 });

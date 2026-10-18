@@ -139,8 +139,9 @@ test.describe('Session Management', () => {
     await expect(logoutButton).toBeVisible();
     await logoutButton.click();
 
-    // Dashboard logout deliberately returns to the public home page.
-    await expect(page).toHaveURL('/');
+    // AuthContext's logout event completes the transition to the login page.
+    await expect(page).toHaveURL('/login');
+    await expect(page.locator('#identifier')).toBeVisible();
 
     const authState = await page.evaluate(() => ({
       access_token: localStorage.getItem('access_token'),

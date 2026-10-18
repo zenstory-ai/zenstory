@@ -698,23 +698,13 @@ test.describe('Version History - Error Handling', () => {
     // Select file but don't edit
     await selectFile(page, '无编辑文件')
 
-    // Try to open version history
-    // The header's first history-like button is now 项目快照; target the file's own history button.
-    const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ }).first()
-    if (await historyButton.isVisible()) {
-      await historyButton.click()
-      // Wait for panel to appear
-      await page.waitForSelector('text=/历史版本|版本历史|Version History/', { timeout: 3000 })
+    await openVersionHistory(page)
 
-      // Should show empty state or single version
-      const emptyState = page.getByText(/还没有历史版本|no versions yet/i)
-      const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
-
-      // Either empty state or at least the initial version should be shown
-      const hasEmpty = await emptyState.isVisible()
-      const versionCount = await versionItems.count()
-      expect(hasEmpty || versionCount >= 1).toBeTruthy()
-    }
+    const historyDialog = page.getByRole('dialog').filter({
+      hasText: /版本历史|历史版本|Version History/i,
+    })
+    await expect(historyDialog.getByText(/还没有历史版本|no versions yet/i)).toBeVisible()
+    expect(await getVersionCountFromApi(page)).toBe(0)
   })
 
   test('rollback confirmation can be cancelled', async ({ page }) => {

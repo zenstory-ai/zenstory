@@ -42,6 +42,8 @@ CI 实跑证明 version-list 外层在 loading 时已经存在，不能用它代
 
 CI trace 进一步证明导航 URL 改变不代表项目组件已提交：back 用例须等待真实文件树，再验证返回后的 reset。退出用例固定 Dashboard 的真实 account panel 和回首页契约；版本历史复用 owned 项目/文件，避免自有登录和重复 hard navigation 互相中断，不改既有版本数/正文/回滚/冲突断言。
 
+后续运行证据纠正退出终态：Dashboard 内部 navigate 首页并不是完整系统终态，AuthContext 的 logout 事件最终跳 `/login`。测试要求真实登录页和四项凭据清除。首作语言 matrix 同时设置浏览器 context 的 zh/en locale，保留请求头精确断言；无编辑历史要求实际 dialog 空状态与 API count=0，不接受“空或至少一个”的并集。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。
