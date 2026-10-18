@@ -498,14 +498,13 @@ test.describe('Version History', () => {
     expect(count).toBeGreaterThanOrEqual(2)
     // Click rollback button on the second version (older)
     const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
-    if (await rollbackButton.isVisible()) {
-      await rollbackButton.click()
-      await confirmRollback(page)
+    await expect(rollbackButton).toBeVisible()
+    await rollbackButton.click()
+    await confirmRollback(page)
 
-      // Verify rollback succeeded - content should be restored
-      // The version list should refresh
-      await expect(page.locator('text=/恢复|restore|success/i').first()).toBeVisible({ timeout: 5000 })
-    }
+    // Verify rollback succeeded - content should be restored
+    // The version list should refresh
+    await expect(page.locator('text=/恢复|restore|success/i').first()).toBeVisible({ timeout: 5000 })
   })
 
   test('rollback creates a new version with restored content', async ({ page }) => {
@@ -715,20 +714,19 @@ test.describe('Version History - Error Handling', () => {
     // Open version history
     await openVersionHistory(page)
 
-    const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
+    const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
     expect(count).toBeGreaterThanOrEqual(2)
     const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
-    if (await rollbackButton.isVisible()) {
-      await rollbackButton.click()
-      // Cancel the in-app restore confirmation
-      await page.getByRole('dialog').getByRole('button', { name: /^(取消|Cancel)$/ }).click()
+    await expect(rollbackButton).toBeVisible()
+    await rollbackButton.click()
+    // Cancel the in-app restore confirmation
+    await page.getByRole('dialog').getByRole('button', { name: /^(取消|Cancel)$/ }).click()
 
-      // Verify content was NOT rolled back (still has new content)
-      const editor = page.locator('textarea[placeholder*="开始你的创作"]').first()
-      await expect(editor).toHaveValue(/新内容/)
-    }
+    // Verify content was NOT rolled back (still has new content)
+    const editor = page.locator('textarea[placeholder*="开始你的创作"]').first()
+    await expect(editor).toHaveValue(/新内容/)
   })
 })
 
@@ -742,7 +740,7 @@ test.describe('Version History - Diff View Modes', () => {
 
     await openVersionHistory(page)
 
-    const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
+    const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
     expect(count).toBeGreaterThanOrEqual(2)
@@ -767,7 +765,7 @@ test.describe('Version History - Diff View Modes', () => {
 
     await openVersionHistory(page)
 
-    const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
+    const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
     expect(count).toBeGreaterThanOrEqual(2)
@@ -779,14 +777,13 @@ test.describe('Version History - Diff View Modes', () => {
     await openVersionComparison(page, compareButton)
 
     // Look for split view button (Eye icon)
-    const splitViewButton = page.locator('button:has(svg.lucide-eye)').first()
-    if (await splitViewButton.isVisible()) {
-      await splitViewButton.click()
+    const splitViewButton = page.getByRole('dialog').locator('button:has(svg.lucide-eye)')
+    await expect(splitViewButton).toBeVisible()
+    await splitViewButton.click()
 
-      // Verify split view is shown (two columns)
-      const splitContainer = page.locator('[class*="flex"] > [class*="w-1/2"]').first()
-      await expect(splitContainer).toBeVisible({ timeout: 3000 })
-    }
+    // Verify split view is shown (two columns)
+    const splitContainer = page.getByRole('dialog').locator('[class*="flex"] > [class*="w-1/2"]').first()
+    await expect(splitContainer).toBeVisible({ timeout: 3000 })
   })
 
   test('diff viewer supports inline view mode', async ({ page }) => {
@@ -798,7 +795,7 @@ test.describe('Version History - Diff View Modes', () => {
 
     await openVersionHistory(page)
 
-    const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
+    const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
     expect(count).toBeGreaterThanOrEqual(2)
@@ -810,13 +807,12 @@ test.describe('Version History - Diff View Modes', () => {
     await openVersionComparison(page, compareButton)
 
     // Look for inline view button (AlignLeft icon)
-    const inlineViewButton = page.locator('button:has(svg.lucide-align-left)').first()
-    if (await inlineViewButton.isVisible()) {
-      await inlineViewButton.click()
+    const inlineViewButton = page.getByRole('dialog').locator('button:has(svg.lucide-align-left)')
+    await expect(inlineViewButton).toBeVisible()
+    await inlineViewButton.click()
 
-      // Verify inline view is shown (prose-style content)
-      const inlineContent = page.locator('[class*="leading-relaxed"], [class*="prose"]').first()
-      await expect(inlineContent).toBeVisible({ timeout: 3000 })
-    }
+    // Verify inline view is shown (prose-style content)
+    const inlineContent = page.getByRole('dialog').locator('.leading-relaxed.whitespace-pre-wrap')
+    await expect(inlineContent).toBeVisible({ timeout: 3000 })
   })
 })

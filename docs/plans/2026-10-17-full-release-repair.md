@@ -105,3 +105,5 @@ PR #259 已合并为 `3c03449d`，精确 push CI/E2E/CodeQL 成功（默认 E2E 
 - [x] 最小修复对应 5 个 E2E 文件，产品源码/重试/超时/阈值/skip 不改；版本至少两行改为断言，移除隐藏比较的条件空跑。
 - [ ] 冻结双引擎相关文件实跑及独立审阅；新 PR 正常合并后，再按新精确 main push→full 顺序验证。
 - [ ] Vercel 登录尚未恢复；生产备份/迁移、worker pause/drain 与 provider gate 仍须在 full 首轮通过后完成，未打 tag 或改生产。
+
+候选 `9848f10f` 原 5 处失败相关双引擎定向 15/15，retries=0，clean/stable。独立 code-reviewer/architect 又指出本次触及的 rollback/cancel/split/inline 四处必需控件仍有旧 visibility 条件；已改为可见性断言后无条件交互，保留终态断言，待新候选精确源码实跑。
