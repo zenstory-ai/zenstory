@@ -93,3 +93,6 @@
 
 - 跨标签认证已有确定性单测先红后绿（14/14，API client 3 文件 74/74），按架构独立评审的最小方案保持同一 Web Lock 跨一次 MessageChannel 任务检查点，并在返回成功前重验会话归属；没有新增协调协议/依赖/网络重试，无锁分支不变。真实双引擎压力回归仍待完成。
 - 本地测试容器发现 764 个 PPID=1 的浏览器僵尸进程，缺少 init 回收；已保留进程清单，并仅重建 owned Playwright 容器为同镜像/挂载/端口加 `--init`，僵尸降为 0，web/API 200。此前 CSS pending/30 秒 setup 超时不作为产品修复证明，须在正常回收的运行环境复验。
+
+- 精确候选 `c0d67a47` fresh：303 前端单测文件 / 4,747 passed / 1 既有 skipped，完整 typecheck/build、lint 0 error/3 既有 warning、token/i18n 检查通过。独立 code-reviewer APPROVE、architect 静态 CLEAR。
+- 原生双标签四场景×20 轮×两引擎全部首轮通过：161/161 incl setup、retries=0、无 flaky。含单次 POST 恢复两个原请求及 logout/other-user/new-family 不恢复旧会话。先前真实 Firefox 失败不再复现；新 note 移至 implemented，旧决策未反写。全量 main / provider 门槛仍未完成。
