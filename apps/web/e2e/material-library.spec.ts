@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect, type Page, type Route } from '@playwright/test'
 import { TEST_USERS } from './config'
+import { login } from './helpers/common'
 import type { QuotaResponse, SubscriptionStatusResponse } from '../src/types/subscription'
 
 /**
@@ -481,41 +482,8 @@ const UPLOAD_MODAL = {
 
 // Helper to login and navigate to materials page
 async function navigateToMaterials(page: Page) {
-  await page.addInitScript(() => {
-    const cachedUser = localStorage.getItem('user')
-    if (cachedUser) {
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-    }
-  })
-
-  const loginIdentifier = page.locator('#identifier')
+  await login(page, TEST_EMAIL, TEST_PASSWORD)
   await page.goto('/dashboard/materials', { waitUntil: 'domcontentloaded' })
-
-  if (
-    await loginIdentifier
-      .waitFor({ state: 'visible', timeout: 8000 })
-      .then(() => true)
-      .catch(() => false)
-  ) {
-    await expect(loginIdentifier).toBeVisible({ timeout: 10000 })
-    await page.fill('#identifier', TEST_EMAIL)
-    await page.fill('#password', TEST_PASSWORD)
-    await page.click('button[type="submit"]')
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => ({
-            accessToken: localStorage.getItem('access_token'),
-            user: localStorage.getItem('user'),
-          })),
-        { timeout: 15000 }
-      )
-      .toMatchObject({
-        accessToken: expect.any(String),
-        user: expect.any(String),
-      })
-    await page.goto('/dashboard/materials', { waitUntil: 'domcontentloaded' })
-  }
 
   await expect(page).toHaveURL(/\/dashboard\/materials/, { timeout: 10000 })
   await expect(page.locator('h1')).toContainText(/素材库|Materials/, {
@@ -1251,11 +1219,7 @@ test.describe('Material Library Flow - Navigation Integration', () => {
     await setupMaterialLibraryMocking(page)
 
     // Login and go to dashboard
-    await page.goto('/login')
-    await page.fill('#identifier', TEST_EMAIL)
-    await page.fill('#password', TEST_PASSWORD)
-    await page.click('button[type="submit"]')
-    await page.waitForURL(/\/(dashboard|project)/, { timeout: 10000 })
+    await login(page, TEST_EMAIL, TEST_PASSWORD)
 
     // Navigate to materials
     await page.goto('/dashboard/materials')

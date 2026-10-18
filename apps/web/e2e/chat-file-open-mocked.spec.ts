@@ -99,8 +99,8 @@ for (const width of [390, 768, 1440]) for (const locale of ['zh', 'en'] as const
     await expect(body(page)).toHaveValue(draft);
     await showChat(page, width);
     await createTitle.scrollIntoViewIfNeeded();
-    await page.keyboard.press('Tab');
-    await createTitle.focus();
+    await updateTitle.focus();
+    await page.keyboard.press('Shift+Tab');
     await expect(createTitle).toBeFocused();
     expect(await createTitle.evaluate(el => getComputedStyle(el).boxShadow)).not.toBe('none');
     const bounds = await createTitle.boundingBox();

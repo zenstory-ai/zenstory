@@ -20,6 +20,7 @@ const DYNAMIC_IMPORT_ERROR_PATTERNS = [
   "ChunkLoadError",
 ];
 let pendingChunkReload: Promise<never> | null = null;
+let documentNavigationInProgress = false;
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -38,7 +39,11 @@ export function reloadForChunkErrorOnce(
   source: string,
   authoritative = false,
 ): boolean {
-  if (typeof window === "undefined" || (!authoritative && !isChunkLoadError(error))) {
+  if (
+    typeof window === "undefined"
+    || documentNavigationInProgress
+    || (!authoritative && !isChunkLoadError(error))
+  ) {
     return false;
   }
 
@@ -77,6 +82,18 @@ export function installChunkRecoveryHandlers(): void {
   if (typeof window === "undefined") {
     return;
   }
+
+  // Firefox rejects still-loading module requests while a document navigation
+  // is taking over. Vite reports those cancellations through the same event as
+  // a stale deployed chunk; reloading here would cancel the user's destination
+  // and send them back to the page they just left.
+  window.addEventListener("pagehide", () => {
+    documentNavigationInProgress = true;
+  });
+  window.addEventListener("pageshow", () => {
+    // Restoring a page from the back-forward cache keeps this module instance.
+    documentNavigationInProgress = false;
+  });
 
   window.addEventListener("vite:preloadError", (event) => {
     const viteEvent = event as Event & {

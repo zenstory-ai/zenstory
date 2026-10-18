@@ -46,6 +46,21 @@ describe('SearchResultsDropdown', () => {
   })
 
   describe('Rendering', () => {
+    it.each([false, true])('closes the %s loading/empty state only on outside clicks', (loading) => {
+      render(
+        <>
+          <div data-testid="outside-search">Outside</div>
+          <SearchResultsDropdown {...defaultProps} results={[]} loading={loading} />
+        </>,
+      )
+
+      const message = screen.getByText(loading ? 'common:loading' : 'editor:fileTree.noSearchResults')
+      fireEvent.mouseDown(message)
+      expect(mockOnClose).not.toHaveBeenCalled()
+      fireEvent.mouseDown(screen.getByTestId('outside-search'))
+      expect(mockOnClose).toHaveBeenCalledTimes(1)
+    })
+
     it('renders nothing when not visible', () => {
       render(<SearchResultsDropdown {...defaultProps} visible={false} />)
 

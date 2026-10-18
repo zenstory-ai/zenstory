@@ -1,5 +1,12 @@
-import { test, expect } from '@playwright/test'
-import { TEST_USERS, config } from './config'
+import { test as base, expect } from '@playwright/test'
+import { config } from './config'
+import {
+  cleanupOwnedProject,
+  createOwnedFile,
+  createOwnedProject,
+  type OwnedFile,
+  type OwnedProject,
+} from './fixtures/project-test-data'
 
 const ENABLE_LARGE_DOCUMENT_E2E = process.env.E2E_ENABLE_LARGE_DOCUMENT_E2E === 'true'
 const LARGE_DOCUMENT_OPT_IN_MESSAGE =
@@ -8,13 +15,13 @@ const LARGE_DOCUMENT_OPT_IN_MESSAGE =
 /**
  * E2E Tests for Large Document Handling
  *
- * These tests verify the virtualization feature for documents with 50,000+ words:
+ * These tests verify the current SimpleEditor large-document contract:
  * - Loading large documents in under 3 seconds
  * - Smooth scrolling at 60fps regardless of document size
  * - Auto-save completing within 2 seconds for any document size
  * - Memory usage remaining under 500MB for large documents
- * - Editor mode switching (SimpleEditor vs VirtualizedEditor)
- * - Chunk-level editing with cursor preservation
+ * - Complete content across file switching and reloads
+ * - Long-range editing and cursor preservation
  */
 
 // Performance thresholds from acceptance criteria
@@ -59,99 +66,68 @@ function generateLargeContent(wordCount: number): string {
   return paragraphs.join('\n\n')
 }
 
-/**
- * Helper to login and create a test project
- */
+/** Create one quota-safe project per test and clean up only that project. */
+const test = base.extend<{ ownedProject: OwnedProject }>({
+  ownedProject: async ({ page }, provide, testInfo) => {
+    const project = await createOwnedProject(page, testInfo, 'large-document')
+    try {
+      await provide(project)
+    } finally {
+      await cleanupOwnedProject(page, project)
+    }
+  },
+})
+
+const ownedProjectByPage = new WeakMap<import('@playwright/test').Page, OwnedProject>()
+
+test.beforeEach(async ({ page, ownedProject }) => {
+  ownedProjectByPage.set(page, ownedProject)
+})
+
+/** Open a real API-created draft; the former 正文 + target is an upload control. */
 async function setupProjectAndFile(page: import('@playwright/test').Page, fileName: string) {
-  await page.addInitScript(() => {
-    const cachedUser = localStorage.getItem('user')
-    if (cachedUser) {
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-    }
-  })
+  const project = ownedProjectByPage.get(page)
+  if (!project) throw new Error('Large-document owned project fixture was not initialized')
 
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  const dashboardInput = page.locator('[data-testid="dashboard-inspiration-input"]')
+  const file = await createOwnedFile(page, project, { title: fileName })
+  await page.goto(`/project/${project.id}?file=${file.id}`)
+  await page.waitForURL(new RegExp(`/project/${project.id}\\?file=${file.id}`))
 
-  if (!(await dashboardInput.isVisible({ timeout: 5000 }).catch(() => false))) {
-    const params = new URLSearchParams()
-    params.append('username', TEST_USERS.standard.email)
-    params.append('password', TEST_USERS.standard.password)
-
-    const response = await fetch(`${config.apiBaseUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Large document setup auth failed: ${response.status} ${response.statusText}`)
-    }
-
-    const tokenData = await response.json()
-
-    await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await page.evaluate((data) => {
-      localStorage.setItem('access_token', data.access_token)
-      localStorage.setItem('refresh_token', data.refresh_token)
-      localStorage.setItem('token_type', data.token_type)
-      localStorage.setItem('user', JSON.stringify(data.user))
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-    }, tokenData)
-
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  }
-  await expect(dashboardInput).toBeVisible()
-
-  // Reuse an existing project when available to avoid plan-quota flakiness in E2E.
-  const reusableProject = page.locator(
-    '[data-testid="project-card"]'
-  ).first()
-  const hasReusableProject = await reusableProject
-    .waitFor({ state: 'visible', timeout: 3000 })
-    .then(() => true)
-    .catch(() => false)
-
-  if (hasReusableProject) {
-    await reusableProject.click()
-    await page.waitForURL(/\/project\//, { timeout: 15000 })
-  } else {
-    const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-    await inspirationInput.fill(`大文档测试项目 ${Date.now()}`)
-    const createProjectButton = page.getByTestId('create-project-button')
-    await expect(createProjectButton).toBeVisible()
-    await createProjectButton.click()
-    await page.waitForURL(/\/project\//, { timeout: 15000 })
-  }
-
-  // Wait for file tree to load
-  await page.waitForSelector('.overflow-auto', { timeout: 5000 })
-
-  // Create a draft file for testing in the main writing editor.
-  const draftFolder = page.locator('text=正文').first()
-  await draftFolder.click()
+  const draftFolder = page.locator('[data-testid="file-tree-node"][data-file-type="folder"]').filter({ hasText: '正文' }).first()
+  await expect(draftFolder).toBeVisible()
   await draftFolder.hover()
-  const addButton = draftFolder.locator('..').locator('button:has(svg.lucide-plus)').first()
-  await addButton.click({ force: true })
+  // This is the exact control the old parent-traversal selector clicked. Its
+  // upload contract proves why no inline input could ever appear.
+  await expect(draftFolder.getByTestId('file-tree-upload-draft')).toBeVisible()
+  await expect(draftFolder.getByTestId('file-tree-create-child')).toHaveCount(0)
 
-  const fileInput = page.locator('input[placeholder*="正文"], input[placeholder*="章节"]').last()
-  await fileInput.fill(fileName)
-  await fileInput.press('Enter')
-  await expect(fileInput).not.toBeVisible({ timeout: 5000 })
+  const testFile = page.locator(`[data-testid="file-tree-node"][data-file-id="${file.id}"]`)
+  await expect(testFile).toBeVisible()
+  await expect(page.locator('[data-editor-scroll-container="true"] textarea').first()).toBeVisible()
 
-  // Wait for file to be created
-  await page.locator(`.overflow-auto >> text=${fileName}`).first().waitFor({ state: 'visible', timeout: 5000 })
+  return { fileName, file }
+}
 
-  // Select the file
-  const testFile = page.locator(`.overflow-auto >> text=${fileName}`).first()
-  await testFile.click()
+async function readOwnedFile(
+  page: import('@playwright/test').Page,
+  project: OwnedProject,
+  fileId: string,
+): Promise<OwnedFile> {
+  const response = await page.request.get(`${config.apiBaseUrl}/api/v1/files/${fileId}`, {
+    headers: project.headers,
+  })
+  expect(response.ok()).toBeTruthy()
+  return await response.json() as OwnedFile
+}
 
-  // Wait for editor to load
-  await expect(page.locator('[data-editor-scroll-container="true"] textarea').first()).toBeVisible({ timeout: 5000 })
-
-  return { fileName }
+async function saveEditor(page: import('@playwright/test').Page) {
+  const responsePromise = page.waitForResponse(response =>
+    response.url().includes('/api/v1/files/') && response.request().method() === 'PUT',
+  )
+  await page.getByRole('button', { name: /^(保存|Save)$/ }).click()
+  const response = await responsePromise
+  expect(response.ok()).toBeTruthy()
+  return response
 }
 
 async function focusVisibleEditorArea(
@@ -292,9 +268,9 @@ async function expectPlainTypingKeepsScrollStable(
   }
 }
 
-test.describe('Large Document - Editor Mode Switching', () => {
+test.describe('Large Document - Editor Content Integrity', () => {
   test.skip(!ENABLE_LARGE_DOCUMENT_E2E, LARGE_DOCUMENT_OPT_IN_MESSAGE)
-  test('small documents use SimpleEditor (not virtualized)', async ({ page }) => {
+  test('small documents retain complete content in SimpleEditor', async ({ page }) => {
     await setupProjectAndFile(page, '小文档测试')
 
     // Create small content (under 10000 words)
@@ -304,26 +280,14 @@ test.describe('Large Document - Editor Mode Switching', () => {
 
     // Verify content was added
     const value = await editor.inputValue()
-    expect(value.length).toBeGreaterThan(100)
-
-    // SimpleEditor should be used - no chunk indicators
-    // The status bar should show basic word count without "Chunks"
-    const chunkIndicator = page.locator('text=/Chunks|chunks/')
-    const hasChunkIndicator = await chunkIndicator.isVisible().catch(() => false)
-
-    // For small documents, chunk indicator might not exist or show minimal chunks
-    // This is expected behavior - SimpleEditor doesn't show chunk count
-    if (hasChunkIndicator) {
-      const chunkText = await chunkIndicator.textContent()
-      // If chunks shown, should be minimal for small doc
-      expect(chunkText).toBeTruthy()
-    }
+    expect(value).toBe(smallContent)
+    await expect(page.locator('[data-editor-scroll-container="true"] textarea')).toHaveCount(1)
   })
 
-  test('large documents use VirtualizedEditor', async ({ page }) => {
-    await setupProjectAndFile(page, '大文档虚拟化测试')
+  test('large documents retain complete content in SimpleEditor', async ({ page, ownedProject }) => {
+    const { file } = await setupProjectAndFile(page, '大文档完整性测试')
 
-    // Create large content (over 10000 words to trigger virtualization)
+    // Create content at the existing 12k-word regression scale.
     const largeContent = generateLargeContent(12000)
     const editor = page.locator('textarea').first()
 
@@ -335,58 +299,45 @@ test.describe('Large Document - Editor Mode Switching', () => {
 
     // Verify content
     const value = await editor.inputValue()
-    expect(value.length).toBeGreaterThan(100000)
-
-    // VirtualizedEditor should show chunk indicator
-    // Look for "Chunks" in status bar
-    const chunkIndicator = page.locator('text=/Chunks|chunks/')
-    await expect(chunkIndicator.first()).toBeVisible({ timeout: 5000 })
+    expect(value).toBe(largeContent)
+    await saveEditor(page)
+    expect((await readOwnedFile(page, ownedProject, file.id)).content).toBe(largeContent)
   })
 
-  test('editor mode switches when file changes', async ({ page }) => {
-    const { fileName } = await setupProjectAndFile(page, '模式切换测试')
+  test('complete content is preserved when switching between files', async ({ page, ownedProject }) => {
+    const { file: smallFile } = await setupProjectAndFile(page, '文件切换测试')
 
     // Create small content
     const smallContent = generateLargeContent(500)
     let editor = page.locator('textarea').first()
     await editor.fill(smallContent)
+    await saveEditor(page)
 
-    // Create another file with large content
-    const outlineFolder = page.locator('text=大纲').first()
-    await outlineFolder.hover()
-    const addButton = outlineFolder.locator('..').locator('button:has(svg.lucide-plus)').first()
-    await addButton.click({ force: true })
-
-    const fileInput = page.locator('input[placeholder*="大纲"]')
-    await fileInput.fill('大文档文件')
-    await fileInput.press('Enter')
+    // Create another real draft through the same API fixture contract.
+    const project = ownedProjectByPage.get(page)
+    if (!project) throw new Error('Large-document owned project fixture was not initialized')
+    const largeContent = generateLargeContent(12000)
+    const largeFileData = await createOwnedFile(page, project, { title: '大文档文件', content: largeContent })
+    await page.reload()
 
     // Select the large file
-    const largeFile = page.locator('.overflow-auto >> text=大文档文件').first()
+    const largeFile = page.locator(`[data-testid="file-tree-node"][data-file-id="${largeFileData.id}"]`)
     await largeFile.click()
-    await expect(page.locator('textarea')).toBeVisible({ timeout: 5000 })
-
-    // Fill with large content
-    editor = page.locator('textarea').first()
-    const largeContent = generateLargeContent(12000)
-    await editor.fill(largeContent)
-
-    // Wait for virtualization to kick in
-    await page.waitForTimeout(500)
-
-    // VirtualizedEditor should be active (chunk indicator visible)
-    await expect(page.locator('text=/Chunks|chunks/').first()).toBeVisible({ timeout: 5000 })
+    editor = page.locator('[data-editor-scroll-container="true"] textarea').first()
+    await expect(editor).toBeVisible({ timeout: 5000 })
+    await expect(editor).toHaveValue(largeContent)
 
     // Switch back to small file
-    const smallFile = page.locator(`.overflow-auto >> text=${fileName}`).first()
-    await smallFile.click()
-    await expect(page.locator('textarea')).toBeVisible({ timeout: 5000 })
+    await page.locator(`[data-testid="file-tree-node"][data-file-id="${smallFile.id}"]`).click()
+    await expect(editor).toBeVisible({ timeout: 5000 })
 
     // Editor should switch back to SimpleEditor
     // The content should still be preserved
     editor = page.locator('textarea').first()
     const smallFileValue = await editor.inputValue()
-    expect(smallFileValue.length).toBeGreaterThan(100)
+    expect(smallFileValue).toBe(smallContent)
+    expect((await readOwnedFile(page, ownedProject, largeFileData.id)).content).toBe(largeContent)
+    expect((await readOwnedFile(page, ownedProject, smallFile.id)).content).toBe(smallContent)
   })
 })
 
@@ -540,10 +491,10 @@ test.describe('Large Document - Scrolling Performance', () => {
     // Get scroll position
     const initialScrollTop = await scrollContainer.evaluate((el) => el.scrollTop)
 
-    // Make an edit
-    await editor.press('End')
-    await editor.press('Enter')
-    await editor.type('新内容')
+    // Make a real edit at the visible viewport instead of moving the caret to
+    // the document end (which would intentionally scroll to the bottom).
+    await focusVisibleEditorArea(page, scrollContainer)
+    await page.keyboard.type('新内容')
 
     // Wait for re-render
     await page.waitForTimeout(100)
@@ -606,18 +557,17 @@ test.describe('Large Document - Auto-Save Performance', () => {
     await editor.fill(largeContent)
 
     // Click save button
-    const saveButton = page.locator('button:has-text("保存"), button:has-text("Save")').first()
+    const saveButton = page.getByRole('button', { name: /^(保存|Save)$/ })
 
-    const saveStartTime = Date.now()
-    await saveButton.click()
-
-    // Wait for save to complete
-    await page.waitForResponse(
+    const saveResponse = page.waitForResponse(
       resp => resp.url().includes('/api/v1/') &&
              resp.url().includes('/files') &&
              resp.request().method() === 'PUT',
       { timeout: 10000 }
     )
+    const saveStartTime = Date.now()
+    await saveButton.click()
+    expect((await saveResponse).ok()).toBeTruthy()
     const saveTime = Date.now() - saveStartTime
 
     console.log(`Manual save time: ${saveTime}ms`)
@@ -627,7 +577,7 @@ test.describe('Large Document - Auto-Save Performance', () => {
   })
 
   test('content persists after save and reload', async ({ page }) => {
-    await setupProjectAndFile(page, '内容持久化测试')
+    const { file } = await setupProjectAndFile(page, '内容持久化测试')
 
     // Create large content with unique marker
     const uniqueMarker = `唯一标记${Date.now()}`
@@ -642,24 +592,20 @@ test.describe('Large Document - Auto-Save Performance', () => {
              resp.request().method() === 'PUT',
       { timeout: 10000 }
     )
+    const project = ownedProjectByPage.get(page)
+    if (!project) throw new Error('Large-document owned project fixture was not initialized')
+    expect((await readOwnedFile(page, project, file.id)).content).toBe(largeContent)
 
     // Reload page
     await page.reload()
     await page.waitForSelector('.overflow-auto', { timeout: 5000 })
 
-    // Navigate back to file
-    const outlineFolder = page.locator('text=大纲').first()
-    await outlineFolder.click()
-
-    const testFile = page.locator('.overflow-auto >> text=内容持久化测试').first()
-    await testFile.click()
-
     // Verify content persisted
-    await expect(page.locator('textarea')).toBeVisible({ timeout: 5000 })
-    const reloadedEditor = page.locator('textarea').first()
+    await expect(page.locator('[data-editor-scroll-container="true"] textarea')).toBeVisible({ timeout: 5000 })
+    const reloadedEditor = page.locator('[data-editor-scroll-container="true"] textarea').first()
     const reloadedContent = await reloadedEditor.inputValue()
 
-    expect(reloadedContent).toContain(uniqueMarker)
+    expect(reloadedContent).toBe(largeContent)
   })
 })
 
@@ -727,12 +673,11 @@ test.describe('Large Document - Memory Usage', () => {
     })
 
     // Create a new small file
-    const outlineFolder = page.locator('text=大纲').first()
+    const outlineFolder = page.getByTestId('file-tree-node').filter({ hasText: '大纲' }).first()
     await outlineFolder.hover()
-    const addButton = outlineFolder.locator('..').locator('button:has(svg.lucide-plus)').first()
-    await addButton.click({ force: true })
+    await outlineFolder.getByTestId('file-tree-create-child').click()
 
-    const fileInput = page.locator('input[placeholder*="大纲"]')
+    const fileInput = page.getByTestId('file-tree-new-item-input')
     await fileInput.fill('内存释放测试2')
     await fileInput.press('Enter')
 
@@ -827,27 +772,19 @@ test.describe('Large Document - Editing Functionality', () => {
     expect(value).toContain('编辑4')
   })
 
-  test('selection works across chunk boundaries', async ({ page }) => {
-    await setupProjectAndFile(page, '跨块选择测试')
+  test('selection works across distant paragraphs', async ({ page }) => {
+    await setupProjectAndFile(page, '长距离选择测试')
 
     // Create content that would span multiple chunks
     const largeContent = generateLargeContent(15000)
     const editor = page.locator('textarea').first()
     await editor.fill(largeContent)
 
-    // Wait for virtualization
-    await page.waitForTimeout(500)
-
-    // Select a large portion of text
-    await editor.focus()
-    await page.keyboard.press('Home')
-    await page.keyboard.down('Shift')
-
-    // Move down multiple lines
-    for (let i = 0; i < 20; i++) {
-      await page.keyboard.press('ArrowDown')
-    }
-    await page.keyboard.up('Shift')
+    // Select a range spanning multiple generated paragraphs.
+    await editor.evaluate((el: HTMLTextAreaElement) => {
+      el.focus()
+      el.setSelectionRange(90, 500)
+    })
 
     // Get selection
     const selection = await editor.evaluate((el: HTMLTextAreaElement) => {
@@ -855,7 +792,7 @@ test.describe('Large Document - Editing Functionality', () => {
     })
 
     // Selection should be non-empty
-    expect(selection.length).toBeGreaterThan(100)
+    expect(selection).toBe(largeContent.slice(90, 500))
   })
 
   test('undo/redo works with large documents', async ({ page }) => {
@@ -910,20 +847,12 @@ test.describe('Editor Scroll Regression', () => {
     await expectPlainTypingKeepsScrollStable(page, editor, scrollContainer)
   })
 
-  test('plain typing and deletion do not jump VirtualizedEditor back to top', async ({ page }) => {
+  test('plain typing and deletion do not jump a large SimpleEditor document back to top', async ({ page }) => {
     await setupProjectAndFile(page, '普通输入回顶回归-大文档')
 
     const largeContent = generateLargeContent(12000)
-    const titleInput = page.locator('input[placeholder*="标题"], input[placeholder*="title"]').first()
     const editor = page.locator('[data-editor-scroll-container="true"] textarea').first()
     await editor.fill(largeContent)
-    await page.waitForTimeout(500)
-
-    await expect(page.locator('text=/分块|Chunks|chunks/').first()).toBeVisible({ timeout: 5000 })
-    const chunkingIndicator = page.locator('text=/Loading|加载/').first()
-    if (await chunkingIndicator.isVisible().catch(() => false)) {
-      await expect(chunkingIndicator).toBeHidden({ timeout: 10000 })
-    }
 
     const scrollContainer = page.locator('[data-editor-scroll-container="true"]').first()
     await scrollContainer.evaluate((el) => {
@@ -931,45 +860,25 @@ test.describe('Editor Scroll Regression', () => {
     })
     await page.waitForTimeout(200)
 
-    await expect(titleInput).toBeVisible()
-    const visibleChunkTextarea = page.locator(
-      '[data-editor-scroll-container="true"] .chunk-container textarea:visible'
-    ).first()
-    await expect(visibleChunkTextarea).toBeVisible()
-
-    await expectPlainTypingKeepsScrollStable(page, visibleChunkTextarea, scrollContainer, 160, true)
+    await expectPlainTypingKeepsScrollStable(page, editor, scrollContainer, 160)
   })
 })
 
-test.describe('Large Document - Chunking Progress', () => {
+test.describe('Large Document - Very Large Content', () => {
   test.skip(!ENABLE_LARGE_DOCUMENT_E2E, LARGE_DOCUMENT_OPT_IN_MESSAGE)
-  test('chunking progress indicator appears for large documents', async ({ page }) => {
-    await setupProjectAndFile(page, '分块进度测试')
+  test('very large documents retain complete content after save', async ({ page, ownedProject }) => {
+    const { file } = await setupProjectAndFile(page, '超大文档完整性测试')
 
-    // Create very large content to trigger lazy chunking
+    // Keep the original 30k-word stress scale while testing the implementation
+    // that exists in current main and the latest production tag.
     const veryLargeContent = generateLargeContent(30000)
     const editor = page.locator('textarea').first()
 
-    // Fill editor and watch for progress indicator
     await editor.fill(veryLargeContent)
-
-    // Look for loading/progress indicator
-    // The VirtualizedEditor shows "Loading... X%" during progressive chunking
-    const progressIndicator = page.locator('text=/Loading|加载/')
-
-    // Progress indicator may be brief, so just check it exists at some point
-    const hadProgressIndicator = await progressIndicator.first().isVisible({ timeout: 1000 }).catch(() => false)
-
-    if (hadProgressIndicator) {
-      console.log('Progress indicator was visible during chunking')
-    }
-
-    // Wait for content to be fully loaded
-    await page.waitForTimeout(1000)
-
-    // Verify content is present
     const value = await editor.inputValue()
-    expect(value.length).toBeGreaterThan(100000)
+    expect(value).toBe(veryLargeContent)
+    await saveEditor(page)
+    expect((await readOwnedFile(page, ownedProject, file.id)).content).toBe(veryLargeContent)
   })
 })
 

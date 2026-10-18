@@ -1,483 +1,203 @@
-import { test, expect, Page } from '@playwright/test';
-import { TEST_USERS } from './config';
-import { LoginPage, ChatPanel } from './fixtures/page-objects';
+import { test, expect, type Page, type Route } from '@playwright/test';
+import { createOwnedProject, createOwnedFile, cleanupOwnedProject, type OwnedProject } from './fixtures/project-test-data';
 
-const ENABLE_ERROR_RECOVERY_E2E = process.env.E2E_ENABLE_ERROR_RECOVERY_E2E === 'true';
-const ERROR_RECOVERY_OPT_IN_MESSAGE = 'Error recovery E2E tests are opt-in. Set E2E_ENABLE_ERROR_RECOVERY_E2E=true to run.';
+const ENABLED = process.env.E2E_ENABLE_ERROR_RECOVERY_E2E === 'true';
+const STREAM = '**/api/v1/agent/stream';
+const responseText = '重试后，这一段已经完整写好。';
+const frame = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+const completed = frame('content', { text: responseText }) + frame('done', {});
+const fulfillStream = (route: Route, body: string) => route.fulfill({ contentType: 'text/event-stream', body });
+const retryButton = (page: Page) => page.getByTestId('chat-panel').getByRole('button', { name: '重试', exact: true });
+const streamError = (page: Page) => page.getByTestId('chat-panel').getByText('这次生成中断了', { exact: true });
 
-/**
- * Error Recovery E2E Tests
- *
- * Tests application behavior under error conditions:
- * - Network interruption during AI stream
- * - Backend restart handling (503 errors)
- * - Quota exceeded error display
- * - Failed API call retry with backoff
- * - Invalid response handling
- * - Timeout error handling
- */
-
+// Faults are injected at the browser boundary. No test retries generation on its
+// own, and no unmatched request may reach a paid provider (CI backend egress guard).
 test.describe('Error Recovery', () => {
-  test.skip(!ENABLE_ERROR_RECOVERY_E2E, ERROR_RECOVERY_OPT_IN_MESSAGE);
+  test.skip(!ENABLED, 'Error recovery requires E2E_ENABLE_ERROR_RECOVERY_E2E=true.');
+  let project: OwnedProject | undefined;
+  const savedDraft = '雨停以后，书铺门前只剩下一盏灯。';
 
-  // Test credentials
-  const TEST_EMAIL = TEST_USERS.standard.email;
-  const TEST_PASSWORD = TEST_USERS.standard.password;
-  const API_BASE_URL = process.env.E2E_API_BASE_URL || 'http://127.0.0.1:8000';
-
-  const listProjects = async (page: Page, authHeaders: Record<string, string>): Promise<Array<{ id: string }>> => {
-    const listResponse = await page.request.get(`${API_BASE_URL}/api/v1/projects`, {
-      headers: authHeaders,
-    });
-
-    if (!listResponse.ok()) {
-      throw new Error(`Failed to list projects: ${listResponse.status()} ${listResponse.statusText()}`);
-    }
-
-    const payload = await listResponse.json();
-    return Array.isArray(payload) ? payload : [];
-  };
-
-  const ensureProjectWorkspace = async (page: Page): Promise<void> => {
-    if (page.url().includes('/project/')) {
-      return;
-    }
-
-    const accessToken = await page.evaluate(() => localStorage.getItem('access_token'));
-    if (!accessToken) {
-      throw new Error('Missing access token after login');
-    }
-
-    const authHeaders = {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    };
-
-    let projects = await listProjects(page, authHeaders);
-
-    if (projects.length === 0) {
-      const createResponse = await page.request.post(`${API_BASE_URL}/api/v1/projects`, {
-        headers: authHeaders,
-        data: {
-          name: `E2E Error Recovery ${Date.now()}`,
-          project_type: 'novel',
-        },
-      });
-
-      if (!createResponse.ok()) {
-        throw new Error(`Failed to create project: ${createResponse.status()} ${createResponse.statusText()}`);
-      }
-
-      const createdProject = (await createResponse.json()) as { id?: string };
-      if (!createdProject?.id) {
-        throw new Error('Project creation returned no id');
-      }
-
-      projects = [{ id: createdProject.id }];
-    }
-
-    await page.goto(`/project/${projects[0].id}`);
-    await page.waitForURL(/\/project\//, { timeout: 10000 });
-  };
-
-  const waitForWorkspaceReady = async (page: Page): Promise<void> => {
-    await expect(page).toHaveURL(/\/project\//, { timeout: 10000 });
-    await expect(
-      page.locator('[data-testid="file-tree"], input[placeholder*="搜索文件"], input[placeholder*="Search files"], [role="searchbox"]').first()
-    ).toBeVisible({ timeout: 15000 });
-    await expect(
-      page
-        .locator('[data-testid="chat-input"], textarea[placeholder*="描述你想创作"], textarea[placeholder*="输入"], textarea[placeholder*="Type"]')
-        .first()
-    ).toBeVisible({ timeout: 15000 });
-  };
-
-  let loginPage: LoginPage;
-  let chatPanel: ChatPanel;
-
-  test.beforeEach(async ({ page }) => {
-    loginPage = new LoginPage(page);
-    chatPanel = new ChatPanel(page);
-
-    // Navigate to login page
-    await loginPage.navigateToLogin();
-
-    // Login with test credentials
-    await loginPage.login(TEST_EMAIL, TEST_PASSWORD);
-
-    // Wait for redirect to complete (either project or dashboard)
-    await page.waitForURL(/\/(project|dashboard)/, { timeout: 10000 });
-
-    // Use API-driven setup to avoid locale/UI-dependent dashboard interactions.
-    await ensureProjectWorkspace(page);
-
-    // Wait for project workspace to load
-    await waitForWorkspaceReady(page);
+  test.beforeEach(async ({ page }, testInfo) => {
+    project = await createOwnedProject(page, testInfo, 'Recovery');
+    const file = await createOwnedFile(page, project, { title: '恢复测试', content: savedDraft });
+    await page.route(STREAM, route => fulfillStream(route, completed));
+    await page.goto(`/project/${project.id}?file=${file.id}`);
+    await expect(page.locator('[data-editor-scroll-container] textarea').first()).toHaveValue(savedDraft);
+    await expect(page.getByTestId('chat-input')).toBeEnabled();
   });
 
-  test('network interruption during AI stream', async ({ page, context }) => {
-    // Send a message that will trigger AI response
-    await chatPanel.sendMessage('写一段简短的故事');
-
-    // Wait for AI response to start streaming
-    await expect(page.locator('.animate-pulse.w-1\\.5')).toBeVisible({ timeout: 10000 });
-
-    // Simulate network offline
-    await context.setOffline(true);
-
-    // Verify error message appears
-    await expect(page.locator('[class*="error"], .text-error, [data-testid="error-message"]')).toBeVisible({ timeout: 15000 });
-
-    // Restore network
+  test.afterEach(async ({ page, context }) => {
     await context.setOffline(false);
+    await cleanupOwnedProject(page, project);
+    project = undefined;
+  });
 
-    // Verify retry option available (retry button or auto-retry indicator)
-    const retryButton = page.locator('button:has-text("重试"), button:has-text("Retry"), [data-testid="retry-button"]');
-    const isVisible = await retryButton.first().isVisible().catch(() => false);
-    expect(isVisible).toBeTruthy();
+  async function send(page: Page, text = '继续写这一段') {
+    await page.getByTestId('chat-input').fill(text);
+    await page.getByTestId('send-button').click();
+  }
+
+  async function expectReadyToContinue(page: Page) {
+    await page.getByTestId('chat-input').fill('接下来继续写');
+    await expect(page.getByTestId('send-button')).toBeEnabled();
+  }
+
+  async function expectDraftIntact(page: Page) {
+    await expect(page.locator('[data-editor-scroll-container] textarea').first()).toHaveValue(savedDraft);
+  }
+
+  test('network interruption during AI stream', async ({ page }) => {
+    // A readable stream fails only after the UI has rendered its first chunk.
+    // This exercises reader.read() rejection, rather than failing the initial fetch.
+    await page.evaluate(() => {
+      const originalFetch = window.fetch.bind(window);
+      let calls = 0;
+      window.fetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        if (!url.endsWith('/api/v1/agent/stream') || ++calls > 1) return originalFetch(input, init);
+        return new Response(new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('event: content\ndata: {"text":"已经收到的半段正文"}\n\n'));
+            window.addEventListener('e2e-disconnect', () => controller.error(new TypeError('Network connection lost')), { once: true });
+          },
+        }), { headers: { 'Content-Type': 'text/event-stream' } });
+      };
+    });
+    await send(page);
+    await expect(page.getByTestId('chat-panel').getByText('已经收到的半段正文', { exact: true })).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event('e2e-disconnect')));
+    await expect(streamError(page)).toBeVisible();
+    await expect(retryButton(page)).toBeVisible();
+    await expectReadyToContinue(page);
+    await expectDraftIntact(page);
+    await retryButton(page).click();
+    await expect(page.getByTestId('chat-panel').getByText(responseText, { exact: true })).toBeVisible();
   });
 
   test('backend restart handling (503 errors)', async ({ page }) => {
-    // Mock 503 response for all API calls
-    await page.route('**/api/v1/**', route =>
-      route.fulfill({
-        status: 503,
-        body: JSON.stringify({ message: 'Service Unavailable', detail: 'Backend is restarting' }),
-        headers: { 'Content-Type': 'application/json' }
-      })
-    );
-
-    // Try to send a message
-    await chatPanel.sendMessage('Test message during restart');
-
-    // Verify user-friendly error message
-    await expect(page.locator('text=/服务暂不可用|Service.*unavailable|503/i')).toBeVisible({ timeout: 10000 });
-
-    // Verify retry mechanism is suggested
-    await expect(page.locator('button:has-text("重试"), button:has-text("Retry"), text=/请稍后|please.*try.*later/i')).toBeVisible({ timeout: 5000 });
+    let attempts = 0;
+    await page.route(STREAM, route => {
+      attempts++;
+      return route.fulfill({ status: 503, json: { detail: '服务暂不可用，请稍后再试' } });
+    });
+    await send(page);
+    await expect(streamError(page)).toBeVisible();
+    await expect(page.getByText('服务暂不可用，请稍后再试', { exact: true })).toBeVisible();
+    await expect(retryButton(page)).not.toBeVisible();
+    await expectReadyToContinue(page);
+    await expectDraftIntact(page);
+    expect(attempts).toBe(1);
   });
 
   test('quota exceeded error display', async ({ page }) => {
-    // Mock 429 response for agent chat
-    await page.route('**/api/v1/agent/**', route =>
-      route.fulfill({
-        status: 429,
-        body: JSON.stringify({
-          message: 'Rate limit exceeded',
-          detail: 'You have exceeded the API quota',
-          retry_after: 60
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Retry-After': '60'
-        }
-      })
-    );
-
-    await chatPanel.sendMessage('Test message for quota');
-
-    // Verify quota error message visible
-    await expect(
-      page.locator('text=/配额.*超出|quota.*exceeded|429|rate.*limit/i')
-    ).toBeVisible({ timeout: 10000 });
-
-    // Verify retry-after time displayed
-    const retryText = await page.locator('text=/60.*秒|1.*分钟|retry.*after/i').first().textContent();
-    expect(retryText).toBeTruthy();
+    let attempts = 0;
+    await page.route(STREAM, route => {
+      attempts++;
+      return route.fulfill({ status: 429, json: { error_code: 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED', detail: '今天的免费 AI 消息用完了' } });
+    });
+    await send(page);
+    await expect(page.getByTestId('chat-panel').getByText(/今天的.*AI 消息.*用完/).first()).toBeVisible();
+    await expect(page.getByTestId('chat-input')).toBeEnabled();
+    await expect(retryButton(page)).not.toBeVisible();
+    await expectDraftIntact(page);
+    expect(attempts).toBe(1);
   });
 
-  test('failed API call retry with backoff', async ({ page }) => {
-    let attemptCount = 0;
-
-    // Mock API that fails twice then succeeds
+  test('failed API call supports explicit retry without automatic backoff', async ({ page }) => {
+    let attempts = 0;
+    let recovering = false;
     await page.route('**/api/v1/projects', route => {
-      attemptCount++;
-      if (attemptCount < 3) {
-        route.fulfill({ status: 500, body: 'Internal Server Error' });
-      } else {
-        route.continue();
-      }
+      attempts++;
+      return recovering ? route.continue() : route.fulfill({ status: 503, json: { detail: '暂时不可用' } });
     });
-
-    // Trigger action that requires projects API (e.g., refresh or create)
     await page.reload();
-
-    // Verify eventual success after retries (page loads successfully)
-    await expect(page.locator('[data-testid="file-tree"], [data-testid="chat-panel"]')).toBeVisible({ timeout: 15000 });
-
-    // Verify multiple attempts were made
-    expect(attemptCount).toBeGreaterThanOrEqual(2);
+    await expect(page.getByText('加载项目失败', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible();
+    const beforeRetry = attempts;
+    recovering = true;
+    await page.getByRole('button', { name: '重试', exact: true }).click();
+    await expectDraftIntact(page);
+    expect(attempts).toBe(beforeRetry + 1);
   });
 
   test('invalid response handling', async ({ page }) => {
-    // Mock invalid JSON response
-    await page.route('**/api/v1/projects', route =>
-      route.fulfill({
-        status: 200,
-        body: 'Invalid JSON{{',
-        contentType: 'application/json'
-      })
-    );
-
-    // Reload page to trigger API call
+    await page.route('**/api/v1/projects', route => route.fulfill({ contentType: 'application/json', body: 'Invalid JSON{{' }));
     await page.reload();
-
-    // Verify graceful error handling (error message or fallback UI)
-    await expect(
-      page.locator('[class*="error"], .text-error, text=/错误|error|failed/i')
-    ).toBeVisible({ timeout: 10000 });
-
-    // Verify no crash (page is still functional)
-    const isPageResponsive = await page.locator('body').isVisible();
-    expect(isPageResponsive).toBeTruthy();
+    await expect(page.getByText('加载项目失败', { exact: true })).toBeVisible();
+    await page.unroute('**/api/v1/projects');
+    await page.getByRole('button', { name: '重试', exact: true }).click();
+    await expectDraftIntact(page);
   });
 
   test('timeout error handling', async ({ page }) => {
-    // Mock API that delays longer than typical timeout
-    await page.route('**/api/v1/agent/**', route => {
-      // Delay for 65 seconds (longer than typical 60s timeout)
-      setTimeout(() => route.continue(), 65000);
+    // Reproduce the server's typed timeout terminal frame, not a 65-second
+    // sleep beyond the test timeout. A completed timeout must not auto-replay.
+    let attempts = 0;
+    await page.route(STREAM, route => {
+      attempts++;
+      return fulfillStream(route, frame('error', { code: 'ERR_AGENT_RUN_TIMEOUT', message: '这一轮写得太久，先停下了。回复「继续」就能接着写。', retryable: false }));
     });
-
-    await chatPanel.sendMessage('Test timeout');
-
-    // Verify timeout error message appears (within reasonable time)
-    await expect(
-      page.locator('text=/超时|timeout|took.*long|timed.*out/i')
-    ).toBeVisible({ timeout: 70000 });
-
-    // Verify user can retry
-    const retryButton = page.locator('button:has-text("重试"), button:has-text("Retry"), [data-testid="retry-button"]');
-    const isRetryVisible = await retryButton.first().isVisible().catch(() => false);
-    expect(isRetryVisible).toBeTruthy();
+    await send(page);
+    await expect(page.getByText('这一轮写得太久，先停下了。回复「继续」就能接着写。', { exact: true })).toBeVisible();
+    await expect(retryButton(page)).not.toBeVisible();
+    await expectReadyToContinue(page);
+    await expectDraftIntact(page);
+    expect(attempts).toBe(1);
   });
 
   test('authentication error redirects to login', async ({ page }) => {
-    // Mock 401 Unauthorized response
-    await page.route('**/api/v1/**', route =>
-      route.fulfill({
-        status: 401,
-        body: JSON.stringify({ message: 'Unauthorized', detail: 'Token expired' }),
-        headers: { 'Content-Type': 'application/json' }
-      })
-    );
-
-    // Trigger API call
+    await page.route('**/api/v1/**', route => route.fulfill({ status: 401, json: { detail: 'Token expired' } }));
     await page.reload();
-
-    // Verify redirect to login page
-    await page.waitForURL(/\/login/, { timeout: 10000 });
-    await expect(page.locator('[data-testid="login-form"]')).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.locator('#identifier')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('access_token'))).toBeNull();
   });
 
   test('network error with retry button', async ({ page }) => {
-    let attemptCount = 0;
-
-    // Mock network failure on first attempt
-    await page.route('**/api/v1/agent/**', route => {
-      attemptCount++;
-      if (attemptCount === 1) {
-        route.abort('failed');
-      } else {
-        route.continue();
-      }
-    });
-
-    await chatPanel.sendMessage('Test network error');
-
-    // Verify network error message
-    await expect(
-      page.locator('text=/网络.*错误|network.*error|连接.*失败|connection.*failed/i')
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click retry button
-    const retryButton = page.locator('button:has-text("重试"), button:has-text("Retry")').first();
-    if (await retryButton.isVisible()) {
-      await retryButton.click();
-
-      // Verify retry succeeds
-      await expect(page.locator('[data-testid="chat-message"]')).toBeVisible({ timeout: 15000 });
-    }
+    let attempts = 0;
+    await page.route(STREAM, route => ++attempts === 1 ? route.abort('failed') : fulfillStream(route, completed));
+    await send(page);
+    await expect(streamError(page)).toBeVisible();
+    await expect(retryButton(page)).toBeVisible();
+    expect(attempts).toBe(1);
+    await retryButton(page).click();
+    await expect(page.getByTestId('chat-panel').getByText(responseText, { exact: true })).toBeVisible();
+    await expect(streamError(page)).not.toBeVisible();
+    await expectDraftIntact(page);
+    expect(attempts).toBe(2);
   });
 
   test('partial response handling', async ({ page }) => {
-    // Mock partial JSON response (incomplete)
-    await page.route('**/api/v1/projects/*/files', route =>
-      route.fulfill({
-        status: 200,
-        body: '{"files": [{"id": "1", "title": "Partial',
-        contentType: 'application/json'
-      })
-    );
-
-    // Trigger file list load
-    await page.reload();
-
-    // Verify error handling or graceful degradation
-    await expect(
-      page.locator('[class*="error"], .text-error, text=/错误|error/i')
-    ).toBeVisible({ timeout: 10000 });
-
-    // Verify UI remains functional
-    const isFunctional = await page.locator('[data-testid="chat-panel"]').isVisible();
-    expect(isFunctional).toBeTruthy();
-  });
-});
-
-test.describe('Error Recovery - Streaming Errors', () => {
-  test.skip(!ENABLE_ERROR_RECOVERY_E2E, ERROR_RECOVERY_OPT_IN_MESSAGE);
-
-  const TEST_EMAIL = TEST_USERS.standard.email;
-  const TEST_PASSWORD = TEST_USERS.standard.password;
-  const API_BASE_URL = process.env.E2E_API_BASE_URL || 'http://127.0.0.1:8000';
-
-  const listProjects = async (page: Page, authHeaders: Record<string, string>): Promise<Array<{ id: string }>> => {
-    const listResponse = await page.request.get(`${API_BASE_URL}/api/v1/projects`, {
-      headers: authHeaders,
-    });
-
-    if (!listResponse.ok()) {
-      throw new Error(`Failed to list projects: ${listResponse.status()} ${listResponse.statusText()}`);
-    }
-
-    const payload = await listResponse.json();
-    return Array.isArray(payload) ? payload : [];
-  };
-
-  const ensureProjectWorkspace = async (page: Page): Promise<void> => {
-    if (page.url().includes('/project/')) {
-      return;
-    }
-
-    const accessToken = await page.evaluate(() => localStorage.getItem('access_token'));
-    if (!accessToken) {
-      throw new Error('Missing access token after login');
-    }
-
-    const authHeaders = {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    };
-
-    let projects = await listProjects(page, authHeaders);
-
-    if (projects.length === 0) {
-      const createResponse = await page.request.post(`${API_BASE_URL}/api/v1/projects`, {
-        headers: authHeaders,
-        data: {
-          name: `E2E Streaming Error ${Date.now()}`,
-          project_type: 'novel',
-        },
-      });
-
-      if (!createResponse.ok()) {
-        throw new Error(`Failed to create project: ${createResponse.status()} ${createResponse.statusText()}`);
-      }
-
-      const createdProject = (await createResponse.json()) as { id?: string };
-      if (!createdProject?.id) {
-        throw new Error('Project creation returned no id');
-      }
-
-      projects = [{ id: createdProject.id }];
-    }
-
-    await page.goto(`/project/${projects[0].id}`);
-    await page.waitForURL(/\/project\//, { timeout: 10000 });
-  };
-
-  const waitForWorkspaceReady = async (page: Page): Promise<void> => {
-    await expect(page).toHaveURL(/\/project\//, { timeout: 10000 });
-    await expect(
-      page.locator('[data-testid="file-tree"], input[placeholder*="搜索文件"], input[placeholder*="Search files"], [role="searchbox"]').first()
-    ).toBeVisible({ timeout: 15000 });
-    await expect(
-      page
-        .locator('[data-testid="chat-input"], textarea[placeholder*="描述你想创作"], textarea[placeholder*="输入"], textarea[placeholder*="Type"]')
-        .first()
-    ).toBeVisible({ timeout: 15000 });
-  };
-
-  let loginPage: LoginPage;
-  let chatPanel: ChatPanel;
-
-  test.beforeEach(async ({ page }) => {
-    loginPage = new LoginPage(page);
-    chatPanel = new ChatPanel(page);
-
-    await loginPage.navigateToLogin();
-    await loginPage.login(TEST_EMAIL, TEST_PASSWORD);
-    await page.waitForURL(/\/(project|dashboard)/, { timeout: 10000 });
-
-    await ensureProjectWorkspace(page);
-
-    await waitForWorkspaceReady(page);
+    await page.route(STREAM, route => fulfillStream(route, 'event: content\ndata: {"text":"unfinished'));
+    await send(page);
+    await expect(streamError(page)).toBeVisible();
+    await expect(page.getByText('网络中断，请重试', { exact: true })).toBeVisible();
+    await expect(retryButton(page)).toBeVisible();
+    await expectDraftIntact(page);
   });
 
   test('SSE stream interruption', async ({ page }) => {
-    let streamStarted = false;
-
-    // Mock SSE stream that starts but doesn't complete
-    await page.route('**/api/v1/agent/chat', route => {
-      streamStarted = true;
-      route.fulfill({
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        },
-        body: `data: {"type": "content", "content": "Starting response..."}\n\n`
-        // Stream ends abruptly without completion event
-      });
-    });
-
-    await chatPanel.sendMessage('Test stream interruption');
-
-    // Wait for stream to start
-    await expect(page.locator('[data-testid="chat-message"]').last()).toBeVisible({ timeout: 10000 });
-
-    // Verify incomplete response is handled
-    const errorVisible = await page.locator('[class*="error"], text=/不完整|incomplete|interrupted/i').isVisible().catch(() => false);
-
-    // Application should either show error or handle gracefully
-    expect(errorVisible || streamStarted).toBeTruthy();
+    await page.route(STREAM, route => fulfillStream(route, frame('content', { text: '连接关闭前收到的正文' })));
+    await send(page);
+    await expect(page.getByTestId('chat-panel').getByText('连接关闭前收到的正文', { exact: true })).toBeVisible();
+    await expect(streamError(page)).toBeVisible();
+    await expect(page.getByText('网络中断，请重试', { exact: true })).toBeVisible();
+    await expect(retryButton(page)).toBeVisible();
+    await expectReadyToContinue(page);
+    await expectDraftIntact(page);
   });
 
   test('malformed SSE event handling', async ({ page }) => {
-    // Mock SSE stream with malformed events
-    await page.route('**/api/v1/agent/chat', route =>
-      route.fulfill({
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        },
-        body: `data: invalid-json{{\n\ndata: {"type": "content", "content": "Valid part"}\n\n`
-      })
-    );
-
-    await chatPanel.sendMessage('Test malformed SSE');
-
-    // Verify app handles malformed events without crashing
-    await expect(page.locator('[data-testid="chat-message"]')).toBeVisible({ timeout: 10000 });
-
-    // Verify no JavaScript errors in console
-    const consoleErrors: string[] = [];
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        consoleErrors.push(msg.text());
-      }
-    });
-
-    // Wait a moment for any async errors to surface
-    await expect(page.locator('[data-testid="chat-message"]')).toBeVisible({ timeout: 2000 });
-
-    // Should not have uncaught syntax errors
-    const hasUncaughtErrors = consoleErrors.some(err =>
-      err.includes('SyntaxError') || err.includes('Unexpected token')
-    );
-    expect(hasUncaughtErrors).toBeFalsy();
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.route(STREAM, route => fulfillStream(route, 'event: content\ndata: invalid-json{{\n\n' + completed));
+    await send(page);
+    // The parser deliberately preserves non-JSON content frames as text.
+    await expect(page.getByTestId('message-list')).toContainText(responseText);
+    await expect(page.getByTestId('message-list')).toContainText('invalid-json{{');
+    await expect(streamError(page)).not.toBeVisible();
+    await expectReadyToContinue(page);
+    await expectDraftIntact(page);
+    expect(pageErrors).toEqual([]);
   });
 });

@@ -921,7 +921,7 @@ function SkillCard({
   );
 
   return (
-    <div className={`group relative bg-[hsl(var(--bg-secondary))] rounded-2xl border ${isSelected ? "border-[hsl(var(--accent-primary))]" : "border-[hsl(var(--border-color))]"} hover:border-[hsl(var(--accent-primary)/0.3)] transition-colors ${isMobile ? "p-3" : "p-4"}`}>
+    <div data-testid="skill-card" className={`group relative bg-[hsl(var(--bg-secondary))] rounded-2xl border ${isSelected ? "border-[hsl(var(--accent-primary))]" : "border-[hsl(var(--border-color))]"} hover:border-[hsl(var(--accent-primary)/0.3)] transition-colors ${isMobile ? "p-3" : "p-4"}`}>
       <div className="flex items-start justify-between gap-3">
         {/* Checkbox */}
         {onToggleSelect && (
@@ -1296,7 +1296,7 @@ function AddedSkillCard({
   const localizedCategory = getLocalizedSkillCategory(skill.category, t);
 
   return (
-    <div className={`group relative bg-[hsl(var(--bg-secondary))] rounded-2xl border ${isSelected ? "border-[hsl(var(--accent-primary))]" : "border-[hsl(var(--border-color))]"} hover:border-[hsl(var(--accent-primary)/0.3)] transition-colors ${isMobile ? "p-3" : "p-4"}`}>
+    <div data-testid="skill-card" className={`group relative bg-[hsl(var(--bg-secondary))] rounded-2xl border ${isSelected ? "border-[hsl(var(--accent-primary))]" : "border-[hsl(var(--border-color))]"} hover:border-[hsl(var(--accent-primary)/0.3)] transition-colors ${isMobile ? "p-3" : "p-4"}`}>
       <div className="flex items-start justify-between gap-3">
         {/* Checkbox */}
         {onToggleSelect && (

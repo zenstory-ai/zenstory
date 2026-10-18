@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { TEST_USERS } from './config';
+import { login } from './helpers/common';
 
 /**
  * E2E Tests for Skills Management Flow
@@ -30,7 +31,7 @@ const MY_SKILLS = {
   createButton: 'button:has-text("创建")',
   userSkillsSection: 'h2:has-text("自定义技能")',
   addedSkillsSection: 'h2:has-text("已添加技能")',
-  skillCard: '[class*="rounded-lg"][class*="border"]',
+  skillCard: '[data-testid="skill-card"]',
   selectAllButton: 'button:has(svg.lucide-square), button:has(svg.lucide-check-square)',
   batchDeleteButton: 'button:has-text("删除")',
   emptyState: '.text-center:has(svg.lucide-search)',
@@ -104,7 +105,7 @@ test.skip(
 async function clearExistingUserSkills(page: Page) {
   await page.evaluate(async () => {
     const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return;
+    if (!accessToken) throw new Error('Missing access token while cleaning E2E skills');
 
     const headers = {
       Authorization: `Bearer ${accessToken}`,
@@ -112,38 +113,31 @@ async function clearExistingUserSkills(page: Page) {
     };
 
     const response = await fetch('/api/v1/skills/my-skills', { headers });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error(`Failed to list E2E skills: ${response.status}`);
 
     const payload = await response.json();
     const userSkills = Array.isArray(payload?.user_skills) ? payload.user_skills : [];
 
     for (const skill of userSkills) {
-      if (!skill?.id) continue;
-      await fetch(`/api/v1/skills/${skill.id}`, { method: 'DELETE', headers });
+      if (!skill?.id || typeof skill.name !== 'string' || !skill.name.startsWith('E2E ')) continue;
+      const deleteResponse = await fetch(`/api/v1/skills/${skill.id}`, { method: 'DELETE', headers });
+      if (!deleteResponse.ok) throw new Error(`Failed to delete E2E skill ${skill.id}: ${deleteResponse.status}`);
     }
   });
 }
 
+test.afterEach(async ({ page }) => {
+  await clearExistingUserSkills(page);
+});
+
 function getSkillCard(page: Page, skillName: string) {
-  return page.locator('[class*="rounded-lg"][class*="border"]').filter({ hasText: skillName }).first();
+  return page.getByTestId('skill-card').filter({ hasText: skillName }).first();
 }
 
 test.describe('Skills Management', () => {
   test.beforeEach(async ({ page }) => {
-    // Login first
-    await page.goto('/login');
-    await expect(page.locator('#identifier')).toBeVisible();
-    await page.fill('#identifier', TEST_EMAIL);
-    await page.fill('#password', TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(dashboard|project)/, { timeout: 10000 });
-
-    // Navigate to skills page via dashboard
-    if (page.url().includes('/project/')) {
-      await page.goto('/dashboard/skills');
-    } else {
-      await page.goto('/dashboard/skills');
-    }
+    await login(page, TEST_EMAIL, TEST_PASSWORD);
+    await page.goto('/dashboard/skills');
 
     // Wait for skills page to load
     await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
@@ -167,7 +161,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Fill in skill form
-    const skillName = `测试技能 ${Date.now()}`;
+    const skillName = `E2E 测试技能 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('input[placeholder*="描述"]', '这是一个测试技能的描述');
     await page.fill('input[placeholder*="开篇"], input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]', '/test, 测试');
@@ -193,7 +187,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const originalName = `编辑测试技能 ${Date.now()}`;
+    const originalName = `E2E 编辑测试技能 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', originalName);
     await page.fill('textarea', '测试指令内容');
     await page.click('button:has-text("保存")');
@@ -228,7 +222,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const skillName = `指令编辑测试 ${Date.now()}`;
+    const skillName = `E2E 指令编辑测试 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '原始指令内容');
     await page.click('button:has-text("保存")');
@@ -262,7 +256,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const skillName = `触发器测试 ${Date.now()}`;
+    const skillName = `E2E 触发器测试 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '测试指令');
 
@@ -288,7 +282,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const skillName = `待删除技能 ${Date.now()}`;
+    const skillName = `E2E 待删除技能 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '将被删除的技能');
     await page.click('button:has-text("保存")');
@@ -301,10 +295,9 @@ test.describe('Skills Management', () => {
     await skillCard.locator('button:has(svg.lucide-trash-2)').click();
 
     const deleteDialog = page.locator('[role="dialog"]').filter({ hasText: /删除|确认/i }).last();
-    if (await deleteDialog.isVisible().catch(() => false)) {
-      await deleteDialog.locator('button:has-text("删除"):not(:has-text("取消"))').click();
-      await expect(deleteDialog).not.toBeVisible({ timeout: 5000 });
-    }
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.locator('button:has-text("删除"):not(:has-text("取消"))').click();
+    await expect(deleteDialog).not.toBeVisible({ timeout: 5000 });
 
     // Verify skill is gone
     await expect(page.locator(`text=${skillName}`)).not.toBeVisible({ timeout: 5000 });
@@ -341,7 +334,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const uniqueName = `搜索测试技能 ${Date.now()}`;
+    const uniqueName = `E2E 搜索测试技能 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', uniqueName);
     await page.fill('textarea', '测试内容');
     await page.click('button:has-text("保存")');
@@ -368,7 +361,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const skillName = `展开测试 ${Date.now()}`;
+    const skillName = `E2E 展开测试 ${Date.now()}`;
     const instructions = '这是详细的指令内容，应该在展开后显示。';
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', instructions);
@@ -400,7 +393,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const skillName = `分享测试技能 ${Date.now()}`;
+    const skillName = `E2E 分享测试技能 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '这是一个将被分享的技能');
     await page.click('button:has-text("保存")');
@@ -434,7 +427,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const skillName = `重复分享测试 ${Date.now()}`;
+    const skillName = `E2E 重复分享测试 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '测试内容');
     await page.click('button:has-text("保存")');
@@ -451,7 +444,7 @@ test.describe('Skills Management', () => {
     // Try to share again
     await skillCard.locator('button:has(svg.lucide-share-2)').click();
     const dialog = page.locator('[role="dialog"]:has-text("分享技能")');
-    if (await dialog.isVisible().catch(() => false)) {
+    if (await dialog.isVisible()) {
       await page.locator('[role="dialog"]').locator('button:has-text("取消")').click();
       await expect(dialog).not.toBeVisible({ timeout: 5000 });
     }
@@ -472,7 +465,7 @@ test.describe('Skills Management', () => {
       await createButton.click();
       await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-      const skillName = `批量选择测试 ${i} ${Date.now()}`;
+      const skillName = `E2E 批量选择测试 ${i} ${Date.now()}`;
       await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
       await page.fill('textarea', '测试内容');
       await page.click('button:has-text("保存")');
@@ -526,7 +519,7 @@ test.describe('Skills Management', () => {
       await createButton.click();
       await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-      const skillName = `批量删除测试 ${i} ${Date.now()}`;
+      const skillName = `E2E 批量删除测试 ${i} ${Date.now()}`;
       skillNames.push(skillName);
       await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
       await page.fill('textarea', '测试内容');
@@ -586,7 +579,7 @@ test.describe('Skills Management', () => {
         Authorization: `Bearer ${token}`,
       },
       data: {
-        description: `技能统计测试项目 ${Date.now()}`,
+        description: `E2E 技能统计测试项目 ${Date.now()}`,
       },
     });
     expect(createProjectResponse.ok()).toBeTruthy();
@@ -641,7 +634,7 @@ test.describe('Skills Management', () => {
     await expect
       .poll(async () => {
         const count = await publicSkillTitles.count();
-        const hasEmpty = await emptyState.isVisible().catch(() => false);
+        const hasEmpty = await emptyState.isVisible();
         return count > 0 || hasEmpty;
       }, { timeout: 10000 })
       .toBe(true);
@@ -725,7 +718,7 @@ test.describe('Skills Management', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const skillName = `取消删除测试 ${Date.now()}`;
+    const skillName = `E2E 取消删除测试 ${Date.now()}`;
     await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '测试内容');
     await page.click('button:has-text("保存")');
@@ -737,9 +730,8 @@ test.describe('Skills Management', () => {
     await skillCard.locator('button:has(svg.lucide-trash-2)').click();
 
     const deleteDialog = page.locator('[role="dialog"]').filter({ hasText: /删除|确认/i }).last();
-    if (await deleteDialog.isVisible().catch(() => false)) {
-      await deleteDialog.locator('button:has-text("取消")').click();
-    }
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.locator('button:has-text("取消")').click();
 
     // Verify skill still exists
     await expect(page.locator(`text=${skillName}`)).toBeVisible();
@@ -756,7 +748,7 @@ test.describe('Skills Management', () => {
     const userSkillsSection = page.locator('h2:has-text("自定义技能")').locator('..');
     const emptyMessage = userSkillsSection.locator('text=/还没有|创建第一个|暂无/i');
 
-    const hasSkills = await userSkillsSection.locator('[class*="rounded-lg"][class*="border"]').count() > 0;
+    const hasSkills = await userSkillsSection.getByTestId('skill-card').count() > 0;
     const hasEmpty = await emptyMessage.count() > 0;
     const hasCreateAction =
       (await page.locator('button:has-text("创建技能"), button:has-text("创建")').count()) > 0 ||
@@ -768,12 +760,7 @@ test.describe('Skills Management', () => {
 
 test.describe('Skills Page Navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await expect(page.locator('#identifier')).toBeVisible();
-    await page.fill('#identifier', TEST_EMAIL);
-    await page.fill('#password', TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(dashboard|project)/, { timeout: 10000 });
+    await login(page, TEST_EMAIL, TEST_PASSWORD);
     await page.goto('/dashboard/skills');
     await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
     await clearExistingUserSkills(page);
@@ -818,12 +805,7 @@ test.describe('Skills Mobile Responsiveness', () => {
   test.use({ viewport: { width: 375, height: 667 } });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await expect(page.locator('#identifier')).toBeVisible();
-    await page.fill('#identifier', TEST_EMAIL);
-    await page.fill('#password', TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(dashboard|project)/, { timeout: 10000 });
+    await login(page, TEST_EMAIL, TEST_PASSWORD);
     await page.goto('/dashboard/skills');
     await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
     await clearExistingUserSkills(page);

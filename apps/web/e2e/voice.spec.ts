@@ -1,13 +1,6 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect, Page } from '@playwright/test'
 import { TEST_USERS } from './config'
-import { setupServer, SetupServer } from 'msw/node'
-import {
-  voiceHandlers,
-  mockVoiceNotConfiguredHandler,
-  mockVoiceRecognizeErrorHandler,
-  mockVoiceApiFailedHandler,
-} from './mocks/voice-handlers'
+import { login } from './helpers/common'
 
 /**
  * Voice Input E2E Tests
@@ -20,31 +13,11 @@ import {
  * - Error handling
  * - Accessibility
  *
- * Uses MSW to mock the Tencent ASR API responses.
+ * Uses browser routes to mock the Tencent ASR API responses.
  * Microphone permission is granted via Playwright's context.grantPermissions().
  */
 
-// Custom test fixture with MSW server
-const test = base.extend<{
-  mswServer: SetupServer
-}>({
-  // eslint-disable-next-line no-empty-pattern
-  mswServer: async ({}, use) => {
-    // Set up MSW server with all voice handlers
-    const server = setupServer(...voiceHandlers)
-
-    // Start intercepting requests
-    server.listen({
-      onUnhandledRequest: 'warn', // Warn about unhandled requests
-    })
-
-    // Provide server to tests
-    await use(server)
-
-    // Clean up after test
-    server.close()
-  },
-})
+const test = base
 
 const VOICE_INTERACTION_E2E_ENABLED = process.env.E2E_ENABLE_VOICE_INPUT_E2E === 'true'
 const MICROPHONE_PERMISSION_BROWSER_MESSAGE =
@@ -53,21 +26,54 @@ const MICROPHONE_PERMISSION_BROWSER_MESSAGE =
 // UI Selectors for voice input
 const VOICE_INPUT = {
   // Voice button states
-  button: 'button[aria-label*="语音"], button[aria-label*="Voice"], button:has(svg.lucide-mic)',
+  button: '[data-testid="voice-input-button"]',
   recordingButton: 'button:has(.animate-spin), button[class*="bg-[hsl(var(--error))]',
   processingButton: 'button:has(svg.lucide-loader-2)',
   disabledButton: 'button:disabled',
   // Recording UI
-  waveform: '.flex.items-center.gap-0\\.5',
-  duration: 'span.text-xs.font-medium',
+  waveform: '[data-testid="voice-waveform"]',
+  duration: '[data-testid="voice-recording-duration"]',
   loaderIcon: 'svg.lucide-loader-2.animate-spin',
   micOffIcon: 'svg.lucide-mic-off',
   // Toast notifications
-  toast: '.fixed.bottom-20.left-1\\/2',
-  toastError: '.fixed.bottom-20.left-1\\/2.bg-\\[hsl\\(var\\(--error\\)\\)',
+  toastError: '[role="alert"]',
   // Chat input
   textarea: '[data-testid="chat-input"]',
 }
+
+type VoiceMock = 'success' | 'recognition-error' | 'api-error' | 'not-configured'
+
+async function mockVoiceEndpoints(page: Page, scenario: VoiceMock = 'success') {
+  await page.unroute('**/api/v1/voice/status')
+  await page.unroute('**/api/v1/voice/recognize')
+  await page.route('**/api/v1/voice/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(scenario === 'not-configured'
+      ? { configured: false, error: 'Voice service not configured' }
+      : {
+          configured: true,
+          provider: 'tencent',
+          service: '一句话识别',
+          max_duration_seconds: 60,
+          supported_formats: ['wav', 'pcm', 'ogg-opus'],
+        }),
+  }))
+
+  await page.route('**/api/v1/voice/recognize', route => {
+    if (scenario === 'recognition-error') {
+      return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ text: '', success: false, error: 'InvalidParameter: 音频格式不支持' }) })
+    }
+    if (scenario === 'api-error') {
+      return route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ text: '', success: false, error: '腾讯云 API 请求失败: 502' }) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: '这是一段测试语音识别结果', success: true, duration_ms: 3500 }) })
+  })
+}
+
+test.beforeEach(async ({ page }) => {
+  await mockVoiceEndpoints(page)
+})
 
 // Helper to login and navigate to project
 async function loginAndNavigateToProject(page: Page) {
@@ -75,62 +81,48 @@ async function loginAndNavigateToProject(page: Page) {
   const TEST_PASSWORD = TEST_USERS.standard.password
   const API_BASE_URL = process.env.E2E_API_BASE_URL || 'http://127.0.0.1:8000'
 
-  // Navigate to login page
-  await page.goto('/login')
-
-  // Wait for page to load
-  await expect(page.locator('h1')).toContainText(/登录|Login/)
-
-  // Login with test credentials
-  await page.locator('#identifier').fill(TEST_EMAIL)
-  await page.locator('#password').fill(TEST_PASSWORD)
-  await page.locator('button[type="submit"]').click()
-
-  // Wait for redirect to complete (either project or dashboard)
-  await page.waitForURL(/\/(project|dashboard)/, { timeout: 10000 })
+  await login(page, TEST_EMAIL, TEST_PASSWORD)
 
   // Prefer API-driven setup to avoid locale/UI-dependent dashboard interactions.
-  if (!page.url().includes('/project/')) {
-    const accessToken = await page.evaluate(() => localStorage.getItem('access_token'))
-    if (!accessToken) {
-      throw new Error('Missing access token after login')
-    }
-
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    }
-
-    const listResponse = await page.request.get(`${API_BASE_URL}/api/v1/projects`, { headers })
-    if (!listResponse.ok()) {
-      throw new Error(`Failed to list projects: ${listResponse.status()} ${listResponse.statusText()}`)
-    }
-
-    let projects = (await listResponse.json()) as Array<{ id?: string }>
-
-    if (!Array.isArray(projects) || projects.length === 0 || !projects[0]?.id) {
-      const createResponse = await page.request.post(`${API_BASE_URL}/api/v1/projects`, {
-        headers,
-        data: {
-          name: `Voice E2E ${Date.now()}`,
-          project_type: 'novel',
-        },
-      })
-
-      if (!createResponse.ok()) {
-        throw new Error(`Failed to create project: ${createResponse.status()} ${createResponse.statusText()}`)
-      }
-
-      const createdProject = (await createResponse.json()) as { id?: string }
-      if (!createdProject?.id) {
-        throw new Error('Project creation returned no id')
-      }
-      projects = [createdProject]
-    }
-
-    await page.goto(`/project/${projects[0].id}`)
-    await page.waitForURL(/\/project\//, { timeout: 10000 })
+  const accessToken = await page.evaluate(() => localStorage.getItem('access_token'))
+  if (!accessToken) {
+    throw new Error('Missing access token after login')
   }
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  }
+
+  const listResponse = await page.request.get(`${API_BASE_URL}/api/v1/projects`, { headers })
+  if (!listResponse.ok()) {
+    throw new Error(`Failed to list projects: ${listResponse.status()} ${listResponse.statusText()}`)
+  }
+
+  let projects = (await listResponse.json()) as Array<{ id?: string }>
+
+  if (!Array.isArray(projects) || projects.length === 0 || !projects[0]?.id) {
+    const createResponse = await page.request.post(`${API_BASE_URL}/api/v1/projects`, {
+      headers,
+      data: {
+        name: `Voice E2E ${Date.now()}`,
+        project_type: 'novel',
+      },
+    })
+
+    if (!createResponse.ok()) {
+      throw new Error(`Failed to create project: ${createResponse.status()} ${createResponse.statusText()}`)
+    }
+
+    const createdProject = (await createResponse.json()) as { id?: string }
+    if (!createdProject?.id) {
+      throw new Error('Project creation returned no id')
+    }
+    projects = [createdProject]
+  }
+
+  await page.goto(`/project/${projects[0].id}`)
+  await page.waitForURL(/\/project\//, { timeout: 10000 })
 
   // Wait for chat panel to load
   await page.waitForSelector(VOICE_INPUT.textarea, { timeout: 10000 })
@@ -316,9 +308,9 @@ test.describe('Voice Input - Error Handling', () => {
   test.beforeEach(({ browserName }) => {
     test.skip(browserName !== 'chromium', MICROPHONE_PERMISSION_BROWSER_MESSAGE)
   })
-  test('voice shows error when credentials not configured', async ({ page, context, mswServer }) => {
+  test('voice shows error when credentials not configured', async ({ page, context }) => {
     // Override handler to return not configured status
-    mswServer.use(mockVoiceNotConfiguredHandler)
+    await mockVoiceEndpoints(page, 'not-configured')
 
     await context.grantPermissions(['microphone'])
     await loginAndNavigateToProject(page)
@@ -356,9 +348,9 @@ test.describe('Voice Input - Error Handling', () => {
     expect(toastText).toMatch(/权限|拒绝|permission|denied/i)
   })
 
-  test('voice handles recognition errors gracefully', async ({ page, context, mswServer }) => {
+  test('voice handles recognition errors gracefully', async ({ page, context }) => {
     // Override handler to return recognition error
-    mswServer.use(mockVoiceRecognizeErrorHandler)
+    await mockVoiceEndpoints(page, 'recognition-error')
 
     await context.grantPermissions(['microphone'])
     await loginAndNavigateToProject(page)
@@ -381,9 +373,9 @@ test.describe('Voice Input - Error Handling', () => {
     await expect(errorToast).toBeVisible({ timeout: 3000 })
   })
 
-  test('voice handles API failures gracefully', async ({ page, context, mswServer }) => {
+  test('voice handles API failures gracefully', async ({ page, context }) => {
     // Override handler to return API failure
-    mswServer.use(mockVoiceApiFailedHandler)
+    await mockVoiceEndpoints(page, 'api-error')
 
     await context.grantPermissions(['microphone'])
     await loginAndNavigateToProject(page)

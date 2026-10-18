@@ -1,5 +1,7 @@
 # Agent Note: 页面刷新前同步保留未保存正文
 
+后续边界修复：[chunk recovery 不把合法离页取消当成旧 chunk](2026-10-17-chunk-recovery-navigation-cancellation.md)。
+
 Status: implemented
 
 ## Problem

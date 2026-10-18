@@ -20,6 +20,7 @@ const { mockToastError, mockToastSuccess, mockToastInfo, mockHandleApiError, moc
 // Create mutable mock values
 let mockCurrentProjectId: string | null = null
 let mockIsMobile = false
+let mockExportLoading = false
 let mockSubscriptionStatus = {
   tier: 'free',
   status: 'none',
@@ -45,6 +46,8 @@ const headerTranslations: Record<string, string> = {
   'editor:header.helpDocs': '帮助文档',
   'common:feedback.entry': '问题反馈',
   'editor:header.exportWithOutline': '导出大纲与正文',
+  'editor:header.export': '导出正文（TXT）',
+  'common:loading': '加载中…',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
 }
 
@@ -90,6 +93,7 @@ vi.mock('lucide-react', () => ({
   Menu: () => React.createElement('svg', { 'data-testid': 'menu-icon' }, 'Menu'),
   X: () => React.createElement('svg', { 'data-testid': 'x-icon' }, 'X'),
   Download: () => React.createElement('svg', { 'data-testid': 'download-icon' }, 'Download'),
+  Loader2: () => React.createElement('svg', { 'data-testid': 'loader-icon' }, 'Loading'),
   CreditCard: () => React.createElement('svg', { 'data-testid': 'subscription-icon' }, 'CreditCard'),
   BarChart3: () => React.createElement('svg', { 'data-testid': 'analytics-icon' }, 'Analytics'),
   BookOpen: () => React.createElement('svg', { 'data-testid': 'help-docs-icon' }, 'HelpDocs'),
@@ -188,7 +192,7 @@ vi.mock('../../hooks/useMediaQuery', () => ({
 
 // Mock useExport hook
 vi.mock('../../hooks/useExport', () => ({
-  useExport: vi.fn(() => ({ exportDrafts: mockExportDrafts })),
+  useExport: vi.fn(() => ({ exportDrafts: mockExportDrafts, loading: mockExportLoading })),
 }))
 
 // Mock toast
@@ -232,6 +236,7 @@ describe('Header', () => {
     vi.clearAllMocks()
     mockCurrentProjectId = null
     mockIsMobile = false
+    mockExportLoading = false
     mockSubscriptionStatus = {
       tier: 'free',
       status: 'none',
@@ -411,6 +416,17 @@ describe('Header', () => {
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith('正文已导出为 TXT 文件')
       })
+    })
+
+    it('disables the export action and announces progress while exporting', () => {
+      mockCurrentProjectId = 'project-123'
+      mockExportLoading = true
+      render(<Header />)
+
+      const exportButton = screen.getByRole('button', { name: '导出正文（TXT）' })
+      expect(exportButton).toBeDisabled()
+      expect(exportButton).toHaveAttribute('aria-busy', 'true')
+      expect(exportButton.querySelector('[role="status"]')).toBeInTheDocument()
     })
 
     it('offers an outline-included export next to the plain one', async () => {

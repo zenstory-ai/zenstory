@@ -2,8 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { mockResponsiveApp, responsiveProjects } from './fixtures-responsive';
 
 async function firstWorkFixture(page: Page, language: 'zh' | 'en', options: { deleted?: boolean; deletedFile?: boolean; alreadyCreated?: boolean; failInitialize?: boolean } = {}) {
-  await mockResponsiveApp(page);
-  await page.addInitScript(language => localStorage.setItem('zenstory-language', language), language);
+  await mockResponsiveApp(page, null, 'free', language);
   const project = { ...responsiveProjects[0], name: language === 'zh' ? '我的首部作品' : 'My First Work' };
   let initialized = options.alreadyCreated ?? false;
   let failInitialize = options.failInitialize;

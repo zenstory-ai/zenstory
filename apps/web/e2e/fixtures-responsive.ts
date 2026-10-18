@@ -71,16 +71,16 @@ const stats = {
         this_month: { total: 22, estimated_tokens: 4500 },
     },
 };
-export async function mockResponsiveApp(page: Page, saved: number | null = null, tier: 'free' | 'pro' = 'free') {
-    await page.addInitScript(({ user, saved }) => {
-        localStorage.setItem('zenstory-language', 'zh');
+export async function mockResponsiveApp(page: Page, saved: number | null = null, tier: 'free' | 'pro' = 'free', language: 'zh' | 'en' = 'zh') {
+    await page.addInitScript(({ user, saved, language }) => {
+        localStorage.setItem('zenstory-language', language);
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('access_token', 'local-responsive-fixture');
         localStorage.setItem('refresh_token', 'local-responsive-fixture');
         localStorage.setItem('auth_validated_at', String(Date.now()));
         if (saved !== null)
             localStorage.setItem('zenstory_chat_input_panel_height_px', String(saved));
-    }, { user: responsiveUser, saved });
+    }, { user: responsiveUser, saved, language });
     await mockResponsiveApi(page, tier);
 }
 export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free') {

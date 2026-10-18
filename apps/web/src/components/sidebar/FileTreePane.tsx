@@ -529,6 +529,10 @@ export const FileTreePane: React.FC = () => {
       <div key={node.id} style={{ marginLeft: depth > 0 ? 12 : 0 }}>
         {/* Node header */}
         <div
+          data-testid="file-tree-node"
+          data-file-id={node.id}
+          data-file-type={node.file_type}
+          data-file-title={node.title}
           className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors ${
             isSelected && !isFolder
               ? "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))]"
@@ -579,6 +583,7 @@ export const FileTreePane: React.FC = () => {
             {/* For draft folder: + button triggers draft upload */}
             {isDraftFolder(node) ? (
               <button
+                data-testid="file-tree-upload-draft"
                 onClick={triggerDraftUpload}
                 disabled={isUploading}
                 className={`p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -589,6 +594,7 @@ export const FileTreePane: React.FC = () => {
             ) : isMaterialFolder(node) ? (
               /* For material folder: + button triggers upload */
               <button
+                data-testid="file-tree-upload-material"
                 onClick={triggerUpload}
                 disabled={isUploading}
                 className={`p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -600,6 +606,7 @@ export const FileTreePane: React.FC = () => {
               /* Add button for other folders */
               isFolder && (
                 <button
+                  data-testid="file-tree-create-child"
                   onClick={(e) => {
                     e.stopPropagation();
                     startCreate(node.id, createFileType);
@@ -660,6 +667,7 @@ export const FileTreePane: React.FC = () => {
                 style={{ marginLeft: 12 }}
               >
                 <input
+                  data-testid="file-tree-new-item-input"
                   type="text"
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}

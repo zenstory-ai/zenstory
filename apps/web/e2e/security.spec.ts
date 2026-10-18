@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { TEST_USERS, config } from './config';
+import { login } from './helpers/common';
 
 /**
  * Security Test Suite - OWASP Top 10 Coverage
@@ -13,44 +14,8 @@ import { TEST_USERS, config } from './config';
  * - Input Validation
  */
 
-const AUTHENTICATED_ROUTE_PATTERN = /\/(dashboard|project|onboarding\/persona)/;
-
 async function loginAndOpenDashboardHome(page: Page) {
-  await page.addInitScript(() => {
-    const cachedUser = localStorage.getItem('user');
-    if (cachedUser) {
-      localStorage.setItem('auth_validated_at', Date.now().toString());
-    }
-  });
-
-  const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]');
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-  if (await inspirationInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    return;
-  }
-
-  if (!page.url().includes('/login')) {
-    await page.goto('/login', { waitUntil: 'domcontentloaded' });
-  }
-
-  await expect(page.locator('#identifier')).toBeVisible({ timeout: 15000 });
-  await page.fill('#identifier', TEST_USERS.standard.email);
-  await page.fill('#password', TEST_USERS.standard.password);
-  await page.click('button[type="submit"]');
-
-  await expect(page).toHaveURL(AUTHENTICATED_ROUTE_PATTERN, { timeout: 30000 });
-  await page
-    .waitForResponse(
-      (response) =>
-        response.url().includes('/api/v1/projects') &&
-        response.request().method() === 'GET',
-      { timeout: 30000 }
-    )
-    .catch(() => null);
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-  await expect(inspirationInput).toBeVisible({ timeout: 30000 });
+  await login(page, TEST_USERS.standard.email, TEST_USERS.standard.password);
 }
 
 async function getAuthHeaders(page: Page) {

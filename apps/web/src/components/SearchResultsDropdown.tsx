@@ -191,8 +191,8 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   // Render loading state with spinner text
   if (loading) {
     return (
-      <div className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
-        <div className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
+      <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
+        <div role="status" data-testid="search-results-loading" className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
           {t('common:loading')}
         </div>
       </div>
@@ -202,8 +202,8 @@ const SearchResultsDropdown: React.FC<SearchResultsDropdownProps> = ({
   // Render empty state when no results found
   if (results.length === 0) {
     return (
-      <div className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
-        <div className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
+      <div ref={dropdownRef} data-testid="search-results-dropdown" className="absolute top-full left-0 right-0 mt-1 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-primary))] rounded-md shadow-lg overflow-hidden z-50 max-h-[calc(var(--app-viewport-height)*0.5)] sm:max-h-[min(280px,calc(var(--app-viewport-height)*0.5))] overflow-y-auto">
+        <div role="status" data-testid="search-results-empty" className="px-3 py-3 sm:py-2 text-sm text-[hsl(var(--text-secondary))]">
           {t('editor:fileTree.noSearchResults')}
         </div>
       </div>

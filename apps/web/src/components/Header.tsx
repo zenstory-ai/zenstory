@@ -34,6 +34,7 @@ import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 /**
  * Props for the Header component.
@@ -92,7 +93,7 @@ export const Header: React.FC<HeaderProps> = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
   const isMobile = useIsMobile();
-  const { exportDrafts } = useExport(currentProjectId);
+  const { exportDrafts, loading: exportLoading } = useExport(currentProjectId);
   const desktopIconButtonClass = "p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]";
   const mobileMenuId = "header-mobile-menu";
 
@@ -176,6 +177,7 @@ export const Header: React.FC<HeaderProps> = () => {
       ? [{
           icon: FileText,
           label: t('editor:header.exportWithOutline'),
+          disabled: exportLoading,
           onClick: () => {
             void handleExport(false, true);
           },
@@ -259,11 +261,19 @@ export const Header: React.FC<HeaderProps> = () => {
                 onClick={() => {
                   void handleExport();
                 }}
+                disabled={exportLoading}
+                aria-busy={exportLoading}
                 className={desktopIconButtonClass}
                 title={t('editor:header.export')}
                 aria-label={t('editor:header.export')}
               >
-                <Download size={18} />
+                {exportLoading ? (
+                  <span role="status" aria-label={t('common:loading')}>
+                    <LoadingSpinner size="sm" />
+                  </span>
+                ) : (
+                  <Download size={18} />
+                )}
               </button>
               <button
                 type="button"
@@ -355,10 +365,18 @@ export const Header: React.FC<HeaderProps> = () => {
                 onClick={() => {
                   void handleExport(true);
                 }}
+                disabled={exportLoading}
+                aria-busy={exportLoading}
                 className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
                 role="menuitem"
               >
-                <Download size={18} />
+                {exportLoading ? (
+                  <span role="status" aria-label={t('common:loading')}>
+                    <LoadingSpinner size="sm" />
+                  </span>
+                ) : (
+                  <Download size={18} />
+                )}
                 {t('editor:header.export')}
               </button>
             )}
@@ -368,10 +386,18 @@ export const Header: React.FC<HeaderProps> = () => {
                 onClick={() => {
                   void handleExport(true, true);
                 }}
+                disabled={exportLoading}
+                aria-busy={exportLoading}
                 className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
                 role="menuitem"
               >
-                <FileText size={18} className="shrink-0" />
+                {exportLoading ? (
+                  <span role="status" aria-label={t('common:loading')}>
+                    <LoadingSpinner size="sm" />
+                  </span>
+                ) : (
+                  <FileText size={18} className="shrink-0" />
+                )}
                 {t('editor:header.exportWithOutline')}
               </button>
             )}

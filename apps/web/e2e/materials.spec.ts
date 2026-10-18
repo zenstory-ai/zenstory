@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect, Page, Route } from '@playwright/test'
-import { TEST_USERS } from './config'
+import { login } from './helpers/common'
 
 /**
  * Materials Library E2E Tests with Mocked API Responses
@@ -326,43 +326,8 @@ const test = base.extend<{
 
 // Helper to login and navigate to materials page
 async function navigateToMaterials(page: Page) {
-  const TEST_EMAIL = TEST_USERS.standard.email
-  const TEST_PASSWORD = TEST_USERS.standard.password
-
-  await page.addInitScript(() => {
-    const cachedUser = localStorage.getItem('user')
-    if (cachedUser) {
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-    }
-  })
-
-  const loginIdentifier = page.locator('#identifier')
+  await login(page)
   await page.goto('/dashboard/materials', { waitUntil: 'domcontentloaded' })
-
-  if (
-    await loginIdentifier
-      .waitFor({ state: 'visible', timeout: 8000 })
-      .then(() => true)
-      .catch(() => false)
-  ) {
-    await page.fill('#identifier', TEST_EMAIL)
-    await page.fill('#password', TEST_PASSWORD)
-    await page.click('button[type="submit"]')
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => ({
-            accessToken: localStorage.getItem('access_token'),
-            user: localStorage.getItem('user'),
-          })),
-        { timeout: 15000 }
-      )
-      .toMatchObject({
-        accessToken: expect.any(String),
-        user: expect.any(String),
-      })
-    await page.goto('/dashboard/materials', { waitUntil: 'domcontentloaded' })
-  }
 
   await expect(page).toHaveURL(/\/dashboard\/materials/, { timeout: 10000 })
   await expect(page.locator('h1')).toBeVisible({ timeout: 5000 })

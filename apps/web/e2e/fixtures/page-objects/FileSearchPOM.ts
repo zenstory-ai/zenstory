@@ -66,13 +66,13 @@ export class FileSearchPOM extends BasePage {
 
   async isLoading(): Promise<boolean> {
     // Check for loading indicator if component has one
-    const loadingIndicator = this.resultsDropdown.getByRole('status');
+    const loadingIndicator = this.resultsDropdown.getByTestId('search-results-loading');
     return await loadingIndicator.isVisible();
   }
 
   async isEmptyState(): Promise<boolean> {
     // Check for empty state message
-    const emptyMessage = this.resultsDropdown.getByText(/no results|无结果/i);
+    const emptyMessage = this.resultsDropdown.getByTestId('search-results-empty');
     return await emptyMessage.isVisible();
   }
 
@@ -98,7 +98,11 @@ export class FileSearchPOM extends BasePage {
   }
 
   async typeWithIME(text: string): Promise<void> {
-    // Use insertText for Chinese to bypass IME composition issues
+    await this.searchInput.focus();
+    await this.searchInput.dispatchEvent('compositionstart', { data: '' });
     await this.page.keyboard.insertText(text);
+    // Confirming an IME candidate must not select a search result prematurely.
+    await this.searchInput.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, keyCode: 229 });
+    await this.searchInput.dispatchEvent('compositionend', { data: text });
   }
 }

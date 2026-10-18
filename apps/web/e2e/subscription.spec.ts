@@ -1,5 +1,6 @@
-import { test, expect, Page, Route, APIRequestContext } from '@playwright/test';
-import { TEST_USERS, config } from './config';
+import { test, expect, Page, Route } from '@playwright/test';
+import { TEST_USERS } from './config';
+import { login } from './helpers/common';
 
 /**
  * E2E Tests for Subscription System
@@ -287,29 +288,8 @@ const TEST_EMAIL = TEST_USERS.standard.email;
 const TEST_PASSWORD = TEST_USERS.standard.password;
 
 // Helper to login and navigate to billing/subscription page
-async function navigateToSubscriptionSettings(page: Page, request: APIRequestContext) {
-  const params = new URLSearchParams();
-  params.append('username', TEST_EMAIL);
-  params.append('password', TEST_PASSWORD);
-
-  const loginResponse = await request.post(`${config.apiBaseUrl}/api/auth/login`, {
-    data: params.toString(),
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  });
-  expect(loginResponse.ok()).toBeTruthy();
-  const tokens = await loginResponse.json();
-
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.evaluate((tokenData) => {
-    localStorage.setItem('access_token', tokenData.access_token);
-    localStorage.setItem('refresh_token', tokenData.refresh_token);
-    localStorage.setItem('token_type', tokenData.token_type);
-    localStorage.setItem('user', JSON.stringify(tokenData.user));
-    localStorage.setItem('auth_validated_at', Date.now().toString());
-  }, tokens);
-
+async function navigateToSubscriptionSettings(page: Page) {
+  await login(page, TEST_EMAIL, TEST_PASSWORD);
   await page.goto('/dashboard/billing', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/dashboard\/billing/, { timeout: 10000 });
   await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
@@ -343,9 +323,9 @@ function getPlanNameLocator(page: Page, planName: 'Free' | 'Pro') {
 }
 
 test.describe('Subscription Status Display', () => {
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page }) => {
     await setupSubscriptionMocking(page);
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
   });
 
   test('should display Free tier status correctly', async ({ page }) => {
@@ -356,22 +336,22 @@ test.describe('Subscription Status Display', () => {
     await expect(page.locator('text=/未开通|Not subscribed/i')).toHaveCount(0);
   });
 
-  test('should display Pro tier status correctly', async ({ page, request }) => {
+  test('should display Pro tier status correctly', async ({ page }) => {
     // Override with Pro subscription
     await setupSubscriptionMocking(page, { subscriptionStatus: mockProSubscription });
     await page.reload();
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
 
     // Check that Pro tier badge is shown
     await expect(getPlanNameLocator(page, 'Pro')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=/有效期至|Active until/i')).toBeVisible({ timeout: 3000 });
   });
 
-  test('should display expired status correctly', async ({ page, request }) => {
+  test('should display expired status correctly', async ({ page }) => {
     // Override with expired subscription
     await setupSubscriptionMocking(page, { subscriptionStatus: mockExpiredProSubscription });
     await page.reload();
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
 
     // Check expired status is shown
     await expect(page.locator('text=/已到期|expired/i')).toBeVisible({ timeout: 5000 });
@@ -379,9 +359,9 @@ test.describe('Subscription Status Display', () => {
 });
 
 test.describe('Quota Display', () => {
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page }) => {
     await setupSubscriptionMocking(page);
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
   });
 
   test('should display quota usage for Free tier', async ({ page }) => {
@@ -389,35 +369,35 @@ test.describe('Quota Display', () => {
     await expect(page.getByText('5/10').first()).toBeVisible({ timeout: 3000 });
   });
 
-  test('should display unlimited quota for Pro tier', async ({ page, request }) => {
+  test('should display unlimited quota for Pro tier', async ({ page }) => {
     // Override with Pro quota
     await setupSubscriptionMocking(page, {
       subscriptionStatus: mockProSubscription,
       quota: mockProQuota
     });
     await page.reload();
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
 
     // Check for "unlimited" or "不限" text
     await expect(page.getByText(/不限|unlimited/i).first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('should show warning when quota is low', async ({ page, request }) => {
+  test('should show warning when quota is low', async ({ page }) => {
     // Override with low quota
     await setupSubscriptionMocking(page, { quota: mockLowQuota });
     await page.reload();
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
 
     await expect(page.getByText('9/10').first()).toBeVisible({ timeout: 5000 });
     // Show online checkout or the checkout-unavailable notice; do not advertise manual codes.
     await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro"), [data-testid="billing-checkout-unavailable"]').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('should show error when quota is exhausted', async ({ page, request }) => {
+  test('should show error when quota is exhausted', async ({ page }) => {
     // Override with exhausted quota
     await setupSubscriptionMocking(page, { quota: mockExhaustedQuota });
     await page.reload();
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
 
     await expect(page.getByText('10/10').first()).toBeVisible({ timeout: 5000 });
     // Show online checkout or the checkout-unavailable notice; do not advertise manual codes.
@@ -426,9 +406,9 @@ test.describe('Quota Display', () => {
 });
 
 test.describe('Redeem Code Modal', () => {
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page }) => {
     await setupSubscriptionMocking(page);
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
   });
 
   test('should open redeem modal from a legacy activation link when checkout is off', async ({ page }) => {
@@ -484,9 +464,9 @@ test.describe('Redeem Code Modal', () => {
 });
 
 test.describe('Redeem Code Validation', () => {
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page }) => {
     await setupSubscriptionMocking(page);
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
   });
 
   test('should show error for empty code', async ({ page }) => {
@@ -564,9 +544,9 @@ test.describe('Redeem Code Validation', () => {
 });
 
 test.describe('Redeem Code Success', () => {
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page }) => {
     await setupSubscriptionMocking(page);
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
   });
 
   test('should successfully redeem valid code', async ({ page }) => {
@@ -621,7 +601,7 @@ test.describe('Quota Badge in Chat Panel', () => {
 });
 
 test.describe('Subscription Error Handling', () => {
-  test('should handle API error gracefully', async ({ page, request }) => {
+  test('should handle API error gracefully', async ({ page }) => {
     // Mock API error
     await page.route('**/api/v1/subscription/me', async (route) => {
       await route.fulfill({
@@ -639,18 +619,18 @@ test.describe('Subscription Error Handling', () => {
       });
     });
 
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
     await expect(page.locator('h1')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=/加载失败|重试|error/i').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('should handle network timeout gracefully', async ({ page, request }) => {
+  test('should handle network timeout gracefully', async ({ page }) => {
     // Mock delayed response
     await page.route('**/api/v1/subscription/me', async (_route) => {
       await new Promise(resolve => setTimeout(resolve, 60000)); // Very long delay
     });
 
-    await navigateToSubscriptionSettings(page, request);
+    await navigateToSubscriptionSettings(page);
     await expect(page.locator('h1')).toBeVisible({ timeout: 5000 });
   });
 });
@@ -662,8 +642,8 @@ test.describe('Subscription Responsive Design', () => {
     await setupSubscriptionMocking(page);
   });
 
-  test('subscription UI is usable on mobile', async ({ page, request }) => {
-    await navigateToSubscriptionSettings(page, request);
+  test('subscription UI is usable on mobile', async ({ page }) => {
+    await navigateToSubscriptionSettings(page);
 
     // Check elements are visible on mobile
     await expect(page.locator('text=/Free|免费/i').first()).toBeVisible({ timeout: 5000 });
@@ -671,8 +651,8 @@ test.describe('Subscription Responsive Design', () => {
     await expect(page.getByRole('button', { name: /^(兑换码|Redeem Code)$/ })).toHaveCount(0);
   });
 
-  test('redeem modal works on mobile', async ({ page, request }) => {
-    await navigateToSubscriptionSettings(page, request);
+  test('redeem modal works on mobile', async ({ page }) => {
+    await navigateToSubscriptionSettings(page);
 
     // Open redeem modal
     await openLegacyRedeemModal(page);
@@ -693,8 +673,8 @@ test.describe('Subscription - Tablet View', () => {
     await setupSubscriptionMocking(page);
   });
 
-  test('subscription UI adapts to tablet view', async ({ page, request }) => {
-    await navigateToSubscriptionSettings(page, request);
+  test('subscription UI adapts to tablet view', async ({ page }) => {
+    await navigateToSubscriptionSettings(page);
 
     // Check UI renders correctly on tablet
     await expect(getPlanNameLocator(page, 'Free')).toBeVisible({ timeout: 5000 });

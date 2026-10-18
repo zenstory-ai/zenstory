@@ -81,7 +81,7 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({ volume, isRecording }) =>
   const bars = [0.6, 1, 0.7, 0.9, 0.5];
   
   return (
-    <div className="flex items-center gap-0.5 h-4">
+    <div data-testid="voice-waveform" className="flex items-center gap-0.5 h-4">
       {bars.map((baseHeight, i) => {
         // 根据音量动态调整高度
         const height = Math.max(0.2, baseHeight * (0.3 + volume * 0.7));
@@ -334,7 +334,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       return (
         <div className="flex items-center gap-1.5">
           <VoiceWaveform volume={volume} isRecording={isRecording} />
-          <span className="text-xs font-medium">{formatDuration(duration)}</span>
+          <span data-testid="voice-recording-duration" className="text-xs font-medium">{formatDuration(duration)}</span>
         </div>
       );
     }

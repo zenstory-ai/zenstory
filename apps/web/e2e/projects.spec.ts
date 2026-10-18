@@ -1,5 +1,6 @@
 import { test, expect, Page, Locator, APIRequestContext } from '@playwright/test'
 import { TEST_USERS, config } from './config'
+import { login } from './helpers/common'
 
 /**
  * E2E Tests for Project Management Flow
@@ -14,51 +15,12 @@ import { TEST_USERS, config } from './config'
 
 const TEST_EMAIL = TEST_USERS.standard.email
 const TEST_PASSWORD = TEST_USERS.standard.password
-const AUTHENTICATED_ROUTE_PATTERN = /\/(dashboard|project|onboarding\/persona)/
 const NOVEL_LABEL = '长篇小说'
 const SHORT_LABEL = '短篇小说'
 const SCREENPLAY_LABEL = '短剧剧本'
 
 async function loginAndOpenDashboardHome(page: Page) {
-  await page.addInitScript(() => {
-    const cachedUser = localStorage.getItem('user')
-    if (cachedUser) {
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-    }
-  })
-
-  const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  if (await inspirationInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    return
-  }
-
-  if (!page.url().includes('/login')) {
-    await page.goto('/login', { waitUntil: 'domcontentloaded' })
-  }
-
-  await expect(page.locator('#identifier')).toBeVisible({ timeout: 15000 })
-
-  await page.fill('#identifier', TEST_EMAIL)
-  await page.fill('#password', TEST_PASSWORD)
-
-  await page.click('button[type="submit"]')
-
-  await expect(page).toHaveURL(AUTHENTICATED_ROUTE_PATTERN, { timeout: 30000 })
-  await page
-    .waitForResponse(
-      (response) =>
-        response.url().includes('/api/v1/projects') &&
-        response.request().method() === 'GET',
-      { timeout: 30000 }
-    )
-    .catch(() => null)
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  await expect(inspirationInput).toBeVisible({
-    timeout: 30000,
-  })
+  await login(page, TEST_EMAIL, TEST_PASSWORD)
 }
 
 async function openProjectSwitcher(page: Page): Promise<{
@@ -599,21 +561,25 @@ test.describe('Project Update', () => {
         localStorage.removeItem('refresh_token')
         localStorage.removeItem('token_type')
         localStorage.removeItem('user')
+        localStorage.removeItem('auth_validated_at')
       })
 
     // Go to login page and login again
+    await page.goto('/robots.txt', { waitUntil: 'domcontentloaded' })
     await page.goto('/login', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('#identifier')).toBeVisible()
     await page.fill('#identifier', TEST_EMAIL)
     await page.fill('#password', TEST_PASSWORD)
     await page.click('button[type="submit"]')
     await expect(page).toHaveURL(/\/(dashboard|project)/, { timeout: 10000 })
+    await expect(page.locator('[data-testid="dashboard-user-panel-toggle"], [data-testid="user-menu-button"]').first()).toBeVisible()
 
     // Navigate to the project we updated (should be in recent projects)
     // Go to dashboard first
     if (page.url().includes('/project/')) {
       await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
     }
+    await expect(page.getByTestId('dashboard-composer')).toBeVisible()
 
     // Verify the updated name appears in the project list
     await expect(page.locator(`text=${updatedName}`)).toBeVisible()

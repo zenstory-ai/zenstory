@@ -87,6 +87,11 @@ runs:
         source .env.test
         set +a
         python scripts/seed_test_user.py
+        python "${{ github.action_path }}/seed_pool_users.py"
+
+    - name: Verify E2E provider egress isolation
+      shell: bash
+      run: python "${{ github.action_path }}/test_guarded_server.py"
 
     - name: Start backend server
       shell: bash
@@ -109,7 +114,7 @@ runs:
         set -a
         source .env.test
         set +a
-        nohup python main.py > ${{ inputs.backend-log-path }} 2>&1 &
+        nohup python "${{ github.action_path }}/guarded_server.py" > ${{ inputs.backend-log-path }} 2>&1 &
         echo $! > /tmp/zenstory-backend.pid
         sleep 5
 

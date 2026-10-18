@@ -15,6 +15,7 @@ test.describe('Session Management', () => {
     await loginPage.navigateToLogin();
     await loginPage.login(TEST_USERS.standard.email, TEST_USERS.standard.password);
     await expect(page).toHaveURL(AUTHENTICATED_ROUTE_PATTERN);
+    await expect(page.locator('[data-testid="user-menu-button"], [data-testid="dashboard-user-panel-toggle"]').first()).toBeVisible();
   }
 
   test('session persists across page reloads', async ({ page }) => {
@@ -40,9 +41,10 @@ test.describe('Session Management', () => {
       localStorage.removeItem('user');
     });
 
-    await page.goto('/dashboard');
+    await page.goto('/dashboard', { waitUntil: 'commit' });
 
-    await expect(page).toHaveURL(/\/($|login(?:\?.*)?$)/);
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await expect(page.locator('#identifier')).toBeVisible();
   });
 
   test('refresh token flow works correctly', async ({ page }) => {
@@ -56,8 +58,9 @@ test.describe('Session Management', () => {
       localStorage.removeItem('token_type');
     });
 
-    await page.goto('/dashboard/projects');
+    await page.goto('/dashboard/projects', { waitUntil: 'commit' });
     await expect(page).toHaveURL(/\/(login|dashboard|project)/);
+    await expect(page.locator('#identifier, [data-testid="dashboard-user-panel-toggle"], [data-testid="user-menu-button"]').first()).toBeVisible();
   });
 
   test('concurrent sessions are handled', async ({ browser }) => {

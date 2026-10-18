@@ -117,6 +117,50 @@ describe("chunkRecovery", () => {
     expect(order).toEqual(["capture", "reload"]);
   });
 
+  it("does not turn imports cancelled by a document navigation into a chunk reload", () => {
+    const registrations = vi
+      .spyOn(window, "addEventListener")
+      .mockImplementation(() => undefined);
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    recovery.installChunkRecoveryHandlers();
+
+    const pageHideListener = registrations.mock.calls.find(
+      ([type]) => type === "pagehide",
+    )?.[1] as EventListener | undefined;
+    const preloadErrorListener = registrations.mock.calls.find(
+      ([type]) => type === "vite:preloadError",
+    )?.[1] as EventListener | undefined;
+
+    pageHideListener?.(new Event("pagehide"));
+    const event = new Event("vite:preloadError") as Event & { payload?: unknown };
+    event.payload = new Error("error loading dynamically imported module: /assets/project.js");
+    preloadErrorListener?.(event);
+
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(reloadSpy).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBeNull();
+  });
+
+  it("restores chunk recovery when a hidden document is shown again", () => {
+    const registrations = vi
+      .spyOn(window, "addEventListener")
+      .mockImplementation(() => undefined);
+    recovery.installChunkRecoveryHandlers();
+
+    const listener = (type: string) => registrations.mock.calls.find(
+      ([registeredType]) => registeredType === type,
+    )?.[1] as EventListener | undefined;
+
+    listener("pagehide")?.(new Event("pagehide"));
+    listener("pageshow")?.(new Event("pageshow"));
+    const event = new Event("vite:preloadError") as Event & { payload?: unknown };
+    event.payload = new Error("Failed to fetch dynamically imported module: /assets/project.js");
+    listener("vite:preloadError")?.(event);
+
+    expect(reloadSpy).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBe("vite:preloadError");
+  });
+
   it("leaves the chunk failure uncancelled when draft capture blocks the reload", () => {
     const dispatchSpy = vi.spyOn(window, "dispatchEvent").mockImplementation((event) => {
       event.preventDefault();

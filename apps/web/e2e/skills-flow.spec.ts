@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { TEST_USERS } from './config';
+import { login as authenticate } from './helpers/common';
 
 /**
  * E2E Tests for Skills Management Flow
@@ -25,7 +26,7 @@ const _SKILLS_PAGE = {
 };
 
 const SKILL_CARD = {
-  container: '[class*="rounded-lg"][class*="border"]',
+  container: '[data-testid="skill-card"]',
   name: 'h3',
   description: 'p',
   triggers: 'span.rounded-full.text-xs',
@@ -67,19 +68,14 @@ test.skip(
 
 // Helper function to login
 async function login(page: Page) {
-  await page.goto('/login');
-  await expect(page.locator('#identifier')).toBeVisible();
-  await page.fill('#identifier', TEST_EMAIL);
-  await page.fill('#password', TEST_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/(dashboard|project)/, { timeout: 10000 });
+  await authenticate(page, TEST_EMAIL, TEST_PASSWORD);
 }
 
 // Helper function to navigate to skills page
 async function clearExistingUserSkills(page: Page) {
   await page.evaluate(async () => {
     const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return;
+    if (!accessToken) throw new Error('Missing access token while cleaning E2E skills');
 
     const headers = {
       Authorization: `Bearer ${accessToken}`,
@@ -87,17 +83,22 @@ async function clearExistingUserSkills(page: Page) {
     };
 
     const response = await fetch('/api/v1/skills/my-skills', { headers });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error(`Failed to list E2E skills: ${response.status}`);
 
     const payload = await response.json();
     const userSkills = Array.isArray(payload?.user_skills) ? payload.user_skills : [];
 
     for (const skill of userSkills) {
-      if (!skill?.id) continue;
-      await fetch(`/api/v1/skills/${skill.id}`, { method: 'DELETE', headers });
+      if (!skill?.id || typeof skill.name !== 'string' || !skill.name.startsWith('E2E ')) continue;
+      const deleteResponse = await fetch(`/api/v1/skills/${skill.id}`, { method: 'DELETE', headers });
+      if (!deleteResponse.ok) throw new Error(`Failed to delete E2E skill ${skill.id}: ${deleteResponse.status}`);
     }
   });
 }
+
+test.afterEach(async ({ page }) => {
+  await clearExistingUserSkills(page);
+});
 
 async function navigateToSkills(page: Page) {
   const currentUrl = page.url();
@@ -150,7 +151,7 @@ async function createSkill(
 }
 
 function getSkillCard(page: Page, skillName: string) {
-  return page.locator('[class*="rounded-lg"][class*="border"]').filter({ hasText: skillName }).first();
+  return page.getByTestId('skill-card').filter({ hasText: skillName }).first();
 }
 
 test.describe('Skills Management Flow - CRUD Lifecycle', () => {
@@ -160,7 +161,7 @@ test.describe('Skills Management Flow - CRUD Lifecycle', () => {
   });
 
   test('complete skill lifecycle: create, edit, use, delete', async ({ page }) => {
-    const skillName = `完整生命周期测试 ${Date.now()}`;
+    const skillName = `E2E 完整生命周期测试 ${Date.now()}`;
     const originalInstructions = '这是原始指令内容';
     const editedInstructions = '这是编辑后的指令内容';
     const triggers = '/lifecycle, 生命周期';
@@ -191,17 +192,16 @@ test.describe('Skills Management Flow - CRUD Lifecycle', () => {
     await skillCard.locator('button:has(svg.lucide-trash-2)').click();
 
     const deleteDialog = page.locator('[role="dialog"]').filter({ hasText: /删除|确认/i }).last();
-    if (await deleteDialog.isVisible().catch(() => false)) {
-      await deleteDialog.locator('button:has-text("删除"):not(:has-text("取消"))').click();
-      await expect(deleteDialog).not.toBeVisible({ timeout: 5000 });
-    }
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.locator('button:has-text("删除"):not(:has-text("取消"))').click();
+    await expect(deleteDialog).not.toBeVisible({ timeout: 5000 });
 
     // Step 6: Verify skill is deleted
     await expect(page.locator(`text=${skillName}`)).not.toBeVisible({ timeout: 5000 });
   });
 
   test('skill with multiple triggers can be created and triggered', async ({ page }) => {
-    const skillName = `多触发器测试 ${Date.now()}`;
+    const skillName = `E2E 多触发器测试 ${Date.now()}`;
     const instructions = '这是一个拥有多个触发器的技能';
     const triggers = '/multi1, /multi2, 触发词A, 触发词B';
 
@@ -214,7 +214,7 @@ test.describe('Skills Management Flow - CRUD Lifecycle', () => {
   });
 
   test('skill description is optional', async ({ page }) => {
-    const skillName = `无描述技能 ${Date.now()}`;
+    const skillName = `E2E 无描述技能 ${Date.now()}`;
     const instructions = '只有指令没有描述';
 
     await switchToMySkills(page);
@@ -245,7 +245,7 @@ test.describe('Skills Management Flow - Keyboard Navigation', () => {
     await switchToMySkills(page);
 
     // Create a skill to ensure there's something to navigate
-    const skillName = `键盘导航测试 ${Date.now()}`;
+    const skillName = `E2E 键盘导航测试 ${Date.now()}`;
     await createSkill(page, skillName, '键盘导航测试指令');
 
     // Tab to the skill card
@@ -269,7 +269,7 @@ test.describe('Skills Management Flow - Keyboard Navigation', () => {
       tabCount++;
 
       const focusedElement = page.locator(':focus');
-      const hasPlusIcon = await focusedElement.locator('svg.lucide-plus').isVisible().catch(() => false);
+      const hasPlusIcon = await focusedElement.locator('svg.lucide-plus').isVisible();
 
       if (hasPlusIcon) {
         await page.keyboard.press('Enter');
@@ -323,7 +323,7 @@ test.describe('Skills Management Flow - Cross-session Persistence', () => {
   });
 
   test('created skill persists after page refresh', async ({ page }) => {
-    const skillName = `持久化测试 ${Date.now()}`;
+    const skillName = `E2E 持久化测试 ${Date.now()}`;
     const instructions = '这个技能应该在刷新后依然存在';
 
     await createSkill(page, skillName, instructions);
@@ -339,7 +339,7 @@ test.describe('Skills Management Flow - Cross-session Persistence', () => {
   });
 
   test('edited skill changes persist after refresh', async ({ page }) => {
-    const skillName = `编辑持久化测试 ${Date.now()}`;
+    const skillName = `E2E 编辑持久化测试 ${Date.now()}`;
     const originalInstructions = '原始指令';
     const editedInstructions = '编辑后的指令';
 
@@ -366,7 +366,7 @@ test.describe('Skills Management Flow - Cross-session Persistence', () => {
   });
 
   test('deleted skill does not reappear after refresh', async ({ page }) => {
-    const skillName = `删除持久化测试 ${Date.now()}`;
+    const skillName = `E2E 删除持久化测试 ${Date.now()}`;
     const instructions = '这个技能将被删除';
 
     await createSkill(page, skillName, instructions);
@@ -376,10 +376,9 @@ test.describe('Skills Management Flow - Cross-session Persistence', () => {
     const skillCard = getSkillCard(page, skillName);
     await skillCard.locator('button:has(svg.lucide-trash-2)').click();
     const deleteDialog = page.locator('[role="dialog"]').filter({ hasText: /删除|确认/i }).last();
-    if (await deleteDialog.isVisible().catch(() => false)) {
-      await deleteDialog.locator('button:has-text("删除"):not(:has-text("取消"))').click();
-      await expect(deleteDialog).not.toBeVisible({ timeout: 5000 });
-    }
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.locator('button:has-text("删除"):not(:has-text("取消"))').click();
+    await expect(deleteDialog).not.toBeVisible({ timeout: 5000 });
 
     // Refresh and verify skill is still deleted
     await page.reload();
@@ -396,7 +395,7 @@ test.describe('Skills Management Flow - Search and Filter', () => {
   });
 
   test('search filters skills by name', async ({ page }) => {
-    const uniqueName = `唯一搜索名称 ${Date.now()}`;
+    const uniqueName = `E2E 唯一搜索名称 ${Date.now()}`;
     await createSkill(page, uniqueName, '搜索测试指令');
 
     // Use search to find the skill
@@ -433,7 +432,7 @@ test.describe('Skills Management Flow - Search and Filter', () => {
   });
 
   test('search is case insensitive', async ({ page }) => {
-    const skillName = `CaseSensitive ${Date.now()}`;
+    const skillName = `E2E CaseSensitive ${Date.now()}`;
     await createSkill(page, skillName, '大小写测试');
 
     const searchInput = page.locator('input[placeholder*="搜索"]').first();
@@ -543,7 +542,7 @@ test.describe('Skills Management Flow - Error Recovery', () => {
     await switchToMySkills(page);
 
     // Create a skill
-    const skillName = `恢复测试 ${Date.now()}`;
+    const skillName = `E2E 恢复测试 ${Date.now()}`;
     await createSkill(page, skillName, '恢复测试指令');
 
     // Simulate brief network interruption
@@ -676,7 +675,7 @@ test.describe('Skills Management Flow - Mobile Responsive', () => {
 
     // Create multiple skills to test scrolling
     for (let i = 0; i < 3; i++) {
-      const skillName = `移动端滚动测试 ${i} ${Date.now()}`;
+      const skillName = `E2E 移动端滚动测试 ${i} ${Date.now()}`;
       await createSkill(page, skillName, `指令 ${i}`);
       // Small delay to ensure unique timestamps
       await page.waitForTimeout(100);
@@ -698,7 +697,7 @@ test.describe('Skills Management Flow - Concurrent Operations', () => {
     const skillNames: string[] = [];
 
     for (let i = 0; i < 3; i++) {
-      const skillName = `连续创建测试 ${i} ${Date.now()}`;
+      const skillName = `E2E 连续创建测试 ${i} ${Date.now()}`;
       skillNames.push(skillName);
       await createSkill(page, skillName, `连续创建指令 ${i}`);
       await page.waitForTimeout(200); // Small delay between creates
@@ -713,8 +712,8 @@ test.describe('Skills Management Flow - Concurrent Operations', () => {
 
   test('editing one skill does not affect others', async ({ page }) => {
     // Create two skills
-    const skill1Name = `独立测试1 ${Date.now()}`;
-    const skill2Name = `独立测试2 ${Date.now()}`;
+    const skill1Name = `E2E 独立测试1 ${Date.now()}`;
+    const skill2Name = `E2E 独立测试2 ${Date.now()}`;
     const skill1Original = '技能1原始指令';
     const skill2Original = '技能2原始指令';
 
@@ -743,7 +742,7 @@ test.describe('Skills Management Flow - Data Integrity', () => {
   });
 
   test('long skill name is handled correctly', async ({ page }) => {
-    const longName = `这是一个非常长的技能名称用于测试系统如何处理长文本输入 ${Date.now()}`;
+    const longName = `E2E 这是一个非常长的技能名称用于测试系统如何处理长文本输入 ${Date.now()}`;
     const instructions = '长名称测试指令';
 
     await createSkill(page, longName, instructions);
@@ -754,7 +753,7 @@ test.describe('Skills Management Flow - Data Integrity', () => {
   });
 
   test('special characters in skill content are preserved', async ({ page }) => {
-    const skillName = `特殊字符测试 ${Date.now()}`;
+    const skillName = `E2E 特殊字符测试 ${Date.now()}`;
     const specialInstructions = '包含特殊字符: <>&"\'\n\t换行和制表符';
 
     await createSkill(page, skillName, specialInstructions);
@@ -768,7 +767,7 @@ test.describe('Skills Management Flow - Data Integrity', () => {
   });
 
   test('unicode characters in skill content work correctly', async ({ page }) => {
-    const skillName = `Unicode测试 ${Date.now()}`;
+    const skillName = `E2E Unicode测试 ${Date.now()}`;
     const unicodeInstructions = '包含emoji 😀 和中文标点：，。！？以及日文ひらがな';
 
     await createSkill(page, skillName, unicodeInstructions);
@@ -796,7 +795,7 @@ test.describe('Skills Management Flow - Navigation Integration', () => {
     await navigateToSkills(page);
 
     // Create a skill
-    const skillName = `会话状态测试 ${Date.now()}`;
+    const skillName = `E2E 会话状态测试 ${Date.now()}`;
     await createSkill(page, skillName, '会话状态测试指令');
 
     // Navigate away

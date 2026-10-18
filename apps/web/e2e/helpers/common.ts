@@ -92,7 +92,10 @@ export async function login(
     cachedAuthByEmail.set(normalizedEmail, cachedAuth)
   }
 
-  await page.goto('/')
+  // Bootstrap storage in a same-origin static document. Loading the React app
+  // first lets its auth redirects or lazy-route recovery race the next hard
+  // navigation in Firefox, which surfaces as NS_BINDING_ABORTED.
+  await page.goto('/robots.txt', { waitUntil: 'domcontentloaded' })
   await page.evaluate((tokenData) => {
     localStorage.setItem('access_token', tokenData.access_token)
     localStorage.setItem('refresh_token', tokenData.refresh_token)
@@ -101,8 +104,16 @@ export async function login(
     }
     if (tokenData.user) {
       localStorage.setItem('user', JSON.stringify(tokenData.user))
+      localStorage.setItem('auth_validated_at', Date.now().toString())
     }
   }, cachedAuth)
+
+  // Return only after the authenticated SPA route has settled. Callers may
+  // navigate immediately without colliding with an in-flight auth redirect.
+  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+  await expect(page).toHaveURL(/\/dashboard(?:[/?#]|$)/)
+  await expect(page.getByTestId('dashboard-composer')).toBeVisible()
+  await expect(page.getByTestId('dashboard-inspiration-input')).toBeVisible()
 }
 
 /**
