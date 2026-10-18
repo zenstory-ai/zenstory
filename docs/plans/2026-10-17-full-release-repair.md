@@ -85,3 +85,5 @@
 - skip 逐项审计发现正文上传仍借用任意项目并可能跳过，改为每例 owned fixture、实际 filechooser 和准确 API 字节断言；footer 两引擎共同覆盖保存/选择/滚动，Chromium 的 CDP pinch 单独标记 step，Firefox 不再以标题声称已测 pinch。没有新增 skip 或修改产品。
 
 - `86b5724d` 上传/中英 footer/10 图无更新比较，两引擎 31/31 首轮通过、无 skip/flaky。PR 首次 CI 的 frontend-test 4741 passed / 1 failed / 1 既有 skipped；失败 DOM 显示历史列表仍 loading，旧测试只等外层即同步取 rows。改为等待真实 rows/action，不重跑原失败放行、不动产品。
+
+- PR `56ac88d9` CI 已成功。冻结 files 首轮 42 passed / 3 failed：两例为空状态旧文案，另一例 Firefox 在 AuthProvider loading；trace 表明 fixture 登录 127.0.0.1 成功、浏览器 localhost 的 /auth/me 一直 pending，测试启动现统一 API host。分支 full 又复现未提交项目页面就 back、Dashboard logout 控件错误、versions 自有 double-hard-navigation；分别等待真实项目就绪、使用实际 account panel 退出契约、复用 owned 版本 fixture，均不修改产品/超时/重试。

@@ -38,6 +38,10 @@ project fixture 按稳定 parallelIndex 选择已 seed 的账号，每测试清�
 
 CI 实跑证明 version-list 外层在 loading 时已经存在，不能用它代替数据就绪。版本预览/滚动单测等待真实 rows/action 出现后再交互，不加重试或延长超时，保留精确 scrollTop 断言。
 
+冻结 Firefox trace 中，API fixture 对 127.0.0.1 登录成功，但浏览器默认 localhost 的两次 /auth/me 连接一直 pending，页面因此停在 AuthProvider loading。Playwright 两种 Vite 启动路径都显式沿用 fixture 的 E2E_API_URL（默认 127.0.0.1），消除测试环境主机分歧；不通过加超时、伪造验证时间或跳过认证掩盖。
+
+CI trace 进一步证明导航 URL 改变不代表项目组件已提交：back 用例须等待真实文件树，再验证返回后的 reset。退出用例固定 Dashboard 的真实 account panel 和回首页契约；版本历史复用 owned 项目/文件，避免自有登录和重复 hard navigation 互相中断，不改既有版本数/正文/回滚/冲突断言。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。

@@ -130,12 +130,17 @@ test.describe('Session Management', () => {
   test('logout clears session data', async ({ page }) => {
     await loginAndWaitForAuthenticatedRoute(page);
 
-    // Click logout
-    await page.locator('[data-testid="user-menu-button"], [data-testid="dashboard-user-panel-toggle"]').first().click();
-    await page.locator('[data-testid="logout-button"], [data-testid="settings-logout-button"]').first().click();
+    // Exercise the dashboard account panel rather than whichever authenticated
+    // surface the login redirect happened to choose.
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('dashboard-composer')).toBeVisible();
+    await page.getByTestId('dashboard-user-panel-toggle').click();
+    const logoutButton = page.getByRole('button', { name: /^(退出登录|Logout)$/ });
+    await expect(logoutButton).toBeVisible();
+    await logoutButton.click();
 
-    // Verify redirect to login
-    await expect(page).toHaveURL(/.*login/);
+    // Dashboard logout deliberately returns to the public home page.
+    await expect(page).toHaveURL('/');
 
     const authState = await page.evaluate(() => ({
       access_token: localStorage.getItem('access_token'),

@@ -237,7 +237,9 @@ test.describe('Files', () => {
   })
 
   test('empty folder shows empty state message', async ({ page }) => {
-    await expect(treeNode(page, '正文').locator('..')).toContainText(/空文件夹|暂无文件|empty/i)
+    await expect(
+      treeNode(page, '正文').locator('..').getByText('暂无内容，点击 + 开始创作', { exact: true })
+    ).toBeVisible()
   })
 
   test('file tree persists across page reload', async ({ page }) => {

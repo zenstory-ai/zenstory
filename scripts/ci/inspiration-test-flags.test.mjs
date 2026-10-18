@@ -19,3 +19,13 @@ for (const configured of [undefined, 'true', 'false', '']) {
     assert.match(playwright, /VITE_INSPIRATIONS_ENABLED \?\? inspirationTestFlag/);
   });
 }
+
+
+test('browser and API fixtures share the E2E API origin in both server launch modes', () => {
+  const environments = readFileSync(new URL('../../apps/web/e2e/config/environments.ts', import.meta.url), 'utf8');
+  const expression = "process.env.E2E_API_URL || 'http://127.0.0.1:8000'";
+  assert.ok(environments.includes(`apiBaseUrl: ${expression}`));
+  assert.ok(playwright.includes(`const e2eApiBaseUrl = ${expression}`));
+  assert.equal([...playwright.matchAll(/VITE_API_BASE_URL: e2eApiBaseUrl/g)].length, 2,
+    'Both external-backend and local-backend Vite launches must use the fixture API origin');
+});

@@ -166,6 +166,7 @@ test.describe('Browser Navigation', () => {
     // Navigate to a project
     await page.getByRole('button', { name: `打开项目「${project.name}」` }).click();
     await expect(page).toHaveURL(`/project/${project.id}`);
+    await expect(page.locator('[data-testid="file-tree-node"][data-file-type="folder"]').first()).toBeVisible();
 
     // Go back
     await page.goBack();

@@ -1,5 +1,10 @@
-import { test, expect, Page, APIRequestContext, Locator } from '@playwright/test'
-import { TEST_USERS, config } from './config'
+import { test, expect, Page, Locator } from '@playwright/test'
+import {
+  cleanupOwnedProject,
+  createOwnedFile,
+  createOwnedProject,
+  type OwnedProject,
+} from './fixtures/project-test-data'
 
 /**
  * E2E Tests for Version History Feature
@@ -18,13 +23,10 @@ import { TEST_USERS, config } from './config'
  * - apps/web/src/components/FileVersionHistory.tsx (file-level versions)
  */
 
-// Test credentials - use environment variables or defaults matching seeded user
-const TEST_EMAIL = TEST_USERS.standard.email
-const TEST_PASSWORD = TEST_USERS.standard.password
-const AUTHENTICATED_ROUTE_PATTERN = /\/(dashboard|project|onboarding\/persona)/
+let activeProject: OwnedProject | undefined
 let activeTestFileId: string | null = null
 let activeTestFileName: string | null = null
-let activeTestFolderTitle: string | null = null
+const ACTIVE_TEST_FOLDER_TITLE = '大纲'
 const VERSION_HISTORY_E2E_ENABLED = process.env.E2E_ENABLE_VERSION_HISTORY_E2E === 'true'
 
 test.skip(
@@ -32,42 +34,18 @@ test.skip(
   'Version history deep UI suite depends on stable editor runtime. Set E2E_ENABLE_VERSION_HISTORY_E2E=true to run it.'
 )
 
-async function loginAndOpenDashboardHome(page: Page) {
-  await page.addInitScript(() => {
-    const cachedUser = localStorage.getItem('user')
-    if (cachedUser) {
-      localStorage.setItem('auth_validated_at', Date.now().toString())
-    }
-  })
+test.beforeEach(async ({ page }, testInfo) => {
+  activeTestFileId = null
+  activeTestFileName = null
+  activeProject = await createOwnedProject(page, testInfo, 'versions')
+})
 
-  const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  if (await inspirationInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    return
-  }
-
-  if (!page.url().includes('/login')) {
-    await page.goto('/login', { waitUntil: 'domcontentloaded' })
-  }
-
-  await expect(page.locator('#identifier')).toBeVisible({ timeout: 15000 })
-  await page.fill('#identifier', TEST_EMAIL)
-  await page.fill('#password', TEST_PASSWORD)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(AUTHENTICATED_ROUTE_PATTERN, { timeout: 30000 })
-  await page
-    .waitForResponse(
-      (response) =>
-        response.url().includes('/api/v1/projects') &&
-        response.request().method() === 'GET',
-      { timeout: 30000 }
-    )
-    .catch(() => null)
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  await expect(inspirationInput).toBeVisible({ timeout: 30000 })
-}
+test.afterEach(async ({ page }) => {
+  await cleanupOwnedProject(page, activeProject)
+  activeProject = undefined
+  activeTestFileId = null
+  activeTestFileName = null
+})
 
 async function getAuthHeaders(page: Page) {
   const accessToken = await page.evaluate(() => localStorage.getItem('access_token'))
@@ -81,69 +59,6 @@ async function getAuthHeaders(page: Page) {
   }
 }
 
-async function listProjects(page: Page, request: APIRequestContext) {
-  const headers = await getAuthHeaders(page)
-  const response = await request.get(`${config.apiBaseUrl}/api/v1/projects`, { headers })
-  expect(response.ok()).toBeTruthy()
-
-  const payload = await response.json()
-  return Array.isArray(payload) ? payload : []
-}
-
-async function ensureProjectSlotsAvailable(page: Page, request: APIRequestContext, requiredCreates = 1) {
-  const headers = await getAuthHeaders(page)
-  const quotaResponse = await request.get(`${config.apiBaseUrl}/api/v1/subscription/quota`, { headers })
-  expect(quotaResponse.ok()).toBeTruthy()
-
-  const quota = await quotaResponse.json()
-  const projectLimit = quota?.projects?.limit
-  if (typeof projectLimit !== 'number' || projectLimit < 0) return
-
-  const projects = await listProjects(page, request)
-  const targetProjectCount = Math.max(projectLimit - requiredCreates, 0)
-
-  projects.sort(
-    (a, b) =>
-      new Date(a.updated_at || a.created_at || 0).getTime() -
-      new Date(b.updated_at || b.created_at || 0).getTime()
-  )
-
-  while (projects.length > targetProjectCount) {
-    const project = projects.shift()
-    if (!project?.id) continue
-
-    const deleteResponse = await request.delete(`${config.apiBaseUrl}/api/v1/projects/${project.id}`, {
-      headers,
-    })
-    expect(deleteResponse.ok()).toBeTruthy()
-  }
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  await expect(page.locator('[data-testid="dashboard-inspiration-input"]')).toBeVisible({
-    timeout: 15000,
-  })
-}
-
-/**
- * Helper function to login and navigate to a project
- */
-async function loginAndNavigateToProject(page: Page, request: APIRequestContext) {
-  await loginAndOpenDashboardHome(page)
-  await ensureProjectSlotsAvailable(page, request)
-
-  const headers = await getAuthHeaders(page)
-  const createResponse = await request.post(`${config.apiBaseUrl}/api/v1/projects`, {
-    headers,
-    data: {
-      description: `版本测试项目 ${Date.now()}`,
-    },
-  })
-  expect(createResponse.ok()).toBeTruthy()
-  const createdProject = await createResponse.json()
-  await page.goto(`/project/${createdProject.id}`, { waitUntil: 'domcontentloaded' })
-  await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
-}
-
 function getCurrentProjectId(page: Page): string {
   const match = page.url().match(/\/project\/([^/?#]+)/)
   if (!match?.[1]) {
@@ -152,69 +67,27 @@ function getCurrentProjectId(page: Page): string {
   return match[1]
 }
 
-type TreeNode = {
-  id?: string
-  title?: string
-  children?: TreeNode[]
-}
-
-function findFolderNode(nodes: TreeNode[], title: string): TreeNode | null {
-  for (const node of nodes) {
-    if (node?.title === title) {
-      return node
-    }
-    if (Array.isArray(node?.children)) {
-      const childMatch = findFolderNode(node.children, title)
-      if (childMatch) return childMatch
-    }
-  }
-  return null
-}
-
 /**
  * Helper function to create a file and return its locator
  */
 async function createTestFile(page: Page, fileName: string): Promise<string> {
-  const token = await page.evaluate(() => localStorage.getItem('access_token'))
-  expect(token).toBeTruthy()
-
-  const projectId = getCurrentProjectId(page)
-  const treeResponse = await page.request.get(`/api/v1/projects/${projectId}/file-tree`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  if (!activeProject) {
+    throw new Error('Missing owned project for version history setup')
+  }
+  const created = await createOwnedFile(page, activeProject, {
+    title: fileName,
+    fileType: 'outline',
+    parentFolderTitle: ACTIVE_TEST_FOLDER_TITLE,
   })
-  expect(treeResponse.ok()).toBeTruthy()
-  const treePayload = await treeResponse.json()
-  const folderNode =
-    findFolderNode(treePayload?.tree ?? [], '正文') ||
-    findFolderNode(treePayload?.tree ?? [], 'Draft') ||
-    findFolderNode(treePayload?.tree ?? [], 'Drafts') ||
-    findFolderNode(treePayload?.tree ?? [], '大纲') ||
-    findFolderNode(treePayload?.tree ?? [], 'Outline')
-  activeTestFolderTitle = folderNode?.title ?? null
-  const fileType = folderNode?.title === '大纲' || folderNode?.title === 'Outline' ? 'outline' : 'draft'
-
-  const createResponse = await page.request.post(`/api/v1/projects/${projectId}/files`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    data: {
-      title: fileName,
-      file_type: fileType,
-      parent_id: folderNode?.id ?? null,
-      content: '',
-    },
-  })
-  expect(createResponse.ok()).toBeTruthy()
-  const created = await createResponse.json()
 
   activeTestFileId = created.id
   activeTestFileName = fileName
 
-  await page.goto(`/project/${projectId}`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`/project/${activeProject.id}?file=${created.id}`, { waitUntil: 'domcontentloaded' })
+  await expect(page).toHaveURL(new RegExp(`/project/${activeProject.id}\\?file=${created.id}`))
   await ensureActiveFolderExpanded(page)
-  await expect(page.locator(`text=${fileName}`).first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByTestId('file-tree-node').filter({ hasText: fileName }).first()).toBeVisible()
+  await expect(page.locator('[data-editor-scroll-container="true"] textarea').first()).toBeVisible()
 
   return created.id
 }
@@ -243,9 +116,7 @@ function activeTestFileNameForUi(_page: Page): string | null {
 }
 
 async function ensureActiveFolderExpanded(page: Page): Promise<void> {
-  if (!activeTestFolderTitle) return
-
-  const folderItem = page.locator('[role="treeitem"]').filter({ hasText: activeTestFolderTitle }).first()
+  const folderItem = page.locator('[role="treeitem"]').filter({ hasText: ACTIVE_TEST_FOLDER_TITLE }).first()
   if (!(await folderItem.isVisible().catch(() => false))) return
 
   if ((await folderItem.getAttribute('aria-expanded')) !== 'true') {
@@ -372,10 +243,6 @@ async function getVersionCountFromApi(page: Page): Promise<number> {
 }
 
 test.describe('Version History', () => {
-  test.beforeEach(async ({ page, request }) => {
-    await loginAndNavigateToProject(page, request)
-  })
-
   // ==================== Basic Version Listing ====================
 
   test('version history shows all file versions', async ({ page }) => {
@@ -825,10 +692,6 @@ test.describe('Version History', () => {
 })
 
 test.describe('Version History - Error Handling', () => {
-  test.beforeEach(async ({ page, request }) => {
-    await loginAndNavigateToProject(page, request)
-  })
-
   test('handles version history for file with no edits', async ({ page }) => {
     await createTestFile(page, '无编辑文件')
 
@@ -883,10 +746,6 @@ test.describe('Version History - Error Handling', () => {
 })
 
 test.describe('Version History - Diff View Modes', () => {
-  test.beforeEach(async ({ page, request }) => {
-    await loginAndNavigateToProject(page, request)
-  })
-
   test('diff viewer supports unified view mode', async ({ page }) => {
     await createTestFile(page, '统一视图测试')
     await selectFile(page, '统一视图测试')
