@@ -30,6 +30,10 @@ project fixture 按稳定 parallelIndex 选择已 seed 的账号，每测试清�
 
 真实卡片名称来自项目响应，不来自创作灵感；回访场景用唯一 API-owned 名称与真实 aria-label。Dashboard pathname 切换既有行为是 main.scrollTop 重置，不继续声称 window 滚动位置保留。保留专门 UI 创建测试，不扩写滚动记忆产品功能。
 
+当前及最近生产的 ProjectEditor 仅把 file query 作为选择契约，不支持用 session query 选历史会话；测试准确覆盖额外未知参数不干扰有效文件，并直接收集/断言 dialog 与 pageerror 防止 XSS 假绿。
+
+认证刷新测试覆盖实际支持的非空 access 被拒绝、refresh 仍有效且缓存过期路径，要求 401、真实 refresh POST 与恢复后的 token/保护页。缺失 access 的既有清会话策略不改；不以登录页作为刷新成功。语音失败用真实 APIException/code 的安全提示与一次 recognize 请求证明命中目标路径，不用任意 alert 放行。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。

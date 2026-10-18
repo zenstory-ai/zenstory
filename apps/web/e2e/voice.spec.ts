@@ -73,10 +73,26 @@ async function mockVoiceEndpoints(page: Page, scenario: VoiceMock = 'success'): 
       return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error_code: 'ERR_VOICE_CREDENTIALS_NOT_CONFIGURED', error_message: '腾讯云 API 凭证未配置' }) })
     }
     if (scenario === 'recognition-error') {
-      return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ text: '', success: false, error: 'InvalidParameter: 音频格式不支持' }) })
+      return route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          detail: 'ERR_VOICE_AUDIO_DECODE_FAILED',
+          error_code: 'ERR_VOICE_AUDIO_DECODE_FAILED',
+          error_detail: 'Audio data must be strict Base64',
+        }),
+      })
     }
     if (scenario === 'api-error') {
-      return route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ text: '', success: false, error: '腾讯云 API 请求失败: 502' }) })
+      return route.fulfill({
+        status: 502,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          detail: 'ERR_VOICE_API_REQUEST_FAILED',
+          error_code: 'ERR_VOICE_API_REQUEST_FAILED',
+          error_detail: 'Voice recognition provider unavailable',
+        }),
+      })
     }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: '这是一段测试语音识别结果', success: true, duration_ms: 3500 }) })
   })
@@ -377,7 +393,7 @@ test.describe('Voice Input - Error Handling', () => {
 
   test('voice handles recognition errors gracefully', async ({ page, context }, testInfo) => {
     // Override handler to return recognition error
-    await mockVoiceEndpoints(page, 'recognition-error')
+    const voiceMock = await mockVoiceEndpoints(page, 'recognition-error')
 
     await mockMicrophone(page)
     await context.grantPermissions(['microphone'])
@@ -396,15 +412,16 @@ test.describe('Voice Input - Error Handling', () => {
     // Stop recording
     await voiceButton.click()
 
-    // Wait for error response
-    // Should show error toast
-    const errorToast = page.locator(VOICE_INPUT.toastError)
-    await expect(errorToast).toBeVisible({ timeout: 3000 })
+    await expect(page.locator(VOICE_INPUT.toastError)).toHaveText('没能识别这段录音，请重新录制')
+    expect(voiceMock.recognizeRequests).toBe(1)
+    await expect(page.locator(VOICE_INPUT.textarea)).toBeEmpty()
+    await expect(page.locator(VOICE_INPUT.waveform)).toHaveCount(0)
+    await expect(page.locator(VOICE_INPUT.processingIndicator)).toHaveCount(0)
   })
 
   test('voice handles API failures gracefully', async ({ page, context }, testInfo) => {
     // Override handler to return API failure
-    await mockVoiceEndpoints(page, 'api-error')
+    const voiceMock = await mockVoiceEndpoints(page, 'api-error')
 
     await mockMicrophone(page)
     await context.grantPermissions(['microphone'])
@@ -423,10 +440,11 @@ test.describe('Voice Input - Error Handling', () => {
     // Stop recording
     await voiceButton.click()
 
-    // Wait for error response
-    // Should show error toast
-    const errorToast = page.locator(VOICE_INPUT.toastError)
-    await expect(errorToast).toBeVisible({ timeout: 3000 })
+    await expect(page.locator(VOICE_INPUT.toastError)).toHaveText('语音识别失败，请稍后重试或改用键盘输入')
+    expect(voiceMock.recognizeRequests).toBe(1)
+    await expect(page.locator(VOICE_INPUT.textarea)).toBeEmpty()
+    await expect(page.locator(VOICE_INPUT.waveform)).toHaveCount(0)
+    await expect(page.locator(VOICE_INPUT.processingIndicator)).toHaveCount(0)
   })
 })
 
@@ -443,6 +461,7 @@ test.describe('Voice Input - Recording Controls', () => {
   })
 
   test('recording has max duration limit', async ({ page }) => {
+    const voiceMock = await mockVoiceEndpoints(page)
     await page.clock.install()
     const voiceButton = page.locator(VOICE_INPUT.button).first()
     await expect(voiceButton).toBeVisible()
@@ -452,10 +471,17 @@ test.describe('Voice Input - Recording Controls', () => {
 
     // Wait for recording to start
     await expect(page.locator(VOICE_INPUT.waveform)).toBeVisible({ timeout: 2000 })
+    await waitForRecordedAudio(page)
 
-    await page.clock.fastForward(55_000)
+    await page.clock.fastForward(53_000)
+    await expect(page.locator(VOICE_INPUT.duration)).toHaveText('0:54')
+    await expect(page.locator(VOICE_INPUT.waveform)).toBeVisible()
+
+    await page.clock.fastForward(1_000)
+    await expect(page.locator(VOICE_INPUT.textarea)).toHaveValue(/测试语音识别结果/)
     await expect(page.locator(VOICE_INPUT.waveform)).toHaveCount(0)
-    await expect(page.locator(VOICE_INPUT.processingIndicator)).toBeVisible()
+    await expect(page.locator(VOICE_INPUT.processingIndicator)).toHaveCount(0)
+    expect(voiceMock.recognizeRequests).toBe(1)
   })
 
   test('button shows processing state during recognition', async ({ page }) => {

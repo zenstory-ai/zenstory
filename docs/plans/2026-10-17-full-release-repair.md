@@ -76,3 +76,7 @@
 - 最终源码准备：补技能选择 button 的 test ID/aria-pressed，并真实验证单选/全选状态；语音录到 0:01 后才主动停止，55 秒自动截止用浏览器时钟驱动，不再用时长文本代替截止验证。保留 mobile/native-WAV 的 fake microphone source，live ASR 未覆盖。
 - 聊天连续性覆盖真实 `session_started → 下一 POST session_id`，捕获实际请求体验证两次请求；固定模型回复不是记忆证明。文件事件/工具结果用例按真实 UI 协议命名，不声称执行了后端工具或生成 diff。
 - 新增选择语义后产品相关 5 个文件单测 fresh 170/170、完整 typecheck/build 通过；全 lint 0 error/3 既有 warning、token/i18n 检查通过。额外 strict E2E compile 找到两个仅类型问题（network Response/APIResponse 区分、窗口 fixture 状态可选声明），已按真实类型修正，不改变运行期容错。
+
+- `663c7081` 独立架构静态 CLEAR，代码复审又指出 4 处弱断言，已按实际契约补齐：不支持 session query 的文件链接兼容，不声称历史会话深链；恶意 URL 直接收集 dialog/pageerror 并要求均为空；语音两个错误必须命中一次真实形状的 recognize response 和明确安全提示；刷新必须真实 401→refresh POST→恢复 token/保护页，不能接受 login。
+- 认证缺失 access 的既有策略是清会话；有效 refresh 的支持路径是 access 被拒绝且缓存验证过期。测试采用该路径，不扩写产品恢复策略，也不将清空两 token 的用例称为 TTL 验证。
+- 首个冻结候选浏览器 99 项：80 passed、18 既有 capability/manual skipped、1 failed，源码收据 clean/stable。仅 55 秒录音测试先跳时钟却未等 native 音频 chunk，再等待瞬态 spinner；已改为真实录到 0:01、0:54 仍录音、0:55 自动停止且一次识别完成的终态断言。没有降低门槛或将失败计为通过。

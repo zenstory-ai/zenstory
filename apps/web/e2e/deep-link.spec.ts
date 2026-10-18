@@ -75,20 +75,18 @@ test.describe('Deep Linking', () => {
     await expect(page.getByText(/打开一个文件|open a file/i)).toBeVisible()
   })
 
-  test('deep link with session parameter works', async ({ page, ownedProject }) => {
-    const file = await createOwnedFile(page, ownedProject, { title: '会话测试文件' })
-    const sessionResponse = await page.request.post(
-      `/api/v1/chat/session/${ownedProject.id}/new?title=${encodeURIComponent('深链会话')}`,
-      { headers: ownedProject.headers },
-    )
-    expect(sessionResponse.ok()).toBeTruthy()
-    const session = (await sessionResponse.json()) as { id: string }
-
-    await openProject(page, ownedProject, `?file=${file.id}&session=${session.id}`)
+  test('unsupported session query does not interfere with a file link', async ({ page, ownedProject }) => {
+    const file = await createOwnedFile(page, ownedProject, {
+      title: '带额外参数的正文',
+      content: '额外参数不会改变有效文件链接选择的正文',
+    })
+    // Session selection is not a supported URL contract. Only file chooses
+    // content; an unknown session parameter must not break that valid link.
+    await openProject(page, ownedProject, `?file=${file.id}&session=unsupported-session-id`)
     expect(page.url()).toContain(`file=${file.id}`)
-    expect(page.url()).toContain(`session=${session.id}`)
-    await expect(await selectedEditor(page)).toBeVisible()
+    await expect(await selectedEditor(page)).toHaveValue(file.content)
     await expect(page.getByTestId('message-list')).toBeVisible()
+    await expect(page.getByTestId('message-list').getByTestId('chat-message')).toHaveCount(0)
   })
 
   test('deep link to non-existent project shows error', async ({ page, ownedProject }) => {
@@ -154,9 +152,13 @@ test.describe('Deep Link Security', () => {
       `/project/${ownedProject.id}?file=undefined`,
     ]
 
-    await page.addInitScript(() => {
-      window.alert = () => { throw new Error('deep-link-alert-executed') }
+    const dialogs: string[] = []
+    const pageErrors: string[] = []
+    page.on('dialog', async (dialog) => {
+      dialogs.push(dialog.message())
+      await dialog.dismiss()
     })
+    page.on('pageerror', (error) => pageErrors.push(error.message))
     for (const url of malformedUrls) {
       await page.goto(url)
       await page.waitForLoadState('domcontentloaded')
@@ -164,6 +166,8 @@ test.describe('Deep Link Security', () => {
       await expect(page).toHaveURL(new RegExp(`/project/${ownedProject.id}`))
       await expect(page.locator('[data-editor-scroll-container="true"] textarea')).toHaveCount(0)
       await expect(page.getByRole('heading', { name: /开始写作|start writing/i })).toBeVisible()
+      expect(dialogs).toEqual([])
+      expect(pageErrors).toEqual([])
     }
   })
 })
