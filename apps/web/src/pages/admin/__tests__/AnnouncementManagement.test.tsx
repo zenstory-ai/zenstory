@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../../lib/apiClient";
 
@@ -82,7 +83,138 @@ describe("AnnouncementManagement", () => {
     expect(title).toHaveValue("未保存草稿");
   });
 
-  it.each(["/docs/new guide", "https://example.com/new guide", "/docs/new\u00a0guide", "/docs/new\u0085guide", "https://example.com:0/docs"])(
+  it.each(["success", "error", "conflict"])("protects the draft during a pending save and unlocks after %s", async (outcome) => {
+    const user = userEvent.setup();
+    let resolveSave!: (value: typeof saved) => void;
+    let rejectSave!: (error: Error) => void;
+    updateCurrent.mockReturnValue(new Promise<typeof saved>((resolve, reject) => {
+      resolveSave = resolve;
+      rejectSave = reject;
+    }));
+    renderPage();
+    const title = await screen.findByLabelText("标题");
+    await act(async () => { await user.clear(title); });
+    await act(async () => { await user.type(title, "提交的标题"); });
+    await act(async () => { await user.click(screen.getByRole("button", { name: "保存并展示" })); });
+    await waitFor(() => expect(updateCurrent).toHaveBeenCalledTimes(1));
+
+    await act(async () => { await user.type(title, "保存期间追加"); });
+    expect(title).toHaveValue("提交的标题");
+    for (const field of screen.getAllByRole("textbox")) expect(field).toBeDisabled();
+    expect(screen.getByRole("button", { name: "保存中…" })).toBeDisabled();
+    const stop = screen.getByRole("button", { name: "停止展示" });
+    expect(stop).toBeDisabled();
+    await act(async () => { await user.click(stop); });
+    expect(updateCurrent).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      if (outcome === "success") resolveSave({ ...saved, title: "提交的标题", version: 6 });
+      else rejectSave(outcome === "conflict" ? new ApiError(409, "conflict") : new Error("offline"));
+    });
+    await waitFor(() => {
+      for (const field of screen.getAllByRole("textbox")) expect(field).toBeEnabled();
+    });
+    expect(title).toHaveValue("提交的标题");
+    expect(screen.getByRole("button", { name: "保存并展示" })).toBeEnabled();
+    expect(stop).toBeEnabled();
+    await act(async () => { await user.type(title, "完成后继续"); });
+    expect(title).toHaveValue("提交的标题完成后继续");
+    if (outcome === "conflict") expect(screen.getByRole("button", { name: "加载最新配置" })).toBeEnabled();
+  });
+
+  it("protects the unsaved draft while stopping the published announcement", async () => {
+    const user = userEvent.setup();
+    let finishStop!: (value: typeof saved) => void;
+    updateCurrent.mockReturnValue(new Promise<typeof saved>(resolve => { finishStop = resolve; }));
+    renderPage();
+    const title = await screen.findByLabelText("标题");
+    await act(async () => { await user.clear(title); });
+    await act(async () => { await user.type(title, "尚未保存的标题"); });
+    await act(async () => { await user.click(screen.getByRole("button", { name: "停止展示" })); });
+    await waitFor(() => expect(updateCurrent).toHaveBeenCalledTimes(1));
+    for (const field of screen.getAllByRole("textbox")) expect(field).toBeDisabled();
+    await act(async () => { await user.type(title, "停止期间追加"); });
+    expect(title).toHaveValue("尚未保存的标题");
+    await act(async () => { await user.click(screen.getByRole("button", { name: "保存中…" })); });
+    expect(updateCurrent).toHaveBeenCalledTimes(1);
+    await act(async () => { finishStop({ ...saved, enabled: false }); });
+    await waitFor(() => expect(title).toBeEnabled());
+    expect(title).toHaveValue("尚未保存的标题");
+    expect(screen.getByRole("button", { name: "保存并展示" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "停止展示" })).toBeDisabled();
+  });
+
+  it.each(["success", "error"])("serializes explicit reload with editing and mutations, then unlocks after %s", async (outcome) => {
+    const user = userEvent.setup();
+    updateCurrent.mockRejectedValueOnce(new ApiError(409, "conflict"));
+    renderPage();
+    const title = await screen.findByLabelText("标题");
+    await act(async () => { await user.clear(title); });
+    await act(async () => { await user.type(title, "冲突后保留的标题"); });
+    await act(async () => { await user.click(screen.getByRole("button", { name: "保存并展示" })); });
+    const reload = await screen.findByRole("button", { name: "加载最新配置" });
+    let resolveReload!: (value: typeof saved) => void;
+    let rejectReload!: (error: Error) => void;
+    getCurrentAdmin.mockReturnValue(new Promise<typeof saved>((resolve, reject) => {
+      resolveReload = resolve;
+      rejectReload = reject;
+    }));
+    await act(async () => { await user.click(reload); });
+    await waitFor(() => expect(getCurrentAdmin).toHaveBeenCalledTimes(2));
+    for (const field of screen.getAllByRole("textbox")) expect(field).toBeDisabled();
+    await act(async () => { await user.type(title, "读取期间追加"); });
+    expect(title).toHaveValue("冲突后保留的标题");
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toBeDisabled();
+      await act(async () => { await user.click(button); });
+    }
+    expect(updateCurrent).toHaveBeenCalledTimes(1);
+    expect(getCurrentAdmin).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      if (outcome === "success") resolveReload({ ...saved, title: "服务器最新标题", version: 6 });
+      else rejectReload(new Error("offline"));
+    });
+    await waitFor(() => {
+      for (const field of screen.getAllByRole("textbox")) expect(field).toBeEnabled();
+    });
+    expect(title).toHaveValue(outcome === "success" ? "服务器最新标题" : "冲突后保留的标题");
+    expect(screen.getByRole("button", { name: "保存并展示" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "停止展示" })).toBeEnabled();
+    if (outcome === "error") expect(reload).toBeEnabled();
+    else expect(reload).not.toBeInTheDocument();
+  });
+
+  it("blocks explicit reload while retrying a conflicted save", async () => {
+    const user = userEvent.setup();
+    updateCurrent.mockRejectedValueOnce(new ApiError(409, "conflict"));
+    renderPage();
+    const title = await screen.findByLabelText("标题");
+    await act(async () => { await user.click(screen.getByRole("button", { name: "保存并展示" })); });
+    const reload = await screen.findByRole("button", { name: "加载最新配置" });
+    let finishSave!: (value: typeof saved) => void;
+    updateCurrent.mockReturnValue(new Promise<typeof saved>(resolve => { finishSave = resolve; }));
+    await act(async () => { await user.click(screen.getByRole("button", { name: "保存并展示" })); });
+    await waitFor(() => expect(updateCurrent).toHaveBeenCalledTimes(2));
+    expect(reload).toBeDisabled();
+    await act(async () => { await user.click(reload); });
+    expect(getCurrentAdmin).toHaveBeenCalledTimes(1);
+    await act(async () => { finishSave({ ...saved, version: 6 }); });
+    await waitFor(() => expect(title).toBeEnabled());
+    expect(reload).not.toBeInTheDocument();
+  });
+
+  it.each([
+    "/docs/new guide",
+    "https://example.com/new guide",
+    "/docs/new\u00a0guide",
+    "/docs/new\u0085guide",
+    "https://example.com:0/docs",
+    "https:example.com/docs",
+    "https:/example.com/docs",
+    "https:///example.com/docs",
+    "https://@example.com/docs",
+    "https://:@example.com/docs",
+  ])(
     "does not offer to publish an action URL rejected by the server: %s",
     async (url) => {
       renderPage();
@@ -95,6 +227,21 @@ describe("AnnouncementManagement", () => {
       expect(screen.getByRole("button", { name: "保存并展示" })).toBeEnabled();
     },
   );
+
+  it.each([
+    "/docs?source=announcement#intro",
+    "https://example.com:8443/docs?source=announcement#intro",
+    "HTTPS://example.com/docs",
+    "https://[::1]:8443/docs",
+  ])("preserves valid action URLs accepted by the server: %s", async (url) => {
+    renderPage();
+    const link = await screen.findByLabelText("按钮链接（可选）");
+    fireEvent.change(link, { target: { value: url } });
+    const save = screen.getByRole("button", { name: "保存并展示" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() => expect(updateCurrent).toHaveBeenCalledWith(expect.objectContaining({ action_url: url })));
+  });
 
   it("writes successful saves to the shared query cache", async () => {
     const client = createClient();

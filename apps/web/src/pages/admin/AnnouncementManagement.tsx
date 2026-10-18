@@ -88,6 +88,7 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
     },
   });
 
+  const isBusy = mutation.isPending || isReloading;
   const requestFrom = (source: Draft, enabled: boolean): UpdateAnnouncementRequest => ({
     title: source.title.trim(),
     description: source.description.trim(),
@@ -98,13 +99,18 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
     expected_updated_at: published.updated_at,
   });
 
-  const save = () => mutation.mutate(requestFrom(draft, true));
-  const stop = () => mutation.mutate(requestFrom(toDraft(published), false));
   const actionLabel = draft.action_label?.trim() ?? "";
   const actionUrl = draft.action_url?.trim() ?? "";
   const actionIsValid = (!actionLabel && !actionUrl) || Boolean(actionLabel && safeAnnouncementUrl(actionUrl));
-  const canSave = Boolean(draft.title.trim() && draft.description.trim() && actionIsValid) && !mutation.isPending;
+  const canSave = Boolean(draft.title.trim() && draft.description.trim() && actionIsValid) && !isBusy;
+  const save = () => {
+    if (canSave) mutation.mutate(requestFrom(draft, true));
+  };
+  const stop = () => {
+    if (published.enabled && !isBusy) mutation.mutate(requestFrom(toDraft(published), false));
+  };
   const reloadLatest = async () => {
+    if (isBusy) return;
     setIsReloading(true);
     try {
       const latest = await announcementApi.getCurrentAdmin();
@@ -135,6 +141,7 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
           {t("admin.fields.title", "标题")}
           <input
             value={draft.title}
+            disabled={isBusy}
             maxLength={80}
             onChange={(event) => setDraft((value) => ({ ...value, title: event.target.value }))}
             className="mt-2 min-h-11 w-full rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 text-base text-[hsl(var(--text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))]"
@@ -144,6 +151,7 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
           {t("admin.fields.description", "说明")}
           <textarea
             value={draft.description}
+            disabled={isBusy}
             maxLength={240}
             rows={3}
             onChange={(event) => setDraft((value) => ({ ...value, description: event.target.value }))}
@@ -155,6 +163,7 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
             {t("admin.fields.actionLabel", "按钮文案（可选）")}
             <input
               value={draft.action_label ?? ""}
+              disabled={isBusy}
               maxLength={24}
               onChange={(event) => setDraft((value) => ({ ...value, action_label: event.target.value }))}
               className="mt-2 min-h-11 w-full rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 text-base text-[hsl(var(--text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))]"
@@ -164,6 +173,7 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
             {t("admin.fields.actionUrl", "按钮链接（可选）")}
             <input
               value={draft.action_url ?? ""}
+              disabled={isBusy}
               maxLength={2048}
               placeholder="/docs 或 https://…"
               onChange={(event) => setDraft((value) => ({ ...value, action_url: event.target.value }))}
@@ -175,13 +185,13 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
         {hasConflict && (
           <div role="alert" className="rounded-xl border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] p-3 text-sm leading-6 text-[hsl(var(--text-primary))]">
             <p>{t("admin.conflictDraftKept", "你的输入已保留。加载最新配置会替换当前草稿，再继续编辑。")}</p>
-            <Button type="button" variant="secondary" size="touch" className="mt-2" disabled={isReloading} onClick={() => void reloadLatest()}>
+            <Button type="button" variant="secondary" size="touch" className="mt-2" disabled={isBusy} onClick={() => void reloadLatest()}>
               {isReloading ? t("admin.reloading", "加载中…") : t("admin.reloadLatest", "加载最新配置")}
             </Button>
           </div>
         )}
         <div className="flex flex-col-reverse gap-3 border-t border-[hsl(var(--separator-color))] pt-5 sm:flex-row sm:justify-end">
-          <Button type="button" variant="secondary" size="touch" disabled={!published.enabled || mutation.isPending} onClick={stop}>
+          <Button type="button" variant="secondary" size="touch" disabled={!published.enabled || isBusy} onClick={stop}>
             {t("admin.stop", "停止展示")}
           </Button>
           <Button type="submit" size="touch" disabled={!canSave}>
