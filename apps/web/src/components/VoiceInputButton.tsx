@@ -323,7 +323,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const renderContent = () => {
     if (isProcessing) {
       return (
-        <div className="flex items-center justify-center">
+        <div data-testid="voice-processing-indicator" className="flex items-center justify-center">
           <Loader2 size={16} className="animate-spin" />
           <span className="sr-only">{t('chat:voice.recognizing')}</span>
         </div>

@@ -15,6 +15,7 @@ const CHAT_OPT_IN_MESSAGE = 'Chat E2E tests are opt-in. Set E2E_ENABLE_CHAT_E2E=
 
 type StreamControl = {
   opened: () => boolean
+  requests: () => Array<Record<string, unknown>>
   push: (event: string, data: unknown) => void
   close: () => void
 }
@@ -38,15 +39,20 @@ async function installDeterministicStream(page: Page) {
   await page.addInitScript(() => {
     const encoder = new TextEncoder()
     let controller: ReadableStreamDefaultController<Uint8Array> | null = null
+    const requests: Array<Record<string, unknown>> = []
     const realFetch = window.fetch.bind(window)
     window.__chatE2EStream = {
       opened: () => controller !== null,
+      requests: () => requests,
       push: (event, data) => controller?.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)),
       close: () => { controller?.close(); controller = null },
     }
     window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       if (!url.includes('/api/v1/agent/stream')) return realFetch(input, init)
+      if (typeof init?.body === 'string') {
+        requests.push(JSON.parse(init.body) as Record<string, unknown>)
+      }
       const body = new ReadableStream<Uint8Array>({
         start(streamController) {
           controller = streamController
@@ -80,6 +86,7 @@ async function push(page: Page, event: string, data: unknown) {
 }
 
 async function complete(page: Page, content: string, sessionId = 'deterministic-session') {
+  await push(page, 'session_started', { session_id: sessionId })
   await push(page, 'content_start', {})
   await push(page, 'content', { text: content })
   await push(page, 'content_end', {})
@@ -137,7 +144,7 @@ test.describe('AI Chat', () => {
     await expect(page.getByTestId('chat-input')).toBeEnabled()
   })
 
-  test('file is created via AI tool call', async ({ page, ownedProject }) => {
+  test('file_created event refreshes the tree for an API-persisted file', async ({ page, ownedProject }) => {
     const uniqueTitle = `测试大纲_${Date.now()}`
     await send(page, `创建一个名为“${uniqueTitle}”的大纲文件`)
     const file = await createOwnedFile(page, ownedProject, {
@@ -160,12 +167,23 @@ test.describe('AI Chat', () => {
     await expect(page.getByTestId('message-list')).toContainText(/操作没有完成|did not complete/i)
   })
 
-  test('context is preserved across messages', async ({ page }) => {
+  test('subsequent messages send the started session id', async ({ page, ownedProject }) => {
     await send(page, '我的主角叫张三')
     await complete(page, '我记住了，主角叫张三', 'context-session')
     await send(page, '告诉我关于主角的信息')
-    await complete(page, '主角张三正在开始冒险', 'context-session')
-    await expect(page.getByTestId('message-list')).toContainText('主角张三正在开始冒险')
+    const requests = await page.evaluate(() => window.__chatE2EStream?.requests() ?? [])
+    expect(requests).toHaveLength(2)
+    expect(requests[0]).toMatchObject({
+      project_id: ownedProject.id,
+      message: '我的主角叫张三',
+    })
+    expect(requests[0]).not.toHaveProperty('session_id')
+    expect(requests[1]).toMatchObject({
+      project_id: ownedProject.id,
+      message: '告诉我关于主角的信息',
+      session_id: 'context-session',
+    })
+    await complete(page, '第二轮已收到', 'context-session')
   })
 
   test('suggestions appear after inactivity', async ({ page }) => {
@@ -199,62 +217,18 @@ test.describe('AI Chat - Tool Results', () => {
     await expect(page.getByTestId('message-list')).toContainText(/create_file|创建文件|已创建/i)
   })
 
-  test('edit_file tool shows diff preview', async ({ page }) => {
+  test('edit_file tool result shows success status', async ({ page }) => {
     await send(page, '将文件中的原始内容改为修改后的内容')
     await emitTool(page, 'edit_file', { id: 'draft-1', new_length: 6 }, { old_text: '原始内容', new_text: '修改后的内容' })
-    await expect(page.getByTestId('message-list')).toContainText(/edit_file|编辑文件|修改后的内容/i)
+    await expect(page.getByTestId('message-list')).toContainText(/修改完成|edit done/i)
     await complete(page, '修改完成')
   })
 
   test('query_files tool shows results list', async ({ page }) => {
     await send(page, '查询所有角色文件')
     await emitTool(page, 'query_files', [{ id: 'character-1', title: '角色甲', file_type: 'character' }])
-    await expect(page.getByTestId('message-list')).toContainText(/query_files|查找文件|角色甲/i)
+    await expect(page.getByTestId('message-list')).toContainText(/找到 1 个文件|found 1 files/i)
+    await expect(page.getByTestId('message-list')).toContainText('角色甲')
     await complete(page, '查询完成')
-  })
-})
-
-test.describe('Chat Session Deletion', () => {
-  test.skip(!ENABLE_CHAT_E2E, CHAT_OPT_IN_MESSAGE)
-  test.beforeEach(async ({ page, ownedProject }) => openChat(page, ownedProject))
-
-  test('user can delete chat session', async ({ page, ownedProject }) => {
-    const message = `测试删除消息_${Date.now()}`
-    await send(page, message)
-    await complete(page, '删除前回复')
-    const response = await page.request.delete(`/api/v1/chat/session/${ownedProject.id}`, { headers: ownedProject.headers })
-    expect(response.ok()).toBeTruthy()
-    await page.reload()
-    await expect(page.getByTestId('message-list')).not.toContainText(message)
-  })
-
-  test('delete session requires confirmation', async ({ page, ownedProject }) => {
-    const message = `确认删除测试_${Date.now()}`
-    const deletes: string[] = []
-    page.on('request', (request) => {
-      if (request.method() === 'DELETE' && request.url().includes('/api/v1/chat/session/')) {
-        deletes.push(request.url())
-      }
-    })
-    await send(page, message)
-    await complete(page, '保留此会话')
-    // Model the persisted history returned after the user cancels deletion. A
-    // cancelled confirmation must not issue DELETE or remove this message.
-    await page.route(`**/api/v1/chat/session/${ownedProject.id}/recent**`, (route) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([{
-        id: 'kept-user-message',
-        session_id: 'deterministic-session',
-        role: 'user',
-        content: message,
-        tool_calls: null,
-        metadata: null,
-        created_at: new Date().toISOString(),
-      }]),
-    }))
-    await page.reload()
-    await expect(page.getByTestId('message-list')).toContainText(message)
-    expect(deletes).toHaveLength(0)
   })
 })

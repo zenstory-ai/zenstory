@@ -119,7 +119,9 @@ async function clearExistingUserSkills(page: Page) {
     const userSkills = Array.isArray(payload?.user_skills) ? payload.user_skills : [];
 
     for (const skill of userSkills) {
-      if (!skill?.id || typeof skill.name !== 'string' || !skill.name.startsWith('E2E ')) continue;
+      const isOwned = typeof skill?.name === 'string'
+        && (skill.name.startsWith('E2E ') || ['移动端测试技能', '移动端技能'].includes(skill.name));
+      if (!skill?.id || !isOwned) continue;
       const deleteResponse = await fetch(`/api/v1/skills/${skill.id}`, { method: 'DELETE', headers });
       if (!deleteResponse.ok) throw new Error(`Failed to delete E2E skill ${skill.id}: ${deleteResponse.status}`);
     }
@@ -475,8 +477,10 @@ test.describe('Skills Management', () => {
     }
 
     // Click on first skill checkbox
-    const firstCheckbox = page.locator('button:has(svg.lucide-square)').first();
-    await firstCheckbox.click();
+    const firstSelectionToggle = page.getByTestId('skill-selection-toggle').first();
+    await expect(firstSelectionToggle).toHaveAttribute('aria-pressed', 'false');
+    await firstSelectionToggle.click();
+    await expect(firstSelectionToggle).toHaveAttribute('aria-pressed', 'true');
 
     // Verify selection indicator appears
     await expect(page.locator('text=/已选|selected/i')).toBeVisible();
@@ -487,22 +491,24 @@ test.describe('Skills Management', () => {
     await page.click('button:has-text("我的技能"), button:has-text("My Skills")');
     await expect(page.locator('h2:has-text("自定义技能")')).toBeVisible();
 
-    // Click select all button
-    const selectAllBtn = page.locator('button:has-text("全选")').or(
-      page.locator('button:has(svg.lucide-square)').first()
-    );
+    const names = [`E2E 全选A ${Date.now()}`, `E2E 全选B ${Date.now()}`];
+    for (const name of names) {
+      await page.getByRole('button', { name: /^(创建技能|Create Skill)$/ }).click();
+      await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', name);
+      await page.fill('textarea', '全选测试内容');
+      await page.click('button:has-text("保存")');
+      await expect(getSkillCard(page, name)).toBeVisible();
+    }
 
-    if (await selectAllBtn.isVisible()) {
-      await selectAllBtn.click();
-
-      // Check that checkboxes are now checked (CheckSquare icons)
-      const checkedBoxes = page.locator('svg.lucide-check-square');
-      const count = await checkedBoxes.count();
-      expect(count).toBeGreaterThan(0);
-
-      // Click again to deselect all
-      await selectAllBtn.click();
-      await expect(page.locator('svg.lucide-check-square')).toHaveCount(0);
+    const selectAllBtn = page.getByRole('button', { name: /全选|Select all/i });
+    await expect(selectAllBtn).toBeVisible();
+    await selectAllBtn.click();
+    for (const name of names) {
+      await expect(getSkillCard(page, name).getByTestId('skill-selection-toggle')).toHaveAttribute('aria-pressed', 'true');
+    }
+    await selectAllBtn.click();
+    for (const name of names) {
+      await expect(getSkillCard(page, name).getByTestId('skill-selection-toggle')).toHaveAttribute('aria-pressed', 'false');
     }
   });
 
@@ -531,11 +537,10 @@ test.describe('Skills Management', () => {
 
     // Select both skills
     for (const name of skillNames) {
-      const skillCard = page.locator(`text=${name}`).locator('..').locator('..');
-      const checkbox = skillCard.locator('button:has(svg.lucide-square)');
-      if (await checkbox.isVisible()) {
-        await checkbox.click();
-      }
+      const selectionToggle = getSkillCard(page, name).getByTestId('skill-selection-toggle');
+      await expect(selectionToggle).toHaveAttribute('aria-pressed', 'false');
+      await selectionToggle.click();
+      await expect(selectionToggle).toHaveAttribute('aria-pressed', 'true');
     }
 
     // Click batch delete button
@@ -839,7 +844,8 @@ test.describe('Skills Mobile Responsiveness', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Fill form
-    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '移动端测试技能');
+    const skillName = `E2E 移动端测试技能 ${Date.now()}`;
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '移动端指令内容');
 
     // Save
@@ -849,6 +855,6 @@ test.describe('Skills Mobile Responsiveness', () => {
     await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5000 });
 
     // Verify skill created
-    await expect(page.locator('text=移动端测试技能')).toBeVisible({ timeout: 5000 });
+    await expect(getSkillCard(page, skillName)).toBeVisible({ timeout: 5000 });
   });
 });

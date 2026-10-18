@@ -53,8 +53,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   // Retry failed tests in CI for flakiness mitigation and detection
   retries: process.env.CI ? 2 : 0,
-  // Use optimal workers: 1 in CI for stability, 50% of cores locally
-  workers: process.env.CI ? 1 : '50%',
+  // Skills suites share a dedicated quota-bearing account. Keep each runtime
+  // serial; CI shards remain parallel with independent databases.
+  workers: 1,
   // Fail fast in CI for quicker feedback
   maxFailures: process.env.CI ? ciMaxFailures : 0,
   // Multiple reporters for better CI output and flaky test tracking

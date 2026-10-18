@@ -927,6 +927,8 @@ function SkillCard({
         {onToggleSelect && (
           <button
             onClick={onToggleSelect}
+            data-testid="skill-selection-toggle"
+            aria-pressed={isSelected}
             className="shrink-0 mt-1"
           >
             {isSelected ? (
@@ -1302,6 +1304,8 @@ function AddedSkillCard({
         {onToggleSelect && (
           <button
             onClick={onToggleSelect}
+            data-testid="skill-selection-toggle"
+            aria-pressed={isSelected}
             className="shrink-0 mt-1"
           >
             {isSelected ? (

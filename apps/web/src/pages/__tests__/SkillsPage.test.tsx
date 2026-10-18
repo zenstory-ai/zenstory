@@ -545,6 +545,19 @@ describe('SkillsPage', () => {
       })
     })
 
+    it('exposes and updates semantic selection state for each skill card', async () => {
+      render(<SkillsPage />)
+
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+      const title = await screen.findByRole('heading', { name: 'Writing Assistant' })
+      const card = title.closest('.group') as HTMLElement
+      const selectionToggle = within(card).getByTestId('skill-selection-toggle')
+
+      expect(selectionToggle).toHaveAttribute('aria-pressed', 'false')
+      await userEvent.click(selectionToggle)
+      expect(selectionToggle).toHaveAttribute('aria-pressed', 'true')
+    })
+
     it('should open create skill modal', async () => {
       render(<SkillsPage />)
 

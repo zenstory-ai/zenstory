@@ -1,5 +1,6 @@
-import { test, expect, Page, Locator, APIRequestContext } from '@playwright/test'
-import { TEST_USERS, config } from './config'
+import { test, expect, type Page, type Locator, type TestInfo } from '@playwright/test'
+import { getPoolUser, type TestUser } from './config'
+import { cleanupOwnedProject, createOwnedProject, type OwnedProject } from './fixtures/project-test-data'
 import { login } from './helpers/common'
 
 /**
@@ -13,14 +14,17 @@ import { login } from './helpers/common'
  * - Template display validation
  */
 
-const TEST_EMAIL = TEST_USERS.standard.email
-const TEST_PASSWORD = TEST_USERS.standard.password
 const NOVEL_LABEL = '长篇小说'
 const SHORT_LABEL = '短篇小说'
 const SCREENPLAY_LABEL = '短剧剧本'
 
-async function loginAndOpenDashboardHome(page: Page) {
-  await login(page, TEST_EMAIL, TEST_PASSWORD)
+let currentOwner: TestUser
+let ownedProjects: OwnedProject[] = []
+let pendingProjectTracking: Promise<string>[] = []
+
+async function loginAndOpenDashboardHome(page: Page, testInfo: TestInfo) {
+  currentOwner = getPoolUser(testInfo.parallelIndex)
+  await login(page, currentOwner.email, currentOwner.password)
 }
 
 async function openProjectSwitcher(page: Page): Promise<{
@@ -46,95 +50,77 @@ function getCurrentProjectRow(dropdown: Locator): Locator {
   return dropdown.locator('div.group.cursor-pointer').last()
 }
 
-async function getAuthHeaders(page: Page) {
+function registerOwnedProject(projectId: string, accessToken: string): string {
+  if (ownedProjects.some((project) => project.id === projectId)) return projectId
+  ownedProjects.push({
+    id: projectId,
+    name: `projects-${projectId}`,
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    owner: currentOwner,
+  })
+  return projectId
+}
+
+async function createProjectFromDashboard(page: Page): Promise<string> {
   const accessToken = await page.evaluate(() => localStorage.getItem('access_token'))
-  if (!accessToken) {
-    throw new Error('Missing access token for project management setup')
-  }
+  if (!accessToken) throw new Error('Missing access token before creating project fixture')
 
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-  }
-}
-
-async function listProjects(page: Page, request: APIRequestContext) {
-  const headers = await getAuthHeaders(page)
-  const projectResponse = await request.get(`${config.apiBaseUrl}/api/v1/projects`, { headers })
-  expect(projectResponse.ok()).toBeTruthy()
-
-  const projectPayload = await projectResponse.json()
-  return Array.isArray(projectPayload) ? projectPayload : []
-}
-
-async function ensureProjectSlotsAvailable(page: Page, request: APIRequestContext, requiredCreates = 1) {
-  const headers = await getAuthHeaders(page)
-  const quotaResponse = await request.get(`${config.apiBaseUrl}/api/v1/subscription/quota`, { headers })
-  expect(quotaResponse.ok()).toBeTruthy()
-
-  const quota = await quotaResponse.json()
-  const projectLimit = quota?.projects?.limit
-  if (typeof projectLimit !== 'number' || projectLimit < 0) return
-
-  const projects = await listProjects(page, request)
-  const targetProjectCount = Math.max(projectLimit - requiredCreates, 0)
-
-  projects
-    .sort(
-      (a, b) =>
-        new Date(a.updated_at || a.created_at || 0).getTime() -
-        new Date(b.updated_at || b.created_at || 0).getTime()
-    )
-
-  while (projects.length > targetProjectCount) {
-    const project = projects.shift()
-    if (!project?.id) continue
-
-    const deleteResponse = await request.delete(`${config.apiBaseUrl}/api/v1/projects/${project.id}`, {
-      headers,
-    })
-    expect(deleteResponse.ok()).toBeTruthy()
-  }
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  await expect(page.locator('[data-testid="dashboard-inspiration-input"]')).toBeVisible({
-    timeout: 15000,
+  const tracking = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return response.request().method() === 'POST' && url.pathname === '/api/v1/projects'
+  }).then(async (response) => {
+    expect(response.ok()).toBeTruthy()
+    const project = await response.json() as { id?: string }
+    if (!project.id) throw new Error('Project creation response did not include an id')
+    return registerOwnedProject(project.id, accessToken)
   })
+  pendingProjectTracking.push(tracking)
+  void tracking.catch(() => undefined)
+
+  await page.getByTestId('create-project-button').click()
+  return tracking
 }
 
-async function deleteAllProjects(page: Page, request: APIRequestContext) {
-  const headers = await getAuthHeaders(page)
-  const projects = await listProjects(page, request)
-
-  for (const project of projects) {
-    if (!project?.id) continue
-
-    const deleteResponse = await request.delete(`${config.apiBaseUrl}/api/v1/projects/${project.id}`, {
-      headers,
-    })
-    expect(deleteResponse.ok()).toBeTruthy()
-  }
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-  await expect(page.locator('[data-testid="dashboard-inspiration-input"]')).toBeVisible({
-    timeout: 15000,
-  })
+async function createTrackedOwnedProject(
+  page: Page,
+  testInfo: TestInfo,
+  prefix: string,
+): Promise<OwnedProject> {
+  const project = await createOwnedProject(page, testInfo, prefix)
+  ownedProjects.push(project)
+  return project
 }
+
+function getOwnedProjectCard(page: Page, project: OwnedProject): Locator {
+  return page
+    .getByRole('button', { name: `打开项目「${project.name}」` })
+    .locator('xpath=ancestor::article[@data-testid="project-card"]')
+}
+
+test.afterEach(async ({ page }) => {
+  const trackingResults = await Promise.allSettled(pendingProjectTracking)
+  for (const project of ownedProjects) await cleanupOwnedProject(page, project)
+  ownedProjects = []
+  pendingProjectTracking = []
+  const failedTracking = trackingResults.find((result) => result.status === 'rejected')
+  if (failedTracking?.status === 'rejected') throw failedTracking.reason
+})
 
 test.describe('Projects', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAndOpenDashboardHome(page)
+  test.beforeEach(async ({ page }, testInfo) => {
+    ownedProjects = []
+    pendingProjectTracking = []
+    await loginAndOpenDashboardHome(page, testInfo)
   })
 
-  test('user can create a new project with inspiration', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
+  test('user can create a new project with inspiration', async ({ page }) => {
 
     // Find the inspiration textarea and fill it
     const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
     await inspirationInput.fill('这是一个测试小说的灵感描述')
 
     // Click the create button with sparkles icon
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
 
     // Wait for navigation to the new project
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
@@ -173,65 +159,49 @@ test.describe('Projects', () => {
     await expect(novelTab).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('user can see empty state when no projects exist', async ({ page, request }) => {
-    await deleteAllProjects(page, request)
+  test('user can see empty state when no projects exist', async ({ page }) => {
+    await page.route(/\/api\/v1\/projects(?:\?.*)?$/, async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+        return
+      }
+      await route.continue()
+    })
+    await page.reload()
 
     await expect(page.locator('[data-testid="project-card"]')).toHaveCount(0)
     await expect(page.getByText('还没有任何项目')).toBeVisible()
     await expect(page.getByText(/建好第一个项目/)).toBeVisible()
   })
 
-  test('user can see project list when projects exist', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
-
-    // First create a project to ensure at least one exists
-    const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-    await inspirationInput.fill('测试项目用于列表显示')
-
-    await page.click('[data-testid="create-project-button"]')
-    await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
-
-    // Go back to dashboard
+  test('user can see project list when projects exist', async ({ page }, testInfo) => {
+    const project = await createTrackedOwnedProject(page, testInfo, 'project-list')
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
 
-    // Verify the recent-projects section renders at least one card
-    await expect(page.locator('[data-testid="project-card"]').first()).toBeVisible()
+    await expect(page.getByRole('button', { name: `打开项目「${project.name}」` })).toBeVisible()
 
     // Check that the recent-project count badge is visible
     const countBadge = page.locator('text=最近项目').locator('..').locator('span[class*="rounded-full"]')
     await expect(countBadge).toBeVisible()
   })
 
-  test('user can delete a project', async ({ page, request }) => {
-    await deleteAllProjects(page, request)
-
-    // First create a project to delete
-    const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-    await inspirationInput.fill('将要删除的测试项目')
-
-    await page.click('[data-testid="create-project-button"]')
-    await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
-
-    // Go back to dashboard
+  test('user can delete a project', async ({ page }, testInfo) => {
+    const project = await createTrackedOwnedProject(page, testInfo, 'project-delete')
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
 
-    // Wait for project cards to load
-    await page.waitForSelector('[data-testid="project-card"]', { timeout: 5000 })
-    await expect(page.locator('[data-testid="project-card"]')).toHaveCount(1)
-
-    // Hover over the first project card to reveal delete button
-    const firstProjectCard = page.locator('[data-testid="project-card"]').first()
-    await firstProjectCard.hover()
+    const ownedProjectCard = getOwnedProjectCard(page, project)
+    await expect(ownedProjectCard).toBeVisible()
+    await ownedProjectCard.hover()
 
     const deleteResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'DELETE' &&
-        response.url().includes('/api/v1/projects/'),
+        response.url().endsWith(`/api/v1/projects/${project.id}`),
       { timeout: 10000 }
     )
 
     // Click the delete button (trash icon), then confirm in the in-app dialog
-    await firstProjectCard
+    await ownedProjectCard
       .locator('button[title="删除项目"], button:has(svg.lucide-trash-2)')
       .first()
       .click({ force: true })
@@ -242,34 +212,19 @@ test.describe('Projects', () => {
       confirmDialog.getByRole('button', { name: '删除' }).click(),
     ])
 
-    await expect(page.locator('[data-testid="project-card"]')).toHaveCount(0, {
-      timeout: 10000,
-    })
+    await expect(ownedProjectCard).toHaveCount(0, { timeout: 10000 })
   })
 
-  test('user can cancel project deletion', async ({ page, request }) => {
-    await deleteAllProjects(page, request)
-
-    // First create a project
-    const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-    await inspirationInput.fill('取消删除测试项目')
-
-    await page.click('[data-testid="create-project-button"]')
-    await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
-
-    // Go back to dashboard
+  test('user can cancel project deletion', async ({ page }, testInfo) => {
+    const project = await createTrackedOwnedProject(page, testInfo, 'project-cancel-delete')
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
 
-    // Wait for project cards to load
-    await page.waitForSelector('[data-testid="project-card"]', { timeout: 5000 })
-    await expect(page.locator('[data-testid="project-card"]')).toHaveCount(1)
-
-    // Hover over the first project card
-    const firstProjectCard = page.locator('[data-testid="project-card"]').first()
-    await firstProjectCard.hover()
+    const ownedProjectCard = getOwnedProjectCard(page, project)
+    await expect(ownedProjectCard).toBeVisible()
+    await ownedProjectCard.hover()
 
     // Click the delete button, then cancel in the in-app dialog
-    await firstProjectCard
+    await ownedProjectCard
       .locator('button[title="删除项目"], button:has(svg.lucide-trash-2)')
       .first()
       .click({ force: true })
@@ -278,35 +233,17 @@ test.describe('Projects', () => {
     await confirmDialog.getByRole('button', { name: '取消' }).click()
     await expect(confirmDialog).not.toBeVisible()
 
-    await expect(page.locator('[data-testid="project-card"]')).toHaveCount(1)
-    await expect(page.locator('[data-testid="project-card"]').first()).toBeVisible()
+    await expect(ownedProjectCard).toBeVisible()
   })
 
-  test('user can navigate to an existing project', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
-
-    // First create a project
-    const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-    await inspirationInput.fill('导航测试项目')
-
-    await page.click('[data-testid="create-project-button"]')
-    await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
-
-    // Get the project ID from URL
-    const projectUrl = page.url()
-    void projectUrl.split('/project/')[1]
-
-    // Go back to dashboard
+  test('user can navigate to an existing project', async ({ page }, testInfo) => {
+    const project = await createTrackedOwnedProject(page, testInfo, 'project-navigation')
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
 
-    // Wait for project cards to load
-    await page.waitForSelector('[data-testid="project-card"]', { timeout: 5000 })
-
-    // Click on the first project card
-    await page.locator('[data-testid="project-card"]').first().click()
+    await page.getByRole('button', { name: `打开项目「${project.name}」` }).click()
 
     // Wait for navigation
-    await expect(page).toHaveURL(/\/project\//, { timeout: 10000 })
+    await expect(page).toHaveURL(`/project/${project.id}`, { timeout: 10000 })
 
     // Verify we navigated to a project page
     expect(page.url()).toContain('/project/')
@@ -333,41 +270,29 @@ test.describe('Projects', () => {
     await expect(createButton).toBeEnabled()
   })
 
-  test('project cards display correct information', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
-
-    // First create a project
-    const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-    await inspirationInput.fill('信息显示测试项目')
-
-    await page.click('[data-testid="create-project-button"]')
-    await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
-
-    // Go back to dashboard
+  test('project cards display correct information', async ({ page }, testInfo) => {
+    const project = await createTrackedOwnedProject(page, testInfo, 'project-card')
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
 
-    // Wait for project cards to load
-    await page.waitForSelector('[data-testid="project-card"]', { timeout: 5000 })
-
-    // Verify project card has required elements
-    const firstProjectCard = page.locator('[data-testid="project-card"]').first()
+    const ownedProjectCard = getOwnedProjectCard(page, project)
+    await expect(ownedProjectCard).toBeVisible()
 
     // Check for project type icon (Book, FileText, or Clapperboard)
-    await expect(firstProjectCard.locator('svg').first()).toBeVisible()
+    await expect(ownedProjectCard.locator('svg').first()).toBeVisible()
 
     // Check for project name
-    await expect(firstProjectCard.locator('h3, [class*="font-semibold"]')).toBeVisible()
+    await expect(ownedProjectCard.locator('h3, [class*="font-semibold"]')).toBeVisible()
 
     // Check for project type label
     await expect(
-      firstProjectCard
+      ownedProjectCard
         .locator('span')
         .filter({ hasText: /长篇小说|短篇小说|短剧剧本/ })
         .first()
     ).toBeVisible()
 
     // Check for timestamp (clock icon)
-    await expect(firstProjectCard.locator('svg.lucide-clock')).toBeVisible()
+    await expect(ownedProjectCard.locator('svg.lucide-clock')).toBeVisible()
   })
 
   test('recent projects section shows project count', async ({ page }) => {
@@ -399,8 +324,7 @@ test.describe('Projects', () => {
     }
   })
 
-  test('user can search projects', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request, 2)
+  test('user can search projects', async ({ page }) => {
 
     // First create a project with a unique name
     const uniqueName = `搜索测试${Date.now()}`
@@ -408,13 +332,13 @@ test.describe('Projects', () => {
     const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
     await inspirationInput.fill(uniqueName)
 
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     // Create another project with different name
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
     await inspirationInput.fill('其他项目名称')
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     // Go back to dashboard
@@ -456,18 +380,19 @@ test.describe('Projects', () => {
 })
 
 test.describe('Project Update', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAndOpenDashboardHome(page)
+  test.beforeEach(async ({ page }, testInfo) => {
+    ownedProjects = []
+    pendingProjectTracking = []
+    await loginAndOpenDashboardHome(page, testInfo)
   })
 
-  test('user can update project name via ProjectSwitcher', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
+  test('user can update project name via ProjectSwitcher', async ({ page }) => {
 
     // First create a project to edit
     const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
     await inspirationInput.fill('更新名称测试项目')
 
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     const { dropdown } = await openProjectSwitcher(page)
@@ -501,14 +426,13 @@ test.describe('Project Update', () => {
     await page.keyboard.press('Escape')
   })
 
-  test('user can update project description', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
+  test('user can update project description', async ({ page }) => {
 
     // First create a project
     const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
     await inspirationInput.fill('更新描述测试项目')
 
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     // Note: Project description update is typically done through project settings
@@ -522,15 +446,14 @@ test.describe('Project Update', () => {
     await page.keyboard.press('Escape')
   })
 
-  test('project update persists across sessions', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
+  test('project update persists across sessions', async ({ page }) => {
 
     // First create a project
     const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
     const uniqueName = `持久化测试${Date.now()}`
     await inspirationInput.fill(uniqueName)
 
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     // Open ProjectSwitcher and rename the project
@@ -568,8 +491,8 @@ test.describe('Project Update', () => {
     await page.goto('/robots.txt', { waitUntil: 'domcontentloaded' })
     await page.goto('/login', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('#identifier')).toBeVisible()
-    await page.fill('#identifier', TEST_EMAIL)
-    await page.fill('#password', TEST_PASSWORD)
+    await page.fill('#identifier', currentOwner.email)
+    await page.fill('#password', currentOwner.password)
     await page.click('button[type="submit"]')
     await expect(page).toHaveURL(/\/(dashboard|project)/, { timeout: 10000 })
     await expect(page.locator('[data-testid="dashboard-user-panel-toggle"], [data-testid="user-menu-button"]').first()).toBeVisible()
@@ -585,14 +508,13 @@ test.describe('Project Update', () => {
     await expect(page.locator(`text=${updatedName}`)).toBeVisible()
   })
 
-  test('cannot update project with empty name', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
+  test('cannot update project with empty name', async ({ page }) => {
 
     // First create a project
     const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
     await inspirationInput.fill('空名称测试项目')
 
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     // Open ProjectSwitcher
@@ -619,14 +541,13 @@ test.describe('Project Update', () => {
     await expect(projectItem).toContainText('我的小说')
   })
 
-  test('user can cancel project name edit', async ({ page, request }) => {
-    await ensureProjectSlotsAvailable(page, request)
+  test('user can cancel project name edit', async ({ page }) => {
 
     // First create a project
     const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
     await inspirationInput.fill('取消编辑测试项目')
 
-    await page.click('[data-testid="create-project-button"]')
+    await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     // Open ProjectSwitcher
@@ -654,8 +575,10 @@ test.describe('Project Update', () => {
 })
 
 test.describe('Project Type Templates', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAndOpenDashboardHome(page)
+  test.beforeEach(async ({ page }, testInfo) => {
+    ownedProjects = []
+    pendingProjectTracking = []
+    await loginAndOpenDashboardHome(page, testInfo)
   })
 
   test('novel template has correct placeholder', async ({ page }) => {

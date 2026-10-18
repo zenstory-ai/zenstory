@@ -1,4 +1,4 @@
-import { test, expect, type APIResponse, type Locator, type Page } from '@playwright/test'
+import { test, expect, type Response, type Locator, type Page } from '@playwright/test'
 import { config } from './config'
 import {
   cleanupOwnedProject,
@@ -80,7 +80,7 @@ async function createThroughTree(page: Page, folderTitle: string, fileTitle: str
   return created
 }
 
-async function saveEditor(page: Page, action: () => Promise<void>): Promise<APIResponse> {
+async function saveEditor(page: Page, action: () => Promise<void>): Promise<Response> {
   const responsePromise = page.waitForResponse(response =>
     /\/api\/v1\/files\/[^/]+$/.test(new URL(response.url()).pathname)
       && response.request().method() === 'PUT',

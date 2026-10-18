@@ -50,7 +50,11 @@ test.describe('Deep Linking', () => {
   })
 
   test('unauthenticated deep link redirects to login then back', async ({ page, ownedProject }) => {
-    const projectUrl = `/project/${ownedProject.id}`
+    const file = await createOwnedFile(page, ownedProject, {
+      title: '登录后恢复的深链正文',
+      content: '深链目标在登录后自动恢复，不由测试重新导航',
+    })
+    const projectUrl = `/project/${ownedProject.id}?file=${file.id}`
     await page.evaluate(() => localStorage.clear())
     await page.context().clearCookies()
     await page.goto(projectUrl)
@@ -59,9 +63,8 @@ test.describe('Deep Linking', () => {
     await page.locator('#identifier').fill(ownedProject.owner.email)
     await page.locator('#password').fill(ownedProject.owner.password)
     await page.locator('button[type="submit"]').click()
-    await page.waitForURL(/\/(project|dashboard)/)
-    if (!page.url().includes(`/project/${ownedProject.id}`)) await page.goto(projectUrl)
-    await openProject(page, ownedProject)
+    await expect(page).toHaveURL(new RegExp(`/project/${ownedProject.id}\\?file=${file.id}$`))
+    await expect(await selectedEditor(page)).toHaveValue(file.content)
   })
 
   test('invalid file ID shows error', async ({ page, ownedProject }) => {

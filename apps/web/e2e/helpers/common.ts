@@ -5,63 +5,20 @@
  * and performance measurement helpers.
  */
 
-import fs from 'node:fs'
 import { type Page, type APIRequestContext, expect } from '@playwright/test'
 import { config } from '../config'
 
 // Test credentials
 const TEST_EMAIL = process.env.E2E_TEST_EMAIL || 'e2e-test@example.com'
 const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD || 'E2eTestPassword123!'
-const AUTH_FILE = process.env.PLAYWRIGHT_AUTH_FILE || 'playwright/.auth/user.json'
-
-type CachedAuth = {
+type AuthTokens = {
   access_token: string
   refresh_token: string
   token_type?: string
   user?: unknown
 }
 
-const cachedAuthByEmail = new Map<string, CachedAuth>()
-
-function readAuthFile(): CachedAuth | null {
-  if (!fs.existsSync(AUTH_FILE)) return null
-  try {
-    const existing = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8')) as {
-      origins?: Array<{ origin?: string; localStorage?: Array<{ name?: string; value?: string }> }>
-    }
-    const origin = existing.origins?.find((item) => item.origin === new URL(config.baseUrl).origin)
-    const localStorageItems = origin?.localStorage ?? []
-    const map = Object.fromEntries(localStorageItems.map((item) => [item.name, item.value]))
-    if (!map.access_token || !map.refresh_token) return null
-    return {
-      access_token: map.access_token,
-      refresh_token: map.refresh_token,
-      token_type: map.token_type,
-      user: map.user ? JSON.parse(map.user) : undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-async function createFreshAuth(page: Page, email: string, password: string): Promise<CachedAuth> {
-  const fileAuth = readAuthFile()
-  const fileAuthEmail = (
-    fileAuth?.user && typeof fileAuth.user === 'object' && fileAuth.user !== null && 'email' in fileAuth.user
-      ? String((fileAuth.user as { email?: unknown }).email ?? '')
-      : ''
-  ).trim().toLowerCase()
-
-  if (fileAuth?.refresh_token && fileAuthEmail === email.trim().toLowerCase()) {
-    const refreshResponse = await page.request.post(`${config.apiBaseUrl}/api/auth/refresh`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: { refresh_token: fileAuth.refresh_token },
-    })
-    if (refreshResponse.ok()) {
-      return await refreshResponse.json() as CachedAuth
-    }
-  }
-
+async function createFreshAuth(page: Page, email: string, password: string): Promise<AuthTokens> {
   const params = new URLSearchParams()
   params.append('username', email)
   params.append('password', password)
@@ -72,7 +29,7 @@ async function createFreshAuth(page: Page, email: string, password: string): Pro
     },
   })
   expect(loginResponse.ok()).toBeTruthy()
-  return await loginResponse.json() as CachedAuth
+  return await loginResponse.json() as AuthTokens
 }
 
 /**
@@ -83,14 +40,7 @@ export async function login(
   email: string = TEST_EMAIL,
   password: string = TEST_PASSWORD
 ): Promise<void> {
-  // Email is the identity key for this E2E suite. If the suite later introduces
-  // same-email/different-password scenarios, promote the cache key accordingly.
-  const normalizedEmail = email.trim().toLowerCase()
-  let cachedAuth = cachedAuthByEmail.get(normalizedEmail)
-  if (!cachedAuth) {
-    cachedAuth = await createFreshAuth(page, email, password)
-    cachedAuthByEmail.set(normalizedEmail, cachedAuth)
-  }
+  const freshAuth = await createFreshAuth(page, email, password)
 
   // Bootstrap storage in a same-origin static document. Loading the React app
   // first lets its auth redirects or lazy-route recovery race the next hard
@@ -101,12 +51,16 @@ export async function login(
     localStorage.setItem('refresh_token', tokenData.refresh_token)
     if (tokenData.token_type) {
       localStorage.setItem('token_type', tokenData.token_type)
+    } else {
+      localStorage.removeItem('token_type')
     }
     if (tokenData.user) {
       localStorage.setItem('user', JSON.stringify(tokenData.user))
-      localStorage.setItem('auth_validated_at', Date.now().toString())
+    } else {
+      localStorage.removeItem('user')
     }
-  }, cachedAuth)
+    localStorage.removeItem('auth_validated_at')
+  }, freshAuth)
 
   // Return only after the authenticated SPA route has settled. Callers may
   // navigate immediately without colliding with an in-flight auth redirect.

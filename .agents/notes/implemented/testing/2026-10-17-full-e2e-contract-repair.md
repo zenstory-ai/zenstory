@@ -4,7 +4,7 @@
 
 `39062687687` 的 full Chromium/Firefox 回归出现 298 个失败实例。已确认多组用例依赖旧文案/样式、共享且受配额限制的数据、未同步认证导航以及不存在的 Linux 视觉基线；无效项目路径的实际状态仍需查明。默认绿灯不能替代 full 证据。
 
-## Proposal
+## Decision
 
 按 `docs/plans/2026-10-17-full-release-repair.md` 分族保留红灯再修复：复用既有语义/API helper、每测试自有数据和确定性 SSE；仅在 trace/响应证明缺陷后修改产品状态机。视觉采用固定 Linux Playwright 环境与确定性数据，逐图审阅。不新增依赖、不削弱断言/阈值、不增加重试/超时或扩大跳过。发布同时要求最终精确 main SHA 的 push CI/E2E 与 manual full。
 
@@ -21,6 +21,14 @@ CI 复用既有 seeder 创建 TEST_USERS.pool 已声明的五个免费账户，�
 本机实际存在指向 127.0.0.1 的 HTTP(S)_PROXY，仅限制回环连接不足以防止代理转发 provider 请求。CI 专用 guard 在 SDK 导入前同时删除大小写 HTTP/HTTPS/ALL_PROXY；补环境代理回归，先红再修。现有日志没有 provider SDK 请求记录，但不据此推断绝对零外呼；最终隔离证据须来自关闭该路径后的运行。
 
 独立 designer 逐图首轮 8/10 接受，指出两张消息态 fixture 完成一轮后仍回 `used:0`，会把不真实额度写进基线。仅修该视觉 fixture：完成模拟回合后 quota 返回 `used:1` 并等待 badge 更新，再重生成并独立复核两张；不修改产品计费。独立审阅同时确认四张旧 Chromium Darwin 图来自 live/conditional 流程，状态/尺寸不兼容且缺消息态，移出当前基线。Linux 是本次 canonical 视觉门禁；未新增跨 OS 跳过或放宽阈值，不声称已覆盖 macOS 视觉渲染。
+
+独立审阅进一步要求并发测试必须证明真实 stale token 409 与显式审阅，不能接受任一正文/状态。当前前端无删除会话 UI，两个虚构交互从 browser E2E 移除；既有后端以真实持久 session/messages 验证删除和 ledger 保留，不声称 UI 覆盖。
+
+完整发布证据仍未完成；本决策描述已采用的方法，不把候选视觉图、定向绿灯或独立静态审阅当最终 full/main 发布批准。
+
+project fixture 按稳定 parallelIndex 选择已 seed 的账号，每测试清理精确 ID；认证 helper 每调用真实登录，不复用未知新鲜度的 token。两个 skills suite 仍保留既有专用合成账号与 test-owned 前缀清理，单 runtime 固定 worker=1；CI 分片各自独立 DB，因此保留分片并行，不宣称本地共享 skills 账号可多 worker 运行。
+
+真实卡片名称来自项目响应，不来自创作灵感；回访场景用唯一 API-owned 名称与真实 aria-label。Dashboard pathname 切换既有行为是 main.scrollTop 重置，不继续声称 window 滚动位置保留。保留专门 UI 创建测试，不扩写滚动记忆产品功能。
 
 ## Alternatives considered
 

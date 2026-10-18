@@ -10,9 +10,9 @@
 | R2 | 修复中 | skills / voice / performance / large-document 旧定位与数据准备 | 使用实际语义/test ID，原业务/性能阈值不削弱；双浏览器定向通过 |
 | R3 | 修复中 | 认证、Firefox 导航与共享数据 | 先证明竞争/数据原因，稳定等待真实状态；不吞导航异常、不盲重试、不放宽超时 |
 | R4 | 修复中 | chat / concurrent / deep-link | 独立合成项目、真实 API 准备、可控 SSE；无效/越权项目明确错误或安全跳转；无真实付费调用 |
-| R5 | 修复中 | Linux 视觉基线 | 固定 Playwright 镜像、确定性项目/消息和时钟，逐图人工/独立视觉检查，不批量接受实际图掩盖差异 |
+| R5 | 10 图独立接受，待最终比较 | Linux 视觉基线 | 固定 Playwright 镜像、确定性项目/消息和时钟，逐图人工/独立视觉检查，不批量接受实际图掩盖差异 |
 | R6 | 等待用户登录，其他继续 | Vercel 403 与发布准备 | 仅认证只读诊断；复核正确项目、身份、source；不改账号/权限/配置来绕过错误 |
-| R7 | 待验证 | 独立代码/架构审阅与本地完整回归 | 单测、集成、lint/token/i18n/typecheck/build 通过；本次修复族首轮通过、无新增/扩大 skip/fixme/only；不增加 timeout/retry、不降低业务/性能/视觉阈值；重试后通过仍视作待修 |
+| R7 | 审阅返修中 | 独立代码/架构审阅与本地回归 | 单测、集成、lint/token/i18n/typecheck/build 通过；本次修复族首轮通过、无新增/扩大 skip/fixme/only；不增加 timeout/retry、不降低业务/性能/视觉阈值；重试后通过仍视作待修 |
 | R8 | 待执行 | PR 与最终 main 发布证据 | 正常 PR、无 admin bypass；最终 main/tag 候选同一完整 SHA 的 main-push CI/E2E summary 成功，并有同 SHA manual full Chromium/Firefox 成功；记录 run ID/attempt/head SHA，不重复触发已通过同源工作流 |
 | R9 | 待执行 | 正式发布与观察 | 有迁移则 tag 前完成备份、兼容升级及 readback；涉及 worker 则 tag 前 pause/drain，tag 触发原流程部署后，replacement heartbeat 且旧 deployment REMOVED 才 resume；观察 Actions、provider source 与只读 smoke |
 
@@ -52,3 +52,27 @@
 - 错误恢复 11 场景×2 引擎全部通过（23 tests incl setup，retries=0）；CI workflow contracts 21/21、guard 3/3 和 Ruff 通过。
 - 10 张 Linux 确定性视觉候选全部生成并由作者逐张查看，已记录哈希；独立 designer 审阅及无更新比较仍待完成，不把候选自动视为批准。
 - 文件拖拽 UI 与 VirtualizedEditor 模式在当前及上一生产版本均未实现。对应旧测试改为准确命名的既有 API move / SimpleEditor 大正文完整性覆盖，不扩写未请求功能、不将 API/简单编辑器覆盖声称为拖拽/虚拟化。深链接未知/越权页面的红灯另行调查，不能归入这些旧假设。
+
+## Independent review corrections
+
+- 精确源码 `f4ae0b8` 的独立 code-reviewer 为 REQUEST CHANGES、architect 为 BLOCK；产品三处最小修复本身无 blocker，主要缺口是测试断言和共享 fixture，不把静态审阅当运行批准。
+- C1：并发第二次 stale save 必须 409、明确 review controls、原服务端正文保留；删除原状态/正文并集断言。
+- C2：当前产品无删除会话 UI；移除两个虚构的 browser deletion/confirmation 用例（每引擎少 2），不补占位断言。真实持久 session+3 messages 删除、计数归零及 ledger 保留由既有后端测试覆盖，定向 fresh 2/2 通过。
+- C3：navigation/projects/security/performance 不得任意清共享项目或复用 projects[0]；改为明确 owner+唯一 ID，清理仅限自己的数据。pool 使用 stable parallelIndex，不以重启后的 workerIndex modulo 复用账号。skills 两套测试仍使用既有专用合成账号及 test-owned 前缀清理，所以每个 runtime 默认固定 worker=1；CI 分片仍并行且各自有独立数据库，不宣称本地多 worker 的共享 skills 数据隔离。
+- C4：认证 helper 每次真实 API 登录，不无限缓存旋转前 token、不伪造新 validation 时间；deep link 只能实际自动恢复原 URL/file，禁止测试手动导航补救。
+- C5：未配置语音应验证实际 recognize 返回的配置错误；不为旧测试新增未请求的 preflight 产品行为。录音硬件可用确定性音频源替代，保留真实 MediaRecorder/normalize 路径并明确不验证硬件/真实 ASR。
+- C6：补 asyncio 外呼边界回归，DNS+directIP 都必须在原始 IO 之前拒绝；guard 5/5 通过。最终 `f4ae0b8` 前端单测再次 fresh 4741 passed / 1 existing skipped，完整 typecheck/build 通过。
+- 发布仍以 operator 的精确 SHA full/0 flaky 收据为必需门禁；本修复不扩写 production promotion 流水线，自动化加强留作后续独立范围。
+
+## Current verification batch
+
+- 源码/运行分阶段：所有 author 先完成修复并报告 ready，再冻结源码串行运行 browser batches；运行期间不生成默认 HTML report、不修改 UI/test 文件。开发态 Vite 实际记录了 playwright-report HTML full reload 与源码 CSS HMR，故受影响中间轮只用于归因，不作最终源验证。
+- 已独立接受 Linux 10/10 精确字节（8 张不变，2 张消息态正确为 1/3），本地独立提交 `ff8f10ac`，尚未 push。`--update-snapshots=all` 仅限定那两项，用于真实替换阈值 100 内的额度数字差异，未放宽阈值。
+- 严格并发首轮 4 项均已验证真实 409/token 与响应中的 winning content；独立 API 持久正文断言位于按钮后，仍需最终运行。最后按钮因 allReviewed 为「应用更改」而非「完成审阅」需匹配同一条件控件；不移除控件或冲突断言。自动登录回跳原 file URL 两引擎已实际通过。
+- 卡片用例不能将创作灵感当项目名称：真实创建响应为 `name:我的小说, description:null`，灵感另属初始创作 intent。回访卡片改为唯一 API-owned 名称和真实打开按钮语义；UI 创建本身仍单独测实际 POST/导航。
+- Dashboard 的真实滚动容器为 main，既有 pathname 切换逻辑重置 scrollTop；旧 window.scrollY 保存断言不成立。准确覆盖实际重置契约，不新增未请求的滚动记忆功能。
+- 不临时新增一条必红拖拽测试再删除：当前及上次生产源码无拖拽处理器，已有真实失败和静态边界已足够说明只验证 API move。最终 17 UI + 5 API 场景照常运行。
+
+- 最终源码准备：补技能选择 button 的 test ID/aria-pressed，并真实验证单选/全选状态；语音录到 0:01 后才主动停止，55 秒自动截止用浏览器时钟驱动，不再用时长文本代替截止验证。保留 mobile/native-WAV 的 fake microphone source，live ASR 未覆盖。
+- 聊天连续性覆盖真实 `session_started → 下一 POST session_id`，捕获实际请求体验证两次请求；固定模型回复不是记忆证明。文件事件/工具结果用例按真实 UI 协议命名，不声称执行了后端工具或生成 diff。
+- 新增选择语义后产品相关 5 个文件单测 fresh 170/170、完整 typecheck/build 通过；全 lint 0 error/3 既有 warning、token/i18n 检查通过。额外 strict E2E compile 找到两个仅类型问题（network Response/APIResponse 区分、窗口 fixture 状态可选声明），已按真实类型修正，不改变运行期容错。

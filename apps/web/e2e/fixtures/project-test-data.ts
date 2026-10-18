@@ -1,5 +1,5 @@
 import { expect, type Page, type TestInfo } from '@playwright/test'
-import { config, getWorkerUser, type TestUser } from '../config'
+import { config, getPoolUser, type TestUser } from '../config'
 import { login } from '../helpers/common'
 
 type AuthHeaders = Record<string, string>
@@ -46,7 +46,7 @@ export async function createOwnedProject(
   testInfo: TestInfo,
   prefix = 'E2E',
 ): Promise<OwnedProject> {
-  const owner = getWorkerUser(testInfo.workerIndex)
+  const owner = getPoolUser(testInfo.parallelIndex)
   const headers = await authenticatedHeaders(page, owner)
   const name = uniqueName(prefix, testInfo)
   const response = await page.request.post(`${config.apiBaseUrl}/api/v1/projects`, {

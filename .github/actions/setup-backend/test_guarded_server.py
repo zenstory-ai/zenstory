@@ -1,3 +1,4 @@
+import asyncio
 import importlib.util
 import os
 from pathlib import Path
@@ -51,6 +52,16 @@ class EgressGuardTests(unittest.TestCase):
                 connect_ex.assert_not_called()
                 connection.connect(("127.0.0.1", 8000))
                 connect.assert_called_once()
+
+    def test_asyncio_connections_are_blocked_before_external_io(self):
+        with patch.object(socket, "getaddrinfo") as dns, patch.object(socket.socket, "connect") as connect, patch.object(socket.socket, "connect_ex") as connect_ex:
+            guard.install_egress_guard()
+            for host in ("api.openai.com", "203.0.113.1"):
+                with self.subTest(host=host), self.assertRaises(PermissionError):
+                    asyncio.run(asyncio.open_connection(host, 443))
+            dns.assert_not_called()
+            connect.assert_not_called()
+            connect_ex.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -89,7 +89,9 @@ async function clearExistingUserSkills(page: Page) {
     const userSkills = Array.isArray(payload?.user_skills) ? payload.user_skills : [];
 
     for (const skill of userSkills) {
-      if (!skill?.id || typeof skill.name !== 'string' || !skill.name.startsWith('E2E ')) continue;
+      const isOwned = typeof skill?.name === 'string'
+        && (skill.name.startsWith('E2E ') || ['移动端测试技能', '移动端技能'].includes(skill.name));
+      if (!skill?.id || !isOwned) continue;
       const deleteResponse = await fetch(`/api/v1/skills/${skill.id}`, { method: 'DELETE', headers });
       if (!deleteResponse.ok) throw new Error(`Failed to delete E2E skill ${skill.id}: ${deleteResponse.status}`);
     }
@@ -658,7 +660,8 @@ test.describe('Skills Management Flow - Mobile Responsive', () => {
 
     // Form fields should be tappable
     await page.click('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
-    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '移动端技能');
+    const skillName = `E2E 移动端技能 ${Date.now()}`;
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
 
     await page.click('textarea');
     await page.fill('textarea', '移动端指令');
@@ -667,7 +670,7 @@ test.describe('Skills Management Flow - Mobile Responsive', () => {
     await expect(modal).not.toBeVisible({ timeout: 5000 });
 
     // Verify skill created
-    await expect(page.locator('text=移动端技能')).toBeVisible({ timeout: 5000 });
+    await expect(getSkillCard(page, skillName)).toBeVisible({ timeout: 5000 });
   });
 
   test('skill cards are scrollable on mobile', async ({ page }) => {

@@ -1,6 +1,9 @@
-import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { TEST_USERS, config } from './config';
-import { login } from './helpers/common';
+import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import {
+  cleanupOwnedProject,
+  createOwnedProject,
+  type OwnedProject,
+} from './fixtures/project-test-data';
 
 /**
  * Security Test Suite - OWASP Top 10 Coverage
@@ -14,78 +17,23 @@ import { login } from './helpers/common';
  * - Input Validation
  */
 
-async function loginAndOpenDashboardHome(page: Page) {
-  await login(page, TEST_USERS.standard.email, TEST_USERS.standard.password);
+let ownedProject: OwnedProject | undefined;
+
+async function openOwnedProject(page: Page, testInfo: TestInfo, prefix: string) {
+  ownedProject = await createOwnedProject(page, testInfo, prefix);
+  await page.goto(`/project/${ownedProject.id}`);
+  await expect(page).toHaveURL(`/project/${ownedProject.id}`);
+  await expect(page.getByTestId('editor-panel')).toBeVisible();
 }
 
-async function getAuthHeaders(page: Page) {
-  const accessToken = await page.evaluate(() => localStorage.getItem('access_token'));
-  if (!accessToken) {
-    throw new Error('Missing access token for security test setup');
-  }
-
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-  };
-}
-
-async function listProjects(page: Page, request: APIRequestContext) {
-  const headers = await getAuthHeaders(page);
-  const response = await request.get(`${config.apiBaseUrl}/api/v1/projects`, { headers });
-  expect(response.ok()).toBeTruthy();
-
-  const payload = await response.json();
-  return Array.isArray(payload) ? payload : [];
-}
-
-async function ensureProjectSlotsAvailable(page: Page, request: APIRequestContext, requiredCreates = 1) {
-  const headers = await getAuthHeaders(page);
-  const quotaResponse = await request.get(`${config.apiBaseUrl}/api/v1/subscription/quota`, { headers });
-  expect(quotaResponse.ok()).toBeTruthy();
-
-  const quota = await quotaResponse.json();
-  const projectLimit = quota?.projects?.limit;
-  if (typeof projectLimit !== 'number' || projectLimit < 0) return;
-
-  const projects = await listProjects(page, request);
-  const targetProjectCount = Math.max(projectLimit - requiredCreates, 0);
-
-  projects.sort(
-    (a, b) =>
-      new Date(a.updated_at || a.created_at || 0).getTime() -
-      new Date(b.updated_at || b.created_at || 0).getTime()
-  );
-
-  while (projects.length > targetProjectCount) {
-    const project = projects.shift();
-    if (!project?.id) continue;
-
-    const deleteResponse = await request.delete(`${config.apiBaseUrl}/api/v1/projects/${project.id}`, {
-      headers,
-    });
-    expect(deleteResponse.ok()).toBeTruthy();
-  }
-
-  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('[data-testid="dashboard-inspiration-input"]')).toBeVisible({
-    timeout: 15000,
-  });
-}
-
-async function createProjectFromDashboard(page: Page, request: APIRequestContext, inspiration: string) {
-  await loginAndOpenDashboardHome(page);
-  await ensureProjectSlotsAvailable(page, request);
-
-  const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]');
-  await inspirationInput.fill(inspiration);
-  await page.click('[data-testid="create-project-button"]');
-  await expect(page).toHaveURL(/\/project\//, { timeout: 15000 });
-}
+test.afterEach(async ({ page }) => {
+  await cleanupOwnedProject(page, ownedProject);
+  ownedProject = undefined;
+});
 
 test.describe('Security - XSS Protection', () => {
-  test.beforeEach(async ({ page, request }) => {
-    await createProjectFromDashboard(page, request, `安全测试项目 ${Date.now()}`);
+  test.beforeEach(async ({ page }, testInfo) => {
+    await openOwnedProject(page, testInfo, 'security-xss');
   });
 
   /**
@@ -275,8 +223,8 @@ test.describe('Security - Authentication Bypass', () => {
 });
 
 test.describe('Security - SQL Injection', () => {
-  test.beforeEach(async ({ page, request }) => {
-    await createProjectFromDashboard(page, request, `SQL注入测试项目 ${Date.now()}`);
+  test.beforeEach(async ({ page }, testInfo) => {
+    await openOwnedProject(page, testInfo, 'security-sql');
   });
 
   /**
@@ -286,7 +234,7 @@ test.describe('Security - SQL Injection', () => {
    * When: Search query is processed
    * Then: No SQL errors, input is sanitized
    */
-  test('SQL injection in file search is sanitized', async ({ page }) => {
+  test('SQL-like input in file search is treated as literal text', async ({ page }) => {
     await page.waitForSelector('.overflow-auto', { timeout: 5000 });
 
     // Trigger file search
@@ -299,16 +247,9 @@ test.describe('Security - SQL Injection', () => {
     // Try SQL injection payload
     const sqlPayload = "' OR '1'='1";
     await searchInput.fill(sqlPayload);
-    // Wait for search results dropdown to appear or input to settle
-    await page.waitForLoadState('domcontentloaded', { timeout: 3000 });
-
-    // Should not show SQL errors
-    const errorElements = page.locator('text=/SQL|syntax|error|exception/i');
-    const hasSQLError = await errorElements.count();
-
-    expect(hasSQLError).toBe(0);
-
-    // App should still be functional
+    await expect(searchInput).toHaveValue(sqlPayload);
+    await expect(page.getByRole('status')).toHaveText('没有找到匹配内容');
+    await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(searchInput).toBeVisible();
   });
 
@@ -352,11 +293,8 @@ test.describe('Security - SQL Injection', () => {
 });
 
 test.describe('Security - Path Traversal', () => {
-  const TEST_EMAIL = TEST_USERS.standard.email;
-  const TEST_PASSWORD = TEST_USERS.standard.password;
-
-  test.beforeEach(async ({ page, request }) => {
-    await createProjectFromDashboard(page, request, `路径遍历测试项目 ${Date.now()}`);
+  test.beforeEach(async ({ page }, testInfo) => {
+    await openOwnedProject(page, testInfo, 'security-path');
   });
 
   /**
@@ -408,8 +346,8 @@ test.describe('Security - Path Traversal', () => {
     // Login to get token
     const loginResponse = await request.post('/api/auth/login', {
       form: {
-        username: TEST_EMAIL,
-        password: TEST_PASSWORD,
+        username: ownedProject!.owner.email,
+        password: ownedProject!.owner.password,
       },
     });
     expect(loginResponse.ok()).toBeTruthy();
@@ -430,8 +368,8 @@ test.describe('Security - Path Traversal', () => {
 });
 
 test.describe('Security - Input Validation', () => {
-  test.beforeEach(async ({ page, request }) => {
-    await createProjectFromDashboard(page, request, `输入验证测试项目 ${Date.now()}`);
+  test.beforeEach(async ({ page }, testInfo) => {
+    await openOwnedProject(page, testInfo, 'security-input');
   });
 
   /**

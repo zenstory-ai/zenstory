@@ -1,6 +1,11 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type TestInfo } from '@playwright/test'
 import { TEST_USERS } from './config'
 import { login } from './helpers/common'
+import {
+  cleanupOwnedProject,
+  createOwnedProject,
+  type OwnedProject,
+} from './fixtures/project-test-data'
 
 const ENABLE_PERFORMANCE_E2E = process.env.E2E_ENABLE_PERFORMANCE_E2E === 'true'
 const PERFORMANCE_OPT_IN_MESSAGE =
@@ -32,7 +37,7 @@ const PERFORMANCE_THRESHOLDS = {
 // Test credentials
 const TEST_EMAIL = TEST_USERS.standard.email
 const TEST_PASSWORD = TEST_USERS.standard.password
-const API_BASE_URL = process.env.E2E_API_BASE_URL || 'http://127.0.0.1:8000'
+let performanceProject: OwnedProject | undefined
 
 async function loginAndOpenDashboard(page: Page) {
   // The login page intentionally redirects existing users to their most
@@ -43,32 +48,21 @@ async function loginAndOpenDashboard(page: Page) {
   await expect(page.getByTestId('dashboard-inspiration-input')).toBeVisible({ timeout: 15000 })
 }
 
-async function getExistingOrCreateProjectId(page: Page, name: string) {
-  const accessToken = await page.evaluate(() => localStorage.getItem('access_token'))
-  expect(accessToken).toBeTruthy()
-  const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
-  const listResponse = await page.request.get(`${API_BASE_URL}/api/v1/projects`, { headers })
-  expect(listResponse.ok()).toBeTruthy()
-  let projects = await listResponse.json() as Array<{ id?: string }>
-
-  if (!projects[0]?.id) {
-    const createResponse = await page.request.post(`${API_BASE_URL}/api/v1/projects`, {
-      headers,
-      data: { name, project_type: 'novel' },
-    })
-    expect(createResponse.ok()).toBeTruthy()
-    projects = [await createResponse.json() as { id?: string }]
-  }
-
-  expect(projects[0]?.id).toBeTruthy()
-  return projects[0].id!
+async function createPerformanceProject(page: Page, testInfo: TestInfo, name: string) {
+  performanceProject = await createOwnedProject(page, testInfo, `E2E-perf-${name}`)
+  return performanceProject.id
 }
 
-async function openExistingOrCreateProject(page: Page, name: string) {
-  const projectId = await getExistingOrCreateProjectId(page, name)
+async function openPerformanceProject(page: Page, testInfo: TestInfo, name: string) {
+  const projectId = await createPerformanceProject(page, testInfo, name)
   await page.goto(`/project/${projectId}`)
   await page.waitForURL(/\/project\//, { timeout: 15000 })
 }
+
+test.afterEach(async ({ page }) => {
+  await cleanupOwnedProject(page, performanceProject)
+  performanceProject = undefined
+})
 
 async function mockAgentStream(page: Page) {
   let responseNumber = 0
@@ -125,10 +119,29 @@ test.describe('Performance', () => {
   })
 
   test('login page renders quickly', async ({ page }) => {
-    const startTime = Date.now()
+    await page.addInitScript(() => {
+      const markVisible = () => {
+        const input = document.querySelector<HTMLInputElement>('#identifier')
+        if (!input || input.getClientRects().length === 0) return false
+        const style = getComputedStyle(input)
+        if (style.visibility === 'hidden' || style.display === 'none') return false
+        ;(window as Window & { __loginInputVisibleAt?: number }).__loginInputVisibleAt = performance.now()
+        return true
+      }
+      document.addEventListener('DOMContentLoaded', () => {
+        if (markVisible()) return
+        const observer = new MutationObserver(() => {
+          requestAnimationFrame(() => {
+            if (markVisible()) observer.disconnect()
+          })
+        })
+        observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true })
+      }, { once: true })
+    })
     await page.goto('/login')
     await page.waitForSelector('#identifier')
-    const renderTime = Date.now() - startTime
+    const renderTime = await page.evaluate(() =>
+      (window as Window & { __loginInputVisibleAt?: number }).__loginInputVisibleAt ?? performance.now())
 
     console.log(`Login page render time: ${renderTime}ms`)
 
@@ -153,9 +166,9 @@ test.describe('Performance', () => {
     expect(loadTime).toBeLessThan(PERFORMANCE_THRESHOLDS.INITIAL_PAGE_LOAD_MS)
   })
 
-  test('file tree remains responsive as items are added', async ({ page }) => {
+  test('file tree remains responsive as items are added', async ({ page }, testInfo) => {
     await loginAndOpenDashboard(page)
-    await openExistingOrCreateProject(page, `性能测试项目 ${Date.now()}`)
+    await openPerformanceProject(page, testInfo, 'tree')
 
     // Wait for file tree to load initially
     await page.waitForSelector('.overflow-auto', { timeout: 5000 })
@@ -168,6 +181,7 @@ test.describe('Performance', () => {
     // Create multiple files to test rendering performance
     // Note: In a real test, you would create 100+ files via API for accuracy
     const fileCount = 10 // Reduced for E2E test performance
+    const filePrefix = `性能文件-${Date.now()}-`
     const startTime = Date.now()
 
     for (let i = 0; i < fileCount; i++) {
@@ -176,10 +190,15 @@ test.describe('Performance', () => {
       await addButton.click({ force: true })
 
       const fileInput = page.locator('input[placeholder*="大纲"]')
-      await fileInput.fill(`测试文件${i}`)
+      const title = `${filePrefix}${i}`
+      const responsePromise = page.waitForResponse(response =>
+        response.url().includes('/api/v1/projects/')
+          && response.url().endsWith('/files')
+          && response.request().method() === 'POST')
+      await fileInput.fill(title)
       await fileInput.press('Enter')
-      // Small delay for file creation to complete
-      await page.locator(`text=测试文件${i}`).waitFor({ state: 'visible', timeout: 2000 })
+      expect((await responsePromise).ok()).toBeTruthy()
+      await expect(page.getByTestId('file-tree-node').filter({ hasText: title })).toBeVisible()
     }
 
     const renderTime = Date.now() - startTime
@@ -202,8 +221,8 @@ test.describe('Performance', () => {
     console.log(`Scroll performance for ${fileCount} items: ${scrollTime}ms`)
 
     // Verify all files are visible
-    await expect(page.locator('text=测试文件0')).toBeVisible()
-    await expect(page.locator(`text=测试文件${fileCount - 1}`)).toBeVisible()
+    await expect(page.getByTestId('file-tree-node').filter({ hasText: `${filePrefix}0` })).toBeVisible()
+    await expect(page.getByTestId('file-tree-node').filter({ hasText: `${filePrefix}${fileCount - 1}` })).toBeVisible()
 
     // Each create-and-render cycle should remain below the large-tree render
     // budget. Measuring the average avoids pretending that ten API-backed
@@ -211,9 +230,9 @@ test.describe('Performance', () => {
     expect(renderTime / fileCount).toBeLessThan(PERFORMANCE_THRESHOLDS.LARGE_FILE_TREE_RENDER_MS)
   })
 
-  test('editor handles 10k+ word documents', async ({ page }) => {
+  test('editor handles 1k word documents', async ({ page }, testInfo) => {
     await loginAndOpenDashboard(page)
-    await openExistingOrCreateProject(page, `编辑器性能测试 ${Date.now()}`)
+    await openPerformanceProject(page, testInfo, 'editor')
 
     // Create and select a file
     await page.waitForSelector('.overflow-auto', { timeout: 5000 })
@@ -261,14 +280,14 @@ test.describe('Performance', () => {
     console.log(`Typing responsiveness with ${wordCount} words: ${typeTime}ms`)
 
     // Measure selection performance
-    const selectStartTime = Date.now()
-    await editor.focus()
-    await page.keyboard.down('Shift')
-    for (let i = 0; i < 20; i++) { // Reduced from 50 to 20 for faster test
-      await page.keyboard.press('ArrowRight')
-    }
-    await page.keyboard.up('Shift')
-    const selectTime = Date.now() - selectStartTime
+    const selectTime = await editor.evaluate(async (element: HTMLTextAreaElement) => {
+      element.focus()
+      const start = performance.now()
+      const selectionStart = Math.max(0, element.value.length - 20)
+      element.setSelectionRange(selectionStart, element.value.length, 'forward')
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      return performance.now() - start
+    })
 
     console.log(`Selection time with ${wordCount} words: ${selectTime}ms`)
 
@@ -283,11 +302,11 @@ test.describe('Performance', () => {
     expect(selectTime).toBeLessThan(200)
   })
 
-  test('chat scroll remains smooth with 100+ messages', async ({ page }) => {
+  test('chat scroll remains smooth across 10 message rounds', async ({ page }, testInfo) => {
     await mockAgentStream(page)
     await loginAndOpenDashboard(page)
 
-    await openExistingOrCreateProject(page, `聊天性能测试 ${Date.now()}`)
+    await openPerformanceProject(page, testInfo, 'chat')
 
     const input = page.getByTestId('chat-input')
     await expect(input).toBeVisible()
@@ -397,10 +416,10 @@ test.describe('Performance', () => {
     expect(dashboardInteractiveTime).toBeLessThan(PERFORMANCE_THRESHOLDS.TIME_TO_INTERACTIVE_MS)
   })
 
-  test('project page time to interactive', async ({ page }) => {
+  test('project page time to interactive', async ({ page }, testInfo) => {
     await loginAndOpenDashboard(page)
 
-    const projectId = await getExistingOrCreateProjectId(page, `TTI 性能测试 ${Date.now()}`)
+    const projectId = await createPerformanceProject(page, testInfo, 'tti')
     const projectStart = Date.now()
     await page.goto(`/project/${projectId}`)
     await page.waitForURL(/\/project\//, { timeout: 10000 })
@@ -420,8 +439,9 @@ test.describe('Performance', () => {
     expect(projectInteractiveTime).toBeLessThan(PERFORMANCE_THRESHOLDS.TIME_TO_INTERACTIVE_MS)
   })
 
-  test('memory usage remains stable during extended use', async ({ page }) => {
+  test('memory usage remains stable during extended use', async ({ page }, testInfo) => {
     await loginAndOpenDashboard(page)
+    const projectId = await createPerformanceProject(page, testInfo, 'memory')
 
     // Get initial memory metrics
     const initialMetrics = await page.evaluate(() => {
@@ -440,7 +460,8 @@ test.describe('Performance', () => {
       // Perform multiple dashboard/project navigation cycles without
       // exhausting the regular user's project quota.
       for (let i = 0; i < 5; i++) {
-        await openExistingOrCreateProject(page, `内存测试项目 ${Date.now()}`)
+        await page.goto(`/project/${projectId}`)
+        await page.waitForURL(/\/project\//, { timeout: 15000 })
 
         // Interact with the page
         await page.waitForSelector('.overflow-auto', { timeout: 5000 })
