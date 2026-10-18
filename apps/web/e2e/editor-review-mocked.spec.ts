@@ -732,7 +732,7 @@ test.describe('footer locale and viewport matrix', () => {
   test.use({ hasTouch: true });
   for (const width of [320, 390, 1440]) {
     for (const locale of ['en', 'zh'] as const) {
-      test(`footer ${locale} ${width}: dirty saving saved selection zoom and scroll`, async ({ page, browserName }) => {
+      test(`footer ${locale} ${width}: dirty saving saved selection and scroll`, async ({ page, browserName }) => {
         const labels = locale === 'en' ? { save: 'Save', dirty: 'Unsaved', saving: "Saving…", saved: 'Saved just now', title: "Enter title", humanize: 'Humanize', zoom: 'Reset zoom' } : { save: '保存', dirty: '未保存', saving: "保存中…", saved: '刚刚保存', title: "请输入标题", humanize: '去AI味', zoom: '重置缩放' };
         const content = '你好 story text。\n\n'.repeat(80);
         const f = await fixture(page, content, locale);
@@ -771,20 +771,27 @@ test.describe('footer locale and viewport matrix', () => {
         await checkFooter(page, f, labels.save, 'selected', width === 1440);
         await input.press('ArrowRight'); await expect(humanize).toBeDisabled();
         if (browserName === 'chromium') {
-          // Playwright exposes browser-level emulated pinch through CDP only.
-          const area = await scroll.boundingBox();
-          const session = await page.context().newCDPSession(page);
-          try {
-            // Keep both final coordinates within the outer panel's 50px swipe threshold.
-            await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 0, x: area!.x + 80, y: area!.y + 80 }, { id: 1, x: area!.x + 100, y: area!.y + 80 }] });
-            await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 0, x: area!.x + 70, y: area!.y + 80 }, { id: 1, x: area!.x + 110, y: area!.y + 80 }] });
-            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-          } finally { await session.detach(); }
-          const reset = page.getByTitle(labels.zoom, { exact: true });
-          await expect(reset).toBeVisible();
-          await checkFooter(page, f, labels.save, 'zoomed', width === 1440);
-          await reset.click(); await expect(reset).toHaveCount(0);
-          await checkFooter(page, f, labels.save, 'reset', width === 1440);
+          await test.step('Chromium browser-level pinch zoom and reset', async () => {
+            // Playwright exposes browser-level emulated pinch through CDP only.
+            const area = await scroll.boundingBox();
+            const session = await page.context().newCDPSession(page);
+            try {
+              // Keep both final coordinates within the outer panel's 50px swipe threshold.
+              await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 0, x: area!.x + 80, y: area!.y + 80 }, { id: 1, x: area!.x + 100, y: area!.y + 80 }] });
+              await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 0, x: area!.x + 70, y: area!.y + 80 }, { id: 1, x: area!.x + 110, y: area!.y + 80 }] });
+              await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } finally { await session.detach(); }
+            const reset = page.getByTitle(labels.zoom, { exact: true });
+            await expect(reset).toBeVisible();
+            await checkFooter(page, f, labels.save, 'zoomed', width === 1440);
+            await reset.click(); await expect(reset).toHaveCount(0);
+            await checkFooter(page, f, labels.save, 'reset', width === 1440);
+          });
+        } else {
+          test.info().annotations.push({
+            type: 'coverage',
+            description: 'Firefox verifies footer save, selection and scroll; CDP pinch zoom is verified in Chromium only.',
+          });
         }
         expect(puts(f)).toHaveLength(1);
         expect(f.requests.filter(r => r.path.endsWith('natural-polish'))).toHaveLength(0);

@@ -22,7 +22,7 @@ CI 复用既有 seeder 创建 TEST_USERS.pool 已声明的五个免费账户，�
 
 独立 designer 逐图首轮 8/10 接受，指出两张消息态 fixture 完成一轮后仍回 `used:0`，会把不真实额度写进基线。仅修该视觉 fixture：完成模拟回合后 quota 返回 `used:1` 并等待 badge 更新，再重生成并独立复核两张；不修改产品计费。独立审阅同时确认四张旧 Chromium Darwin 图来自 live/conditional 流程，状态/尺寸不兼容且缺消息态，移出当前基线。Linux 是本次 canonical 视觉门禁；未新增跨 OS 跳过或放宽阈值，不声称已覆盖 macOS 视觉渲染。
 
-独立审阅进一步要求并发测试必须证明真实 stale token 409 与显式审阅，不能接受任一正文/状态。当前前端无删除会话 UI，两个虚构交互从 browser E2E 移除；既有后端以真实持久 session/messages 验证删除和 ledger 保留，不声称 UI 覆盖。
+独立审阅进一步要求并发测试必须证明真实 stale token 409 与显式审阅，不能接受任一正文/状态。当前前端无删除会话 UI，三个虚构交互从 browser E2E 移除；既有后端以真实持久 session/messages 验证删除和 ledger 保留，不声称 UI 覆盖。
 
 完整发布证据仍未完成；本决策描述已采用的方法，不把候选视觉图、定向绿灯或独立静态审阅当最终 full/main 发布批准。
 
@@ -33,6 +33,8 @@ project fixture 按稳定 parallelIndex 选择已 seed 的账号，每测试清�
 当前及最近生产的 ProjectEditor 仅把 file query 作为选择契约，不支持用 session query 选历史会话；测试准确覆盖额外未知参数不干扰有效文件，并直接收集/断言 dialog 与 pageerror 防止 XSS 假绿。
 
 认证刷新测试覆盖实际支持的非空 access 被拒绝、refresh 仍有效且缓存过期路径，要求 401、真实 refresh POST 与恢复后的 token/保护页。缺失 access 的既有清会话策略不改；不以登录页作为刷新成功。语音失败用真实 APIException/code 的安全提示与一次 recognize 请求证明命中目标路径，不用任意 alert 放行。
+
+正文上传用例每例创建并清理唯一 owned 项目，缺少 folder/chooser 属于失败，不因共享数据缺失跳过。Footer matrix 共同断言保存/选择/滚动；浏览器级 pinch 的 CDP 路径只在 Chromium step 中报告，Firefox 显式记录覆盖边界，不以测试标题混称。
 
 ## Alternatives considered
 

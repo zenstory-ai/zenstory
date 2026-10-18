@@ -57,7 +57,7 @@
 
 - 精确源码 `f4ae0b8` 的独立 code-reviewer 为 REQUEST CHANGES、architect 为 BLOCK；产品三处最小修复本身无 blocker，主要缺口是测试断言和共享 fixture，不把静态审阅当运行批准。
 - C1：并发第二次 stale save 必须 409、明确 review controls、原服务端正文保留；删除原状态/正文并集断言。
-- C2：当前产品无删除会话 UI；移除两个虚构的 browser deletion/confirmation 用例（每引擎少 2），不补占位断言。真实持久 session+3 messages 删除、计数归零及 ledger 保留由既有后端测试覆盖，定向 fresh 2/2 通过。
+- C2：当前产品无删除会话 UI；移除三个虚构的 browser deletion/confirmation 用例（每引擎少 3），不补占位断言。真实持久 session+3 messages 删除、计数归零及 ledger 保留由既有后端测试覆盖，定向 fresh 2/2 通过。
 - C3：navigation/projects/security/performance 不得任意清共享项目或复用 projects[0]；改为明确 owner+唯一 ID，清理仅限自己的数据。pool 使用 stable parallelIndex，不以重启后的 workerIndex modulo 复用账号。skills 两套测试仍使用既有专用合成账号及 test-owned 前缀清理，所以每个 runtime 默认固定 worker=1；CI 分片仍并行且各自有独立数据库，不宣称本地多 worker 的共享 skills 数据隔离。
 - C4：认证 helper 每次真实 API 登录，不无限缓存旋转前 token、不伪造新 validation 时间；deep link 只能实际自动恢复原 URL/file，禁止测试手动导航补救。
 - C5：未配置语音应验证实际 recognize 返回的配置错误；不为旧测试新增未请求的 preflight 产品行为。录音硬件可用确定性音频源替代，保留真实 MediaRecorder/normalize 路径并明确不验证硬件/真实 ASR。
@@ -80,3 +80,6 @@
 - `663c7081` 独立架构静态 CLEAR，代码复审又指出 4 处弱断言，已按实际契约补齐：不支持 session query 的文件链接兼容，不声称历史会话深链；恶意 URL 直接收集 dialog/pageerror 并要求均为空；语音两个错误必须命中一次真实形状的 recognize response 和明确安全提示；刷新必须真实 401→refresh POST→恢复 token/保护页，不能接受 login。
 - 认证缺失 access 的既有策略是清会话；有效 refresh 的支持路径是 access 被拒绝且缓存验证过期。测试采用该路径，不扩写产品恢复策略，也不将清空两 token 的用例称为 TTL 验证。
 - 首个冻结候选浏览器 99 项：80 passed、18 既有 capability/manual skipped、1 failed，源码收据 clean/stable。仅 55 秒录音测试先跳时钟却未等 native 音频 chunk，再等待瞬态 spinner；已改为真实录到 0:01、0:54 仍录音、0:55 自动停止且一次识别完成的终态断言。没有降低门槛或将失败计为通过。
+
+- `0dd4f83f` 最后审阅 delta 双引擎 47 passed / 18 既有 capability/manual skipped / 0 failed / 0 flaky（含 setup），clean/stable 收据；真实刷新、安全深链和语音错误/55 秒截止通过。代码独立复审 APPROVE、架构 CLEAR（静态）。草稿 PR #259 已提交，分支 full 16 shard 正在运行。
+- skip 逐项审计发现正文上传仍借用任意项目并可能跳过，改为每例 owned fixture、实际 filechooser 和准确 API 字节断言；footer 两引擎共同覆盖保存/选择/滚动，Chromium 的 CDP pinch 单独标记 step，Firefox 不再以标题声称已测 pinch。没有新增 skip 或修改产品。
