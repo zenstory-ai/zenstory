@@ -36,6 +36,8 @@ project fixture 按稳定 parallelIndex 选择已 seed 的账号，每测试清�
 
 正文上传用例每例创建并清理唯一 owned 项目，缺少 folder/chooser 属于失败，不因共享数据缺失跳过。Footer matrix 共同断言保存/选择/滚动；浏览器级 pinch 的 CDP 路径只在 Chromium step 中报告，Firefox 显式记录覆盖边界，不以测试标题混称。
 
+CI 实跑证明 version-list 外层在 loading 时已经存在，不能用它代替数据就绪。版本预览/滚动单测等待真实 rows/action 出现后再交互，不加重试或延长超时，保留精确 scrollTop 断言。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。

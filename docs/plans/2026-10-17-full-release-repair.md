@@ -83,3 +83,5 @@
 
 - `0dd4f83f` 最后审阅 delta 双引擎 47 passed / 18 既有 capability/manual skipped / 0 failed / 0 flaky（含 setup），clean/stable 收据；真实刷新、安全深链和语音错误/55 秒截止通过。代码独立复审 APPROVE、架构 CLEAR（静态）。草稿 PR #259 已提交，分支 full 16 shard 正在运行。
 - skip 逐项审计发现正文上传仍借用任意项目并可能跳过，改为每例 owned fixture、实际 filechooser 和准确 API 字节断言；footer 两引擎共同覆盖保存/选择/滚动，Chromium 的 CDP pinch 单独标记 step，Firefox 不再以标题声称已测 pinch。没有新增 skip 或修改产品。
+
+- `86b5724d` 上传/中英 footer/10 图无更新比较，两引擎 31/31 首轮通过、无 skip/flaky。PR 首次 CI 的 frontend-test 4741 passed / 1 failed / 1 既有 skipped；失败 DOM 显示历史列表仍 loading，旧测试只等外层即同步取 rows。改为等待真实 rows/action，不重跑原失败放行、不动产品。

@@ -382,7 +382,7 @@ describe('FileVersionHistory saved-state boundary', () => {
     const list = await screen.findByTestId('version-list')
     expect(list).not.toHaveClass('hidden')
 
-    fireEvent.click(screen.getAllByTitle('viewContent')[0])
+    fireEvent.click((await screen.findAllByTitle('viewContent'))[0])
     const preview = await screen.findByTestId('version-preview')
     // Phone: list hidden, preview full width; from md (768px) up the two sit side by side.
     expect(list).toHaveClass('hidden', 'md:block', 'md:w-1/3')
@@ -403,7 +403,7 @@ describe('FileVersionHistory saved-state boundary', () => {
     getVersionContent.mockResolvedValue({ content: 'Historical draft body' })
     render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
     const list = await screen.findByTestId('version-list')
-    const rows = screen.getByTestId('version-list-rows')
+    const rows = await screen.findByTestId('version-list-rows')
 
     // The author scrolled down the history before opening an old version.
     list.scrollTop = 120
@@ -431,7 +431,7 @@ describe('FileVersionHistory saved-state boundary', () => {
     getVersionContent.mockResolvedValue({ content: 'Historical draft body' })
     render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
     const list = await screen.findByTestId('version-list')
-    const rows = screen.getByTestId('version-list-rows')
+    const rows = await screen.findByTestId('version-list-rows')
 
     list.scrollTop = 40
     fireEvent.scroll(list)
