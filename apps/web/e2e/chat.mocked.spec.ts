@@ -132,7 +132,7 @@ test.describe('AI Chat (Mocked)', () => {
     await expect(page.locator('text=帮我创建一个角色')).toBeVisible({ timeout: 5000 })
   })
 
-  test('AI response streams correctly', async ({ page }) => {
+  test('completed mocked SSE response renders correctly', async ({ page }) => {
     const input = getChatInput(page)
     await expect(input).toBeVisible()
 
@@ -257,22 +257,26 @@ test.describe('AI Chat - Multiple Messages (Mocked)', () => {
     await navigateToProject(page, ownedProject)
   })
 
-  test('context is preserved across messages', async ({ page }) => {
+  test('successive mocked exchanges retain earlier messages', async ({ page }) => {
     const input = getChatInput(page)
     await expect(input).toBeVisible()
 
-    // First message - establish context
+    // The mock returns fixed text; this checks UI history, not model memory.
     await input.fill('我的主角叫张三')
     await getSendButton(page).click()
 
     await expect(page.getByTestId('message-list')).toContainText('我的主角叫张三', { timeout: 5000 })
+    await expect(page.getByTestId('message-list')).toContainText('这是一个示例AI响应')
+    await expect(page.getByTestId('send-button')).toBeVisible()
 
-    // Second message - reference context
+    // Send the next exchange after the first stream has finished.
     await input.fill('告诉我关于主角的信息')
     await getSendButton(page).click()
 
     await expect(page.getByTestId('message-list')).toContainText('告诉我关于主角的信息', { timeout: 5000 })
     await expect(page.getByTestId('message-list')).toContainText('主角张三', { timeout: 5000 })
+    await expect(page.getByTestId('message-list')).toContainText('我的主角叫张三')
+    await expect(page.getByTestId('message-list')).toContainText('这是一个示例AI响应')
   })
 })
 

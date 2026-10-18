@@ -323,49 +323,49 @@ test.describe('Performance', () => {
       await expect(page.locator('.markdown-content').last()).toContainText(`性能测试模拟回复 ${i + 1}`)
     }
 
-    // Measure scroll performance in chat panel
-    const chatContainer = page.locator('.flex-1.overflow-y-auto, [class*="overflow"]').filter({
-      has: page.locator('.markdown-content'),
-    }).first()
+    // ChatPanel's message-list is the actual scrolling surface; a missing or
+    // non-scrollable container must fail rather than skip the measurement.
+    const chatContainer = page.getByTestId('message-list')
+    await expect(chatContainer).toBeVisible()
+    const metrics = await chatContainer.evaluate(async (el) => {
+      const maxTop = el.scrollHeight - el.clientHeight
+      if (maxTop <= 0) throw new Error('Chat messages must overflow before measuring scroll performance')
+      el.scrollTop = 0
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      const frames: Array<{ elapsed: number; before: number; after: number; target: number }> = []
+      for (let i = 0; i < 10; i++) {
+        const before = el.scrollTop
+        const target = before > maxTop / 2 ? 0 : maxTop
+        const start = performance.now()
+        el.scrollTop = target
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        frames.push({ elapsed: performance.now() - start, before, after: el.scrollTop, target })
+      }
 
-    if (await chatContainer.isVisible()) {
-      // Measure in the browser so remote-runner transport latency is not
-      // mistaken for rendering time.
-      const scrollMetrics = await chatContainer.evaluate(async (el) => {
-        const metrics: number[] = []
-        for (let i = 0; i < 10; i++) {
-          el.scrollTop = el.scrollHeight
-          const scrollStart = performance.now()
-          await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-          metrics.push(performance.now() - scrollStart)
-        }
-        return metrics
-      })
-
-      const avgScrollTime = scrollMetrics.reduce((a, b) => a + b, 0) / scrollMetrics.length
-      console.log(`Average scroll time per frame: ${avgScrollTime}ms`)
-
-      // Smooth scrolling should be < 33ms per frame (30 FPS)
-      expect(avgScrollTime).toBeLessThan(1000 / PERFORMANCE_THRESHOLDS.CHAT_SCROLL_FPS)
-
-      // Test scroll to top performance
-      const scrollTopStart = Date.now()
-      await chatContainer.evaluate((el) => {
-        el.scrollTop = 0
-      })
-      const scrollTopTime = Date.now() - scrollTopStart
-      console.log(`Scroll to top time: ${scrollTopTime}ms`)
-      expect(scrollTopTime).toBeLessThan(100)
-
-      // Test scroll to bottom performance
-      const scrollBottomStart = Date.now()
-      await chatContainer.evaluate((el) => {
-        el.scrollTop = el.scrollHeight
-      })
-      const scrollBottomTime = Date.now() - scrollBottomStart
-      console.log(`Scroll to bottom time: ${scrollBottomTime}ms`)
-      expect(scrollBottomTime).toBeLessThan(100)
+      el.scrollTop = maxTop
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      const topStart = performance.now()
+      el.scrollTop = 0
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      const top = { elapsed: performance.now() - topStart, position: el.scrollTop }
+      const bottomStart = performance.now()
+      el.scrollTop = maxTop
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      const bottom = { elapsed: performance.now() - bottomStart, position: el.scrollTop }
+      return { maxTop, frames, top, bottom }
+    })
+    expect(metrics.maxTop).toBeGreaterThan(0)
+    for (const frame of metrics.frames) {
+      expect(Math.abs(frame.after - frame.before), 'every timed frame must perform a real scroll').toBeGreaterThan(0)
+      expect(frame.after).toBeCloseTo(frame.target, 0)
     }
+    const avgScrollTime = metrics.frames.reduce((sum, frame) => sum + frame.elapsed, 0) / metrics.frames.length
+    console.log(`Average scroll time per frame: ${avgScrollTime}ms`)
+    expect(avgScrollTime).toBeLessThan(1000 / PERFORMANCE_THRESHOLDS.CHAT_SCROLL_FPS)
+    expect(metrics.top.position).toBe(0)
+    expect(metrics.top.elapsed).toBeLessThan(100)
+    expect(metrics.bottom.position).toBeCloseTo(metrics.maxTop, 0)
+    expect(metrics.bottom.elapsed).toBeLessThan(100)
 
     // Verify messages are visible
     await expect(page.locator('text=测试消息 0')).toBeVisible()

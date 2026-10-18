@@ -12,17 +12,6 @@ import { Button } from "../../components/ui/Button";
 type Draft = Pick<AdminAnnouncement, "title" | "description" | "action_label" | "action_url">;
 const queryKey = ["admin", "announcement", "current"] as const;
 
-const EMPTY: AdminAnnouncement = {
-  title: "",
-  description: "",
-  action_label: null,
-  action_url: null,
-  enabled: false,
-  version: 0,
-  updated_at: null,
-  updated_by: null,
-};
-
 function toDraft(value: AdminAnnouncement): Draft {
   return {
     title: value.title,
@@ -35,6 +24,12 @@ function toDraft(value: AdminAnnouncement): Draft {
 export default function AnnouncementManagement() {
   const { t } = useTranslation(["announcements", "common"]);
   const query = useQuery({ queryKey, queryFn: announcementApi.getCurrentAdmin, retry: false, refetchOnMount: "always", refetchOnWindowFocus: false });
+  const [initialAnnouncement, setInitialAnnouncement] = useState<AdminAnnouncement | null>(null);
+  // Only a successful request on this route entry may initialize the editor.
+  // Once mounted, a failed background refresh must not discard its local draft.
+  if (initialAnnouncement === null && query.isSuccess && query.isFetchedAfterMount) {
+    setInitialAnnouncement(query.data);
+  }
 
   return (
     <div className="admin-page">
@@ -44,9 +39,9 @@ export default function AnnouncementManagement() {
       </header>
 
       <AdminPageState
-        isLoading={query.isPending || (query.isFetching && !query.isFetchedAfterMount)}
+        isLoading={!initialAnnouncement && (query.isPending || query.isFetching)}
         isFetching={query.isFetching}
-        isError={query.isError}
+        isError={!initialAnnouncement && query.isError}
         isEmpty={false}
         loadingText={t("common:loading", "加载中…")}
         errorText={t("admin.loadFailed", "公告配置加载失败")}
@@ -55,7 +50,21 @@ export default function AnnouncementManagement() {
         onRetry={() => void query.refetch()}
         stateClassName="admin-surface flex items-center justify-center py-12"
       >
-        <AnnouncementEditor initial={query.data ?? EMPTY} />
+        {initialAnnouncement && (
+          <>
+            {query.isError && (
+              <div className="admin-surface mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
+                <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
+                  {t("admin.refreshFailedDraftKept", "刷新失败，你的输入已保留。可以重试读取，保存时仍会校验原版本。")}
+                </p>
+                <Button type="button" variant="secondary" size="touch" disabled={query.isFetching} onClick={() => void query.refetch()}>
+                  {t("common:retry", "重试")}
+                </Button>
+              </div>
+            )}
+            <AnnouncementEditor initial={initialAnnouncement} />
+          </>
+        )}
       </AdminPageState>
     </div>
   );

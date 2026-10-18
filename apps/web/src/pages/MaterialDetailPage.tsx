@@ -83,6 +83,17 @@ interface TreeItem {
   disabled?: boolean;
 }
 
+const ITEM_FOLDERS: Partial<Record<TreeItemType, string>> = {
+  chapter: "chapters",
+  character: "characters",
+  story: "stories",
+  plot: "plots",
+  storyline: "storylines",
+  relationship: "relationships",
+  goldenfinger: "goldenfingers",
+  worldview: "worldview",
+};
+
 /**
  * Whether a decomposition stage ran for this material. Jobs created before the
  * enabled-stage snapshot existed report null, which keeps the legacy behavior
@@ -198,7 +209,8 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   };
   const shouldLoadFolder = (folderId: string) => Boolean(
     novelId && material && folderVisibility[folderId]
-    && (expandedFolders.has(folderId) || searchQuery.trim()),
+    && (expandedFolders.has(folderId) || searchQuery.trim()
+      || (selectedItem && ITEM_FOLDERS[selectedItem.type] === folderId)),
   );
 
   // Fetch chapters
@@ -278,7 +290,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
 
   const selectedChapterId = selectedItem?.type === "chapter" ? selectedItem.id : null;
   const selectedChapterQuery = useQuery({
-    queryKey: ["material-chapter", novelId, selectedChapterId],
+    queryKey: ["material-chapter", novelId, selectedChapterId, materialVersion],
     queryFn: () => materialsApi.getChapter(novelId!, selectedChapterId!),
     enabled: Boolean(novelId && selectedChapterId),
     staleTime: 30 * 1000,
@@ -480,9 +492,15 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
     }
   };
 
-  const selectedContentItem = selectedItem?.type === "chapter" && selectedChapter
-    ? { ...selectedItem, data: selectedChapter }
-    : selectedItem;
+  // Selection keeps its identity; refreshed directory data owns the displayed reference.
+  const currentSelectedItem = selectedItem && (
+    treeData.flatMap(folder => folder.children ?? []).find(
+      item => item.type === selectedItem.type && item.id === selectedItem.id,
+    ) ?? selectedItem
+  );
+  const selectedContentItem = currentSelectedItem?.type === "chapter" && selectedChapter
+    ? { ...currentSelectedItem, data: selectedChapter }
+    : currentSelectedItem;
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);

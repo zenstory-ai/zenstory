@@ -764,6 +764,92 @@ describe("MaterialDetailPage", () => {
     }
   });
 
+  it.each([
+    { folder: "characters", node: /^沈砚$/, title: "沈砚", mock: mockGetCharacters, data: referenceCharacter, field: "description" },
+    { folder: "stories", node: /^归乡与旧信$/, title: "归乡与旧信", mock: mockGetStories, data: referenceStory, field: "synopsis" },
+    { folder: "plots", node: /^Initial reference/, title: "materials:detail.plotTitle", mock: mockGetPlots, data: referencePlot, field: "description" },
+    { folder: "storylines", node: /^守灯人的约定$/, title: "守灯人的约定", mock: mockGetStoryLines, data: referenceStoryline, field: "description" },
+    { folder: "relationships", node: /^沈砚 - 温掌柜$/, title: "沈砚 - 温掌柜", mock: mockGetRelationships, data: referenceRelationship, field: "description" },
+    { folder: "goldenfingers", node: /^听灯$/, title: "听灯", mock: mockGetGoldenFingers, data: referenceGoldenFinger, field: "description" },
+    { folder: "worldview", node: /^materials:detail.worldviewItem$/, title: "materials:detail.worldview", mock: mockGetWorldView, data: referenceWorldview, field: "power_system" },
+  ])("refreshes the selected $folder detail when decomposition finishes", async ({ folder, node, title, mock, data, field }) => {
+    mediaState.isMobile = true;
+    const active = { ...referenceMaterial, id: "novel-1", status: "processing" };
+    mockGet.mockReset().mockResolvedValue(active);
+    const initial = { ...data, [field]: "Initial reference" };
+    const finished = { ...data, [field]: "Final reference" };
+    mock.mockReset()
+      .mockResolvedValueOnce(folder === "worldview" ? initial : [initial])
+      .mockResolvedValueOnce(folder === "worldview" ? finished : [finished]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><MaterialDetailPage /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(`^materials:detail.${folder}`) }));
+    fireEvent.click(await screen.findByRole("button", { name: node }));
+    expect(await screen.findByText("Initial reference")).toBeInTheDocument();
+    await act(async () => {
+      queryClient.setQueryData(["material", "novel-1"], { ...active, status: "completed" });
+    });
+    const article = await screen.findByRole("article", { name: title });
+    await waitFor(() => expect(article).toHaveTextContent("Final reference"));
+    expect(article).not.toHaveTextContent("Initial reference");
+    expect(mock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "返回" }));
+    expect(screen.getByRole("button", { name: folder === "plots" ? /^Final reference$/ : node })).toHaveAttribute("aria-current", "true");
+    expect(mockRetry).not.toHaveBeenCalled();
+  });
+
+  it("keeps refreshing a selected reference after its directory is collapsed", async () => {
+    const active = { ...referenceMaterial, id: "novel-1", status: "processing" };
+    mockGet.mockReset().mockResolvedValue(active);
+    mockGetCharacters.mockReset()
+      .mockResolvedValueOnce([{ ...referenceCharacter, description: "Initial reference" }])
+      .mockResolvedValueOnce([{ ...referenceCharacter, description: "Final reference" }]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><MaterialDetailPage /></MemoryRouter></QueryClientProvider>);
+    const folder = await screen.findByRole("button", { name: /materials:detail.characters/ });
+    fireEvent.click(folder);
+    fireEvent.click(await screen.findByRole("button", { name: /^沈砚$/ }));
+    expect(await screen.findByText("Initial reference")).toBeInTheDocument();
+    fireEvent.click(folder);
+    expect(folder).toHaveAttribute("aria-expanded", "false");
+    await act(async () => {
+      queryClient.setQueryData(["material", "novel-1"], { ...active, status: "completed" });
+    });
+    expect(await screen.findByText("Final reference")).toBeInTheDocument();
+    expect(folder).toHaveAttribute("aria-expanded", "false");
+    expect(mockGetCharacters).toHaveBeenCalledTimes(2);
+    expect(mockGetStories).not.toHaveBeenCalled();
+    expect(mockRetry).not.toHaveBeenCalled();
+  });
+
+  it("refreshes a selected chapter summary at completion and ignores its late processing read", async () => {
+    const active = { ...referenceMaterial, id: "novel-1", status: "processing" };
+    mockGet.mockReset().mockResolvedValue(active);
+    let resolveEarlierRead!: (value: unknown) => void;
+    mockGetChapter.mockReset()
+      .mockImplementationOnce(() => new Promise(resolve => { resolveEarlierRead = resolve; }))
+      .mockResolvedValueOnce({ id: "chapter-node-1", title: "Opening Chapter", chapter_number: 1, content: "Final chapter body", summary: "Final chapter summary" });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><MaterialDetailPage /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /materials:detail.chapters/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Opening Chapter/ }));
+    await waitFor(() => expect(mockGetChapter).toHaveBeenCalledTimes(1));
+    try {
+      await act(async () => {
+        queryClient.setQueryData(["material", "novel-1"], { ...active, status: "completed" });
+      });
+      expect(await screen.findByText("Final chapter summary")).toBeInTheDocument();
+      expect(screen.getByText("Final chapter body")).toBeInTheDocument();
+      expect(mockGetChapter).toHaveBeenCalledTimes(2);
+    } finally {
+      await act(async () => { resolveEarlierRead({ id: "chapter-node-1", title: "Opening Chapter", content: "Stale chapter body", summary: null }); });
+    }
+    expect(screen.queryByText("Stale chapter body")).not.toBeInTheDocument();
+    expect(screen.getByText("Final chapter summary")).toBeInTheDocument();
+    expect(mockRetry).not.toHaveBeenCalled();
+  });
+
   it("refetches an expanded empty folder when processing becomes terminal", async () => {
     mockGet.mockResolvedValueOnce({
       id: "novel-1",

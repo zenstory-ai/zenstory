@@ -24,6 +24,7 @@
     "saved": "公告已保存并展示",
     "stopped": "公告已停止展示",
     "loadFailed": "公告配置加载失败",
+    "refreshFailedDraftKept": "刷新失败，你的输入已保留。可以重试读取，保存时仍会校验原版本。",
     "saveFailed": "保存失败，请重试",
     "conflict": "公告已被其他管理员更新，请刷新后重试",
     "conflictDraftKept": "你的输入已保留。加载最新配置会替换当前草稿，再继续编辑。",

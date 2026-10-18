@@ -24,6 +24,7 @@
     "saved": "Announcement saved and shown",
     "stopped": "Announcement hidden",
     "loadFailed": "Could not load the announcement settings",
+    "refreshFailedDraftKept": "Refresh failed. Your input is preserved. You can retry loading; saving will still check the original version.",
     "saveFailed": "Could not save. Try again.",
     "conflict": "Another administrator updated this announcement. Refresh and try again.",
     "conflictDraftKept": "Your input is preserved. Loading the latest settings will replace this draft before you continue editing.",

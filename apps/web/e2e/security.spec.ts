@@ -1,12 +1,13 @@
-import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test';
 import {
   cleanupOwnedProject,
   createOwnedProject,
   type OwnedProject,
 } from './fixtures/project-test-data';
+import { config } from './config';
 
 /**
- * Security Test Suite - OWASP Top 10 Coverage
+ * Basic security boundary tests
  *
  * These tests verify basic security protections against common web vulnerabilities:
  * - XSS (Cross-Site Scripting)
@@ -24,6 +25,29 @@ async function openOwnedProject(page: Page, testInfo: TestInfo, prefix: string) 
   await page.goto(`/project/${ownedProject.id}`);
   await expect(page).toHaveURL(`/project/${ownedProject.id}`);
   await expect(page.getByTestId('editor-panel')).toBeVisible();
+}
+
+async function fillAndVerifySavedContent(page: Page, editor: Locator, content: string) {
+  // Native insertion and controlled-value assignment differ in newline handling.
+  const expected = content.replace(/\r\n?/g, '\n');
+  let submitted = content;
+  const saving = page.waitForResponse(response =>
+    /\/api\/v1\/files\/[^/]+$/.test(new URL(response.url()).pathname) &&
+    response.request().method() === 'PUT' &&
+    response.request().postDataJSON()?.content === submitted,
+  );
+  await editor.fill(content);
+  submitted = await editor.inputValue();
+  expect(submitted.replace(/\r\n?/g, '\n')).toBe(expected);
+  const response = await saving;
+  expect(response.ok()).toBeTruthy();
+  const saved = await response.json();
+  expect(saved).toMatchObject({ project_id: ownedProject!.id, content: submitted });
+  expect(new URL(response.url()).pathname).toBe(`/api/v1/files/${saved.id}`);
+  const persisted = await page.request.get(response.url(), { headers: ownedProject!.headers });
+  expect(persisted.ok()).toBeTruthy();
+  expect(await persisted.json()).toMatchObject({ id: saved.id, content: submitted });
+  return expected;
 }
 
 test.afterEach(async ({ page }) => {
@@ -44,6 +68,8 @@ test.describe('Security - XSS Protection', () => {
    * Then: Script does NOT execute, content is escaped
    */
   test('XSS payload in file content is escaped and does not execute', async ({ page }) => {
+    const dialogs: string[] = [];
+    page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
     await page.waitForSelector('.overflow-auto', { timeout: 5000 });
 
     // Create a file with XSS payload in content
@@ -66,8 +92,7 @@ test.describe('Security - XSS Protection', () => {
     // Inject XSS payload into content
     const editor = page.locator('textarea').first();
     const xssPayload = '<script>alert("XSS")</script>这是测试内容';
-    await editor.fill(xssPayload);
-    await page.waitForTimeout(500);
+    const expected = await fillAndVerifySavedContent(page, editor, xssPayload);
 
     // Verify script tag is escaped (visible as text, not executed)
     const contentCheck = await page.evaluate(() => {
@@ -94,12 +119,8 @@ test.describe('Security - XSS Protection', () => {
     await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5000 });
 
     const editorAfter = page.locator('textarea').first();
-    const content = await editorAfter.inputValue();
-
-    // Current editor may preserve the payload as literal text or sanitize it away entirely.
-    // Either outcome is acceptable as long as it never executed in the DOM.
-    expect(content === '' || content.includes('<script>')).toBe(true);
-    expect(content === '' || content.includes('XSS')).toBe(true);
+    await expect.poll(async () => (await editorAfter.inputValue()).replace(/\r\n?/g, '\n')).toBe(expected);
+    expect(dialogs).toEqual([]);
   });
 
   /**
@@ -110,6 +131,8 @@ test.describe('Security - XSS Protection', () => {
    * Then: Event handler does NOT execute, name is escaped
    */
   test('XSS payload in file name is escaped in file tree', async ({ page }) => {
+    const dialogs: string[] = [];
+    page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
     await page.waitForSelector('.overflow-auto', { timeout: 5000 });
 
     // Create file with XSS in name
@@ -142,6 +165,7 @@ test.describe('Security - XSS Protection', () => {
     const fileNameElement = await escapedFile.textContent();
     expect(fileNameElement).toContain('<img');
     expect(fileNameElement).toContain('onerror');
+    expect(dialogs).toEqual([]);
   });
 });
 
@@ -161,19 +185,18 @@ test.describe('Security - Authentication Bypass', () => {
   });
 
   /**
-   * Auth Test 2: Expired tokens are rejected
+   * Auth Test 2: Invalid signatures are rejected
    *
-   * Given: Request with expired JWT token
+   * Given: Request with an invalid JWT signature
    * When: Accessing protected endpoint
    * Then: Returns 401 Unauthorized
    */
-  test('expired authentication token is rejected', async ({ request }) => {
-    // Use an obviously expired/invalid token
-    const expiredToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+  test('invalid authentication token is rejected', async ({ request }) => {
+    const invalidToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
 
     const response = await request.get('/api/v1/projects', {
       headers: {
-        Authorization: `Bearer ${expiredToken}`,
+        Authorization: `Bearer ${invalidToken}`,
       },
     });
 
@@ -477,8 +500,7 @@ test.describe('Security - Input Validation', () => {
     const editor = page.locator('textarea').first();
     // Test various special characters
     const specialChars = '< > & " \' / \\ \n \t \r {{ }} <% %>';
-    await editor.fill(specialChars);
-    await page.waitForTimeout(500);
+    const expected = await fillAndVerifySavedContent(page, editor, specialChars);
 
     // Reload and verify content persisted safely
     await page.reload();
@@ -494,11 +516,7 @@ test.describe('Security - Input Validation', () => {
     await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5000 });
 
     const editorAfter = page.locator('textarea').first();
-    const content = await editorAfter.inputValue();
-
-    // Special characters should not crash the editor; current sanitization may preserve
-    // or strip them, but the reopened editor must remain functional.
-    expect(typeof content).toBe('string');
+    await expect.poll(async () => (await editorAfter.inputValue()).replace(/\r\n?/g, '\n')).toBe(expected);
   });
 });
 
@@ -530,15 +548,17 @@ test.describe('Security - CSRF Protection', () => {
    * Then: CORS blocks the request
    */
   test('API enforces CORS policy', async ({ request }) => {
-    // Try to access API from different origin (simulated)
-    const response = await request.get('/api/v1/projects', {
+    const response = await request.fetch(`${config.apiBaseUrl}/api/v1/projects`, {
+      method: 'OPTIONS',
       headers: {
         Origin: 'https://malicious-site.com',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type',
       },
     });
 
-    // Should either be blocked by CORS or return 401
-    expect([401, 403]).toContain(response.status());
+    expect(response.status()).toBe(400);
+    expect(response.headers()['access-control-allow-origin']).toBeUndefined();
   });
 });
 

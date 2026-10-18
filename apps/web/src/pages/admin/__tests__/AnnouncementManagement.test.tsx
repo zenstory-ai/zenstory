@@ -286,6 +286,44 @@ describe("AnnouncementManagement", () => {
     expect(title).toHaveValue("还没保存的草稿");
   });
 
+  it("preserves an unsaved draft through a failed background refresh and retry", async () => {
+    const client = createClient();
+    renderPage(client);
+    const title = await screen.findByLabelText("标题");
+    fireEvent.change(title, { target: { value: "网络波动前的草稿" } });
+    getCurrentAdmin.mockRejectedValueOnce(new Error("temporary network failure"));
+    await act(async () => { await client.refetchQueries({ queryKey: ["admin", "announcement", "current"] }); });
+
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("标题")).toBe(title);
+    expect(title).toHaveValue("网络波动前的草稿");
+    expect(screen.getByRole("alert")).toHaveTextContent("刷新失败，你的输入已保留");
+
+    getCurrentAdmin.mockResolvedValue({ ...saved, title: "其他管理员的新标题", version: 6, updated_at: "2026-10-17T02:00:00Z" });
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("标题")).toBe(title);
+    expect(title).toHaveValue("网络波动前的草稿");
+    fireEvent.click(screen.getByRole("button", { name: "保存并展示" }));
+    await waitFor(() => expect(updateCurrent).toHaveBeenCalledWith(expect.objectContaining({
+      title: "网络波动前的草稿", expected_version: saved.version, expected_updated_at: saved.updated_at,
+    })));
+  });
+
+  it("does not initialize the editor from cached configuration if entry revalidation fails", async () => {
+    const client = createClient();
+    client.setQueryData(["admin", "announcement", "current"], saved);
+    getCurrentAdmin.mockRejectedValueOnce(new Error("offline at route entry"));
+    renderPage(client);
+    await screen.findByRole("alert");
+    expect(screen.queryByLabelText("标题")).not.toBeInTheDocument();
+    expect(updateCurrent).not.toHaveBeenCalled();
+
+    getCurrentAdmin.mockResolvedValue({ ...saved, title: "返回后最新配置", version: 6 });
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(await screen.findByLabelText("标题")).toHaveValue("返回后最新配置");
+  });
+
   it("keeps the draft and asks for refresh after a version conflict", async () => {
     updateCurrent.mockRejectedValue(new ApiError(409, "conflict"));
     renderPage();

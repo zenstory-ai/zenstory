@@ -1,5 +1,6 @@
 import { test, expect, Page, Locator } from '@playwright/test'
 import { config } from './config'
+import type { FileVersionListResponse, VersionComparison, VersionContentResponse } from '../src/types'
 import {
   cleanupOwnedProject,
   createOwnedFile,
@@ -130,7 +131,7 @@ async function ensureActiveFolderExpanded(page: Page): Promise<void> {
  * Seed committed content and history through the API. Refresh the editor once
  * in openVersionHistory, after the complete version sequence has been created.
  */
-async function editFileContent(page: Page, content: string): Promise<void> {
+async function editFileContent(page: Page, content: string, summary = `e2e version ${Date.now()}`): Promise<void> {
   if (!activeTestFileId) {
     throw new Error('Missing active test file id for version editing')
   }
@@ -152,7 +153,7 @@ async function editFileContent(page: Page, content: string): Promise<void> {
       content,
       change_type: 'edit',
       change_source: 'user',
-      change_summary: `e2e version ${Date.now()}`,
+      change_summary: summary,
     },
   })
   expect(versionResponse.ok()).toBeTruthy()
@@ -210,6 +211,19 @@ function getVersionItems(page: Page) {
   return page.getByRole('dialog').locator('div[tabindex="0"]')
 }
 
+function getVersionItem(page: Page, versionNumber: number) {
+  return getVersionItems(page).filter({ has: page.getByText(`v${versionNumber}`, { exact: true }) })
+}
+
+async function selectOriginalAndLatestVersions(page: Page): Promise<void> {
+  const latest = getVersionItems(page).first()
+  const original = getVersionItem(page, 1)
+  await expect(original).toHaveCount(1)
+  await expect(latest.getByText(/^v\d+$/)).not.toHaveText('v1')
+  await latest.click()
+  await original.click()
+}
+
 function getCompareButton(page: Page) {
   return page
     .getByRole('dialog')
@@ -239,10 +253,18 @@ async function openVersionComparison(page: Page, compareButton: Locator = getCom
     compareButton.click(),
   ])
   expect(response.ok()).toBeTruthy()
+  const result = await response.json() as VersionComparison
+  const params = new URL(response.url()).searchParams
+  expect(result.file_id).toBe(activeTestFileId)
+  expect(result.version1.number).toBe(Number(params.get('v1')))
+  expect(result.version2.number).toBe(Number(params.get('v2')))
+  expect(result.version1.number).toBe(1)
+  expect(result.version2.number).toBeGreaterThan(1)
+  expect(result.html_diff.some(line => line.type !== 'equal')).toBe(true)
   await expect(diffReady).toBeVisible({ timeout: 10000 })
 }
 
-async function getVersionCountFromApi(page: Page): Promise<number> {
+async function getVersionsFromApi(page: Page): Promise<FileVersionListResponse> {
   if (!activeTestFileId) {
     throw new Error('Missing active test file id for version count check')
   }
@@ -252,8 +274,30 @@ async function getVersionCountFromApi(page: Page): Promise<number> {
     headers,
   })
   expect(response.ok()).toBeTruthy()
-  const payload = await response.json()
-  return payload.total ?? 0
+  return await response.json() as FileVersionListResponse
+}
+
+async function getVersionCountFromApi(page: Page): Promise<number> {
+  return (await getVersionsFromApi(page)).total
+}
+
+async function getVersionContentFromApi(page: Page, versionNumber: number): Promise<VersionContentResponse> {
+  const response = await page.request.get(
+    `${config.apiBaseUrl}/api/v1/files/${activeTestFileId}/versions/${versionNumber}/content`,
+    { headers: await getAuthHeaders(page) },
+  )
+  expect(response.ok()).toBeTruthy()
+  return await response.json() as VersionContentResponse
+}
+
+async function expectLatestSnapshotContent(page: Page, content: string): Promise<void> {
+  const versions = await getVersionsFromApi(page)
+  expect(versions.total).toBeGreaterThanOrEqual(1)
+  expect(versions.versions.length).toBeGreaterThanOrEqual(1)
+  const latest = versions.versions[0]
+  expect(latest.change_type).toBe('edit')
+  expect(latest.change_source).toBe('user')
+  expect((await getVersionContentFromApi(page, latest.version_number)).content).toBe(content)
 }
 
 test.describe('Version History', () => {
@@ -297,11 +341,11 @@ test.describe('Version History', () => {
     await expect(page.locator('text=/\\d+\\s*(字|words)/i').first()).toBeVisible()
   })
 
-  test('version list supports pagination with many versions', async ({ page }) => {
+  test('version list shows the seeded multi-version history', async ({ page }) => {
     await createTestFile(page, '分页测试')
     await selectFile(page, '分页测试')
 
-    // Create multiple versions (more than typical page size)
+    // Five edits exercise multiple versions within the current 50-row page.
     for (let i = 1; i <= 5; i++) {
       await editFileContent(page, `版本 ${i} 的内容，用于测试分页功能。这是第 ${i} 次编辑。`)
     }
@@ -323,7 +367,7 @@ test.describe('Version History', () => {
     await createTestFile(page, '内容查看测试')
     await selectFile(page, '内容查看测试')
 
-    const firstContent = '这是原始版本的内容'
+    const firstContent = '这是原始版本的内容\n　　保留全角缩进和尾部空格。  \n第二段。'
     await editFileContent(page, firstContent)
 
     const secondContent = '这是修改后的内容，与原始版本不同'
@@ -332,16 +376,24 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    // Find a version item and click the view content button (FileText icon)
-    const viewButton = page.locator('button:has(svg.lucide-file-text)').first()
-    if (await viewButton.isVisible()) {
-      await viewButton.click()
-
-      // Verify content viewer appears or content is displayed
-      // The content viewer may appear in a modal or inline
-      const contentViewer = page.locator('.modal, [class*="prose"], textarea').first()
-      await expect(contentViewer).toBeVisible({ timeout: 3000 })
-    }
+    const original = getVersionItem(page, 1)
+    const viewButton = original.locator('button:has(svg.lucide-file-text)')
+    await expect(viewButton).toBeVisible()
+    const [response] = await Promise.all([
+      page.waitForResponse(response =>
+        new URL(response.url()).pathname === `/api/v1/files/${activeTestFileId}/versions/1/content`
+          && response.request().method() === 'GET',
+      ),
+      viewButton.click(),
+    ])
+    expect(response.ok()).toBeTruthy()
+    expect(await response.json()).toMatchObject({
+      file_id: activeTestFileId, version_number: 1, content: firstContent,
+    })
+    const preview = page.getByTestId('version-preview')
+    await expect(preview).toBeVisible()
+    await expect(preview.locator('pre')).toBeVisible()
+    expect(await preview.locator('pre').textContent()).toBe(firstContent)
   })
 
   test('version content displays word and character counts', async ({ page }) => {
@@ -371,25 +423,17 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    // Select two versions for comparison
-    const versionItems = getVersionItems(page)
-    const count = await versionItems.count()
-
-    expect(count).toBeGreaterThanOrEqual(2)
-    // Click first version to select
-    await versionItems.nth(0).click()
-
-    // Click second version to select
-    await versionItems.nth(1).click()
+    await selectOriginalAndLatestVersions(page)
 
     // Look for compare button
     const compareButton = getCompareButton(page)
     await expect(compareButton).toBeVisible()
     await openVersionComparison(page, compareButton)
 
-    // Verify diff viewer appears
-    const diffViewer = page.locator('[class*="font-mono"], .diff-add, .diff-remove').first()
-    await expect(diffViewer).toBeVisible({ timeout: 5000 })
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.locator('.diff-remove').filter({ hasText: '第二行内容' })).toBeVisible()
+    await expect(dialog.locator('.diff-add').filter({ hasText: '修改的第二行' })).toBeVisible()
+    await expect(dialog.locator('.diff-add').filter({ hasText: '新增的第四行' })).toBeVisible()
   })
 
   test('comparison shows additions in green', async ({ page }) => {
@@ -402,21 +446,13 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    const versionItems = getVersionItems(page)
-    const count = await versionItems.count()
-
-    expect(count).toBeGreaterThanOrEqual(2)
-    // Select two versions
-    await versionItems.nth(0).click()
-    await versionItems.nth(1).click()
+    await selectOriginalAndLatestVersions(page)
 
     const compareButton = getCompareButton(page)
     await expect(compareButton).toBeVisible()
     await openVersionComparison(page, compareButton)
 
-    // Look for green/add styling (diff-add class or green color)
-    const addIndicator = page.locator('.diff-add, [class*="text-green"], [class*="bg-green"], [class*="success"]').first()
-    await expect(addIndicator).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('dialog').locator('.diff-add').filter({ hasText: '新增的一行' })).toBeVisible()
   })
 
   test('comparison shows deletions in red', async ({ page }) => {
@@ -429,26 +465,13 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    const versionItems = getVersionItems(page)
-    const count = await versionItems.count()
-
-    expect(count).toBeGreaterThanOrEqual(2)
-    // Select two versions
-    await versionItems.nth(0).click()
-    // Wait for selection state to update
-    await expect(versionItems.nth(0)).toHaveAttribute('class', /selected|active|border-/, { timeout: 2000 })
-
-    await versionItems.nth(1).click()
-    // Wait for second selection
-    await expect(versionItems.nth(1)).toHaveAttribute('class', /selected|active|border-/, { timeout: 2000 })
+    await selectOriginalAndLatestVersions(page)
 
     const compareButton = getCompareButton(page)
     await expect(compareButton).toBeVisible()
     await openVersionComparison(page, compareButton)
 
-    // Look for red/remove styling (diff-remove class or red color)
-    const removeIndicator = page.locator('.diff-remove, [class*="text-red"], [class*="bg-red"], [class*="error"]').first()
-    await expect(removeIndicator).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('dialog').locator('.diff-remove').filter({ hasText: '将被删除的第二行' })).toBeVisible()
   })
 
   test('comparison displays unified diff', async ({ page }) => {
@@ -461,25 +484,16 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    const versionItems = getVersionItems(page)
-    const count = await versionItems.count()
-
-    expect(count).toBeGreaterThanOrEqual(2)
-    // Select two versions
-    await versionItems.nth(0).click()
-    await versionItems.nth(1).click()
+    await selectOriginalAndLatestVersions(page)
 
     const compareButton = getCompareButton(page)
     await expect(compareButton).toBeVisible()
     await openVersionComparison(page, compareButton)
 
-    // Verify diff content is displayed with + and - indicators
-    const diffContent = page.locator('[class*="font-mono"]').first()
-    await expect(diffContent).toBeVisible({ timeout: 5000 })
-
-    // Look for +/- indicators
-    const plusMinusIndicator = page.locator('text=/^\\s*[+-]/').first()
-    await expect(plusMinusIndicator).toBeVisible({ timeout: 3000 })
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.locator('.diff-remove').filter({ hasText: '行2' })).toBeVisible()
+    await expect(dialog.locator('.diff-add').filter({ hasText: '修改的行2' })).toBeVisible()
+    await expect(dialog.locator('.diff-add').filter({ hasText: '行4' })).toBeVisible()
   })
 
   // ==================== Rollback Functionality ====================
@@ -566,38 +580,43 @@ test.describe('Version History', () => {
   // ==================== Auto-save Version Creation ====================
 
   test('editing content creates new version after debounce', async ({ page }) => {
-    await createTestFile(page, '自动保存测试')
+    const fileId = await createTestFile(page, '自动保存测试')
     await selectFile(page, '自动保存测试')
-
-    // Edit content
+    expect(await getVersionCountFromApi(page)).toBe(0)
     const content = '自动保存的内容测试，等待防抖时间后应该创建新版本。'
-    await editFileContent(page, content)
-
-    // Open version history
+    const saved = page.waitForResponse(response =>
+      new URL(response.url()).pathname === `/api/v1/files/${fileId}`
+        && response.request().method() === 'PUT',
+    )
+    // Use the real three-second debounce, without clicking Save or seeding a version.
+    await page.locator('[data-editor-scroll-container="true"] textarea').fill(content)
+    const response = await saved
+    expect(response.ok()).toBeTruthy()
+    expect(response.request().postDataJSON()).toMatchObject({ content, change_type: 'edit', change_source: 'user' })
+    expect(await response.json()).toMatchObject({ id: fileId, content })
+    await expectLatestSnapshotContent(page, content)
     await openVersionHistory(page)
-
-    // Verify at least one version exists (the auto-saved one)
-    const count = await getVersionCountFromApi(page)
-    expect(count).toBeGreaterThanOrEqual(1)
+    await expect(getVersionItems(page)).toHaveCount(1)
   })
 
-  test('manual save creates version with user summary', async ({ page }) => {
+  test('explicit API snapshot displays its supplied user summary', async ({ page }) => {
     await createTestFile(page, '手动保存测试')
     await selectFile(page, '手动保存测试')
 
-    await editFileContent(page, '手动保存的内容')
+    const summary = '作者记录的版本说明'
+    await editFileContent(page, '手动保存的内容', summary)
 
     // Open version history
     await openVersionHistory(page)
 
-    // Verify version was created
-    const count = await getVersionCountFromApi(page)
-    expect(count).toBeGreaterThanOrEqual(1)
+    const versions = await getVersionsFromApi(page)
+    expect(versions.versions[0].change_summary).toBe(summary)
+    await expect(getVersionItems(page).first().getByText(summary, { exact: true })).toBeVisible()
   })
 
   // ==================== Version Metadata ====================
 
-  test('versions show change type (edit, create, rollback)', async ({ page }) => {
+  test('user edit versions show the edited change-type badge', async ({ page }) => {
     await createTestFile(page, '变更类型测试')
     await selectFile(page, '变更类型测试')
 
@@ -606,10 +625,9 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    // Look for change type indicators (badges/labels)
-    const changeTypeLabels = page.locator('text=/编辑|edited|创建|created|恢复|restored|rollback/i')
-    const count = await changeTypeLabels.count()
-    expect(count).toBeGreaterThanOrEqual(0) // May or may not have explicit labels
+    const versions = await getVersionsFromApi(page)
+    expect(versions.versions[0]).toMatchObject({ change_type: 'edit', change_source: 'user' })
+    await expect(getVersionItems(page).first().getByText(/^(编辑|Edited)$/i)).toBeVisible()
   })
 
   test('versions show change source (user, auto_save)', async ({ page }) => {
@@ -736,12 +754,7 @@ test.describe('Version History - Diff View Modes', () => {
 
     await openVersionHistory(page)
 
-    const versionItems = getVersionItems(page)
-    const count = await versionItems.count()
-
-    expect(count).toBeGreaterThanOrEqual(2)
-    await versionItems.nth(0).click()
-    await versionItems.nth(1).click()
+    await selectOriginalAndLatestVersions(page)
 
     const compareButton = getCompareButton(page)
     await expect(compareButton).toBeVisible()
@@ -761,12 +774,7 @@ test.describe('Version History - Diff View Modes', () => {
 
     await openVersionHistory(page)
 
-    const versionItems = getVersionItems(page)
-    const count = await versionItems.count()
-
-    expect(count).toBeGreaterThanOrEqual(2)
-    await versionItems.nth(0).click()
-    await versionItems.nth(1).click()
+    await selectOriginalAndLatestVersions(page)
 
     const compareButton = getCompareButton(page)
     await expect(compareButton).toBeVisible()
@@ -790,12 +798,7 @@ test.describe('Version History - Diff View Modes', () => {
 
     await openVersionHistory(page)
 
-    const versionItems = getVersionItems(page)
-    const count = await versionItems.count()
-
-    expect(count).toBeGreaterThanOrEqual(2)
-    await versionItems.nth(0).click()
-    await versionItems.nth(1).click()
+    await selectOriginalAndLatestVersions(page)
 
     const compareButton = getCompareButton(page)
     await expect(compareButton).toBeVisible()

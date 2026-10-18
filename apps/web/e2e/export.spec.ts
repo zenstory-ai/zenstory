@@ -109,8 +109,13 @@ test.describe('Export Functionality', () => {
     ])
 
     const content = (await readDownload(await downloadExport(page))).toString('utf8')
-    expect(content.indexOf('第一章')).toBeLessThan(content.indexOf('第二章'))
-    expect(content.indexOf('第二章')).toBeLessThan(content.indexOf('第三章'))
+    const chapters = ['第一章', '第二章', '第三章']
+    const positions = chapters.map(title => content.indexOf(`${title}\n\n${title}的内容`))
+    for (const [index, position] of positions.entries()) {
+      expect(position, `${chapters[index]} title and content must be exported`).toBeGreaterThanOrEqual(0)
+    }
+    expect(positions[0]).toBeLessThan(positions[1])
+    expect(positions[1]).toBeLessThan(positions[2])
   })
 
   test('exported TXT includes chapter titles', async ({ page }) => {

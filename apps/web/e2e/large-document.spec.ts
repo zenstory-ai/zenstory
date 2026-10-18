@@ -17,9 +17,9 @@ const LARGE_DOCUMENT_OPT_IN_MESSAGE =
  *
  * These tests verify the current SimpleEditor large-document contract:
  * - Loading large documents in under 3 seconds
- * - Smooth scrolling at 60fps regardless of document size
- * - Auto-save completing within 2 seconds for any document size
- * - Memory usage remaining under 500MB for large documents
+ * - Scrolling measured against the existing frame-time budgets
+ * - Successful auto-save after the 3-second debounce, with a 2-second request budget
+ * - Measurable browser heap growth, with explicit limits on GC-related claims
  * - Complete content across file switching and reloads
  * - Long-range editing and cursor preservation
  */
@@ -85,11 +85,11 @@ test.beforeEach(async ({ page, ownedProject }) => {
 })
 
 /** Open a real API-created draft; the former 正文 + target is an upload control. */
-async function setupProjectAndFile(page: import('@playwright/test').Page, fileName: string) {
+async function setupProjectAndFile(page: import('@playwright/test').Page, fileName: string, content = '') {
   const project = ownedProjectByPage.get(page)
   if (!project) throw new Error('Large-document owned project fixture was not initialized')
 
-  const file = await createOwnedFile(page, project, { title: fileName })
+  const file = await createOwnedFile(page, project, { title: fileName, content })
   await page.goto(`/project/${project.id}?file=${file.id}`)
   await page.waitForURL(new RegExp(`/project/${project.id}\\?file=${file.id}`))
 
@@ -512,43 +512,35 @@ test.describe('Large Document - Scrolling Performance', () => {
 
 test.describe('Large Document - Auto-Save Performance', () => {
   test.skip(!ENABLE_LARGE_DOCUMENT_E2E, LARGE_DOCUMENT_OPT_IN_MESSAGE)
-  test('auto-save completes within time limit for large documents', async ({ page }) => {
-    await setupProjectAndFile(page, '自动保存测试')
-
-    // Create large content
+  test('auto-save persists large documents and completes its request within 2 seconds', async ({ page, ownedProject }) => {
     const largeContent = generateLargeContent(TEST_THRESHOLDS.SAVE_DOC_WORDS)
-    const editor = page.locator('textarea').first()
-    await editor.fill(largeContent)
+    const { file } = await setupProjectAndFile(page, '自动保存测试', largeContent)
+    const editor = page.locator('[data-editor-scroll-container="true"] textarea').first()
+    await expect(editor).toHaveValue(largeContent)
+    const expectedContent = largeContent + '\n触发自动保存的新内容'
 
-    // Wait for initial auto-save to complete
-    await page.waitForTimeout(1000)
-
-    // Make an edit to trigger auto-save
-    await editor.press('End')
-    await editor.press('Enter')
-    await editor.type('触发自动保存的新内容')
-
-    // Wait for auto-save API call
-    const saveStartTime = Date.now()
-
-    try {
-      await page.waitForResponse(
-        resp => resp.url().includes('/api/v1/') &&
-               resp.url().includes('/files') &&
-               resp.request().method() === 'PUT',
-        { timeout: 10000 }
-      )
-    } catch {
-      // Auto-save may use debounce, which is expected
-      console.log('Auto-save debounced or already saved')
-    }
-
-    const saveTime = Date.now() - saveStartTime
-    console.log(`Auto-save time: ${saveTime}ms`)
-
-    // For debounced saves, the actual network call should be fast
-    // The total time includes debounce delay
-    // This test mainly verifies the save doesn't hang
+    // SimpleEditor deliberately debounces for 3000ms. Wait for the exact
+    // automatic write, then apply the existing 2000ms budget to its full request.
+    const saved = page.waitForResponse(response =>
+      new URL(response.url()).pathname === `/api/v1/files/${file.id}`
+        && response.request().method() === 'PUT'
+        && response.request().postDataJSON().content === expectedContent,
+      { timeout: 10000 },
+    )
+    await editor.press('ControlOrMeta+a')
+    await editor.press('ArrowRight')
+    await page.keyboard.insertText('\n触发自动保存的新内容')
+    await expect(editor).toHaveValue(expectedContent)
+    const response = await saved
+    expect(response.ok()).toBeTruthy()
+    expect(await response.finished()).toBeNull()
+    const timing = response.request().timing()
+    expect(timing.requestStart).toBeGreaterThanOrEqual(0)
+    expect(timing.responseEnd).toBeGreaterThanOrEqual(timing.requestStart)
+    const saveTime = timing.responseEnd - timing.requestStart
+    console.log(`Auto-save request time after debounce: ${saveTime}ms`)
+    expect(saveTime).toBeLessThan(PERFORMANCE_THRESHOLDS.AUTO_SAVE_MS)
+    expect((await readOwnedFile(page, ownedProject, file.id)).content).toBe(expectedContent)
   })
 
   test('save button works for large documents', async ({ page }) => {
@@ -659,64 +651,27 @@ test.describe('Large Document - Memory Usage', () => {
     }
   })
 
-  test('memory is released when switching files', async ({ page }) => {
-    await setupProjectAndFile(page, '内存释放测试1')
-
-    // Create and load large content
+  test('switching large and small files isolates their complete contents', async ({ page, ownedProject }, testInfo) => {
+    testInfo.annotations.push({
+      type: 'coverage',
+      description: 'Verifies observable editor state isolation; browser garbage-collection timing and memory release are not asserted.',
+    })
+    const smallContent = '小文件的独立内容'
+    const smallFile = await createOwnedFile(page, ownedProject, { title: '小文件', content: smallContent })
     const largeContent = generateLargeContent(TEST_THRESHOLDS.MEMORY_DOC_WORDS)
-    const editor = page.locator('textarea').first()
-    await editor.fill(largeContent)
-    await page.waitForTimeout(500)
+    const { file: largeFile } = await setupProjectAndFile(page, '大文件', largeContent)
+    const editor = page.locator('[data-editor-scroll-container="true"] textarea').first()
+    await expect(editor).toHaveValue(largeContent)
 
-    const memoryAfterLarge = await page.evaluate(() => {
-      if ('memory' in performance) {
-        return (performance as { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize
-      }
-      return null
-    })
+    const smallNode = page.locator(`[data-testid="file-tree-node"][data-file-id="${smallFile.id}"]`)
+    await smallNode.click()
+    await expect(editor).toHaveValue(smallContent)
+    await expect(editor).not.toHaveValue(largeContent)
 
-    // Create a new small file
-    const outlineFolder = page.getByTestId('file-tree-node').filter({ hasText: '大纲' }).first()
-    await outlineFolder.hover()
-    await outlineFolder.getByTestId('file-tree-create-child').click()
-
-    const fileInput = page.getByTestId('file-tree-new-item-input')
-    await fileInput.fill('内存释放测试2')
-    await fileInput.press('Enter')
-
-    // Select the new file
-    const newFile = page.locator('.overflow-auto >> text=内存释放测试2').first()
-    await newFile.click()
-    await page.waitForTimeout(500)
-
-    // Fill with small content
-    const newEditor = page.locator('textarea').first()
-    await newEditor.fill('小内容')
-    await page.waitForTimeout(500)
-
-    // Force garbage collection if available
-    await page.evaluate(() => {
-      if ('gc' in window) {
-        (window as { gc?: () => void }).gc?.()
-      }
-    })
-
-    const memoryAfterSmall = await page.evaluate(() => {
-      if ('memory' in performance) {
-        return (performance as { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize
-      }
-      return null
-    })
-
-    if (memoryAfterLarge !== null && memoryAfterSmall !== null) {
-      console.log(`Memory after large doc: ${(memoryAfterLarge / 1024 / 1024).toFixed(2)} MB`)
-      console.log(`Memory after small doc: ${(memoryAfterSmall / 1024 / 1024).toFixed(2)} MB`)
-
-      // Memory should not keep increasing significantly
-      // Note: Actual memory release depends on GC, so this is a soft check
-      const memoryDiff = memoryAfterSmall - memoryAfterLarge
-      console.log(`Memory difference: ${(memoryDiff / 1024 / 1024).toFixed(2)} MB`)
-    }
+    await page.locator(`[data-testid="file-tree-node"][data-file-id="${largeFile.id}"]`).click()
+    await expect(editor).toHaveValue(largeContent)
+    expect((await readOwnedFile(page, ownedProject, largeFile.id)).content).toBe(largeContent)
+    expect((await readOwnedFile(page, ownedProject, smallFile.id)).content).toBe(smallContent)
   })
 })
 
@@ -799,36 +754,22 @@ test.describe('Large Document - Editing Functionality', () => {
   })
 
   test('undo/redo works with large documents', async ({ page }) => {
-    await setupProjectAndFile(page, '撤销重做测试')
-
-    // Create initial content
+    // Server-loaded content is the baseline; it is not part of this textarea's
+    // native edit history, so undo must revert only the real insertion below.
     const initialContent = generateLargeContent(5000)
-    const editor = page.locator('textarea').first()
-    await editor.fill(initialContent)
+    await setupProjectAndFile(page, '撤销重做测试', initialContent)
+    const editor = page.locator('[data-editor-scroll-container="true"] textarea').first()
+    await expect(editor).toHaveValue(initialContent)
+    const editedContent = initialContent + '新增的测试内容'
+    await editor.press('ControlOrMeta+a')
+    await editor.press('ArrowRight')
+    await page.keyboard.insertText('新增的测试内容')
+    await expect(editor).toHaveValue(editedContent)
 
-    // Get initial length
-    const initialLength = (await editor.inputValue()).length
-
-    // Add content
-    await editor.press('End')
-    await editor.press('Enter')
-    await editor.type('新增的测试内容')
-    await page.waitForTimeout(100)
-
-    // Verify content was added
-    const afterAddLength = (await editor.inputValue()).length
-    expect(afterAddLength).toBeGreaterThan(initialLength)
-
-    // Undo
-    await page.keyboard.down('Control')
-    await page.keyboard.press('z')
-    await page.keyboard.up('Control')
-    await page.waitForTimeout(100)
-
-    // Note: Undo may not work in all browsers/contexts in E2E tests
-    // The test mainly verifies no crash occurs
-    const afterUndoLength = (await editor.inputValue()).length
-    console.log(`Lengths: initial=${initialLength}, afterAdd=${afterAddLength}, afterUndo=${afterUndoLength}`)
+    await editor.press('ControlOrMeta+z')
+    await expect(editor).toHaveValue(initialContent)
+    await editor.press('ControlOrMeta+Shift+z')
+    await expect(editor).toHaveValue(editedContent)
   })
 })
 
