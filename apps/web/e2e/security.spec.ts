@@ -87,10 +87,10 @@ test.describe('Security - XSS Protection', () => {
     // Select the file
     const testFile = page.locator('.overflow-auto >> text=XSS测试文件').first();
     await testFile.click();
-    await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-editor-scroll-container="true"] textarea')).toBeVisible({ timeout: 5000 });
 
     // Inject XSS payload into content
-    const editor = page.locator('textarea').first();
+    const editor = page.locator('[data-editor-scroll-container="true"] textarea');
     const xssPayload = '<script>alert("XSS")</script>这是测试内容';
     const expected = await fillAndVerifySavedContent(page, editor, xssPayload);
 
@@ -116,9 +116,9 @@ test.describe('Security - XSS Protection', () => {
     }
     await expect(savedFile).toBeVisible({ timeout: 5000 });
     await savedFile.click();
-    await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-editor-scroll-container="true"] textarea')).toBeVisible({ timeout: 5000 });
 
-    const editorAfter = page.locator('textarea').first();
+    const editorAfter = page.locator('[data-editor-scroll-container="true"] textarea');
     await expect.poll(async () => (await editorAfter.inputValue()).replace(/\r\n?/g, '\n')).toBe(expected);
     expect(dialogs).toEqual([]);
   });
@@ -495,9 +495,9 @@ test.describe('Security - Input Validation', () => {
 
     const testFile = page.locator('.overflow-auto >> text=特殊字符测试').first();
     await testFile.click();
-    await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-editor-scroll-container="true"] textarea')).toBeVisible({ timeout: 5000 });
 
-    const editor = page.locator('textarea').first();
+    const editor = page.locator('[data-editor-scroll-container="true"] textarea');
     // Test various special characters
     const specialChars = '< > & " \' / \\ \n \t \r {{ }} <% %>';
     const expected = await fillAndVerifySavedContent(page, editor, specialChars);
@@ -513,9 +513,9 @@ test.describe('Security - Input Validation', () => {
     }
     await expect(savedFile).toBeVisible({ timeout: 5000 });
     await savedFile.click();
-    await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-editor-scroll-container="true"] textarea')).toBeVisible({ timeout: 5000 });
 
-    const editorAfter = page.locator('textarea').first();
+    const editorAfter = page.locator('[data-editor-scroll-container="true"] textarea');
     await expect.poll(async () => (await editorAfter.inputValue()).replace(/\r\n?/g, '\n')).toBe(expected);
   });
 });

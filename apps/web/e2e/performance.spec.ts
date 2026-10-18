@@ -321,6 +321,11 @@ test.describe('Performance', () => {
       await page.getByTestId('send-button').click()
 
       await expect(page.locator('.markdown-content').last()).toContainText(`性能测试模拟回复 ${i + 1}`)
+      // Prose can render before done removes the activity row and swaps the
+      // stop control back to send. Measure only completed exchanges.
+      await expect(page.getByTestId('send-button')).toBeVisible()
+      await expect(page.getByTestId('stop-button')).toHaveCount(0)
+      await expect(page.getByTestId('stream-activity-line')).toHaveCount(0)
     }
 
     // ChatPanel's message-list is the actual scrolling surface; a missing or
@@ -328,43 +333,53 @@ test.describe('Performance', () => {
     const chatContainer = page.getByTestId('message-list')
     await expect(chatContainer).toBeVisible()
     const metrics = await chatContainer.evaluate(async (el) => {
+      // Font loading is setup, not scroll rendering time.
+      await document.fonts.ready
+      const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
       const maxTop = el.scrollHeight - el.clientHeight
       if (maxTop <= 0) throw new Error('Chat messages must overflow before measuring scroll performance')
-      el.scrollTop = 0
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-      const frames: Array<{ elapsed: number; before: number; after: number; target: number }> = []
-      for (let i = 0; i < 10; i++) {
+      const measureEdge = async (edge: 'top' | 'bottom') => {
         const before = el.scrollTop
-        const target = before > maxTop / 2 ? 0 : maxTop
+        const beforeMaxTop = el.scrollHeight - el.clientHeight
+        const target = edge === 'bottom' ? beforeMaxTop : 0
         const start = performance.now()
         el.scrollTop = target
-        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-        frames.push({ elapsed: performance.now() - start, before, after: el.scrollTop, target })
+        await nextFrame()
+        // Reaching the bottom hides Jump to latest. Its removal can shrink
+        // the range and correctly clamp scrollTop within this same frame.
+        const after = el.scrollTop
+        const afterMaxTop = el.scrollHeight - el.clientHeight
+        return { edge, elapsed: performance.now() - start, before, after, target, beforeMaxTop, afterMaxTop }
+      }
+      el.scrollTop = 0
+      await nextFrame()
+      const frames = []
+      for (let i = 0; i < 10; i++) {
+        const currentMaxTop = el.scrollHeight - el.clientHeight
+        frames.push(await measureEdge(el.scrollTop > currentMaxTop / 2 ? 'top' : 'bottom'))
       }
 
-      el.scrollTop = maxTop
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-      const topStart = performance.now()
-      el.scrollTop = 0
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-      const top = { elapsed: performance.now() - topStart, position: el.scrollTop }
-      const bottomStart = performance.now()
-      el.scrollTop = maxTop
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-      const bottom = { elapsed: performance.now() - bottomStart, position: el.scrollTop }
+      el.scrollTop = el.scrollHeight
+      await nextFrame()
+      const top = await measureEdge('top')
+      const bottom = await measureEdge('bottom')
       return { maxTop, frames, top, bottom }
     })
+    console.log(`Chat scroll geometry: ${JSON.stringify(metrics)}`)
+    await testInfo.attach('chat-scroll-geometry', { body: JSON.stringify(metrics), contentType: 'application/json' })
     expect(metrics.maxTop).toBeGreaterThan(0)
-    for (const frame of metrics.frames) {
+    for (const frame of [...metrics.frames, metrics.top, metrics.bottom]) {
+      expect(frame.beforeMaxTop).toBeGreaterThan(0)
+      expect(frame.afterMaxTop).toBeGreaterThan(0)
       expect(Math.abs(frame.after - frame.before), 'every timed frame must perform a real scroll').toBeGreaterThan(0)
-      expect(frame.after).toBeCloseTo(frame.target, 0)
+      expect(frame.after, `${frame.edge} edge; range ${frame.beforeMaxTop} → ${frame.afterMaxTop}`).toBeCloseTo(
+        frame.edge === 'bottom' ? frame.afterMaxTop : 0, 0,
+      )
     }
     const avgScrollTime = metrics.frames.reduce((sum, frame) => sum + frame.elapsed, 0) / metrics.frames.length
     console.log(`Average scroll time per frame: ${avgScrollTime}ms`)
     expect(avgScrollTime).toBeLessThan(1000 / PERFORMANCE_THRESHOLDS.CHAT_SCROLL_FPS)
-    expect(metrics.top.position).toBe(0)
     expect(metrics.top.elapsed).toBeLessThan(100)
-    expect(metrics.bottom.position).toBeCloseTo(metrics.maxTop, 0)
     expect(metrics.bottom.elapsed).toBeLessThan(100)
 
     // Verify messages are visible
