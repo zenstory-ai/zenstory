@@ -498,13 +498,15 @@ test.describe('Version History', () => {
     const editor = page.locator('[data-editor-scroll-container="true"] textarea').first()
     await expect(editor).toHaveValue(modifiedContent)
 
-    // Find rollback button on an older version (not the latest)
+    // The latest manual edits may coalesce. Restore the initial preserved
+    // snapshot, not an assumed position that can contain modifiedContent.
     const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
     expect(count).toBeGreaterThanOrEqual(2)
-    // Click rollback button on the second version (older)
-    const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
+    const originalVersion = versionItems.filter({ has: page.getByText('v1', { exact: true }) })
+    await expect(originalVersion).toHaveCount(1)
+    const rollbackButton = originalVersion.locator('button:has(svg.lucide-rotate-ccw)')
     await expect(rollbackButton).toBeVisible()
     await rollbackButton.click()
     await confirmRollback(page)

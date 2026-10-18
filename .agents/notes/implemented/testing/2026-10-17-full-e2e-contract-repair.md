@@ -56,6 +56,8 @@ Keyboard-only 创建用例以实际 `create-project-button` 焦点和键盘 Ente
 
 同候选 PR CI 的唯一前端失败是 QuotaBadge 单测在 quota 已显示、异步订阅状态尚未完成时同步取升级按钮。改为等待实际按钮，与相邻 compact 用例一致；不改变产品查询、订阅 mock 或显示契约。
 
+加强正文断言后，`37cfbcaf` 版本双引擎为 47 passed / 2 failed：两引擎都实际成功恢复所选 v2，但 v2/v3 均为合并后的新正文，原文仍在 v1；旧 nth(1) 假设不能证明“回到原文”。用例明确选唯一 v1 行，保留恢复前后真实正文断言，不以错误提示或任意旧版本代替目标内容。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。
