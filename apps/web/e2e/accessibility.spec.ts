@@ -1,5 +1,6 @@
-import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { TEST_USERS } from './config';
+import { test, expect, type Page } from '@playwright/test';
+import { getPoolUser } from './config';
+import { cleanupOwnedProject, createOwnedProject, type OwnedProject } from './fixtures/project-test-data';
 import { checkWCAGAA, assertNoCriticalViolations, runAccessibilityScan } from './utils/axe-helper';
 
 /**
@@ -12,146 +13,27 @@ import { checkWCAGAA, assertNoCriticalViolations, runAccessibilityScan } from '.
  * - ARIA attributes
  */
 
-// Test credentials
-const TEST_EMAIL = TEST_USERS.standard.email;
-const TEST_PASSWORD = TEST_USERS.standard.password;
-const API_BASE_URL = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
-const AUTHENTICATED_ROUTE_PATTERN = /\/(project|dashboard|onboarding\/persona)/;
-
-// Accessibility flows are login-heavy and can be flaky under full parallel load.
 test.describe.configure({ mode: 'serial' });
 
-async function createOrReuseProject(
-  request: APIRequestContext,
-  headers: Record<string, string>,
-  name: string
-): Promise<string> {
-  const createResponse = await request.post(`${API_BASE_URL}/api/v1/projects`, {
-    headers,
-    timeout: 20000,
-    data: {
-      name,
-      project_type: 'novel',
-    },
-  });
+let ownedProject: OwnedProject | undefined;
 
-  if (createResponse.ok()) {
-    const payload = await createResponse.json();
-    return payload.id as string;
-  }
-
-  const listResponse = await request.get(`${API_BASE_URL}/api/v1/projects`, {
-    headers,
-    timeout: 20000,
-  });
-  expect(listResponse.ok()).toBeTruthy();
-  const projects = (await listResponse.json()) as Array<{ id: string }>;
-  expect(projects.length).toBeGreaterThan(0);
-  return projects[0].id;
-}
-
-async function gotoWithRetry(
-  page: Page,
-  url: string,
-  options: { attempts?: number; timeout?: number } = {}
-): Promise<void> {
-  const attempts = options.attempts ?? 2;
-  const timeout = options.timeout ?? 25000;
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-      return;
-    } catch (error) {
-      if (attempt === attempts) {
-        throw error;
-      }
-      await page.waitForTimeout(500 * attempt);
-    }
-  }
-}
-
-async function ensureOnboardingBypassed(page: Page): Promise<void> {
-  if (!page.url().includes('/onboarding/persona')) {
-    return;
-  }
-
-  await page.evaluate(() => {
-    try {
-      const rawUser = localStorage.getItem('user');
-      if (!rawUser) return;
-
-      const user = JSON.parse(rawUser) as { id?: string };
-      if (!user?.id) return;
-
-      const key = `zenstory_onboarding_persona_v1:${user.id}`;
-      if (localStorage.getItem(key)) return;
-
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          version: 1,
-          completed_at: new Date().toISOString(),
-          selected_personas: ['fiction_writer'],
-          selected_goals: ['finish_first_draft'],
-          experience_level: 'beginner',
-          skipped: false,
-        })
-      );
-    } catch {
-      // Ignore storage failures in E2E setup path.
-    }
-  });
-
-  await gotoWithRetry(page, '/dashboard');
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
-}
-
-/**
- * Helper function to login and navigate to project
- */
-async function loginAndNavigateToProject(page: Page) {
-  // Navigate to login page
-  await gotoWithRetry(page, '/login');
-
-  // Wait for page to load
-  await expect(page.locator('h1')).toContainText(/登录|login/i);
-
-  // Login with test credentials
-  await page.locator('#identifier').fill(TEST_EMAIL);
-  await page.locator('#password').fill(TEST_PASSWORD);
-  await page.locator('button[type="submit"]').click();
-
-  // Wait for redirect to complete (project, dashboard, or onboarding gate)
-  await page.waitForURL(AUTHENTICATED_ROUTE_PATTERN, { timeout: 20000 });
-  await ensureOnboardingBypassed(page);
-
-  // Prefer API-driven project bootstrap to avoid dashboard UI flakiness.
-  if (!page.url().includes('/project/')) {
-    const token = await page.evaluate(() => localStorage.getItem('access_token'));
-    expect(token).toBeTruthy();
-
-    const projectId = await createOrReuseProject(
-      page.request,
-      { Authorization: `Bearer ${token}` },
-      `A11y Project ${Date.now()}`
-    );
-    await gotoWithRetry(page, `/project/${projectId}`);
-    await page.waitForURL(/\/project\//, { timeout: 15000 });
-  }
-
-  // Wait for main UI to settle. Keep networkidle best-effort since long polling can keep network busy.
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+async function openOwnedProject(page: Page): Promise<void> {
+  ownedProject = await createOwnedProject(page, test.info(), 'a11y');
+  await page.goto(`/project/${ownedProject.id}`, { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(`/project/${ownedProject.id}`);
   await expect(
     page.locator('input[placeholder*="搜索文件"], input[placeholder*="Search files"], [role="searchbox"]').first()
-  ).toBeVisible({ timeout: 10000 });
+  ).toBeVisible();
 }
+
+test.afterEach(async ({ page }) => {
+  await cleanupOwnedProject(page, ownedProject);
+  ownedProject = undefined;
+});
 
 test.describe('Accessibility - Keyboard Navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
   });
 
   test('all interactive elements are keyboard accessible', async ({ page }) => {
@@ -271,7 +153,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
 
 test.describe('Accessibility - Screen Reader Support', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
   });
 
   test('images have alt text', async ({ page }) => {
@@ -401,7 +283,7 @@ test.describe('Accessibility - Screen Reader Support', () => {
 
 test.describe('Accessibility - Color Contrast', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
   });
 
   test('text meets WCAG AA contrast requirements', async ({ page }) => {
@@ -471,7 +353,7 @@ test.describe('Accessibility - Color Contrast', () => {
 
 test.describe('Accessibility - ARIA', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
   });
 
   test('landmarks are properly defined', async ({ page }) => {
@@ -515,7 +397,8 @@ test.describe('Accessibility - ARIA', () => {
       localStorage.clear();
       sessionStorage.clear();
     });
-    await gotoWithRetry(page, '/login');
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('login-form')).toBeVisible();
     const submitButton = page.locator('button[type="submit"]').first();
     if (!(await submitButton.count())) {
       return;
@@ -595,7 +478,7 @@ test.describe('Accessibility - ARIA', () => {
 
 test.describe('Accessibility - Focus Management', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
   });
 
   test('focus is trapped in modal dialogs', async ({ page }) => {
@@ -690,15 +573,18 @@ test.describe('Accessibility - Enhanced Tests', () => {
    * Verifies users can complete login -> create project -> create file using only keyboard
    */
   test('keyboard-only navigation completes core flow', async ({ page }) => {
+    const owner = getPoolUser(test.info().parallelIndex);
+
     // Start at login page
-    await gotoWithRetry(page, '/login');
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('login-form')).toBeVisible();
 
     // Focus email input (Tab start position varies by browser/runtime)
     await page.locator('#identifier').focus();
     await expect(page.locator('#identifier')).toBeFocused();
 
     // Fill email using keyboard
-    await page.keyboard.type(TEST_EMAIL);
+    await page.keyboard.type(owner.email);
 
     // Tab to password input
     await page.keyboard.press('Tab');
@@ -708,7 +594,7 @@ test.describe('Accessibility - Enhanced Tests', () => {
     await expect(page.locator('#password')).toBeFocused();
 
     // Fill password using keyboard
-    await page.keyboard.type(TEST_PASSWORD);
+    await page.keyboard.type(owner.password);
 
     // Tab to submit button and press Enter
     await page.keyboard.press('Tab');
@@ -717,46 +603,62 @@ test.describe('Accessibility - Enhanced Tests', () => {
       await submitButton.focus();
     }
     await expect(submitButton).toBeFocused();
+    const loginResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === 'POST' && url.pathname === '/api/auth/login';
+    });
     await page.keyboard.press('Enter');
+    expect((await loginResponsePromise).ok()).toBeTruthy();
 
     // Wait for navigation to complete
-    await page.waitForURL(AUTHENTICATED_ROUTE_PATTERN, { timeout: 10000 });
-    await ensureOnboardingBypassed(page);
+    await expect(page).toHaveURL('/dashboard');
+    await expect(page.getByTestId('dashboard-composer')).toBeVisible();
 
-    // Navigate to dashboard if not already there
-    const currentUrl = page.url();
-    if (currentUrl.includes('/dashboard')) {
-      // Tab to find "Create Project" button
-      const maxTabs = 20;
-      let foundCreateButton = false;
+    // Tab to find "Create Project" button
+    const maxTabs = 20;
+    let foundCreateButton = false;
 
-      for (let i = 0; i < maxTabs; i++) {
-        const focusedElement = await page.evaluate(() => {
-          const el = document.activeElement;
-          return {
-            tag: el?.tagName,
-            text: el?.textContent?.trim(),
-            type: el?.getAttribute('type')
-          };
+    for (let i = 0; i < maxTabs; i++) {
+      const focusedElement = await page.evaluate(() => {
+        const el = document.activeElement;
+        return {
+          tag: el?.tagName,
+          text: el?.textContent?.trim(),
+          type: el?.getAttribute('type')
+        };
+      });
+
+      if (focusedElement.text?.includes('创建项目') || focusedElement.text?.includes('Create Project')) {
+        foundCreateButton = true;
+        const accessToken = await page.evaluate(() => localStorage.getItem('access_token'));
+        expect(accessToken).toBeTruthy();
+        const createResponsePromise = page.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return response.request().method() === 'POST' && url.pathname === '/api/v1/projects';
         });
-
-        if (focusedElement.text?.includes('创建项目') || focusedElement.text?.includes('Create Project')) {
-          foundCreateButton = true;
-          await page.keyboard.press('Enter');
-          await page.waitForURL(/\/project\//, { timeout: 5000 });
-          break;
-        }
-
-        await page.keyboard.press('Tab');
+        await page.keyboard.press('Enter');
+        const createResponse = await createResponsePromise;
+        expect(createResponse.ok()).toBeTruthy();
+        const project = await createResponse.json() as { id: string; name?: string };
+        ownedProject = {
+          id: project.id,
+          name: project.name ?? `a11y-${project.id}`,
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          owner,
+        };
+        await expect(page).toHaveURL(`/project/${project.id}`);
+        break;
       }
 
-      // If couldn't find create button via keyboard, verify at least navigation worked
-      if (!foundCreateButton) {
-        const focusableCount = await page
-          .locator('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])')
-          .count();
-        expect(focusableCount).toBeGreaterThan(0);
-      }
+      await page.keyboard.press('Tab');
+    }
+
+    // If couldn't find create button via keyboard, verify at least navigation worked
+    if (!foundCreateButton) {
+      const focusableCount = await page
+        .locator('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])')
+        .count();
+      expect(focusableCount).toBeGreaterThan(0);
     }
 
     // Verify we're on a project page
@@ -768,7 +670,7 @@ test.describe('Accessibility - Enhanced Tests', () => {
    * Verifies aria-live regions exist for dynamic content announcements
    */
   test('screen reader announces dynamic content', async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
 
     // Check for aria-live regions that announce dynamic changes
     const liveRegionCount = await page.locator('[aria-live]').count();
@@ -809,7 +711,7 @@ test.describe('Accessibility - Enhanced Tests', () => {
    * Resolve transparent colors and ancestor backgrounds with Axe.
    */
   test('workspace color contrast meets WCAG AA on its actual surfaces', async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
     // Axe resolves transparent foregrounds and ancestor surfaces; rgba(0,0,0,0)
     // must not be treated as a black background. Check all rendered text, not 15 nodes.
     const result = await checkWCAGAA(page);
@@ -821,7 +723,7 @@ test.describe('Accessibility - Enhanced Tests', () => {
    * Verifies focus trap within modal and focus return to trigger on close
    */
   test('focus management in modals', async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
 
     // Find a modal trigger
     const modalTrigger = page.locator('button[aria-haspopup="dialog"], [data-testid*="modal"]').first();
@@ -892,7 +794,7 @@ test.describe('Accessibility - Enhanced Tests', () => {
    * Verifies all buttons, links, and inputs have accessible names
    */
   test('ARIA labels on interactive elements', async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
 
     // Test all buttons
     const buttons = await page.locator('button').all();
@@ -1017,7 +919,8 @@ test.describe('Accessibility - Enhanced Tests', () => {
 test.describe('Automated Accessibility (axe-core)', () => {
 
   test('login page has no WCAG AA violations', async ({ page }) => {
-    await gotoWithRetry(page, '/login');
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('login-form')).toBeVisible();
 
     const result = await checkWCAGAA(page);
 
@@ -1034,11 +937,11 @@ test.describe('Automated Accessibility (axe-core)', () => {
   });
 
   test('dashboard has no WCAG AA violations', async ({ page }) => {
-    // Use existing loginAndNavigateToProject helper
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
 
     // Navigate back to dashboard
-    await gotoWithRetry(page, '/dashboard');
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('dashboard-composer')).toBeVisible();
 
     const result = await checkWCAGAA(page);
 
@@ -1053,7 +956,7 @@ test.describe('Automated Accessibility (axe-core)', () => {
   });
 
   test('project workspace has no WCAG AA violations', async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
 
     const result = await checkWCAGAA(page);
 
@@ -1068,7 +971,7 @@ test.describe('Automated Accessibility (axe-core)', () => {
   });
 
   test('settings dialog has no WCAG AA violations', async ({ page }) => {
-    await loginAndNavigateToProject(page);
+    await openOwnedProject(page);
 
     // Open settings
     await page.getByTestId('settings-button').click();

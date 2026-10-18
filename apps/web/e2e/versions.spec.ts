@@ -165,10 +165,23 @@ async function openVersionHistory(page: Page): Promise<void> {
   // File-scoped history action in the editor status bar
   const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ }).first()
   await expect(historyButton).toBeVisible({ timeout: 5000 })
-  await historyButton.click()
+  const [response] = await Promise.all([
+    page.waitForResponse(response =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).pathname === `/api/v1/files/${activeTestFileId}/versions`,
+    ),
+    historyButton.click(),
+  ])
+  expect(response.ok()).toBeTruthy()
+  const payload = await response.json() as { versions: unknown[] }
+  expect(Array.isArray(payload.versions)).toBe(true)
 
-  // Wait for version history panel
-  await expect(page.getByText(/版本历史|历史版本|Version History/i).first()).toBeVisible({ timeout: 5000 })
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('heading', { name: /^(历史版本|Version history)$/i })).toBeVisible()
+  await expect(getVersionItems(page)).toHaveCount(payload.versions.length)
+  if (payload.versions.length === 0) {
+    await expect(dialog.getByText(/还没有历史版本|No versions yet/i)).toBeVisible()
+  }
 }
 
 /**
@@ -192,12 +205,13 @@ function getVersionItems(page: Page) {
 
 function getCompareButton(page: Page) {
   return page
-    .locator('button:has(svg.lucide-git-compare), button:has-text("对比"), button:has-text("Compare")')
-    .first()
+    .getByRole('dialog')
+    .getByRole('button', { name: /^(对比版本|Compare)$/ })
 }
 
 function getDiffViewerReadyLocator(page: Page) {
   return page
+    .getByRole('dialog')
     .locator(
       'button:has(svg.lucide-code), button:has(svg.lucide-eye), button:has(svg.lucide-align-left), [class*="font-mono"], .diff-add, .diff-remove'
     )
@@ -208,23 +222,16 @@ async function openVersionComparison(page: Page, compareButton: Locator = getCom
   await expect(compareButton).toBeVisible({ timeout: 5000 })
 
   const diffReady = getDiffViewerReadyLocator(page)
-  const compareResponse = page
-    .waitForResponse(
+  const [response] = await Promise.all([
+    page.waitForResponse(
       (response) =>
-        response.url().includes('/api/v1/') &&
-        response.url().includes('/compare') &&
+        new URL(response.url()).pathname === `/api/v1/files/${activeTestFileId}/versions/compare` &&
         response.request().method() === 'GET',
       { timeout: 10000 }
-    )
-    .catch(() => null)
-
-  await compareButton.click()
-
-  await Promise.race([
-    compareResponse,
-    expect(diffReady).toBeVisible({ timeout: 10000 }).then(() => null),
+    ),
+    compareButton.click(),
   ])
-
+  expect(response.ok()).toBeTruthy()
   await expect(diffReady).toBeVisible({ timeout: 10000 })
 }
 
@@ -361,23 +368,21 @@ test.describe('Version History', () => {
     const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      // Click first version to select
-      await versionItems.nth(0).click()
+    expect(count).toBeGreaterThanOrEqual(2)
+    // Click first version to select
+    await versionItems.nth(0).click()
 
-      // Click second version to select
-      await versionItems.nth(1).click()
+    // Click second version to select
+    await versionItems.nth(1).click()
 
-      // Look for compare button
-      const compareButton = getCompareButton(page)
-      if (await compareButton.isVisible()) {
-        await openVersionComparison(page, compareButton)
+    // Look for compare button
+    const compareButton = getCompareButton(page)
+    await expect(compareButton).toBeVisible()
+    await openVersionComparison(page, compareButton)
 
-        // Verify diff viewer appears
-        const diffViewer = page.locator('[class*="font-mono"], .diff-add, .diff-remove').first()
-        await expect(diffViewer).toBeVisible({ timeout: 5000 })
-      }
-    }
+    // Verify diff viewer appears
+    const diffViewer = page.locator('[class*="font-mono"], .diff-add, .diff-remove').first()
+    await expect(diffViewer).toBeVisible({ timeout: 5000 })
   })
 
   test('comparison shows additions in green', async ({ page }) => {
@@ -393,20 +398,18 @@ test.describe('Version History', () => {
     const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      // Select two versions
-      await versionItems.nth(0).click()
-      await versionItems.nth(1).click()
+    expect(count).toBeGreaterThanOrEqual(2)
+    // Select two versions
+    await versionItems.nth(0).click()
+    await versionItems.nth(1).click()
 
-      const compareButton = getCompareButton(page)
-      if (await compareButton.isVisible()) {
-        await openVersionComparison(page, compareButton)
+    const compareButton = getCompareButton(page)
+    await expect(compareButton).toBeVisible()
+    await openVersionComparison(page, compareButton)
 
-        // Look for green/add styling (diff-add class or green color)
-        const addIndicator = page.locator('.diff-add, [class*="text-green"], [class*="bg-green"], [class*="success"]').first()
-        await expect(addIndicator).toBeVisible({ timeout: 5000 })
-      }
-    }
+    // Look for green/add styling (diff-add class or green color)
+    const addIndicator = page.locator('.diff-add, [class*="text-green"], [class*="bg-green"], [class*="success"]').first()
+    await expect(addIndicator).toBeVisible({ timeout: 5000 })
   })
 
   test('comparison shows deletions in red', async ({ page }) => {
@@ -422,25 +425,23 @@ test.describe('Version History', () => {
     const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      // Select two versions
-      await versionItems.nth(0).click()
-      // Wait for selection state to update
-      await expect(versionItems.nth(0)).toHaveAttribute('class', /selected|active|border-/, { timeout: 2000 })
+    expect(count).toBeGreaterThanOrEqual(2)
+    // Select two versions
+    await versionItems.nth(0).click()
+    // Wait for selection state to update
+    await expect(versionItems.nth(0)).toHaveAttribute('class', /selected|active|border-/, { timeout: 2000 })
 
-      await versionItems.nth(1).click()
-      // Wait for second selection
-      await expect(versionItems.nth(1)).toHaveAttribute('class', /selected|active|border-/, { timeout: 2000 })
+    await versionItems.nth(1).click()
+    // Wait for second selection
+    await expect(versionItems.nth(1)).toHaveAttribute('class', /selected|active|border-/, { timeout: 2000 })
 
-      const compareButton = getCompareButton(page)
-      if (await compareButton.isVisible()) {
-        await openVersionComparison(page, compareButton)
+    const compareButton = getCompareButton(page)
+    await expect(compareButton).toBeVisible()
+    await openVersionComparison(page, compareButton)
 
-        // Look for red/remove styling (diff-remove class or red color)
-        const removeIndicator = page.locator('.diff-remove, [class*="text-red"], [class*="bg-red"], [class*="error"]').first()
-        await expect(removeIndicator).toBeVisible({ timeout: 5000 })
-      }
-    }
+    // Look for red/remove styling (diff-remove class or red color)
+    const removeIndicator = page.locator('.diff-remove, [class*="text-red"], [class*="bg-red"], [class*="error"]').first()
+    await expect(removeIndicator).toBeVisible({ timeout: 5000 })
   })
 
   test('comparison displays unified diff', async ({ page }) => {
@@ -456,24 +457,22 @@ test.describe('Version History', () => {
     const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      // Select two versions
-      await versionItems.nth(0).click()
-      await versionItems.nth(1).click()
+    expect(count).toBeGreaterThanOrEqual(2)
+    // Select two versions
+    await versionItems.nth(0).click()
+    await versionItems.nth(1).click()
 
-      const compareButton = getCompareButton(page)
-      if (await compareButton.isVisible()) {
-        await openVersionComparison(page, compareButton)
+    const compareButton = getCompareButton(page)
+    await expect(compareButton).toBeVisible()
+    await openVersionComparison(page, compareButton)
 
-        // Verify diff content is displayed with + and - indicators
-        const diffContent = page.locator('[class*="font-mono"]').first()
-        await expect(diffContent).toBeVisible({ timeout: 5000 })
+    // Verify diff content is displayed with + and - indicators
+    const diffContent = page.locator('[class*="font-mono"]').first()
+    await expect(diffContent).toBeVisible({ timeout: 5000 })
 
-        // Look for +/- indicators
-        const plusMinusIndicator = page.locator('text=/^\\s*[+-]/').first()
-        await expect(plusMinusIndicator).toBeVisible({ timeout: 3000 })
-      }
-    }
+    // Look for +/- indicators
+    const plusMinusIndicator = page.locator('text=/^\\s*[+-]/').first()
+    await expect(plusMinusIndicator).toBeVisible({ timeout: 3000 })
   })
 
   // ==================== Rollback Functionality ====================
@@ -496,17 +495,16 @@ test.describe('Version History', () => {
     const versionItems = getVersionItems(page)
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      // Click rollback button on the second version (older)
-      const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
-      if (await rollbackButton.isVisible()) {
-        await rollbackButton.click()
-        await confirmRollback(page)
+    expect(count).toBeGreaterThanOrEqual(2)
+    // Click rollback button on the second version (older)
+    const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
+    if (await rollbackButton.isVisible()) {
+      await rollbackButton.click()
+      await confirmRollback(page)
 
-        // Verify rollback succeeded - content should be restored
-        // The version list should refresh
-        await expect(page.locator('text=/恢复|restore|success/i').first()).toBeVisible({ timeout: 5000 })
-      }
+      // Verify rollback succeeded - content should be restored
+      // The version list should refresh
+      await expect(page.locator('text=/恢复|restore|success/i').first()).toBeVisible({ timeout: 5000 })
     }
   })
 
@@ -720,17 +718,16 @@ test.describe('Version History - Error Handling', () => {
     const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
-      if (await rollbackButton.isVisible()) {
-        await rollbackButton.click()
-        // Cancel the in-app restore confirmation
-        await page.getByRole('dialog').getByRole('button', { name: /^(取消|Cancel)$/ }).click()
+    expect(count).toBeGreaterThanOrEqual(2)
+    const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
+    if (await rollbackButton.isVisible()) {
+      await rollbackButton.click()
+      // Cancel the in-app restore confirmation
+      await page.getByRole('dialog').getByRole('button', { name: /^(取消|Cancel)$/ }).click()
 
-        // Verify content was NOT rolled back (still has new content)
-        const editor = page.locator('textarea[placeholder*="开始你的创作"]').first()
-        await expect(editor).toHaveValue(/新内容/)
-      }
+      // Verify content was NOT rolled back (still has new content)
+      const editor = page.locator('textarea[placeholder*="开始你的创作"]').first()
+      await expect(editor).toHaveValue(/新内容/)
     }
   })
 })
@@ -748,19 +745,17 @@ test.describe('Version History - Diff View Modes', () => {
     const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      await versionItems.nth(0).click()
-      await versionItems.nth(1).click()
+    expect(count).toBeGreaterThanOrEqual(2)
+    await versionItems.nth(0).click()
+    await versionItems.nth(1).click()
 
-      const compareButton = getCompareButton(page)
-      if (await compareButton.isVisible()) {
-        await openVersionComparison(page, compareButton)
+    const compareButton = getCompareButton(page)
+    await expect(compareButton).toBeVisible()
+    await openVersionComparison(page, compareButton)
 
-        // Look for unified view indicator or code icon
-        const unifiedView = page.locator('button:has(svg.lucide-code), [class*="font-mono"]').first()
-        await expect(unifiedView).toBeVisible({ timeout: 5000 })
-      }
-    }
+    // Look for unified view indicator or code icon
+    const unifiedView = page.locator('button:has(svg.lucide-code), [class*="font-mono"]').first()
+    await expect(unifiedView).toBeVisible({ timeout: 5000 })
   })
 
   test('diff viewer supports split view mode', async ({ page }) => {
@@ -775,24 +770,22 @@ test.describe('Version History - Diff View Modes', () => {
     const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      await versionItems.nth(0).click()
-      await versionItems.nth(1).click()
+    expect(count).toBeGreaterThanOrEqual(2)
+    await versionItems.nth(0).click()
+    await versionItems.nth(1).click()
 
-      const compareButton = getCompareButton(page)
-      if (await compareButton.isVisible()) {
-        await openVersionComparison(page, compareButton)
+    const compareButton = getCompareButton(page)
+    await expect(compareButton).toBeVisible()
+    await openVersionComparison(page, compareButton)
 
-        // Look for split view button (Eye icon)
-        const splitViewButton = page.locator('button:has(svg.lucide-eye)').first()
-        if (await splitViewButton.isVisible()) {
-          await splitViewButton.click()
+    // Look for split view button (Eye icon)
+    const splitViewButton = page.locator('button:has(svg.lucide-eye)').first()
+    if (await splitViewButton.isVisible()) {
+      await splitViewButton.click()
 
-          // Verify split view is shown (two columns)
-          const splitContainer = page.locator('[class*="flex"] > [class*="w-1/2"]').first()
-          await expect(splitContainer).toBeVisible({ timeout: 3000 })
-        }
-      }
+      // Verify split view is shown (two columns)
+      const splitContainer = page.locator('[class*="flex"] > [class*="w-1/2"]').first()
+      await expect(splitContainer).toBeVisible({ timeout: 3000 })
     }
   })
 
@@ -808,24 +801,22 @@ test.describe('Version History - Diff View Modes', () => {
     const versionItems = page.locator('[class*="p-3"][class*="hover:bg"]')
     const count = await versionItems.count()
 
-    if (count >= 2) {
-      await versionItems.nth(0).click()
-      await versionItems.nth(1).click()
+    expect(count).toBeGreaterThanOrEqual(2)
+    await versionItems.nth(0).click()
+    await versionItems.nth(1).click()
 
-      const compareButton = getCompareButton(page)
-      if (await compareButton.isVisible()) {
-        await openVersionComparison(page, compareButton)
+    const compareButton = getCompareButton(page)
+    await expect(compareButton).toBeVisible()
+    await openVersionComparison(page, compareButton)
 
-        // Look for inline view button (AlignLeft icon)
-        const inlineViewButton = page.locator('button:has(svg.lucide-align-left)').first()
-        if (await inlineViewButton.isVisible()) {
-          await inlineViewButton.click()
+    // Look for inline view button (AlignLeft icon)
+    const inlineViewButton = page.locator('button:has(svg.lucide-align-left)').first()
+    if (await inlineViewButton.isVisible()) {
+      await inlineViewButton.click()
 
-          // Verify inline view is shown (prose-style content)
-          const inlineContent = page.locator('[class*="leading-relaxed"], [class*="prose"]').first()
-          await expect(inlineContent).toBeVisible({ timeout: 3000 })
-        }
-      }
+      // Verify inline view is shown (prose-style content)
+      const inlineContent = page.locator('[class*="leading-relaxed"], [class*="prose"]').first()
+      await expect(inlineContent).toBeVisible({ timeout: 3000 })
     }
   })
 })

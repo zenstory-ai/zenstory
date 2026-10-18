@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator, type TestInfo } from '@playwright/test'
 import { getPoolUser, type TestUser } from './config'
 import { cleanupOwnedProject, createOwnedProject, type OwnedProject } from './fixtures/project-test-data'
+import { LoginPage } from './fixtures/page-objects/LoginPage'
 import { login } from './helpers/common'
 
 /**
@@ -453,7 +454,7 @@ test.describe('Project Update', () => {
     const uniqueName = `持久化测试${Date.now()}`
     await inspirationInput.fill(uniqueName)
 
-    await createProjectFromDashboard(page)
+    const projectId = await createProjectFromDashboard(page)
     await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
 
     // Open ProjectSwitcher and rename the project
@@ -470,42 +471,48 @@ test.describe('Project Update', () => {
     const updatedName = `已更新持久化${Date.now()}`
     const editInput = page.locator('input[type="text"]').nth(1)
     await editInput.fill(updatedName)
-    await editInput.press('Enter')
-    // Wait for rename API call to complete
-    await page.waitForResponse(resp => resp.url().includes('/api/v1/projects') && resp.request().method() === 'PUT', { timeout: 5000 }).catch(() => {})
+    const [renameResponse] = await Promise.all([
+      page.waitForResponse((response) => {
+        const url = new URL(response.url())
+        return response.request().method() === 'PUT' && url.pathname === `/api/v1/projects/${projectId}`
+      }),
+      editInput.press('Enter'),
+    ])
+    expect(renameResponse.ok()).toBeTruthy()
+    await expect(dropdown.getByText(updatedName, { exact: true })).toBeVisible()
 
-    // Logout - click user menu or find logout button
+    // Complete a real logout before establishing the next session.
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-    await page.waitForLoadState('domcontentloaded', { timeout: 5000 })
-
-      // Clear auth tokens to simulate logout
-      await page.evaluate(() => {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('token_type')
-        localStorage.removeItem('user')
-        localStorage.removeItem('auth_validated_at')
-      })
-
-    // Go to login page and login again
-    await page.goto('/robots.txt', { waitUntil: 'domcontentloaded' })
-    await page.goto('/login', { waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL('/dashboard')
+    await expect(page.getByTestId('dashboard-composer')).toBeVisible()
+    await page.getByTestId('dashboard-user-panel-toggle').click()
+    const logoutButton = page.getByRole('button', { name: /^(退出登录|Logout)$/ })
+    await expect(logoutButton).toBeVisible()
+    const [logoutResponse] = await Promise.all([
+      page.waitForResponse((response) => {
+        const url = new URL(response.url())
+        return response.request().method() === 'POST' && url.pathname === '/api/auth/logout'
+      }),
+      logoutButton.click(),
+    ])
+    expect(logoutResponse.ok()).toBeTruthy()
+    await expect(page).toHaveURL('/login')
     await expect(page.locator('#identifier')).toBeVisible()
-    await page.fill('#identifier', currentOwner.email)
-    await page.fill('#password', currentOwner.password)
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/\/(dashboard|project)/, { timeout: 10000 })
-    await expect(page.locator('[data-testid="dashboard-user-panel-toggle"], [data-testid="user-menu-button"]').first()).toBeVisible()
 
-    // Navigate to the project we updated (should be in recent projects)
-    // Go to dashboard first
-    if (page.url().includes('/project/')) {
-      await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-    }
+    const loginPage = new LoginPage(page)
+    const [loginResponse] = await Promise.all([
+      page.waitForResponse((response) => {
+        const url = new URL(response.url())
+        return response.request().method() === 'POST' && url.pathname === '/api/auth/login'
+      }),
+      loginPage.login(currentOwner.email, currentOwner.password),
+    ])
+    expect(loginResponse.ok()).toBeTruthy()
+    await expect(page).toHaveURL('/dashboard')
     await expect(page.getByTestId('dashboard-composer')).toBeVisible()
 
     // Verify the updated name appears in the project list
-    await expect(page.locator(`text=${updatedName}`)).toBeVisible()
+    await expect(page.getByTestId('project-card').filter({ hasText: updatedName })).toBeVisible()
   })
 
   test('cannot update project with empty name', async ({ page }) => {

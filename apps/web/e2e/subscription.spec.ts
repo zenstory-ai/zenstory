@@ -161,7 +161,7 @@ const mockSubscriptionHistory = [
 
 // Helper to set up route mocking for subscription API
 async function setupSubscriptionMocking(page: Page, options?: {
-  subscriptionStatus?: typeof mockFreeSubscription;
+  subscriptionStatus?: typeof mockFreeSubscription | typeof mockProSubscription;
   quota?: typeof mockFreeQuota;
   history?: typeof mockSubscriptionHistory;
 }) {
@@ -340,7 +340,6 @@ test.describe('Subscription Status Display', () => {
     // Override with Pro subscription
     await setupSubscriptionMocking(page, { subscriptionStatus: mockProSubscription });
     await page.reload();
-    await navigateToSubscriptionSettings(page);
 
     // Check that Pro tier badge is shown
     await expect(getPlanNameLocator(page, 'Pro')).toBeVisible({ timeout: 5000 });
@@ -351,7 +350,6 @@ test.describe('Subscription Status Display', () => {
     // Override with expired subscription
     await setupSubscriptionMocking(page, { subscriptionStatus: mockExpiredProSubscription });
     await page.reload();
-    await navigateToSubscriptionSettings(page);
 
     // Check expired status is shown
     await expect(page.locator('text=/已到期|expired/i')).toBeVisible({ timeout: 5000 });
@@ -376,7 +374,6 @@ test.describe('Quota Display', () => {
       quota: mockProQuota
     });
     await page.reload();
-    await navigateToSubscriptionSettings(page);
 
     // Check for "unlimited" or "不限" text
     await expect(page.getByText(/不限|unlimited/i).first()).toBeVisible({ timeout: 5000 });
@@ -386,7 +383,6 @@ test.describe('Quota Display', () => {
     // Override with low quota
     await setupSubscriptionMocking(page, { quota: mockLowQuota });
     await page.reload();
-    await navigateToSubscriptionSettings(page);
 
     await expect(page.getByText('9/10').first()).toBeVisible({ timeout: 5000 });
     // Show online checkout or the checkout-unavailable notice; do not advertise manual codes.
@@ -397,7 +393,6 @@ test.describe('Quota Display', () => {
     // Override with exhausted quota
     await setupSubscriptionMocking(page, { quota: mockExhaustedQuota });
     await page.reload();
-    await navigateToSubscriptionSettings(page);
 
     await expect(page.getByText('10/10').first()).toBeVisible({ timeout: 5000 });
     // Show online checkout or the checkout-unavailable notice; do not advertise manual codes.

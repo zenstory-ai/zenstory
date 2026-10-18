@@ -44,6 +44,12 @@ CI trace 进一步证明导航 URL 改变不代表项目组件已提交：back �
 
 后续运行证据纠正退出终态：Dashboard 内部 navigate 首页并不是完整系统终态，AuthContext 的 logout 事件最终跳 `/login`。测试要求真实登录页和四项凭据清除。首作语言 matrix 同时设置浏览器 context 的 zh/en locale，保留请求头精确断言；无编辑历史要求实际 dialog 空状态与 API count=0，不接受“空或至少一个”的并集。
 
+最终 main `3c03449d` 的 full `39090867679` 为 2098 passed / 1 failed / 53 skipped / 4 flaky，仍不能发布。历史对比的全页 contains 选择器误命中项目按钮（owned 项目名含 compare），且列表 loading 时的同步 count 让部分用例空跑。改为精确文件列表响应、已渲染行数、dialog 内对比按钮、成功 compare API 与真实 diff；至少两版本的前提改为断言，不再条件略过。订阅 mock 切换后只 reload 同一已认证 billing 页面，移除第二次 login 对未提交页面的打断。
+
+跨会话持久化改为先注册精确 rename/logout/login 响应，再操作真实 UI 并等待 Dashboard / Login 提交，不手工删 token。Accessibility 复用既有 owned fixture 与精确清理，删除自造重试、任意项目借用及 onboarding storage 伪造；键盘创建场景仍走真实键盘登录/创建并登记 owned ID。
+
+滚动时间原来由 Node Date.now 包含两次 Playwright RPC，Firefox 一次实测 104ms 超过 100ms。未改源码的双引擎诊断显示驱动 31–46ms 时，同页滚动与一帧为 11–19.8ms。滚动两项改在同一 browser performance.now 与 RAF 内测量，保留原 100ms 和约 50ms 阈值，并增加实际 1000px 移动或 top→bottom 断言；不把驱动通信当编辑器性能，也不提高阈值。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。

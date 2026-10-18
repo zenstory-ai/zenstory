@@ -96,3 +96,12 @@
 
 - 精确候选 `c0d67a47` fresh：303 前端单测文件 / 4,747 passed / 1 既有 skipped，完整 typecheck/build、lint 0 error/3 既有 warning、token/i18n 检查通过。独立 code-reviewer APPROVE、architect 静态 CLEAR。
 - 原生双标签四场景×20 轮×两引擎全部首轮通过：161/161 incl setup、retries=0、无 flaky。含单次 POST 恢复两个原请求及 logout/other-user/new-family 不恢复旧会话。先前真实 Firefox 失败不再复现；新 note 移至 implemented，旧决策未反写。全量 main / provider 门槛仍未完成。
+
+## Exact-main tail repair
+
+PR #259 已合并为 `3c03449d`，精确 push CI/E2E/CodeQL 成功（默认 E2E 836 passed / 242 opt-in/既有 skipped / 0 failed/flaky），随后仅一次 dispatch full `39090867679`：2098 passed / 1 failed / 53 skipped / 4 flaky；该轮保留为失败证据，不放行。
+
+- [x] 归因历史 compare 全局选择器、跨会话/Accessibility 未提交导航、订阅 reload 后重复登录及滚动 RPC 计时。
+- [x] 最小修复对应 5 个 E2E 文件，产品源码/重试/超时/阈值/skip 不改；版本至少两行改为断言，移除隐藏比较的条件空跑。
+- [ ] 冻结双引擎相关文件实跑及独立审阅；新 PR 正常合并后，再按新精确 main push→full 顺序验证。
+- [ ] Vercel 登录尚未恢复；生产备份/迁移、worker pause/drain 与 provider gate 仍须在 full 首轮通过后完成，未打 tag 或改生产。

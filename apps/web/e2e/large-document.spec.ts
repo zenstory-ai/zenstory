@@ -417,28 +417,23 @@ test.describe('Large Document - Scrolling Performance', () => {
     const editor = page.locator('textarea').first()
     await editor.fill(scrollContent)
 
-    // Find the scroll container (the editor's parent)
-    const scrollContainer = page.locator('.flex-1.overflow-auto').first()
-
-    // Measure scroll performance
-    const scrollMetrics: number[] = []
-
-    // Perform multiple scroll operations
-    for (let i = 0; i < 10; i++) {
-      const scrollStart = Date.now()
-
-      await scrollContainer.evaluate((el) => {
+    const scrollContainer = page.locator('[data-editor-scroll-container="true"]')
+    // Use one browser clock: driver round trips are not editor frame time.
+    const metrics = await scrollContainer.evaluate(async (el) => {
+      el.scrollTop = 0
+      await new Promise(requestAnimationFrame)
+      const frameTimes: number[] = []
+      for (let i = 0; i < 10; i++) {
+        const start = performance.now()
         el.scrollTop += 100
-      })
+        await new Promise(requestAnimationFrame)
+        frameTimes.push(performance.now() - start)
+      }
+      return { frameTimes, scrollTop: el.scrollTop }
+    })
+    expect(metrics.scrollTop).toBeCloseTo(1000, 0)
 
-      // Wait for frame
-      await scrollContainer.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)))
-
-      const scrollTime = Date.now() - scrollStart
-      scrollMetrics.push(scrollTime)
-    }
-
-    const avgScrollTime = scrollMetrics.reduce((a, b) => a + b, 0) / scrollMetrics.length
+    const avgScrollTime = metrics.frameTimes.reduce((a, b) => a + b, 0) / metrics.frameTimes.length
     console.log(`Average scroll frame time: ${avgScrollTime}ms`)
 
     // Average scroll time should be under 16.67ms for 60fps
@@ -454,21 +449,29 @@ test.describe('Large Document - Scrolling Performance', () => {
     const editor = page.locator('textarea').first()
     await editor.fill(largeContent)
 
-    // Find the scroll container
-    const scrollContainer = page.locator('.flex-1.overflow-auto').first()
-
-    // Measure scroll to bottom
-    const scrollStart = Date.now()
-    await scrollContainer.evaluate((el) => {
-      el.scrollTop = el.scrollHeight
+    const scrollContainer = page.locator('[data-editor-scroll-container="true"]')
+    const metrics = await scrollContainer.evaluate(async (el) => {
+      el.scrollTop = 0
+      await new Promise(requestAnimationFrame)
+      const before = el.scrollTop
+      const start = performance.now()
+      el.scrollTop = el.scrollHeight - el.clientHeight
+      await new Promise(requestAnimationFrame)
+      return {
+        elapsed: performance.now() - start,
+        before,
+        after: el.scrollTop,
+        maxTop: el.scrollHeight - el.clientHeight,
+      }
     })
-    await scrollContainer.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)))
-    const scrollTime = Date.now() - scrollStart
+    expect(metrics.before).toBe(0)
+    expect(metrics.after).toBeGreaterThan(metrics.before)
+    expect(metrics.after).toBeCloseTo(metrics.maxTop, 0)
 
-    console.log(`Scroll to bottom time: ${scrollTime}ms`)
+    console.log(`Scroll to bottom time: ${metrics.elapsed}ms`)
 
     // Scroll to bottom should be instant (< 100ms)
-    expect(scrollTime).toBeLessThan(100)
+    expect(metrics.elapsed).toBeLessThan(100)
   })
 
   test('scroll position is preserved during edits', async ({ page }) => {
