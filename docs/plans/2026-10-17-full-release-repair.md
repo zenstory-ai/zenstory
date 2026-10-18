@@ -90,3 +90,6 @@
 
 - `fbcc2861` 67 项定向为 63 passed / 4 failed：导航 reset、空目录及大多数版本用例已通过；退出真实终态为 AuthContext 事件触发的 `/login`，不能只据 Dashboard 的 `navigate("/")` 推断；无编辑版本接口明确 0，应等实际空状态而不是旧 OR 断言；另有一次本地 Vite index.css pending 导致 setup DOM load 30 秒，保留 trace 待后续同用例实跑验证，不声称已定位产品根因。
 - 首作 Firefox 测试必须让每例 context locale 与 zh/en 业务语言一致，保留 exact Accept-Language 断言，不在 mock 改写 header。跨标签认证单次 flaky 已用预定 20×2 首轮压力诊断复现（20 Chromium + 3 Firefox 通过，第 4 Firefox 失败即停，16 未跑），已有真实失败 trace，正在调查锁后 token 交接，不能视作重试后通过。
+
+- 跨标签认证已有确定性单测先红后绿（14/14，API client 3 文件 74/74），按架构独立评审的最小方案保持同一 Web Lock 跨一次 MessageChannel 任务检查点，并在返回成功前重验会话归属；没有新增协调协议/依赖/网络重试，无锁分支不变。真实双引擎压力回归仍待完成。
+- 本地测试容器发现 764 个 PPID=1 的浏览器僵尸进程，缺少 init 回收；已保留进程清单，并仅重建 owned Playwright 容器为同镜像/挂载/端口加 `--init`，僵尸降为 0，web/API 200。此前 CSS pending/30 秒 setup 超时不作为产品修复证明，须在正常回收的运行环境复验。

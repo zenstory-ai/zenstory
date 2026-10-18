@@ -12,6 +12,95 @@ const store = (tokens: ReturnType<typeof pair>) => {
   localStorage.setItem('refresh_token', tokens.refreshToken);
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function serializedLock() {
+  let tail = Promise.resolve();
+  let entered = 0;
+  const request = vi.fn((_name: string, callback: () => Promise<boolean>) => {
+    const result = tail.then(() => {
+      entered += 1;
+      return callback();
+    });
+    tail = result.then(() => undefined, () => undefined);
+    return result;
+  });
+  Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true });
+  return { request, entered: () => entered };
+}
+
+function controlledMessageChannel(onTask?: () => void) {
+  const deliveries: Array<() => void> = [];
+  const close = vi.fn();
+  const MessageChannelMock = vi.fn(function MessageChannelMock() {
+    const port1: { onmessage: ((event: MessageEvent) => void) | null; close: () => void } = {
+      onmessage: null,
+      close,
+    };
+    const port2 = {
+      close,
+      postMessage: vi.fn(() => {
+        deliveries.push(() => {
+          onTask?.();
+          port1.onmessage?.(new MessageEvent('message'));
+        });
+      }),
+    };
+    return { port1, port2 };
+  });
+  vi.stubGlobal('MessageChannel', MessageChannelMock);
+  return {
+    MessageChannelMock,
+    close,
+    pending: () => deliveries.length,
+    deliver: () => {
+      const delivery = deliveries.shift();
+      if (!delivery) throw new Error('No MessageChannel task is pending');
+      delivery();
+    },
+  };
+}
+
+function stagedLocalStorage() {
+  const canonical = new Map<string, string>();
+  const pending = new Map<string, string | null>();
+  let stageWrites = false;
+  const storage = {
+    get length() { return canonical.size; },
+    clear: vi.fn(() => {
+      if (stageWrites) {
+        for (const key of canonical.keys()) pending.set(key, null);
+      } else canonical.clear();
+    }),
+    getItem: vi.fn((key: string) => canonical.get(key) ?? null),
+    key: vi.fn((index: number) => [...canonical.keys()][index] ?? null),
+    removeItem: vi.fn((key: string) => {
+      if (stageWrites) pending.set(key, null);
+      else canonical.delete(key);
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      if (stageWrites) pending.set(key, String(value));
+      else canonical.set(key, String(value));
+    }),
+  } satisfies Storage;
+  vi.stubGlobal('localStorage', storage);
+  return {
+    beginStaging: () => { stageWrites = true; },
+    commit: () => {
+      for (const [key, value] of pending) {
+        if (value === null) canonical.delete(key);
+        else canonical.set(key, value);
+      }
+      pending.clear();
+      stageWrites = false;
+    },
+  };
+}
+
 beforeEach(() => {
   vi.resetModules();
   localStorage.clear();
@@ -34,6 +123,119 @@ function pausedLock() {
 }
 
 describe('cross-tab refresh ownership', () => {
+  it('keeps the browser lock through the storage task checkpoint before a queued tab refreshes', async () => {
+    const storage = stagedLocalStorage();
+    const original = pair();
+    const replacement = pair('owner', 'family', 'new');
+    store(original);
+    storage.beginStaging();
+    const lock = serializedLock();
+    const checkpoint = controlledMessageChannel(storage.commit);
+    const response = deferred<Response>();
+    vi.mocked(fetch)
+      .mockReturnValueOnce(response.promise)
+      .mockResolvedValue({ ok: false, status: 409 } as Response);
+    const owner = await import('../apiClient');
+    vi.resetModules();
+    const queued = await import('../apiClient');
+
+    const ownerRefresh = owner.tryRefreshToken();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const queuedRefresh = queued.tryRefreshToken();
+    await vi.waitFor(() => expect(lock.request).toHaveBeenCalledTimes(2));
+    expect(lock.entered()).toBe(1);
+
+    response.resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        access_token: replacement.accessToken,
+        refresh_token: replacement.refreshToken,
+        user: { id: 'owner' },
+      }),
+    } as Response);
+
+    await vi.waitFor(() => expect(checkpoint.pending()).toBe(1));
+    expect(lock.entered()).toBe(1);
+    expect(fetch).toHaveBeenCalledOnce();
+    let ownerSettled = false;
+    void ownerRefresh.finally(() => { ownerSettled = true; });
+    await Promise.resolve();
+    expect(ownerSettled).toBe(false);
+
+    checkpoint.deliver();
+    await expect(ownerRefresh).resolves.toBe(true);
+    await vi.waitFor(() => expect(checkpoint.pending()).toBe(1));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(lock.entered()).toBe(2);
+    checkpoint.deliver();
+    await expect(queuedRefresh).resolves.toBe(true);
+    expect(localStorage.getItem('access_token')).toBe(replacement.accessToken);
+    expect(localStorage.getItem('refresh_token')).toBe(replacement.refreshToken);
+    expect(checkpoint.close).toHaveBeenCalledTimes(4);
+  });
+
+  it.each(['logout', 'different-user', 'new-login-family'] as const)(
+    'rejects its successful refresh after %s replaces the session during the storage checkpoint',
+    async scenario => {
+      const original = pair();
+      const rotated = pair('owner', 'family', 'rotated');
+      store(original);
+      serializedLock();
+      const checkpoint = controlledMessageChannel();
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: rotated.accessToken,
+          refresh_token: rotated.refreshToken,
+          user: { id: 'owner' },
+        }),
+      } as Response);
+      const { tryRefreshToken } = await import('../apiClient');
+
+      const refresh = tryRefreshToken();
+      await vi.waitFor(() => expect(checkpoint.pending()).toBe(1));
+      if (scenario === 'logout') localStorage.clear();
+      else store(scenario === 'different-user' ? pair('other') : pair('owner', 'new-family'));
+      const expected = [localStorage.getItem('access_token'), localStorage.getItem('refresh_token')];
+
+      checkpoint.deliver();
+      await expect(refresh).resolves.toBe(false);
+      expect([localStorage.getItem('access_token'), localStorage.getItem('refresh_token')]).toEqual(expected);
+      expect(fetch).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('keeps a rejected credential refresh locked through the storage checkpoint', async () => {
+    const original = pair();
+    store(original);
+    const lock = serializedLock();
+    const checkpoint = controlledMessageChannel();
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 401 } as Response);
+    const owner = await import('../apiClient');
+    vi.resetModules();
+    const queued = await import('../apiClient');
+
+    const ownerRefresh = owner.tryRefreshToken();
+    const queuedRefresh = queued.tryRefreshToken();
+    await vi.waitFor(() => expect(checkpoint.pending()).toBe(1));
+    expect(lock.entered()).toBe(1);
+    expect(localStorage.getItem('access_token')).toBeNull();
+    expect(localStorage.getItem('refresh_token')).toBeNull();
+    expect(fetch).toHaveBeenCalledOnce();
+
+    checkpoint.deliver();
+    await expect(ownerRefresh).resolves.toBe(false);
+    await vi.waitFor(() => expect(checkpoint.pending()).toBe(1));
+    expect(lock.entered()).toBe(2);
+    expect(fetch).toHaveBeenCalledOnce();
+    checkpoint.deliver();
+    await expect(queuedRefresh).resolves.toBe(false);
+    expect(localStorage.getItem('access_token')).toBeNull();
+    expect(localStorage.getItem('refresh_token')).toBeNull();
+  });
+
   it('uses the same-family result committed by the tab that owned the browser lock', async () => {
     const original = pair();
     const replacement = pair('owner', 'family', 'new');

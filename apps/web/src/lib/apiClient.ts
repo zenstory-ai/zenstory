@@ -112,6 +112,18 @@ function adoptSharedRefresh(entryAccess: string | null, entryRefresh: string): b
   return true;
 }
 
+function waitForNextTask(): Promise<void> {
+  return new Promise(resolve => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      channel.port2.close();
+      resolve();
+    };
+    channel.port2.postMessage(undefined);
+  });
+}
+
 /** Resolve only the captured token pair or its confirmed refresh descendant. */
 export function resolveOwnedAuthSession(entryAccess: string | null, entryRefresh: string | null): {
   accessToken: string | null;
@@ -268,9 +280,18 @@ export async function tryRefreshToken(): Promise<boolean> {
           return false;
         }
       };
-      return typeof navigator !== 'undefined' && navigator.locks
-        ? await navigator.locks.request('zenstory-auth-refresh', refreshUnderLock)
-        : await refreshUnderLock();
+      if (typeof navigator === 'undefined' || !navigator.locks) return await refreshUnderLock();
+      return await navigator.locks.request('zenstory-auth-refresh', async () => {
+        let refreshed = false;
+        try {
+          refreshed = await refreshUnderLock();
+        } finally {
+          // Firefox publishes localStorage writes at task checkpoints, not when
+          // this promise settles. Keep the same lock until that task has ended.
+          await waitForNextTask();
+        }
+        return refreshed && resolveOwnedAuthSession(entryAccess, refreshToken) !== null;
+      });
     } catch (error) {
       logger.error('[Auth] Token refresh network error:', error);
       lastRefreshFailTime = Date.now();
