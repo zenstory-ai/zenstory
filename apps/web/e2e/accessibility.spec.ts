@@ -617,18 +617,13 @@ test.describe('Accessibility - Enhanced Tests', () => {
     // Tab to find "Create Project" button
     const maxTabs = 20;
     let foundCreateButton = false;
+    const createProjectButton = page.getByTestId('create-project-button');
 
     for (let i = 0; i < maxTabs; i++) {
-      const focusedElement = await page.evaluate(() => {
-        const el = document.activeElement;
-        return {
-          tag: el?.tagName,
-          text: el?.textContent?.trim(),
-          type: el?.getAttribute('type')
-        };
-      });
-
-      if (focusedElement.text?.includes('创建项目') || focusedElement.text?.includes('Create Project')) {
+      const createButtonFocused = await createProjectButton.evaluate(
+        (element) => document.activeElement === element,
+      );
+      if (createButtonFocused) {
         foundCreateButton = true;
         const accessToken = await page.evaluate(() => localStorage.getItem('access_token'));
         expect(accessToken).toBeTruthy();
@@ -653,13 +648,7 @@ test.describe('Accessibility - Enhanced Tests', () => {
       await page.keyboard.press('Tab');
     }
 
-    // If couldn't find create button via keyboard, verify at least navigation worked
-    if (!foundCreateButton) {
-      const focusableCount = await page
-        .locator('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])')
-        .count();
-      expect(focusableCount).toBeGreaterThan(0);
-    }
+    expect(foundCreateButton).toBe(true);
 
     // Verify we're on a project page
     expect(page.url()).toMatch(/\/project\//);

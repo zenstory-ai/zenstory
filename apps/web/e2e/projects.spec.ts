@@ -325,46 +325,32 @@ test.describe('Projects', () => {
     }
   })
 
-  test('user can search projects', async ({ page }) => {
+  test('user can search projects in project switcher', async ({ page }, testInfo) => {
+    const matchingProject = await createTrackedOwnedProject(page, testInfo, 'search-match')
+    const otherProject = await createTrackedOwnedProject(page, testInfo, 'search-other')
 
-    // First create a project with a unique name
-    const uniqueName = `搜索测试${Date.now()}`
+    await page.goto(`/project/${matchingProject.id}`, { waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL(`/project/${matchingProject.id}`)
+    await expect(
+      page.locator('input[placeholder*="搜索文件"], input[placeholder*="Search files"], [role="searchbox"]').first()
+    ).toBeVisible()
 
-    const inspirationInput = page.locator('[data-testid="dashboard-inspiration-input"]')
-    await inspirationInput.fill(uniqueName)
+    const { dropdown } = await openProjectSwitcher(page)
+    const projectRows = dropdown.locator('div.group.cursor-pointer')
+    const searchableName = matchingProject.name
+    await expect(projectRows.filter({ hasText: searchableName })).toHaveCount(1)
+    await expect(projectRows.filter({ hasText: otherProject.name })).toHaveCount(1)
 
-    await createProjectFromDashboard(page)
-    await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
+    const searchInput = dropdown
+      .locator('input[placeholder="搜索项目"], input[placeholder="Search projects"]')
+      .first()
+    await searchInput.fill(searchableName)
+    await expect(projectRows.filter({ hasText: searchableName })).toHaveCount(1)
+    await expect(projectRows.filter({ hasText: otherProject.name })).toHaveCount(0)
 
-    // Create another project with different name
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-    await inspirationInput.fill('其他项目名称')
-    await createProjectFromDashboard(page)
-    await expect(page).toHaveURL(/\/project\//, { timeout: 15000 })
-
-    // Go back to dashboard
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
-
-    // Check if search input is visible (need > 6 projects)
-    const searchInput = page.locator('input[placeholder*="搜索"]')
-
-    if (await searchInput.isVisible()) {
-      // Search for the unique project name
-      await searchInput.fill(uniqueName)
-
-      // Wait for filtering to complete
-      await page.waitForSelector('[data-testid="project-card"]', { state: 'attached', timeout: 2000 })
-
-      // Verify only matching projects are shown
-      const visibleProjects = await page.locator('[data-testid="project-card"]').count()
-      expect(visibleProjects).toBeGreaterThanOrEqual(1)
-
-      // Clear search
-      await searchInput.fill('')
-
-      // Wait for all projects to be visible again
-      await page.waitForSelector('[data-testid="project-card"]', { state: 'attached', timeout: 2000 })
-    }
+    await searchInput.fill('')
+    await expect(projectRows.filter({ hasText: searchableName })).toHaveCount(1)
+    await expect(projectRows.filter({ hasText: otherProject.name })).toHaveCount(1)
   })
 
   test('dashboard shows greeting with user name', async ({ page }) => {

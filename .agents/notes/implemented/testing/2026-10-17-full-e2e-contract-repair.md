@@ -50,6 +50,8 @@ CI trace 进一步证明导航 URL 改变不代表项目组件已提交：back �
 
 滚动时间原来由 Node Date.now 包含两次 Playwright RPC，Firefox 一次实测 104ms 超过 100ms。未改源码的双引擎诊断显示驱动 31–46ms 时，同页滚动与一帧为 11–19.8ms。滚动两项改在同一 browser performance.now 与 RAF 内测量，保留原 100ms 和约 50ms 阈值，并增加实际 1000px 移动或 top→bottom 断言；不把驱动通信当编辑器性能，也不提高阈值。
 
+Keyboard-only 创建用例以实际 `create-project-button` 焦点和键盘 Enter 捕获创建响应，不以过期文案或「有控件可聚焦」替代完成。项目搜索使用两个免费额度内的真实 owned 项目和始终提供的 ProjectSwitcher 搜索，明确不声称覆盖 >6 项才出现的 Dashboard 搜索。版本 fixture 的直接 API 操作沿用 config.apiBaseUrl；UI 仍走真实页面，fixture 不经 Vite proxy 引入额外转发等待，也不增加网络重试。
+
 ## Alternatives considered
 
 - 仅依据默认检查发布：现有必需 CI 已通过，交付更快；但用户要求完整复跑且 full 存在未验证行为，不能将失败作废。

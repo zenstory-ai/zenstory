@@ -1,4 +1,5 @@
 import { test, expect, Page, Locator } from '@playwright/test'
+import { config } from './config'
 import {
   cleanupOwnedProject,
   createOwnedFile,
@@ -134,7 +135,7 @@ async function editFileContent(page: Page, content: string): Promise<void> {
   }
 
   const headers = await getAuthHeaders(page)
-  const updateResponse = await page.request.put(`/api/v1/files/${activeTestFileId}`, {
+  const updateResponse = await page.request.put(`${config.apiBaseUrl}/api/v1/files/${activeTestFileId}`, {
     headers,
     data: {
       content,
@@ -144,7 +145,7 @@ async function editFileContent(page: Page, content: string): Promise<void> {
   })
   expect(updateResponse.ok()).toBeTruthy()
 
-  const versionResponse = await page.request.post(`/api/v1/files/${activeTestFileId}/versions`, {
+  const versionResponse = await page.request.post(`${config.apiBaseUrl}/api/v1/files/${activeTestFileId}/versions`, {
     headers,
     data: {
       content,
@@ -241,7 +242,7 @@ async function getVersionCountFromApi(page: Page): Promise<number> {
   }
 
   const headers = await getAuthHeaders(page)
-  const response = await page.request.get(`/api/v1/files/${activeTestFileId}/versions?limit=50`, {
+  const response = await page.request.get(`${config.apiBaseUrl}/api/v1/files/${activeTestFileId}/versions?limit=50`, {
     headers,
   })
   expect(response.ok()).toBeTruthy()

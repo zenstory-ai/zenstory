@@ -109,3 +109,7 @@ PR #259 已合并为 `3c03449d`，精确 push CI/E2E/CodeQL 成功（默认 E2E 
 候选 `9848f10f` 原 5 处失败相关双引擎定向 15/15，retries=0，clean/stable。独立 code-reviewer/architect 又指出本次触及的 rollback/cancel/split/inline 四处必需控件仍有旧 visibility 条件；已改为可见性断言后无条件交互，保留终态断言，待新候选精确源码实跑。
 
 `4f99ec45` 必需控件双引擎首轮 7 passed / 2 failed，红灯准确揭示旧 AlignLeft CSS class 已不匹配实际图标；页面快照中「内联视图」按钮存在。改用 dialog 内的真实 accessible name（split 同步使用标题语义），不改产品或加入条件略过。
+
+最终 selector 候选 `873413a` 必需控件 9/9 首轮通过，独立静态复审 APPROVE/CLEAR。随后 5 文件双引擎 255 项为 229 passed / 4 failed / 6 既有 skipped / 16 串行阻断未跑；保留失败，不计为完成。两处 keyboard 创建仍按旧「创建项目」文案认焦点，trace 实际已经聚焦「开始创作」按钮；改为现有 test ID + 真实 activeElement，继续真实键盘提交并必须 found。项目搜索旧用例只建两项目却条件测试 >6 项才出现的 Dashboard 搜索，且立即打断未提交项目导航；准确验证始终可用的 ProjectSwitcher 搜索，两份真实唯一名称、自有数据、实际过滤和清空恢复，不增加免费项目数或跳过。
+
+另一次版本 fixture PUT 经 Vite 相对路径超时，backend 日志显示请求延后到清理后才到达（404）；同页直接 API 请求正常。3 个版本 fixture API 操作统一使用既有 config.apiBaseUrl，与 owned fixture 同源，不走前端 proxy、不重试/延长超时。后续重跑改变的 accessibility/projects/versions 两引擎全文件；large-document/subscription 字节未变，复用同一冻结批次已通过的家族证据，并在最终 main full 重新覆盖。
