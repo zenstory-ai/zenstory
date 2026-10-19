@@ -73,6 +73,15 @@ AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS = _get_int_env(
     64000,
 )
 
+# 写作 agent 的思考强度（#278）。默认不设：沿用模型默认（high）。只为对照评估而留的开关，
+# 实测没有证明降档不伤质量之前，生产不设置它。取值须是 deepseek-flash 接受的档位，
+# 其他值忽略（不能让一个拼写错误把请求变成 422）。
+AGENT_REASONING_EFFORT_CHOICES = frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"})
+_raw_reasoning_effort = (os.getenv("AGENT_REASONING_EFFORT") or "").strip().lower()
+AGENT_REASONING_EFFORT: str | None = (
+    _raw_reasoning_effort if _raw_reasoning_effort in AGENT_REASONING_EFFORT_CHOICES else None
+)
+
 # 上下文预算按 deepseek-flash 的 1M 窗口 + 自动前缀缓存来定：缓存命中的输入只要
 # 未命中价的 1/50，而预算过小导致的「上下文被压缩 → 模型反复 query_files 重读」
 # 每次都会把整段前缀重新送一遍，反而贵得多。

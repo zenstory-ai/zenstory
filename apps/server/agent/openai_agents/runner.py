@@ -47,6 +47,7 @@ from agent.openai_agents.tools_adapter import (
     READ_ONLY_REASON_USER_REQUEST,
     build_agent_function_tools,
 )
+from config import agent_runtime
 from config.agent_runtime import (
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
@@ -563,7 +564,12 @@ def _build_agent(
     # trades writing/tool-planning quality for latency and tokens, and that trade has not
     # been evaluated.  LLMClient.acomplete(thinking_enabled=False) already uses the
     # ``thinking`` toggle for short single-shot calls (suggestions, polish).
+    # #278: AGENT_REASONING_EFFORT exists only for controlled comparisons; it is unset in
+    # production (see .agents/notes/.../2026-10-19-reasoning-effort-evaluation.md).
     from agents import Agent, ModelSettings
+    from openai.types.shared import Reasoning
+
+    effort = agent_runtime.AGENT_REASONING_EFFORT
 
     return Agent(
         name=agent_type,
@@ -579,6 +585,7 @@ def _build_agent(
             # 不显式打开的话 OpenAI 兼容流式接口不会补发带 usage 的末尾 chunk，
             # MESSAGE_END 的 usage 恒为空，用量统计只能退化成「字符数/4」的估算。
             include_usage=True,
+            **({"reasoning": Reasoning(effort=effort)} if effort else {}),  # type: ignore[arg-type]
         ),
         tools=build_agent_function_tools(
             agent_type,
