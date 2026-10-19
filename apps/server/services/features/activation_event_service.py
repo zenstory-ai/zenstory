@@ -14,27 +14,45 @@ from sqlmodel import Session, func, select
 from config.datetime_utils import beijing_day_bounds, utcnow
 from models import (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
+    ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
+    ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
     ACTIVATION_EVENT_NAMES,
     ACTIVATION_EVENT_PROJECT_CREATED,
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
     ActivationEvent,
+    User,
 )
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-ACTIVATION_FUNNEL_ORDER = [
+# 用户自己的首日清单（/activation/guide）：四步，前端按这四个事件名取文案。
+ACTIVATION_GUIDE_ORDER = [
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
     ACTIVATION_EVENT_PROJECT_CREATED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
 ]
 
+# 后台漏斗：同一批新注册用户 24 小时内到达各步的人数。最后一步（AI 写进了作品文件）
+# 就是激活定义，见 feature/2026-10-19-first-message-activation-events.md。
+ACTIVATION_FUNNEL_ORDER = [
+    ACTIVATION_EVENT_SIGNUP_SUCCESS,
+    ACTIVATION_EVENT_PROJECT_CREATED,
+    ACTIVATION_EVENT_FIRST_FILE_SAVED,
+    ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
+    ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
+    ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
+]
+ACTIVATION_FUNNEL_COHORT_HOURS = 24
+
 ACTIVATION_FUNNEL_LABELS = {
     ACTIVATION_EVENT_SIGNUP_SUCCESS: "Signup Success",
     ACTIVATION_EVENT_PROJECT_CREATED: "Project Created",
     ACTIVATION_EVENT_FIRST_FILE_SAVED: "First File Saved",
+    ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT: "First AI Message Sent",
+    ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED: "First AI Reply Succeeded",
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED: "First AI Action Accepted",
 }
 
@@ -145,6 +163,37 @@ class ActivationEventService:
                 return existing
             raise
 
+    def record_once_best_effort(
+        self,
+        session: Session,
+        *,
+        user_id: str,
+        event_name: str,
+        project_id: str | None = None,
+        event_metadata: dict | None = None,
+    ) -> None:
+        """``record_once`` for observation points that must never fail the user's request."""
+        try:
+            self.record_once(
+                session,
+                user_id=user_id,
+                event_name=event_name,
+                project_id=project_id,
+                event_metadata=event_metadata,
+            )
+        except Exception as exc:
+            session.rollback()
+            log_with_context(
+                logger,
+                logging.WARNING,
+                "Failed to record activation event",
+                user_id=user_id,
+                project_id=project_id,
+                event_name=event_name,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+
     def record_ai_write_accepted(
         self,
         session: Session,
@@ -192,24 +241,40 @@ class ActivationEventService:
             )
 
     def get_funnel_stats(self, session: Session, *, days: int = 7) -> ActivationFunnelStats:
-        """Get activation funnel metrics for the recent time window."""
+        """New-user funnel: of the customers who signed up in the window, how many reached
+        each step within ``ACTIVATION_FUNNEL_COHORT_HOURS`` of signing up.
+
+        The cohort is the user table (not ``signup_success`` rows), so accounts created by
+        any path count. Users who signed up less than a day ago are still being observed.
+        """
         window_days = max(1, min(days, 90))
         period_end = utcnow()
         # Window starts at 00:00 Beijing time, window_days - 1 days ago.
         period_start = beijing_day_bounds(period_end - timedelta(days=window_days - 1))[0]
+        start, end = period_start.replace(tzinfo=None), period_end.replace(tzinfo=None)
+        customer_cohort = (
+            User.is_superuser.is_(False),
+            User.created_at >= start,
+            User.created_at <= end,
+        )
+
+        cohort_size = int(session.exec(select(func.count(User.id)).where(*customer_cohort)).one() or 0)
+        rows = session.exec(
+            select(ActivationEvent.user_id, ActivationEvent.event_name, ActivationEvent.created_at, User.created_at)
+            .join(User, User.id == ActivationEvent.user_id)
+            .where(*customer_cohort, ActivationEvent.event_name.in_(ACTIVATION_FUNNEL_ORDER[1:]))
+        ).all()
+        reached: dict[str, set[str]] = {event_name: set() for event_name in ACTIVATION_FUNNEL_ORDER[1:]}
+        observation = timedelta(hours=ACTIVATION_FUNNEL_COHORT_HOURS)
+        for user_id, event_name, event_at, signed_up_at in rows:
+            if event_at is not None and signed_up_at is not None and event_at - signed_up_at <= observation:
+                reached[event_name].add(user_id)
 
         steps: list[ActivationFunnelStep] = []
         previous_count: int | None = None
 
         for event_name in ACTIVATION_FUNNEL_ORDER:
-            user_count = session.exec(
-                select(func.count(func.distinct(ActivationEvent.user_id))).where(
-                    ActivationEvent.event_name == event_name,
-                    ActivationEvent.created_at >= period_start,
-                    ActivationEvent.created_at <= period_end,
-                )
-            ).one() or 0
-            count = int(user_count)
+            count = cohort_size if event_name == ACTIVATION_EVENT_SIGNUP_SUCCESS else len(reached[event_name])
 
             conversion: float | None = None
             drop_off: int | None = None
@@ -228,9 +293,8 @@ class ActivationEventService:
             )
             previous_count = count
 
-        signup_users = steps[0]["users"] if steps else 0
         final_users = steps[-1]["users"] if steps else 0
-        activation_rate = round(final_users / signup_users, 4) if signup_users > 0 else 0.0
+        activation_rate = round(final_users / cohort_size, 4) if cohort_size > 0 else 0.0
 
         return ActivationFunnelStats(
             window_days=window_days,
@@ -260,7 +324,7 @@ class ActivationEventService:
         events = session.exec(
             select(ActivationEvent).where(
                 ActivationEvent.user_id == user_id,
-                ActivationEvent.event_name.in_(ACTIVATION_FUNNEL_ORDER),
+                ActivationEvent.event_name.in_(ACTIVATION_GUIDE_ORDER),
             )
         ).all()
 
@@ -276,7 +340,7 @@ class ActivationEventService:
         steps: list[ActivationGuideStep] = []
         completed_steps = 0
 
-        for event_name in ACTIVATION_FUNNEL_ORDER:
+        for event_name in ACTIVATION_GUIDE_ORDER:
             event = event_by_name.get(event_name)
             if event_name == ACTIVATION_EVENT_SIGNUP_SUCCESS:
                 completed = event is not None or user_created_at is not None

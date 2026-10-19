@@ -2,6 +2,7 @@
 Integration tests for activation funnel tracking.
 """
 
+from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
@@ -10,6 +11,8 @@ from sqlmodel import Session, select
 
 from models import (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
+    ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
+    ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
     ACTIVATION_EVENT_PROJECT_CREATED,
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
@@ -154,7 +157,10 @@ async def test_project_and_file_updates_record_activation_events(client: AsyncCl
 
 
 @pytest.mark.integration
-async def test_admin_activation_funnel_returns_step_counts(client: AsyncClient, db_session: Session):
+async def test_admin_activation_funnel_counts_one_signup_cohort_within_a_day(
+    client: AsyncClient, db_session: Session
+):
+    """Each step counts users of the same signup cohort who got there within 24 hours."""
     await _create_user(
         db_session,
         username="activation_admin",
@@ -171,22 +177,31 @@ async def test_admin_activation_funnel_returns_step_counts(client: AsyncClient, 
         username="activation_user_b",
         email="activation_user_b@example.com",
     )
+    user_late = await _create_user(
+        db_session,
+        username="activation_user_late",
+        email="activation_user_late@example.com",
+    )
 
+    for event_name in (
+        ACTIVATION_EVENT_SIGNUP_SUCCESS,
+        ACTIVATION_EVENT_PROJECT_CREATED,
+        ACTIVATION_EVENT_FIRST_FILE_SAVED,
+        ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
+        ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
+        ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
+    ):
+        activation_event_service.record_once(db_session, user_id=user_a.id, event_name=event_name)
     activation_event_service.record_once(
-        db_session, user_id=user_a.id, event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS
+        db_session, user_id=user_b.id, event_name=ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT
     )
-    activation_event_service.record_once(
-        db_session, user_id=user_a.id, event_name=ACTIVATION_EVENT_PROJECT_CREATED
+    # Sent the first message two days after signing up: outside the first-day window.
+    late = activation_event_service.record_once(
+        db_session, user_id=user_late.id, event_name=ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT
     )
-    activation_event_service.record_once(
-        db_session, user_id=user_a.id, event_name=ACTIVATION_EVENT_FIRST_FILE_SAVED
-    )
-    activation_event_service.record_once(
-        db_session, user_id=user_a.id, event_name=ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED
-    )
-    activation_event_service.record_once(
-        db_session, user_id=user_b.id, event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS
-    )
+    user_late.created_at = late.created_at - timedelta(days=2)
+    db_session.add(user_late)
+    db_session.commit()
 
     admin_token = await _login(client, "activation_admin")
 
@@ -200,19 +215,45 @@ async def test_admin_activation_funnel_returns_step_counts(client: AsyncClient, 
     assert data["window_days"] == 30
     assert 0 <= data["activation_rate"] <= 1
 
-    steps = data["steps"]
-    assert [step["event_name"] for step in steps] == [
+    steps = {step["event_name"]: step["users"] for step in data["steps"]}
+    assert list(steps) == [
         ACTIVATION_EVENT_SIGNUP_SUCCESS,
         ACTIVATION_EVENT_PROJECT_CREATED,
         ACTIVATION_EVENT_FIRST_FILE_SAVED,
+        ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
+        ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
         ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ]
-    # In xdist runs, other workers may add events into the shared SQLite DB.
-    # Ensure this test's events are reflected without assuming global exclusivity.
-    assert steps[0]["users"] >= 2
-    assert steps[1]["users"] >= 1
-    assert steps[2]["users"] >= 1
-    assert steps[3]["users"] >= 1
+
+    # Other xdist workers may share the SQLite DB: compare against this test's users only.
+    funnel_users = {
+        event_name: _cohort_users(db_session, event_name)
+        for event_name in steps
+        if event_name != ACTIVATION_EVENT_SIGNUP_SUCCESS
+    }
+    assert user_a.id in funnel_users[ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED]
+    assert user_b.id in funnel_users[ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT]
+    assert user_b.id not in funnel_users[ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED]
+    assert user_late.id not in funnel_users[ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT]
+    # The signup step is the cohort (customers only), not the signup_success rows.
+    assert steps[ACTIVATION_EVENT_SIGNUP_SUCCESS] >= 3
+    assert steps[ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT] >= 2
+
+
+def _cohort_users(db_session: Session, event_name: str) -> set[str]:
+    """Users the service counts for one step (same rule as get_funnel_stats)."""
+    from services.features.activation_event_service import ACTIVATION_FUNNEL_COHORT_HOURS
+
+    rows = db_session.exec(
+        select(ActivationEvent.user_id, ActivationEvent.created_at, User.created_at)
+        .join(User, User.id == ActivationEvent.user_id)
+        .where(ActivationEvent.event_name == event_name, User.is_superuser.is_(False))
+    ).all()
+    return {
+        user_id
+        for user_id, event_at, signed_up_at in rows
+        if event_at - signed_up_at <= timedelta(hours=ACTIVATION_FUNNEL_COHORT_HOURS)
+    }
 
 
 @pytest.mark.integration

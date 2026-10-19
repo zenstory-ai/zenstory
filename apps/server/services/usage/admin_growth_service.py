@@ -21,7 +21,7 @@ from config.datetime_utils import (
     utcnow,
 )
 from models.entities import User
-from models.llm_usage import LLMUsageEvent
+from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST, LLMUsageEvent
 from models.payment import PaymentOrder
 from models.subscription import SubscriptionHistory
 
@@ -85,8 +85,11 @@ def _metrics(
         or 0
     )
 
+    # 打开空项目时界面自动请求的建议（/agent/suggest）不是作者主动用 AI，不算活跃 / 激活。
+    author_initiated = LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST
     usage_conditions = (
         customer,
+        author_initiated,
         LLMUsageEvent.is_backfilled.is_(False),
         LLMUsageEvent.occurred_at >= start,
         LLMUsageEvent.occurred_at < end,
@@ -107,6 +110,7 @@ def _metrics(
             customer,
             User.created_at >= start,
             User.created_at < end,
+            author_initiated,
             LLMUsageEvent.is_backfilled.is_(False),
             LLMUsageEvent.occurred_at >= User.created_at,
             LLMUsageEvent.occurred_at < observation_end,
@@ -261,6 +265,7 @@ def _daily(session: Session, current: GrowthPeriod, *, days: int) -> list[dict[s
         .join(User, User.id == LLMUsageEvent.user_id)
         .where(
             customer,
+            LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST,
             LLMUsageEvent.is_backfilled.is_(False),
             LLMUsageEvent.occurred_at >= start,
             LLMUsageEvent.occurred_at < end,
@@ -281,6 +286,7 @@ def _daily(session: Session, current: GrowthPeriod, *, days: int) -> list[dict[s
             customer,
             User.created_at >= start,
             User.created_at < end,
+            LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST,
             LLMUsageEvent.is_backfilled.is_(False),
             LLMUsageEvent.occurred_at >= User.created_at,
             LLMUsageEvent.occurred_at < end,

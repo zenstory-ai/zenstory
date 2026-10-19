@@ -24,6 +24,7 @@ import { Card } from "../components/ui/Card";
 import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
 import { toast } from "../lib/toast";
+import { trackEvent } from "../lib/analytics";
 import { ApiError } from "../lib/apiClient";
 import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { getPreferredProjectType, setPreferredProjectType } from "../lib/preferredProjectType";
@@ -277,6 +278,14 @@ export default function OnboardingPersonaPage() {
     );
   };
 
+  // New-user funnel: the questionnaire was shown (once per mount).
+  const viewTrackedRef = useRef(false);
+  useEffect(() => {
+    if (viewTrackedRef.current) return;
+    viewTrackedRef.current = true;
+    trackEvent("persona_viewed");
+  }, []);
+
   const handleSubmit = async (skip = false) => {
     // The button already shows the saving state for an in-flight save.
     if (!user || savingRef.current) return;
@@ -339,6 +348,12 @@ export default function OnboardingPersonaPage() {
         skipped: profile.skipped,
       });
       queryClient.setQueryData(personaQueryKey, result);
+      trackEvent("persona_submitted", {
+        skipped: profile.skipped,
+        persona_count: profile.selected_personas.length,
+        goal_count: profile.selected_goals.length,
+        experience_answered: Boolean(experienceLevel),
+      });
       navigate(nextPath, {
         replace: true,
         state: nextPath === "/dashboard" ? { startDashboardCoachmark: true } : undefined,

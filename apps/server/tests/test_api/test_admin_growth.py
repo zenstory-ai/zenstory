@@ -51,11 +51,12 @@ def _usage(
     at: datetime,
     *,
     backfilled: bool = False,
+    source: str = "agent",
 ) -> None:
     session.add(
         LLMUsageEvent(
             user_id=user.id,
-            source="agent",
+            source=source,
             model="deepseek-flash",
             cache_hit_tokens=10,
             cache_miss_tokens=20,
@@ -141,6 +142,8 @@ async def test_growth_dashboard_uses_real_cohorts_payments_and_grants(
     _usage(db_session, disabled, NOW - timedelta(days=3))
     _usage(db_session, existing, NOW - timedelta(days=1))
     _usage(db_session, unactivated, NOW - timedelta(days=2), backfilled=True)
+    # Opening an empty project requests suggestions on its own: not the author using AI.
+    _usage(db_session, unactivated, NOW - timedelta(days=2), source="suggest")
     _usage(db_session, admin, NOW - timedelta(days=1))
     _usage(db_session, future, NOW + timedelta(hours=2))
     _usage(db_session, previous, NOW - timedelta(days=11))

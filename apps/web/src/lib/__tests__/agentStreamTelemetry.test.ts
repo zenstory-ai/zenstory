@@ -43,11 +43,11 @@ function sseResponse(chunks: string[], status = 200) {
   };
 }
 
-async function runStream(response: unknown) {
+async function runStream(response: unknown, metadata?: Record<string, unknown>) {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
   const onDone = vi.fn();
   const onError = vi.fn();
-  streamAgentRequest({ project_id: "project-1", message: PROMPT }, { onDone, onError });
+  streamAgentRequest({ project_id: "project-1", message: PROMPT, metadata }, { onDone, onError });
   await new Promise((resolve) => setTimeout(resolve, 50));
   return { onDone, onError };
 }
@@ -76,6 +76,12 @@ describe("agent stream telemetry", () => {
     vi.unstubAllGlobals();
   });
 
+  it("tags the outcome with where the message came from", async () => {
+    await runStream(sseResponse(['event: done\ndata: {}\n\n']), { entry: "starter_example" });
+
+    expect(trackEventMock).toHaveBeenCalledWith("ai_chat_completed", expect.objectContaining({ entry: "starter_example" }));
+  });
+
   it("reports ai_chat_completed with timing and tool counts, never content", async () => {
     const { onDone } = await runStream(
       sseResponse([
@@ -91,6 +97,7 @@ describe("agent stream telemetry", () => {
     expect(eventName).toBe("ai_chat_completed");
     expect(properties).toMatchObject({
       project_id: "project-1",
+      entry: "typed",
       http_status: 200,
       tool_calls: 1,
       events_received: 3,

@@ -13,6 +13,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { fileApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
 import { logger } from "../lib/logger";
+import { trackEvent } from "../lib/analytics";
 import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "../lib/lastOpenedFile";
 import type { SelectedItem, TreeNodeType } from "../types";
 
@@ -42,6 +43,14 @@ export default function ProjectEditor() {
   selectedItemRef.current = selectedItem ?? null;
 
   const isRouteProjectActive = Boolean(currentProject && projectId && currentProject.id === projectId);
+  const currentProjectType = currentProject?.project_type;
+  // New-user funnel: the route's project resolved and the workspace renders (once per project).
+  const trackedOpenRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!isRouteProjectActive || !projectId || trackedOpenRef.current === projectId) return;
+    trackedOpenRef.current = projectId;
+    trackEvent("project_opened", { project_id: projectId, project_type: currentProjectType });
+  }, [isRouteProjectActive, projectId, currentProjectType]);
 
   // Reset per projectId
   React.useEffect(() => {

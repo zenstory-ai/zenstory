@@ -353,7 +353,12 @@ export function streamAgentRequest(
   const entryRefresh = localStorage.getItem("refresh_token");
   const abortController = new AbortController();
   const traceId = generateTraceId();
-  const telemetry = createAgentStreamTelemetry(request.project_id);
+  const entry = request.metadata?.entry;
+  const telemetry = createAgentStreamTelemetry(
+    request.project_id,
+    undefined,
+    typeof entry === "string" && entry ? entry : "typed",
+  );
   const callbacks = withOutcomeTelemetry(rawCallbacks, telemetry);
 
   const fetchStream = async (accessToken: string | null = entryAccess, isRetry = false) => {

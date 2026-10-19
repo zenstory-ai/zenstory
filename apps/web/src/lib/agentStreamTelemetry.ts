@@ -48,6 +48,8 @@ export class AgentStreamCallbackError extends Error {
 export function createAgentStreamTelemetry(
   projectId: string,
   now: () => number = () => Date.now(),
+  /** Where the message came from (request `metadata.entry`): starter_example, first_message, … or typed. */
+  entry = "typed",
 ): AgentStreamTelemetry {
   const startedAt = now();
   let httpStatus: number | undefined;
@@ -61,6 +63,7 @@ export function createAgentStreamTelemetry(
 
   const baseProperties = () => ({
     project_id: projectId,
+    entry,
     duration_ms: Math.max(0, now() - startedAt),
     http_status: httpStatus,
     events_received: eventCount,

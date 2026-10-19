@@ -59,7 +59,12 @@ from middleware.rate_limit import (
     require_user_beijing_daily_rate_limit,
     require_user_rate_limit,
 )
-from models import User
+from models import (
+    ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
+    ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
+    User,
+)
+from services.features.activation_event_service import activation_event_service
 from services.quota_service import quota_service
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access
@@ -145,6 +150,45 @@ def _record_first_work_ai_sync(user_id: str, project_id: str) -> None:
 
     with create_session() as action_session:
         observe_first_work_ai_request(action_session, user_id, project_id)
+
+
+def _activation_entry(metadata: dict[str, Any] | None) -> str:
+    """作者从哪里发出这条消息（前端的 metadata.entry），只留一个短标识。"""
+    entry = metadata.get("entry") if isinstance(metadata, dict) else None
+    return entry[:32] if isinstance(entry, str) and entry else "typed"
+
+
+def _record_activation_sync(user_id: str, project_id: str, event_name: str, entry: str) -> None:
+    """新用户漏斗的观测点：独立短 session，任何失败只记日志，不影响这一轮。"""
+    try:
+        with create_session() as activation_session:
+            activation_event_service.record_once_best_effort(
+                activation_session,
+                user_id=user_id,
+                event_name=event_name,
+                project_id=project_id,
+                event_metadata={"entry": entry},
+            )
+    except Exception:
+        logger.warning("Could not record activation event %s", event_name, exc_info=True)
+
+
+def _record_activation(session: Session, user_id: str, project_id: str, event_name: str, entry: str) -> None:
+    """PostgreSQL 上放进后台线程（不占请求连接、不挂起流）；SQLite（测试 / 本地）直接用请求 session。"""
+    if _should_offload_session_work(session):
+        task = asyncio.create_task(
+            asyncio.to_thread(_record_activation_sync, user_id, project_id, event_name, entry)
+        )
+        _detached_refund_tasks.add(task)
+        task.add_done_callback(_detached_refund_tasks.discard)
+        return
+    activation_event_service.record_once_best_effort(
+        session,
+        user_id=user_id,
+        event_name=event_name,
+        project_id=project_id,
+        event_metadata={"entry": entry},
+    )
 
 
 def _reserve_ai_conversation_sync(user_id: str) -> datetime | None:
@@ -494,6 +538,11 @@ async def stream_request(
     except Exception:
         session.rollback()
         logger.warning("Could not record first-work AI request", exc_info=True)
+    # 新用户漏斗：作者主动发出的第一条 AI 消息（预扣成功）。每个账号只记一次。
+    activation_entry = _activation_entry(body.metadata)
+    _record_activation(
+        session, user_id, body.project_id, ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT, activation_entry
+    )
 
     # SSE 可能持续数分钟，而鉴权/权限校验的 SELECT 会让请求级 session 一直
     # 保持事务打开（Postgres 上表现为 idle in transaction，连接被整个流式
@@ -907,6 +956,16 @@ async def stream_request(
             elif completed_delivery and knows_stop_contract:
                 _schedule_round_outcome(
                     refund_applied, stop_kind=ROUND_KIND_COMPLETED, delivery=completed_delivery
+                )
+
+            if billing_reason == "completed":
+                # 新用户漏斗：第一次有一轮 AI 回复正常结束（计费）。
+                _record_activation(
+                    session,
+                    user_id,
+                    body.project_id,
+                    ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
+                    activation_entry,
                 )
 
             # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。

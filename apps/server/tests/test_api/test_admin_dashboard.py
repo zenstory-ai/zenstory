@@ -363,16 +363,19 @@ async def test_admin_dashboard_activation_funnel_returns_step_counts(
     payload = response.json()
     assert payload["window_days"] == 30
     assert 0 <= payload["activation_rate"] <= 1
-    assert [step["event_name"] for step in payload["steps"]] == [
+    steps = {step["event_name"]: step["users"] for step in payload["steps"]}
+    assert list(steps) == [
         ACTIVATION_EVENT_SIGNUP_SUCCESS,
         ACTIVATION_EVENT_PROJECT_CREATED,
         ACTIVATION_EVENT_FIRST_FILE_SAVED,
+        "first_ai_message_sent",
+        "first_ai_reply_succeeded",
         ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ]
-    assert payload["steps"][0]["users"] >= 2
-    assert payload["steps"][1]["users"] >= 1
-    assert payload["steps"][2]["users"] >= 1
-    assert payload["steps"][3]["users"] >= 1
+    assert steps[ACTIVATION_EVENT_SIGNUP_SUCCESS] >= 2
+    assert steps[ACTIVATION_EVENT_PROJECT_CREATED] >= 1
+    assert steps[ACTIVATION_EVENT_FIRST_FILE_SAVED] >= 1
+    assert steps[ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED] >= 1
 
 
 @pytest.mark.integration
