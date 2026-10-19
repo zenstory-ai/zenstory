@@ -345,5 +345,6 @@
     "hint": "Write your first paragraph, or paste an existing draft.",
     "paste": "Write on my own",
     "ai": "Write with AI"
-  }
+  },
+  "emptyStateImportDrafts": "Have a draft already? Import it (txt / md)"
 }

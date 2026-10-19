@@ -13,7 +13,6 @@
     "quickSettings": "快捷设置",
     "openPanel": "账户菜单",
     "adminPanel": "管理后台",
-    "replayTour": "重新查看新手引导",
     "openSettings": "设置",
     "contactSupport": "联系客服"
   },
@@ -165,95 +164,6 @@
     "paymentMaterialsUnlimited": "素材拆解不限次数",
     "paymentMaterialsFinite": "每月 {{limit}} 次素材拆解"
   },
-  "todayActionPlan": {
-    "title": "今天可以做的事",
-    "subtitle": "根据你的写作进度推荐。",
-    "cta": "去完成",
-    "executing": "处理中…",
-    "expand": "查看全部",
-    "collapse": "收起",
-    "expandHint": "展开可查看其余建议",
-    "activationDescription": "做完这一步，就算上手了。",
-    "personaDescription": "根据你填写的写作偏好推荐。",
-    "personaRecommendations": {
-      "persona_explorer_template": {
-        "title": "从灵感库挑一个开头",
-        "description": "浏览灵感库，选一个喜欢的复制成你的项目。"
-      },
-      "persona_serial_streak": {
-        "title": "保持连载节奏",
-        "description": "每天写一点，在项目统计里查看连续写作天数。"
-      },
-      "persona_professional_efficiency": {
-        "title": "按大纲推进章节",
-        "description": "打开项目，先列大纲，再让 AI 按大纲写章节、改稿。"
-      },
-      "persona_fanfic_consistency": {
-        "title": "整理角色与设定",
-        "description": "把角色和设定写进项目，AI 写作时会参考它们。"
-      },
-      "persona_studio_collab": {
-        "title": "按作品分开管理",
-        "description": "每部作品建一个项目，大纲、正文和设定分开存放。"
-      },
-      "goal_monetize_upgrade": {
-        "title": "对比套餐",
-        "description": "看看免费版和 Pro 在写作额度和项目数上的区别。"
-      },
-      "goal_quality_review": {
-        "title": "让 AI 帮你改稿",
-        "description": "打开项目，在右侧 AI 对话里请它审读并修改章节。"
-      },
-      "goal_habit_activation": {
-        "title": "每天写一点",
-        "description": "给自己定个小目标，比如今天写 500 字。"
-      },
-      "level_beginner_path": {
-        "title": "从灵感起步",
-        "description": "先选一个灵感开头，再慢慢补充角色和章节。"
-      },
-      "level_advanced_shortcut": {
-        "title": "直接进入项目",
-        "description": "打开项目，用 AI 对话扩写、改稿或整理设定。"
-      }
-    },
-    "defaults": {
-      "createProject": {
-        "title": "创建第一个项目",
-        "description": "不用先想好，点一下就能开始；大纲、正文和设定都放在这个项目里。",
-        "cta": "新建项目"
-      },
-      "openProject": {
-        "title": "继续最近的项目",
-        "description": "从上次停下的地方接着写。"
-      },
-      "exportProject": {
-        "title": "导出你的作品",
-        "description": "打开项目，点「导出正文」下载成稿文件。",
-        "cta": "打开项目"
-      },
-      "upgrade": {
-        "title": "查看用量",
-        "description": "看看今天还剩几条 AI 消息，不够用时再开 Pro。",
-        "cta": "查看用量"
-      },
-      "inspirations": {
-        "title": "逛逛灵感库",
-        "description": "卡住时，看看精选灵感找开头和设定。"
-      }
-    }
-  },
-  "activationGuide": {
-    "title": "新手上手清单",
-    "progress": "已完成 {{done}} / {{total}}",
-    "nextAction": "继续下一步",
-    "steps": {
-      "signup_success": "完成注册",
-      "project_created": "创建项目",
-      "first_file_saved": "写下第一段内容",
-      "first_ai_action_accepted": "采纳一次 AI 修改"
-    }
-  },
   "hero": {
     "greeting": "你好，{{name}}",
     "question": "今天想创作些什么呢？",
@@ -278,9 +188,6 @@
     "emptyHint": "点上方「开始创作」就能建好第一个项目，想法可以先空着。",
     "emptyHintProjectsPage": "点「新建项目」，开始写你的第一部作品吧。",
     "searchPlaceholder": "搜索项目",
-    "createNew": "创建新项目",
-    "nameLabel": "作品名（可不填）",
-    "namePlaceholder": "不填就先叫「{{name}}」，之后随时能改",
     "confirmDeleteTitle": "确定删除这个项目？",
     "confirmDeleteMessage": "项目里的所有内容会一起删除，且无法恢复。",
     "confirmDeleteButton": "确认删除",
@@ -301,9 +208,9 @@
     "shortDesc": "AI 将帮你打磨故事结构，让短篇更有张力和余韵",
     "screenplayDesc": "AI 将帮你设计分集剧情、对白和反转，让剧本更抓人",
     "example": {
-      "novel": "写一部架空历史权谋长篇：主角穿越成王朝里最不起眼的六皇子，不夺嫡、不宫斗，只想悄悄攒下兵权自保，却被父皇和几位兄长一步步推到台前。先定主角人设和朝堂势力，再出前三章大纲。",
-      "short": "写一篇 1 万字左右的反转短篇：高考结束那天，刚刑满出狱的影后妈妈在校门口当众向女儿下跪，直播镜头全对准这场“母爱重逢”，只有女儿知道她入狱的真正原因。第一人称，先给我分段大纲。",
-      "screenplay": "写一部 60 集竖屏短剧：神医弟子下山完婚，被未婚妻当众撕了婚书，转身娶了她的姐姐。每集 1–2 分钟，前 3 集各留一个反转钩子，先出分集大纲和第 1 集剧本。"
+      "novel": "例如：主角穿越成王朝里最不起眼的六皇子，只想悄悄攒下兵权自保，却被父皇和几位兄长一步步推到台前。",
+      "short": "例如：高考结束那天，刚出狱的影后妈妈在校门口当众向女儿下跪，只有女儿知道她入狱的真正原因。",
+      "screenplay": "例如：神医弟子下山完婚，被未婚妻当众撕了婚书，转身娶了她的姐姐。"
     }
   },
   "ideaQuota": {
@@ -677,35 +584,6 @@
       }
     }
   },
-  "dashboardTour": {
-    "common": {
-      "next": "下一步",
-      "finish": "开始使用",
-      "skip": "跳过引导",
-      "progress": "{{current}} / {{total}}"
-    },
-    "steps": {
-      "projectType": {
-        "title": "先选你要写什么",
-        "description": "长篇、短篇、短剧会走不同的创作路径，先选最接近你目标的一种。",
-        "cta": "知道了"
-      },
-      "inspirationInput": {
-        "title": "从一个想法开始",
-        "description": "有个念头就写下来，一句话就够；也可以从下方灵感里挑一个。",
-        "descriptionWithoutLibrary": "有个念头就写下来，一句话就够；没想好也能直接点「开始创作」。"
-      },
-      "createProject": {
-        "title": "点这里就开始",
-        "description": "马上建好项目。写了想法，AI 会先帮你理思路；空着也行，进去后随时可以和 AI 聊。",
-        "cta": "去试试"
-      },
-      "inspirationsLink": {
-        "title": "没想法就先来这里",
-        "description": "卡住时来这里找故事开头和设定灵感。"
-      }
-    }
-  },
   "projectProgress": {
     "chapters": "已写 {{count}} 章 · {{words}}",
     "episodes": "已写 {{count}} 集 · {{words}}",
@@ -745,5 +623,6 @@
     "trendShow": "查看手写字数趋势",
     "trendHide": "收起手写字数趋势",
     "completedPercentage": "已完成 {{percent}}%"
-  }
+  },
+  "importDrafts": "有现成的稿子？导入进来（txt / md）"
 }

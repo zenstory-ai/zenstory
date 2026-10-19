@@ -174,21 +174,28 @@ def _record_activation_sync(user_id: str, project_id: str, event_name: str, entr
 
 
 def _record_activation(session: Session, user_id: str, project_id: str, event_name: str, entry: str) -> None:
-    """PostgreSQL 上放进后台线程（不占请求连接、不挂起流）；SQLite（测试 / 本地）直接用请求 session。"""
-    if _should_offload_session_work(session):
-        task = asyncio.create_task(
-            asyncio.to_thread(_record_activation_sync, user_id, project_id, event_name, entry)
+    """PostgreSQL 上放进后台线程（不占请求连接、不挂起流）；SQLite（测试 / 本地）直接用请求 session。
+
+    观测点：任何失败（包括事件循环关闭时建不了任务、回滚本身出错）都只记日志，
+    不能打断流的收尾（计费日志、请求上下文复位）。
+    """
+    try:
+        if _should_offload_session_work(session):
+            task = asyncio.create_task(
+                asyncio.to_thread(_record_activation_sync, user_id, project_id, event_name, entry)
+            )
+            _detached_refund_tasks.add(task)
+            task.add_done_callback(_detached_refund_tasks.discard)
+            return
+        activation_event_service.record_once_best_effort(
+            session,
+            user_id=user_id,
+            event_name=event_name,
+            project_id=project_id,
+            event_metadata={"entry": entry},
         )
-        _detached_refund_tasks.add(task)
-        task.add_done_callback(_detached_refund_tasks.discard)
-        return
-    activation_event_service.record_once_best_effort(
-        session,
-        user_id=user_id,
-        event_name=event_name,
-        project_id=project_id,
-        event_metadata={"entry": entry},
-    )
+    except Exception:
+        logger.warning("Could not record activation event %s", event_name, exc_info=True)
 
 
 def _reserve_ai_conversation_sync(user_id: str) -> datetime | None:

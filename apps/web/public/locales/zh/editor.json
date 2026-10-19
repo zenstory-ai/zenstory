@@ -345,5 +345,6 @@
     "hint": "写下第一段，或粘贴已有稿件。",
     "paste": "自己写",
     "ai": "与 AI 创作"
-  }
+  },
+  "emptyStateImportDrafts": "有现成的稿子？导入进来（txt / md）"
 }

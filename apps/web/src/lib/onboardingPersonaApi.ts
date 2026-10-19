@@ -11,19 +11,11 @@ export interface PersonaOnboardingProfile {
   skipped: boolean;
 }
 
-export interface PersonaRecommendation {
-  id: string;
-  title: string;
-  description: string;
-  action: string;
-}
-
 export interface PersonaOnboardingState {
   required: boolean;
   rollout_at: string;
   new_user_window_days: number;
   profile: PersonaOnboardingProfile | null;
-  recommendations: PersonaRecommendation[];
 }
 
 export interface PersonaOnboardingUpsertRequest {
@@ -42,13 +34,6 @@ export const onboardingPersonaApi = {
 
   save: (payload: PersonaOnboardingUpsertRequest) =>
     api.put<PersonaOnboardingState>('/api/v1/persona/onboarding', payload),
-
-  getRecommendations: async () => {
-    const response = await api.get<{ recommendations: PersonaRecommendation[] }>(
-      '/api/v1/persona/recommendations'
-    );
-    return response.recommendations ?? [];
-  },
 };
 
 export default onboardingPersonaApi;

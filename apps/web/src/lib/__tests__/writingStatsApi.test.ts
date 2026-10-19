@@ -33,14 +33,6 @@ describe('writingStatsApi', () => {
     )
   })
 
-  it('fetches activation guide from dedicated endpoint', async () => {
-    mockApiGet.mockResolvedValue({})
-
-    await writingStatsApi.getActivationGuide()
-
-    expect(mockApiGet).toHaveBeenCalledWith('/api/v1/activation/guide')
-  })
-
   it('appends the Beijing date as client_date for word trend with custom params', async () => {
     mockApiGet.mockResolvedValue({})
 

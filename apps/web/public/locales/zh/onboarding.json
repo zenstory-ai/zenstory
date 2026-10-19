@@ -1,120 +1,27 @@
 {
+  "start": {
+    "title": "你想写什么？",
+    "subtitle": "点一个就开始，之后随时能换。",
+    "options": {
+      "novel": {
+        "title": "长篇连载",
+        "desc": "网文、长篇，一章接一章写"
+      },
+      "short": {
+        "title": "短篇小说",
+        "desc": "一口气讲完一个故事"
+      },
+      "screenplay": {
+        "title": "短剧剧本",
+        "desc": "竖屏短剧，一集一集写"
+      }
+    }
+  },
   "hero": {
-    "step": "新用户引导",
-    "badge": "2 分钟完成",
-    "title": "告诉我们你怎么写作",
-    "subtitle": "回答 3 个问题，也可以直接跳过。",
     "restore": "已带入你上次的选择"
   },
-  "persona": {
-    "title": "你是哪类创作者？",
-    "subtitle": "最多选 3 项。",
-    "counter": "{{selected}} / {{max}} 已选",
-    "limitReached": "最多选 3 项，请先取消一个。",
-    "options": {
-      "explorer": {
-        "tag": "新手探索",
-        "title": "新手探索者",
-        "desc": "刚开始写作，想有人带着写完第一部作品。"
-      },
-      "serial": {
-        "tag": "连载节奏",
-        "title": "连载成长型",
-        "desc": "正在连载，想保持稳定更新。"
-      },
-      "short_story": {
-        "tag": "短篇",
-        "title": "短篇作者",
-        "desc": "写盐言、番茄这类网文短篇，一篇写完就投。"
-      },
-      "screenwriter": {
-        "tag": "短剧",
-        "title": "短剧编剧",
-        "desc": "写竖屏短剧、网剧剧本。"
-      },
-      "professional": {
-        "tag": "职业导向",
-        "title": "职业创作者",
-        "desc": "已有写作经验，更看重效率、质量和收入。"
-      },
-      "fanfic": {
-        "tag": "兴趣表达",
-        "title": "同人/兴趣创作者",
-        "desc": "爱写角色和世界观，想把脑洞写成故事，并保持设定前后一致。"
-      },
-      "studio": {
-        "tag": "工作室",
-        "title": "IP/工作室团队",
-        "desc": "同时推进多部作品，需要把素材和进度分开管理。"
-      }
-    }
-  },
-  "goal": {
-    "title": "你当前最想达成什么？",
-    "subtitle": "可多选。",
-    "options": {
-      "finishBook": {
-        "title": "完成第一本作品"
-      },
-      "buildHabit": {
-        "title": "养成稳定创作习惯"
-      },
-      "improveQuality": {
-        "title": "提升剧情与文本质量"
-      },
-      "growAudience": {
-        "title": "积累读者与影响力"
-      },
-      "monetize": {
-        "title": "尽快实现内容变现"
-      }
-    }
-  },
-  "experience": {
-    "title": "你的写作经验",
-    "subtitle": "选最接近的一项。",
-    "options": {
-      "beginner": {
-        "title": "0-3 个月",
-        "desc": "需要一步步的指引和示例。"
-      },
-      "intermediate": {
-        "title": "3 个月 - 2 年",
-        "desc": "写过一些，想兼顾效率和自由度。"
-      },
-      "advanced": {
-        "title": "2 年以上",
-        "desc": "经验丰富，想少看提示、直接动手。"
-      }
-    }
-  },
   "actions": {
-    "skip": "跳过",
-    "submit": "保存并进入工作台",
-    "saving": "正在保存…",
-    "needPersona": "先选一个创作者类型，或点「跳过」"
-  },
-  "preview": {
-    "title": "首页会为你推荐",
-    "subtitle": "保存后，工作台首页会按这些选择推荐下一步。",
-    "empty": "选一个创作者类型，看看会推荐什么",
-    "items": {
-      "explorer": "一句话就能开新书，附带一步步的上手提示",
-      "serial": "连续写作天数统计",
-      "short_story": "工作台默认选中短篇小说，一句想法就能开写",
-      "screenwriter": "工作台默认选中短剧剧本，按分集大纲写剧本",
-      "professional": "大纲、章节到改稿的高效流程",
-      "fanfic": "整理角色与设定，AI 写作时参考",
-      "studio": "每部作品一个项目，分开管理",
-      "monetize": "免费版与 Pro 的套餐对比",
-      "quality": "让 AI 审读并修改章节"
-    },
-    "level": {
-      "beginner": "先建一个项目，再慢慢补角色和章节",
-      "intermediate": "兼顾效率与质量的建议",
-      "advanced": "直接进入项目，用 AI 扩写和改稿"
-    },
-    "note": "这些选择保存在你的账号里，换设备也有效。"
+    "skip": "先跳过"
   },
   "errors": {
     "saveFailed": "保存失败，请检查网络后重试",

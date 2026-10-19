@@ -23,3 +23,32 @@ export function hasPendingInspiration(projectId: string | null | undefined, now 
     return false;
   }
 }
+
+const OPEN_CHAT_KEY_PREFIX = "zenstory_open_chat_";
+
+/**
+ * A work just created from the dashboard without an idea: its first conversation's starter
+ * cards are the next step, so phones open it on the AI tab once (same freshness window).
+ */
+export function requestChatOnOpen(projectId: string, now = Date.now()): void {
+  try {
+    localStorage.setItem(`${OPEN_CHAT_KEY_PREFIX}${projectId}`, String(now));
+  } catch {
+    // Storage unavailable: the work simply opens on the editor, which links to the AI.
+  }
+}
+
+/** True once for a fresh request from `requestChatOnOpen`; the request is cleared either way. */
+export function takeChatOnOpen(projectId: string | null | undefined, now = Date.now()): boolean {
+  if (!projectId) return false;
+  try {
+    const key = `${OPEN_CHAT_KEY_PREFIX}${projectId}`;
+    const raw = localStorage.getItem(key);
+    if (raw === null) return false;
+    localStorage.removeItem(key);
+    const requestedAt = Number(raw);
+    return Number.isFinite(requestedAt) && now - requestedAt < INSPIRATION_MAX_AGE_MS;
+  } catch {
+    return false;
+  }
+}

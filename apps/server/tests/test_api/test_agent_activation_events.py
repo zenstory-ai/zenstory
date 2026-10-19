@@ -91,3 +91,22 @@ async def test_refunded_failure_records_the_message_but_not_a_reply(client, db_s
     events = _events(db_session, user.id)
     assert events[ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT].event_metadata == {"entry": "typed"}
     assert ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED not in events
+
+
+@pytest.mark.integration
+async def test_a_broken_activation_write_never_breaks_the_round(client, db_session, monkeypatch):
+    _user, project, headers = _author(db_session)
+    monkeypatch.setattr("api.agent.get_agent_service", lambda: _service("event: done\ndata: {}\n\n"))
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("activation store unavailable")
+
+    monkeypatch.setattr("api.agent.activation_event_service.record_once_best_effort", broken)
+
+    response = await client.post(
+        "/api/v1/agent/stream",
+        headers=headers,
+        json={"project_id": project.id, "message": "写个开头"},
+    )
+    assert response.status_code == 200
+    assert "event: done" in response.text

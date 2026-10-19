@@ -186,8 +186,8 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
     en: { title: 'Plans & Benefits - ZenStory', description: 'Plans and usage', noindex: true },
   },
   '/onboarding/persona': {
-    zh: { title: '告诉我们你怎么写作 - ZenStory', description: '选择你的写作方向', noindex: true },
-    en: { title: 'How You Write - ZenStory', description: 'Choose how you write', noindex: true },
+    zh: { title: '你想写什么 - ZenStory', description: '选择你的写作方向', noindex: true },
+    en: { title: 'What to Write - ZenStory', description: 'Choose what you write', noindex: true },
   },
   '/verify-email': {
     zh: {

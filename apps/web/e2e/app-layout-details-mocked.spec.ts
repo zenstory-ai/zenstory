@@ -161,19 +161,14 @@ for (const viewport of viewports) {
     await page.screenshot({ path: `/tmp/zenstory-ui-audit/app-workspace-${viewport.width}.png` });
 
     await page.goto('/onboarding/persona');
-    await expect(page.getByRole('heading', { name: '告诉我们你怎么写作', exact: true })).toBeVisible();
-    const creator = page.getByRole('button').filter({ hasText: '新手探索者' });
-    await creator.click();
-    await expect(creator).toHaveAttribute('aria-pressed', 'true');
-    const goal = page.getByRole('button', { name: '完成第一本作品', exact: true });
-    await goal.scrollIntoViewIfNeeded();
-    expect((await box(goal)).height).toBeGreaterThanOrEqual(44);
-    await goal.click();
-    await expect(goal).toHaveAttribute('aria-pressed', 'true');
-    const submit = page.getByRole('button', { name: '保存并进入工作台', exact: true });
-    await submit.scrollIntoViewIfNeeded();
-    await expect(submit).toBeEnabled();
-    expect((await box(submit)).height).toBeGreaterThanOrEqual(44);
+    await expect(page.getByRole('heading', { name: '你想写什么？', exact: true })).toBeVisible();
+    // One tap answers: every option and 跳过 are full touch targets inside the first screen.
+    for (const type of ['novel', 'short', 'screenplay']) {
+      const option = await box(page.getByTestId(`onboarding-type-${type}`));
+      expect(option.height).toBeGreaterThanOrEqual(44);
+      expect(option.y + option.height).toBeLessThanOrEqual(viewport.height);
+    }
+    expect((await box(page.getByRole('button', { name: '先跳过', exact: true }))).height).toBeGreaterThanOrEqual(44);
     await page.screenshot({ path: `/tmp/zenstory-ui-audit/app-onboarding-${viewport.width}.png` });
 
     for (const state of ['missing', 'pending', 'failed', 'succeeded']) {

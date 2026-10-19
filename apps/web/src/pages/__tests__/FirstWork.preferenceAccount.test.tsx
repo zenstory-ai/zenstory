@@ -78,10 +78,10 @@ beforeEach(async () => {
       return json({ access_token: `offline-${id}`, refresh_token: `offline-refresh-${id}`, user: account(id) });
     }
     if (path === '/api/v1/persona/onboarding') {
-      if (method === 'GET') return json({ required: true, profile: null, recommendations: [] });
+      if (method === 'GET') return json({ required: true, profile: null });
       const body = JSON.parse(String(init?.body));
       return json({ required: false, profile: { ...body, version: 1,
-        completed_at: '2026-10-14T00:00:00Z', experience_level: body.experience_level ?? 'beginner' }, recommendations: [] });
+        completed_at: '2026-10-14T00:00:00Z', experience_level: body.experience_level ?? 'beginner' } });
     }
     if (path === '/api/v1/workspace/first-work') {
       if (method === 'GET') return json(pending);
@@ -114,59 +114,67 @@ afterEach(() => {
   expect(unknown).toEqual([]);
 });
 
-async function logInAndFinishProfile(owner: string, persona: 'short_story' | 'serial' | 'screenwriter') {
+/** Log in and answer the one-question page: tap a type, or skip it. */
+async function logInAndFinishProfile(owner: string, answer: 'novel' | 'short' | 'screenplay' | 'skip') {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: `Log in ${owner}` })); });
-  await screen.findByRole('heading', { name: onboarding.hero.title });
-  fireEvent.click(screen.getByRole('button', { name: new RegExp(onboarding.persona.options[persona].title) }));
-  fireEvent.click(screen.getByRole('button', { name: onboarding.actions.submit }));
+  await screen.findByRole('heading', { name: onboarding.start.title });
+  fireEvent.click(answer === 'skip'
+    ? screen.getByRole('button', { name: onboarding.actions.skip })
+    : screen.getByRole('button', { name: new RegExp(onboarding.start.options[answer].title) }));
   await screen.findByRole('button', { name: dashboard.firstWork.open });
   await waitFor(() => expect(initialized.some(item => item.owner === owner)).toBe(true));
 }
 
 describe('first-work type belongs to the current account', () => {
-  it.each([
-    ['serial', 'novel'],
-    ['screenwriter', 'screenplay'],
-  ] as const)('does not pass A short-story memory to new B %s', async (persona, expected) => {
+  it.each(['novel', 'screenplay'] as const)('does not pass A short-story memory to new B choosing %s', async (type) => {
     setPreferredProjectType('short'); // A's deliberate public entry before authentication.
-    await logInAndFinishProfile('A', 'short_story');
+    await logInAndFinishProfile('A', 'short');
     expect(initialized).toEqual([{ owner: 'A', type: 'short' }]);
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
     await screen.findByText('offline login');
 
-    await logInAndFinishProfile('B', persona);
-    expect(initialized).toEqual([{ owner: 'A', type: 'short' }, { owner: 'B', type: expected }]);
-    expect(screen.getByLabelText('active project type')).toHaveTextContent(expected);
+    await logInAndFinishProfile('B', type);
+    expect(initialized).toEqual([{ owner: 'A', type: 'short' }, { owner: 'B', type }]);
+    expect(screen.getByLabelText('active project type')).toHaveTextContent(type);
     expect(getPreferredProjectType('A')).toBe('short');
-    expect(getPreferredProjectType('B')).toBe(expected);
+    expect(getPreferredProjectType('B')).toBe(type);
   });
 
-  it('keeps B fresh explicit public entry ahead of an inferred serial persona', async () => {
+  it("keeps B's fresh public entry when B skips the question", async () => {
     setPreferredProjectType('short', 'B'); // B's older, still-valid creation memory.
     setPreferredProjectType('short');
-    await logInAndFinishProfile('A', 'short_story');
+    await logInAndFinishProfile('A', 'short');
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
     await screen.findByText('offline login');
     setPreferredProjectType('screenplay');
 
-    await logInAndFinishProfile('B', 'serial');
+    await logInAndFinishProfile('B', 'skip');
     expect(initialized.at(-1)).toEqual({ owner: 'B', type: 'screenplay' });
   });
 
-  it('preserves B valid creation memory when its later persona only implies a type', async () => {
+  it("keeps B's valid creation memory when B skips the question", async () => {
     setPreferredProjectType('screenplay', 'B');
     setPreferredProjectType('short');
-    await logInAndFinishProfile('A', 'short_story');
+    await logInAndFinishProfile('A', 'short');
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
     await screen.findByText('offline login');
 
-    await logInAndFinishProfile('B', 'serial');
+    await logInAndFinishProfile('B', 'skip');
     expect(initialized.at(-1)).toEqual({ owner: 'B', type: 'screenplay' });
+  });
+
+  it("B's tap on the question is the latest explicit choice, ahead of older memory and public entries", async () => {
+    setPreferredProjectType('screenplay', 'B');
+    setPreferredProjectType('short');
+
+    await logInAndFinishProfile('B', 'novel');
+    expect(initialized.at(-1)).toEqual({ owner: 'B', type: 'novel' });
+    expect(getPreferredProjectType('B')).toBe('novel');
   });
 
   it('does not let A same-identity refresh claim an anonymous entry intended for B', async () => {
     setPreferredProjectType('screenplay');
-    await logInAndFinishProfile('A', 'screenwriter');
+    await logInAndFinishProfile('A', 'screenplay');
     // A stale anonymous tab can write a fresh entry while A is already signed in.
     const aTabStorage = sessionStorage;
     vi.stubGlobal('sessionStorage', new window.Storage());
@@ -178,7 +186,7 @@ describe('first-work type belongs to the current account', () => {
     expect(getPreferredProjectType('A')).toBe('screenplay');
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
     await screen.findByText('offline login');
-    await logInAndFinishProfile('B', 'serial');
+    await logInAndFinishProfile('B', 'skip');
     expect(initialized.at(-1)).toEqual({ owner: 'B', type: 'short' });
   });
 });

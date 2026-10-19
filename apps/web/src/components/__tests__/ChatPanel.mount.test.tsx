@@ -58,7 +58,7 @@ const capturedUseAgentStream = vi.hoisted(() => ({
 }))
 
 const chatPanelTranslations: Record<string, string> = {
-  'chat:starter.quota': '今天还能发 {{count}} 条；中途停止或出错、还没写出内容的不计入。',
+  'chat:starter.quota': '今天还能免费发 {{count}} 条',
   'chat:panel.quotaExceededTitle': '今天的免费 AI 消息用完了',
   'chat:panel.quotaExceededHint': '北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。',
   'chat:panel.notCharged': '这一轮没有改动文件，不计入今日 AI 消息。',
@@ -926,6 +926,8 @@ describe('ChatPanel mount smoke', () => {
     const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
     expect(request.message).toBe('写一个短篇')
     expect(request.metadata.retry_unanswered).toBe(true)
+    // Still the work's first message: the retry keeps the server's first-message hint.
+    expect(request.metadata.entry).toBe('first_message')
     expect(userBubbles()).toHaveLength(1)
   })
 
@@ -2430,9 +2432,9 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     expect(mockStartStream).not.toHaveBeenCalled()
     expect(lastMessageInputProps().aiSuggestions).toEqual([])
     expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
-    await waitFor(() => expect(screen.getByTestId('starter-quota').textContent).toContain('今天还能发 1 条'))
+    await waitFor(() => expect(screen.getByTestId('starter-quota').textContent).toContain('今天还能免费发 1 条'))
 
-    const example = screen.getByTestId('starter-example-text').textContent
+    const example = screen.getByTestId('starter-message-text').textContent
     fireEvent.click(screen.getByTestId('starter-send'))
 
     await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
@@ -2445,7 +2447,7 @@ describe("ChatPanel starter cards in a work's first chat", () => {
 
     fireEvent.click(await screen.findByTestId('starter-edit'))
 
-    expect(mockDraft.saveDraft).toHaveBeenCalledWith(screen.getByTestId('starter-example-text').textContent)
+    expect(mockDraft.saveDraft).toHaveBeenCalledWith(screen.getByTestId('starter-message-text').textContent)
     expect(mockLayout.focusChatInput).toHaveBeenCalledTimes(1)
     expect(mockStartStream).not.toHaveBeenCalled()
   })
@@ -2480,6 +2482,26 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
     expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
     expect(fetchSuggestions).not.toHaveBeenCalled()
+  })
+
+  it('keeps what the author already typed when the example goes into the input', async () => {
+    mockDraft.draft = '主角是外卖员'
+    render(<ChatPanel />)
+
+    fireEvent.click(await screen.findByTestId('starter-edit'))
+
+    expect(mockDraft.saveDraft).toHaveBeenCalledWith(`主角是外卖员\n${screen.getByTestId('starter-message-text').textContent}`)
+    mockDraft.draft = ''
+  })
+
+  it('shows the cards when the only dashboard idea has expired (it will never be sent)', async () => {
+    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({
+      content: '过期的想法', projectType: 'novel', timestamp: Date.now() - 10 * 60 * 1000,
+    }))
+    render(<ChatPanel />)
+
+    expect(await screen.findByTestId('starter-cards')).toBeInTheDocument()
+    expect(mockStartStream).not.toHaveBeenCalled()
   })
 
   it('a chat the author starts with 新对话 keeps the suggestions', async () => {

@@ -8,7 +8,6 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session
 
-from api.persona import _build_recommendations
 from config.datetime_utils import utcnow
 from models import User
 from services.core.auth_service import hash_password
@@ -50,22 +49,6 @@ def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_explorer_recommendation_respects_inspirations_flag(monkeypatch):
-    monkeypatch.delenv("INSPIRATIONS_ENABLED", raising=False)
-    disabled = _build_recommendations(
-        selected_personas=["explorer"], selected_goals=[], experience_level="intermediate"
-    )
-    assert all(item.action != "/dashboard/inspirations" for item in disabled)
-
-    monkeypatch.setenv("INSPIRATIONS_ENABLED", "true")
-    enabled = _build_recommendations(
-        selected_personas=["explorer"], selected_goals=[], experience_level="intermediate"
-    )
-    assert [(item.id, item.action) for item in enabled] == [
-        ("persona_explorer_template", "/dashboard/inspirations")
-    ]
-
-
 @pytest.mark.integration
 async def test_persona_onboarding_required_for_new_user(client: AsyncClient, db_session: Session, monkeypatch):
     rollout_at = (utcnow() - timedelta(days=2)).isoformat().replace("+00:00", "Z")
@@ -91,7 +74,7 @@ async def test_persona_onboarding_required_for_new_user(client: AsyncClient, db_
 
 
 @pytest.mark.integration
-async def test_persona_onboarding_can_be_saved_and_returns_recommendations(
+async def test_persona_onboarding_can_be_saved_and_read_back(
     client: AsyncClient,
     db_session: Session,
 ):
@@ -120,15 +103,13 @@ async def test_persona_onboarding_can_be_saved_and_returns_recommendations(
     assert payload["profile"]["selected_personas"] == ["serial", "professional"]
     assert payload["profile"]["selected_goals"] == ["improveQuality", "monetize"]
     assert payload["profile"]["experience_level"] == "advanced"
-    assert len(payload["recommendations"]) >= 1
+    # The dashboard suggestions built from these answers were removed with their endpoint.
+    assert "recommendations" not in payload
+    assert (await client.get("/api/v1/persona/recommendations", headers=_auth_headers(token))).status_code == 404
 
-    recommendations_response = await client.get(
-        "/api/v1/persona/recommendations",
-        headers=_auth_headers(token),
-    )
-    assert recommendations_response.status_code == 200
-    recommendations = recommendations_response.json()["recommendations"]
-    assert len(recommendations) >= 1
+    read_back = (await client.get("/api/v1/persona/onboarding", headers=_auth_headers(token))).json()
+    assert read_back["profile"]["selected_personas"] == ["serial", "professional"]
+    assert "recommendations" not in read_back
 
 
 @pytest.mark.integration

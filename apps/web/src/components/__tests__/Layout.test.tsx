@@ -111,6 +111,7 @@ vi.mock('react-i18next', () => ({
 
 // Import Layout after mocks are set up
 import { Layout } from '../Layout'
+import { requestChatOnOpen } from '../../lib/pendingInspiration'
 
 const leftPanel = React.createElement('div', { 'data-testid': 'left-panel' }, 'Left Panel')
 const middlePanel = React.createElement('div', { 'data-testid': 'middle-panel' }, 'Middle Panel')
@@ -294,6 +295,20 @@ describe('Layout', () => {
       }))
       renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
 
+      expect(mockSetActivePanel).not.toHaveBeenCalled()
+    })
+
+    it('opens a work just created from the dashboard without an idea on the AI tab, once', () => {
+      mockCurrentProjectId = 'project-without-idea'
+      requestChatOnOpen('project-without-idea')
+      const first = renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
+
+      expect(mockSetActivePanel).toHaveBeenCalledWith('chat')
+      first.unmount()
+      mockSetActivePanel.mockClear()
+
+      // Reopening the same work later stays on the editor.
+      renderWithRouter(<Layout left={leftPanel} middle={middlePanel} right={rightPanel} />)
       expect(mockSetActivePanel).not.toHaveBeenCalled()
     })
 

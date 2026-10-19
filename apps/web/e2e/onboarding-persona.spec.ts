@@ -95,7 +95,6 @@ test.describe("Onboarding persona flow", () => {
             rollout_at: "2024-01-01T00:00:00Z",
             new_user_window_days: 30,
             profile: null,
-            recommendations: [],
           }),
         });
         return;
@@ -117,7 +116,6 @@ test.describe("Onboarding persona flow", () => {
               // Server default when the experience question is left unanswered.
               experience_level: lastSubmittedPayload?.experience_level ?? "beginner",
             },
-            recommendations: [],
           }),
         });
         return;
@@ -130,21 +128,16 @@ test.describe("Onboarding persona flow", () => {
     await clearCurrentUserPersonaStorage(page);
     await gotoWithRetry(page, "/onboarding/persona");
     await expect(
-      page.getByRole("heading", { level: 1, name: /告诉我们你怎么写作|tell us how you write/i })
+      page.getByRole("heading", { level: 1, name: /你想写什么|what do you want to write/i })
     ).toBeVisible();
   });
 
-  test("submits persona selection and persists onboarding payload", async ({ page }) => {
-    await page.getByRole("button", { name: /新手探索者|beginner explorer/i }).click();
-    await page.getByRole("button", { name: /尽快实现内容变现|monetize content sooner/i }).click();
-    await page.getByRole("radio", { name: /2 年以上|2\+ years/i }).click();
-    await page.getByRole("button", { name: /保存并进入工作台|save and enter workspace/i }).click();
+  test("one tap on a type saves it and opens the dashboard", async ({ page }) => {
+    await page.getByRole("button", { name: /长篇连载|serial novel/i }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15000 });
     expect(lastSubmittedPayload).toMatchObject({
-      selected_personas: ["explorer"],
-      selected_goals: ["monetize"],
-      experience_level: "advanced",
+      selected_personas: ["serial"],
       skipped: false,
     });
 
@@ -158,26 +151,12 @@ test.describe("Onboarding persona flow", () => {
     }, PERSONA_KEY_PREFIX);
 
     expect(savedPayload).not.toBeNull();
-    expect(savedPayload?.selected_personas).toEqual(["explorer"]);
-    expect(savedPayload?.selected_goals).toEqual(["monetize"]);
-    expect(savedPayload?.experience_level).toBe("advanced");
+    expect(savedPayload?.selected_personas).toEqual(["serial"]);
     expect(savedPayload?.skipped).toBe(false);
   });
 
-  test("shows limit warning when selecting more than three personas", async ({ page }) => {
-    await page.getByRole("button", { name: /新手探索者|beginner explorer/i }).click();
-    await page.getByRole("button", { name: /连载成长型|serial growth writer/i }).click();
-    await page.getByRole("button", { name: /职业创作者|professional creator/i }).click();
-    await page.getByRole("button", { name: /同人\/兴趣创作者|fanfic \/ hobby creator/i }).click();
-
-    await expect(
-      page.getByText(/请先取消一个|deselect one first/i)
-    ).toBeVisible();
-    await expect(page.getByText(/3 \/ 3 已选|3 \/ 3 selected/i)).toBeVisible();
-  });
-
   test("skip action stores skipped payload and redirects to dashboard", async ({ page }) => {
-    await page.getByRole("button", { name: /^(跳过|Skip)$/i }).click();
+    await page.getByRole("button", { name: /^(先跳过|Skip for now)$/i }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15000 });
 
@@ -232,7 +211,7 @@ test.describe("Onboarding gate regression", () => {
         status: 200,
         json: {
           required: true, rollout_at: "2026-03-05T16:00:00Z", new_user_window_days: 7,
-          profile: null, recommendations: [],
+          profile: null,
         },
       });
     });
