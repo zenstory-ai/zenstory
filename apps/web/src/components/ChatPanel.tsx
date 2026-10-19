@@ -62,7 +62,6 @@ import type {
   FileEditUndoTarget,
   FileType,
   SSEWorkflowStoppedData,
-  TreeNodeType,
 } from "../types";
 import { logger } from "../lib/logger";
 import {
@@ -75,8 +74,7 @@ import {
 } from "../lib/chatApi";
 import { fileVersionApi, projectApi, versionApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
-import { StarterCards, type StarterKind } from "./StarterCards";
-import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
+import { StarterCards } from "./StarterCards";
 import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
 import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
@@ -552,10 +550,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * A chat the author starts with 「新对话」 keeps the suggestions.
    */
   const [starterProjectId, setStarterProjectId] = useState<string | null>(null);
-  /** The current project has manuscript text (from the same progress read as the next-step card). */
-  const [manuscriptProjectId, setManuscriptProjectId] = useState<string | null>(null);
-  /** The project whose progress has been read (or failed to load): the starter cards wait for it. */
-  const [progressCheckedProjectId, setProgressCheckedProjectId] = useState<string | null>(null);
   const starterProjectIdRef = useRef<string | null>(null);
   useEffect(() => {
     starterProjectIdRef.current = starterProjectId;
@@ -666,14 +660,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       const ready = progress?.framework_ready ? projectId : null;
       frameworkReadyRef.current = ready;
       setFrameworkReadyProjectId(ready);
-      setManuscriptProjectId(progress && progress.word_count > 0 ? projectId : null);
     } catch (error) {
       logger.warn("Failed to load the project's progress:", error);
-    } finally {
-      // Without progress the cards fall back to the example; they never wait forever.
-      if (currentProjectIdRef.current === projectId && seq === nextStepRequestSeqRef.current) {
-        setProgressCheckedProjectId(projectId);
-      }
     }
   }, []);
   // 作者手动保存/自动保存正文后立即重查进度，写出第一章正文后卡片当场消失，
@@ -1970,10 +1958,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   })();
   // Used up for today: the existing quota card explains instead (a press could not send).
-  // Waits for the project's progress so a work with text never flashes the example first.
   const showStarterCards = Boolean(currentProjectId)
     && starterProjectId === currentProjectId
-    && progressCheckedProjectId === currentProjectId
     && messages.length === 0
     && !aiSendBlocked
     && !hasPendingDashboardIdea
@@ -1987,38 +1973,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     trackEvent("starter_viewed", { project_id: currentProjectId, project_type: currentProject?.project_type });
   }, [showStarterCards, currentProjectId, currentProject?.project_type]);
 
-  const handleStarterSend = useCallback((message: string, kind: StarterKind) => {
-    trackEvent("starter_sent", { project_id: currentProjectId, kind });
-    // A read-through of the author's own draft is not a "write the opening" first message.
-    void handleSendMessage(message, undefined, { entry: kind === "manuscript" ? "starter_manuscript" : "starter_example" });
+  const handleStarterSend = useCallback((message: string) => {
+    trackEvent("starter_sent", { project_id: currentProjectId });
+    void handleSendMessage(message, undefined, { entry: "starter_example" });
   }, [currentProjectId, handleSendMessage]);
 
-  const handleStarterEdit = useCallback((message: string, kind: StarterKind) => {
-    trackEvent("starter_edited", { project_id: currentProjectId, kind });
+  const handleStarterEdit = useCallback((message: string) => {
+    trackEvent("starter_edited", { project_id: currentProjectId });
     saveDraft(message);
     focusChatInput();
   }, [currentProjectId, saveDraft, focusChatInput]);
-
-  // 「有稿子？导入」 in the starter cards: import, open chapter 1, and offer its read-through.
-  const draftInputRef = useRef<HTMLInputElement>(null);
-  const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
-  const handleStarterImport = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(event.target.files ?? []);
-    event.target.value = "";
-    const projectId = currentProjectIdRef.current;
-    if (!projectId || picked.length === 0) return;
-    const created = await importDrafts(projectId, picked, "starter_cards");
-    if (!created?.length || currentProjectIdRef.current !== projectId) return;
-    triggerFileTreeRefresh();
-    const first = created[0];
-    setSelectedItem({ id: first.id, title: first.title, type: first.file_type as TreeNodeType });
-    void refreshNextStep(projectId);
-  }, [importDrafts, triggerFileTreeRefresh, setSelectedItem, refreshNextStep]);
-
-  const handleStarterAskOther = useCallback(() => {
-    trackEvent("starter_ask_other", { project_id: currentProjectId });
-    focusChatInput();
-  }, [currentProjectId, focusChatInput]);
 
   // Check for inspiration from Dashboard and auto-send
   const inspirationProcessedRef = useRef<Set<string>>(new Set());
@@ -2517,29 +2481,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             </div>
           ) : messages.length === 0 && !isStreaming && !isThinking && !(error && retryable) && sessionRecoveryError !== currentProjectId ? (
             showStarterCards ? (
-              <>
-                <input
-                  ref={draftInputRef}
-                  type="file"
-                  accept={DRAFT_IMPORT_ACCEPT}
-                  multiple
-                  className="hidden"
-                  data-testid="starter-import-input"
-                  onChange={(event) => { void handleStarterImport(event); }}
-                />
-                <StarterCards
-                  projectType={currentProject?.project_type}
-                  hasManuscript={manuscriptProjectId === currentProjectId}
-                  remainingToday={showDailyCount && aiMessageQuota ? Math.max(0, aiMessageQuota.limit - aiMessageQuota.used) : null}
-                  onSend={handleStarterSend}
-                  onEdit={handleStarterEdit}
-                  // On desktop the editor's empty state already offers the import beside the chat.
-                  showImport={isMobile || selectedItem !== null}
-                  onAskOther={handleStarterAskOther}
-                  onImport={() => draftInputRef.current?.click()}
-                  isImporting={isImportingDrafts}
-                />
-              </>
+              <StarterCards
+                projectType={currentProject?.project_type}
+                remainingToday={showDailyCount && aiMessageQuota ? Math.max(0, aiMessageQuota.limit - aiMessageQuota.used) : null}
+                onSend={handleStarterSend}
+                onEdit={handleStarterEdit}
+              />
             ) : (
             <div className="h-[200px] flex flex-col items-center justify-center text-[hsl(var(--text-secondary))]">
               <Sparkles size={48} className="mb-4 opacity-30" />

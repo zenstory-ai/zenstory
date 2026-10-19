@@ -37,7 +37,6 @@ const mockStartStream = vi.hoisted(() => vi.fn())
 const mockScrollToBottom = vi.hoisted(() => vi.fn())
 const mockRollback = vi.hoisted(() => vi.fn())
 const mockGetProgress = vi.hoisted(() => vi.fn(async () => [] as unknown[]))
-const mockUploadDraft = vi.hoisted(() => vi.fn())
 
 let testQueryClient: QueryClient
 const render = (ui: React.ReactElement) => {
@@ -246,7 +245,6 @@ vi.mock('../../lib/api', () => ({
   fileVersionApi: { rollback: mockRollback },
   versionApi: {},
   projectApi: { getProgress: mockGetProgress },
-  fileApi: { uploadDraft: mockUploadDraft },
 }))
 
 type MockMessageInputProps = {
@@ -2482,78 +2480,6 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
     expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
     expect(fetchSuggestions).not.toHaveBeenCalled()
-  })
-
-  it("offers a read-through of the author's own draft when the work already has text", async () => {
-    mockGetProgress.mockResolvedValue([
-      { project_id: 'project-1', written_units: 3, word_count: 9200, framework_ready: false },
-    ])
-    render(<ChatPanel />)
-
-    await screen.findByTestId('starter-manuscript')
-    expect(screen.queryByTestId('starter-example')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('starter-import')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('starter-send'))
-
-    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
-    // The greeting says what will be asked; the request is sent in the author's name.
-    expect(sent().message).toBe('chat:starter.manuscript.message')
-    // Not a "write the opening" first message: no first-message hint on the server.
-    expect(sent().metadata.entry).toBe('starter_manuscript')
-    mockGetProgress.mockResolvedValue([])
-  })
-
-  it('imports a draft from the cards, opens chapter 1 and switches to its read-through', async () => {
-    mockUploadDraft.mockResolvedValueOnce({
-      files: [{ id: 'chapter-1', title: '第一章 雨夜', file_type: 'draft' }], total: 1, errors: [],
-    })
-    render(<ChatPanel />)
-    await screen.findByTestId('starter-example')
-    mockGetProgress.mockResolvedValue([
-      { project_id: 'project-1', written_units: 1, word_count: 3100, framework_ready: false },
-    ])
-
-    const file = new File(['第一章 雨夜\n她推开了门。'], 'draft.txt', { type: 'text/plain' })
-    fireEvent.change(screen.getByTestId('starter-import-input'), { target: { files: [file] } })
-
-    await waitFor(() => expect(mockUploadDraft).toHaveBeenCalledWith('project-1', file))
-    await waitFor(() => expect(mockProjectState.setSelectedItem).toHaveBeenCalledWith({ id: 'chapter-1', title: '第一章 雨夜', type: 'draft' }))
-    expect(mockProjectState.triggerFileTreeRefresh).toHaveBeenCalled()
-    await screen.findByTestId('starter-manuscript')
-    // Importing never sends anything to the AI.
-    expect(mockStartStream).not.toHaveBeenCalled()
-    mockGetProgress.mockResolvedValue([])
-  })
-
-  it('waits for the work\'s progress so a work with text never flashes the example first', async () => {
-    let finishProgress!: (value: unknown[]) => void
-    mockGetProgress.mockImplementationOnce(() => new Promise((resolve) => { finishProgress = resolve }))
-    render(<ChatPanel />)
-
-    await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
-    expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
-    await act(async () => {
-      finishProgress([{ project_id: 'project-1', written_units: 2, word_count: 5000, framework_ready: false }])
-    })
-
-    await screen.findByTestId('starter-manuscript')
-    expect(screen.queryByTestId('starter-example')).not.toBeInTheDocument()
-  })
-
-  it('offers one import entry: in the chat on phones or beside an open file, else the editor shows it', async () => {
-    const first = render(<ChatPanel />)
-    await screen.findByTestId('starter-example')
-    // Desktop, nothing open: the editor's empty state already shows the import beside the chat.
-    expect(screen.queryByTestId('starter-import')).not.toBeInTheDocument()
-    first.unmount()
-
-    mockLayout.isMobile = true
-    try {
-      render(<ChatPanel />)
-      expect(await screen.findByTestId('starter-import')).toBeInTheDocument()
-    } finally {
-      mockLayout.isMobile = false
-    }
   })
 
   it('a chat the author starts with 新对话 keeps the suggestions', async () => {

@@ -410,13 +410,6 @@
       "use": "Write this",
       "edit": "Let me tweak it"
     },
-    "manuscript": {
-      "greeting": "You already have a draft. Want me to read it through and tell you what hooks readers and where the opening loses them? You decide what to change.",
-      "message": "Read my draft: tell me what hooks readers most and the three spots in the opening most likely to lose them. Don't change the original yet.",
-      "send": "Yes, read it",
-      "other": "Ask something else",
-      "import": "Have a draft already? Import it and I'll take a look"
-    },
     "quota": "{{count}} free messages left today"
   }
 }
