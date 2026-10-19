@@ -49,7 +49,10 @@ export function FirstWorkEntry({ userId, preferredType, onCreated }: {
       }}>{t('common:retry')}</Button>
     </div>;
   }
-  if (work?.status === 'pending' || state.isPending) {
+  // Nothing while eligibility is unknown: most accounts are not in the rollout, and a
+  // 「正在准备…」 flash on every dashboard load would announce work that never happens.
+  if (state.isPending) return null;
+  if (work?.status === 'pending') {
     return <div role="status" aria-busy="true" className="mb-5 flex items-center gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5 sm:p-6">
       <LoadingSpinner size="sm" className="shrink-0" />
       <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">{t('firstWork.preparing')}</p>
