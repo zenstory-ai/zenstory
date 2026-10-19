@@ -69,6 +69,7 @@ STANDARD_HANDOFF_ARTIFACT_ACTIONS = (
     "create_file",
     "edit_file",
     "delete_file",
+    "rename_file",
     "update_project",
 )
 
@@ -1427,7 +1428,7 @@ def _extract_tool_artifact_refs(tool_name: str, args: dict[str, Any], result: An
     """Extract artifact refs from successful tool outputs."""
     refs: list[str] = []
 
-    if tool_name == "create_file" and isinstance(result, dict) or tool_name == "edit_file" and isinstance(result, dict):
+    if tool_name in ("create_file", "edit_file", "rename_file") and isinstance(result, dict):
         file_id = result.get("id")
         if isinstance(file_id, str):
             refs.append(file_id)
@@ -2252,6 +2253,82 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_error(str(e), tool_name=tool_name)
 
 
+async def rename_file(args: dict[str, Any]) -> dict[str, Any]:
+    """只改文件标题（#273）：不碰正文、不新建、不删除。"""
+    if _should_offload_tool_execution():
+        return await asyncio.to_thread(_run_sync_tool_with_owned_session_cleanup, _rename_file_sync, args)
+    return _rename_file_sync(args)
+
+
+def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
+    """Synchronous rename_file implementation: a title-only FileCRUD.update_file."""
+    tool_name = "rename_file"
+    executor = ToolContext.get_executor()
+    project_id = ToolContext._get_context().get("project_id")
+    if project_id is None:
+        return _make_error("project_id not set", tool_name=tool_name)
+
+    file_id = args.get("id")
+    title = args.get("title")
+    if not isinstance(file_id, str) or not file_id.strip():
+        return _make_error("rename_file 需要文件 id", tool_name=tool_name)
+    if not isinstance(title, str) or not title.strip():
+        return _make_error("rename_file 需要非空的新标题", tool_name=tool_name)
+    file_id, title = file_id.strip(), title.strip()
+
+    try:
+        from models import File
+
+        session = ToolContext.get_session()
+        current = session.get(File, file_id)
+        if current is None or current.is_deleted or current.project_id != project_id:
+            return _make_error("文件不存在或已删除", tool_name=tool_name)
+        previous_title = current.title
+        if title == previous_title:
+            data = {"id": file_id, "title": title, "previous_title": previous_title, "mutation_applied": False}
+            return _make_result(
+                {"status": "success", "mutation_applied": False, "data": data},
+                tool_name=tool_name,
+            )
+        clash = session.exec(
+            select(File.id).where(
+                File.project_id == project_id,
+                File.parent_id == current.parent_id,
+                File.title == title,
+                File.is_deleted.is_(False),
+                File.id != file_id,
+            )
+        ).first()
+        if clash is not None:
+            return _make_error(
+                f"同一文件夹里已有名为《{title}》的文件，换一个标题或先问作者",
+                tool_name=tool_name,
+            )
+
+        result = executor.update_file(id=file_id, title=title)
+        data = {
+            "id": result.get("id", file_id),
+            "title": result.get("title", title),
+            "previous_title": previous_title,
+            "file_type": result.get("file_type"),
+            "parent_id": result.get("parent_id"),
+            # SSE 的 tool_result 只转发 data：计费和前端进度从这里读是否真的改了。
+            "mutation_applied": True,
+        }
+        _record_artifact_ledger(
+            action=tool_name,
+            tool_name=tool_name,
+            artifact_refs=[file_id],
+            payload={"title": data["title"]},
+        )
+        return _make_result(
+            {"status": "success", "mutation_applied": True, "data": data},
+            tool_name=tool_name,
+        )
+    except Exception as e:
+        return _make_error(str(e), tool_name=tool_name)
+
+
 async def query_files(args: dict[str, Any]) -> dict[str, Any]:
     """查询和搜索项目中的文件。"""
     if _should_offload_tool_execution():
@@ -3032,6 +3109,7 @@ MCP_TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "create_file": create_file,
     "edit_file": edit_file,
     "delete_file": delete_file,
+    "rename_file": rename_file,
     "query_files": query_files,
     "update_project": update_project,
     "handoff_to_agent": handoff_to_agent,

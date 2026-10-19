@@ -265,6 +265,11 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
         icon: <Trash2 className="w-4 h-4 text-[hsl(var(--error-text))]" />,
         label: t('chat:tool.delete_file')
       };
+    case 'rename_file':
+      return {
+        icon: <FileEdit className="w-4 h-4 text-[hsl(var(--accent-primary))]" />,
+        label: t('chat:tool.rename_file')
+      };
     case 'query_files':
       return { 
         icon: <Search className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />, 
@@ -734,6 +739,23 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       );
     }
     
+    // rename_file success: only the title changed (#273)
+    if (toolName === 'rename_file' && data && typeof data === 'object' && !Array.isArray(data)) {
+      const renamed = data as Record<string, unknown>;
+      const from = typeof renamed.previous_title === 'string' ? renamed.previous_title : '';
+      const to = typeof renamed.title === 'string' ? renamed.title : '';
+      return (
+        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
+            <span className="text-sm text-[hsl(var(--success-text))] break-words">
+              {t('chat:tool.renamed', { from, to })}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
     // delete_file success
     if (toolName === 'delete_file') {
       return (

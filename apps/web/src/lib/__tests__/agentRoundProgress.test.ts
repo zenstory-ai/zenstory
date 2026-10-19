@@ -14,6 +14,11 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(isWriteToolResult('edit_file', 'error', { mutation_applied: true })).toBe(false)
   })
 
+  it('counts a rename only when the title actually changed', () => {
+    expect(isWriteToolResult('rename_file', 'success', { id: 'ch1', title: '新名', mutation_applied: true })).toBe(true)
+    expect(isWriteToolResult('rename_file', 'success', { id: 'ch1', title: '旧名', mutation_applied: false })).toBe(false)
+  })
+
   it('counts parallel chapter writes but not parallel lookups', () => {
     expect(isWriteToolResult('parallel_execute', 'success', {
       tasks: [{ type: 'write_chapter', status: 'completed' }],

@@ -114,7 +114,7 @@ def extract_artifact_refs(
         return merge_unique_strings(refs)
 
     data = payload.get("data")
-    if tool_name in {"create_file", "edit_file"} and isinstance(data, dict):
+    if tool_name in {"create_file", "edit_file", "rename_file"} and isinstance(data, dict):
         file_id = data.get("id")
         if isinstance(file_id, str) and file_id.strip():
             refs.append(file_id.strip())

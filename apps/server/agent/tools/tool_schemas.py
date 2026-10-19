@@ -158,6 +158,28 @@ DELETE_FILE_TOOL: dict[str, Any] = {
     }
 }
 
+# Tool: rename_file
+RENAME_FILE_TOOL: dict[str, Any] = {
+    "name": "rename_file",
+    "description": (
+        "只修改文件标题（文件名），文件 id、正文、位置和版本历史都不变。"
+        "作者只要求改名时用它；不要为改名新建文件、复制或重写正文、再删除旧文件。"
+        "同一文件夹里已有同名文件时会被拒绝。结果只返回新旧标题，不返回正文。"
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "description": "要改名的文件 ID"},
+            "title": {
+                "type": "string",
+                "description": "新标题，最多 255 字；只写标题，不要把正文放进来",
+                "maxLength": 255,
+            },
+        },
+        "required": ["id", "title"],
+    },
+}
+
 # Tool: query_files
 QUERY_FILES_TOOL: dict[str, Any] = {
     "name": "query_files",
@@ -491,6 +513,7 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "create_file": CREATE_FILE_TOOL,
     "edit_file": EDIT_FILE_TOOL,
     "delete_file": DELETE_FILE_TOOL,
+    "rename_file": RENAME_FILE_TOOL,
     "query_files": QUERY_FILES_TOOL,
     "update_project": UPDATE_PROJECT_TOOL,
     "handoff_to_agent": HANDOFF_TO_AGENT_TOOL,

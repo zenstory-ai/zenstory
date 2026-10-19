@@ -93,6 +93,7 @@ export function isWriteToolResult(
     return true;
   }
   if (toolName === 'delete_file') return true;
+  if (toolName === 'rename_file') return payload?.mutation_applied === true;
   if (toolName === 'update_project') {
     const fields = Array.isArray(payload?.updated_fields) ? (payload.updated_fields as unknown[]) : [];
     return (

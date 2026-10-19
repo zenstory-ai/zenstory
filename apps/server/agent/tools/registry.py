@@ -18,6 +18,7 @@ DEFAULT_TOOL_NAMES: list[str] = [
     "create_file",
     "edit_file",
     "delete_file",
+    "rename_file",
     "query_files",
     "update_project",
     "handoff_to_agent",
@@ -43,6 +44,7 @@ FILE_WRITE_TOOL_NAMES: frozenset[str] = frozenset({
     "create_file",
     "edit_file",
     "delete_file",
+    "rename_file",
     "parallel_execute",
 })
 

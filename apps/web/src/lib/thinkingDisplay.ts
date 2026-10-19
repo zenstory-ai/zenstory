@@ -17,6 +17,7 @@ const UNDERSCORE_IDENTIFIER_KEYS: Record<string, string | null> = {
   update_file: 'chat:tool.update_file',
   edit_file: 'chat:tool.edit_file',
   delete_file: 'chat:tool.delete_file',
+  rename_file: 'chat:tool.rename_file',
   query_files: 'chat:tool.query_files',
   hybrid_search: 'chat:tool.hybrid_search',
   update_project: 'chat:tool.update_project',

@@ -43,7 +43,7 @@ from agent.tools.file_ops.serialization import resolve_query_files_response_mode
 READ_TOOL_NAME = "query_files"
 PARALLEL_TOOL_NAME = "parallel_execute"
 # 直接调用即写文件的工具（成功后清零该文件的读取计数）。
-WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "edit_file", "delete_file"})
+WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "edit_file", "delete_file", "rename_file"})
 # parallel_execute 里会改动文件的子任务类型。
 PARALLEL_WRITE_TASK_TYPES: frozenset[str] = frozenset({"write_chapter", "edit_file", "delete_file"})
 

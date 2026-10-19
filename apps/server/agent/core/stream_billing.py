@@ -49,7 +49,7 @@ from agent.core.events import NON_TERMINAL_WORKFLOW_STOPPED_REASONS
 from core.error_codes import ErrorCode
 
 # 会改动用户文件的工具；是否算「写出了东西」见 StreamBillingTracker._write_effect。
-WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "edit_file", "delete_file"})
+WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "edit_file", "delete_file", "rename_file"})
 # 同一段回复正文累计到这么多可见字符才算「真正的回复」：工具调用前的一句过渡旁白
 # （「我先看一遍全书大纲。」「正在查看已有的全书大纲，确认现有设定后再梳理主线。」）
 # 通常 10～30 字，到不了这里。前端 lib/agentRoundProgress.ts 用同一个值。
@@ -273,6 +273,8 @@ class StreamBillingTracker:
             return True  # 旧格式结果没有这两个字段：成功即算
         if tool_name == "delete_file":
             return True
+        if tool_name == "rename_file":
+            return data.get("mutation_applied") is True
         if tool_name == "update_project":
             updated_fields = data.get("updated_fields")
             changed_info = isinstance(updated_fields, list) and any(

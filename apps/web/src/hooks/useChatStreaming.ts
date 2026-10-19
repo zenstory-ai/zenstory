@@ -1210,6 +1210,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
               "update_file",
               "delete_file",
               "edit_file",
+              "rename_file",
               // parallel_execute may create/edit/delete files across its
               // sub-tasks, so its completion must also refresh the tree.
               "parallel_execute",
@@ -1238,6 +1239,15 @@ export function useChatStreaming(): UseChatStreamingReturn {
                   if (getCurrentSelectedItem?.()?.id === id) setSelectedItem(null);
                 }
               }
+              refreshOpenFileFromServer();
+            }
+          }
+
+          // 改名不发 file_edit_* 事件：打开着的正是这份文件时重读一次，标题跟上服务端
+          //（作者没改过的标题跟随服务端，未保存的正文保留在新的版本令牌上）。
+          if (status === "success" && toolName === "rename_file") {
+            const renamed = (result?.data ?? result) as Record<string, unknown> | undefined;
+            if (typeof renamed?.id === "string" && getCurrentSelectedItem?.()?.id === renamed.id) {
               refreshOpenFileFromServer();
             }
           }

@@ -36,6 +36,9 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.failureHint.authorEdited' && options?.title !== undefined) {
     return `Kept edits in ${options.title}`
   }
+  if (key === 'chat:tool.renamed' && options?.to !== undefined) {
+    return `Renamed ${options.from} to ${options.to}`
+  }
   if (key === 'chat:response.conflicts_detected' && options?.count !== undefined) {
     return `Conflicts detected`
   }
@@ -355,6 +358,17 @@ describe('ToolResultCard', () => {
       expect(container.querySelector('details')?.open).toBe(true)
       expect(screen.getByText('你也配问这个？')).toBeInTheDocument()
       expect(screen.queryByText('你配吗。')).not.toBeInTheDocument()
+    })
+
+    it('shows a rename as old and new titles, without any file body', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="rename_file"
+          result={{ data: { id: 'f1', title: '第一卷 雨夜', previous_title: '合集', mutation_applied: true } }}
+        />
+      )
+      expect(screen.getByText('Renamed 合集 to 第一卷 雨夜')).toBeInTheDocument()
     })
 
     it('says when an edit put back a paragraph the author deleted, not that it changed their text', () => {
