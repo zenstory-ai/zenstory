@@ -131,7 +131,7 @@
   "emptyStateDescription": "Open a file, or create a chapter or outline.",
   "emptyStateDescriptionScript": "Open a file, or create a script or outline.",
   "emptyStateAction": "Create New File",
-  "emptyStateHint": "Or just ask the AI to get you started.",
+  "emptyStateHint": "Or let the AI get you started",
   "emptyStateIcon": "file-plus",
   "reviewMode": "Review changes by paragraph",
   "reviewModeHint": "Accept or reject changes. Keyboard shortcuts are available.",

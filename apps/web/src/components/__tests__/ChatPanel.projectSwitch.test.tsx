@@ -198,6 +198,15 @@ vi.mock('../../lib/toast', () => ({
 
 import { ChatPanel } from '../ChatPanel'
 import { getRecentMessages } from '../../lib/chatApi'
+
+/** An earlier exchange in the chat: opening it requests suggestions (a work's empty first chat shows the starter cards instead). */
+function withEarlierTurn() {
+  vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+    id: 'msg-earlier', session_id: 'session-1', role: 'assistant', content: '上一轮的回复',
+    tool_calls: null, created_at: '2026-10-05T10:00:00Z', metadata: null,
+  }] as never)
+}
+
 import { fetchSuggestions } from '../../lib/agentApi'
 
 type StreamCallbackOptions = {
@@ -365,6 +374,7 @@ describe('ChatPanel project switch stream cleanup', () => {
   ])('refreshes an unusable %s cache once instead of treating it as empty success', async (_name, cache) => {
     localStorage.setItem('zenstory_suggestions_cache_project-1', cache())
     vi.mocked(fetchSuggestions).mockResolvedValueOnce(['当前任务的建议'])
+    withEarlierTurn()
     render(<ChatPanel />)
     await waitFor(() => expect(lastMessageInputProps()?.aiSuggestions).toEqual(['当前任务的建议']))
     expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready')
@@ -379,6 +389,7 @@ describe('ChatPanel project switch stream cleanup', () => {
     const remove = vi.spyOn(localStorage, 'removeItem').mockClear()
     try {
       vi.mocked(fetchSuggestions).mockResolvedValueOnce([])
+      withEarlierTurn()
       render(<ChatPanel />)
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       expect(fetchSuggestions).toHaveBeenCalledTimes(1)
@@ -393,6 +404,7 @@ describe('ChatPanel project switch stream cleanup', () => {
     try {
       let finish!: (value: null) => void
       vi.mocked(fetchSuggestions).mockReturnValueOnce(new Promise(resolve => { finish = resolve }) as never)
+      withEarlierTurn()
       render(<ChatPanel />)
       await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
       await act(async () => { vi.advanceTimersByTime(1600) })
@@ -411,6 +423,7 @@ describe('ChatPanel project switch stream cleanup', () => {
       const existing = mode === 'empty' ? [] : ['仍适用的任务建议']
       localStorage.setItem('zenstory_suggestions_cache_project-1', JSON.stringify({ suggestions: existing, updatedAt: Date.now() }))
       vi.mocked(fetchSuggestions).mockResolvedValueOnce(null as never)
+      withEarlierTurn()
       render(<ChatPanel />)
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       const options = capturedUseAgentStream.options as StreamCallbackOptions
@@ -429,6 +442,7 @@ describe('ChatPanel project switch stream cleanup', () => {
     try {
       localStorage.setItem('zenstory_suggestions_cache_project-1', JSON.stringify({ suggestions: ['已有建议'], updatedAt: Date.now() }))
       vi.mocked(fetchSuggestions).mockRejectedValueOnce(new Error('synthetic refresh failure'))
+      withEarlierTurn()
       render(<ChatPanel />)
       await waitFor(() => expect(lastMessageInputProps()?.suggestionDisplayState).toBe('ready'))
       const options = capturedUseAgentStream.options as StreamCallbackOptions

@@ -393,5 +393,23 @@
       "label": "Write episode 1",
       "message": "Write the episode 1 script from the episode outline"
     }
+  },
+  "starter": {
+    "title": "Your first message could be",
+    "subtitle": "\"Send\" sends the text on the card exactly as shown; \"Edit first\" puts it in the box so you can change it.",
+    "example": {
+      "label": "Try an example",
+      "novel": "Write an alternate-history court-intrigue novel: the protagonist wakes up as the empire's most overlooked sixth prince and only wants to quietly build up troops to protect himself, but his father and elder brothers keep pushing him into the spotlight. Introduce the protagonist and the court factions in a few sentences, then write the opening of chapter 1, about 800 characters, into the manuscript.",
+      "short": "Write a short story with a twist: on the last day of the college entrance exam, a film-star mother just released from prison kneels in front of her daughter at the school gate, every livestream camera on this \"reunion\", and only the daughter knows why she went to prison. First person; introduce the characters in a few sentences, then write the opening, about 800 characters, into the manuscript.",
+      "screenplay": "Write a vertical short drama: a healer's apprentice comes down the mountain to marry, his fiancée tears up the marriage contract in public, and he marries her older sister instead. Introduce the relationships in a few sentences, then write the episode 1 script, ending on a twist."
+    },
+    "send": "Send",
+    "edit": "Edit first",
+    "own": {
+      "label": "Use my idea",
+      "description": "One sentence is enough: who the protagonist is and what happens to them.",
+      "action": "Write my own"
+    },
+    "quota": "{{count}} AI messages left today. Rounds you stop or that fail before writing anything don't count."
   }
 }

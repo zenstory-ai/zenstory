@@ -131,7 +131,7 @@
   "emptyStateDescription": "打开一个文件，或新建章节、大纲。",
   "emptyStateDescriptionScript": "打开一个文件，或新建剧本、大纲。",
   "emptyStateAction": "创建新文件",
-  "emptyStateHint": "也可以直接让 AI 帮你起个头。",
+  "emptyStateHint": "或者让 AI 帮你起个头",
   "emptyStateIcon": "file-plus",
   "reviewMode": "逐段审阅修改",
   "reviewModeHint": "接受或拒绝修改，支持快捷键。",

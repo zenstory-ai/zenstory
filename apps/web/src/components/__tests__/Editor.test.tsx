@@ -158,10 +158,12 @@ vi.mock('../../contexts/MaterialAttachmentContext', () => ({
   MaterialAttachmentProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
 
-const viewport = vi.hoisted(() => ({ isMobile: false }))
+const viewport = vi.hoisted(() => ({ isMobile: false, switchToChat: vi.fn(), focusChatInput: vi.fn() }))
 vi.mock('../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => ({
     isMobile: viewport.isMobile,
+    switchToChat: viewport.switchToChat,
+    focusChatInput: viewport.focusChatInput,
   }),
   MobileLayoutProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
@@ -369,6 +371,23 @@ describe('Editor', () => {
     mockProjectContext = createMockProjectContext({ selectedItem: null })
     render(<Editor />)
     expect(screen.getByText(/Tip: Use the AI assistant/i)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['desktop', false, 'focusChatInput'],
+    ['phone', true, 'switchToChat'],
+  ] as const)('opens the chat from the empty-state AI hint on %s', (_name, isMobile, expected) => {
+    viewport.isMobile = isMobile
+    viewport.switchToChat.mockClear()
+    viewport.focusChatInput.mockClear()
+    mockProjectContext = createMockProjectContext({ selectedItem: null })
+    render(<Editor />)
+
+    fireEvent.click(screen.getByTestId('empty-state-ask-ai'))
+
+    // Phones switch panels without raising the keyboard over the starter cards.
+    expect(viewport[expected]).toHaveBeenCalledTimes(1)
+    expect(viewport[expected === 'switchToChat' ? 'focusChatInput' : 'switchToChat']).not.toHaveBeenCalled()
   })
 
   it('renders keyboard shortcut hint in empty state', () => {

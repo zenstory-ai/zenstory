@@ -134,7 +134,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const currentUserId = user?.id ?? null;
   const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
   // Layout 在手机宽度下用 MobileLayoutProvider 包住编辑器，这里和它用同一个判断。
-  const { isMobile } = useMobileLayout();
+  const { isMobile, switchToChat, focusChatInput } = useMobileLayout();
   const {
     selectedItem,
     currentProject,
@@ -1464,13 +1464,19 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
           {/* Hints Section */}
           <div className="space-y-3 pt-2">
-            {/* AI Hint */}
-            <div className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--text-secondary))] group cursor-default">
-              <div className="p-1.5 rounded-md bg-[hsl(var(--accent-primary)/0.08)] group-hover:bg-[hsl(var(--accent-primary)/0.12)] transition-colors">
+            {/* AI Hint: opens the chat, where an empty first conversation offers starter cards.
+                Phones switch panels without raising the keyboard over those cards. */}
+            <button
+              type="button"
+              data-testid="empty-state-ask-ai"
+              onClick={isMobile ? switchToChat : focusChatInput}
+              className="mx-auto flex min-h-[44px] md:min-h-0 items-center justify-center gap-2 rounded-md px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] group"
+            >
+              <span className="p-1.5 rounded-md bg-[hsl(var(--accent-primary)/0.08)] group-hover:bg-[hsl(var(--accent-primary)/0.12)] transition-colors">
                 <Zap className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))]" />
-              </div>
+              </span>
               <span>{t('editor:emptyStateHint')}</span>
-            </div>
+            </button>
 
             {/* Keyboard Shortcut Hint (no physical keyboard on phones) */}
             {!isMobile && (

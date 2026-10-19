@@ -74,6 +74,7 @@ import {
 } from "../lib/chatApi";
 import { fileVersionApi, projectApi, versionApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
+import { StarterCards } from "./StarterCards";
 import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
 import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
@@ -459,7 +460,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quota(), restore);
     queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quotaLite(), restore);
   }, [queryClient]);
-  const { isMobile, activePanel, chatFocusRequest, switchToEditor } = useMobileLayout();
+  const { isMobile, activePanel, chatFocusRequest, switchToEditor, focusChatInput } = useMobileLayout();
   const { attachedFileIds, attachedLibraryMaterials, clearMaterials } = useMaterialAttachment();
   const { quotes, clearQuotes } = useTextQuote();
 
@@ -542,6 +543,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     getStreamCallbacks,
   } = useChatStreaming();
   const [suggestionDisplayState, setSuggestionDisplayState] = useState<SuggestionDisplayState>("loading");
+  /**
+   * The project whose chat opened with no messages at all: its empty chat shows the starter
+   * cards instead of requesting /suggest, and the first message typed there carries
+   * `entry: "first_message"` (the server checks the work really has no AI reply yet).
+   * A chat the author starts with 「新对话」 keeps the suggestions.
+   */
+  const [starterProjectId, setStarterProjectId] = useState<string | null>(null);
+  const starterProjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    starterProjectIdRef.current = starterProjectId;
+  }, [starterProjectId]);
   const suggestionRequestSeqRef = useRef(0);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
@@ -1579,9 +1591,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     void refreshNextStep(currentProjectId);
 
     // Load chat history first, then request project suggestions immediately.
+    setStarterProjectId(null);
     void (async () => {
       const loadedMessages = await loadChatHistory(currentProjectId);
       if (loadedMessages === null) return;
+      if (loadedMessages.length === 0) {
+        // A work's first conversation: starter cards, no automatic /suggest request.
+        setStarterProjectId(currentProjectId);
+        setAiSuggestions([]);
+        setSuggestionDisplayState("ready");
+        return;
+      }
       await requestInitialSuggestions(currentProjectId, loadedMessages);
     })();
   }, [currentProjectId, loadChatHistory, requestInitialSuggestions, refreshNextStep, setAiSuggestions, setEditProgress, clearStreamItems, setMatchedSkills, reset]); // 依赖 loadChatHistory
@@ -1777,6 +1797,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Clear draft after sending
     clearDraft();
 
+    // The first message typed in a work's first conversation gets the server's first-message
+    // hint (write an opening, then offer directions) like the starter example does.
+    const entry = typeof extraMetadata?.entry === "string"
+      ? extraMetadata.entry
+      : starterProjectIdRef.current === currentProjectId && messagesRef.current.length === 0
+        ? "first_message"
+        : undefined;
+    const requestMetadata = entry ? { ...extraMetadata, entry } : extraMetadata;
+
     // Get current editor content as context
     const request: Omit<AgentRequest, "project_id"> = {
       message,
@@ -1805,7 +1834,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           fileTitle: q.fileTitle,
         })) : undefined,
 
-        ...extraMetadata,
+        ...requestMetadata,
       },
     };
 
@@ -1814,8 +1843,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     trackEvent("ai_chat_submitted", {
       project_id: currentProjectId,
-      // Where this message came from: suggestion / next_step / dashboard_idea, otherwise typed.
-      entry: typeof extraMetadata?.entry === "string" ? extraMetadata.entry : "typed",
+      // Where this message came from: next_step / dashboard_idea / starter_example / first_message, otherwise typed.
+      entry: entry ?? "typed",
       generation_mode: generationMode,
       selected_item_type: selectedItem?.type,
       attached_file_count: attachedFileIds.length,
@@ -1917,6 +1946,49 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     [saveDraft, t]
   );
 
+  // A dashboard idea about to be sent for this project: no starter cards for those 500 ms.
+  // The first work never consumes a leftover idea (see the auto-send effect below). Read on
+  // every render: the auto-send effect removes an expired idea without changing any state.
+  const hasPendingDashboardIdea = (() => {
+    if (!currentProjectId || firstWork.data?.project_id === currentProjectId || messages.length > 0) return false;
+    try {
+      return localStorage.getItem(`zenstory_inspiration_${currentProjectId}`) !== null;
+    } catch {
+      return false;
+    }
+  })();
+  // Used up for today: the existing quota card explains instead (a press could not send).
+  const showStarterCards = Boolean(currentProjectId)
+    && starterProjectId === currentProjectId
+    && messages.length === 0
+    && !aiSendBlocked
+    && !hasPendingDashboardIdea
+    && !newChatPending
+    && !isCreatingSession;
+
+  const starterViewedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!showStarterCards || !currentProjectId || starterViewedRef.current === currentProjectId) return;
+    starterViewedRef.current = currentProjectId;
+    trackEvent("starter_viewed", { project_id: currentProjectId, project_type: currentProject?.project_type });
+  }, [showStarterCards, currentProjectId, currentProject?.project_type]);
+
+  const handleStarterSend = useCallback((message: string) => {
+    trackEvent("starter_sent", { project_id: currentProjectId });
+    void handleSendMessage(message, undefined, { entry: "starter_example" });
+  }, [currentProjectId, handleSendMessage]);
+
+  const handleStarterEdit = useCallback((message: string) => {
+    trackEvent("starter_edited", { project_id: currentProjectId });
+    saveDraft(message);
+    focusChatInput();
+  }, [currentProjectId, saveDraft, focusChatInput]);
+
+  const handleStarterOwnIdea = useCallback(() => {
+    trackEvent("starter_own_idea", { project_id: currentProjectId });
+    focusChatInput();
+  }, [currentProjectId, focusChatInput]);
+
   // Check for inspiration from Dashboard and auto-send
   const inspirationProcessedRef = useRef<Set<string>>(new Set());
   const inspirationSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2004,6 +2076,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const requestSeq = ++newSessionRequestSeqRef.current;
     creatingSessionRef.current = requestSeq;
     setIsCreatingSession(true);
+    setStarterProjectId(null);
     setAiSuggestions([]);
     setSuggestionDisplayState("loading");
     if (suggestionTimeoutRef.current) clearTimeout(suggestionTimeoutRef.current);
@@ -2412,6 +2485,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               <p className="text-sm">{t('chat:panel.loadingMessages')}</p>
             </div>
           ) : messages.length === 0 && !isStreaming && !isThinking && !(error && retryable) && sessionRecoveryError !== currentProjectId ? (
+            showStarterCards ? (
+              <StarterCards
+                projectType={currentProject?.project_type}
+                remainingToday={showDailyCount && aiMessageQuota ? Math.max(0, aiMessageQuota.limit - aiMessageQuota.used) : null}
+                onSend={handleStarterSend}
+                onEdit={handleStarterEdit}
+                onOwnIdea={handleStarterOwnIdea}
+              />
+            ) : (
             <div className="h-[200px] flex flex-col items-center justify-center text-[hsl(var(--text-secondary))]">
               <Sparkles size={48} className="mb-4 opacity-30" />
               <p className={`text-center ${isMobile ? 'text-xs mb-1.5 px-2' : 'text-sm mb-2'}`}>{t('chat:panel.welcome')}</p>
@@ -2419,6 +2501,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 {t('chat:panel.suggestions')}
               </p>
             </div>
+            )
           ) : (
             <div>
               {/* Chat messages */}
