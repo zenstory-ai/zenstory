@@ -17,7 +17,7 @@ const readyHeadings: Record<string, string> = {
   "/register": "创建账号",
   "/forgot-password": "找回密码",
   "/verify-email?email=responsive%40example.com": "验证你的邮箱",
-  "/onboarding/persona": "告诉我们你怎么写作",
+  "/onboarding/persona": "你想写什么？",
   "/dashboard": "你好，responsive-user",
   "/dashboard/projects": "我的项目",
   "/dashboard/materials": "素材库",

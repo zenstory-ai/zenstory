@@ -100,17 +100,14 @@ async function mount(strict: boolean) {
     <Route path="/manual" element={<div>author chosen destination</div>} />
     <Route path="/dashboard" element={<div>owned persona completed</div>} />
   </Routes></BrowserRouter></AuthIdentityQueryBoundary></AuthProvider></QueryClientProvider>);
-  await screen.findByRole('heading', { name: zh.hero.title });
-  await waitFor(() => expect(persona('explorer')).toHaveAttribute('aria-pressed', 'true'));
+  await screen.findByRole('heading', { name: zh.start.title });
+  // The server's earlier answers have arrived (they are kept when the author answers again).
+  await waitFor(() => expect(getPersonaOnboardingData(user.id)).toMatchObject({ selected_goals: ['monetize'] }));
 }
-const persona = (id: 'explorer' | 'serial') => screen.getByRole('button', {
-  name: new RegExp(zh.persona.options[id].title) });
 async function submit() {
-  fireEvent.click(persona('explorer'));
-  fireEvent.click(persona('serial'));
-  fireEvent.click(screen.getByRole('button', { name: zh.actions.submit }));
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(zh.start.options.novel.title) }));
   await waitFor(() => expect(pending).toHaveLength(1));
-  expect(saved).toEqual([{ selected_personas: ['serial'], selected_goals: ['monetize'],
+  expect(saved).toEqual([{ selected_personas: ['serial', 'explorer'], selected_goals: ['monetize'],
     experience_level: 'intermediate', skipped: false }]);
 }
 async function finish(status: number) {
@@ -141,7 +138,7 @@ describe.each([false, true])('actual persona save continuation Strict=%s', stric
   it('retains current successful save, cache, profile and destination', async () => {
     await mount(strict); await submit(); await finish(200);
     await screen.findByText('owned persona completed');
-    expect(getPersonaOnboardingData(user.id)).toMatchObject({ selected_personas: ['serial'],
+    expect(getPersonaOnboardingData(user.id)).toMatchObject({ selected_personas: ['serial', 'explorer'],
       selected_goals: ['monetize'], experience_level: 'intermediate', skipped: false });
     expect(clients[0].getQueryData(personaOnboardingQueryKey(user.id))).toEqual(state({ ...profile, ...saved[0], completed_at: '2026-10-06T01:00:00Z' }));
     expect(window.location.pathname).toBe('/dashboard');

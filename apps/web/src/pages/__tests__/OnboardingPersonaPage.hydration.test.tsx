@@ -99,73 +99,49 @@ async function mount(strict: boolean) {
     <Route path="/onboarding/persona" element={<OnboardingPersonaPage />} />
     <Route path="/dashboard" element={<div>owned persona completed</div>} />
   </Routes></BrowserRouter></AuthIdentityQueryBoundary></AuthProvider></QueryClientProvider>);
-  await screen.findByRole('heading', { name: zh.hero.title });
+  await screen.findByRole('heading', { name: zh.start.title });
   await waitFor(() => expect(pending).toHaveLength(1));
 }
-const persona = (id: 'explorer' | 'serial') => screen.getByRole('button', {
-  name: new RegExp(zh.persona.options[id].title) });
-const goal = (id: 'buildHabit' | 'monetize') => screen.getByRole('button', { name: zh.goal.options[id].title });
-const level = (id: 'advanced' | 'intermediate') => screen.getByRole('radio', {
-  name: new RegExp(zh.experience.options[id].title) });
-async function hydrate() {
-  await act(async () => pending[0].resolve(response(state(profile))));
-  await screen.findByText(zh.hero.restore);
+const typeButton = (type: 'novel' | 'short' | 'screenplay') => screen.getByRole('button', {
+  name: new RegExp(zh.start.options[type].title) });
+async function hydrate(value: PersonaOnboardingProfile = profile, index = 0) {
+  await act(async () => pending[index].resolve(response(state(value))));
+  await waitFor(() => expect(getPersonaOnboardingData(user.id)).toMatchObject({
+    selected_personas: value.selected_personas, selected_goals: value.selected_goals }));
 }
 
 describe.each([false, true])('actual persona hydration, root Strict=%s', strict => {
-  it.each(['personas', 'goals', 'experience'] as const)('preserves edited %s and hydrates untouched fields', async field => {
+  it('keeps the identities, goals and experience it no longer asks about when the author answers', async () => {
     await mount(strict);
-    if (field === 'personas') fireEvent.click(persona('serial'));
-    if (field === 'goals') fireEvent.click(goal('buildHabit'));
-    if (field === 'experience') fireEvent.click(level('advanced'));
     await hydrate();
-    await waitFor(() => expect(field === 'experience' ? goal('monetize') : level('intermediate'))
-      .toHaveAttribute(field === 'experience' ? 'aria-pressed' : 'aria-checked', 'true'));
-    const expected: PersonaOnboardingUpsertRequest = {
-      selected_personas: field === 'personas' ? ['serial'] : ['explorer'],
-      selected_goals: field === 'goals' ? ['buildHabit'] : ['monetize'],
-      experience_level: field === 'experience' ? 'advanced' : 'intermediate', skipped: false,
-    };
-    console.info('PERSONA_HYDRATION', JSON.stringify({ strict, field, requests,
-      serial: persona('serial').getAttribute('aria-pressed'),
-      buildHabit: goal('buildHabit').getAttribute('aria-pressed'),
-      advanced: level('advanced').getAttribute('aria-checked'), expected }));
-    expect(persona(field === 'personas' ? 'serial' : 'explorer')).toHaveAttribute('aria-pressed', 'true');
-    expect(goal(field === 'goals' ? 'buildHabit' : 'monetize')).toHaveAttribute('aria-pressed', 'true');
-    expect(level(field === 'experience' ? 'advanced' : 'intermediate')).toHaveAttribute('aria-checked', 'true');
-    fireEvent.click(screen.getByRole('button', { name: zh.actions.submit }));
+    fireEvent.click(typeButton('short'));
     await screen.findByText('owned persona completed');
-    expect(saved).toEqual([expected]);
+    expect(saved).toEqual([{ selected_personas: ['short_story', 'explorer'], selected_goals: ['monetize'],
+      experience_level: 'intermediate', skipped: false }]);
     expect(requests.filter(item => item.path === '/api/v1/persona/onboarding')
       .every(item => item.authorization === 'Bearer offline-persona-A')).toBe(true);
   });
 
-  it.each([false, true])('hydrates an untouched form; cached initial profile=%s', async cached => {
+  it.each([false, true])('shows the last answer and caches server truth; cached initial profile=%s', async cached => {
     if (cached) savePersonaOnboardingData(user.id, { selected_personas: ['serial'],
       selected_goals: ['buildHabit'], experience_level: 'advanced', skipped: false });
     await mount(strict);
-    if (cached) expect(persona('serial')).toHaveAttribute('aria-pressed', 'true');
-    await hydrate();
-    await waitFor(() => expect(level('intermediate')).toHaveAttribute('aria-checked', 'true'));
-    expect(persona('explorer')).toHaveAttribute('aria-pressed', 'true');
-    expect(persona('serial')).toHaveAttribute('aria-pressed', 'false');
-    expect(goal('monetize')).toHaveAttribute('aria-pressed', 'true');
-    expect(level('intermediate')).toHaveAttribute('aria-checked', 'true');
+    if (cached) {
+      expect(typeButton('novel')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByText(zh.hero.restore)).toBeInTheDocument();
+    }
+    await hydrate({ ...profile, selected_personas: ['screenwriter', 'explorer'] });
+    await waitFor(() => expect(typeButton('screenplay')).toHaveAttribute('aria-pressed', 'true'));
+    expect(typeButton('novel')).toHaveAttribute('aria-pressed', 'false');
+    expect(getPersonaOnboardingData(user.id)).toMatchObject({ experience_level: 'intermediate', skipped: false });
   });
 });
 
-it('keeps all cached-then-edited fields through two real GETs while caching server truth', async () => {
+it('answers with the newest server truth after a refetch', async () => {
   savePersonaOnboardingData(user.id, { selected_personas: [], selected_goals: [],
     experience_level: 'beginner', skipped: true });
   await mount(false);
-  fireEvent.click(persona('serial'));
-  fireEvent.click(goal('buildHabit'));
-  fireEvent.click(level('advanced'));
   await hydrate();
-  await waitFor(() => expect(getPersonaOnboardingData(user.id)).toMatchObject({
-    selected_personas: ['explorer'], selected_goals: ['monetize'], experience_level: 'intermediate', skipped: false,
-  }));
-  expect(persona('serial')).toHaveAttribute('aria-pressed', 'true');
   const refetch = clients[0].refetchQueries({ queryKey: personaOnboardingQueryKey(user.id), exact: true });
   await waitFor(() => expect(pending).toHaveLength(2));
   const next: PersonaOnboardingProfile = { ...profile, selected_personas: ['professional'],
@@ -174,11 +150,8 @@ it('keeps all cached-then-edited fields through two real GETs while caching serv
   await waitFor(() => expect(getPersonaOnboardingData(user.id)).toMatchObject({
     selected_personas: ['professional'], selected_goals: ['finishBook'], experience_level: 'beginner', skipped: false,
   }));
-  expect(persona('serial')).toHaveAttribute('aria-pressed', 'true');
-  expect(goal('buildHabit')).toHaveAttribute('aria-pressed', 'true');
-  expect(level('advanced')).toHaveAttribute('aria-checked', 'true');
-  fireEvent.click(screen.getByRole('button', { name: zh.actions.submit }));
+  fireEvent.click(typeButton('novel'));
   await screen.findByText('owned persona completed');
-  expect(saved).toEqual([{ selected_personas: ['serial'], selected_goals: ['buildHabit'],
-    experience_level: 'advanced', skipped: false }]);
+  expect(saved).toEqual([{ selected_personas: ['serial', 'professional'], selected_goals: ['finishBook'],
+    experience_level: 'beginner', skipped: false }]);
 });

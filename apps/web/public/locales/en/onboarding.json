@@ -1,120 +1,27 @@
 {
+  "start": {
+    "title": "What do you want to write?",
+    "subtitle": "Pick one and the workspace opens on it. You can switch any time.",
+    "options": {
+      "novel": {
+        "title": "Serial novel",
+        "desc": "Web fiction or a long novel, chapter by chapter"
+      },
+      "short": {
+        "title": "Short story",
+        "desc": "One complete story, ready to submit when done"
+      },
+      "screenplay": {
+        "title": "Short drama script",
+        "desc": "Vertical short drama, written episode by episode"
+      }
+    }
+  },
   "hero": {
-    "step": "Getting Started",
-    "badge": "2-minute setup",
-    "title": "Tell us how you write",
-    "subtitle": "Answer 3 quick questions, or skip.",
-    "restore": "Your previous answers are filled in"
-  },
-  "persona": {
-    "title": "Which type of creator are you?",
-    "subtitle": "Choose up to 3.",
-    "counter": "{{selected}} / {{max}} selected",
-    "limitReached": "You can choose up to 3. Deselect one first.",
-    "options": {
-      "explorer": {
-        "tag": "Getting started",
-        "title": "Beginner Explorer",
-        "desc": "You’re new to writing and want guidance to finish your first work."
-      },
-      "serial": {
-        "tag": "Serial rhythm",
-        "title": "Serial Growth Writer",
-        "desc": "You’re publishing a serial and want to keep a steady update schedule."
-      },
-      "short_story": {
-        "tag": "Short stories",
-        "title": "Short-story writer",
-        "desc": "You write short web fiction for platforms like Yanyan and Fanqie, and submit each piece once it’s done."
-      },
-      "screenwriter": {
-        "tag": "Short drama",
-        "title": "Short-drama screenwriter",
-        "desc": "You write vertical short dramas and web series scripts."
-      },
-      "professional": {
-        "tag": "Professional",
-        "title": "Professional Creator",
-        "desc": "You have writing experience and care about speed, quality, and income."
-      },
-      "fanfic": {
-        "tag": "Passion-driven",
-        "title": "Fanfic / Hobby Creator",
-        "desc": "You love characters and worlds, and want to turn ideas into stories that stay consistent."
-      },
-      "studio": {
-        "tag": "Studio",
-        "title": "IP / Studio Team",
-        "desc": "You juggle several books at once and need materials and progress kept separate."
-      }
-    }
-  },
-  "goal": {
-    "title": "What do you want most right now?",
-    "subtitle": "Choose any that apply.",
-    "options": {
-      "finishBook": {
-        "title": "Finish my first full work"
-      },
-      "buildHabit": {
-        "title": "Build a stable writing habit"
-      },
-      "improveQuality": {
-        "title": "Improve plot and writing quality"
-      },
-      "growAudience": {
-        "title": "Grow readers and influence"
-      },
-      "monetize": {
-        "title": "Monetize content sooner"
-      }
-    }
-  },
-  "experience": {
-    "title": "Your writing experience",
-    "subtitle": "Pick the closest one.",
-    "options": {
-      "beginner": {
-        "title": "0-3 months",
-        "desc": "Step-by-step guidance and examples."
-      },
-      "intermediate": {
-        "title": "3 months - 2 years",
-        "desc": "Some experience; want speed and flexibility."
-      },
-      "advanced": {
-        "title": "2+ years",
-        "desc": "Experienced; fewer tips, straight to work."
-      }
-    }
+    "restore": "Your previous answer is selected"
   },
   "actions": {
-    "skip": "Skip",
-    "submit": "Save and enter workspace",
-    "saving": "Saving…",
-    "needPersona": "Pick a writer type first, or tap Skip"
-  },
-  "preview": {
-    "title": "Your dashboard will suggest",
-    "subtitle": "After you save, your dashboard home will suggest next steps based on these choices.",
-    "empty": "Pick a creator type to see what we’ll suggest",
-    "items": {
-      "explorer": "Start a new book from one line, with step-by-step tips",
-      "serial": "Writing streak tracking",
-      "short_story": "Your dashboard opens on Short Story, so one idea is enough to start",
-      "screenwriter": "Your dashboard opens on Short Drama Script, with episode outlines and scripts",
-      "professional": "A fast outline-to-chapter-to-revision flow",
-      "fanfic": "Organize characters and settings for AI to follow",
-      "studio": "One project per work, kept separate",
-      "monetize": "A comparison of Free and Pro",
-      "quality": "Have AI review and revise chapters"
-    },
-    "level": {
-      "beginner": "Create a project first, then add characters and chapters as you go",
-      "intermediate": "Suggestions that balance speed and quality",
-      "advanced": "Jump straight into your project to expand and revise with AI"
-    },
-    "note": "These choices are saved to your account and apply on every device."
+    "skip": "Skip"
   },
   "errors": {
     "saveFailed": "Couldn’t save. Check your connection and try again.",
