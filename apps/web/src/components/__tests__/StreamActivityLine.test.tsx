@@ -28,4 +28,15 @@ describe('StreamActivityLine', () => {
     expect(screen.getByText(`chat:activity.elapsed:{"seconds":${LONG_WAIT_HINT_AFTER_S}}`)).toBeInTheDocument()
     expect(screen.getByText('chat:activity.longWaitHint')).toBeInTheDocument()
   })
+
+  it('asks phone authors to keep the page open during a long round', () => {
+    vi.useFakeTimers()
+    render(<StreamActivityLine startedAt={Date.now()} isMobile />)
+
+    act(() => {
+      vi.advanceTimersByTime(LONG_WAIT_HINT_AFTER_S * 1000)
+    })
+    expect(screen.getByText('chat:activity.longWaitHintMobile')).toBeInTheDocument()
+    expect(screen.queryByText('chat:activity.longWaitHint')).not.toBeInTheDocument()
+  })
 })

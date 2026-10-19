@@ -49,12 +49,12 @@ function Workbench({ initialContent = '', fileId = 'first-file' }) {
       focusRequest={activePanel === 'chat' ? chatFocusRequest : 0} suggestionDisplayState="ready" /></section>
   </>;
 }
-async function mount(language = 'zh', props = {}) {
+async function mount(language = 'zh', props = {}, isMobile = true) {
   const i18n = createInstance();
   await i18n.init({ lng: language, fallbackLng: false, defaultNS: 'editor', resources: {
     zh: { editor: zhEditor, chat: zhChat, common: zhCommon }, en: { editor: enEditor, chat: enChat, common: enCommon },
   } });
-  return render(<I18nextProvider i18n={i18n}><QueryClientProvider client={client}><MobileLayoutProvider isMobile><Workbench {...props} /></MobileLayoutProvider></QueryClientProvider></I18nextProvider>);
+  return render(<I18nextProvider i18n={i18n}><QueryClientProvider client={client}><MobileLayoutProvider isMobile={isMobile}><Workbench {...props} /></MobileLayoutProvider></QueryClientProvider></I18nextProvider>);
 }
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear();
@@ -66,7 +66,7 @@ beforeEach(() => {
 
 describe('first-work static guidance', () => {
   for (const [language, paste, ai] of [['zh', '自己写', '与 AI 创作'], ['en', 'Write on my own', 'Write with AI']]) {
-    it(`${language}: focuses the chosen input without altering or sending drafts; manual writing works at exhausted quota`, async () => {
+    it(`${language}: opens the chosen side without altering or sending drafts; manual writing works at exhausted quota`, async () => {
       await mount(language);
       fireEvent.click(await screen.findByRole('button', { name: paste }));
       const manuscript = screen.getByPlaceholderText(language === 'zh' ? zhEditor.placeholder.contentPlaceholder : enEditor.placeholder.contentPlaceholder);
@@ -74,7 +74,8 @@ describe('first-work static guidance', () => {
       fireEvent.click(screen.getByRole('button', { name: ai }));
       await waitFor(() => expect(screen.getByTestId('active-panel')).toHaveTextContent('chat'));
       const chat = screen.getByPlaceholderText(language === 'zh' ? zhChat.input.placeholder : enChat.input.placeholder);
-      await waitFor(() => expect(chat).toHaveFocus());
+      // Phones show the chat (and its starter cards) without raising the keyboard over them.
+      expect(chat).not.toHaveFocus();
       expect(chat).toHaveValue('Existing chat draft'); expect(mocks.send).not.toHaveBeenCalled();
       fireEvent.click(screen.getByRole('button', { name: 'Back to manuscript' }));
       const body = screen.getByPlaceholderText(language === 'zh' ? zhEditor.placeholder.contentPlaceholder : enEditor.placeholder.contentPlaceholder);
@@ -86,6 +87,14 @@ describe('first-work static guidance', () => {
       expect(mocks.send).not.toHaveBeenCalled();
     });
   }
+
+  it('focuses the chat input on desktop without altering or sending the draft', async () => {
+    await mount('zh', {}, false);
+    fireEvent.click(await screen.findByRole('button', { name: '与 AI 创作' }));
+    const chat = screen.getByPlaceholderText(zhChat.input.placeholder);
+    await waitFor(() => expect(chat).toHaveFocus());
+    expect(chat).toHaveValue('Existing chat draft'); expect(mocks.send).not.toHaveBeenCalled();
+  });
 
   it('records a real open even when manual content already exists, without showing an empty hint', async () => {
     await mount('en', { initialContent: 'A previous manual paragraph.' });

@@ -11,7 +11,7 @@ export const LONG_WAIT_HINT_AFTER_S = 20;
  * What the agent is doing is already shown by the step chips above. Ticks on its
  * own so the chat panel does not re-render every second.
  */
-export const StreamActivityLine: React.FC<{ startedAt: number | null }> = ({ startedAt }) => {
+export const StreamActivityLine: React.FC<{ startedAt: number | null; isMobile?: boolean }> = ({ startedAt, isMobile = false }) => {
   const { t } = useTranslation(["chat"]);
   const [now, setNow] = useState(() => Date.now());
 
@@ -31,7 +31,8 @@ export const StreamActivityLine: React.FC<{ startedAt: number | null }> = ({ sta
       <Loader2 size={12} className="animate-spin shrink-0" />
       <span aria-hidden="true">{t("chat:activity.elapsed", { seconds })}</span>
       {seconds >= LONG_WAIT_HINT_AFTER_S && (
-        <span role="status" aria-live="polite">{t("chat:activity.longWaitHint")}</span>
+        // Phones: switching apps can drop the stream, and a dropped round does not resume.
+        <span role="status" aria-live="polite">{t(isMobile ? "chat:activity.longWaitHintMobile" : "chat:activity.longWaitHint")}</span>
       )}
     </div>
   );

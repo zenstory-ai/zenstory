@@ -48,7 +48,8 @@
     "roundSavedFilesMore": "{{files}}等 {{total}} 个文件",
     "creatingSession": "正在创建新对话",
     "newSessionFailed": "没能创建新对话，请重试",
-    "sessionRecoveryFailed": "对话暂时没能加载，请重试"
+    "sessionRecoveryFailed": "对话暂时没能加载，请重试",
+    "readWrittenFiles": "看正文"
   },
   "input": {
     "placeholder": "想写什么，直接说",
@@ -345,7 +346,8 @@
   },
   "activity": {
     "elapsed": "AI 正在处理 · {{seconds}} 秒",
-    "longWaitHint": "写长内容可能要几分钟，请稍等。"
+    "longWaitHint": "写长内容可能要几分钟，请稍等。",
+    "longWaitHintMobile": "写长内容可能要几分钟，请保持页面打开。"
   },
   "leaveWhileGenerating": {
     "title": "AI 还在写",

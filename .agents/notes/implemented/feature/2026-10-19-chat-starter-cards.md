@@ -44,6 +44,12 @@ Status: implemented
 
 **埋点**：`starter_viewed`（每个项目记一次）、`starter_sent`、`starter_edited`、`starter_own_idea`。
 
+**移动端**（单独一个提交）
+
+- 首部作品的「与 AI 创作」在手机上只切到 AI 面板，不再聚焦输入框，免得键盘盖住起手卡；桌面上照旧聚焦。这一条修订了 `first-work-static-guidance` 中「切换聊天面板并聚焦现有输入」在手机上的那一半。
+- 手机上，一轮生成超过 20 秒后，提示改为「写长内容可能要几分钟，请保持页面打开。」原因是切到别的 App 可能断开连接，断开的一轮不会续传。
+- 最近一轮如果正常结束并写入了文件，手机上会出现「看正文」按钮，点击后切到编辑器。编辑器本来就会跟随 AI 的写入，桌面上编辑器和聊天并排，所以桌面不显示这个按钮。
+
 **这次没做**：「看看我的稿子」卡。它只有在作品里确实有稿子的时候才成立，所以和导入入口一起放到第二批。
 
 ## Alternatives considered
@@ -86,3 +92,7 @@ Status: implemented
   - 新对话保留建议。
 - 原来在空历史上测建议缓存、超时和兜底机制的用例改为先载入一轮历史（`withEarlierTurn`），这些机制本身没有改。
 - `src/components/__tests__/Editor.test.tsx`：空态按钮在桌面上聚焦输入框，在手机上只切换面板。
+- 移动端相关测试：
+  - `FirstWorkGuidance.test.tsx`：手机上切换面板、不聚焦；桌面上聚焦。
+  - `StreamActivityLine.test.tsx`：手机上提示保持页面打开。
+  - `MessageList.test.tsx`：「看正文」只出现在手机上、只出现在最近一轮。

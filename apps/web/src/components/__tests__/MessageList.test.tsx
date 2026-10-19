@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MessageList, type Message, type MessageListRef } from '../MessageList'
 import { useEffect, useRef } from 'react'
+import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext'
 import zhChat from '../../../public/locales/zh/chat.json'
 import enChat from '../../../public/locales/en/chat.json'
 
@@ -135,6 +136,41 @@ describe('MessageList', () => {
     render(<MessageList messages={[createMessage({ content: '写第一章' }), stopped]} showDailyCount />)
 
     expect(screen.getByTestId('round-end-note')).toHaveTextContent('chat:panel.userStopped · chat:panel.roundNotCounted')
+  })
+
+  it('offers the manuscript on phones after the latest round wrote files', () => {
+    function PanelProbe() {
+      const { activePanel, setActivePanel } = useMobileLayout()
+      return <button data-testid="panel" onClick={() => setActivePanel('chat')}>{activePanel}</button>
+    }
+    const wrote = createMessage({
+      role: 'assistant',
+      content: '开头写好了。',
+      backendMessageId: 'a-2',
+      stopOutcome: { reason: 'completed', charged: true, savedOutput: true, removedFiles: [], writtenFiles: [{ title: '第一章', words: 812 }] },
+    })
+    const view = render(
+      <MobileLayoutProvider isMobile>
+        <PanelProbe />
+        <MessageList messages={[createMessage({ content: '写个开头' }), wrote]} />
+      </MobileLayoutProvider>,
+    )
+    fireEvent.click(screen.getByTestId('panel'))
+    expect(screen.getByTestId('panel')).toHaveTextContent('chat')
+
+    fireEvent.click(screen.getByTestId('read-written-files'))
+    expect(screen.getByTestId('panel')).toHaveTextContent('editor')
+
+    // Only the latest round, and only on phones (desktop shows the editor beside the chat).
+    view.rerender(
+      <MobileLayoutProvider isMobile>
+        <PanelProbe />
+        <MessageList messages={[createMessage({ content: '写个开头' }), wrote, createMessage({ content: '接着写' })]} />
+      </MobileLayoutProvider>,
+    )
+    expect(screen.queryByTestId('read-written-files')).not.toBeInTheDocument()
+    view.rerender(<MessageList messages={[createMessage({ content: '写个开头' }), wrote]} />)
+    expect(screen.queryByTestId('read-written-files')).not.toBeInTheDocument()
   })
 
   it('hides feedback for a stopped bubble that no saved message could be matched to', () => {

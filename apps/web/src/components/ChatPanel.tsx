@@ -2622,7 +2622,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               )}
 
               {isStreaming && (
-                <StreamActivityLine startedAt={streamStartedAt} />
+                <StreamActivityLine startedAt={streamStartedAt} isMobile={isMobile} />
               )}
 
               {/* 作者点了「停止生成」：给出明确的结束状态 */}

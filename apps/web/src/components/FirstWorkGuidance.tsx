@@ -35,14 +35,14 @@ export function FirstWorkOpenTracker(props: Pick<WorkFile, 'userId' | 'projectId
 function Guidance({ userId, projectId, fileId, focusEditor }: WorkFile & { focusEditor: () => void }) {
   const { t } = useTranslation('editor');
   const { data } = useFirstWork(userId);
-  const { focusChatInput } = useMobileLayout();
+  const { isMobile, switchToChat, focusChatInput } = useMobileLayout();
   const matchesFile = data?.available && data.project_id === projectId && data.file_id === fileId;
   if (!matchesFile || !needsStaticFirstWorkGuidance(data, projectId)) return null;
   return <div data-testid="first-work-guidance" className="mb-5 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
     <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">{t('firstWork.hint')}</p>
     <div className="mt-3 flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap">
       <Button size="touch" className="max-w-full whitespace-normal! text-left" variant="secondary" onClick={focusEditor}>{t('firstWork.paste')}</Button>
-      <Button size="touch" className="max-w-full whitespace-normal! text-left" variant="secondary" onClick={focusChatInput}>{t('firstWork.ai')}</Button>
+      <Button size="touch" className="max-w-full whitespace-normal! text-left" variant="secondary" onClick={isMobile ? switchToChat : focusChatInput}>{t('firstWork.ai')}</Button>
     </div>
   </div>;
 }

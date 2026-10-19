@@ -48,7 +48,8 @@
     "roundSavedFilesMore": "{{files}} and {{rest}} more",
     "creatingSession": "Creating new chat",
     "newSessionFailed": "Couldn't create a new chat. Please try again.",
-    "sessionRecoveryFailed": "Couldn't load this chat. Please try again."
+    "sessionRecoveryFailed": "Couldn't load this chat. Please try again.",
+    "readWrittenFiles": "Read it"
   },
   "input": {
     "placeholder": "Tell the AI what to write",
@@ -345,7 +346,8 @@
   },
   "activity": {
     "elapsed": "AI is working · {{seconds}}s",
-    "longWaitHint": "Long passages can take a few minutes."
+    "longWaitHint": "Long passages can take a few minutes.",
+    "longWaitHintMobile": "Long passages can take a few minutes. Keep this page open."
   },
   "leaveWhileGenerating": {
     "title": "The AI is still writing",

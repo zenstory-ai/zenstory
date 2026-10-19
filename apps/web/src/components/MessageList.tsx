@@ -710,7 +710,14 @@ const Row = React.memo(function Row({
 }: RowDataProps): React.ReactElement {
   const { t } = useTranslation(['chat']);
   const { user } = useAuth();
-  const { isMobile } = useMobileLayout();
+  const { isMobile, switchToEditor } = useMobileLayout();
+  // Phones keep the chat in front while the AI writes; the latest round that wrote files offers
+  // the manuscript (the editor already follows the AI's writes).
+  const showReadWritten = isMobile
+    && nextRole === undefined
+    && message.role === 'assistant'
+    && message.stopOutcome?.reason === 'completed'
+    && message.stopOutcome.writtenFiles.length > 0;
   // Show streaming thinking content only for the currently streaming message
   const showStreamingThinking = isStreaming && streamingThinkingContent;
   const displayContent =
@@ -828,6 +835,19 @@ const Row = React.memo(function Row({
 
         {message.role === 'assistant' && message.stopOutcome && (
           <RoundEndNote outcome={message.stopOutcome} showDailyCount={showDailyCount} />
+        )}
+
+        {showReadWritten && (
+          <div className="mt-2">
+            <button
+              type="button"
+              data-testid="read-written-files"
+              onClick={switchToEditor}
+              className="btn-primary rounded-md px-3 text-xs min-h-[44px]"
+            >
+              {t('chat:panel.readWrittenFiles')}
+            </button>
+          </div>
         )}
 
         {shouldShowFeedbackActions && (
