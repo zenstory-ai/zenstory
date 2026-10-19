@@ -11,7 +11,6 @@
 import { api } from './apiClient';
 import { getBeijingDateString } from './dateUtils';
 import type {
-  ActivationGuideResponse,
   ProjectDashboardStatsResponse,
   RecordStatsRequest,
   RecordStatsResponse,
@@ -19,12 +18,6 @@ import type {
 } from '../types/writingStats';
 
 export const writingStatsApi = {
-  /**
-   * Get current user's first-day activation guide.
-   */
-  getActivationGuide: () =>
-    api.get<ActivationGuideResponse>('/api/v1/activation/guide'),
-
   /**
    * Get combined dashboard statistics for a project.
    *

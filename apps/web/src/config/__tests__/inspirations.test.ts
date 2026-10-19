@@ -13,9 +13,6 @@ describe("inspirationsConfig", () => {
       vi.resetModules();
       const { inspirationsConfig } = await import("../inspirations");
       expect(inspirationsConfig.enabled).toBe(false);
-      const { DASHBOARD_FIRST_RUN_TOUR } = await import("../productTours/dashboardFirstRun");
-      expect(DASHBOARD_FIRST_RUN_TOUR.steps.map((step) => step.id)).not.toContain("inspirations_link");
-      expect(DASHBOARD_FIRST_RUN_TOUR.steps.find((step) => step.id === "inspiration_input")?.defaultDescription).not.toContain("下方推荐");
     },
   );
 
@@ -26,8 +23,6 @@ describe("inspirationsConfig", () => {
       vi.resetModules();
       const { inspirationsConfig } = await import("../inspirations");
       expect(inspirationsConfig.enabled).toBe(true);
-      const { DASHBOARD_FIRST_RUN_TOUR } = await import("../productTours/dashboardFirstRun");
-      expect(DASHBOARD_FIRST_RUN_TOUR.steps.map((step) => step.id)).toContain("inspirations_link");
     },
   );
 });

@@ -13,7 +13,6 @@
     "quickSettings": "Quick Settings",
     "openPanel": "Account menu",
     "adminPanel": "Admin Panel",
-    "replayTour": "Replay guide",
     "openSettings": "Settings",
     "contactSupport": "Contact support"
   },
@@ -165,95 +164,6 @@
     "paymentMaterialsUnlimited": "Unlimited material breakdowns",
     "paymentMaterialsFinite": "{{limit}} material breakdowns per month"
   },
-  "todayActionPlan": {
-    "title": "Things you can do today",
-    "subtitle": "Based on your writing progress.",
-    "cta": "Go",
-    "executing": "Working…",
-    "expand": "Show all",
-    "collapse": "Collapse",
-    "expandHint": "Expand to see more suggestions.",
-    "activationDescription": "One small step to get going.",
-    "personaDescription": "Suggested from the writing preferences you chose.",
-    "personaRecommendations": {
-      "persona_explorer_template": {
-        "title": "Pick an opening from the library",
-        "description": "Browse the inspiration library and copy one you like into a project."
-      },
-      "persona_serial_streak": {
-        "title": "Keep your serial going",
-        "description": "Write a little each day and check your streak in project stats."
-      },
-      "persona_professional_efficiency": {
-        "title": "Write chapters from your outline",
-        "description": "Open a project, outline first, then have AI draft and revise chapters from it."
-      },
-      "persona_fanfic_consistency": {
-        "title": "Organize characters and settings",
-        "description": "Add characters and settings to your project; AI refers to them when writing."
-      },
-      "persona_studio_collab": {
-        "title": "One project per book",
-        "description": "Create a project for each book to keep outlines, chapters and settings apart."
-      },
-      "goal_monetize_upgrade": {
-        "title": "Compare plans",
-        "description": "See how Free and Pro differ in writing limits and projects."
-      },
-      "goal_quality_review": {
-        "title": "Revise with AI",
-        "description": "Open a project and ask AI in the chat panel to review and revise a chapter."
-      },
-      "goal_habit_activation": {
-        "title": "Write a little every day",
-        "description": "Set a small goal, like 500 words today."
-      },
-      "level_beginner_path": {
-        "title": "Start from an inspiration",
-        "description": "Pick an opening first, then add characters and chapters as you go."
-      },
-      "level_advanced_shortcut": {
-        "title": "Jump into a project",
-        "description": "Open a project and use the AI chat to expand, revise or organize settings."
-      }
-    },
-    "defaults": {
-      "createProject": {
-        "title": "Create your first project",
-        "description": "No idea needed yet — start with one click. Your outline, chapters and settings all live in the project.",
-        "cta": "New project"
-      },
-      "openProject": {
-        "title": "Continue your latest project",
-        "description": "Pick up where you left off."
-      },
-      "exportProject": {
-        "title": "Export your work",
-        "description": "Open your project and click \"Export\" to download your manuscript.",
-        "cta": "Open project"
-      },
-      "upgrade": {
-        "title": "Check usage",
-        "description": "See how many AI messages you have left today; get Pro only if you need more.",
-        "cta": "Check usage"
-      },
-      "inspirations": {
-        "title": "Browse inspirations",
-        "description": "Stuck? Browse featured inspirations for openings and settings."
-      }
-    }
-  },
-  "activationGuide": {
-    "title": "Getting started",
-    "progress": "{{done}} / {{total}} completed",
-    "nextAction": "Continue",
-    "steps": {
-      "signup_success": "Sign up",
-      "project_created": "Create a project",
-      "first_file_saved": "Write your first paragraph",
-      "first_ai_action_accepted": "Accept an AI edit"
-    }
-  },
   "hero": {
     "greeting": "Hello, {{name}}",
     "question": "What do you want to create today?",
@@ -278,9 +188,6 @@
     "emptyHint": "Click \"Start Writing\" above to create your first project — no idea needed.",
     "emptyHintProjectsPage": "Click \"New Project\" to start your first book.",
     "searchPlaceholder": "Search projects",
-    "createNew": "Create New Project",
-    "nameLabel": "Title (optional)",
-    "namePlaceholder": "Leave blank to use \"{{name}}\" — rename anytime",
     "confirmDeleteTitle": "Delete this project?",
     "confirmDeleteMessage": "Everything in this project will be deleted and can't be restored.",
     "confirmDeleteButton": "Delete",
@@ -680,35 +587,6 @@
         "plannedCount_other": "Planned: {{count}} episodes",
         "viewDetails": "View episode details ({{count}})",
         "hideDetails": "Hide episode details"
-      }
-    }
-  },
-  "dashboardTour": {
-    "common": {
-      "next": "Next",
-      "finish": "Start using",
-      "skip": "Skip guide",
-      "progress": "{{current}} / {{total}}"
-    },
-    "steps": {
-      "projectType": {
-        "title": "Choose what you want to write",
-        "description": "Novel, short story, and screenplay each follow a different creation path. Start with the closest fit.",
-        "cta": "Got it"
-      },
-      "inspirationInput": {
-        "title": "Start from any idea",
-        "description": "Jot down whatever comes to mind. One line is enough, or pick an idea below.",
-        "descriptionWithoutLibrary": "Jot down whatever comes to mind. One line is enough, and you can start with nothing at all."
-      },
-      "createProject": {
-        "title": "Click here to begin",
-        "description": "Your project is created instantly. Typed an idea? The AI helps shape it first. Left it blank? Chat with the AI anytime inside.",
-        "cta": "Try it"
-      },
-      "inspirationsLink": {
-        "title": "Come here when you are stuck",
-        "description": "When you get stuck, come here for story openings and setting ideas."
       }
     }
   },

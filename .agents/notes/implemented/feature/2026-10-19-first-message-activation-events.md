@@ -28,7 +28,7 @@ Status: implemented
 - 其余各步统计这批人中，在注册后 24 小时内到达该步的人数。
 - 步骤顺序：注册 → 建项目 → 首次保存 → 首条消息 → 首条回复成功 → AI 写入作品。`activation_rate` 等于最后一步的人数除以基数。
 - 后台文案改为「新用户首日漏斗」，说明最近一天注册的用户还在观察期。
-- 用户自己的首日清单（`/activation/guide`）仍是原来四步（`ACTIVATION_GUIDE_ORDER`），前端文案 key 不变。
+- 用户自己的首日清单（`/activation/guide`）后来随默认关闭的工作台引导一起删除，见 `simplification/2026-10-19-remove-dormant-dashboard-onboarding.md`。
 
 **增长页**（`admin_growth_service`）：「AI 活跃用户」和「新用户 AI 激活率」，以及它们的每日分桶，都排除 `source = "suggest"` 的用量。
 

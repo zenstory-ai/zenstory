@@ -212,7 +212,7 @@ test("canonical E2E account fixtures use email domains accepted by admin EmailSt
     ".github/actions/setup-backend/action.yml", ".github/workflows/e2e.yml",
     "apps/server/scripts/seed_test_user.py", "apps/server/scripts/seed_test_admin.py",
     "apps/web/e2e/config/test-users.ts", "apps/web/e2e/admin.spec.ts",
-    "apps/web/e2e/dashboard-coachmark.spec.ts", "apps/web/e2e/helpers/common.ts",
+    "apps/web/e2e/helpers/common.ts",
     "scripts/ci/ci.sh", "apps/web/e2e/README.md",
   ]) {
     const source = await readFile(file, "utf8");

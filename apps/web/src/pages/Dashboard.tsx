@@ -17,42 +17,14 @@ import {
 import { Logo, LogoMark } from "../components/Logo";
 import { IconButton } from "../components/ui/IconButton";
 import { useAuth } from "../contexts/AuthContext";
-import { useProject } from "../contexts/ProjectContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { ProductTourProvider } from "../contexts/ProductTourContext";
 import { useIsMobile, useIsTablet, useIsDesktop } from "../hooks/useMediaQuery";
-import { useProductTour } from "../hooks/useProductTour";
-import { getPersonaOnboardingData } from "../lib/onboardingPersona";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { UserAvatar } from "../components/UserMenu";
 import { normalizeLocale } from "../lib/i18n-helpers";
-import { CoachmarkLayer } from "../components/onboarding/CoachmarkLayer";
-import { DASHBOARD_FIRST_RUN_TOUR } from "../config/productTours/dashboardFirstRun";
-import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import { getUserDisplayName } from "../lib/userDisplayName";
-
-function hasExplicitTimezone(value: string): boolean {
-  return /([zZ]|[+-]\d{2}:?\d{2})$/.test(value.trim());
-}
-
-function parseCreatedAtTimestamp(createdAt: string | null | undefined): number | null {
-  if (!createdAt) return null;
-  const trimmed = createdAt.trim();
-  if (!trimmed) return null;
-  const normalized = hasExplicitTimezone(trimmed) ? trimmed : `${trimmed}Z`;
-  const timestamp = Date.parse(normalized);
-  return Number.isFinite(timestamp) ? timestamp : null;
-}
-
-function isNewUserWithinDays(createdAt: string | null | undefined, days: number): boolean {
-  const createdTimestamp = parseCreatedAtTimestamp(createdAt);
-  if (createdTimestamp === null) return false;
-  const ageMs = Date.now() - createdTimestamp;
-  const windowMs = days * 24 * 60 * 60 * 1000;
-  return ageMs >= 0 && ageMs <= windowMs;
-}
 
 // Sidebar navigation items - will be dynamic based on language
 const NAV_ITEMS = [
@@ -112,9 +84,7 @@ function DashboardContent() {
   const openUserPanelLabel = t('dashboard:userPanel.openPanel');
   const openSettingsLabel = t('dashboard:userPanel.openSettings');
   const adminPanelLabel = t('dashboard:userPanel.adminPanel');
-  const replayTourLabel = t('dashboard:userPanel.replayTour');
   const contactSupportLabel = t('dashboard:userPanel.contactSupport');
-  const { restartTour, isEnabled: isTourEnabled } = useProductTour();
   const navItems = inspirationsConfig.enabled
     ? NAV_ITEMS
     : NAV_ITEMS.filter((item) => item.id !== "inspirations");
@@ -314,28 +284,6 @@ function DashboardContent() {
           <Settings className="w-4 h-4" />
           {openSettingsLabel}
         </button>
-
-        {isTourEnabled && (
-          <button
-            type="button"
-            onClick={() => {
-              setShowUserPanel(false);
-              if (location.pathname !== '/dashboard') {
-                navigate('/dashboard');
-                window.setTimeout(() => {
-                  restartTour();
-                }, 0);
-                return;
-              }
-              restartTour();
-            }}
-            data-testid="dashboard-replay-tour-button"
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
-          >
-            <Compass className="w-4 h-4" />
-            {replayTourLabel}
-          </button>
-        )}
 
         {user?.is_superuser && (
           <button
@@ -594,26 +542,6 @@ function DashboardContent() {
                 <Settings size={18} />
                 {openSettingsLabel}
               </button>
-              {isTourEnabled && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (location.pathname !== '/dashboard') {
-                      navigate('/dashboard');
-                      window.setTimeout(() => {
-                        restartTour();
-                      }, 0);
-                    } else {
-                      restartTour();
-                    }
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
-                >
-                  <Compass size={18} />
-                  {replayTourLabel}
-                </button>
-              )}
               <a
                 href={SUPPORT_MAILTO}
                 data-testid="dashboard-contact-support-link-mobile"
@@ -648,7 +576,6 @@ function DashboardContent() {
         onClose={() => { setShowSettings(false); setSettingsDefaultTab(undefined); }}
         defaultTab={settingsDefaultTab as SettingsTab | undefined}
       />
-      <CoachmarkLayer />
     </div>
   );
 }
@@ -656,41 +583,6 @@ function DashboardContent() {
 // Main Dashboard component
 export default function Dashboard() {
   const { user } = useAuth();
-  const { projects, loading: projectsLoading } = useProject();
-  const location = useLocation();
-  const hasPersonaOnboarding = Boolean(user?.id && getPersonaOnboardingData(user.id));
-  const isDashboardHome = location.pathname === '/dashboard';
-  const hasZeroProjects = !projectsLoading && projects.length === 0;
-  const isNewUser = isNewUserWithinDays(user?.created_at, 7);
-  const isOnboardingReturn = Boolean(
-    hasPersonaOnboarding
-      && location.state
-      && typeof location.state === 'object'
-      && 'startDashboardCoachmark' in location.state
-      && (location.state as { startDashboardCoachmark?: boolean }).startDashboardCoachmark,
-  );
-  const isTourEligible = Boolean(
-    hasPersonaOnboarding
-      && isDashboardHome
-      && hasZeroProjects
-      && (isOnboardingReturn || isNewUser),
-  );
-  const autoStartReason = isOnboardingReturn
-    ? 'onboarding_return'
-    : isTourEligible
-      ? 'new_user_zero_project'
-      : null;
-
-  return (
-    <ProductTourProvider
-      key={user?.id ?? 'anon'}
-      tour={DASHBOARD_FIRST_RUN_TOUR}
-      userId={user?.id ?? null}
-      enabled={dashboardOnboardingFlags.coachmarkTourEnabled}
-      eligible={isTourEligible}
-      autoStartReason={autoStartReason}
-    >
-      <DashboardContent />
-    </ProductTourProvider>
-  );
+  // Remount per account so one author's dashboard state never carries into another's.
+  return <DashboardContent key={user?.id ?? 'anon'} />;
 }

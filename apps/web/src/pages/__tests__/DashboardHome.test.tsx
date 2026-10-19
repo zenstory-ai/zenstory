@@ -27,30 +27,6 @@ let mockFeaturedState: {
   isLoading: false,
   isFetching: false,
 }
-let mockActivationGuide: {
-  user_id: string;
-  window_hours: number;
-  within_first_day: boolean;
-  total_steps: number;
-  completed_steps: number;
-  completion_rate: number;
-  is_activated: boolean;
-  next_event_name: string | null;
-  next_action: string | null;
-  steps: Array<{
-    event_name: string;
-    label: string;
-    completed: boolean;
-    completed_at: string | null;
-    action_path: string;
-  }>;
-} | null = null
-let mockPersonaRecommendations: Array<{
-  id: string;
-  title: string;
-  description: string;
-  action: string;
-}> = []
 let mockDashboardInspirations: Array<{
   id: string;
   title: string;
@@ -60,25 +36,16 @@ let mockDashboardInspirations: Array<{
 }> = []
 
 const {
-  mockDashboardOnboardingFlags,
   mockInspirationsConfig,
   mockUseFeaturedInspirations,
   mockUseDashboardInspirations,
-  mockGetActivationGuide,
-  mockGetRecommendations,
   mockGetProgress,
 } = vi.hoisted(() => ({
-  mockDashboardOnboardingFlags: {
-    todayActionPlanEnabled: true,
-    firstDayActivationGuideEnabled: true,
-  },
   mockInspirationsConfig: {
     enabled: false,
   },
   mockUseFeaturedInspirations: vi.fn(),
   mockUseDashboardInspirations: vi.fn(),
-  mockGetActivationGuide: vi.fn(),
-  mockGetRecommendations: vi.fn(),
   mockGetProgress: vi.fn(async () => [] as unknown[]),
 }))
 
@@ -121,13 +88,7 @@ const mockT = (
     'inspiration.novelDesc': 'AI 将根据你的灵感，帮你构思故事框架、设定世界观和人物角色',
     'inspiration.novelPlaceholder': '请输入灵感',
     'dashboard:inspiration.example.novel': '例如：主角穿越成王朝里最不起眼的六皇子，只想悄悄攒下兵权自保，却被父皇和几位兄长一步步推到台前。',
-    'activationGuide.steps.signup_success': '完成注册',
-    'activationGuide.steps.project_created': '创建项目',
-    'activationGuide.steps.first_file_saved': '写下第一段内容',
-    'activationGuide.steps.first_ai_action_accepted': '采纳一次 AI 修改',
     'defaults.novel': '我的小说',
-    'projects.nameLabel': '作品名（可不填）',
-    'projects.namePlaceholder': `不填就先叫「${optionObj?.name ?? '{{name}}'}」，之后随时能改`,
   }
   if (typeof options === 'string') {
     return translations[key] || options || key
@@ -200,24 +161,8 @@ vi.mock('../../lib/api', () => ({
   fileApi: { uploadDraft: mockUploadDraft },
 }))
 
-vi.mock('../../lib/writingStatsApi', () => ({
-  writingStatsApi: {
-    getActivationGuide: mockGetActivationGuide,
-  },
-}))
-
-vi.mock('../../lib/onboardingPersonaApi', () => ({
-  onboardingPersonaApi: {
-    getRecommendations: mockGetRecommendations,
-  },
-}))
-
 vi.mock('../../lib/announcementApi', () => ({
   announcementApi: { getCurrent: vi.fn().mockResolvedValue(null) },
-}))
-
-vi.mock('../../config/dashboardOnboarding', () => ({
-  dashboardOnboardingFlags: mockDashboardOnboardingFlags,
 }))
 
 vi.mock('../../config/inspirations', () => ({
@@ -272,13 +217,7 @@ describe('DashboardHome featured inspirations section', () => {
     mockInspirationsConfig.enabled = false
     mockUseFeaturedInspirations.mockImplementation(() => mockFeaturedState)
     mockUseDashboardInspirations.mockImplementation(() => mockDashboardInspirations)
-    mockActivationGuide = null
-    mockPersonaRecommendations = []
-    mockDashboardOnboardingFlags.todayActionPlanEnabled = true
-    mockDashboardOnboardingFlags.firstDayActivationGuideEnabled = true
     mockDashboardInspirations = []
-    mockGetActivationGuide.mockImplementation(() => Promise.resolve(mockActivationGuide))
-    mockGetRecommendations.mockImplementation(() => Promise.resolve(mockPersonaRecommendations))
     vi.mocked(projectApi.getTemplates).mockResolvedValue(null)
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY)
     localStorage.removeItem(`${PREFERRED_PROJECT_TYPE_STORAGE_KEY}:${defaultMockUser.id}`)
@@ -325,53 +264,6 @@ describe('DashboardHome featured inspirations section', () => {
 
   const heldIdeaKey = `zenstory_held_dashboard_idea:${defaultMockUser.id}`
   /** First-day guide whose next step opens the create dialog (the "checklist" path). */
-  const openCreateDialogFromGuide = async () => {
-    mockActivationGuide = {
-      user_id: 'u-1',
-      window_hours: 24,
-      within_first_day: true,
-      total_steps: 2,
-      completed_steps: 1,
-      completion_rate: 0.5,
-      is_activated: false,
-      next_event_name: 'project_created',
-      next_action: '/dashboard',
-      steps: [
-        { event_name: 'signup_success', label: 'Signup Success', completed: true, completed_at: '2026-03-08T00:00:00Z', action_path: '/dashboard' },
-        { event_name: 'project_created', label: 'Project Created', completed: false, completed_at: null, action_path: '/dashboard' },
-      ],
-    }
-    renderDashboardHome()
-    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
-    fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: '灯塔守夜人' } })
-    await screen.findByTestId('activation-guide-card')
-    fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
-    return screen.findByLabelText('作品名（可不填）')
-  }
-
-  it('keeps the idea and explains when the create dialog is confirmed while the day is used up', async () => {
-    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
-    const nameInput = await openCreateDialogFromGuide()
-
-    fireEvent.keyDown(nameInput, { key: 'Enter' })
-
-    expect(await screen.findByTestId('upgrade-modal')).toHaveTextContent('今天的免费 AI 消息用完了')
-    expect(mockCreateProject).not.toHaveBeenCalled()
-    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
-    expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人')
-  })
-
-  it('keeps the held idea when the create dialog is cancelled or closed with Escape', async () => {
-    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
-    const nameInput = await openCreateDialogFromGuide()
-
-    fireEvent.keyDown(nameInput, { key: 'Escape' })
-
-    await waitFor(() => expect(screen.queryByLabelText('作品名（可不填）')).not.toBeInTheDocument())
-    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
-    expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人')
-  })
-
   it('saves edits to a restored idea after the reset, so a reload brings back the latest version', async () => {
     localStorage.setItem(heldIdeaKey, '灯塔守夜人')
     const { unmount } = renderDashboardHome()
@@ -609,207 +501,6 @@ describe('DashboardHome featured inspirations section', () => {
     expect(screen.getByTestId('featured-inspirations-loading')).toBeInTheDocument()
   })
 
-  it('shows activation guide card for first-day users and next action is actionable', async () => {
-    mockActivationGuide = {
-      user_id: 'u-1',
-      window_hours: 24,
-      within_first_day: true,
-      total_steps: 4,
-      completed_steps: 2,
-      completion_rate: 0.5,
-      is_activated: false,
-      next_event_name: 'first_file_saved',
-      next_action: '/dashboard',
-      steps: [
-        {
-          event_name: 'signup_success',
-          label: 'Signup Success',
-          completed: true,
-          completed_at: '2026-03-08T00:00:00Z',
-          action_path: '/dashboard',
-        },
-        {
-          event_name: 'project_created',
-          label: 'Project Created',
-          completed: true,
-          completed_at: '2026-03-08T00:01:00Z',
-          action_path: '/dashboard',
-        },
-        {
-          event_name: 'first_file_saved',
-          label: 'First File Saved',
-          completed: false,
-          completed_at: null,
-          action_path: '/dashboard',
-        },
-        {
-          event_name: 'first_ai_action_accepted',
-          label: 'First AI Action Accepted',
-          completed: false,
-          completed_at: null,
-          action_path: '/dashboard',
-        },
-      ],
-    }
-
-    mockProjects = [
-      { id: 'project-1', name: '最近项目', project_type: 'novel', updated_at: '2026-03-08T00:02:00Z' },
-    ]
-
-    renderDashboardHome()
-
-    const guideCard = await screen.findByTestId('activation-guide-card')
-    const guide = within(guideCard)
-    expect(guideCard).toBeInTheDocument()
-    expect(guide.getByText('新手上手清单')).toBeInTheDocument()
-
-    // Language adaptation: show localized step labels instead of raw backend English.
-    expect(guide.getByText('完成注册')).toBeInTheDocument()
-    expect(guide.getByText('创建项目')).toBeInTheDocument()
-    expect(guide.getByText('写下第一段内容')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
-    expect(mockNavigate).toHaveBeenCalledWith('/project/project-1')
-  })
-
-  it('marks the project name optional and names the default it falls back to', async () => {
-    mockActivationGuide = {
-      user_id: 'u-1',
-      window_hours: 24,
-      within_first_day: true,
-      total_steps: 4,
-      completed_steps: 1,
-      completion_rate: 0.25,
-      is_activated: false,
-      next_event_name: 'project_created',
-      next_action: '/dashboard',
-      steps: [
-        {
-          event_name: 'signup_success',
-          label: 'Signup Success',
-          completed: true,
-          completed_at: '2026-03-08T00:00:00Z',
-          action_path: '/dashboard',
-        },
-        {
-          event_name: 'project_created',
-          label: 'Project Created',
-          completed: false,
-          completed_at: null,
-          action_path: '/dashboard',
-        },
-      ],
-    }
-
-    renderDashboardHome()
-
-    await screen.findByTestId('activation-guide-card')
-    fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
-
-    const nameInput = await screen.findByLabelText('作品名（可不填）')
-    expect(nameInput).toHaveAttribute('placeholder', '不填就先叫「我的小说」，之后随时能改')
-
-    fireEvent.keyDown(nameInput, { key: 'Enter' })
-    await waitFor(() => expect(mockCreateProject).toHaveBeenCalledWith('我的小说', undefined, 'novel'))
-  })
-
-  it('shows today action plan entry and executes activation action', async () => {
-    // Preference A: if activation guide is shown, today-action-plan is hidden.
-    // Use a non-first-day (or no activation guide) scenario to validate the action plan.
-    mockActivationGuide = null
-    mockProjects = []
-    mockPersonaRecommendations = []
-
-    renderDashboardHome()
-
-    const todayActionCard = await screen.findByTestId('today-action-plan-card')
-    const todayAction = within(todayActionCard)
-    expect(todayActionCard).toBeInTheDocument()
-    expect(await todayAction.findByText('创建第一个项目')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId('today-action-execute-1'))
-
-    await waitFor(() => {
-      expect(mockCreateProject).toHaveBeenCalled()
-      expect(mockNavigate).toHaveBeenCalledWith('/project/project-created')
-    })
-  })
-
-  it('does not flash today action plan while projects are still loading', async () => {
-    mockActivationGuide = null
-    mockPersonaRecommendations = []
-    mockProjects = []
-    mockProjectsLoading = true
-
-    renderDashboardHome()
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('today-action-plan-card')).not.toBeInTheDocument()
-    })
-  })
-
-  it('hides today action plan for returning users who already have projects', () => {
-    mockActivationGuide = null
-    mockPersonaRecommendations = []
-    mockProjectsLoading = false
-    mockProjects = [
-      { id: 'project-1', name: '已有项目', project_type: 'novel', updated_at: '2026-03-08T00:02:00Z' },
-    ]
-
-    renderDashboardHome()
-
-    expect(screen.queryByTestId('today-action-plan-card')).not.toBeInTheDocument()
-  })
-
-  it('keeps onboarding panels hidden when dashboard onboarding flags are off', async () => {
-    mockDashboardOnboardingFlags.todayActionPlanEnabled = false
-    mockDashboardOnboardingFlags.firstDayActivationGuideEnabled = false
-    mockActivationGuide = {
-      user_id: 'u-1',
-      window_hours: 24,
-      within_first_day: true,
-      total_steps: 4,
-      completed_steps: 1,
-      completion_rate: 0.25,
-      is_activated: false,
-      next_event_name: 'project_created',
-      next_action: '/dashboard',
-      steps: [
-        {
-          event_name: 'signup_success',
-          label: 'Signup Success',
-          completed: true,
-          completed_at: '2026-03-08T00:00:00Z',
-          action_path: '/dashboard',
-        },
-        {
-          event_name: 'project_created',
-          label: 'Project Created',
-          completed: false,
-          completed_at: null,
-          action_path: '/dashboard',
-        },
-      ],
-    }
-    mockPersonaRecommendations = [
-      {
-        id: 'level_beginner_path',
-        title: '新手先看灵感',
-        description: '先熟悉灵感广场，再开始创作。',
-        action: '/dashboard',
-      },
-    ]
-
-    renderDashboardHome()
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('activation-guide-card')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('today-action-plan-card')).not.toBeInTheDocument()
-    })
-    expect(mockGetActivationGuide).not.toHaveBeenCalled()
-    expect(mockGetRecommendations).not.toHaveBeenCalled()
-  })
-
   it('shows project quota upgrade modal when quick create hits limit', async () => {
     mockCreateProject.mockRejectedValueOnce(new ApiError(402, 'ERR_QUOTA_PROJECTS_EXCEEDED'))
 
@@ -1008,6 +699,14 @@ describe('DashboardHome featured inspirations section', () => {
     mockIsMobile = false
   })
 
+  it('asks phones to open an idea-less new work on the AI tab, but not one with an idea', async () => {
+    renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+    expect(localStorage.getItem('zenstory_open_chat_project-created')).not.toBeNull()
+    localStorage.removeItem('zenstory_open_chat_project-created')
+  })
+
   it('creates a project with an idea at the 20000 character boundary', async () => {
     renderDashboardHome()
     const idea = '文'.repeat(20000)
@@ -1020,7 +719,7 @@ describe('DashboardHome featured inspirations section', () => {
 })
 
 describe('first work entry', () => {
-  beforeEach(() => { vi.clearAllMocks(); mockFirstWork.get.mockResolvedValue(firstWorkState()); mockFirstWork.initialize.mockReset(); mockLanguage = 'zh-CN'; mockUser = defaultMockUser; mockProjects = []; mockProjectsLoading = false; mockDashboardOnboardingFlags.todayActionPlanEnabled = false; mockDashboardOnboardingFlags.firstDayActivationGuideEnabled = false; mockUseFeaturedInspirations.mockReturnValue(mockFeaturedState); vi.spyOn(subscriptionApi, 'getQuota').mockResolvedValue({ ai_conversations: { used: 0, limit: 3, reset_at: null } } as QuotaResponse); localStorage.clear() })
+  beforeEach(() => { vi.clearAllMocks(); mockFirstWork.get.mockResolvedValue(firstWorkState()); mockFirstWork.initialize.mockReset(); mockLanguage = 'zh-CN'; mockUser = defaultMockUser; mockProjects = []; mockProjectsLoading = false; mockUseFeaturedInspirations.mockReturnValue(mockFeaturedState); vi.spyOn(subscriptionApi, 'getQuota').mockResolvedValue({ ai_conversations: { used: 0, limit: 3, reset_at: null } } as QuotaResponse); localStorage.clear() })
   it('initializes pending work with the existing type preference and opens its exact manuscript', async () => {
     setPreferredProjectType('screenplay', defaultMockUser.id)
     mockFirstWork.get.mockResolvedValue(firstWorkState('pending'))
