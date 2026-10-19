@@ -29,6 +29,7 @@ from agent.tools.author_edit_guard import (
     protected_user_message,
 )
 from agent.tools.file_ops import FileToolExecutor
+from agent.tools.file_ops.content_range import ContentRangeError, apply_content_range, wants_range
 from agent.tools.file_ops.edit import (
     EDIT_ERROR_FILE_BUSY,
     EDIT_ERROR_FILE_NOT_FOUND,
@@ -414,7 +415,7 @@ class _ReadSnapshots:
     却没看到文件里原有的字；这时仍有快照做陈旧检查，但 old / anchor 只按逐字匹配。
     """
 
-    __slots__ = ("_full_writes", "_lock", "_pending", "_seq", "_sources")
+    __slots__ = ("_full_writes", "_lock", "_pending", "_pending_range", "_seq", "_sources")
 
     def __init__(self, initial: dict[str, str] | None = None) -> None:
         self._lock = threading.Lock()
@@ -425,8 +426,12 @@ class _ReadSnapshots:
             },
             "written": {},
             "read": {},
+            # 按范围读取（#274）：记下读库时的整份正文，只用于陈旧检查；模型只看到其中一段，
+            # 不算「看过」全文，old / anchor 仍只按逐字匹配。
+            "range": {},
         }
         self._pending: dict[str, tuple[int, str]] = {}
+        self._pending_range: dict[str, tuple[int, str]] = {}
         self._full_writes: set[str] = set()
 
     def ticket(self) -> int:
@@ -438,15 +443,16 @@ class _ReadSnapshots:
     def record(
         self, file_id: str, content: str | None, *, kind: str, full: bool = False, seq: int | None = None
     ) -> None:
-        if not file_id or kind not in ("written", "read"):
+        if not file_id or kind not in ("written", "read", "range"):
             return
         with self._lock:
             self._seq += 1
-            if kind == "read":
+            if kind in ("read", "range"):
+                pending = self._pending if kind == "read" else self._pending_range
                 order = seq if seq is not None else self._seq
-                previous = self._pending.get(file_id)
+                previous = pending.get(file_id)
                 if previous is None or previous[0] <= order:
-                    self._pending[file_id] = (order, content or "")
+                    pending[file_id] = (order, content or "")
                 return
             self._sources["written"][file_id] = (self._seq, content or "")
             if full:
@@ -478,11 +484,15 @@ class _ReadSnapshots:
         with self._lock:
             self._sources["read"].update(self._pending)
             self._pending.clear()
+            self._sources["range"].update(self._pending_range)
+            self._pending_range.clear()
 
     def begin_agent_run(self) -> None:
         with self._lock:
             self._sources["read"].clear()
             self._pending.clear()
+            self._sources["range"].clear()
+            self._pending_range.clear()
 
     def get(self, file_id: str) -> str | None:
         with self._lock:
@@ -749,6 +759,13 @@ class ToolContext:
         holder = cls._get_context().get("read_snapshots")
         if isinstance(holder, _ReadSnapshots):
             holder.record(str(file_id or ""), content or "", kind="read", seq=ticket)
+
+    @classmethod
+    def record_range_read_snapshot(cls, file_id: str, full_content: str | None, *, ticket: int | None = None) -> None:
+        """按范围读取时记下读库那一刻的整份正文：只做陈旧检查，不算模型看过全文。"""
+        holder = cls._get_context().get("read_snapshots")
+        if isinstance(holder, _ReadSnapshots):
+            holder.record(str(file_id or ""), full_content or "", kind="range", seq=ticket)
 
     @classmethod
     def record_written_snapshot(cls, file_id: str, content: str | None, *, full: bool = False) -> None:
@@ -2379,14 +2396,35 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
                     value = coerce_bool(value)
                 query_kwargs[key] = value
 
+        range_read = has_id and wants_range(args)
+        if range_read:
+            # 范围读取先取全文再在这里切：切之前的整份正文用作陈旧检查的快照。
+            query_kwargs["response_mode"] = QUERY_FILES_RESPONSE_MODE_FULL
+            query_kwargs.pop("include_content", None)
+            query_kwargs.pop("content_preview_chars", None)
+
         read_ticket = ToolContext.read_ticket() if has_id else None
         result = executor.query_files(**query_kwargs)
+
+        if range_read:
+            rows = result if isinstance(result, list) else []
+            if len(rows) == 1 and isinstance(rows[0], dict) and isinstance(rows[0].get("content"), str):
+                full_row = rows[0]
+                sliced = apply_content_range(full_row, args)
+                result = [sliced]
+                if sliced.get("content_partial"):
+                    ToolContext.record_range_read_snapshot(
+                        str(full_row.get("id") or ""), full_row["content"], ticket=read_ticket
+                    )
+                    return _make_result({"status": "success", "data": result}, tool_name=tool_name)
 
         payload = {"status": "success", "data": result}
         if has_id and len(json.dumps(payload, ensure_ascii=False)) <= TOOL_RESULT_MAX_CHARS:
             # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
             _note_file_read(result, ticket=read_ticket)
         return _make_result(payload, tool_name=tool_name)
+    except ContentRangeError as e:
+        return _make_error(str(e), tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
 

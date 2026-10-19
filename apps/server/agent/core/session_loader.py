@@ -595,7 +595,10 @@ class SessionLoader:
             lines.extend(in_context)
             lines.append("")
         if omitted:
-            lines.append("未附全文（超出工作集预算；确需全文时再用 query_files(id=…) 读取一次）：")
+            lines.append(
+                "未附全文（超出工作集预算；只需结尾或某一章时用 query_files(id=…, tail_chars=… / section=…) "
+                "读那一段，确需全文时再按 id 读取一次）："
+            )
             lines.extend(omitted)
             lines.append("")
         lines.append("</previous_turn_working_set>")
