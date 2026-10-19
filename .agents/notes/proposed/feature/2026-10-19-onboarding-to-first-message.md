@@ -1,13 +1,19 @@
 # 新用户引导：从注册走到第一条 AI 消息
 
-Status: proposed（第一批已实现，第二批和实验待做）
+Status: proposed（第一批、第二批已实现；实验分桶和真实模型评测待做）
 
-第一批已实现并各自记录：
+第一批已实现，各项分别记录在：
 - `implemented/feature/2026-10-19-first-turn-writes-before-asking.md`（第 3 项）
 - `implemented/feature/2026-10-19-first-message-activation-events.md`（第 1 项）
 - `implemented/feature/2026-10-19-chat-starter-cards.md`（第 2、6 项）
 
-那三份记录与本文不一致的地方，以那三份为准。
+第二批已实现，各项分别记录在：
+- `implemented/feature/2026-10-19-persona-one-question.md`（第 4 项）
+- `implemented/feature/2026-10-19-manuscript-import-entries.md`（第 5 项：导入入口与「看看我的稿子」）
+- `implemented/feature/2026-10-19-dashboard-example-and-phone-enter.md`（第 5 项：工作台）
+- `rejected/feature/2026-10-19-first-day-upgrade-hint.md`（首日隐藏升级按钮，不做）
+
+上述记录与本文不一致的地方，以那些记录为准。
 
 ## Problem
 
@@ -137,6 +143,19 @@ Status: proposed（第一批已实现，第二批和实验待做）
    - 画像页删掉目标和经验两题，放第二批。
    - 生产是否开启首部作品、开多少比例：本方案没有给出推荐值。这是生产配置变更，需要单独授权，未改动。
    - 新账号首日隐藏 2/3 时出现的升级按钮：放第二批，和 `2026-10-17-subscription-conversion-focus.md` 一起评估。第一批的起手卡已经显示「今天还能发 N 条」。
+
+### 第二批与原方案的差异
+
+车主 2026-10-19 补充要求：整体不要太长、太复杂，用户没有耐心。据此调整：
+
+- **画像页**：只问「你想写什么」，一点就进工作台。原方案里的「我手上已有稿子」勾选不做，作品有没有正文直接从项目进度读取。
+- **起手卡**：
+  - 作品有正文时只显示两张卡：「看看我的稿子」和「用我的想法」。
+  - 没有正文时，在示例卡和想法卡之外，只多一行导入入口。
+  - 副文案缩短。
+- **工作台示例**：缩成一句故事前提，前面加「例如：」。
+- **首页想法写进首部作品**：不做。工作台导入和「开始创作」一样新建作品。
+- **首日隐藏升级按钮**：不做，见上方的 rejected 记录。
 
 ### 第一批与原方案的差异
 
