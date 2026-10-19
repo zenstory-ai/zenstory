@@ -931,6 +931,21 @@ describe('ChatPanel mount smoke', () => {
     expect(userBubbles()).toHaveLength(1)
   })
 
+  it('resends an unanswered message after an earlier reply without the first-message hint', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a', session_id: 's', role: 'assistant', content: '上一轮的回复', created_at: '2026-10-09T04:50:00Z' },
+      { id: 'u', session_id: 's', role: 'user', content: '接着写', created_at: '2026-10-09T04:52:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+
+    fireEvent.click(await screen.findByTestId('chat-retry-unanswered'))
+
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
+    const request = mockStartStream.mock.calls[0][0] as { metadata: Record<string, unknown> }
+    expect(request.metadata.retry_unanswered).toBe(true)
+    expect(request.metadata).not.toHaveProperty('entry')
+  })
+
   it.each(['no_progress', 'error'] as const)('offers no resend for a %s refund', async (kind) => {
     vi.mocked(getRecentMessages).mockResolvedValueOnce([{
       id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',

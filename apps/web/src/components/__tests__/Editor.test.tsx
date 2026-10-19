@@ -389,6 +389,19 @@ describe('Editor', () => {
     expect(mockProjectContext.triggerFileTreeRefresh).toHaveBeenCalled()
   })
 
+  it('opens the import picker from the empty state and ignores a cancelled pick', () => {
+    mockProjectContext = createMockProjectContext({ selectedItem: null })
+    render(<Editor />)
+    const input = screen.getByTestId('empty-state-import-input') as HTMLInputElement
+    const pick = vi.spyOn(input, 'click')
+
+    fireEvent.click(screen.getByTestId('empty-state-import-drafts'))
+    fireEvent.change(input, { target: { files: null } })
+
+    expect(pick).toHaveBeenCalledTimes(1)
+    expect(api.fileApi.uploadDraft).not.toHaveBeenCalled()
+  })
+
   it('leaves the newly opened work alone when an import finishes after the author switched works', async () => {
     let finish!: (value: unknown) => void
     vi.mocked(api.fileApi.uploadDraft).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }) as never)

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   fileTreeVersion: 0,
   selectedItem: null as { id: string; type: string; title: string } | null,
   results: [{ id: 'draft-1', fileType: 'draft', title: 'Draft' }],
+  isMobile: false,
 }));
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -27,7 +28,7 @@ vi.mock('../../../contexts/ProjectContext', () => ({
   useProject: () => ({ currentProjectId: mocks.projectId, selectedItem: mocks.selectedItem, setSelectedItem: mocks.select, fileTreeVersion: mocks.fileTreeVersion }),
 }));
 vi.mock('../../../contexts/MobileLayoutContext', () => ({
-  useMobileLayout: () => ({ isMobile: false, switchToEditor: mocks.switchToEditor }),
+  useMobileLayout: () => ({ isMobile: mocks.isMobile, switchToEditor: mocks.switchToEditor }),
 }));
 vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
   MAX_ATTACHED_MATERIALS: 5,
@@ -451,5 +452,26 @@ describe('FileTreePane deletion validation', () => {
     view.rerender(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
     await act(async () => resolve({ tree: [] }));
     expect(mocks.select).not.toHaveBeenCalled();
+  });
+});
+
+describe('FileTreePane draft import on phones', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+    mocks.getTree.mockResolvedValue({ tree: [{ id: 'drafts', title: '正文', file_type: 'folder', children: [] }] });
+  });
+  afterEach(() => {
+    mocks.isMobile = false;
+  });
+
+  it.each([
+    ['phone', true, 'opacity-100'],
+    ['desktop', false, 'opacity-0'],
+  ])('on a %s, the draft folder import button is always visible: %s', async (_name, isMobile, visibility) => {
+    mocks.isMobile = isMobile;
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    const button = await screen.findByTestId('file-tree-upload-draft');
+    expect(button.parentElement).toHaveClass(visibility);
   });
 });

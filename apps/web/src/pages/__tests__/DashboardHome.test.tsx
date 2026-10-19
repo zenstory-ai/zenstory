@@ -687,6 +687,72 @@ describe('DashboardHome featured inspirations section', () => {
     expect(localStorage.getItem('zenstory_inspiration_project-created')).toBeNull()
   })
 
+  it('opens the import picker from its button and ignores a cancelled pick', () => {
+    renderDashboardHome()
+    const input = screen.getByTestId('dashboard-import-input') as HTMLInputElement
+    const pick = vi.spyOn(input, 'click')
+
+    fireEvent.click(screen.getByTestId('dashboard-import-drafts'))
+    fireEvent.change(input, { target: { files: [] } })
+
+    expect(pick).toHaveBeenCalledTimes(1)
+    expect(mockCreateProject).not.toHaveBeenCalled()
+  })
+
+  it('opens the new work without a chapter when the upload created nothing, named by its type', async () => {
+    mockUploadDraft.mockRejectedValueOnce(new Error('offline'))
+    renderDashboardHome()
+
+    fireEvent.change(screen.getByTestId('dashboard-import-input'), {
+      target: { files: [new File([''], '.txt', { type: 'text/plain' })] },
+    })
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+    expect(mockCreateProject).toHaveBeenCalledWith('我的小说', undefined, 'novel')
+  })
+
+  it('stops when the created work has no id', async () => {
+    mockCreateProject.mockResolvedValueOnce({})
+    renderDashboardHome()
+
+    fireEvent.change(screen.getByTestId('dashboard-import-input'), {
+      target: { files: [new File(['正文'], 'a.txt', { type: 'text/plain' })] },
+    })
+
+    await waitFor(() => expect(mockCreateProject).toHaveBeenCalled())
+    expect(mockUploadDraft).not.toHaveBeenCalled()
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('does not pull the author back after they left during an import', async () => {
+    let finishUpload: (value: unknown) => void = () => {}
+    mockUploadDraft.mockReturnValueOnce(new Promise((resolve) => { finishUpload = resolve }))
+    const { unmount } = renderDashboardHome()
+
+    fireEvent.change(screen.getByTestId('dashboard-import-input'), {
+      target: { files: [new File(['正文'], 'a.txt', { type: 'text/plain' })] },
+    })
+    await waitFor(() => expect(mockUploadDraft).toHaveBeenCalled())
+    unmount()
+    finishUpload({ files: [{ id: 'chapter-1', title: '第一章', file_type: 'draft' }], total: 1 })
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('shows the project quota prompt when an import cannot create a work', async () => {
+    mockCreateProject.mockRejectedValueOnce(new ApiError(402, 'ERR_QUOTA_PROJECTS_EXCEEDED'))
+    renderDashboardHome()
+
+    fireEvent.change(screen.getByTestId('dashboard-import-input'), {
+      target: { files: [new File(['正文'], 'a.txt', { type: 'text/plain' })] },
+    })
+
+    expect(await screen.findByTestId('upgrade-modal')).toBeInTheDocument()
+    expect(mockUploadDraft).not.toHaveBeenCalled()
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
   it('lets the return key add a line on phones instead of creating a work', () => {
     mockIsMobile = true
     renderDashboardHome()

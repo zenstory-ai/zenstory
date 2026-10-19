@@ -184,6 +184,25 @@ describe("OnboardingPersonaPage", () => {
     expect(getPreferredProjectType(mockUser?.id)).toBe("screenplay");
   });
 
+  it("tolerates a partial server profile: syncs safe defaults and sends no unknown experience", async () => {
+    mockGetState.mockResolvedValue({
+      required: false,
+      profile: { experience_level: "legendary", skipped: false, version: 1, completed_at: "2026-03-07T09:00:00.000Z" },
+    });
+    renderPage();
+
+    await waitFor(() => expect(mockSavePersonaOnboardingData).toHaveBeenCalledWith("user-onboarding-1", {
+      selected_personas: [],
+      selected_goals: [],
+      experience_level: "beginner",
+      skipped: false,
+    }));
+    fireEvent.click(typeButton("novel"));
+
+    await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
+    expect(mockSave.mock.calls[0][0]).toEqual({ selected_personas: ["serial"], selected_goals: [], skipped: false });
+  });
+
   it("highlights the landing-page type for a new author, and the tap decides", async () => {
     setPreferredProjectType("novel", mockUser?.id);
     renderPage();
