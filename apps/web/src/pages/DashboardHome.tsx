@@ -637,8 +637,8 @@ export default function DashboardHome() {
     }
   };
 
-  // A complete example brief (premise + what to produce first) shows what a good request looks like;
-  // a rule such as "enter a core conflict" reads as homework.
+  // One example premise, marked 「例如：」 so it never reads as text already filled in; the first
+  // reply writes an opening from even a vague idea, so it needs no instructions about what to produce.
   const resolvedInspirationPlaceholder = t(`dashboard:inspiration.example.${activeTab}`);
   return (
     <>
@@ -741,7 +741,8 @@ export default function DashboardHome() {
             value={inspiration}
             onChange={(e) => setInspiration(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
+              // Phones: the keyboard's return key adds a line instead of creating a half-written work.
+              if (!isMobile && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
                 e.preventDefault();
                 handleQuickCreate();
               }

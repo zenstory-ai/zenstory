@@ -120,7 +120,7 @@ const mockT = (
     'projectType.novel.name': '长篇小说',
     'inspiration.novelDesc': 'AI 将根据你的灵感，帮你构思故事框架、设定世界观和人物角色',
     'inspiration.novelPlaceholder': '请输入灵感',
-    'dashboard:inspiration.example.novel': '写一部架空历史权谋长篇：主角穿越成王朝里最不起眼的六皇子，不夺嫡、不宫斗，只想悄悄攒下兵权自保，却被父皇和几位兄长一步步推到台前。先定主角人设和朝堂势力，再出前三章大纲。',
+    'dashboard:inspiration.example.novel': '例如：主角穿越成王朝里最不起眼的六皇子，只想悄悄攒下兵权自保，却被父皇和几位兄长一步步推到台前。',
     'activationGuide.steps.signup_success': '完成注册',
     'activationGuide.steps.project_created': '创建项目',
     'activationGuide.steps.first_file_saved': '写下第一段内容',
@@ -513,8 +513,8 @@ describe('DashboardHome featured inspirations section', () => {
     expect(screen.queryByRole('button', { name: '查看灵感库' })).not.toBeInTheDocument()
     expect(mockUseFeaturedInspirations).not.toHaveBeenCalled()
     expect(mockUseDashboardInspirations).not.toHaveBeenCalled()
-    // The placeholder is a complete example brief, not an instruction the author must satisfy.
-    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^写一部架空历史权谋长篇：.+前三章大纲。$/)
+    // The placeholder is one example premise, marked as an example rather than text already filled in.
+    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^例如：主角穿越成.+推到台前。$/)
   })
 
   it('keeps manual idea creation available when inspirations are disabled', async () => {
@@ -560,8 +560,8 @@ describe('DashboardHome featured inspirations section', () => {
 
     expect(screen.getByTestId('dashboard-real-inspirations')).toBeInTheDocument()
     expect(mockUseDashboardInspirations).toHaveBeenCalledWith('novel', 2, 0)
-    // The placeholder is a complete example brief, not an instruction the author must satisfy.
-    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^写一部架空历史权谋长篇：.+前三章大纲。$/)
+    // The placeholder is one example premise, marked as an example rather than text already filled in.
+    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^例如：主角穿越成.+推到台前。$/)
     fireEvent.click(screen.getByRole('button', { name: /狂兽战神/i }))
 
     expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue(
@@ -994,6 +994,18 @@ describe('DashboardHome featured inspirations section', () => {
     expect(mockUploadDraft).toHaveBeenCalledWith('project-created', file)
     // A draft is not an idea: nothing is queued for the AI.
     expect(localStorage.getItem('zenstory_inspiration_project-created')).toBeNull()
+  })
+
+  it('lets the return key add a line on phones instead of creating a work', () => {
+    mockIsMobile = true
+    renderDashboardHome()
+    const input = screen.getByTestId('dashboard-inspiration-input')
+    fireEvent.change(input, { target: { value: '主角是外卖员' } })
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(mockCreateProject).not.toHaveBeenCalled()
+    mockIsMobile = false
   })
 
   it('creates a project with an idea at the 20000 character boundary', async () => {
