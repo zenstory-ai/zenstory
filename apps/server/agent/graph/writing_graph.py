@@ -737,6 +737,14 @@ def _changed_span(before: str, after: str) -> tuple[int, int] | None:
     return start, end_after
 
 
+def _section_start_before(content: str, start: int, count: int = 1) -> int | None:
+    """``start`` 之前倒数第 ``count`` 个章节/分集标题的位置；不够 ``count`` 个时为 None。"""
+    from agent.tools.file_ops.content_range import heading_offsets
+
+    offsets = [offset for offset in heading_offsets(content) if offset < start]
+    return offsets[-count] if len(offsets) >= count else None
+
+
 def _review_payload_block(
     title: str, content: str, before: str | None, *, max_chars: int = REVIEW_PAYLOAD_MAX_CHARS
 ) -> str:
@@ -757,15 +765,19 @@ def _review_payload_block(
         return f"{header}{body}"
     start, end = span
 
-    def excerpt_note(leading_words: int, trailing_words: int) -> str:
+    def excerpt_note(leading_words: int, trailing_words: int, sections: int = 0) -> str:
+        attached = (
+            f"本请求改动的部分，以及改动之前的 {sections} 个章节（从标题起的完整原文）和后面少量原文"
+            if sections else "本请求改动的部分和前后少量原文"
+        )
         return (
-            f"[《{title}》编辑器字数 {words}。下面是本请求改动的部分和前后少量原文；"
-            f"它前面的 {leading_words} 字、后面的 {trailing_words} 字"
-            "本请求没有改动，没有附上，核对前文事实时再读取]\n"
+            f"[《{title}》编辑器字数 {words}。下面是{attached}；"
+            f"再往前的 {leading_words} 字、后面的 {trailing_words} 字"
+            "本请求没有改动，没有附上；核对更早的事实时按章节读取那一段，不要整份重读]\n"
         )
 
     # 先为标注和改动本身预留空间；邻接旧文不能挤掉真正的新改句。
-    note_budget = len(excerpt_note(words, words))
+    note_budget = len(excerpt_note(words, words, 2))
     compact_note = "[本请求改动片段；其余原文没有附上，请读取文件核对]\n"
     if note_budget >= max_chars:
         note_budget = len(compact_note)
@@ -778,13 +790,25 @@ def _review_payload_block(
     line_break = content.find("\n", context_start, start)
     if context_start > 0 and line_break != -1:
         context_start = line_break + 1
+    # 审稿人按提示要对照「同一文件或前两章」核对重复和事实：只给前后 600 字时它会再把文件结尾
+    # 整段读一遍（#275）。放得下时从改动之前的两个（不够就一个）章节标题起附完整原文。
+    sections_attached = 0
+    for count in (2, 1):
+        section_start = _section_start_before(content, start, count)
+        if (
+            section_start is not None
+            and section_start < context_start
+            and (start - section_start) + len(changed) + context_chars <= body_budget - 40
+        ):
+            context_start, sections_attached = section_start, count
+            break
     context_end = min(len(content), end + context_chars)
     line_break = content.rfind("\n", end, context_end)
     if context_end < len(content) and line_break != -1:
         context_end = line_break
     excerpt = _format_review_payload(content[context_start:context_end], max_chars=body_budget)
     note = excerpt_note(
-        count_words(content[:context_start]), count_words(content[context_end:])
+        count_words(content[:context_start]), count_words(content[context_end:]), sections_attached
     )
     if len(note) > note_budget:
         note = compact_note
@@ -919,6 +943,12 @@ _WRITER_QUESTION_FOR_REVIEWER_NOTE = (
     "需要再改时照常交给内容创作者，由它修完后问。"
 )
 _WRITER_QUESTION_FOR_REWORK_NOTE = "作者还没看到这个问题：改完后把它原样放在你回复的最后问作者。"
+# 返修时附上审稿对象的当前落库正文（与送审片段同一口径）。
+REWORK_CURRENT_TEXT_HEADER = (
+    "[返修对象当前正文] 以下是审稿时那份正文的当前落库版本（长文件只附改动所在的一段）；"
+    "改这里面的内容时直接逐字引用作为 edit_file 的 old/anchor，不必再读这一段；"
+    "要改的地方不在下面时再按范围读取。"
+)
 WRITER_REWORK_AFTER_SUPERSEDED_NOTE = (
     "[作者看到的回复] 你送检前写给作者的说明作者没有看到。这次改完后的回复就是作者看到的"
     "唯一一份总结：说清这一轮写了什么，字数只用 edit_file 返回的 new_word_count，"
@@ -1907,10 +1937,19 @@ async def run_writing_workflow_streaming(
                             f"\n\n{WRITER_QUESTION_HEADER}\n{writer_superseded_question}\n"
                             f"{_WRITER_QUESTION_FOR_REWORK_NOTE}"
                         )
+                    rework_text = ""
+                    if current_agent_type == "writer" and previous_agent == "quality_reviewer":
+                        # 审稿人那份 [待审查内容] 已从历史里去掉，返修 writer 看不到正文，只能再读一遍。
+                        # 按当前落库版本重新附上同一份送审片段：逐字引用它做 edit_file 的 old/anchor（#275）。
+                        rework_guard = _guard_from_state(state)
+                        rework_ids = rework_guard.written_file_ids() if rework_guard else []
+                        rework_payload = await _review_payload_text(rework_ids) if rework_ids else None
+                        if rework_payload:
+                            rework_text = f"\n\n{REWORK_CURRENT_TEXT_HEADER}\n{rework_payload}"
                     modified_state["user_message"] = (
                         f"[来自上一个Agent的交接信息]: "
                         f"{handoff_context}{packet_items_text}{work_log_text}{inventory_text}"
-                        f"{superseded_note}{last_iteration_hint}"
+                        f"{rework_text}{superseded_note}{last_iteration_hint}"
                     )
             else:
                 # 即使没有 handoff_context，也需要注入最后一轮提示

@@ -86,6 +86,11 @@ def _section_bounds(content: str, section: str) -> tuple[int, int, str]:
     return start.offset, end, start.text
 
 
+def heading_offsets(content: str) -> list[int]:
+    """Start offsets of the chapter/episode heading lines (same rules as ``section``)."""
+    return [heading.offset for heading in _headings(content)]
+
+
 def apply_content_range(row: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Cut ``row["content"]`` to the requested range and describe it. ``row`` is one by-id result."""
     content = row.get("content")
