@@ -154,8 +154,9 @@ def test_retrieval_excludes_only_selected_items():
         card.content = _prose(3000, card.title)
     captured: dict[str, set[str]] = {}
 
-    def fake_snippets(*, project_id, query, exclude_entity_ids=None, top_k=6):
+    def fake_snippets(*, project_id, query, exclude_entity_ids=None, top_k=6, shown_prefixes=None):
         captured["exclude"] = set(exclude_entity_ids or set())
+        captured["prefixes"] = set(shown_prefixes or {})
         return []
 
     with (
@@ -175,7 +176,10 @@ def test_retrieval_excludes_only_selected_items():
     all_ids = {card.id for card in characters}
     assert selected_ids, "至少应选中一张角色卡"
     assert selected_ids < all_ids, "场景需要有被挤掉的角色卡"
-    assert captured["exclude"] == selected_ids
+    # Fully shown cards are excluded; truncated ones may still get uncovered snippets (#270).
+    truncated_ids = {item["id"] for item in data.items if item.get("metadata", {}).get("truncated")}
+    assert captured["exclude"] == selected_ids - truncated_ids
+    assert captured["prefixes"] == truncated_ids
 
 
 def test_truncated_stub_below_threshold_is_dropped_outside_critical():

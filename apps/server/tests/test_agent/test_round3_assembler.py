@@ -501,3 +501,72 @@ class TestFilesByTypesQueryLimit:
         ).all()
         assert len(loaded_files) == 60
         assert counting.fetched_rows <= 60 + 20 + 5
+
+
+class TestOlderNamedAndCoreCards:
+    """#270: the recency window must not keep a named or core card out of the candidates."""
+
+    @staticmethod
+    def _cards(db_session, project, make_file):
+        from datetime import UTC, datetime, timedelta
+
+        base = datetime(2026, 1, 1, tzinfo=UTC)
+        target = make_file(project, "沈清秋", "character", content="沈清秋：左手有旧伤，不能执剑。")
+        core = make_file(project, "灵脉规则", "lore", content="灵脉一旦断裂不可修复。",
+                         file_metadata='{"importance": "high"}')
+        target.updated_at = core.updated_at = base
+        db_session.add_all([target, core])
+        for index in range(10):
+            newer = make_file(project, f"配角{index:02d}", "character", content="路人。")
+            filler = make_file(project, f"杂项{index:02d}", "lore", content="杂项。",
+                               file_metadata='{"importance": "low"}')
+            newer.updated_at = filler.updated_at = base + timedelta(days=index + 1)
+            db_session.add_all([newer, filler])
+        db_session.commit()
+        return target, core
+
+    def test_oldest_card_named_in_the_query_and_high_lore_join_the_candidates(
+        self, db_session, owner, make_project, make_file
+    ):
+        project = make_project()
+        target, core = self._cards(db_session, project, make_file)
+
+        items = ContextAssembler()._get_files_by_types(  # noqa: SLF001
+            session=db_session, project_id=project.id, file_types=["character", "lore"],
+            limit_per_type=10, query="写沈清秋第一次出剑的场面",
+        )
+
+        ids = [item.id for item in items]
+        assert target.id in ids and core.id in ids
+        assert len(ids) == 22
+
+    def test_without_a_name_only_the_core_lore_is_added(self, db_session, owner, make_project, make_file):
+        project = make_project()
+        target, core = self._cards(db_session, project, make_file)
+
+        ids = [item.id for item in ContextAssembler()._get_files_by_types(  # noqa: SLF001
+            session=db_session, project_id=project.id, file_types=["character", "lore"],
+            limit_per_type=10, query="继续写",
+        )]
+
+        assert core.id in ids and target.id not in ids
+
+
+def test_truncated_file_keeps_snippets_outside_its_shown_prefix():
+    """#270: a file shown only as a prefix is not excluded from snippet retrieval as a whole."""
+    prefix_hit = SimpleNamespace(entity_id="lore-1", snippet="开头的规则。", entity_type="lore", title="长设定")
+    tail_hit = SimpleNamespace(entity_id="lore-1", snippet="结尾的唯一规则：夜里不能点灯。",
+                               entity_type="lore", title="长设定")
+    full_hit = SimpleNamespace(entity_id="char-1", snippet="角色全文里的句子。", entity_type="character", title="角色")
+
+    def search(*_args, **_kwargs):
+        return [prefix_hit, full_hit, tail_hit]
+
+    with patch("services.infra.file_search_service.FileSearchService.search", side_effect=search):
+        snippets = ContextAssembler()._get_retrieved_snippets(  # noqa: SLF001
+            project_id="p1", query="规则",
+            exclude_entity_ids={"char-1"},
+            shown_prefixes={"lore-1": "开头的规则。其余省略……"},
+        )
+
+    assert [item.content for item in snippets] == ["结尾的唯一规则：夜里不能点灯。"]

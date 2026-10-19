@@ -224,7 +224,9 @@ class ContextAssembler:
                 file_types_to_fetch.append("lore")
 
             if file_types_to_fetch:
-                items.extend(self._get_files_by_types(session, project_id, file_types_to_fetch))
+                items.extend(self._get_files_by_types(
+                    session, project_id, file_types_to_fetch, query=query
+                ))
 
         # 4. Deduplicate items by ID (prefer higher priority / is_focus)
         items = self._deduplicate_items(items)
@@ -279,9 +281,14 @@ class ContextAssembler:
         # 排除出检索。历史缺陷是把收集到的全部文件 id 都传给 exclude_entity_ids，
         # 被预算挤掉的角色卡 / 设定连检索也捞不回来。
         selected, budget = self._select_within_budget(items, item_token_budget)
+        # 只有全文入选的文件才整份排除出检索；只显示了前缀的文件，前缀之外的片段仍可补入（#270）。
         selected_file_ids = {
             item.id for item in selected
-            if isinstance(item.id, str) and item.id.strip()
+            if isinstance(item.id, str) and item.id.strip() and not item.is_truncated
+        }
+        shown_prefixes = {
+            item.id: item.content for item in selected
+            if isinstance(item.id, str) and item.id.strip() and item.is_truncated
         }
 
         # 6.2 Query-time retrieval snippets (keyword search, best-effort).
@@ -291,6 +298,7 @@ class ContextAssembler:
             project_id=project_id,
             query=query,
             exclude_entity_ids=selected_file_ids,
+            shown_prefixes=shown_prefixes,
         )
         if snippets:
             snippets = self._apply_query_recall_ranking(snippets, query)
@@ -846,9 +854,13 @@ class ContextAssembler:
         query: str | None,
         exclude_entity_ids: set[str] | None = None,
         top_k: int = 6,
+        shown_prefixes: dict[str, str] | None = None,
     ) -> list[ContextItem]:
         """
         Retrieve query-related snippet items via database keyword search.
+
+        ``shown_prefixes``: files already in context only as a truncated prefix. Their
+        snippets are kept unless the snippet text already sits in the shown prefix.
 
         Best-effort:
         - Fails open (returns []) when file search service is unavailable.
@@ -930,6 +942,8 @@ class ContextAssembler:
                 snippet = str(getattr(result, "content", "") or "").strip()
             if not snippet:
                 continue
+            if snippet in (shown_prefixes or {}).get(entity_id, ""):
+                continue
 
             entity_type = str(getattr(result, "entity_type", "") or "").strip().lower() or "unknown"
             title = str(getattr(result, "title", "") or "").strip() or f"{entity_type}:{entity_id}"
@@ -986,9 +1000,15 @@ class ContextAssembler:
         project_id: str,
         file_types: list[str],
         limit_per_type: int = 10,
+        query: str | None = None,
     ) -> list[ContextItem]:
         """
         Get files of multiple types in a single batch query.
+
+        Besides the ``limit_per_type`` most recently updated files, cards named in
+        ``query`` and high-importance lore older than that window are added (up to
+        ``limit_per_type`` more), chosen from titles/metadata before any body is read,
+        so recency alone cannot keep them out of the candidates (#270).
 
         Optimization: Reduces N queries to 1 query when fetching multiple file types.
 
@@ -1028,6 +1048,12 @@ class ContextAssembler:
                     ).all()
                 )
 
+        loaded_ids = {file.id for files in files_by_type.values() for file in files}
+        for file in self._named_or_core_files(
+            session, project_id, file_types, query, exclude_ids=loaded_ids, limit=limit_per_type
+        ):
+            files_by_type.setdefault(file.file_type, []).append(file)
+
         # Convert to ContextItems
         items = []
         for file_type in file_types:
@@ -1049,6 +1075,81 @@ class ContextAssembler:
             items = non_lore_items + lore_items
 
         return items
+
+    def _named_or_core_files(
+        self,
+        session: Session,
+        project_id: str,
+        file_types: list[str],
+        query: str | None,
+        *,
+        exclude_ids: set[str],
+        limit: int,
+    ) -> list[Any]:
+        """Older cards the recency window missed: named in the query, then high-importance lore.
+
+        The first query reads only id/title/type/metadata; bodies are loaded for the picks.
+        """
+        from sqlalchemy import func, literal, or_
+
+        from models import File
+
+        normalized_query = (query or "").strip().lower()
+        if limit <= 0 or not file_types:
+            return []
+        columns = (File.id, File.title, File.file_type, File.file_metadata)
+        base = (
+            File.project_id == project_id,
+            File.file_type.in_(file_types),
+            File.is_deleted.is_(False),
+        )
+        newest = (File.updated_at.desc(), File.id.asc())
+        excluded = File.id.not_in(exclude_ids) if exclude_ids else literal(True)
+
+        named: list[str] = []
+        if normalized_query:
+            # SQL 只做粗筛（标题里的 % / _ 会被当通配符），下面按原规则逐个核对。
+            rows = session.exec(
+                select(*columns)
+                .where(*base, excluded, literal(normalized_query).contains(func.lower(File.title)))
+                .order_by(*newest)
+                .limit(limit)
+            ).all()
+            named = [
+                file_id for file_id, title, _type, _meta in rows
+                if len((title or "").strip()) >= MIN_QUERY_NAME_CHARS
+                and (title or "").strip().lower() in normalized_query
+            ]
+
+        core: list[str] = []
+        if "lore" in file_types and len(named) < limit:
+            rows = session.exec(
+                select(*columns)
+                .where(
+                    *base,
+                    excluded,
+                    File.file_type == "lore",
+                    or_(
+                        File.file_metadata.contains('"importance": "high"'),
+                        File.file_metadata.contains('"importance":"high"'),
+                    ),
+                )
+                .order_by(*newest)
+                .limit(limit)
+            ).all()
+            for file_id, _title, _type, raw_metadata in rows:
+                try:
+                    metadata = json.loads(raw_metadata) if raw_metadata else {}
+                except (TypeError, ValueError):
+                    metadata = {}
+                if isinstance(metadata, dict) and metadata.get("importance") == "high" and file_id not in named:
+                    core.append(file_id)
+
+        picks = [*named, *core][:limit]
+        if not picks:
+            return []
+        files = self._batch_get_files(session, picks)
+        return [files[file_id] for file_id in picks if file_id in files]
 
     def _get_files_by_type(
         self,
