@@ -657,6 +657,9 @@ _PROTECTED_MIN_CJK = 12
 _PROTECTED_MIN_WORDS = 12
 # 改写后的句子至少要有原句（去掉套话后）三分之一的分量，才算「改写」而不是「删到只剩几个字」。
 _REWRITE_MIN_SHARE = 1 / 3
+# 丢掉的保护句和某个新句子至少共享这么多字（且占原句这个比例），才算被并进了那个新句子。
+_MERGED_MIN_CHARS = 4
+_MERGED_MIN_SHARE = 0.15
 _SENTENCE_ENDERS = "。！？!?…"
 _SENTENCE_CLOSERS = "”’」』）)】》\"'"
 _CJK_CHAR_RE = re.compile(r"[㐀-䶿一-鿿]")
@@ -771,16 +774,52 @@ def restore_dropped_sentences(original_sentences: list[str], new_sentences: list
         # 内容并进了同一行的别的句子（例如两句被合成一句），不算丢。
         return _shared_chars(original_keys[i], whole_new_key) < 0.5 * len(original_keys[i])
 
+    # 丢掉的保护句有一截被并进了某个新句子（模型把两句合成一句、顺手删了半句）：
+    # 把原句贴在合成句旁边会让并进去的那截出现两次。这时撤销这次合并——那个新句子
+    # 换回它对应的原句（连同丢掉的这句），其余改写照旧保留。
+    claimed = {new_id for new_id in new_ids if new_id >= 0}
+    merge_groups: dict[int, set[int]] = {}
+    absorbed: set[int] = set()
+    for i, original_key in enumerate(original_keys):
+        if i in claimed or not lost(i):
+            continue
+        best_j, best_shared = None, 0
+        for j, new_key in enumerate(new_keys):
+            shared = _shared_chars(original_key, new_key)
+            if shared > best_shared:
+                best_j, best_shared = j, shared
+        if best_j is None or best_shared < max(_MERGED_MIN_CHARS, _MERGED_MIN_SHARE * len(original_key)):
+            continue
+        if new_ids[best_j] >= 0 and new_ids.count(new_ids[best_j]) > 1:
+            # 那个新句子认领的原句还被别的新句子认领（模型把一句拆成了几句）：换回原句会让它
+            # 出现两次，照旧只放回丢掉的这句。
+            continue
+        group = merge_groups.setdefault(best_j, {new_ids[best_j]} if new_ids[best_j] >= 0 else set())
+        group.add(i)
+        absorbed.add(i)
+
     result: list[str] = []
     restored = 0
+
+    def emit_new(j: int) -> None:
+        nonlocal restored
+        if j not in merge_groups:
+            result.append(new_sentences[j])
+            return
+        for i in sorted(merge_groups[j]):
+            result.append(original_sentences[i])
+            if i in absorbed:
+                restored += 1
+
     matcher = difflib.SequenceMatcher(None, list(range(len(original_sentences))), new_ids, autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag in ("equal", "insert"):
-            result.extend(new_sentences[j1:j2])
+            for j in range(j1, j2):
+                emit_new(j)
             continue
         if tag == "delete":
             for i in range(i1, i2):
-                if lost(i):
+                if i not in absorbed and lost(i):
                     result.append(original_sentences[i])
                     restored += 1
             continue
@@ -788,14 +827,14 @@ def restore_dropped_sentences(original_sentences: list[str], new_sentences: list
         for k in range(max(i2 - i1, j2 - j1)):
             i = i1 + k if k < i2 - i1 else None
             j = j1 + k if k < j2 - j1 else None
-            if i is not None and lost(i):
+            if i is not None and i not in absorbed and lost(i):
                 weight = _content_weight(original_sentences[i])
                 if j is None or _content_weight(new_sentences[j]) < weight * _REWRITE_MIN_SHARE:
                     result.append(original_sentences[i])
                     restored += 1
                     continue
             if j is not None:
-                result.append(new_sentences[j])
+                emit_new(j)
     return result, restored
 
 

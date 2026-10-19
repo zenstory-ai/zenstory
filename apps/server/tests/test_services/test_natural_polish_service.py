@@ -608,3 +608,49 @@ async def test_marker_less_reply_that_does_not_line_up_still_fails(reply: str):
 
     assert (caught.value.stage, caught.value.category) == ("protocol_parse", "invalid_marker")
 
+
+
+# Live-model merges (synthetic text): the model folded a protected sentence into its
+# neighbour and dropped part of it. Putting the original back next to the merged
+# sentence repeated the merged fragment; the merge is undone instead.
+_MERGE_DROPS = [
+    (
+        "他慢慢坐下来，眼底闪过一丝寒光。他决定，无论如何都要找到真相。",
+        "他慢慢坐下来，决定无论如何都要找到真相。",
+        "他慢慢坐下来",
+    ),
+    (
+        "客厅的钟滴答滴答地走着，仿佛在诉说着什么。他忽然意识到，这个家，早就不是他记忆中的那个家了。"
+        "这让他感到一种前所未有的孤独和迷茫，内心深处涌起一股难以言喻的酸楚。",
+        "客厅的钟滴答滴答地走着。他忽然意识到，这个家早就不是他记忆中的那个家了，一股难以言喻的酸楚涌上来。",
+        "难以言喻的酸楚",
+    ),
+    (
+        "客厅的钟滴答滴答地走着，仿佛在诉说着什么。他忽然意识到，这个家，早就不是他记忆中的那个家了。"
+        "这让他感到一种前所未有的孤独和迷茫，内心深处涌起一股难以言喻的酸楚。",
+        "客厅的钟滴答滴答地走着。他忽然意识到，这个家早就不是他记忆中的那个家了，一种前所未有的孤独和迷茫涌了上来。",
+        "前所未有的孤独和迷茫",
+    ),
+]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(("original", "merged", "fragment"), _MERGE_DROPS)
+def test_restoring_a_merged_sentence_does_not_repeat_the_merged_fragment(original, merged, fragment):
+    text, restored = guard_line_sentences(original, merged)
+
+    assert restored >= 1
+    assert text.count(fragment) == 1
+    # The sentence the merge dropped is back, word for word.
+    [dropped] = [sentence for sentence in split_sentences(original) if fragment in sentence]
+    assert dropped in text
+
+
+@pytest.mark.unit
+def test_an_untouched_rewrite_before_the_merge_is_kept():
+    original, merged, _ = _MERGE_DROPS[1]
+
+    text, _ = guard_line_sentences(original, merged)
+
+    # The first sentence was only trimmed, not merged: the model's version stays.
+    assert text.startswith("客厅的钟滴答滴答地走着。")
