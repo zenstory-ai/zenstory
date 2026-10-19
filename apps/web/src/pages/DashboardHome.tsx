@@ -495,6 +495,7 @@ export default function DashboardHome() {
           accept={DRAFT_IMPORT_ACCEPT}
           multiple
           className="hidden"
+          aria-label={t('importDrafts')}
           data-testid="dashboard-import-input"
           onChange={(event) => { void handleImportDrafts(event); }}
         />

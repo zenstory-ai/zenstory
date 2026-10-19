@@ -83,11 +83,16 @@ for (const width of [390, 768, 1440]) {
       await expect(body).toBeFocused(); await expect(body).toHaveValue('');
       await ai.click();
       const chat = page.getByTestId('chat-input');
-      await expect(chat).toBeFocused(); await expect(chat).toHaveValue('');
+      // Phones open the AI panel without raising the keyboard over the starter cards.
+      const expectChatOpened = async () => {
+        if (width >= 768) return expect(chat).toBeFocused();
+        await expect(chat).toBeVisible(); await expect(chat).not.toBeFocused();
+      };
+      await expectChatOpened(); await expect(chat).toHaveValue('');
       await chat.fill('Preserve my existing chat draft');
       if (width < 768) await page.getByRole('tab', { name: language === 'zh' ? '编辑' : 'Editor', exact: true }).click();
       await paste.click(); await ai.click();
-      await expect(chat).toBeFocused(); await expect(chat).toHaveValue('Preserve my existing chat draft');
+      await expectChatOpened(); await expect(chat).toHaveValue('Preserve my existing chat draft');
       expect(aiCalls(fixture.calls)).toHaveLength(0);
       if (width < 768) await page.getByRole('tab', { name: language === 'zh' ? '编辑' : 'Editor', exact: true }).click();
       await body.fill('The author’s first paragraph, without AI.');

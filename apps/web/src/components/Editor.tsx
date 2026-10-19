@@ -1490,6 +1490,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
               accept={DRAFT_IMPORT_ACCEPT}
               multiple
               className="hidden"
+              aria-label={t('editor:emptyStateImportDrafts')}
               data-testid="empty-state-import-input"
               onChange={(event) => { void handleImportDrafts(event); }}
             />
