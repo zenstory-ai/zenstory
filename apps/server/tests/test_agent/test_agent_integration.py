@@ -72,7 +72,7 @@ class TestMCPTools:
         """Test that all MCP tools are registered."""
         from agent.tools.mcp_tools import ALL_MCP_TOOLS
 
-        assert len(ALL_MCP_TOOLS) == 9
+        assert len(ALL_MCP_TOOLS) == 10
 
         # ALL_MCP_TOOLS is now a list of functions
         tool_names = [tool.__name__ for tool in ALL_MCP_TOOLS]
@@ -80,6 +80,7 @@ class TestMCPTools:
             "create_file",
             "edit_file",
             "delete_file",
+            "rename_file",
             "query_files",
             "update_project",
             "handoff_to_agent",
