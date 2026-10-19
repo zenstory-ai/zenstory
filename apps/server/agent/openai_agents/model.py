@@ -19,12 +19,18 @@ from agent.core.deepseek_client import (
 DEEPSEEK_WRITING_MODEL = DEEPSEEK_CHAT_MODEL
 
 _model: Any | None = None
+_model_client: Any | None = None
 
 
 def get_deepseek_chat_model() -> Any:
-    """Return the singleton OpenAI Agents Chat Completions model."""
-    global _model
-    if _model is not None:
+    """Return the OpenAI Agents Chat Completions model for the current DeepSeek client.
+
+    Rebuilt when get_deepseek_client() hands out a new client (a new event loop),
+    so the model never keeps a client whose connections belong to a closed loop.
+    """
+    global _model, _model_client
+    client = get_deepseek_client()
+    if _model is not None and _model_client is client:
         return _model
 
     # Import lazily so unit tests that do not touch the SDK can still import the
@@ -37,13 +43,15 @@ def get_deepseek_chat_model() -> Any:
 
     _model = OpenAIChatCompletionsModel(
         model=DEEPSEEK_WRITING_MODEL,
-        openai_client=get_deepseek_client(),
+        openai_client=client,
     )
+    _model_client = client
     return _model
 
 
 def reset_deepseek_sdk_cache() -> None:
     """Clear singleton SDK objects; intended for tests."""
-    global _model
+    global _model, _model_client
     _model = None
+    _model_client = None
     reset_deepseek_client_cache()

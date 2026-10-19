@@ -7,10 +7,10 @@ must be supplied at runtime via ``DEEPSEEK_API_KEY``.
 
 from __future__ import annotations
 
+import asyncio
 import os
 
-import httpx
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, Timeout
 
 from utils.logger import get_logger, log_with_context
 
@@ -53,6 +53,7 @@ DEEPSEEK_CLIENT_MAX_RETRIES = _get_non_negative_int_env(
 )
 
 _client: AsyncOpenAI | None = None
+_client_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _is_empty_assistant_message(message: object) -> bool:
@@ -103,12 +104,29 @@ def get_deepseek_base_url() -> str:
     return os.getenv("DEEPSEEK_BASE_URL") or DEFAULT_DEEPSEEK_BASE_URL
 
 
+def _running_loop() -> asyncio.AbstractEventLoop | None:
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
 def get_deepseek_client() -> AsyncOpenAI:
-    """Return the singleton AsyncOpenAI client configured for DeepSeek."""
-    global _client
+    """Return the AsyncOpenAI client for DeepSeek, one per event loop.
+
+    The client's connection pool belongs to the loop that opened it. openai 3.x
+    (HTTPX2) raises "Event loop is closed" when a pooled connection from an
+    earlier, closed loop is reused, so a new loop gets a new client. The API
+    server runs one loop, so in production this is still a singleton.
+    """
+    global _client, _client_loop
+    loop = _running_loop()
+    if _client is not None and loop is not None and _client_loop is not None and loop is not _client_loop:
+        _client = None
     if _client is not None:
         from services.usage.model_call_guard import install_async_cost_guard
         return install_async_cost_guard(_client)
+    _client_loop = loop
 
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
@@ -119,7 +137,7 @@ def get_deepseek_client() -> AsyncOpenAI:
         AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=httpx.Timeout(
+            timeout=Timeout(
                 DEEPSEEK_CLIENT_TIMEOUT_S,
                 connect=DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S,
             ),
@@ -140,5 +158,6 @@ def get_deepseek_client() -> AsyncOpenAI:
 
 def reset_deepseek_client_cache() -> None:
     """Clear singleton client; intended for tests."""
-    global _client
+    global _client, _client_loop
     _client = None
+    _client_loop = None

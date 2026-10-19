@@ -12,8 +12,7 @@ import json
 from collections.abc import AsyncGenerator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 
-import httpx
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI, OpenAI, Timeout
 from pydantic import BaseModel
 
 from agent.core.deepseek_client import (
@@ -75,6 +74,7 @@ class LLMClient:
 
         self._sync_client: OpenAI | None = None
         self._async_client: AsyncOpenAI | None = None
+        self._async_client_loop: Any = None
 
         log_with_context(
             logger,
@@ -92,7 +92,7 @@ class LLMClient:
             self._sync_client = OpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
-                timeout=httpx.Timeout(
+                timeout=Timeout(
                     DEEPSEEK_CLIENT_TIMEOUT_S,
                     connect=DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S,
                 ),
@@ -103,12 +103,21 @@ class LLMClient:
 
     @property
     def async_client(self) -> AsyncOpenAI:
-        """Lazy-load async client."""
+        """Lazy-load async client, one per event loop (see deepseek_client.get_deepseek_client)."""
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if self._async_client is not None and loop is not None and self._async_client_loop not in (None, loop):
+            self._async_client = None
         if self._async_client is None:
+            self._async_client_loop = loop
             self._async_client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
-                timeout=httpx.Timeout(
+                timeout=Timeout(
                     DEEPSEEK_CLIENT_TIMEOUT_S,
                     connect=DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S,
                 ),

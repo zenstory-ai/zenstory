@@ -77,7 +77,7 @@ def test_real_agents_usage_object():
     usage = Usage(
         requests=1,
         input_tokens=900,
-        input_tokens_details=InputTokensDetails(cached_tokens=600),
+        input_tokens_details=InputTokensDetails(cached_tokens=600, cache_write_tokens=0),
         output_tokens=40,
         output_tokens_details=OutputTokensDetails(reasoning_tokens=10),
         total_tokens=940,

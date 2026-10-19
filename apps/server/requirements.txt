@@ -8,13 +8,13 @@ python-multipart>=0.0.6
 pydantic-settings>=2.0.0
 
 # DeepSeek OpenAI-compatible API client and Agents SDK.
-# Cap openai: 2.44+ made openai.types.responses InputTokensDetails.cache_write_tokens
-# a required field, but openai-agents 0.17.6 builds it without that field, so newer
-# openai raises a pydantic ValidationError while parsing token usage on every LLM
-# response. The unbounded >=1.3.0 let CI/prod resolve to that broken newer release.
-# openai-agents 0.17.6 requires openai>=2.36.0,<3; 2.43.x is the verified-working range.
-openai>=2.36.0,<2.44
-openai-agents>=0.17.6,<0.18
+# openai-agents 0.21.x is the newest line that fits this stack: 0.22+ requires
+# starlette>=1.3.1, but FastAPI is held at 0.123.x (starlette<0.51) for Prefect 3.6.28
+# (see below). 0.21 needs openai 3.x, which uses HTTPX2 internally: pass openai.Timeout,
+# not httpx.Timeout, to the clients. The old <2.44 openai cap is gone: 0.18+ builds the
+# usage objects with the cache_write_tokens field that newer openai requires.
+openai>=3.0.0,<4
+openai-agents>=0.21.1,<0.22
 # Agent token budgets already use this tokenizer; no longer supplied by LlamaIndex.
 tiktoken==0.14.0
 
