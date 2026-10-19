@@ -60,6 +60,7 @@ DEFAULT_NATURAL_POLISH_PROMPT_ZH = """
 输出格式（必须严格遵守）：
 - 每改一行，输出两行：第一行以「原：」开头，后面照抄原文这一整行，一字不差；第二行以「改：」开头，后面写改好的这一整行。只有整行没有需要保留的内容和作用时，才让「改：」后面留空，表示删掉这一行。
 - 每组之间空一行。没改的行不要输出。
+- 要改的行如果在选区里出现不止一次（例如重复的短台词），「原：」后面连同它的前一行或后一行逐行照抄（中间的空行也照抄），「改：」后面按同样的行数逐行写出，没改的那行原样写。
 - 如果一处都不需要改，只输出：无改动
 - 不要输出任何解释、说明、标题、编号或其他文字，不要把「无改动」与修改对混用，不要调用工具。
 - 格式不完整或多出任何文字都会让本次请求失败；不要退回整段正文作为兜底。
@@ -108,6 +109,7 @@ Before output, reread the whole selection for facts, choices, causation, emotion
 Output format (follow it exactly):
 - For each line you change, output two lines: the first starts with "OLD:" followed by that entire original line copied character for character; the second starts with "NEW:" followed by the entire revised line. Leave "NEW:" empty only when the whole line has no content or function that needs preserving; that deletes the line.
 - Put a blank line between pairs. Do not output unchanged lines.
+- If a line you change appears more than once in the selection (such as a repeated short reply), copy it together with the line before or after it, line by line (blank lines in between included), after "OLD:", and write the same number of lines after "NEW:", repeating the unchanged line as is.
 - If nothing needs changing, output only: NO CHANGES
 - Output nothing else: no explanations, notes, headings or numbering. Never mix "NO CHANGES" with edit pairs. Do not call tools.
 - An incomplete pair or any extra text makes the request fail; never fall back to returning the full rewritten passage.
@@ -165,7 +167,11 @@ _SCRIPT_DIALOGUE_PREFIX_RE = re.compile(r"^([^\s△：:（(]{1,12}(?:[（(][^）
 
 @dataclass(frozen=True)
 class LineEdit:
-    """One「原：/改：」pair returned by the model."""
+    """One「原：/改：」pair returned by the model.
+
+    ``old``/``new`` hold one line, or the same number of ``\n``-joined lines when the
+    model copied context to anchor a repeated line.
+    """
 
     old: str
     new: str
@@ -232,12 +238,26 @@ def _marker_payload(match: "re.Match[str]") -> str:
     return payload[1:] if payload.startswith(" ") else payload
 
 
+def _block_lines(first_payload: str, continuation: list[str]) -> str:
+    """Join one marker block; trailing blank lines are pair separators, not content."""
+    block = [first_payload, *continuation]
+    while len(block) > 1 and not block[-1].strip():
+        block.pop()
+    return "\n".join(block)
+
+
 def parse_line_edits(output: str) -> list[LineEdit]:
     """Parse a complete ``原：/改：`` or ``OLD:/NEW:`` response.
 
     The model output is an internal wire format, not prose. Partial pairs, aliases,
-    multiline revisions, mixed marker dialects and any explanatory text are rejected
-    rather than being written into the author's document or downgraded to a no-op.
+    mixed marker dialects and any explanatory text are rejected rather than being
+    written into the author's document or downgraded to a no-op.
+
+    Blank lines between an old and a new marker are accepted: when the selection
+    separates paragraphs with blank lines, the model mirrors that layout inside a
+    pair. A block may also span several original lines (the model copies context to
+    make a repeated short line unique); its revision must then have the same number
+    of lines, so text appended after a revision still fails as extra output.
     """
     stripped = output.strip()
     if stripped in {"无改动", "NO CHANGES"}:
@@ -249,47 +269,53 @@ def parse_line_edits(output: str) -> list[LineEdit]:
         )
 
     lines = stripped.splitlines()
+    # (kind, marker, first payload, continuation lines, first line number)
+    blocks: list[tuple[str, str, str, list[str], int]] = []
+    for number, line in enumerate(lines, start=1):
+        old_match = _EDIT_OLD_RE.fullmatch(line)
+        new_match = _EDIT_NEW_RE.fullmatch(line) if old_match is None else None
+        if old_match is not None:
+            blocks.append(("old", old_match.group(1), _marker_payload(old_match), [], number))
+        elif new_match is not None:
+            blocks.append(("new", new_match.group(1), _marker_payload(new_match), [], number))
+        elif not blocks:
+            raise NaturalPolishProtocolError(f"expected OLD marker at line {number}")
+        else:
+            blocks[-1][3].append(line)
+
     edits: list[LineEdit] = []
     dialect: str | None = None
-    index = 0
-    while index < len(lines):
-        if not lines[index].strip():
-            index += 1
-            continue
-
-        old_match = _EDIT_OLD_RE.fullmatch(lines[index])
-        if old_match is None:
-            raise NaturalPolishProtocolError(f"expected OLD marker at line {index + 1}")
-        old = _marker_payload(old_match)
-        if not old:
+    for position in range(0, len(blocks), 2):
+        kind, old_marker, old_first, old_rest, old_line = blocks[position]
+        if kind != "old":
+            raise NaturalPolishProtocolError(f"expected OLD marker at line {old_line}")
+        if not old_first:
             raise NaturalPolishProtocolError(
-                f"empty OLD anchor at line {index + 1}",
+                f"empty OLD anchor at line {old_line}",
                 category="missing_anchor",
             )
-
-        index += 1
-        if index >= len(lines):
+        if position + 1 >= len(blocks):
+            if any(line.strip() for line in old_rest):
+                raise NaturalPolishProtocolError(f"expected NEW marker after line {old_line}")
             raise NaturalPolishProtocolError(
                 "incomplete natural polish edit pair",
                 category="truncated_output",
             )
-        new_match = _EDIT_NEW_RE.fullmatch(lines[index])
-        if new_match is None:
-            raise NaturalPolishProtocolError(f"expected NEW marker at line {index + 1}")
-
-        old_marker = old_match.group(1)
-        new_marker = new_match.group(1)
+        new_kind, new_marker, new_first, new_rest, new_line = blocks[position + 1]
+        if new_kind != "new":
+            raise NaturalPolishProtocolError(f"expected NEW marker at line {new_line}")
         if (
             (old_marker == "原：") != (new_marker == "改：")
             or (dialect is not None and old_marker != dialect)
         ):
-            raise NaturalPolishProtocolError(f"mixed edit marker dialect at line {index + 1}")
+            raise NaturalPolishProtocolError(f"mixed edit marker dialect at line {new_line}")
         dialect = old_marker
-        edits.append(LineEdit(old=old, new=_marker_payload(new_match)))
-        index += 1
 
-        if index < len(lines) and lines[index].strip():
-            raise NaturalPolishProtocolError(f"unexpected text at line {index + 1}")
+        old = _block_lines(old_first, old_rest)
+        new = _block_lines(new_first, new_rest)
+        if old.count("\n") != new.count("\n"):
+            raise NaturalPolishProtocolError(f"unexpected text near line {new_line}")
+        edits.append(LineEdit(old=old, new=new))
 
     if not edits:
         raise NaturalPolishProtocolError("natural polish response contains no edit pairs")
@@ -384,7 +410,60 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
     restored = 0
     seen_substring_anchors: set[str] = set()
 
+    def replace_line(index: int, proposed: str) -> None:
+        nonlocal restored
+        if index in replaced:
+            raise NaturalPolishProtocolError(
+                "duplicate OLD anchor",
+                category="duplicate_anchor",
+            )
+        replaced.add(index)
+        guarded = _guard_line(lines[index], proposed, is_script=is_script, full_original=original)
+        try:
+            current[index], count = _keep_protected_sentences(lines[index], guarded)
+        except Exception as error:
+            raise _NaturalPolishContentProtectionError from error
+        restored += count
+
     for edit in edits:
+        old_block = edit.old.split("\n")
+        new_block = edit.new.split("\n")
+        if [line.strip() for line in old_block] == [line.strip() for line in new_block]:
+            # 模型把没改的行也列了出来（常见于重复的短台词）：什么都不用做，
+            # 也不必为一个不会改动任何字的锚点判多义。
+            continue
+        if len(old_block) > 1:
+            # 多行块：模型连同上下文一起抄，用来唯一定位重复的短行。整块必须逐行对上
+            # 原文里唯一一段连续的行，再逐行套用；不做子串匹配。
+            span = len(old_block)
+            starts = range(len(lines) - span + 1)
+            matching_starts = [
+                i for i in starts
+                if all(lines[i + k].strip() == old_block[k].strip() for k in range(span))
+            ]
+            if not matching_starts:
+                block_keys = [normalize_for_noop_comparison(line) for line in old_block]
+                matching_starts = [
+                    i for i in starts if keys[i:i + span] == block_keys
+                ]
+            if len(matching_starts) != 1:
+                raise NaturalPolishProtocolError(
+                    "ambiguous OLD anchor" if matching_starts else "unmatched OLD anchor",
+                    category="ambiguous_anchor" if matching_starts else "missing_anchor",
+                )
+            for k in range(span):
+                if old_block[k].strip() == new_block[k].strip():
+                    continue
+                index = matching_starts[0] + k
+                if not lines[index].strip():
+                    # 空行写进文字等于新增段落，协议不允许拆行或搬动内容。
+                    raise NaturalPolishProtocolError(
+                        "revision adds text to a blank line",
+                        category="anchor_apply_failed",
+                    )
+                replace_line(index, new_block[k])
+            continue
+
         old_line = edit.old.strip()
         old_key = normalize_for_noop_comparison(old_line)
         if not old_key:
@@ -404,19 +483,7 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
                 category="ambiguous_anchor",
             )
         if matching_lines:
-            index = matching_lines[0]
-            if index in replaced:
-                raise NaturalPolishProtocolError(
-                    "duplicate OLD anchor",
-                    category="duplicate_anchor",
-                )
-            replaced.add(index)
-            guarded = _guard_line(lines[index], edit.new, is_script=is_script, full_original=original)
-            try:
-                current[index], count = _keep_protected_sentences(lines[index], guarded)
-            except Exception as error:
-                raise _NaturalPolishContentProtectionError from error
-            restored += count
+            replace_line(matching_lines[0], edit.new)
             continue
 
         if old_key in seen_substring_anchors:
@@ -810,6 +877,37 @@ def join_sentences(sentences: list[str]) -> str:
     return "".join(out)
 
 
+# 改写后的行至少要和原行共享这么多内容，才算是对这一行的修改，而不是另一段话。
+_ALIGNED_LINE_MIN_SHARE = 0.5
+
+
+def aligned_passage_edits(original: str, output: str) -> list[LineEdit] | None:
+    """Read a marker-less reply that rewrote the selection line for line.
+
+    Despite the protocol the live model sometimes returns the whole passage. It is
+    used only when it lines up with the selection: same number of lines, blank lines
+    in the same places, no edit markers, and every changed line still shares most of
+    its original wording. The result is one block edit that goes through the same
+    anchor, format and sentence guards as listed pairs; anything else returns None
+    and the request keeps failing as a protocol error.
+    """
+    original_lines = original.strip("\n").split("\n")
+    reply_lines = output.strip("\n").split("\n")
+    if len(original_lines) != len(reply_lines):
+        return None
+    for original_line, reply_line in zip(original_lines, reply_lines, strict=True):
+        if _EDIT_OLD_RE.fullmatch(reply_line) or _EDIT_NEW_RE.fullmatch(reply_line):
+            return None
+        if bool(original_line.strip()) != bool(reply_line.strip()):
+            return None
+        if original_line.strip() == reply_line.strip():
+            continue
+        original_key = _compare_key(original_line)
+        if _shared_chars(original_key, _compare_key(reply_line)) < _ALIGNED_LINE_MIN_SHARE * len(original_key):
+            return None
+    return [LineEdit(old="\n".join(original_lines), new="\n".join(reply_lines))]
+
+
 @dataclass
 class NaturalPolishResult:
     """Natural polish result payload."""
@@ -875,10 +973,19 @@ class NaturalPolishService:
         try:
             edits = parse_line_edits(raw_output)
         except NaturalPolishProtocolError as error:
-            raise NaturalPolishFailure(
-                stage="protocol_parse",
-                category=error.category,
-            ) from error
+            aligned = aligned_passage_edits(selected_text, raw_output)
+            if aligned is None:
+                raise NaturalPolishFailure(
+                    stage="protocol_parse",
+                    category=error.category,
+                ) from error
+            log_with_context(
+                logger,
+                20,  # INFO; fixed fields only
+                "Natural polish read a line-aligned reply without edit markers",
+                protocol_category=error.category,
+            )
+            edits = aligned
 
         try:
             polished_text, _ = apply_line_edits(selected_text, edits, file_type=file_type)

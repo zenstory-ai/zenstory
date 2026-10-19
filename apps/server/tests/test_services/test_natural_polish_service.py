@@ -491,3 +491,120 @@ def test_latin_sentence_end_check_is_linear_on_long_punctuation_runs():
     assert _ends_latin_sentence("他走了。") is False
     assert _ends_latin_sentence("他走了!") is False
     assert _ends_latin_sentence('She left."') is True
+
+
+# Shapes below were returned by the live model (synthetic selections) and used to
+# fail the whole request; each pair is still complete and anchors one original line.
+_BLANK_SEPARATED = "顾言推开门。屋里没开灯。\n\n药盒是空的。他愣住了。心中一震。"
+
+
+@pytest.mark.unit
+def test_blank_line_between_old_and_new_markers_is_accepted():
+    output = (
+        "原：顾言推开门。屋里没开灯。\n\n改：顾言推开门，屋里没开灯。\n\n"
+        "原：药盒是空的。他愣住了。心中一震。\n\n改：药盒是空的。他愣住了。"
+    )
+
+    text, _ = apply_line_edits(_BLANK_SEPARATED, parse_line_edits(output))
+
+    assert text == "顾言推开门，屋里没开灯。\n\n药盒是空的。他愣住了。"
+
+
+@pytest.mark.unit
+def test_unchanged_pair_on_a_repeated_line_is_skipped_instead_of_failing():
+    original = "“好。”\n\n他转身离开。\n\n“好。”\n\n她也点了点头，眼泪却止不住地往下流，心头一紧。"
+    output = (
+        "原：“好。”\n\n改：“好。”\n\n"
+        "原：她也点了点头，眼泪却止不住地往下流，心头一紧。\n\n改：她也点了点头，眼泪却止不住地往下流。"
+    )
+
+    text, _ = apply_line_edits(original, parse_line_edits(output))
+
+    assert text == "“好。”\n\n他转身离开。\n\n“好。”\n\n她也点了点头，眼泪却止不住地往下流。"
+
+
+@pytest.mark.unit
+def test_multi_line_block_anchors_a_repeated_line_by_its_context():
+    original = "“好。”\n他转身离开。\n“好。”\n她点了点头。"
+    output = "原：“好。”\n她点了点头。\n改：“好吧。”\n她点了点头。"
+
+    text, _ = apply_line_edits(original, parse_line_edits(output))
+
+    assert text == "“好。”\n他转身离开。\n“好吧。”\n她点了点头。"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("original", "output", "match"),
+    [
+        # Same context twice: still ambiguous.
+        ("甲\n乙\n甲\n乙", "原：甲\n乙\n改：丙\n乙", "ambiguous OLD anchor"),
+        # Context that is not in the selection.
+        ("甲\n乙", "原：甲\n丁\n改：丙\n丁", "unmatched OLD anchor"),
+        # Writing into a blank original line adds a paragraph.
+        ("甲\n\n乙", "原：甲\n\n乙\n改：甲\n新段\n乙", "blank line"),
+    ],
+)
+def test_multi_line_block_keeps_anchor_safety(original: str, output: str, match: str):
+    with pytest.raises(NaturalPolishProtocolError, match=match):
+        apply_line_edits(original, parse_line_edits(output))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "output",
+    [
+        # A revision with a different number of lines merges or splits lines.
+        "原：甲\n乙\n改：甲乙",
+        # Explanation after a blank-separated pair is still extra text.
+        "原：甲\n\n改：丙\n\n说明：改得更自然",
+        # Two old markers in a row leave the first one without a revision.
+        "原：甲\n\n原：乙\n\n改：丙",
+    ],
+)
+def test_block_parser_still_rejects_extra_or_unpaired_text(output: str):
+    with pytest.raises(NaturalPolishProtocolError):
+        parse_line_edits(output)
+
+
+_DIALOGUE = "「你来做什么？」苏棠冷冷地看着他。\n\n「来还你东西。」陆川把木盒放在桌上。"
+
+
+async def _polish_with_reply(reply: str, selected_text: str):
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    llm_client.MODEL_QUALITY = "quality-model"
+    llm_client.acomplete = AsyncMock(return_value=reply)
+    with patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client):
+        return await service.natural_polish(selected_text=selected_text, language="zh")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_line_aligned_reply_without_markers_is_applied_through_the_guards():
+    reply = "「你来做什么？」苏棠看着他。\n\n「来还你东西。」陆川把木盒放在桌上。"
+
+    result = await _polish_with_reply(reply, _DIALOGUE)
+
+    assert result.polished_text == reply
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "reply",
+    [
+        # Lines merged: the reply no longer lines up with the selection.
+        "「你来做什么？」苏棠看着他。「来还你东西。」陆川把木盒放在桌上。",
+        # A blank line moved.
+        "「你来做什么？」苏棠看着他。\n「来还你东西。」\n陆川把木盒放在桌上。",
+        # Same shape, but a line is a different text (a refusal, not an edit).
+        "这段文字已经很自然了。\n\n「来还你东西。」陆川把木盒放在桌上。",
+    ],
+)
+async def test_marker_less_reply_that_does_not_line_up_still_fails(reply: str):
+    with pytest.raises(NaturalPolishFailure) as caught:
+        await _polish_with_reply(reply, _DIALOGUE)
+
+    assert (caught.value.stage, caught.value.category) == ("protocol_parse", "invalid_marker")
+
