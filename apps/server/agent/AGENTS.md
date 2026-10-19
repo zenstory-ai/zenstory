@@ -232,7 +232,8 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 | `create_file` | 新建文件（只建空文件，正文随后用 `<file>` 流式写入） |
 | `edit_file` | 精确编辑（replace / insert / append / delete） |
 | `delete_file` | 删除文件 |
-| `query_files` | 查询和读取文件 |
+| `rename_file` | 只改文件标题，id 与正文不变（同文件夹重名拒绝；[rename-file][n-rename]） |
+| `query_files` | 查询和读取文件；按 id 可只读 `section` / `tail_chars` / `start_char`+`max_chars`，结果标明范围，范围读取只做陈旧检查快照、不算看过全文（[range-reads][n-range]） |
 | `update_project` | 项目信息、备注、任务板 |
 | `handoff_to_agent` | 交接给另一个 agent |
 | `request_clarification` | 请作者澄清并暂停工作流 |
@@ -317,3 +318,5 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-two-replies]: ../../../.agents/notes/implemented/bug-fix/2026-10-10-file-streaming-protocol-two-replies.md
 
 [n-typed-boundaries]: ../../../.agents/notes/implemented/architecture/2026-10-14-typed-authority-and-delivery-evidence.md
+[n-rename]: ../../../.agents/notes/implemented/feature/2026-10-19-agent-rename-file-tool.md
+[n-range]: ../../../.agents/notes/implemented/feature/2026-10-19-query-files-range-reads.md
