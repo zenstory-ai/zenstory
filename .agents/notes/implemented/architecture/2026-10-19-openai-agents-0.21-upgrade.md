@@ -1,12 +1,12 @@
 # Architecture Note: 升级 openai-agents 到 0.21.x（openai 3.x）
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
 后端锁在 `openai-agents>=0.17.6,<0.18`（实装 0.17.8）与 `openai>=2.36,<2.44`。上游已到 openai-agents 0.24.0（2026-10-15）、openai 3.35.1。旧上限的理由是 0.17.x 构造用量对象时缺 `cache_write_tokens`，与 openai 2.44+ 冲突；我们因此停在旧版 openai，也拿不到之后 Chat Completions 路径（我们唯一使用的路径）的修复。
 
-## Proposal
+## Decision
 
 - 升到 `openai-agents>=0.21.1,<0.22` 与 `openai>=3.0.0,<4`。0.22–0.24 依赖 `starlette>=1.3.1`，而 FastAPI 为 Prefect 3.6.28 固定在 0.123.x（starlette<0.51），**在 FastAPI/Prefect 一起升级之前装不上**。
 - openai 3 改用 HTTPX2：`llm_client` / `deepseek_client` 传给客户端的超时改为 `openai.Timeout`（2.x 与 3.x 都有），不再传 `httpx.Timeout`。我们自己的 httpx 调用（语音、OAuth、支付、上传、测试）不受影响，`httpx` 仍是直接依赖。
@@ -21,6 +21,6 @@ Status: proposed
 
 ## Consequences
 
-- 本地验证：涉及 SDK/客户端的 1,119 项测试在旧、新两个环境都通过；用生产 DeepSeek 密钥在升级环境跑真实请求：改名、长合集续写、写作→审稿、导出、分章字数 5 个 agent 场景全部完成，去AI味 16/16、路由 54/54。
+- 本地验证（全部在旧、新两个依赖环境对照）：涉及 SDK/客户端的 1,119 项测试都通过；仓库的真实模型测试套件（修好测试库与写作配置接线后）6/6 通过，覆盖流式工具往返、运行中插话、下一步建议、会话生命周期与直连调用；另用生产 DeepSeek 密钥跑改名、长合集续写、写作→审稿、导出、分章字数 5 个 agent 场景，去AI味 16/16、路由 54/54；Prefect 素材流程的同步客户端真实调用与用量解析正常；连接被拒与主机不可达都映射为可重试的 ERR_AGENT_UPSTREAM_UNAVAILABLE，5 秒连接超时在 HTTPX2 下照常生效（3 次尝试约 23 秒）。
 - HTTPX2 的连接池、代理与超时行为是新的；需要观察上线后的上游超时与连接错误分布（日志已有固定分类）。staging 的模型密钥无效，无法在 staging 做真实模型验证。
 - 0.22+ 的修复要等 FastAPI/Prefect 升级后再取。
