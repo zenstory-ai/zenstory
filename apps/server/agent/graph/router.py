@@ -52,7 +52,7 @@ class RouterFailure(ValueError):
 
     def __init__(
         self,
-        category: Literal["invalid_enum", "schema", "empty_output", "truncated", "provider_failure"],
+        category: Literal["invalid_enum", "schema", "empty_output", "truncated", "provider_failure", "declined"],
         *,
         usage: dict[str, Any] | None = None,
         error_info: StreamErrorInfo | None = None,
@@ -62,6 +62,11 @@ class RouterFailure(ValueError):
         super().__init__(f"Router failed: {category}")
         self.category = category
         self.usage = usage
+        if error_info is None and category == "declined":
+            # The model answered in prose instead of routing (in practice a content
+            # refusal). Resending the same request gets the same answer, so the card
+            # offers no retry; nothing ran, so the round is still refunded.
+            error_info = StreamErrorInfo(ErrorCode.AGENT_REQUEST_DECLINED, False, True)
         self.error_info = error_info or StreamErrorInfo(ErrorCode.AGENT_ROUTING_FAILED, True, True)
         self.failed_fields = failed_fields
         self.parse_path = parse_path
@@ -271,8 +276,10 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
             # deepseek-flash is a reasoning model: chain-of-thought reasoning_tokens count
             # against completion tokens. A tight budget can be fully consumed by reasoning,
             # leaving an empty JSON answer (historically this silently fell back to writer/quick).
-            # Keep the existing generous budget; empty answers now return a routing failure.
-            max_tokens=2048,
+            # 2048 was hit by 4 of 686 production routing calls in three days (ledger
+            # output_tokens == 2048); a truncated answer is a routing failure, so leave
+            # reasoning room. Only tokens actually generated are billed.
+            max_tokens=4096,
         )
     _meter_router_call(response)
     choice = response.choices[0] if response.choices else None
@@ -422,10 +429,19 @@ def _extract_router_payload(text: str, *, diagnostics: dict[str, str] | None = N
 
     diagnostics["parse_path"] = "two_line"
     lines = [line.strip().lower() for line in text.splitlines() if line.strip()]
-    if len(lines) == 2 and not any(character in text for character in "{}[]"):
+    if len(lines) == 2 and all(_ENUM_TOKEN_RE.fullmatch(line) for line in lines):
         return {"agent_type": lines[0], "workflow_type": lines[1]}
+    if "{" not in text:
+        # No object at all: the model replied in prose. Live replays of the
+        # production failures were content refusals; a two-line refusal used to be
+        # read as two invalid enum values.
+        diagnostics["parse_path"] = "prose"
+        raise RouterFailure("declined", failed_fields=("content",))
     diagnostics["parse_path"] = "unparseable"
     raise RouterFailure("schema", failed_fields=("content",))
+
+
+_ENUM_TOKEN_RE = re.compile(r"[a-z_]+")
 
 
 def _iter_json_object_candidates(text: str) -> list[str]:

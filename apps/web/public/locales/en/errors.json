@@ -116,6 +116,7 @@
   "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat.",
   "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again.",
   "ERR_AGENT_ROUTING_FAILED": "We couldn't process your request this time, and your work wasn't changed. You can try again later.",
+  "ERR_AGENT_REQUEST_DECLINED": "The model declined this request, and your work wasn't changed. This usually means the content is outside what the model can help with, so sending it again unchanged rarely helps. You can adjust the request and send it again.",
   "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI couldn't complete a step after several tries, so this round stopped. Earlier changes aren't affected. Try rephrasing or splitting the task.",
   "ERR_AGENT_NO_PROGRESS": "The AI kept rereading the same material without writing, so this round stopped. Tell it which chapter to change and how, or reply \"continue\".",
   "ERR_AGENT_RUN_TIMEOUT": "This round ran too long and stopped. Reply \"continue\" to keep going.",

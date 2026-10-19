@@ -163,3 +163,57 @@ def test_syntax_repair_does_not_finish_an_unclosed_scope_value():
     response = _response('{"agent_type":"writer","workflow_type":"quick","scope":"Inspect only}')
     with pytest.raises(ValueError):
         _parse_router_response(response)
+
+
+# Live replays of the production invalid-enum turns: the router model refused in prose.
+# A two-line refusal used to be read as two invalid enum values.
+_TWO_LINE_REFUSAL = (
+    "Sorry, I can't help continue this synthetic passage.\n"
+    "If you are writing fiction, I can help with plot, pacing or character motivation instead."
+)
+_ONE_LINE_REFUSAL = "Sorry, I can't help with this request."
+
+
+@pytest.mark.parametrize("text", [_TWO_LINE_REFUSAL, _ONE_LINE_REFUSAL])
+def test_prose_reply_is_a_declined_request_not_an_enum_error(text):
+    with pytest.raises(ValueError) as error:
+        _parse_router_response(_response(text, finish_reason="stop"))
+
+    assert error.value.category == "declined"
+    assert error.value.error_info.code == "ERR_AGENT_REQUEST_DECLINED"
+    assert error.value.error_info.retryable is False
+    assert error.value.error_info.refundable is True
+
+
+def test_exact_two_line_enum_reply_still_routes():
+    decision = _parse_router_response(_response("Writer\nquick"))
+
+    assert (decision.agent_type, decision.workflow_type) == ("writer", "quick")
+
+
+async def test_declined_route_ends_the_round_without_retry_or_any_agent():
+    calls = []
+
+    async def forbidden_agent(state, agent_type, **_kwargs):
+        calls.append(agent_type)
+        yield StreamEvent(StreamEventType.TEXT, {"text": "should not run"})
+
+    route = AsyncMock(return_value=_response(_TWO_LINE_REFUSAL, finish_reason="stop"))
+    state = {"user_message": "Continue the synthetic passage.", "messages": [],
+             "system_prompt": "", "generation_mode": "quality"}
+    with (
+        patch.dict("os.environ", {"AGENT_ROUTER_STRATEGY": "llm"}),
+        patch("agent.graph.router._route_with_deepseek_chat", route),
+        patch("agent.graph.writing_graph.run_streaming_agent", forbidden_agent),
+    ):
+        events = [event async for event in run_writing_workflow_streaming(
+            state=state, thread_id="synthetic-router-declined",
+        )]
+
+    assert calls == []
+    route.assert_awaited_once()
+    [error] = [event for event in events if event.type == StreamEventType.ERROR]
+    assert error.data["code"] == "ERR_AGENT_REQUEST_DECLINED"
+    assert error.data["retryable"] is False
+    assert error.data["refundable"] is True
+    assert error.data["reason"] == "router_declined"
