@@ -232,3 +232,39 @@ async def test_tools_see_the_author_words_without_the_hidden_hint(
             pass
 
     assert seen["author_messages"] == [IDEA]
+
+
+@pytest.mark.asyncio
+async def test_first_conversation_check_runs_off_the_event_loop_on_postgres(
+    agent_service, db_session, short_project, monkeypatch
+):
+    """PostgreSQL 上用独立短 session 在线程里查；SQLite 测试库直接用请求 session。"""
+    from contextlib import contextmanager
+
+    import agent.service as service_module
+
+    _user, project = short_project
+
+    @contextmanager
+    def fake_session():
+        yield db_session
+
+    monkeypatch.setattr(service_module, "create_session", fake_session)
+    monkeypatch.setattr(agent_service, "_should_offload_session_work", lambda _session: True)
+
+    assert await agent_service._is_first_ai_conversation(db_session, project.id) is True
+
+
+@pytest.mark.asyncio
+async def test_first_conversation_check_failure_means_no_hint(agent_service, db_session, short_project, monkeypatch):
+    """查不到时按「不是第一条」处理：宁可不加提示，也不误导路由。"""
+    import agent.service as service_module
+
+    _user, project = short_project
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(service_module, "_project_has_ai_reply", broken)
+
+    assert await agent_service._is_first_ai_conversation(db_session, project.id) is False

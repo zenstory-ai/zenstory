@@ -110,3 +110,33 @@ async def test_a_broken_activation_write_never_breaks_the_round(client, db_sessi
     )
     assert response.status_code == 200
     assert "event: done" in response.text
+
+
+def test_the_offloaded_activation_write_swallows_its_own_failures(monkeypatch):
+    """PostgreSQL path: the background thread's short session failing only logs."""
+    import api.agent as agent_api
+
+    def broken_session():
+        raise RuntimeError("pool exhausted")
+
+    monkeypatch.setattr(agent_api, "create_session", broken_session)
+
+    agent_api._record_activation_sync("user-1", "project-1", ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT, "typed")
+
+
+def test_best_effort_record_rolls_back_and_continues_when_the_write_fails(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from services.features.activation_event_service import activation_event_service
+
+    session = MagicMock()
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("unique index unavailable")
+
+    monkeypatch.setattr(activation_event_service, "record_once", broken)
+
+    activation_event_service.record_once_best_effort(
+        session, user_id="user-1", event_name=ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT
+    )
+    session.rollback.assert_called_once()
