@@ -138,6 +138,40 @@ def test_continue_falls_back_to_persisted_routing_agents():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(("routing", "resumed", "remaining"), [
+    # planner -> writer interrupted while planning: the writer stage is still owed (#269).
+    ({"initial_agent": "planner", "workflow_type": "standard", "write_content": True,
+      "scope": "先规划，再写第1—3章", "last_agent": "planner"}, "planner", ["writer"]),
+    # full: interrupted in hook_designer, only the writer is left.
+    ({"initial_agent": "planner", "workflow_type": "full", "write_content": True,
+      "last_agent": "hook_designer"}, "hook_designer", ["writer"]),
+    # Already in the last stage: nothing more is planned.
+    ({"initial_agent": "planner", "workflow_type": "standard", "write_content": True,
+      "last_agent": "writer"}, "writer", []),
+    # Outline only: the trimmed plan never had a writer.
+    ({"initial_agent": "planner", "workflow_type": "standard", "write_content": False,
+      "last_agent": "planner"}, "planner", []),
+    # Read-only and review rounds never gain a writing stage.
+    ({"initial_agent": "planner", "workflow_type": "standard", "read_only": True,
+      "last_agent": "planner"}, "planner", []),
+    ({"initial_agent": "writer", "workflow_type": "quick", "write_content": True,
+      "last_agent": "quality_reviewer"}, "quality_reviewer", []),
+])
+def test_continue_resumes_the_rest_of_the_interrupted_plan(routing, resumed, remaining):
+    from agent.graph.router import resume_route_after_exhaustion
+
+    previous = {"content": "写到一半", "stop_reason": "run_deadline_exceeded", "routing": routing}
+    result = resume_route_after_exhaustion(_state("继续", previous))
+
+    assert result["current_agent"] == resumed
+    assert result["workflow_agents"] == remaining
+    assert result["routing_metadata"]["scope"] == routing.get("scope", "")
+    assert result["routing_metadata"]["read_only"] is (routing.get("read_only") is True)
+    if remaining:
+        assert result["workflow_plan"] == routing["workflow_type"]
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "stop_reason", ["model_call_budget_exhausted", "run_deadline_exceeded", "output_truncated"]
 )
@@ -583,22 +617,29 @@ def test_question_before_chinese_marker_still_counts_as_question():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_writer_ending_with_chinese_marker_stops_planned_handoff():
+@pytest.mark.parametrize(("planned", "expected_calls"), [
+    # The author asked for prose too (writer kept in the trimmed plan): a stage's marker
+    # only ends that stage (#269).
+    (["writer"], ["planner", "writer"]),
+    # Outline only (writer trimmed by write_content=false): the marker ends the round.
+    ([], ["planner"]),
+])
+async def test_stage_completion_marker_does_not_cancel_the_remaining_plan(planned, expected_calls):
     calls: list[str] = []
 
     async def fake_agent(state, agent_type, *_args, **_kwargs):
         calls.append(agent_type)
-        yield _text("大纲已整理好。\n[任务完成]")
+        yield _text("这一部分已完成。\n[任务完成]")
 
     events = await _run_graph(
         fake_agent,
-        _state("整理大纲"),
+        _state("先规划，再写第1—3章"),
         router=AsyncMock(
-            return_value={"current_agent": "planner", "workflow_plan": "standard", "workflow_agents": ["writer"]}
+            return_value={"current_agent": "planner", "workflow_plan": "standard", "workflow_agents": planned}
         ),
     )
 
-    assert calls == ["planner"]
+    assert calls == expected_calls
     complete = [e for e in events if e.type == StreamEventType.WORKFLOW_COMPLETE]
     assert complete and complete[-1].data["reason"] == "task_complete"
 

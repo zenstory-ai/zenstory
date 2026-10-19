@@ -2616,6 +2616,7 @@ async def run_writing_workflow_streaming(
             # Explicit handoff requests still take precedence over completion checks.
             has_pending_handoff = False
             has_explicit_handoff = False
+            has_planned_handoff = False
             pending_next_agent: str | None = None
             pending_handoff_event_data: dict[str, Any] | None = None
 
@@ -2638,6 +2639,7 @@ async def run_writing_workflow_streaming(
             elif workflow_agents:
                 # Follow planned workflow
                 has_pending_handoff = True
+                has_planned_handoff = True
                 next_planned = workflow_agents.pop(0)
                 if next_planned == current_agent_type:
                     if (notice := _take_read_only_notice()) is not None:
@@ -2875,7 +2877,8 @@ async def run_writing_workflow_streaming(
 
             # 检测任务完成。
             # - 显式 handoff 优先级最高（继续协作，不触发 stop/complete）。
-            # - planned/auto handoff 仅在显式完成标记时允许打断。
+            # - 计划交接（作者范围内还没跑的阶段）不被完成标记打断。
+            # - 自动送审仅在显式完成标记时允许打断。
             # - 无待交接时允许启发式完成。
             if agent_content:
                 evaluation = evaluate_agent_output(agent_content, current_agent_type)
@@ -2885,6 +2888,18 @@ async def run_writing_workflow_streaming(
 
                 if has_explicit_handoff:
                     can_stop_for_completion = False
+                elif has_planned_handoff:
+                    # 计划里还有作者要的阶段（已按 write_content / read_only 裁剪）：一个阶段写了
+                    # 完成标记只说明这一段做完了，不能替整条计划宣布完成（#269）。
+                    can_stop_for_completion = False
+                    if complete_result.is_complete:
+                        log_with_context(
+                            logger,
+                            20,
+                            "Completion marker kept the remaining planned stages",
+                            agent_type=current_agent_type,
+                            next_planned=pending_next_agent,
+                        )
                 else:
                     can_stop_for_completion = complete_result.is_complete and (
                         explicit_complete or not has_pending_handoff

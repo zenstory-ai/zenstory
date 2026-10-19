@@ -801,8 +801,14 @@ def resume_route_after_exhaustion(state: WritingState) -> dict[str, Any] | None:
     if agent_type is None:
         return None
 
-    workflow_type = "review_only" if agent_type == "quality_reviewer" else "quick"
     scope_fields = _inherited_scope_fields(routing)
+    remaining = _remaining_planned_agents(routing, agent_type)
+    if remaining:
+        # 截停时原计划还没走完（例如规划师还在规划、writer 还没开始）：接着走剩下的阶段，
+        # 不把「先规划再写第1—3章」缩成只剩规划（#269）。
+        workflow_type = str(routing.get("workflow_type")).strip()
+    else:
+        workflow_type = "review_only" if agent_type == "quality_reviewer" else "quick"
     log_with_context(
         logger,
         20,  # INFO
@@ -811,11 +817,12 @@ def resume_route_after_exhaustion(state: WritingState) -> dict[str, Any] | None:
         previous_stop_reason=stop_reason or None,
         read_only=scope_fields["read_only"],
         has_scope=bool(scope_fields["scope"]),
+        remaining_agents=remaining,
     )
     return {
         "current_agent": agent_type,
         "workflow_plan": workflow_type,
-        "workflow_agents": [],
+        "workflow_agents": remaining,
         "routing_metadata": {
             "agent_type": agent_type,
             "workflow_type": workflow_type,
@@ -825,6 +832,30 @@ def resume_route_after_exhaustion(state: WritingState) -> dict[str, Any] | None:
             **scope_fields,
         },
     }
+
+
+def _remaining_planned_agents(routing: dict[str, Any], agent_type: str) -> list[str]:
+    """上一轮落库路由的计划序列里，排在被恢复的 agent 之后、还没跑的阶段。
+
+    只用结构化的落库路由重算（同一个 plan_workflow_agents，按 write_content / read_only 裁剪），
+    不从回复文字猜进度。审稿人恢复时不接写作阶段；路由不完整或 agent 不在原计划里时为空。
+    """
+    initial = _valid_agent(routing.get("initial_agent"))
+    workflow = str(routing.get("workflow_type") or "").strip()
+    if initial is None or workflow not in WORKFLOW_AGENTS or agent_type == "quality_reviewer":
+        return []
+    try:
+        decision = RouterDecision(
+            agent_type=initial,  # type: ignore[arg-type]
+            workflow_type=workflow,  # type: ignore[arg-type]
+            **_inherited_scope_fields(routing),
+        )
+    except ValidationError:
+        return []
+    sequence = [initial, *plan_workflow_agents(decision)]
+    if agent_type not in sequence:
+        return []
+    return sequence[sequence.index(agent_type) + 1:]
 
 
 def _is_review_task(routing: dict[str, Any]) -> bool:
