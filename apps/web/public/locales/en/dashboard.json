@@ -755,5 +755,5 @@
     "trendHide": "Hide your net word trend",
     "completedPercentage": "{{percent}}% completed"
   },
-  "importDrafts": "Have a draft? Import .txt / .md"
+  "importDrafts": "Have a draft already? Import it (txt / md)"
 }

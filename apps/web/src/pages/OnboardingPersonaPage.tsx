@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Check, Clapperboard, FileText, Loader2, type LucideIcon } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Clapperboard, FileText, Loader2, type LucideIcon } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
@@ -233,7 +233,7 @@ export default function OnboardingPersonaPage() {
             disabled={saving !== null}
             isLoading={saving === "skip"}
           >
-            {t("onboarding:actions.skip", "跳过")}
+            {t("onboarding:actions.skip", "先跳过")}
           </Button>
         </div>
 
@@ -266,7 +266,7 @@ export default function OnboardingPersonaPage() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))]">
                   {saving === option.type ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
                 </span>
-                <span className="min-w-0">
+                <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-[hsl(var(--text-primary))]">
                     {t(`onboarding:start.options.${option.type}.title`, option.type)}
                   </span>
@@ -274,6 +274,8 @@ export default function OnboardingPersonaPage() {
                     {t(`onboarding:start.options.${option.type}.desc`, "")}
                   </span>
                 </span>
+                {/* One tap goes straight in. */}
+                <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-[hsl(var(--text-secondary))]" />
               </button>
             );
           })}

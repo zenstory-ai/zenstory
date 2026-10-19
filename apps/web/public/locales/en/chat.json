@@ -397,27 +397,26 @@
     }
   },
   "starter": {
-    "title": "Your first message could be",
-    "subtitle": "\"Send\" sends it as shown; \"Edit first\" lets you change it.",
+    "label": "Start your first conversation",
+    "greeting": {
+      "title": "Hi, I'm your writing partner.",
+      "body": "Give me an idea, even one line, and I'll write the opening."
+    },
     "example": {
-      "label": "Try an example",
-      "novel": "Write an alternate-history court-intrigue novel: the protagonist wakes up as the empire's most overlooked sixth prince and only wants to quietly build up troops to protect himself, but his father and elder brothers keep pushing him into the spotlight. Introduce the protagonist and the court factions in a few sentences, then write the opening of chapter 1, about 800 characters, into the manuscript.",
-      "short": "Write a short story with a twist: on the last day of the college entrance exam, a film-star mother just released from prison kneels in front of her daughter at the school gate, every livestream camera on this \"reunion\", and only the daughter knows why she went to prison. First person; introduce the characters in a few sentences, then write the opening, about 800 characters, into the manuscript.",
-      "screenplay": "Write a vertical short drama: a healer's apprentice comes down the mountain to marry, his fiancée tears up the marriage contract in public, and he marries her older sister instead. Introduce the relationships in a few sentences, then write the episode 1 script, ending on a twist."
+      "hint": "Not sure yet? Try this:",
+      "novel": "Court intrigue: the empire's most overlooked sixth prince only wants enough troops to survive, but his father and brothers keep pushing him forward.",
+      "short": "Twist short story: on exam day, a film-star mother just out of prison kneels to her daughter at the school gate, and only the daughter knows why she went to prison.",
+      "screenplay": "Vertical short drama: a healer's apprentice comes down the mountain to marry, gets publicly jilted, and marries his fiancée's sister instead.",
+      "use": "Write this",
+      "edit": "Let me tweak it"
     },
-    "send": "Send",
-    "edit": "Edit first",
-    "own": {
-      "label": "Use my idea",
-      "description": "One sentence is enough: who the protagonist is and what happens to them.",
-      "action": "Write my own"
-    },
-    "quota": "{{count}} AI messages left today. Rounds you stop or that fail before writing anything don't count.",
     "manuscript": {
-      "label": "Read my draft",
-      "message": "Read my draft first and don't change it. Tell me what is most compelling, and the three spots in the opening that most make readers stop, each with a one-line rewrite example.",
-      "trust": "Every AI change keeps a version you can undo.",
-      "import": "Have a draft? Import .txt / .md"
-    }
+      "greeting": "You already have a draft. Want me to read it through and tell you what hooks readers and where the opening loses them? You decide what to change.",
+      "message": "Read my draft: tell me what hooks readers most and the three spots in the opening most likely to lose them. Don't change the original yet.",
+      "send": "Yes, read it",
+      "other": "Ask something else",
+      "import": "Have a draft already? Import it and I'll take a look"
+    },
+    "quota": "{{count}} free messages left today"
   }
 }

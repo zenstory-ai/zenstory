@@ -168,7 +168,7 @@ for (const viewport of viewports) {
       expect(option.height).toBeGreaterThanOrEqual(44);
       expect(option.y + option.height).toBeLessThanOrEqual(viewport.height);
     }
-    expect((await box(page.getByRole('button', { name: '跳过', exact: true }))).height).toBeGreaterThanOrEqual(44);
+    expect((await box(page.getByRole('button', { name: '先跳过', exact: true }))).height).toBeGreaterThanOrEqual(44);
     await page.screenshot({ path: `/tmp/zenstory-ui-audit/app-onboarding-${viewport.width}.png` });
 
     for (const state of ['missing', 'pending', 'failed', 'succeeded']) {

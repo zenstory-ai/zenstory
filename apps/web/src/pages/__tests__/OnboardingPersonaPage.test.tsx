@@ -214,7 +214,7 @@ describe("OnboardingPersonaPage", () => {
     mockLocationState = { from: { pathname: "/onboarding/persona" } };
 
     renderPage();
-    fireEvent.click(screen.getByRole("button", { name: "跳过" }));
+    fireEvent.click(screen.getByRole("button", { name: "先跳过" }));
 
     await waitFor(() => {
       expect(mockSavePersonaOnboardingData).toHaveBeenCalledWith("user-onboarding-1", {

@@ -158,7 +158,7 @@ test.describe("Onboarding persona flow", () => {
   });
 
   test("skip action stores skipped payload and redirects to dashboard", async ({ page }) => {
-    await page.getByRole("button", { name: /^(跳过|Skip)$/i }).click();
+    await page.getByRole("button", { name: /^(先跳过|Skip for now)$/i }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15000 });
 

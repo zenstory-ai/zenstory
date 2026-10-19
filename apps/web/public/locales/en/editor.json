@@ -346,5 +346,5 @@
     "paste": "Write on my own",
     "ai": "Write with AI"
   },
-  "emptyStateImportDrafts": "Have a draft? Import .txt / .md"
+  "emptyStateImportDrafts": "Have a draft already? Import it (txt / md)"
 }

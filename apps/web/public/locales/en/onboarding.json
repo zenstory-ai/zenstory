@@ -1,19 +1,19 @@
 {
   "start": {
     "title": "What do you want to write?",
-    "subtitle": "Pick one and the workspace opens on it. You can switch any time.",
+    "subtitle": "Tap one to start. You can switch any time.",
     "options": {
       "novel": {
         "title": "Serial novel",
-        "desc": "Web fiction or a long novel, chapter by chapter"
+        "desc": "Web fiction or a long novel, chapter after chapter"
       },
       "short": {
         "title": "Short story",
-        "desc": "One complete story, ready to submit when done"
+        "desc": "One complete story in one go"
       },
       "screenplay": {
         "title": "Short drama script",
-        "desc": "Vertical short drama, written episode by episode"
+        "desc": "Vertical short drama, episode by episode"
       }
     }
   },
@@ -21,7 +21,7 @@
     "restore": "Your previous answer is selected"
   },
   "actions": {
-    "skip": "Skip"
+    "skip": "Skip for now"
   },
   "errors": {
     "saveFailed": "Couldn’t save. Check your connection and try again.",

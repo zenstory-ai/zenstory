@@ -746,5 +746,5 @@
     "trendHide": "收起手写字数趋势",
     "completedPercentage": "已完成 {{percent}}%"
   },
-  "importDrafts": "已有稿子？导入 .txt / .md"
+  "importDrafts": "有现成的稿子？导入进来（txt / md）"
 }

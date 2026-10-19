@@ -554,6 +554,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [starterProjectId, setStarterProjectId] = useState<string | null>(null);
   /** The current project has manuscript text (from the same progress read as the next-step card). */
   const [manuscriptProjectId, setManuscriptProjectId] = useState<string | null>(null);
+  /** The project whose progress has been read (or failed to load): the starter cards wait for it. */
+  const [progressCheckedProjectId, setProgressCheckedProjectId] = useState<string | null>(null);
   const starterProjectIdRef = useRef<string | null>(null);
   useEffect(() => {
     starterProjectIdRef.current = starterProjectId;
@@ -667,6 +669,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setManuscriptProjectId(progress && progress.word_count > 0 ? projectId : null);
     } catch (error) {
       logger.warn("Failed to load the project's progress:", error);
+    } finally {
+      // Without progress the cards fall back to the example; they never wait forever.
+      if (currentProjectIdRef.current === projectId && seq === nextStepRequestSeqRef.current) {
+        setProgressCheckedProjectId(projectId);
+      }
     }
   }, []);
   // 作者手动保存/自动保存正文后立即重查进度，写出第一章正文后卡片当场消失，
@@ -1963,8 +1970,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   })();
   // Used up for today: the existing quota card explains instead (a press could not send).
+  // Waits for the project's progress so a work with text never flashes the example first.
   const showStarterCards = Boolean(currentProjectId)
     && starterProjectId === currentProjectId
+    && progressCheckedProjectId === currentProjectId
     && messages.length === 0
     && !aiSendBlocked
     && !hasPendingDashboardIdea
@@ -2006,8 +2015,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     void refreshNextStep(projectId);
   }, [importDrafts, triggerFileTreeRefresh, setSelectedItem, refreshNextStep]);
 
-  const handleStarterOwnIdea = useCallback(() => {
-    trackEvent("starter_own_idea", { project_id: currentProjectId });
+  const handleStarterAskOther = useCallback(() => {
+    trackEvent("starter_ask_other", { project_id: currentProjectId });
     focusChatInput();
   }, [currentProjectId, focusChatInput]);
 
@@ -2524,7 +2533,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                   remainingToday={showDailyCount && aiMessageQuota ? Math.max(0, aiMessageQuota.limit - aiMessageQuota.used) : null}
                   onSend={handleStarterSend}
                   onEdit={handleStarterEdit}
-                  onOwnIdea={handleStarterOwnIdea}
+                  // On desktop the editor's empty state already offers the import beside the chat.
+                  showImport={isMobile || selectedItem !== null}
+                  onAskOther={handleStarterAskOther}
                   onImport={() => draftInputRef.current?.click()}
                   isImporting={isImportingDrafts}
                 />

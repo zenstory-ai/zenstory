@@ -59,7 +59,7 @@ const capturedUseAgentStream = vi.hoisted(() => ({
 }))
 
 const chatPanelTranslations: Record<string, string> = {
-  'chat:starter.quota': '今天还能发 {{count}} 条；中途停止或出错、还没写出内容的不计入。',
+  'chat:starter.quota': '今天还能免费发 {{count}} 条',
   'chat:panel.quotaExceededTitle': '今天的免费 AI 消息用完了',
   'chat:panel.quotaExceededHint': '北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。',
   'chat:panel.notCharged': '这一轮没有改动文件，不计入今日 AI 消息。',
@@ -2432,7 +2432,7 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     expect(mockStartStream).not.toHaveBeenCalled()
     expect(lastMessageInputProps().aiSuggestions).toEqual([])
     expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
-    await waitFor(() => expect(screen.getByTestId('starter-quota').textContent).toContain('今天还能发 1 条'))
+    await waitFor(() => expect(screen.getByTestId('starter-quota').textContent).toContain('今天还能免费发 1 条'))
 
     const example = screen.getByTestId('starter-message-text').textContent
     fireEvent.click(screen.getByTestId('starter-send'))
@@ -2493,11 +2493,11 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     await screen.findByTestId('starter-manuscript')
     expect(screen.queryByTestId('starter-example')).not.toBeInTheDocument()
     expect(screen.queryByTestId('starter-import')).not.toBeInTheDocument()
-    const message = screen.getByTestId('starter-message-text').textContent
     fireEvent.click(screen.getByTestId('starter-send'))
 
     await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
-    expect(sent().message).toBe(message)
+    // The greeting says what will be asked; the request is sent in the author's name.
+    expect(sent().message).toBe('chat:starter.manuscript.message')
     // Not a "write the opening" first message: no first-message hint on the server.
     expect(sent().metadata.entry).toBe('starter_manuscript')
     mockGetProgress.mockResolvedValue([])
@@ -2523,6 +2523,37 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     // Importing never sends anything to the AI.
     expect(mockStartStream).not.toHaveBeenCalled()
     mockGetProgress.mockResolvedValue([])
+  })
+
+  it('waits for the work\'s progress so a work with text never flashes the example first', async () => {
+    let finishProgress!: (value: unknown[]) => void
+    mockGetProgress.mockImplementationOnce(() => new Promise((resolve) => { finishProgress = resolve }))
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
+    expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
+    await act(async () => {
+      finishProgress([{ project_id: 'project-1', written_units: 2, word_count: 5000, framework_ready: false }])
+    })
+
+    await screen.findByTestId('starter-manuscript')
+    expect(screen.queryByTestId('starter-example')).not.toBeInTheDocument()
+  })
+
+  it('offers one import entry: in the chat on phones or beside an open file, else the editor shows it', async () => {
+    const first = render(<ChatPanel />)
+    await screen.findByTestId('starter-example')
+    // Desktop, nothing open: the editor's empty state already shows the import beside the chat.
+    expect(screen.queryByTestId('starter-import')).not.toBeInTheDocument()
+    first.unmount()
+
+    mockLayout.isMobile = true
+    try {
+      render(<ChatPanel />)
+      expect(await screen.findByTestId('starter-import')).toBeInTheDocument()
+    } finally {
+      mockLayout.isMobile = false
+    }
   })
 
   it('a chat the author starts with 新对话 keeps the suggestions', async () => {
