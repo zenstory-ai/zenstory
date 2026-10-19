@@ -1037,12 +1037,17 @@ def build_router_user_message(state: WritingState) -> str:
     确定性的沿用规则（inherit_routing_after_clarification）先处理最常见的短回答，
     没命中的情况由这里把上一轮交给路由器自己判断。
 
-    没有上一轮助手回复（或它既没有正文也没有落库路由）时原样返回用户原话：第一轮
-    的路由输入与改动前完全一致。动态内容只放在 user 消息里，系统提示保持稳定前缀。
+    没有上一轮助手回复（或它既没有正文也没有落库路由）时原样返回用户原话；作者在这部作品
+    里的第一条消息（state["first_message_project_label"] 非空）多一段作品类型。动态内容只放在
+    user 消息里，系统提示保持稳定前缀。
     """
     user_message = str(state.get("router_message") or state.get("user_message") or "")
     previous = _last_assistant_message(list(state.get("messages") or []))
     if previous is None:
+        first_message_label = str(state.get("first_message_project_label") or "")
+        if first_message_label:
+            # 作者在这部作品里的第一条消息：ROUTER_PROMPT「新作品的第一条消息」按先写再给方向判断。
+            return f"[新作品的第一条消息]\n作品类型：{first_message_label}\n[用户本轮原话]\n{user_message}"
         return user_message
     tail = _previous_turn_tail(previous)
     routing = _previous_routing_summary(previous)

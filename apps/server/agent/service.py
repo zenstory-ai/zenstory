@@ -132,31 +132,80 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
     return routing
 
 
-# 工作台首页「输入想法 → 新建作品」后自动发出的第一条消息带 metadata.entry=dashboard_idea。
-# 前端发的是作者原话；服务端只在发给模型的本轮内容里附一句隐藏提示，落库仍是原话。
+# 作者在一部作品里发出的第一条消息带 metadata.entry：工作台想法（dashboard_idea）、聊天空态
+# 起手卡的示例（starter_example）、空会话里手打的第一条（first_message）。前端发的是作者原话；
+# 服务端只在发给模型的本轮内容里附一句隐藏提示，落库仍是原话。作品的任何会话里已经有 AI 回复时
+# 不附：老作品里新开的对话、第一条之后才到的旧标记都不是第一条。
+# 见 feature/2026-10-19-first-turn-writes-before-asking.md。
 DASHBOARD_IDEA_ENTRY = "dashboard_idea"
+STARTER_EXAMPLE_ENTRY = "starter_example"
+FIRST_MESSAGE_ENTRY = "first_message"
+FIRST_MESSAGE_ENTRIES = frozenset({DASHBOARD_IDEA_ENTRY, STARTER_EXAMPLE_ENTRY, FIRST_MESSAGE_ENTRY})
 
 _PROJECT_TYPE_LABELS_ZH = {"novel": "长篇小说", "short": "短篇小说", "screenplay": "短剧剧本"}
 _PROJECT_TYPE_LABELS_EN = {"novel": "Novel", "short": "Short Story", "screenplay": "Short Drama Script"}
 
 
-def dashboard_kickoff_hint(project_type: str | None, force_en: bool) -> str:
-    """工作台首条想法的隐藏提示（只进模型输入，不落库、不显示）。"""
+def first_message_project_label(project_type: str | None) -> str:
+    """路由器看到的作品类型名（路由提示是中文）。"""
+    return _PROJECT_TYPE_LABELS_ZH.get(project_type or "", "作品")
+
+
+def first_message_hint(project_type: str | None, force_en: bool) -> str:
+    """作者第一条消息的隐藏提示（只进模型输入，不落库、不显示）：先写，再给方向。
+
+    免费版每天 3 条：先问两三个问题的一轮照样计 1 条，作者要到第 2、3 条才看到正文。
+    想法模糊时按最常见的理解写一段开头，再给两个可换的方向；作者明确要了别的照做。
+    """
+    screenplay = project_type == "screenplay"
     if force_en:
         label = _PROJECT_TYPE_LABELS_EN.get(project_type or "", "project")
+        delivery = (
+            "the episode 1 script (about 800 Chinese characters) into the script"
+            if screenplay
+            else "an opening of about 800 Chinese characters into the manuscript"
+        )
         return (
-            f"This is the author's first message after creating a new \"{label}\" from the dashboard: "
-            "if the author has clearly asked for the manuscript, an outline or a script, do exactly that; "
-            "if the idea is already concrete, give the main characters, setting, core conflict and overall arc; "
-            "if it is still vague, ask two or three key questions first."
+            f"This is the author's first message in this \"{label}\". "
+            "If the author clearly asked for something else (only an outline or settings, only a question, "
+            "only a read-through without changes), do exactly that. "
+            "If the project already has manuscript text, continue from the author's request instead of starting a new opening. "
+            "Otherwise do not ask questions first; deliver in this turn: introduce the protagonist, setting and core "
+            f"conflict in three to five sentences, then write {delivery}. "
+            "If the idea is still vague, write it the most common way; at the end of your reply list two alternative "
+            "directions, one sentence each, so the author can pick one or say what to change."
         )
     label = _PROJECT_TYPE_LABELS_ZH.get(project_type or "", "作品")
+    delivery = "第 1 集剧本（约 800 字）写进剧本" if screenplay else "约 800 字的开头写进正文"
     return (
-        f"这是作者在工作台新建「{label}」后发来的第一条消息："
-        "作者已经明确要求写正文/大纲/剧本时，直接按要求做；"
-        "想法已经具体时，给出主要人物、背景、核心冲突和大致走向；"
-        "还很模糊时，先问两三个关键问题。"
+        f"这是作者在这部「{label}」里发来的第一条消息。"
+        "作者明确要了别的（只要大纲或设定、只问问题、只看稿不改等）时，直接按要求做；"
+        "作品里已经有正文时，按作者的要求接着做，不要另起一个开头。"
+        "其余情况不要先提问，本轮就交付：先用三五句话交代主角、背景和核心冲突，"
+        f"再把{delivery}；"
+        "想法还模糊时，按最常见的理解来写，回复末尾再列两个可以换的方向，每个一句话，"
+        "让作者挑一个或直接说想怎么改。"
     )
+
+
+def _project_has_ai_reply(session: Session, project_id: str) -> bool:
+    """这部作品的任何会话里有过 AI 回复：之后再带第一条消息标记的，不按第一条处理。"""
+    from models import ChatMessage, ChatSession
+
+    return (
+        session.exec(
+            select(ChatMessage.id)
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .where(ChatSession.project_id == project_id, ChatMessage.role == "assistant")
+            .limit(1)
+        ).first()
+        is not None
+    )
+
+
+def _project_has_ai_reply_sync(project_id: str) -> bool:
+    with create_session() as read_session:
+        return _project_has_ai_reply(read_session, project_id)
 
 
 def _load_project_type_sync(project_id: str) -> str | None:
@@ -550,7 +599,7 @@ class AgentService:
         return selected_skills, system_prompt
 
     async def _lookup_project_type(self, session: Session, project_id: str) -> str | None:
-        """作品类型只用于首条想法提示的类型名；查不到时提示里用通用说法。"""
+        """作品类型只用于第一条消息提示的类型名；查不到时提示里用通用说法。"""
         try:
             if self._should_offload_session_work(session):
                 return await asyncio.to_thread(_load_project_type_sync, project_id)
@@ -562,12 +611,29 @@ class AgentService:
             log_with_context(
                 logger,
                 30,  # WARNING
-                "Failed to load project type for dashboard kickoff hint",
+                "Failed to load project type for the first-message hint",
                 project_id=project_id,
                 error=str(exc),
                 error_type=type(exc).__name__,
             )
             return None
+
+    async def _is_first_ai_conversation(self, session: Session, project_id: str) -> bool:
+        """作品从没有过 AI 回复。查不到时按「不是第一条」处理：宁可不加提示，也不误导路由。"""
+        try:
+            if self._should_offload_session_work(session):
+                return not await asyncio.to_thread(_project_has_ai_reply_sync, project_id)
+            return not _project_has_ai_reply(session, project_id)
+        except Exception as exc:
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Failed to check prior AI replies for the first-message hint",
+                project_id=project_id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return False
 
     def _prepare_prompt_artifacts_sync(self, **kwargs: Any) -> tuple[list[dict[str, Any]], str]:
         """Same as _prepare_prompt_artifacts, using a fresh sync DB session."""
@@ -1084,6 +1150,19 @@ class AgentService:
                     matched_trigger="selected",
                 ).to_sse()
 
+            # 作者在这部作品里的第一条消息（作品的任何会话里都还没有 AI 回复）：模型输入附「先写再
+            # 给方向」，路由器多看一行作品类型（first_message_hint / router.build_router_user_message）。
+            first_message_project_type: str | None = None
+            is_first_message = (
+                isinstance(metadata, dict)
+                and metadata.get("entry") in FIRST_MESSAGE_ENTRIES
+                and not any(
+                    isinstance(item, dict) and item.get("role") == "assistant" for item in history_messages
+                )
+            )
+            if is_first_message and await self._is_first_ai_conversation(session, project_id):
+                first_message_project_type = await self._lookup_project_type(session, project_id) or ""
+
             # Build current user message
             user_content = message
             if selected_text:
@@ -1099,13 +1178,8 @@ class AgentService:
                     context_parts.append(
                         f"{'File type' if force_en else '文件类型'}: {metadata['current_file_type']}"
                     )
-                if metadata.get("entry") == DASHBOARD_IDEA_ENTRY:
-                    context_parts.append(
-                        dashboard_kickoff_hint(
-                            await self._lookup_project_type(session, project_id),
-                            force_en,
-                        )
-                    )
+                if first_message_project_type is not None:
+                    context_parts.append(first_message_hint(first_message_project_type, force_en))
                 if context_parts:
                     user_content += f"\n\n{'Context' if force_en else '上下文'}:\n" + "\n".join(context_parts)
 
@@ -1228,6 +1302,11 @@ class AgentService:
                 "user_message": user_content,
                 # Router only needs the raw user message (exclude selected_text / metadata decorations)
                 "router_message": message,
+                "first_message_project_label": (
+                    first_message_project_label(first_message_project_type)
+                    if first_message_project_type is not None
+                    else ""
+                ),
                 "project_id": project_id,
                 "user_id": user_id or "",
                 "session_id": session_id,

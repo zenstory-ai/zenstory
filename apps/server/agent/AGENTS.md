@@ -128,6 +128,9 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `[上一轮路由]`（落库 routing 的一行 JSON）+ `[用户本轮原话]`（`build_router_user_message`，系统提示不变）。确定性的延续（见上文第 3 步）先于 LLM 路由，命中时不调路由模型。
   ROUTER_PROMPT 区分补问作答（沿用上一轮全部路由字段）和确认提议的下一步（按那一步路由，不沿用
   read_only=true / write_content=false / 已交付的 scope）。
+  作者在这部作品里的第一条消息（`service.FIRST_MESSAGE_ENTRIES`，会话里还没有 AI 回复）时 user 消息为
+  `[新作品的第一条消息]`（作品类型）+ `[用户本轮原话]`，ROUTER_PROMPT 按「先写再给方向」判断交付范围；模型输入另附
+  `service.first_message_hint`（不落库）。[first-turn-writes][n-first-turn]
 - 输出：`current_agent`、`workflow_plan`、`workflow_agents`（已裁剪）、`routing_metadata`（`RouterDecision` 全量，含
   `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`requested_file_types`；ROUTER_PROMPT 要求 scope <= 40 字，`MAX_SCOPE_CHARS`=80 硬截断）。
 - 决策记录：[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
@@ -320,3 +323,4 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-typed-boundaries]: ../../../.agents/notes/implemented/architecture/2026-10-14-typed-authority-and-delivery-evidence.md
 [n-rename]: ../../../.agents/notes/implemented/feature/2026-10-19-agent-rename-file-tool.md
 [n-range]: ../../../.agents/notes/implemented/feature/2026-10-19-query-files-range-reads.md
+[n-first-turn]: ../../../.agents/notes/implemented/feature/2026-10-19-first-turn-writes-before-asking.md

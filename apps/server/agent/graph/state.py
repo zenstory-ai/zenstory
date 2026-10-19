@@ -112,6 +112,9 @@ class WritingState(TypedDict, total=False):
     # 作者的要求太笼统（「帮我优化一下」）：本轮先问清楚改哪里，写文件工具一律拒绝执行
     # （graph/author_scope.py；tools_adapter 用另一套拒绝说明）。
     clarify_first: bool
+    # 作者在这部作品里的第一条消息（会话里还没有 AI 回复，见 service.FIRST_MESSAGE_ENTRIES）时
+    # 为作品类型名，路由器据此按「先写再给方向」判断交付范围；其余为空字符串。
+    first_message_project_label: str
     # 本次请求共享的 ToolFailureBreaker（工具重复失败熔断），由 writing_graph 创建，
     # 每次 agent run 复用同一个，writer ↔ 审稿人往返不会让失败计数归零。
     tool_failure_breaker: Any

@@ -195,6 +195,33 @@ def test_router_prompt_explains_every_section_the_builder_emits():
         assert header in ROUTER_PROMPT
 
 
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_first_message_in_a_work_names_the_project_type():
+    """作者在这部作品里的第一条消息：路由器多看一行作品类型，按「先写再给方向」判断交付范围。"""
+    from agent.graph.router import build_router_user_message
+    from agent.prompts.subagents import ROUTER_PROMPT
+
+    state = {
+        "user_message": "【本轮用户消息】想写个重生复仇的都市文",
+        "router_message": "想写个重生复仇的都市文",
+        "messages": [{"role": "user", "content": "【本轮用户消息】想写个重生复仇的都市文"}],
+        "first_message_project_label": "长篇小说",
+    }
+    _, messages = await _route(state)
+
+    built = messages[1]["content"]
+    assert built == "[新作品的第一条消息]\n作品类型：长篇小说\n[用户本轮原话]\n想写个重生复仇的都市文"
+    for header in re.findall(r"^\[[^\]\n]+\]$", built, flags=re.MULTILINE):
+        assert header in ROUTER_PROMPT
+    assert "简要设定+开头约800字" in ROUTER_PROMPT
+
+    # 已经有上一轮时只按上一轮拼（service 也不会再给第一条的标记）。
+    later = _state("可以", {"content": "要继续写第二章吗？", "routing": WRITER_ROUTING})
+    later["first_message_project_label"] = "长篇小说"
+    assert "[新作品的第一条消息]" not in build_router_user_message(later)
+
+
 @pytest.mark.unit
 def test_router_prompt_rules_for_replies_and_write_content():
     from agent.prompts.subagents import ROUTER_PROMPT
