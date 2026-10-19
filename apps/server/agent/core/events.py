@@ -457,7 +457,7 @@ def done_event(
         unwritten_files=unwritten_files or None,
     ).model_dump()
     # 只有提供这些可选回执时才带字段，其余 done 帧保持原样。
-    for key in ("stop_reason", "produced_output", "written_files", "unwritten_files"):
+    for key in ("stop_reason", "produced_output", "written_files", "unwritten_files", "no_file_changes"):
         if data.get(key) is None:
             data.pop(key, None)
     return StreamEvent(type=EventType.DONE, data=data)

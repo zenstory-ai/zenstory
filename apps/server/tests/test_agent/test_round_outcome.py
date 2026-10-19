@@ -429,3 +429,12 @@ def test_stop_outcome_lists_written_files_only_when_there_are_some():
         saved_output=True,
         written_files=[{"id": "ch-2", "title": "第2章 入宅", "words": 9}],
     )["written_files"] == [{"id": "ch-2", "title": "第2章 入宅", "words": 9}]
+
+
+def test_plain_done_frame_carries_no_receipt_keys():
+    """Optional receipt fields are omitted, not sent as null (found in a live run, #267)."""
+    from agent.core.events import done_event
+
+    data = done_event(assistant_message_id="m1").data
+
+    assert not {"stop_reason", "produced_output", "written_files", "unwritten_files", "no_file_changes"} & set(data)
