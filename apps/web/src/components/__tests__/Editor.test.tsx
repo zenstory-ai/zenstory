@@ -109,6 +109,7 @@ vi.mock('../../lib/api', () => ({
     getTree: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    uploadDraft: vi.fn(),
   },
   fileVersionApi: {
     getVersions: vi.fn(),
@@ -371,6 +372,21 @@ describe('Editor', () => {
     mockProjectContext = createMockProjectContext({ selectedItem: null })
     render(<Editor />)
     expect(screen.getByText(/Tip: Use the AI assistant/i)).toBeInTheDocument()
+  })
+
+  it('imports a draft from the empty state and opens its first chapter without asking the AI', async () => {
+    vi.mocked(api.fileApi.uploadDraft).mockResolvedValueOnce({
+      files: [{ id: 'chapter-1', title: '第一章', file_type: 'draft' }] as never, total: 1, errors: [],
+    })
+    mockProjectContext = createMockProjectContext({ selectedItem: null })
+    render(<Editor />)
+
+    const file = new File(['第一章\n正文'], 'draft.md', { type: 'text/markdown' })
+    fireEvent.change(screen.getByTestId('empty-state-import-input'), { target: { files: [file] } })
+
+    await waitFor(() => expect(mockProjectContext.setSelectedItem).toHaveBeenCalledWith({ id: 'chapter-1', title: '第一章', type: 'draft' }))
+    expect(api.fileApi.uploadDraft).toHaveBeenCalledWith('project-1', file)
+    expect(mockProjectContext.triggerFileTreeRefresh).toHaveBeenCalled()
   })
 
   it.each([

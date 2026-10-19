@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { logger } from "../lib/logger";
@@ -44,6 +44,8 @@ import { inspirationsConfig } from "../config/inspirations";
 import { FirstWorkEntry } from "../components/dashboard/FirstWorkEntry";
 import { useDashboardProjectType } from "../hooks/useDashboardProjectType";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
+import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
+import { Upload } from "lucide-react";
 import { AnnouncementBanner } from "../components/announcements/AnnouncementBanner";
 
 const SUPPORTED_PROJECT_TYPES: ProjectType[] = ["novel", "short", "screenplay"];
@@ -77,6 +79,8 @@ export default function DashboardHome() {
   const [templates, setTemplates] = useState<Record<string, ProjectTemplate> | null>(null);
   const [creating, setCreating] = useState<ProjectType | null>(null);
   const [isQuickCreating, setIsQuickCreating] = useState(false);
+  const draftInputRef = useRef<HTMLInputElement>(null);
+  const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
   // An idea held back while today's AI messages were used up comes back after a reload.
   const [inspiration, setInspiration] = useState(() => readHeldDashboardIdea(user?.id));
   const inspirationTooLong = inspiration.length > MAX_AGENT_MESSAGE_CHARS;
@@ -536,6 +540,44 @@ export default function DashboardHome() {
     }
   };
 
+  /**
+   * 「已有稿子？导入」: a new work of the selected type named after the file, its chapters
+   * imported (no model call), opened on chapter 1. Picking happens first, so cancelling the
+   * file picker creates nothing.
+   */
+  const handleImportDrafts = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (picked.length === 0 || isQuickCreating || isImportingDrafts) return;
+    setIsQuickCreating(true);
+    const stem = picked[0].name.replace(/\.(txt|md)$/i, "").trim().slice(0, 40);
+    const name = stem || templates?.[activeTab]?.default_project_name || t('defaults.untitled');
+    try {
+      const project = await contextCreateProject(name, undefined, activeTab);
+      if (!project.id) {
+        logger.error("Create project succeeded but missing project id:", project);
+        return;
+      }
+      rememberCreatedType(activeTab);
+      const created = await importDrafts(project.id, picked, "dashboard");
+      // A failed upload still opens the new work, where the empty state offers the import again.
+      navigate(created?.length ? `/project/${project.id}?file=${encodeURIComponent(created[0].id)}` : `/project/${project.id}`);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 401)) {
+        toast.error(handleApiError(error));
+        if (
+          error instanceof ApiError &&
+          error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
+          projectQuotaUpgradePrompt.surface === "modal"
+        ) {
+          setShowProjectQuotaUpgradeModal(true);
+        }
+      }
+    } finally {
+      setIsQuickCreating(false);
+    }
+  };
+
   const handleQuickCreate = async () => {
     if (isQuickCreating || inspirationTooLong) return;
 
@@ -765,6 +807,26 @@ export default function DashboardHome() {
             onSelect={setInspiration}
           />
         )}
+        {/* Authors who arrive with a manuscript start from it instead of an idea. */}
+        <input
+          ref={draftInputRef}
+          type="file"
+          accept={DRAFT_IMPORT_ACCEPT}
+          multiple
+          className="hidden"
+          data-testid="dashboard-import-input"
+          onChange={(event) => { void handleImportDrafts(event); }}
+        />
+        <button
+          type="button"
+          data-testid="dashboard-import-drafts"
+          onClick={() => draftInputRef.current?.click()}
+          disabled={isQuickCreating || isImportingDrafts}
+          className="mt-1 inline-flex min-h-[44px] md:min-h-0 md:py-1 items-center gap-1.5 rounded-md px-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-50"
+        >
+          <Upload className="h-3.5 w-3.5 shrink-0" />
+          {t('importDrafts')}
+        </button>
       </div>
 
       </section>

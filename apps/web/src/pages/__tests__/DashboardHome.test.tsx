@@ -191,11 +191,13 @@ vi.mock('../../components/subscription/UpgradePromptModal', () => ({
     open ? <div data-testid="upgrade-modal">{title}</div> : null,
 }))
 
+const mockUploadDraft = vi.hoisted(() => vi.fn())
 vi.mock('../../lib/api', () => ({
   projectApi: {
     getTemplates: vi.fn().mockResolvedValue(null),
     getProgress: mockGetProgress,
   },
+  fileApi: { uploadDraft: mockUploadDraft },
 }))
 
 vi.mock('../../lib/writingStatsApi', () => ({
@@ -978,6 +980,20 @@ describe('DashboardHome featured inspirations section', () => {
     expect(mockCreateProject).not.toHaveBeenCalled()
     expect(input).toHaveValue('文'.repeat(20001))
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('starts a work from an imported draft, named after the file and opened on chapter 1', async () => {
+    mockUploadDraft.mockResolvedValueOnce({ files: [{ id: 'chapter-1', title: '第一章', file_type: 'draft' }], total: 1, errors: [] })
+    renderDashboardHome()
+    const file = new File(['第一章\n雨夜'], '重生之都市复仇.txt', { type: 'text/plain' })
+
+    fireEvent.change(screen.getByTestId('dashboard-import-input'), { target: { files: [file] } })
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created?file=chapter-1'))
+    expect(mockCreateProject).toHaveBeenCalledWith('重生之都市复仇', undefined, expect.any(String))
+    expect(mockUploadDraft).toHaveBeenCalledWith('project-created', file)
+    // A draft is not an idea: nothing is queued for the AI.
+    expect(localStorage.getItem('zenstory_inspiration_project-created')).toBeNull()
   })
 
   it('creates a project with an idea at the 20000 character boundary', async () => {

@@ -23,13 +23,14 @@ import { toast } from "../lib/toast";
 import { isFileTitleTooLong } from "../lib/fileTitle";
 import { logger } from "../lib/logger";
 import { FirstWorkGuidance } from "./FirstWorkGuidance";
+import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
 import { SimpleEditor } from "./SimpleEditor";
 import type { SaveOutcome, SaveResult, SaveSubmission } from "./SimpleEditor";
 import { MaterialPreview } from "./MaterialPreview";
 import { ImportMaterialDialog } from "./ImportMaterialDialog";
-import type { File, FileTreeNode } from "../types";
+import type { File, FileTreeNode, TreeNodeType } from "../types";
 import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
-import { FileText, Users, BookOpen, Sparkles, Folder, Zap, Keyboard, ChevronDown, Clapperboard, Download } from "lucide-react";
+import { FileText, Users, BookOpen, Sparkles, Folder, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -162,6 +163,19 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const materialLib = useMaterialLibraryContext();
   const { addMaterial } = useMaterialAttachment();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  // Authors who arrive with a manuscript import it from the empty state and land on chapter 1.
+  const draftInputRef = useRef<HTMLInputElement>(null);
+  const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
+  const handleImportDrafts = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!currentProjectId || picked.length === 0) return;
+    const created = await importDrafts(currentProjectId, picked, "editor_empty");
+    if (!created?.length) return;
+    triggerFileTreeRefresh();
+    const first = created[0];
+    setSelectedItem({ id: first.id, title: first.title, type: first.file_type as TreeNodeType });
+  };
 
   // Data states
   const [file, setFile] = useState<File | null>(null);
@@ -1464,6 +1478,28 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
           {/* Hints Section */}
           <div className="space-y-3 pt-2">
+            <input
+              ref={draftInputRef}
+              type="file"
+              accept={DRAFT_IMPORT_ACCEPT}
+              multiple
+              className="hidden"
+              data-testid="empty-state-import-input"
+              onChange={(event) => { void handleImportDrafts(event); }}
+            />
+            <button
+              type="button"
+              data-testid="empty-state-import-drafts"
+              onClick={() => draftInputRef.current?.click()}
+              disabled={isImportingDrafts || !currentProjectId}
+              className="mx-auto flex min-h-[44px] md:min-h-0 items-center justify-center gap-2 rounded-md px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-50 group"
+            >
+              <span className="p-1.5 rounded-md bg-[hsl(var(--bg-tertiary))] group-hover:bg-[hsl(var(--accent-primary)/0.08)] transition-colors">
+                {isImportingDrafts ? <LoadingSpinner size="sm" color="primary" /> : <Upload className="w-3.5 h-3.5" />}
+              </span>
+              <span>{t('editor:emptyStateImportDrafts')}</span>
+            </button>
+
             {/* AI Hint: opens the chat, where an empty first conversation offers starter cards.
                 Phones switch panels without raising the keyboard over those cards. */}
             <button

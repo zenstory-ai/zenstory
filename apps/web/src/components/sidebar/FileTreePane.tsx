@@ -12,6 +12,7 @@ import { notifyFileRemoved } from "../../lib/fileRemovalEvents";
 import { FOLDER_TYPE_MAP } from "../../lib/folderTypeMap";
 import type { FileTreeNode, TreeNodeType } from "../../types";
 import { useFileSearch } from "../../hooks/useFileSearch";
+import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../../hooks/useDraftImport";
 import { useFileSearchContext } from "../../contexts/FileSearchContext";
 import { FileSearchInput } from "../FileSearchInput";
 import SearchResultsDropdown from "../SearchResultsDropdown";
@@ -63,6 +64,7 @@ export const FileTreePane: React.FC = () => {
 
   // Upload state
   const [isUploading, setIsUploading] = useState(false);
+  const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
   const mountedRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftFileInputRef = useRef<HTMLInputElement>(null);
@@ -456,58 +458,13 @@ export const FileTreePane: React.FC = () => {
   const handleDraftUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !currentProjectId) return;
-
-    setIsUploading(true);
-
-    const errorCodeMap: Record<string, string> = {
-      ERR_FILE_TOO_LARGE: t('editor:fileTree.errorFileTooLarge'),
-      ERR_FILE_TYPE_INVALID: t('editor:fileTree.errorFileTypeInvalid'),
-      ERR_FILE_CONTENT_TOO_LONG: t('editor:fileTree.errorFileContentTooLong'),
-      ERR_VALIDATION_ERROR: t('editor:fileTree.errorValidation'),
-    };
-
-    const translateError = (raw: string) => {
-      for (const [code, msg] of Object.entries(errorCodeMap)) {
-        if (raw.includes(code)) {
-          const fileName = raw.split(':')[0]?.trim();
-          return fileName ? `${fileName}: ${msg}` : msg;
-        }
-      }
-      return raw;
-    };
-
-    try {
-      const allErrors: string[] = [];
-      let totalChapters = 0;
-      for (let i = 0; i < files.length; i++) {
-        if (!mountedRef.current) return;
-        const result = await fileApi.uploadDraft(currentProjectId, files[i]);
-        totalChapters += result.total;
-        if (result.errors?.length) {
-          allErrors.push(...result.errors.map(translateError));
-        }
-      }
-      if (!mountedRef.current) return;
-      if (allErrors.length > 0) {
-        toast.error(allErrors.join('\n'));
-      }
-      if (totalChapters > 0) {
-        toast.success(t('editor:fileTree.draftUploadSuccess', { count: totalChapters }));
-      } else if (allErrors.length === 0) {
-        toast.info(t('editor:fileTree.draftUploadEmpty'));
-      }
+    const projectId = currentProjectId;
+    const picked = Array.from(files);
+    // Clear right away so picking the same file again still fires a change.
+    e.target.value = "";
+    const created = await importDrafts(projectId, picked, "file_tree");
+    if (created !== null && mountedRef.current && projectId === activeProjectIdRef.current) {
       await loadData(false);
-    } catch (error) {
-      if (!mountedRef.current) return;
-      logger.error("Failed to upload draft:", error);
-      toast.error(error instanceof Error ? error.message : t('editor:fileTree.uploadFailed'));
-    } finally {
-      if (mountedRef.current) {
-        setIsUploading(false);
-      }
-      if (draftFileInputRef.current) {
-        draftFileInputRef.current.value = "";
-      }
     }
   };
 
@@ -579,15 +536,17 @@ export const FileTreePane: React.FC = () => {
           )}
 
           {/* Action buttons */}
-          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+          {/* Phones have no hover: the draft folder keeps its import button visible there. */}
+          <div className={`${isMobile && isDraftFolder(node) ? "opacity-100" : "opacity-0 group-hover:opacity-100"} flex items-center gap-0.5 transition-opacity`}>
             {/* For draft folder: + button triggers draft upload */}
             {isDraftFolder(node) ? (
               <button
                 data-testid="file-tree-upload-draft"
                 onClick={triggerDraftUpload}
-                disabled={isUploading}
-                className={`p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isImportingDrafts}
+                className={`p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] ${isImportingDrafts ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title={t('editor:fileTree.uploadDraft')}
+                aria-label={t('editor:fileTree.uploadDraft')}
               >
                 <Plus size={14} />
               </button>
@@ -752,7 +711,7 @@ export const FileTreePane: React.FC = () => {
         type="file"
         ref={draftFileInputRef}
         onChange={handleDraftUpload}
-        accept=".txt,.md"
+        accept={DRAFT_IMPORT_ACCEPT}
         multiple
         className="hidden"
       />
