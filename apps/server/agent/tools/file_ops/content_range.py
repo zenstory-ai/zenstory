@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from utils.text_metrics import count_words
 from utils.title_sequence import parse_chinese_number
 
 DEFAULT_RANGE_CHARS = 6000
@@ -91,6 +92,24 @@ def heading_offsets(content: str) -> list[int]:
     return [heading.offset for heading in _headings(content)]
 
 
+def section_word_counts(content: str, start: int, end: int) -> list[tuple[str, int]]:
+    """Editor word counts of the chapters/episodes that overlap ``[start, end)`` (#277).
+
+    A section runs from its heading to the next heading of the same unit. Text before the
+    first heading belongs to no section and is not counted here.
+    """
+    headings = _headings(content)
+    counted: list[tuple[str, int]] = []
+    for index, heading in enumerate(headings):
+        following = [h for h in headings[index + 1:] if heading.unit is None or h.unit == heading.unit]
+        section_end = following[0].offset if following else len(content)
+        overlap = content[max(start, heading.offset):min(end, section_end)]
+        # 只差段落间的空行（续写在上一章之后）不算动了上一章。
+        if overlap.strip():
+            counted.append((heading.text, count_words(content[heading.offset:section_end])))
+    return counted
+
+
 def apply_content_range(row: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Cut ``row["content"]`` to the requested range and describe it. ``row`` is one by-id result."""
     content = row.get("content")
@@ -129,12 +148,14 @@ def apply_content_range(row: dict[str, Any], args: dict[str, Any]) -> dict[str, 
     sliced["content_length"] = total
     sliced["content_range"] = {"start": start, "end": end}
     sliced["content_partial"] = (start, end) != (0, total)
+    # 这一段的编辑器字数（#277）：核对单章篇幅不必再自己数，也不必为一个数字读全文。
+    sliced["range_word_count"] = count_words(sliced["content"])
     if label is not None:
         sliced["section"] = label
     if sliced["content_partial"]:
         sliced["note"] = (
             f"只包含正文第 {start}–{end} 个字符（全文 {total} 字符）；范围外的内容没有读到，"
-            "不要当成全文。word_count 是整个文件的字数。"
+            "不要当成全文。word_count 是整个文件的字数，range_word_count 是这一段的字数。"
         )
     return sliced
 

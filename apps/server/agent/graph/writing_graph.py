@@ -1051,11 +1051,61 @@ async def _bounded_review_reads(reads: dict[str, Any]) -> dict[str, Any]:
     return dict(results)
 
 
-def _format_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
+def _format_body_word_counts(
+    counts: list[tuple[str, int]] | None,
+    sections: list[tuple[str, str, int]] | None = None,
+) -> str:
     if not counts:
         return ""
     lines = "\n".join(f"- 《{title}》{words} 字" if title else f"- {words} 字" for title, words in counts)
+    if sections:
+        # 一个文件里写了好几章/集时逐章给数（#277）：审稿人对照「每章/每集」要求不必自己数。
+        lines += "\n" + _SECTION_WORD_COUNT_LEAD + "\n" + "\n".join(
+            f"  - 《{title}》{heading} {words} 字" for title, heading, words in sections
+        )
     return f"\n\n{BODY_WORD_COUNT_HEADER}\n{lines}\n{_BODY_WORD_COUNT_NOTE}"
+
+
+_SECTION_WORD_COUNT_LEAD = "其中本请求改动所在的各章/集（按章节标题切分，从标题算到下一个同级标题）："
+_MAX_SECTION_WORD_COUNTS = 20
+
+
+def _collect_section_word_counts(file_ids: list[str]) -> list[tuple[str, str, int]] | None:
+    """本请求改动所在的章节/分集的编辑器字数，只看落库版本里改动覆盖到的章节。"""
+    project_id = ToolContext.get_project_id()
+    if not project_id or not file_ids:
+        return None
+
+    from sqlmodel import select
+
+    from agent.tools.file_ops.content_range import section_word_counts
+    from models import File
+
+    with ToolContext.short_lived_session() as session:
+        rows = session.exec(
+            select(File.id, File.title, File.content).where(
+                File.project_id == project_id,
+                File.id.in_(file_ids),
+                File.file_type.in_(CONTENT_FILE_TYPES),
+                File.is_deleted.is_(False),
+            )
+        ).all()
+    by_id = {row.id: (row.title or "", row.content or "") for row in rows}
+    found: list[tuple[str, str, int]] = []
+    for file_id in file_ids:
+        if file_id not in by_id:
+            continue
+        title, content = by_id[file_id]
+        before = ToolContext.pre_write_content(file_id)
+        span = _changed_span(before, content) if before and before.strip() else (0, len(content))
+        if span is None:
+            continue
+        counts = section_word_counts(content, *span)
+        if len(counts) < 2 and not (before and before.strip()):
+            # 新建的单章文件：上面的文件字数就是这一章的字数，不重复列。
+            continue
+        found.extend((title, heading, words) for heading, words in counts)
+    return found[:_MAX_SECTION_WORD_COUNTS] or None
 
 
 def _format_length_requirements(items: list[str] | None, *, before_writing: bool = False) -> str:
@@ -2823,13 +2873,14 @@ async def run_writing_workflow_streaming(
                 review_reads = await _bounded_review_reads(
                     {
                         "body_word_counts": functools.partial(_collect_body_word_counts, written_ids),
+                        "section_word_counts": functools.partial(_collect_section_word_counts, written_ids),
                     }
                 )
                 body_counts = review_reads["body_word_counts"]
                 if not body_counts:
                     # 落库读取超时：按本 run 写入记下的最新全文字数（建文件后又扩写过的取改后字数）。
                     body_counts = latest_file_word_counts(writer_body_writes)
-                handoff_context += _format_body_word_counts(body_counts)
+                handoff_context += _format_body_word_counts(body_counts, review_reads["section_word_counts"])
                 handoff_context += _format_length_requirements(await _current_length_requirements())
                 if chat_hold_started:
                     handoff_context += f"\n\n{WRITER_CHAT_SUPERSEDED_NOTE}"
