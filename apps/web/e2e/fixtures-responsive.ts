@@ -108,9 +108,7 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
         else if (path.endsWith('/subscription/catalog'))
             data = catalog;
         else if (path.endsWith('/persona/onboarding'))
-            data = { required: false, profile: null, recommendations: [], rollout_at: '2025-01-01T00:00:00Z', new_user_window_days: 7 };
-        else if (path.includes('/persona'))
-            data = { recommendations: [] };
+            data = { required: false, profile: null, rollout_at: '2025-01-01T00:00:00Z', new_user_window_days: 7 };
         else if (path.endsWith('/stats/word-count-trend'))
             data = { data: [{ date: '2026-10-01', net_words: 120 }, { date: '2026-10-02', net_words: 260 }] };
         else if (path.endsWith('/stats')) {

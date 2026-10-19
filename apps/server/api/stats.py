@@ -15,7 +15,6 @@ from core.error_handler import APIException
 from core.project_access import verify_project_ownership
 from database import get_session
 from models import User
-from services.features.activation_event_service import activation_event_service
 from services.features.writing_stats_service import writing_stats_service
 from services.infra.dashboard_cache import dashboard_cache
 from utils.logger import get_logger, log_with_context
@@ -283,62 +282,7 @@ class ProjectDashboardStatsResponse(BaseModel):
     generated_at: str
 
 
-class ActivationGuideStepResponse(BaseModel):
-    """Single first-day activation guide step."""
-
-    event_name: str
-    label: str
-    completed: bool
-    completed_at: str | None = None
-    action_path: str
-
-
-class ActivationGuideResponse(BaseModel):
-    """Current user's first-day activation guide state."""
-
-    user_id: str
-    window_hours: int
-    within_first_day: bool
-    total_steps: int
-    completed_steps: int
-    completion_rate: float
-    is_activated: bool
-    next_event_name: str | None = None
-    next_action: str | None = None
-    steps: list[ActivationGuideStepResponse]
-
-
 # ==================== Project Statistics ====================
-@router.get("/activation/guide", response_model=ActivationGuideResponse)
-def get_my_activation_guide(
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-):
-    """
-    Get first-day activation guide state for current user.
-
-    Returned payload can drive onboarding wizard/checklist UI:
-    signup -> create project -> save first file -> complete first AI action.
-    """
-    guide = activation_event_service.get_user_guide(
-        session,
-        user_id=current_user.id,
-        user_created_at=current_user.created_at,
-    )
-
-    log_with_context(
-        logger,
-        logging.INFO,
-        "Fetched activation guide",
-        user_id=current_user.id,
-        completed_steps=guide["completed_steps"],
-        total_steps=guide["total_steps"],
-        next_event_name=guide["next_event_name"],
-    )
-
-    return ActivationGuideResponse(**guide)
-
-
 @router.get("/projects/{project_id}/stats", response_model=ProjectDashboardStatsResponse)
 def get_project_stats(
     project_id: str,

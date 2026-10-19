@@ -1,4 +1,4 @@
-"""Persona onboarding API endpoints (server-side persistence + recommendations)."""
+"""Persona onboarding API endpoints (server-side persistence of the onboarding answer)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from services.auth import get_current_active_user
 from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
-from config.feature_flags import is_first_work_onboarding_enabled, is_inspirations_enabled
+from config.feature_flags import is_first_work_onboarding_enabled
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
@@ -38,13 +38,6 @@ ALLOWED_PERSONA_IDS = {
 ALLOWED_GOAL_IDS = {"finishBook", "buildHabit", "improveQuality", "growAudience", "monetize"}
 
 
-class PersonaRecommendation(BaseModel):
-    id: str
-    title: str
-    description: str
-    action: str
-
-
 class PersonaProfileRead(BaseModel):
     version: int
     completed_at: datetime
@@ -59,7 +52,6 @@ class PersonaOnboardingStateResponse(BaseModel):
     rollout_at: datetime
     new_user_window_days: int
     profile: PersonaProfileRead | None
-    recommendations: list[PersonaRecommendation]
 
 
 class PersonaOnboardingUpsertRequest(BaseModel):
@@ -67,10 +59,6 @@ class PersonaOnboardingUpsertRequest(BaseModel):
     selected_goals: list[str] = Field(default_factory=list)
     experience_level: str = "beginner"
     skipped: bool = False
-
-
-class PersonaRecommendationsResponse(BaseModel):
-    recommendations: list[PersonaRecommendation]
 
 
 def _normalize_datetime_to_utc(value: datetime) -> datetime:
@@ -114,117 +102,6 @@ def _encode_string_array(values: list[str]) -> str:
     normalized = [item.strip() for item in values if item and item.strip()]
     deduped = list(dict.fromkeys(normalized))
     return json.dumps(deduped, ensure_ascii=False)
-
-
-def _build_recommendations(
-    *,
-    selected_personas: list[str],
-    selected_goals: list[str],
-    experience_level: str,
-) -> list[PersonaRecommendation]:
-    recommendations: list[PersonaRecommendation] = []
-
-    if "explorer" in selected_personas and is_inspirations_enabled():
-        recommendations.append(
-            PersonaRecommendation(
-                id="persona_explorer_template",
-                title="探索型模板推荐",
-                description="优先给你开放灵感模板和快速起稿入口。",
-                action="/dashboard/inspirations",
-            )
-        )
-    if "serial" in selected_personas:
-        recommendations.append(
-            PersonaRecommendation(
-                id="persona_serial_streak",
-                title="连载节奏建议",
-                description="设置每天写作目标并追踪连更进度。",
-                action="/dashboard",
-            )
-        )
-    if "professional" in selected_personas:
-        recommendations.append(
-            PersonaRecommendation(
-                id="persona_professional_efficiency",
-                title="效率工作流",
-                description="突出大纲-章节-改稿的一键流转能力。",
-                action="/dashboard/projects",
-            )
-        )
-    if "fanfic" in selected_personas:
-        recommendations.append(
-            PersonaRecommendation(
-                id="persona_fanfic_consistency",
-                title="设定一致性检查",
-                description="优先推荐角色关系和设定一致性工具。",
-                action="/dashboard/projects",
-            )
-        )
-    if "studio" in selected_personas:
-        recommendations.append(
-            PersonaRecommendation(
-                id="persona_studio_collab",
-                title="团队协作入口",
-                description="推荐更适合团队分工的项目组织方式。",
-                action="/dashboard/projects",
-            )
-        )
-
-    if "monetize" in selected_goals:
-        recommendations.append(
-            PersonaRecommendation(
-                id="goal_monetize_upgrade",
-                title="变现能力建议",
-                description="查看升级权益，优先解锁增长与商业化能力。",
-                action="/pricing",
-            )
-        )
-    if "improveQuality" in selected_goals:
-        recommendations.append(
-            PersonaRecommendation(
-                id="goal_quality_review",
-                title="质量提升路径",
-                description="使用 AI 评审与改稿建议提高文本质量。",
-                action="/dashboard",
-            )
-        )
-    if "buildHabit" in selected_goals:
-        recommendations.append(
-            PersonaRecommendation(
-                id="goal_habit_activation",
-                title="写作习惯养成",
-                description="每日完成一个小目标，形成稳定创作节奏。",
-                action="/dashboard",
-            )
-        )
-
-    if experience_level == "beginner":
-        recommendations.append(
-            PersonaRecommendation(
-                id="level_beginner_path",
-                title="新手引导路径",
-                description="先从模板起步，再逐步完善角色和章节。",
-                action="/dashboard",
-            )
-        )
-    elif experience_level == "advanced":
-        recommendations.append(
-            PersonaRecommendation(
-                id="level_advanced_shortcut",
-                title="进阶快捷模式",
-                description="为你优先展示批量改稿和高阶编辑能力。",
-                action="/dashboard/projects",
-            )
-        )
-
-    deduped: list[PersonaRecommendation] = []
-    seen: set[str] = set()
-    for item in recommendations:
-        if item.id in seen:
-            continue
-        deduped.append(item)
-        seen.add(item.id)
-    return deduped[:4]
 
 
 def _profile_to_read(profile: UserPersonaProfile) -> PersonaProfileRead:
@@ -299,15 +176,6 @@ def get_persona_onboarding_state(
         select(UserPersonaProfile).where(UserPersonaProfile.user_id == current_user.id)
     ).first()
     profile_read = _profile_to_read(profile) if profile else None
-    recommendations = (
-        _build_recommendations(
-            selected_personas=profile_read.selected_personas,
-            selected_goals=profile_read.selected_goals,
-            experience_level=profile_read.experience_level,
-        )
-        if profile_read
-        else []
-    )
 
     legacy_required = _is_onboarding_required(user=current_user, profile=profile)
     first_work = session.get(WorkspaceOnboarding, current_user.id) if profile is None and not legacy_required and is_first_work_onboarding_enabled() else None
@@ -319,7 +187,6 @@ def get_persona_onboarding_state(
         rollout_at=_get_rollout_datetime(),
         new_user_window_days=_get_rollout_window_days(),
         profile=profile_read,
-        recommendations=recommendations,
     )
 
 
@@ -353,37 +220,9 @@ def upsert_persona_onboarding(
     session.commit()
     session.refresh(profile)
 
-    profile_read = _profile_to_read(profile)
-    recommendations = _build_recommendations(
-        selected_personas=profile_read.selected_personas,
-        selected_goals=profile_read.selected_goals,
-        experience_level=profile_read.experience_level,
-    )
-
     return PersonaOnboardingStateResponse(
         required=False,
         rollout_at=_get_rollout_datetime(),
         new_user_window_days=_get_rollout_window_days(),
-        profile=profile_read,
-        recommendations=recommendations,
+        profile=_profile_to_read(profile),
     )
-
-
-@router.get("/recommendations", response_model=PersonaRecommendationsResponse)
-def get_persona_recommendations(
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-):
-    profile = session.exec(
-        select(UserPersonaProfile).where(UserPersonaProfile.user_id == current_user.id)
-    ).first()
-    if profile is None:
-        return PersonaRecommendationsResponse(recommendations=[])
-
-    profile_read = _profile_to_read(profile)
-    recommendations = _build_recommendations(
-        selected_personas=profile_read.selected_personas,
-        selected_goals=profile_read.selected_goals,
-        experience_level=profile_read.experience_level,
-    )
-    return PersonaRecommendationsResponse(recommendations=recommendations)

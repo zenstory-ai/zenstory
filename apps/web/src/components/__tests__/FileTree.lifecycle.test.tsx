@@ -549,6 +549,20 @@ describe('desktop draft uploads', () => {
     expect(screen.getByTitle('editor:fileTree.uploadDraft')).not.toBeDisabled();
   });
 
+  it('shows the chapters a batch created before one file failed', async () => {
+    mocks.uploadDraft
+      .mockResolvedValueOnce({ files: [{ id: 'chapter-1', title: '第一章', file_type: 'draft' }], total: 1, errors: [] })
+      .mockRejectedValueOnce(new Error('Second file rejected'))
+    const view = mountTree(false);
+    await screen.findByTitle('editor:fileTree.uploadDraft');
+    fireEvent.change(view.container.querySelector('input[multiple]')!, { target: { files: [new File(['one'], 'one.txt'), new File(['two'], 'two.txt')] } });
+
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('Second file rejected'));
+    // The first file's chapter exists, so the tree reloads to show it.
+    await waitFor(() => expect(mocks.getTree).toHaveBeenCalledTimes(2));
+    expect(screen.getByTitle('editor:fileTree.uploadDraft')).not.toBeDisabled();
+  });
+
   it.each([false, true])('stops a sequential draft batch after unmount without notifications or refresh (StrictMode=%s)', async strict => {
     const first = deferred<{ total: number; errors: string[] }>();
     mocks.uploadDraft.mockReturnValue(first.promise);

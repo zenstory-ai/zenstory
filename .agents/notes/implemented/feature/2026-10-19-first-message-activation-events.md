@@ -26,15 +26,17 @@ Status: implemented
 **后台漏斗**（`get_funnel_stats`）：
 - 基数是统计期内注册的客户（排除管理员）。取 User 表而不是 `signup_success` 事件，所以任何注册路径都算在内。
 - 其余各步统计这批人中，在注册后 24 小时内到达该步的人数。
-- 步骤顺序：注册 → 建项目 → 首次保存 → 首条消息 → 首条回复成功 → AI 写入作品。`activation_rate` 等于最后一步的人数除以基数。
+- 步骤顺序：注册 → 建项目 → 首条消息 → 首条回复成功 → AI 写入作品。`activation_rate` 等于最后一步的人数除以基数。
+- 每一步统计「至少走到这一步」的人：走到后面一步的人也计入前面每一步，各步只减不增，转化率不会超过 100%。原因：发过 AI 消息必然已经有作品，但自动初始化的首部作品不写 `project_created`。
+- 手动保存（`first_file_saved`）不放进这条链：先用 AI 的作者会跳过它，放进来会让下一步的转化率超过 100%。事件照常记录。
 - 后台文案改为「新用户首日漏斗」，说明最近一天注册的用户还在观察期。
-- 用户自己的首日清单（`/activation/guide`）仍是原来四步（`ACTIVATION_GUIDE_ORDER`），前端文案 key 不变。
+- 用户自己的首日清单（`/activation/guide`）后来随默认关闭的工作台引导一起删除，见 `simplification/2026-10-19-remove-dormant-dashboard-onboarding.md`。
 
 **增长页**（`admin_growth_service`）：「AI 活跃用户」和「新用户 AI 激活率」，以及它们的每日分桶，都排除 `source = "suggest"` 的用量。
 
 **前端埋点**：
 - `ai_chat_completed`、`ai_chat_failed`、`ai_chat_stopped`、`ai_chat_cancelled` 带上 `entry`。
-- 新增 `persona_viewed`、`persona_submitted`（只带是否跳过、选了几项、经验题是否作答）、`project_opened`（项目路由解析成功后，每个项目记一次）。
+- 新增 `persona_viewed`、`persona_submitted`（带是否跳过和所选作品类型 `project_type`）、`project_opened`（项目路由解析成功后，每个项目记一次）。
 
 ## Alternatives considered
 

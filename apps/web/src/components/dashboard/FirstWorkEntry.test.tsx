@@ -53,12 +53,20 @@ describe('dashboard-only first-work initialization lifecycle', () => {
     }
     expect(mocks.initialize).not.toHaveBeenCalled();
   });
-  it('marks the initial preparation as busy without starting initialization before eligibility is known', () => {
+  it('shows nothing and starts nothing while eligibility is unknown', () => {
     mocks.get.mockReturnValue(new Promise(() => {}));
-    mount();
-    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
-    expect(screen.getByRole('status')).toHaveTextContent('firstWork.preparing');
+    const view = mount();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(view.container).toBeEmptyDOMElement();
     expect(mocks.initialize).not.toHaveBeenCalled();
+  });
+  it('marks the preparation as busy only while a pending work is being initialized', async () => {
+    mocks.initialize.mockReturnValue(new Promise(() => {}));
+    mount();
+    const status = await screen.findByRole('status');
+    expect(status).toHaveAttribute('aria-busy', 'true');
+    expect(status).toHaveTextContent('firstWork.preparing');
+    expect(mocks.initialize).toHaveBeenCalledTimes(1);
   });
   it('announces a read failure and lets an explicit retry restore the persisted entry', async () => {
     mocks.get.mockRejectedValueOnce(new Error('Synthetic unavailable')).mockResolvedValue(created);

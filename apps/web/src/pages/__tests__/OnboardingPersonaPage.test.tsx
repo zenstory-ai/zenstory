@@ -17,18 +17,6 @@ const mockSavePersonaOnboardingData = vi.fn();
 const mockGetState = vi.fn();
 const mockSave = vi.fn();
 const mockToastError = vi.fn();
-const { mockDashboardOnboardingFlags } = vi.hoisted(() => ({
-  mockDashboardOnboardingFlags: {
-    todayActionPlanEnabled: false,
-    firstDayActivationGuideEnabled: false,
-    coachmarkTourEnabled: false,
-  },
-}));
-
-vi.mock("../../config/dashboardOnboarding", () => ({
-  dashboardOnboardingFlags: mockDashboardOnboardingFlags,
-}));
-
 let mockUser: { id: string } | null = { id: "user-onboarding-1" };
 let mockLocationState: { from?: { pathname?: string; search?: string; hash?: string } } | null = {
   from: { pathname: "/dashboard/projects", search: "", hash: "" },
@@ -113,8 +101,6 @@ describe("OnboardingPersonaPage", () => {
     vi.clearAllMocks();
     mockUser = { id: "user-onboarding-1" };
     mockLocationState = { from: { pathname: "/dashboard/projects", search: "", hash: "" } };
-    mockDashboardOnboardingFlags.todayActionPlanEnabled = false;
-    mockDashboardOnboardingFlags.firstDayActivationGuideEnabled = false;
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
     localStorage.removeItem(`${PREFERRED_PROJECT_TYPE_STORAGE_KEY}:${mockUser.id}`);
     mockGetPersonaOnboardingData.mockReturnValue(null);
@@ -158,7 +144,7 @@ describe("OnboardingPersonaPage", () => {
     await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
     expect(mockSave.mock.calls[0][0]).toEqual({ selected_personas: ["short_story"], selected_goals: [], skipped: false });
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/dashboard/projects", { replace: true, state: undefined });
+      expect(mockNavigate).toHaveBeenCalledWith("/dashboard/projects", { replace: true });
     });
     expect(getPreferredProjectType(mockUser?.id)).toBe("short");
     expect(queryClient.getQueryData(["persona-onboarding", "user-onboarding-1"])).toMatchObject({
@@ -224,10 +210,7 @@ describe("OnboardingPersonaPage", () => {
         skipped: true,
       });
     });
-    expect(mockNavigate).toHaveBeenCalledWith("/dashboard", {
-      replace: true,
-      state: { startDashboardCoachmark: true },
-    });
+    expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
     expect(getPreferredProjectType(mockUser?.id)).toBeNull();
   });
 
@@ -246,7 +229,7 @@ describe("OnboardingPersonaPage", () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith(
         "/project/project-1?file=file-2&tab=outline#section-1",
-        { replace: true, state: undefined },
+        { replace: true },
       );
     });
   });

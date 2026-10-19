@@ -75,7 +75,7 @@ def _auth_headers(access_token: str) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_persona_onboarding_roundtrip_requires_then_persists_profile_and_recommendations(
+async def test_persona_onboarding_roundtrip_requires_then_persists_profile(
     client: AsyncClient,
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
@@ -114,12 +114,6 @@ async def test_persona_onboarding_roundtrip_requires_then_persists_profile_and_r
     assert saved_payload["profile"]["selected_personas"] == ["serial", "professional"]
     assert saved_payload["profile"]["selected_goals"] == ["improveQuality", "monetize"]
     assert saved_payload["profile"]["experience_level"] == "advanced"
-    assert len(saved_payload["recommendations"]) >= 1
-
-    recommendations_response = await client.get("/api/v1/persona/recommendations", headers=headers)
-    assert recommendations_response.status_code == 200
-    recommendations_payload = recommendations_response.json()["recommendations"]
-    assert len(recommendations_payload) >= 1
 
     stored_profile = db_session.exec(
         select(UserPersonaProfile).where(UserPersonaProfile.user_id == user.id)

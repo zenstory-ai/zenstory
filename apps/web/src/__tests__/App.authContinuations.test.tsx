@@ -65,7 +65,7 @@ async function ordinary(call: Call) {
   if (call.method === 'GET' && call.path === '/api/v1/subscription/quota') return json(Object.fromEntries(['ai_conversations', 'projects', 'material_uploads', 'material_decompositions', 'skill_creates', 'inspiration_copies'].map(key => [key, { used: 0, limit: 1, reset_at: null }])))
   if (call.method === 'GET' && call.path === '/api/v1/payments/options') return json({ enabled: false, payment_methods: [] })
   if (call.method === 'GET' && call.path === '/api/v1/workspace/first-work') return json({ status: 'ineligible', project_id: null, file_id: null, available: false, static_guidance: false, opened_at: null, first_manual_write_at: null, first_ai_requested_at: null })
-  if (call.method === 'GET' && call.path === '/api/v1/persona/onboarding') return json({ required: false, profile: null, recommendations: [] })
+  if (call.method === 'GET' && call.path === '/api/v1/persona/onboarding') return json({ required: false, profile: null })
   if (call.method === 'POST' && call.path === '/api/auth/logout') return json({})
   throw new Error(`Unrecognized actual App request: ${call.method} ${call.path}`)
 }

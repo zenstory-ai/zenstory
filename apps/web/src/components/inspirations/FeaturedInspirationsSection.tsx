@@ -30,13 +30,11 @@ export function FeaturedInspirationsSection({
     <div
       className="mb-7"
       data-testid="featured-inspirations-section"
-      data-tour-id="dashboard-inspirations-section"
     >
       <div
         className="flex items-center justify-between mb-4"
-        data-tour-id="dashboard-inspirations-entry"
       >
-        <div className="flex items-center gap-2" data-tour-id="dashboard-inspirations-heading">
+        <div className="flex items-center gap-2">
           <Compass className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
           <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
             {t("inspirations.featured")}
@@ -46,7 +44,6 @@ export function FeaturedInspirationsSection({
           type="button"
           onClick={() => navigate("/dashboard/inspirations")}
           className="text-xs text-[hsl(var(--accent-primary))] hover:underline"
-          data-tour-id="dashboard-inspirations-link"
         >
           {t("inspirations.viewAll")}
         </button>

@@ -462,8 +462,9 @@ export const FileTreePane: React.FC = () => {
     const picked = Array.from(files);
     // Clear right away so picking the same file again still fires a change.
     e.target.value = "";
-    const created = await importDrafts(projectId, picked, "file_tree");
-    if (created !== null && mountedRef.current && projectId === activeProjectIdRef.current) {
+    const { files: created, failed } = await importDrafts(projectId, picked, "file_tree");
+    // A batch that failed outright left nothing new to show; a partial one did.
+    if ((!failed || created.length > 0) && mountedRef.current && projectId === activeProjectIdRef.current) {
       await loadData(false);
     }
   };

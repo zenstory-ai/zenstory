@@ -188,7 +188,7 @@ test.describe('Authentication', () => {
           status: 200,
           json: {
             required: true, rollout_at: "2026-03-05T16:00:00Z", new_user_window_days: 7,
-            profile: null, recommendations: [],
+            profile: null,
           },
         });
       });

@@ -265,25 +265,3 @@ export interface ProjectDashboardStatsResponse {
   generated_at: string;
 }
 
-// ==================== First-day Activation Guide ====================
-
-export interface ActivationGuideStepResponse {
-  event_name: string;
-  label: string;
-  completed: boolean;
-  completed_at: string | null;
-  action_path: string;
-}
-
-export interface ActivationGuideResponse {
-  user_id: string;
-  window_hours: number;
-  within_first_day: boolean;
-  total_steps: number;
-  completed_steps: number;
-  completion_rate: number;
-  is_activated: boolean;
-  next_event_name: string | null;
-  next_action: string | null;
-  steps: ActivationGuideStepResponse[];
-}

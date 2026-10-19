@@ -32,7 +32,7 @@ const user: User = { id: 'persona-hydration-A', username: 'offline-author', emai
 const profile: PersonaOnboardingProfile = { version: 1, completed_at: '2026-10-06T00:00:00Z',
   selected_personas: ['explorer'], selected_goals: ['monetize'], experience_level: 'intermediate', skipped: false };
 const state = (value: PersonaOnboardingProfile) => ({ required: false, rollout_at: '2026-03-05T16:00:00Z',
-  new_user_window_days: 7, profile: value, recommendations: [] });
+  new_user_window_days: 7, profile: value });
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status,
   headers: { 'Content-Type': 'application/json' } });
 function deferred() {

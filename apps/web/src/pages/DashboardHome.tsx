@@ -2,11 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { logger } from "../lib/logger";
-import {
-  Book, FileText, Clapperboard,
-  Sparkles, Zap, CheckSquare, Square, ChevronRight
-} from "../components/icons";
-import { Modal } from "../components/ui/Modal";
+import { Book, FileText, Clapperboard, Sparkles } from "../components/icons";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { QuotaBadge } from "../components/subscription/QuotaBadge";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
@@ -35,16 +31,12 @@ import { IdeaQuotaWallModal } from "../components/subscription/IdeaQuotaWallModa
 import { useAiMessageQuota } from "../hooks/useAiMessageQuota";
 import { readHeldDashboardIdea, useHeldDashboardIdea } from "../hooks/useHeldDashboardIdea";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
-import { writingStatsApi } from "../lib/writingStatsApi";
-import { onboardingPersonaApi, type PersonaRecommendation } from "../lib/onboardingPersonaApi";
-import { buildTodayActionPlan, type TodayActionPlanItem } from "../lib/dashboardActionPlan";
-import type { ActivationGuideResponse } from "../types/writingStats";
-import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
 import { FirstWorkEntry } from "../components/dashboard/FirstWorkEntry";
 import { useDashboardProjectType } from "../hooks/useDashboardProjectType";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
+import { requestChatOnOpen } from "../lib/pendingInspiration";
 import { Upload } from "lucide-react";
 import { AnnouncementBanner } from "../components/announcements/AnnouncementBanner";
 
@@ -73,21 +65,22 @@ export default function DashboardHome() {
   const isTablet = useIsTablet();
   const showDeleteAction = isMobile || isTablet;
   const userId = user?.id ?? null;
-  const showTodayActionPlanEntry = dashboardOnboardingFlags.todayActionPlanEnabled;
-  const showFirstDayActivationGuide = dashboardOnboardingFlags.firstDayActivationGuideEnabled;
 
   const [templates, setTemplates] = useState<Record<string, ProjectTemplate> | null>(null);
-  const [creating, setCreating] = useState<ProjectType | null>(null);
   const [isQuickCreating, setIsQuickCreating] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
   const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   // An idea held back while today's AI messages were used up comes back after a reload.
   const [inspiration, setInspiration] = useState(() => readHeldDashboardIdea(user?.id));
   const inspirationTooLong = inspiration.length > MAX_AGENT_MESSAGE_CHARS;
   const aiMessageQuota = useAiMessageQuota();
   useHeldDashboardIdea(user?.id, inspiration, aiMessageQuota.exhausted);
   const [showIdeaQuotaModal, setShowIdeaQuotaModal] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
   // The landing page type card (or a short-story / screenwriter onboarding answer)
   // decides which tab a new author starts on.
   const { activeTab, setActiveTab, rememberCreatedType } = useDashboardProjectType(projects);
@@ -95,11 +88,6 @@ export default function DashboardHome() {
   const [deletingProject, setDeletingProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showProjectQuotaUpgradeModal, setShowProjectQuotaUpgradeModal] = useState(false);
-  const [activationGuide, setActivationGuide] = useState<ActivationGuideResponse | null>(null);
-  const [activationGuideLoaded, setActivationGuideLoaded] = useState(false);
-  const [personaRecommendations, setPersonaRecommendations] = useState<PersonaRecommendation[]>([]);
-  const [executingTodayActionId, setExecutingTodayActionId] = useState<string | null>(null);
-  const [todayActionPlanExpanded, setTodayActionPlanExpanded] = useState(false);
 
   // Dynamic project type config based on language
   const PROJECT_TYPE_CONFIG: Record<
@@ -181,132 +169,6 @@ export default function DashboardHome() {
         return tb - ta;
       });
   }, [projects, searchQuery]);
-
-  const latestProjectId = useMemo(() => {
-    if (projects.length === 0) {
-      return null;
-    }
-    return [...projects]
-      .sort((a, b) => {
-        const tb = parseUTCDate(b.updated_at ?? '').getTime() || 0;
-        const ta = parseUTCDate(a.updated_at ?? '').getTime() || 0;
-        return tb - ta;
-      })[0]?.id ?? null;
-  }, [projects]);
-
-  const todayActionPlan = useMemo(
-    () =>
-      buildTodayActionPlan({
-        activationGuide,
-        personaRecommendations,
-        projectsCount: projects.length,
-        latestProjectId,
-        activeProjectType: activeTab,
-        t,
-      }),
-    [activationGuide, personaRecommendations, projects.length, latestProjectId, activeTab, t],
-  );
-
-  const isLikelyFirstDayUser = useMemo(() => {
-    if (!user?.created_at) return false;
-    const createdAtMs = parseUTCDate(user.created_at).getTime();
-    if (!Number.isFinite(createdAtMs)) return false;
-    const ageMs = Date.now() - createdAtMs;
-    return ageMs >= 0 && ageMs <= 24 * 60 * 60 * 1000;
-  }, [user?.created_at]);
-
-  const isNewUserWithinFirstWeek = useMemo(() => {
-    if (!user?.created_at) return false;
-    const createdAtMs = parseUTCDate(user.created_at).getTime();
-    if (!Number.isFinite(createdAtMs)) return false;
-    const ageMs = Date.now() - createdAtMs;
-    return ageMs >= 0 && ageMs <= 7 * 24 * 60 * 60 * 1000;
-  }, [user?.created_at]);
-
-  const shouldShowActivationGuideCard = Boolean(
-    showFirstDayActivationGuide
-      && activationGuide
-      && activationGuide.within_first_day
-      && !activationGuide.is_activated,
-  );
-
-  // Preference A: only show one onboarding module on first day.
-  // If activation guide is visible, hide today-action-plan to avoid duplication.
-  // Additionally: avoid "flash" (show action-plan briefly, then replace with activation-guide)
-  // for brand-new users while activation guide is still loading.
-  const shouldHoldTodayActionPlanUntilGuideLoaded = Boolean(
-    showFirstDayActivationGuide && isLikelyFirstDayUser && !activationGuideLoaded,
-  );
-  const shouldShowTodayActionPlanCard = Boolean(
-    showTodayActionPlanEntry
-      && !projectsLoading
-      && !shouldShowActivationGuideCard
-      && !shouldHoldTodayActionPlanUntilGuideLoaded
-      && (projects.length === 0 || isNewUserWithinFirstWeek)
-      && todayActionPlan.length > 0,
-  );
-
-  const handleActivationGuideNextAction = () => {
-    if (!activationGuide) {
-      return;
-    }
-
-    const nextEvent = activationGuide.next_event_name;
-
-    if (nextEvent === "project_created") {
-      setCreating(activeTab);
-      return;
-    }
-
-    if ((nextEvent === "first_file_saved" || nextEvent === "first_ai_action_accepted") && latestProjectId) {
-      navigate(`/project/${latestProjectId}`);
-      return;
-    }
-
-    if (activationGuide.next_action) {
-      navigate(activationGuide.next_action);
-      return;
-    }
-
-    navigate("/dashboard");
-  };
-
-  const handleExecuteTodayAction = async (actionItem: TodayActionPlanItem) => {
-    if (actionItem.action.type === "navigate") {
-      navigate(actionItem.action.path);
-      return;
-    }
-
-    const targetProjectType = actionItem.action.projectType ?? activeTab;
-    const defaultName = templates?.[targetProjectType]?.default_project_name || t('defaults.untitled');
-
-    setExecutingTodayActionId(actionItem.id);
-    try {
-      const project = await contextCreateProject(defaultName, undefined, targetProjectType);
-      const projectId = project.id;
-
-      if (!projectId) {
-        console.error("Create project succeeded but missing project id:", project);
-        return;
-      }
-
-      rememberCreatedType(targetProjectType);
-      navigate(`/project/${projectId}`);
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 401)) {
-        toast.error(handleApiError(error));
-        if (
-          error instanceof ApiError &&
-          error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
-          projectQuotaUpgradePrompt.surface === "modal"
-        ) {
-          setShowProjectQuotaUpgradeModal(true);
-        }
-      }
-    } finally {
-      setExecutingTodayActionId((current) => (current === actionItem.id ? null : current));
-    }
-  };
 
   const handleDeleteProject = async (projectId: string) => {
     if (!projectId || deletingProject) {
@@ -429,116 +291,10 @@ export default function DashboardHome() {
   }, [i18n.language, t]);
 
   useEffect(() => {
-    if (!userId || (!showFirstDayActivationGuide && !showTodayActionPlanEntry)) return;
-    let cancelled = false;
-    setActivationGuideLoaded(false);
-
-    void writingStatsApi
-      .getActivationGuide()
-      .then((guide) => {
-        if (!cancelled) {
-          setActivationGuide(guide);
-          setActivationGuideLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setActivationGuide(null);
-          setActivationGuideLoaded(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showFirstDayActivationGuide, showTodayActionPlanEntry, userId]);
-
-  useEffect(() => {
-    if (!userId || !showTodayActionPlanEntry) return;
-    let cancelled = false;
-
-    void onboardingPersonaApi
-      .getRecommendations()
-      .then((items) => {
-        if (!cancelled) {
-          setPersonaRecommendations(items);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPersonaRecommendations([]);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showTodayActionPlanEntry, userId]);
-
-  useEffect(() => {
     if (!availableProjectTypes.includes(activeTab)) {
       setActiveTab(availableProjectTypes[0] ?? "novel");
     }
   }, [activeTab, availableProjectTypes, setActiveTab]);
-
-  const handleCreateProject = async (useInspiration = false) => {
-    if (!creating || (useInspiration && inspirationTooLong)) return;
-
-    // The idea would be the first AI message, which cannot go out today: keep it and
-    // explain, instead of spending a project slot on an empty project.
-    if (useInspiration && inspiration.trim() && aiMessageQuota.exhausted) {
-      setCreating(null);
-      setShowIdeaQuotaModal(true);
-      return;
-    }
-
-    const fallbackTemplates = templates;
-    const defaultName = fallbackTemplates?.[creating]?.default_project_name || t('defaults.untitled');
-    const projectName = newProjectName.trim() || defaultName;
-
-    try {
-      // Use ProjectContext's createProject for unified state management
-      const project = await contextCreateProject(projectName, undefined, creating);
-      const projectId = project.id;
-
-      if (!projectId) {
-        logger.error("Create project succeeded but missing project id:", project);
-        return;
-      }
-
-      // Store inspiration to localStorage if provided
-      if (useInspiration && inspiration.trim()) {
-        localStorage.setItem(
-          `zenstory_inspiration_${projectId}`,
-          JSON.stringify({
-            content: inspiration.trim(),
-            projectType: creating,
-            timestamp: Date.now(),
-          })
-        );
-      }
-
-      rememberCreatedType(creating);
-
-      // Clean up form state
-      setCreating(null);
-      setInspiration("");
-      setNewProjectName("");
-
-      navigate(`/project/${projectId}`);
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 401)) {
-        toast.error(handleApiError(error));
-        if (
-          error instanceof ApiError &&
-          error.errorCode === "ERR_QUOTA_PROJECTS_EXCEEDED" &&
-          projectQuotaUpgradePrompt.surface === "modal"
-        ) {
-          setShowProjectQuotaUpgradeModal(true);
-        }
-      }
-    }
-  };
 
   /**
    * 「已有稿子？导入」: a new work of the selected type named after the file, its chapters
@@ -559,9 +315,11 @@ export default function DashboardHome() {
         return;
       }
       rememberCreatedType(activeTab);
-      const created = await importDrafts(project.id, picked, "dashboard");
+      const { files: created } = await importDrafts(project.id, picked, "dashboard");
+      // The author already went elsewhere: do not pull them back to the new work.
+      if (!mountedRef.current) return;
       // A failed upload still opens the new work, where the empty state offers the import again.
-      navigate(created?.length ? `/project/${project.id}?file=${encodeURIComponent(created[0].id)}` : `/project/${project.id}`);
+      navigate(created.length ? `/project/${project.id}?file=${encodeURIComponent(created[0].id)}` : `/project/${project.id}`);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
         toast.error(handleApiError(error));
@@ -601,6 +359,9 @@ export default function DashboardHome() {
         return;
       }
 
+      // No idea: phones open the new work on the AI tab, where its starter cards are.
+      if (!insp && isMobile) requestChatOnOpen(projectId);
+
       // Store inspiration to localStorage for ChatPanel auto-send (if provided)
       if (insp) {
         localStorage.setItem(
@@ -617,8 +378,6 @@ export default function DashboardHome() {
 
       // Clean up form state
       setInspiration("");
-      setNewProjectName("");
-      setCreating(null);
 
       navigate(`/project/${projectId}`);
     } catch (error) {
@@ -651,80 +410,6 @@ export default function DashboardHome() {
         action={<QuotaBadge />}
       />
 
-      {shouldShowActivationGuideCard && activationGuide && (
-        <div
-          className="mb-5 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4 shadow-sm"
-          data-testid="activation-guide-card"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.12)] text-[hsl(var(--accent-primary))]">
-                <Zap className="h-4 w-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                  {t("activationGuide.title", { defaultValue: "新手上手清单" })}
-                </h2>
-                <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-                  {t("activationGuide.progress", {
-                    defaultValue: "已完成 {{done}} / {{total}}",
-                    done: activationGuide.completed_steps,
-                    total: activationGuide.total_steps,
-                  })}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="btn-secondary h-8 px-3 text-xs"
-              onClick={handleActivationGuideNextAction}
-            >
-              {t("activationGuide.nextAction", { defaultValue: "继续下一步" })}
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[hsl(var(--bg-tertiary))]">
-            <div
-              className="h-full rounded-full bg-[hsl(var(--accent-primary))] transition-[width] duration-300"
-              style={{
-                width: `${Math.min(
-                  100,
-                  Math.max(0, Math.round((activationGuide.completion_rate ?? 0) * 100)),
-                )}%`,
-              }}
-            />
-          </div>
-
-          <div className="mt-3 grid gap-1">
-            {activationGuide.steps.map((step) => (
-              <div
-                key={step.event_name}
-                className="flex items-center gap-2 text-xs"
-              >
-                {step.completed ? (
-                  <CheckSquare className="h-4 w-4 text-[hsl(var(--success))]" />
-                ) : (
-                  <Square className="h-4 w-4 text-[hsl(var(--text-tertiary))]" />
-                )}
-                <span
-                  className={
-                    step.completed
-                      ? "text-[hsl(var(--text-secondary))]"
-                      : step.event_name === activationGuide.next_event_name
-                        ? "font-medium text-[hsl(var(--text-primary))]"
-                        : "text-[hsl(var(--text-secondary))]"
-                  }
-                >
-                  {t(`activationGuide.steps.${step.event_name}`, { defaultValue: step.label })}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <FirstWorkEntry key={userId} userId={userId} preferredType={activeTab} onCreated={refreshProjects} />
 
       {/* One surface owns the idea, its format and the creation action. */}
@@ -732,7 +417,6 @@ export default function DashboardHome() {
           <textarea
             placeholder={resolvedInspirationPlaceholder}
             data-testid="dashboard-inspiration-input"
-            data-tour-id="dashboard-inspiration-input"
             disabled={isQuickCreating}
             aria-label={t('inspiration.title')}
             aria-invalid={inspirationTooLong}
@@ -754,10 +438,7 @@ export default function DashboardHome() {
             </p>
           )}
         <div className="dashboard-composer-footer">
-        <div
-          className="flex flex-wrap items-center gap-1"
-          data-tour-id="dashboard-project-type-tabs"
-        >
+        <div className="flex flex-wrap items-center gap-1" data-testid="dashboard-project-type-tabs">
           {availableProjectTypes.map((type) => {
             const config = getTranslatedConfig(type);
             const isActive = activeTab === type;
@@ -796,7 +477,6 @@ export default function DashboardHome() {
             leftIcon={<Sparkles className="h-4 w-4" />}
             className="dashboard-create-action shrink-0 min-w-[128px]"
             data-testid="create-project-button"
-            data-tour-id="dashboard-create-project"
           >
             {t('common.createButton')}
           </Button>
@@ -898,193 +578,9 @@ export default function DashboardHome() {
         )}
       </div>
 
-      {shouldShowTodayActionPlanCard && (
-        <div
-          className="mb-7 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4 shadow-sm"
-          data-testid="today-action-plan-card"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.12)] text-[hsl(var(--accent-primary))]">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                  {t("todayActionPlan.title", { defaultValue: "今天可以做的事" })}
-                </h2>
-                {todayActionPlanExpanded && (
-                  <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-                    {t("todayActionPlan.subtitle", {
-                      defaultValue: "根据你的写作进度推荐。",
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="btn-ghost h-8 px-2 text-xs"
-              onClick={() => {
-                setTodayActionPlanExpanded((current) => !current);
-              }}
-              data-testid="today-action-plan-toggle"
-            >
-              {todayActionPlanExpanded
-                ? t("todayActionPlan.collapse", { defaultValue: "收起" })
-                : t("todayActionPlan.expand", { defaultValue: "查看全部" })}
-            </button>
-          </div>
-
-          <div className="mt-3 grid gap-2">
-            {todayActionPlan
-              .slice(0, todayActionPlanExpanded ? 3 : 1)
-              .map((item, index) => (
-                <div
-                  key={item.id}
-                  className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] px-3 py-2"
-                  data-testid={`today-action-item-${index + 1}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.18)] text-[10px] font-semibold text-[hsl(var(--accent-primary))]">
-                      {index + 1}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-[hsl(var(--text-primary))]">{item.title}</p>
-                      <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">{item.description}</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-md border border-[hsl(var(--accent-primary)/0.35)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.10)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
-                      onClick={() => {
-                        void handleExecuteTodayAction(item);
-                      }}
-                      disabled={executingTodayActionId === item.id}
-                      data-testid={`today-action-execute-${index + 1}`}
-                    >
-                      {executingTodayActionId === item.id
-                        ? t("todayActionPlan.executing", { defaultValue: "处理中…" })
-                        : item.ctaLabel}
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
       {inspirationsConfig.enabled && (
         <FeaturedInspirationsSection isMobile={isMobile} isTablet={isTablet} />
       )}
-
-      {/* Create Modal */}
-      <Modal
-        open={!!creating && !!templates}
-        // Closing the dialog keeps the idea in the home box (it may be held for tomorrow).
-        onClose={() => {
-          setCreating(null);
-          setNewProjectName("");
-        }}
-        size="md"
-        showCloseButton={isMobile ? false : true}
-      >
-        {creating && templates && (() => {
-          const config = getTranslatedConfig(creating);
-          return (
-            <>
-              {/* Mobile Header */}
-              {isMobile && (
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-[hsl(var(--border-color))]">
-                  <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">
-                    {t('projects.createNew')}
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setCreating(null);
-                      setNewProjectName("");
-                    }}
-                    className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] active:bg-[hsl(var(--bg-hover))] transition-all"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-
-              <div className={`flex items-center gap-4 ${isMobile ? "mb-4" : "mb-6"}`}>
-                <div
-                  className={`${isMobile ? "w-12 h-12" : "w-14 h-14"} rounded-2xl ${config.bgClass} flex items-center justify-center shadow-lg`}
-                >
-                  <config.icon className={`${isMobile ? "w-5 h-5" : "w-6 h-6"} ${config.colorClass}`} />
-                </div>
-                <div>
-                  <h3 className={`${isMobile ? "text-lg" : "text-xl"} font-semibold text-[hsl(var(--text-primary))]`}>
-                    {templates[creating].name}
-                  </h3>
-                  <p className={`text-[hsl(var(--text-secondary))] ${isMobile ? "text-xs" : "text-sm"}`}>
-                    {templates[creating].description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Inspiration Preview */}
-              {inspiration.trim() && (
-                <div className={`p-3 bg-[hsl(var(--bg-tertiary))] rounded-lg ${isMobile ? "mb-3" : "mb-4"}`}>
-                  <div className="text-xs text-[hsl(var(--text-secondary))] mb-1">{t('inspiration.title')}</div>
-                  <div className="text-sm text-[hsl(var(--text-primary))] line-clamp-2">
-                    {inspiration}
-                  </div>
-                </div>
-              )}
-
-              <div className={`${isMobile ? "mb-4" : "mb-6"}`}>
-                <label
-                  htmlFor="dashboard-new-project-name"
-                  className={`block font-medium text-[hsl(var(--text-secondary))] ${isMobile ? "text-xs mb-1.5" : "text-sm mb-2"}`}
-                >
-                  {t('projects.nameLabel')}
-                </label>
-                <input
-                  id="dashboard-new-project-name"
-                  type="text"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder={t('projects.namePlaceholder', {
-                    name: templates[creating].default_project_name || t('defaults.untitled'),
-                  })}
-                  className="input"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateProject(true);
-                    if (e.key === "Escape") {
-                      setCreating(null);
-                      setNewProjectName("");
-                    }
-                  }}
-                />
-              </div>
-
-              <div className={`flex gap-3 ${isMobile ? "fixed bottom-0 left-0 right-0 p-4 bg-[hsl(var(--bg-secondary))] border-t border-[hsl(var(--border-color))] mobile-safe-bottom" : ""}`}>
-                <button onClick={() => {
-                  setCreating(null);
-                  setNewProjectName("");
-                }} className={`btn-ghost ${isMobile ? "flex-1 h-12" : "flex-1 h-11"}`}>
-                  {t('projects.cancel')}
-                </button>
-                <button
-                  onClick={() => handleCreateProject(true)}
-                  disabled={inspirationTooLong}
-                  className={`btn-primary flex items-center justify-center gap-2 ${isMobile ? "flex-1 h-12" : "flex-1 h-11"}`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {t('common.createButton')}
-                </button>
-              </div>
-            </>
-          );
-        })()}
-      </Modal>
 
       <ConfirmDialog
         open={pendingDeleteProjectId !== null}

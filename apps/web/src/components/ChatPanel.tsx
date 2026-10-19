@@ -75,6 +75,7 @@ import {
 import { fileVersionApi, projectApi, versionApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
 import { StarterCards } from "./StarterCards";
+import { hasPendingInspiration } from "../lib/pendingInspiration";
 import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
 import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
@@ -1895,10 +1896,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       entry: "retry_unanswered",
       generation_mode: generationMode,
     });
+    // Still the work's first message (no reply yet): keep the first-message hint on the retry.
+    const firstMessage = messagesRef.current.every((item) => item.role === "user");
     startRound(
       {
         message: message.content,
-        metadata: { generation_mode: generationMode, retry_unanswered: true },
+        metadata: {
+          generation_mode: generationMode,
+          retry_unanswered: true,
+          ...(firstMessage ? { entry: "first_message" } : {}),
+        },
       },
       { userBubble: false },
     );
@@ -1949,14 +1956,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // A dashboard idea about to be sent for this project: no starter cards for those 500 ms.
   // The first work never consumes a leftover idea (see the auto-send effect below). Read on
   // every render: the auto-send effect removes an expired idea without changing any state.
-  const hasPendingDashboardIdea = (() => {
-    if (!currentProjectId || firstWork.data?.project_id === currentProjectId || messages.length > 0) return false;
-    try {
-      return localStorage.getItem(`zenstory_inspiration_${currentProjectId}`) !== null;
-    } catch {
-      return false;
-    }
-  })();
+  // An expired idea is never sent, so it does not hold the cards back.
+  const hasPendingDashboardIdea = Boolean(currentProjectId)
+    && firstWork.data?.project_id !== currentProjectId
+    && messages.length === 0
+    && hasPendingInspiration(currentProjectId);
   // Used up for today: the existing quota card explains instead (a press could not send).
   const showStarterCards = Boolean(currentProjectId)
     && starterProjectId === currentProjectId
@@ -1980,9 +1984,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
   const handleStarterEdit = useCallback((message: string) => {
     trackEvent("starter_edited", { project_id: currentProjectId });
-    saveDraft(message);
+    // Keep anything the author already typed; the example goes after it.
+    saveDraft(draft.trim() ? `${draft.trimEnd()}\n${message}` : message);
     focusChatInput();
-  }, [currentProjectId, saveDraft, focusChatInput]);
+  }, [currentProjectId, draft, saveDraft, focusChatInput]);
 
   // Check for inspiration from Dashboard and auto-send
   const inspirationProcessedRef = useRef<Set<string>>(new Set());

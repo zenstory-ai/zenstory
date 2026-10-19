@@ -1,4 +1,4 @@
-"""Real HTTP/ORM proof limited to the three persona handler worker boundaries."""
+"""Real HTTP/ORM proof limited to the two persona handler worker boundaries."""
 
 from __future__ import annotations
 
@@ -20,27 +20,8 @@ from main import app
 from models import User, UserPersonaProfile, WorkspaceOnboarding
 from services.core.auth_service import create_access_token
 
-HANDLERS = {
-    "get_persona_onboarding_state", "upsert_persona_onboarding",
-    "get_persona_recommendations",
-}
+HANDLERS = {"get_persona_onboarding_state", "upsert_persona_onboarding"}
 COMPLETED = datetime(2026, 3, 6, 12)
-SERIAL = {
-    "id": "persona_serial_streak", "title": "连载节奏建议",
-    "description": "设置每天写作目标并追踪连更进度。", "action": "/dashboard",
-}
-PROFESSIONAL = {
-    "id": "persona_professional_efficiency", "title": "效率工作流",
-    "description": "突出大纲-章节-改稿的一键流转能力。", "action": "/dashboard/projects",
-}
-MONETIZE = {
-    "id": "goal_monetize_upgrade", "title": "变现能力建议",
-    "description": "查看升级权益，优先解锁增长与商业化能力。", "action": "/pricing",
-}
-ADVANCED = {
-    "id": "level_advanced_shortcut", "title": "进阶快捷模式",
-    "description": "为你优先展示批量改稿和高阶编辑能力。", "action": "/dashboard/projects",
-}
 PAYLOAD = {
     "selected_personas": [" serial ", "serial", "professional"],
     "selected_goals": ["finishBook", "finishBook", "monetize"],
@@ -193,26 +174,21 @@ def _assert_worker(facts, *, write=None):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("route", "actor"), [
-    ("onboarding", "own"), ("onboarding", "missing"), ("onboarding", "malformed"),
-    ("recommendations", "own"), ("recommendations", "missing"),
-])
-async def test_persona_get_handler_sql_runs_in_worker(persona_worker_probe, record_property, route, actor):
+@pytest.mark.parametrize("actor", ["own", "missing", "malformed"])
+async def test_persona_get_handler_sql_runs_in_worker(persona_worker_probe, record_property, actor):
     engine, _ids, _lifecycles = persona_worker_probe
     before = _rows(engine)
-    response, facts = await _http(persona_worker_probe, record_property, method="GET", route=route, actor=actor)
+    response, facts = await _http(persona_worker_probe, record_property, method="GET", route="onboarding", actor=actor)
     assert response.status_code == 200
-    recommendations = [SERIAL] if actor == "own" else []
-    expected = {"recommendations": recommendations}
-    if route == "onboarding":
-        profile = None if actor == "missing" else {
-            "version": 1, "completed_at": COMPLETED.isoformat(),
-            "selected_personas": ["serial"] if actor == "own" else [],
-            "selected_goals": [], "experience_level": "intermediate", "skipped": False,
-        }
-        expected.update(required=actor == "missing", rollout_at="2026-03-05T16:00:00Z",
-                        new_user_window_days=7, profile=profile)
-    assert response.json() == expected
+    profile = None if actor == "missing" else {
+        "version": 1, "completed_at": COMPLETED.isoformat(),
+        "selected_personas": ["serial"] if actor == "own" else [],
+        "selected_goals": [], "experience_level": "intermediate", "skipped": False,
+    }
+    assert response.json() == {
+        "required": actor == "missing", "rollout_at": "2026-03-05T16:00:00Z",
+        "new_user_window_days": 7, "profile": profile,
+    }
     assert _rows(engine) == before
     _assert_worker(facts)
 
@@ -240,7 +216,6 @@ async def test_persona_put_handler_sql_and_commit_run_in_worker(
     assert response.json() == {
         "required": False, "rollout_at": "2026-03-05T16:00:00Z", "new_user_window_days": 7,
         "profile": expected_profile,
-        "recommendations": [ADVANCED] if skipped else [SERIAL, PROFESSIONAL, MONETIZE, ADVANCED],
     }
     assert json.loads(stored["selected_personas"]) == expected_profile["selected_personas"]
     assert json.loads(stored["selected_goals"]) == expected_profile["selected_goals"]

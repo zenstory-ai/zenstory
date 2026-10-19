@@ -197,10 +197,7 @@ export default function OnboardingPersonaPage() {
       });
       queryClient.setQueryData(personaQueryKey, result);
       trackEvent("persona_submitted", { skipped: profile.skipped, project_type: choice?.type });
-      navigate(nextPath, {
-        replace: true,
-        state: nextPath === "/dashboard" ? { startDashboardCoachmark: true } : undefined,
-      });
+      navigate(nextPath, { replace: true });
     } catch {
       if (mountedRef.current) {
         toast.error(t("onboarding:errors.saveFailed", "保存失败，请检查网络后重试"));
