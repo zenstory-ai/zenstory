@@ -304,11 +304,21 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
   }
 };
 
-/** An edit_file result rewrote paragraphs the author wrote after the AI (server-side, by position). */
-const touchedAuthorEdits = (result: Record<string, unknown> | undefined): boolean => {
+const authorEditsTouchedItems = (result: Record<string, unknown> | undefined): unknown[] => {
   const data = result?.data && typeof result.data === 'object' ? (result.data as Record<string, unknown>) : result;
-  return Array.isArray(data?.author_edits_touched) && data.author_edits_touched.length > 0;
+  return Array.isArray(data?.author_edits_touched) ? data.author_edits_touched : [];
 };
+
+const isRestoredDeletion = (item: unknown): boolean =>
+  Boolean(item && typeof item === 'object' && (item as { restored_deleted?: unknown }).restored_deleted === true);
+
+/** An edit_file result rewrote paragraphs the author wrote after the AI (server-side, by position). */
+const touchedAuthorEdits = (result: Record<string, unknown> | undefined): boolean =>
+  authorEditsTouchedItems(result).some((item) => !isRestoredDeletion(item));
+
+/** An edit_file result put back, word for word, a paragraph the author had deleted (#268). */
+const restoredAuthorDeletion = (result: Record<string, unknown> | undefined): boolean =>
+  authorEditsTouchedItems(result).some(isRestoredDeletion);
 
 const readUserFacingText = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -854,6 +864,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       }> || [];
       // The edit rewrote paragraphs the author wrote after the AI (server-side, by position).
       const authorEditsTouched = touchedAuthorEdits(data);
+      const authorDeletionRestored = restoredAuthorDeletion(data);
       
       const getOpIcon = (op: string) => {
         switch (op) {
@@ -895,6 +906,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 {t('chat:tool.edit_touched_author_edits')}
               </span>
             )}
+            {authorDeletionRestored && (
+              <span className="text-xs text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.edit_restored_author_deletion')}
+              </span>
+            )}
             {onUndo && undoTarget && (
               <button
                 onClick={() => handleUndo(undoTarget)}
@@ -908,7 +924,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           </div>
           
           {details && details.length > 0 && (
-            <details className="mt-3" open={authorEditsTouched || undefined}>
+            <details className="mt-3" open={authorEditsTouched || authorDeletionRestored || undefined}>
               <summary className="cursor-pointer select-none text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none"
                 style={{ listStyle: 'none' }}
               >
@@ -1120,6 +1136,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       ) : touchedAuthorEdits(taskResult) ? (
                         <div className="text-[hsl(var(--text-secondary))] break-words">
                           {t('chat:tool.edit_touched_author_edits')}
+                        </div>
+                      ) : restoredAuthorDeletion(taskResult) ? (
+                        <div className="text-[hsl(var(--text-secondary))] break-words">
+                          {t('chat:tool.edit_restored_author_deletion')}
                         </div>
                       ) : null}
                     </div>

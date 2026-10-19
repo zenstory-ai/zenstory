@@ -17,8 +17,9 @@
 
 某一段落由作者写入时，记下它替换掉的文字（若被替换的本身是作者写的，沿用那段更早的原文），所以
 A→B→C 只显示 A→C；改回原文（A→B→A）不算手改；AI 只在作者那一段末尾续写或段首补字时那一段仍算作者的。
-后来 AI 改别处生成的新版本不会把作者早先的替换「吸收」掉；作者删掉的段落只和最近一个 AI 版本比（更早
-删掉、后来的 AI 版本里也没有的，不再列出）。整段挪了位置的不算改动。没有任何 AI 版本的文件（作者自己写的、
+后来 AI 改别处生成的新版本不会把作者早先的替换「吸收」掉。作者删掉的段落按回放记下删在哪一版：之后 AI
+只改别处时这条删除照样列出，直到这段文字重新出现在正文里（#268）；edit_file 把记下的已删原文原样放回时，
+结果里如实标出来源。整段挪了位置的不算改动。没有任何 AI 版本的文件（作者自己写的、
 导入的原稿）不出差异。回放失败、窗口截断、内容过长只显示改动附近时，都明说不完整。
 """
 
@@ -57,6 +58,16 @@ class BlameReplayError(RuntimeError):
 class AuthorHunk:
     before: str  # 作者改之前的文字（AI 写的或原稿）；空串 = 作者新加的段落
     after: str  # 作者写下的文字；空串 = 作者删掉了这段
+    # 删除：回放时记下的删除所在版本号；None = 还没进版本的正文里删的，或无法定位。
+    deleted_in_version: int | None = None
+
+
+@dataclass
+class AuthorDeletion:
+    """作者在 AI 写过之后整段删掉的一段（AI 写的或原稿），以及删在哪一版。"""
+
+    text: str
+    version_number: int | None
 
 
 @dataclass
@@ -68,6 +79,8 @@ class LineBlame:
     # 窗口从第 1 个版本开始时为 True；否则更早的手改可能没算进来。
     complete: bool
     latest_ai_content: str | None = None
+    # 作者删掉、之后没有再出现的段落（按删除先后；同一段文字只记最近一次）。
+    deletions: list[AuthorDeletion] = field(default_factory=list)
 
 
 @dataclass
@@ -122,10 +135,18 @@ def _extends(new: str, old: str) -> bool:
     return False
 
 
-def _advance(blame: LineBlame, new_lines: list[str], actor: str, *, non_author: str) -> None:
+def _advance(
+    blame: LineBlame,
+    new_lines: list[str],
+    actor: str,
+    *,
+    non_author: str,
+    version_number: int | None = None,
+) -> None:
     """把 blame 从上一版推进到 new_lines：没变的段落沿用原来的来源，改过的记成 actor。
 
     non_author：作者把段落改回原文时，那一段回到的来源（有 AI 写过时为 AI，否则为原稿）。
+    作者整段删掉 AI 写的或原稿的段落时记进 blame.deletions；任何人把同一段文字放回来，这条删除就不再列出。
     """
     matcher = _matcher(blame.lines, new_lines)
     labels: list[str] = []
@@ -136,6 +157,12 @@ def _advance(blame: LineBlame, new_lines: list[str], actor: str, *, non_author: 
             origins.extend(blame.origins[i1:i2])
             continue
         if tag == "delete":
+            if actor == AUTHOR:
+                for index in range(i1, i2):
+                    text = blame.lines[index].strip()
+                    if text and blame.labels[index] != AUTHOR:
+                        blame.deletions = [item for item in blame.deletions if item.text != text]
+                        blame.deletions.append(AuthorDeletion(text, version_number))
             continue
         block = new_lines[j1:j2]
         if tag == "replace" and actor == AI and i2 - i1 == j2 - j1:
@@ -168,6 +195,8 @@ def _advance(blame: LineBlame, new_lines: list[str], actor: str, *, non_author: 
             else:
                 labels.append(actor)
                 origins.append(replaced if offset == anchor else "")
+    present = {line.strip() for line in new_lines if line.strip()}
+    blame.deletions = [item for item in blame.deletions if item.text not in present]
     blame.lines = list(new_lines)
     blame.labels = labels
     blame.origins = origins
@@ -257,7 +286,13 @@ def line_blame(session: Session, file_id: str, current_content: str) -> LineBlam
                 first = effective if version.version_number == 1 else ORIGINAL
                 blame = LineBlame(lines, [first] * len(lines), [""] * len(lines), False, complete)
             else:
-                _advance(blame, _split(content), effective, non_author=AI if seen_ai else ORIGINAL)
+                _advance(
+                    blame,
+                    _split(content),
+                    effective,
+                    non_author=AI if seen_ai else ORIGINAL,
+                    version_number=version.version_number,
+                )
             if actor == AI:
                 seen_ai = True
                 latest_ai_content = content
@@ -329,8 +364,27 @@ def author_hunks(blame: LineBlame) -> list[AuthorHunk]:
                 if line.strip() and current_counts[line.strip()] == 0 and line.strip() not in replaced_lines
             ]
             if removed:
-                hunks.append(AuthorHunk("\n".join(removed), ""))
+                hunks.append(AuthorHunk("\n".join(removed), "", _deleted_in(blame, removed)))
+
+    # 删在更早的版本、之后 AI 只改了别处的段落：最近 AI 版本里已经没有它，上面比不出来，
+    # 按回放记下的删除补上（#268）。
+    listed = {line.strip() for hunk in hunks if not hunk.after for line in hunk.before.split("\n")}
+    for deletion in blame.deletions:
+        if deletion.text in listed or current_counts[deletion.text] > 0:
+            continue
+        hunks.append(AuthorHunk(deletion.text, "", deletion.version_number))
     return hunks
+
+
+def _deleted_in(blame: LineBlame, removed: list[str]) -> int | None:
+    """一组删掉的段落删在哪一版：回放记下的同一段文字的版本号（都删在同一版时才给）。"""
+    versions = {
+        deletion.version_number
+        for line in removed
+        for deletion in blame.deletions
+        if deletion.text == line.strip()
+    }
+    return versions.pop() if len(versions) == 1 else None
 
 
 def author_changes(session: Session, file: Any) -> AuthorChanges | None:
@@ -407,6 +461,10 @@ def _rendered_pairs(changes: AuthorChanges, max_hunks: int) -> tuple[list[tuple[
     return pairs, truncated
 
 
+def _deleted_suffix(version: int | None) -> str:
+    return f"（第 {version} 版删除）" if version is not None else ""
+
+
 INCOMPLETE_LONG_LINE = "- 有的地方太长，只显示了改动附近（不完整，需要时用 query_files 读全文）"
 FAILED_LINE = "- 这个文件的手改没算出来（不完整）：改之前用 query_files 读全文核对"
 
@@ -417,9 +475,11 @@ def render_hunks(changes: AuthorChanges, *, max_hunks: int = MAX_HUNKS_PER_FILE)
         return [FAILED_LINE]
     pairs, truncated = _rendered_pairs(changes, max_hunks)
     lines: list[str] = []
-    for before, after in pairs:
+    for (before, after), version in zip(
+        pairs, (hunk.deleted_in_version for hunk in changes.hunks), strict=False
+    ):
         if not after:
-            lines.append(f"- 删掉了：「{before}」")
+            lines.append(f"- 删掉了：「{before}」{_deleted_suffix(version)}")
         elif not before:
             lines.append(f"- 新加了：「{after}」")
         else:
@@ -482,13 +542,18 @@ def author_edits_payload(changes: AuthorChanges) -> dict[str, Any]:
     pairs, truncated = _rendered_pairs(changes, MAX_HUNKS_PER_FILE)
     return {
         "note": "作者在 AI 写过之后亲手改的地方：保留作者的写法；作者这一轮明确要改时按新要求改。",
-        "changes": [{"before": before, "after": after} for before, after in pairs],
+        "changes": [
+            {"before": before, "after": after}
+            | ({"deleted_in_version": hunk.deleted_in_version} if hunk.deleted_in_version is not None else {})
+            for (before, after), hunk in zip(pairs, changes.hunks, strict=False)
+        ],
         "complete": changes.complete and len(pairs) == len(changes.hunks) and not truncated,
     }
 
 
-def touched_author_text(blame: LineBlame | None, old_content: str, new_content: str) -> list[dict[str, str]]:
-    """这次修改改掉或删掉了哪些作者写的段落（按段落位置对齐，不靠字符串是否出现）。
+def touched_author_text(blame: LineBlame | None, old_content: str, new_content: str) -> list[dict[str, Any]]:
+    """这次修改改掉或删掉了哪些作者写的段落（按段落位置对齐，不靠字符串是否出现），
+    以及原样放回了哪些作者删掉的段落（``restored_deleted``，带删除所在版本）。
 
     blame 必须是 old_content 的。只在段尾续写（新段落以原段落开头）或段首补字（以原段落结尾）、
     或整段原样挪到别处的，不算改了作者的字。
@@ -502,7 +567,7 @@ def touched_author_text(blame: LineBlame | None, old_content: str, new_content: 
     unmatched_new = Counter(
         line.strip() for tag, _i1, _i2, j1, j2 in opcodes if tag != "equal" for line in new_lines[j1:j2] if line.strip()
     )
-    touched: list[dict[str, str]] = []
+    touched: list[dict[str, Any]] = []
     for tag, i1, i2, j1, j2 in opcodes:
         if tag not in ("replace", "delete"):
             continue
@@ -518,4 +583,28 @@ def touched_author_text(blame: LineBlame | None, old_content: str, new_content: 
                 continue
             before, after, _ = pair_clip(line, "\n".join(new for new in replacement if new.strip()))
             touched.append({"before": before, "after": after})
+    touched.extend(_restored_deletions(blame, old_lines, new_lines))
     return touched[:MAX_HUNKS_PER_FILE]
+
+
+def _restored_deletions(blame: LineBlame, old_lines: list[str], new_lines: list[str]) -> list[dict[str, Any]]:
+    """这次修改把作者删掉的哪几段原样放了回来（逐字相同，且改之前正文里没有这段）。
+
+    只认回放记下的整段原文：同义改写、普通新增、正文里已有的段落挪位置都不算。
+    """
+    if not blame.deletions:
+        return []
+    deleted = {item.text: item.version_number for item in blame.deletions}
+    before = {line.strip() for line in old_lines if line.strip()}
+    restored: list[dict[str, Any]] = []
+    for line in new_lines:
+        text = line.strip()
+        if not text or text in before or text not in deleted:
+            continue
+        clipped, _ = _cut(_flatten(text), MAX_SIDE_CHARS)
+        entry: dict[str, Any] = {"before": "", "after": clipped, "restored_deleted": True}
+        if deleted[text] is not None:
+            entry["deleted_in_version"] = deleted[text]
+        restored.append(entry)
+        before.add(text)
+    return restored

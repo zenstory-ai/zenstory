@@ -49,6 +49,7 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:tool.no_files_found': 'No files found',
     'chat:tool.edit_success': 'Edit success',
     'chat:tool.edit_touched_author_edits': 'Changed text you edited yourself',
+    'chat:tool.edit_restored_author_deletion': 'Put back a paragraph you deleted; you can undo this',
     'chat:tool.view_edit_details': 'View edit details',
     'chat:tool.status_updated': 'Status updated',
     'chat:tool.processing_ellipsis': "Processing…",
@@ -354,6 +355,24 @@ describe('ToolResultCard', () => {
       expect(container.querySelector('details')?.open).toBe(true)
       expect(screen.getByText('你也配问这个？')).toBeInTheDocument()
       expect(screen.queryByText('你配吗。')).not.toBeInTheDocument()
+    })
+
+    it('says when an edit put back a paragraph the author deleted, not that it changed their text', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          result={{
+            data: {
+              id: 'file-1',
+              author_edits_touched: [{ before: '', after: '她把信烧了。', restored_deleted: true, deleted_in_version: 2 }],
+              details: [{ op: 'append', new_preview: '她把信烧了。' }],
+            },
+          }}
+        />
+      )
+      expect(screen.getByText('Put back a paragraph you deleted; you can undo this')).toBeInTheDocument()
+      expect(screen.queryByText('Changed text you edited yourself')).not.toBeInTheDocument()
     })
 
     it('says when a parallel edit_file subtask rewrote text the author wrote', () => {

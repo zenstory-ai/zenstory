@@ -190,7 +190,7 @@ def test_deleted_paragraph_since_the_last_ai_version(db_session, owner_project):
     _version(db_session, ep2, EP2_AI.replace("苏晚：你有没有把我当成妻子？\n", ""), "edit", "user")
     hunks = author_changes(db_session, ep2).hunks
     assert [(h.before, h.after) for h in hunks] == [("苏晚：你有没有把我当成妻子？", "")]
-    assert render_hunks(AuthorChanges(hunks)) == ["- 删掉了：「苏晚：你有没有把我当成妻子？」"]
+    assert render_hunks(AuthorChanges(hunks)) == ["- 删掉了：「苏晚：你有没有把我当成妻子？」（第 2 版删除）"]
 
 
 def test_old_history_outside_the_window_is_marked_incomplete(db_session, owner_project):
@@ -710,3 +710,62 @@ def test_any_error_while_computing_is_reported_as_failed(db_session, owner_proje
     monkeypatch.setattr(module, "author_hunks", boom)
     changes = author_changes(db_session, ep2)
     assert changes is not None and changes.failed
+
+
+# #268：作者删掉 AI 稿里的一段后，AI 只改别处，删除不能被新的 AI 版本吸收。
+_A = "段落A：她把信烧了，没告诉任何人。"
+_B = "段落B：雨下了一整夜。"
+_B_AI = "段落B：雨一直下到天亮。"
+
+
+def _deleted_then_ai_elsewhere(db_session, project):
+    chapter = _file(db_session, project, f"{_A}\n\n{_B}", title="第1章", file_type="draft")
+    _version(db_session, chapter, f"{_A}\n\n{_B}", "create", "ai")
+    _version(db_session, chapter, _B, "edit", "user")
+    _version(db_session, chapter, _B_AI, "ai_edit", "ai")
+    return chapter
+
+
+def test_author_deletion_survives_a_later_ai_edit_elsewhere(db_session, owner_project):
+    _, project = owner_project
+    chapter = _deleted_then_ai_elsewhere(db_session, project)
+
+    changes = author_changes(db_session, chapter)
+
+    assert changes is not None and changes.complete is True
+    assert [(h.before, h.after, h.deleted_in_version) for h in changes.hunks] == [(_A, "", 2)]
+    assert render_hunks(changes) == [f"- 删掉了：「{_A}」（第 2 版删除）"]
+
+
+def test_restoring_the_deleted_paragraph_verbatim_is_reported_with_its_source(db_session, owner_project):
+    _, project = owner_project
+    chapter = _deleted_then_ai_elsewhere(db_session, project)
+    blame = line_blame(db_session, chapter.id, _B_AI)
+
+    touched = touched_author_text(blame, _B_AI, f"{_B_AI}\n\n{_A}")
+
+    assert touched == [{"before": "", "after": _A, "restored_deleted": True, "deleted_in_version": 2}]
+
+
+@pytest.mark.parametrize("new_content", [
+    f"{_B_AI}\n\n段落C：天亮后她去了车站。",  # an ordinary new paragraph
+    f"{_B_AI}\n\n段落A：她把信烧了。",  # a rewrite that is not the deleted text
+])
+def test_ordinary_additions_are_not_called_restorations(db_session, owner_project, new_content):
+    _, project = owner_project
+    chapter = _deleted_then_ai_elsewhere(db_session, project)
+    blame = line_blame(db_session, chapter.id, _B_AI)
+
+    assert touched_author_text(blame, _B_AI, new_content) == []
+
+
+def test_a_paragraph_the_author_put_back_is_no_longer_a_deletion(db_session, owner_project):
+    _, project = owner_project
+    chapter = _deleted_then_ai_elsewhere(db_session, project)
+    _version(db_session, chapter, f"{_A}\n\n{_B_AI}", "edit", "user")
+
+    changes = author_changes(db_session, chapter)
+
+    assert changes is None or all(hunk.before != _A for hunk in changes.hunks)
+    blame = line_blame(db_session, chapter.id, chapter.content)
+    assert blame.deletions == []

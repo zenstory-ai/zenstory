@@ -200,6 +200,7 @@
     "update_status_description": "Record project information",
     "edit_success": "Edit done",
     "edit_touched_author_edits": "Changed text you edited yourself",
+    "edit_restored_author_deletion": "Put back a paragraph you deleted; you can undo this",
     "edits_summary_one": "{{editsApplied}} edit · {{size}}",
     "edits_summary_other": "{{editsApplied}} edits · {{size}}",
     "edits_summary": "{{editsApplied}} edits · {{size}}",
