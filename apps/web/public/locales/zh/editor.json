@@ -18,7 +18,7 @@
     "projectDashboard": "项目统计",
     "helpDocs": "帮助文档",
     "moreActions": "更多功能",
-    "export": "导出正文（TXT）",
+    "export": "导出整本正文（TXT）",
     "exportSuccess": "正文已导出为 TXT 文件",
     "versionHistory": "项目快照",
     "settings": "设置",
@@ -34,7 +34,10 @@
     "exportWithOutlineSuccess": "大纲和正文已导出为 TXT 文件",
     "exportOutlineSkipped": "这次只导出了正文，大纲没能一起导出，请过几分钟再试",
     "exportNoOutlineYet": "这部作品还没有写好的大纲，这次导出了正文",
-    "exportDone": "已导出为 TXT 文件"
+    "exportDone": "已导出为 TXT 文件",
+    "downloadFile": "下载当前文件（TXT）",
+    "downloadFileSuccess": "已下载《{{title}}》",
+    "downloadFileUnsaved": "当前文件还有没保存上的修改，先保存再下载"
   },
   "fileTree": {
     "ariaLabel": "文件树",

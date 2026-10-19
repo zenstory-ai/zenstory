@@ -18,7 +18,7 @@
     "projectDashboard": "Project stats",
     "helpDocs": "Help Docs",
     "moreActions": "More Actions",
-    "export": "Export manuscript (TXT)",
+    "export": "Export whole work (TXT)",
     "exportSuccess": "Manuscript exported as a TXT file",
     "versionHistory": "Project snapshots",
     "settings": "Settings",
@@ -34,7 +34,10 @@
     "exportWithOutlineSuccess": "Outline and text exported as a TXT file",
     "exportOutlineSkipped": "Only the text was exported this time. The outline could not be included; please try again in a few minutes.",
     "exportNoOutlineYet": "This work has no written outline yet, so the text was exported.",
-    "exportDone": "Exported as a TXT file"
+    "exportDone": "Exported as a TXT file",
+    "downloadFile": "Download current file (TXT)",
+    "downloadFileSuccess": "Downloaded \"{{title}}\"",
+    "downloadFileUnsaved": "This file has changes that could not be saved yet. Save it, then download again"
   },
   "fileTree": {
     "ariaLabel": "File tree",

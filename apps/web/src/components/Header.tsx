@@ -25,6 +25,7 @@ import { DropdownMenu } from "./ui/DropdownMenu";
 import { SettingsDialog } from "./SettingsDialog";
 import { UserMenu, UserMenuMobile } from "./UserMenu";
 import { FeedbackDialog } from "./feedback/FeedbackDialog";
+import { downloadCurrentFile, UnsavedEditorError } from "../lib/currentFileDownload";
 import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { useExport } from "../hooks/useExport";
@@ -85,7 +86,7 @@ export const Header: React.FC<HeaderProps> = () => {
   const navigate = useNavigate();
   const { t } = useTranslation(['editor', 'common', 'dashboard', 'home']);
   const exportUpgradePrompt = getUpgradePromptDefinition("export_format_quota_blocked");
-  const { currentProjectId, triggerFileTreeRefresh, setSelectedItem } = useProject();
+  const { currentProjectId, triggerFileTreeRefresh, setSelectedItem, selectedItem } = useProject();
   const [showSettings, setShowSettings] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
@@ -155,6 +156,26 @@ export const Header: React.FC<HeaderProps> = () => {
     }
   };
 
+  // 当前文件下载与整本导出分开（#276）：只下载编辑器里这一份，正文由程序复制，不经过 AI。
+  const downloadableFile = selectedItem && selectedItem.type !== "folder" ? selectedItem : null;
+  const handleDownloadCurrentFile = async (closeMobileMenu = false) => {
+    if (!downloadableFile) return;
+    try {
+      await downloadCurrentFile(downloadableFile.id);
+      toast.success(t('editor:header.downloadFileSuccess', { title: downloadableFile.title }));
+    } catch (error) {
+      if (error instanceof UnsavedEditorError) {
+        toast.error(t('editor:header.downloadFileUnsaved'));
+      } else {
+        logger.error("Current file download failed", error);
+        toast.error(handleApiError(error));
+      }
+    }
+    if (closeMobileMenu) {
+      setShowMobileMenu(false);
+    }
+  };
+
   const handleOpenFeedback = (closeMobileMenu = false) => {
     setShowFeedbackDialog(true);
     if (closeMobileMenu) {
@@ -171,6 +192,15 @@ export const Header: React.FC<HeaderProps> = () => {
           icon: BarChart3,
           label: t('editor:header.projectDashboard'),
           onClick: () => handleOpenProjectDashboard(),
+        }]
+      : []),
+    ...(downloadableFile
+      ? [{
+          icon: Download,
+          label: t('editor:header.downloadFile'),
+          onClick: () => {
+            void handleDownloadCurrentFile();
+          },
         }]
       : []),
     ...(currentProjectId
@@ -399,6 +429,19 @@ export const Header: React.FC<HeaderProps> = () => {
                   <FileText size={18} className="shrink-0" />
                 )}
                 {t('editor:header.exportWithOutline')}
+              </button>
+            )}
+            {downloadableFile && (
+              <button
+                type="button"
+                onClick={() => {
+                  void handleDownloadCurrentFile(true);
+                }}
+                className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+                role="menuitem"
+              >
+                <Download size={18} className="shrink-0" />
+                {t('editor:header.downloadFile')}
               </button>
             )}
             {currentProjectId && (
