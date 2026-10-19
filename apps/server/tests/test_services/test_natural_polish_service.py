@@ -6,10 +6,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from core.error_handler import APIException
 from services.features.natural_polish_service import (
     DEFAULT_NATURAL_POLISH_PROMPT_EN,
     DEFAULT_NATURAL_POLISH_PROMPT_ZH,
     NATURAL_POLISH_MAX_TOKENS,
+    NaturalPolishFailure,
     NaturalPolishProtocolError,
     NaturalPolishService,
     apply_line_edits,
@@ -90,7 +92,7 @@ async def test_natural_polish_rejects_malformed_protocol_output(model_output: st
 
     with (
         patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
-        pytest.raises(NaturalPolishProtocolError),
+        pytest.raises(NaturalPolishFailure),
     ):
         await service.natural_polish(selected_text="原文", language="zh")
 
@@ -105,12 +107,112 @@ async def test_natural_polish_rejects_an_ambiguous_duplicate_old_anchor():
 
     with (
         patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
-        pytest.raises(NaturalPolishProtocolError),
+        pytest.raises(NaturalPolishFailure),
     ):
         await service.natural_polish(
             selected_text="重复的一行。\n重复的一行。",
             language="zh",
         )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("model_output", "selected_text", "stage", "category"),
+    [
+        ("原文：原文\n改写：改文", "原文", "protocol_parse", "invalid_marker"),
+        ("原：原文", "原文", "protocol_parse", "truncated_output"),
+        ("原：不存在\n改：改文", "原文", "anchor_apply", "missing_anchor"),
+        ("原：重复\n改：改文", "重复\n重复", "anchor_apply", "ambiguous_anchor"),
+        (
+            "原：原文\n改：改文\n\n原：原文\n改：另一改文",
+            "原文",
+            "anchor_apply",
+            "duplicate_anchor",
+        ),
+    ],
+)
+async def test_natural_polish_failure_has_a_fixed_stage_and_category(
+    model_output: str,
+    selected_text: str,
+    stage: str,
+    category: str,
+):
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    llm_client.MODEL_QUALITY = "quality-model"
+    llm_client.acomplete = AsyncMock(return_value=model_output)
+
+    with (
+        patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
+        pytest.raises(NaturalPolishFailure) as caught,
+    ):
+        await service.natural_polish(selected_text=selected_text, language="zh")
+
+    assert caught.value.stage == stage
+    assert caught.value.category == category
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_natural_polish_classifies_model_and_content_protection_failures():
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    llm_client.MODEL_QUALITY = "quality-model"
+    llm_client.acomplete = AsyncMock(side_effect=RuntimeError("private provider detail"))
+
+    with (
+        patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
+        pytest.raises(NaturalPolishFailure) as model_failure,
+    ):
+        await service.natural_polish(selected_text="原文", language="zh")
+    assert (model_failure.value.stage, model_failure.value.category) == (
+        "model_call",
+        "model_call_failed",
+    )
+
+    llm_client.acomplete = AsyncMock(return_value="原：原文\n改：改文")
+    with (
+        patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
+        patch(
+            "services.features.natural_polish_service._keep_protected_sentences",
+            side_effect=RuntimeError("private document detail"),
+        ),
+        pytest.raises(NaturalPolishFailure) as protection_failure,
+    ):
+        await service.natural_polish(selected_text="原文", language="zh")
+    assert (protection_failure.value.stage, protection_failure.value.category) == (
+        "content_protection",
+        "content_protection_failed",
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status_code", "error_code"),
+    [
+        (402, "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"),
+        (503, "ERR_AI_COST_BUDGET_UNAVAILABLE"),
+    ],
+)
+async def test_natural_polish_preserves_cost_guard_api_exception(status_code, error_code):
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    llm_client.MODEL_QUALITY = "quality-model"
+    llm_client.acomplete = AsyncMock(
+        side_effect=APIException(error_code=error_code, status_code=status_code)
+    )
+
+    with (
+        patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
+        pytest.raises(APIException) as caught,
+    ):
+        await service.natural_polish(selected_text="合成正文", language="zh")
+
+    assert caught.value.status_code == status_code
+    assert caught.value.error_code == error_code
+    llm_client.acomplete.assert_awaited_once()
 
 
 @pytest.mark.unit

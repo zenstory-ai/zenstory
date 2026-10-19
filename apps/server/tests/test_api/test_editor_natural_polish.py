@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
@@ -9,10 +10,12 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
+from core.error_handler import APIException
 from models import Project, User
 from models.subscription import UsageQuota
 from services.core.auth_service import hash_password
 from services.features.natural_polish_service import (
+    NaturalPolishFailure,
     NaturalPolishProtocolError,
     NaturalPolishResult,
     apply_line_edits,
@@ -395,6 +398,145 @@ async def test_natural_polish_protocol_failure_attempts_one_refund_and_never_ret
         admin.id,
         period_start=_CHARGED_PERIOD,
     )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("refund_succeeds", [True, False])
+async def test_natural_polish_failure_logs_only_fixed_diagnostics_and_one_refund(
+    client: AsyncClient,
+    db_session: Session,
+    caplog: pytest.LogCaptureFixture,
+    refund_succeeds: bool,
+):
+    user = _create_user(
+        db_session,
+        username=f"np_safe_diagnostics_{refund_succeeds}",
+        email=f"np_safe_diagnostics_{refund_succeeds}@example.com",
+        is_superuser=False,
+    )
+    project = _create_project(db_session, owner_id=user.id)
+    token = await _login(client, user.username)
+    private_text = "PRIVATE_SELECTED_TEXT"
+
+    with (
+        caplog.at_level(logging.WARNING, logger="api.editor"),
+        patch("api.editor.quota_service.check_ai_conversation_quota", return_value=(True, 0, 20)),
+        patch("api.editor.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as reserve,
+        patch(
+            "api.editor.quota_service.release_ai_conversation",
+            return_value=refund_succeeds,
+        ) as refund,
+        patch(
+            "api.editor.natural_polish_service.natural_polish",
+            new=AsyncMock(
+                side_effect=NaturalPolishFailure(
+                    stage="anchor_apply",
+                    category="ambiguous_anchor",
+                )
+            ),
+        ),
+    ):
+        response = await client.post(
+            "/api/v1/editor/natural-polish",
+            json={"project_id": str(project.id), "selected_text": private_text},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 500
+    reserve.assert_called_once_with(db_session, user.id)
+    refund.assert_called_once_with(db_session, user.id, period_start=_CHARGED_PERIOD)
+    failure_log = next(
+        record for record in caplog.records if record.getMessage() == "Natural polish request failed"
+    )
+    fields = failure_log.custom_fields
+    assert fields["request_id"] == response.headers["x-request-id"]
+    assert fields["stage"] == "anchor_apply"
+    assert fields["failure_category"] == "ambiguous_anchor"
+    assert fields["refund_succeeded"] is refund_succeeds
+    rendered_failure_log = repr((failure_log.getMessage(), fields))
+    assert private_text not in rendered_failure_log
+    assert str(project.id) not in rendered_failure_log
+    assert user.id not in rendered_failure_log
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("status_code", "error_code"),
+    [
+        (402, "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"),
+        (503, "ERR_AI_COST_BUDGET_UNAVAILABLE"),
+    ],
+)
+async def test_natural_polish_cost_guard_error_is_preserved_and_refunded_once(
+    client: AsyncClient,
+    db_session: Session,
+    status_code: int,
+    error_code: str,
+):
+    user = _create_user(
+        db_session,
+        username=f"np_cost_guard_{status_code}",
+        email=f"np_cost_guard_{status_code}@example.com",
+        is_superuser=False,
+    )
+    project = _create_project(db_session, owner_id=user.id)
+    token = await _login(client, user.username)
+
+    with (
+        patch("api.editor.quota_service.check_ai_conversation_quota", return_value=(True, 0, 20)),
+        patch("api.editor.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as reserve,
+        patch("api.editor.quota_service.release_ai_conversation", return_value=True) as refund,
+        patch(
+            "api.editor.natural_polish_service.natural_polish",
+            new=AsyncMock(
+                side_effect=APIException(error_code=error_code, status_code=status_code)
+            ),
+        ),
+    ):
+        response = await client.post(
+            "/api/v1/editor/natural-polish",
+            json={"project_id": str(project.id), "selected_text": "合成正文"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == status_code
+    assert response.json()["detail"] == error_code
+    reserve.assert_called_once_with(db_session, user.id)
+    refund.assert_called_once_with(db_session, user.id, period_start=_CHARGED_PERIOD)
+
+
+def test_natural_polish_refund_exception_log_is_redacted(db_session: Session):
+    from api.editor import _refund_ai_conversation
+
+    with (
+        patch(
+            "api.editor.quota_service.release_ai_conversation",
+            side_effect=RuntimeError("PRIVATE_REFUND_ERROR"),
+        ) as refund,
+        patch("api.editor.log_with_context") as log_event,
+    ):
+        refunded = _refund_ai_conversation(
+            db_session,
+            "private-user-id",
+            _CHARGED_PERIOD,
+            reason="ambiguous_anchor",
+        )
+
+    assert refunded is False
+    refund.assert_called_once_with(
+        db_session,
+        "private-user-id",
+        period_start=_CHARGED_PERIOD,
+    )
+    assert log_event.call_args.args[2] == "Failed to refund AI conversation quota for natural polish"
+    assert log_event.call_args.kwargs == {
+        "stage": "refund",
+        "failure_category": "refund_failed",
+        "refund_reason": "ambiguous_anchor",
+    }
+    rendered_log = repr(log_event.call_args)
+    assert "PRIVATE_REFUND_ERROR" not in rendered_log
+    assert "private-user-id" not in rendered_log
 
 
 def _ai_messages_used(db_session: Session, user_id: str) -> int:

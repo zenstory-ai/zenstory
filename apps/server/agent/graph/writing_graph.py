@@ -23,7 +23,7 @@ from agent.core.author_facing_text import (
 )
 from agent.core.events import READ_ONLY_HANDOFF_BLOCKED_REASON
 from agent.core.run_meter import AgentRunMeter
-from agent.core.stream_errors import classify_stream_exception, log_stream_exception
+from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import (
     CHAT_HOLD_BEGIN,
     CHAT_HOLD_DISCARD,
@@ -62,6 +62,7 @@ from agent.graph.review_evidence import (
     find_repetition_evidence,
 )
 from agent.graph.router import (
+    RouterFailure,
     _last_assistant_message,
     _previous_routing,
     get_next_node,
@@ -89,6 +90,7 @@ from config.agent_runtime import (
     AGENT_ROUTER_STRATEGY,
     AGENT_TOOL_CALL_MAX_ITERATIONS,
 )
+from core.error_codes import ErrorCode
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
@@ -1668,46 +1670,36 @@ async def run_writing_workflow_streaming(
             # 路由自己那次 LLM 调用的用量：随事件下发，由 stream_adapter 汇入
             # 整轮 usage 累加器，否则这部分 token 永远不进任何统计。
             routing_usage = router_result.get("routing_usage")
-        except (ValueError, KeyError) as validation_error:
-            # 可恢复的验证错误 - 使用 fallback
-            log_with_context(
-                logger,
-                30,  # WARNING
-                "Router validation failed, using fallback",
-                error=str(validation_error),
-                error_type=type(validation_error).__name__,
-            )
-            current_agent_type = "writer"
-            workflow_agents = []
-            workflow_plan = "quick"
-            routing_metadata = {
-                "agent_type": "writer",
-                "workflow_type": "quick",
-                "reason": "router_validation_fallback",
-                "confidence": 0.0,
-            }
-            # fallback 路径没有成功的路由调用，用量为空
-            routing_usage = None
         except Exception as router_error:
-            # 其他错误 - 记录并使用 fallback
+            failure = router_error if isinstance(router_error, RouterFailure) else RouterFailure(
+                "schema" if isinstance(router_error, ValueError | KeyError) else "provider_failure",
+                error_info=classify_stream_exception(router_error),
+            )
             log_with_context(
                 logger,
-                40,  # ERROR
-                "Router failed, using fallback",
-                error=str(router_error),
-                error_type=type(router_error).__name__,
+                30,
+                "Invalid routing stopped before agent execution",
+                stage="routing",
+                category=failure.category,
+                has_usage=bool(failure.usage),
             )
-            current_agent_type = "writer"
-            workflow_agents = []
-            workflow_plan = "quick"
-            routing_metadata = {
-                "agent_type": "writer",
-                "workflow_type": "quick",
-                "reason": "router_exception_fallback",
-                "confidence": 0.0,
-            }
-            # 路由调用抛异常：可能已经烧了 token，但拿不到 usage，只能记空
-            routing_usage = None
+            if failure.usage:
+                # Internal-only usage carrier; no fabricated successful decision
+                # and no author-facing reply or extra terminal frame.
+                yield StreamEvent(
+                    type=StreamEventType.MESSAGE_END,
+                    data={"usage": failure.usage, "stop_reason": "router_failure"},
+                )
+            error_info = failure.error_info
+            if error_info.code == ErrorCode.AGENT_RUN_FAILED:
+                # This boundary precedes agents/tools: the retry UI can accurately
+                # say the work is unchanged. Quota/upstream-specific codes stay intact.
+                error_info = StreamErrorInfo(ErrorCode.AGENT_ROUTING_FAILED, True, True)
+            yield StreamEvent(
+                type=StreamEventType.ERROR,
+                data=error_info.as_event_data(reason=f"router_{failure.category}"),
+            )
+            return
 
         # 用户范围：只读请求不交接给有写权限的 agent；范围约束注入每个 agent 的系统提示。
         read_only_request = (

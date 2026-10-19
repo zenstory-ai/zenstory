@@ -172,8 +172,8 @@ class TestWritingGraphCompletionHooks:
 
 
 @pytest.mark.unit
-class TestWritingGraphRouterFallback:
-    """Tests for router fallback defaults in writing workflow."""
+class TestWritingGraphRouterFailure:
+    """Router failures stop before any writing agent."""
 
     @staticmethod
     async def _fake_run_streaming_agent(*_args, **_kwargs):
@@ -183,7 +183,7 @@ class TestWritingGraphRouterFallback:
         )
 
     @pytest.mark.asyncio
-    async def test_validation_error_fallback_uses_quick_workflow_plan(self):
+    async def test_validation_error_stops_without_authorizing_writer(self):
         """ValueError/KeyError fallback should use quick workflow naming."""
         from agent.graph.writing_graph import run_writing_workflow_streaming
 
@@ -199,14 +199,15 @@ class TestWritingGraphRouterFallback:
                 )
             ]
 
-        decided_event = next(event for event in events if event.type == StreamEventType.ROUTER_DECIDED)
-        assert decided_event.data["initial_agent"] == "writer"
-        assert decided_event.data["workflow_plan"] == "quick"
-        assert decided_event.data["routing_metadata"]["workflow_type"] == "quick"
-        assert any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+        assert not any(event.type in {
+            StreamEventType.ROUTER_DECIDED, StreamEventType.AGENT_SELECTED,
+            StreamEventType.WORKFLOW_COMPLETE, StreamEventType.TEXT,
+        } for event in events)
+        [error] = [event for event in events if event.type == StreamEventType.ERROR]
+        assert error.data["refundable"] is True
 
     @pytest.mark.asyncio
-    async def test_exception_fallback_uses_quick_workflow_plan(self):
+    async def test_exception_stops_without_authorizing_writer(self):
         """Generic router exception fallback should use quick workflow naming."""
         from agent.graph.writing_graph import run_writing_workflow_streaming
 
@@ -222,11 +223,12 @@ class TestWritingGraphRouterFallback:
                 )
             ]
 
-        decided_event = next(event for event in events if event.type == StreamEventType.ROUTER_DECIDED)
-        assert decided_event.data["initial_agent"] == "writer"
-        assert decided_event.data["workflow_plan"] == "quick"
-        assert decided_event.data["routing_metadata"]["workflow_type"] == "quick"
-        assert any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+        assert not any(event.type in {
+            StreamEventType.ROUTER_DECIDED, StreamEventType.AGENT_SELECTED,
+            StreamEventType.WORKFLOW_COMPLETE, StreamEventType.TEXT,
+        } for event in events)
+        [error] = [event for event in events if event.type == StreamEventType.ERROR]
+        assert error.data["refundable"] is True
 
 
 @pytest.mark.unit

@@ -745,7 +745,12 @@ class AgentService:
                 assistant_response.strip()
                 or all_tool_calls
                 or assistant_status_cards
-                or assistant_display_events
+                # A rejected route has no assistant reply to preserve; do not
+                # turn its transient progress indicator into an empty message.
+                or any(
+                    not had_stream_error or event.get("type") != "router_thinking"
+                    for event in assistant_display_events
+                )
                 or (reasoning_content or "").strip()
             )
 

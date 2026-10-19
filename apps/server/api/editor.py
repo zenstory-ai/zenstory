@@ -15,7 +15,11 @@ from core.error_handler import APIException
 from database import get_session
 from middleware.rate_limit import require_user_rate_limit
 from models import User
-from services.features.natural_polish_service import is_noop_rewrite, natural_polish_service
+from services.features.natural_polish_service import (
+    NaturalPolishFailure,
+    is_noop_rewrite,
+    natural_polish_service,
+)
 from services.first_work_service import observe_first_work_ai_request
 from services.quota_service import quota_service
 from utils.logger import get_logger, log_with_context
@@ -75,15 +79,14 @@ def _refund_ai_conversation(
             user_id,
             period_start=period_start,
         )
-    except Exception as refund_error:
+    except Exception:
         log_with_context(
             logger,
             30,  # WARNING
             "Failed to refund AI conversation quota for natural polish",
-            user_id=user_id,
-            reason=reason,
-            error=str(refund_error),
-            error_type=type(refund_error).__name__,
+            stage="refund",
+            failure_category="refund_failed",
+            refund_reason=reason,
         )
         return False
 
@@ -159,24 +162,60 @@ async def natural_polish(
             project_id=body.project_id,
         )
     except APIException:
-        _refund_ai_conversation(
+        refunded = _refund_ai_conversation(
             session,
             user_id,
             charged_period_start,
             reason="api_exception",
         )
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Natural polish request failed",
+            stage="service",
+            failure_category="api_exception",
+            refund_succeeded=refunded,
+        )
         raise
-    except Exception as exc:
-        _refund_ai_conversation(
+    except NaturalPolishFailure as exc:
+        refunded = _refund_ai_conversation(
             session,
             user_id,
             charged_period_start,
-            reason=type(exc).__name__,
+            reason=exc.category,
+        )
+        log_with_context(
+            logger,
+            30,  # WARNING; do not attach the chained exception or its private payload
+            "Natural polish request failed",
+            stage=exc.stage,
+            failure_category=exc.category,
+            refund_succeeded=refunded,
         )
         raise APIException(
             error_code=ErrorCode.INTERNAL_SERVER_ERROR,
             status_code=500,
-            detail=f"Natural polish failed: {type(exc).__name__}",
+            detail="Natural polish failed.",
+        ) from exc
+    except Exception as exc:
+        refunded = _refund_ai_conversation(
+            session,
+            user_id,
+            charged_period_start,
+            reason="unexpected_error",
+        )
+        log_with_context(
+            logger,
+            30,  # WARNING; fixed fields only, without exception text or traceback
+            "Natural polish request failed",
+            stage="service",
+            failure_category="unexpected_error",
+            refund_succeeded=refunded,
+        )
+        raise APIException(
+            error_code=ErrorCode.INTERNAL_SERVER_ERROR,
+            status_code=500,
+            detail="Natural polish failed.",
         ) from exc
 
     # 只换了引号或空白的改写不算改动：退还这条 AI 消息，并把原文还给前端，

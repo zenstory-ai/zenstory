@@ -207,6 +207,7 @@ type StreamCallbackOptions = {
   onSkillsMatched?: (
     skills: Array<{ id: string; name: string; trigger: string; confidence: number }>
   ) => void
+  onQuotaRefunded?: (kind: 'no_progress' | 'error' | 'stopped') => void
 }
 
 const lastMessageListProps = () => {
@@ -470,12 +471,16 @@ describe('ChatPanel project switch stream cleanup', () => {
     } finally { vi.useRealTimers() }
   })
 
-  it('shows Retry only for retryable errors and replays the captured request once per click', async () => {
-    mockAgentStreamState.error = 'temporary failure'
+  it('shows a retryable routing failure, retries once, and waits for a real refund event', async () => {
+    mockAgentStreamState.error = '这次没能处理你的要求，作品没有改动。可以稍后重试。'
+    mockAgentStreamState.errorCode = 'ERR_AGENT_ROUTING_FAILED'
     mockAgentStreamState.retryable = true
     const user = userEvent.setup()
     render(<ChatPanel />)
     await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
+
+    expect(screen.getByText('这次没能处理你的要求，作品没有改动。可以稍后重试。')).toBeInTheDocument()
+    expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument()
 
     await act(async () => {
       await lastMessageInputProps()?.onSend?.('same request', ['skill-1'])
@@ -489,6 +494,15 @@ describe('ChatPanel project switch stream cleanup', () => {
       ...original,
       metadata: { ...original.metadata, retry_unanswered: true },
     })
+    expect(agentStartStream).toHaveBeenCalledTimes(2)
+
+    act(() => {
+      const options = capturedUseAgentStream.options as StreamCallbackOptions
+      options.onQuotaRefunded?.('error')
+    })
+    expect(await screen.findByTestId('chat-quota-refund-note')).toHaveTextContent(
+      'chat:panel.notChargedError',
+    )
   })
 
   it('does not show Retry for non-retryable errors', async () => {

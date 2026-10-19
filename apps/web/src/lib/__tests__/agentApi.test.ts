@@ -13,6 +13,8 @@ import {
 import { api } from '../apiClient'
 import type { SSEEvent } from '../../types'
 import { debugContext } from '../debugContext'
+import enErrors from '../../../public/locales/en/errors.json'
+import zhErrors from '../../../public/locales/zh/errors.json'
 
 // Mock dependencies
 vi.mock('../apiClient', async importOriginal => ({
@@ -252,6 +254,20 @@ describe('agentApi', () => {
       ).toBe('ERR_AGENT_UPSTREAM_UNAVAILABLE')
     })
 
+    it('defines fixed bilingual copy for a routing failure before agent execution', () => {
+      expect(zhErrors.ERR_AGENT_ROUTING_FAILED).toBe(
+        '这次没能处理你的要求，作品没有改动。可以稍后重试。',
+      )
+      expect(enErrors.ERR_AGENT_ROUTING_FAILED).toBe(
+        "We couldn't process your request this time, and your work wasn't changed. You can try again later.",
+      )
+      expect(selectStreamErrorMessage({
+        message: 'private parser detail',
+        code: 'ERR_AGENT_ROUTING_FAILED',
+        retryable: true,
+      }, 'zh')).toBe('ERR_AGENT_ROUTING_FAILED')
+    })
+
     it('uses the message when there is no ERR_ code, and a generic code when there is nothing', () => {
       expect(selectStreamErrorMessage({ message: 'Rate limited', code: 'RATE_LIMIT' }, 'zh')).toBe('Rate limited')
       expect(selectStreamErrorMessage({}, 'zh')).toBe('ERR_INTERNAL_SERVER_ERROR')
@@ -259,6 +275,28 @@ describe('agentApi', () => {
   })
 
   describe('streamAgentRequest', () => {
+    it('passes a retryable routing failure without inventing a quota refund', async () => {
+      const onError = vi.fn()
+      const onQuotaRefunded = vi.fn()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream([
+          'event: error\ndata: {"message":"private parser detail","code":"ERR_AGENT_ROUTING_FAILED","retryable":true}\n\n',
+        ]),
+      }))
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError, onQuotaRefunded })
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onError).toHaveBeenCalledWith(
+        'Translated: ERR_AGENT_ROUTING_FAILED',
+        'ERR_AGENT_ROUTING_FAILED',
+        true,
+      )
+      expect(onQuotaRefunded).not.toHaveBeenCalled()
+    })
+
     it('reports a refund only when the backend sends quota_refunded after the terminal frame', async () => {
       const onError = vi.fn()
       const onQuotaRefunded = vi.fn()

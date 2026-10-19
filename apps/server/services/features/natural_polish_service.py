@@ -14,8 +14,10 @@ Prompt ownership is server-side only so every client uses the same prompt source
 import difflib
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from agent.core.llm_client import get_llm_client
+from core.error_handler import APIException
 from models.file_model import FILE_TYPE_SCRIPT
 from models.llm_usage import LLM_USAGE_SOURCE_POLISH
 from services.usage.llm_usage_service import LLMUsageAttribution
@@ -169,8 +171,59 @@ class LineEdit:
     new: str
 
 
+NaturalPolishFailureStage = Literal[
+    "model_call",
+    "protocol_parse",
+    "anchor_apply",
+    "content_protection",
+]
+NaturalPolishFailureCategory = Literal[
+    "model_call_failed",
+    "empty_output",
+    "invalid_marker",
+    "truncated_output",
+    "missing_anchor",
+    "ambiguous_anchor",
+    "duplicate_anchor",
+    "anchor_apply_failed",
+    "content_protection_failed",
+]
+
+
 class NaturalPolishProtocolError(ValueError):
-    """The model response did not satisfy the natural-polish edit protocol."""
+    """The model response did not satisfy one fixed protocol rule."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: NaturalPolishFailureCategory = "invalid_marker",
+    ) -> None:
+        self.category = category
+        super().__init__(message)
+
+
+class NaturalPolishFailure(RuntimeError):
+    """A safe, fixed diagnostic for one failed natural-polish stage.
+
+    The exception deliberately carries no model output, selected text, identifiers,
+    or original exception message. The original exception remains available only via
+    chaining for local debugging; request logs must record ``stage`` and ``category``.
+    """
+
+    def __init__(
+        self,
+        *,
+        stage: NaturalPolishFailureStage,
+        category: NaturalPolishFailureCategory,
+    ) -> None:
+        self.stage = stage
+        self.category = category
+        super().__init__(f"natural polish failed at {stage}: {category}")
+
+
+class _NaturalPolishContentProtectionError(RuntimeError):
+    """Internal boundary for an unexpected sentence-protection failure."""
 
 
 def _marker_payload(match: "re.Match[str]") -> str:
@@ -190,7 +243,10 @@ def parse_line_edits(output: str) -> list[LineEdit]:
     if stripped in {"无改动", "NO CHANGES"}:
         return []
     if not stripped:
-        raise NaturalPolishProtocolError("empty natural polish response")
+        raise NaturalPolishProtocolError(
+            "empty natural polish response",
+            category="empty_output",
+        )
 
     lines = stripped.splitlines()
     edits: list[LineEdit] = []
@@ -206,11 +262,17 @@ def parse_line_edits(output: str) -> list[LineEdit]:
             raise NaturalPolishProtocolError(f"expected OLD marker at line {index + 1}")
         old = _marker_payload(old_match)
         if not old:
-            raise NaturalPolishProtocolError(f"empty OLD anchor at line {index + 1}")
+            raise NaturalPolishProtocolError(
+                f"empty OLD anchor at line {index + 1}",
+                category="missing_anchor",
+            )
 
         index += 1
         if index >= len(lines):
-            raise NaturalPolishProtocolError("incomplete natural polish edit pair")
+            raise NaturalPolishProtocolError(
+                "incomplete natural polish edit pair",
+                category="truncated_output",
+            )
         new_match = _EDIT_NEW_RE.fullmatch(lines[index])
         if new_match is None:
             raise NaturalPolishProtocolError(f"expected NEW marker at line {index + 1}")
@@ -326,7 +388,10 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
         old_line = edit.old.strip()
         old_key = normalize_for_noop_comparison(old_line)
         if not old_key:
-            raise NaturalPolishProtocolError("empty normalized OLD anchor")
+            raise NaturalPolishProtocolError(
+                "empty normalized OLD anchor",
+                category="missing_anchor",
+            )
         # Marker parsing may consume one boundary space; indentation is not identity.
         # Internal whitespace and quote styles still distinguish complete lines.
         # Count all original lines so a previous edit cannot resolve a genuine ambiguity.
@@ -334,19 +399,31 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
         if not matching_lines:
             matching_lines = [i for i, key in enumerate(keys) if key == old_key]
         if len(matching_lines) > 1:
-            raise NaturalPolishProtocolError("ambiguous OLD anchor")
+            raise NaturalPolishProtocolError(
+                "ambiguous OLD anchor",
+                category="ambiguous_anchor",
+            )
         if matching_lines:
             index = matching_lines[0]
             if index in replaced:
-                raise NaturalPolishProtocolError("duplicate OLD anchor")
+                raise NaturalPolishProtocolError(
+                    "duplicate OLD anchor",
+                    category="duplicate_anchor",
+                )
             replaced.add(index)
             guarded = _guard_line(lines[index], edit.new, is_script=is_script, full_original=original)
-            current[index], count = _keep_protected_sentences(lines[index], guarded)
+            try:
+                current[index], count = _keep_protected_sentences(lines[index], guarded)
+            except Exception as error:
+                raise _NaturalPolishContentProtectionError from error
             restored += count
             continue
 
         if old_key in seen_substring_anchors:
-            raise NaturalPolishProtocolError("duplicate OLD anchor")
+            raise NaturalPolishProtocolError(
+                "duplicate OLD anchor",
+                category="duplicate_anchor",
+            )
         seen_substring_anchors.add(old_key)
 
         # 模型只抄了一句而不是整行：在唯一包含这句话的行里做子串替换。
@@ -362,7 +439,10 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
             candidates.extend((i, occurrence) for occurrence in range(occurrences))
         if len(candidates) != 1:
             reason = "unmatched" if not candidates else "ambiguous"
-            raise NaturalPolishProtocolError(f"{reason} OLD anchor")
+            raise NaturalPolishProtocolError(
+                f"{reason} OLD anchor",
+                category="missing_anchor" if reason == "unmatched" else "ambiguous_anchor",
+            )
         index = candidates[0][0]
         working = current[index]
         assert isinstance(working, str)
@@ -370,7 +450,10 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
         proposed = working[:position] + edit.new.strip() + working[position + len(needle):]
         guarded = _guard_line(lines[index], proposed, is_script=is_script, full_original=original)
         # 和原行（不是这一行已经改过的版本）比，同一行先后几处改动合起来删掉的句子也能找回。
-        current[index], count = _keep_protected_sentences(lines[index], guarded)
+        try:
+            current[index], count = _keep_protected_sentences(lines[index], guarded)
+        except Exception as error:
+            raise _NaturalPolishContentProtectionError from error
         restored += count
 
     if restored:
@@ -769,20 +852,51 @@ class NaturalPolishService:
             {"role": "user", "content": selected_text},
         ]
 
-        raw_output = await llm_client.acomplete(
-            messages=messages,
-            model=model_name,
-            max_tokens=NATURAL_POLISH_MAX_TOKENS,
-            thinking_enabled=False,
-            usage_attribution=LLMUsageAttribution(
-                user_id=user_id,
-                source=LLM_USAGE_SOURCE_POLISH,
-                project_id=project_id,
-            ),
-        )
+        try:
+            raw_output = await llm_client.acomplete(
+                messages=messages,
+                model=model_name,
+                max_tokens=NATURAL_POLISH_MAX_TOKENS,
+                thinking_enabled=False,
+                usage_attribution=LLMUsageAttribution(
+                    user_id=user_id,
+                    source=LLM_USAGE_SOURCE_POLISH,
+                    project_id=project_id,
+                ),
+            )
+        except APIException:
+            raise
+        except Exception as error:
+            raise NaturalPolishFailure(
+                stage="model_call",
+                category="model_call_failed",
+            ) from error
 
-        edits = parse_line_edits(raw_output)
-        polished_text, _ = apply_line_edits(selected_text, edits, file_type=file_type)
+        try:
+            edits = parse_line_edits(raw_output)
+        except NaturalPolishProtocolError as error:
+            raise NaturalPolishFailure(
+                stage="protocol_parse",
+                category=error.category,
+            ) from error
+
+        try:
+            polished_text, _ = apply_line_edits(selected_text, edits, file_type=file_type)
+        except NaturalPolishProtocolError as error:
+            raise NaturalPolishFailure(
+                stage="anchor_apply",
+                category=error.category,
+            ) from error
+        except _NaturalPolishContentProtectionError as error:
+            raise NaturalPolishFailure(
+                stage="content_protection",
+                category="content_protection_failed",
+            ) from error
+        except Exception as error:
+            raise NaturalPolishFailure(
+                stage="anchor_apply",
+                category="anchor_apply_failed",
+            ) from error
 
         return NaturalPolishResult(
             polished_text=polished_text,

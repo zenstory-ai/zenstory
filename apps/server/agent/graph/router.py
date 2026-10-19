@@ -5,6 +5,7 @@ Uses DeepSeek's OpenAI-compatible Chat Completions API to classify user
 intent and route to the appropriate writing agent.
 """
 
+import ast
 import json
 import re
 from typing import Any, Literal, get_args
@@ -12,10 +13,12 @@ from typing import Any, Literal, get_args
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from agent.core.deepseek_client import get_deepseek_client
+from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception
 from agent.graph.state import WritingState
 from agent.openai_agents.events import parse_json_object
 from agent.openai_agents.model import DEEPSEEK_WRITING_MODEL
 from agent.prompts.subagents import ROUTER_PROMPT
+from core.error_codes import ErrorCode
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -42,6 +45,26 @@ WORKFLOW_AGENTS: dict[str, list[str]] = {
 # ROUTER_PROMPT 要求模型写在 40 字以内（提示目标）；这里按 80 字截断，
 # 给模型偶尔超出留余量，同时防止异常长的输出灌进每个 agent 的系统提示。
 MAX_SCOPE_CHARS = 80
+
+
+class RouterFailure(ValueError):
+    """A failed decision grants no authority; never retain model text in errors."""
+
+    def __init__(
+        self,
+        category: Literal["invalid_enum", "schema", "empty_output", "truncated", "provider_failure"],
+        *,
+        usage: dict[str, Any] | None = None,
+        error_info: StreamErrorInfo | None = None,
+        failed_fields: tuple[str, ...] = (),
+        parse_path: str = "not_parsed",
+    ) -> None:
+        super().__init__(f"Router failed: {category}")
+        self.category = category
+        self.usage = usage
+        self.error_info = error_info or StreamErrorInfo(ErrorCode.AGENT_ROUTING_FAILED, True, True)
+        self.failed_fields = failed_fields
+        self.parse_path = parse_path
 
 
 class RouterDecision(BaseModel):
@@ -109,26 +132,14 @@ async def router_node(state: WritingState) -> dict:
         logger,
         20,  # INFO
         "Router node processing message",
-        message_preview=user_message[:100] if user_message else "",
     )
 
     if not user_message:
-        log_with_context(logger, 30, "Empty user message, defaulting to writer")
-        return {
-            "current_agent": "writer",
-            "workflow_plan": "quick",
-            "workflow_agents": [],
-            "routing_metadata": {
-                "agent_type": "writer",
-                "workflow_type": "quick",
-                "reason": "empty_user_message",
-                "confidence": 0.0,
-            },
-        }
+        raise RouterFailure("schema")
 
     response: dict[str, Any] | None = None
     try:
-        # Route via DeepSeek Chat Completions + tolerant JSON parser. (An SDK
+        # Route via DeepSeek Chat Completions + validated decision parser. (An SDK
         # output_type=RouterDecision path was evaluated and removed: DeepSeek
         # rejects response_format json_schema, so it could never succeed.)
         # 有上一轮助手回复时，把它的结尾和落库路由一起交给路由器（见
@@ -147,7 +158,6 @@ async def router_node(state: WritingState) -> dict:
             write_content=decision.write_content,
             read_only=decision.read_only,
             confidence=decision.confidence,
-            user_message_preview=user_message[:50],
         )
 
         return {
@@ -160,34 +170,37 @@ async def router_node(state: WritingState) -> dict:
             "routing_usage": response.get("usage"),
         }
 
-    except Exception as e:
+    except Exception as error:
         from core.error_handler import APIException
         from services.usage.cost_budget import COST_LIMIT_CODE, UNAVAILABLE_CODE
-        if isinstance(e, APIException) and e.error_code in {COST_LIMIT_CODE, UNAVAILABLE_CODE}:
+
+        if isinstance(error, APIException) and error.error_code in {COST_LIMIT_CODE, UNAVAILABLE_CODE}:
             raise
+        failure = error if isinstance(error, RouterFailure) else RouterFailure(
+            "provider_failure", error_info=classify_stream_exception(error), parse_path="provider",
+        )
+        # The provider already completed; retain its actual usage even if its
+        # decision was rejected. Ledger metering precedes parsing as before.
+        if response is not None:
+            failure.usage = response.get("usage")
         log_with_context(
             logger,
             40,  # ERROR
-            "Router error, defaulting to writer with quick workflow",
-            error=str(e),
-            error_type=type(e).__name__,
+            "Router decision failed; stopping before agent execution",
+            stage="routing",
+            category=failure.category,
+            has_usage=bool(failure.usage),
+            failed_fields=failure.failed_fields,
+            parse_path=failure.parse_path,
+            finish_reason=(
+                response.get("finish_reason")
+                if response and isinstance(response.get("finish_reason"), str)
+                and response.get("finish_reason") in {"stop", "length", "content_filter", "tool_calls"}
+                else "other" if response and response.get("finish_reason") else "missing"
+            ),
+            exc_info=False,
         )
-        # Default to writer on error (review is triggered explicitly or via auto-review gate)
-        fallback: dict[str, Any] = {
-            "current_agent": "writer",
-            "workflow_plan": "quick",
-            "workflow_agents": [],
-            "routing_metadata": {
-                "agent_type": "writer",
-                "workflow_type": "quick",
-                "reason": "router_fallback",
-                "confidence": 0.0,
-            },
-        }
-        # 模型已经答复、只是解析失败：这次调用的用量照样上报到对话用量里。
-        if response is not None and response.get("usage"):
-            fallback["routing_usage"] = response["usage"]
-        return fallback
+        raise failure from None
 
 
 def _int_usage_field(source: object, name: str) -> int:
@@ -257,12 +270,13 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
             temperature=0.0,
             # deepseek-flash is a reasoning model: chain-of-thought reasoning_tokens count
             # against completion tokens. A tight budget can be fully consumed by reasoning,
-            # leaving an empty JSON answer and forcing a silent fallback to writer/quick.
-            # Keep a generous budget so the short routing JSON always fits after reasoning.
+            # leaving an empty JSON answer (historically this silently fell back to writer/quick).
+            # Keep the existing generous budget; empty answers now return a routing failure.
             max_tokens=2048,
         )
     _meter_router_call(response)
-    text = response.choices[0].message.content or ""
+    choice = response.choices[0] if response.choices else None
+    text = choice.message.content or "" if choice is not None else ""
     return {
         "content": [
             {
@@ -271,6 +285,7 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
             }
         ],
         "usage": _extract_usage(response),
+        "finish_reason": getattr(choice, "finish_reason", None),
     }
 
 
@@ -301,39 +316,60 @@ def _meter_router_call(response: object) -> None:
 
 
 def _parse_router_response(response: dict) -> RouterDecision:
-    """
-    Parse and validate structured router decision from model response.
+    """Validate known routes without replacing existing compatibility with new required fields."""
+    if response.get("finish_reason") == "length":
+        raise RouterFailure("truncated", failed_fields=("finish_reason",))
+    blocks = response.get("content", [])
+    if not isinstance(blocks, list):
+        raise RouterFailure("schema", failed_fields=("content",))
 
-    Preferred format is strict JSON, with backward-compatible fallback to
-    legacy two-line text format.
-    """
-    content_blocks = response.get("content", [])
-
-    parse_errors: list[str] = []
-    for block in content_blocks:
+    failure: RouterFailure | None = None
+    for block in blocks:
+        if not isinstance(block, dict) or (block.get("type") == "text" and not isinstance(block.get("text", ""), str)):
+            failure = RouterFailure("schema", failed_fields=("content",))
+            continue
         if block.get("type") != "text":
             continue
-
         text = block.get("text", "").strip()
-        payload = _extract_router_payload(text)
-        normalized = _normalize_router_payload(payload)
-
-        try:
-            return RouterDecision.model_validate(normalized)
-        except ValidationError as e:
-            parse_errors.append(str(e))
+        if not text:
             continue
-
-    if parse_errors:
-        raise ValueError(f"Invalid router response schema: {'; '.join(parse_errors)}")
-
-    # No parseable text block
-    return RouterDecision(
-        agent_type="writer",
-        workflow_type="quick",
-        reason="empty_router_response",
-        confidence=0.0,
-    )
+        diagnostics = {"parse_path": "unparseable"}
+        try:
+            payload = _extract_router_payload(text, diagnostics=diagnostics)
+            agent = payload.get("agent_type") or payload.get("agent") or payload.get("target_agent")
+            if not isinstance(agent, str) or not agent.strip():
+                raise RouterFailure("schema", failed_fields=("agent_type",))
+            workflow_keys = ("workflow_type", "workflow", "workflow_plan")
+            if any(key in payload for key in workflow_keys):
+                workflow = next(payload[key] for key in workflow_keys if key in payload)
+                if not isinstance(workflow, str) or not workflow.strip():
+                    raise RouterFailure("schema", failed_fields=("workflow_type",))
+            # Preserve absent optional fields and known boolean equivalents from
+            # the existing contract, but never turn an explicit unknown into a default.
+            for field in ("read_only", "write_content"):
+                if field in payload and _coerce_optional_bool(payload[field]) is None:
+                    raise RouterFailure("schema", failed_fields=(field,))
+            if "scope" in payload and not isinstance(payload["scope"], str):
+                raise RouterFailure("schema", failed_fields=("scope",))
+            normalized = _normalize_router_payload(payload)
+            try:
+                return RouterDecision.model_validate(normalized)
+            except ValidationError as error:
+                errors = error.errors(include_input=False, include_context=False, include_url=False)
+                fields = tuple(sorted({
+                    item["loc"][0] for item in errors if item["loc"]
+                    and item["loc"][0] in RouterDecision.model_fields
+                }))
+                invalid_enum = any(
+                    item["type"] == "literal_error" and item["loc"] in {("agent_type",), ("workflow_type",)}
+                    for item in errors
+                )
+                raise RouterFailure("invalid_enum" if invalid_enum else "schema", failed_fields=fields) from None
+        except RouterFailure as error:
+            error.parse_path = diagnostics["parse_path"]
+            failure = error
+            continue
+    raise failure or RouterFailure("empty_output", failed_fields=("content",))
 
 
 _ROUTER_KEYS: frozenset[str] = frozenset(
@@ -341,20 +377,12 @@ _ROUTER_KEYS: frozenset[str] = frozenset(
 )
 
 
-def _extract_router_payload(text: str) -> dict[str, object]:
-    """
-    Extract payload from router raw text.
-
-    Parsing order:
-    1) Strict JSON (fast path — no repair needed)
-    2) Shared JSON-repair via parse_json_object (handles markdown fences, truncation, etc.)
-       If the repaired result lacks routing keys, scan per-fragment for a better match.
-    3) Legacy two-line text fallback (agent\\nworkflow)
-    """
+def _extract_router_payload(text: str, *, diagnostics: dict[str, str] | None = None) -> dict[str, object]:
+    """Keep strict/complete-object, closed syntax-repair and exact two-line compatibility."""
+    diagnostics = diagnostics if diagnostics is not None else {}
+    diagnostics["parse_path"] = "strict_json"
     if not text:
         return {}
-
-    # 1) strict JSON
     try:
         parsed = json.loads(text)
         if isinstance(parsed, dict):
@@ -362,41 +390,42 @@ def _extract_router_payload(text: str) -> dict[str, object]:
     except json.JSONDecodeError:
         pass
 
-    # 2) Shared JSON-repair path (delegates to json_repair library when available).
-    #    If parse_json_object succeeds and the result has routing keys, use it.
-    #    Otherwise scan per-fragment (raw_decode at each '{') to prefer a fragment
-    #    that contains routing keys — this handles text with multiple JSON objects
-    #    where json_repair returns the first/wrong one (or a non-dict like a list).
-    repaired, _err, _meta = parse_json_object(text, tool_name="router")
-    if repaired and any(key in repaired for key in _ROUTER_KEYS):
-        return repaired
-
-    # Per-fragment scan: prefer any fragment with routing keys, keep first as fallback.
-    fallback_object: dict[str, object] | None = repaired if repaired else None
+    diagnostics["parse_path"] = "complete_object"
+    fallback_object = None
     for candidate in _iter_json_object_candidates(text):
-        try:
-            candidate_obj = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(candidate_obj, dict):
-            continue
-        if any(key in candidate_obj for key in _ROUTER_KEYS):
-            return candidate_obj
+        parsed = json.loads(candidate)
+        if any(key in parsed for key in _ROUTER_KEYS):
+            return parsed
         if fallback_object is None:
-            fallback_object = candidate_obj
+            fallback_object = parsed
 
+    # Reuse the existing repair utility for a complete object (for example
+    # single quotes/trailing commas), not to complete an unfinished authority field.
+    raw = text.strip()
+    if raw.startswith("```") and raw.endswith("```"):
+        raw = "\n".join(raw.splitlines()[1:-1]).strip()
+    if raw.startswith("{") and raw.endswith("}"):
+        diagnostics["parse_path"] = "json_repair"
+        # Syntax completeness only; never evaluate this AST or complete a quote/value.
+        try:
+            complete_object = isinstance(ast.parse(raw, mode="eval").body, ast.Dict)
+        except SyntaxError:
+            complete_object = False
+        if not complete_object:
+            raise RouterFailure("schema", failed_fields=("content",))
+        repaired, _error, _metadata = parse_json_object(raw, tool_name="router")
+        if repaired and any(key in repaired for key in _ROUTER_KEYS):
+            return repaired
     if fallback_object is not None:
+        diagnostics["parse_path"] = "complete_object"
         return fallback_object
 
-    # 3) Legacy two-line fallback: line1 agent, line2 workflow
-    lowered = text.lower()
-    lines = [line.strip() for line in lowered.split("\n") if line.strip()]
-    payload: dict[str, object] = {}
-    if lines:
-        payload["agent_type"] = lines[0]
-    if len(lines) > 1:
-        payload["workflow_type"] = lines[1]
-    return payload
+    diagnostics["parse_path"] = "two_line"
+    lines = [line.strip().lower() for line in text.splitlines() if line.strip()]
+    if len(lines) == 2 and not any(character in text for character in "{}[]"):
+        return {"agent_type": lines[0], "workflow_type": lines[1]}
+    diagnostics["parse_path"] = "unparseable"
+    raise RouterFailure("schema", failed_fields=("content",))
 
 
 def _iter_json_object_candidates(text: str) -> list[str]:
@@ -426,7 +455,7 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         payload.get("agent_type")
         or payload.get("agent")
         or payload.get("target_agent")
-        or "writer"
+        or ""
     ).strip().lower()
 
     # Values are enum tokens, not sentences containing an enum token.
@@ -462,8 +491,7 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         "reason": reason,
         "confidence": confidence,
         "write_content": _coerce_optional_bool(payload.get("write_content")),
-        # read_only 只认明确的 true：判断不出时按「可以写」处理，
-        # 由 write_content 和各 agent 提示词去约束范围。
+        # 保留既有可选字段和明确等价布尔值；外部显式未知值已在 parser 拒绝。
         "read_only": _coerce_optional_bool(payload.get("read_only")) is True,
         "scope": scope,
         "requested_file_types": payload.get("requested_file_types", []),
@@ -506,12 +534,12 @@ def get_next_node(state: WritingState) -> AgentType:
 
     Returns the next node based on current_agent in state.
     """
-    agent = state.get("current_agent", "writer")
+    agent = state.get("current_agent")
 
     if agent in ("planner", "hook_designer", "writer", "quality_reviewer"):
         return agent  # type: ignore[return-value]
 
-    return "writer"
+    raise RouterFailure("invalid_enum" if agent is not None else "schema")
 
 
 
@@ -729,7 +757,7 @@ def resume_route_after_exhaustion(state: WritingState) -> dict[str, Any] | None:
 
     上一轮的 agent 依次取：状态卡的 lastAgent（history["last_agent"]；旧数据从合成
     文本的 ``last_agent:`` 里取）→ 落库路由的 last_agent → 落库路由的 initial_agent →
-    writer。上一轮的 read_only / scope / write_content 原样带过来：只读审查被截停后
+    无合法 agent 时正常路由。上一轮的 read_only / scope / write_content 原样带过来：只读审查被截停后
     说「继续」，恢复的仍是只读的审稿人，而不是拿着写工具的 writer。
     返回 None 表示照常路由。
     """
@@ -753,8 +781,9 @@ def resume_route_after_exhaustion(state: WritingState) -> dict[str, Any] | None:
         or _valid_agent(match.group(1) if match else None)
         or _valid_agent(routing.get("last_agent"))
         or _valid_agent(routing.get("initial_agent"))
-        or "writer"
     )
+    if agent_type is None:
+        return None
 
     workflow_type = "review_only" if agent_type == "quality_reviewer" else "quick"
     scope_fields = _inherited_scope_fields(routing)
@@ -795,14 +824,14 @@ def task_owner_agent(routing: dict[str, Any]) -> str | None:
 
     service 落库的 owner_agent 优先：它是这一轮最后一个不是「交接来审稿」的 agent。
     旧数据没有 owner_agent：last_agent 是 quality_reviewer、而上一轮不是审稿任务时，
-    审稿人只是自动质量门控 / 送审带来的，交回 initial_agent（没有时 writer）。
+    审稿人只是自动质量门控 / 送审带来的，交回 initial_agent；没有可信 owner 时正常路由。
     上一轮明确是审稿任务时才沿用审稿人。
     """
     owner = _valid_agent(routing.get("owner_agent"))
     last = _valid_agent(routing.get("last_agent"))
     initial = _valid_agent(routing.get("initial_agent"))
     if last == "quality_reviewer" and not _is_review_task(routing):
-        return owner if owner and owner != "quality_reviewer" else initial or "writer"
+        return owner if owner and owner != "quality_reviewer" else initial
     return last or owner or initial
 
 
@@ -830,7 +859,9 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
         return None
 
     initial_agent = _valid_agent(routing.get("initial_agent"))
-    agent_type = task_owner_agent(routing) or "writer"
+    agent_type = task_owner_agent(routing)
+    if agent_type is None:
+        return None
     previous_workflow = str(routing.get("workflow_type") or "").strip()
     if agent_type == initial_agent and previous_workflow in WORKFLOW_AGENTS:
         workflow_type = previous_workflow

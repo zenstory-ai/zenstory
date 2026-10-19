@@ -47,9 +47,11 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 - requested_file_types：作者本轮明确要写入的文件类型列表，只能选 outline/draft/script/character/lore/snippet/document，不能重复。讨论、提问或被明确拒绝的产物不列入；只读请求为空。大纲对应 outline，小说正文对应 draft，剧本对应 script。补问作答沿用上一轮的列表。
 
 ## 输出（必须严格 JSON，仅输出一个对象，不要 markdown）
+agent_type 和 workflow_type 必须分别选上列一个完整枚举值，不得拼接候选列表、别名或角色说明。
+下面是一个合法示例；实际范围字段按用户本轮请求填写：
 {
-  \"agent_type\": \"planner|hook_designer|writer|quality_reviewer\",
-  \"workflow_type\": \"quick|standard|full|hook_focus|review_only\",
+  \"agent_type\": \"writer\",
+  \"workflow_type\": \"quick\",
   \"write_content\": true,
   \"read_only\": false,
   \"scope\": \"\",

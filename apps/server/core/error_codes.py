@@ -182,6 +182,7 @@ class ErrorCode:
     AGENT_UPSTREAM_UNAVAILABLE = "ERR_AGENT_UPSTREAM_UNAVAILABLE"
     AGENT_CONTEXT_TOO_LONG = "ERR_AGENT_CONTEXT_TOO_LONG"
     AGENT_RUN_FAILED = "ERR_AGENT_RUN_FAILED"
+    AGENT_ROUTING_FAILED = "ERR_AGENT_ROUTING_FAILED"
     AGENT_TOOL_FAILURE_LIMIT = "ERR_AGENT_TOOL_FAILURE_LIMIT"
     AGENT_NO_PROGRESS = "ERR_AGENT_NO_PROGRESS"
     AGENT_RUN_TIMEOUT = "ERR_AGENT_RUN_TIMEOUT"
@@ -312,6 +313,7 @@ ERROR_MESSAGES = {
         "ERR_AGENT_UPSTREAM_UNAVAILABLE": "AI 服务暂时不可用或响应超时，请稍后重试",
         "ERR_AGENT_CONTEXT_TOO_LONG": "本轮对话内容过长，请精简消息或开启新对话后重试",
         "ERR_AGENT_RUN_FAILED": "生成回复时发生错误，请重试",
+        "ERR_AGENT_ROUTING_FAILED": "这次没能处理你的要求，作品没有改动。可以稍后重试。",
         "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 这一步连续几次都没做成，这一轮先停下了。之前改好的内容不受影响。可以换个说法，或者把任务拆小一点再试。",
         "ERR_AGENT_NO_PROGRESS": "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。",
         "ERR_AGENT_RUN_TIMEOUT": "这一轮写得太久，先停下了。回复「继续」就能接着写。",
@@ -438,6 +440,7 @@ ERROR_MESSAGES = {
         "ERR_AGENT_UPSTREAM_UNAVAILABLE": "The AI service is unavailable or timed out. Please try again shortly",
         "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat",
         "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again",
+        "ERR_AGENT_ROUTING_FAILED": "We couldn't process your request this time, and your work wasn't changed. You can try again later.",
         "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI couldn't complete a step after several tries, so this round stopped. Earlier changes aren't affected. Try rephrasing or splitting the task.",
         "ERR_AGENT_NO_PROGRESS": 'The AI kept rereading the same material without writing, so this round stopped. Tell it which chapter to change and how, or reply "continue".',
         "ERR_AGENT_RUN_TIMEOUT": "This round ran too long and stopped. Reply \"continue\" to keep going.",

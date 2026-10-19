@@ -787,7 +787,9 @@ def _state_after(stop_reason: str | None, user_message: str = "继续", content:
 def test_bare_continue_after_exhaustion_resumes_previous_agent(message):
     from agent.graph.router import resume_route_after_exhaustion
 
-    result = resume_route_after_exhaustion(_state_after("max_turns_exceeded", message))
+    state = _state_after("max_turns_exceeded", message)
+    state["messages"][1]["last_agent"] = "writer"
+    result = resume_route_after_exhaustion(state)
     assert result is not None
     assert result["current_agent"] == "writer"
     assert result["workflow_plan"] == "quick"
@@ -953,7 +955,8 @@ async def test_handoffs_carry_request_read_and_write_log(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_continue_after_exhaustion_skips_llm_router():
+@pytest.mark.parametrize("recorded_agent", ["writer", None])
+async def test_continue_uses_bypass_only_with_a_recorded_agent(recorded_agent):
     from agent.graph.writing_graph import run_writing_workflow_streaming
     from agent.tools.mcp_tools import ToolContext
 
@@ -964,6 +967,8 @@ async def test_continue_after_exhaustion_skips_llm_router():
         yield _text("接着完成。")
 
     state = _state_after("max_turns_exceeded")
+    if recorded_agent is not None:
+        state["messages"][1]["last_agent"] = recorded_agent
     state["system_prompt"] = ""
     router = AsyncMock(return_value={"current_agent": "planner", "workflow_agents": ["writer"]})
     ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
@@ -976,10 +981,15 @@ async def test_continue_after_exhaustion_skips_llm_router():
     finally:
         ToolContext.clear_context()
 
-    router.assert_not_called()
-    assert calls == ["writer"]
     decided = next(e for e in events if e.type == StreamEventType.ROUTER_DECIDED)
-    assert decided.data["routing_metadata"]["reason"] == "resume_after_exhaustion"
+    if recorded_agent is not None:
+        router.assert_not_called()
+        assert calls == ["writer"]
+        assert decided.data["routing_metadata"]["reason"] == "resume_after_exhaustion"
+    else:
+        router.assert_awaited_once()
+        assert calls == ["planner", "writer"]
+        assert decided.data["routing_metadata"].get("reason") != "resume_after_exhaustion"
 
 
 def test_stale_content_lets_the_file_be_read_again_without_the_unchanged_hint():

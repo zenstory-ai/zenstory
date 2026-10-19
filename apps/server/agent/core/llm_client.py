@@ -392,13 +392,16 @@ class LLMClient:
 
             return content
         except Exception as e:
+            status_code = getattr(e, "status_code", None)
             log_with_context(
                 logger,
                 40,  # ERROR
                 "LLM async completion failed",
+                exc_info=False,
                 model=model_name,
-                error=str(e),
                 error_type=type(e).__name__,
+                failure_category="provider_request_failed",
+                status_code=status_code if isinstance(status_code, int) else None,
                 duration_ms=int((utcnow() - start_time).total_seconds() * 1000),
             )
             raise

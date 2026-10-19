@@ -199,30 +199,32 @@ async def test_router_call_is_metered(db_session: Session, bound_request):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_router_fallback_keeps_usage_of_unparseable_answer():
+async def test_router_failure_keeps_usage_of_unparseable_answer():
     from agent.graph import router
 
     routed = {"content": [{"type": "text", "text": "???"}], "usage": {"input_tokens": 5, "output_tokens": 2}}
     with (
         patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(return_value=routed)),
-        patch("agent.graph.router._parse_router_response", side_effect=ValueError("bad schema")),
+        patch("agent.graph.router._parse_router_response", side_effect=router.RouterFailure("schema")),
     ):
-        result = await router.router_node({"user_message": "写一章"})
+        with pytest.raises(router.RouterFailure) as failure:
+            await router.router_node({"user_message": "写一章"})
 
-    assert result["current_agent"] == "writer"
-    assert result["routing_metadata"]["reason"] == "router_fallback"
-    assert result["routing_usage"] == {"input_tokens": 5, "output_tokens": 2}
+    assert failure.value.category == "schema"
+    assert failure.value.usage == {"input_tokens": 5, "output_tokens": 2}
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_router_fallback_without_response_has_no_usage():
+async def test_router_failure_without_response_has_no_usage():
     from agent.graph import router
 
     with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(side_effect=RuntimeError("down"))):
-        result = await router.router_node({"user_message": "写一章"})
+        with pytest.raises(router.RouterFailure) as failure:
+            await router.router_node({"user_message": "写一章"})
 
-    assert "routing_usage" not in result
+    assert failure.value.category == "provider_failure"
+    assert failure.value.usage is None
 
 
 # ---------------------------------------------------------------------------

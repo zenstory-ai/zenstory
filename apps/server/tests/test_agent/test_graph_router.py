@@ -31,32 +31,29 @@ class TestGetNextNode:
 
         assert result == "writer"
 
-    def test_get_next_node_legacy_reviewer_defaults_to_writer(self):
+    def test_get_next_node_legacy_reviewer_is_rejected(self):
         """Legacy reviewer alias should no longer be accepted."""
         from agent.graph.router import get_next_node
 
         state = {"current_agent": "reviewer"}
-        result = get_next_node(state)
-
-        assert result == "writer"
+        with pytest.raises(ValueError):
+            get_next_node(state)
 
     def test_get_next_node_default(self):
-        """Test default to writer for unknown agent."""
+        """An unknown agent is not authorization to run writer."""
         from agent.graph.router import get_next_node
 
         state = {"current_agent": "unknown"}
-        result = get_next_node(state)
-
-        assert result == "writer"
+        with pytest.raises(ValueError):
+            get_next_node(state)
 
     def test_get_next_node_missing_key(self):
-        """Test default to writer when key is missing."""
+        """A missing agent is not authorization to run writer."""
         from agent.graph.router import get_next_node
 
         state = {}
-        result = get_next_node(state)
-
-        assert result == "writer"
+        with pytest.raises(ValueError):
+            get_next_node(state)
 
 
 @pytest.mark.integration
@@ -68,9 +65,8 @@ class TestRouterNode:
         from agent.graph.router import router_node
 
         state = {"user_message": ""}
-        result = await router_node(state)
-
-        assert result["current_agent"] == "writer"
+        with pytest.raises(ValueError):
+            await router_node(state)
 
     async def test_router_node_with_message(self):
         """Test router with valid message."""
@@ -95,16 +91,14 @@ class TestRouterNode:
             assert result["workflow_plan"] == "standard"
             assert result["routing_metadata"]["reason"] == "需要先规划"
 
-    async def test_router_node_error_defaults_to_writer(self):
-        """Test router defaults to writer on error."""
+    async def test_router_node_error_is_rejected(self):
+        """Router errors must not expand author scope."""
         from agent.graph.router import router_node
 
         with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(side_effect=ValueError("API Error"))):
             state = {"user_message": "Some message"}
-            result = await router_node(state)
-
-            assert result["current_agent"] == "writer"
-            assert result["workflow_plan"] == "quick"
+            with pytest.raises(ValueError):
+                await router_node(state)
 
 
 @pytest.mark.unit
@@ -112,12 +106,11 @@ class TestParseRouterResponse:
     """Tests for structured router response parsing."""
 
     def test_parse_router_response_supports_legacy_two_line_output(self):
-        """Legacy line-based output should still parse for backward compatibility."""
+        """Keep the existing exact-token legacy contract without guessing unknown enums."""
         from agent.graph.router import _parse_router_response
 
         response = {"content": [{"type": "text", "text": "planner\nstandard"}]}
         decision = _parse_router_response(response)
-
         assert decision.agent_type == "planner"
         assert decision.workflow_type == "standard"
 
@@ -138,7 +131,8 @@ class TestParseRouterResponse:
                 "type": "text",
                 "text": (
                     'note {"foo":"bar"}\n'
-                    '{"agent_type":"planner","workflow_type":"standard","reason":"需要规划","confidence":0.9}'
+                    '{"agent_type":"planner","workflow_type":"standard","reason":"需要规划","confidence":0.9,'
+                    '"write_content":false,"read_only":false,"scope":"","requested_file_types":[]}'
                 ),
             }],
         }
@@ -148,18 +142,16 @@ class TestParseRouterResponse:
         assert decision.workflow_type == "standard"
         assert decision.reason == "需要规划"
 
-    def test_parse_router_response_defaults_when_only_unrelated_json_is_present(self):
-        """A JSON object without routing keys should fall back to writer/quick."""
+    def test_parse_router_response_rejects_when_only_unrelated_json_is_present(self):
+        """Unrelated JSON cannot authorize writer/quick."""
         from agent.graph.router import _parse_router_response
 
         response = {
             "content": [{"type": "text", "text": '{"foo":"bar","confidence":"oops"}'}],
         }
 
-        decision = _parse_router_response(response)
-        assert decision.agent_type == "writer"
-        assert decision.workflow_type == "quick"
-        assert decision.confidence == 0.0
+        with pytest.raises(ValueError):
+            _parse_router_response(response)
 
 
 @pytest.mark.unit

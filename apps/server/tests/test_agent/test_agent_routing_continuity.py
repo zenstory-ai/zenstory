@@ -134,7 +134,7 @@ def test_continue_falls_back_to_persisted_routing_agents():
     assert resume_route_after_exhaustion(_state("继续", previous))["current_agent"] == "writer"
 
     previous.pop("routing")
-    assert resume_route_after_exhaustion(_state("继续", previous))["current_agent"] == "writer"
+    assert resume_route_after_exhaustion(_state("继续", previous)) is None
 
 
 @pytest.mark.unit
@@ -144,7 +144,7 @@ def test_continue_falls_back_to_persisted_routing_agents():
 def test_budget_and_deadline_stops_are_resumable(stop_reason):
     from agent.graph.router import resume_route_after_exhaustion
 
-    previous = {"content": "写到一半", "stop_reason": stop_reason}
+    previous = {"content": "写到一半", "stop_reason": stop_reason, "last_agent": "writer"}
     assert resume_route_after_exhaustion(_state("继续", previous)) is not None
 
 
@@ -171,7 +171,7 @@ def test_user_cancelled_turn_is_not_resumed_by_bypass():
 def test_continue_button_new_and_old_prompts_both_take_the_bypass(message):
     from agent.graph.router import resume_route_after_exhaustion
 
-    previous = {"content": "写到一半", "stop_reason": "max_turns_exceeded"}
+    previous = {"content": "写到一半", "stop_reason": "max_turns_exceeded", "last_agent": "writer"}
     assert resume_route_after_exhaustion(_state(message, previous)) is not None
 
 
