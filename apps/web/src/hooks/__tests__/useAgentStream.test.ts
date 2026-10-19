@@ -876,6 +876,28 @@ describe('useAgentStream', () => {
       }))
     })
 
+    it.each([
+      [
+        { written_files: [{ id: 'ch-1', title: '雨夜', words: 1039 }, { id: 'ch-2', title: '人物', partial: true }] },
+        { reason: 'completed', savedOutput: true,
+          writtenFiles: [{ title: '雨夜', words: 1039 }, { title: '人物', words: null, partial: true }] },
+      ],
+      [{ no_file_changes: true }, { reason: 'completed', savedOutput: false, writtenFiles: [], noFileChanges: true }],
+    ])('turns a completed round\'s write receipt %j into its end note', (receipt, outcome) => {
+      const onComplete = vi.fn()
+      const hook = renderHook(() => useAgentStream('test-project-id', { onComplete }))
+      const controller = createMockStreamController()
+      act(() => {
+        hook.result.current.startStream({ message: 'test' })
+      })
+      act(() => {
+        controller.getCallbacks()?.onDone?.({ assistant_message_id: 'assistant-8', ...receipt })
+      })
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+        deliveryOutcome: { charged: true, removedFiles: [], ...outcome },
+      }))
+    })
+
     it('leaves writtenFiles out when an older server sends a stopped done without them', async () => {
       vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
       const onComplete = vi.fn()

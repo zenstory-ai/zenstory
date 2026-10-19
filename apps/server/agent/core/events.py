@@ -230,11 +230,16 @@ class DoneEventData(BaseModel):
     written_files: list[dict[str, Any]] | None = Field(
         default=None,
         description=(
-            "Stopped rounds only, when non-empty: files this round wrote text into "
-            "([{id, title, words?}], same as message_metadata.stop_outcome.written_files)"
+            "When non-empty: files this round confirmed writing text into "
+            "([{id, title, words?, partial?}], same as message_metadata.stop_outcome.written_files). "
+            "Built from tool results and save receipts only, never from the reply text."
         ),
     )
     unwritten_files: list[dict[str, Any]] | None = None
+    no_file_changes: bool | None = Field(
+        default=None,
+        description="Completed rounds only: the author asked for body writes and nothing was written",
+    )
 
 
 class ToolCallEventData(BaseModel):

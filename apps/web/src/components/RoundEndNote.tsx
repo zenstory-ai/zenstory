@@ -14,15 +14,19 @@ export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOu
   const savedText = outcome.writtenFiles.length > 0 || outcome.unwrittenFiles?.length
     ? formatRoundDelivery(t, outcome.writtenFiles, outcome.unwrittenFiles ?? [], i18n?.language)
     : t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' });
-  const dailyCount = showDailyCount && outcome.reason !== 'incomplete';
-  const parts = [
-    outcome.reason === 'incomplete' ? null : outcome.reason === 'user_stopped'
+  const finished = outcome.reason === 'incomplete' || outcome.reason === 'completed';
+  const dailyCount = showDailyCount && !finished;
+  const parts = outcome.noFileChanges ? [
+    t('chat:panel.roundNoFileChanges', { defaultValue: '本轮没有改动文件' }),
+  ] : [
+    finished ? null : outcome.reason === 'user_stopped'
       ? t('chat:panel.userStopped', { defaultValue: '已停止' })
       : t('chat:panel.roundInterrupted', { defaultValue: '已中断' }),
     !outcome.charged && dailyCount
       ? t('chat:panel.roundNotCounted', { defaultValue: '未计入今日 AI 消息' })
       : null,
-    (outcome.charged && outcome.savedOutput) || outcome.unwrittenFiles?.length ? savedText : null,
+    (outcome.charged && outcome.savedOutput) || outcome.unwrittenFiles?.length
+      || (outcome.reason === 'completed' && outcome.writtenFiles.length > 0) ? savedText : null,
     outcome.charged && dailyCount
       ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
       : null,
@@ -39,7 +43,7 @@ export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOu
       className="mt-2 inline-flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]"
       data-testid="round-end-note"
     >
-      {outcome.reason !== 'incomplete' && <CirclePause size={14} className="shrink-0" />}
+      {!finished && <CirclePause size={14} className="shrink-0" />}
       <span>{parts.join(' · ')}</span>
     </div>
   );

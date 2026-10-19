@@ -30,6 +30,7 @@ from sqlmodel import Session
 
 from agent.core.events import EventType, StreamEvent, done_event, error_event
 from agent.core.round_outcome import (
+    ROUND_KIND_COMPLETED,
     STOP_KIND_CLIENT_DISCONNECTED,
     STOP_KIND_USER_STOPPED,
     RoundWrittenFiles,
@@ -574,13 +575,14 @@ async def stream_request(
         written_files = RoundWrittenFiles()
         error_delivery: dict[str, Any] = {}
         partial_delivery: dict[str, Any] = {}
+        completed_delivery: dict[str, Any] = {}
 
         def _observe_frame(frame: Any) -> None:
             tracker.observe(frame)
             written_files.observe(frame)
 
         def _with_delivery(frame: str) -> str:
-            nonlocal error_delivery, partial_delivery
+            nonlocal error_delivery, partial_delivery, completed_delivery
             if deadline_exceeded or not frame.startswith(("event: error\n", "event: done\n")):
                 return frame
             event, data = _parse_sse(frame)
@@ -590,10 +592,18 @@ async def stream_request(
                 return frame
             delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
             if event == "done":
-                if not delivery.get("unwritten_files"):
+                if delivery.get("unwritten_files"):
+                    partial_delivery = delivery
+                    return StreamEvent(type=EventType.DONE, data={**data, **delivery}).to_sse()
+                # 正常收尾也带写入回执：作者对照它核对回复里说的「已修改」。
+                receipt = written_files.completion_receipt(
+                    final_word_counts=run_outcome.saved_file_word_counts,
+                    any_write_succeeded=tracker.write_succeeded,
+                )
+                if not receipt:
                     return frame
-                partial_delivery = delivery
-                return StreamEvent(type=EventType.DONE, data={**data, **delivery}).to_sse()
+                completed_delivery = receipt
+                return StreamEvent(type=EventType.DONE, data={**data, **receipt}).to_sse()
             error_delivery = delivery
             return StreamEvent(type=EventType.ERROR, data={**data, **delivery}).to_sse()
 
@@ -894,6 +904,10 @@ async def stream_request(
                 _schedule_round_outcome(refund_applied, stop_kind="error", delivery=error_delivery)
             elif partial_delivery and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="incomplete", delivery=partial_delivery)
+            elif completed_delivery and knows_stop_contract:
+                _schedule_round_outcome(
+                    refund_applied, stop_kind=ROUND_KIND_COMPLETED, delivery=completed_delivery
+                )
 
             # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
             # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。

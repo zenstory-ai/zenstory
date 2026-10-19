@@ -33,6 +33,8 @@ logger = get_logger(__name__)
 STOP_KIND_USER_STOPPED = "user_stopped"
 STOP_KIND_CLIENT_DISCONNECTED = "client_disconnected"
 STOP_KINDS: frozenset[str] = frozenset({STOP_KIND_USER_STOPPED, STOP_KIND_CLIENT_DISCONNECTED})
+# 正常收尾的写入回执（不是停止）：只由真实提交结果生成，见 RoundWrittenFiles.completion_receipt。
+ROUND_KIND_COMPLETED = "completed"
 # 写终态时可以被停止原因覆盖的 stop_reason：没有原因、或本来就是取消类的原因。
 # 其余（例如可「继续」的 max_turns_exceeded、run_deadline_exceeded）说明这一轮在停止
 # 之前已经按自己的方式结束并落库，保留原值，「继续」入口才不会丢。
@@ -84,7 +86,9 @@ class RunOutcome:
 
 
 # RoundWrittenFiles 关心的帧；其余帧（content、thinking、心跳……）不解析 JSON。
-_WRITTEN_FILE_EVENTS: frozenset[str] = frozenset({"tool_call", "tool_result", "file_created", "file_content"})
+_WRITTEN_FILE_EVENTS: frozenset[str] = frozenset(
+    {"tool_call", "tool_result", "file_created", "file_content", "router_decided"}
+)
 _FOLDER_FILE_TYPE = "folder"
 
 
@@ -95,6 +99,8 @@ class _WrittenFile:
     body: str = ""
     # 本轮还用 edit_file 改过它：只改了其中几处，整篇字数无从得知，不报字数。
     edited: bool = False
+    # 某次 edit_file 只生效了一部分（partial_success），其余几处没有改成。
+    partial: bool = False
 
 
 @dataclass
@@ -122,6 +128,9 @@ class RoundWrittenFiles:
     _created_empty: dict[str, str] = field(default_factory=dict)
     _tool_writes: set[str] = field(default_factory=set)
     _delete_targets: dict[str, str] = field(default_factory=dict)
+    # 路由判定作者本轮要求写正文（write_content=true 且不是只读）：没有任何写入时，
+    # 正常收尾也要明说「没有改动文件」，模型自由回复里的「已修改」不能代替这条事实。
+    requested_body_write: bool = False
 
     def observe(self, frame: Any) -> None:
         if not isinstance(frame, str) or not frame.startswith("event:"):
@@ -137,6 +146,12 @@ class RoundWrittenFiles:
                 tool_id, file_id = payload.get("tool_use_id"), arguments.get("id")
                 if isinstance(tool_id, str) and tool_id and isinstance(file_id, str) and file_id:
                     self._delete_targets[tool_id] = file_id
+        elif event_type == "router_decided":
+            routing = payload.get("routing_metadata")
+            routing = routing if isinstance(routing, dict) else {}
+            self.requested_body_write = (
+                routing.get("write_content") is True and routing.get("read_only") is not True
+            )
         elif event_type == "file_created":
             self._remember_title(payload.get("file_id"), payload.get("title"))
         elif event_type == "file_content":
@@ -164,6 +179,8 @@ class RoundWrittenFiles:
             entry: dict[str, Any] = {"id": file_id, "title": item.title or self._titles.get(file_id, "")}
             if include_words and not item.edited:
                 entry["words"] = final_word_counts.get(file_id, count_words(item.body))
+            if item.partial:
+                entry["partial"] = True
             listed.append(entry)
         return listed
 
@@ -182,6 +199,21 @@ class RoundWrittenFiles:
                      if fid not in written_ids]
         return {**({"written_files": written} if written else {}),
                 **({"unwritten_files": unwritten} if unwritten else {})}
+
+    def completion_receipt(
+        self, *, final_word_counts: dict[str, int | None], any_write_succeeded: bool
+    ) -> dict[str, Any]:
+        """正常收尾的回执：确认写入的文件；作者要正文却什么都没写成时明说没有改动。
+
+        只看工具实际结果和保存回执，不看模型怎么描述自己做了什么。``any_write_succeeded``
+        来自计费口径（含并行写章、删除这类列不出文件的写入），有它就不说「没有改动」。
+        """
+        delivery = self.delivery(final_word_counts=final_word_counts)
+        if delivery:
+            return delivery
+        if self.requested_body_write and not any_write_succeeded:
+            return {"no_file_changes": True}
+        return {}
 
     def _entry(self, file_id: str) -> _WrittenFile:
         if file_id not in self._files:
@@ -238,7 +270,10 @@ class RoundWrittenFiles:
             ):
                 return
             self._remember_title(file_id, data.get("title"))
-            self._entry(file_id).edited = True
+            entry = self._entry(file_id)
+            entry.edited = True
+            if coerce_bool(data.get("partial_success")):
+                entry.partial = True
             self._tool_writes.add(file_id)
 
 
@@ -338,6 +373,7 @@ def build_stop_outcome(
     removed_files: list[dict[str, str]] | None = None,
     written_files: list[dict[str, Any]] | None = None,
     unwritten_files: list[dict[str, Any]] | None = None,
+    no_file_changes: bool = False,
 ) -> dict[str, Any]:
     """落库到 message_metadata.stop_outcome 的结构（前端 RoundEndNote 读取）。
 
@@ -356,6 +392,8 @@ def build_stop_outcome(
         outcome["written_files"] = written_files
     if unwritten_files:
         outcome["unwritten_files"] = unwritten_files
+    if no_file_changes:
+        outcome["no_file_changes"] = True
     return outcome
 
 
@@ -399,6 +437,7 @@ __all__ = [
     "STOP_KINDS",
     "STOP_KIND_CLIENT_DISCONNECTED",
     "STOP_KIND_USER_STOPPED",
+    "ROUND_KIND_COMPLETED",
     "RoundWrittenFiles",
     "RunOutcome",
     "build_stop_outcome",

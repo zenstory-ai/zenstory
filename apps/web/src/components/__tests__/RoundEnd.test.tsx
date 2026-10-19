@@ -89,6 +89,14 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
       false,
       '已中断 · 已保存《人物》100 字、《世界观》200 字、《大纲》300 字等 5 个文件',
     ],
+    // A normally completed round (#267): only the write receipt, never the daily count.
+    [
+      { reason: 'completed', charged: true, saved_output: true,
+        written_files: [{ id: 'ch-1', title: '第1章', words: 2100 }, { id: 'ch-2', title: '第2章', partial: true }] },
+      true,
+      '已保存《第1章》2,100 字、《第2章》（部分修改未生效）',
+    ],
+    [{ reason: 'completed', charged: true, saved_output: false, no_file_changes: true }, true, '本轮没有改动文件'],
   ])('%j (daily count shown: %s) reads 「%s」', (raw, showDailyCount, text) => {
     render(<RoundEndNote outcome={outcome(raw)} showDailyCount={showDailyCount} />)
     expect(screen.getByTestId('round-end-note')).toHaveTextContent(new RegExp(`^${text}$`))

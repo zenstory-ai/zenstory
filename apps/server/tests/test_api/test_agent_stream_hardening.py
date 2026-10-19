@@ -863,9 +863,14 @@ async def test_complete_delivery_keeps_normal_done_without_round_warning(client,
         text = "".join([frame async for frame in response.body_iterator])
         if agent_api._round_outcome_tasks:
             await asyncio.gather(*agent_api._round_outcome_tasks)
-    assert _frame_data(text, "done") == {"assistant_message_id": message_id}
+    # Fully delivered: a write receipt (#267), but no "save not confirmed" warning.
+    done = _frame_data(text, "done")
+    assert [item["id"] for item in done["written_files"]] == [empty.id, filled.id]
+    assert "unwritten_files" not in done
     db_session.expire_all()
-    assert "stop_outcome" not in json.loads(db_session.get(ChatMessage, message_id).message_metadata or "{}")
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata or "{}")["stop_outcome"]
+    assert outcome["reason"] == "completed"
+    assert "unwritten_files" not in outcome
 
 
 @pytest.mark.integration
@@ -1424,3 +1429,100 @@ async def test_partial_delivery_is_identical_live_and_after_history_reload(clien
     assert outcome["unwritten_files"] == error["unwritten_files"]
     assert outcome["saved_output"] is True
     assert outcome["charged"] is True
+
+
+async def _run_completed_round(client, db_session, frames_after_route, *, routing):
+    """A normally completed round (#267): the done frame and the persisted outcome."""
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _empty, filled, _older = _seed_round(db_session, project, user)
+    assistant = db_session.get(ChatMessage, message_id)
+    assistant.message_metadata = json.dumps({"stop_reason": "end_turn"})
+    db_session.add(assistant)
+    db_session.commit()
+
+    async def frames():
+        yield _sse("router_decided", {"initial_agent": "writer", "routing_metadata": routing})
+        for frame in frames_after_route(filled):
+            yield frame
+        yield _sse("text", {"text": "已更新全部内容。"})
+        yield _sse("done", {"assistant_message_id": message_id})
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        if agent_api._round_outcome_tasks:
+            await asyncio.gather(*agent_api._round_outcome_tasks)
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    return _frame_data(text, "done"), metadata, filled
+
+
+_WRITE_REQUEST = {"write_content": True, "read_only": False}
+
+
+def _edit_result(file, **data):
+    return _sse("tool_result", {"tool_name": "edit_file", "status": "success",
+                                "data": {"id": file.id, "title": file.title, **data}})
+
+
+@pytest.mark.integration
+async def test_completed_round_claiming_edits_without_writes_gets_a_no_change_receipt(client, db_session):
+    done, metadata, _file = await _run_completed_round(
+        client, db_session, lambda _file: [], routing=_WRITE_REQUEST,
+    )
+
+    assert done["no_file_changes"] is True
+    assert "written_files" not in done
+    assert metadata["stop_reason"] == "end_turn"
+    assert metadata["stop_outcome"]["reason"] == "completed"
+    assert metadata["stop_outcome"]["no_file_changes"] is True
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("result", [
+    {"mutation_applied": False, "edits_applied": 0},  # no_change
+    {"mutation_applied": False, "edits_applied": 0, "all_failed": True},
+])
+async def test_edit_that_changed_nothing_is_not_a_write_receipt(client, db_session, result):
+    done, metadata, _file = await _run_completed_round(
+        client, db_session, lambda file: [_edit_result(file, **result)], routing=_WRITE_REQUEST,
+    )
+
+    assert done["no_file_changes"] is True
+    assert "written_files" not in done
+    assert metadata["stop_outcome"]["no_file_changes"] is True
+
+
+@pytest.mark.integration
+async def test_partial_edit_is_listed_as_partial_not_as_a_complete_write(client, db_session):
+    done, metadata, file = await _run_completed_round(
+        client, db_session,
+        lambda file: [_edit_result(file, mutation_applied=True, edits_applied=1, partial_success=True,
+                                   failed_edits=[{"index": 1, "error": "anchor not found"}])],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["written_files"] == [{"id": file.id, "title": file.title, "partial": True}]
+    assert "no_file_changes" not in done
+    assert metadata["stop_outcome"]["reason"] == "completed"
+    assert metadata["stop_outcome"]["written_files"] == done["written_files"]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("routing", [
+    {"write_content": False, "read_only": False},
+    {"write_content": True, "read_only": True},
+    {"write_content": None, "read_only": False},
+])
+async def test_rounds_that_did_not_ask_for_body_writes_get_no_receipt(client, db_session, routing):
+    done, metadata, _file = await _run_completed_round(
+        client, db_session, lambda _file: [], routing=routing,
+    )
+
+    assert "no_file_changes" not in done
+    assert "stop_outcome" not in metadata

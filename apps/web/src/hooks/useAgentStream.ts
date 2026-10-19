@@ -1366,10 +1366,16 @@ export function useAgentStream(
                   if (unwrittenFiles.length > 0) completionMeta.unwrittenFiles = unwrittenFiles;
                 } else {
                   const unwrittenFiles = parseWrittenFiles(data.unwritten_files);
+                  const writtenFiles = parseWrittenFiles(data.written_files);
                   if (unwrittenFiles.length > 0) {
-                    const writtenFiles = parseWrittenFiles(data.written_files);
                     completionMeta.deliveryOutcome = { reason: 'incomplete', charged: true,
                       savedOutput: writtenFiles.length > 0, removedFiles: [], writtenFiles, unwrittenFiles };
+                  } else if (writtenFiles.length > 0 || data.no_file_changes === true) {
+                    // The write receipt of a normally completed round (#267): only what the
+                    // server confirmed, never what the reply text says it did.
+                    completionMeta.deliveryOutcome = { reason: 'completed', charged: true,
+                      savedOutput: writtenFiles.length > 0, removedFiles: [], writtenFiles,
+                      ...(data.no_file_changes === true ? { noFileChanges: true } : {}) };
                   }
                 }
                 if (

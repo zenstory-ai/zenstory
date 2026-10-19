@@ -151,8 +151,10 @@ export interface StreamDoneData {
   file_mutated?: boolean;
   stop_reason?: string;
   produced_output?: boolean;
-  written_files?: { id?: string; title?: string; words?: number }[];
+  written_files?: { id?: string; title?: string; words?: number; partial?: boolean }[];
   unwritten_files?: { id?: string; title?: string }[];
+  /** Completed round: the author asked for body text and no file was written. */
+  no_file_changes?: boolean;
 }
 
 function streamErrorForAuthor(data: StreamErrorEventData): string {

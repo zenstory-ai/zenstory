@@ -42,6 +42,8 @@
     "roundUnwrittenFiles": "Save not confirmed: {{files}}",
     "roundSavedFile": "\"{{title}}\"",
     "roundSavedFileWords": "\"{{title}}\" ({{words}} words)",
+    "roundSavedFilePartial": "\"{{title}}\" (some edits did not apply)",
+    "roundNoFileChanges": "No files were changed in this round",
     "roundSavedFilesJoiner": ", ",
     "roundSavedFilesMore": "{{files}} and {{rest}} more",
     "creatingSession": "Creating new chat",

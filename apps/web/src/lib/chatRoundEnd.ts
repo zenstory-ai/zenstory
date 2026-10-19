@@ -15,7 +15,7 @@ export function hasSubstantiveDisplayItems(items: StreamRenderItem[]): boolean {
 
 /** How a stopped / interrupted round ended, as the server recorded it on the assistant message. */
 export interface RoundStopOutcome {
-  reason: 'user_stopped' | 'client_disconnected' | 'error' | 'incomplete';
+  reason: 'user_stopped' | 'client_disconnected' | 'error' | 'incomplete' | 'completed';
   /** Counted toward the daily AI messages (false: refunded). */
   charged: boolean;
   /** Something was written into a file before it ended. */
@@ -29,11 +29,18 @@ export interface RoundStopOutcome {
    */
   writtenFiles: RoundWrittenFile[];
   unwrittenFiles?: RoundWrittenFile[];
+  /**
+   * A normally completed round where the author asked for body text and no file was written
+   * (`stop_outcome.no_file_changes`). It is the receipt to check the reply's「已修改」against.
+   */
+  noFileChanges?: boolean;
 }
 
 export interface RoundWrittenFile {
   title: string;
   words: number | null;
+  /** Only some of the edits in one edit_file call landed (`partial: true`). */
+  partial?: boolean;
 }
 
 /**
@@ -44,9 +51,13 @@ export function parseWrittenFiles(raw: unknown): RoundWrittenFile[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((item) => {
     if (!item || typeof item !== 'object') return [];
-    const { title, words } = item as { title?: unknown; words?: unknown };
+    const { title, words, partial } = item as { title?: unknown; words?: unknown; partial?: unknown };
     if (typeof title !== 'string' || !title) return [];
-    return [{ title, words: typeof words === 'number' && Number.isFinite(words) ? words : null }];
+    return [{
+      title,
+      words: typeof words === 'number' && Number.isFinite(words) ? words : null,
+      ...(partial === true ? { partial: true } : {}),
+    }];
   });
 }
 
@@ -67,7 +78,7 @@ export function parseRoundStopOutcome(metadata: unknown): RoundStopOutcome | nul
   const outcome = (parsed as { stop_outcome?: unknown }).stop_outcome;
   if (!outcome || typeof outcome !== 'object') return null;
   const raw = outcome as Record<string, unknown>;
-  if (!['user_stopped', 'client_disconnected', 'error', 'incomplete'].includes(String(raw.reason))) return null;
+  if (!['user_stopped', 'client_disconnected', 'error', 'incomplete', 'completed'].includes(String(raw.reason))) return null;
   const unwrittenFiles = parseWrittenFiles(raw.unwritten_files);
   return {
     reason: raw.reason as RoundStopOutcome['reason'],
@@ -78,6 +89,7 @@ export function parseRoundStopOutcome(metadata: unknown): RoundStopOutcome | nul
       : [],
     writtenFiles: parseWrittenFiles(raw.written_files),
     ...(unwrittenFiles.length ? { unwrittenFiles } : {}),
+    ...(raw.no_file_changes === true ? { noFileChanges: true } : {}),
   };
 }
 
@@ -100,8 +112,10 @@ function formatFileList(
   } catch {
     numberFormat = new Intl.NumberFormat();
   }
-  const named = files.slice(0, NAMED_WRITTEN_FILES).map(({ title, words }) => (
-    words
+  const named = files.slice(0, NAMED_WRITTEN_FILES).map(({ title, words, partial }) => (
+    partial
+      ? t('chat:panel.roundSavedFilePartial', { defaultValue: '《{{title}}》（部分修改未生效）', title })
+      : words
       ? t('chat:panel.roundSavedFileWords', {
         defaultValue: '《{{title}}》{{words}} 字',
         title,

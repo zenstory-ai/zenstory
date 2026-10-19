@@ -42,6 +42,8 @@
     "roundUnwrittenFiles": "未确认保存{{files}}",
     "roundSavedFile": "《{{title}}》",
     "roundSavedFileWords": "《{{title}}》{{words}} 字",
+    "roundSavedFilePartial": "《{{title}}》（部分修改未生效）",
+    "roundNoFileChanges": "本轮没有改动文件",
     "roundSavedFilesJoiner": "、",
     "roundSavedFilesMore": "{{files}}等 {{total}} 个文件",
     "creatingSession": "正在创建新对话",
