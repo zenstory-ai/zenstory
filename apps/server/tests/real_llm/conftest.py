@@ -63,8 +63,26 @@ def require_deepseek_key(real_llm_enabled):
     _require_keys("DEEPSEEK_API_KEY")
 
 
+@pytest.fixture(autouse=True)
+def _real_llm_uses_test_db(monkeypatch, db_session: Session):
+    """The agent service opens its own sessions (history, file saves, outcomes): keep them on the test DB."""
+    import database
+    from tests.conftest import TestSessionLocal
+
+    def _test_get_session():
+        session = TestSessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setattr(database, "create_session", TestSessionLocal)
+    monkeypatch.setattr(database, "get_session", _test_get_session)
+    monkeypatch.setattr("agent.service.create_session", lambda: Session(db_session.get_bind()))
+
+
 @pytest.fixture
-def real_user_project(db_session: Session):
+def real_user_project(db_session: Session, writing_prompt_configs):
     suffix = uuid.uuid4().hex[:8]
     username = f"real_llm_{suffix}"
     user = User(
