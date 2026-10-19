@@ -2,7 +2,7 @@
 Integration tests for activation funnel tracking.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
@@ -216,41 +216,37 @@ async def test_admin_activation_funnel_counts_one_signup_cohort_within_a_day(
     assert 0 <= data["activation_rate"] <= 1
 
     steps = {step["event_name"]: step["users"] for step in data["steps"]}
+    # Manual saving is not on the AI activation path (AI-first authors skip it).
     assert list(steps) == [
         ACTIVATION_EVENT_SIGNUP_SUCCESS,
         ACTIVATION_EVENT_PROJECT_CREATED,
-        ACTIVATION_EVENT_FIRST_FILE_SAVED,
         ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
         ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
         ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ]
-
-    # Other xdist workers may share the SQLite DB: compare against this test's users only.
-    funnel_users = {
-        event_name: _cohort_users(db_session, event_name)
-        for event_name in steps
-        if event_name != ACTIVATION_EVENT_SIGNUP_SUCCESS
-    }
-    assert user_a.id in funnel_users[ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED]
-    assert user_b.id in funnel_users[ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT]
-    assert user_b.id not in funnel_users[ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED]
-    assert user_late.id not in funnel_users[ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT]
-    # The signup step is the cohort (customers only), not the signup_success rows.
+    # Steps never grow and no conversion exceeds 100%.
+    counts = list(steps.values())
+    assert counts == sorted(counts, reverse=True)
+    assert all(0 <= (step["conversion_from_previous"] or 0) <= 1 for step in data["steps"])
+    # Other xdist workers may share the SQLite DB: only lower bounds from this test's users.
     assert steps[ACTIVATION_EVENT_SIGNUP_SUCCESS] >= 3
+    assert steps[ACTIVATION_EVENT_PROJECT_CREATED] >= 2  # B messaged without a project_created row
     assert steps[ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT] >= 2
+    assert steps[ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED] >= 1
 
 
-def _cohort_users(db_session: Session, event_name: str) -> set[str]:
-    """Users the service counts for one step (same rule as get_funnel_stats)."""
-    from services.features.activation_event_service import ACTIVATION_FUNNEL_COHORT_HOURS
+def test_funnel_counts_a_user_at_every_step_up_to_the_furthest_within_a_day():
+    from services.features.activation_event_service import furthest_funnel_steps
 
-    rows = db_session.exec(
-        select(ActivationEvent.user_id, ActivationEvent.created_at, User.created_at)
-        .join(User, User.id == ActivationEvent.user_id)
-        .where(ActivationEvent.event_name == event_name, User.is_superuser.is_(False))
-    ).all()
-    return {
-        user_id
-        for user_id, event_at, signed_up_at in rows
-        if event_at - signed_up_at <= timedelta(hours=ACTIVATION_FUNNEL_COHORT_HOURS)
-    }
+    signed_up = datetime(2026, 10, 19, 0, 0)
+    rows = [
+        ("first-work-author", ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT, signed_up + timedelta(hours=1), signed_up),
+        ("activated", ACTIVATION_EVENT_PROJECT_CREATED, signed_up + timedelta(minutes=5), signed_up),
+        ("activated", ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED, signed_up + timedelta(hours=2), signed_up),
+        ("late", ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT, signed_up + timedelta(days=2), signed_up),
+        ("manual-only", ACTIVATION_EVENT_FIRST_FILE_SAVED, signed_up + timedelta(hours=1), signed_up),
+    ]
+
+    furthest = furthest_funnel_steps(rows, observation=timedelta(hours=24))
+
+    assert furthest == {"first-work-author": 2, "activated": 4}

@@ -16,7 +16,6 @@ from models import (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
     ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
-    ACTIVATION_EVENT_FIRST_FILE_SAVED,
     ACTIVATION_EVENT_NAMES,
     ACTIVATION_EVENT_PROJECT_CREATED,
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
@@ -27,12 +26,13 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-# 后台漏斗：同一批新注册用户 24 小时内到达各步的人数。最后一步（AI 写进了作品文件）
-# 就是激活定义，见 feature/2026-10-19-first-message-activation-events.md。
+# 后台漏斗：同一批新注册用户 24 小时内走到各步的人数。最后一步（AI 写进了作品文件）
+# 就是激活定义，见 feature/2026-10-19-first-message-activation-events.md。走到后面一步的人
+# 也计入前面每一步（发过 AI 消息必然有作品），所以各步只减不增。手动保存（first_file_saved）
+# 不在这条 AI 激活链上，用 AI 的作者会跳过它，故不列入。
 ACTIVATION_FUNNEL_ORDER = [
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
     ACTIVATION_EVENT_PROJECT_CREATED,
-    ACTIVATION_EVENT_FIRST_FILE_SAVED,
     ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
     ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
@@ -42,7 +42,6 @@ ACTIVATION_FUNNEL_COHORT_HOURS = 24
 ACTIVATION_FUNNEL_LABELS = {
     ACTIVATION_EVENT_SIGNUP_SUCCESS: "Signup Success",
     ACTIVATION_EVENT_PROJECT_CREATED: "Project Created",
-    ACTIVATION_EVENT_FIRST_FILE_SAVED: "First File Saved",
     ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT: "First AI Message Sent",
     ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED: "First AI Reply Succeeded",
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED: "First AI Action Accepted",
@@ -66,6 +65,22 @@ class ActivationFunnelStats(TypedDict):
     period_end: str
     steps: list[ActivationFunnelStep]
     activation_rate: float
+
+
+def furthest_funnel_steps(rows, *, observation: timedelta) -> dict[str, int]:
+    """Each user's furthest ``ACTIVATION_FUNNEL_ORDER`` index reached within ``observation`` of signup.
+
+    ``rows`` are ``(user_id, event_name, event_at, signed_up_at)``; events outside the
+    observation window or missing a timestamp do not count.
+    """
+    step_index = {event_name: index for index, event_name in enumerate(ACTIVATION_FUNNEL_ORDER)}
+    furthest: dict[str, int] = {}
+    for user_id, event_name, event_at, signed_up_at in rows:
+        index = step_index.get(event_name)
+        if index is None or event_at is None or signed_up_at is None or event_at - signed_up_at > observation:
+            continue
+        furthest[user_id] = max(furthest.get(user_id, 0), index)
+    return furthest
 
 
 class ActivationEventService:
@@ -200,11 +215,13 @@ class ActivationEventService:
             )
 
     def get_funnel_stats(self, session: Session, *, days: int = 7) -> ActivationFunnelStats:
-        """New-user funnel: of the customers who signed up in the window, how many reached
-        each step within ``ACTIVATION_FUNNEL_COHORT_HOURS`` of signing up.
+        """New-user funnel: of the customers who signed up in the window, how many got at least
+        as far as each step within ``ACTIVATION_FUNNEL_COHORT_HOURS`` of signing up.
 
         The cohort is the user table (not ``signup_success`` rows), so accounts created by
-        any path count. Users who signed up less than a day ago are still being observed.
+        any path count. A user who reached a later step counts for every earlier one (a first
+        work created automatically records no ``project_created``), so the steps never grow.
+        Users who signed up less than a day ago are still being observed.
         """
         window_days = max(1, min(days, 90))
         period_end = utcnow()
@@ -223,17 +240,13 @@ class ActivationEventService:
             .join(User, User.id == ActivationEvent.user_id)
             .where(*customer_cohort, ActivationEvent.event_name.in_(ACTIVATION_FUNNEL_ORDER[1:]))
         ).all()
-        reached: dict[str, set[str]] = {event_name: set() for event_name in ACTIVATION_FUNNEL_ORDER[1:]}
-        observation = timedelta(hours=ACTIVATION_FUNNEL_COHORT_HOURS)
-        for user_id, event_name, event_at, signed_up_at in rows:
-            if event_at is not None and signed_up_at is not None and event_at - signed_up_at <= observation:
-                reached[event_name].add(user_id)
+        furthest = furthest_funnel_steps(rows, observation=timedelta(hours=ACTIVATION_FUNNEL_COHORT_HOURS))
 
         steps: list[ActivationFunnelStep] = []
         previous_count: int | None = None
 
-        for event_name in ACTIVATION_FUNNEL_ORDER:
-            count = cohort_size if event_name == ACTIVATION_EVENT_SIGNUP_SUCCESS else len(reached[event_name])
+        for index, event_name in enumerate(ACTIVATION_FUNNEL_ORDER):
+            count = cohort_size if index == 0 else sum(1 for reached in furthest.values() if reached >= index)
 
             conversion: float | None = None
             drop_off: int | None = None

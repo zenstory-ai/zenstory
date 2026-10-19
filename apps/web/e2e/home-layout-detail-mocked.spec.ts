@@ -37,7 +37,8 @@ for (const width of widths) {
       expect(Math.abs(area.x - start.x)).toBeLessThanOrEqual(1);
       expect(Math.abs(area.x + area.width - start.x - start.width)).toBeLessThanOrEqual(1);
     }
-    const formats = await page.locator('[data-tour-id="dashboard-project-type-tabs"] button').all();
+    const formats = await page.getByTestId('dashboard-project-type-tabs').locator('button').all();
+    expect(formats.length).toBeGreaterThan(0);
     const action = (await page.getByTestId('create-project-button').boundingBox())!;
     for (const format of formats) {
       const bounds = (await format.boundingBox())!;

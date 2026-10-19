@@ -17,7 +17,7 @@ ACTIVATION_EVENT_SIGNUP_SUCCESS = "signup_success"
 ACTIVATION_EVENT_PROJECT_CREATED = "project_created"
 ACTIVATION_EVENT_FIRST_FILE_SAVED = "first_file_saved"
 ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED = "first_ai_action_accepted"
-# 作者主动发出的第一条 AI 消息：预扣额度成功、会话不忙（api/agent.py）。
+# 作者主动发出的第一条 AI 消息：预扣额度成功后记录（api/agent.py）。
 ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT = "first_ai_message_sent"
 # 作者第一次有一轮 AI 回复正常结束并计费（stream_billing 的 completed）。
 ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED = "first_ai_reply_succeeded"

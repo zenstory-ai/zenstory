@@ -70,6 +70,11 @@ export default function DashboardHome() {
   const [isQuickCreating, setIsQuickCreating] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
   const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   // An idea held back while today's AI messages were used up comes back after a reload.
   const [inspiration, setInspiration] = useState(() => readHeldDashboardIdea(user?.id));
   const inspirationTooLong = inspiration.length > MAX_AGENT_MESSAGE_CHARS;
@@ -310,9 +315,11 @@ export default function DashboardHome() {
         return;
       }
       rememberCreatedType(activeTab);
-      const created = await importDrafts(project.id, picked, "dashboard");
+      const { files: created } = await importDrafts(project.id, picked, "dashboard");
+      // The author already went elsewhere: do not pull them back to the new work.
+      if (!mountedRef.current) return;
       // A failed upload still opens the new work, where the empty state offers the import again.
-      navigate(created?.length ? `/project/${project.id}?file=${encodeURIComponent(created[0].id)}` : `/project/${project.id}`);
+      navigate(created.length ? `/project/${project.id}?file=${encodeURIComponent(created[0].id)}` : `/project/${project.id}`);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
         toast.error(handleApiError(error));
@@ -353,7 +360,7 @@ export default function DashboardHome() {
       }
 
       // No idea: phones open the new work on the AI tab, where its starter cards are.
-      if (!insp) requestChatOnOpen(projectId);
+      if (!insp && isMobile) requestChatOnOpen(projectId);
 
       // Store inspiration to localStorage for ChatPanel auto-send (if provided)
       if (insp) {
@@ -431,9 +438,7 @@ export default function DashboardHome() {
             </p>
           )}
         <div className="dashboard-composer-footer">
-        <div
-          className="flex flex-wrap items-center gap-1"
-        >
+        <div className="flex flex-wrap items-center gap-1" data-testid="dashboard-project-type-tabs">
           {availableProjectTypes.map((type) => {
             const config = getTranslatedConfig(type);
             const isActive = activeTab === type;

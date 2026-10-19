@@ -926,6 +926,8 @@ describe('ChatPanel mount smoke', () => {
     const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
     expect(request.message).toBe('写一个短篇')
     expect(request.metadata.retry_unanswered).toBe(true)
+    // Still the work's first message: the retry keeps the server's first-message hint.
+    expect(request.metadata.entry).toBe('first_message')
     expect(userBubbles()).toHaveLength(1)
   })
 
@@ -2480,6 +2482,26 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
     expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
     expect(fetchSuggestions).not.toHaveBeenCalled()
+  })
+
+  it('keeps what the author already typed when the example goes into the input', async () => {
+    mockDraft.draft = '主角是外卖员'
+    render(<ChatPanel />)
+
+    fireEvent.click(await screen.findByTestId('starter-edit'))
+
+    expect(mockDraft.saveDraft).toHaveBeenCalledWith(`主角是外卖员\n${screen.getByTestId('starter-message-text').textContent}`)
+    mockDraft.draft = ''
+  })
+
+  it('shows the cards when the only dashboard idea has expired (it will never be sent)', async () => {
+    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({
+      content: '过期的想法', projectType: 'novel', timestamp: Date.now() - 10 * 60 * 1000,
+    }))
+    render(<ChatPanel />)
+
+    expect(await screen.findByTestId('starter-cards')).toBeInTheDocument()
+    expect(mockStartStream).not.toHaveBeenCalled()
   })
 
   it('a chat the author starts with 新对话 keeps the suggestions', async () => {

@@ -166,12 +166,18 @@ const EditorComponent: React.FC<EditorProps> = () => {
   // Authors who arrive with a manuscript import it from the empty state and land on chapter 1.
   const draftInputRef = useRef<HTMLInputElement>(null);
   const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
+  const importProjectIdRef = useRef(currentProjectId);
+  useEffect(() => {
+    importProjectIdRef.current = currentProjectId;
+  }, [currentProjectId]);
   const handleImportDrafts = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!currentProjectId || picked.length === 0) return;
-    const created = await importDrafts(currentProjectId, picked, "editor_empty");
-    if (!created?.length) return;
+    const projectId = currentProjectId;
+    if (!projectId || picked.length === 0) return;
+    const { files: created } = await importDrafts(projectId, picked, "editor_empty");
+    // The author moved to another work meanwhile: its tree and selection are not ours to change.
+    if (!created.length || importProjectIdRef.current !== projectId) return;
     triggerFileTreeRefresh();
     const first = created[0];
     setSelectedItem({ id: first.id, title: first.title, type: first.file_type as TreeNodeType });

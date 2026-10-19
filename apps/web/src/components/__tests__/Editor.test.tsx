@@ -389,6 +389,25 @@ describe('Editor', () => {
     expect(mockProjectContext.triggerFileTreeRefresh).toHaveBeenCalled()
   })
 
+  it('leaves the newly opened work alone when an import finishes after the author switched works', async () => {
+    let finish!: (value: unknown) => void
+    vi.mocked(api.fileApi.uploadDraft).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }) as never)
+    mockProjectContext = createMockProjectContext({ selectedItem: null })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+
+    fireEvent.change(screen.getByTestId('empty-state-import-input'), { target: { files: [new File(['第一章'], 'draft.md')] } })
+    const setSelectedItem = mockProjectContext.setSelectedItem
+    const triggerFileTreeRefresh = mockProjectContext.triggerFileTreeRefresh
+    mockProjectContext = { ...mockProjectContext, currentProjectId: 'project-2' }
+    rerender(<UnmemoizedEditor />)
+    finish({ files: [{ id: 'chapter-1', title: '第一章', file_type: 'draft' }], total: 1, errors: [] })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(setSelectedItem).not.toHaveBeenCalled()
+    expect(triggerFileTreeRefresh).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['desktop', false, 'focusChatInput'],
     ['phone', true, 'switchToChat'],

@@ -367,14 +367,12 @@ async def test_admin_dashboard_activation_funnel_returns_step_counts(
     assert list(steps) == [
         ACTIVATION_EVENT_SIGNUP_SUCCESS,
         ACTIVATION_EVENT_PROJECT_CREATED,
-        ACTIVATION_EVENT_FIRST_FILE_SAVED,
         "first_ai_message_sent",
         "first_ai_reply_succeeded",
         ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ]
     assert steps[ACTIVATION_EVENT_SIGNUP_SUCCESS] >= 2
     assert steps[ACTIVATION_EVENT_PROJECT_CREATED] >= 1
-    assert steps[ACTIVATION_EVENT_FIRST_FILE_SAVED] >= 1
     assert steps[ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED] >= 1
 
 

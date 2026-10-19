@@ -95,7 +95,6 @@ test.describe("Onboarding persona flow", () => {
             rollout_at: "2024-01-01T00:00:00Z",
             new_user_window_days: 30,
             profile: null,
-            recommendations: [],
           }),
         });
         return;
@@ -117,7 +116,6 @@ test.describe("Onboarding persona flow", () => {
               // Server default when the experience question is left unanswered.
               experience_level: lastSubmittedPayload?.experience_level ?? "beginner",
             },
-            recommendations: [],
           }),
         });
         return;
@@ -213,7 +211,7 @@ test.describe("Onboarding gate regression", () => {
         status: 200,
         json: {
           required: true, rollout_at: "2026-03-05T16:00:00Z", new_user_window_days: 7,
-          profile: null, recommendations: [],
+          profile: null,
         },
       });
     });

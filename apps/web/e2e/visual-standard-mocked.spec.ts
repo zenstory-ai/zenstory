@@ -113,7 +113,7 @@ for (const theme of ['light', 'dark']) {
           };
           return {
             primary: measure('[data-testid="create-project-button"]', '[data-testid="dashboard-composer"]'),
-            selected: measure('[data-tour-id="dashboard-project-type-tabs"] [aria-pressed="true"]', '[data-testid="dashboard-composer"]'),
+            selected: measure('[data-testid="dashboard-project-type-tabs"] [aria-pressed="true"]', '[data-testid="dashboard-composer"]'),
             secondary: measure('.dashboard-start p', '.dashboard-shell'),
             headingFont: getComputedStyle(document.querySelector('h1')!).fontFamily,
             secondarySurface: getComputedStyle(document.querySelector('[data-testid="dashboard-composer"]')!).backgroundColor,

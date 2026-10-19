@@ -9,11 +9,18 @@ import type { File as ProjectFile } from "../types";
 /** What the draft upload accepts (the server splits each file by chapter headings). */
 export const DRAFT_IMPORT_ACCEPT = ".txt,.md";
 
+export interface DraftImportResult {
+  /** Chapters created before the batch ended (all of them, or those before a failure or unmount). */
+  files: ProjectFile[];
+  /** An upload failed; its error was shown as a toast. */
+  failed: boolean;
+}
+
 /**
  * Import an author's manuscript files into a project's draft folder: the file tree's 「+」,
- * the editor's empty state, the chat's 「看看我的稿子」 card and the dashboard all use this.
- * Uploading never calls a model. Returns the created chapters (possibly empty), or null when
- * the upload failed; errors are shown as toasts.
+ * the editor's empty state and the dashboard all use this. Uploading never calls a model.
+ * Files go up one at a time; leaving the page stops the batch after the current file (no
+ * toasts then). Whatever was created is always returned so the caller can show it.
  */
 export function useDraftImport() {
   const { t } = useTranslation(["editor"]);
@@ -28,9 +35,10 @@ export function useDraftImport() {
     projectId: string,
     files: FileList | readonly globalThis.File[],
     entry: string,
-  ): Promise<ProjectFile[] | null> => {
+  ): Promise<DraftImportResult> => {
     const list = Array.from(files);
-    if (list.length === 0) return [];
+    const created: ProjectFile[] = [];
+    if (list.length === 0) return { files: created, failed: false };
     setIsImporting(true);
 
     const errorCodeMap: Record<string, string> = {
@@ -51,16 +59,15 @@ export function useDraftImport() {
 
     try {
       const allErrors: string[] = [];
-      const created: ProjectFile[] = [];
       let chapters = 0;
       for (const file of list) {
-        if (!mountedRef.current) return null;
+        if (!mountedRef.current) return { files: created, failed: false };
         const result = await fileApi.uploadDraft(projectId, file);
         created.push(...(result.files ?? []));
         chapters += result.total ?? result.files?.length ?? 0;
         if (result.errors?.length) allErrors.push(...result.errors.map(translateError));
       }
-      if (!mountedRef.current) return null;
+      if (!mountedRef.current) return { files: created, failed: false };
       if (allErrors.length > 0) toast.error(allErrors.join("\n"));
       if (chapters > 0) {
         toast.success(t("editor:fileTree.draftUploadSuccess", { count: chapters }));
@@ -68,13 +75,13 @@ export function useDraftImport() {
         toast.info(t("editor:fileTree.draftUploadEmpty"));
       }
       trackEvent("draft_imported", { project_id: projectId, entry, file_count: list.length, chapter_count: chapters });
-      return created;
+      return { files: created, failed: false };
     } catch (error) {
       logger.error("Failed to upload draft:", error);
       if (mountedRef.current) {
         toast.error(error instanceof Error ? error.message : t("editor:fileTree.uploadFailed"));
       }
-      return null;
+      return { files: created, failed: true };
     } finally {
       if (mountedRef.current) setIsImporting(false);
     }

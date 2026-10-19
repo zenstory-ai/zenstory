@@ -699,12 +699,17 @@ describe('DashboardHome featured inspirations section', () => {
     mockIsMobile = false
   })
 
-  it('asks phones to open an idea-less new work on the AI tab, but not one with an idea', async () => {
+  it.each([
+    ['phone', true, true],
+    ['desktop', false, false],
+  ])('on a %s, an idea-less new work asks to open on the AI tab: %s', async (_name, isMobile, expected) => {
+    mockIsMobile = isMobile
     renderDashboardHome()
     fireEvent.click(screen.getByTestId('create-project-button'))
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
-    expect(localStorage.getItem('zenstory_open_chat_project-created')).not.toBeNull()
+    expect(localStorage.getItem('zenstory_open_chat_project-created') !== null).toBe(expected)
     localStorage.removeItem('zenstory_open_chat_project-created')
+    mockIsMobile = false
   })
 
   it('creates a project with an idea at the 20000 character boundary', async () => {
