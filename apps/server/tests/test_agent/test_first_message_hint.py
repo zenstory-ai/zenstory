@@ -268,3 +268,65 @@ async def test_first_conversation_check_failure_means_no_hint(agent_service, db_
     monkeypatch.setattr(service_module, "_project_has_ai_reply", broken)
 
     assert await agent_service._is_first_ai_conversation(db_session, project.id) is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("first_message_label", "expected_agents"),
+    [("长篇小说", ["writer"]), ("", ["writer", "quality_reviewer"])],
+)
+async def test_first_message_round_ends_with_the_writers_own_summary(first_message_label, expected_agents):
+    """高质量模式下，作品第一条消息写完开头不自动送审：作者看到的总结是「写了什么」，不是返修记录。"""
+    from unittest.mock import AsyncMock
+
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.graph.writing_graph import run_writing_workflow_streaming
+    from agent.tools.mcp_tools import ToolContext
+    from tests.test_agent.body_write_events import edit_file_events
+
+    agents: list[str] = []
+
+    async def fake_agent(_state, agent_type, *_args, **_kwargs):
+        agents.append(agent_type)
+        if agent_type == "writer":
+            for event in edit_file_events("e1", "灯芯烧得只剩一指长。" * 80):
+                yield event
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写好了第一章开头。"})
+        else:
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "审完了。[TASK_COMPLETE]"})
+
+    state = {
+        "user_message": IDEA,
+        "messages": [],
+        "system_prompt": "",
+        "generation_mode": "quality",
+        "first_message_project_label": first_message_label,
+    }
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        with (
+            patch(
+                "agent.graph.writing_graph.router_node",
+                AsyncMock(return_value={"routing_metadata": {"write_content": True}}),
+            ),
+            patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
+            patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
+        ):
+            events = [
+                event
+                async for event in run_writing_workflow_streaming(
+                    state=state, thread_id="first-message", auto_review_threshold=100
+                )
+            ]
+    finally:
+        ToolContext.clear_context()
+
+    assert agents == expected_agents
+    if not first_message_label:
+        return
+    # 没有送审，writer 的总结不会被扣下丢掉。
+    holds = [e.data.get("action") for e in events if e.type == StreamEventType.CHAT_HOLD]
+    assert "discard" not in holds
+    assert "写好了第一章开头。" in "".join(
+        str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT
+    )

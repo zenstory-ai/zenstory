@@ -1699,6 +1699,10 @@ async def run_writing_workflow_streaming(
         elif generation_mode == "quality":
             router_strategy = "llm"
             enable_graph_auto_review = True
+        # 作品的第一条消息：作者还没看过任何产出，最后读到的应是这一轮写了什么。送审返修后
+        # 唯一的总结出自返修稿，只剩修改记录，所以这一轮不自动送审；作者要审稿时路由照常安排。
+        if state.get("first_message_project_label"):
+            enable_graph_auto_review = False
 
         # 上一轮以工具调用轮数耗尽 / 无进展停止收尾，用户只回了一句「继续」：直接交给
         # 上一轮的 agent 走 quick 工作流，不再重新做多 agent 规划（规划会从头再读一遍）。
