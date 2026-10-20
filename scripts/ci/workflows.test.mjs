@@ -158,6 +158,7 @@ test("backend CI runs PostgreSQL regressions serially against a dedicated databa
   assert.match(step, /tests\/test_api\/test_chat_history_order_postgres\.py/);
   assert.match(step, /tests\/test_agent\/test_query_files_summary_projection\.py/);
   assert.match(step, /tests\/test_agent\/test_failed_generation_finalization_postgres\.py/);
+  assert.match(step, /tests\/test_agent\/test_update_project_lock_postgres\.py/);
   assert.match(step, /tests\/test_services\/test_project_capacity_concurrency_postgres\.py/);
   assert.match(step, /tests\/test_services\/test_snapshot_cleanup\.py/);
   assert.match(step, /tests\/test_services\/test_snapshot_concurrency_postgres\.py/);

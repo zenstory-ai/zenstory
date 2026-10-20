@@ -491,6 +491,11 @@ class ProjectOperations:
             project.updated_at = utcnow()
             self.session.commit()
             self.session.refresh(project)
+        else:
+            # Nothing to write, but the FOR UPDATE above must not outlive this call: the tool
+            # records its artifact ledger in a separate session right after, and that insert
+            # waits on this row. Returning with the lock held deadlocked the request (2026-10-20).
+            self.session.commit()
 
         result: dict[str, Any] = {
             "project_id": project.id,
