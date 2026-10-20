@@ -56,6 +56,7 @@ async def _update_project(session, user, project, args, *, author_message=None, 
         # The dashboard numbers a default name the author already uses (2026-10-20).
         ("我的小说 2", "novel"),
         ("My Novel 12", "novel"),
+        ("我的小说 99", "novel"),
     ],
 )
 async def test_default_project_name_is_replaced_by_the_work_title(db_session, owner, default_name, project_type):
@@ -232,3 +233,30 @@ def test_update_project_schema_does_not_expose_model_authority_flag():
     assert "author_requested" not in properties
     assert "author_requested" not in UPDATE_PROJECT_TOOL["description"]
     assert "title_note" in properties["title"]["description"]
+
+
+@pytest.mark.parametrize("name", ["我的小说 2024", "我的小说 1", "我的小说 100", "我的小说2"])
+async def test_numbered_names_beyond_what_the_dashboard_makes_stay_the_authors(db_session, owner, name):
+    """The dashboard numbers duplicates from 2 (「我的小说 2」); a year or other number is the author's."""
+    project = _project(db_session, owner, name)
+
+    payload = await _update_project(db_session, owner, project, {"title": "雾港来信"})
+
+    assert payload["data"]["project_name_updated"] is False
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == name
+
+
+def test_update_project_status_ends_its_transaction_when_nothing_changes(db_session, owner):
+    """The FOR UPDATE row lock must not outlive the call: the tool writes its artifact ledger in a
+    separate session right after (2026-10-20 production deadlock)."""
+    from agent.tools.file_ops.project import ProjectOperations
+
+    project = _project(db_session, owner, "作者自己起的名字")
+
+    result = ProjectOperations(db_session, owner.id).update_project_status(
+        project_id=project.id, title="雾港来信"
+    )
+
+    assert result["project_name_updated"] is False
+    assert not db_session.in_transaction()

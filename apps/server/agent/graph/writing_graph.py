@@ -2031,8 +2031,11 @@ async def run_writing_workflow_streaming(
             # 最后一次工具调用之后的文本：agent 收尾时对用户说的话，用于识别
             # 「以向用户提问结束」（此时不能替用户做决定继续自动交接）。
             agent_tail_text: str = ""
-            # 交接调用前 writer 对作者说的话（tail 在每次工具事件处清空，交接调用本身也会清空它）。
+            # 交接调用前 writer 对作者说的话。一次回复里的多个工具调用先全部发出、再出结果，tail 在
+            # 每个工具事件处清空，所以按「这一批工具调用之前」记，而不是按交接调用那一刻。
             prose_before_handoff = ""
+            prose_before_tool_turn = ""
+            tool_turn_open = False
             handoff_packet: dict[str, Any] | None = None
             explicit_handoff_event_data: dict[str, Any] | None = None
             clarification_stopped = False
@@ -2129,12 +2132,16 @@ async def run_writing_workflow_streaming(
                     agent_content += text
                     accumulated_content += text
                     agent_tail_text += text
+                    tool_turn_open = False
                 elif event.type in (StreamEventType.TOOL_USE, StreamEventType.TOOL_RESULT):
-                    if (
-                        event.type == StreamEventType.TOOL_USE
-                        and event.data.get("name") == "handoff_to_agent"
-                    ):
-                        prose_before_handoff = agent_tail_text
+                    if event.type == StreamEventType.TOOL_USE:
+                        if not tool_turn_open:
+                            prose_before_tool_turn = agent_tail_text
+                            tool_turn_open = True
+                        if event.data.get("name") == "handoff_to_agent":
+                            prose_before_handoff = prose_before_tool_turn
+                    else:
+                        tool_turn_open = False
                     agent_tail_text = ""
 
                 if (
@@ -2672,9 +2679,12 @@ async def run_writing_workflow_streaming(
                 and current_agent_type == "writer"
                 and next_agent == "quality_reviewer"
             ):
+                # 作者在生成中途发来的话由下面的 steering 追加轮处理（它也会给作者写总结），
+                # 只写总结的一轮会把它丢掉。
                 needs_summary = (
                     not first_round_summary_rerun_used
                     and not prose_before_handoff.strip()
+                    and not mid_run_steering_seen
                     and iteration < max_iterations
                 )
                 log_with_context(

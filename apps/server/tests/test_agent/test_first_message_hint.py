@@ -334,19 +334,24 @@ async def test_first_message_round_ends_with_the_writers_own_summary(first_messa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("first_message_label", "prose_before_handoff", "expected_agents"),
+    ("first_message_label", "prose_before_handoff", "turn", "expected_agents"),
     [
         # The writer hands its fresh opening to the reviewer without a word to the author (as the
         # reply protocol asks before a handoff): it summarizes itself instead, no review.
-        ("长篇小说", "", ["writer", "writer"]),
+        ("长篇小说", "", "handoff_only", ["writer", "writer"]),
         # It already told the author what it wrote: just drop the review.
-        ("长篇小说", "写好了第一章开头，约 800 字。", ["writer"]),
+        ("长篇小说", "写好了第一章开头，约 800 字。", "handoff_only", ["writer"]),
+        # Same, with another tool called in the same turn before the handoff.
+        ("长篇小说", "写好了第一章开头，约 800 字。", "with_update_project", ["writer"]),
+        # The author sent a message mid-run: the steering follow-up round handles it, not a
+        # summary-only rerun that would ignore it.
+        ("长篇小说", "", "with_steering", ["writer", "writer"]),
         # Later rounds keep the writer's own handoff to review.
-        ("", "", ["writer", "quality_reviewer"]),
+        ("", "", "handoff_only", ["writer", "quality_reviewer"]),
     ],
 )
 async def test_first_message_round_does_not_follow_the_writers_own_review_handoff(
-    first_message_label, prose_before_handoff, expected_agents
+    first_message_label, prose_before_handoff, turn, expected_agents
 ):
     """2026-10-20 production sample: with the auto-review gate off, the writer still called
     handoff_to_agent(quality_reviewer); a rework would have left the author a fix log."""
@@ -363,10 +368,18 @@ async def test_first_message_round_does_not_follow_the_writers_own_review_handof
         calls.append((agent_type, str(state.get("user_message") or "")))
         writer_runs = sum(1 for agent, _ in calls if agent == "writer")
         if agent_type == "writer" and writer_runs == 1:
+            yield StreamEvent(type=StreamEventType.MESSAGE_START, data={})
             for event in edit_file_events("e1", "灯芯烧得只剩一指长。" * 80):
                 yield event
+            if turn == "with_steering":
+                yield StreamEvent(type=StreamEventType.STEERING_RECEIVED, data={"message": "主角改成女的"})
             if prose_before_handoff:
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": prose_before_handoff})
+            if turn == "with_update_project":
+                yield StreamEvent(
+                    type=StreamEventType.TOOL_USE,
+                    data={"id": "u1", "name": "update_project", "status": "complete", "input": {}},
+                )
             yield StreamEvent(
                 type=StreamEventType.TOOL_USE,
                 data={"id": "h1", "name": "handoff_to_agent", "status": "complete", "input": {}},
@@ -411,7 +424,11 @@ async def test_first_message_round_does_not_follow_the_writers_own_review_handof
         return
     assert not [e for e in events if e.type == StreamEventType.HANDOFF]
     text = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
-    if len(calls) == 2:
+    if turn == "with_steering":
+        # The second run follows the author's new message, not the summary-only instruction.
+        assert "不送审" not in calls[1][1]
+        assert "新的引导消息" in calls[1][1]
+    elif len(calls) == 2:
         # The second writer run is told to write only the author's summary.
         assert "不送审" in calls[1][1]
         assert "写好了第一章《九十三天》。" in text

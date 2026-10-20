@@ -65,7 +65,8 @@ async def test_init_db_isolates_each_optional_postgres_index(monkeypatch):
     await database.init_db()
 
     assert connection.executed == [
-        # The lock timeout covers every optional index, so none can wait behind a held lock.
+        # Bounded lock waits: schema creation first, then a shorter one for every optional index.
+        f"SET LOCAL lock_timeout = '{database.STARTUP_SCHEMA_LOCK_TIMEOUT_MS}ms'",
         f"SET LOCAL lock_timeout = '{database.STARTUP_INDEX_LOCK_TIMEOUT_MS}ms'",
         "CREATE INDEX prior_index",
         "CREATE INDEX broken_middle",
@@ -189,5 +190,59 @@ async def test_init_db_skips_an_index_whose_table_is_locked_instead_of_waiting(m
         await holder.close()
         async with engine.begin() as conn:
             for name in (locked_table, free_table):
+                await conn.execute(text(f"DROP TABLE IF EXISTS {name} CASCADE"))
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_init_db_fails_fast_when_a_new_tables_reference_is_locked(monkeypatch):
+    """A new table's foreign key locks the table it references: startup must fail within the bound
+    (the old deployment keeps serving) instead of waiting, and queueing writers, indefinitely."""
+    import asyncio
+
+    from sqlalchemy import ForeignKey
+    from sqlalchemy.exc import DBAPIError
+
+    postgres_url = os.getenv("ZENSTORY_TEST_POSTGRES_URL")
+    if not postgres_url:
+        pytest.skip("isolated PostgreSQL URL not configured")
+
+    async_url = postgres_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    engine = create_async_engine(async_url, pool_pre_ping=True)
+    suffix = uuid4().hex[:12]
+    parent_table = f"zs_parent_{suffix}"
+    child_table = f"zs_child_{suffix}"
+    existing = MetaData()
+    Table(parent_table, existing, Column("id", Integer, primary_key=True))
+    async with engine.begin() as conn:
+        await conn.run_sync(existing.create_all)
+    with_new_table = MetaData()
+    Table(parent_table, with_new_table, Column("id", Integer, primary_key=True))
+    Table(
+        child_table,
+        with_new_table,
+        Column("id", Integer, primary_key=True),
+        Column("parent_id", Integer, ForeignKey(f"{parent_table}.id")),
+    )
+
+    monkeypatch.setattr(database, "is_postgres", True)
+    monkeypatch.setattr(database, "async_engine", engine)
+    monkeypatch.setattr(database.SQLModel, "metadata", with_new_table)
+    monkeypatch.setattr(database, "STARTUP_SCHEMA_LOCK_TIMEOUT_MS", 300)
+    monkeypatch.setattr(database, "COMMON_PERFORMANCE_INDEX_SQL", ())
+    monkeypatch.setattr(database, "POSTGRES_PERFORMANCE_INDEX_SQL", ())
+
+    holder = await engine.connect()
+    holder_tx = await holder.begin()
+    try:
+        await holder.execute(text(f"INSERT INTO {parent_table} (id) VALUES (1)"))
+
+        with pytest.raises(DBAPIError):
+            await asyncio.wait_for(database.init_db(), timeout=15)
+    finally:
+        await holder_tx.rollback()
+        await holder.close()
+        async with engine.begin() as conn:
+            for name in (child_table, parent_table):
                 await conn.execute(text(f"DROP TABLE IF EXISTS {name} CASCADE"))
         await engine.dispose()

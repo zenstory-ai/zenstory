@@ -25,8 +25,11 @@
 ## Decision
 
 - **`ProjectOperations.update_project_status` 每条路径都结束事务**：有改动照旧 commit + refresh；没有改动也 commit。这里不用 rollback，因为测试和 SQLite 内联路径可能共用请求级 session，rollback 会丢掉别的未提交改动。之后再写 ledger 时，项目行上已经没有锁。
-- **启动时的可选索引带 `lock_timeout`**：`init_db` 在 `create_all` 之后、可选索引之前执行 `SET LOCAL lock_timeout = '3000ms'`（`STARTUP_INDEX_LOCK_TIMEOUT_MS`）。表被锁住时，这条索引照旧记 `Skipped creating performance index` 跳过，下次启动再建；启动不再无限等，也不会让后来的写入排在它后面。`create_all` 不受影响。
-- **带编号的默认名仍算默认名**：`is_default_project_name`。模板原名，或原名加「空格+正整数」（「我的小说 2」、「My Novel 12」），都可以被 AI 起的作品名替换；作者起的名字照旧不动。
+- **启动 DDL 等锁有上限**：
+  - `create_all` 之前执行 `SET LOCAL lock_timeout = '30000ms'`（`STARTUP_SCHEMA_LOCK_TIMEOUT_MS`）。新表的外键要锁住被引用的表，等不到就让启动失败，旧部署继续服务，换个时间再部署；不会无限等，也不会让写入排在它后面。表都已存在时，`create_all` 只读目录，不受影响。
+  - 可选索引之前改为 `SET LOCAL lock_timeout = '3000ms'`（`STARTUP_INDEX_LOCK_TIMEOUT_MS`）。表被锁住时，这条索引照旧记 `Skipped creating performance index` 跳过，下次启动再建。
+  - （`create_all` 的上限是独立代码审查后补上的。）
+- **带编号的默认名仍算默认名**：`is_default_project_name`。模板原名，或原名加「空格+2–99」（工作台生成的编号，如「我的小说 2」「My Novel 12」），都可以被 AI 起的作品名替换。作者起的名字照旧不动。「我的小说 2024」「我的小说 1」「我的小说 100」不是工作台生成的编号，算作者起的。
 
 ## Alternatives considered
 
@@ -52,9 +55,14 @@
 - **代价**：
   - 表被锁住时，可选索引这次启动建不成，要到下次启动。这些索引只影响查询性能。
   - 用户自己起名为「我的小说 2」这样的名字也会被当成默认名，和「我的小说」本身的处理一致。
+  - 发布时若有新表、且被引用的表正被长时间锁住，启动会在 30 秒后失败，这次部署不生效，需要重新部署。
 - **验证**：
   - PostgreSQL 回归（CI 的串行 PostgreSQL 车道）：
     - `tests/test_agent/test_update_project_lock_postgres.py`：作者起名、名字未变、标题无效三种只带标题的调用，都要写进 ledger。连接带 2 秒 `lock_timeout`，旧代码下预期因锁超时少写一条 ledger，不会挂住。这一点依据 PostgreSQL 的锁规则（`FOR UPDATE` 与外键需要的 key share 锁冲突），与生产事故里两个连接的表现一致；CI 没有对旧代码单独跑过这条用例。
     - `tests/test_core/test_database_startup.py::test_init_db_skips_an_index_whose_table_is_locked_instead_of_waiting`：另一个连接持有写事务时，`init_db` 15 秒内完成，被锁的索引跳过，另一张表的索引照建。
-  - `tests/test_agent/test_update_project_title.py`：新增「我的小说 2」「My Novel 12」两例，改动前失败。
+  - `tests/test_agent/test_update_project_title.py`：
+    - 「我的小说 2」「My Novel 12」「我的小说 99」可以被替换，改动前失败。
+    - 「我的小说 2024」「我的小说 1」「我的小说 100」「我的小说2」保持不动。
+    - `test_update_project_status_ends_its_transaction_when_nothing_changes`：SQLite 上直接验证无改动路径结束了事务。去掉那行 commit 后这条失败（本地已验证）。
+  - `tests/test_core/test_database_startup.py::test_init_db_fails_fast_when_a_new_tables_reference_is_locked`：被引用的表有写事务时，`init_db` 在上限内抛错，而不是挂住（PostgreSQL 车道）。
   - 本地没有 PostgreSQL，两条 PostgreSQL 用例只在 CI 跑。

@@ -51,7 +51,8 @@ DEFAULT_PROJECT_NAMES = frozenset(
     | {"我的项目", "未命名项目", "Untitled"}
 ) - {""}
 # The dashboard numbers a default name the author already uses (「我的小说 2」); still a default.
-_NUMBERED_DEFAULT_NAME = re.compile(r"^(?P<base>.+) (?P<number>[1-9][0-9]*)$")
+# Only the numbers it makes (2–99): a year or other number after the name is the author's.
+_NUMBERED_DEFAULT_NAME = re.compile(r"^(?P<base>.+) (?P<number>[2-9]|[1-9][0-9])$")
 
 
 def is_default_project_name(name: str) -> bool:

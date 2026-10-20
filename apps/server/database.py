@@ -146,8 +146,11 @@ POSTGRES_PERFORMANCE_INDEX_SQL: tuple[str, ...] = (
 )
 
 
-# Optional startup indexes never wait behind a held table lock: a waiting CREATE INDEX also queues
-# every later write to that table and keeps startup from reaching the healthcheck (2026-10-20).
+# Startup DDL never waits unboundedly behind a held table lock: a waiting statement also queues every
+# later write to that table and keeps startup from reaching the healthcheck (2026-10-20).
+# - New tables (create_all) lock the tables they reference: wait a while, then fail startup fast.
+# - Optional indexes: give up quickly and skip; the next start creates them.
+STARTUP_SCHEMA_LOCK_TIMEOUT_MS = 30000
 STARTUP_INDEX_LOCK_TIMEOUT_MS = 3000
 
 
@@ -163,6 +166,9 @@ async def init_db():
     try:
         if is_postgres and async_engine:
             async with async_engine.begin() as conn:
+                await conn.execute(
+                    text(f"SET LOCAL lock_timeout = '{int(STARTUP_SCHEMA_LOCK_TIMEOUT_MS)}ms'")
+                )
                 await conn.run_sync(SQLModel.metadata.create_all)
                 await conn.execute(
                     text(f"SET LOCAL lock_timeout = '{int(STARTUP_INDEX_LOCK_TIMEOUT_MS)}ms'")
