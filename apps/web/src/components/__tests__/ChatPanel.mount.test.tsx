@@ -1901,13 +1901,15 @@ describe('ChatPanel mount smoke', () => {
 
   const REPLY_WITH_OPTIONS = '写好了第一章开头。\n\n想换个方向的话，可以回我一句：\n- 「主角改成女性」\n- 「开头先写一场宫宴」'
 
-  it('turns the options a finished reply ends with into the chips, without asking for others', async () => {
+  it('leads the chips with the options a finished reply ends with, then fills the rest with a step forward', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       withEarlierTurn()
       render(<ChatPanel />)
       await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
       await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      let fill!: (suggestions: string[]) => void
+      vi.mocked(fetchSuggestions).mockReturnValueOnce(new Promise(resolve => { fill = resolve }))
       mockStreamSnapshot.items = [{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS, timestamp: new Date() }]
 
       await act(async () => {
@@ -1915,21 +1917,37 @@ describe('ChatPanel mount smoke', () => {
       })
       await act(async () => { vi.advanceTimersByTime(1600) })
 
+      // The reply's own options are tappable at once …
       await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴']))
-      expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
-      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+      // … and the model fills the last slot, skipping what the reply already offered.
+      await act(async () => { fill(['主角改成女性', '按设定写第二章正文', '先列前三章大纲']) })
+      await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴', '按设定写第二章正文']))
+      expect(JSON.parse(localStorage.getItem('zenstory_suggestions_cache_project-1')!).suggestions).toHaveLength(3)
     } finally { vi.useRealTimers() }
   })
 
-  it('opens a chat whose last reply offered options with those options as the chips', async () => {
+  it('opens a chat whose last reply offered options with those options leading the chips', async () => {
     vi.mocked(getRecentMessages).mockResolvedValueOnce([{
       id: 'msg-options', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
       tool_calls: null, created_at: '2026-10-05T10:00:00Z', metadata: null,
     }] as never)
+    vi.mocked(fetchSuggestions).mockResolvedValueOnce(['按设定写第二章正文'])
     render(<ChatPanel />)
 
-    await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴']))
-    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+    await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴', '按设定写第二章正文']))
+  })
+
+  it('keeps the offered options when the request for the rest fails', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-options', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z', metadata: null,
+    }] as never)
+    vi.mocked(fetchSuggestions).mockResolvedValueOnce(null)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+    expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴'])
+    expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
   })
 
   it('uses local fallback only when the suggestion request fails', async () => {

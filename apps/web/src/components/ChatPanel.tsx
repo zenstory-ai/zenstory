@@ -249,6 +249,7 @@ const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[]
   !result.saved && result.fileId ? { keepFileIds: [result.fileId] } : undefined;
 
 const STARTER_HIGHLIGHT_MS = 1600;
+const SUGGESTION_COUNT = 3;
 const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
 const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -846,28 +847,42 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const fetchAndApplySuggestions = useCallback(async (
     projectId: string,
     sourceMessages: Message[],
-    options?: { allowFallback?: boolean }
+    options?: { allowFallback?: boolean; lead?: string[] }
   ): Promise<string[] | null> => {
+    // Options the last reply offered in the author's words lead, shown at once; the model fills
+    // the remaining slots, so a step forward ("write chapter 2") stays one tap away.
+    const lead = options?.lead ?? [];
+    const keepLead = () => {
+      writeSuggestionCache(projectId, lead);
+      return lead;
+    };
+    if (lead.length > 0) {
+      setAiSuggestions(lead);
+      setSuggestionDisplayState("ready");
+      if (lead.length >= SUGGESTION_COUNT) return keepLead();
+    }
     const allowed = await canRequestSuggestions(projectId);
     if (currentProjectIdRef.current !== projectId) return null;
     if (!allowed) {
-      setAiSuggestions([]);
+      setAiSuggestions(lead);
       setSuggestionDisplayState("ready");
-      return [];
+      return lead;
     }
-    const suggestions = await fetchSuggestions(projectId, toRecentMessages(sourceMessages), 3);
+    const fetched = await fetchSuggestions(projectId, toRecentMessages(sourceMessages), SUGGESTION_COUNT);
 
     // Ignore stale responses from previous projects/requests.
     if (currentProjectIdRef.current !== projectId) {
       return null;
     }
 
-    if (suggestions !== null) {
+    if (fetched !== null) {
+      const suggestions = [...lead, ...fetched.filter((item) => !lead.includes(item))].slice(0, SUGGESTION_COUNT);
       setAiSuggestions(suggestions);
       setSuggestionDisplayState("ready");
       writeSuggestionCache(projectId, suggestions);
       return suggestions;
     }
+    if (lead.length > 0) return keepLead();
 
     if (options?.allowFallback && aiSuggestionsRef.current.length === 0) {
       setSuggestionDisplayState("fallback");
@@ -894,10 +909,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       ? optionsOfferedInReply(lastLoaded.content)
       : null;
     if (offered) {
-      // The last reply ended with options in the author's words: they are the chips, as offered.
-      setAiSuggestions(offered);
-      setSuggestionDisplayState("ready");
-      writeSuggestionCache(projectId, offered);
+      await fetchAndApplySuggestions(projectId, sourceMessages, { lead: offered });
       return;
     }
 
@@ -940,7 +952,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (firstResult.suggestions === null && aiSuggestionsRef.current.length === 0) {
       setSuggestionDisplayState("fallback");
     }
-  }, [canRequestSuggestions, fetchAndApplySuggestions, readCachedSuggestions, setAiSuggestions, writeSuggestionCache]);
+  }, [canRequestSuggestions, fetchAndApplySuggestions, readCachedSuggestions, setAiSuggestions]);
 
   const finalizePendingContextClears = useCallback(() => {
     if (pendingMaterialClearRef.current) {
@@ -1159,18 +1171,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           return;
         }
         lastAutoSuggestionKeyRef.current = suggestionKey;
-        // The reply ended with options in the author's words: those are the chips, with no
-        // separate model call that could suggest something else.
         const offered = lastMessage?.role === "assistant" ? optionsOfferedInReply(lastMessage.content) : null;
-        if (offered) {
-          setAiSuggestions(offered);
-          writeSuggestionCache(currentProjectId, offered);
-          lastAutoSuggestionStateRef.current = "ready";
-          setSuggestionDisplayState("ready");
-          return;
-        }
         try {
-          const result = await fetchAndApplySuggestions(currentProjectId, currentMessages, { allowFallback: true });
+          const result = await fetchAndApplySuggestions(currentProjectId, currentMessages, {
+            allowFallback: true,
+            lead: offered ?? undefined,
+          });
           if (currentProjectIdRef.current !== currentProjectId || lastAutoSuggestionKeyRef.current !== suggestionKey) return;
           const displayState = result === null && aiSuggestionsRef.current.length === 0 ? "fallback" : "ready";
           lastAutoSuggestionStateRef.current = displayState;
@@ -1195,8 +1201,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     invalidateQuota,
     refreshNextStep,
     queryClient, userId,
-    setAiSuggestions,
-    writeSuggestionCache,
   ]);
 
   // Agent stream hook - uses callbacks from useChatStreaming hook
