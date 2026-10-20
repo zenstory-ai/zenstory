@@ -15,13 +15,13 @@ from sqlalchemy import create_engine
 from sqlmodel import Session, SQLModel, select
 
 from agent.tools import mcp_tools
-from models import AgentArtifactLedger, Project, User
+from models import AgentArtifactLedger, ChatSession, Project, User
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured",
 )
 
-TABLES = [User.__table__, Project.__table__, AgentArtifactLedger.__table__]
+TABLES = [User.__table__, Project.__table__, ChatSession.__table__, AgentArtifactLedger.__table__]
 
 
 @pytest.fixture
