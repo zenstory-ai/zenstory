@@ -235,7 +235,11 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
       if (!ownsOperation(operation)) return;
       setSuccess(true);
 
+      // Signing in usually routes the author on before this fires; once the page is gone the
+      // redirect must not pull them back from wherever they are now.
+      const lifetime = pageLifetimeRef.current;
       setTimeout(() => {
+        if (lifetime !== pageLifetimeRef.current) return;
         if (shouldGoToBilling && planIntent) {
           navigate(`/dashboard/billing?plan=${encodeURIComponent(planIntent)}`);
           return;

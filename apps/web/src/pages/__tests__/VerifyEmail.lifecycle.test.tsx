@@ -156,6 +156,20 @@ describe.each([false, true])('VerifyEmail lifetime strict=%s', strict => {
     screen.getAllByRole('textbox').forEach(input => expect(input).toBeEnabled());
   });
 
+  it('does not navigate after the signed-in author was already taken elsewhere', async () => {
+    // Verifying signs the author in and the app routes them on (persona question, first work);
+    // the success redirect still fired 1.5 s later and pulled them back to the dashboard, or
+    // asked whether to leave the round they had just started (2026-10-20 new-user audit).
+    mocks.verify.mockResolvedValueOnce(undefined);
+    let view!: ReturnType<typeof render>;
+    await act(async () => { view = render(page(strict)); });
+    paste(); await tick(100);
+    expect(screen.getByText('auth:verifyEmail.successTitle')).toBeInTheDocument();
+    view.unmount();
+    await tick(1500);
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
   it('releases failed verification for an ordinary retry and preserves paid success navigation', async () => {
     const first = deferred<void>();
     mocks.verify.mockReturnValueOnce(first.promise).mockResolvedValueOnce(undefined);
