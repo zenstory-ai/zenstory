@@ -1380,7 +1380,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const isScreenplay = currentProject?.project_type === 'screenplay';
     const primaryFileType: EmptyStateFileType = isScreenplay ? 'script' : 'draft';
     return renderWithUpgradeModal(
-      <div className="flex flex-col items-center justify-center h-full p-6 md:p-8 relative overflow-hidden">
+      // Centred while it fits; on a short window it scrolls from the top instead of pushing the
+      // heading under the header and the last hints out of reach.
+      <div className="h-full overflow-y-auto">
+      <div className="relative flex min-h-full flex-col items-center justify-center p-6 md:p-8 overflow-hidden">
         {/* Background ambient glow */}
         <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--accent-primary)/0.03)] via-transparent to-[hsl(var(--accent-primary)/0.02)] pointer-events-none" />
 
@@ -1536,6 +1539,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
             )}
           </div>
         </div>
+      </div>
       </div>
     );
   }
