@@ -330,3 +330,90 @@ async def test_first_message_round_ends_with_the_writers_own_summary(first_messa
     assert "写好了第一章开头。" in "".join(
         str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("first_message_label", "prose_before_handoff", "expected_agents"),
+    [
+        # The writer hands its fresh opening to the reviewer without a word to the author (as the
+        # reply protocol asks before a handoff): it summarizes itself instead, no review.
+        ("长篇小说", "", ["writer", "writer"]),
+        # It already told the author what it wrote: just drop the review.
+        ("长篇小说", "写好了第一章开头，约 800 字。", ["writer"]),
+        # Later rounds keep the writer's own handoff to review.
+        ("", "", ["writer", "quality_reviewer"]),
+    ],
+)
+async def test_first_message_round_does_not_follow_the_writers_own_review_handoff(
+    first_message_label, prose_before_handoff, expected_agents
+):
+    """2026-10-20 production sample: with the auto-review gate off, the writer still called
+    handoff_to_agent(quality_reviewer); a rework would have left the author a fix log."""
+    from unittest.mock import AsyncMock
+
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.graph.writing_graph import run_writing_workflow_streaming
+    from agent.tools.mcp_tools import ToolContext
+    from tests.test_agent.body_write_events import edit_file_events
+
+    calls: list[tuple[str, str]] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append((agent_type, str(state.get("user_message") or "")))
+        writer_runs = sum(1 for agent, _ in calls if agent == "writer")
+        if agent_type == "writer" and writer_runs == 1:
+            for event in edit_file_events("e1", "灯芯烧得只剩一指长。" * 80):
+                yield event
+            if prose_before_handoff:
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": prose_before_handoff})
+            yield StreamEvent(
+                type=StreamEventType.TOOL_USE,
+                data={"id": "h1", "name": "handoff_to_agent", "status": "complete", "input": {}},
+            )
+            yield StreamEvent(
+                type=StreamEventType.HANDOFF,
+                data={"target_agent": "quality_reviewer", "reason": "送审", "context": "两份内容已写完，需通读核对"},
+            )
+        elif agent_type == "writer":
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写好了第一章《九十三天》。"})
+        else:
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "审完了。[TASK_COMPLETE]"})
+
+    state = {
+        "user_message": IDEA,
+        "messages": [],
+        "system_prompt": "",
+        "generation_mode": "quality",
+        "first_message_project_label": first_message_label,
+    }
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    try:
+        with (
+            patch(
+                "agent.graph.writing_graph.router_node",
+                AsyncMock(return_value={"routing_metadata": {"write_content": True}}),
+            ),
+            patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
+            patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
+        ):
+            events = [
+                event
+                async for event in run_writing_workflow_streaming(
+                    state=state, thread_id="first-message-handoff", auto_review_threshold=100
+                )
+            ]
+    finally:
+        ToolContext.clear_context()
+
+    assert [agent for agent, _ in calls] == expected_agents
+    if not first_message_label:
+        return
+    assert not [e for e in events if e.type == StreamEventType.HANDOFF]
+    text = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
+    if len(calls) == 2:
+        # The second writer run is told to write only the author's summary.
+        assert "不送审" in calls[1][1]
+        assert "写好了第一章《九十三天》。" in text
+    else:
+        assert prose_before_handoff in text

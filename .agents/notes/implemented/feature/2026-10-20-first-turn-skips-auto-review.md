@@ -16,6 +16,11 @@
 - 没有送审，就没有 `CHAT_HOLD`。writer 的总结原样给作者，也就是首轮提示要的「先交代主角、背景和冲突，写开头，末尾两个方向」。
 - 路由显式安排的审稿不受影响，例如作者第一条就说「帮我看看这段」，路由给出 `review_only`。显式 `handoff_to_agent` 也不受影响。
 - 第二条起照常：高质量模式写够阈值就自动送审。
+- **writer 自己发起的送审也不跟**（2026-10-20 上线后补充）：
+  - 现象：生产上用一条真实消息核对时，自动质检门已关，writer 仍按 WRITER_PROMPT 调用了 `handoff_to_agent(quality_reviewer)`。那次审稿人直接通过，总结没问题；若审稿人要求返修，作者读到的又会是修改记录。
+  - 做法：作品第一条消息这一轮，writer → quality_reviewer 的显式交接在图里丢弃，同快速模式。
+  - 补总结：按回复协议，交接前 writer 不写总结。所以它交接前没给作者写过话时，同一个 writer 再跑一轮（只此一次），交接说明为 `FIRST_ROUND_SUMMARY_CONTEXT`：不再调用工具，只写总结。总结内容是写了哪些文件、各多少字、主角背景冲突，以及两个用「」括起来的方向，这样「回复末尾的选项」能直接成为建议按钮。
+  - 已经写过话时只丢弃交接，不补跑。交接前写过的话由 `handoff_to_agent` 调用前的 tail 文字判断。
 
 ## Alternatives considered
 
@@ -37,4 +42,5 @@
 - **代价**：
   - 首轮写出的设定和正文没有自动一致性核对，矛盾要到作者自己发现或下一轮送审时才处理。
   - writer 单独收尾时总结写得好不好，没有在上线前用真实模型验证。上线后用一条真实消息核对，结果记在 PR 里。
-- **验证**：`tests/test_agent/test_first_message_hint.py::test_first_message_round_ends_with_the_writers_own_summary`。它覆盖首轮不送审、总结不被丢；同一用例去掉首轮标记时仍会送审。改动前首轮那一例失败。
+  - 补总结那一轮多一次模型调用，只在 writer 想送审、又没给作者写话时发生。
+- **验证**：`tests/test_agent/test_first_message_hint.py::test_first_message_round_ends_with_the_writers_own_summary`；显式送审见同文件的 `test_first_message_round_does_not_follow_the_writers_own_review_handoff`，三种情况：没写话就补总结、写过话只丢交接、非第一条照常送审。它覆盖首轮不送审、总结不被丢；同一用例去掉首轮标记时仍会送审。改动前首轮那一例失败。

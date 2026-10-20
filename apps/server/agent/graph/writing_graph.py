@@ -471,6 +471,15 @@ async def _roll_back_empty_files_after_exhaustion(
 # 接着跑一轮，见 completion_evidence.ends_on_file_block 与主循环里的续写分支。
 FILE_STREAM_CONTINUATION_MARKER = "[系统提醒] 你上一次回复写完 </file> 就结束了"
 
+# 作品的第一条消息这一轮不送审：writer 想交给审稿人时丢掉交接，让它自己给作者写总结（交接前按
+# 回复协议它不写总结）。见 first-turn-skips-auto-review。
+FIRST_ROUND_SUMMARY_CONTEXT = (
+    "[系统提醒] 这是作者在这部作品里的第一条消息，这一轮不送审，作者在对话里还什么都没看到。"
+    "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：先用一两句说写了哪些文件、"
+    "各多少字（按工具返回的字数），再用三五句话交代主角、背景和核心冲突，"
+    "最后列两个可以换的方向，每个一句话、用「」括起来，作者可以照着直接回复。"
+)
+
 
 def _open_board_tasks() -> list[dict[str, Any]]:
     """任务计划板上还没完成的任务（读不到时为空，不影响续写）。"""
@@ -1701,8 +1710,10 @@ async def run_writing_workflow_streaming(
             enable_graph_auto_review = True
         # 作品的第一条消息：作者还没看过任何产出，最后读到的应是这一轮写了什么。送审返修后
         # 唯一的总结出自返修稿，只剩修改记录，所以这一轮不自动送审；作者要审稿时路由照常安排。
-        if state.get("first_message_project_label"):
+        first_message_round = bool(state.get("first_message_project_label"))
+        if first_message_round:
             enable_graph_auto_review = False
+        first_round_summary_rerun_used = False
 
         # 上一轮以工具调用轮数耗尽 / 无进展停止收尾，用户只回了一句「继续」：直接交给
         # 上一轮的 agent 走 quick 工作流，不再重新做多 agent 规划（规划会从头再读一遍）。
@@ -2020,6 +2031,8 @@ async def run_writing_workflow_streaming(
             # 最后一次工具调用之后的文本：agent 收尾时对用户说的话，用于识别
             # 「以向用户提问结束」（此时不能替用户做决定继续自动交接）。
             agent_tail_text: str = ""
+            # 交接调用前 writer 对作者说的话（tail 在每次工具事件处清空，交接调用本身也会清空它）。
+            prose_before_handoff = ""
             handoff_packet: dict[str, Any] | None = None
             explicit_handoff_event_data: dict[str, Any] | None = None
             clarification_stopped = False
@@ -2117,6 +2130,11 @@ async def run_writing_workflow_streaming(
                     accumulated_content += text
                     agent_tail_text += text
                 elif event.type in (StreamEventType.TOOL_USE, StreamEventType.TOOL_RESULT):
+                    if (
+                        event.type == StreamEventType.TOOL_USE
+                        and event.data.get("name") == "handoff_to_agent"
+                    ):
+                        prose_before_handoff = agent_tail_text
                     agent_tail_text = ""
 
                 if (
@@ -2645,6 +2663,37 @@ async def run_writing_workflow_streaming(
                 next_agent = None
                 explicit_handoff_event_data = None
                 handoff_packet = None
+
+            # 作品的第一条消息：作者还没看过任何产出，这一轮不送审（自动质检门已关）。writer 自己交给
+            # 审稿人时同样丢弃：返修后的唯一总结只剩修改记录（2026-10-20 生产样本里 writer 显式送审）。
+            # 交接前 writer 按协议不写总结，没写时让它再跑一轮，只给作者写总结。
+            if (
+                first_message_round
+                and current_agent_type == "writer"
+                and next_agent == "quality_reviewer"
+            ):
+                needs_summary = (
+                    not first_round_summary_rerun_used
+                    and not prose_before_handoff.strip()
+                    and iteration < max_iterations
+                )
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "First-message round: dropping writer handoff to quality_reviewer",
+                    rerun_for_summary=needs_summary,
+                )
+                next_agent = None
+                explicit_handoff_event_data = None
+                handoff_packet = None
+                if needs_summary:
+                    first_round_summary_rerun_used = True
+                    handoff_context = FIRST_ROUND_SUMMARY_CONTEXT
+                    carried_agent_content = agent_content
+                    carried_writer_body_writes = writer_body_writes
+                    previous_agent = current_agent_type
+                    incoming_handoff_packet = None
+                    continue
 
             # 审查轮数上限：writer 不能再显式送审；审稿人要求返修时不再交回 writer，
             # 而是正常收尾并把审稿意见展示给用户。
