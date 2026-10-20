@@ -133,7 +133,7 @@ test.describe("Onboarding persona flow", () => {
   });
 
   test("one tap on a type saves it and opens the dashboard", async ({ page }) => {
-    await page.getByRole("button", { name: /长篇连载|serial novel/i }).click();
+    await page.getByRole("button", { name: /长篇小说|novel/i }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15000 });
     expect(lastSubmittedPayload).toMatchObject({

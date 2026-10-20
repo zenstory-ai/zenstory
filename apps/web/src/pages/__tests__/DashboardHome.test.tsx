@@ -753,6 +753,19 @@ describe('DashboardHome featured inspirations section', () => {
     expect(mockNavigate).not.toHaveBeenCalled()
   })
 
+  it('numbers a default name the author already uses, so the list never shows twins', async () => {
+    mockProjects = [
+      { id: 'p-1', name: '我的小说', project_type: 'novel' },
+      { id: 'p-2', name: '我的小说 2', project_type: 'novel' },
+    ]
+    renderDashboardHome()
+
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => expect(mockCreateProject).toHaveBeenCalledWith('我的小说 3', undefined, 'novel'))
+    mockProjects = []
+  })
+
   it('lets the return key add a line on phones instead of creating a work', () => {
     mockIsMobile = true
     renderDashboardHome()

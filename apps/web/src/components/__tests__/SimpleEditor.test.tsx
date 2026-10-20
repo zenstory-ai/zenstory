@@ -802,6 +802,12 @@ describe('SimpleEditor', () => {
     toastInfoSpy.mockRestore();
   });
 
+  it('counts one paragraph per line, as Chinese manuscripts are written', () => {
+    renderPolishableEditor(vi.fn(), '　　灯芯烧得只剩一指长。\n　　三年来，他头一回觉得心里有底。\n\n　　门被轻轻叩了两下。\n');
+
+    expect(screen.getByTestId('editor-paragraph-count')).toHaveTextContent('3');
+  });
+
   it('explains how words are counted on hover and on tap', () => {
     const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
     renderPolishableEditor();

@@ -1241,8 +1241,9 @@ export const SimpleEditor = ({
             >
               {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
             </button>
-            <span>
-              {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{displayContent.split(/\n\n+/).filter(Boolean).length}</strong>
+            {/* One paragraph per non-empty line: manuscripts indent each paragraph instead of leaving blank lines. */}
+            <span data-testid="editor-paragraph-count">
+              {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{displayContent.split("\n").filter((line) => line.trim()).length}</strong>
             </span>
             {/* Zoom indicator - only show when zoomed */}
             {zoom !== 1 && (

@@ -46,6 +46,15 @@ function isProjectType(value: string): value is ProjectType {
   return SUPPORTED_PROJECT_TYPES.includes(value as ProjectType);
 }
 
+
+/** A default name the author already uses gets the next number (「我的小说 2」), so the list never shows twins. */
+function uniqueWorkName(base: string, projects: ReadonlyArray<{ name: string }>): string {
+  const taken = new Set(projects.map((project) => project.name.trim()));
+  if (!taken.has(base)) return base;
+  let number = 2;
+  while (taken.has(`${base} ${number}`)) number += 1;
+  return `${base} ${number}`;
+}
 export default function DashboardHome() {
   const { t, i18n } = useTranslation(['dashboard', 'home', 'common', 'chat']);
   const projectQuotaUpgradePrompt = getUpgradePromptDefinition("project_quota_blocked");
@@ -307,7 +316,7 @@ export default function DashboardHome() {
     if (picked.length === 0 || isQuickCreating || isImportingDrafts) return;
     setIsQuickCreating(true);
     const stem = picked[0].name.replace(/\.(txt|md)$/i, "").trim().slice(0, 40);
-    const name = stem || templates?.[activeTab]?.default_project_name || t('defaults.untitled');
+    const name = uniqueWorkName(stem || templates?.[activeTab]?.default_project_name || t('defaults.untitled'), projects);
     try {
       const project = await contextCreateProject(name, undefined, activeTab);
       if (!project.id) {
@@ -347,7 +356,7 @@ export default function DashboardHome() {
 
     setIsQuickCreating(true);
     const fallbackTemplates = templates;
-    const defaultName = fallbackTemplates?.[activeTab]?.default_project_name || t('defaults.untitled');
+    const defaultName = uniqueWorkName(fallbackTemplates?.[activeTab]?.default_project_name || t('defaults.untitled'), projects);
 
     try {
       // Use ProjectContext's createProject for unified state management

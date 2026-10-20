@@ -4,7 +4,7 @@
     "subtitle": "Tap one to start. You can switch any time.",
     "options": {
       "novel": {
-        "title": "Serial novel",
+        "title": "Novel",
         "desc": "Web fiction or a long novel, chapter after chapter"
       },
       "short": {
