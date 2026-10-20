@@ -831,7 +831,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       {/* Suggestion row: project suggestions first, static only as explicit fallback */}
       {showSuggestionRow && (
-        <div className={`shrink-0 flex min-w-0 items-center overflow-x-auto pb-0.5 scrollbar-none ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+        <div className={`shrink-0 flex min-w-0 items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+          {/* Only the chips scroll sideways: long ones (a reply's own options) must not push the
+              refresh button off a phone screen. */}
+          <div className={`flex min-w-0 flex-1 items-center overflow-x-auto pb-0.5 scrollbar-none ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
           {isSuggestionLoading ? (
             <>
               <span className="sr-only">{t("common:loading")}</span>
@@ -853,11 +856,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               />
             ))
           )}
+          </div>
           <button
+            type="button"
             onClick={refreshSuggestions}
             disabled={isRefreshingSuggestions}
             className="shrink-0 p-1 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
             title={t("chat:input.refresh")}
+            aria-label={t("chat:input.refresh")}
             aria-busy={isRefreshingSuggestions}
           >
             <RefreshCw size={12} className={isRefreshingSuggestions ? "animate-spin" : ""} />
