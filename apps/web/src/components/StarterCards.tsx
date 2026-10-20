@@ -12,6 +12,8 @@ interface StarterCardsProps {
   onSend: (message: string) => void;
   /** Put the example in the input to change it first. */
   onEdit: (message: string) => void;
+  /** Briefly lit up when the author is sent here from elsewhere (the empty editor's AI button). */
+  highlighted?: boolean;
 }
 
 /**
@@ -20,7 +22,7 @@ interface StarterCardsProps {
  * never requests anything; only the author's press sends, and the sent words are exactly
  * the premise shown. See feature/2026-10-19-chat-starter-cards.md.
  */
-export const StarterCards: React.FC<StarterCardsProps> = ({ projectType, remainingToday, onSend, onEdit }) => {
+export const StarterCards: React.FC<StarterCardsProps> = ({ projectType, remainingToday, onSend, onEdit, highlighted = false }) => {
   const { t } = useTranslation(["chat"]);
   const example = t(`chat:starter.example.${nextStepKind(projectType)}`);
 
@@ -38,7 +40,14 @@ export const StarterCards: React.FC<StarterCardsProps> = ({ projectType, remaini
 
           <div data-testid="starter-example">
             <p className="text-xs text-[hsl(var(--text-secondary))]">{t("chat:starter.example.hint")}</p>
-            <div className="mt-1.5 rounded-lg border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.05)] px-3 py-2.5">
+            <div
+              data-highlighted={highlighted || undefined}
+              className={`mt-1.5 rounded-lg border bg-[hsl(var(--accent-primary)/0.05)] px-3 py-2.5 transition-[border-color,box-shadow] duration-slow ${
+                highlighted
+                  ? "border-[hsl(var(--accent-primary))] shadow-[0_0_0_3px_hsl(var(--accent-primary)/0.18)]"
+                  : "border-[hsl(var(--accent-primary)/0.25)]"
+              }`}
+            >
               <p data-testid="starter-message-text" className="text-sm leading-6 text-[hsl(var(--text-primary))]">
                 {example}
               </p>

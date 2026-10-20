@@ -2542,6 +2542,32 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     expect(mockStartStream).not.toHaveBeenCalled()
   })
 
+  it('lights up the starter cards briefly when the author is sent to the chat', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const layout = mockLayout as typeof mockLayout & { chatFocusRequest?: number }
+    layout.chatFocusRequest = 0
+    try {
+      render(<ChatPanel />)
+      await screen.findByTestId('starter-cards')
+      const card = () => screen.getByTestId('starter-message-text').parentElement!
+      expect(card()).not.toHaveAttribute('data-highlighted')
+
+      // The empty editor's 「让 AI 帮你写开头」 asks the chat for focus. (The mocked layout hook is not
+      // a context, so a quota update stands in for the re-render the real provider would cause.)
+      layout.chatFocusRequest = 1
+      act(() => {
+        testQueryClient.setQueryData(['subscription-quota', 'test-user'], { ai_conversations: { used: 0, limit: 3, reset_at: null } })
+      })
+      await waitFor(() => expect(card()).toHaveAttribute('data-highlighted', 'true'))
+
+      await act(async () => { vi.advanceTimersByTime(2000) })
+      expect(card()).not.toHaveAttribute('data-highlighted')
+    } finally {
+      delete layout.chatFocusRequest
+      vi.useRealTimers()
+    }
+  })
+
   it('tags the first typed message of a first chat as the first message', async () => {
     render(<ChatPanel />)
     await screen.findByTestId('starter-cards')

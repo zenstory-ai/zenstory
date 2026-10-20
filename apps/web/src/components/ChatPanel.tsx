@@ -248,6 +248,7 @@ interface ChatPanelProps {}
 const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[] } | undefined =>
   !result.saved && result.fileId ? { keepFileIds: [result.fileId] } : undefined;
 
+const STARTER_HIGHLIGHT_MS = 1600;
 const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
 const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -463,6 +464,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quotaLite(), restore);
   }, [queryClient]);
   const { isMobile, activePanel, chatFocusRequest, switchToEditor, focusChatInput } = useMobileLayout();
+  // Sent here by the empty editor's 「让 AI 帮你写开头」: focusing the input alone looked like nothing
+  // happened (2026-10-20 new-user audit), so the starter cards light up briefly as well.
+  const [settledChatFocusRequest, setSettledChatFocusRequest] = useState(chatFocusRequest);
+  const starterHighlighted = chatFocusRequest !== settledChatFocusRequest;
+  useEffect(() => {
+    if (!starterHighlighted) return;
+    const timer = window.setTimeout(() => setSettledChatFocusRequest(chatFocusRequest), STARTER_HIGHLIGHT_MS);
+    return () => window.clearTimeout(timer);
+  }, [chatFocusRequest, starterHighlighted]);
   const { attachedFileIds, attachedLibraryMaterials, clearMaterials } = useMaterialAttachment();
   const { quotes, clearQuotes } = useTextQuote();
 
@@ -2516,6 +2526,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           ) : messages.length === 0 && !isStreaming && !isThinking && !(error && retryable) && sessionRecoveryError !== currentProjectId ? (
             showStarterCards ? (
               <StarterCards
+                highlighted={starterHighlighted}
                 projectType={currentProject?.project_type}
                 remainingToday={showDailyCount && aiMessageQuota ? Math.max(0, aiMessageQuota.limit - aiMessageQuota.used) : null}
                 onSend={handleStarterSend}
