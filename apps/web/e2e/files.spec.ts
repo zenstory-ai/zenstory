@@ -236,10 +236,14 @@ test.describe('Files', () => {
     await expect(editor(page)).toHaveValue('文件A的内容')
   })
 
-  test('empty folder shows empty state message', async ({ page }) => {
-    await expect(
-      treeNode(page, '正文').locator('..').getByText('暂无内容，点击 + 开始创作', { exact: true })
-    ).toBeVisible()
+  test('empty folder shows empty state message once the work has a file', async ({ page }) => {
+    const emptyHint = treeNode(page, '正文').locator('..').getByText('暂无内容，点击 + 开始创作', { exact: true })
+    // A brand-new work does not repeat the hint under every folder.
+    await expect(treeNode(page, '正文')).toBeVisible()
+    await expect(emptyHint).toHaveCount(0)
+
+    await createThroughTree(page, '大纲', '第一卷大纲')
+    await expect(emptyHint).toBeVisible()
   })
 
   test('file tree persists across page reload', async ({ page }) => {
