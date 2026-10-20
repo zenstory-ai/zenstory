@@ -54,7 +54,7 @@
   - 用户自己起名为「我的小说 2」这样的名字也会被当成默认名，和「我的小说」本身的处理一致。
 - **验证**：
   - PostgreSQL 回归（CI 的串行 PostgreSQL 车道）：
-    - `tests/test_agent/test_update_project_lock_postgres.py`：作者起名、名字未变、标题无效三种只带标题的调用，都要写进 ledger。连接带 2 秒 `lock_timeout`，改动前会因锁超时而少一条 ledger，不会挂住。
+    - `tests/test_agent/test_update_project_lock_postgres.py`：作者起名、名字未变、标题无效三种只带标题的调用，都要写进 ledger。连接带 2 秒 `lock_timeout`，旧代码下预期因锁超时少写一条 ledger，不会挂住。这一点依据 PostgreSQL 的锁规则（`FOR UPDATE` 与外键需要的 key share 锁冲突），与生产事故里两个连接的表现一致；CI 没有对旧代码单独跑过这条用例。
     - `tests/test_core/test_database_startup.py::test_init_db_skips_an_index_whose_table_is_locked_instead_of_waiting`：另一个连接持有写事务时，`init_db` 15 秒内完成，被锁的索引跳过，另一张表的索引照建。
   - `tests/test_agent/test_update_project_title.py`：新增「我的小说 2」「My Novel 12」两例，改动前失败。
   - 本地没有 PostgreSQL，两条 PostgreSQL 用例只在 CI 跑。
