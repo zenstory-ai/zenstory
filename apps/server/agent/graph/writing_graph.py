@@ -2096,6 +2096,12 @@ async def run_writing_workflow_streaming(
             else:
                 modified_state.pop("length_requirements_directive", None)
 
+            # 审稿人交回的返修 run：runner 据此取返修专用的思考强度（AGENT_REWORK_REASONING_EFFORT）。
+            if rework_from_reviewer and current_agent_type == "writer":
+                modified_state["review_rework"] = True
+            else:
+                modified_state.pop("review_rework", None)
+
             agent_message_started = False
             mid_run_steering_seen = False
             agent_run_errored = False

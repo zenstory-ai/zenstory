@@ -77,10 +77,27 @@ AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS = _get_int_env(
 # 实测没有证明降档不伤质量之前，生产不设置它。取值须是 deepseek-flash 接受的档位，
 # 其他值忽略（不能让一个拼写错误把请求变成 422）。
 AGENT_REASONING_EFFORT_CHOICES = frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"})
-_raw_reasoning_effort = (os.getenv("AGENT_REASONING_EFFORT") or "").strip().lower()
-AGENT_REASONING_EFFORT: str | None = (
-    _raw_reasoning_effort if _raw_reasoning_effort in AGENT_REASONING_EFFORT_CHOICES else None
-)
+
+
+def _get_reasoning_effort_env(name: str) -> str | None:
+    raw = (os.getenv(name) or "").strip().lower()
+    return raw if raw in AGENT_REASONING_EFFORT_CHOICES else None
+
+
+AGENT_REASONING_EFFORT = _get_reasoning_effort_env("AGENT_REASONING_EFFORT")
+# 按角色覆盖：审稿人（quality_reviewer）与审稿后交回的返修 writer。默认不设，沿用上面的
+# 全局值；同样只接受合法档位。评估见 .agents/notes/.../2026-10-20-reviewer-rework-reasoning-effort.md。
+AGENT_REVIEWER_REASONING_EFFORT = _get_reasoning_effort_env("AGENT_REVIEWER_REASONING_EFFORT")
+AGENT_REWORK_REASONING_EFFORT = _get_reasoning_effort_env("AGENT_REWORK_REASONING_EFFORT")
+
+
+def reasoning_effort_for(agent_type: str, *, rework: bool = False) -> str | None:
+    """这次 agent run 发给模型的 reasoning_effort；None 表示不传（模型默认 high）。"""
+    if agent_type == "quality_reviewer" and AGENT_REVIEWER_REASONING_EFFORT:
+        return AGENT_REVIEWER_REASONING_EFFORT
+    if rework and AGENT_REWORK_REASONING_EFFORT:
+        return AGENT_REWORK_REASONING_EFFORT
+    return AGENT_REASONING_EFFORT
 
 # 上下文预算按 deepseek-flash 的 1M 窗口 + 自动前缀缓存来定：缓存命中的输入只要
 # 未命中价的 1/50，而预算过小导致的「上下文被压缩 → 模型反复 query_files 重读」

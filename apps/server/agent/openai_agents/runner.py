@@ -545,6 +545,7 @@ def _build_agent(
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
     read_only_reason: str = READ_ONLY_REASON_USER_REQUEST,
+    rework: bool = False,
 ) -> Any:
     # NOTE — Agent.as_tool was evaluated and rejected.
     # Agent.as_tool wraps an agent as a callable tool for a parent agent, which
@@ -566,10 +567,12 @@ def _build_agent(
     # ``thinking`` toggle for short single-shot calls (suggestions, polish).
     # #278: AGENT_REASONING_EFFORT exists only for controlled comparisons; it is unset in
     # production (see .agents/notes/.../2026-10-19-reasoning-effort-evaluation.md).
+    # AGENT_REVIEWER_REASONING_EFFORT / AGENT_REWORK_REASONING_EFFORT override it for the
+    # reviewer and the post-review rework writer (2026-10-20-reviewer-rework-reasoning-effort.md).
     from agents import Agent, ModelSettings
     from openai.types.shared import Reasoning
 
-    effort = agent_runtime.AGENT_REASONING_EFFORT
+    effort = agent_runtime.reasoning_effort_for(agent_type, rework=rework)
 
     return Agent(
         name=agent_type,
@@ -814,6 +817,7 @@ async def run_openai_agents_streaming_agent(
             ),
             run_meter=run_meter,
             read_guard=read_guard,
+            rework=state.get("review_rework") is True,
         )
         # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次），并在
         # 接近 max_turns 时追加收尾提醒（软着陆）。

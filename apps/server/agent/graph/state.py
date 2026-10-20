@@ -105,6 +105,8 @@ class WritingState(TypedDict, total=False):
     # 生成，nodes.run_streaming_agent 追加到每个 agent 的系统提示末尾。
     scope_directive: str | None
     length_requirements_directive: str | None
+    # 这次 writer run 是审稿人交回的返修（只在跑 agent 前的那份 state 里置位）。
+    review_rework: bool
     # 用户明确要求本轮不改文件：tools_adapter 对写文件工具的调用一律拒绝执行。
     read_only: bool
     resume_from_output_truncation: bool
