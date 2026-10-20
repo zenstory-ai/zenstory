@@ -10,6 +10,7 @@ import unicodedata
 from collections.abc import AsyncIterator
 from typing import Any, NamedTuple
 
+from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.state import WritingState
@@ -42,6 +43,60 @@ def _strip_task_complete_marker(text: str) -> tuple[str, bool]:
     return text[: match.start()].rstrip(), True
 
 
+# 各角色的专属提示（subagents.py）
+SPECIALIZED_PROMPTS = {
+    "planner": PLANNER_PROMPT,
+    "hook_designer": HOOK_DESIGNER_PROMPT,
+    "writer": WRITER_PROMPT,
+    "quality_reviewer": QUALITY_REVIEWER_PROMPT,
+}
+
+
+def build_agent_directive(state: WritingState, agent_type: str) -> str:
+    """这次 agent 运行的系统指令：当前角色提示、本轮用户范围约束、截断续写、篇幅要求、快速模式。
+
+    它们因角色而异，不能放进系统提示：DeepSeek 按逐字前缀命中缓存，同一请求里
+    writer → quality_reviewer → writer 切换时，系统提示一变，后面的历史和本轮上下文就全部 miss。
+    runner 把它作为输入最后一条消息发出，不写回 state["messages"]，也不进会话历史；
+    本次运行内的后续模型调用都带着它，所以运行内的前缀照样稳定。系统提示里固定写明这条消息
+    与系统提示同等效力，范围约束保留 [最高优先级] 标注。
+    """
+    parts: list[str] = [AGENT_DIRECTIVE_HEADER]
+
+    specialized = SPECIALIZED_PROMPTS.get(agent_type, "")
+    if specialized:
+        parts.append(f"## 当前角色：{agent_type}\n\n{specialized}")
+
+    # 用户范围约束（由 writing_graph 按路由结果生成）：本轮每个 agent（含交接后的
+    # writer / 审稿人）都能看到，且不会像改写 user_message 那样在会话历史里多出一条
+    # 重复的用户消息。
+    scope_directive = str(state.get("scope_directive") or "").strip()
+    if scope_directive:
+        parts.append(f"## 本轮用户范围约束 [最高优先级]\n\n{scope_directive}")
+
+    if state.get("resume_from_output_truncation"):
+        from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
+
+        parts.append(f"## 截断后的本轮交付\n\n{OUTPUT_TRUNCATED_RESUME}")
+
+    length_requirements = str(state.get("length_requirements_directive") or "").strip()
+    if agent_type == "writer" and length_requirements:
+        parts.append(length_requirements)
+
+    # 快速模式（前端「更快出结果」）：WRITER_PROMPT 的送审规则在这一轮不适用。
+    # writing_graph 也会丢弃 writer → quality_reviewer 的交接，这里先让模型知道，
+    # 免得它白白调用一次 handoff_to_agent。
+    if (
+        str(state.get("generation_mode") or "").strip().lower() == "fast"
+        and agent_type != "quality_reviewer"
+    ):
+        parts.append(f"## 本轮生成模式\n\n{FAST_MODE_DIRECTIVE}")
+
+    if len(parts) == 1:
+        return ""
+    return "\n\n".join(parts)
+
+
 # =============================================================================
 # Streaming Agent Implementation
 # =============================================================================
@@ -62,51 +117,12 @@ async def run_streaming_agent(
     Yields:
         StreamEvent objects for real-time streaming
     """
-    # Specialized prompts from subagents.py
-    specialized_prompts = {
-        "planner": PLANNER_PROMPT,
-        "hook_designer": HOOK_DESIGNER_PROMPT,
-        "writer": WRITER_PROMPT,
-        "quality_reviewer": QUALITY_REVIEWER_PROMPT,
-    }
-
     log_with_context(logger, 20, f"Streaming {agent_type} started")
 
-    base_prompt = state.get("system_prompt", "")
-
-    # Combine base prompt with specialized agent prompt
-    specialized = specialized_prompts.get(agent_type, "")
-    if base_prompt and specialized:
-        system_prompt = f"{base_prompt}\n\n## 当前角色：{agent_type}\n\n{specialized}"
-    elif specialized:
-        system_prompt = specialized
-    else:
-        system_prompt = base_prompt
-
-    # 用户范围约束（由 writing_graph 按路由结果生成）：放在系统提示末尾，
-    # 本轮每个 agent（含交接后的 writer / 审稿人）都能看到，且不会像改写
-    # user_message 那样在会话历史里多出一条重复的用户消息。
-    scope_directive = str(state.get("scope_directive") or "").strip()
-    if scope_directive:
-        system_prompt = f"{system_prompt}\n\n## 本轮用户范围约束 [最高优先级]\n\n{scope_directive}"
-
-    if state.get("resume_from_output_truncation"):
-        from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
-
-        system_prompt = f"{system_prompt}\n\n## 截断后的本轮交付\n\n{OUTPUT_TRUNCATED_RESUME}"
-
-    length_requirements = str(state.get("length_requirements_directive") or "").strip()
-    if agent_type == "writer" and length_requirements:
-        system_prompt = f"{system_prompt}\n\n{length_requirements}"
-
-    # 快速模式（前端「更快出结果」）：WRITER_PROMPT 的送审规则在这一轮不适用。
-    # writing_graph 也会丢弃 writer → quality_reviewer 的交接，这里先让模型知道，
-    # 免得它白白调用一次 handoff_to_agent。
-    if (
-        str(state.get("generation_mode") or "").strip().lower() == "fast"
-        and agent_type != "quality_reviewer"
-    ):
-        system_prompt = f"{system_prompt}\n\n## 本轮生成模式\n\n{FAST_MODE_DIRECTIVE}"
+    # 系统提示所有角色共用、跨轮不变；这次运行的角色与约束作为输入最后一条消息，
+    # 放在共享前缀 [系统提示][历史][本轮用户消息] 之后（见 build_agent_directive）。
+    system_prompt = state.get("system_prompt", "")
+    agent_directive = build_agent_directive(state, agent_type)
 
     try:
         async for event in run_openai_agents_streaming_agent(
@@ -114,6 +130,7 @@ async def run_streaming_agent(
             agent_type=agent_type,
             system_prompt=system_prompt,
             get_steering_messages=get_steering_messages,
+            agent_directive=agent_directive,
         ):
             yield event
 

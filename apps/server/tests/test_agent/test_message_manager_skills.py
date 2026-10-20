@@ -1,4 +1,4 @@
-"""Tests for skill-related system prompt sections."""
+"""Tests for skill-related prompt sections (catalog in the system prompt, selected skills in the turn context)."""
 
 import pytest
 
@@ -36,11 +36,10 @@ def _create_manager(db_session) -> MessageManager:
 
 
 @pytest.mark.unit
-def test_build_system_prompt_includes_selected_skills_with_resources(db_session):
+def test_turn_context_includes_selected_skills_with_resources(db_session):
     manager = _create_manager(db_session)
 
-    prompt = manager.build_system_prompt(
-        session=db_session,
+    prompt = manager.build_turn_context(
         language="zh",
         selected_skills=[
             {
@@ -72,28 +71,30 @@ def test_build_system_prompt_includes_selected_skills_with_resources(db_session)
 
 
 @pytest.mark.unit
-def test_build_system_prompt_places_catalog_before_selected_skills(db_session):
-    """目录属于静态前缀，显式选择属于半静态段，顺序不能颠倒（prompt 缓存依赖它）。"""
+def test_catalog_stays_in_system_prompt_and_selected_skills_go_to_turn_context(db_session):
+    """目录跨轮不变，留在系统提示；显式选择只属于这条消息，放进本轮上下文（prompt 缓存依赖它）。"""
     manager = _create_manager(db_session)
+    selected = [{"name": "悬念大师", "instructions": "先强化钩子。", "resources": []}]
 
     prompt = manager.build_system_prompt(
         session=db_session,
         language="zh",
         skill_catalog="## 可用写作技能\n\n- **悬念大师**: 增强钩子",
-        selected_skills=[{"name": "悬念大师", "instructions": "先强化钩子。", "resources": []}],
     )
+    turn_context = manager.build_turn_context(language="zh", selected_skills=selected)
 
-    assert prompt.index("## 可用写作技能") < prompt.index("## 用户本条消息指定技能")
+    assert "## 可用写作技能" in prompt
+    assert "## 用户本条消息指定技能" not in prompt
+    assert "## 用户本条消息指定技能" in turn_context
 
 
 @pytest.mark.unit
-def test_build_system_prompt_skips_selected_skill_without_instructions(db_session):
+def test_turn_context_skips_selected_skill_without_instructions(db_session):
     manager = _create_manager(db_session)
 
-    prompt = manager.build_system_prompt(
-        session=db_session,
+    turn_context = manager.build_turn_context(
         language="en",
         selected_skills=[{"name": "Empty", "instructions": "  ", "resources": []}],
     )
 
-    assert "User-Selected Skills" not in prompt
+    assert "User-Selected Skills" not in turn_context

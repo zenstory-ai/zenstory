@@ -564,12 +564,13 @@ class AgentService:
         language: str,
         assembled_context: str | None,
         context_items: list[dict[str, Any]] | None,
-    ) -> tuple[list[dict[str, Any]], str]:
+    ) -> tuple[list[dict[str, Any]], str, str]:
         """
-        Build the skill catalog, resolve selected skills and build the system prompt.
+        Build the skill catalog, resolve selected skills, the static system prompt
+        and this turn's context block.
 
         Returns:
-            (selected skills, system prompt)
+            (selected skills, system prompt, turn context)
         """
         skill_injector = get_skill_context_injector()
         skill_catalog = skill_injector.build_skill_catalog(session, user_id)
@@ -585,18 +586,23 @@ class AgentService:
             selected_skill_ids=selected_skill_ids,
             message=message,
         )
+        # 系统提示只放跨轮、跨角色都不变的内容；随轮次变化的上下文放进本轮用户消息
+        # （见 build_turn_context），否则 DeepSeek 前缀缓存从系统提示起就断了。
         system_prompt = message_manager.build_system_prompt(
             session=session,
+            language=language,
+            skill_catalog=skill_catalog,
+        )
+        turn_context = message_manager.build_turn_context(
             session_id=session_id,
             metadata=metadata,
             assembled_context=assembled_context,
             context_items=context_items,
             language=language,
-            skill_catalog=skill_catalog,
             selected_skills=selected_skills or None,
             author_message=message,
         )
-        return selected_skills, system_prompt
+        return selected_skills, system_prompt, turn_context
 
     async def _lookup_project_type(self, session: Session, project_id: str) -> str | None:
         """作品类型只用于第一条消息提示的类型名；查不到时提示里用通用说法。"""
@@ -635,7 +641,7 @@ class AgentService:
             )
             return False
 
-    def _prepare_prompt_artifacts_sync(self, **kwargs: Any) -> tuple[list[dict[str, Any]], str]:
+    def _prepare_prompt_artifacts_sync(self, **kwargs: Any) -> tuple[list[dict[str, Any]], str, str]:
         """Same as _prepare_prompt_artifacts, using a fresh sync DB session."""
         with create_session() as sync_session:
             return self._prepare_prompt_artifacts(sync_session, **kwargs)
@@ -1132,12 +1138,12 @@ class AgentService:
                 "context_items": context_data.items if context_data.items else None,
             }
             if self._should_offload_session_work(session):
-                selected_skills, system_prompt = await asyncio.to_thread(
+                selected_skills, system_prompt, turn_context = await asyncio.to_thread(
                     self._prepare_prompt_artifacts_sync,
                     **prompt_kwargs,
                 )
             else:
-                selected_skills, system_prompt = self._prepare_prompt_artifacts(
+                selected_skills, system_prompt, turn_context = self._prepare_prompt_artifacts(
                     session,
                     **prompt_kwargs,
                 )
@@ -1194,10 +1200,11 @@ class AgentService:
                 working_set_context = (
                     f"{working_set_context}\n\n{author_edits_context}" if working_set_context else author_edits_context
                 )
-            if working_set_context:
-                user_content = SessionLoader.attach_working_set_to_user_content(
-                    user_content, working_set_context
-                )
+            # 本轮上下文（组装的项目上下文、叙事约束、当前文件、任务板、本轮语言）放在最前，
+            # 工作集与作者改动随后：[系统提示][历史] 跨轮、跨 agent 逐字不变，前缀缓存一直命中到上一轮。
+            turn_prefix = "\n\n".join(part for part in (turn_context, working_set_context) if part)
+            if turn_prefix:
+                user_content = SessionLoader.attach_working_set_to_user_content(user_content, turn_prefix)
 
             # Unified prompt-token ledger.
             #
@@ -1208,13 +1215,15 @@ class AgentService:
             # room remains. The DB-history persistence contract and the configured
             # dual budgets are unchanged — this only trims what is *loaded*.
             #
-            # system_prompt 已由 build_system_prompt 内嵌 skill catalog /
-            # selected skills / assembled context，台账只按最终 prompt 计费一次，
+            # system_prompt 内嵌 skill catalog，turn_context 内嵌 selected skills /
+            # assembled context / 任务板，台账按两者与工作集各计一次，
             # 避免同一段文本重复扣减历史预算。
             from agent.utils.token_utils import estimate_text_tokens
 
-            reserved_prompt_tokens = estimate_text_tokens(system_prompt or "") + (
-                estimate_text_tokens(working_set_context) if working_set_context else 0
+            reserved_prompt_tokens = (
+                estimate_text_tokens(system_prompt or "")
+                + (estimate_text_tokens(turn_context) if turn_context else 0)
+                + (estimate_text_tokens(working_set_context) if working_set_context else 0)
             )
             effective_history_budget = compute_history_token_budget(
                 configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,

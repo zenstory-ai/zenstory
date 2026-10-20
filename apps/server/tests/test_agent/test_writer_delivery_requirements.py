@@ -68,7 +68,7 @@ async def test_first_writer_receives_history_and_latest_length_before_writing(de
         return collect()
 
     async def fake_runner(state, agent_type, system_prompt, **kwargs):
-        captured.append((agent_type, system_prompt, state.get("user_message")))
+        captured.append((agent_type, kwargs.get("agent_directive", ""), state.get("user_message")))
         if agent_type == "writer":
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "本轮稿件待核对。"})
             yield StreamEvent(type=StreamEventType.HANDOFF,
@@ -102,7 +102,7 @@ async def test_new_author_requirement_refreshes_before_following_writer(delivery
     captured = []
 
     async def fake_runner(state, agent_type, system_prompt, **kwargs):
-        captured.append((agent_type, system_prompt))
+        captured.append((agent_type, kwargs.get("agent_directive", "")))
         if len(captured) == 1:
             steering.append("第三章改为1200字左右")
             yield StreamEvent(type=StreamEventType.HANDOFF, data={"target_agent": "planner", "context": "核对新篇幅"})

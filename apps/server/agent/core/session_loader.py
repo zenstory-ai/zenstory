@@ -591,7 +591,7 @@ class SessionLoader:
         for block in full_blocks:
             lines.extend([block, ""])
         if in_context:
-            lines.append("已在系统提示的项目上下文中标注[全文]（直接使用，不必重读）：")
+            lines.append("已在本轮上下文 <turn_context> 的项目上下文中标注[全文]（直接使用，不必重读）：")
             lines.extend(in_context)
             lines.append("")
         if omitted:
@@ -606,10 +606,10 @@ class SessionLoader:
 
     @staticmethod
     def attach_working_set_to_user_content(user_content: str, working_set_context: str) -> str:
-        """把工作集块放在本轮用户消息之前（同一条 user 消息里）。
+        """把本轮上下文块（本轮上下文、工作集、作者改动）放在本轮用户消息之前（同一条 user 消息里）。
 
         放在这里而不是系统提示里：系统提示与历史消息保持不变，前缀缓存可以
-        一直命中到上一轮为止；工作集每轮都会变，只能放在最末尾。也不单独插一条
+        一直命中到上一轮为止；这些块每轮都会变，只能放在最末尾。也不单独插一条
         user 消息，避免连续两条 user 消息。
         """
         if not working_set_context:

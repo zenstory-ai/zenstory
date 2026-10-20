@@ -358,8 +358,10 @@ class TestAgentServiceProcessStream:
 
         writing_state = mock_workflow.call_args.args[0]
         assert writing_state["router_message"] == raw_message
-        assert writing_state["user_message"] == raw_message
-        prompt = writing_state["system_prompt"]
+        assert writing_state["user_message"].endswith(f"\n{raw_message}")
+        assert "## 用户本条消息指定技能" not in writing_state["system_prompt"]
+        # 显式选择的技能只属于这条消息：放进本轮用户消息的 <turn_context>，不进共用的系统提示。
+        prompt = writing_state["user_message"]
         assert "## 用户本条消息指定技能" in prompt
         assert "### 悬念大师" in prompt
         assert "先强化钩子，再收紧悬念。" in prompt
@@ -557,7 +559,8 @@ class TestAgentServiceProcessStream:
                 )
             ]
 
-        prompt = mock_workflow.call_args.args[0]["system_prompt"]
+        state = mock_workflow.call_args.args[0]
+        prompt = f"{state['system_prompt']}\n{state['user_message']}"
         assert "## 用户本条消息指定技能" not in prompt
         assert "偷看" not in prompt
         assert self._skill_matched_payloads(events) == []
@@ -610,7 +613,7 @@ class TestAgentServiceProcessStream:
                 )
             ]
 
-        prompt = mock_workflow.call_args.args[0]["system_prompt"]
+        prompt = mock_workflow.call_args.args[0]["user_message"]
         assert "## 用户本条消息指定技能" in prompt
         assert "### 阴影编织者" in prompt
         assert "优先写环境与感官细节。" in prompt
@@ -1249,7 +1252,7 @@ class TestAgentServiceProcessStream:
             patch.object(
                 service,
                 "_prepare_prompt_artifacts_sync",
-                return_value=([], "system prompt"),
+                return_value=([], "system prompt", ""),
             ),
             patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
             patch("agent.service.MessageManager.save_messages", new=AsyncMock(return_value="assistant-msg-offload")),
@@ -1531,13 +1534,17 @@ class TestAgentServiceProcessStream:
             ):
                 pass
 
+        from agent.core.session_loader import WORKING_SET_USER_MESSAGE_LABEL
+
         writing_state = mock_workflow.call_args[0][0]
         system_prompt = writing_state["system_prompt"]
-        assert assembled_context[:200] in system_prompt  # context 确实内嵌于 system_prompt
+        assert assembled_context[:200] not in system_prompt
+        turn_context = writing_state["user_message"].rpartition(WORKING_SET_USER_MESSAGE_LABEL)[0].rstrip("\n")
+        assert assembled_context[:200] in turn_context  # context 内嵌于本轮用户消息的 <turn_context>
 
-        # Ledger charges the final prompt once — no re-adding of skill
-        # catalog/reference/context that build_system_prompt already embedded.
-        assert captured["reserved"] == estimate_text_tokens(system_prompt)
+        # Ledger charges the system prompt and the turn context once each — no
+        # re-adding of skill catalog/reference/context they already embed.
+        assert captured["reserved"] == estimate_text_tokens(system_prompt) + estimate_text_tokens(turn_context)
 
         legacy_reserved = captured["reserved"] + estimate_text_tokens(assembled_context)
         assert captured["reserved"] < legacy_reserved

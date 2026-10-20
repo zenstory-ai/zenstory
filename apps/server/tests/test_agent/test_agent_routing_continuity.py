@@ -473,8 +473,8 @@ async def test_fast_mode_tells_non_reviewer_agents_not_to_hand_off_for_review():
 
     prompts: dict[str, str] = {}
 
-    async def fake_runner(*, state, agent_type, system_prompt, get_steering_messages=None):
-        prompts[agent_type] = system_prompt
+    async def fake_runner(*, state, agent_type, system_prompt, get_steering_messages=None, agent_directive=""):
+        prompts[agent_type] = agent_directive
         yield _text("ok")
 
     with patch("agent.graph.nodes.run_openai_agents_streaming_agent", new=fake_runner):
