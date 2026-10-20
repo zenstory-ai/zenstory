@@ -161,7 +161,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   （`review_evidence.find_length_requirements`：原话 + `length_requirement_bounds` 换算的达标区间，单个目标数 ±15%，
   范围和上下限是硬要求；区间内不算缺陷），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
   放不进预算的长文件只附本请求改动的那段（写入前正文由 `ToolContext.remember_pre_write_content` 记下）。
-  多文件在既有总预算内逐文件分配，每份保留来源文件 ID 与 `updated_at`；未附全文的部分明确标注，按 ID 精确 `query_files` 读取，不把省略部分当作已经核对。
+  多文件在既有总预算内逐文件分配，每份保留来源文件 ID 与 `updated_at`；附了全文的来源行写「以下是全文，不用再读取」，未附全文的部分明确标注，按 ID 精确 `query_files` 按章节读取，不把省略部分当作已经核对。返修交接的 `[返修对象当前正文]` 只附审稿意见点到的文件。
   [single-summary][n-summary]、[writer-delivery-requirements][n-length]、[thinking-loop-inputs][n-thinking]、[quality-mode-lean][n-lean]
 - **自动质检门只认成功的正文写入**：按 `graph/body_writes.py` 计 draft / script 里实际写进的字数；改大纲、设定、角色和聊天文字不算；
   写入全部失败时不送审。[single-summary][n-summary]、[tool-failure-breaker][n-breaker]、[review-gating][n-review]

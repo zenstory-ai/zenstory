@@ -873,11 +873,13 @@ def _collect_review_payload_text(file_ids: list[str], *, focus: str | None = Non
     if len(ordered) > 1:
         counts = "、".join(f"《{files[file_id][0]}》{count_words(files[file_id][1])}" for file_id in ordered)
         prefix += f"[本请求写过的正文（编辑器字数）：{counts}]\n\n"
-    sources = [
-        f'[来源 id={file_id} updated_at={files[file_id][2].isoformat()}；'
-        f"省略内容用 query_files(id={file_id}) 读取后再核对]"
-        for file_id in ordered
-    ]
+    def source_line(file_id: str, whole: bool) -> str:
+        # 每份都写「省略内容用 query_files 读取」时，审稿人对已经附了全文的文件也会再读一遍。
+        tail = "以下是全文，不用再读取" if whole else f"省略内容用 query_files(id={file_id}) 按章节读取后再核对"
+        return f"[来源 id={file_id} updated_at={files[file_id][2].isoformat()}；{tail}]"
+
+    # 预算按较长的那种来源行预留，算完分配后再按实际是否附了全文写。
+    sources = [source_line(file_id, False) for file_id in ordered]
     available = REVIEW_PAYLOAD_MAX_CHARS - len(prefix) - sum(len(source) + 1 for source in sources)
     available -= 2 * (len(ordered) - 1)
     if available <= 0:
@@ -899,10 +901,12 @@ def _collect_review_payload_text(file_ids: list[str], *, focus: str | None = Non
         allocation = min(len(blocks[index]), available // (len(blocks) - rank))
         allocations[index] = allocation
         available -= allocation
-    return prefix + "\n\n".join(
-        source + "\n" + (_format_review_payload(block, max_chars=allocation) if allocation else "")
-        for source, block, allocation in zip(sources, blocks, allocations, strict=True)
-    )
+    parts = []
+    for file_id, block, allocation in zip(ordered, blocks, allocations, strict=True):
+        attached = _format_review_payload(block, max_chars=allocation) if allocation else ""
+        whole = attached.endswith(files[file_id][1].strip())
+        parts.append(source_line(file_id, whole) + "\n" + attached)
+    return prefix + "\n\n".join(parts)
 
 
 async def _review_payload_text(file_ids: list[str], *, focus: str | None = None) -> str | None:

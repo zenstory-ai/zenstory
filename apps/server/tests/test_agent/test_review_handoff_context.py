@@ -114,3 +114,7 @@ async def test_rework_attaches_only_the_chapters_the_reviewer_named(db_session):
     assert six_body.strip() in rework  # the named chapter arrives whole, quotable for edit_file
     assert five_body.strip()[:200] not in rework
     assert "审稿意见没有提到 《第五章》" in rework
+    assert f"[来源 id={six.id}" in rework and "以下是全文，不用再读取" in rework
+    # The reviewer got both chapters as excerpts, so it is still told how to read what was left out.
+    review = messages[1].split("[待审查内容]", 1)[1]
+    assert "以下是全文" not in review and f"query_files(id={five.id}) 按章节读取" in review
