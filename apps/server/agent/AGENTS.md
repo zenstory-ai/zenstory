@@ -92,7 +92,7 @@ agent/
 3. `run_writing_workflow_streaming`（`graph/writing_graph.py`）选初始 agent，顺序是：`resume_route_after_exhaustion`
    （上一轮截停后只回「继续」）→ 笼统要求先问清楚 → `inherit_routing_after_clarification`（仅 llm 策略）→
    `router_node`（llm）或固定从 writer 开始（off）。策略来自 `AGENT_ROUTER_STRATEGY`；前端 `generation_mode=fast`
-   强制 off 并关自动质检，`quality` 强制 llm 并开自动质检。之后循环跑 agent，直到完成或达到协作轮数上限。
+   （前端默认）照常走 llm 路由、只关自动质检，`quality` 强制 llm 并开自动质检。[fast-mode-default][n-fast-default]之后循环跑 agent，直到完成或达到协作轮数上限。
 4. `nodes.run_streaming_agent`：基础提示 + 角色提示 + `scope_directive` 等 → `openai_agents/runner.run_openai_agents_streaming_agent`。
    runner 用 `Runner.run_streamed` 跑 SDK，事件映射：`response.output_text.delta` → TEXT，reasoning delta → THINKING，
    `tool_called` → TOOL_USE，`tool_output` → TOOL_RESULT / HANDOFF / WORKFLOW_STOPPED（熔断后为
@@ -326,3 +326,4 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-range]: ../../../.agents/notes/implemented/feature/2026-10-19-query-files-range-reads.md
 [n-first-turn]: ../../../.agents/notes/implemented/feature/2026-10-19-first-turn-writes-before-asking.md
 [n-first-review]: ../../../.agents/notes/implemented/feature/2026-10-20-first-turn-skips-auto-review.md
+[n-fast-default]: ../../../.agents/notes/implemented/feature/2026-10-20-fast-mode-default-keeps-router.md

@@ -1682,7 +1682,7 @@ async def run_writing_workflow_streaming(
             type=StreamEventType.ROUTER_THINKING,
             data={
                 "message": (
-                    "快速模式：直接进入生成..."
+                    "快速模式：正在理解你的要求..."
                     if generation_mode == "fast"
                     else "高质量模式：正在规划工作流..."
                     if generation_mode == "quality"
@@ -1702,8 +1702,10 @@ async def run_writing_workflow_streaming(
         ).strip().lower() in {"1", "true", "yes", "y", "on"}
 
         # Per-request override (driven by frontend generation_mode UI).
+        # 快速模式只关自动质检：路由照常跑，只读 / 范围 / 作品第一条消息这些判断都来自路由，
+        # 关掉路由会让作者的提问也落到有写权限的 writer 上。质检和返修才是这档模式省下的成本。
         if generation_mode == "fast":
-            router_strategy = "off"
+            router_strategy = "llm"
             enable_graph_auto_review = False
         elif generation_mode == "quality":
             router_strategy = "llm"
@@ -1745,7 +1747,7 @@ async def run_writing_workflow_streaming(
                     "routing_metadata": {
                         "agent_type": "writer",
                         "workflow_type": "quick",
-                        "reason": "generation_mode_fast" if generation_mode == "fast" else "router_off",
+                        "reason": "router_off",
                         "confidence": 0.0,
                     },
                 }

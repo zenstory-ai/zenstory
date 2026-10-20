@@ -298,10 +298,9 @@ async def test_planned_hook_body_keeps_existing_review_boundaries(case):
     assert not any(e.type == StreamEventType.CHAT_HOLD and e.data.get("action") == CHAT_HOLD_DISCARD for e in events)
     visible = await _author_visible_text(events)
     if case == "fast":
-        assert calls == ["writer"]
+        assert calls == ["hook_designer", "writer"], "快速模式照常走路由安排的计划，只是不送审"
         assert not any(e.type == StreamEventType.CHAT_HOLD for e in events)
-    else:
-        assert summary in visible
+    assert summary in visible
 
 
 @pytest.mark.asyncio
@@ -485,11 +484,9 @@ async def test_planner_body_carry_requires_successful_planned_prose_handoff(case
     assert not any(e.type == StreamEventType.CHAT_HOLD and e.data.get("action") == CHAT_HOLD_DISCARD for e in events)
     visible = await _author_visible_text(events)
     if case == "fast":
-        assert calls == ["writer"], "快速模式沿用直接 writer 的既有路由，不运行规划师"
+        assert calls == ["planner", "writer"], "快速模式照常走路由安排的计划，只是不送审"
         assert not any(e.type == StreamEventType.CHAT_HOLD for e in events)
-        assert "核对结束。" in visible
-    else:
-        assert PLANNER_SUMMARY in visible
+    assert PLANNER_SUMMARY in visible
 
 
 @pytest.mark.asyncio

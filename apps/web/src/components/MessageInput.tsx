@@ -314,7 +314,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   matchedSkills = [],
   externalDraft,
   onDraftChange,
-  generationMode = "quality",
+  generationMode = "fast",
   onGenerationModeChange,
 }) => {
   const { t } = useTranslation(["chat", "common"]);

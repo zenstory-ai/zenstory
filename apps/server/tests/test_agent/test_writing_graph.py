@@ -243,20 +243,34 @@ class TestWritingGraphGenerationModeOverrides:
         )
 
     @pytest.mark.asyncio
-    async def test_generation_mode_fast_skips_router_llm(self):
+    async def test_generation_mode_fast_keeps_router_llm(self):
+        """快速模式只关自动质检：路由照常跑，只读等判断仍然生效。"""
         from agent.graph.writing_graph import run_writing_workflow_streaming
 
-        mock_router = AsyncMock(return_value={})
+        mock_router = AsyncMock(
+            return_value={
+                "current_agent": "writer",
+                "workflow_plan": "quick",
+                "workflow_agents": [],
+                "routing_metadata": {
+                    "agent_type": "writer",
+                    "workflow_type": "quick",
+                    "reason": "router_test",
+                    "confidence": 1.0,
+                    "read_only": True,
+                },
+            }
+        )
 
         with (
-            patch.dict("os.environ", {"AGENT_ROUTER_STRATEGY": "llm"}),
+            patch.dict("os.environ", {"AGENT_ROUTER_STRATEGY": "off"}),
             patch("agent.graph.writing_graph.router_node", mock_router),
             patch("agent.graph.writing_graph.run_streaming_agent", new=self._fake_run_streaming_agent),
         ):
             events = [
                 event async for event in run_writing_workflow_streaming(
                     state={
-                        "user_message": "测试",
+                        "user_message": "第三章写得怎么样？",
                         "messages": [],
                         "system_prompt": "",
                         "generation_mode": "fast",
@@ -265,12 +279,11 @@ class TestWritingGraphGenerationModeOverrides:
                 )
             ]
 
-        assert mock_router.await_count == 0
+        assert mock_router.await_count == 1
 
         decided_event = next(event for event in events if event.type == StreamEventType.ROUTER_DECIDED)
-        assert decided_event.data["initial_agent"] == "writer"
-        assert decided_event.data["workflow_plan"] == "quick"
-        assert decided_event.data["routing_metadata"]["reason"] == "generation_mode_fast"
+        assert decided_event.data["routing_metadata"]["reason"] == "router_test"
+        assert decided_event.data["routing_metadata"]["read_only"] is True
 
     @pytest.mark.asyncio
     async def test_generation_mode_quality_forces_router_llm(self):

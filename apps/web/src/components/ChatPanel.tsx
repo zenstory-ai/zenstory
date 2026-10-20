@@ -257,6 +257,8 @@ const SUGGESTION_INITIAL_TIMEOUT_MS = 1500;
 const GENERATION_MODE_STORAGE_KEY_PREFIX = "zenstory_generation_mode_";
 
 type GenerationMode = "fast" | "quality";
+/** 作者没选过时用快速模式（不自动审稿）；作者选过的按项目保存在 localStorage。 */
+const DEFAULT_GENERATION_MODE: GenerationMode = "fast";
 
 /** Minimum height of the chat input panel in pixels */
 const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 144;
@@ -575,7 +577,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const contextItemsRef = useRef<AgentContextItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showAIMemory, setShowAIMemory] = useState(false);
-  const [generationMode, setGenerationMode] = useState<GenerationMode>("quality");
+  const [generationMode, setGenerationMode] = useState<GenerationMode>(DEFAULT_GENERATION_MODE);
   const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
   const draftRef = useRef(draft);
   useEffect(() => {
@@ -622,7 +624,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (stored === "fast" || stored === "quality") {
       setGenerationMode(stored);
     } else {
-      setGenerationMode("quality");
+      setGenerationMode(DEFAULT_GENERATION_MODE);
     }
   }, [currentProjectId]);
 
