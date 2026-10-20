@@ -1703,12 +1703,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const stopFollowing = () => {
       followLoadedHistoryUntilRef.current = 0;
     };
-    const observer = new ResizeObserver(() => {
-      if (shouldAutoScrollRef.current && performance.now() < followLoadedHistoryUntilRef.current) {
+    const observer = new ResizeObserver((entries) => {
+      if (!shouldAutoScrollRef.current) return;
+      // The list itself got shorter (the chips row appeared above the input after the first
+      // scroll-to-bottom): a reader at the bottom stays there, or the latest reply drops out of view.
+      const listResized = entries.some((entry) => entry.target === scrollEl);
+      if (listResized || performance.now() < followLoadedHistoryUntilRef.current) {
         messageListRef.current?.scrollToBottom(false);
       }
     });
     observer.observe(contentEl);
+    observer.observe(scrollEl);
     const interactions = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
     for (const type of interactions) {
       scrollEl.addEventListener(type, stopFollowing, { passive: true });

@@ -2127,9 +2127,9 @@ describe('ChatPanel new-author flow', () => {
   it('keeps following the bottom while loaded history finishes rendering, until the author touches the list', async () => {
     // Lazily rendered Markdown grows the list after the first scroll-to-bottom; reloads used to stop
     // one round short of the latest reply (2026-10-12 production audit).
-    const resizeCallbacks: Array<() => void> = []
+    const resizeCallbacks: Array<(entries: Array<{ target: Element }>) => void> = []
     vi.stubGlobal('ResizeObserver', class {
-      constructor(callback: () => void) { resizeCallbacks.push(callback) }
+      constructor(callback: (entries: Array<{ target: Element }>) => void) { resizeCallbacks.push(callback) }
       observe() {}
       disconnect() {}
     })
@@ -2141,15 +2141,57 @@ describe('ChatPanel new-author flow', () => {
       render(<ChatPanel />)
       await waitFor(() => expect(lastMessageListProps()?.messages).toHaveLength(2))
       expect(resizeCallbacks.length).toBeGreaterThan(0)
+      const content = screen.getByTestId('message-list').firstElementChild!
+      const contentGrows = () => act(() => resizeCallbacks.forEach((callback) => callback([{ target: content }])))
 
       mockScrollToBottom.mockClear()
-      act(() => resizeCallbacks.forEach((callback) => callback()))
+      contentGrows()
       expect(mockScrollToBottom).toHaveBeenCalledWith(false)
 
       // The author starts scrolling: later growth no longer drags the list down.
       fireEvent.wheel(screen.getByTestId('message-list'))
       mockScrollToBottom.mockClear()
-      act(() => resizeCallbacks.forEach((callback) => callback()))
+      contentGrows()
+      expect(mockScrollToBottom).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('keeps a reader at the bottom when the list gets shorter, e.g. when the chips appear above the input', async () => {
+    // Reopening a work: the chips row appeared after the first scroll-to-bottom and pushed the
+    // latest reply out of view (2026-10-20 new-user audit, 3 of 3 reopens).
+    const resize: Array<(entries: Array<{ target: Element }>) => void> = []
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: (entries: Array<{ target: Element }>) => void) { resize.push(callback) }
+      observe() {}
+      disconnect() {}
+    })
+    try {
+      vi.mocked(getRecentMessages).mockResolvedValueOnce([
+        { id: 'u-1', session_id: 'session-1', role: 'user', content: '写第一章', created_at: '2026-10-08T10:00:00Z' },
+        { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '第一章写好了', created_at: '2026-10-08T10:01:00Z' },
+      ] as never)
+      render(<ChatPanel />)
+      await waitFor(() => expect(lastMessageListProps()?.messages).toHaveLength(2))
+      const scroller = screen.getByTestId('message-list')
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 2000 })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 400 })
+      Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 1600 })
+      fireEvent.scroll(scroller)
+      // History has settled (the author touched the list): content growth alone is no longer followed.
+      fireEvent.wheel(scroller)
+      const listShrinks = () => act(() => resize.forEach((callback) => callback([{ target: scroller }])))
+
+      mockScrollToBottom.mockClear()
+      listShrinks()
+      expect(mockScrollToBottom).toHaveBeenCalledWith(false)
+
+      // A reader who scrolled up to re-read is left where they are.
+      scroller.scrollTop = 0
+      fireEvent.scroll(scroller)
+      mockScrollToBottom.mockClear()
+      listShrinks()
       expect(mockScrollToBottom).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
