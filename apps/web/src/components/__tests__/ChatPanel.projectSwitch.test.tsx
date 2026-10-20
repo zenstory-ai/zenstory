@@ -493,7 +493,8 @@ describe('ChatPanel project switch stream cleanup', () => {
     render(<ChatPanel />)
     await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
 
-    expect(screen.getByText('这次没能处理你的要求，作品没有改动。可以稍后重试。')).toBeInTheDocument()
+    // The banner shows once history has loaded, which a slow CI runner may not have done yet.
+    expect(await screen.findByText('这次没能处理你的要求，作品没有改动。可以稍后重试。')).toBeInTheDocument()
     expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument()
 
     await act(async () => {
