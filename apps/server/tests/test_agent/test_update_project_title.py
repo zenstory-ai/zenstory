@@ -48,7 +48,15 @@ async def _update_project(session, user, project, args, *, author_message=None, 
 
 @pytest.mark.parametrize(
     ("default_name", "project_type"),
-    [("我的小说", "novel"), ("我的短剧", "screenplay"), ("My Short Story", "short"), ("未命名项目", "novel")],
+    [
+        ("我的小说", "novel"),
+        ("我的短剧", "screenplay"),
+        ("My Short Story", "short"),
+        ("未命名项目", "novel"),
+        # The dashboard numbers a default name the author already uses (2026-10-20).
+        ("我的小说 2", "novel"),
+        ("My Novel 12", "novel"),
+    ],
 )
 async def test_default_project_name_is_replaced_by_the_work_title(db_session, owner, default_name, project_type):
     project = _project(db_session, owner, default_name, project_type)

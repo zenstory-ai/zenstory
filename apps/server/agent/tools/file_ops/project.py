@@ -50,6 +50,16 @@ DEFAULT_PROJECT_NAMES = frozenset(
     }
     | {"我的项目", "未命名项目", "Untitled"}
 ) - {""}
+# The dashboard numbers a default name the author already uses (「我的小说 2」); still a default.
+_NUMBERED_DEFAULT_NAME = re.compile(r"^(?P<base>.+) (?P<number>[1-9][0-9]*)$")
+
+
+def is_default_project_name(name: str) -> bool:
+    """A template's default name, or one the dashboard numbered so the work list has no twins."""
+    if name in DEFAULT_PROJECT_NAMES:
+        return True
+    numbered = _NUMBERED_DEFAULT_NAME.match(name)
+    return bool(numbered and numbered.group("base") in DEFAULT_PROJECT_NAMES)
 
 TITLE_SKIPPED_AUTHOR_NAMED = "author_named"
 TITLE_SKIPPED_INVALID = "invalid_title"
@@ -539,7 +549,7 @@ class ProjectOperations:
                 "title_note": "无法确认项目名的命名来源，本次未改名；作者可以通过项目设置直接改名。",
             }
         if title_source == PROJECT_TITLE_SOURCE_AUTHOR or (
-            current_name not in DEFAULT_PROJECT_NAMES and title_source != PROJECT_TITLE_SOURCE_AI
+            not is_default_project_name(current_name) and title_source != PROJECT_TITLE_SOURCE_AI
         ):
             return {
                 "project_name_updated": False,
