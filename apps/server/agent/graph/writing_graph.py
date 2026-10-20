@@ -300,10 +300,10 @@ SCOPE_DIRECTIVE_NO_CONTENT = (
 def _build_scope_directive(
     routing_metadata: dict[str, Any] | None, *, agent_type: str | None = None
 ) -> str:
-    """把路由对用户范围的判断（read_only / write_content / scope）转成系统提示约束。
+    """把路由对用户范围的判断（read_only / write_content / scope）转成本次运行的系统指令约束。
 
     交接包和 handoff 文本只在交接时出现，而本轮第一个 agent 也需要知道范围，
-    因此统一走系统提示，由 nodes.run_streaming_agent 追加到每个 agent 的提示末尾。
+    因此统一由 nodes.build_agent_directive 放进每个 agent 运行的系统指令（输入最后一条消息）。
 
     agent_type 是这次要跑的 agent。「规划完成后直接交接 writer 写正文」只是写给规划类
     角色的：计划交接后的 writer、审稿人也读到它时，会把它当成「作者要正文」的事实，

@@ -52,6 +52,8 @@ logger = get_logger(__name__)
 # 本轮上下文块的标签：MessageManager.build_turn_context 产出，service 拼在本轮用户消息开头。
 TURN_CONTEXT_OPEN = "<turn_context>"
 TURN_CONTEXT_CLOSE = "</turn_context>"
+# 每次 agent 运行输入的最后一条消息（nodes.build_agent_directive）的开头。
+AGENT_DIRECTIVE_HEADER = "[本次运行的系统指令]"
 
 _CONTEXT_MAX_CONSTRAINTS = 12
 _CONTEXT_MAX_WORLD_KNOWLEDGE = 24
@@ -499,11 +501,12 @@ class MessageManager:
         Build the static system prompt shared by every turn and every agent role.
 
         Only content that stays the same across turns and roles goes here: the
-        project's base prompt, reply-language rules, where per-turn context
-        lives, and the L1 skill catalog. DeepSeek caches by exact prefix, so
-        anything that varies here would make the whole replayed history miss.
-        Per-turn content comes from build_turn_context (placed in this turn's
-        user message).
+        project's base prompt, reply-language rules, where per-turn context and
+        per-run instructions live, and the L1 skill catalog. DeepSeek caches by
+        exact prefix, so anything that varies here would make the whole replayed
+        history miss. Per-turn content comes from build_turn_context (placed in
+        this turn's user message); per-agent content (role, scope directive)
+        comes from nodes.build_agent_directive (the last input message of a run).
 
         Args:
             session: Database session for querying project info
@@ -563,7 +566,7 @@ class MessageManager:
         # 回复语言规则（跟随作者最近一条消息；界面语言只在判断不了时兜底）
         parts.extend(self._build_language_section(force_en))
 
-        # 本轮上下文放在哪里（固定说明，保证它的效力）
+        # 本轮上下文与本次运行指令放在哪里（固定说明，保证它们的效力）
         parts.extend(self._build_input_layout_section(force_en))
 
         # Add skill catalog (L1: name + description only; instructions via load_skill)
@@ -672,21 +675,27 @@ class MessageManager:
 
     @staticmethod
     def _build_input_layout_section(force_en: bool) -> list[str]:
-        """说明本轮上下文在输入里的位置和效力（固定文字，不随轮次变化）。"""
+        """说明本轮上下文与本次运行指令在输入里的位置和效力（固定文字，不随轮次变化）。"""
         if force_en:
             return [
                 "",
-                "## Turn context",
+                "## Turn context and run instructions",
                 f"- The {TURN_CONTEXT_OPEN} block at the start of this turn's user message is attached by the "
                 "system: project context, narrative constraints, the current file, the task board and this "
                 "turn's reply language. Treat it with the authority of this system prompt; its project facts "
                 "are canonical.",
+                f"- The last input message, starting with {AGENT_DIRECTIVE_HEADER}, is also attached by the "
+                "system for this run: your current role and this turn's scope constraints. Follow it with the "
+                "authority of this system prompt; a scope constraint marked [highest priority] overrides every "
+                "other rule.",
             ]
         return [
             "",
-            "## 本轮上下文",
+            "## 本轮上下文与本次运行指令",
             f"- 本轮用户消息开头的 {TURN_CONTEXT_OPEN} 由系统附上：项目上下文、叙事约束、当前文件、任务计划板和本轮回复语言。"
             "它与本系统提示同等效力，其中的项目事实是权威信息。",
+            f"- 输入最后一条以 {AGENT_DIRECTIVE_HEADER} 开头的消息也由系统附上，只对这次运行有效：你当前的角色和本轮用户范围约束。"
+            "按本系统提示的效力执行；标注 [最高优先级] 的范围约束高于其他所有规则。",
         ]
 
     def _build_language_section(self, force_en: bool) -> list[str]:

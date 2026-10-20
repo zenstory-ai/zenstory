@@ -356,6 +356,19 @@ def build_history_messages(state: WritingState) -> MessageList:
     return api_messages
 
 
+def build_run_input(api_messages: MessageList, agent_directive: str = "") -> MessageList:
+    """这次 SDK run 的输入：[历史 + 本轮用户消息][这次运行的系统指令]。
+
+    系统指令（角色、范围约束等，见 nodes.build_agent_directive）因角色而异，放在最后，
+    让 [系统提示][历史][本轮用户消息] 在同一请求的各个 agent 之间逐字相同、命中前缀缓存。
+    用 user 角色而不是 system：DeepSeek 的对话模板把所有 system 消息合并到最前面，
+    放在末尾的 system 消息会重新打断前缀。它只进本次 SDK 输入，不写回 state["messages"]。
+    """
+    if not agent_directive:
+        return list(api_messages)
+    return [*api_messages, {"role": "user", "content": agent_directive}]
+
+
 def _append_assistant_turn_to_state_messages(
     state: WritingState,
     api_messages: MessageList,
@@ -701,8 +714,12 @@ async def run_openai_agents_streaming_agent(
     system_prompt: str,
     get_steering_messages: Callable[[], Any] | None = None,
     failure_breaker: ToolFailureBreaker | None = None,
+    agent_directive: str = "",
 ) -> AsyncIterator[StreamEvent]:
     """Run one writing agent via openai-agents-python and yield workflow events.
+
+    agent_directive：这次运行的系统指令（nodes.build_agent_directive），作为输入最后一条消息，
+    不写回 state["messages"]（见 build_run_input）。
 
     failure_breaker：工具失败熔断器。不传时取 state["tool_failure_breaker"]
     （writing_graph 每个请求建一个、跨 agent run 共享）；都没有时本次 run 自建一个。
@@ -833,7 +850,7 @@ async def run_openai_agents_streaming_agent(
         try:
             result = Runner.run_streamed(
                 sdk_agent,
-                input=api_messages,
+                input=build_run_input(api_messages, agent_directive),
                 max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
                 # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
                 # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前

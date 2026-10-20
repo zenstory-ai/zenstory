@@ -43,7 +43,7 @@ async def test_only_output_truncation_continue_injects_system_guidance(reason, e
     captured = []
 
     async def fake_runner(state, agent_type, system_prompt, **kwargs):
-        captured.append(system_prompt)
+        captured.append(kwargs.get("agent_directive", ""))
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "已完成本轮指定修改。"})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 

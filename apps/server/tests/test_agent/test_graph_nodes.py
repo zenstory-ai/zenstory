@@ -90,9 +90,12 @@ class TestRunStreamingAgent:
         from agent.core.workflow_events import StreamEvent, StreamEventType
         from agent.graph.nodes import run_streaming_agent
 
-        async def fake_openai_runner(state, agent_type, system_prompt, get_steering_messages=None):
+        async def fake_openai_runner(
+            state, agent_type, system_prompt, get_steering_messages=None, agent_directive=""
+        ):
             assert agent_type == "planner"
-            assert "base prompt" in system_prompt
+            assert system_prompt == "base prompt"
+            assert "## 当前角色：planner" in agent_directive
             assert get_steering_messages is None
             state["messages"] = [
                 {"role": "user", "content": state["user_message"]},
@@ -212,16 +215,19 @@ class TestQuestionToUserDetection:
 
 @pytest.mark.unit
 class TestScopeDirectiveInjection:
-    """state.scope_directive 必须进入每个 agent 的系统提示。"""
+    """state.scope_directive 必须进入每个 agent 运行的系统指令，系统提示保持共用。"""
 
     @pytest.mark.asyncio
-    async def test_scope_directive_appended_to_system_prompt(self):
+    async def test_scope_directive_goes_to_the_run_directive_not_the_system_prompt(self):
         from agent.graph.nodes import run_streaming_agent
 
         captured: dict[str, str] = {}
 
-        async def fake_openai_runner(state, agent_type, system_prompt, get_steering_messages=None):
+        async def fake_openai_runner(
+            state, agent_type, system_prompt, get_steering_messages=None, agent_directive=""
+        ):
             captured["system_prompt"] = system_prompt
+            captured["agent_directive"] = agent_directive
             if False:  # pragma: no cover - 让函数成为异步生成器
                 yield None
 
@@ -234,27 +240,19 @@ class TestScopeDirectiveInjection:
         with patch("agent.graph.nodes.run_openai_agents_streaming_agent", new=fake_openai_runner):
             _ = [event async for event in run_streaming_agent(state=state, agent_type="writer")]
 
-        prompt = captured["system_prompt"]
-        assert prompt.startswith("base prompt")
-        assert "本轮用户范围约束" in prompt
-        assert prompt.rstrip().endswith("用户要求的交付范围：只写第1章。")
+        assert captured["system_prompt"] == "base prompt"
+        directive = captured["agent_directive"]
+        assert "## 本轮用户范围约束 [最高优先级]" in directive
+        assert directive.rstrip().endswith("用户要求的交付范围：只写第1章。")
 
     @pytest.mark.asyncio
-    async def test_no_scope_directive_leaves_prompt_unchanged(self):
-        from agent.graph.nodes import run_streaming_agent
+    async def test_no_scope_directive_leaves_it_out(self):
+        from agent.graph.nodes import build_agent_directive
 
-        captured: dict[str, str] = {}
+        directive = build_agent_directive({"user_message": "写", "system_prompt": "base prompt"}, "writer")
 
-        async def fake_openai_runner(state, agent_type, system_prompt, get_steering_messages=None):
-            captured["system_prompt"] = system_prompt
-            if False:  # pragma: no cover - 让函数成为异步生成器
-                yield None
-
-        state = {"user_message": "写", "messages": [], "system_prompt": "base prompt"}
-        with patch("agent.graph.nodes.run_openai_agents_streaming_agent", new=fake_openai_runner):
-            _ = [event async for event in run_streaming_agent(state=state, agent_type="writer")]
-
-        assert "本轮用户范围约束" not in captured["system_prompt"]
+        assert "## 当前角色：writer" in directive
+        assert "本轮用户范围约束" not in directive
 
 
 @pytest.mark.unit

@@ -102,7 +102,7 @@ class WritingState(TypedDict, total=False):
     workflow_plan: str | None  # Planned workflow path
     workflow_agents: list[str] | None  # Ordered list of agents to execute
     # 用户范围约束（只读 / 不要正文 / 交付范围），由 writing_graph 按路由结果
-    # 生成，nodes.run_streaming_agent 追加到每个 agent 的系统提示末尾。
+    # 生成，nodes.build_agent_directive 放进每个 agent 运行的系统指令（输入最后一条消息）。
     scope_directive: str | None
     length_requirements_directive: str | None
     # 用户明确要求本轮不改文件：tools_adapter 对写文件工具的调用一律拒绝执行。
