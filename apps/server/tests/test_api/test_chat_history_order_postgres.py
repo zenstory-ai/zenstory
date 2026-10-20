@@ -355,7 +355,9 @@ def completion_capture(monkeypatch):
     calls = []
 
     async def complete(self, **kwargs):
-        assert self._sync_client is None and self._async_client is None
+        from agent.core import llm_providers
+
+        assert not llm_providers._async_clients  # no real provider client was opened
         calls.append(kwargs)
         return '{"suggestions":["完善角色动机","讨论情节伏笔","梳理章节结构"]}'
 
