@@ -48,6 +48,13 @@ export const FileTreePane: React.FC = () => {
 
   // Data state
   const [tree, setTree] = useState<FileTreeNode[]>([]);
+  // A brand-new work has no file anywhere: one "empty" hint per folder would only repeat itself
+  // beside the editor's own start. The hints return once the work has any file.
+  const treeHasFiles = useMemo(() => {
+    const hasFile = (nodes: FileTreeNode[]): boolean =>
+      nodes.some((node) => node.file_type !== "folder" || hasFile(node.children ?? []));
+    return hasFile(tree);
+  }, [tree]);
   const [loading, setLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -650,7 +657,8 @@ export const FileTreePane: React.FC = () => {
             {node.children?.map((child) => renderNode(child, depth + 1))}
 
             {/* Empty state */}
-            {(!node.children || node.children.length === 0) &&
+            {treeHasFiles &&
+              (!node.children || node.children.length === 0) &&
               isCreating !== node.id && (
                 <div
                   className="px-2 py-2 text-[hsl(var(--text-secondary))] text-xs italic"

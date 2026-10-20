@@ -475,3 +475,26 @@ describe('FileTreePane draft import on phones', () => {
     expect(button.parentElement).toHaveClass(visibility);
   });
 });
+
+describe('FileTreePane empty folder hints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+  });
+
+  it.each([
+    ['a brand-new work with no file', [], 0],
+    ['a work that already has a chapter', [{ id: 'draft-1', title: '第一章', file_type: 'draft', children: [] }], 1],
+  ])('in %s, shows %s empty-folder hints', async (_name, drafts, hints) => {
+    mocks.getTree.mockResolvedValue({
+      tree: [
+        { id: 'drafts', title: '正文', file_type: 'folder', children: drafts },
+        { id: 'outlines', title: '大纲', file_type: 'folder', children: [] },
+      ],
+    });
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+
+    expect(await screen.findByText('大纲')).toBeInTheDocument();
+    expect(screen.queryAllByText('editor:fileTree.emptyFolder')).toHaveLength(hints);
+  });
+});
