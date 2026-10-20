@@ -10,8 +10,10 @@ import pytest
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.review_evidence import (
     MAX_REPETITION_EVIDENCE,
+    LengthBounds,
     find_numeric_fact_pairs,
     find_repetition_evidence,
+    length_requirement_bounds,
 )
 from tests.test_agent.body_write_events import edit_file_events
 
@@ -486,3 +488,35 @@ def test_review_neighbors_use_metadata_sequence_before_misleading_title(db_sessi
         assert finder.call_args.args[2] == [(previous.title, previous.content)]
     finally:
         ToolContext.clear_context()
+
+
+# ----------------------------------------------------------------- 篇幅容差
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("clause", "bounds"),
+    [
+        # 单个目标数是约数：±15% 内都算达标（生产里 3377→2899 逐字削减的起因）。
+        ("单章约2000字", LengthBounds(1700, 2300, hard=False)),
+        ("3000字左右", LengthBounds(2550, 3450, hard=False)),
+        ("扩写到两千五百字", LengthBounds(2125, 2875, hard=False)),
+        ("全篇1.5万字", LengthBounds(12750, 17250, hard=False)),
+        ("以下是要求：每章2000字", LengthBounds(1700, 2300, hard=False)),
+        # 作者给了范围或上下限：那一侧是硬要求，不放宽。
+        ("每集500-900字", LengthBounds(500, 900, hard=True)),
+        ("两千字到三千字", LengthBounds(2000, 3000, hard=True)),
+        ("每章不超过3000字", LengthBounds(None, 3000, hard=True)),
+        ("控制在3000字以内", LengthBounds(None, 3000, hard=True)),
+        ("至少两千字", LengthBounds(2000, None, hard=True)),
+        ("每章字数要求1000字以上", LengthBounds(1000, None, hard=True)),
+    ],
+)
+def test_length_requirement_bounds(clause, bounds):
+    assert length_requirement_bounds(clause) == bounds
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("clause", ["三千多字", "全文8000字，每章2000字", "三四千字"])
+def test_unclear_length_requirements_stay_as_quotes(clause):
+    assert length_requirement_bounds(clause) is None

@@ -937,7 +937,7 @@ async def test_review_handoff_carries_editor_count_and_earlier_length_requiremen
     assert counts.startswith(f"- 《第三章》{count_words(BODY)} 字\n")
     requirements = message.split(LENGTH_REQUIREMENT_HEADER + "\n", 1)[1]
     assert "「写一部都市小说，单章约 2000 字」（作者在本会话说过）" in requirements
-    assert "「第一人称，每章约2500字左右」（项目写作风格）" in requirements
+    assert "「第一人称，每章约2500字左右」（项目写作风格） → 达标区间 2125–2875 字" in requirements
     packet = next(e for e in events if e.type == StreamEventType.HANDOFF).data["handoff_packet"]
     assert f"《第三章》编辑器字数 {count_words(BODY)}" in packet["evidence"]
 
@@ -1027,9 +1027,9 @@ def test_find_length_requirements_quotes_only_length_clauses():
     )
 
     assert found == [
-        "「每集约500-900字，台词短」（项目写作风格）",
-        "「第一章字数太少了，没有2500字」（作者在本会话说过）",
-        "「还得改，每章字数要求1000字以上」（作者本轮原话）",
+        "「每集约500-900字，台词短」（项目写作风格） → 硬要求 500–900 字",
+        "「第一章字数太少了，没有2500字」（作者在本会话说过） → 达标区间 2125–2875 字（目标 ±15%）",
+        "「还得改，每章字数要求1000字以上」（作者本轮原话） → 硬下限 1000 字",
     ]
 
 

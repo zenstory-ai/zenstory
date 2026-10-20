@@ -160,10 +160,11 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   质量门可用且作者要正文时，writer 前的原计划可写角色也按成功正文写入扣留；同一交付的累计正文达到门槛、实际沿计划前缀交接且没有收尾问题才丢弃，
   正文记录接续给 writer。只有规划、失败写入、未执行交接和提问原样释放。[planned-body-review][n-planned-body]
 - **送审证据用落库后的事实**：送审交接附 `[本轮正文字数]`（落库后的 `count_words`）和 `[作者的篇幅要求]`
-  （`review_evidence.find_length_requirements`），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
+  （`review_evidence.find_length_requirements`：原话 + `length_requirement_bounds` 换算的达标区间，单个目标数 ±15%，
+  范围和上下限是硬要求；区间内不算缺陷），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
   放不进预算的长文件只附本请求改动的那段（写入前正文由 `ToolContext.remember_pre_write_content` 记下）。
-  多文件在既有总预算内逐文件分配，每份保留来源文件 ID 与 `updated_at`；未附全文的部分明确标注，按 ID 精确 `query_files` 读取，不把省略部分当作已经核对。
-  [single-summary][n-summary]、[writer-delivery-requirements][n-length]、[thinking-loop-inputs][n-thinking]
+  多文件在既有总预算内逐文件分配，每份保留来源文件 ID 与 `updated_at`；附了全文的来源行写「以下是全文，不用再读取」，未附全文的部分明确标注，按 ID 精确 `query_files` 按章节读取，不把省略部分当作已经核对。返修交接的 `[返修对象当前正文]` 只附审稿意见点到的文件。
+  [single-summary][n-summary]、[writer-delivery-requirements][n-length]、[thinking-loop-inputs][n-thinking]、[quality-mode-lean][n-lean]
 - **自动质检门只认成功的正文写入**：按 `graph/body_writes.py` 计 draft / script 里实际写进的字数；改大纲、设定、角色和聊天文字不算；
   写入全部失败时不送审。[single-summary][n-summary]、[tool-failure-breaker][n-breaker]、[review-gating][n-review]
 - **作品第一条消息不送审**：`state["first_message_project_label"]` 非空的一轮关掉自动质检门，writer 自己 `handoff_to_agent(quality_reviewer)` 也丢弃；交接前没给作者写话时，同一个 writer 再跑一轮只写总结（`FIRST_ROUND_SUMMARY_CONTEXT`，一次）。作者读到的是 writer 自己的交付说明，不是返修记录；路由显式安排的审稿照常。[first-turn-skips-review][n-first-review]
@@ -336,3 +337,4 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-first-review]: ../../../.agents/notes/implemented/feature/2026-10-20-first-turn-skips-auto-review.md
 [n-fast-default]: ../../../.agents/notes/implemented/feature/2026-10-20-fast-mode-default-keeps-router.md
 [n-cache-layout]: ../../../.agents/notes/implemented/bug-fix/2026-10-20-agent-cache-stable-prompt-layout.md
+[n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md
