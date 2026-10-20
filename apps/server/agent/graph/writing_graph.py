@@ -868,7 +868,8 @@ def _collect_review_payload_text(file_ids: list[str], *, focus: str | None = Non
         ]
         if named and len(named) < len(ordered):
             skipped = "、".join(f"《{files[file_id][0]}》" for file_id in ordered if file_id not in named)
-            prefix = f"[审稿意见没有提到 {skipped}，没有附上，不用改也不用读]\n\n"
+            # 只是标题匹配：意见换了叫法（「第3章」对「第三章」）时也会落在这里，不能说「不用改」。
+            prefix = f"[审稿意见没有按标题提到 {skipped}，没有附上；意见要改其中的内容时按章节读那一段]\n\n"
             ordered = named
     if len(ordered) > 1:
         counts = "、".join(f"《{files[file_id][0]}》{count_words(files[file_id][1])}" for file_id in ordered)
