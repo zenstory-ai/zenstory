@@ -79,6 +79,7 @@ import { hasPendingInspiration } from "../lib/pendingInspiration";
 import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
 import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
+import { optionsOfferedInReply } from "../lib/replyOptions";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
@@ -878,6 +879,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       return;
     }
     const cached = readCachedSuggestions(projectId);
+    const lastLoaded = sourceMessages[sourceMessages.length - 1];
+    const offered = cached === null && lastLoaded?.role === "assistant"
+      ? optionsOfferedInReply(lastLoaded.content)
+      : null;
+    if (offered) {
+      // The last reply ended with options in the author's words: they are the chips, as offered.
+      setAiSuggestions(offered);
+      setSuggestionDisplayState("ready");
+      writeSuggestionCache(projectId, offered);
+      return;
+    }
 
     if (cached !== null) {
       // 有缓存就直接用，不再后台刷新：打开/切换项目不该凭空多打一次 /suggest。
@@ -918,7 +930,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (firstResult.suggestions === null && aiSuggestionsRef.current.length === 0) {
       setSuggestionDisplayState("fallback");
     }
-  }, [canRequestSuggestions, fetchAndApplySuggestions, readCachedSuggestions, setAiSuggestions]);
+  }, [canRequestSuggestions, fetchAndApplySuggestions, readCachedSuggestions, setAiSuggestions, writeSuggestionCache]);
 
   const finalizePendingContextClears = useCallback(() => {
     if (pendingMaterialClearRef.current) {
@@ -1137,6 +1149,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           return;
         }
         lastAutoSuggestionKeyRef.current = suggestionKey;
+        // The reply ended with options in the author's words: those are the chips, with no
+        // separate model call that could suggest something else.
+        const offered = lastMessage?.role === "assistant" ? optionsOfferedInReply(lastMessage.content) : null;
+        if (offered) {
+          setAiSuggestions(offered);
+          writeSuggestionCache(currentProjectId, offered);
+          lastAutoSuggestionStateRef.current = "ready";
+          setSuggestionDisplayState("ready");
+          return;
+        }
         try {
           const result = await fetchAndApplySuggestions(currentProjectId, currentMessages, { allowFallback: true });
           if (currentProjectIdRef.current !== currentProjectId || lastAutoSuggestionKeyRef.current !== suggestionKey) return;
@@ -1163,6 +1185,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     invalidateQuota,
     refreshNextStep,
     queryClient, userId,
+    setAiSuggestions,
+    writeSuggestionCache,
   ]);
 
   // Agent stream hook - uses callbacks from useChatStreaming hook

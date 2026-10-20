@@ -1899,6 +1899,39 @@ describe('ChatPanel mount smoke', () => {
     expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
   })
 
+  const REPLY_WITH_OPTIONS = '写好了第一章开头。\n\n想换个方向的话，可以回我一句：\n- 「主角改成女性」\n- 「开头先写一场宫宴」'
+
+  it('turns the options a finished reply ends with into the chips, without asking for others', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      withEarlierTurn()
+      render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      mockStreamSnapshot.items = [{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS, timestamp: new Date() }]
+
+      await act(async () => {
+        await roundOptions().onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null)
+      })
+      await act(async () => { vi.advanceTimersByTime(1600) })
+
+      await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴']))
+      expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('opens a chat whose last reply offered options with those options as the chips', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-options', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z', metadata: null,
+    }] as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴']))
+    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+  })
+
   it('uses local fallback only when the suggestion request fails', async () => {
     vi.mocked(fetchSuggestions).mockResolvedValueOnce(null)
     withEarlierTurn()
