@@ -1343,6 +1343,31 @@ describe('agentApi', () => {
       errorSpy.mockRestore()
     })
 
+    it('stops asking for suggestions until Retry-After once the cap is hit', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        headers: new Headers({ 'Retry-After': '3600' }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      expect(await fetchSuggestions('test-project')).toBeNull()
+      expect(await fetchSuggestions('test-project')).toBeNull()
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+
+      // 换了登录会话（另一个账号）不受上一个会话的限流影响
+      localStorage.setItem('refresh_token', 'another-session-refresh-token')
+      expect(await fetchSuggestions('test-project')).toBeNull()
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+
+      // 过了 Retry-After 照常请求
+      now.mockReturnValue(1_000_000 + 3600 * 1000 + 1)
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ suggestions: ['继续写'] }) })
+      expect(await fetchSuggestions('test-project')).toEqual(['继续写'])
+      expect(mockFetch).toHaveBeenCalledTimes(3)
+    })
+
     it('limits count to max 5', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,

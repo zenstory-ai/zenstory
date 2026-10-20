@@ -926,6 +926,45 @@ export function streamAgentRequest(
 
 
 /**
+ * 输入建议被限流（429）后，到 Retry-After 之前不再请求：每日上限要等到北京时间零点，
+ * 期间每一轮都去撞一次 429 没有意义。按登录会话记（refresh token 尾段），换账号不受影响。
+ */
+const SUGGEST_BLOCKED_KEY = "zenstory_suggest_blocked_until";
+const SUGGEST_BLOCK_FALLBACK_SECONDS = 10 * 60;
+
+function suggestSessionTag(refreshToken: string | null): string {
+  return (refreshToken || "").slice(-16);
+}
+
+function suggestionsBlocked(refreshToken: string | null): boolean {
+  try {
+    const raw = localStorage.getItem(SUGGEST_BLOCKED_KEY);
+    if (!raw) return false;
+    const { until, session } = JSON.parse(raw) as { until?: unknown; session?: unknown };
+    if (typeof until === "number" && Date.now() < until && session === suggestSessionTag(refreshToken)) {
+      return true;
+    }
+    localStorage.removeItem(SUGGEST_BLOCKED_KEY);
+  } catch {
+    // 存储不可用或内容损坏：照常请求
+  }
+  return false;
+}
+
+function blockSuggestions(retryAfter: string | null | undefined, refreshToken: string | null): void {
+  const seconds = Number(retryAfter);
+  const wait = Number.isFinite(seconds) && seconds > 0 ? seconds : SUGGEST_BLOCK_FALLBACK_SECONDS;
+  try {
+    localStorage.setItem(
+      SUGGEST_BLOCKED_KEY,
+      JSON.stringify({ until: Date.now() + wait * 1000, session: suggestSessionTag(refreshToken) }),
+    );
+  } catch {
+    // 存储不可用：下次照常请求
+  }
+}
+
+/**
  * Fetch intelligent next-step suggestions.
  *
  * Generates multiple short suggestions (~15 characters each) based on
@@ -943,6 +982,7 @@ export async function fetchSuggestions(
 ): Promise<string[] | null> {
   const entryAccess = getAccessToken();
   const entryRefresh = localStorage.getItem("refresh_token");
+  if (suggestionsBlocked(entryRefresh)) return null;
   const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<string[] | null> => {
     try {
       const language = localStorage.getItem("zenstory-language") || "zh";
@@ -978,8 +1018,9 @@ export async function fetchSuggestions(
       }
 
       // 429：小时限流或每日上限已满。建议只是锦上添花，静默退回失败标记，
-      // 不记错误、不打扰用户（调用方会显示本地兜底建议）。
+      // 不记错误、不打扰用户（调用方会显示本地兜底建议）；到 Retry-After 之前不再请求。
       if (response.status === 429) {
+        blockSuggestions(response.headers?.get?.("Retry-After"), entryRefresh);
         return null;
       }
 
