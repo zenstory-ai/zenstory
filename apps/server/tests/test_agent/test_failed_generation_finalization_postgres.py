@@ -20,6 +20,7 @@ from sqlmodel import Session, SQLModel, select
 
 import database
 from agent import service as service_module
+from agent.core.session_loader import WORKING_SET_USER_MESSAGE_LABEL
 from agent.core.steering import (
     SteeringSessionBusyError,
     get_steering_queue_for_user_async,
@@ -335,10 +336,13 @@ def test_sequential_history_and_run_release(pg_engine, actors, monkeypatch, endi
         await consume(AgentService(), pg_engine, actors, "Sequential followup", trace)
         followup = next(row for row in trace.rows if row["kind"] == "workflow_entry"
                         and row["run"] == "Sequential followup")
-        assert [item["content"] for item in followup["messages"]] == [
+        contents = [item["content"] for item in followup["messages"]]
+        assert contents[:4] == [
             "Previously committed user", "Previously committed assistant",
-            "Sequential request", "Sequential output", "Sequential followup",
+            "Sequential request", "Sequential output",
         ]
+        # 本轮用户消息前面拼着 <turn_context>（缓存布局），作者原话在标签之后。
+        assert contents[4].rpartition(f"{WORKING_SET_USER_MESSAGE_LABEL}\n")[2] == "Sequential followup"
         count, rows = history(pg_engine, actors[2])
         assert count == len(rows) == 6
         assert not await has_active_runs_async(actors[2])
