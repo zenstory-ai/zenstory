@@ -65,6 +65,8 @@ async def test_init_db_isolates_each_optional_postgres_index(monkeypatch):
     await database.init_db()
 
     assert connection.executed == [
+        # The lock timeout covers every optional index, so none can wait behind a held lock.
+        f"SET LOCAL lock_timeout = '{database.STARTUP_INDEX_LOCK_TIMEOUT_MS}ms'",
         "CREATE INDEX prior_index",
         "CREATE INDEX broken_middle",
         "CREATE INDEX later_index",
@@ -127,4 +129,65 @@ async def test_init_db_commits_valid_ddl_around_a_broken_postgres_index(monkeypa
     finally:
         async with engine.begin() as conn:
             await conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_init_db_skips_an_index_whose_table_is_locked_instead_of_waiting(monkeypatch):
+    """2026-10-20: a startup CREATE INDEX queued behind a long-held lock never finished, failed the
+    healthcheck, and made every later write to that table wait behind it."""
+    import asyncio
+
+    postgres_url = os.getenv("ZENSTORY_TEST_POSTGRES_URL")
+    if not postgres_url:
+        pytest.skip("isolated PostgreSQL URL not configured")
+
+    async_url = postgres_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    engine = create_async_engine(async_url, pool_pre_ping=True)
+    suffix = uuid4().hex[:12]
+    locked_table = f"zs_locked_{suffix}"
+    free_table = f"zs_free_{suffix}"
+    locked_index = f"ix_zs_locked_{suffix}"
+    free_index = f"ix_zs_free_{suffix}"
+    metadata = MetaData()
+    for name in (locked_table, free_table):
+        Table(name, metadata, Column("id", Integer, primary_key=True), Column("value", Integer))
+    async with engine.begin() as conn:
+        await conn.run_sync(metadata.create_all)
+
+    monkeypatch.setattr(database, "is_postgres", True)
+    monkeypatch.setattr(database, "async_engine", engine)
+    monkeypatch.setattr(database.SQLModel, "metadata", metadata)
+    monkeypatch.setattr(database, "STARTUP_INDEX_LOCK_TIMEOUT_MS", 300)
+    monkeypatch.setattr(
+        database,
+        "COMMON_PERFORMANCE_INDEX_SQL",
+        (f"CREATE INDEX IF NOT EXISTS {locked_index} ON {locked_table} (value)",),
+    )
+    monkeypatch.setattr(
+        database,
+        "POSTGRES_PERFORMANCE_INDEX_SQL",
+        (f"CREATE INDEX IF NOT EXISTS {free_index} ON {free_table} (value)",),
+    )
+
+    holder = await engine.connect()
+    holder_tx = await holder.begin()
+    try:
+        # An open write transaction holds ROW EXCLUSIVE on the table, as a stuck request did.
+        await holder.execute(text(f"INSERT INTO {locked_table} (value) VALUES (1)"))
+
+        await asyncio.wait_for(database.init_db(), timeout=15)
+
+        async with engine.connect() as conn:
+            objects = {
+                name: await conn.scalar(text("SELECT to_regclass(:name)"), {"name": name})
+                for name in (locked_index, free_index)
+            }
+        assert objects == {locked_index: None, free_index: free_index}
+    finally:
+        await holder_tx.rollback()
+        await holder.close()
+        async with engine.begin() as conn:
+            for name in (locked_table, free_table):
+                await conn.execute(text(f"DROP TABLE IF EXISTS {name} CASCADE"))
         await engine.dispose()
