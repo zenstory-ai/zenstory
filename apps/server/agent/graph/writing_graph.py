@@ -937,6 +937,7 @@ _BODY_WORD_COUNT_NOTE = (
 _LENGTH_REQUIREMENT_NOTE = (
     "以上是作者在本会话或项目设定里说过的篇幅要求（后说的为准），不只是作者本轮原话："
     "逐章对照上面的实际字数判断够不够；说的是全篇还是单章看上下文。"
+    "实际字数在标出的达标区间内就算达标，不为篇幅返工。"
 )
 # writer 送审前写给作者的说明被丢掉了：审稿人的回复是作者看到的唯一总结。
 WRITER_CHAT_SUPERSEDED_NOTE = (
@@ -1123,7 +1124,8 @@ def _format_length_requirements(items: list[str] | None, *, before_writing: bool
     lines = "\n".join(f"- {item}" for item in items)
     note = (
         "以上是作者原话与来源（后说的为准）；先区分全篇目标、单章目标和本轮范围再开写。"
-        "本轮未明确改变的历史要求仍适用；只写指定范围，逐章写够后用实际工具字数核对。"
+        "本轮未明确改变的历史要求仍适用；只写指定范围，逐章写到达标区间内，用实际工具字数核对；"
+        "差得不多时一次改写到位，不逐字增删。"
         if before_writing else _LENGTH_REQUIREMENT_NOTE
     )
     return f"\n\n{LENGTH_REQUIREMENT_HEADER}\n{lines}\n{note}"
