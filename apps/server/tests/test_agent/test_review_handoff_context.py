@@ -75,3 +75,42 @@ async def test_rework_writer_gets_the_current_text_of_what_was_reviewed():
     assert REWORK_CURRENT_TEXT_HEADER in messages[2] and "当前落库的正文片段" in messages[2]
     # The reviewer task message (the old copy) is still not replayed to the writer.
     assert "[质量检查任务]" not in messages[2]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_rework_attaches_only_the_chapters_the_reviewer_named(db_session):
+    """Two chapters share the 9000-char budget; rework gets the named one whole, not two excerpts."""
+    from models import File, Project, User
+
+    user = User(username="rework-focus", email="rework-focus@example.test", hashed_password="x", email_verified=True)
+    project = Project(name="返修聚焦", owner_id=user.id)
+    db_session.add_all([user, project])
+    db_session.commit()
+    five_body, six_body = "五" + PARA * 170, "六" + PARA * 170  # ~5.6k chars each: both together exceed 9000
+    five = File(project_id=project.id, title="第五章", content=five_body, file_type="draft")
+    six = File(project_id=project.id, title="第六章", content=six_body, file_type="draft")
+    db_session.add_all([five, six])
+    db_session.commit()
+    messages: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        messages.append(state["user_message"])
+        if agent_type == "writer" and len(messages) == 1:
+            for chapter in (five, six):
+                state["repeat_read_guard"]._record_write(chapter.id, chapter.title)
+                for event in edit_file_events(f"w-{chapter.id}", chapter.content, file_id=chapter.id, title=chapter.title):
+                    yield event
+            return
+        if agent_type == "quality_reviewer":
+            yield _handoff("writer", "第六章结尾那句和第六章开头重复，换个写法")
+            return
+        yield _text("改好了。")
+
+    await _run_graph(fake_agent, session=db_session, project_id=project.id, session_id="s")
+
+    assert len(messages) == 3
+    rework = messages[2].split(REWORK_CURRENT_TEXT_HEADER, 1)[1]
+    assert six_body.strip() in rework  # the named chapter arrives whole, quotable for edit_file
+    assert five_body.strip()[:200] not in rework
+    assert "审稿意见没有提到 《第五章》" in rework
