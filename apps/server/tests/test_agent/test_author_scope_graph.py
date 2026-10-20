@@ -51,7 +51,7 @@ async def _run(route_mock, fake_agent, *, message, messages=None, max_iterations
     environ = {"AGENT_ROUTER_STRATEGY": "llm", "AGENT_ENABLE_GRAPH_AUTO_REVIEW": "false"}
     with (
         patch.dict("os.environ", environ),
-        patch("agent.graph.router._route_with_deepseek_chat", route_mock),
+        patch("agent.graph.router._route_with_chat_model", route_mock),
         patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
     ):
         return [

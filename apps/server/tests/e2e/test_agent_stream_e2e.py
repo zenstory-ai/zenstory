@@ -86,7 +86,7 @@ async def test_invalid_router_stops_whole_http_chain_without_writes_and_preserve
 
     with (
         patch.dict(os.environ, {"AGENT_ROUTER_STRATEGY": "llm"}),
-        patch("agent.graph.router.get_deepseek_client", return_value=provider),
+        patch.dict("os.environ", {"DEEPSEEK_API_KEY": "synthetic-test-key"}), patch("agent.core.llm_providers.get_async_client", return_value=provider),
         patch("agent.graph.writing_graph.run_streaming_agent", run_agent),
         patch("agent.openai_agents.tools_adapter.invoke_project_tool", tool),
         patch.object(quota_service, "reserve_ai_conversation", side_effect=reserve) as reservation,

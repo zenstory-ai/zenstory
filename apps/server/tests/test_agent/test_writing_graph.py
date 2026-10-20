@@ -1322,7 +1322,7 @@ class TestWritingGraphUserScope:
         environ.update(env or {})
         with (
             patch.dict("os.environ", environ),
-            patch("agent.graph.router._route_with_deepseek_chat", route_mock),
+            patch("agent.graph.router._route_with_chat_model", route_mock),
             patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
         ):
             return [

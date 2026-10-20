@@ -12,7 +12,7 @@ from prefect import get_run_logger
 from sqlmodel import col, select
 
 from flows.database_session import get_prefect_db_session
-from flows.utils.clients import LLMResponse, call_deepseek_api, get_deepseek_client
+from flows.utils.clients import LLMResponse, call_material_llm, get_material_llm_client
 from flows.utils.decorators import api_task, database_task
 from flows.utils.validators import validate_relationships_response
 from models.material_models import Chapter
@@ -125,12 +125,12 @@ def extract_character_relationships_task(
         try:
             logger.info(f"[关系提取] 调用 LLM: batch={batch_idx + 1}/{batch_count}")
 
-            response: LLMResponse = call_deepseek_api(
+            response: LLMResponse = call_material_llm(
                 messages, system_prompt, usage_novel_id=novel_id
             )
 
             # 4. 提取和验证 JSON
-            client = get_deepseek_client()
+            client = get_material_llm_client()
             logger.debug(f"[关系提取] 解析响应: batch={batch_idx + 1}")
 
             data = client.extract_json_from_response(response)

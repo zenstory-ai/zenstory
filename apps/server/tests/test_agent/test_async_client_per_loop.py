@@ -1,22 +1,22 @@
-"""Async DeepSeek clients are rebuilt for a new event loop (openai 3 / HTTPX2 upgrade)."""
+"""Async provider clients are rebuilt for a new event loop (openai 2 / httpx)."""
 
 import asyncio
 
-from agent.core import deepseek_client
-from agent.core.llm_client import LLMClient
+from agent.core import llm_providers
 from agent.openai_agents import model as sdk_model
 
 
 def _client_in_new_loop():
     async def grab():
-        return deepseek_client.get_deepseek_client(), sdk_model.get_deepseek_chat_model()
+        provider = llm_providers.primary_provider()
+        return llm_providers.get_async_client(provider), sdk_model._sdk_model_for(provider)  # noqa: SLF001
 
     return asyncio.run(grab())
 
 
 def test_each_event_loop_gets_its_own_client_and_sdk_model(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-key")
-    sdk_model.reset_deepseek_sdk_cache()
+    sdk_model.reset_sdk_model_cache()
     try:
         first_client, first_model = _client_in_new_loop()
         second_client, second_model = _client_in_new_loop()
@@ -25,22 +25,9 @@ def test_each_event_loop_gets_its_own_client_and_sdk_model(monkeypatch):
         assert first_model is not second_model
 
         async def same_loop_twice():
-            return deepseek_client.get_deepseek_client() is deepseek_client.get_deepseek_client()
+            provider = llm_providers.primary_provider()
+            return llm_providers.get_async_client(provider) is llm_providers.get_async_client(provider)
 
         assert asyncio.run(same_loop_twice()) is True
     finally:
-        sdk_model.reset_deepseek_sdk_cache()
-
-
-def test_llm_client_async_client_follows_the_loop(monkeypatch):
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-key")
-    client = LLMClient()
-
-    async def grab():
-        return client.async_client, client.async_client
-
-    a1, a2 = asyncio.run(grab())
-    b1, _ = asyncio.run(grab())
-
-    assert a1 is a2
-    assert a1 is not b1
+        sdk_model.reset_sdk_model_cache()

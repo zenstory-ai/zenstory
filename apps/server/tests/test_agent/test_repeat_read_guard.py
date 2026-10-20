@@ -487,12 +487,12 @@ def test_landing_reminder_fires_when_request_budget_is_nearly_spent():
 @pytest.fixture
 def _reset_metrics_and_model_cache():
     from agent.core.metrics import reset_metrics_collector
-    from agent.openai_agents.model import reset_deepseek_sdk_cache
+    from agent.openai_agents.model import reset_sdk_model_cache
 
     reset_metrics_collector()
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     yield
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     reset_metrics_collector()
 
 

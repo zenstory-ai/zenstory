@@ -14,8 +14,8 @@ from prefect import get_run_logger
 from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
-    call_deepseek_api,
-    get_deepseek_client,
+    call_material_llm,
+    get_material_llm_client,
 )
 from flows.utils.helpers import calculate_plots_range
 from flows.utils.validators import validate_plots_response
@@ -102,14 +102,14 @@ def extract_chapter_plots_task(
         f"expected_plots={min_plots}-{max_plots}"
     )
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_chapter_id=chapter_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     logger.debug(f"[情节点提取] 开始解析 LLM 响应: chapter_id={chapter_id}")
 
     try:

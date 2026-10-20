@@ -14,9 +14,9 @@ from sqlmodel import col, select
 from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
-    call_deepseek_api,
+    call_material_llm,
     database_task,
-    get_deepseek_client,
+    get_material_llm_client,
 )
 from flows.utils.validators import validate_meta_response
 from models.material_models import Chapter
@@ -76,14 +76,14 @@ def extract_novel_meta_task(
 请提取金手指和世界观信息。
 """
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_novel_id=novel_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     data = client.extract_json_from_response(response)
 
     # 验证数据

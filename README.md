@@ -161,7 +161,7 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 
 每个账号（包括管理员）默认都是免费套餐：每天 3 条 AI 消息（北京时间 00:00 重置）、最多 3 个项目。需要更多额度时，先运行 `docker compose exec server python scripts/seed_subscription_plans.py` 创建 Pro 套餐（也会建好免费套餐这一行），再在管理后台「订阅管理」里给账号开通 Pro。
 
-写作 Agent 固定用 DeepSeek 的 `deepseek-flash`（DeepSeek-V4.1-Flash），只需要这一个 Key。其他功能各要各的配置：用上面的快速启动时，后端变量加到 `docker-compose.yml` 里 `server` 的 `environment` 下，`VITE_*` 加到 `web` 下，再运行 `docker compose up -d`；仓库根目录的 `.env` 只给 compose 文件里的 `${…}` 取值（比如 `DEEPSEEK_API_KEY`、`JWT_SECRET_KEY`），不会把别的变量带进容器。换成 `docker-compose.full.yml` 时，变量写进 `apps/server/.env.docker` 和 `apps/web/.env.docker`。
+写作 Agent 默认用 DeepSeek 的 `deepseek-flash`（DeepSeek-V4.1-Flash），只需要这一个 Key（可选的主备模型见下面「能换别的大模型吗？」）。其他功能各要各的配置：用上面的快速启动时，后端变量加到 `docker-compose.yml` 里 `server` 的 `environment` 下，`VITE_*` 加到 `web` 下，再运行 `docker compose up -d`；仓库根目录的 `.env` 只给 compose 文件里的 `${…}` 取值（比如 `DEEPSEEK_API_KEY`、`JWT_SECRET_KEY`），不会把别的变量带进容器。换成 `docker-compose.full.yml` 时，变量写进 `apps/server/.env.docker` 和 `apps/web/.env.docker`。
 
 <details>
 <summary>可选功能需要的配置</summary>
@@ -325,7 +325,7 @@ Agent 用自己的模型写，ZenStory 负责存稿和整理上下文。`files p
 
 ### 能换别的大模型吗？
 
-目前不能在设置里换。模型名 `deepseek-flash` 写在代码里（[`apps/server/agent/core/deepseek_client.py`](apps/server/agent/core/deepseek_client.py)），`DEEPSEEK_BASE_URL` 可以指向别的 OpenAI 兼容地址，但请求里的模型名不变。支持更多模型的需求在 [#13](https://github.com/zenstory-ai/zenstory/issues/13)。
+可以用环境变量在 DeepSeek 和 MiniMax 之间选主用和备用，各自可以指定模型名：`LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`、`LLM_BACKUP_PROVIDER` / `LLM_BACKUP_MODEL`，Key 分别是 `DEEPSEEK_API_KEY`、`MINIMAX_API_KEY`。主用不可用（连不上、超时、限流、5xx、Key 失效）时，这个会话窗口改用备用。完整说明见 [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py)；新模型要先在 `apps/server/services/usage/pricing.py` 里加上价格。
 
 ### 能导出 Word，或者直接发布到小说平台吗？
 

@@ -14,7 +14,7 @@ Prompt ownership is server-side only so every client uses the same prompt source
 import difflib
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from agent.core.llm_client import get_llm_client
 from core.error_handler import APIException
@@ -978,7 +978,7 @@ class NaturalPolishService:
     ) -> NaturalPolishResult:
         """Generate polished text with a single non-streaming LLM call."""
         llm_client = get_llm_client()
-        model_name = getattr(llm_client, "MODEL_QUALITY", None)
+        served: dict[str, Any] = {}
         # 静态提示词在前、本次提示在后，前缀缓存仍然命中。
         prompt = self._resolve_prompt(language, file_type) + build_attention_hints(
             selected_text, language, file_type
@@ -992,9 +992,9 @@ class NaturalPolishService:
         try:
             raw_output = await llm_client.acomplete(
                 messages=messages,
-                model=model_name,
                 max_tokens=NATURAL_POLISH_MAX_TOKENS,
                 thinking_enabled=False,
+                served_model_sink=served,
                 usage_attribution=LLMUsageAttribution(
                     user_id=user_id,
                     source=LLM_USAGE_SOURCE_POLISH,
@@ -1046,7 +1046,7 @@ class NaturalPolishService:
 
         return NaturalPolishResult(
             polished_text=polished_text,
-            model=model_name,
+            model=served.get("model"),
         )
 
 

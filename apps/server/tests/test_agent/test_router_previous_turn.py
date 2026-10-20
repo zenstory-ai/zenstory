@@ -28,7 +28,7 @@ async def _route(state: dict) -> tuple[dict, list[dict]]:
 
     client, create = _client()
     with (
-        patch("agent.graph.router.get_deepseek_client", return_value=client),
+        patch.dict("os.environ", {"DEEPSEEK_API_KEY": "synthetic-test-key"}), patch("agent.core.llm_providers.get_async_client", return_value=client),
         patch("agent.graph.router._meter_router_call"),
     ):
         result = await router_node(state)

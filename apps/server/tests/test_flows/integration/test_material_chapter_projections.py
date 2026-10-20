@@ -23,7 +23,7 @@ from flows import database_session
 from flows.atomic_tasks.entities import meta_tasks
 from flows.atomic_tasks.linking import relationship_tasks
 from flows.atomic_tasks.summaries import novel_synopsis_tasks
-from flows.utils.clients.llm import DeepSeekClient, LLMResponse
+from flows.utils.clients.llm import MaterialLLMClient, LLMResponse
 from models import User
 from models.material_models import Chapter, GoldenFinger, Novel, Plot, WorldView
 
@@ -198,7 +198,7 @@ def workflow_boundary(store, monkeypatch):
         monkeypatch.setattr(module, "get_run_logger", lambda: logger)
     captures = {}
     # Existing parser runs without constructing a network-capable SDK client.
-    parser = object.__new__(DeepSeekClient)
+    parser = object.__new__(MaterialLLMClient)
 
     def provider(name, payload):
         def completion(messages, system_prompt=None, **kwargs):
@@ -212,8 +212,8 @@ def workflow_boundary(store, monkeypatch):
         (relationship_tasks, "relationships", {"relationships": []}),
         (novel_synopsis_tasks, "synopsis", {"synopsis": "梗" * 250}),
     ):
-        monkeypatch.setattr(module, "call_deepseek_api", provider(name, payload))
-        monkeypatch.setattr(module, "get_deepseek_client", lambda: parser)
+        monkeypatch.setattr(module, "call_material_llm", provider(name, payload))
+        monkeypatch.setattr(module, "get_material_llm_client", lambda: parser)
     monkeypatch.setattr(
         story_module, "generate_novel_synopsis_task", novel_synopsis_tasks.generate_novel_synopsis_task.fn
     )

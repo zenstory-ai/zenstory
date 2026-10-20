@@ -1,8 +1,11 @@
-"""DeepSeek Flash price table, peak/off-peak bands and Beijing day helpers.
+"""Per-model price tables, peak/off-peak bands and Beijing day helpers.
 
 Single source of truth for estimated LLM cost. Prices are CNY per 1M tokens;
-money is computed with Decimal. Known Chinese public holidays are encoded from
-the State Council calendar because DeepSeek bills them off-peak all day.
+money is computed with Decimal. Each ledger row stores its model's
+``pricing_version``, which selects the price table. DeepSeek bills peak and
+off-peak differently; MiniMax has one price, so both bands carry it. Known
+Chinese public holidays are encoded from the State Council calendar because
+DeepSeek bills them off-peak all day.
 """
 
 from __future__ import annotations
@@ -13,9 +16,13 @@ from zoneinfo import ZoneInfo
 
 from models.llm_usage import PRICE_BAND_OFFPEAK, PRICE_BAND_PEAK
 
-PRICING_VERSION = "deepseek-flash-2026-10-holiday"
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 BEIJING_TZ_NAME = "Asia/Shanghai"
+
+# The DeepSeek table; also the fallback for rows of an unknown version.
+PRICING_VERSION = "deepseek-flash-2026-10-holiday"
+LEGACY_DEEPSEEK_PRICING_VERSION = "deepseek-flash-2026-10"
+MINIMAX_M31_FLASH_PRICING_VERSION = "minimax-m3.1-flash-2026-10"
 
 # CNY per 1M tokens.
 PRICES_CNY_PER_MILLION: dict[str, dict[str, Decimal]] = {
@@ -30,6 +37,36 @@ PRICES_CNY_PER_MILLION: dict[str, dict[str, Decimal]] = {
         "output": Decimal("4"),
     },
 }
+
+# MiniMax M3.1-Flash mainland list price (2026-10-19 release): one price at all hours.
+_MINIMAX_M31_FLASH_PRICES = {
+    "cache_hit": Decimal("0.1"),
+    "cache_miss": Decimal("1"),
+    "output": Decimal("4"),
+}
+
+PRICES_BY_VERSION: dict[str, dict[str, dict[str, Decimal]]] = {
+    PRICING_VERSION: PRICES_CNY_PER_MILLION,
+    LEGACY_DEEPSEEK_PRICING_VERSION: PRICES_CNY_PER_MILLION,
+    MINIMAX_M31_FLASH_PRICING_VERSION: {
+        PRICE_BAND_PEAK: _MINIMAX_M31_FLASH_PRICES,
+        PRICE_BAND_OFFPEAK: _MINIMAX_M31_FLASH_PRICES,
+    },
+}
+
+# Model name (as sent and as stored in the ledger) -> pricing version.
+# A model missing here is refused for free users by the cost budget.
+MODEL_PRICING_VERSIONS: dict[str, str] = {
+    "deepseek-flash": PRICING_VERSION,
+    "MiniMax-M3.1-Flash": MINIMAX_M31_FLASH_PRICING_VERSION,
+    "MiniMax-M3.1-Flash-Preview": MINIMAX_M31_FLASH_PRICING_VERSION,
+}
+
+
+def pricing_version_for_model(model: str | None) -> str | None:
+    """The price table of a model, or None when the model is not priced."""
+    return MODEL_PRICING_VERSIONS.get(model or "")
+
 
 # Peak windows in Beijing time, Monday-Friday, half-open [start, end).
 PEAK_WINDOWS: tuple[tuple[time, time], ...] = (
@@ -58,14 +95,17 @@ CHINA_PUBLIC_HOLIDAY_RANGES: dict[int, tuple[tuple[date, date], ...]] = {
 # SQL-friendly integer weights: tokens * weight is cost in units of 1e-8 CNY
 # (price per 1M tokens * 100). Exact for every price with <= 2 decimals.
 COST_UNIT_SCALE = Decimal(10) ** 8
-COST_WEIGHTS: dict[str, dict[str, int]] = {}
-for _band, _prices in PRICES_CNY_PER_MILLION.items():
-    COST_WEIGHTS[_band] = {}
-    for _kind, _price in _prices.items():
-        _scaled = _price * 100
-        if _scaled != _scaled.to_integral_value():  # pragma: no cover - config guard
-            raise ValueError(f"price {_price} for {_band}/{_kind} needs more than 2 decimals")
-        COST_WEIGHTS[_band][_kind] = int(_scaled)
+COST_WEIGHTS_BY_VERSION: dict[str, dict[str, dict[str, int]]] = {}
+for _version, _bands in PRICES_BY_VERSION.items():
+    COST_WEIGHTS_BY_VERSION[_version] = {}
+    for _band, _prices in _bands.items():
+        COST_WEIGHTS_BY_VERSION[_version][_band] = {}
+        for _kind, _price in _prices.items():
+            _scaled = _price * 100
+            if _scaled != _scaled.to_integral_value():  # pragma: no cover - config guard
+                raise ValueError(f"price {_price} for {_version}/{_band}/{_kind} needs more than 2 decimals")
+            COST_WEIGHTS_BY_VERSION[_version][_band][_kind] = int(_scaled)
+COST_WEIGHTS = COST_WEIGHTS_BY_VERSION[PRICING_VERSION]
 
 CNY_QUANT = Decimal("0.0001")
 
@@ -108,9 +148,16 @@ def price_band(occurred_at: datetime) -> str:
     return PRICE_BAND_OFFPEAK
 
 
-def cost_units(band: str, cache_hit: int, cache_miss: int, output: int) -> int:
-    """Integer cost in 1e-8 CNY."""
-    weights = COST_WEIGHTS[band]
+def cost_units(
+    band: str,
+    cache_hit: int,
+    cache_miss: int,
+    output: int,
+    *,
+    pricing_version: str = PRICING_VERSION,
+) -> int:
+    """Integer cost in 1e-8 CNY; an unknown version is priced as DeepSeek."""
+    weights = COST_WEIGHTS_BY_VERSION.get(pricing_version, COST_WEIGHTS)[band]
     return (
         cache_hit * weights["cache_hit"]
         + cache_miss * weights["cache_miss"]

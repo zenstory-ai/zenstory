@@ -12,11 +12,10 @@ from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from agent.core.deepseek_client import get_deepseek_client
+from agent.core import llm_failover
 from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception
 from agent.graph.state import WritingState
 from agent.openai_agents.events import parse_json_object
-from agent.openai_agents.model import DEEPSEEK_WRITING_MODEL
 from agent.prompts.subagents import ROUTER_PROMPT
 from core.error_codes import ErrorCode
 from utils.logger import get_logger, log_with_context
@@ -149,7 +148,7 @@ async def router_node(state: WritingState) -> dict:
         # rejects response_format json_schema, so it could never succeed.)
         # 有上一轮助手回复时，把它的结尾和落库路由一起交给路由器（见
         # build_router_user_message）；第一轮仍只发用户原话，与改动前完全一致。
-        response = await _route_with_deepseek_chat(build_router_user_message(state))
+        response = await _route_with_chat_model(build_router_user_message(state))
         decision = _parse_router_response(response)
         workflow_agents = plan_workflow_agents(decision)
 
@@ -258,22 +257,22 @@ def _extract_usage(response: object) -> dict[str, int] | None:
     return non_zero or None
 
 
-async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
-    """Route using DeepSeek's OpenAI-compatible Chat Completions endpoint."""
+async def _route_with_chat_model(user_message: str) -> dict[str, Any]:
+    """Route using the configured chat model (primary, or backup on failover)."""
     from agent.tools.mcp_tools import ToolContext
     from services.usage.cost_budget import budget_attribution
     from services.usage.llm_usage_service import LLMUsageAttribution
 
-    client = get_deepseek_client()
     with budget_attribution(LLMUsageAttribution(user_id=ToolContext.get_user_id(), source="router")):
-        response = await client.chat.completions.create(
-            model=DEEPSEEK_WRITING_MODEL,
+        response, provider = await llm_failover.acreate_chat_completion(
+            call_site="router",
+            session_id=ToolContext.get_session_id(),
             messages=[
                 {"role": "system", "content": ROUTER_PROMPT},
                 {"role": "user", "content": user_message},
             ],
             temperature=0.0,
-            # deepseek-flash is a reasoning model: chain-of-thought reasoning_tokens count
+            # Both models reason before answering: chain-of-thought reasoning_tokens count
             # against completion tokens. A tight budget can be fully consumed by reasoning,
             # leaving an empty JSON answer (historically this silently fell back to writer/quick).
             # 2048 was hit by 4 of 686 production routing calls in three days (ledger
@@ -281,7 +280,7 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
             # reasoning room. Only tokens actually generated are billed.
             max_tokens=4096,
         )
-    _meter_router_call(response)
+    _meter_router_call(response, provider.model)
     choice = response.choices[0] if response.choices else None
     text = choice.message.content or "" if choice is not None else ""
     return {
@@ -296,7 +295,7 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
     }
 
 
-def _meter_router_call(response: object) -> None:
+def _meter_router_call(response: object, model: str) -> None:
     """Schedule the routing call's ledger write in the background (never raises).
 
     Routing sits in front of every writing turn; the write must not add a
@@ -317,7 +316,7 @@ def _meter_router_call(response: object) -> None:
             project_id=ToolContext.get_project_id(),
             correlation_id=get_agent_run_id(),
         ),
-        model=DEEPSEEK_WRITING_MODEL,
+        model=model,
         usage=getattr(response, "usage", None),
     )
 

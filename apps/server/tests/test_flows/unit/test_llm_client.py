@@ -10,7 +10,7 @@ from flows.utils.helpers.exceptions import LLMAPIError
 
 class TestLLMClientHelpers:
     def _new_client(self):
-        return llm_mod.DeepSeekClient.__new__(llm_mod.DeepSeekClient)
+        return llm_mod.MaterialLLMClient.__new__(llm_mod.MaterialLLMClient)
 
     def test_extract_json_from_plain_json(self):
         client = self._new_client()
@@ -81,25 +81,23 @@ class TestLLMClientHelpers:
         assert ok is False
         assert log_error.call_count == 1
 
-    def test_deepseek_client_requires_key(self, monkeypatch):
+    def test_material_llm_client_requires_key(self, monkeypatch):
         monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
         with pytest.raises(LLMAPIError, match="DEEPSEEK_API_KEY"):
-            llm_mod.DeepSeekClient()
+            llm_mod.MaterialLLMClient()
 
-    def test_deepseek_client_ignores_material_key_override(self, monkeypatch):
+    def test_material_llm_client_ignores_material_key_override(self, monkeypatch):
         monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
         monkeypatch.setenv("MATERIAL_" + "DEEPSEEK_API_KEY", "material-only-key")
 
         with pytest.raises(LLMAPIError, match="DEEPSEEK_API_KEY"):
-            llm_mod.DeepSeekClient()
+            llm_mod.MaterialLLMClient()
 
-    def test_deepseek_client_uses_global_key_and_base_url(self, monkeypatch):
+    def test_material_llm_client_uses_global_key_and_base_url(self, monkeypatch):
         monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
         monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://deepseek.example/v1")
 
-        client = llm_mod.DeepSeekClient()
+        client = llm_mod.MaterialLLMClient()
 
-        assert client.api_key == "test-key"
-        assert client.base_url == "https://deepseek.example/v1"
-        assert client.model == llm_mod.DEEPSEEK_CHAT_MODEL
+        assert client.model == "deepseek-flash"

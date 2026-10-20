@@ -23,12 +23,12 @@ import pytest
 @pytest.fixture(autouse=True)
 def _reset_metrics_and_model_cache():
     from agent.core.metrics import reset_metrics_collector
-    from agent.openai_agents.model import reset_deepseek_sdk_cache
+    from agent.openai_agents.model import reset_sdk_model_cache
 
     reset_metrics_collector()
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     yield
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     reset_metrics_collector()
 
 
@@ -175,7 +175,7 @@ class _ChatCompletionsStub:
 
 
 def _point_sdk_at_stub(monkeypatch, port: int) -> None:
-    from agent.openai_agents.model import reset_deepseek_sdk_cache
+    from agent.openai_agents.model import reset_sdk_model_cache
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "dummy-local-test-key")
     monkeypatch.setenv("DEEPSEEK_BASE_URL", f"http://127.0.0.1:{port}")
@@ -184,7 +184,7 @@ def _point_sdk_at_stub(monkeypatch, port: int) -> None:
     monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
     for var in ("HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy", "HTTPS_PROXY", "https_proxy"):
         monkeypatch.delenv(var, raising=False)
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
 
 
 def _install_tool_spy(monkeypatch, tool_name: str, calls: list) -> None:

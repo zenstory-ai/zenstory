@@ -13,7 +13,7 @@ from prefect import get_run_logger
 from pydantic import BaseModel, Field
 
 from flows.database_session import get_db_session
-from flows.utils import api_task, call_deepseek_api, database_task, get_deepseek_client
+from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
 
 # ==================== 数据模型 ====================
 
@@ -162,7 +162,7 @@ def intelligent_chunking_task(
 
         logger.info(f"调用 LLM 进行智能分块，建议分块数: {suggested_chunks}")
 
-        response = call_deepseek_api(
+        response = call_material_llm(
             messages=[{"role": "user", "content": user_message}],
             system_prompt=system_prompt,
             temperature=0.3,
@@ -170,7 +170,7 @@ def intelligent_chunking_task(
         )
 
         # 提取 JSON
-        client = get_deepseek_client()
+        client = get_material_llm_client()
         data = client.extract_json_from_response(response)
 
         # 验证数据

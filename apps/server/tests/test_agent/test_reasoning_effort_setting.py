@@ -21,7 +21,7 @@ def test_only_known_effort_values_are_used(monkeypatch, raw, expected):
 @pytest.mark.parametrize("effort", [None, "low"])
 def test_agent_sends_reasoning_effort_only_when_set(monkeypatch, effort):
     monkeypatch.setattr(agent_runtime, "AGENT_REASONING_EFFORT", effort)
-    monkeypatch.setattr(runner, "get_deepseek_chat_model", lambda: "synthetic-model")
+    monkeypatch.setattr(runner, "build_failover_chat_model", lambda *_args, **_kwargs: "synthetic-model")
 
     agent = runner._build_agent("writer", "system prompt")  # noqa: SLF001
 

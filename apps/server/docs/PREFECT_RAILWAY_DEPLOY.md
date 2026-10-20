@@ -37,8 +37,8 @@ API 与 Worker 必须连同一环境的 Prefect Server；Worker 的业务数据�
 | `DATABASE_URL` | API、Worker：当前环境的业务数据库 |
 | `API_SERVER_INTERNAL_URL` | Worker：可达的 API 内网地址，如 `http://server.railway.internal:8080` |
 | `MATERIAL_INTERNAL_TOKEN` | API、Worker：一致的内部素材下载鉴权 token |
-| `DEEPSEEK_API_KEY` | Worker：素材分析模型凭证，由部署环境注入 |
-| `DEEPSEEK_BASE_URL` | Worker：模型 API 地址，配置方式见 `.env.example` |
+| `DEEPSEEK_API_KEY` / `MINIMAX_API_KEY` | Worker：素材分析模型凭证，由部署环境注入（与 API 相同的主备配置） |
+| `LLM_PRIMARY_PROVIDER` / `LLM_BACKUP_PROVIDER`（及 `_MODEL`） | Worker：主备供应商与模型，配置方式见 `.env.example` |
 
 上传对象存储的凭证只放在 API。Worker 通过内部下载接口取得临时文件，完成或失败后清理；本地与 S3 引用处理见[私有上传存储](upload-storage-bridge.md)。
 

@@ -41,10 +41,12 @@ class UsageMeteringMixin:
     async def on_llm_end(self, context: Any, agent: Any, response: Any) -> None:
         # The SDK awaits this hook before its next model call or tool step, so
         # the write is scheduled in the background rather than awaited.
-        del context, agent
+        del context
+        # The model that served this call: after a failover it is the backup's.
+        served = getattr(getattr(agent, "model", None), "served_model", None)
         schedule_llm_usage_record(
             self._attribution,
-            model=self._model,
+            model=served if isinstance(served, str) and served else self._model,
             usage=getattr(response, "usage", None),
         )
 

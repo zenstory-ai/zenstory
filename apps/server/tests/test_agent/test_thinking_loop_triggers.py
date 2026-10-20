@@ -51,7 +51,7 @@ async def _run_planner_writer_reviewer(route_payload: dict[str, object], message
     environ = {"AGENT_ROUTER_STRATEGY": "llm", "AGENT_ENABLE_GRAPH_AUTO_REVIEW": "false"}
     with (
         patch.dict("os.environ", environ),
-        patch("agent.graph.router._route_with_deepseek_chat", _route(route_payload)),
+        patch("agent.graph.router._route_with_chat_model", _route(route_payload)),
         patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
         patch("agent.tools.mcp_tools.ToolContext.refresh_file_inventory", return_value={}),
     ):

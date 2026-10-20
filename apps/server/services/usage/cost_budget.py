@@ -25,7 +25,16 @@ from core.error_handler import APIException
 from models.ai_cost_budget import AICostDailyBudget, AICostReservation
 from models.llm_usage import LLMUsageEvent
 from models.subscription import SubscriptionPlan, UserSubscription
-from services.usage.pricing import beijing_range_utc, beijing_today, cost_units, naive_utc, price_band, units_to_cny
+from services.usage.pricing import (
+    COST_WEIGHTS_BY_VERSION,
+    beijing_range_utc,
+    beijing_today,
+    cost_units,
+    naive_utc,
+    price_band,
+    pricing_version_for_model,
+    units_to_cny,
+)
 
 FREE_DAILY_BUDGET_UNITS = 1_500_000_000
 COST_LIMIT_CODE = "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
@@ -33,8 +42,6 @@ UNAVAILABLE_CODE = "ERR_AI_COST_BUDGET_UNAVAILABLE"
 _attribution: ContextVar[Any] = ContextVar("ai_cost_attribution", default=None)
 _call_started_at: ContextVar[datetime | None] = ContextVar("ai_cost_call_started_at", default=None)
 _call_user_id: ContextVar[str | None] = ContextVar("ai_cost_call_user_id", default=None)
-KNOWN_FLASH_MODELS = {"deepseek-flash"}
-KNOWN_PRICING_VERSIONS = {"deepseek-flash-2026-10", "deepseek-flash-2026-10-holiday"}
 
 
 def call_started_at(user_id: str | None = None) -> datetime | None:
@@ -142,6 +149,8 @@ def _input_upper_bound(payload: dict[str, Any]) -> int:
 class Reservation:
     id: str
     started_at: datetime
+    # Price table of the model the reservation was made for (settlement uses it).
+    pricing_version: str | None = None
 
 
 def reserve_model_call(
@@ -160,7 +169,8 @@ def reserve_model_call(
             if _has_non_free_entitlement(session, user_id, started):
                 session.rollback()
                 return None
-            if payload.get("model") not in KNOWN_FLASH_MODELS:
+            pricing_version = pricing_version_for_model(payload.get("model"))
+            if pricing_version is None:
                 raise _error(UNAVAILABLE_CODE, 503)
             if payload.get("n", 1) != 1:
                 raise _error(UNAVAILABLE_CODE, 503)
@@ -169,7 +179,7 @@ def reserve_model_call(
                 # Set explicit output bound; DeepSeek thinking default can be 64K.
                 maximum = 65_536
                 payload["max_tokens"] = maximum
-            upper = cost_units("peak", 0, _input_upper_bound(payload), maximum)
+            upper = cost_units("peak", 0, _input_upper_bound(payload), maximum, pricing_version=pricing_version)
             day = beijing_today(started)
             # Portable upsert, then lock this user's day. SQLite has its writer
             # lock already; PostgreSQL locks the inserted/conflicting row.
@@ -196,7 +206,8 @@ def reserve_model_call(
                     )
                 ).all()
                 if any(
-                    event.model not in KNOWN_FLASH_MODELS or event.pricing_version not in KNOWN_PRICING_VERSIONS
+                    pricing_version_for_model(event.model) is None
+                    or event.pricing_version not in COST_WEIGHTS_BY_VERSION
                     for event in historical
                 ):
                     # We cannot prove a remaining budget from unpriced history.
@@ -207,6 +218,7 @@ def reserve_model_call(
                         event.cache_hit_tokens,
                         event.cache_miss_tokens,
                         event.output_tokens,
+                        pricing_version=event.pricing_version,
                     )
                     for event in historical
                 )
@@ -255,7 +267,7 @@ def reserve_model_call(
                     charged_units=seed_units,
                     historical_rows=len(historical),
                 )
-            return Reservation(reservation.id, started)
+            return Reservation(reservation.id, started, pricing_version)
     except APIException:
         raise
     except Exception as exc:
@@ -282,7 +294,13 @@ def settle_model_call(reservation: Reservation | None, usage: Any) -> None:
     hit = min(prompt, tokens.cache_hit)
     # An absent/inconsistent cache split must not discount unaccounted input.
     miss = max(tokens.cache_miss, prompt - hit)
-    actual = cost_units(price_band(reservation.started_at), hit, miss, tokens.output)
+    actual = cost_units(
+        price_band(reservation.started_at),
+        hit,
+        miss,
+        tokens.output,
+        **({"pricing_version": reservation.pricing_version} if reservation.pricing_version else {}),
+    )
     try:
         with _factory() as session:
             _begin_locked(session)

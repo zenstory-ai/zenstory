@@ -21,6 +21,8 @@ class AgentRunMeter:
     llm_duration_ms: float = 0.0
     # 预算用尽且确实因此截停了一次 SDK run（区别于最后一次调用恰好自然结束）。
     budget_stopped: bool = False
+    # 最近一次模型调用实际用的模型（主备切换后可能是备用供应商的模型）。
+    last_served_model: str | None = None
 
     @property
     def exhausted(self) -> bool:
@@ -28,6 +30,9 @@ class AgentRunMeter:
 
     def record_model_call(self) -> None:
         self.model_calls += 1
+
+    def record_served_model(self, model: str) -> None:
+        self.last_served_model = model
 
     def record_agent_run(self, duration_ms: float) -> None:
         self.agent_runs += 1

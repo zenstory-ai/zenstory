@@ -467,7 +467,7 @@ async def _run_against_local_model(
     agent_type: str = "writer",
 ):
     """script(request_index) -> 该次模型调用要返回的 chunk 列表。"""
-    from agent.openai_agents.model import reset_deepseek_sdk_cache
+    from agent.openai_agents.model import reset_sdk_model_cache
     from agent.openai_agents.runner import run_openai_agents_streaming_agent
 
     requests: list[dict] = []
@@ -512,7 +512,7 @@ async def _run_against_local_model(
     monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
     for proxy_var in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
         monkeypatch.delenv(proxy_var, raising=False)
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
 
     state = {"user_message": "把第一章的甲改成乙", "messages": [], "system_prompt": "base"}
     state.update(state_extra or {})
@@ -531,7 +531,7 @@ async def _run_against_local_model(
         server.shutdown()
         server.server_close()
         await asyncio.to_thread(thread.join, 1)
-        reset_deepseek_sdk_cache()
+        reset_sdk_model_cache()
 
     assert server_errors == []
     return events, requests, state
@@ -548,12 +548,12 @@ def _tool_messages(request_body: dict) -> list[str]:
 @pytest.fixture
 def _reset_metrics_and_model_cache():
     from agent.core.metrics import reset_metrics_collector
-    from agent.openai_agents.model import reset_deepseek_sdk_cache
+    from agent.openai_agents.model import reset_sdk_model_cache
 
     reset_metrics_collector()
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     yield
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     reset_metrics_collector()
 
 

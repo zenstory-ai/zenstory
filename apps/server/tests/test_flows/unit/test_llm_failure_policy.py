@@ -35,13 +35,13 @@ def _status_error(cls, status_code: int):
     return cls(f"status {status_code}", response=response, body=None)
 
 
-def _client_raising(error: Exception) -> llm_mod.DeepSeekClient:
-    client = llm_mod.DeepSeekClient.__new__(llm_mod.DeepSeekClient)
+def _client_raising(error: Exception) -> llm_mod.MaterialLLMClient:
+    client = llm_mod.MaterialLLMClient.__new__(llm_mod.MaterialLLMClient)
 
     def _raise(*_args, **_kwargs):
         raise error
 
-    client._call_deepseek = _raise
+    client._call_model = _raise
     return client
 
 
@@ -82,23 +82,33 @@ def test_transient_llm_failures_stay_retryable(error):
 
 @pytest.mark.unit
 def test_client_sets_explicit_timeout_and_sdk_retries(monkeypatch):
+    from agent.core import llm_providers
+
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
-    client = llm_mod.DeepSeekClient()
-    assert client.client.timeout == llm_mod.settings.LLM_REQUEST_TIMEOUT_SECONDS
-    assert client.client.max_retries == llm_mod.settings.LLM_SDK_MAX_RETRIES
+    llm_providers.reset_provider_client_cache()
+    try:
+        sdk_client = llm_providers.get_sync_client(
+            llm_providers.primary_provider(),
+            timeout=llm_mod.settings.LLM_REQUEST_TIMEOUT_SECONDS,
+            max_retries=llm_mod.settings.LLM_SDK_MAX_RETRIES,
+        )
+        assert sdk_client.timeout == llm_mod.settings.LLM_REQUEST_TIMEOUT_SECONDS
+        assert sdk_client.max_retries == llm_mod.settings.LLM_SDK_MAX_RETRIES
+    finally:
+        llm_providers.reset_provider_client_cache()
 
 
 @pytest.mark.unit
 def test_missing_api_key_is_an_account_failure(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     with pytest.raises(LLMNonRetryableError) as raised:
-        llm_mod.DeepSeekClient()
+        llm_mod.MaterialLLMClient()
     assert raised.value.error_code == ErrorCode.MATERIAL_LLM_UNAVAILABLE
 
 
 @pytest.mark.unit
 def test_json_with_literal_newlines_in_strings_is_parsed():
-    client = llm_mod.DeepSeekClient.__new__(llm_mod.DeepSeekClient)
+    client = llm_mod.MaterialLLMClient.__new__(llm_mod.MaterialLLMClient)
     content = '{"synopsis": "第一段：少年入山。\n\n第二段：宗门试炼。"}'
     response = llm_mod.LLMResponse(content=content, usage={}, model="m", finish_reason="stop")
 
@@ -109,7 +119,7 @@ def test_json_with_literal_newlines_in_strings_is_parsed():
 
 @pytest.mark.unit
 def test_unparsable_output_is_not_retried():
-    client = llm_mod.DeepSeekClient.__new__(llm_mod.DeepSeekClient)
+    client = llm_mod.MaterialLLMClient.__new__(llm_mod.MaterialLLMClient)
     response = llm_mod.LLMResponse(content="not json", usage={}, model="m", finish_reason="length")
 
     with pytest.raises(LLMOutputError) as raised:

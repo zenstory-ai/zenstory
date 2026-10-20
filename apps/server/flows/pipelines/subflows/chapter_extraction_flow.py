@@ -45,7 +45,7 @@ def _elapsed_ms(start: float) -> int:
 
 
 def _raise_if_llm_account_failure(capability: str, error: Exception) -> None:
-    """DeepSeek 鉴权/余额故障：后续章节只会同样失败，立即终止整次拆解。"""
+    """模型供应商鉴权/余额故障：后续章节只会同样失败，立即终止整次拆解。"""
     if is_llm_account_failure(error):
         raise MaterialPipelineError(
             ErrorCode.MATERIAL_LLM_UNAVAILABLE,

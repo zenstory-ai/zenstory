@@ -13,8 +13,8 @@ from prefect import get_run_logger
 from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
-    call_deepseek_api,
-    get_deepseek_client,
+    call_material_llm,
+    get_material_llm_client,
 )
 from prompts import create_novel_synopsis_prompt
 
@@ -73,14 +73,14 @@ def generate_novel_synopsis_task(
 
     logger.info(f"[小说梗概] 调用 LLM: novel_id={novel_id}")
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_novel_id=novel_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     logger.debug(f"[小说梗概] 开始解析 LLM 响应: novel_id={novel_id}")
 
     try:

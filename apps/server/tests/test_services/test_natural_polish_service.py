@@ -42,8 +42,13 @@ def test_resolve_prompt_uses_server_defaults_by_language():
 async def test_natural_polish_calls_llm_with_single_round_settings():
     service = NaturalPolishService()
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
-    llm_client.acomplete = AsyncMock(return_value="原：" + "x" * 6000 + "\n改：rewritten")
+
+
+    async def acomplete(**kwargs):
+        kwargs["served_model_sink"]["model"] = "served-model"
+        return "原：" + "x" * 6000 + "\n改：rewritten"
+
+    llm_client.acomplete = AsyncMock(side_effect=acomplete)
 
     with patch(
         "services.features.natural_polish_service.get_llm_client",
@@ -57,15 +62,15 @@ async def test_natural_polish_calls_llm_with_single_round_settings():
         )
 
     assert result.polished_text == "rewritten"
-    assert result.model == "quality-model"
+    assert result.model == "served-model"
     llm_client.acomplete.assert_awaited_once_with(
         messages=[
             {"role": "system", "content": service._resolve_prompt("zh")},
             {"role": "user", "content": "x" * 6000},
         ],
-        model="quality-model",
         max_tokens=NATURAL_POLISH_MAX_TOKENS,
         thinking_enabled=False,
+        served_model_sink={"model": "served-model"},
         usage_attribution=LLMUsageAttribution(
             user_id="user-1", source="polish", project_id="project-1"
         ),
@@ -87,7 +92,6 @@ async def test_natural_polish_calls_llm_with_single_round_settings():
 async def test_natural_polish_rejects_malformed_protocol_output(model_output: str):
     service = NaturalPolishService()
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
     llm_client.acomplete = AsyncMock(return_value=model_output)
 
     with (
@@ -102,7 +106,6 @@ async def test_natural_polish_rejects_malformed_protocol_output(model_output: st
 async def test_natural_polish_rejects_an_ambiguous_duplicate_old_anchor():
     service = NaturalPolishService()
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
     llm_client.acomplete = AsyncMock(return_value="原：重复的一行。\n改：改过的一行。")
 
     with (
@@ -140,7 +143,6 @@ async def test_natural_polish_failure_has_a_fixed_stage_and_category(
 ):
     service = NaturalPolishService()
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
     llm_client.acomplete = AsyncMock(return_value=model_output)
 
     with (
@@ -158,7 +160,6 @@ async def test_natural_polish_failure_has_a_fixed_stage_and_category(
 async def test_natural_polish_classifies_model_and_content_protection_failures():
     service = NaturalPolishService()
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
     llm_client.acomplete = AsyncMock(side_effect=RuntimeError("private provider detail"))
 
     with (
@@ -199,7 +200,6 @@ async def test_natural_polish_classifies_model_and_content_protection_failures()
 async def test_natural_polish_preserves_cost_guard_api_exception(status_code, error_code):
     service = NaturalPolishService()
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
     llm_client.acomplete = AsyncMock(
         side_effect=APIException(error_code=error_code, status_code=status_code)
     )
@@ -573,7 +573,6 @@ _DIALOGUE = "「你来做什么？」苏棠冷冷地看着他。\n\n「来还你
 async def _polish_with_reply(reply: str, selected_text: str):
     service = NaturalPolishService()
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
     llm_client.acomplete = AsyncMock(return_value=reply)
     with patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client):
         return await service.natural_polish(selected_text=selected_text, language="zh")

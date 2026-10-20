@@ -1,7 +1,7 @@
 # Agent 模块架构指南
 
 ZenStory 写作 agent 的服务端：路由 → 多角色工作流（planner / hook_designer / writer / quality_reviewer）→
-openai-agents-python 运行时（DeepSeek `deepseek-flash`，OpenAI 兼容 Chat Completions）→ SSE。
+openai-agents-python 运行时（OpenAI 兼容 Chat Completions，主备两个供应商，见 `core/llm_providers.py` / `core/llm_failover.py`）→ SSE。
 工作流是 `graph/` 里的自研编排，**不使用 LangGraph**；`StreamAdapter.process_langgraph_events` 只是
 `process_workflow_events` 的兼容别名。
 
@@ -36,7 +36,9 @@ agent/
 │   ├── session_loader.py   # 历史窗口 + 面包屑 + 跨轮工作集
 │   ├── message_manager.py  # 系统提示与本轮上下文构建、历史保存、作者语言判断
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
-│   ├── llm_client.py / deepseek_client.py # OpenAI 兼容客户端
+│   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
+│   ├── llm_failover.py     # 主备切换：会话固定、熔断、只在没有输出时换供应商
+│   ├── llm_client.py       # 输入建议 / 润色的单次调用
 │   └── metrics.py
 ├── graph/                  # 多 agent 工作流（自研编排，非 LangGraph）
 │   ├── writing_graph.py    # run_writing_workflow_streaming：路由、agent 循环、交接、自动质检
@@ -49,7 +51,7 @@ agent/
 │   └── review_evidence.py  # 送审前的程序检测证据
 ├── openai_agents/          # openai-agents-python 适配层
 │   ├── runner.py           # run_openai_agents_streaming_agent：Runner.run_streamed + 事件映射
-│   ├── model.py            # DeepSeek 模型接线
+│   ├── model.py            # FailoverChatModel：每次模型调用按主备选择供应商
 │   ├── tools_adapter.py    # 项目工具 → SDK FunctionTool（只读 / 先问清楚时拒绝写工具）
 │   ├── tool_failure_breaker.py # 请求级工具失败熔断
 │   ├── repeat_read_guard.py    # 重复读取无进展守卫

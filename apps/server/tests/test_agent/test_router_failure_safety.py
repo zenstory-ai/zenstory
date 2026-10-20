@@ -31,7 +31,7 @@ def _response(payload, **extra):
 ])
 async def test_untrusted_route_never_returns_a_writer_default(payload):
     route = AsyncMock(return_value=_response(payload))
-    with patch("agent.graph.router._route_with_deepseek_chat", route):
+    with patch("agent.graph.router._route_with_chat_model", route):
         with pytest.raises(ValueError):
             await router_node({"user_message": "Only inspect the synthetic outline; do not edit."})
     route.assert_awaited_once()
@@ -57,7 +57,7 @@ async def test_full_graph_stops_before_any_agent_or_tool_and_keeps_usage(payload
     adapter = StreamAdapter()
     with (
         patch.dict("os.environ", {"AGENT_ROUTER_STRATEGY": "llm"}),
-        patch("agent.graph.router._route_with_deepseek_chat", route),
+        patch("agent.graph.router._route_with_chat_model", route),
         patch("agent.graph.writing_graph.run_streaming_agent", forbidden_agent),
     ):
         events = [event async for event in run_writing_workflow_streaming(
@@ -92,7 +92,7 @@ async def test_router_validation_logs_only_fixed_categories(caplog):
     route = AsyncMock(return_value=_response({
         "agent_type": SENSITIVE, "workflow_type": "quick", "read_only": True,
     }, finish_reason="stop"))
-    with patch("agent.graph.router._route_with_deepseek_chat", route):
+    with patch("agent.graph.router._route_with_chat_model", route):
         with pytest.raises(ValueError) as error:
             await router_node({"user_message": SENSITIVE})
     assert SENSITIVE not in str(error.value)
@@ -110,7 +110,7 @@ async def test_router_validation_logs_only_fixed_categories(caplog):
 
 async def test_provider_exception_is_safe_and_not_retried(caplog):
     route = AsyncMock(side_effect=ConnectionError(SENSITIVE))
-    with patch("agent.graph.router._route_with_deepseek_chat", route):
+    with patch("agent.graph.router._route_with_chat_model", route):
         with pytest.raises(ValueError) as error:
             await router_node({"user_message": "Only inspect the synthetic outline."})
     route.assert_awaited_once()
@@ -121,7 +121,7 @@ async def test_provider_exception_is_safe_and_not_retried(caplog):
 
 async def test_truncated_response_is_not_a_valid_route_even_if_json_is_complete():
     response = _response({"agent_type": "writer", "workflow_type": "quick"}, finish_reason="length")
-    with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(return_value=response)):
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
         with pytest.raises(ValueError):
             await router_node({"user_message": "Inspect only."})
 
@@ -203,7 +203,7 @@ async def test_declined_route_ends_the_round_without_retry_or_any_agent():
              "system_prompt": "", "generation_mode": "quality"}
     with (
         patch.dict("os.environ", {"AGENT_ROUTER_STRATEGY": "llm"}),
-        patch("agent.graph.router._route_with_deepseek_chat", route),
+        patch("agent.graph.router._route_with_chat_model", route),
         patch("agent.graph.writing_graph.run_streaming_agent", forbidden_agent),
     ):
         events = [event async for event in run_writing_workflow_streaming(

@@ -156,11 +156,11 @@ def test_default_stages_skip_plot_and_story_work_and_complete(monkeypatch, defau
     monkeypatch.setattr(se_mod, "get_prefect_db_session", _session_ctx)
     monkeypatch.setattr(db_mod, "get_prefect_db_session", _session_ctx)
 
-    # Any leaked LLM call (direct client or call_deepseek_api) is recorded.
-    fake_client = object.__new__(llm_mod.DeepSeekClient)
-    monkeypatch.setattr(llm_mod, "_deepseek_client", fake_client)
+    # Any leaked LLM call (direct client or call_material_llm) is recorded.
+    fake_client = object.__new__(llm_mod.MaterialLLMClient)
+    monkeypatch.setattr(llm_mod, "_material_llm_client", fake_client)
     monkeypatch.setattr(
-        llm_mod.DeepSeekClient,
+        llm_mod.MaterialLLMClient,
         "chat_completion",
         lambda self, *args, **kwargs: llm_calls.append(args) or (_ for _ in ()).throw(AssertionError("LLM called")),
     )

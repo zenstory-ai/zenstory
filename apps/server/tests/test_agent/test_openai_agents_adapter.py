@@ -15,23 +15,24 @@ import pytest
 @pytest.fixture(autouse=True)
 def _reset_metrics_and_model_cache():
     from agent.core.metrics import reset_metrics_collector
-    from agent.openai_agents.model import reset_deepseek_sdk_cache
+    from agent.openai_agents.model import reset_sdk_model_cache
 
     reset_metrics_collector()
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     yield
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
     reset_metrics_collector()
 
 
 @pytest.mark.unit
-def test_deepseek_client_requires_deepseek_api_key(monkeypatch):
-    from agent.openai_agents.model import get_deepseek_client
+def test_primary_provider_requires_its_api_key(monkeypatch):
+    from agent.core.llm_providers import primary_provider
 
+    monkeypatch.delenv("LLM_PRIMARY_PROVIDER", raising=False)
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
     with pytest.raises(ValueError, match="DEEPSEEK_API_KEY"):
-        get_deepseek_client()
+        primary_provider()
 
 
 @pytest.mark.unit
@@ -268,7 +269,7 @@ def _wait_until_serving(host: str, port: int, timeout: float = 5.0) -> None:
 async def test_runner_streams_through_openai_compatible_http_endpoint(monkeypatch):
     """Exercise SDK + AsyncOpenAI + SSE wiring without calling an external LLM."""
     from agent.core.workflow_events import StreamEventType
-    from agent.openai_agents.model import reset_deepseek_sdk_cache
+    from agent.openai_agents.model import reset_sdk_model_cache
     from agent.openai_agents.runner import run_openai_agents_streaming_agent
 
     requests: list[dict] = []
@@ -391,7 +392,7 @@ async def test_runner_streams_through_openai_compatible_http_endpoint(monkeypatc
     monkeypatch.delenv("http_proxy", raising=False)
     monkeypatch.delenv("ALL_PROXY", raising=False)
     monkeypatch.delenv("all_proxy", raising=False)
-    reset_deepseek_sdk_cache()
+    reset_sdk_model_cache()
 
     state = {"user_message": "请输出 smoke", "messages": [], "system_prompt": "base"}
     try:
@@ -406,7 +407,7 @@ async def test_runner_streams_through_openai_compatible_http_endpoint(monkeypatc
         server.shutdown()
         server.server_close()
         await asyncio.to_thread(thread.join, 1)
-        reset_deepseek_sdk_cache()
+        reset_sdk_model_cache()
 
     assert server_errors == []
     assert requests, (

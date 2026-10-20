@@ -1,13 +1,13 @@
 """Client utilities for flow operations."""
 
-from .llm import DeepSeekClient, LLMResponse, call_deepseek_api, get_deepseek_client
+from .llm import LLMResponse, MaterialLLMClient, call_material_llm, get_material_llm_client
 from .neo4j import Neo4jClient, get_neo4j_client
 
 __all__ = [
-    "DeepSeekClient",
+    "MaterialLLMClient",
     "LLMResponse",
-    "get_deepseek_client",
-    "call_deepseek_api",
+    "get_material_llm_client",
+    "call_material_llm",
     "Neo4jClient",
     "get_neo4j_client",
 ]

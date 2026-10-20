@@ -83,7 +83,7 @@ class TestRouterNode:
                 }
             ]
         }
-        with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(return_value=route_response)):
+        with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=route_response)):
             state = {"user_message": "Plan a story outline"}
             result = await router_node(state)
 
@@ -95,7 +95,7 @@ class TestRouterNode:
         """Router errors must not expand author scope."""
         from agent.graph.router import router_node
 
-        with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(side_effect=ValueError("API Error"))):
+        with patch("agent.graph.router._route_with_chat_model", AsyncMock(side_effect=ValueError("API Error"))):
             state = {"user_message": "Some message"}
             with pytest.raises(ValueError):
                 await router_node(state)
@@ -354,7 +354,7 @@ class TestRouterUserScope:
             ]
         }
         with patch(
-            "agent.graph.router._route_with_deepseek_chat",
+            "agent.graph.router._route_with_chat_model",
             AsyncMock(return_value=route_response),
         ):
             result = await router_node({"user_message": "先给我故事大纲"})

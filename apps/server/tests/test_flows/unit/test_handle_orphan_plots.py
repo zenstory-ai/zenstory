@@ -24,8 +24,8 @@ def test_assign_orphans_passes_novel_id_keyword_to_batch_task(monkeypatch):
     """
     monkeypatch.setattr(decorator_mod, "get_run_logger", lambda: MagicMock())
     monkeypatch.setattr(orphan_mod, "get_run_logger", lambda: MagicMock())
-    monkeypatch.setattr(orphan_mod, "call_deepseek_api", lambda **kwargs: "raw-llm-response")
-    monkeypatch.setattr(orphan_mod, "get_deepseek_client", lambda: _FakeClient())
+    monkeypatch.setattr(orphan_mod, "call_material_llm", lambda **kwargs: "raw-llm-response")
+    monkeypatch.setattr(orphan_mod, "get_material_llm_client", lambda: _FakeClient())
     executed: list[list[dict]] = []
     monkeypatch.setattr(
         orphan_mod,
@@ -90,10 +90,10 @@ def test_batch_drops_llm_ids_outside_batch_and_skips_existing_links(monkeypatch,
     monkeypatch.setattr(decorator_mod, "get_run_logger", lambda: MagicMock())
     monkeypatch.setattr(orphan_mod, "get_run_logger", lambda: MagicMock())
     monkeypatch.setattr(orphan_mod, "get_db_session", _session_ctx)
-    monkeypatch.setattr(orphan_mod, "call_deepseek_api", lambda **kwargs: "raw")
+    monkeypatch.setattr(orphan_mod, "call_material_llm", lambda **kwargs: "raw")
     monkeypatch.setattr(
         orphan_mod,
-        "get_deepseek_client",
+        "get_material_llm_client",
         lambda: _LLMClientReturning({
             "assign": {
                 str(story.id): [p_orphan.id, p_orphan.id, p_linked.id, p_not_in_batch.id],

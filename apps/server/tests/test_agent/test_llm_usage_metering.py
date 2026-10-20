@@ -187,8 +187,8 @@ async def test_router_call_is_metered(db_session: Session, bound_request):
     )
     create = AsyncMock(return_value=_chat_response('{"agent_type":"writer","workflow_type":"quick"}', usage))
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    with patch("agent.graph.router.get_deepseek_client", return_value=client):
-        response = await router._route_with_deepseek_chat("写一章")
+    with patch.dict("os.environ", {"DEEPSEEK_API_KEY": "synthetic-test-key"}), patch("agent.core.llm_providers.get_async_client", return_value=client):
+        response = await router._route_with_chat_model("写一章")
     await drain_pending_usage_records()
 
     assert response["usage"]["cache_read_tokens"] == 256
@@ -204,7 +204,7 @@ async def test_router_failure_keeps_usage_of_unparseable_answer():
 
     routed = {"content": [{"type": "text", "text": "???"}], "usage": {"input_tokens": 5, "output_tokens": 2}}
     with (
-        patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(return_value=routed)),
+        patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=routed)),
         patch("agent.graph.router._parse_router_response", side_effect=router.RouterFailure("schema")),
     ):
         with pytest.raises(router.RouterFailure) as failure:
@@ -219,7 +219,7 @@ async def test_router_failure_keeps_usage_of_unparseable_answer():
 async def test_router_failure_without_response_has_no_usage():
     from agent.graph import router
 
-    with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(side_effect=RuntimeError("down"))):
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(side_effect=RuntimeError("down"))):
         with pytest.raises(router.RouterFailure) as failure:
             await router.router_node({"user_message": "写一章"})
 
@@ -247,7 +247,8 @@ async def test_acomplete_meters_only_with_attribution(db_session: Session, monke
     )
     create = AsyncMock(return_value=_chat_response("done", usage))
     client = LLMClient()
-    client._async_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr("agent.core.llm_providers.get_async_client", lambda _provider: fake_client)
 
     assert await client.acomplete([{"role": "user", "content": "hi"}]) == "done"
     await drain_pending_usage_records()
@@ -273,9 +274,10 @@ async def test_acomplete_returns_content_when_metering_fails(db_session: Session
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     usage = SimpleNamespace(prompt_tokens=10, completion_tokens=3, total_tokens=13)
     client = LLMClient()
-    client._async_client = SimpleNamespace(
+    fake_client = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(return_value=_chat_response("ok", usage))))
     )
+    monkeypatch.setattr("agent.core.llm_providers.get_async_client", lambda _provider: fake_client)
 
     attribution = LLMUsageAttribution(user_id="u-1", source="suggest")
     assert await client.acomplete([{"role": "user", "content": "hi"}], usage_attribution=attribution) == "ok"
@@ -306,9 +308,10 @@ async def test_slow_ledger_write_does_not_delay_acomplete(monkeypatch):
     started, release = _blocking_recorder(monkeypatch)
     usage = SimpleNamespace(prompt_tokens=10, completion_tokens=3, total_tokens=13)
     client = LLMClient()
-    client._async_client = SimpleNamespace(
+    fake_client = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(return_value=_chat_response("ok", usage))))
     )
+    monkeypatch.setattr("agent.core.llm_providers.get_async_client", lambda _provider: fake_client)
     attribution = LLMUsageAttribution(user_id="u-1", source="suggest")
     try:
         # The recorder is still blocked, yet the call returns well inside a tight deadline.
@@ -335,8 +338,8 @@ async def test_slow_ledger_write_does_not_delay_routing(monkeypatch, bound_reque
     create = AsyncMock(return_value=_chat_response('{"agent_type":"writer"}', usage))
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     try:
-        with patch("agent.graph.router.get_deepseek_client", return_value=client):
-            response = await asyncio.wait_for(router._route_with_deepseek_chat("写一章"), timeout=1.0)
+        with patch.dict("os.environ", {"DEEPSEEK_API_KEY": "synthetic-test-key"}), patch("agent.core.llm_providers.get_async_client", return_value=client):
+            response = await asyncio.wait_for(router._route_with_chat_model("写一章"), timeout=1.0)
         assert response["content"][0]["text"] == '{"agent_type":"writer"}'
         assert await asyncio.to_thread(started.wait, 5)
     finally:

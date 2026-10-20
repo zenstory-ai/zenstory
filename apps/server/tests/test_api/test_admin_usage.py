@@ -301,9 +301,10 @@ def test_cost_units_widen_token_columns_to_bigint_on_postgresql():
     )
     sql = str(query.compile(dialect=postgresql.dialect())).upper()
     for column in ("CACHE_HIT_TOKENS", "CACHE_MISS_TOKENS", "OUTPUT_TOKENS"):
-        assert f"CAST(LLM_USAGE_EVENT.{column} AS BIGINT)" in sql
-    # Both bands, three columns each: no token column is multiplied uncast.
-    assert sql.count("AS BIGINT)") == 6
+        cast_column = f"CAST(LLM_USAGE_EVENT.{column} AS BIGINT)"
+        assert cast_column in sql
+        # Every price table and band: no token column is multiplied uncast.
+        assert sql.count(f"LLM_USAGE_EVENT.{column}") == sql.count(cast_column)
 
 
 @pytest.mark.integration
@@ -317,6 +318,22 @@ async def test_cost_of_multi_million_token_row(client: AsyncClient, db_session: 
     bob = next(item for item in body["items"] if item["username"] == "bob")
     # Both calls are off-peak: 24 + 4 CNY.
     assert bob["cost_cny"] == "28.0000"
+
+
+@pytest.mark.integration
+def test_minimax_rows_use_minimax_prices_at_peak(db_session: Session):
+    account = _user(db_session, "minimax_user")
+    weekday_peak = datetime(2026, 9, 30, 2, 0)  # Wednesday 10:00 Beijing
+    _event(db_session, account, weekday_peak, hit=1_000_000, out=1_000_000, model="MiniMax-M3.1-Flash")
+
+    stored = db_session.exec(select(LLMUsageEvent).where(LLMUsageEvent.user_id == account.id)).one()
+    assert (stored.price_band, stored.pricing_version) == ("peak", "minimax-m3.1-flash-2026-10")
+    summary = admin_usage_service.get_usage_summary(
+        db_session, "today", now=datetime(2026, 9, 30, 8, 0, tzinfo=UTC)
+    )
+    # ¥0.1 per 1M cache hits + ¥4 per 1M output (DeepSeek peak would be 0.04 + 8).
+    assert summary["totals"]["peak_cost_cny"] == "4.1000"
+    assert summary["daily"][0]["cost_cny"] == "4.1000"
 
 
 @pytest.mark.integration

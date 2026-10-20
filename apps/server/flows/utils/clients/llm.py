@@ -1,17 +1,16 @@
-"""DeepSeek LLM client for material and Prefect flows."""
+"""Chat model client for material and Prefect flows (primary/backup failover)."""
 
 import json
-import os
 from dataclasses import dataclass
 from typing import Any
 
-from agent.core.deepseek_client import DEEPSEEK_CHAT_MODEL, DEFAULT_DEEPSEEK_BASE_URL
+from agent.core import llm_failover, llm_providers
 from config.material_settings import material_settings as settings
 from core.error_codes import ErrorCode
 from flows.utils.helpers.exceptions import LLMAPIError, LLMNonRetryableError, LLMOutputError
 from flows.utils.helpers.logging import get_logger, log_error_with_context
 
-# HTTP statuses that mean the DeepSeek account itself is unusable (bad key,
+# HTTP statuses that mean the provider account itself is unusable (bad key,
 # no balance, forbidden, unknown model): every further call fails the same way.
 _ACCOUNT_FAILURE_STATUSES = {401, 402, 403, 404}
 # Other 4xx (context too long, malformed request) fail the same way on retry.
@@ -76,8 +75,13 @@ def _meter_material_call(
     )
 
 
-class DeepSeekClient:
-    """DeepSeek OpenAI-compatible LLM client for material flows."""
+class MaterialLLMClient:
+    """OpenAI-compatible chat client for material flows.
+
+    Each call goes to the primary provider and, when it is unavailable, to the
+    backup (``agent/core/llm_failover.py``). Failover state is shared with the
+    API through Redis when the worker has ``REDIS_URL``.
+    """
 
     def __init__(
         self,
@@ -86,27 +90,12 @@ class DeepSeekClient:
     ):
         self.max_tokens = max_tokens or settings.LLM_MAX_TOKENS
         self.temperature = temperature or settings.LLM_TEMPERATURE
-        self.api_key = os.getenv("DEEPSEEK_API_KEY")
-        self.base_url = os.getenv("DEEPSEEK_BASE_URL") or DEFAULT_DEEPSEEK_BASE_URL
-        self.model = DEEPSEEK_CHAT_MODEL
-
-        if not self.api_key:
+        try:
+            self.model = llm_providers.primary_provider().model
+        except ValueError as error:
             raise LLMNonRetryableError(
-                "DEEPSEEK_API_KEY 环境变量未设置", ErrorCode.MATERIAL_LLM_UNAVAILABLE
-            )
-
-        from openai import OpenAI
-
-        # Explicit bounds: the SDK default is a 600s timeout; Prefect task
-        # retries add their own attempts on top of these.
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
-            max_retries=settings.LLM_SDK_MAX_RETRIES,
-        )
-        from services.usage.model_call_guard import install_sync_cost_guard
-        install_sync_cost_guard(self.client)
+                f"模型凭证未配置：{error}", ErrorCode.MATERIAL_LLM_UNAVAILABLE
+            ) from error
 
     def chat_completion(
         self,
@@ -119,7 +108,7 @@ class DeepSeekClient:
         usage_chapter_id: int | None = None,
         **kwargs,
     ) -> LLMResponse:
-        """调用 DeepSeek OpenAI-compatible 聊天补全接口。
+        """调用聊天补全接口（主供应商不可用时用备用供应商）。
 
         usage_novel_id / usage_chapter_id：这次调用所处理的小说或章节，用来把
         用量记到小说所有者名下（llm_usage_event）。两者都不传时不记账。
@@ -127,7 +116,7 @@ class DeepSeekClient:
         logger = get_logger(__name__)
 
         try:
-            return self._call_deepseek(
+            return self._call_model(
                 messages,
                 system_prompt,
                 temperature,
@@ -138,10 +127,10 @@ class DeepSeekClient:
                 **kwargs,
             )
         except Exception as e:
-            log_error_with_context(e, "DeepSeek API 调用失败", logger)
+            log_error_with_context(e, "模型 API 调用失败", logger)
             raise _classify_llm_exception(e) from e
 
-    def _call_deepseek(
+    def _call_model(
         self,
         messages,
         system_prompt,
@@ -153,9 +142,7 @@ class DeepSeekClient:
         usage_chapter_id: int | None = None,
         **kwargs,
     ) -> LLMResponse:
-        """调用 DeepSeek OpenAI-compatible API。"""
-        logger.info(f"调用 DeepSeek API: {self.model}")
-
+        """调用 OpenAI 兼容接口。"""
         full_messages = []
         if system_prompt:
             full_messages.append({"role": "system", "content": system_prompt})
@@ -169,8 +156,12 @@ class DeepSeekClient:
             with create_prefect_session() as owner_session:
                 owner, _ = resolve_material_owner(owner_session, novel_id=usage_novel_id, chapter_id=usage_chapter_id)
         with budget_attribution(LLMUsageAttribution(user_id=owner, source="material")):
-            response = self.client.chat.completions.create(
-                model=self.model,
+            # Explicit bounds: the SDK default is a 600s timeout; Prefect task
+            # retries add their own attempts on top of these.
+            response, provider = llm_failover.create_chat_completion(
+                call_site="material",
+                timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
+                max_retries=settings.LLM_SDK_MAX_RETRIES,
                 messages=full_messages,
                 max_tokens=max_tokens or self.max_tokens,
                 temperature=temperature or self.temperature,
@@ -180,11 +171,11 @@ class DeepSeekClient:
         content = response.choices[0].message.content or ""
         usage = response.usage.model_dump() if response.usage else {}
 
-        logger.info(f"DeepSeek API 调用成功，tokens: {usage}")
+        logger.info(f"模型 API 调用成功（{provider.name} / {provider.model}），tokens: {usage}")
         # 每次真实调用都记账（含 Prefect 重试、JSON 解析失败后的重跑），
         # 按小说所有者计费；记账失败只记日志，不影响拆解。
         _meter_material_call(
-            model=response.model or self.model,
+            model=provider.model,
             usage=response.usage,
             novel_id=usage_novel_id,
             chapter_id=usage_chapter_id,
@@ -193,7 +184,7 @@ class DeepSeekClient:
         return LLMResponse(
             content=content,
             usage=usage,
-            model=response.model,
+            model=response.model or provider.model,
             finish_reason=response.choices[0].finish_reason,
         )
 
@@ -286,25 +277,25 @@ class DeepSeekClient:
             return False
 
 
-_deepseek_client: DeepSeekClient | None = None
+_material_llm_client: MaterialLLMClient | None = None
 
 
-def get_deepseek_client() -> DeepSeekClient:
-    """获取全局 DeepSeek 客户端实例。"""
-    global _deepseek_client
-    if _deepseek_client is None:
-        _deepseek_client = DeepSeekClient()
-    return _deepseek_client
+def get_material_llm_client() -> MaterialLLMClient:
+    """获取全局素材模型客户端实例。"""
+    global _material_llm_client
+    if _material_llm_client is None:
+        _material_llm_client = MaterialLLMClient()
+    return _material_llm_client
 
 
-def call_deepseek_api(
+def call_material_llm(
     messages: list[dict[str, str]],
     system_prompt: str | None = None,
     **kwargs,
 ) -> LLMResponse:
-    """便捷的 DeepSeek API 调用函数。
+    """便捷的素材模型调用函数。
 
     计费归属：传 usage_novel_id 或 usage_chapter_id（见 chat_completion）。
     """
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     return client.chat_completion(messages, system_prompt, **kwargs)

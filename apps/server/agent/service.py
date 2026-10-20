@@ -44,6 +44,7 @@ from .core.events import (
     skill_matched_event,
     thinking_event,
 )
+from .core.llm_providers import primary_model_name
 from .core.message_manager import MessageManager
 from .core.metrics import (
     AGENT_REQUESTS_DURATION_MS,
@@ -66,7 +67,6 @@ from .core.steering import (
 from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .graph.state import WritingState
 from .graph.writing_graph import run_writing_workflow_streaming
-from .openai_agents.model import DEEPSEEK_WRITING_MODEL
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
@@ -1837,7 +1837,7 @@ class AgentService:
                 usage_summary = assistant_usage if isinstance(assistant_usage, dict) else {}
                 run_report.update(
                     {
-                        "model": DEEPSEEK_WRITING_MODEL,
+                        "model": run_meter.last_served_model or primary_model_name(),
                         "input_tokens": usage_summary.get("input_tokens", 0),
                         "output_tokens": usage_summary.get("output_tokens", 0),
                         "cache_read_tokens": usage_summary.get("cache_read_tokens", 0),

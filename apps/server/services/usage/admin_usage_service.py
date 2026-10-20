@@ -23,6 +23,7 @@ from services.usage.pricing import (
     BEIJING_TZ_NAME,
     CHINA_PUBLIC_HOLIDAY_RANGES,
     COST_WEIGHTS,
+    COST_WEIGHTS_BY_VERSION,
     PRICING_VERSION,
     beijing_day_start_utc,
     beijing_range_utc,
@@ -90,12 +91,27 @@ def _wide(column: Any) -> Any:
     return cast(column, BigInteger)
 
 
-def _band_units(c: Any, band: str) -> Any:
-    weights = COST_WEIGHTS[band]
+def _weighted_units(c: Any, weights: dict[str, int]) -> Any:
     return (
         _wide(c.cache_hit_tokens) * weights["cache_hit"]
         + _wide(c.cache_miss_tokens) * weights["cache_miss"]
         + _wide(c.output_tokens) * weights["output"]
+    )
+
+
+def _band_units(c: Any, band: str) -> Any:
+    """Cost of a row in ``band`` by its own pricing version (unknown: DeepSeek)."""
+    default = COST_WEIGHTS[band]
+    others = {
+        version: bands[band]
+        for version, bands in COST_WEIGHTS_BY_VERSION.items()
+        if bands[band] != default
+    }
+    if not others:
+        return _weighted_units(c, default)
+    return case(
+        *((c.pricing_version == version, _weighted_units(c, weights)) for version, weights in others.items()),
+        else_=_weighted_units(c, default),
     )
 
 

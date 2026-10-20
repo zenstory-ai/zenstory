@@ -157,6 +157,36 @@ def test_unknown_model_and_database_failure_fail_closed(db_session, monkeypatch)
     assert error.value.error_code == budget.UNAVAILABLE_CODE
 
 
+def test_minimax_usage_is_priced_by_its_own_table_live_and_from_history(db_session):
+    """MiniMax M3.1-Flash: ¥0.1 cache hit / ¥1 miss / ¥4 output per 1M, same price at peak."""
+    weekday_peak = datetime(2026, 10, 13, 2, tzinfo=UTC)  # Tuesday 10:00 Beijing.
+    account = user(db_session)
+    db_session.add(
+        LLMUsageEvent(
+            user_id=account.id,
+            source="agent",
+            model="MiniMax-M3.1-Flash",
+            occurred_at=weekday_peak.replace(tzinfo=None),
+            price_band="peak",
+            pricing_version="minimax-m3.1-flash-2026-10",
+            output_tokens=1_000_000,
+        )
+    )
+    db_session.commit()
+    request = payload()
+    request["model"] = "MiniMax-M3.1-Flash"
+
+    call = budget.reserve_model_call(request, user_id=account.id, now=weekday_peak)
+    budget.settle_model_call(
+        call,
+        {"prompt_tokens": 1_000_100, "prompt_tokens_details": {"cached_tokens": 1_000_000}, "completion_tokens": 100},
+    )
+
+    db_session.expire_all()
+    # History ¥4 + this call ¥0.1 + ¥0.0001 + ¥0.0004 (DeepSeek peak would be ¥8.041).
+    assert db_session.exec(select(AICostDailyBudget)).one().charged_units == 410_050_000
+
+
 def test_cache_split_cannot_discount_unaccounted_prompt_tokens(db_session):
     account = user(db_session)
     call = budget.reserve_model_call(payload(), user_id=account.id, now=NOW)
@@ -212,7 +242,7 @@ async def test_router_propagates_budget_error_instead_of_falling_back(monkeypatc
 
     monkeypatch.setattr(
         router,
-        "_route_with_deepseek_chat",
+        "_route_with_chat_model",
         AsyncMock(side_effect=APIException(error_code=budget.COST_LIMIT_CODE, status_code=402)),
     )
     with pytest.raises(APIException) as error:

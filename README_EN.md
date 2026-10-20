@@ -165,7 +165,7 @@ Sign in at <http://localhost:5173>; the API reference is at <http://localhost:80
 
 Every account, the admin included, starts on the free plan: 3 AI messages a day (reset at 00:00 Beijing time) and up to 3 projects. To lift that, run `docker compose exec server python scripts/seed_subscription_plans.py` to create the Pro plan (it also creates the free-plan row), then give an account Pro under Subscriptions in the admin console, or raise the free plan's limits under Subscription Plans.
 
-The writing agents use DeepSeek `deepseek-flash` (DeepSeek-V4.1-Flash) and need only that key. Other features need their own settings. With the quick start above, add backend variables under `server.environment` in `docker-compose.yml` and `VITE_*` variables under `web.environment`, then run `docker compose up -d`; the repo-root `.env` only fills the `${…}` placeholders in the compose file (such as `DEEPSEEK_API_KEY` and `JWT_SECRET_KEY`) and passes nothing else into the containers. With `docker-compose.full.yml`, put them in `apps/server/.env.docker` and `apps/web/.env.docker` instead.
+The writing agents use DeepSeek `deepseek-flash` (DeepSeek-V4.1-Flash) by default and need only that key (an optional primary/backup setup is described under "Can I use a different model?"). Other features need their own settings. With the quick start above, add backend variables under `server.environment` in `docker-compose.yml` and `VITE_*` variables under `web.environment`, then run `docker compose up -d`; the repo-root `.env` only fills the `${…}` placeholders in the compose file (such as `DEEPSEEK_API_KEY` and `JWT_SECRET_KEY`) and passes nothing else into the containers. With `docker-compose.full.yml`, put them in `apps/server/.env.docker` and `apps/web/.env.docker` instead.
 
 <details>
 <summary>Settings for optional features</summary>
@@ -329,7 +329,7 @@ For a few people you trust, you can also run `create_admin.py` again with their 
 
 ### Can I use a different model?
 
-Not from a setting. The model name `deepseek-flash` is written in code ([`apps/server/agent/core/deepseek_client.py`](apps/server/agent/core/deepseek_client.py)). `DEEPSEEK_BASE_URL` can point at another OpenAI-compatible endpoint, but requests still name the same model. Support for more models is requested in [#13](https://github.com/zenstory-ai/zenstory/issues/13).
+Environment variables choose a primary and a backup between DeepSeek and MiniMax, each with its own model name: `LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`, `LLM_BACKUP_PROVIDER` / `LLM_BACKUP_MODEL`, with keys in `DEEPSEEK_API_KEY` and `MINIMAX_API_KEY`. When the primary is unavailable (connection failure, timeout, rate limit, 5xx, invalid key), that chat window switches to the backup. See [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py); a new model needs a price in `apps/server/services/usage/pricing.py` first.
 
 ### Can I export to Word, or publish straight to a web-novel platform?
 

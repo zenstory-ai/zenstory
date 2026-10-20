@@ -19,7 +19,7 @@ from sqlmodel import Session
 
 from config.datetime_utils import utcnow
 from models.llm_usage import LLMUsageEvent
-from services.usage.pricing import PRICING_VERSION, naive_utc, price_band
+from services.usage.pricing import PRICING_VERSION, naive_utc, price_band, pricing_version_for_model
 from utils.logger import get_logger, log_with_context
 from utils.request_context import bind_request_context, get_log_context
 
@@ -128,7 +128,8 @@ def build_usage_event(
         cache_miss_tokens=tokens.cache_miss,
         output_tokens=tokens.output,
         price_band=price_band(moment),
-        pricing_version=PRICING_VERSION,
+        # An unpriced model keeps the DeepSeek table; the cost budget refuses it for free users.
+        pricing_version=pricing_version_for_model(model) or PRICING_VERSION,
         occurred_at=moment,
         correlation_id=correlation_id,
         is_backfilled=is_backfilled,

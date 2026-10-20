@@ -24,7 +24,7 @@ from typing import Any
 from prefect import get_run_logger
 
 from flows.database_session import get_db_session
-from flows.utils import api_task, call_deepseek_api, database_task, get_deepseek_client
+from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
 
 from .intelligent_chunking import intelligent_chunking_task
 
@@ -187,14 +187,14 @@ def identify_story_frameworks_from_summaries(
 请分析这些章节摘要，识别出贯穿多个章节的剧情，并标注每个剧情的章节范围。
 """
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_novel_id=novel_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     data = client.extract_json_from_response(response)
 
     story_frameworks = data.get("story_frameworks", [])
@@ -278,14 +278,14 @@ def aggregate_plots_for_story_framework(
 请根据剧情框架，从这些情节点中筛选出真正属于该剧情的情节点，并完善剧情的详细信息。
 """
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_novel_id=novel_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     data = client.extract_json_from_response(response)
 
     story_data = data.get("story", {})
@@ -356,14 +356,14 @@ def extract_storylines_from_stories(
 请从这些剧情中识别和提炼剧情线。
 """
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_novel_id=novel_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     data = client.extract_json_from_response(response)
 
     storylines = data.get("storylines", [])
@@ -779,17 +779,17 @@ def _llm_judge_merge(
     )
 
     try:
-        response = call_deepseek_api(
+        response = call_material_llm(
             messages=[{"role": "user", "content": user_message}],
             system_prompt=system_prompt,
             temperature=0.1,  # 低温度=更保守
             usage_novel_id=novel_id,
         )
 
-        # 解析响应：call_deepseek_api 返回 LLMResponse 对象，必须用客户端方法提取 JSON。
+        # 解析响应：call_material_llm 返回 LLMResponse 对象，必须用客户端方法提取 JSON。
         # （此前这里把 LLMResponse 当字符串做 re.search，必然抛 TypeError 并被下方 except
         # 吞掉，导致合并判断永远返回 should_merge=False。改为与本文件其它调用点一致的写法。）
-        client = get_deepseek_client()
+        client = get_material_llm_client()
         result = client.extract_json_from_response(response)
 
         # 验证返回格式

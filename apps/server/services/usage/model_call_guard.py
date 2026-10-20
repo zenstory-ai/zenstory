@@ -66,7 +66,7 @@ def install_async_cost_guard(client: Any) -> Any:
     original_with_options = getattr(client, "with_options", None)
 
     async def create(*args, **kwargs):
-        from agent.core.deepseek_client import sanitize_chat_messages
+        from agent.core.llm_providers import sanitize_chat_messages
 
         if "messages" in kwargs:
             kwargs["messages"] = sanitize_chat_messages(kwargs["messages"])

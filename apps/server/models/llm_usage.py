@@ -1,4 +1,4 @@
-"""Append-only ledger of DeepSeek chat-model calls, one row per model call."""
+"""Append-only ledger of chat-model calls (any provider), one row per model call."""
 
 from datetime import datetime
 

@@ -35,7 +35,7 @@ from agent.openai_agents.events import (
     parse_json_object,
     tool_error_text,
 )
-from agent.openai_agents.model import DEEPSEEK_WRITING_MODEL, get_deepseek_chat_model
+from agent.openai_agents.model import build_failover_chat_model
 from agent.openai_agents.repeat_read_guard import (
     NO_PROGRESS_STOP_REASON,
     NO_PROGRESS_STOP_TOTAL,
@@ -549,6 +549,17 @@ def _format_tool_error(args: Any, *, failure_breaker: ToolFailureBreaker | None 
     return text
 
 
+async def _preferred_model_name() -> str:
+    """The model this run's first call will try (MESSAGE_START, ledger fallback)."""
+    from agent.core import llm_failover, llm_providers
+    from agent.tools.mcp_tools import ToolContext
+
+    try:
+        return (await llm_failover.aordered_providers(ToolContext.get_session_id()))[0].model
+    except Exception:  # noqa: BLE001 - a missing key surfaces from the model call itself
+        return llm_providers.primary_model_name()
+
+
 def _build_agent(
     agent_type: str,
     system_prompt: str,
@@ -568,7 +579,8 @@ def _build_agent(
     # it impossible to surface per-agent exhaustion cleanly.  The current explicit
     # graph loop + handoff packet approach is intentional; do not replace with as_tool.
     #
-    # NOTE — reasoning lever (verified, intentionally not set).
+    # NOTE — reasoning lever (verified, intentionally not set for DeepSeek).
+    # MiniMax gets MINIMAX_REASONING_EFFORT (model._settings_for) because its own default is max.
     # deepseek-flash's Chat Completions endpoint accepts two reasoning controls (live probe
     # 2026-10-03): ``reasoning_effort`` (none|minimal|low|medium|high|xhigh|ultra|max;
     # unknown values return 422) and ``extra_body={"thinking": {"type": "disabled"}}``.
@@ -582,19 +594,24 @@ def _build_agent(
     from agents import Agent, ModelSettings
     from openai.types.shared import Reasoning
 
+    from agent.tools.mcp_tools import ToolContext
+
     effort = agent_runtime.AGENT_REASONING_EFFORT
 
     return Agent(
         name=agent_type,
         instructions=system_prompt,
-        model=get_deepseek_chat_model(),
+        model=build_failover_chat_model(
+            ToolContext.get_session_id(),
+            on_served=run_meter.record_served_model if run_meter is not None else None,
+        ),
         model_settings=ModelSettings(
             temperature=1.0,
             top_p=0.95,
             max_tokens=AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
             # include_usage 决定请求体里是否带 stream_options={"include_usage": true}。
             # SDK 的默认值只在 client 指向 api.openai.com 时才是 True
-            # （chatcmpl_helpers.get_stream_options_param），而本项目走 api.deepseek.com，
+            # （chatcmpl_helpers.get_stream_options_param），而本项目走 DeepSeek / MiniMax，
             # 不显式打开的话 OpenAI 兼容流式接口不会补发带 usage 的末尾 chunk，
             # MESSAGE_END 的 usage 恒为空，用量统计只能退化成「字符数/4」的估算。
             include_usage=True,
@@ -801,9 +818,10 @@ async def run_openai_agents_streaming_agent(
     async for steering_event in _inject_initial_steering(api_messages, get_steering_messages):
         yield steering_event
 
+    start_model = await _preferred_model_name()
     yield StreamEvent(
         type=StreamEventType.MESSAGE_START,
-        data={"model": DEEPSEEK_WRITING_MODEL, "agent_type": agent_type},
+        data={"model": start_model, "agent_type": agent_type},
     )
 
     # Shared queue interleaving SDK events (via _pump_sdk_events) with live
@@ -855,7 +873,7 @@ async def run_openai_agents_streaming_agent(
                 # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
                 # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前
                 # 告诉空文件守卫"上一份正文已在本条回复里写完"（见 usage_hooks）。
-                hooks=build_agent_run_hooks(DEEPSEEK_WRITING_MODEL),
+                hooks=build_agent_run_hooks(start_model),
                 # When DeepSeek emits multiple tool_calls in one turn, the SDK would run them
                 # concurrently (asyncio.create_task). Project tools share a single SQLAlchemy
                 # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool
@@ -1301,7 +1319,7 @@ async def run_openai_agents_streaming_agent(
             20,  # INFO
             "OpenAI Agents streaming run completed",
             agent_type=agent_type,
-            model=DEEPSEEK_WRITING_MODEL,
+            model=(run_meter.last_served_model if run_meter is not None else None) or start_model,
             tool_calls=len(tool_uses),
             response_length=sum(len(part) for part in assistant_text_parts),
             model_turns=len(getattr(result, "raw_responses", None) or []),
@@ -1322,7 +1340,7 @@ async def run_openai_agents_streaming_agent(
             exc,
             error_info,
             agent_type=agent_type,
-            model=DEEPSEEK_WRITING_MODEL,
+            model=(run_meter.last_served_model if run_meter is not None else None) or start_model,
             duration_ms=round((time.monotonic() - run_started_at) * 1000, 1),
         )
         yield StreamEvent(

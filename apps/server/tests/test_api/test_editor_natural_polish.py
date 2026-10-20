@@ -827,7 +827,6 @@ async def test_service_sends_attention_hints_after_the_static_prompt():
     from services.features.natural_polish_service import NaturalPolishService
 
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
     llm_client.acomplete = AsyncMock(return_value="无改动")
     text = "他心中一震。"
 
@@ -859,8 +858,12 @@ async def _polish_with_model_output(
     from unittest.mock import MagicMock
 
     llm_client = MagicMock()
-    llm_client.MODEL_QUALITY = "quality-model"
-    llm_client.acomplete = AsyncMock(return_value=model_output)
+
+    async def acomplete(**kwargs):
+        kwargs["served_model_sink"]["model"] = "served-model"
+        return model_output
+
+    llm_client.acomplete = AsyncMock(side_effect=acomplete)
 
     user = _create_user(db_session, username=username, email=f"{username}@example.com", is_superuser=False)
     project = _create_project(db_session, owner_id=user.id)
@@ -920,5 +923,5 @@ async def test_natural_polish_that_only_dropped_the_theme_sentence_is_refunded(
     )
 
     # 守卫放回主题句后结果和原文一样：按「无改动」退还，额度不变。
-    assert body == {"text": _THEME_SAMPLE, "model": "quality-model", "unchanged": True}
+    assert body == {"text": _THEME_SAMPLE, "model": "served-model", "unchanged": True}
     assert used_after == 0

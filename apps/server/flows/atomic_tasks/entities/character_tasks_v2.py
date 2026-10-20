@@ -14,9 +14,9 @@ from prefect import get_run_logger
 from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
-    call_deepseek_api,
+    call_material_llm,
     database_task,
-    get_deepseek_client,
+    get_material_llm_client,
 )
 from flows.utils.helpers import (
     filter_character_data,
@@ -84,14 +84,14 @@ def extract_character_mentions_task(
 
     logger.info(f"[角色提及提取] 调用 LLM: chapter_id={chapter_id}")
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_chapter_id=chapter_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
     logger.debug(f"[角色提及提取] 开始解析 LLM 响应: chapter_id={chapter_id}")
 
     try:
@@ -253,14 +253,14 @@ def build_character_entity_task(
 
     logger.info(f"[角色实体构建] 调用 LLM: character_name={character_name}")
 
-    response = call_deepseek_api(
+    response = call_material_llm(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_novel_id=novel_id,
     )
 
     # 提取 JSON
-    client = get_deepseek_client()
+    client = get_material_llm_client()
 
     try:
         data = client.extract_json_from_response(response)

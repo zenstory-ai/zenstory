@@ -332,7 +332,7 @@ class TestMultiTurnConversations:
             }
 
             # Mock the router LLM call
-            with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(return_value=route_response)):
+            with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=route_response)):
                 # Run router
                 result = await router_node(state)
 

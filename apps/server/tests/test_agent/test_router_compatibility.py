@@ -28,7 +28,7 @@ def test_existing_valid_formats_and_optional_fields_continue(text, agent, workfl
 async def test_existing_known_boolean_forms_preserve_scope(read_only, write_content):
     payload = {"agent_type": "planner", "workflow_type": "full", "read_only": read_only,
                "write_content": write_content, "scope": "Only inspect the outline."}
-    with patch("agent.graph.router._route_with_deepseek_chat", AsyncMock(return_value=_response(json.dumps(payload)))):
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=_response(json.dumps(payload)))):
         result = await router_node({"user_message": "Only inspect the outline."})
     assert result["workflow_agents"] == []
     metadata = result["routing_metadata"]

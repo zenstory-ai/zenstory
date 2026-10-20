@@ -57,7 +57,7 @@ def is_retryable_exception(exc: BaseException | None) -> bool:
 
 
 def is_llm_account_failure(exc: BaseException | None) -> bool:
-    """DeepSeek 账号级故障（401/402/403、未配置密钥）：继续调用只会全部失败。"""
+    """模型供应商账号级故障（401/402/403、未配置密钥）：继续调用只会全部失败。"""
     from core.error_codes import ErrorCode
 
     return (

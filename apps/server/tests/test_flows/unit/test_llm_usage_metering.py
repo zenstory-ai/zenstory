@@ -1,4 +1,4 @@
-"""Material-flow DeepSeek calls are metered and billed to the novel owner."""
+"""Material-flow model calls are metered and billed to the novel owner."""
 
 from __future__ import annotations
 
@@ -37,10 +37,14 @@ class _FakeCompletions:
         )
 
 
-def _client() -> tuple[llm_mod.DeepSeekClient, _FakeCompletions]:
-    client = llm_mod.DeepSeekClient.__new__(llm_mod.DeepSeekClient)
+def _client(monkeypatch) -> tuple[llm_mod.MaterialLLMClient, _FakeCompletions]:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.delenv("LLM_PRIMARY_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER", raising=False)
+    client = llm_mod.MaterialLLMClient.__new__(llm_mod.MaterialLLMClient)
     completions = _FakeCompletions()
-    client.client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    fake = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    monkeypatch.setattr("agent.core.llm_providers.get_sync_client", lambda *_args, **_kwargs: fake)
     client.model = "deepseek-flash"
     client.max_tokens = 100
     client.temperature = 0.5
@@ -71,9 +75,9 @@ def _events(db_session: Session) -> list[LLMUsageEvent]:
 
 
 @pytest.mark.integration
-def test_chat_completion_meters_by_chapter_owner(db_session: Session, owned_chapter):
+def test_chat_completion_meters_by_chapter_owner(db_session: Session, owned_chapter, monkeypatch):
     owner, novel, chapter = owned_chapter
-    client, completions = _client()
+    client, completions = _client(monkeypatch)
 
     response = client.chat_completion(
         [{"role": "user", "content": "x"}], system_prompt="s", usage_chapter_id=chapter.id
@@ -89,9 +93,9 @@ def test_chat_completion_meters_by_chapter_owner(db_session: Session, owned_chap
 
 
 @pytest.mark.integration
-def test_chat_completion_meters_by_novel_and_skips_without_target(db_session: Session, owned_chapter):
+def test_chat_completion_meters_by_novel_and_skips_without_target(db_session: Session, owned_chapter, monkeypatch):
     owner, novel, _chapter = owned_chapter
-    client, _completions = _client()
+    client, _completions = _client(monkeypatch)
 
     client.chat_completion([{"role": "user", "content": "x"}])
     assert _events(db_session) == []
@@ -102,7 +106,7 @@ def test_chat_completion_meters_by_novel_and_skips_without_target(db_session: Se
 
 
 @pytest.mark.unit
-def test_call_deepseek_api_forwards_attribution(monkeypatch):
+def test_call_material_llm_forwards_attribution(monkeypatch):
     seen: dict = {}
 
     class _Client:
@@ -110,24 +114,24 @@ def test_call_deepseek_api_forwards_attribution(monkeypatch):
             seen.update(kwargs)
             return "resp"
 
-    monkeypatch.setattr(llm_mod, "get_deepseek_client", lambda: _Client())
-    assert llm_mod.call_deepseek_api([{"role": "user", "content": "x"}], "s", usage_novel_id=7) == "resp"
+    monkeypatch.setattr(llm_mod, "get_material_llm_client", lambda: _Client())
+    assert llm_mod.call_material_llm([{"role": "user", "content": "x"}], "s", usage_novel_id=7) == "resp"
     assert seen == {"usage_novel_id": 7}
 
 
-def _deepseek_calls() -> list[tuple[str, ast.Call]]:
+def _material_llm_calls() -> list[tuple[str, ast.Call]]:
     calls = []
     for path in sorted(ATOMIC_TASKS.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "call_deepseek_api":
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "call_material_llm":
                 calls.append((f"{path.relative_to(ATOMIC_TASKS)}:{node.lineno}", node))
     return calls
 
 
 @pytest.mark.unit
 def test_every_material_llm_call_names_who_pays():
-    calls = _deepseek_calls()
+    calls = _material_llm_calls()
     assert calls, "expected material LLM call sites"
     missing = [
         where
