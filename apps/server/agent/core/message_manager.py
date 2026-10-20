@@ -49,6 +49,10 @@ def detect_author_language(text: str | None) -> str | None:
 
 logger = get_logger(__name__)
 
+# 本轮上下文块的标签：MessageManager.build_turn_context 产出，service 拼在本轮用户消息开头。
+TURN_CONTEXT_OPEN = "<turn_context>"
+TURN_CONTEXT_CLOSE = "</turn_context>"
+
 _CONTEXT_MAX_CONSTRAINTS = 12
 _CONTEXT_MAX_WORLD_KNOWLEDGE = 24
 _CONTEXT_MAX_WORKING_SET = 18
@@ -488,38 +492,30 @@ class MessageManager:
     def build_system_prompt(
         self,
         session: Session,
-        session_id: str | None = None,
-        metadata: dict[str, Any] | None = None,
-        assembled_context: str | None = None,
-        context_items: list[dict[str, Any]] | None = None,
         language: str | None = None,
         skill_catalog: str | None = None,
-        selected_skills: list[dict[str, Any]] | None = None,
-        author_message: str | None = None,
     ) -> str:
         """
-        Build system prompt for the AI assistant.
+        Build the static system prompt shared by every turn and every agent role.
+
+        Only content that stays the same across turns and roles goes here: the
+        project's base prompt, reply-language rules, where per-turn context
+        lives, and the L1 skill catalog. DeepSeek caches by exact prefix, so
+        anything that varies here would make the whole replayed history miss.
+        Per-turn content comes from build_turn_context (placed in this turn's
+        user message).
 
         Args:
             session: Database session for querying project info
-            session_id: Chat session ID for loading task board
-            metadata: Optional metadata (current_file_id, etc.)
-            assembled_context: Pre-assembled context from ContextAssembler
-            context_items: Structured context items from ContextAssembler
             language: Language preference (zh/en)
             skill_catalog: L1 skill catalog (name + description only)
-            selected_skills: Skills the user explicitly selected for this message
-                (dicts with name / instructions / resources); their full
-                instructions are injected
-            author_message: 作者本轮的原话；用来写明本轮给作者的回复用哪种语言
 
         Returns:
             Complete system prompt string
         """
         from models import Project, User
 
-        lang = (language or "").strip().lower() or "zh"
-        force_en = lang.startswith("en")
+        force_en = self._force_en(language)
 
         # Get project to determine type
         project = session.get(Project, self.project_id)
@@ -562,29 +558,70 @@ class MessageManager:
         # Get prompt from template
         prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids)
 
-        # === STATIC PREFIX (stable across turns for context caching) ===
         parts = [prompt]
 
         # 回复语言规则（跟随作者最近一条消息；界面语言只在判断不了时兜底）
         parts.extend(self._build_language_section(force_en))
+
+        # 本轮上下文放在哪里（固定说明，保证它的效力）
+        parts.extend(self._build_input_layout_section(force_en))
+
+        # Add skill catalog (L1: name + description only; instructions via load_skill)
+        if skill_catalog:
+            parts.extend(self._build_skill_catalog_section(skill_catalog, force_en))
+
+        return "\n".join(parts)
+
+    def build_turn_context(
+        self,
+        *,
+        session_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        assembled_context: str | None = None,
+        context_items: list[dict[str, Any]] | None = None,
+        language: str | None = None,
+        selected_skills: list[dict[str, Any]] | None = None,
+        author_message: str | None = None,
+    ) -> str:
+        """
+        Build this turn's context block for the current user message.
+
+        It holds everything that changes from turn to turn: narrative constraints
+        taken from this turn's context items, skills the author selected for this
+        message, the assembled project context, current-file metadata, the task
+        board snapshot and this turn's reply language. Putting it in the current
+        user message (never in the system prompt or persisted history) keeps
+        [system prompt][history] byte-identical across turns and agents.
+
+        Args:
+            session_id: Chat session ID for loading task board
+            metadata: Optional metadata (current_file_id, etc.)
+            assembled_context: Pre-assembled context from ContextAssembler
+            context_items: Structured context items from ContextAssembler
+            language: Language preference (zh/en)
+            selected_skills: Skills the user explicitly selected for this message
+                (dicts with name / instructions / resources); their full
+                instructions are injected
+            author_message: 作者本轮的原话；用来写明本轮给作者的回复用哪种语言
+
+        Returns:
+            The <turn_context> block, or "" when there is nothing to add
+        """
+        force_en = self._force_en(language)
+        parts: list[str] = []
 
         constraints, world_truth, world_surface = self._extract_structured_context(
             context_items=context_items,
             force_en=force_en,
             raw_context_complete=self._raw_context_is_complete(assembled_context),
         )
-        narrative_constraints = self._build_narrative_constraints_section(
-            constraints=constraints,
-            force_en=force_en,
+        parts.extend(
+            self._build_narrative_constraints_section(
+                constraints=constraints,
+                force_en=force_en,
+            )
         )
-        if narrative_constraints:
-            parts.extend(narrative_constraints)
 
-        # Add skill catalog (L1: name + description only; instructions via load_skill)
-        if skill_catalog:
-            parts.extend(self._build_skill_catalog_section(skill_catalog, force_en))
-
-        # === SEMI-STATIC (changes per session but stable within turns) ===
         if selected_skills:
             parts.extend(self._build_selected_skill_section(selected_skills, force_en))
 
@@ -600,7 +637,6 @@ class MessageManager:
                 )
             )
 
-        # === DYNAMIC SUFFIX (changes every request) ===
         # Add current file metadata
         if metadata:
             parts.extend(self._build_metadata_section(metadata, force_en))
@@ -608,11 +644,50 @@ class MessageManager:
         # Add task board state
         parts.extend(self._build_task_board_section(session_id, force_en))
 
-        # 本轮作者消息的语言：所有角色共用系统提示，审稿人收到的是系统拼的任务消息，
+        # 本轮作者消息的语言：所有角色共用这段上下文，审稿人收到的是系统拼的任务消息，
         # 只能从这里知道作者用的是什么语言
         parts.extend(self._build_author_language_line(author_message))
 
-        return "\n".join(parts)
+        if not parts:
+            return ""
+        return "\n".join([TURN_CONTEXT_OPEN, self._turn_context_preamble(force_en), *parts, TURN_CONTEXT_CLOSE])
+
+    @staticmethod
+    def _force_en(language: str | None) -> bool:
+        lang = (language or "").strip().lower() or "zh"
+        return lang.startswith("en")
+
+    @staticmethod
+    def _turn_context_preamble(force_en: bool) -> str:
+        if force_en:
+            return (
+                "The system attached this block at the start of this turn (the author did not write it). "
+                "Its project facts, constraints and task board are authoritative: where they differ from "
+                "earlier conversation, follow this block."
+            )
+        return (
+            "这一段由系统在本轮开始时附上（不是作者写的）。其中的项目事实、叙事约束和任务计划板是权威信息；"
+            "与之前的对话不一致时，以这一段为准。"
+        )
+
+    @staticmethod
+    def _build_input_layout_section(force_en: bool) -> list[str]:
+        """说明本轮上下文在输入里的位置和效力（固定文字，不随轮次变化）。"""
+        if force_en:
+            return [
+                "",
+                "## Turn context",
+                f"- The {TURN_CONTEXT_OPEN} block at the start of this turn's user message is attached by the "
+                "system: project context, narrative constraints, the current file, the task board and this "
+                "turn's reply language. Treat it with the authority of this system prompt; its project facts "
+                "are canonical.",
+            ]
+        return [
+            "",
+            "## 本轮上下文",
+            f"- 本轮用户消息开头的 {TURN_CONTEXT_OPEN} 由系统附上：项目上下文、叙事约束、当前文件、任务计划板和本轮回复语言。"
+            "它与本系统提示同等效力，其中的项目事实是权威信息。",
+        ]
 
     def _build_language_section(self, force_en: bool) -> list[str]:
         """回复语言规则：跟随作者最近一条消息，看不出来时才按界面语言。"""
@@ -944,7 +1019,7 @@ class MessageManager:
 
     @staticmethod
     def _raw_context_is_complete(assembled_context: str | None) -> bool:
-        """原始项目上下文能否原样放进系统提示（未触发兜底截断）。"""
+        """原始项目上下文能否原样放进本轮上下文（未触发兜底截断）。"""
         text = (assembled_context or "").strip()
         return bool(text) and len(text) <= _CONTEXT_RAW_CHAR_LIMIT
 

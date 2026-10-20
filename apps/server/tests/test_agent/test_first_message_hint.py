@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlmodel import Session, select
 
+from agent.core.message_manager import TURN_CONTEXT_OPEN
+from agent.core.session_loader import WORKING_SET_USER_MESSAGE_LABEL
 from agent.service import (
     DASHBOARD_IDEA_ENTRY,
     FIRST_MESSAGE_ENTRY,
@@ -17,6 +19,13 @@ from services.core.auth_service import hash_password
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
 
 IDEA = "一个关于外卖员的故事"
+
+
+def _author_part(model_user_turn: str) -> str:
+    """模型收到的本轮 user 消息里作者那一段：系统附上的 <turn_context> 在标签之前。"""
+    turn_context, label, author_part = model_user_turn.rpartition(WORKING_SET_USER_MESSAGE_LABEL)
+    assert label and turn_context.startswith(TURN_CONTEXT_OPEN)
+    return author_part.lstrip("\n")
 
 
 @pytest.fixture
@@ -88,7 +97,7 @@ async def test_dashboard_idea_adds_hint_for_model_only(agent_service, db_session
     )
 
     hint = first_message_hint("short", force_en=False)
-    model_user_turn = state["messages"][-1]["content"]
+    model_user_turn = _author_part(state["messages"][-1]["content"])
     assert model_user_turn.startswith(IDEA)
     assert hint in model_user_turn
     assert "短篇小说" in hint
@@ -109,10 +118,10 @@ async def test_without_entry_model_input_is_unchanged(agent_service, db_session,
     with_other_metadata = await _run(
         agent_service, db_session, user, project, metadata={"entry": "chat_input"}
     )
-    assert with_other_metadata["messages"][-1]["content"] == IDEA
+    assert _author_part(with_other_metadata["messages"][-1]["content"]) == IDEA
 
     without_metadata = await _run(agent_service, db_session, user, project, metadata=None)
-    assert without_metadata["messages"][-1]["content"] == IDEA
+    assert _author_part(without_metadata["messages"][-1]["content"]) == IDEA
     assert without_metadata["first_message_project_label"] == ""
 
 
@@ -157,7 +166,7 @@ async def test_no_hint_once_the_work_has_an_ai_reply(agent_service, db_session, 
         session_id=target.id,
     )
 
-    assert state["messages"][-1]["content"] == IDEA
+    assert _author_part(state["messages"][-1]["content"]) == IDEA
     assert state["first_message_project_label"] == ""
 
 
@@ -174,7 +183,7 @@ async def test_english_hint_follows_force_en(agent_service, db_session, short_pr
         language="en",
     )
 
-    model_user_turn = state["messages"][-1]["content"]
+    model_user_turn = _author_part(state["messages"][-1]["content"])
     assert first_message_hint("short", force_en=True) in model_user_turn
     assert first_message_hint("short", force_en=False) not in model_user_turn
     assert "Short Story" in model_user_turn

@@ -289,6 +289,7 @@ class TestAgentServiceMetrics:
         mock_loader.load_session_with_compaction = AsyncMock(return_value=session_data)
         mock_message_manager = MagicMock()
         mock_message_manager.build_system_prompt.return_value = "system"
+        mock_message_manager.build_turn_context.return_value = ""
         mock_message_manager.save_messages = AsyncMock()
         mock_skill_injector = MagicMock()
         mock_skill_injector.build_skill_catalog.return_value = None

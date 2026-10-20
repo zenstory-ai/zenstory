@@ -956,7 +956,7 @@ class TestCrossTurnWorkingSet:
 
         # 已在系统上下文里标注[全文]的文件只列一行，不再附第二份全文
         assert "焦点全文" not in text
-        assert "已在系统提示的项目上下文中标注[全文]" in text
+        assert "已在本轮上下文 <turn_context> 的项目上下文中标注[全文]" in text
         assert f"(id={in_context.id})" in text
         # 文件数上限：第一份附全文，第二份只列标题 + id
         assert "A" * 50 in text

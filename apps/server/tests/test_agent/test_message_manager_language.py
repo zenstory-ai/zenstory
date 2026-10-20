@@ -46,32 +46,31 @@ def test_detect_author_language(text, expected):
 
 @pytest.mark.unit
 def test_english_ui_with_chinese_message_does_not_force_english(db_session):
-    """英文界面、作者这一轮写中文：不再要求「作者写中文也用英文回」，并明确本轮用中文。"""
+    """英文界面、作者这一轮写中文：不再要求「作者写中文也用英文回」，并在本轮上下文写明本轮用中文。"""
     manager = _create_manager(db_session)
-    prompt = manager.build_system_prompt(
-        session=db_session, language="en", author_message="接着写第2章"
-    )
+    prompt = manager.build_system_prompt(session=db_session, language="en")
+    turn_context = manager.build_turn_context(language="en", author_message="接着写第2章")
     assert "Reply in English even if the user writes in Chinese" not in prompt
-    assert "本轮作者用中文写消息" in prompt
+    assert "本轮作者用中文写消息" in turn_context
 
 
 @pytest.mark.unit
 def test_chinese_ui_with_english_message_states_english_for_every_role(db_session):
-    """中文界面、英文作者：系统提示写明本轮用英文，审稿等每个角色共用这条。"""
+    """中文界面、英文作者：本轮上下文写明本轮用英文，审稿等每个角色共用这条。"""
     manager = _create_manager(db_session)
-    prompt = manager.build_system_prompt(
-        session=db_session,
+    turn_context = manager.build_turn_context(
         language="zh",
         author_message="Write the opening scene of a short story about a night-shift nurse.",
     )
-    assert "wrote this turn's message in English" in prompt
-    assert "including the review summary" in prompt
+    assert "wrote this turn's message in English" in turn_context
+    assert "including the review summary" in turn_context
 
 
 @pytest.mark.unit
 def test_unclear_message_falls_back_to_ui_language_rule(db_session):
     manager = _create_manager(db_session)
-    prompt = manager.build_system_prompt(session=db_session, language="en", author_message="B")
-    assert "wrote this turn's message" not in prompt
-    assert "本轮作者用中文写消息" not in prompt
+    prompt = manager.build_system_prompt(session=db_session, language="en")
+    turn_context = manager.build_turn_context(language="en", author_message="B")
+    assert "wrote this turn's message" not in turn_context
+    assert "本轮作者用中文写消息" not in turn_context
     assert "fall back to English" in prompt
