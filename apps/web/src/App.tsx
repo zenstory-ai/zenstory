@@ -15,6 +15,7 @@ import { CommonProviders } from "./providers/CommonProviders";
 import { ProtectedProviders } from "./providers/ProtectedProviders";
 import { ToastContainer } from "./components/Toast";
 import { RouteChangeTracker } from "./components/RouteChangeTracker";
+import { AppUpdatePrompt } from "./components/AppUpdatePrompt";
 import { SiteBoundary } from "./components/SiteBoundary";
 import { logger } from "./lib/logger";
 import {
@@ -442,6 +443,7 @@ function App() {
                   </Suspense>
                 </SEOProvider>
                 <ToastContainer />
+                <AppUpdatePrompt />
                 </AuthIdentityQueryBoundary>
               </AuthProvider>
             </FileSearchProvider>

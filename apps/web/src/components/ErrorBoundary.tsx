@@ -1,5 +1,6 @@
 import React from "react";
 import { captureException } from "../lib/analytics";
+import { isChunkLoadError } from "../lib/chunkRecovery";
 import { logger } from "../lib/logger";
 import { ErrorFallback } from "./ErrorFallback";
 
@@ -44,7 +45,13 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   render(): React.ReactNode {
     const variant = this.props.variant ?? "panel";
     const content = this.state.error
-      ? <ErrorFallback variant={variant} onRetry={this.handleRetry} />
+      ? (
+        <ErrorFallback
+          variant={variant}
+          onRetry={this.handleRetry}
+          staleBuild={isChunkLoadError(this.state.error)}
+        />
+      )
       : this.props.children;
 
     if (!this.props.className) return content;

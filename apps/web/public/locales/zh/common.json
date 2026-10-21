@@ -139,6 +139,13 @@
     "retry": "重试",
     "reload": "重新加载页面"
   },
+  "appUpdate": {
+    "title": "ZenStory 已更新",
+    "description": "刷新页面即可使用新版本。",
+    "requiredDescription": "需要刷新页面才能继续加载。如有正在编辑的内容，建议先保存。",
+    "reload": "刷新",
+    "later": "稍后"
+  },
   "a11y": {
     "switchToChinese": "切换到中文",
     "switchToEnglish": "切换到英文",

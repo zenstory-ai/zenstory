@@ -139,6 +139,13 @@
     "retry": "Try again",
     "reload": "Reload page"
   },
+  "appUpdate": {
+    "title": "ZenStory has been updated",
+    "description": "Reload the page to use the new version.",
+    "requiredDescription": "Reload the page to keep working. If you are editing, save first.",
+    "reload": "Reload",
+    "later": "Later"
+  },
   "a11y": {
     "switchToChinese": "Switch to Chinese",
     "switchToEnglish": "Switch to English",

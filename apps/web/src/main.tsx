@@ -11,6 +11,7 @@ import { initAnalytics } from './lib/analytics'
 import { captureAuthCallbackParams } from './lib/authCallbackParams'
 import { rememberEntrySource } from './lib/entrySource'
 import { installChunkRecoveryHandlers } from './lib/chunkRecovery'
+import { startAppUpdateChecks } from './lib/appUpdate'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +32,7 @@ initAnalytics()
 initWebVitalsMonitoring()
 initWebVitalsLogging()
 installChunkRecoveryHandlers()
+startAppUpdateChecks()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
