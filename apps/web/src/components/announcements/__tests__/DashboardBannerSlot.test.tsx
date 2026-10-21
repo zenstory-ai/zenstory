@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrent = vi.hoisted(() => vi.fn());
 const getStatus = vi.hoisted(() => vi.fn());
+const getOptions = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../lib/announcementApi", () => ({
   announcementApi: { getCurrent },
@@ -13,6 +14,11 @@ vi.mock("../../../lib/announcementApi", () => ({
 vi.mock("../../../lib/subscriptionApi", () => ({
   subscriptionApi: { getStatus },
   subscriptionQueryKeys: { status: () => ["subscription-status", "test"] },
+}));
+
+vi.mock("../../../lib/paymentApi", () => ({
+  paymentApi: { getOptions },
+  paymentQueryKeys: { options: () => ["payment-options", "test"] },
 }));
 
 vi.mock("../../../lib/upgradeAnalytics", () => ({
@@ -66,6 +72,7 @@ describe("DashboardBannerSlot", () => {
     localStorage.clear();
     vi.clearAllMocks();
     getCurrent.mockResolvedValue(announcement);
+    getOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay"] });
   });
 
   it.each([
@@ -93,6 +100,15 @@ describe("DashboardBannerSlot", () => {
     renderSlot();
     const renew = await screen.findByRole("link", { name: "续费 Pro" });
     expect(renew).toHaveAttribute("href", "/dashboard/billing?plan=pro&source=renewal_reminder");
+  });
+
+  it("sends renewals to the plain billing page when online checkout is off", async () => {
+    getStatus.mockResolvedValue(proStatus(5));
+    getOptions.mockResolvedValue({ enabled: false, payment_methods: [] });
+    renderSlot();
+    const renew = await screen.findByRole("link", { name: "续费 Pro" });
+    // ?plan=pro would open the code activation dialog instead of checkout.
+    await waitFor(() => expect(renew).toHaveAttribute("href", "/dashboard/billing?source=renewal_reminder"));
   });
 
   it("keeps a dismissed 7-day reminder closed but still shows the final one", async () => {

@@ -38,11 +38,38 @@ type UsageKey =
 /** Attribution source for the paid header button, which renews rather than upgrades. */
 const RENEW_SOURCE = "billing_header_renew";
 
+/** A card's own load failure: the card says so and retries only its request. */
+function CardLoadError({
+  message,
+  retryLabel,
+  onRetry,
+  size,
+  className = "",
+}: {
+  message: string;
+  retryLabel: string;
+  onRetry: () => void;
+  size: "md" | "touch";
+  className?: string;
+}) {
+  return (
+    <div
+      role="alert"
+      className={`flex items-center justify-between gap-3 rounded-lg border border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.08)] p-3 ${className}`}
+    >
+      <p className="text-sm text-[hsl(var(--error-text))]">{message}</p>
+      <Button size={size} variant="secondary" className="shrink-0" onClick={onRetry}>
+        {retryLabel}
+      </Button>
+    </div>
+  );
+}
+
 export default function BillingPage() {
   const { t, i18n } = useTranslation(["dashboard", "settings", "common"]);
   const [searchParams] = useSearchParams();
   const trackedConversionSourceRef = useRef<string | null>(null);
-  // Page-header actions: the standard 40px button, 44px touch target on phones.
+  // Page-header and retry actions: the standard 40px button, 44px touch target on phones.
   const headerActionSize = useIsMobile() ? "touch" : "md";
   const billingUpgradePrompt = getUpgradePromptDefinition("billing_header_upgrade");
   const [paymentCycle] = useState<PaymentCycle>(() => {
@@ -185,9 +212,15 @@ export default function BillingPage() {
     return Math.min(100, Math.round((metric.used / metric.limit) * 100));
   };
 
-  const isLoading = isStatusLoading || isCatalogLoading || isQuotaLoading;
+  // Each card owns its loading and error state, so one failed request never
+  // reads as "no plan", "no data" or a zero allowance in another card.
+  const isUsageLoading = isStatusLoading || isQuotaLoading;
   const isCatalogPendingState = isCatalogLoading || (isCatalogFetching && sortedPlans.length === 0);
-  const hasError = isStatusError || isCatalogError || isQuotaError;
+  const isStatusFailed = isStatusError && !status;
+  const isCatalogFailed = isCatalogError && sortedPlans.length === 0;
+  const isQuotaFailed = isQuotaError && !quota;
+  const loadErrorText = t("common:error", "加载失败");
+  const retryText = t("common:retry", "重试");
   // Until the status query resolves we do not know which tier the user is on;
   // never claim "renew" for someone who may be on the free plan.
   const isUpgradableTier = status?.tier === "free";
@@ -248,25 +281,40 @@ export default function BillingPage() {
             <div className="text-sm text-[hsl(var(--text-secondary))]">
               {t("dashboard:billing.currentPlan", "当前套餐")}
             </div>
-            <div className="mt-1 flex items-center gap-2">
-              <Badge variant={status?.tier === "pro" ? "purple" : "neutral"} size="md">
-                {status
-                  ? getLocalizedPlanDisplayName(
-                      {
-                        display_name: status.display_name,
-                        display_name_en: status.display_name_en,
-                        tier: status.tier,
-                      },
-                      i18n.language
-                    )
-                  : t("dashboard:billing.unknownPlan", "未开通")}
-              </Badge>
-              {statusLine && (
-                <span className="text-xs text-[hsl(var(--text-secondary))]">
-                  {statusLine}
-                </span>
-              )}
-            </div>
+            {isStatusLoading ? (
+              <div className="mt-1 flex items-center gap-2" role="status" data-testid="billing-current-plan-loading">
+                <span aria-hidden="true" className="inline-block h-6 w-16 animate-pulse rounded-full bg-[hsl(var(--bg-tertiary))]" />
+                <span className="sr-only">{t("common:loading", "加载中…")}</span>
+              </div>
+            ) : isStatusFailed ? (
+              <CardLoadError
+                className="mt-2"
+                message={loadErrorText}
+                retryLabel={retryText}
+                onRetry={() => void refetchStatus()}
+                size={headerActionSize}
+              />
+            ) : (
+              <div className="mt-1 flex items-center gap-2">
+                <Badge variant={status?.tier === "pro" ? "purple" : "neutral"} size="md">
+                  {status
+                    ? getLocalizedPlanDisplayName(
+                        {
+                          display_name: status.display_name,
+                          display_name_en: status.display_name_en,
+                          tier: status.tier,
+                        },
+                        i18n.language
+                      )
+                    : t("dashboard:billing.unknownPlan", "未开通")}
+                </Badge>
+                {statusLine && (
+                  <span className="text-xs text-[hsl(var(--text-secondary))]">
+                    {statusLine}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </Card>
@@ -284,6 +332,13 @@ export default function BillingPage() {
               <div key={index} className="h-56 animate-pulse rounded-xl bg-[hsl(var(--bg-tertiary))]" />
             ))}
           </div>
+        ) : isCatalogFailed ? (
+          <CardLoadError
+            message={loadErrorText}
+            retryLabel={retryText}
+            onRetry={() => void refetchCatalog()}
+            size={headerActionSize}
+          />
         ) : sortedPlans.length === 0 ? (
           <div className="text-sm text-[hsl(var(--text-secondary))] py-2">
             {t("common:noData", "暂无数据")}
@@ -368,28 +423,19 @@ export default function BillingPage() {
             {t("dashboard:billing.usageTitle", "当前用量")}
           </h2>
         </div>
-        {hasError && (
-          <div className="mb-4 rounded-lg border border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.08)] p-3 flex items-center justify-between gap-3">
-            <p className="text-sm text-[hsl(var(--error-text))]">{t("common:error", "加载失败")}</p>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                void refetchStatus();
-                void refetchCatalog();
-                void refetchQuota();
-              }}
-            >
-              {t("common:retry", "重试")}
-            </Button>
-          </div>
-        )}
-        {isLoading ? (
+        {isUsageLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="h-20 animate-pulse rounded-lg bg-[hsl(var(--bg-tertiary))]" />
             ))}
           </div>
+        ) : isQuotaFailed ? (
+          <CardLoadError
+            message={loadErrorText}
+            retryLabel={retryText}
+            onRetry={() => void refetchQuota()}
+            size={headerActionSize}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {usageItems.map((item) => {
@@ -430,15 +476,15 @@ export default function BillingPage() {
                       />
                     </div>
                   )}
-                  {item.key === "ai_conversations" && (
+                  {item.key === "ai_conversations" && metric && (
                     <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
                       {isUpgradableTier
                         ? t(
                             "dashboard:billing.freeDailyMessageLimitHint",
                             "免费用户每日最多 {{limit}} 条 AI 消息，北京时间次日 00:00 恢复。",
-                            { limit: metric?.limit ?? 0 }
+                            { limit: metric.limit }
                           )
-                        : metric?.limit === -1
+                        : metric.limit === -1
                         ? t("dashboard:billing.proNoDailyLimit", "Pro 每天的 AI 消息不限条数。")
                         : t("dashboard:billing.dailyQuotaResetHint", "每天的 AI 消息在北京时间 00:00 恢复。")}
                     </p>

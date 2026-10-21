@@ -252,8 +252,6 @@ export function PaymentCheckoutModal({
                   {savings ? (
                     <span className="mt-0.5 block text-xs text-[hsl(var(--accent-primary))]">
                       {t('dashboard:billing.yearlyEquivalent', '折合 {{price}}/月', { price: formatYuan(savings.monthlyEquivalent, i18n.language) })}
-                      {' · '}
-                      {t('dashboard:billing.yearlySaveAmount', '比月付省 {{amount}}', { amount: formatYuan(savings.amount, i18n.language) })}
                     </span>
                   ) : (
                     item === 'month' && (
@@ -262,8 +260,9 @@ export function PaymentCheckoutModal({
                       </span>
                     )
                   )}
+                  {/* The one savings line: a pale accent tag, so it never competes with the solid pay button. */}
                   {savings && (
-                    <span className="mt-2 self-start rounded-full bg-[hsl(var(--primary))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--primary-foreground))]">
+                    <span className="mt-2 self-start rounded-full bg-[hsl(var(--accent-primary)/0.1)] px-2 py-0.5 text-xs font-medium text-[hsl(var(--accent-primary))]">
                       {t('dashboard:billing.yearlyBestValue', '最划算 · 省 {{percent}}%', { percent: savings.percent })}
                     </span>
                   )}
@@ -283,7 +282,7 @@ export function PaymentCheckoutModal({
           </div>
 
           {optionsQuery.isLoading && (
-            <p role="status">{t('common:loading', "加载中…")}</p>
+            <p role="status" className="text-sm text-[hsl(var(--text-secondary))]">{t('common:loading', "加载中…")}</p>
           )}
           {!hasSelectedPrice && (
             <p role={isCatalogPending ? 'status' : 'alert'} className="text-sm text-[hsl(var(--text-secondary))]">

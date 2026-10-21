@@ -3,10 +3,35 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { writingStatsApi } from '../../lib/writingStatsApi';
+import { normalizeLocale } from '../../lib/i18n-helpers';
 import { Button } from '../ui/Button';
 
 export type TimeRange = 'daily' | 'weekly' | 'monthly';
 const windows = { daily: 14, weekly: 84, monthly: 365 } as const;
+const BEIJING_TIME_ZONE = 'Asia/Shanghai';
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Label a trend row from its Beijing calendar date ("YYYY-MM-DD": the day, the
+ * week's Monday or the month's first day) in the app language. The server's
+ * period_label is always English, so it is not shown.
+ */
+function formatTrendPeriodLabel(date: string, range: TimeRange, language: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  if (!match) return date;
+  const locale = normalizeLocale(language) === 'en' ? 'en-US' : 'zh-CN';
+  // Noon in Beijing, so the instant lies on this calendar day there.
+  const start = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 4));
+  if (range === 'monthly') {
+    return start.toLocaleDateString(locale, { year: 'numeric', month: 'long', timeZone: BEIJING_TIME_ZONE });
+  }
+  const dayFormat = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone: BEIJING_TIME_ZONE });
+  if (range === 'weekly') {
+    // Joined by hand: formatRange output differs between ICU builds (Chinese may drop 月/日).
+    return `${dayFormat.format(start)} – ${dayFormat.format(new Date(start.getTime() + 6 * ONE_DAY_MS))}`;
+  }
+  return dayFormat.format(start);
+}
 
 /** The existing trend endpoint reports only the author's net edits, not AI. */
 export function WordCountTrendChart({ projectId, timeRange = 'daily' }: { projectId?: string; timeRange?: TimeRange }) {
@@ -55,7 +80,7 @@ export function WordCountTrendChart({ projectId, timeRange = 'daily' }: { projec
                 <li key={`${row.date}-${index}`}>
                   <div className="mb-1 flex justify-between gap-3 text-xs">
                     <span className="text-[hsl(var(--text-secondary))]">
-                      {'period_label' in row && typeof row.period_label === 'string' && row.period_label ? row.period_label : row.date.slice(5)}
+                      {formatTrendPeriodLabel(row.date, timeRange, i18n.language)}
                     </span>
                     <span className={`font-medium tabular-nums ${row.net_words < 0 ? 'text-[hsl(var(--error-text))]' : 'text-[hsl(var(--text-primary))]'}`}>
                       {row.net_words.toLocaleString(i18n.language)}

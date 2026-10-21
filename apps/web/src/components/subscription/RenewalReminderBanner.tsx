@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { formatBeijingMonthDay } from "../../lib/dateUtils";
 import { trackUpgradeClick, trackUpgradeExpose } from "../../lib/upgradeAnalytics";
 import { buildUpgradeUrl } from "../../config/upgradeExperience";
+import { useOnlineCheckoutKnownOff } from "../../hooks/useOnlineCheckoutKnownOff";
 import type { RenewalReminder } from "../../hooks/useRenewalReminder";
 import { DashboardBanner, dashboardBannerActionClassName } from "../announcements/DashboardBanner";
 
@@ -15,6 +16,10 @@ export function RenewalReminderBanner({ reminder }: { reminder: RenewalReminder 
   const { t } = useTranslation("dashboard");
   const { stage, periodEnd, daysRemaining } = reminder;
   const date = formatBeijingMonthDay(periodEnd);
+  // With online checkout off, ?plan=pro would open the legacy code activation dialog;
+  // send authors to the plain billing page instead.
+  const checkoutOff = useOnlineCheckoutKnownOff();
+  const renewPath = checkoutOff ? "/dashboard/billing" : "/dashboard/billing?plan=pro";
 
   useEffect(() => {
     trackUpgradeExpose(RENEWAL_REMINDER_SOURCE, "card", { stage, days_remaining: daysRemaining });
@@ -32,7 +37,7 @@ export function RenewalReminderBanner({ reminder }: { reminder: RenewalReminder 
         : t("renewalReminder.descriptionWeek", "现在续费不会浪费剩下的天数，新时长接在到期日之后。")}
       action={(
         <Link
-          to={buildUpgradeUrl("/dashboard/billing?plan=pro", RENEWAL_REMINDER_SOURCE)}
+          to={buildUpgradeUrl(renewPath, RENEWAL_REMINDER_SOURCE)}
           className={dashboardBannerActionClassName}
           onClick={() => {
             trackUpgradeClick(RENEWAL_REMINDER_SOURCE, "primary", "billing", "card");

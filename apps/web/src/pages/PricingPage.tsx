@@ -191,7 +191,7 @@ export default function PricingPage() {
       <main className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-14 pb-14 space-y-6 md:space-y-8">
         <section className="text-center space-y-2 md:space-y-3">
           <h1 className="text-3xl md:text-4xl font-bold text-[hsl(var(--text-primary))]">
-            {isCatalogLoading ? t("common:loading", "加载中…") : t("dashboard:billing.compareTitle", "选一个适合你的方案")}
+            {t("dashboard:billing.compareTitle", "选一个适合你的方案")}
           </h1>
           <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">
             {t("dashboard:billing.catalogSubtitle", "免费版每天包含 3 条 AI 消息。")}
@@ -273,7 +273,8 @@ export default function PricingPage() {
         </section>
 
         {isCatalogLoading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div role="status" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <span className="sr-only">{t("common:loading", "加载中…")}</span>
             {Array.from({ length: 2 }).map((_, index) => (
               <div key={index} className="h-72 animate-pulse rounded-xl bg-[hsl(var(--bg-tertiary))]" />
             ))}

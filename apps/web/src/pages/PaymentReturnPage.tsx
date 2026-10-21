@@ -10,6 +10,7 @@ import { subscriptionApi, subscriptionQueryKeys } from '../lib/subscriptionApi'
 import { getSubscriptionFeatureRows } from '../lib/subscriptionEntitlements'
 import { CelebrationBurst } from '../components/subscription/CelebrationBurst'
 import { trackEvent } from '../lib/analytics'
+import { formatBeijingPeriodDate } from '../lib/dateUtils'
 import type { PaymentOrder } from '../types/payment'
 
 // Zpay's notify often lands well after the browser returns (desktop QR flow), so
@@ -65,11 +66,9 @@ export default function PaymentReturnPage() {
   })
   const activeStatus = isSucceeded && statusQuery.data?.tier !== 'free' ? statusQuery.data : undefined
   const unlockedRows = getSubscriptionFeatureRows(activeStatus?.features, t, i18n.language).slice(0, 4)
+  // Same Beijing calendar date as the billing page's 「有效期至」, whatever the viewer's timezone.
   const validUntil = activeStatus?.current_period_end
-    ? new Date(activeStatus.current_period_end).toLocaleDateString(
-        i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN',
-        { year: 'numeric', month: 'long', day: 'numeric' },
-      )
+    ? formatBeijingPeriodDate(activeStatus.current_period_end)
     : null
   const isFailed = !isSucceeded && order?.fulfillment_status === 'failed'
 
