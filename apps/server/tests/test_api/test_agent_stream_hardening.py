@@ -1526,3 +1526,63 @@ async def test_rounds_that_did_not_ask_for_body_writes_get_no_receipt(client, db
 
     assert "no_file_changes" not in done
     assert "stop_outcome" not in metadata
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("output_frames", "refunded"),
+    [
+        ([], True),
+        ([_sse("content", {"text": _PROSE})], False),
+    ],
+)
+async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
+    client: AsyncClient, db_session, monkeypatch, output_frames, refunded
+):
+    """发布交接：旧进程收到 SIGTERM 后，仍在运行的一轮在关机宽限内以「服务正在更新」收尾并照超时规则结算。"""
+    from agent.core import server_drain
+
+    _token, project, user = await _login_with_project(client, db_session)
+    monkeypatch.setattr(server_drain, "_draining_since", None)
+    monkeypatch.setattr(agent_api, "AGENT_DRAIN_STOP_AFTER_S", 0.05)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+    cancelled = asyncio.Event()
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        for frame in output_frames:
+            yield frame
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        yield _sse("done", {})
+
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        patch("api.agent.log_with_context") as log_spy,
+    ):
+        response = await agent_api.stream_request(
+            body=body,
+            session=db_session,
+            current_user=user,
+            accept_language=None,
+            _rate_limit=0,
+        )
+        iterator = response.body_iterator
+        received = [await iterator.__anext__() for _ in range(1 + len(output_frames))]
+        server_drain.begin_drain()
+        received.extend([frame async for frame in iterator])
+
+    text = "".join(received)
+    assert "ERR_AGENT_SERVER_RESTARTING" in text
+    assert "ERR_AGENT_RUN_TIMEOUT" not in text
+    assert cancelled.is_set()
+    assert refund.called is refunded
+    log = _billing_log(log_spy)
+    assert log["billing_reason"] == "server_restarting"
+    assert log["deadline_exceeded"] is True

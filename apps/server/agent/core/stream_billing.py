@@ -321,8 +321,12 @@ class StreamBillingTracker:
         unexpected_exception: bool,
         deadline_exceeded: bool = False,
         user_stopped: bool = False,
+        server_restarting: bool = False,
     ) -> tuple[str, bool]:
-        """返回 (billing_reason, should_refund)。"""
+        """返回 (billing_reason, should_refund)。
+
+        ``server_restarting``：时限是发布交接提前的（agent.core.server_drain），规则同墙钟超时，
+        只换原因标签。"""
         if client_disconnected and not user_stopped and self.saw_terminal_event:
             # 这一轮已经结束（done / 终止性停止 / error 帧已产生）之后才断开：
             # 不是中断，按结束方式结算。
@@ -333,7 +337,8 @@ class StreamBillingTracker:
                 return reason, False
             return f"{reason}_no_output", True
         if deadline_exceeded:
-            return "run_deadline_exceeded", not (self.produced_output or self.ended_on_reply)
+            reason = "server_restarting" if server_restarting else "run_deadline_exceeded"
+            return reason, not (self.produced_output or self.ended_on_reply)
         if self.runaway_stop and not self.write_succeeded and not unexpected_exception:
             return RUNAWAY_BILLING_REASON, True
         if self.saw_terminal_event and not self.saw_error_event and not unexpected_exception:

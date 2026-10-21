@@ -150,6 +150,7 @@ _DEFAULT_FLAGS: dict[str, tuple[bool, bool]] = {
     ErrorCode.AGENT_TOOL_FAILURE_LIMIT: (False, False),
     ErrorCode.AGENT_CONTEXT_TOO_LONG: (False, True),
     ErrorCode.AGENT_RUN_TIMEOUT: (False, True),
+    ErrorCode.AGENT_SERVER_RESTARTING: (False, True),
     ErrorCode.AGENT_MODEL_CALL_LIMIT: (False, True),
 }
 
@@ -174,6 +175,12 @@ def output_truncated_error(*, repeated: bool = False) -> StreamErrorInfo:
 
 def run_timeout_error() -> StreamErrorInfo:
     return StreamErrorInfo(ErrorCode.AGENT_RUN_TIMEOUT, False, True)
+
+
+def server_restarting_error() -> StreamErrorInfo:
+    """发布交接时旧进程结束仍在运行的一轮（见 agent.core.server_drain）：与墙钟超时同一条
+    收尾与计费规则，作者回复「继续」接着做。"""
+    return StreamErrorInfo(ErrorCode.AGENT_SERVER_RESTARTING, False, True)
 
 
 def log_stream_exception(

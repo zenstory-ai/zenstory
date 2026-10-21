@@ -149,5 +149,14 @@ AGENT_RUN_WRAP_UP_AFTER_S = _get_int_env(
     "AGENT_RUN_WRAP_UP_AFTER_S", max(60, AGENT_RUN_WALL_CLOCK_TIMEOUT_S - 180)
 )
 
+# Deploy handover (agent/core/server_drain.py): after SIGTERM, Uvicorn keeps open
+# requests for --timeout-graceful-shutdown (295 s) and Railway kills the process at
+# drainingSeconds (300 s). Generations still running this long after SIGTERM end
+# with a "server restarting" terminal frame, leaving time for partial-history
+# saving, billing settlement and the round outcome before the hard stop.
+AGENT_DRAIN_STOP_AFTER_S = _get_int_env("AGENT_DRAIN_STOP_AFTER_S", 240)
+# Seconds after SIGTERM by which shutdown cleanup must be done (Railway kills at 300).
+AGENT_DRAIN_SHUTDOWN_BUDGET_S = _get_int_env("AGENT_DRAIN_SHUTDOWN_BUDGET_S", 290)
+
 # Interval between SSE keep-alive comment frames (": ping") while streaming.
 AGENT_SSE_HEARTBEAT_INTERVAL_S = _get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)

@@ -216,9 +216,12 @@ local named volumes remain on disk; do not remove them with a cleanup command.
 Historical maintenance receipts and original files remain private rollback data.
 
 Keep `/health/ready`, the 300-second Railway drain and 295-second Uvicorn shutdown
-budget. Shortening them to speed deployment would cut active streams. Streams
-longer than that budget can still be interrupted; never automatically retry a
-generation POST. Actual build/switch timing must be measured after the exact
+budget. Shortening them to speed deployment would cut active streams. On SIGTERM the
+old API asks every running generation to wrap up and ends any still running after
+240 seconds with an `ERR_AGENT_SERVER_RESTARTING` terminal frame, saving partial
+output and settling billing before the process exits
+(`.agents/notes/implemented/architecture/2026-10-21-deploy-drain-ends-running-generations.md`);
+never automatically retry a generation POST. Actual build/switch timing must be measured after the exact
 revision is deployed; dependency deletion alone does not prove an elapsed-time
 improvement. Main continues to be the staging source and `release-production`
 the explicitly authorized production source, with provider Git integrations as
