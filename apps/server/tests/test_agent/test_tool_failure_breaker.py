@@ -644,26 +644,6 @@ async def test_sdk_run_recovers_when_retry_succeeds(monkeypatch):
     assert "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT) == "已改好"
 
 
-@pytest.mark.unit
-def test_read_only_tool_set_keeps_write_tools_but_marks_them_unavailable():
-    """只读请求：写文件工具仍在工具集里（模型调用时拿到可恢复错误而非 SDK 致命错误），
-    描述里标明本轮不可用；其余工具不受影响。"""
-    from agent.openai_agents.tools_adapter import (
-        READ_ONLY_TOOL_DESCRIPTION_PREFIX,
-        build_agent_function_tools,
-    )
-    from agent.tools.registry import FILE_WRITE_TOOL_NAMES
-
-    full = {tool.name: tool for tool in build_agent_function_tools("writer")}
-    read_only = {tool.name: tool for tool in build_agent_function_tools("writer", read_only=True)}
-
-    assert FILE_WRITE_TOOL_NAMES <= set(full)
-    assert set(read_only) == set(full)
-    for name, tool in read_only.items():
-        marked = tool.description.startswith(READ_ONLY_TOOL_DESCRIPTION_PREFIX)
-        assert marked is (name in FILE_WRITE_TOOL_NAMES), name
-
-
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_read_only_write_tools_refuse_without_executing():
@@ -769,9 +749,9 @@ async def test_sdk_read_only_request_write_attempt_recovers_with_answer(monkeypa
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_metrics_and_model_cache")
-async def test_sdk_unknown_tool_is_returned_to_model_not_fatal(monkeypatch):
-    """模型调用工具集里没有的工具（审稿人照着共享历史调 edit_file）：SDK 不再抛
-    ModelBehaviorError，错误交还模型，run 以回答正常结束。"""
+async def test_reviewer_write_call_is_returned_to_model_not_fatal(monkeypatch):
+    """审稿人照着共享历史调 edit_file：工具清单人人相同，调用按角色拒绝，
+    错误交还模型，run 以回答正常结束（不存在的工具见下一个测试）。"""
     from agent.core.workflow_events import StreamEventType
 
     def script(index: int) -> list[dict]:
@@ -784,8 +764,8 @@ async def test_sdk_unknown_tool_is_returned_to_model_not_fatal(monkeypatch):
     )
 
     assert len(requests) == 2
-    not_found = json.loads(_tool_messages(requests[1])[-1])
-    assert not_found["error_type"] == "tool_not_found"
+    refused = json.loads(_tool_messages(requests[1])[-1])
+    assert refused["error_type"] == "tool_not_permitted_for_role"
     types = [event.type for event in events]
     assert StreamEventType.ERROR not in types
     assert events[-1].data["stop_reason"] == "end_turn"

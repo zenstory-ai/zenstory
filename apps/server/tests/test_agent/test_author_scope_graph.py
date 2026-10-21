@@ -252,22 +252,6 @@ async def test_vague_reply_to_prose_offer_still_requires_structured_clarificatio
     assert seen["clarify_first"] is True
 
 
-def test_clarify_first_tools_refuse_with_their_own_reason():
-    from agent.openai_agents.tools_adapter import (
-        CLARIFY_FIRST_TOOL_DESCRIPTION_PREFIX,
-        READ_ONLY_REASON_CLARIFY_FIRST,
-        build_agent_function_tools,
-    )
-    from agent.tools.registry import FILE_WRITE_TOOL_NAMES
-
-    tools = build_agent_function_tools(
-        "writer", read_only=True, read_only_reason=READ_ONLY_REASON_CLARIFY_FIRST
-    )
-    for tool in tools:
-        marked = tool.description.startswith(CLARIFY_FIRST_TOOL_DESCRIPTION_PREFIX)
-        assert marked is (tool.name in FILE_WRITE_TOOL_NAMES), tool.name
-
-
 async def test_clarify_first_write_attempt_is_refused_without_executing():
     from agent.openai_agents.tools_adapter import (
         READ_ONLY_REASON_CLARIFY_FIRST,

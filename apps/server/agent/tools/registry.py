@@ -48,6 +48,10 @@ FILE_WRITE_TOOL_NAMES: frozenset[str] = frozenset({
     "parallel_execute",
 })
 
+# 每个角色在请求里看到的工具清单都是这一份（顺序、描述都相同），前缀缓存不按角色分裂。
+# 角色能执行哪些工具仍由 AGENT_TOOL_NAME_MAP 决定，越权调用在 tools_adapter 里拒绝。
+EXPOSED_TOOL_NAMES: list[str] = DEFAULT_TOOL_NAMES
+
 AGENT_TOOL_NAME_MAP: dict[str, list[str]] = {
     "planner": DEFAULT_TOOL_NAMES,
     "hook_designer": DEFAULT_TOOL_NAMES,
@@ -90,8 +94,13 @@ AGENT_TOOLS_MAP: dict[str, list[dict[str, Any]]] = {
 
 
 def get_agent_tools(agent_type: str) -> list[dict[str, Any]]:
-    """Return the available tools without handing out the cached list itself."""
+    """Return the tools a role may execute, without handing out the cached list itself."""
     return list(AGENT_TOOLS_MAP.get(agent_type, AGENT_TOOLS_MAP["writer"]))
+
+
+def get_exposed_tools() -> list[dict[str, Any]]:
+    """The tool list every role sees in its requests (permissions are checked per call)."""
+    return [TOOL_SCHEMAS[name] for name in EXPOSED_TOOL_NAMES if name in TOOL_SCHEMAS]
 
 
 def validate_registry_alignment() -> dict[str, list[str]]:

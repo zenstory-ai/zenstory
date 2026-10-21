@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import functools
 import inspect
 import json
+from collections.abc import Callable
 from typing import Any
 
 from agent.core.metrics import (
@@ -15,7 +17,7 @@ from agent.core.metrics import (
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
-from agent.tools.registry import FILE_WRITE_TOOL_NAMES, TOOL_FUNCTIONS, get_agent_tools
+from agent.tools.registry import FILE_WRITE_TOOL_NAMES, TOOL_FUNCTIONS, get_agent_tools, get_exposed_tools
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -104,8 +106,11 @@ async def invoke_project_tool(tool_name: str, raw_arguments: str) -> str:
             return tool_error_text(str(exc), tool_name=tool_name)
 
 
-# 只读请求下写文件工具的描述前缀：模型在工具清单里就能看到本轮不能写。
-READ_ONLY_TOOL_DESCRIPTION_PREFIX = "【本轮不可用：用户要求只回答、不修改文件，调用会被拒绝】"
+_WRITE_TOOLS_TEXT = "create_file / edit_file / delete_file / rename_file / parallel_execute"
+
+# 写文件工具本轮为什么不可用：写进这次运行的系统指令（最后一条消息）。不改工具描述：
+# 工具清单在请求里排在对话前面，按轮次变化会让整段前缀缓存失效。
+READ_ONLY_TOOLS_NOTE = f"本轮作者要求只回答、不修改文件：{_WRITE_TOOLS_TEXT} 调用会被拒绝，直接在对话里回答。"
 
 
 def read_only_refusal_text(tool_name: str) -> str:
@@ -118,8 +123,34 @@ def read_only_refusal_text(tool_name: str) -> str:
     )
 
 
-# 要求太笼统、本轮先问清楚（graph/author_scope.py 的 clarify_first）时写文件工具的描述前缀。
-CLARIFY_FIRST_TOOL_DESCRIPTION_PREFIX = "【本轮不可用：作者的要求还不清楚，先问清楚再改，调用会被拒绝】"
+# 要求太笼统、本轮先问清楚（graph/author_scope.py 的 clarify_first）。
+CLARIFY_FIRST_TOOLS_NOTE = f"作者的要求还不清楚，本轮先问清楚再改：{_WRITE_TOOLS_TEXT} 调用会被拒绝。"
+# 审稿人看到的工具清单与其他角色相同（前缀缓存），写文件工具只在调用时拒绝。
+REVIEWER_TOOLS_NOTE = (
+    f"你是审稿人，只读：{_WRITE_TOOLS_TEXT} 在你的角色里不可用，调用会被拒绝；"
+    "需要改稿时用 handoff_to_agent 交给 writer。"
+)
+
+
+def role_refusal_text(tool_name: str, agent_type: str) -> str:
+    """角色没有这个工具的权限：可恢复错误。"""
+    return tool_error_text(
+        f"{agent_type} 角色不能调用 {tool_name}，该操作未执行。不要重试；需要改文件时交给有写权限的角色。",
+        error_type="tool_not_permitted_for_role",
+        tool_name=tool_name,
+    )
+
+
+def tool_availability_note(agent_type: str, *, read_only: bool, read_only_reason: str) -> str:
+    """这次运行哪些工具调用会被拒绝（放进系统指令，不改工具清单）。"""
+    notes = []
+    if agent_type == "quality_reviewer":
+        notes.append(REVIEWER_TOOLS_NOTE)
+    elif read_only:
+        notes.append(
+            CLARIFY_FIRST_TOOLS_NOTE if read_only_reason == READ_ONLY_REASON_CLARIFY_FIRST else READ_ONLY_TOOLS_NOTE
+        )
+    return "\n".join(notes)
 
 
 def clarify_first_refusal_text(tool_name: str) -> str:
@@ -166,34 +197,36 @@ def build_agent_function_tools(
     from agents import FunctionTool
 
     clarify_first = read_only_reason == READ_ONLY_REASON_CLARIFY_FIRST
-    description_prefix = (
-        CLARIFY_FIRST_TOOL_DESCRIPTION_PREFIX if clarify_first else READ_ONLY_TOOL_DESCRIPTION_PREFIX
-    )
-    refusal_text = clarify_first_refusal_text if clarify_first else read_only_refusal_text
+    read_only_refusal = clarify_first_refusal_text if clarify_first else read_only_refusal_text
+    permitted = {str(schema.get("name") or "") for schema in get_agent_tools(agent_type)}
 
     function_tools: list[Any] = []
-    for tool_schema in get_agent_tools(agent_type):
+    # 每个角色、每一轮都给同一份工具清单（顺序与描述都不变）：工具清单在请求里排在对话前面，
+    # 按角色或只读轮换清单会让整段前缀缓存失效。权限在调用时检查。
+    for tool_schema in get_exposed_tools():
         name = str(tool_schema.get("name") or "").strip()
         if not name:
             continue
-        refuse_as_read_only = read_only and name in FILE_WRITE_TOOL_NAMES
+        refusal: Callable[[str], str] | None = None
+        if name not in permitted:
+            refusal = functools.partial(role_refusal_text, agent_type=agent_type)
+        elif read_only and name in FILE_WRITE_TOOL_NAMES:
+            refusal = read_only_refusal
         description = str(tool_schema.get("description") or "")
-        if refuse_as_read_only:
-            description = f"{description_prefix}{description}"
 
         async def _on_invoke_tool(
             _ctx: Any,
             raw_arguments: str,
             *,
             _tool_name: str = name,
-            _refuse: bool = refuse_as_read_only,
+            _refusal: Callable[[str], str] | None = refusal,
         ) -> str:
             if failure_breaker is not None and failure_breaker.is_open:
                 return failure_breaker.short_circuit_text(_tool_name)
             if read_guard is not None and read_guard.is_open:
                 return read_guard.short_circuit_text(_tool_name)
-            if _refuse:
-                output = refusal_text(_tool_name)
+            if _refusal is not None:
+                output = _refusal(_tool_name)
             elif read_guard is not None:
                 plan = read_guard.plan(_tool_name, raw_arguments)
                 if plan.blocked_output is not None:

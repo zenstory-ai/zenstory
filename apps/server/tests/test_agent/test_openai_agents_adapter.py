@@ -35,15 +35,52 @@ def test_primary_provider_requires_its_api_key(monkeypatch):
         primary_provider()
 
 
+def _serialized_tools(tools) -> str:
+    return json.dumps(
+        [(tool.name, tool.description, tool.params_json_schema) for tool in tools], ensure_ascii=False, sort_keys=True
+    )
+
+
 @pytest.mark.unit
-def test_build_agent_function_tools_uses_registry_names():
+def test_every_role_and_turn_sends_the_same_tool_list():
+    """The tool list precedes the conversation in the request: if it changes, nothing after it is a cache hit."""
+    from agent.openai_agents.tools_adapter import (
+        READ_ONLY_REASON_CLARIFY_FIRST,
+        build_agent_function_tools,
+    )
+
+    writer = build_agent_function_tools("writer")
+    variants = [
+        build_agent_function_tools("quality_reviewer"),
+        build_agent_function_tools("planner"),
+        build_agent_function_tools("writer", read_only=True),
+        build_agent_function_tools("writer", read_only=True, read_only_reason=READ_ONLY_REASON_CLARIFY_FIRST),
+    ]
+
+    assert all(_serialized_tools(tools) == _serialized_tools(writer) for tools in variants)
+    assert all(tool.strict_json_schema is False for tool in writer)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_reviewer_write_tools_refuse_without_executing():
     from agent.openai_agents.tools_adapter import build_agent_function_tools
-    from agent.tools.registry import get_agent_tools
 
-    tools = build_agent_function_tools("quality_reviewer")
+    executed: list[str] = []
 
-    assert [tool.name for tool in tools] == [tool["name"] for tool in get_agent_tools("quality_reviewer")]
-    assert all(tool.strict_json_schema is False for tool in tools)
+    async def fake_tool(_args):
+        executed.append("called")
+        return {"content": [{"type": "text", "text": json.dumps({"status": "success"})}]}
+
+    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"edit_file": fake_tool, "query_files": fake_tool}):
+        tools = {tool.name: tool for tool in build_agent_function_tools("quality_reviewer")}
+        refused = json.loads(await tools["edit_file"].on_invoke_tool(None, '{"id": "x", "edits": []}'))
+        allowed = json.loads(await tools["query_files"].on_invoke_tool(None, "{}"))
+
+    assert refused["status"] == "error"
+    assert refused["error_type"] == "tool_not_permitted_for_role"
+    assert allowed["status"] == "success"
+    assert executed == ["called"]
 
 
 @pytest.mark.asyncio

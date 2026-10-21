@@ -11,6 +11,7 @@ import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.output_truncation import (
     OUTPUT_TRUNCATED_HISTORY,
     trailing_output_truncations,
@@ -46,6 +47,7 @@ from agent.openai_agents.tools_adapter import (
     READ_ONLY_REASON_CLARIFY_FIRST,
     READ_ONLY_REASON_USER_REQUEST,
     build_agent_function_tools,
+    tool_availability_note,
 )
 from config import agent_runtime
 from config.agent_runtime import (
@@ -835,21 +837,31 @@ async def run_openai_agents_streaming_agent(
         from .intra_run_trimmer import IntraRunToolOutputTrimmer
         from .usage_hooks import build_agent_run_hooks
 
+        # 用户明确要求不改文件：写工具调用一律拒绝执行（由 writing_graph 按路由结果置位）。
+        # 作者的要求太笼统、本轮先问清楚（clarify_first）时写工具同样拒绝执行，拒绝说明不同。
+        read_only = state.get("read_only") is True or state.get("clarify_first") is True
+        read_only_reason = (
+            READ_ONLY_REASON_USER_REQUEST if state.get("read_only") is True else READ_ONLY_REASON_CLARIFY_FIRST
+        )
         sdk_agent = _build_agent(
             agent_type,
             system_prompt,
             failure_breaker=failure_breaker,
-            # 用户明确要求不改文件：写工具调用一律拒绝执行（由 writing_graph 按路由结果置位）。
-            # 作者的要求太笼统、本轮先问清楚（clarify_first）时写工具同样拒绝执行，拒绝说明不同。
-            read_only=state.get("read_only") is True or state.get("clarify_first") is True,
-            read_only_reason=(
-                READ_ONLY_REASON_USER_REQUEST
-                if state.get("read_only") is True
-                else READ_ONLY_REASON_CLARIFY_FIRST
-            ),
+            read_only=read_only,
+            read_only_reason=read_only_reason,
             run_meter=run_meter,
             read_guard=read_guard,
         )
+        # 工具清单对所有角色、所有轮次相同；本轮哪些调用会被拒绝写进这次运行的系统指令。
+        availability_note = tool_availability_note(
+            agent_type, read_only=read_only, read_only_reason=read_only_reason
+        )
+        if availability_note:
+            agent_directive = (
+                f"{agent_directive}\n\n## 本轮工具限制\n\n{availability_note}"
+                if agent_directive
+                else f"{AGENT_DIRECTIVE_HEADER}\n\n## 本轮工具限制\n\n{availability_note}"
+            )
         # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次），并在
         # 接近 max_turns 时追加收尾提醒（软着陆）。
         turn_filter = _ModelCallCountingFilter(
