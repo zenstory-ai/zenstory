@@ -75,7 +75,7 @@ for (const width of widths) {
       expect(await playback.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
 
       const demo = page.getByRole('region', { name: language === 'zh' ? '查看演示' : 'View Demo' });
-      const currentFile = language === 'zh' ? '第一章 · 废柴觉醒' : 'Chapter 1 · The Broken Meridian';
+      const currentFile = language === 'zh' ? '第一章 · 废柴觉醒' : 'Chapter 1 · Low Tide';
       for (const scene of scenes) {
         await scene.click();
         await expect(scene).toHaveAttribute('aria-pressed', 'true');
