@@ -19,6 +19,10 @@ for (const { width, language, theme } of [
     }, { language, theme, user: responsiveUser });
     let notes = '旧约定\n\n【作者确认】\n原确认\n\n【AI 提议·待作者确认】\n第一组；保留补充\n第二组；保留结尾';
     const originalNotes = notes;
+    // Stored notes keep fixed Chinese section headers; English readers see them translated.
+    const shown = (stored: string) => language === 'zh' ? stored : stored
+      .replace(/^【作者确认】$/gm, '【Confirmed by you】')
+      .replace(/^【AI 提议·待作者确认】$/gm, '【AI suggestions, not confirmed yet】');
     const patches: Array<Record<string, unknown>> = [];
     let modelRequests = 0;
     await page.route('**/api/v1/agent/stream', route => { modelRequests++; return route.abort(); });
@@ -47,7 +51,7 @@ for (const { width, language, theme } of [
     const dialog = page.getByRole('dialog', { name: memory });
     const notesInput = dialog.getByRole('textbox', { name: language === 'zh' ? '备注' : 'Notes', exact: true });
     const adoptButton = dialog.getByRole('button', { name: adopt, exact: true });
-    await expect(notesInput).toHaveValue(originalNotes);
+    await expect(notesInput).toHaveValue(shown(originalNotes));
     await adoptButton.scrollIntoViewIfNeeded();
     expect((await adoptButton.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-ready.jpg`, type: 'jpeg' });
@@ -59,30 +63,31 @@ for (const { width, language, theme } of [
     await expect(adoptButton).toHaveCount(0);
     // A separate client changes the server while this editor still owns an older draft base.
     notes += '\n\n【AI 提议·待作者确认】\n另一端新提议';
-    await notesInput.fill(patches[0].notes + '\n本地新约定');
+    await notesInput.fill(shown(patches[0].notes as string) + '\n本地新约定');
     await dialog.getByRole('button', { name: save, exact: true }).click();
     await expect(dialog.getByRole('alert')).toBeVisible();
-    await expect(notesInput).toHaveValue(patches[0].notes + '\n本地新约定');
+    await expect(notesInput).toHaveValue(shown(patches[0].notes as string) + '\n本地新约定');
     expect(patches).toHaveLength(2);
+    expect(patches[1].notes, 'the save stores the original section headers').toBe(patches[0].notes + '\n本地新约定');
     await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-conflict.jpg`, type: 'jpeg' });
     await dialog.getByRole('button', { name: viewLatest, exact: true }).click();
-    await expect(dialog.getByRole('textbox', { name: language === 'zh' ? '最新备注' : 'Latest notes', exact: true })).toHaveValue(notes);
-    await expect(notesInput).toHaveValue(patches[0].notes + '\n本地新约定');
+    await expect(dialog.getByRole('textbox', { name: language === 'zh' ? '最新备注' : 'Latest notes', exact: true })).toHaveValue(shown(notes));
+    await expect(notesInput).toHaveValue(shown(patches[0].notes as string) + '\n本地新约定');
     expect(patches).toHaveLength(2);
     await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-latest.jpg`, type: 'jpeg' });
     await dialog.getByRole('button', { name: useLatest, exact: true }).click();
-    await expect(notesInput).toHaveValue(notes);
+    await expect(notesInput).toHaveValue(shown(notes));
     await dialog.getByRole('button', { name: adopt, exact: true }).click();
     await expect.poll(() => patches.length).toBe(3);
     await expect(dialog.getByRole('button', { name: adopt, exact: true })).toHaveCount(0);
-    await expect(notesInput).toHaveValue(notes);
+    await expect(notesInput).toHaveValue(shown(notes));
     expect(notes).toContain('另一端新提议');
     expect(notes).not.toContain('本地新约定');
     expect(notes).not.toContain('【AI 提议');
     await page.reload();
     if (width < 768) await page.locator('#chat-tab').click();
     await page.getByTitle(memory, { exact: true }).click();
-    await expect(notesInput).toHaveValue(notes);
+    await expect(notesInput).toHaveValue(shown(notes));
     expect(modelRequests).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-persisted.jpg`, type: 'jpeg' });
