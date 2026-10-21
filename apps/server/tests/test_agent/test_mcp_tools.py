@@ -2080,3 +2080,38 @@ async def test_update_project_notes_over_shared_budget_fails_before_any_write(db
         assert stored.summary == "旧摘要"
     finally:
         ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_keyword_query_returns_verbatim_match_snippets(db_session):
+    """Production (2026-10-21): a rename across files took 27 full reads because keyword search
+    only listed file names; the matches let the model edit without reading every file."""
+    from agent.tools.mcp_tools import ToolContext
+    from models import File, Project, User
+
+    suffix = uuid4().hex[:8]
+    user = User(email=f"mcp-q-{suffix}@example.com", username=f"mcp_q_{suffix}", hashed_password="hashed",
+                email_verified=True, is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    project = Project(name=f"Q {suffix}", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    body = "开头。" * 40 + "Dax 举起银刀。" + "中间。" * 40 + "碗不到，银刀不能落。"
+    hit = File(project_id=project.id, title="第46集", file_type="draft", content=body)
+    miss = File(project_id=project.id, title="第1集", file_type="draft", content="没有那个词。")
+    db_session.add_all([hit, miss])
+    db_session.commit()
+
+    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="sess-q")
+    try:
+        payload = _parse_payload(await query_files({"query": "银刀"}))
+    finally:
+        ToolContext.clear_context()
+
+    rows = {row["title"]: row for row in payload["data"]}
+    assert set(rows) == {"第46集"}
+    assert rows["第46集"]["match_count"] == 2
+    snippets = rows["第46集"]["matches"]
+    assert len(snippets) == 2 and all("银刀" in s and s in body for s in snippets)

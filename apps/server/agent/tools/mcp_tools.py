@@ -2455,6 +2455,9 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
 
         read_ticket = ToolContext.read_ticket() if has_id else None
         result = executor.query_files(**query_kwargs)
+        keyword = args.get("query")
+        if not has_id and isinstance(keyword, str) and keyword.strip() and isinstance(result, list):
+            _attach_query_matches(executor.session, result, keyword)
 
         if range_read:
             rows = result if isinstance(result, list) else []
@@ -2477,6 +2480,38 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_error(str(e), tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
+
+
+# 关键词查询的命中位置：每个文件最多列这么多处，每处前后各带这么多字原文。
+QUERY_MATCHES_PER_FILE = 8
+QUERY_MATCH_CONTEXT_CHARS = 30
+
+
+def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> None:
+    """给关键词查询的每个文件附上正文里的命中数和命中处原文（逐字，可直接作 edit_file 的 old/anchor）。
+
+    以前只返回文件名和开头预览，改一个词要把每个命中文件读一遍全文。
+    """
+    from models import File
+
+    ids = [row["id"] for row in rows if isinstance(row, dict) and isinstance(row.get("id"), str)]
+    if not ids:
+        return
+    contents = dict(session.exec(select(File.id, File.content).where(File.id.in_(ids))).all())
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        content = contents.get(row.get("id")) or ""
+        positions: list[int] = []
+        start = content.find(keyword)
+        while start >= 0:
+            positions.append(start)
+            start = content.find(keyword, start + len(keyword))
+        row["match_count"] = len(positions)
+        row["matches"] = [
+            content[max(0, pos - QUERY_MATCH_CONTEXT_CHARS) : pos + len(keyword) + QUERY_MATCH_CONTEXT_CHARS]
+            for pos in positions[:QUERY_MATCHES_PER_FILE]
+        ]
 
 
 def _note_file_read(result: Any, *, ticket: int | None = None) -> None:

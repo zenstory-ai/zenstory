@@ -201,7 +201,10 @@ QUERY_FILES_TOOL: dict[str, Any] = {
             },
             "query": {
                 "type": "string",
-                "description": "搜索关键词（在标题和内容中搜索）"
+                "description": (
+                    "搜索关键词（在标题和内容中按原文查找）。结果里每个文件附 match_count（正文命中处数）和 matches"
+                    "（每处命中前后的原文，逐字，可直接作 edit_file 的 old/anchor）；只改这些位置时不必再读全文"
+                ),
             },
             "file_type": {
                 "type": "string",

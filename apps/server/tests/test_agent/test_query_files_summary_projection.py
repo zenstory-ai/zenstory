@@ -396,6 +396,10 @@ def test_paging_type_keyword_and_zero_controls(store):
     ]
     for args, expected in cases:
         payload, _ = store.call(args)
+        if "query" in args:
+            # 关键词查询另外附上正文命中处的原文（见 test_mcp_tools 的命中片段用例）。
+            for row in payload["data"]:
+                assert row.pop("match_count") >= 1 and args["query"] in row.pop("matches")[0]
         assert payload == store.expected(expected)
     # Exact-ID applies both type constraints (different from merged page precedence).
     payload, _ = store.call({"id": store.rows[0]["id"], "file_type": "lore"})
