@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { LogoMark } from "../components/Logo";
 import { useAuth } from "../contexts/AuthContext";
 import { authConfig, hasOAuthProviders } from "../config/auth";
+import { referralConfig } from "../config/referral";
 import { PublicHeader } from "../components/PublicHeader";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { InviteCodeInput } from "../components/referral/InviteCodeInput";
@@ -130,6 +131,9 @@ export const Register: React.FC = () => {
   const trimmedUsername = username.trim();
   const trimmedEmail = email.trim();
   const trimmedInviteCode = inviteCode.trim();
+  // With referral off, an optional invite code is neither shown nor sent; a
+  // required one still gates registration.
+  const showInviteCode = referralConfig.enabled || !inviteCodeOptional;
   const isUsernameValid = trimmedUsername.length >= 3;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
   const isPasswordLengthValid = password.length >= 6;
@@ -311,7 +315,13 @@ export const Register: React.FC = () => {
         rejectSubmit(t('auth:errors.inviteCodeRequired'), 'invite_code');
         return;
       }
-      const result = await register(trimmedUsername, trimmedEmail, password, trimmedInviteCode || undefined);
+      const sendInviteCode = referralConfig.enabled || !effectiveInviteCodeOptional;
+      const result = await register(
+        trimmedUsername,
+        trimmedEmail,
+        password,
+        (sendInviteCode && trimmedInviteCode) || undefined,
+      );
       if (result?.verification_sent === false) {
         const path = selectedPlan ? `/verify-email?${new URLSearchParams({ plan: selectedPlan }).toString()}` : '/verify-email';
         navigate(path, { state: { email: result.email || trimmedEmail, verificationSent: false } });
@@ -356,7 +366,7 @@ export const Register: React.FC = () => {
         }, 0);
         return;
       }
-      googleLogin({ inviteCode: trimmedInviteCode || undefined, planIntent: selectedPlan });
+      googleLogin({ inviteCode: (showInviteCode && trimmedInviteCode) || undefined, planIntent: selectedPlan });
     } else if (provider === 'apple') {
       appleLogin();
     }
@@ -592,18 +602,20 @@ export const Register: React.FC = () => {
             </div>
 
             {/* Invite Code */}
-            <div className="mb-6">
-              <InviteCodeInput
-                value={inviteCode}
-                onChange={(value) => {
-                  setInviteCode(value);
-                  resetSubmitStateOnInput();
-                }}
-                disabled={loading || success}
-                required={!inviteCodeOptional}
-                prefilled={inviteCodePrefilled}
-              />
-            </div>
+            {showInviteCode && (
+              <div className="mb-6">
+                <InviteCodeInput
+                  value={inviteCode}
+                  onChange={(value) => {
+                    setInviteCode(value);
+                    resetSubmitStateOnInput();
+                  }}
+                  disabled={loading || success}
+                  required={!inviteCodeOptional}
+                  prefilled={inviteCodePrefilled}
+                />
+              </div>
+            )}
 
             <div className="mb-6">
               <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm leading-6 text-[hsl(var(--text-secondary))]">

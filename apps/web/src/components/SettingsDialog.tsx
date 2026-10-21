@@ -28,6 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { normalizeLocale } from '../lib/i18n-helpers';
 import { pointsConfig } from '../config/points';
+import { referralConfig } from '../config/referral';
 import Modal from './ui/Modal';
 import { Button } from './ui/Button';
 import { UserAvatar } from './UserMenu';
@@ -189,7 +190,8 @@ function PointsTabSkeleton() {
  */
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose, defaultTab }) => {
   const isMobile = useIsMobile();
-  const isPointsPanelEnabled = pointsConfig.panelEnabled;
+  const isPointsPanelEnabled = pointsConfig.enabled;
+  const isReferralEnabled = referralConfig.enabled;
   const { t: tSettings } = useTranslation('settings');
   const { t: tAuth } = useTranslation('auth');
   const { i18n } = useTranslation();
@@ -251,12 +253,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
     }
   }, [isOpen, defaultTab]);
 
-  // Fallback to profile tab if points panel is disabled.
+  // Fallback to profile tab if points or referral is disabled.
   useEffect(() => {
-    if (!isPointsPanelEnabled && activeTab === 'points') {
+    if ((!isPointsPanelEnabled && activeTab === 'points') || (!isReferralEnabled && activeTab === 'referral')) {
       setActiveTab('profile');
     }
-  }, [activeTab, isPointsPanelEnabled]);
+  }, [activeTab, isPointsPanelEnabled, isReferralEnabled]);
 
   /**
    * Handles user logout with loading state protection.
@@ -294,7 +296,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
       ? [{ id: 'points' as const, icon: Coins, label: tSettings('nav.points', '积分') }]
       : []),
     { id: 'agent' as const, icon: Key, label: tSettings('nav.agent', 'API 密钥') },
-    { id: 'referral' as const, icon: Users, label: tSettings('nav.referral', '邀请') },
+    ...(isReferralEnabled
+      ? [{ id: 'referral' as const, icon: Users, label: tSettings('nav.referral', '邀请') }]
+      : []),
   ];
 
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -629,7 +633,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
               </div>
             )}
 
-            {activeTab === 'referral' && (
+            {activeTab === 'referral' && isReferralEnabled && (
               <div className="space-y-4">
                 <ReferralStats />
                 <InviteCodeList />

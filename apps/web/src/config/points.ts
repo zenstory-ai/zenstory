@@ -1,16 +1,9 @@
 import { parseEnvBoolean } from "./env";
 
 /**
- * Points feature configuration.
- *
- * `VITE_POINTS_PANEL_ENABLED` controls whether the user-facing
- * points panel is shown in Settings dialog.
+ * User-facing points (settings tab and the user-menu check-in).
+ * Off unless `VITE_POINTS_ENABLED` is explicitly true; balances stay on the server.
  */
-export interface PointsConfig {
-  panelEnabled: boolean;
-}
-
-export const pointsConfig: PointsConfig = {
-  // Default enabled. Set false/0/no/off to temporarily hide points panel.
-  panelEnabled: parseEnvBoolean(import.meta.env.VITE_POINTS_PANEL_ENABLED, true),
+export const pointsConfig = {
+  enabled: parseEnvBoolean(import.meta.env.VITE_POINTS_ENABLED, false),
 };

@@ -104,6 +104,10 @@ vi.mock("../../config/auth", () => ({
   hasOAuthProviders: () => mockAuthConfig.oauthProviders.google.enabled || mockAuthConfig.oauthProviders.apple.enabled,
 }));
 
+const referralFlag = vi.hoisted(() => ({ enabled: true }));
+
+vi.mock("../../config/referral", () => ({ referralConfig: referralFlag }));
+
 import Register from "../Register";
 
 describe("Register", () => {
@@ -112,6 +116,7 @@ describe("Register", () => {
     inviteCodePropsHistory.length = 0;
     mockAuthConfig.registrationEnabled = true;
     mockAuthConfig.inviteCodeOptional = false;
+    referralFlag.enabled = true;
     mockAuthConfig.oauthProviders.google.enabled = false;
     mockAuthConfig.oauthProviders.apple.enabled = false;
     mockGetRegistrationPolicy.mockResolvedValue({
@@ -151,6 +156,36 @@ describe("Register", () => {
       expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
     });
   };
+
+  it("hides and does not send an optional invite code while referral is off", async () => {
+    referralFlag.enabled = false;
+    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: "global_optional", rollout_percent: 100 });
+    mockRegister.mockResolvedValueOnce({ email: "test@example.com", email_verified: false, verification_sent: true });
+    const user = userEvent.setup();
+    renderWithRoute("/register?invite=ABCD-1234");
+    await waitFor(() => expect(mockGetRegistrationPolicy).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByTestId("invite-code-input")).not.toBeInTheDocument());
+    fillRegistrationFields();
+    await acceptTerms(user);
+    await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
+    await waitFor(() =>
+      expect(mockRegister).toHaveBeenCalledWith("test_user", "test@example.com", "SecurePass123!", undefined),
+    );
+  });
+
+  it("keeps a required invite code while referral is off", async () => {
+    referralFlag.enabled = false;
+    mockRegister.mockResolvedValueOnce({ email: "test@example.com", email_verified: false, verification_sent: true });
+    const user = userEvent.setup();
+    renderWithRoute("/register?invite=ABCD-1234");
+    await waitFor(() => expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-required", "true"));
+    fillRegistrationFields();
+    await acceptTerms(user);
+    await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
+    await waitFor(() =>
+      expect(mockRegister).toHaveBeenCalledWith("test_user", "test@example.com", "SecurePass123!", "ABCD-1234"),
+    );
+  });
 
   it("does not claim mail was sent when the account exists but delivery failed", async () => {
     mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });

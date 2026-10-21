@@ -136,12 +136,38 @@ vi.mock("../../lib/analytics", () => ({
   captureException: vi.fn(),
 }));
 
+const featureFlags = vi.hoisted(() => ({ points: { enabled: false }, referral: { enabled: false } }));
+
+vi.mock("../../config/points", () => ({ pointsConfig: featureFlags.points }));
+vi.mock("../../config/referral", () => ({ referralConfig: featureFlags.referral }));
+
 import { SettingsDialog } from "../SettingsDialog";
 
 describe("SettingsDialog language switching", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    featureFlags.points.enabled = false;
+    featureFlags.referral.enabled = false;
+  });
+
+  it("hides points and referral tabs while both are off and falls back to profile", () => {
+    render(<SettingsDialog isOpen onClose={vi.fn()} defaultTab="referral" />);
+
+    expect(screen.queryByRole("tab", { name: "Points" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Referral" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByTestId("referral-stats")).not.toBeInTheDocument();
+  });
+
+  it("shows points and referral tabs when enabled", () => {
+    featureFlags.points.enabled = true;
+    featureFlags.referral.enabled = true;
+    render(<SettingsDialog isOpen onClose={vi.fn()} defaultTab="referral" />);
+
+    expect(screen.getByRole("tab", { name: "Points" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Referral" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("referral-stats")).toBeInTheDocument();
   });
 
   it("keeps the profile display read-only without an inert unnamed action", () => {

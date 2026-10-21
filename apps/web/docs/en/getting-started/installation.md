@@ -6,7 +6,7 @@ Register and sign in at [app.zenstory.ai](https://app.zenstory.ai). No installat
 
 1. Open [Register](https://app.zenstory.ai/register) and enter a username, email, password, and password confirmation.
 2. Use at least 3 characters for the username and 6 for the password. Both passwords must match.
-3. Follow the invitation-code hint. Leave it empty when marked optional.
+3. If the page shows an invitation code, follow its hint. Leave it empty when marked optional.
 4. Read and accept the terms and privacy policy, then submit.
 5. Enter the emailed verification code and follow the onboarding steps into the workbench.
 
@@ -27,11 +27,5 @@ Follow the redirect to the workbench or recent project. On a shared device, sign
 3. Within 10 minutes, enter the six-digit code, a new password, and its confirmation. Submit, then sign in with the new password.
 
 Wait for the countdown before resending. If online reset is unavailable, contact [support@zenstory.ai](mailto:support@zenstory.ai) from your registered email. Do not share passwords or verification codes.
-
-## Invitations and points
-
-Invitation links fill the code automatically. When a friend registers with a valid invitation and verifies their email, both accounts can earn points under the displayed rules. Check the points and invitation pages for rewards and redemption conditions.
-
-For an invalid, expired, or exhausted code, check that you copied it completely or ask the inviter for a new one.
 
 Next: [Write your first short story](first-project.md). For login problems, see [troubleshooting](../troubleshooting/common-issues.md).

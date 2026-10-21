@@ -128,7 +128,7 @@ Custom skills use the open Agent Skills `SKILL.md` format, optionally with `refe
 
 ### Hosted
 
-Sign up at [app.zenstory.ai](https://app.zenstory.ai); a friend's invite code is optional. The free plan includes 3 AI messages a day (reset at 00:00 Beijing time) and up to 3 projects; the [pricing page](https://app.zenstory.ai/pricing) compares the plans.
+Sign up at [app.zenstory.ai](https://app.zenstory.ai); no invite code is needed. The free plan includes 3 AI messages a day (reset at 00:00 Beijing time) and up to 3 projects; the [pricing page](https://app.zenstory.ai/pricing) compares the plans.
 
 Create a Short Story project. A good first request asks for an outline you can edit rather than a chapter (the example comes from the [quick start](https://zenstory.ai/docs/getting-started/quick-start#en); the English docs are below the Chinese on each page):
 
@@ -172,7 +172,8 @@ The writing agents use DeepSeek `deepseek-flash` (DeepSeek-V4.1-Flash) by defaul
 
 | Feature | Settings |
 | --- | --- |
-| Letting other people sign up | invite codes are required by default; an admin generates them under Settings → Referral. To drop them, set `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` |
+| Letting other people sign up | invite codes are required by default; an admin generates them on the admin console's Referral System page. To drop them, set `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` |
+| Points and referral (optional, off by default) | on the frontend, `VITE_POINTS_ENABLED=true` shows the points tab and check-in, and `VITE_REFERRAL_ENABLED=true` shows Settings → Referral and the optional sign-up invite field; rebuild the frontend after changing them |
 | Verification codes for email sign-up | `REDIS_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`; the quick start has no Redis, so use `docker-compose.full.yml` |
 | Staying signed in across restarts | `JWT_SECRET_KEY` (32+ characters; with the quick start it can go in the root `.env`) |
 | Voice input | `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY` |
@@ -319,11 +320,11 @@ The agent writes with its own model; ZenStory stores the manuscript and assemble
 
 ### Do I need an invite code to sign up on the hosted app?
 
-No. Sign up at app.zenstory.ai; a friend's invite code is optional. Anyone with an account can click Generate Code under Settings → Referral: up to 3 codes per person, each usable 3 times. The shared link looks like `https://app.zenstory.ai/register?code=XXXX-XXXX` and fills the code in for you.
+No. Sign up at app.zenstory.ai. Referral and points are currently turned off on the hosted app, so the sign-up form has no invite code field.
 
 ### On my own server, how do I create the first account, and how do others sign up?
 
-Create the first account with `scripts/create_admin.py`; the command is under [Self-hosted](#self-hosted), and it needs neither an invite code nor email verification. Others need an invite code by default, which an admin generates under Settings → Referral or on the admin console's Referral System page. To drop invite codes, add `AUTH_REGISTER_INVITE_CODE_OPTIONAL: "true"` under `server.environment` in `docker-compose.yml` (in `apps/server/.env` for local development) and run `docker compose up -d`; optionally add `VITE_INVITE_CODE_OPTIONAL: "true"` under `web.environment` so the form shows the code as optional from the start ([#1](https://github.com/zenstory-ai/zenstory/issues/1)). People who sign up by email must receive a verification code before they can sign in, which needs Redis and `RESEND_API_KEY`.
+Create the first account with `scripts/create_admin.py`; the command is under [Self-hosted](#self-hosted), and it needs neither an invite code nor email verification. Others need an invite code by default, which an admin generates on the admin console's Referral System page (or under Settings → Referral once the frontend sets `VITE_REFERRAL_ENABLED=true`). To drop invite codes, add `AUTH_REGISTER_INVITE_CODE_OPTIONAL: "true"` under `server.environment` in `docker-compose.yml` (in `apps/server/.env` for local development) and run `docker compose up -d`; optionally add `VITE_INVITE_CODE_OPTIONAL: "true"` under `web.environment` so the form treats the code as optional from the start (hidden while referral is off, shown as optional when it is on) ([#1](https://github.com/zenstory-ai/zenstory/issues/1)). People who sign up by email must receive a verification code before they can sign in, which needs Redis and `RESEND_API_KEY`.
 
 For a few people you trust, you can also run `create_admin.py` again with their email and a new `ZENSTORY_ADMIN_USERNAME` (the default is `admin`; usernames must be unique). Every account made this way is an admin that can open the admin console and change prompts, plans and users; afterwards, edit the account under User Management and clear Superuser.
 

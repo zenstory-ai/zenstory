@@ -16,10 +16,6 @@ Free includes 3 AI messages per day, 3 projects, 3 owned custom skills, and TXT 
 
 Wait for payment-return processing, then check your plan and expiration. If charged without benefits, retain order details and contact support. Do not pay again.
 
-### Where are invitation rewards?
-
-Check the points and invitation pages. The interface shows reward conditions, valid codes, and redemption options.
-
 ## Writing and files
 
 ### Does the editor autosave?
