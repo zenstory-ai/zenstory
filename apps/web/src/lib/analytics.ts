@@ -122,6 +122,49 @@ export function sanitizeAnalyticsProperties<T extends Record<string, unknown>>(p
   return sanitized as T;
 }
 
+/** Browser messages that never identify code of ours (cross-origin scripts, layout loop warnings). */
+const BROWSER_NOISE_MESSAGES = new Set([
+  "Script error.",
+  "ResizeObserver loop completed with undelivered notifications.",
+  "ResizeObserver loop limit exceeded",
+]);
+
+interface ExceptionFrame { filename?: unknown }
+interface CapturedException {
+  value?: unknown;
+  mechanism?: { handled?: unknown };
+  stacktrace?: { frames?: ExceptionFrame[] };
+}
+
+/** A script file served by this app. Injected inline scripts report the page URL instead. */
+function isOwnScriptFrame(frame: ExceptionFrame): boolean {
+  if (typeof frame.filename !== "string") return false;
+  try {
+    const url = new URL(frame.filename);
+    return url.origin === window.location.origin && /\.(?:m?js|jsx?|tsx?)$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Uncaught errors thrown only by code this app does not ship: browser
+ * extensions, injected or cross-origin scripts. Errors we capture ourselves,
+ * and uncaught ones with any frame in our scripts, are always kept.
+ */
+function isForeignException(properties: Record<string, unknown>): boolean {
+  const exceptions = properties.$exception_list;
+  if (!Array.isArray(exceptions) || exceptions.length === 0) return false;
+  return (exceptions as CapturedException[]).every((exception) => {
+    if (exception?.mechanism?.handled !== false) return false;
+    const frames = exception.stacktrace?.frames;
+    if (!Array.isArray(frames) || frames.length === 0) {
+      return BROWSER_NOISE_MESSAGES.has(String(exception.value ?? ""));
+    }
+    return !frames.some(isOwnScriptFrame);
+  });
+}
+
 /**
  * PostHog `before_send` hook: last line of defense for everything the SDK
  * sends on its own ($current_url, $referrer, $initial_* person properties,
@@ -129,6 +172,7 @@ export function sanitizeAnalyticsProperties<T extends Record<string, unknown>>(p
  */
 export function sanitizeCaptureResult(result: CaptureResult | null): CaptureResult | null {
   if (!result) return result;
+  if (result.event === "$exception" && isForeignException(result.properties ?? {})) return null;
   return {
     ...result,
     properties: sanitizeAnalyticsProperties(result.properties ?? {}),
