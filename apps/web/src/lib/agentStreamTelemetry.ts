@@ -61,6 +61,22 @@ export function createAgentStreamTelemetry(
   let failurePhase: AgentStreamFailurePhase | undefined;
   let exceptionType: string | undefined;
 
+  // Browsers suspend or drop the connections of hidden tabs (phones above all)
+  // and of offline devices. A transport failure then is expected, not a defect.
+  const doc = typeof document === "undefined" ? undefined : document;
+  let hiddenMs = 0;
+  let hiddenAt = doc?.visibilityState === "hidden" ? startedAt : undefined;
+  const onVisibilityChange = () => {
+    if (doc?.visibilityState === "hidden") {
+      hiddenAt ??= now();
+    } else if (hiddenAt !== undefined) {
+      hiddenMs += now() - hiddenAt;
+      hiddenAt = undefined;
+    }
+  };
+  doc?.addEventListener("visibilitychange", onVisibilityChange);
+  const hiddenTotalMs = () => hiddenMs + (hiddenAt === undefined ? 0 : Math.max(0, now() - hiddenAt));
+
   const baseProperties = () => ({
     project_id: projectId,
     entry,
@@ -72,11 +88,13 @@ export function createAgentStreamTelemetry(
     agent_run_id: agentRunId,
     failure_phase: failurePhase,
     exception_type: exceptionType,
+    hidden_ms: hiddenTotalMs(),
   });
 
   const settle = (): boolean => {
     if (settled) return false;
     settled = true;
+    doc?.removeEventListener("visibilitychange", onVisibilityChange);
     return true;
   };
 
@@ -122,17 +140,19 @@ export function createAgentStreamTelemetry(
       trackEvent("ai_chat_completed", baseProperties());
     },
     failed(code, retryable) {
-      if (!settle()) return;
       const errorCode = code || "UNKNOWN";
       const properties = {
         ...baseProperties(),
         error_code: errorCode,
         retryable: Boolean(retryable),
+        online: typeof navigator === "undefined" ? undefined : navigator.onLine,
       };
+      if (!settle()) return;
       trackEvent("ai_chat_failed", properties);
 
       const isServerError = httpStatus !== undefined && httpStatus >= 500;
-      if (UNEXPECTED_TRANSPORT_CODES.has(errorCode) || isServerError) {
+      const deviceInterrupted = properties.hidden_ms > 0 || properties.online === false;
+      if (isServerError || (UNEXPECTED_TRANSPORT_CODES.has(errorCode) && !deviceInterrupted)) {
         captureException(new AgentStreamError(errorCode), {
           feature_area: "agent_stream",
           ...properties,

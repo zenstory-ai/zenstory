@@ -910,10 +910,12 @@ export function streamAgentRequest(
         return;
       }
       telemetry.noteFailure(failurePhase, error);
+      const transportFailed = failurePhase !== "callback";
       callbacks.onError?.(
-        toUserErrorMessage(err.message || "Stream error"),
+        // Browser network messages ("network error", "Load failed") mean nothing to authors.
+        transportFailed ? i18n.t('chat:stream.connectionInterrupted') : toUserErrorMessage(err.message || "Stream error"),
         "STREAM_ERROR",
-        failurePhase !== "callback",
+        transportFailed,
       );
     }
   };
