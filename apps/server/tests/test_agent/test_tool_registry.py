@@ -39,8 +39,8 @@ def _parallel_task_types(tools):
 @pytest.mark.parametrize("legacy_flag", ["true", "false"])
 @pytest.mark.parametrize("agent_type", ["writer", "planner", "hook_designer", "quality_reviewer"])
 def test_retired_search_is_absent_even_with_legacy_flag(monkeypatch, agent_type, legacy_flag):
-    from agent.tools.parallel_executor import PARALLEL_EXECUTE_TOOL
     from agent.tools.registry import get_agent_tools
+    from agent.tools.tool_schemas import PARALLEL_EXECUTE_TOOL
 
     monkeypatch.setenv("AGENT_TOOL_HYBRID_SEARCH_ENABLED", legacy_flag)
     tools = get_agent_tools(agent_type)

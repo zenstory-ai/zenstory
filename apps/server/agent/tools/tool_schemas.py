@@ -6,7 +6,7 @@ The OpenAI Agents adapter converts these internal schemas into SDK tools.
 from typing import Any
 
 from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
-from agent.tools.parallel_executor import PARALLEL_EXECUTE_TOOL
+from agent.tools.parallel_executor import PARALLEL_TASK_TYPES
 from config.project_status import PROJECT_STATUS_MAX_LENGTHS
 
 # 字数口径说明（create_file / edit_file / query_files 共用）。
@@ -529,6 +529,94 @@ READ_SKILL_RESOURCE_TOOL: dict[str, Any] = {
     },
 }
 
+
+# parallel_execute 各任务类型的参数并集，取自对应的单独工具。
+_PARALLEL_TASK_PARAM_PROPERTIES: dict[str, Any] = {
+    **QUERY_FILES_TOOL["input_schema"]["properties"],
+    **EDIT_FILE_TOOL["input_schema"]["properties"],
+    "recursive": DELETE_FILE_TOOL["input_schema"]["properties"]["recursive"],
+    "id": {"type": "string", "description": "目标文件 ID（edit_file / delete_file / query_files）"},
+    "parent_id": {"type": "string", "description": "write_chapter：新文件所在文件夹 ID；query_files：按父文件夹筛选"},
+    "title": {"type": "string", "description": "write_chapter：新文件标题"},
+    "content": {"type": "string", "description": "write_chapter：完整正文（必填）"},
+}
+
+# Tool: parallel_execute
+PARALLEL_EXECUTE_TOOL: dict[str, Any] = {
+    "name": "parallel_execute",
+    "description": """Execute multiple independent tasks in parallel.
+
+Use this when you need several independent operations at once, such as:
+- Reading several files in one call (query_files with {"id": ...} returns full content)
+- Editing or deleting multiple files concurrently
+  Protected author text (including a folder containing it) cannot be deleted
+  through chat; the author uses the file menu. A chat reply does not unlock it.
+
+New chapters / new prose files should normally be written with a single
+create_file call followed by streamed <file>...</file> content, NOT via
+parallel write_chapter. write_chapter is only for bodies you already have in
+full and can inline in params.content.
+
+All tasks must be independent (not depend on each other's results).
+Maximum 5 parallel tasks per call — extra tasks are NOT executed. Split into
+multiple calls instead of sending more than 5. Files you already read in this
+run are still in context: do not read them again.
+
+Every task requires an explicit type from the enum; a missing or invalid type
+rejects the entire batch before any task runs.
+
+Task param conventions:
+- query_files: params are exactly the standalone tool's params
+  (e.g. {"id": "<file_id>"} for full content, {"query": "...", "response_mode": "summary"}).
+  Very long per-task content is cut with content_truncated=true / content_length;
+  then read that one file with a standalone query_files(id=..., response_mode="full").
+- write_chapter: params = {"title": "第三章", "content": "<full chapter text>", "parent_id": "<folder_id>"}
+  - content is REQUIRED and must be inlined here. Parallel tasks cannot use the
+    <file>...</file> streaming protocol; a task without content would create an
+    empty file that never gets its body.
+- edit_file (recommended): params = {"id": "<file_id>", "edits": [...], "continue_on_error": false}
+  - Legacy aliases: {"file_id": "..."} for id, {"operations": [...]} for edits
+- delete_file: params = {"id": "<file_id>", "recursive": false}
+""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "tasks": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Task type: write_chapter, edit_file, delete_file, query_files",
+                            "enum": list(PARALLEL_TASK_TYPES),
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Human-readable task description",
+                        },
+                        "params": {
+                            "type": "object",
+                            "description": (
+                                "Task-specific parameters. "
+                                "write_chapter: {title, content (required, inline full text), parent_id}; "
+                                "edit_file: {id, edits, continue_on_error}; "
+                                "delete_file: {id, recursive}; "
+                                "query_files: same params as the standalone tool."
+                            ),
+                            # 字段与单独调用的工具一致。没有声明时，有的模型会自造字段名
+                            # （old_text/new_text），或把数组写成 {"item": [...]}。
+                            "properties": _PARALLEL_TASK_PARAM_PROPERTIES,
+                        },
+                    },
+                    "required": ["type", "description", "params"],
+                },
+            },
+        },
+        "required": ["tasks"],
+    },
+}
 
 # Export all tool schemas by name (schema source-of-truth).
 TOOL_SCHEMAS: dict[str, dict[str, Any]] = {

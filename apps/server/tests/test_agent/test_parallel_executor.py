@@ -12,7 +12,6 @@ import pytest
 
 from agent.tools.parallel_executor import (
     MAX_PARALLEL_TASKS,
-    PARALLEL_EXECUTE_TOOL,
     PARALLEL_TASK_TYPES,
     SubagentTask,
     _bound_task_result,
@@ -25,6 +24,7 @@ from agent.tools.parallel_executor import (
     handle_query_files,
     handle_write_chapter,
 )
+from agent.tools.tool_schemas import DELETE_FILE_TOOL, EDIT_FILE_TOOL, PARALLEL_EXECUTE_TOOL
 
 
 @pytest.mark.unit
@@ -84,6 +84,16 @@ class TestToolDefinition:
         task_item = PARALLEL_EXECUTE_TOOL["input_schema"]["properties"]["tasks"]["items"]
         task_type_enum = task_item["properties"]["type"]["enum"]
         assert list(PARALLEL_TASK_TYPES) == task_type_enum
+
+    def test_task_params_declare_the_standalone_tool_fields(self):
+        """Production (2026-10-21): with untyped params the primary model invented old_text/new_text
+        and sent arrays as {"item": [...]}; every such edit failed."""
+        params = PARALLEL_EXECUTE_TOOL["input_schema"]["properties"]["tasks"]["items"]["properties"]["params"]["properties"]
+        edit_props = EDIT_FILE_TOOL["input_schema"]["properties"]
+        assert params["edits"] == edit_props["edits"]
+        assert params["continue_on_error"] == edit_props["continue_on_error"]
+        assert params["recursive"] == DELETE_FILE_TOOL["input_schema"]["properties"]["recursive"]
+        assert {"title", "content", "parent_id", "id", "query", "response_mode"} <= set(params)
 
 
 @pytest.mark.unit
