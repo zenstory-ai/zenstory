@@ -937,3 +937,27 @@ async def test_official_skill_instructions_are_hidden_in_list_and_detail(
     # 社区技能（作者自己写、自己选择公开的）照常可见
     assert by_id[community.id]["instructions"] == "Instructions for Community Skill"
     assert by_id[community.id]["instructions_hidden"] is False
+
+
+@pytest.mark.integration
+async def test_official_skills_read_in_english_for_english_readers(client: AsyncClient, db_session: Session):
+    """Official rows are stored in Chinese; English readers see and can search their English names."""
+    await create_test_user(db_session)
+    headers = await get_auth_headers(client)
+    official = create_test_skill(db_session, name="钩子设计", source="official")
+    create_test_skill(db_session, name="短剧改编分析", source="community")
+
+    english = {**headers, "Accept-Language": "en-US,en;q=0.9"}
+    listed = (await client.get("/api/v1/public-skills", headers=english)).json()["skills"]
+    by_id = {skill["id"]: skill for skill in listed}
+    assert by_id[official.id]["name"] == "Design Hooks"
+    assert "anticipation" in by_id[official.id]["description"]
+    # Community skills keep their author's own text.
+    assert "短剧改编分析" in {skill["name"] for skill in listed}
+
+    found = (await client.get("/api/v1/public-skills?search=hooks", headers=english)).json()
+    assert [skill["id"] for skill in found["skills"]] == [official.id]
+
+    chinese = {**headers, "Accept-Language": "zh-CN"}
+    detail = (await client.get(f"/api/v1/public-skills/{official.id}", headers=chinese)).json()
+    assert detail["name"] == "钩子设计"
