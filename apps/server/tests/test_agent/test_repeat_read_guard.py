@@ -624,6 +624,36 @@ async def test_sdk_run_soft_lands_on_request_budget_instead_of_hard_error(monkey
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+async def test_sdk_run_soft_lands_before_the_wall_clock_limit(monkeypatch):
+    """Two production runs (50+ model calls) were cut at 780s mid-work: near the limit the
+    agent is told to finish the open file and summarize, and the turn ends resumable."""
+    import time
+
+    from agent.core.run_meter import AgentRunMeter
+
+    meter = AgentRunMeter(max_model_calls=120, started_at=time.monotonic() - 700, wrap_up_after_s=600)
+
+    def script(index: int) -> list[dict]:
+        return _text_chunks("已完成：第五章前半。剩余：后半章。")
+
+    events, requests, _state = await _run_against_local_model(
+        monkeypatch, script, _unused_edit, state_extra={"run_meter": meter}
+    )
+
+    assert len(requests) == 1
+    reminder = [m for m in requests[0]["messages"] if m.get("role") == "user"][-1]
+    assert "时间快用完了" in str(reminder.get("content"))
+    assert "</file>" in str(reminder.get("content")), "an open <file> body is finished first"
+    assert not any(e.type == StreamEventType.ERROR for e in events)
+    exhausted = [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert len(exhausted) == 1 and "时间快用完了" in exhausted[0].data["reason"]
+    # The router already treats this stop reason as "not finished": 「继续」 resumes it.
+    assert events[-1].data["stop_reason"] == "run_deadline_exceeded"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
 async def test_sdk_run_resets_read_counts_left_by_the_previous_agent(monkeypatch):
     """上一个 agent 已把 f1 读了 3 次：新 run 第一次读 f1 要真正执行、不带「已读过」提示。"""
     executed: list[dict] = []

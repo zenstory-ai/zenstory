@@ -95,6 +95,8 @@ MODEL_CALL_BUDGET_STOP_REASON = "model_call_budget_exhausted"
 # 单个 agent run 的工具调用轮数（SDK max_turns）用尽，或已进入收尾提醒后结束时的
 # stop_reason。随 assistant 消息落库；router 据此把下一条「继续」直接交给上一个 agent。
 MAX_TURNS_STOP_REASON = "max_turns_exceeded"
+# 接近请求墙钟时限、按提醒收尾（与 service 在时限取消时落库的 stop_reason 相同，路由按「没做完」续做）。
+RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
 # 重复读取守卫判定无进展、结束本轮时的 stop_reason（与 ERROR 事件 data.reason 相同）。
 NO_PROGRESS_STOP = NO_PROGRESS_STOP_REASON
 # 最后一次模型响应只有思考、没有正文和工具调用就撞上输出上限（max_tokens）时
@@ -112,6 +114,7 @@ SOFT_LANDING_TURNS = 3
 # 收尾提醒由哪个上限触发（_ModelCallCountingFilter.landing_limit）。
 LANDING_LIMIT_MAX_TURNS = "max_turns"
 LANDING_LIMIT_MODEL_CALL_BUDGET = "model_call_budget"
+LANDING_LIMIT_WALL_CLOCK = "wall_clock"
 SOFT_LANDING_PROMPT = (
     "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
     "请立即停止调用任何工具（包括 query_files / parallel_execute）。"
@@ -121,6 +124,14 @@ SOFT_LANDING_PROMPT = (
     "1. 已完成的工作；\n"
     "2. 尚未完成、需要下一轮继续的工作；\n"
     "3. 本轮用到或改动过的文件（标题 + id）。\n"
+    "用户回复「继续」后会从这里接着完成剩余部分。"
+)
+TIME_LANDING_PROMPT = (
+    "[系统提醒] 这次请求的时间快用完了。不要再开始新的文件或大段改写，也不要再读文件："
+    "正在写的 <file> 正文先写完并用 </file> 结束；刚用 create_file 建了文件还没写正文的，"
+    "在本次回复里写完它的 <file> 正文。然后直接用文字给作者写阶段总结：\n"
+    "1. 已完成的工作；\n"
+    "2. 尚未完成、需要下一轮继续的工作。\n"
     "用户回复「继续」后会从这里接着完成剩余部分。"
 )
 
@@ -237,13 +248,17 @@ class _ModelCallCountingFilter:
 
     def _with_landing(self, model_data: Any) -> Any:
         remaining = self._landing_remaining()
-        if remaining is None:
+        if remaining is None and not self._run_meter.past_wrap_up:
             return model_data
         from agents.run_config import ModelInputData
 
         self.landing_injected = True
-        self.landing_limit = self._remaining_calls()[1]
-        reminder = {"role": "user", "content": SOFT_LANDING_PROMPT.format(remaining=remaining)}
+        if remaining is not None:
+            self.landing_limit = self._remaining_calls()[1]
+            reminder = {"role": "user", "content": SOFT_LANDING_PROMPT.format(remaining=remaining)}
+        else:
+            self.landing_limit = LANDING_LIMIT_WALL_CLOCK
+            reminder = {"role": "user", "content": TIME_LANDING_PROMPT}
         return ModelInputData(
             input=[*list(model_data.input or []), reminder],
             instructions=model_data.instructions,
@@ -1266,8 +1281,18 @@ async def run_openai_agents_streaming_agent(
             and turn_filter is not None
             and turn_filter.landing_limit == LANDING_LIMIT_MODEL_CALL_BUDGET
         )
+        time_landed = (
+            not max_turns_exhausted
+            and landed_without_control_flow
+            and turn_filter is not None
+            and turn_filter.landing_limit == LANDING_LIMIT_WALL_CLOCK
+        )
         exhausted_stop_reason = (
-            MODEL_CALL_BUDGET_STOP_REASON if budget_landed else MAX_TURNS_STOP_REASON
+            MODEL_CALL_BUDGET_STOP_REASON
+            if budget_landed
+            else RUN_DEADLINE_STOP_REASON
+            if time_landed
+            else MAX_TURNS_STOP_REASON
         )
         if turns_exhausted:
             log_with_context(
@@ -1285,8 +1310,19 @@ async def run_openai_agents_streaming_agent(
                 duplicate_reads=read_guard.duplicate_reads,
                 blocked_reads=read_guard.blocked_reads,
             )
-            if budget_landed:
+            if time_landed:
                 exhausted_data: dict[str, Any] = {
+                    "layer": "tool_call",
+                    "iterations_used": run_meter.model_calls,
+                    "max_iterations": run_meter.max_model_calls,
+                    "reason": (
+                        "这一轮的时间快用完了，AI 先写下了阶段总结。"
+                        "任务可能还没做完，回复「继续」就能接着做。"
+                    ),
+                    "last_agent": agent_type,
+                }
+            elif budget_landed:
+                exhausted_data = {
                     "layer": "tool_call",
                     "iterations_used": run_meter.model_calls,
                     "max_iterations": run_meter.max_model_calls,

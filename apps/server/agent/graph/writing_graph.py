@@ -481,6 +481,7 @@ FIRST_ROUND_SUMMARY_CONTEXT = (
 )
 
 
+WRAP_UP_TEXT = "\n\n这一轮的时间快用完了，先停在这里；回复「继续」我接着做。"
 FAST_MODE_SUMMARY_CONTEXT = (
     "[系统提醒] 本轮是快速模式，不送审，刚才的交接没有执行，作者在对话里只看到了你那句进度说明。"
     "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：写了哪些文件、各多少字"
@@ -1908,7 +1909,22 @@ async def run_writing_workflow_streaming(
         # otherwise produce two contradictory terminal events.
         terminated_via_break = False
 
+        run_meter: AgentRunMeter = state["run_meter"]
         while current_agent_type and iteration < max_iterations:
+            # 请求时间快用完：不再开新的 agent run（交接、自动送审、续写、纠偏、插话追加轮），
+            # 这一轮停在已经完成的部分，作者回复「继续」接着做（不等墙钟时限把它从中间截断）。
+            if iteration > 0 and run_meter.past_wrap_up:
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Request near its wall-clock limit: not starting another agent run",
+                    next_agent=current_agent_type,
+                    elapsed_s=round(run_meter.elapsed_s(), 1),
+                    iterations=iteration,
+                )
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": WRAP_UP_TEXT})
+                terminated_via_break = True
+                break
             iteration += 1
             ToolContext.set_current_agent(current_agent_type)
             # 上一程读到的新正文这一程看不到（工具结果不跨 agent 回放），edit_file 的陈旧检查不再认它。

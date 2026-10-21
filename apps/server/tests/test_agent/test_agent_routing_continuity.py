@@ -1059,3 +1059,30 @@ async def test_cancelled_partial_save_persists_stop_reason_and_routing(
     metadata = json.loads(saved.message_metadata)
     assert metadata["stop_reason"] == expected
     assert metadata["routing"]["last_agent"] == "writer"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
+    import time
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.graph.writing_graph import WRAP_UP_TEXT
+
+    calls: list[str] = []
+    meter = AgentRunMeter(wrap_up_after_s=600)
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        meter.started_at = time.monotonic() - 700  # this run took the request past the wrap-up point
+        for event in _write_done("w1"):
+            yield event
+        yield _text(LONG_TEXT)
+        yield _handoff("quality_reviewer", "请审查第五章")
+
+    events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
+
+    assert calls == ["writer"]
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert texts.endswith(WRAP_UP_TEXT)
+    assert not any(e.type == StreamEventType.ITERATION_EXHAUSTED for e in events)

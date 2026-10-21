@@ -8,9 +8,10 @@ writing_graph 为整条工作流建一个（或沿用 service 传入的），放
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 
-from config.agent_runtime import AGENT_RUN_MAX_MODEL_CALLS
+from config.agent_runtime import AGENT_RUN_MAX_MODEL_CALLS, AGENT_RUN_WRAP_UP_AFTER_S
 
 
 @dataclass
@@ -23,6 +24,9 @@ class AgentRunMeter:
     budget_stopped: bool = False
     # 最近一次模型调用实际用的模型（主备切换后可能是备用供应商的模型）。
     last_served_model: str | None = None
+    # 请求开始的时刻（monotonic）：到 wrap_up_after_s 就提醒收尾、不再开新的 agent run。
+    started_at: float = field(default_factory=time.monotonic)
+    wrap_up_after_s: float = AGENT_RUN_WRAP_UP_AFTER_S
 
     @property
     def exhausted(self) -> bool:
@@ -30,6 +34,14 @@ class AgentRunMeter:
 
     def record_model_call(self) -> None:
         self.model_calls += 1
+
+    def elapsed_s(self) -> float:
+        return time.monotonic() - self.started_at
+
+    @property
+    def past_wrap_up(self) -> bool:
+        """请求时间快用完了（离墙钟时限不到 3 分钟）。"""
+        return self.elapsed_s() >= self.wrap_up_after_s
 
     def record_served_model(self, model: str) -> None:
         self.last_served_model = model

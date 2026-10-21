@@ -143,6 +143,11 @@ AGENT_RUN_MAX_MODEL_CALLS = _get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 120)
 # producer, the timeout frame, refund settlement and the trailing quota frame.
 RAILWAY_HTTP_CONNECTION_LIMIT_S = 900
 AGENT_RUN_WALL_CLOCK_TIMEOUT_S = _get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 780)
+# From here on the agent is told to wrap up and the workflow starts no new agent runs,
+# so a long request ends with a phase summary instead of being cut at the deadline.
+AGENT_RUN_WRAP_UP_AFTER_S = _get_int_env(
+    "AGENT_RUN_WRAP_UP_AFTER_S", max(60, AGENT_RUN_WALL_CLOCK_TIMEOUT_S - 180)
+)
 
 # Interval between SSE keep-alive comment frames (": ping") while streaming.
 AGENT_SSE_HEARTBEAT_INTERVAL_S = _get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)
