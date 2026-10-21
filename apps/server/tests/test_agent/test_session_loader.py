@@ -963,3 +963,27 @@ class TestCrossTurnWorkingSet:
         assert "B" * 50 not in text
         assert "未附全文" in text
         assert f"《大纲B》 (id={second.id})" in text
+
+
+@pytest.mark.unit
+def test_history_window_start_does_not_slide_every_turn():
+    """Over budget, the window used to drop one old message per turn, so nothing after the
+    system prompt was ever a prompt-cache hit across turns. It now stays on an anchor."""
+    from agent.utils.token_utils import estimate_message_tokens
+
+    loader = SessionLoader(project_id="p", user_id="u")
+    budget = 8_000  # ~26 messages: a realistic 32k budget holds 16-30 replayed messages
+    history: list[dict] = []
+    starts: list[str] = []
+    for turn in range(40):
+        history.append({"id": f"u{turn}", "ordinal": 2 * turn, "role": "user", "content": "作者的要求。" * 60})
+        history.append({"id": f"a{turn}", "ordinal": 2 * turn + 1, "role": "assistant", "content": "写好的总结。" * 60})
+        window = loader._trim_history_to_token_budget(history, budget)
+        assert sum(estimate_message_tokens(m) for m in window) <= budget
+        assert window[-1] is history[-1]
+        if len(window) < len(history):
+            starts.append(window[0]["id"])
+
+    assert len(starts) > 20
+    moves = sum(1 for previous, current in zip(starts, starts[1:], strict=False) if previous != current)
+    assert moves < len(starts) // 2

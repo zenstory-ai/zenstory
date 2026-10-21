@@ -78,7 +78,11 @@ def _load(engine, budget, **kwargs):
     payloads = []
     with Session(engine) as session:
         @event.listens_for(session, "do_orm_execute")
-        def count_query(_execution):
+        def count_query(execution):
+            # Pages of message rows; the ordinal COUNT that aligns the window is not a page.
+            entities = [d.get("entity") for d in getattr(execution.statement, "column_descriptions", [])]
+            if ChatMessage not in entities:
+                return
             pages.append(0)
             payloads.append(0)
 
@@ -136,7 +140,9 @@ def test_hidden_payload_size_limits_batch_growth(history_engine, monkeypatch):
     actual, pages, payloads = _load(history_engine, 125)
 
     assert actual == expected
-    assert len(actual) == 125
+    # Truncated windows start on an anchor (a block-aligned user message), never below half the budget.
+    assert 125 // 2 < len(actual) <= 125
+    assert actual[0]["role"] == "user" and actual[0]["ordinal"] % 8 < 2
     assert max(pages) <= 40, "Small visible text must not hide multi-MB reasoning pages"
     assert max(payloads) < 12 * 1024 * 1024
 
@@ -161,7 +167,8 @@ def test_explicit_page_size_keeps_fixed_paging_compatibility(history_engine, mon
 
     actual, pages, _ = _load(history_engine, 53, page_size=page_size)
 
-    assert [row["id"] for row in actual] == [f"msg-{i:05}" for i in range(12, 65)]
+    # The 53-message sliding window (12..64) starts at the first anchor in its older half.
+    assert [row["id"] for row in actual] == [f"msg-{i:05}" for i in range(16, 65)]
     assert max(pages) <= max(1, page_size or 200)
 
 
@@ -197,7 +204,10 @@ def test_status_routing_and_tool_memory_are_identical_across_pages(history_engin
     actual, _, _ = _load(history_engine, budget)
 
     assert actual == expected
-    assert len(actual) == min(budget, 80)
+    if budget >= 80:
+        assert len(actual) == 80
+    else:
+        assert min(budget, 80) // 2 <= len(actual) <= min(budget, 80)
     assert all(row["id"].startswith("msg-") for row in actual)
     assert actual[-1]["routing"]["scope"] == "仅本章"
     normalized = normalize_messages_for_openai_agents(actual)

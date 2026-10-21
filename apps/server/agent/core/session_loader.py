@@ -6,6 +6,7 @@ reducing complexity in the main service module.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -14,7 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, func, or_
 from sqlmodel import Session, and_, select
 
 from agent.utils.token_utils import estimate_message_tokens
@@ -61,6 +62,36 @@ _BREADCRUMB_VERBS_EN = {
 _FAILED_TOOL_STATUSES = {"error", "failed", "failure"}
 
 _HISTORY_INITIAL_PAGE_SIZE = 20
+
+# 历史窗口的起点只落在「锚点」user 消息上：预算吃紧时窗口不再每轮往后滑一条、把
+# [系统提示] 之后的前缀全部打断，而是在同一个锚点上停几轮，再整段跳到下一个锚点。
+# 锚点由消息在会话里的序号决定（每 HISTORY_WINDOW_ANCHOR_SPAN 条消息开头的 user 消息），
+# 与这一轮的预算、窗口终点无关；没有序号时按消息 id 哈希兜底。
+HISTORY_WINDOW_ANCHOR_SPAN = 8
+
+
+def _is_history_anchor(message: dict[str, Any]) -> bool:
+    if message.get("role") != "user":
+        return False
+    ordinal = message.get("ordinal")
+    if isinstance(ordinal, int):
+        return ordinal % HISTORY_WINDOW_ANCHOR_SPAN < 2
+    if not message.get("id"):
+        return False
+    digest = hashlib.sha1(str(message["id"]).encode("utf-8")).digest()
+    return digest[0] % (HISTORY_WINDOW_ANCHOR_SPAN // 2) == 0
+
+
+def anchor_history_window(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Start a token-trimmed history window at an anchor message (prompt-cache stability).
+
+    Only anchors in the older half of the window are used, so at most half the window
+    is given up; without one the window is returned unchanged.
+    """
+    for index in range(len(messages) // 2 + 1):
+        if _is_history_anchor(messages[index]):
+            return messages[index:]
+    return messages
 _HISTORY_MAX_PAGE_SIZE = 200
 _HISTORY_PAGE_TEXT_BYTES = 4 * 1024 * 1024
 
@@ -694,6 +725,15 @@ class SessionLoader:
         cursor_created_at = None
         cursor_id = None
         adaptive = page_size is None
+        # 会话里的消息序号（0 起）：历史窗口按序号对齐锚点。
+        next_ordinal = session.exec(
+            select(func.count()).select_from(ChatMessage).where(
+                and_(
+                    ChatMessage.session_id == chat_session_id,
+                    ChatMessage.role.in_(("user", "assistant")),
+                )
+            )
+        ).one() - 1
         read_page_size = (
             _HISTORY_INITIAL_PAGE_SIZE if adaptive else max(1, int(page_size or 200))
         )
@@ -727,6 +767,8 @@ class SessionLoader:
             stop = False
             for msg in page:
                 msg_data = self._format_chat_message_for_history(msg)
+                msg_data["ordinal"] = next_ordinal
+                next_ordinal -= 1
                 msg_tokens = max(1, estimate_message_tokens(msg_data))
 
                 if selected_reversed and used_tokens + msg_tokens > token_budget:
@@ -741,7 +783,7 @@ class SessionLoader:
                     break
 
             if stop:
-                break
+                return anchor_history_window(list(reversed(selected_reversed)))
 
             last = page[-1]
             cursor_created_at = last.created_at
@@ -1279,7 +1321,9 @@ class SessionLoader:
             if used_tokens >= token_budget:
                 break
 
-        return list(reversed(selected_reversed))
+        window = list(reversed(selected_reversed))
+        # 只有确实因预算截断时才对齐锚点；整段历史都放得下时起点就是会话开头，本来就稳定。
+        return anchor_history_window(window) if len(window) < len(messages) else window
 
     async def load_session_with_compaction(
         self,
