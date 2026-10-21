@@ -335,7 +335,7 @@ export default function BillingPage() {
                         >
                           <div className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
                             {included ? (
-                              <Check className="w-3.5 h-3.5 text-[hsl(var(--success))]" aria-hidden="true" />
+                              <Check className="w-3.5 h-3.5 text-[hsl(var(--success-text))]" aria-hidden="true" />
                             ) : (
                               <X className="w-3.5 h-3.5 text-[hsl(var(--text-tertiary))]" aria-hidden="true" />
                             )}
@@ -370,7 +370,7 @@ export default function BillingPage() {
         </div>
         {hasError && (
           <div className="mb-4 rounded-lg border border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.08)] p-3 flex items-center justify-between gap-3">
-            <p className="text-sm text-[hsl(var(--error))]">{t("common:error", "加载失败")}</p>
+            <p className="text-sm text-[hsl(var(--error-text))]">{t("common:error", "加载失败")}</p>
             <Button
               size="sm"
               variant="secondary"

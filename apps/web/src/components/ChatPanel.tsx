@@ -2485,7 +2485,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" data-testid="chat-panel-header-title">
           <span className={`min-w-0 truncate whitespace-nowrap font-medium text-[hsl(var(--text-primary))] ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
           {isStreaming && (
-            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success))] animate-[breathe_1.5s_ease-in-out_infinite]">
+            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success-text))] animate-[breathe_1.5s_ease-in-out_infinite]">
               · {t('chat:panel.processing')}
             </span>
           )}

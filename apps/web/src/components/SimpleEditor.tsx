@@ -1312,10 +1312,10 @@ export const SimpleEditor = ({
                 {t('editor:saving')}
               </span>
             ) : isDirty ? (
-              <span className="text-xs text-[hsl(var(--warning))]">{t('editor:unsaved')}</span>
+              <span className="text-xs text-[hsl(var(--warning-text))]">{t('editor:unsaved')}</span>
             ) : lastSaved ? (
               <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
-                <Check size={12} className="text-[hsl(var(--success))]" />
+                <Check size={12} className="text-[hsl(var(--success-text))]" />
                 <SavedAgoLabel savedAt={lastSaved} />
               </span>
             ) : null}

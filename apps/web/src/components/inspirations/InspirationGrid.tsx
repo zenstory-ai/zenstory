@@ -191,7 +191,7 @@ export function InspirationGrid({
   if (error) {
     return (
       <div className="text-center py-12 bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))]">
-        <p className="text-[hsl(var(--error))]">{t("loadError")}</p>
+        <p className="text-[hsl(var(--error-text))]">{t("loadError")}</p>
         <button
           onClick={() => window.location.reload()}
           className="btn-primary mt-4 px-4 h-10 rounded-xl"

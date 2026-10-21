@@ -686,7 +686,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           {!isFolder && (
             <button
               onClick={(e) => handleDelete(e, node.id, node.title)}
-              className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
+              className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
               title={t('common:delete')}
             >
               <Trash2 size={18} />
@@ -861,7 +861,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
 
       {loadErrorNotice}
       {uploadError && (
-        <div className="mx-3 mt-2 px-3 py-2 bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded text-[hsl(var(--error))] text-xs">
+        <div className="mx-3 mt-2 px-3 py-2 bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded text-[hsl(var(--error-text))] text-xs">
           {uploadError}
         </div>
       )}

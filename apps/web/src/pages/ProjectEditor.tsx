@@ -238,7 +238,7 @@ export default function ProjectEditor() {
   if (error) {
     return (
       <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
-        <div className="text-[hsl(var(--error))]">{t('projectLoadFailed')}</div>
+        <div className="text-[hsl(var(--error-text))]">{t('projectLoadFailed')}</div>
         <button onClick={() => refreshProjects()} className="btn btn-primary">
           {t('retry')}
         </button>

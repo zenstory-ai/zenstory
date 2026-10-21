@@ -427,13 +427,13 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
             version.lines_removed > 0) && (
             <span className="flex items-center gap-1">
               {version.lines_added > 0 && (
-                <span className="text-[hsl(var(--success))] flex items-center">
+                <span className="text-[hsl(var(--success-text))] flex items-center">
                   <Plus size={12} />
                   {t('linesAdded', { count: version.lines_added })}
                 </span>
               )}
               {version.lines_removed > 0 && (
-                <span className="text-[hsl(var(--error))] flex items-center">
+                <span className="text-[hsl(var(--error-text))] flex items-center">
                   <Minus size={12} />
                   {t('linesRemoved', { count: version.lines_removed })}
                 </span>
@@ -527,7 +527,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           )}
 
           {error && (
-            <div className="p-8 text-center text-[hsl(var(--error))]">{error}</div>
+            <div className="p-8 text-center text-[hsl(var(--error-text))]">{error}</div>
           )}
 
           {!loading && !error && versions.length === 0 && (
@@ -564,7 +564,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
               ))}
               {versions.length < total && (
                 <div className="p-3 flex justify-center">
-                  {pageError && <span role="alert" className="text-[hsl(var(--error))]">{pageError}</span>}
+                  {pageError && <span role="alert" className="text-[hsl(var(--error-text))]">{pageError}</span>}
                   <button
                     type="button"
                     className="btn"

@@ -350,7 +350,7 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
                 className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="check-in-button"
               >
-                <CalendarCheck size={16} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
+                <CalendarCheck size={16} className={isCheckedIn ? "text-[hsl(var(--success-text))]" : "text-[hsl(var(--warning-text))]"} />
                 {isCheckedIn
                   ? t('settings:points.alreadyCheckedIn', '今日已签到')
                   : checkInMutation.isPending
@@ -518,7 +518,7 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
           className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="check-in-button-mobile"
         >
-          <CalendarCheck size={18} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
+          <CalendarCheck size={18} className={isCheckedIn ? "text-[hsl(var(--success-text))]" : "text-[hsl(var(--warning-text))]"} />
           <span>
             {isCheckedIn
               ? t('settings:points.alreadyCheckedIn', '今日已签到')

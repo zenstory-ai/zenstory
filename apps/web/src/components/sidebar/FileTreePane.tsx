@@ -615,7 +615,7 @@ export const FileTreePane: React.FC = () => {
             {!isFolder && (
               <button
                 onClick={(e) => handleDelete(e, node.id, node.title)}
-                className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))]"
+                className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))]"
                 title={t('common:delete')}
               >
                 <Trash2 size={12} />

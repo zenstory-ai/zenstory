@@ -42,7 +42,7 @@ export function ChatQuotaCard({ limit, resetAt }: ChatQuotaCardProps) {
       className="mb-2 rounded-lg border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.06)] px-3 py-2.5"
     >
       <p className="flex items-start gap-1.5 text-xs font-medium leading-5 text-[hsl(var(--text-primary))]">
-        <Clock size={14} aria-hidden="true" className="mt-[3px] shrink-0 text-[hsl(var(--error))]" />
+        <Clock size={14} aria-hidden="true" className="mt-[3px] shrink-0 text-[hsl(var(--error-text))]" />
         {!canUpgrade ? t("chat:quotaCard.paidTitle", { defaultValue: "今天的 AI 消息额度已用完" }) : typeof limit === "number" && limit > 0
           ? t("chat:quotaCard.title", { defaultValue: "今天的 {{limit}} 条免费 AI 消息用完了", limit })
           : t("chat:panel.quotaExceededTitle", { defaultValue: "今天的免费 AI 消息用完了" })}

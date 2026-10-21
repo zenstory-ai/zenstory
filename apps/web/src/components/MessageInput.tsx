@@ -750,7 +750,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <span className="max-w-[100px] truncate">{material.title}</span>
               <button
                 onClick={() => removeMaterial(material.id)}
-                className="shrink-0 hover:text-[hsl(var(--error))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--accent-primary)/0.15)] rounded-sm"
+                className="shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--accent-primary)/0.15)] rounded-sm"
                 title={t("chat:input.remove")}
               >
                 <X size={12} />
@@ -767,7 +767,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {quotes.map((quote) => (
             <span
               key={quote.id}
-              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
+              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning-text))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
               title={quote.text}
             >
               <Quote size={12} className="shrink-0" />
@@ -776,7 +776,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               </span>
               <button
                 onClick={() => removeQuote(quote.id)}
-                className="shrink-0 hover:text-[hsl(var(--error))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--warning)/0.15)] rounded-sm"
+                className="shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--warning)/0.15)] rounded-sm"
                 title={t("chat:input.remove")}
               >
                 <X size={12} />
@@ -810,7 +810,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {selectedSkills.map((skill) => (
             <span
               key={skill.id}
-              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
+              className={`inline-flex min-w-0 items-center gap-1 px-2 py-0.5 bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))] rounded text-xs ${isFillLayout ? "shrink-0" : ""}`}
               data-testid="chat-selected-skill-chip"
             >
               <Zap size={10} className="shrink-0" />
@@ -818,7 +818,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <button
                 type="button"
                 onClick={() => removeSkill(skill.id)}
-                className={`shrink-0 hover:text-[hsl(var(--error))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--success)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
+                className={`shrink-0 hover:text-[hsl(var(--error-text))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--success)/0.15)] rounded-sm ${isMobile ? "p-1 -m-1" : ""}`}
                 title={t("chat:input.remove")}
                 aria-label={t("chat:skill.removeSelected", { name: skill.name })}
               >
@@ -890,7 +890,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               {skillSelectionFull && (
                 <div
                   role="status"
-                  className="px-3 py-2 text-xs text-[hsl(var(--warning))]"
+                  className="px-3 py-2 text-xs text-[hsl(var(--warning-text))]"
                 >
                   {t("chat:skill.selectionFull", { max: MAX_SELECTED_SKILLS })}
                 </div>

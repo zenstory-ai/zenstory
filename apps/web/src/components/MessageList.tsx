@@ -474,19 +474,19 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
               ? 'bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)]'
               : 'bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)]'
           }`}>
-            <Bot size={12} className={isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--accent-primary))]'} />
-            <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--accent-primary))]'} ${isMobile ? 'truncate max-w-[120px]' : ''}`}>
+            <Bot size={12} className={isLowTurns ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--accent-primary))]'} />
+            <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--accent-primary))]'} ${isMobile ? 'truncate max-w-[120px]' : ''}`}>
               {agentLabel(item.agentType, item.agentName)}
             </span>
             {hasIteration && (
-              <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--text-secondary))]'}`}>
+              <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--text-secondary))]'}`}>
                 · {t('workflow.iteration', { ns: 'chat', step: item.iteration })}
                 {isLowTurns && t('workflow.remaining', { ns: 'chat', n: item.remaining })}
               </span>
             )}
           </div>
           {isLowTurns && (
-            <div className={`${isMobile ? 'mt-1 ml-1' : 'mt-1 ml-1.5'} text-[11px] text-[hsl(var(--warning))]`}>
+            <div className={`${isMobile ? 'mt-1 ml-1' : 'mt-1 ml-1.5'} text-[11px] text-[hsl(var(--warning-text))]`}>
               {t('workflow.lowTurnWarning', { ns: 'chat' })}
             </div>
           )}
@@ -522,7 +522,7 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
                 </button>
                 <button
                   type="button"
-                  className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
                   onClick={() => onIterationAssistAction?.('split', item)}
                 >
                   {t('workflow.actionSplit', { ns: 'chat' })}
@@ -560,8 +560,8 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
       return (
         <div key={item.id} className="mb-2">
           <div className={`inline-flex items-center rounded-lg bg-[hsl(var(--success)/0.1)] border border-[hsl(var(--success)/0.2)] ${isMobile ? 'gap-1 px-2 py-0.5' : 'gap-1.5 px-2.5 py-1'}`}>
-            <Bot size={12} className="text-[hsl(var(--success))]" />
-            <span className="text-xs text-[hsl(var(--success))]">
+            <Bot size={12} className="text-[hsl(var(--success-text))]" />
+            <span className="text-xs text-[hsl(var(--success-text))]">
               {t('workflow.workflowLabel', { ns: 'chat' })}: {workflowSteps.length > 0 ? workflowSteps.join(' → ') : t('workflow.singleMode', { ns: 'chat' })}
             </span>
           </div>
@@ -590,9 +590,9 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
         return (
           <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
             <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-              <AlertTriangle size={14} className="text-[hsl(var(--warning))] mt-0.5 shrink-0" />
+              <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
               <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-xs font-medium text-[hsl(var(--warning))]">
+                <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
                   {t('workflow.stoppedTitle', { ns: 'chat' })}
                 </span>
                 <span className="text-xs text-[hsl(var(--text-primary))] break-words">
@@ -606,9 +606,9 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
           <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-            <AlertTriangle size={14} className="text-[hsl(var(--warning))] mt-0.5 shrink-0" />
+            <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
             <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-xs font-medium text-[hsl(var(--warning))]">
+              <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
                 {t('workflow.waitingForReply', { ns: 'chat' })}
               </span>
               {workflowQuestion ? (
@@ -643,9 +643,9 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
           <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--success)/0.1)] border border-[hsl(var(--success)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-            <Sparkles size={14} className="text-[hsl(var(--success))] mt-0.5 shrink-0" />
+            <Sparkles size={14} className="text-[hsl(var(--success-text))] mt-0.5 shrink-0" />
             <div className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium text-[hsl(var(--success))]">
+              <span className="text-xs font-medium text-[hsl(var(--success-text))]">
                 {t('workflow.taskCompleted', { ns: 'chat' })}
               </span>
             </div>
@@ -866,7 +866,7 @@ const Row = React.memo(function Row({
                 : undefined}
               className={`inline-flex items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
                 selectedFeedbackVote === 'up'
-                  ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success))]'
+                  ? 'border-[hsl(var(--success)/0.45)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
                   : 'border-[hsl(var(--separator-color))] text-[hsl(var(--text-tertiary))] hover:border-[hsl(var(--text-secondary)/0.45)] hover:text-[hsl(var(--text-primary))]'
               } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
             >
@@ -886,7 +886,7 @@ const Row = React.memo(function Row({
                 : undefined}
               className={`inline-flex items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] w-10 h-10 sm:w-8 sm:h-8 ${
                 selectedFeedbackVote === 'down'
-                  ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning))]'
+                  ? 'border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
                   : 'border-[hsl(var(--separator-color))] text-[hsl(var(--text-tertiary))] hover:border-[hsl(var(--text-secondary)/0.45)] hover:text-[hsl(var(--text-primary))]'
               } ${isFeedbackDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
             >
@@ -977,9 +977,9 @@ const Row = React.memo(function Row({
                   return (
                     <div key={`status-${idx}`} className="max-w-full">
                       <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-                        <AlertTriangle size={14} className="text-[hsl(var(--warning))] mt-0.5 shrink-0" />
+                        <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
                         <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs font-medium text-[hsl(var(--warning))]">
+                          <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
                             {t('workflow.stoppedTitle', { ns: 'chat' })}
                           </span>
                           <span className="text-xs text-[hsl(var(--text-primary))] break-words">
@@ -993,9 +993,9 @@ const Row = React.memo(function Row({
                 return (
                   <div key={`status-${idx}`} className="max-w-full">
                     <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-                      <AlertTriangle size={14} className="text-[hsl(var(--warning))] mt-0.5 shrink-0" />
+                      <AlertTriangle size={14} className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0" />
                       <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-xs font-medium text-[hsl(var(--warning))]">
+                        <span className="text-xs font-medium text-[hsl(var(--warning-text))]">
                           {t('workflow.waitingForReply', { ns: 'chat' })}
                         </span>
                         {workflowQuestion ? (
@@ -1057,7 +1057,7 @@ const Row = React.memo(function Row({
                           </button>
                           <button
                             type="button"
-                            className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
+                            className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
                             onClick={() => onIterationAssistAction?.('split', card)}
                           >
                             {t('workflow.actionSplit', { ns: 'chat' })}

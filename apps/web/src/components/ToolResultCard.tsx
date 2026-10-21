@@ -189,7 +189,7 @@ const getSeverityColor = (severity: string) => {
     case 'medium':
       return 'text-[hsl(var(--warning-text))] border-[hsl(var(--warning))]';
     case 'low':
-      return 'text-[hsl(var(--success))] border-[hsl(var(--success))]';
+      return 'text-[hsl(var(--success-text))] border-[hsl(var(--success))]';
     default:
       return 'text-[hsl(var(--text-secondary))] border-[hsl(var(--text-secondary))]';
   }

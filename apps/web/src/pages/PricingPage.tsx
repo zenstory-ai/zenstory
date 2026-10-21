@@ -341,7 +341,7 @@ export default function PricingPage() {
                           {metric.compareValue(plan) === 0 ? (
                             <Minus aria-hidden="true" className="w-3.5 h-3.5 text-[hsl(var(--text-tertiary))] shrink-0" />
                           ) : (
-                            <Check aria-hidden="true" className="w-3.5 h-3.5 text-[hsl(var(--success))] shrink-0" />
+                            <Check aria-hidden="true" className="w-3.5 h-3.5 text-[hsl(var(--success-text))] shrink-0" />
                           )}
                           <span className="truncate">{metric.label}</span>
                         </div>
@@ -392,7 +392,7 @@ export default function PricingPage() {
               key={item.key}
               className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))] flex items-center gap-2"
             >
-              <item.icon className="w-4 h-4 text-[hsl(var(--success))] shrink-0" />
+              <item.icon className="w-4 h-4 text-[hsl(var(--success-text))] shrink-0" />
               <span>{item.text}</span>
             </div>
           ))}

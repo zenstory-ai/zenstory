@@ -56,7 +56,7 @@ export const InviteCodeList: React.FC = () => {
 
   if (error) {
     return (
-      <div className="text-center py-8 text-[hsl(var(--error))]">
+      <div className="text-center py-8 text-[hsl(var(--error-text))]">
         {t('inviteCodes.loadError')}
       </div>
     );
@@ -114,7 +114,7 @@ export const InviteCodeList: React.FC = () => {
 
       {/* Error message */}
       {createMutation.isError && (
-        <div className="text-sm text-[hsl(var(--error))]">
+        <div className="text-sm text-[hsl(var(--error-text))]">
           {t('inviteCodes.createError')}
         </div>
       )}

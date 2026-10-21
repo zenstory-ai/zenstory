@@ -355,14 +355,14 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
           )}
 
           {error && (
-            <div className="flex items-center gap-2 text-[hsl(var(--error))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
+            <div className="flex items-center gap-2 text-[hsl(var(--error-text))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
               <AlertCircle className="w-5 h-5" />
               <span>{error}</span>
               <button onClick={() => void loadSnapshots()}>{t('common:retry')}</button>
             </div>
           )}
 
-          {actionError && <div role="alert" className="text-[hsl(var(--error))] p-2">{actionError}</div>}
+          {actionError && <div role="alert" className="text-[hsl(var(--error-text))] p-2">{actionError}</div>}
 
           {!loading && !error && snapshots.length === 0 && (
             <div className="text-center text-[hsl(var(--text-secondary))] py-8">{t('editor:versionHistory.empty')}</div>
@@ -490,7 +490,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                 </div>
                 );
               })}
-              {pageError && <div role="alert" className="text-[hsl(var(--error))]">{pageError}</div>}
+              {pageError && <div role="alert" className="text-[hsl(var(--error-text))]">{pageError}</div>}
               {hasMore && (
                 <button
                   onClick={() => void loadSnapshots(nextOffset, true)}

@@ -121,7 +121,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
     }
     if (state.status === 'error') {
       return (
-        <div role="alert" className="flex items-center gap-2 py-3 text-xs text-[hsl(var(--error))]">
+        <div role="alert" className="flex items-center gap-2 py-3 text-xs text-[hsl(var(--error-text))]">
           <AlertCircle className="w-4 h-4" />
           <span>{t('editor:versionHistory.diffLoadFailed')}</span>
           <button
@@ -189,7 +189,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
         )}
 
         {error && (
-          <div className="flex items-center gap-2 text-[hsl(var(--error))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
+          <div className="flex items-center gap-2 text-[hsl(var(--error-text))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
             <AlertCircle className="w-5 h-5" />
             <span>{error}</span>
           </div>
@@ -221,7 +221,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
             {/* Summary */}
             <div className="flex gap-4">
               <div className="flex-1 p-3 bg-[hsl(var(--success)/0.1)] rounded-lg border border-[hsl(var(--success)/0.3)]">
-                <div className="flex items-center gap-2 text-[hsl(var(--success))]">
+                <div className="flex items-center gap-2 text-[hsl(var(--success-text))]">
                   <Plus className="w-4 h-4" />
                   <span className="font-medium">
                     {comparison.changes.added.length} {t('editor:versionHistory.added')}
@@ -229,7 +229,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                 </div>
               </div>
               <div className="flex-1 p-3 bg-[hsl(var(--error)/0.1)] rounded-lg border border-[hsl(var(--error)/0.3)]">
-                <div className="flex items-center gap-2 text-[hsl(var(--error))]">
+                <div className="flex items-center gap-2 text-[hsl(var(--error-text))]">
                   <Minus className="w-4 h-4" />
                   <span className="font-medium">
                     {comparison.changes.removed.length} {t('editor:versionHistory.removed')}
@@ -237,7 +237,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                 </div>
               </div>
               <div className="flex-1 p-3 bg-[hsl(var(--warning)/0.1)] rounded-lg border border-[hsl(var(--warning)/0.3)]">
-                <div className="flex items-center gap-2 text-[hsl(var(--warning))]">
+                <div className="flex items-center gap-2 text-[hsl(var(--warning-text))]">
                   <Edit3 className="w-4 h-4" />
                   <span className="font-medium">
                     {comparison.changes.modified.length} {t('editor:versionHistory.modified')}
@@ -257,7 +257,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
             {/* Added Files */}
             {comparison.changes.added.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-[hsl(var(--success))] mb-2 flex items-center gap-2">
+                <h3 className="text-sm font-medium text-[hsl(var(--success-text))] mb-2 flex items-center gap-2">
                   <Plus className="w-4 h-4" />
                   {t('editor:versionHistory.addedFiles')}
                 </h3>
@@ -267,7 +267,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                       key={file.file_id}
                       className="flex items-center gap-3 p-3 bg-[hsl(var(--success)/0.05)] border border-[hsl(var(--success)/0.2)] rounded-lg"
                     >
-                      <div className="text-[hsl(var(--success))]">
+                      <div className="text-[hsl(var(--success-text))]">
                         {getFileTypeIcon(file.file_type)}
                       </div>
                       <div className="flex-1">
@@ -289,7 +289,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
             {/* Removed Files */}
             {comparison.changes.removed.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-[hsl(var(--error))] mb-2 flex items-center gap-2">
+                <h3 className="text-sm font-medium text-[hsl(var(--error-text))] mb-2 flex items-center gap-2">
                   <Minus className="w-4 h-4" />
                   {t('editor:versionHistory.removedFiles')}
                 </h3>
@@ -299,7 +299,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                       key={file.file_id}
                       className="flex items-center gap-3 p-3 bg-[hsl(var(--error)/0.05)] border border-[hsl(var(--error)/0.2)] rounded-lg"
                     >
-                      <div className="text-[hsl(var(--error))]">
+                      <div className="text-[hsl(var(--error-text))]">
                         {getFileTypeIcon(file.file_type)}
                       </div>
                       <div className="flex-1">
@@ -321,7 +321,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
             {/* Modified Files */}
             {comparison.changes.modified.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-[hsl(var(--warning))] mb-2 flex items-center gap-2">
+                <h3 className="text-sm font-medium text-[hsl(var(--warning-text))] mb-2 flex items-center gap-2">
                   <Edit3 className="w-4 h-4" />
                   {t('editor:versionHistory.modifiedFiles')}
                 </h3>
@@ -340,7 +340,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                       className="p-3 bg-[hsl(var(--warning)/0.05)] border border-[hsl(var(--warning)/0.2)] rounded-lg"
                     >
                       <div className="flex items-center gap-3">
-                      <div className="text-[hsl(var(--warning))]">
+                      <div className="text-[hsl(var(--warning-text))]">
                         {getFileTypeIcon(file.new_file_type || file.old_file_type)}
                       </div>
                       <div className="flex-1">

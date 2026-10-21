@@ -129,7 +129,7 @@ export default function PaymentReturnPage() {
   if (!outTradeNo) {
     return (
       <Card variant="outlined" padding="lg" className="mx-auto max-w-xl">
-        <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentReturnInvalid', '没有找到这笔订单')} />
+        <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error-text))]" />} title={t('dashboard:billing.paymentReturnInvalid', '没有找到这笔订单')} />
         <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
           {t('dashboard:billing.paymentReturnMissingOrder', '回到「订阅权益」查看 Pro 是否已开通。')}
         </p>
@@ -149,7 +149,7 @@ export default function PaymentReturnPage() {
   if (orderQuery.isError || !order) {
     return (
       <Card variant="outlined" padding="lg" className="mx-auto max-w-xl">
-        <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentCheckFailed', '暂时查不到支付结果')} />
+        <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error-text))]" />} title={t('dashboard:billing.paymentCheckFailed', '暂时查不到支付结果')} />
         <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
           {t('dashboard:billing.paymentCheckFailedHint', '已付款请不要重复支付，稍后点「刷新支付结果」。')}
         </p>
@@ -184,7 +184,7 @@ export default function PaymentReturnPage() {
                   className="flex items-center justify-between gap-2 rounded-lg bg-[hsl(var(--accent-primary)/0.06)] px-3 py-2 text-sm"
                 >
                   <span className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
-                    <Check className="h-3.5 w-3.5 text-[hsl(var(--success))]" />
+                    <Check className="h-3.5 w-3.5 text-[hsl(var(--success-text))]" />
                     {row.label}
                   </span>
                   <span className="font-medium text-[hsl(var(--text-primary))]">{row.value}</span>
@@ -195,14 +195,14 @@ export default function PaymentReturnPage() {
         </>
       ) : isFailed ? (
         <>
-          <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentFulfillmentRetrying', '付款已确认，Pro 还没开通')} />
+          <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error-text))]" />} title={t('dashboard:billing.paymentFulfillmentRetrying', '付款已确认，Pro 还没开通')} />
           <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
             {t('dashboard:billing.paymentFulfillmentRetryingHint', '请不要重复付款。稍后点「刷新支付结果」；如果一直没有开通，请发邮件到 support@zenstory.ai 并附上下方订单号。')}
           </p>
         </>
       ) : (
         <>
-          <ResultHeader icon={<Clock3 className="h-10 w-10 text-[hsl(var(--warning))]" />} title={t('dashboard:billing.paymentPending', '付款确认中')} />
+          <ResultHeader icon={<Clock3 className="h-10 w-10 text-[hsl(var(--warning-text))]" />} title={t('dashboard:billing.paymentPending', '付款确认中')} />
           <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]" role="status">
             {timedOut
               ? t('dashboard:billing.paymentPendingTimeout', '还没有确认到付款。已付款请不要重复支付，稍后点「刷新支付结果」；如果一直没有开通，请发邮件到 support@zenstory.ai 并附上订单号。')

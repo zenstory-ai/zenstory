@@ -138,7 +138,7 @@ export const SkillsPane: React.FC = () => {
               <span className={`text-xs px-1.5 py-0.5 rounded ${
                 selectedSkill.source === 'builtin'
                   ? 'bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))]'
-                  : 'bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]'
+                  : 'bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success-text))]'
               }`}>
                 {selectedSkill.source === 'builtin' ? t('editor:fileTree.builtinSkill') : t('editor:fileTree.userSkill')}
               </span>

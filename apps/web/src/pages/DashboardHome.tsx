@@ -63,6 +63,7 @@ export default function DashboardHome() {
   const {
     projects,
     loading: projectsLoading,
+    error: projectsError,
     createProject: contextCreateProject,
     deleteProject: contextDeleteProject,
     refreshProjects,
@@ -125,20 +126,20 @@ export default function DashboardHome() {
     short: {
       icon: FileText,
       labelKey: 'projectType.short.name',
-      colorClass: 'text-emerald-500',
-      bgClass: 'bg-emerald-500/10',
-      gradientFrom: 'from-emerald-500/20',
-      gradientTo: 'to-teal-500/20',
+      colorClass: PROJECT_TYPE_STYLES.short.colorClass,
+      bgClass: PROJECT_TYPE_STYLES.short.bgClass,
+      gradientFrom: PROJECT_TYPE_STYLES.short.gradientFrom,
+      gradientTo: PROJECT_TYPE_STYLES.short.gradientTo,
       placeholderKey: 'inspiration.shortPlaceholder',
       descriptionKey: 'inspiration.shortDesc',
     },
     screenplay: {
       icon: Clapperboard,
       labelKey: 'projectType.screenplay.name',
-      colorClass: 'text-amber-500',
-      bgClass: 'bg-amber-500/10',
-      gradientFrom: 'from-amber-500/20',
-      gradientTo: 'to-orange-500/20',
+      colorClass: PROJECT_TYPE_STYLES.screenplay.colorClass,
+      bgClass: PROJECT_TYPE_STYLES.screenplay.bgClass,
+      gradientFrom: PROJECT_TYPE_STYLES.screenplay.gradientFrom,
+      gradientTo: PROJECT_TYPE_STYLES.screenplay.gradientTo,
       placeholderKey: 'inspiration.screenplayPlaceholder',
       descriptionKey: 'inspiration.screenplayDesc',
     },
@@ -530,7 +531,7 @@ export default function DashboardHome() {
               {t('projects.recent')}
             </h2>
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[hsl(var(--accent-primary)/0.1)] text-[hsl(var(--accent-primary))]">
-              {projects.length}
+              {searchQuery ? recentProjects.length : projects.length}
             </span>
           </div>
         </div>
@@ -548,6 +549,14 @@ export default function DashboardHome() {
               </div>
             ))}
           </div>
+        ) : projectsError ? (
+          // A failed load must not read as "no projects yet" and invite a duplicate.
+          <div role="alert" className="rounded-lg border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6 text-center">
+            <p className="mb-4 text-[hsl(var(--text-primary))]">{projectsError}</p>
+            <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={() => void refreshProjects()}>
+              {t('common.retry')}
+            </Button>
+          </div>
         ) : projects.length === 0 ? (
           <DashboardEmptyState
             icon={Book}
@@ -564,6 +573,10 @@ export default function DashboardHome() {
                 placeholder={t('projects.searchPlaceholder')}
                 className="mb-5"
               />
+            )}
+
+            {recentProjects.length === 0 && (
+              <DashboardEmptyState icon={Book} title={t('projects.noMatch')} description={t('projects.tryDifferent')} />
             )}
 
             {/* Project Cards Grid */}

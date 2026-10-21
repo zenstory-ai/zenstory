@@ -1568,7 +1568,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
   // Render error state
   if (error) {
     return renderWithUpgradeModal(
-      <div className="flex items-center justify-center h-full text-[hsl(var(--error))]">
+      <div className="flex items-center justify-center h-full text-[hsl(var(--error-text))]">
         <p className="text-sm">{error}</p>
       </div>
     );

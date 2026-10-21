@@ -293,7 +293,7 @@ export function PaymentCheckoutModal({
             </p>
           )}
           {isUnavailable && (
-            <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-[hsl(var(--warning))]" role="alert">
+            <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-sm text-[hsl(var(--warning-text))]" role="alert">
               {paymentUnavailableText}
               {redeemEntry === 'billing-page' && (
                 <Link to={BILLING_SUPPORT_PATH} className="ml-1 font-medium underline">
@@ -303,7 +303,7 @@ export function PaymentCheckoutModal({
             </div>
           )}
           {error && (
-            <div className="rounded-lg bg-[hsl(var(--error)/0.1)] p-3 text-[hsl(var(--error))]" role="alert">
+            <div className="rounded-lg bg-[hsl(var(--error)/0.1)] p-3 text-sm text-[hsl(var(--error-text))]" role="alert">
               {error}
             </div>
           )}

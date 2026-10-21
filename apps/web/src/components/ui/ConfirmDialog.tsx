@@ -96,12 +96,12 @@ const getVariantConfig = (variant: ConfirmDialogProps['variant']) => {
   const configs = {
     danger: {
       Icon: AlertTriangle,
-      iconColor: 'text-[hsl(var(--error))]',
+      iconColor: 'text-[hsl(var(--error-text))]',
       confirmVariant: 'danger' as const,
     },
     warning: {
       Icon: AlertCircle,
-      iconColor: 'text-[hsl(var(--warning))]',
+      iconColor: 'text-[hsl(var(--warning-text))]',
       confirmVariant: 'primary' as const,
     },
     info: {

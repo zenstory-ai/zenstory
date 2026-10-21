@@ -434,7 +434,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                         onClick={(e) =>
                           project.id && handleRequestDeleteProject(project.id, e)
                         }
-                        className="text-[hsl(var(--text-secondary))] opacity-0 group-hover:opacity-100 hover:text-[hsl(var(--error))] transition-all p-1"
+                        className="text-[hsl(var(--text-secondary))] opacity-0 group-hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-all p-1"
                         title={t('editor:projectSwitcher.deleteProject')}
                       >
                         <Trash2 size={14} />
