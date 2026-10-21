@@ -1,6 +1,6 @@
 {
   "title": "Privacy Policy",
-  "lastUpdated": "Last Updated: October 5, 2026",
+  "lastUpdated": "Last Updated: October 21, 2026",
   "sections": {
     "introduction": {
       "title": "1. Introduction",
@@ -66,7 +66,7 @@
       "subsections": {
         "serviceProviders": {
           "title": "4.1 Service Providers",
-          "content": "We work with third-party service providers to help us operate our platform, including authentication services and AI service providers. These providers process data only as instructed by us and for the purposes described in this policy."
+          "content": "We work with third-party service providers to help us operate our platform, including authentication services, AI service providers, and payment providers. Card payments in USD are processed by Creem, and CNY payments by our Alipay payment provider; you enter payment details on their checkout pages, and we never receive your full card number. These providers process data only as instructed by us and for the purposes described in this policy."
         },
         "analytics": {
           "title": "4.2 Product Analytics and Error Tracking",
@@ -145,7 +145,7 @@
   },
   "terms": {
     "title": "Terms of Service",
-    "lastUpdated": "Last Updated: October 15, 2026",
+    "lastUpdated": "Last Updated: October 21, 2026",
     "sections": {
       "acceptance": {
         "title": "1. Acceptance of Terms",
@@ -176,15 +176,15 @@
       },
       "subscriptionBilling": {
         "title": "6. Subscription and Billing",
-        "content": "Paid features are governed by the plan details, billing cycle, and pricing displayed at checkout. Unless stated otherwise, listed prices do not include applicable taxes. You authorize us to charge your selected payment method for subscription fees."
+        "content": "Paid features are governed by the plan details, billing cycle, and pricing displayed at checkout. Card payments in USD are handled by our online reseller Creem, the Merchant of Record for those orders, which processes the payment, collects any applicable sales tax or VAT, and issues the receipt. CNY payments are made with Alipay through our payment provider. Unless stated otherwise, listed prices do not include applicable taxes. You authorize us and our payment providers to charge your selected payment method for the plan you buy."
       },
       "autoRenewalCancellation": {
         "title": "7. Expiry and Renewal",
-        "content": "Subscriptions use one-time Alipay payments, with no automatic renewal or charges. Manually renewing an active subscription extends its current expiry date. When it expires, Free plan benefits apply."
+        "content": "Pro is sold as a one-time purchase of 30 or 365 days, whether you pay by card in USD or with Alipay in CNY. There is no automatic renewal, and you are not charged again unless you buy again. Buying again while Pro is active extends its current expiry date. When it expires, Free plan benefits apply."
       },
       "refundPolicy": {
         "title": "8. Refund Policy",
-        "content": "Except where required by law or explicitly promised by us, payments are generally non-refundable. If core service functionality is materially unavailable due to platform faults, we may provide remedies such as credits, extensions, or refunds."
+        "content": "Card payments in USD: you can request a full refund within 14 days of purchase by emailing support@zenstory.ai from your account email. The refund goes back to your original payment method, and the Pro time from that order is removed. CNY payments with Alipay: except where required by law or explicitly promised by us, payments are generally non-refundable. For any order, if core service functionality is materially unavailable due to platform faults, we may provide remedies such as credits, extensions, or refunds."
       },
       "trialAndUpgrade": {
         "title": "9. Free Trial and Upgrade",

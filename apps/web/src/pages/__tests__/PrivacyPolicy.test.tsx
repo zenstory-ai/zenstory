@@ -86,7 +86,7 @@ describe('PrivacyPolicy', () => {
 describe('privacy policy locales', () => {
   it.each([
     ['zh', zhPrivacy, '2026年10月5日'],
-    ['en', enPrivacy, 'October 5, 2026'],
+    ['en', enPrivacy, 'October 21, 2026'],
   ])('%s discloses PostHog analytics factually', (_lang, privacy, date) => {
     const analytics = privacy.sections.dataSharing.subsections.analytics
     expect(privacy.lastUpdated).toContain(date)
