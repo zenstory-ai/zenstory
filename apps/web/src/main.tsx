@@ -12,6 +12,7 @@ import { captureAuthCallbackParams } from './lib/authCallbackParams'
 import { rememberEntrySource } from './lib/entrySource'
 import { installChunkRecoveryHandlers } from './lib/chunkRecovery'
 import { startAppUpdateChecks } from './lib/appUpdate'
+import { installDomMutationGuard } from './lib/domMutationGuard'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +28,7 @@ const queryClient = new QueryClient({
 
 // Pull OAuth credentials out of the URL before anything can report it.
 captureAuthCallbackParams()
+installDomMutationGuard()
 rememberEntrySource()
 initAnalytics()
 initWebVitalsMonitoring()
