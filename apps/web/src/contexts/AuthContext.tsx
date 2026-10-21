@@ -7,6 +7,7 @@ import { logger } from '../lib/logger';
 import { clearAuthStorage, getApiBase, resolveOwnedAuthSession, tryRefreshToken as tryRefreshTokenSingleFlight } from '../lib/apiClient';
 import { identifyUser, resetAnalytics, trackEvent } from '../lib/analytics';
 import { getEntrySource } from '../lib/entrySource';
+import { getAcquisition } from '../lib/acquisition';
 import { getLocale } from '../lib/i18n-helpers';
 import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
 import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
@@ -335,7 +336,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (email: string, password: string, inviteCode?: string) => {
     // The verification email goes out in the language the visitor is using; the
     // server names the account after the email prefix.
-    const data = await authApi.register({ email, password, invite_code: inviteCode, language: getLocale() });
+    const data = await authApi.register({ email, password, invite_code: inviteCode, language: getLocale(), acquisition: getAcquisition() });
     trackEvent('register_success', {
       method: 'password',
       email_verified: data.email_verified,
@@ -487,6 +488,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (inviteCode) {
       // Pass invite code for new-user gating (especially when registration requires invite codes)
       url.searchParams.set('invite_code', inviteCode);
+    }
+    const acquisition = getAcquisition();
+    if (acquisition) {
+      // Recorded on the account if this Google sign-in creates one.
+      url.searchParams.set('acq', JSON.stringify(acquisition));
     }
 
     window.location.href = url.toString();

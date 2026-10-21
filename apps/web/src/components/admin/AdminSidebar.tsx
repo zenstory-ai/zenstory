@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowLeft, X, LayoutDashboard, Users, FileText, Zap, Ticket, CreditCard, Lightbulb, ScrollText, Package, Coins, CalendarCheck, Gift, ChartBar, Bug, Activity, Receipt, Megaphone, type LucideIcon } from "lucide-react";
+import { ArrowLeft, X, LayoutDashboard, Users, FileText, Zap, Ticket, CreditCard, Lightbulb, ScrollText, Package, Coins, CalendarCheck, Gift, ChartBar, Bug, Activity, Receipt, Megaphone, Compass, type LucideIcon } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { useTranslation } from "react-i18next";
 import { inspirationsConfig } from "../../config/inspirations";
@@ -57,6 +57,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ onClose }) => {
       key: "growth",
       label: t("sidebar.groups.growth", "增长"),
       items: [
+        { key: "acquisition", label: t("sidebar.acquisition", "注册来源"), icon: Compass, path: "/admin/acquisition" },
         { key: "points", label: t("sidebar.points", "积分管理"), icon: Coins, path: "/admin/points" },
         { key: "check-in", label: t("sidebar.checkIn", "签到统计"), icon: CalendarCheck, path: "/admin/check-in" },
         { key: "referrals", label: t("sidebar.referrals", "邀请系统"), icon: Gift, path: "/admin/referrals" },

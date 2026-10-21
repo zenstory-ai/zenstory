@@ -346,6 +346,35 @@ class ActivationFunnelResponse(BaseModel):
     activation_rate: float
 
 
+class AcquisitionChannelResponse(BaseModel):
+    """Registration cohort of one acquisition channel."""
+
+    channel: str
+    signups: int
+    activated_users: int
+    activation_rate: float | None
+    paid_users: int
+    paid_rate: float | None
+
+
+class AcquisitionSourceResponse(AcquisitionChannelResponse):
+    """Registration cohort of one source (UTM source, referrer host or internal source code)."""
+
+    source: str
+
+
+class AcquisitionStatsResponse(BaseModel):
+    """Where the window's new accounts came from (signups only; visits are not counted)."""
+
+    window_days: int
+    period_start: str
+    period_end: str
+    total_signups: int
+    attributed_signups: int
+    channels: list[AcquisitionChannelResponse]
+    sources: list[AcquisitionSourceResponse]
+
+
 class UpgradeConversionSourceResponse(BaseModel):
     """Per-source upgrade conversion statistics."""
 

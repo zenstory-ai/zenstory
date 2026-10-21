@@ -35,6 +35,7 @@ import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, ge
 import { resolveApiErrorMessage } from "./errorHandler";
 import { getLocale } from "./i18n-helpers";
 import { parseContentDispositionFilename } from "./contentDisposition";
+import type { Acquisition } from "./acquisition";
 import { logger } from "./logger";
 import { isFileTitleTooLong } from "./fileTitle";
 import { captureException, trackEvent } from "./analytics";
@@ -145,7 +146,7 @@ export const authApi = {
     return response.json() as Promise<{ email: string; verification_sent: boolean }>;
   },
 
-  register: async (data: { username?: string; email: string; password: string; invite_code?: string; language?: 'zh' | 'en' }) => {
+  register: async (data: { username?: string; email: string; password: string; invite_code?: string; language?: 'zh' | 'en'; acquisition?: Acquisition }) => {
     const response = await fetch(`${getApiBase()}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

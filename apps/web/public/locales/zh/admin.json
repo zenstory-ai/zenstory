@@ -32,7 +32,8 @@
       "growth": "增长",
       "content": "内容与运营",
       "system": "系统"
-    }
+    },
+    "acquisition": "注册来源"
   },
   "admin": {
     "verifyingPermission": "正在确认权限…",
@@ -69,7 +70,13 @@
     "upgradeSurface": "展示位置",
     "upgradeViewsUsers": "曝光次数 / 人数",
     "upgradeClicksUsers": "点击次数 / 人数",
-    "upgradeSurfaceLabels": {"badge": "额度提示", "card": "页面卡片", "modal": "弹窗", "toast": "通知提示", "page": "页面"},
+    "upgradeSurfaceLabels": {
+      "badge": "额度提示",
+      "card": "页面卡片",
+      "modal": "弹窗",
+      "toast": "通知提示",
+      "page": "页面"
+    },
     "upgradeExpose": "曝光",
     "upgradeClick": "点击",
     "upgradeConversion": "转化",
@@ -774,5 +781,35 @@
     "events": "新用户首日漏斗",
     "eventsNote": "统计期内注册的同一批用户（不含管理员）里，注册后 24 小时内走到各步的人数；最近一天注册的用户还在观察期。",
     "legacyUpgradeNote": "以下按订阅升级历史统计来源；实际支付用户和金额以增长概览的订单数据为准。"
+  },
+  "acquisition": {
+    "title": "注册来源",
+    "subtitle": "按首次来源统计这段时间新注册的账号，以及其中用过 AI、付费的人数。只统计注册，不统计访问。",
+    "window7": "7天",
+    "window14": "14天",
+    "window30": "30天",
+    "window90": "90天",
+    "period": "北京时间 {{start}} 至 {{end}}",
+    "totalSignups": "新注册",
+    "attributedSignups": "有来源记录",
+    "byChannel": "按渠道",
+    "bySource": "按来源",
+    "channel": "渠道",
+    "source": "来源",
+    "signups": "注册",
+    "activated": "用过 AI",
+    "paid": "付费",
+    "note": "来源取自账号注册前首次带来源信息的访问（30 天内）。「未记录」是上线来源统计之前注册、或浏览器禁用了本地存储的账号。用过 AI、付费按注册后至今统计。",
+    "channels": {
+      "search": "搜索引擎",
+      "ai": "AI 助手",
+      "social": "社区与社交",
+      "org_site": "ZenStory 官网",
+      "referral": "其他网站",
+      "campaign": "推广活动",
+      "paid": "付费广告",
+      "direct": "直接访问",
+      "unknown": "未记录"
+    }
   }
 }

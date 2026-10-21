@@ -32,7 +32,8 @@
       "growth": "Growth",
       "content": "Content & ops",
       "system": "System"
-    }
+    },
+    "acquisition": "Sign-up sources"
   },
   "admin": {
     "verifyingPermission": "Checking access…",
@@ -69,7 +70,13 @@
     "upgradeSurface": "Placement",
     "upgradeViewsUsers": "Views / users",
     "upgradeClicksUsers": "Clicks / users",
-    "upgradeSurfaceLabels": {"badge": "Quota indicator", "card": "Inline card", "modal": "Dialog", "toast": "Notification", "page": "Page"},
+    "upgradeSurfaceLabels": {
+      "badge": "Quota indicator",
+      "card": "Inline card",
+      "modal": "Dialog",
+      "toast": "Notification",
+      "page": "Page"
+    },
     "upgradeExpose": "Views",
     "upgradeClick": "Clicks",
     "upgradeConversion": "Conversions",
@@ -774,5 +781,35 @@
     "events": "New-user first-day funnel",
     "eventsNote": "Of the users who signed up in the period (admins excluded), how many reached each step within 24 hours of signing up; the last day's signups are still being observed.",
     "legacyUpgradeNote": "Attribution below counts subscription-upgrade history. Use paid orders in the growth overview for payment totals and paying customers."
+  },
+  "acquisition": {
+    "title": "Sign-up sources",
+    "subtitle": "New accounts in this period by where they first came from, and how many of them used AI or paid. Counts sign-ups only, not visits.",
+    "window7": "7 days",
+    "window14": "14 days",
+    "window30": "30 days",
+    "window90": "90 days",
+    "period": "Beijing time {{start}} to {{end}}",
+    "totalSignups": "New sign-ups",
+    "attributedSignups": "With a recorded source",
+    "byChannel": "By channel",
+    "bySource": "By source",
+    "channel": "Channel",
+    "source": "Source",
+    "signups": "Sign-ups",
+    "activated": "Used AI",
+    "paid": "Paid",
+    "note": "The source is the first visit with source information in the 30 days before signing up. \"Not recorded\" covers accounts created before source tracking started or in browsers that block local storage. Used AI and paid count from sign-up until now.",
+    "channels": {
+      "search": "Search engines",
+      "ai": "AI assistants",
+      "social": "Communities and social",
+      "org_site": "ZenStory website",
+      "referral": "Other websites",
+      "campaign": "Campaigns",
+      "paid": "Paid ads",
+      "direct": "Direct",
+      "unknown": "Not recorded"
+    }
   }
 }

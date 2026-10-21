@@ -109,6 +109,8 @@ Evidence: `AdminDashboard.tsx`, `StatsCard.tsx`, `AdminPageState.tsx`, admin HSL
 - Cards adapt from two columns on phones to four on desktop; controls have 44px touch targets, selected state, visible keyboard focus. Loading/error/retry are independent of legacy operational statistics.
 - Copy is bilingual and factual, explicitly labels incomplete days, cohort observation windows, estimates and event counts. No invented visitors, retention, profit or attribution. Local component, API contract, type/lint and build checks precede publication.
 
+- Sign-up sources (`/admin/acquisition`, growth group) show the window's new accounts by first-touch channel and source with used-AI and paid counts from the same definitions; accounts without a record are labelled 「未记录」 and visits are never shown.
+
 ## Admin controls
 Keep the six task groups, real route links and existing metric definitions. Only the selected navigation row carries the accent tint; ordinary rows have no visible border or elevation. Mobile navigation has an internal close control and an app-return link, isolates the background while open, and returns focus to the trigger. A new pathname resets the independent main scroll; query-filter changes do not.
 

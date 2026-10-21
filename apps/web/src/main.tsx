@@ -11,6 +11,7 @@ import { initWebVitalsLogging, initWebVitalsMonitoring } from './lib/webVitals'
 import { initAnalytics } from './lib/analytics'
 import { captureAuthCallbackParams } from './lib/authCallbackParams'
 import { rememberEntrySource } from './lib/entrySource'
+import { rememberAcquisition } from './lib/acquisition'
 import { installChunkRecoveryHandlers } from './lib/chunkRecovery'
 import { startAppUpdateChecks } from './lib/appUpdate'
 import { installDomMutationGuard } from './lib/domMutationGuard'
@@ -31,6 +32,7 @@ const queryClient = new QueryClient({
 captureAuthCallbackParams()
 installDomMutationGuard()
 rememberEntrySource()
+rememberAcquisition()
 initAnalytics()
 initWebVitalsMonitoring()
 initWebVitalsLogging()

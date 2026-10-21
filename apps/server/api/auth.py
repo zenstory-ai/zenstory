@@ -6,6 +6,7 @@ import hashlib
 import logging
 import os
 from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -51,6 +52,7 @@ from services.features.registration_recovery_service import correct_registration
 from services.features.verification_service import clear_registration_verification
 from services.infra.email_client import InvalidRecipientError
 from services.subscription.subscription_service import subscription_service
+from services.usage.acquisition_service import normalize_acquisition
 from utils.email_identity import email_identity_matches, normalize_email_identity, validate_registration_email
 from utils.logger import get_logger, log_with_context
 
@@ -71,6 +73,8 @@ class RegisterRequest(BaseModel):
     language: str | None = "zh"  # Default to Chinese
     invite_code: str | None = None  # Invitation code for referral
     device_fingerprint: str | None = None  # Device fingerprint for fraud detection
+    # First-touch acquisition from the web app (codes and a host name; normalized server-side).
+    acquisition: dict[str, Any] | None = None
 
     @field_validator("username")
     @classmethod
@@ -669,6 +673,7 @@ async def register(
             event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS,
             event_metadata={
                 "source": "register_api",
+                "acquisition": normalize_acquisition(request.acquisition),
                 "invite_policy_variant": invite_policy_variant,
                 "invite_policy_rollout_percent": invite_policy_rollout_percent,
                 "invite_code_optional": invite_code_optional,
