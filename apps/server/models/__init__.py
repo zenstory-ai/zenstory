@@ -112,6 +112,7 @@ from .upgrade_funnel_event import (
     UpgradeFunnelEvent,
 )
 from .user_added_skill import UserAddedSkill
+from .user_preference import UserPreference
 from .workspace_onboarding import WorkspaceOnboarding
 from .writing_stats import (
     WritingStats,
@@ -202,6 +203,7 @@ __all__ = [
     "PointsTransaction",
     "CheckInRecord",
     "UserPersonaProfile",
+    "UserPreference",
     # Auth security models
     "RefreshTokenRecord",
     # Agent API Key models

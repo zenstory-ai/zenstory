@@ -17,7 +17,7 @@ from sqlmodel import Session
 from core.error_codes import ErrorCode
 from database import get_session
 from main import app
-from models import User
+from models import User, UserPreference
 from services.core.auth_service import create_access_token, get_current_user
 
 
@@ -37,6 +37,7 @@ def auth_worker_probe(tmp_path, monkeypatch, record_property):
     lifecycles = []
     try:
         User.__table__.create(engine)
+        UserPreference.__table__.create(engine)
         with Session(engine) as seed:
             for name, active in (("active", True), ("inactive", False)):
                 suffix = uuid4().hex
@@ -50,11 +51,12 @@ def auth_worker_probe(tmp_path, monkeypatch, record_property):
                     "is_superuser": False,
                     "created_at": "2026-10-06T12:00:00+00:00",
                     "updated_at": "2026-10-06T12:00:00+00:00",
+                    "ui_language": None,
                 }
                 profiles[name] = profile
                 seed.add(User(
                     **{key: value for key, value in profile.items()
-                       if key not in {"created_at", "updated_at"}},
+                       if key not in {"created_at", "updated_at", "ui_language"}},
                     hashed_password="unused-local-test-hash",
                     created_at=datetime(2026, 10, 6, 12),
                     updated_at=datetime(2026, 10, 6, 12),
