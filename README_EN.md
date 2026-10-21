@@ -22,7 +22,7 @@
 
 <p align="center">
   <a href="https://github.com/zenstory-ai/zenstory/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zenstory-ai/zenstory?style=flat-square&color=22D3EE&logo=github&logoColor=white&label=Stars"></a>
-  <img alt="Skills 13" src="https://img.shields.io/badge/Skills-13-081431?style=flat-square">
+  <img alt="Skills 14" src="https://img.shields.io/badge/Skills-14-081431?style=flat-square">
   <a href="https://app.zenstory.ai/"><img alt="app.zenstory.ai" src="https://img.shields.io/website?style=flat-square&url=https%3A%2F%2Fapp.zenstory.ai&label=app.zenstory.ai"></a>
   <a href="./LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-1F6FEB?style=flat-square"></a>
 </p>
@@ -86,17 +86,17 @@ The input box switches between Quality and Fast; both use the same model. Qualit
 
 While the AI is working you can type a follow-up instruction. The agent that is running doesn't see it during its current run; when that run ends, the next agent picks it up, or, if none is planned, the same agent gets one more round to act on it. What is being written is not interrupted.
 
-### 13 built-in skills
+### 14 built-in skills
 
-The product uses the Chinese skill names below, with English labels for reference.
+The app shows these English names in the English interface; the Chinese names are what the Chinese interface shows.
 
 | Category | Skills |
 | --- | --- |
-| Writing | 续写正文 `continue-writing` · 场景描写 `describe-scene` · 对话生成 `generate-dialogue` · 开头生成 `generate-opening` |
-| Plot | 创建大纲 `create-outline` · 冲突设计 `design-conflict` · 钩子设计 `hook-design` · 反转设计 `reversal-design` |
-| Style | 代入感强化 `immersion-enhance` · 润色修改 `polish-text` · 节奏控制 `rhythm-control` |
-| Character | 创建角色 `create-character` |
-| Worldbuilding | 世界观设定 `worldbuilding` |
+| Writing | Continue the Draft 续写正文 · Write an Opening 开头生成 · Write a Short Story 短篇写作 · Write Short-Drama Episodes 短剧剧本正文生成 |
+| Plot | Create an Outline 创建大纲 · Design Hooks 钩子设计 · Short-Drama Adaptation Analysis 短剧改编分析 · Short-Drama Synopsis 短剧故事概要生成 · Short-Drama Episode Outlines 短剧分集集纲生成 |
+| Style | Polish Prose 润色修改 · Control Pacing 节奏控制 · Remove AI Tone 去AI味 |
+| Character | Create a Character 创建角色 |
+| Worldbuilding | Build the World 世界观设定 |
 
 Official skill descriptions and instructions live in the database; see [writing-guidance maintenance](docs/agent-writing-guidance.md). Add one under Skills → Discover. Each turn, the AI first sees the names and purposes of enabled skills and loads the full method when needed. Type `/` in chat or select a skill in the sidebar to attach it to a message, up to 3 at once.
 
@@ -134,7 +134,7 @@ Create a Short Story project. A good first request asks for an outline you can e
 
 > Plan a realistic mystery short story as a three-scene outline only. Do not write prose or create or modify files. It is 5:40 p.m.; the station lost-property desk closes at six. Lin He handles Shen Min's claim for a gray canvas bag. She describes its exterior correctly but names the wrong object in its inner pocket. Do not conclude that she stole it or decide the truth. Lin He cannot release the bag on a verbal claim alone. For each scene, give the location, immediate goal, visible action, information change and closing question. End with two choices for me to decide, then stop.
 
-Once the outline is settled, name the files and let it write (the third line needs the 钩子设计 skill added under Skills → Discover first):
+Once the outline is settled, name the files and let it write (the third line needs the Design Hooks skill, stored as 钩子设计, added under Skills → Discover first):
 
 ```text
 Save the three-scene outline as "Lost and Found outline" in the Concept folder.

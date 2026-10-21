@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="https://github.com/zenstory-ai/zenstory/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zenstory-ai/zenstory?style=flat-square&color=22D3EE&logo=github&logoColor=white&label=Stars"></a>
-  <img alt="Skills 13" src="https://img.shields.io/badge/Skills-13-081431?style=flat-square">
+  <img alt="Skills 14" src="https://img.shields.io/badge/Skills-14-081431?style=flat-square">
   <a href="https://app.zenstory.ai/"><img alt="app.zenstory.ai" src="https://img.shields.io/website?style=flat-square&url=https%3A%2F%2Fapp.zenstory.ai&label=app.zenstory.ai"></a>
   <a href="./LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-1F6FEB?style=flat-square"></a>
 </p>
@@ -84,13 +84,13 @@ flowchart LR
 
 生成过程中还能在输入框追加指令。正在工作的 Agent 这一轮里看不到它；这一轮做完后，有下一个 Agent 就由下一个接着处理，没有就让当前 Agent 再补一轮按它调整。正在写的内容不会被打断。
 
-### 13 个内置技能
+### 14 个内置技能
 
 | 分类 | 技能 |
 | --- | --- |
-| 写作 | 续写正文 · 场景描写 · 对话生成 · 开头生成 |
-| 情节 | 创建大纲 · 冲突设计 · 钩子设计 · 反转设计 |
-| 文风 | 代入感强化 · 润色修改 · 节奏控制 |
+| 写作 | 续写正文 · 开头生成 · 短篇写作 · 短剧剧本正文生成 |
+| 情节 | 创建大纲 · 钩子设计 · 短剧改编分析 · 短剧故事概要生成 · 短剧分集集纲生成 |
+| 文风 | 润色修改 · 节奏控制 · 去AI味 |
 | 角色 | 创建角色 |
 | 世界观 | 世界观设定 |
 
