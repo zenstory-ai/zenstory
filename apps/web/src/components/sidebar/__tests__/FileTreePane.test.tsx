@@ -498,3 +498,45 @@ describe('FileTreePane empty folder hints', () => {
     expect(screen.queryAllByText('editor:fileTree.emptyFolder')).toHaveLength(hints);
   });
 });
+
+describe('FileTreePane keyboard tree navigation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+  });
+
+  it('moves between visible rows and opens, closes and leaves folders with the arrow keys', async () => {
+    mocks.getTree.mockResolvedValue({
+      tree: [
+        { id: 'outlines', title: '大纲', file_type: 'folder', children: [] },
+        { id: 'drafts', title: '正文', file_type: 'folder', children: [{ id: 'draft-1', title: '第一章', file_type: 'draft', children: [] }] },
+      ],
+    });
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    const row = async (title: string) => (await screen.findByText(title)).closest<HTMLElement>('[role="treeitem"]')!;
+    const outlines = await row('大纲');
+    const drafts = await row('正文');
+
+    outlines.focus();
+    fireEvent.keyDown(outlines, { key: 'ArrowDown' });
+    expect(drafts).toHaveFocus();
+    fireEvent.keyDown(drafts, { key: 'ArrowRight' });
+    expect(await row('第一章')).toHaveFocus();
+    fireEvent.keyDown(await row('第一章'), { key: 'ArrowLeft' });
+    expect(drafts).toHaveFocus();
+    fireEvent.keyDown(drafts, { key: 'ArrowLeft' });
+    await waitFor(() => expect(drafts).toHaveAttribute('aria-expanded', 'false'));
+    expect(screen.queryByText('第一章')).not.toBeInTheDocument();
+    fireEvent.keyDown(drafts, { key: 'ArrowRight' });
+    await waitFor(() => expect(drafts).toHaveAttribute('aria-expanded', 'true'));
+    expect(drafts).toHaveFocus();
+    fireEvent.keyDown(drafts, { key: 'End' });
+    expect(await row('第一章')).toHaveFocus();
+    fireEvent.keyDown(await row('第一章'), { key: 'Home' });
+    expect(outlines).toHaveFocus();
+    fireEvent.keyDown(outlines, { key: 'ArrowUp' });
+    expect(outlines).toHaveFocus();
+    // Moving focus never opens a file.
+    expect(mocks.select).not.toHaveBeenCalled();
+  });
+});

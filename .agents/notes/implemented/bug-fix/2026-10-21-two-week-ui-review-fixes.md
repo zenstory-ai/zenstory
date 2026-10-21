@@ -20,4 +20,4 @@ Status: implemented
 ## Consequences
 
 - 收益：浅色模式状态文字达到 AA，手机操作目标与焦点可见性统一，加载失败不再被误读为空数据。
-- 代价：未在真实后端数据下逐页截图验证；文件树有 tree 语义但还没有方向键导航（Tab + Enter/Space 可用），作为后续改进。
+- 代价：未在真实后端数据下逐页截图验证；文件树最初只有 tree 语义和 Tab + Enter/Space，没有方向键导航，E2E `accessibility.spec.ts` 因此失败。后续已补上 WAI-ARIA tree 的方向键：上下移动、Home/End、右键展开或进入第一个子项、左键折叠或回到所在文件夹（各行仍保留 Tab 可达，未改成 roving tabindex）。

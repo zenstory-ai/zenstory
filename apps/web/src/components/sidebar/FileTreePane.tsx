@@ -39,6 +39,31 @@ const MATERIAL_FOLDER_NAMES = ["素材", "Materials", "Material"];
 // Draft folder names (both zh and en)
 const DRAFT_FOLDER_NAMES = ["正文", "Drafts", "Draft"];
 
+/**
+ * Arrow-key focus movement between the visible rows of the file tree (WAI-ARIA tree pattern).
+ * Collapsed folders render no children, so the rendered rows are exactly the visible ones.
+ * Returns whether the key is a tree navigation key.
+ */
+function moveTreeFocus(row: HTMLElement, key: string): boolean {
+  const rows = Array.from(row.closest('[role="tree"]')?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []);
+  const index = rows.indexOf(row);
+  const level = (item: HTMLElement | undefined) => Number(item?.getAttribute("aria-level"));
+  let target: HTMLElement | undefined;
+  switch (key) {
+    case "ArrowDown": target = rows[index + 1]; break;
+    case "ArrowUp": target = rows[index - 1]; break;
+    case "Home": target = rows[0]; break;
+    case "End": target = rows[rows.length - 1]; break;
+    // An open folder's first child is the next row, one level deeper.
+    case "ArrowRight": target = level(rows[index + 1]) === level(row) + 1 ? rows[index + 1] : undefined; break;
+    // A row inside a folder moves to that folder: the nearest earlier row one level up.
+    case "ArrowLeft": target = rows.slice(0, index).reverse().find((item) => level(item) === level(row) - 1); break;
+    default: return false;
+  }
+  target?.focus();
+  return true;
+}
+
 // FileTreePane component - file tree pane for sidebar
 export const FileTreePane: React.FC = () => {
   const { t } = useTranslation(['editor', 'common']);
@@ -523,6 +548,11 @@ export const FileTreePane: React.FC = () => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
               activateNode();
+            } else if (isFolder && ((e.key === "ArrowRight" && !isExpanded) || (e.key === "ArrowLeft" && isExpanded))) {
+              e.preventDefault();
+              toggleFolder(node.id);
+            } else if (moveTreeFocus(e.currentTarget, e.key)) {
+              e.preventDefault();
             }
           }}
         >

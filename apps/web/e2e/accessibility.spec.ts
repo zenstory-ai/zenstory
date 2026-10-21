@@ -113,26 +113,32 @@ test.describe('Accessibility - Keyboard Navigation', () => {
   });
 
   test('can navigate file tree with keyboard', async ({ page }) => {
-    // Click on file tree area to focus it
-    const fileTree = page.locator('[data-testid="file-tree"], .file-tree, [role="tree"]').first();
-    if (!(await fileTree.count())) {
-      // Current UI may not expose a tree landmark in all layouts; skip strict check
-      return;
-    }
-    await fileTree.click();
+    const tree = page.getByRole('tree');
+    const rows = tree.getByRole('treeitem');
+    const first = rows.first();
+    await expect(first).toBeVisible();
 
-    // Try arrow key navigation
+    // Tab from the file search reaches the first row; arrows then move between rows.
+    await page.locator('input[placeholder*="搜索文件"], input[placeholder*="Search files"], [role="searchbox"]').first().focus();
+    await page.keyboard.press('Tab');
+    await expect(first).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    const treeItem = page.locator('[role="treeitem"]').first();
-    if (await treeItem.count()) {
-      await expect(treeItem).toBeFocused();
-    }
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(first).toBeFocused();
 
-    await page.keyboard.press('ArrowDown');
+    // Left closes the open folder and Right opens it again, keeping focus on it.
+    await expect(first).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('ArrowLeft');
+    await expect(first).toHaveAttribute('aria-expanded', 'false');
+    await page.keyboard.press('ArrowRight');
+    await expect(first).toHaveAttribute('aria-expanded', 'true');
+    await expect(first).toBeFocused();
 
-    // Verify focus moved
-    const focusedElement = await page.evaluate(() => document.activeElement?.tagName);
-    expect(focusedElement).toBeTruthy();
+    await page.keyboard.press('End');
+    await expect(rows.last()).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(first).toBeFocused();
   });
 
   test('can activate buttons with Enter and Space', async ({ page }) => {
