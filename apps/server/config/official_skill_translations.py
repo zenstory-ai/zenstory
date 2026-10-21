@@ -3,15 +3,9 @@
 Official skill rows live in the database in Chinese and are matched by name so ids, counters and
 user collections stay untouched. Only the name and description shown to English readers change;
 the instructions the model loads are not translated. The table follows the live catalog (14 skills
-after the 2026-10-21 revision). An official skill that is missing here falls back to its stored
-text, and the first time that happens for an English reader a warning is logged so the gap shows up.
+after the 2026-10-21 revision) and must change in the same batch as any catalog change (AGENTS.md);
+an official skill missing here falls back to its stored text.
 """
-
-import logging
-
-from utils.logger import get_logger, log_with_context
-
-logger = get_logger(__name__)
 
 OFFICIAL_SKILL_EN: dict[str, tuple[str, str]] = {
     "续写正文": (
@@ -115,9 +109,6 @@ OFFICIAL_SKILL_EN: dict[str, tuple[str, str]] = {
     ),
 }
 
-_reported_missing: set[str] = set()
-
-
 def localized_skill_text(
     *, source: str | None, name: str, description: str | None, language: str | None
 ) -> tuple[str, str | None]:
@@ -125,17 +116,7 @@ def localized_skill_text(
     if source != "official" or not (language or "").lower().startswith("en"):
         return name, description
     english = OFFICIAL_SKILL_EN.get(name.strip())
-    if english:
-        return english
-    if name not in _reported_missing:
-        _reported_missing.add(name)
-        log_with_context(
-            logger,
-            logging.WARNING,
-            "Official skill has no English text; English readers see the stored name",
-            skill_name=name,
-        )
-    return name, description
+    return english if english else (name, description)
 
 
 def official_names_matching(search: str) -> list[str]:
