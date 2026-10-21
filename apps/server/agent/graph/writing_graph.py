@@ -414,15 +414,28 @@ def _format_handoff_packet_items(packet: dict[str, Any] | None) -> str:
     return "".join(f"\n\n{section}" for section in sections)
 
 
-def _unfinished_file_notice(rolled_back: list[str], unresolved: list[str]) -> str:
+def _unfinished_file_notice(
+    rolled_back: list[str], unresolved: list[str], english: bool = False
+) -> str:
     """工具调用轮数耗尽时留下空文件：回滚 / 无法回滚的说明（随 assistant 正文落库）。"""
     lines: list[str] = []
-    if rolled_back:
-        titles = "、".join(f"《{title}》" for title in rolled_back)
-        lines.append(f"{titles}还没写入正文，已撤销这个空文件。回复「继续」会重新写。")
-    if unresolved:
-        titles = "、".join(f"《{title}》" for title in unresolved)
-        lines.append(f"{titles}还没写入正文，也没能自动撤销。回复「继续」补完，或手动删除。")
+    if english:
+        if rolled_back:
+            titles = ", ".join(f"\"{title}\"" for title in rolled_back)
+            lines.append(f"{titles} had no text yet, so the empty file was removed. Reply \"continue\" to write it again.")
+        if unresolved:
+            titles = ", ".join(f"\"{title}\"" for title in unresolved)
+            lines.append(
+                f"{titles} has no text yet and could not be removed automatically. "
+                "Reply \"continue\" to finish it, or delete it yourself."
+            )
+    else:
+        if rolled_back:
+            titles = "、".join(f"《{title}》" for title in rolled_back)
+            lines.append(f"{titles}还没写入正文，已撤销这个空文件。回复「继续」会重新写。")
+        if unresolved:
+            titles = "、".join(f"《{title}》" for title in unresolved)
+            lines.append(f"{titles}还没写入正文，也没能自动撤销。回复「继续」补完，或手动删除。")
     if not lines:
         return ""
     return "\n\n——\n" + "\n".join(lines)
@@ -430,6 +443,7 @@ def _unfinished_file_notice(rolled_back: list[str], unresolved: list[str]) -> st
 
 async def _roll_back_empty_files_after_exhaustion(
     agent_type: str | None,
+    english: bool = False,
 ) -> AsyncIterator[StreamEvent]:
     """工具调用轮数耗尽且还有 pending 空文件：核验 → 回滚空文件 → 文字说明。
 
@@ -438,7 +452,7 @@ async def _roll_back_empty_files_after_exhaustion(
     unfinished: list[dict[str, str]] = []
     for entry in ToolContext.get_pending_empty_files():
         file_id = str(entry.get("file_id") or entry.get("id") or "")
-        title = str(entry.get("title") or "未命名")
+        title = str(entry.get("title") or ("Untitled" if english else "未命名"))
         body_state = await asyncio.to_thread(_probe_pending_file_body, file_id)
         if body_state in (_PENDING_BODY_WRITTEN, _PENDING_BODY_GONE):
             ToolContext.clear_pending_empty_file(file_id)
@@ -462,7 +476,7 @@ async def _roll_back_empty_files_after_exhaustion(
         rolled_back_count=len(rolled_back_titles),
         unresolved_count=len(unresolved_titles),
     )
-    notice = _unfinished_file_notice(rolled_back_titles, unresolved_titles)
+    notice = _unfinished_file_notice(rolled_back_titles, unresolved_titles, english)
     if notice:
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": notice})
 
@@ -482,6 +496,7 @@ FIRST_ROUND_SUMMARY_CONTEXT = (
 
 
 WRAP_UP_TEXT = "\n\n这一轮的时间快用完了，先停在这里；回复「继续」我接着做。"
+WRAP_UP_TEXT_EN = "\n\nThis round is almost out of time, so I'm stopping here. Reply \"continue\" and I'll pick it up."
 FAST_MODE_SUMMARY_CONTEXT = (
     "[系统提醒] 本轮是快速模式，不送审，刚才的交接没有执行，作者在对话里只看到了你那句进度说明。"
     "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：写了哪些文件、各多少字"
@@ -564,25 +579,33 @@ def _file_stream_continuation_context(
     return "\n".join(lines)
 
 
-def _author_facing_handoff_event_data(event_data: dict[str, Any]) -> dict[str, Any]:
+def _author_facing_handoff_event_data(
+    event_data: dict[str, Any], english: bool = False
+) -> dict[str, Any]:
     """发给前端的 HANDOFF 事件：reason / context 换成作者能看懂的话。
 
     前端把 reason 拼进「接下来由{{agent}}继续：{{reason}}」，事件也会存进展示记录。
     交接包（handoff_packet）和交给下一个 agent 的交接信息不在这里改，返回的是新字典。
     """
     display = dict(event_data)
-    display["reason"] = author_facing_handoff_reason(event_data.get("reason"))
+    display["reason"] = author_facing_handoff_reason(event_data.get("reason"), english)
     if "context" in event_data:
         display["context"] = author_facing_text(event_data.get("context"))
     return display
 
 
-def _review_limit_text(notes: str) -> str:
+def _review_limit_text(notes: str, english: bool = False) -> str:
     """达到审查轮数上限、不再自动返修时追加给用户的说明（随 assistant 正文落库）。
 
     notes 应先经过 author_facing_text：它来自审稿人写给 writer 的交接说明。
     """
     body = f"\n{notes}" if notes else ""
+    if english:
+        return (
+            f"\n\n——\nFinished {MAX_REVIEW_ROUNDS} rounds of quality review (the limit for one request), "
+            f"so no more automatic revisions. The reviewer still suggests changes:{body}\n"
+            "To revise along these notes, reply \"revise per the review\"."
+        )
     return (
         f"\n\n——\n已完成 {MAX_REVIEW_ROUNDS} 轮质量审查（本次请求的上限），不再自动返修。"
         f"审稿人仍建议修改：{body}\n"
@@ -611,6 +634,12 @@ def _drop_reviewer_task_messages(messages: Any) -> list[Any]:
     if not isinstance(messages, list):
         return []
     return [message for message in messages if not _is_reviewer_task_message(message)]
+
+
+def _author_is_english(state: WritingState) -> bool:
+    """作者界面语言是不是英文（service 按 Accept-Language 写入 state["language"]）；
+    决定状态条、交接原因和追加说明这些作者看得到的固定文案用哪种语言。"""
+    return str(state.get("language") or "").strip().lower().startswith("en")
 
 
 def _guard_from_state(state: WritingState) -> RepeatReadGuard | None:
@@ -1725,17 +1754,26 @@ async def run_writing_workflow_streaming(
             generation_mode = ""
 
         # Step 1: Run router to determine initial agent and workflow plan
+        english = _author_is_english(state)
+        if english:
+            router_message = (
+                "Fast mode: reading your request..."
+                if generation_mode == "fast"
+                else "Quality mode: planning the steps..."
+                if generation_mode == "quality"
+                else "Choosing how to handle this..."
+            )
+        else:
+            router_message = (
+                "快速模式：正在理解你的要求..."
+                if generation_mode == "fast"
+                else "高质量模式：正在规划工作流..."
+                if generation_mode == "quality"
+                else "Router 正在选择处理方式..."
+            )
         yield StreamEvent(
             type=StreamEventType.ROUTER_THINKING,
-            data={
-                "message": (
-                    "快速模式：正在理解你的要求..."
-                    if generation_mode == "fast"
-                    else "高质量模式：正在规划工作流..."
-                    if generation_mode == "quality"
-                    else "Router 正在选择处理方式..."
-                ),
-            },
+            data={"message": router_message},
         )
 
         router_strategy = (os.getenv("AGENT_ROUTER_STRATEGY") or AGENT_ROUTER_STRATEGY).strip().lower()
@@ -1925,7 +1963,10 @@ async def run_writing_workflow_streaming(
                     elapsed_s=round(run_meter.elapsed_s(), 1),
                     iterations=iteration,
                 )
-                yield StreamEvent(type=StreamEventType.TEXT, data={"text": WRAP_UP_TEXT})
+                yield StreamEvent(
+                    type=StreamEventType.TEXT,
+                    data={"text": WRAP_UP_TEXT_EN if english else WRAP_UP_TEXT},
+                )
                 terminated_via_break = True
                 break
             iteration += 1
@@ -2647,7 +2688,7 @@ async def run_writing_workflow_streaming(
                 # 不能就这么留在文件树里：落库核验后回滚确认为空的，回滚不了的明确告诉用户。
                 if ToolContext.has_pending_empty_file():
                     async for notice_event in _roll_back_empty_files_after_exhaustion(
-                        current_agent_type
+                        current_agent_type, english
                     ):
                         yield notice_event
                 terminated_via_break = True
@@ -2827,7 +2868,7 @@ async def run_writing_workflow_streaming(
             if review_limit_notes is not None:
                 yield StreamEvent(
                     type=StreamEventType.TEXT,
-                    data={"text": _review_limit_text(review_limit_notes)},
+                    data={"text": _review_limit_text(review_limit_notes, english)},
                 )
                 for auto_task_update_event in await _auto_finalize_task_board_on_completion(
                     _guard_from_state(state)
@@ -3230,7 +3271,7 @@ async def run_writing_workflow_streaming(
             if pending_handoff_event_data is not None and will_run_next_agent:
                 yield StreamEvent(
                     type=StreamEventType.HANDOFF,
-                    data=_author_facing_handoff_event_data(pending_handoff_event_data),
+                    data=_author_facing_handoff_event_data(pending_handoff_event_data, english),
                 )
 
             # 保存当前 agent 类型，用于下一轮循环检测

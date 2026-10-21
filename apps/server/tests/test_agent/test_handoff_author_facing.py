@@ -61,6 +61,8 @@ class TestAuthorFacingText:
         # 计划交接不写原因，前端只显示「接下来由X继续」。
         assert author_facing_handoff_reason("工作流自动交接") == ""
         assert author_facing_handoff_reason("自动质量门控") == "正文写好了，检查一遍质量"
+        assert author_facing_handoff_reason("工作流自动交接", english=True) == ""
+        assert author_facing_handoff_reason("自动质量门控", english=True) == "The draft is written; checking its quality"
 
     def test_plain_author_text_is_unchanged(self):
         for text in (

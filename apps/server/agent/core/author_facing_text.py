@@ -18,6 +18,11 @@ SYSTEM_HANDOFF_REASONS: dict[str, str] = {
     "工作流自动交接": "",
     "自动质量门控": "正文写好了，检查一遍质量",
 }
+# 英文界面下同一批原因的作者版本（键与上表一致）。
+SYSTEM_HANDOFF_REASONS_EN: dict[str, str] = {
+    "工作流自动交接": "",
+    "自动质量门控": "The draft is written; checking its quality",
+}
 
 # 和前端 chat:workflow.agents.* 的中文名一致。
 _AGENT_NAMES: dict[str, str] = {
@@ -171,13 +176,14 @@ def author_facing_text(text: object) -> str:
     return "\n".join(line for line in lines if line).strip()
 
 
-def author_facing_handoff_reason(reason: object) -> str:
+def author_facing_handoff_reason(reason: object, english: bool = False) -> str:
     """交接原因的作者版本。图自己生成的原因按表替换，模型写的原因走 author_facing_text。"""
     if not isinstance(reason, str):
         return ""
     stripped = reason.strip()
-    if stripped in SYSTEM_HANDOFF_REASONS:
-        return SYSTEM_HANDOFF_REASONS[stripped]
+    table = SYSTEM_HANDOFF_REASONS_EN if english else SYSTEM_HANDOFF_REASONS
+    if stripped in table:
+        return table[stripped]
     return author_facing_text(stripped)
 
 
