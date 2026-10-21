@@ -217,6 +217,7 @@
   "naturalPolishWorking": "去AI味中…",
   "naturalPolishTooltip": "给选中内容去AI味（Ctrl/⌘+Shift+R）",
   "naturalPolishTooltipFree": "给选中内容去AI味，用 1 条今日 AI 消息（Ctrl/⌘+Shift+R）",
+  "naturalPolishCost": "· 1 条",
   "naturalPolishNoSelection": "先选中文字再去AI味",
   "naturalPolishFailed": "去AI味没有成功，请重试",
   "naturalPolishEmpty": "这次没有生成结果，请重试",
