@@ -19,6 +19,8 @@ const projectB = responsiveProjects[1].id;
 const token0 = '2026-10-06T10:00:00.000Z';
 const textarea = (page: Page) => page.locator('[data-editor-scroll-container="true"] textarea');
 const titleInput = (page: Page) => page.getByPlaceholder("Enter title");
+// The fixture account is on the free plan, so Humanize shows its message cost on the button.
+const humanizeLabel = { en: 'Humanize · 1 msg', zh: '去AI味 · 1 条' } as const;
 const puts = (f: Fixture) => f.requests.filter(r => r.method === 'PUT');
 const wordCount = (text: string) => (text.match(/[\u4e00-\u9fa5]/g) || []).length + (text.match(/[a-zA-Z]+/g) || []).length;
 
@@ -359,7 +361,7 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(textarea(page)).toHaveValue(original);
       await textarea(page).click();
       await textarea(page).press('ControlOrMeta+a');
-      await page.getByRole('button', { name: '去AI味', exact: true }).click();
+      await page.getByRole('button', { name: humanizeLabel.zh, exact: true }).click();
       const pane = page.getByText('段落审阅', { exact: true }).locator('xpath=ancestor::div[@tabindex="0"][1]');
       await expect(page.getByTitle('待审 (10)', { exact: true })).toBeVisible();
       await page.screenshot({ path: info.outputPath('review-full.png'), animations: 'disabled' });
@@ -442,7 +444,7 @@ for (const conflict of [false, true]) {
     await openA(page);
     await textarea(page).click();
     await textarea(page).press('ControlOrMeta+a');
-    await page.getByRole('button', { name: 'Humanize', exact: true }).click();
+    await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
     await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
     expect(f.requests.find(r => r.path.endsWith('natural-polish'))?.body).toMatchObject({ selected_text: 'A local story.', project_id: projectA });
     // Desktop keeps the side-by-side panes and lets the queue list scroll itself.
@@ -472,7 +474,7 @@ test('narrow humanize review: per-paragraph Accept is reachable by scrolling the
   await page.locator('#editor-tab').click();
   await textarea(page).click();
   await textarea(page).press('ControlOrMeta+a');
-  await page.getByRole('button', { name: 'Humanize', exact: true }).click();
+  await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
   const finish = page.getByRole('button', { name: /^(Apply changes|Finish review)$/ });
   await expect(finish).toBeVisible();
   const header = page.getByText('Paragraph review', { exact: true });
@@ -733,7 +735,7 @@ test.describe('footer locale and viewport matrix', () => {
   for (const width of [320, 390, 1440]) {
     for (const locale of ['en', 'zh'] as const) {
       test(`footer ${locale} ${width}: dirty saving saved selection and scroll`, async ({ page, browserName }) => {
-        const labels = locale === 'en' ? { save: 'Save', dirty: 'Unsaved', saving: "Saving…", saved: 'Saved just now', title: "Enter title", humanize: 'Humanize', zoom: 'Reset zoom' } : { save: '保存', dirty: '未保存', saving: "保存中…", saved: '刚刚保存', title: "请输入标题", humanize: '去AI味', zoom: '重置缩放' };
+        const labels = locale === 'en' ? { save: 'Save', dirty: 'Unsaved', saving: "Saving…", saved: 'Saved just now', title: "Enter title", humanize: humanizeLabel.en, zoom: 'Reset zoom' } : { save: '保存', dirty: '未保存', saving: "保存中…", saved: '刚刚保存', title: "请输入标题", humanize: humanizeLabel.zh, zoom: '重置缩放' };
         const content = '你好 story text。\n\n'.repeat(80);
         const f = await fixture(page, content, locale);
         await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
@@ -817,7 +819,7 @@ test.describe('narrow review touch scrolling', () => {
     await page.locator('#editor-tab').click();
     await textarea(page).click();
     await textarea(page).press('ControlOrMeta+a');
-    await page.getByRole('button', { name: 'Humanize', exact: true }).click();
+    await page.getByRole('button', { name: humanizeLabel.en, exact: true }).click();
     await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
     const pane = page.getByText('Paragraph review', { exact: true }).locator('xpath=ancestor::div[@tabindex="0"][1]');
     const preview = page.getByText('Original paragraph', { exact: true }).first().locator('xpath=../following-sibling::div[1]');
