@@ -591,7 +591,7 @@ const homePage = () => {
 <article class="home">
   <div class="hero">
     <div class="wrap hero-head">
-      <h1>${t('Write stories <br>Make them real', '写下故事，<br>做出作品')}</h1>
+      <h1>${t('Write stories.<br> Make them real.', '写下故事，<br>做出作品')}</h1>
       <p class="lede">${t('Write novels with AI, adapt them into drama or games, or turn footage into a narrated recap.', '用 AI 写小说，再改成短剧或可玩的游戏；已有视频素材，也能做成解说。')}</p>
       <div class="hero-cta">
         <p class="actions home-actions"><a class="btn" href="#start-h">${t('Start with what you have', '选一条创作路径')}<span class="arrow" aria-hidden="true">↓</span></a></p>

@@ -1,15 +1,15 @@
 {
   "nav": {
     "features": "Features",
-    "pricing": "Plans & Benefits",
+    "pricing": "Pricing",
     "login": "Log in",
     "getStarted": "Create a Free Project",
     "goDashboard": "Go to Dashboard"
   },
   "hero": {
     "badge": "AI Writing Platform for Fiction and Scripts",
-    "titlePart1": "From Idea to Serialization,",
-    "titlePart2": "One Workspace for the Full Book",
+    "titlePart1": "From First Idea to Final Chapter,",
+    "titlePart2": "One Workspace for the Whole Book",
     "description": "Keep outlines, characters, world notes, and chapters in one project. Chat with AI to continue or rewrite chapters, and go back to an earlier version if an edit goes wrong.",
     "cta": "Create a Free Project",
     "secondaryCta": "View Demo",
@@ -23,7 +23,7 @@
   "demo": {
     "pause": "Pause demo",
     "resume": "Resume demo",
-    "projectName": "Project: Embers of the Skyfall",
+    "projectName": "Project: The Saltmarsh Letters",
     "autoSave": "Auto Save",
     "versionHistory": "Version History",
     "popular": "Recommended",
@@ -61,7 +61,7 @@
       "description": "Speak your idea and it becomes text for the AI, no typing needed."
     },
     "materialUpload": {
-      "title": "Material Library",
+      "title": "Materials Library",
       "description": "Pro: upload a reference novel and break out characters, settings and chapter summaries to attach while you write."
     },
     "contextAware": {
@@ -85,7 +85,7 @@
     "title": "Pick a project type to start",
     "subtitle": "Each type comes with a ready folder structure and matching AI writing style",
     "novel": {
-      "name": "Long-form Serialized Novel",
+      "name": "Long-form Novel",
       "description": "For serials over 50k words, with world notes and chapters kept in one project",
       "features": [
         "Drag to reorder chapters",
@@ -95,7 +95,7 @@
       ]
     },
     "short": {
-      "name": "Short and Novelette Fiction",
+      "name": "Short Story",
       "description": "For 5k–20k word stories, with planning, outlining, and drafting in one focused project",
       "features": [
         "Outline around the conflict",
@@ -144,12 +144,12 @@
     "characters": "Character Sheets",
     "outline": "Outline",
     "draft": "Manuscript",
-    "currentFile": "Chapter 1 · The Broken Meridian",
+    "currentFile": "Chapter 1 · Low Tide",
     "assistant": "AI Assistant",
     "inputPlaceholder": "Enter an idea",
     "sceneCreate": {
-      "content1": "Mist rolled over the stone steps at the summit of Qingyun Mountain. Lin Yi stood at the cliff edge and looked into the valley below.",
-      "content2": "The edges of the jade were worn smooth, but the crack on its back looked fresh. Lin Yi reached for it. Before his fingers touched it, Su Wan tightened her grip.",
+      "content1": "Fog rolled over the stone steps of the harbor wall. Wren Hale stood at the edge and watched the tide pull away from the moorings.",
+      "content2": "The brass key was worn smooth, but the scratch across its bow looked new. Wren reached for it. Before her fingers touched it, Ada closed her hand.",
       "contextTitle": "Available to this conversation",
       "ai": {
         "input": "Read the project files, then continue this chapter",
@@ -159,11 +159,11 @@
       }
     },
     "sceneSuggest": {
-      "content1": "Mist rolled over the stone steps at the summit of Qingyun Mountain. Lin Yi stood at the cliff edge and looked into the valley below.",
-      "content2": "Three years earlier, the awakening ceremony had declared his meridians broken. He had not entered the inner court since.",
-      "content3": "Footsteps sounded behind him. Su Wan stepped through the mist and set a jade token bearing the old Lin crest before him.",
+      "content1": "Fog rolled over the stone steps of the harbor wall. Wren Hale stood at the edge and watched the tide pull away from the moorings.",
+      "content2": "Three winters earlier, the harbor board had struck her name from the pilots' roll. She had not set foot on the quay since.",
+      "content3": "Footsteps sounded behind her. Ada stepped out of the fog and set a brass key stamped with the old Hale crest in front of her.",
       "ai": {
-        "input": "Continue with Su Wan bringing a new clue",
+        "input": "Continue with Ada bringing a new clue",
         "response": "I will continue from the current chapter and character context.",
         "writing": "Writing to file…",
         "desc": "The continuation is written directly to the current chapter."
@@ -172,11 +172,11 @@
     "sceneEdit": {
       "version": "Version 12",
       "original": "Original paragraph",
-      "originalText": "Su Wan walked out of the mist and handed the jade token to Lin Yi.",
+      "originalText": "Ada came out of the fog and handed the brass key to Wren.",
       "suggestion": "Suggested edit",
-      "suggestionText": "Su Wan stepped through the mist and set a jade token bearing the old Lin crest before him.",
+      "suggestionText": "Ada stepped out of the fog and set a brass key stamped with the old Hale crest in front of her.",
       "ai": {
-        "input": "Make Su Wan’s entrance more specific",
+        "input": "Make Ada’s entrance more specific",
         "response": "I rewrote the paragraph using the current chapter.",
         "updated": "Edit ready for review",
         "desc": "Accept to save a new version, or return to the version before this edit."

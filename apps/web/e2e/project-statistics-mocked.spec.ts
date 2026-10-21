@@ -70,11 +70,11 @@ for (const width of [390, 768, 1440]) for (const locale of ['zh', 'en']) for (co
     await expect(page.getByText('9,000', { exact: true })).toBeVisible();
     expect(trends).toHaveLength(0);
     const progress = page.getByRole('region', { name: locale === 'zh' ? '正文进度' : 'Manuscript progress' });
-    const activity = page.getByRole('region', { name: locale === 'zh' ? '手写活动' : 'Handwritten activity' });
+    const activity = page.getByRole('region', { name: locale === 'zh' ? '手写活动' : 'Your own writing' });
     await expect(progress.getByText(locale === 'zh' ? '3 集已完成' : '3 episodes finished', { exact: true })).toBeVisible();
     await expect(progress.getByText(locale === 'zh' ? '1 集写作中' : '1 episode in progress', { exact: true })).toBeVisible();
     await expect(page.getByText(locale === 'zh' ? '更多记录' : 'More records', { exact: true })).toHaveCount(0);
-    const lastEdit = activity.getByText(locale === 'zh' ? '最近手写' : 'Last handwritten edit', { exact: true });
+    const lastEdit = activity.getByText(locale === 'zh' ? '最近手写' : 'Your last edit', { exact: true });
     await expect(lastEdit).toBeVisible();
     if (width === 390) {
       const lastEditBox = (await lastEdit.boundingBox())!;
