@@ -173,6 +173,17 @@ describe("Register", () => {
     );
   });
 
+  it("does not pass an optional invite code to Google while referral is off", async () => {
+    referralFlag.enabled = false;
+    mockAuthConfig.oauthProviders.google.enabled = true;
+    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: "global_optional", rollout_percent: 100 });
+    renderWithRoute("/register?plan=pro&code=abcd1234");
+    await waitFor(() => expect(mockGetRegistrationPolicy).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByTestId("invite-code-input")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "auth:register.googleRegister" }));
+    expect(mockGoogleLogin).toHaveBeenCalledWith({ inviteCode: undefined, planIntent: "pro" });
+  });
+
   it("keeps a required invite code while referral is off", async () => {
     referralFlag.enabled = false;
     mockRegister.mockResolvedValueOnce({ email: "test@example.com", email_verified: false, verification_sent: true });
