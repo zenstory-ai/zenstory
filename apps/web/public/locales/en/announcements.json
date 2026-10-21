@@ -15,7 +15,8 @@
       "title": "Title",
       "description": "Description",
       "actionLabel": "Button label (optional)",
-      "actionUrl": "Button link (optional)"
+      "actionUrl": "Button link (optional)",
+      "actionUrlPlaceholder": "/docs or https://example.com"
     },
     "linkHint": "The button appears only when both fields are set. Links must be root-relative or HTTPS.",
     "saveAndShow": "Save and show",

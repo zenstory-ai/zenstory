@@ -535,7 +535,11 @@ export const Register: React.FC = () => {
               ) : (
                 <button
                   type="button"
-                  onClick={() => setInviteOpen(true)}
+                  onClick={() => {
+                    setInviteOpen(true);
+                    // The link is replaced by the field; keep the keyboard on it.
+                    setTimeout(() => document.getElementById("invite_code")?.focus(), 0);
+                  }}
                   className="min-h-11 text-sm text-[hsl(var(--accent-primary))] underline-offset-2 hover:underline"
                   disabled={loading || success}
                 >

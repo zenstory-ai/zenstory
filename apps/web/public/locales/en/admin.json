@@ -810,6 +810,7 @@
       "paid": "Paid ads",
       "direct": "Direct",
       "unknown": "Not recorded"
-    }
+    },
+    "countWithRate": "{{count}} ({{rate}}%)"
   }
 }

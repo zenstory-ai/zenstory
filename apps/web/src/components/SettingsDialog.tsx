@@ -337,7 +337,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
           {/* Left navigation */}
           <div className={`${isMobile ? 'px-1 pb-2' : 'w-40 px-3 pb-4 shrink-0'}`}>
             <nav
-              className={`${isMobile ? 'grid grid-cols-3 gap-1' : 'space-y-0.5'}`}
+              className={`${isMobile ? 'grid grid-flow-col auto-cols-fr gap-1' : 'space-y-0.5'}`}
               role="tablist"
               aria-orientation={isMobile ? 'horizontal' : 'vertical'}
             >

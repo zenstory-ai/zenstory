@@ -5,10 +5,14 @@ import { Compass, UserPlus } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
+import { AdminSegmented } from "../../components/admin/AdminSegmented";
 import { formatAdminDateTime } from "../../lib/dateUtils";
 import type { AcquisitionChannel, AcquisitionCounts } from "../../types/admin";
 
 const WINDOW_OPTIONS = [7, 14, 30, 90] as const;
+const BEIJING_DATE_TIME: Intl.DateTimeFormatOptions = {
+  year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Shanghai",
+};
 
 const CHANNEL_FALLBACKS: Record<AcquisitionChannel, string> = {
   search: "搜索引擎",
@@ -34,7 +38,9 @@ export default function AcquisitionPage() {
   const channelLabel = (channel: AcquisitionChannel) =>
     t(`acquisition.channels.${channel}`, CHANNEL_FALLBACKS[channel] ?? channel);
   const countWithRate = (count: number, rate: number | null) =>
-    rate === null ? String(count) : `${count}（${Math.round(rate * 1000) / 10}%）`;
+    rate === null
+      ? String(count)
+      : t("acquisition.countWithRate", "{{count}}（{{rate}}%）", { count, rate: Math.round(rate * 1000) / 10 });
   const countCells = (row: AcquisitionCounts) => (
     <>
       <td className="px-4 py-3 text-right tabular-nums">{row.signups}</td>
@@ -63,26 +69,13 @@ export default function AcquisitionPage() {
         </p>
       </div>
 
-      <div className="admin-surface p-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-[hsl(var(--text-secondary))]">{t("dashboard.windowLabel", "时间窗口")}</span>
-          {WINDOW_OPTIONS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setDays(option)}
-              aria-pressed={days === option}
-              className={`min-h-11 px-3 rounded-md text-sm transition-colors ${
-                days === option
-                  ? "bg-[hsl(var(--accent-primary)/0.15)] font-medium text-[var(--admin-accent-text)]"
-                  : "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
-              }`}
-            >
-              {t(`acquisition.window${option}`, `${option}天`)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <AdminSegmented
+        label={t("dashboard.windowLabel", "时间窗口")}
+        options={[...WINDOW_OPTIONS]}
+        value={days}
+        onChange={setDays}
+        renderLabel={(option) => t(`acquisition.window${option}`, `${option}天`)}
+      />
 
       <AdminPageState
         isLoading={isLoading}
@@ -102,8 +95,8 @@ export default function AcquisitionPage() {
           <div className="space-y-6">
             <p className="text-xs text-[hsl(var(--text-secondary))]">
               {t("acquisition.period", "北京时间 {{start}} 至 {{end}}", {
-                start: formatAdminDateTime(data.period_start),
-                end: formatAdminDateTime(data.period_end),
+                start: formatAdminDateTime(data.period_start, BEIJING_DATE_TIME),
+                end: formatAdminDateTime(data.period_end, BEIJING_DATE_TIME),
               })}
             </p>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -119,13 +112,14 @@ export default function AcquisitionPage() {
               />
             </div>
 
-            <section className="admin-table-shell overflow-x-auto">
+            <section className="admin-table-shell">
               <h2 className="px-4 py-3 border-b border-[hsl(var(--separator-color))] font-semibold text-[hsl(var(--text-primary))]">
                 {t("acquisition.byChannel", "按渠道")}
               </h2>
               {data.channels.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-[hsl(var(--text-secondary))]">{t("common:noData")}</p>
               ) : (
+                <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t("acquisition.byChannel", "按渠道")}>
                 <table className="w-full min-w-[480px] text-sm text-[hsl(var(--text-primary))]">
                   <thead className="text-[hsl(var(--text-secondary))]">
                     <tr>
@@ -142,16 +136,18 @@ export default function AcquisitionPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </section>
 
-            <section className="admin-table-shell overflow-x-auto">
+            <section className="admin-table-shell">
               <h2 className="px-4 py-3 border-b border-[hsl(var(--separator-color))] font-semibold text-[hsl(var(--text-primary))]">
                 {t("acquisition.bySource", "按来源")}
               </h2>
               {data.sources.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-[hsl(var(--text-secondary))]">{t("common:noData")}</p>
               ) : (
+                <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t("acquisition.bySource", "按来源")}>
                 <table className="w-full min-w-[560px] text-sm text-[hsl(var(--text-primary))]">
                   <thead className="text-[hsl(var(--text-secondary))]">
                     <tr>
@@ -170,6 +166,7 @@ export default function AcquisitionPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </section>
 

@@ -6,7 +6,10 @@ const { getAcquisitionStats } = vi.hoisted(() => ({ getAcquisitionStats: vi.fn()
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (_key: string, fallback?: string | Record<string, unknown>) => (typeof fallback === "string" ? fallback : _key),
+    t: (key: string, fallback?: string | Record<string, unknown>, options?: Record<string, unknown>) =>
+      typeof fallback === "string"
+        ? fallback.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name] ?? ""))
+        : key,
   }),
 }));
 

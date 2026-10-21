@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Button } from "./ui/Button";
 
 function reloadPage(): void {
   window.location.reload();
@@ -42,13 +43,13 @@ export function ErrorFallback({
       <p className="max-w-sm text-sm text-[hsl(var(--text-secondary))]">{description}</p>
       <div className="flex gap-2">
         {variant === "panel" && !staleBuild && (
-          <button type="button" onClick={onRetry} className="btn btn-ghost">
+          <Button variant="secondary" size="touch" onClick={onRetry}>
             {t("errorBoundary.retry", "重试")}
-          </button>
+          </Button>
         )}
-        <button type="button" onClick={reloadPage} className="btn btn-primary">
+        <Button size="touch" onClick={reloadPage}>
           {t("errorBoundary.reload", "重新加载页面")}
-        </button>
+        </Button>
       </div>
     </div>
   );

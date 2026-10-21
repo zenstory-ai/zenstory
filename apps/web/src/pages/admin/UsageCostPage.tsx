@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
+import { AdminSegmented } from "../../components/admin/AdminSegmented";
 import { Modal } from "../../components/ui/Modal";
 import {
   adminApi,
@@ -32,36 +33,6 @@ const cellClass = "px-4 py-3 text-left text-sm";
 const numberCellClass = "px-4 py-3 text-right text-sm tabular-nums";
 const headClass = "whitespace-nowrap px-4 py-3 text-left text-sm font-semibold";
 const numberHeadClass = "whitespace-nowrap px-4 py-3 text-right text-sm font-semibold";
-
-function Segmented<T extends string | number>({
-  label, options, value, onChange, renderLabel,
-}: {
-  label: string;
-  options: T[];
-  value: T;
-  onChange: (value: T) => void;
-  renderLabel: (value: T) => string;
-}) {
-  return (
-    <div role="group" aria-label={label} className="inline-flex rounded-xl border border-[hsl(var(--separator-color))] p-1">
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          aria-pressed={value === option}
-          onClick={() => onChange(option)}
-          className={`min-h-11 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-            value === option
-              ? "bg-[hsl(var(--accent-primary)/0.14)] font-semibold text-[var(--admin-accent-text)]"
-              : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
-          }`}
-        >
-          {renderLabel(option)}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function Kpi({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -192,7 +163,7 @@ function UserUsageDetail({
   const locale = getLocaleCode();
   return (
     <div className="space-y-4">
-      <Segmented
+      <AdminSegmented
         label={t("usage.detailRange")}
         options={DETAIL_DAYS}
         value={days}
@@ -319,7 +290,7 @@ export default function UsageCostPage() {
           <p className="admin-page-subtitle">{t("usage.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented
+          <AdminSegmented
             label={t("usage.window")}
             options={WINDOWS}
             value={usageWindow}

@@ -197,7 +197,7 @@ export default function OAuthCallback() {
             )}
 
             {error && (
-              <div className="flex flex-col items-center justify-center gap-4">
+              <div role="alert" className="flex flex-col items-center justify-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-[hsl(var(--error)/0.1)] flex items-center justify-center">
                   <svg
                     className="w-8 h-8 text-[hsl(var(--error-text))]"

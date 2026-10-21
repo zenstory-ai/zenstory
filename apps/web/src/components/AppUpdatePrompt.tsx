@@ -1,9 +1,8 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "./ui/Button";
-import { IconButton } from "./ui/IconButton";
 import { dismissAppUpdate, getAppUpdateState, subscribeAppUpdate } from "../lib/appUpdate";
 
 const isProjectPath = (pathname: string) => pathname.startsWith("/project/");
@@ -31,10 +30,11 @@ export function AppUpdatePrompt() {
   if (!available) return null;
 
   return (
+    // On phones it sits above the toast stack (bottom-20) and the bottom tabs.
     <div
-      role="status"
-      aria-live="polite"
-      className="fixed inset-x-4 bottom-20 z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-96"
+      role={required ? "alert" : "status"}
+      aria-live={required ? "assertive" : "polite"}
+      className="fixed inset-x-4 bottom-36 z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-96"
     >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.13)] text-[hsl(var(--accent-primary))]">
         <RefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -46,18 +46,17 @@ export function AppUpdatePrompt() {
             ? t("appUpdate.requiredDescription", "需要刷新页面才能继续加载。如有正在编辑的内容，建议先保存。")
             : t("appUpdate.description", "刷新页面即可使用新版本。")}
         </p>
-        <Button className="mt-2" size="sm" onClick={() => window.location.reload()}>
-          {t("appUpdate.reload", "刷新")}
-        </Button>
+        <div className="mt-2 flex gap-2">
+          <Button size="touch" onClick={() => window.location.reload()}>
+            {t("appUpdate.reload", "刷新")}
+          </Button>
+          {!required && (
+            <Button variant="ghost" size="touch" onClick={dismissAppUpdate}>
+              {t("appUpdate.later", "稍后")}
+            </Button>
+          )}
+        </div>
       </div>
-      {!required && (
-        <IconButton
-          className="-mr-2 -mt-1 shrink-0"
-          label={t("appUpdate.later", "稍后")}
-          icon={<X className="h-5 w-5" />}
-          onClick={dismissAppUpdate}
-        />
-      )}
     </div>
   );
 }
