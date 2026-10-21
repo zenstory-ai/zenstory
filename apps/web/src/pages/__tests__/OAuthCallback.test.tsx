@@ -184,6 +184,28 @@ describe("OAuthCallback", () => {
     expect(sessionStorage.getItem("oauth_plan_intent")).toBeNull();
   });
 
+  it("sends an already signed-in author to the dashboard when a stale callback has no OAuth state", async () => {
+    localStorage.setItem("access_token", "current-access");
+    window.location.search = "?error_code=ERR_AUTH_TOKEN_INVALID&error_stage=state_mismatch&request_id=597f6c6f";
+
+    render(<MemoryRouter><OAuthCallback /></MemoryRouter>);
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true }));
+    expect(mockCaptureException).not.toHaveBeenCalled();
+    expect(screen.queryByText("Login failed")).not.toBeInTheDocument();
+  });
+
+  it("explains an unfinished sign-in rather than an expired session when the OAuth state is missing", async () => {
+    window.location.search = "?error_code=ERR_AUTH_TOKEN_INVALID&error_stage=missing_state";
+
+    render(<MemoryRouter><OAuthCallback /></MemoryRouter>);
+
+    expect(await screen.findByText("Sign-in did not complete")).toBeInTheDocument();
+    expect(screen.queryByText("Invalid authentication token")).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockCaptureException).toHaveBeenCalled();
+  });
+
   it("redirects silently to dashboard when callback tokens are missing but auth context already has a user", async () => {
     mockUseAuth.mockReturnValue({
       handleOAuthCallback: mockHandleOAuthCallback,
