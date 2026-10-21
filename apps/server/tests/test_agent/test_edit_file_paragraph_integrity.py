@@ -480,20 +480,24 @@ def _add_file(session, project, content, file_type="draft"):
     return file
 
 
-def test_replace_with_identical_text_is_reported_as_no_change(db_session, owner_project):
+def test_replace_with_identical_old_and_new_reports_unchanged_instead_of_failing(db_session, owner_project):
+    """old 与 new 一字不差：原文已是目标内容，如实报未修改，但不是失败（生产里模型把它原样重发到熔断）。"""
     user, project = owner_project
     chapter = _add_file(db_session, project, CHAPTER)
 
-    with pytest.raises(EditBatchError) as exc:
-        FileEditor(db_session, user.id).edit_file(
-            chapter.id, [{"op": "replace", "old": "一共十七册", "new": "一共十七册"}]
-        )
-    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_NO_CHANGE
+    result = FileEditor(db_session, user.id).edit_file(
+        chapter.id, [{"op": "replace", "old": "一共十七册", "new": "一共十七册"}]
+    )
+
+    assert result["edits_applied"] == 0
+    assert result["mutation_applied"] is False
+    assert result["failed_edits"] == []
+    assert [item["index"] for item in result["unchanged_edits"]] == [0]
     db_session.expire_all()
     assert db_session.get(File, chapter.id).content == CHAPTER
 
 
-def test_no_change_edit_is_not_counted_as_applied(db_session, owner_project):
+def test_identical_replace_does_not_roll_back_the_rest_of_the_batch(db_session, owner_project):
     user, project = owner_project
     chapter = _add_file(db_session, project, CHAPTER)
 
@@ -503,11 +507,13 @@ def test_no_change_edit_is_not_counted_as_applied(db_session, owner_project):
             {"op": "replace", "old": "一共十七册", "new": "一共十八册"},
             {"op": "replace", "old": "顶灯在嗡嗡作响", "new": "顶灯在嗡嗡作响"},
         ],
-        continue_on_error=True,
     )
+
     assert result["edits_applied"] == 1
-    assert [item["index"] for item in result["failed_edits"]] == [1]
-    assert result["failed_edits"][0]["error_type"] == EDIT_ERROR_NO_CHANGE
+    assert result["failed_edits"] == []
+    assert [item["index"] for item in result["unchanged_edits"]] == [1]
+    db_session.expire_all()
+    assert "一共十八册" in db_session.get(File, chapter.id).content
 
 
 def test_corner_to_curly_conversion_is_applied_not_normalized_back(db_session, owner_project):
