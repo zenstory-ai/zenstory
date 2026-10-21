@@ -30,11 +30,12 @@ export function AppUpdatePrompt() {
   if (!available) return null;
 
   return (
-    // On phones it sits above the toast stack (bottom-20) and the bottom tabs.
+    // Below 768px (the mobile workspace with bottom tabs) it sits above the tabs,
+    // the iPhone home indicator and the toast stack; from 768px, bottom right.
     <div
       role={required ? "alert" : "status"}
       aria-live={required ? "assertive" : "polite"}
-      className="fixed inset-x-4 bottom-36 z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-96"
+      className="fixed inset-x-4 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] z-[1090] flex items-start gap-3 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-[hsl(var(--text-primary))] shadow-lg md:inset-x-auto md:bottom-4 md:right-4 md:w-96"
     >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.13)] text-[hsl(var(--accent-primary))]">
         <RefreshCw className="h-4 w-4" aria-hidden="true" />
