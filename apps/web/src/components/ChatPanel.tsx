@@ -1306,7 +1306,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       proseCounterRef.current.boundary();
       streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
     },
-    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
+    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit) => {
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
         layer,
@@ -1314,8 +1314,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         maxIterations,
         reason,
         lastAgent,
+        limit,
       }];
-      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent);
+      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent, limit);
     },
     onRouterThinking: streamCallbacks.onRouterThinking,
     onRouterDecided: streamCallbacks.onRouterDecided,

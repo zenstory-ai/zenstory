@@ -628,6 +628,29 @@ describe('ChatPanel mount smoke', () => {
     })
   })
 
+  it('keeps the time-limit reason on a live pause card and its saved status card', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+    const options = capturedUseAgentStream.options as {
+      onIterationExhausted?: (...args: unknown[]) => void;
+      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => void;
+    }
+    act(() => {
+      options.onIterationExhausted?.('tool_call', 30, 120, 'internal reason', 'writer', 'wall_clock')
+    })
+    expect(streamCallbacks.onIterationExhausted).toHaveBeenCalledWith('tool_call', 30, 120, 'internal reason', 'writer', 'wall_clock')
+
+    await act(async () => {
+      options.onComplete?.([], null, { assistantMessageId: 'assistant-time', sessionId: 'session-1' })
+    })
+    await waitFor(() => {
+      const calls = mockMessageList.mock.calls
+      const lastProps = calls[calls.length - 1]?.[0] as { messages?: Array<{ statusCards?: Array<{ limit?: string }> }> }
+      expect(lastProps.messages?.[0]?.statusCards?.[0]?.limit).toBe('wall_clock')
+    })
+  })
+
   it('forwards mutation and partial completion metadata to snapshot finalization', async () => {
     render(<ChatPanel />)
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
