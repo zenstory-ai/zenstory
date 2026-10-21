@@ -224,7 +224,8 @@
   },
   "ideaQuota": {
     "descriptionOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit.",
-    "descriptionTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit."
+    "descriptionTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit.",
+    "descriptionLocal": "They come back on {{local}} your time (00:00 Beijing time). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit."
   },
   "inspirations": {
     "featured": "Featured Inspirations",
