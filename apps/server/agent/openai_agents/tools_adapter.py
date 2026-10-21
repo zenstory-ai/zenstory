@@ -17,6 +17,7 @@ from agent.core.metrics import (
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
+from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import FILE_WRITE_TOOL_NAMES, TOOL_FUNCTIONS, get_agent_tools, get_exposed_tools
 from utils.logger import get_logger, log_with_context
 
@@ -141,6 +142,20 @@ def role_refusal_text(tool_name: str, agent_type: str) -> str:
     )
 
 
+# 两次回复协议：上一次回复建好的文件，这一次回复必须先以 <file> 开头写正文。没写正文就调用的工具
+# 一律不执行（删掉这个文件、请作者澄清除外）；先写正文再在同一条回复里建下一个文件照常允许。
+FILE_BODY_PENDING_ALLOWED_TOOLS = frozenset({"delete_file", "request_clarification"})
+
+
+def file_body_pending_text(tool_name: str, title: str) -> str:
+    return tool_error_text(
+        f"「{title}」已经建好但还没写正文，{tool_name} 未执行。这一次回复先以 <file> 开头写完它的正文、"
+        "用 </file> 结束，然后再调用其他工具；不要用 edit_file 分段补写正文。",
+        error_type="file_body_pending",
+        tool_name=tool_name,
+    )
+
+
 def tool_availability_note(agent_type: str, *, read_only: bool, read_only_reason: str) -> str:
     """这次运行哪些工具调用会被拒绝（放进系统指令，不改工具清单）。"""
     notes = []
@@ -225,7 +240,12 @@ def build_agent_function_tools(
                 return failure_breaker.short_circuit_text(_tool_name)
             if read_guard is not None and read_guard.is_open:
                 return read_guard.short_circuit_text(_tool_name)
-            if _refusal is not None:
+            overdue_title = (
+                ToolContext.overdue_file_body() if _tool_name not in FILE_BODY_PENDING_ALLOWED_TOOLS else None
+            )
+            if overdue_title:
+                output = file_body_pending_text(_tool_name, overdue_title)
+            elif _refusal is not None:
                 output = _refusal(_tool_name)
             elif read_guard is not None:
                 plan = read_guard.plan(_tool_name, raw_arguments)

@@ -10,15 +10,11 @@ fails before streaming anything. Providers and models are configured in
 from __future__ import annotations
 
 import dataclasses
-import json
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from agent.core import llm_failover, llm_providers
 from agent.core.llm_providers import ModelProvider
-from utils.logger import get_logger, log_with_context
-
-logger = get_logger(__name__)
 
 # (slot, base_url, api_key, model) -> (client, SDK model built on it)
 _models: dict[tuple[str, str, str, str], tuple[Any, Any]] = {}
@@ -75,51 +71,6 @@ def _settings_for(provider: ModelProvider, model_settings: Any) -> Any:
     return dataclasses.replace(model_settings, reasoning=Reasoning(effort=effort) if effort else None)  # type: ignore[arg-type]
 
 
-def _item_field(item: Any, name: str) -> Any:
-    return item.get(name) if isinstance(item, dict) else getattr(item, name, None)
-
-
-def _awaits_file_body(input_items: Any) -> bool:
-    """Whether the latest tool results include a create_file still waiting for its body.
-
-    The two-reply protocol: a reply ends with create_file, the next reply starts with
-    <file> and streams the body. create_file marks that moment with ``awaiting_body``.
-    Only the trailing batch of tool calls/results counts, so an older unwritten file
-    never locks the model out of its tools.
-    """
-    if not isinstance(input_items, list):
-        return False
-    for item in reversed(input_items):
-        item_type = _item_field(item, "type")
-        if item_type in ("function_call", "reasoning"):
-            continue
-        if item_type != "function_call_output":
-            return False
-        output = _item_field(item, "output")
-        if isinstance(output, str):
-            try:
-                output = json.loads(output)
-            except ValueError:
-                continue
-        data = output.get("data") if isinstance(output, dict) else None
-        if isinstance(data, dict) and data.get("awaiting_body") is True:
-            return True
-    return False
-
-
-def _with_body_turn_settings(input_items: Any, model_settings: Any) -> Any:
-    """Right after create_file, only a text reply is allowed: the <file> body.
-
-    Models sometimes call update_project/query_files/edit_file here instead and write the
-    body through edit_file appends (no live body in the editor, several extra calls).
-    tool_choice is a request option, not part of the prompt, so the cache prefix is kept.
-    """
-    if not _awaits_file_body(input_items) or getattr(model_settings, "tool_choice", None) == "none":
-        return model_settings
-    log_with_context(logger, 20, "Model call after create_file: text-only reply for the <file> body")
-    return dataclasses.replace(model_settings, tool_choice="none")
-
-
 def _base_model_class() -> type:
     from agents.models.interface import Model
 
@@ -150,7 +101,6 @@ class FailoverChatModel:
             self._on_served(provider.model)
 
     async def get_response(self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any) -> Any:
-        model_settings = _with_body_turn_settings(input, model_settings)
         ordered = await llm_failover.aordered_providers(self._session_id)
         for index, provider in enumerate(ordered):
             try:
@@ -173,7 +123,6 @@ class FailoverChatModel:
     async def stream_response(
         self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any
     ) -> AsyncIterator[Any]:
-        model_settings = _with_body_turn_settings(input, model_settings)
         ordered = await llm_failover.aordered_providers(self._session_id)
         for index, provider in enumerate(ordered):
             started = False

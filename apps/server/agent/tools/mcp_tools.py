@@ -217,7 +217,7 @@ class _PendingEmptyFileState:
     has_pending / latest / snapshot 的语义不变（writing_graph 的边界核验照旧兜底）。
     """
 
-    __slots__ = ("_lock", "_entries", "_reservations", "_reject_count", "_streamed")
+    __slots__ = ("_lock", "_entries", "_reservations", "_reject_count", "_streamed", "_reply_seq", "_created_in")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -228,6 +228,10 @@ class _PendingEmptyFileState:
         self._reject_count = 0
         # 正文已以闭合 <file> 块出现在模型回复里、只差 adapter 落库的条目
         self._streamed: set[str] = set()
+        # 第几次模型回复（每次模型调用开始时 +1），以及每个待写文件是在第几次回复里建的：
+        # 上一次回复建的文件，这一次回复必须先写它的正文（见 overdue_unwritten）。
+        self._reply_seq = 0
+        self._created_in: dict[str, int] = {}
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -251,8 +255,22 @@ class _PendingEmptyFileState:
             ]
 
     # ---- 写入 --------------------------------------------------------------
+    def begin_reply(self) -> None:
+        """一次新的模型调用开始。"""
+        with self._lock:
+            self._reply_seq += 1
+
+    def overdue_unwritten(self) -> str | None:
+        """上一次（或更早的）回复建好、这次回复还没写出正文的文件标题；没有时 None。"""
+        with self._lock:
+            for file_id, title in self._entries.items():
+                if file_id not in self._streamed and self._created_in.get(file_id, self._reply_seq) < self._reply_seq:
+                    return title
+            return None
+
     def add(self, file_id: str, title: str) -> None:
         with self._lock:
+            self._created_in[file_id] = self._reply_seq
             self._entries[file_id] = title
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
@@ -343,6 +361,7 @@ class _PendingEmptyFileState:
             self._reservations.pop(ticket, None)
             if file_id:
                 self._entries[file_id] = title
+                self._created_in[file_id] = self._reply_seq
                 # 幂等复用命中同一文件时它重新等待正文，旧标记作废
                 self._streamed.discard(file_id)
                 self._reject_count = 0
@@ -931,6 +950,19 @@ class ToolContext:
         if state is not None:
             return state.latest()
         return _pending_empty_file_var.get()
+
+    @classmethod
+    def begin_model_reply(cls) -> None:
+        """一次新的模型调用开始（usage_hooks 的 on_llm_start）。"""
+        state = cls._get_pending_empty_file_state()
+        if state is not None:
+            state.begin_reply()
+
+    @classmethod
+    def overdue_file_body(cls) -> str | None:
+        """上一次回复建好、这次回复还没写正文的文件标题（两次回复协议被跳过）。"""
+        state = cls._get_pending_empty_file_state()
+        return state.overdue_unwritten() if state is not None else None
 
     @classmethod
     def mark_latest_pending_body_streamed(cls) -> None:
@@ -1851,8 +1883,7 @@ def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dic
 def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
     """create_file 建好了空文件：告诉模型下一次回复就写正文。
 
-    ``awaiting_body`` 是给 ``openai_agents/model.py`` 的结构化信号：紧接着的那次模型调用
-    只允许回复文字（tool_choice="none"），正文必须以 <file> 开头流式写出。
+    下一次回复没写正文就调用的工具会被拒绝（``tools_adapter.file_body_pending_text``）。
     """
     return {
         **data,

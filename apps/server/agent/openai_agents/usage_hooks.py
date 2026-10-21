@@ -119,6 +119,7 @@ class ReadSnapshotPromotionMixin:
     async def on_llm_start(self, context: Any, agent: Any, system_prompt: Any, input_items: Any) -> None:
         try:
             ToolContext.promote_pending_reads()
+            ToolContext.begin_model_reply()
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Read snapshot promotion before model call failed: {exc}")
         await super().on_llm_start(context, agent, system_prompt, input_items)  # type: ignore[misc]
