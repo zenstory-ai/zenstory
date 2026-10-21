@@ -51,9 +51,6 @@ class ParallelExecutionResult:
     total_duration_ms: int
 
 
-# Tool definition
-
-
 # 每个任务结果的保底上限。实际上限按任务数均分 TOOL_RESULT_MAX_CHARS 的 80%
 # （_task_result_budget），给信封与 per-task 元数据留 20% 余量。
 #
