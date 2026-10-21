@@ -481,6 +481,31 @@ FIRST_ROUND_SUMMARY_CONTEXT = (
 )
 
 
+FAST_MODE_SUMMARY_CONTEXT = (
+    "[系统提醒] 本轮是快速模式，不送审，刚才的交接没有执行，作者在对话里只看到了你那句进度说明。"
+    "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：写了哪些文件、各多少字"
+    "（按工具返回的字数），简要说内容；不要说已经通读核对、送审或审稿。"
+)
+AUTHOR_NOTES_RELAY_HEADER = "下面是你原本写在交接里、要转告作者的话，照实写在总结最后："
+AUTHOR_NOTES_MARKER = "[要告诉作者]"
+# 交接前只写一句进度（如「第三章扩写好了，我再通读核对一遍」）时，这句话不算给作者的总结。
+PROGRESS_ONLY_MAX_CHARS = 80
+
+
+def _author_notes_from_handoff(context: Any) -> str:
+    """writer 交接 context 里「[要告诉作者]」那一段；没有或写的是「无」时为空。"""
+    text = str(context or "")
+    start = text.find(AUTHOR_NOTES_MARKER)
+    if start < 0:
+        return ""
+    notes = text[start + len(AUTHOR_NOTES_MARKER):]
+    next_header = re.search(r"\n\s*\[[^\]\n]{1,30}\]", notes)
+    if next_header:
+        notes = notes[: next_header.start()]
+    notes = notes.strip().lstrip("：:").strip()
+    return "" if notes in {"", "无", "无。", "没有"} else notes
+
+
 def _open_board_tasks() -> list[dict[str, Any]]:
     """任务计划板上还没完成的任务（读不到时为空，不影响续写）。"""
     session_id = ToolContext.get_session_id()
@@ -2680,55 +2705,66 @@ async def run_writing_workflow_streaming(
                 explicit_handoff_event_data = None
                 handoff_packet = None
 
-            # 快速模式：用户选的是「更快出结果」，writer 写完直接结束。nodes 已在系统提示
-            # 里说明不要送审；模型仍然交接给审稿人时，这里丢弃。
+            # 快速模式 / 作品第一条消息：这一轮不送审，writer 自己交给审稿人时丢弃交接。
+            # 交接前 writer 按协议只写一句进度、把要告诉作者的话放进交接 context；丢掉交接后
+            # 作者只剩那一句进度，所以没写总结时让它再跑一轮、只给作者写总结（带上那些话），
+            # 已经写了总结时把那些话直接补给作者。
+            review_skipped_reason = (
+                "first_message"
+                if first_message_round
+                else "fast_mode"
+                if generation_mode == "fast"
+                else None
+            )
             if (
-                generation_mode == "fast"
+                review_skipped_reason is not None
                 and current_agent_type == "writer"
                 and next_agent == "quality_reviewer"
             ):
-                log_with_context(
-                    logger,
-                    20,  # INFO
-                    "Fast mode: dropping writer handoff to quality_reviewer",
-                )
-                next_agent = None
-                explicit_handoff_event_data = None
-                handoff_packet = None
-
-            # 作品的第一条消息：作者还没看过任何产出，这一轮不送审（自动质检门已关）。writer 自己交给
-            # 审稿人时同样丢弃：返修后的唯一总结只剩修改记录（2026-10-20 生产样本里 writer 显式送审）。
-            # 交接前 writer 按协议不写总结，没写时让它再跑一轮，只给作者写总结。
-            if (
-                first_message_round
-                and current_agent_type == "writer"
-                and next_agent == "quality_reviewer"
-            ):
+                author_notes = _author_notes_from_handoff(handoff_context)
                 # 作者在生成中途发来的话由下面的 steering 追加轮处理（它也会给作者写总结），
                 # 只写总结的一轮会把它丢掉。
+                # 快速模式已在指令里要求 writer 自己写总结；它仍按送审协议交接时，交接前那句
+                # 话就是送审前的进度。第一条消息沿用原规则：写了话就不重跑。
+                prose = prose_before_handoff.strip()
+                wrote_no_summary = (
+                    len(prose) < PROGRESS_ONLY_MAX_CHARS
+                    if review_skipped_reason == "fast_mode"
+                    else not prose
+                )
                 needs_summary = (
                     not first_round_summary_rerun_used
-                    and not prose_before_handoff.strip()
+                    and wrote_no_summary
                     and not mid_run_steering_seen
                     and iteration < max_iterations
                 )
                 log_with_context(
                     logger,
                     20,  # INFO
-                    "First-message round: dropping writer handoff to quality_reviewer",
+                    "Review skipped this round: dropping writer handoff to quality_reviewer",
+                    reason=review_skipped_reason,
                     rerun_for_summary=needs_summary,
+                    has_author_notes=bool(author_notes),
                 )
                 next_agent = None
                 explicit_handoff_event_data = None
                 handoff_packet = None
                 if needs_summary:
                     first_round_summary_rerun_used = True
-                    handoff_context = FIRST_ROUND_SUMMARY_CONTEXT
+                    handoff_context = (
+                        FIRST_ROUND_SUMMARY_CONTEXT
+                        if review_skipped_reason == "first_message"
+                        else FAST_MODE_SUMMARY_CONTEXT
+                    )
+                    if author_notes:
+                        handoff_context += f"\n\n{AUTHOR_NOTES_RELAY_HEADER}\n{author_notes}"
                     carried_agent_content = agent_content
                     carried_writer_body_writes = writer_body_writes
                     previous_agent = current_agent_type
                     incoming_handoff_packet = None
                     continue
+                if author_notes:
+                    yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"\n\n{author_notes}"})
 
             # 审查轮数上限：writer 不能再显式送审；审稿人要求返修时不再交回 writer，
             # 而是正常收尾并把审稿意见展示给用户。

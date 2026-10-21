@@ -458,18 +458,73 @@ async def test_fast_mode_drops_writer_handoff_to_reviewer():
         for event in _write_done("w1"):
             yield event
         yield _text(LONG_TEXT)
-        yield _handoff("quality_reviewer", "请审查第五章")
+        for event in _handoff_call("quality_reviewer", "请审查第五章\n[要告诉作者]\n无"):
+            yield event
 
     events = await _run_graph(fake_agent, _state("写第五章", generation_mode="fast"))
 
+    # The writer already wrote its summary: no rerun, nothing appended.
     assert calls == ["writer"]
+    assert not any(e.type == StreamEventType.HANDOFF for e in events)
+    assert not any(e.type == StreamEventType.TEXT and "无" == e.data.get("text", "").strip() for e in events)
+
+
+def _handoff_call(target: str, context: str) -> list[StreamEvent]:
+    """A real handoff: the handoff_to_agent tool call, then the graph's HANDOFF event."""
+    return [
+        StreamEvent(type=StreamEventType.TOOL_USE, data={"name": "handoff_to_agent", "id": "h1", "status": "start"}),
+        _handoff(target, context),
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_fast_mode_progress_only_handoff_gets_a_summary_with_the_author_notes():
+    calls: list[tuple[str, str]] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append((agent_type, str(state.get("user_message") or "")))
+        if len(calls) == 1:
+            for event in _write_done("w1"):
+                yield event
+            yield _text("第五章扩写好了，我再通读核对一遍。")
+            for event in _handoff_call(
+                "quality_reviewer", "请审查第五章\n[要告诉作者]\n旧稿可以在历史版本里找回\n[审查重点]\n节奏"
+            ):
+                yield event
+        else:
+            yield _text("第五章写好了，2100 字。")
+
+    events = await _run_graph(fake_agent, _state("把第五章扩写一下", generation_mode="fast"))
+
+    assert [agent for agent, _ in calls] == ["writer", "writer"]
+    summary_context = calls[1][1]
+    assert "快速模式" in summary_context
+    assert "旧稿可以在历史版本里找回" in summary_context
+    assert "节奏" not in summary_context  # only the author-facing part is relayed
     assert not any(e.type == StreamEventType.HANDOFF for e in events)
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+async def test_fast_mode_dropped_handoff_after_a_summary_still_relays_author_notes():
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        for event in _write_done("w1"):
+            yield event
+        yield _text(LONG_TEXT)
+        for event in _handoff_call("quality_reviewer", "请审查\n[要告诉作者]\n旧稿可以在历史版本里找回"):
+            yield event
+
+    events = await _run_graph(fake_agent, _state("重写第五章", generation_mode="fast"))
+
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert texts.endswith("旧稿可以在历史版本里找回")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_fast_mode_tells_non_reviewer_agents_not_to_hand_off_for_review():
-    from agent.graph.nodes import FAST_MODE_DIRECTIVE, run_streaming_agent
+    from agent.graph.nodes import FAST_MODE_DIRECTIVE, FAST_MODE_NON_WRITER_DIRECTIVE, run_streaming_agent
 
     prompts: dict[str, str] = {}
 
@@ -478,13 +533,15 @@ async def test_fast_mode_tells_non_reviewer_agents_not_to_hand_off_for_review():
         yield _text("ok")
 
     with patch("agent.graph.nodes.run_openai_agents_streaming_agent", new=fake_runner):
-        for agent_type, mode in (("writer", "fast"), ("quality_reviewer", "fast"), ("planner", "quality")):
-            async for _ in run_streaming_agent({"generation_mode": mode}, agent_type):
+        for agent_type in ("writer", "quality_reviewer", "planner"):
+            async for _ in run_streaming_agent({"generation_mode": "fast"}, agent_type):
                 pass
 
     assert FAST_MODE_DIRECTIVE in prompts["writer"]
-    assert FAST_MODE_DIRECTIVE not in prompts["quality_reviewer"]
+    assert "快速模式" not in prompts["quality_reviewer"]
+    # The planner still hands the prose to the writer; it is only told not to send it for review.
     assert FAST_MODE_DIRECTIVE not in prompts["planner"]
+    assert FAST_MODE_NON_WRITER_DIRECTIVE in prompts["planner"]
 
 
 @pytest.mark.asyncio

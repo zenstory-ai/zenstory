@@ -25,7 +25,15 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-FAST_MODE_DIRECTIVE = "本轮为快速模式：写完直接结束，不要交接给 quality_reviewer 审稿。"
+FAST_MODE_DIRECTIVE = (
+    "本轮为快速模式，不送审：「稿件超过字数就交接给 quality_reviewer」「送审前只写一句进度」"
+    "这两条规则这一轮都不适用。不要调用 handoff_to_agent 交给 quality_reviewer；写完正文后由你"
+    "直接给作者写这一轮的总结（写了哪些文件、各多少字），原本要写进「[要告诉作者]」的话（如旧稿"
+    "可以在历史版本里找回、要问作者的问题）直接写在总结最后。作者在这条消息里要求审稿时，在总结"
+    "最后说明这一轮没有审稿，可以发消息要求审稿或切换到高质量模式。"
+)
+# 规划类角色在快速模式里照常把正文交给 writer，只是不送审。
+FAST_MODE_NON_WRITER_DIRECTIVE = "本轮为快速模式：不要交接给 quality_reviewer 审稿；其他交接照常。"
 
 # 完成标记：提示词要求 [TASK_COMPLETE]，但模型用中文回复时常写成 [任务完成]
 # （也有全角括号的写法）。两种都认作完成，否则以 [任务完成] 收尾的轮次不会结束，
@@ -90,7 +98,8 @@ def build_agent_directive(state: WritingState, agent_type: str) -> str:
         str(state.get("generation_mode") or "").strip().lower() == "fast"
         and agent_type != "quality_reviewer"
     ):
-        parts.append(f"## 本轮生成模式\n\n{FAST_MODE_DIRECTIVE}")
+        directive = FAST_MODE_DIRECTIVE if agent_type == "writer" else FAST_MODE_NON_WRITER_DIRECTIVE
+        parts.append(f"## 本轮生成模式\n\n{directive}")
 
     if len(parts) == 1:
         return ""
