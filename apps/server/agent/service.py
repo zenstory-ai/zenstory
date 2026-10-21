@@ -162,9 +162,9 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
     if force_en:
         label = _PROJECT_TYPE_LABELS_EN.get(project_type or "", "project")
         delivery = (
-            "the episode 1 script (about 800 Chinese characters) into the script"
+            "the episode 1 script (about 500 words) into the script"
             if screenplay
-            else "an opening of about 800 Chinese characters into the manuscript"
+            else "an opening of about 500 words into the manuscript"
         )
         return (
             f"This is the author's first message in this \"{label}\". "
