@@ -6,22 +6,20 @@ const UNLABELED_HEADER = '【未标来源】';
  * The server stores note sections under fixed Chinese headers and parses them back.
  * English readers see these labels instead; saving maps them back, so the stored text never changes shape.
  */
-const ENGLISH_HEADER_LABELS: Record<string, string> = {
-  [CONFIRMED_HEADER]: '【Confirmed by you】',
-  [PROPOSALS_HEADER]: '【AI suggestions, not confirmed yet】',
-  [UNLABELED_HEADER]: '【Saved notes】',
-};
-const STORED_HEADERS = Object.fromEntries(
-  Object.entries(ENGLISH_HEADER_LABELS).map(([stored, label]) => [label, stored]),
-);
+const ENGLISH_HEADER_LABELS = new Map<string, string>([
+  [CONFIRMED_HEADER, '【Confirmed by you】'],
+  [PROPOSALS_HEADER, '【AI suggestions, not confirmed yet】'],
+  [UNLABELED_HEADER, '【Saved notes】'],
+]);
+const STORED_HEADERS = new Map([...ENGLISH_HEADER_LABELS].map(([stored, label]) => [label, stored]));
 
 const isEnglish = (language: string | undefined) => Boolean(language?.toLowerCase().startsWith('en'));
 
 /** Swap whole header lines, keeping any surrounding spaces so the caret does not jump. */
-function mapHeaderLines(notes: string, table: Record<string, string>): string {
+function mapHeaderLines(notes: string, table: Map<string, string>): string {
   return notes.replace(/^[^\r\n]*$/gm, line => {
-    const header = line.trim();
-    return header in table ? line.replace(header, table[header]) : line;
+    const replacement = table.get(line.trim());
+    return replacement === undefined ? line : line.replace(line.trim(), replacement);
   });
 }
 

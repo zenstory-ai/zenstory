@@ -41,5 +41,10 @@ describe('note section headers in the interface language', () => {
     expect(storedProjectNotes('【Confirmed by you】', 'zh')).toBe('【Confirmed by you】');
     // An AI-written "[Confirmed by you]" line is not the label, so it cannot become author-confirmed.
     expect(storedProjectNotes('[Confirmed by you]', 'en')).toBe('[Confirmed by you]');
+    // Lines that happen to be object property names are just text.
+    for (const word of ['valueOf', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(displayProjectNotes(word, 'en')).toBe(word);
+      expect(storedProjectNotes(word, 'en')).toBe(word);
+    }
   });
 });
