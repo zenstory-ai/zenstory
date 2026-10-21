@@ -132,6 +132,7 @@
     "lowTurnWarning": "快到这一轮的上限了，AI 会先把最重要的部分做完。",
     "collaborationExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。点「继续完成」就能接着做。",
     "toolCallExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。点「继续完成」就能接着做。",
+    "timeLimitSummary": "这一轮接近时间上限，AI 先停下写了总结。总结里说还有没做完的，点「继续完成」接着做。",
     "nextStepHint": "接下来你可以：",
     "actionContinue": "继续完成",
     "actionSplit": "拆成小步骤",

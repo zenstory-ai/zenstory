@@ -57,7 +57,7 @@ export function parseChatDisplayEvents(
           break;
         }
         case 'iteration_exhausted':
-          items.push({ ...base, type: 'iteration_exhausted', layer: data.layer, iterationsUsed: data.iterations_used, maxIterations: data.max_iterations, reason: data.reason, lastAgent: data.last_agent });
+          items.push({ ...base, type: 'iteration_exhausted', layer: data.layer, iterationsUsed: data.iterations_used, maxIterations: data.max_iterations, reason: data.reason, lastAgent: data.last_agent, limit: data.limit });
           break;
         case 'workflow_stopped':
         case 'workflow_complete':

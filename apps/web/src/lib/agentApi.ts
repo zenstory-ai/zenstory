@@ -313,7 +313,8 @@ export function streamAgentRequest(
       iterationsUsed: number,
       maxIterations: number,
       reason: string,
-      lastAgent?: string
+      lastAgent?: string,
+      limit?: string
     ) => void;
     onRouterThinking?: (message: string) => void;
     onRouterDecided?: (
@@ -709,13 +710,15 @@ export function streamAgentRequest(
                 max_iterations: number;
                 reason: string;
                 last_agent?: string;
+                limit?: string;
               };
               callbacks.onIterationExhausted?.(
                 data.layer,
                 data.iterations_used,
                 data.max_iterations,
                 data.reason,
-                data.last_agent
+                data.last_agent,
+                data.limit
               );
               break;
             }

@@ -1512,6 +1512,7 @@ class AgentService:
                                 "maxIterations": event.data.get("max_iterations"),
                                 "reason": event.data.get("reason"),
                                 "lastAgent": event.data.get("last_agent"),
+                                "limit": event.data.get("limit"),
                             }
                         )
                     elif event_type == "error":

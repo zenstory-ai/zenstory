@@ -84,6 +84,7 @@ export type MessageStatusCard =
       maxIterations?: number;
       reason?: string;
       lastAgent?: string;
+      limit?: string;
     };
 
 export interface Message {
@@ -494,9 +495,11 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
       );
     } else if (item.type === 'iteration_exhausted') {
       // 7. iteration_exhausted - 这一轮的步数/协作轮数用完：正常暂停，用中性样式。
-      const summaryText = item.layer === 'collaboration'
-        ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
-        : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
+      const summaryText = item.limit === 'wall_clock'
+        ? t('workflow.timeLimitSummary', { ns: 'chat' })
+        : item.layer === 'collaboration'
+          ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
+          : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
 
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
@@ -1029,9 +1032,11 @@ const Row = React.memo(function Row({
 
               if (card.type === 'iteration_exhausted') {
                 // 正常暂停（不是失败）：中性样式。
-                const summaryText = card.layer === 'collaboration'
-                  ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
-                  : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
+                const summaryText = card.limit === 'wall_clock'
+                  ? t('workflow.timeLimitSummary', { ns: 'chat' })
+                  : card.layer === 'collaboration'
+                    ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
+                    : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
 
                 return (
                   <div key={`status-${idx}`} className="max-w-full">

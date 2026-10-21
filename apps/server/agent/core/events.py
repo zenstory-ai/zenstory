@@ -647,6 +647,10 @@ class IterationExhaustedEventData(BaseModel):
     max_iterations: int = Field(..., description="Maximum allowed")
     reason: str = Field(..., description="Human-readable explanation")
     last_agent: str | None = Field(default=None, description="Last active agent")
+    limit: str | None = Field(
+        default=None,
+        description="What ended the run: 'wall_clock' (time wrap-up), 'model_call_budget' or 'max_turns'",
+    )
 
 
 class SessionStartedEventData(BaseModel):
@@ -718,18 +722,20 @@ def iteration_exhausted_event(
     max_iterations: int,
     reason: str,
     last_agent: str | None = None,
+    limit: str | None = None,
 ) -> StreamEvent:
     """Create an iteration_exhausted event when iteration limit is reached."""
-    return StreamEvent(
-        type=EventType.ITERATION_EXHAUSTED,
-        data=IterationExhaustedEventData(
-            layer=layer,
-            iterations_used=iterations_used,
-            max_iterations=max_iterations,
-            reason=reason,
-            last_agent=last_agent,
-        ).model_dump()
-    )
+    data = IterationExhaustedEventData(
+        layer=layer,
+        iterations_used=iterations_used,
+        max_iterations=max_iterations,
+        reason=reason,
+        last_agent=last_agent,
+        limit=limit,
+    ).model_dump()
+    if limit is None:
+        data.pop("limit")  # only runner stops carry it; keep other events' stored shape unchanged
+    return StreamEvent(type=EventType.ITERATION_EXHAUSTED, data=data)
 
 
 def session_started_event(session_id: str) -> StreamEvent:
