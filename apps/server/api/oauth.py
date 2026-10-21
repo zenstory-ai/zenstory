@@ -19,6 +19,7 @@ from services.auth import (
     create_refresh_token,
     generate_token_jti,
     get_refresh_token_expires_at,
+    unique_username,
     verify_token,
 )
 from sqlmodel import Session, select
@@ -646,33 +647,8 @@ async def google_oauth_callback(
                     invite_code=normalized_invite_code,
                 )
 
-        # Create new user
-        # Use name from Google, or fallback to email prefix
-        original_username = google_name or google_email.split("@")[0]
-
-        # Check if username already exists
-        # Optimize: Use single query instead of loop
-        username = original_username
-        if session.exec(
-            select(User).where(User.username == original_username)
-        ).first():
-            # If base username exists, query all conflicting usernames at once
-            conflicting_usernames = session.exec(
-                select(User.username).where(User.username.like(f"{original_username}%"))
-            ).all()
-
-            # Find the maximum numeric suffix
-            max_suffix = 0
-            for name in conflicting_usernames:
-                if name == original_username:
-                    continue
-                if name.startswith(original_username):
-                    suffix = name[len(original_username):]
-                    if suffix.isdigit():
-                        max_suffix = max(max_suffix, int(suffix))
-
-            # Generate unique username with the next available suffix
-            username = f"{original_username}{max_suffix + 1}"
+        # Create new user, named after Google or the email prefix.
+        username = unique_username(session, google_name or google_email.split("@")[0])
 
         new_user = User(
             username=username,

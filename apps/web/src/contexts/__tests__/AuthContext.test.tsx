@@ -523,11 +523,10 @@ describe('AuthContext', () => {
 
       let registerResult
       await act(async () => {
-        registerResult = await result.current.register('newuser', 'new@example.com', 'password123')
+        registerResult = await result.current.register('new@example.com', 'password123')
       })
 
       expect(api.authApi.register).toHaveBeenCalledWith({
-        username: 'newuser',
         email: 'new@example.com',
         password: 'password123',
         language: 'zh',
@@ -547,7 +546,7 @@ describe('AuthContext', () => {
         expect(result.current.loading).toBe(false)
       })
       await act(async () => {
-        await result.current.register('newuser', 'new@example.com', 'password123')
+        await result.current.register('new@example.com', 'password123')
       })
 
       expect(api.authApi.register).toHaveBeenCalledWith(expect.objectContaining({ language: 'en' }))
@@ -569,7 +568,7 @@ describe('AuthContext', () => {
       })
 
       await act(async () => {
-        await result.current.register('newuser', 'new@example.com', 'password123')
+        await result.current.register('new@example.com', 'password123')
       })
 
       // User should still be null after registration
@@ -1273,7 +1272,7 @@ describe('AuthContext', () => {
 
       await expect(
         act(async () => {
-          await result.current.register('user', 'existing@example.com', 'pass')
+          await result.current.register('existing@example.com', 'pass')
         })
       ).rejects.toThrow('Email already exists')
 
@@ -1475,11 +1474,10 @@ describe('AuthContext', () => {
       })
 
       await act(async () => {
-        await result.current.register('newuser', 'new@example.com', 'password123', 'INVITE123')
+        await result.current.register('new@example.com', 'password123', 'INVITE123')
       })
 
       expect(api.authApi.register).toHaveBeenCalledWith({
-        username: 'newuser',
         email: 'new@example.com',
         password: 'password123',
         invite_code: 'INVITE123',
@@ -1503,11 +1501,10 @@ describe('AuthContext', () => {
       })
 
       await act(async () => {
-        await result.current.register('newuser', 'new@example.com', 'password123')
+        await result.current.register('new@example.com', 'password123')
       })
 
       expect(api.authApi.register).toHaveBeenCalledWith({
-        username: 'newuser',
         email: 'new@example.com',
         password: 'password123',
         language: 'zh',

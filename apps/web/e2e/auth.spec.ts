@@ -69,16 +69,15 @@ async function settleAfterLogin(page: Page) {
 test.describe('Authentication', () => {
   test.describe('Registration', () => {
     test('user can register with valid credentials', async ({ page }, testInfo) => {
-      await gotoWithRetry(page, '/register');
+      // An invite link fills and shows the invite code; email and one password are all that is asked.
+      await gotoWithRetry(page, `/register?code=${encodeURIComponent(TEST_INVITE_CODE)}`);
 
       const uniqueSuffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}-${testInfo.project.name.replace(/\W+/g, '-')}`;
 
       // Fill in registration form
-      await page.fill('input#username', `newuser-${uniqueSuffix}`);
       await page.fill('input#email', `newuser-${uniqueSuffix}@example.com`);
       await page.fill('input#password', 'SecurePass123!');
-      await page.fill('input#confirmPassword', 'SecurePass123!');
-      await page.fill('input#invite_code', TEST_INVITE_CODE);
+      await expect(page.locator('input#invite_code')).toHaveValue(TEST_INVITE_CODE);
       await page.locator('input[type="checkbox"]').first().check();
 
       // Submit form
@@ -92,32 +91,11 @@ test.describe('Authentication', () => {
       await expect(page.getByText(email).first()).toBeVisible({ timeout: 10000 });
     });
 
-    test('user cannot register with mismatched passwords', async ({ page }) => {
-      await gotoWithRetry(page, '/register');
-
-      await page.fill('input#username', 'newuser');
-      await page.fill('input#email', 'newuser2@example.com');
-      await page.fill('input#password', 'SecurePass123!');
-      await page.fill('input#confirmPassword', 'DifferentPass123!');
-      await page.fill('input#invite_code', TEST_INVITE_CODE);
-      await page.locator('input[type="checkbox"]').first().check();
-
-      // Submit stays clickable; an invalid form answers the click with a visible error.
-      await page.locator('button[type="submit"]').click();
-      await expect(page).toHaveURL(/\/register/);
-      await expect(page.locator('#register-form-error')).toContainText(/(Passwords do not match|两次密码不一致)/i);
-      await expect(page.locator('#register-confirm-password-helper')).toBeVisible();
-      await expect(page.locator('#register-confirm-password-helper')).toContainText(/(Passwords don’t match|两次.*密码.*一致)/i);
-    });
-
     test('user cannot register with short password', async ({ page }) => {
       await gotoWithRetry(page, '/register');
 
-      await page.fill('input#username', 'newuser');
       await page.fill('input#email', 'newuser3@example.com');
       await page.fill('input#password', 'short');
-      await page.fill('input#confirmPassword', 'short');
-      await page.fill('input#invite_code', TEST_INVITE_CODE);
       await page.locator('input[type="checkbox"]').first().check();
 
       await page.locator('button[type="submit"]').click();
@@ -125,24 +103,6 @@ test.describe('Authentication', () => {
       await expect(page.locator('#register-form-error')).toContainText(/(at least 6 characters|至少 6 个字符)/i);
       await expect(page.locator('#register-password-helper')).toBeVisible();
       const isTooShort = await page.locator('input#password').evaluate((el) => (el as HTMLInputElement).validity.tooShort);
-      expect(isTooShort).toBe(true);
-    });
-
-    test('user cannot register with short username', async ({ page }) => {
-      await gotoWithRetry(page, '/register');
-
-      await page.fill('input#username', 'ab');
-      await page.fill('input#email', 'newuser4@example.com');
-      await page.fill('input#password', 'SecurePass123!');
-      await page.fill('input#confirmPassword', 'SecurePass123!');
-      await page.fill('input#invite_code', TEST_INVITE_CODE);
-      await page.locator('input[type="checkbox"]').first().check();
-
-      await page.locator('button[type="submit"]').click();
-      await expect(page).toHaveURL(/\/register/);
-      await expect(page.locator('#register-form-error')).toContainText(/(at least 3 characters|至少 3 个字符)/i);
-      await expect(page.locator('#register-username-helper')).toBeVisible();
-      const isTooShort = await page.locator('input#username').evaluate((el) => (el as HTMLInputElement).validity.tooShort);
       expect(isTooShort).toBe(true);
     });
   });

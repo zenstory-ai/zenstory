@@ -20,6 +20,7 @@ from services.auth import (
     get_current_active_user,
     get_refresh_token_expires_at,
     hash_password,
+    unique_username,
     verify_password,
     verify_token,
 )
@@ -63,7 +64,8 @@ _REFRESH_ROTATION_CONFLICT_SECONDS = 10
 
 # Request/Response schemas
 class RegisterRequest(BaseModel):
-    username: str
+    # Optional: email sign-ups no longer ask for one; it defaults to the email prefix.
+    username: str | None = None
     email: EmailStr
     password: str
     language: str | None = "zh"  # Default to Chinese
@@ -72,7 +74,9 @@ class RegisterRequest(BaseModel):
 
     @field_validator("username")
     @classmethod
-    def validate_username(cls, value: str) -> str:
+    def validate_username(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
         value = value.strip()
         if len(value) < 3:
             raise ValueError("username must be at least 3 characters")
@@ -455,15 +459,19 @@ async def register(
     except ValueError:
         raise APIException(error_code=ErrorCode.AUTH_EMAIL_UNDELIVERABLE, status_code=400) from None
 
-    # Check if username already exists
-    existing_user = session.exec(
-        select(User).where(User.username == request.username)
-    ).first()
-    if existing_user:
-        raise APIException(
-            error_code=ErrorCode.AUTH_USERNAME_EXISTS,
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+    # A chosen username must be free; otherwise derive one from the email prefix.
+    if request.username is not None:
+        existing_user = session.exec(
+            select(User).where(User.username == request.username)
+        ).first()
+        if existing_user:
+            raise APIException(
+                error_code=ErrorCode.AUTH_USERNAME_EXISTS,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        username = request.username
+    else:
+        username = unique_username(session, normalized_email.split("@")[0])
 
     # Check if email already exists
     existing_email = session.exec(
@@ -478,7 +486,7 @@ async def register(
     invite_code_optional, invite_policy_variant, invite_policy_rollout_percent = (
         _resolve_registration_invite_policy(
             email=normalized_email,
-            username=request.username,
+            username=username,
         )
     )
 
@@ -549,7 +557,7 @@ async def register(
     # bcrypt is CPU-bound (~0.3s); keep it off the event loop.
     hashed_password = await asyncio.to_thread(hash_password, request.password)
     new_user = User(
-        username=request.username,
+        username=username,
         email=normalized_email,
         hashed_password=hashed_password,
         email_verified=False

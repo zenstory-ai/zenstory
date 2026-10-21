@@ -31,7 +31,7 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
+  register: (email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
   logout: () => void;
   refreshToken: () => Promise<void>;
   handleOAuthCallback: (
@@ -332,9 +332,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const register = async (username: string, email: string, password: string, inviteCode?: string) => {
-    // The verification email goes out in the language the visitor is using.
-    const data = await authApi.register({ username, email, password, invite_code: inviteCode, language: getLocale() });
+  const register = async (email: string, password: string, inviteCode?: string) => {
+    // The verification email goes out in the language the visitor is using; the
+    // server names the account after the email prefix.
+    const data = await authApi.register({ email, password, invite_code: inviteCode, language: getLocale() });
     trackEvent('register_success', {
       method: 'password',
       email_verified: data.email_verified,

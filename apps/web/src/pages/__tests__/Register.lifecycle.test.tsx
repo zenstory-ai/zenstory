@@ -125,10 +125,8 @@ async function mount(strict: boolean, options: { holdIdentityPolicy?: boolean } 
   // The identity-independent mount prefetch has already been answered.
   await waitFor(() => expect(calls.some(call => call.path === '/api/auth/register-policy' && call.search === '')).toBe(true))
   if (options.holdIdentityPolicy) holdPolicies = true
-  fireEvent.change(screen.getByLabelText(/^Username/), { target: { value: 'offline_user' } })
   fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'offline@example.invalid' } })
   fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'OfflinePass123!' } })
-  fireEvent.change(screen.getByLabelText(/^Confirm Password/), { target: { value: 'OfflinePass123!' } })
   await click(user, screen.getByRole('checkbox'))
   await waitFor(() => expect(identityPolicyCalls()).toBeGreaterThan(0))
   return user

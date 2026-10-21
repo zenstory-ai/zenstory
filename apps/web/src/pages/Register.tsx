@@ -11,6 +11,8 @@ import { authApi } from "../lib/api";
 import { translateError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { normalizePlanIntent, type PlanIntent } from "../lib/authFlow";
+import { Eye, EyeOff } from "lucide-react";
+import { emailSuggestions } from "../lib/emailSuggestions";
 
 const MAX_PASSWORD_BYTES = 72;
 
@@ -19,8 +21,6 @@ type PolicyCacheEntry = {
   value: boolean | null;
   promise: Promise<boolean>;
 };
-
-const policyKey = (email: string, username: string) => `${email}\u0000${username}`;
 
 // SVG icons for OAuth providers
 const GoogleIcon = () => (
@@ -51,12 +51,13 @@ const AppleIcon = () => (
 );
 
 export const Register: React.FC = () => {
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [inviteCodePrefilled, setInviteCodePrefilled] = useState(false);
+  // An optional invite code stays behind a link until the visitor asks for it.
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanIntent | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -94,6 +95,7 @@ export const Register: React.FC = () => {
 
       // Focus invite code input only when the error is invite-related.
       if (inviteRelatedErrors.has(errorCode)) {
+        setInviteOpen(true);
         setTimeout(() => {
           const el = document.getElementById('invite_code');
           if (el instanceof HTMLInputElement) {
@@ -127,13 +129,12 @@ export const Register: React.FC = () => {
   const loginLink = selectedPlan
     ? `/login?plan=${encodeURIComponent(selectedPlan)}`
     : "/login";
-  const trimmedUsername = username.trim();
   const trimmedEmail = email.trim();
   const trimmedInviteCode = inviteCode.trim();
-  const isUsernameValid = trimmedUsername.length >= 3;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
   const isPasswordLengthValid = password.length >= 6;
-  const isPasswordMatched = password.length > 0 && password === confirmPassword;
+  const suggestedEmails = emailSuggestions(email);
+  const showInviteCode = !inviteCodeOptional || inviteCodePrefilled || inviteOpen || trimmedInviteCode.length > 0;
   // The submit button is only disabled while a request is running or after
   // success. Incomplete forms stay clickable so every click gets a visible
   // answer (inline message + toast) instead of a silent no-op.
@@ -172,7 +173,7 @@ export const Register: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isUsernameValid || !isEmailValid) {
+    if (!isEmailValid) {
       setInviteCodeOptional(globalPolicyRef.current ?? authConfig.inviteCodeOptional);
       return;
     }
@@ -183,14 +184,11 @@ export const Register: React.FC = () => {
 
     const requestSeq = ++policyRequestSeqRef.current;
     let cancelled = false;
-    const key = policyKey(trimmedEmail, trimmedUsername);
+    const key = trimmedEmail;
     const entry: PolicyCacheEntry = {
       key,
       value: null,
-      promise: authApi.getRegistrationPolicy({
-        email: trimmedEmail,
-        username: trimmedUsername,
-      }).then((policy) => {
+      promise: authApi.getRegistrationPolicy({ email: trimmedEmail }).then((policy) => {
         const optional = Boolean(policy.invite_code_optional);
         entry.value = optional;
         return optional;
@@ -214,7 +212,7 @@ export const Register: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [isEmailValid, isUsernameValid, trimmedEmail, trimmedUsername]);
+  }, [isEmailValid, trimmedEmail]);
 
   /**
    * Resolve the invite policy for submit. Known answers are returned
@@ -223,13 +221,13 @@ export const Register: React.FC = () => {
    */
   const resolveSubmitPolicy = (): boolean | Promise<boolean> => {
     if (globalPolicyRef.current !== null) return globalPolicyRef.current;
-    const key = policyKey(trimmedEmail, trimmedUsername);
+    const key = trimmedEmail;
     const cached = identityPolicyRef.current;
     if (cached && cached.key === key) {
       if (cached.value !== null) return cached.value;
       return cached.promise.catch(() => inviteCodeOptional);
     }
-    return authApi.getRegistrationPolicy({ email: trimmedEmail, username: trimmedUsername })
+    return authApi.getRegistrationPolicy({ email: trimmedEmail })
       .then((policy) => Boolean(policy.invite_code_optional))
       .catch(() => inviteCodeOptional);
   };
@@ -267,11 +265,6 @@ export const Register: React.FC = () => {
     if (submitInFlightRef.current || success) return;
     setFormError("");
 
-    if (trimmedUsername.length < 3) {
-      rejectSubmit(t('auth:errors.shortUsername'), 'username');
-      return;
-    }
-
     if (!isEmailValid) {
       rejectSubmit(t('auth:errors.invalidEmail'), 'email');
       return;
@@ -285,11 +278,6 @@ export const Register: React.FC = () => {
     // bcrypt only uses the first 72 bytes; the server rejects longer passwords.
     if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) {
       rejectSubmit(t('auth:errors.passwordTooLong'), 'password');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      rejectSubmit(t('auth:errors.passwordMismatch'), 'confirmPassword');
       return;
     }
 
@@ -311,7 +299,7 @@ export const Register: React.FC = () => {
         rejectSubmit(t('auth:errors.inviteCodeRequired'), 'invite_code');
         return;
       }
-      const result = await register(trimmedUsername, trimmedEmail, password, trimmedInviteCode || undefined);
+      const result = await register(trimmedEmail, password, trimmedInviteCode || undefined);
       if (result?.verification_sent === false) {
         const path = selectedPlan ? `/verify-email?${new URLSearchParams({ plan: selectedPlan }).toString()}` : '/verify-email';
         navigate(path, { state: { email: result.email || trimmedEmail, verificationSent: false } });
@@ -446,44 +434,6 @@ export const Register: React.FC = () => {
 
           {/* data-testid: register-form - Register form container for registration tests */}
           <form onSubmit={handleSubmit} data-testid="register-form" noValidate aria-busy={loading}>
-            {/* Username */}
-            <div className="mb-4">
-              <label
-                htmlFor="username"
-                className="block text-[hsl(var(--text-secondary))] text-sm font-medium mb-2"
-              >
-                {t('auth:register.usernameLabel')}
-              </label>
-              <input
-                id="username"
-                type="text"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
-                  resetSubmitStateOnInput();
-                }}
-                className="input min-h-11"
-                placeholder={t('auth:register.usernameHint')}
-                required
-                autoFocus
-                minLength={3}
-                disabled={loading || success}
-                aria-invalid={trimmedUsername.length > 0 && !isUsernameValid}
-                aria-describedby={formError ? "register-form-error" : "register-username-helper"}
-              />
-              <p
-                id="register-username-helper"
-                className={
-                  trimmedUsername.length > 0 && !isUsernameValid
-                    ? "mt-2 text-xs text-[hsl(var(--text-secondary))]"
-                    : "sr-only"
-                }
-              >
-                {t('auth:register.usernameRule', '用户名至少 3 个字符')}
-              </p>
-            </div>
-
             {/* Email */}
             <div className="mb-4">
               <label
@@ -504,10 +454,17 @@ export const Register: React.FC = () => {
                 className="input min-h-11"
                 placeholder={t('auth:register.emailPlaceholder')}
                 required
+                autoFocus
+                list="register-email-suggestions"
                 disabled={loading || success}
                 aria-invalid={trimmedEmail.length > 0 && !isEmailValid}
                 aria-describedby={formError ? "register-form-error" : "register-email-helper"}
               />
+              <datalist id="register-email-suggestions">
+                {suggestedEmails.map((suggestion) => (
+                  <option key={suggestion} value={suggestion} />
+                ))}
+              </datalist>
               <p id="register-email-helper" className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
                 {t('auth:register.emailRule', '验证码会发到这个邮箱')}
               </p>
@@ -521,15 +478,16 @@ export const Register: React.FC = () => {
               >
                 {t('auth:register.passwordLabel')}
               </label>
+              <div className="relative">
               <input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
                   resetSubmitStateOnInput();
                 }}
-                className="input min-h-11"
+                className="input min-h-11 pr-12"
                 placeholder={t('auth:register.passwordHint')}
                 required
                 minLength={6}
@@ -538,6 +496,17 @@ export const Register: React.FC = () => {
                 aria-invalid={password.length > 0 && !isPasswordLengthValid}
                 aria-describedby={formError ? "register-form-error" : "register-password-helper"}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((shown) => !shown)}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+                aria-label={showPassword ? t('auth:register.hidePassword', '隐藏密码') : t('auth:register.showPassword', '显示密码')}
+                aria-pressed={showPassword}
+                disabled={loading || success}
+              >
+                {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+              </button>
+              </div>
               <p
                 id="register-password-helper"
                 className={
@@ -550,59 +519,29 @@ export const Register: React.FC = () => {
               </p>
             </div>
 
-            {/* Confirm Password */}
-            <div className="mb-4">
-              <label
-                htmlFor="confirmPassword"
-                className="block text-[hsl(var(--text-secondary))] text-sm font-medium mb-2"
-              >
-                {t('auth:register.confirmPasswordLabel')}
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  resetSubmitStateOnInput();
-                }}
-                className="input min-h-11"
-                placeholder={t('auth:register.confirmPasswordPlaceholder')}
-                required
-                minLength={6}
-                autoComplete="new-password"
-                disabled={loading || success}
-                aria-invalid={confirmPassword.length > 0 && !isPasswordMatched}
-                aria-describedby={
-                  formError
-                    ? "register-form-error"
-                    : (confirmPassword.length > 0 && !isPasswordMatched)
-                      ? "register-confirm-password-helper"
-                      : undefined
-                }
-              />
-              {confirmPassword.length > 0 && !isPasswordMatched ? (
-                <p
-                  id="register-confirm-password-helper"
-                  className="mt-2 text-xs text-[hsl(var(--error-text))]"
-                >
-                  {t('auth:register.passwordMismatchHint', '两次输入的密码不一致')}
-                </p>
-              ) : null}
-            </div>
-
             {/* Invite Code */}
             <div className="mb-6">
-              <InviteCodeInput
-                value={inviteCode}
-                onChange={(value) => {
-                  setInviteCode(value);
-                  resetSubmitStateOnInput();
-                }}
-                disabled={loading || success}
-                required={!inviteCodeOptional}
-                prefilled={inviteCodePrefilled}
-              />
+              {showInviteCode ? (
+                <InviteCodeInput
+                  value={inviteCode}
+                  onChange={(value) => {
+                    setInviteCode(value);
+                    resetSubmitStateOnInput();
+                  }}
+                  disabled={loading || success}
+                  required={!inviteCodeOptional}
+                  prefilled={inviteCodePrefilled}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setInviteOpen(true)}
+                  className="min-h-11 text-sm text-[hsl(var(--accent-primary))] underline-offset-2 hover:underline"
+                  disabled={loading || success}
+                >
+                  {t('auth:register.haveInviteCode', '有邀请码？')}
+                </button>
+              )}
             </div>
 
             <div className="mb-6">

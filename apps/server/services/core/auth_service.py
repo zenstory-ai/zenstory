@@ -103,6 +103,28 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
+MIN_USERNAME_LENGTH = 3
+
+
+def unique_username(session: Session, preferred: str) -> str:
+    """An unused username based on ``preferred`` (Google name or email prefix).
+
+    Taken names get the next numeric suffix (writer, writer1, writer2 ...); names
+    shorter than the minimum are padded so sign-ups never need to pick one.
+    """
+    base = preferred.strip() or "writer"
+    if len(base) < MIN_USERNAME_LENGTH:
+        base = f"{base}{'0' * (MIN_USERNAME_LENGTH - len(base))}"
+    if not session.exec(select(User).where(User.username == base)).first():
+        return base
+    max_suffix = 0
+    for name in session.exec(select(User.username).where(User.username.like(f"{base}%"))).all():
+        suffix = name[len(base):]
+        if suffix.isdigit():
+            max_suffix = max(max_suffix, int(suffix))
+    return f"{base}{max_suffix + 1}"
+
+
 def password_fingerprint(user: User) -> str:
     """Short digest of the stored password hash, embedded in access tokens as ``pwf``.
 
