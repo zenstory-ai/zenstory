@@ -1,7 +1,7 @@
 """
 Tests for agent/graph/router.py
 
-Tests the router node for LangGraph writing workflow.
+Tests the router node for the writing workflow.
 """
 
 from unittest.mock import AsyncMock, patch

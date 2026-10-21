@@ -1,7 +1,7 @@
 """
 Tests for agent/graph/state.py
 
-Tests the state definitions for LangGraph writing workflow.
+Tests the state definitions for the writing workflow.
 """
 
 import pytest

@@ -375,42 +375,6 @@ def content_end_event() -> StreamEvent:
     return StreamEvent(type=EventType.CONTENT_END, data={})
 
 
-def conflict_event(
-    conflict_type: str,
-    severity: str,
-    title: str,
-    description: str,
-    suggestions: list[str] | None = None,
-) -> StreamEvent:
-    """Create a conflict event."""
-    return StreamEvent(
-        type=EventType.CONFLICT,
-        data=ConflictEventData(
-            type=conflict_type,
-            severity=severity,
-            title=title,
-            description=description,
-            suggestions=suggestions or [],
-        ).model_dump()
-    )
-
-
-def fallback_event(
-    message: str,
-    options: list[dict[str, Any]],
-    classification: dict[str, Any] | None = None,
-) -> StreamEvent:
-    """Create a fallback event."""
-    return StreamEvent(
-        type=EventType.FALLBACK,
-        data=FallbackEventData(
-            message=message,
-            options=options,
-            classification=classification,
-        ).model_dump()
-    )
-
-
 def error_event(
     message: str,
     code: str | None = None,
@@ -643,19 +607,6 @@ def skill_matched_event(
             skill_id=skill_id,
             skill_name=skill_name,
             matched_trigger=matched_trigger,
-        ).model_dump()
-    )
-
-
-def skills_matched_event(
-    skills: list[dict],
-) -> StreamEvent:
-    """Create a skills_matched event when multiple skills are activated."""
-    return StreamEvent(
-        type=EventType.SKILLS_MATCHED,
-        data=SkillsMatchedEventData(
-            skills=skills,
-            total_count=len(skills),
         ).model_dump()
     )
 

@@ -199,11 +199,6 @@ def get_folder_reference(folder_ids: dict[str, str]) -> str:
     return f"### 创建文件时的 parent_id\n{folder_refs_str}"
 
 
-def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
-    """Generate the complete tool guide with its project folder mappings."""
-    return f"{TOOL_USAGE_PROTOCOL}\n\n{get_folder_reference(folder_ids)}"
-
-
 TOOL_USAGE_PROTOCOL = """## 工具使用规则
 
 你有以下工具可用：

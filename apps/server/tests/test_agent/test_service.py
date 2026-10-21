@@ -4,7 +4,7 @@ Agent Service tests.
 Unit tests for the AgentService business logic with mocked dependencies.
 Tests core functionality without making real LLM API calls.
 
-Updated for LangGraph architecture.
+Uses the in-house workflow graph.
 """
 
 import asyncio
@@ -107,8 +107,8 @@ def test_user_with_project(db_session: Session):
 
 
 @pytest.fixture
-def mock_langgraph_workflow():
-    """Mock the LangGraph workflow for testing."""
+def mock_workflow_stream():
+    """Mock the writing workflow for testing."""
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
     async def mock_stream():
@@ -177,11 +177,11 @@ class TestAgentServiceInit:
 
 @pytest.mark.integration
 class TestAgentServiceProcessStream:
-    """Integration tests for process_stream method with mocked LangGraph workflow."""
+    """Integration tests for process_stream method with a mocked writing workflow."""
 
     @pytest.fixture
     def mock_workflow_stream(self):
-        """Create a mock LangGraph workflow stream."""
+        """Create a mock writing workflow stream."""
         from agent.core.workflow_events import StreamEvent, StreamEventType
 
         async def mock_stream():
@@ -1248,7 +1248,7 @@ class TestAgentServiceProcessStream:
         with (
             patch.object(service, "_should_offload_session_work", return_value=True),
             patch.object(service, "_resolve_or_create_chat_session_id_sync", return_value="sess-offload"),
-            patch("agent.service.SessionLoader.load_session_with_compaction", new=AsyncMock(return_value=session_data)),
+            patch("agent.service.SessionLoader.load_session_and_context", new=AsyncMock(return_value=session_data)),
             patch.object(
                 service,
                 "_prepare_prompt_artifacts_sync",
@@ -2024,7 +2024,7 @@ class TestStoppedRoundHistory:
         assert sorted(row.role for row in rows) == ["assistant", "user"]
 
     async def test_retrying_an_unanswered_message_reuses_it(
-        self, mock_agent_service, test_user_with_project, db_session: Session, mock_langgraph_workflow
+        self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
     ):
         service, _ = mock_agent_service
         project = test_user_with_project["project"]
@@ -2062,7 +2062,7 @@ class TestStoppedRoundHistory:
         ]
 
     async def test_retry_flag_never_drops_a_message_that_was_answered(
-        self, mock_agent_service, test_user_with_project, db_session: Session, mock_langgraph_workflow
+        self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
     ):
         service, _ = mock_agent_service
         project = test_user_with_project["project"]

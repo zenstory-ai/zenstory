@@ -2,8 +2,7 @@
 
 ZenStory 写作 agent 的服务端：路由 → 多角色工作流（planner / hook_designer / writer / quality_reviewer）→
 openai-agents-python 运行时（OpenAI 兼容 Chat Completions，主备两个供应商，见 `core/llm_providers.py` / `core/llm_failover.py`）→ SSE。
-工作流是 `graph/` 里的自研编排，**不使用 LangGraph**；`StreamAdapter.process_langgraph_events` 只是
-`process_workflow_events` 的兼容别名。
+工作流是 `graph/` 里的自研编排，**不使用 LangGraph**。
 
 路径约定：不带前缀的路径相对 `apps/server/agent/`；模块外的文件写全路径（例如 `apps/server/utils/logger.py`，
 不要和 `agent/utils/` 混淆）。行为细节与取舍以 `.agents/notes/` 里链接的决策记录为准，改行为前先读对应记录。
@@ -78,8 +77,7 @@ agent/
 │   ├── author_edit_guard.py# 作者手改文件的删除 / 整份覆盖保护
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照
 │   └── permissions.py
-├── utils/                  # aho_corasick、token_utils、world_model_visibility
-└── llm/                    # 空的遗留占位包，不要往里加代码
+└── utils/                  # aho_corasick、token_utils、world_model_visibility
 ```
 
 ## 请求与流

@@ -1,5 +1,5 @@
 """
-Tests for StreamAdapter - SSE streaming adapter for LangGraph events.
+Tests for StreamAdapter - SSE streaming adapter for workflow events.
 
 Comprehensive tests covering:
 - SSE event formatting
@@ -22,7 +22,7 @@ from agent.core.events import (
     steering_received_event,
 )
 from agent.core.stream_processor import StreamState, normalize_file_markers
-from agent.core.workflow_events import StreamEvent as LangGraphStreamEvent
+from agent.core.workflow_events import StreamEvent as WorkflowStreamEvent
 from agent.core.workflow_events import StreamEventType
 from agent.stream_adapter import (
     PendingFileWrite,
@@ -175,13 +175,13 @@ class TestProcessEventText:
     @pytest.mark.asyncio
     async def test_text_event_starts_content(self, adapter):
         """Test text event triggers content_start."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={"text": "Hello world"},
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         # Should emit content_start and content events
@@ -193,19 +193,19 @@ class TestProcessEventText:
     @pytest.mark.asyncio
     async def test_multiple_text_events(self, adapter):
         """Test multiple text events only emit one content_start."""
-        event1 = LangGraphStreamEvent(
+        event1 = WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={"text": "Hello"},
         )
-        event2 = LangGraphStreamEvent(
+        event2 = WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={"text": " world"},
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event1):
+        async for sse_event in adapter._process_workflow_event(event1):
             events.append(sse_event)
-        async for sse_event in adapter._process_langgraph_event(event2):
+        async for sse_event in adapter._process_workflow_event(event2):
             events.append(sse_event)
 
         # Should have 3 events: content_start, content, content
@@ -223,13 +223,13 @@ class TestProcessEventThinking:
     @pytest.mark.asyncio
     async def test_thinking_event(self, adapter):
         """Test thinking event emits thinking_content."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.THINKING,
             data={"thinking": "Let me think about this..."},
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -240,13 +240,13 @@ class TestProcessEventThinking:
     @pytest.mark.asyncio
     async def test_empty_thinking_event(self, adapter):
         """Test empty thinking event emits nothing."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.THINKING,
             data={"thinking": ""},
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 0
@@ -258,7 +258,7 @@ class TestProcessEventMessageEnd:
     @pytest.mark.asyncio
     async def test_message_end_captures_metadata(self, adapter):
         """MESSAGE_END should update adapter metadata for persistence."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.MESSAGE_END,
             data={
                 "stop_reason": "tool_use",
@@ -267,7 +267,7 @@ class TestProcessEventMessageEnd:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert events == []
@@ -282,7 +282,7 @@ class TestProcessEventToolUse:
     @pytest.mark.asyncio
     async def test_tool_use_start(self, adapter):
         """Test tool use start event."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_USE,
             data={
                 "status": "start",
@@ -292,7 +292,7 @@ class TestProcessEventToolUse:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         # Start event doesn't emit SSE event, just tracks state
@@ -309,7 +309,7 @@ class TestProcessEventToolUse:
             "input_json": "",
         }
 
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_USE,
             data={
                 "status": "delta",
@@ -318,7 +318,7 @@ class TestProcessEventToolUse:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         # Delta doesn't emit SSE event
@@ -328,7 +328,7 @@ class TestProcessEventToolUse:
     @pytest.mark.asyncio
     async def test_tool_use_stop_with_input(self, adapter):
         """Test tool use stop emits tool_call event with input."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_USE,
             data={
                 "status": "stop",
@@ -339,7 +339,7 @@ class TestProcessEventToolUse:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -357,7 +357,7 @@ class TestProcessEventToolUse:
             "input_json": '{"file_id": "f123", "edits": []}',
         }
 
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_USE,
             data={
                 "status": "stop",
@@ -367,7 +367,7 @@ class TestProcessEventToolUse:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -382,7 +382,7 @@ class TestProcessEventToolUse:
     @pytest.mark.asyncio
     async def test_tool_use_complete(self, adapter):
         """Test tool use complete event."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_USE,
             data={
                 "status": "complete",
@@ -392,7 +392,7 @@ class TestProcessEventToolUse:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -411,7 +411,7 @@ class TestProcessEventToolResult:
             "status": "success",
             "data": {"id": "f1", "title": "Test"}
         })
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "create_file",
@@ -422,7 +422,7 @@ class TestProcessEventToolResult:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) >= 1
@@ -438,7 +438,7 @@ class TestProcessEventToolResult:
             "status": "error",
             "error": "File not found"
         })
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "update_file",
@@ -449,7 +449,7 @@ class TestProcessEventToolResult:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) >= 1
@@ -463,7 +463,7 @@ class TestProcessEventToolResult:
         result_json = json.dumps({
             "error": "Unknown tool: bad_tool"
         })
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "bad_tool",
@@ -474,7 +474,7 @@ class TestProcessEventToolResult:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) >= 1
@@ -491,12 +491,12 @@ class TestProcessEventToolResult:
             "error_type": "ambiguous_match",
             "user_message": "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
         }, ensure_ascii=False)
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={"name": "edit_file", "result": {"content": [{"text": result_json}]}},
         )
 
-        events = [sse async for sse in adapter._process_langgraph_event(event)]
+        events = [sse async for sse in adapter._process_workflow_event(event)]
 
         card = events[0].data
         assert card["status"] == "error"
@@ -514,12 +514,12 @@ class TestProcessEventToolResult:
             raise ValueError("secret internals")
 
         monkeypatch.setattr(adapter, "_parse_tool_result_payload", boom)
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={"name": "query_files", "result": {"content": [{"text": "{}"}]}},
         )
 
-        events = [sse async for sse in adapter._process_langgraph_event(event)]
+        events = [sse async for sse in adapter._process_workflow_event(event)]
 
         card = events[0].data
         assert card["status"] == "error"
@@ -530,7 +530,7 @@ class TestProcessEventToolResult:
     @pytest.mark.asyncio
     async def test_tool_result_with_invalid_json(self, adapter):
         """Test tool result with invalid JSON."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "query_files",
@@ -541,7 +541,7 @@ class TestProcessEventToolResult:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         # Should handle gracefully
@@ -551,7 +551,7 @@ class TestProcessEventToolResult:
     @pytest.mark.asyncio
     async def test_tool_result_with_non_dict_result_shape(self, adapter):
         """Non-MCP result shapes should not break tool_result SSE emission."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "query_files",
@@ -560,7 +560,7 @@ class TestProcessEventToolResult:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -576,7 +576,7 @@ class TestProcessEventToolResult:
             "target_agent": "quality_reviewer",
             "reason": "质量审查",
         })
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "handoff_to_agent",
@@ -585,7 +585,7 @@ class TestProcessEventToolResult:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -602,7 +602,7 @@ class TestProcessEventToolResult:
             "max_chars": 100,
             "original_length": 999,
         })
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "edit_file",
@@ -611,7 +611,7 @@ class TestProcessEventToolResult:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         # Only tool_result should be emitted; edit detail events are skipped safely.
@@ -624,7 +624,7 @@ class TestProcessEventToolResult:
         """Malformed tool_result parsing should not interrupt subsequent SSE events."""
 
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TOOL_RESULT,
                 data={
                     "name": "query_files",
@@ -633,13 +633,13 @@ class TestProcessEventToolResult:
                     },
                 },
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": "still running"},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         event_types = [event.type for event in events]
@@ -654,7 +654,7 @@ class TestProcessEventAgentSelected:
     @pytest.mark.asyncio
     async def test_agent_selected_event(self, adapter):
         """Test agent selected event."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.AGENT_SELECTED,
             data={
                 "agent_type": "planner",
@@ -666,7 +666,7 @@ class TestProcessEventAgentSelected:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -684,7 +684,7 @@ class TestProcessEventIterationExhausted:
     @pytest.mark.asyncio
     async def test_iteration_exhausted_event(self, adapter):
         """Test iteration exhausted event."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.ITERATION_EXHAUSTED,
             data={
                 "layer": "tool_call",
@@ -696,7 +696,7 @@ class TestProcessEventIterationExhausted:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -707,18 +707,18 @@ class TestProcessEventIterationExhausted:
 
 
 class TestProcessEventPassthrough:
-    """Tests for passthrough LangGraph events."""
+    """Tests for passthrough workflow events."""
 
     @pytest.mark.asyncio
     async def test_handoff_event_passthrough(self, adapter):
         """Test handoff event is mapped to a valid SSE event type."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.HANDOFF,
             data={"from_agent": "planner", "to_agent": "writer"},
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -735,7 +735,7 @@ class TestProcessEventPassthrough:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -748,7 +748,7 @@ class TestProcessEventPassthrough:
         event = session_started_event("session-123")
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -767,7 +767,7 @@ class TestProcessEventPassthrough:
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -782,13 +782,13 @@ class TestProcessEventError:
     @pytest.mark.asyncio
     async def test_error_event(self, adapter):
         """Test error event."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.ERROR,
             data={"error": "API rate limit exceeded"},
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -801,13 +801,13 @@ class TestProcessEventError:
     @pytest.mark.asyncio
     async def test_error_event_with_default_message(self, adapter):
         """Test error event with default message."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.ERROR,
             data={},
         )
 
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) == 1
@@ -815,28 +815,28 @@ class TestProcessEventError:
         assert events[0].data["code"] == "ERR_AGENT_RUN_FAILED"
 
 
-class TestProcessLangGraphEvents:
-    """Tests for the main process_langgraph_events method."""
+class TestProcessWorkflowEvents:
+    """Tests for the main process_workflow_events method."""
 
     @pytest.mark.asyncio
     async def test_stream_lifecycle(self, adapter):
         """Test complete streaming lifecycle."""
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": "Hello"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": " world"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.MESSAGE_END,
                 data={},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         # Should have: content_start, content, content, content_end, done
@@ -851,14 +851,14 @@ class TestProcessLangGraphEvents:
     async def test_stream_ensures_content_end(self, adapter):
         """Test content_end is emitted even if not in events."""
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": "Text"},
             )
             # No MESSAGE_END, just stop
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         # Should still have content_end and done
@@ -870,17 +870,17 @@ class TestProcessLangGraphEvents:
     async def test_stream_without_content(self, adapter):
         """Test stream without any content events."""
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.AGENT_SELECTED,
                 data={"agent_type": "writer"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.MESSAGE_END,
                 data={},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         # Should have agent_selected and done (no content_end)
@@ -896,17 +896,17 @@ class TestProcessLangGraphEvents:
         adapter._save_file_content = AsyncMock()
 
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": "<file>Hello world"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.MESSAGE_END,
                 data={},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         event_types = [e.type for e in events]
@@ -924,17 +924,17 @@ class TestProcessLangGraphEvents:
         adapter._save_file_content = AsyncMock(return_value=False)
 
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": "<file>Hello</file>"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.MESSAGE_END,
                 data={},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         event_types = [e.type for e in events]
@@ -947,17 +947,17 @@ class TestProcessLangGraphEvents:
         """Workflow error events should terminate the stream without emitting done."""
 
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": "Partial response"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.ERROR,
                 data={"error": "Workflow exploded"},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         event_types = [e.type for e in events]
@@ -1350,14 +1350,14 @@ class TestErrorHandling:
     async def test_handle_encoding_errors(self, adapter):
         """Test handling encoding errors in text content."""
         # Text with potential encoding issues
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={"text": "Test with emoji 🎉 and unicode \u0000"},
         )
 
         # Should not raise
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) >= 1
@@ -1365,7 +1365,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handle_malformed_tool_result(self, adapter):
         """Test handling malformed tool result."""
-        event = LangGraphStreamEvent(
+        event = WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
                 "name": "test_tool",
@@ -1375,7 +1375,7 @@ class TestErrorHandling:
 
         # Should handle gracefully
         events = []
-        async for sse_event in adapter._process_langgraph_event(event):
+        async for sse_event in adapter._process_workflow_event(event):
             events.append(sse_event)
 
         assert len(events) >= 1
@@ -1388,29 +1388,29 @@ class TestIntegration:
     async def test_full_conversation_flow(self, adapter):
         """Test complete conversation flow with multiple event types."""
         async def mock_events():
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.AGENT_SELECTED,
                 data={"agent_type": "writer", "agent_name": "内容创作者"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.THINKING,
                 data={"thinking": "Planning the content..."},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": "Here is the content:"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TEXT,
                 data={"text": " Chapter 1"},
             )
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.MESSAGE_END,
                 data={},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         # Should have all event types
@@ -1427,12 +1427,12 @@ class TestIntegration:
         """Test complete tool calling workflow."""
         async def mock_events():
             # Agent selection
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.AGENT_SELECTED,
                 data={"agent_type": "writer"},
             )
             # Tool call
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TOOL_USE,
                 data={
                     "status": "complete",
@@ -1445,7 +1445,7 @@ class TestIntegration:
                 "status": "success",
                 "data": {"id": "f1", "title": "Chapter 1", "file_type": "draft"}
             })
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.TOOL_RESULT,
                 data={
                     "name": "create_file",
@@ -1453,13 +1453,13 @@ class TestIntegration:
                 },
             )
             # End
-            yield LangGraphStreamEvent(
+            yield WorkflowStreamEvent(
                 type=StreamEventType.MESSAGE_END,
                 data={},
             )
 
         events = []
-        async for sse_event in adapter.process_langgraph_events(mock_events()):
+        async for sse_event in adapter.process_workflow_events(mock_events()):
             events.append(sse_event)
 
         # Should have tool call and result
@@ -1488,8 +1488,8 @@ async def test_abandoned_file_write_clears_pending_empty_file_guard():
     assert ToolContext.has_pending_empty_file() is True
 
     async def mock_events():
-        yield LangGraphStreamEvent(type=StreamEventType.TEXT, data={"text": "好的，我已创建角色A。"})
-        yield LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+        yield WorkflowStreamEvent(type=StreamEventType.TEXT, data={"text": "好的，我已创建角色A。"})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
     _ = [e async for e in adapter.process_workflow_events(mock_events())]
 
@@ -1515,15 +1515,15 @@ async def test_unterminated_file_with_control_marker_is_not_persisted():
     adapter.set_pending_file_write("file-1", "draft", "第51章")
 
     async def mock_events():
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={"text": "<file>正文文件已创建，需直接写入内容。\n\n"},
         )
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={"text": "### 交接审查完成，已交接给 writer。[TASK_COMPLETE]"},
         )
-        yield LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={})
 
     events = [e async for e in adapter.process_workflow_events(mock_events())]
     event_types = [e.type for e in events]
@@ -1546,11 +1546,11 @@ async def test_truncated_prose_without_control_marker_is_still_saved():
     adapter.set_pending_file_write("file-2", "draft", "第52章")
 
     async def mock_events():
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={"text": "<file>夜色沉沉，林川推开门，看见了那封信。"},
         )
-        yield LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={})
 
     _ = [e async for e in adapter.process_workflow_events(mock_events())]
 
@@ -1574,16 +1574,16 @@ async def test_fence_wrapped_file_block_is_saved_not_dumped_into_chat():
     adapter.set_pending_file_write("file-3", "draft", "第53章")
 
     async def mock_events():
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "```markdown\n<file>"}
         )
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "夜色沉沉，林川推开门。"}
         )
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "</file>\n```"}
         )
-        yield LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={})
 
     events = [e async for e in adapter.process_workflow_events(mock_events())]
 
@@ -1615,16 +1615,16 @@ async def test_unclosed_fence_narration_then_file_block_is_saved():
     adapter.set_pending_file_write("file-4", "draft", "第54章")
 
     async def mock_events():
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "好的，输出格式```\n"}
         )
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "<file>雨停了，屋檐还在滴水。"}
         )
-        yield LangGraphStreamEvent(
+        yield WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "</file>已完成。"}
         )
-        yield LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={})
 
     events = [e async for e in adapter.process_workflow_events(mock_events())]
 
@@ -1650,7 +1650,7 @@ def _create_file_result_event(
     file_type: str,
     title: str,
     content: str = "",
-) -> LangGraphStreamEvent:
+) -> WorkflowStreamEvent:
     """构造一个 create_file 的 TOOL_RESULT 事件（MCP 规范格式）。"""
     payload = {
         "status": "success",
@@ -1661,7 +1661,7 @@ def _create_file_result_event(
             "content": content,
         },
     }
-    return LangGraphStreamEvent(
+    return WorkflowStreamEvent(
         type=StreamEventType.TOOL_RESULT,
         data={
             "name": "create_file",
@@ -1700,13 +1700,13 @@ async def test_empty_folder_does_not_start_file_capture():
 
     rounds = await _drive_per_event(adapter, [
         _create_file_result_event("folder-1", "folder", "第一卷"),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "已为你建好「第一卷」文件夹，"}
         ),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "接下来我会按大纲逐章写作。"}
         ),
-        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"}),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"}),
     ])
 
     # folder 不是待写正文的目标：既不置 adapter 的 pending，也不让处理器进入捕获
@@ -1775,17 +1775,17 @@ async def test_folder_narration_with_fenced_file_example_is_not_written_to_folde
 
     rounds = await _drive_per_event(adapter, [
         _create_file_result_event("folder-2", "folder", "第一卷"),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT,
             data={
                 "text": "文件夹已创建。写作协议是这样的：\n\n"
                         "```markdown\n<file>\n这里是正文示例，比如第一章的开头。\n</file>\n```\n\n"
             },
         ),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "明白了吗？我现在开始写第一章。"}
         ),
-        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
     ])
     emitted = [e for round_events in rounds for e in round_events]
 
@@ -1822,14 +1822,14 @@ async def test_new_pending_write_flushes_buffered_narration():
 
     rounds = await _drive_per_event(adapter, [
         _create_file_result_event("draft-A", "draft", "第一章"),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "先说明一下：这一章我会写得克制些。"}
         ),
         _create_file_result_event("draft-B", "draft", "第二章"),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "<file>第二章正文。</file>"}
         ),
-        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
     ])
 
     # 被顶掉的缓冲在「顶掉它的那一轮」就作为 content 吐出
@@ -1854,14 +1854,14 @@ async def test_new_pending_write_completes_displaced_unterminated_file():
 
     await _drive_per_event(adapter, [
         _create_file_result_event("draft-C", "draft", "第三章"),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "<file>第三章开头，尚未闭合。"}
         ),
         _create_file_result_event("draft-D", "draft", "第四章"),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "<file>第四章正文。</file>"}
         ),
-        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
     ])
 
     saved = [call.args for call in adapter._save_file_content.await_args_list]
@@ -1889,7 +1889,7 @@ async def test_displaced_completion_keeps_new_files_pending_empty_guard():
     # mcp_tools 没有为它置标记；随后新建的 draft-F 才是被标记的空文件。
     await _drive_per_event(adapter, [
         _create_file_result_event("draft-E", "draft", "第五章"),
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TEXT, data={"text": "<file>第五章开头。"}
         ),
     ])
@@ -1937,7 +1937,7 @@ async def test_body_then_next_create_file_saves_previous_and_captures_next():
         ToolContext.set_pending_empty_file("ep-2", "第2集")
 
         rounds = await _drive_per_event(adapter, [
-            LangGraphStreamEvent(
+            WorkflowStreamEvent(
                 type=StreamEventType.TEXT, data={"text": "第1集如下。<file>\n雨夜，她推开门。\n</file>"}
             ),
             _create_file_result_event("ep-2", "script", "第2集"),
@@ -1948,10 +1948,10 @@ async def test_body_then_next_create_file_saves_previous_and_captures_next():
         assert adapter._stream_processor.state == StreamState.WAITING_START
 
         rounds += await _drive_per_event(adapter, [
-            LangGraphStreamEvent(
+            WorkflowStreamEvent(
                 type=StreamEventType.TEXT, data={"text": "<file>\n天亮了。\n</file>"}
             ),
-            LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+            WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
         ])
 
         saved = [call.args for call in adapter._save_file_content.await_args_list]
@@ -1985,7 +1985,7 @@ async def test_genuine_rejection_keeps_failure_card_and_still_captures_body():
             "pending_file_id": "ep-A",
         }
         rounds = await _drive_per_event(adapter, [
-            LangGraphStreamEvent(
+            WorkflowStreamEvent(
                 type=StreamEventType.TOOL_RESULT,
                 data={
                     "name": "create_file",
@@ -1993,8 +1993,8 @@ async def test_genuine_rejection_keeps_failure_card_and_still_captures_body():
                     "result": {"content": [{"type": "text", "text": json.dumps(rejection)}]},
                 },
             ),
-            LangGraphStreamEvent(type=StreamEventType.TEXT, data={"text": "<file>第1集正文</file>"}),
-            LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+            WorkflowStreamEvent(type=StreamEventType.TEXT, data={"text": "<file>第1集正文</file>"}),
+            WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
         ])
 
         [card] = [sse for sse in rounds[0] if sse.type == EventType.TOOL_RESULT]
@@ -2013,8 +2013,8 @@ async def test_genuine_rejection_keeps_failure_card_and_still_captures_body():
 # ---------------------------------------------------------------------------
 
 
-def _text_event(text: str) -> LangGraphStreamEvent:
-    return LangGraphStreamEvent(type=StreamEventType.TEXT, data={"text": text})
+def _text_event(text: str) -> WorkflowStreamEvent:
+    return WorkflowStreamEvent(type=StreamEventType.TEXT, data={"text": text})
 
 
 @pytest.mark.unit
@@ -2032,7 +2032,7 @@ async def test_prod_empty_file_pair_after_close_is_not_emitted_as_chat():
         _text_event("松开我的手。\n\n　　只是上一世，雨太大，我没看清。\n"),
         _text_event("</file>\n\n"),
         *[_text_event(t) for t in ["<", "file", ">\n", "</", "file", ">"]],
-        LangGraphStreamEvent(
+        WorkflowStreamEvent(
             type=StreamEventType.TOOL_USE,
             data={
                 "status": "stop",
@@ -2041,7 +2041,7 @@ async def test_prod_empty_file_pair_after_close_is_not_emitted_as_chat():
                 "input": {"id": "draft-1", "response_mode": "summary"},
             },
         ),
-        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "tool_use"}),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "tool_use"}),
     ])
     emitted = [e for batch in rounds for e in batch]
 
@@ -2069,7 +2069,7 @@ async def test_held_pair_prefix_is_released_before_next_create_file():
         _text_event("\n<fi"),
         _create_file_result_event("ch-2", "draft", "第二章"),
         _text_event("<file>第二章正文</file>"),
-        LangGraphStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
+        WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={}),
     ])
 
     saved = [call.args for call in adapter._save_file_content.await_args_list]

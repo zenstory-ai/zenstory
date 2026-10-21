@@ -12,11 +12,9 @@
 drain 出来的消息直接随本轮历史落库。结果是同一 chat session 里仍在流式生成的
 run B 永远收不到这条引导，历史里反而凭空多出一条挂在已结束轮次上的用户消息。
 
-本文件同时锁死两层：
-1. 生产路径（`AgentService.process_stream`）：保存历史前入队的 steering，有并发
-   run 时必须回到队列、且不得写进本轮历史；没有并发 run 时必须照旧落库。
-2. 原语层（`agent.core.steering.has_other_active_runs_async`）：内存与 Redis 两
-   套后端必须给出同一个答案——这个模块反复出问题的根源就是两侧语义漂移。
+本文件锁死生产路径（`AgentService.process_stream`）：保存历史前入队的 steering，
+有并发 run 时必须回到队列、且不得写进本轮历史；没有并发 run 时必须照旧落库。
+内存与 Redis 两套后端都跑同一组场景（steering_backend），防止两侧语义漂移。
 """
 
 import asyncio
@@ -337,109 +335,6 @@ class TestPreSaveDrainHandsBackToConcurrentRun:
                 await cleanup_steering_queue_async(
                     captured["session_id"], run_id=zombie_run_id
                 )
-
-
-# ---------------------------------------------------------------------------
-# 原语层：两个后端的语义必须一致
-# ---------------------------------------------------------------------------
-
-
-async def _probe_matrix(st) -> dict[str, bool]:
-    """在当前后端上跑同一组场景，返回场景名 -> 是否「还有别的活跃 run」。"""
-    results: dict[str, bool] = {}
-
-    # 1. 从未建过队列的 session
-    results["unknown_session"] = await st.has_other_active_runs_async(
-        "gap-probe-unknown", "runA"
-    )
-
-    # 2. 只有自己一个持有者
-    sid_solo = "gap-probe-solo"
-    await st.create_steering_queue_async(sid_solo, "user-1", run_id="runA")
-    results["only_self"] = await st.has_other_active_runs_async(sid_solo, "runA")
-    await st.cleanup_steering_queue_async(sid_solo, run_id="runA")
-
-    # 3. 还有一个并发 run
-    sid_pair = "gap-probe-pair"
-    await st.create_steering_queue_async(sid_pair, "user-1", run_id="runA")
-    await st.create_steering_queue_async(sid_pair, "user-1", run_id="runB")
-    results["other_run_active"] = await st.has_other_active_runs_async(sid_pair, "runA")
-    # 从 run B 的视角看同样成立（对称）
-    results["other_run_active_symmetric"] = await st.has_other_active_runs_async(
-        sid_pair, "runB"
-    )
-    await st.cleanup_steering_queue_async(sid_pair, run_id="runB")
-    results["after_other_released"] = await st.has_other_active_runs_async(
-        sid_pair, "runA"
-    )
-    await st.cleanup_steering_queue_async(sid_pair, run_id="runA")
-
-    # 4. 并发持有者是僵尸（心跳早已过期）
-    sid_zombie = "gap-probe-zombie"
-    await st.create_steering_queue_async(sid_zombie, "user-1", run_id="runA")
-    await st.create_steering_queue_async(sid_zombie, "user-1", run_id="zombie")
-    _age_hold(st, sid_zombie, "zombie", _ONE_DAY)
-    results["stale_other_run"] = await st.has_other_active_runs_async(sid_zombie, "runA")
-    await st.cleanup_steering_queue_async(sid_zombie, run_id="runA")
-
-    # 5. 空 run_id（调用方没有持有身份）一律视为「没有别人」，不做误判
-    results["empty_run_id"] = await st.has_other_active_runs_async(sid_pair, "")
-
-    return results
-
-
-def _age_hold(st, session_id: str, run_id: str, seconds: float) -> None:
-    """把某个持有者的心跳往前拨（模拟 worker 被 SIGKILL 后再没有心跳）。
-
-    两个后端的持有者表示不同：内存是 SteeringQueueEntry.active_runs，Redis 是
-    runs ZSET。哪边有这个 session 就拨哪边。
-    """
-    entry = st._queue_manager._queues.get(session_id)
-    if entry is not None and run_id in entry.active_runs:
-        entry.active_runs[run_id] -= seconds
-        return
-
-    from services.infra.redis_client import get_redis_client
-
-    runs = get_redis_client().store.get(st._runs_key(session_id))
-    assert isinstance(runs, dict) and run_id in runs, "两个后端都找不到该持有者"
-    runs[run_id] -= seconds
-
-
-_EXPECTED_PROBE_MATRIX = {
-    "unknown_session": False,
-    "only_self": False,
-    "other_run_active": True,
-    "other_run_active_symmetric": True,
-    "after_other_released": False,
-    "stale_other_run": False,
-    "empty_run_id": False,
-}
-
-
-@pytest.mark.unit
-class TestHasOtherActiveRunsParity:
-    """has_other_active_runs_async：内存与 Redis 两套实现不得语义漂移。"""
-
-    async def test_memory_backend_matrix(self, memory_steering):
-        assert await _probe_matrix(memory_steering) == _EXPECTED_PROBE_MATRIX
-
-    async def test_redis_backend_matrix(self, redis_steering):
-        st, _fake = redis_steering
-        assert await _probe_matrix(st) == _EXPECTED_PROBE_MATRIX
-
-    async def test_redis_probe_does_not_delete_session_keys(self, redis_steering):
-        """探测只读判定，不能像回收脚本那样把 owner/msgs 删掉——本 run 还在用。"""
-        st, fake = redis_steering
-        sid = "gap-probe-keep-keys"
-        queue = await st.create_steering_queue_async(sid, "user-1", run_id="runA")
-        await queue.add("别删我")
-
-        assert await st.has_other_active_runs_async(sid, "runA") is False
-        assert fake.store.get(st._owner_key(sid)) == "user-1"
-        assert [m.content for m in await queue.peek()] == ["别删我"]
-
-        await st.cleanup_steering_queue_async(sid, run_id="runA")
 
 
 @pytest.mark.unit

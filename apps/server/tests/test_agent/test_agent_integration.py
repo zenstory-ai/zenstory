@@ -1,9 +1,9 @@
 """
-Integration tests for LangGraph Agent.
+Integration tests for the writing agent.
 
 Tests the agent system including:
 - MCP tool definitions and execution (async)
-- Stream adapter SSE conversion for LangGraph events
+- Stream adapter SSE conversion for workflow events
 """
 
 import json
@@ -68,28 +68,6 @@ def test_user_with_project(db_session: Session):
 class TestMCPTools:
     """Tests for MCP tool definitions (async)."""
 
-    def test_all_tools_registered(self):
-        """Test that all MCP tools are registered."""
-        from agent.tools.mcp_tools import ALL_MCP_TOOLS
-
-        assert len(ALL_MCP_TOOLS) == 10
-
-        # ALL_MCP_TOOLS is now a list of functions
-        tool_names = [tool.__name__ for tool in ALL_MCP_TOOLS]
-        expected_tools = [
-            "create_file",
-            "edit_file",
-            "delete_file",
-            "rename_file",
-            "query_files",
-            "update_project",
-            "handoff_to_agent",
-            "request_clarification",
-            "load_skill",
-            "read_skill_resource",
-        ]
-        for expected in expected_tools:
-            assert expected in tool_names, f"Tool {expected} not found"
 
     async def test_create_file_tool(self, db_session: Session, test_user_with_project):
         """Test create_file tool execution (async)."""
@@ -244,11 +222,11 @@ class TestStreamAdapter:
 
 
 @pytest.mark.integration
-class TestStreamAdapterLangGraph:
-    """Tests for StreamAdapter processing LangGraph events."""
+class TestStreamAdapterWorkflowEvents:
+    """Tests for StreamAdapter processing workflow events."""
 
     async def test_process_text_event(self):
-        """Test processing TEXT event from LangGraph."""
+        """Test processing TEXT event from the workflow."""
         from agent.core.workflow_events import StreamEvent, StreamEventType
         from agent.stream_adapter import create_stream_adapter
 
@@ -259,7 +237,7 @@ class TestStreamAdapterLangGraph:
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": " World"})
 
         events = []
-        async for event in adapter.process_langgraph_events(mock_events()):
+        async for event in adapter.process_workflow_events(mock_events()):
             events.append(event)
 
         # Should have content_start, content events, content_end, and done
@@ -269,7 +247,7 @@ class TestStreamAdapterLangGraph:
         assert "done" in event_types
 
     async def test_process_tool_use_event(self):
-        """Test processing TOOL_USE event from LangGraph."""
+        """Test processing TOOL_USE event from the workflow."""
         from agent.core.workflow_events import StreamEvent, StreamEventType
         from agent.stream_adapter import create_stream_adapter
 
@@ -286,7 +264,7 @@ class TestStreamAdapterLangGraph:
             )
 
         events = []
-        async for event in adapter.process_langgraph_events(mock_events()):
+        async for event in adapter.process_workflow_events(mock_events()):
             events.append(event)
 
         # Should have tool_call event
@@ -294,7 +272,7 @@ class TestStreamAdapterLangGraph:
         assert "tool_call" in event_types
 
     async def test_process_tool_result_event(self):
-        """Test processing TOOL_RESULT event from LangGraph."""
+        """Test processing TOOL_RESULT event from the workflow."""
         from agent.core.workflow_events import StreamEvent, StreamEventType
         from agent.stream_adapter import create_stream_adapter
 
@@ -313,7 +291,7 @@ class TestStreamAdapterLangGraph:
             )
 
         events = []
-        async for event in adapter.process_langgraph_events(mock_events()):
+        async for event in adapter.process_workflow_events(mock_events()):
             events.append(event)
 
         # Should have tool_result event
@@ -321,7 +299,7 @@ class TestStreamAdapterLangGraph:
         assert "tool_result" in event_types
 
     async def test_process_thinking_event(self):
-        """Test processing THINKING event from LangGraph."""
+        """Test processing THINKING event from the workflow."""
         from agent.core.workflow_events import StreamEvent, StreamEventType
         from agent.stream_adapter import create_stream_adapter
 
@@ -334,7 +312,7 @@ class TestStreamAdapterLangGraph:
             )
 
         events = []
-        async for event in adapter.process_langgraph_events(mock_events()):
+        async for event in adapter.process_workflow_events(mock_events()):
             events.append(event)
 
         # Should have thinking_content event
@@ -342,7 +320,7 @@ class TestStreamAdapterLangGraph:
         assert "thinking_content" in event_types
 
     async def test_process_error_event(self):
-        """Test processing ERROR event from LangGraph."""
+        """Test processing ERROR event from the workflow."""
         from agent.core.workflow_events import StreamEvent, StreamEventType
         from agent.stream_adapter import create_stream_adapter
 
@@ -355,7 +333,7 @@ class TestStreamAdapterLangGraph:
             )
 
         events = []
-        async for event in adapter.process_langgraph_events(mock_events()):
+        async for event in adapter.process_workflow_events(mock_events()):
             events.append(event)
 
         # Should have error event

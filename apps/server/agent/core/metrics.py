@@ -75,15 +75,6 @@ SKILL_CACHE_MISSES: Final[str] = "skill.cache.misses"
 
 
 @dataclass
-class MetricValue:
-    """A single metric measurement."""
-    name: str
-    value: float
-    timestamp: float = field(default_factory=time.time)
-    labels: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
 class Counter:
     """A counter that only increases."""
     name: str

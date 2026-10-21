@@ -15,9 +15,10 @@ from agent.prompts.base import (
     IMPACT_ANALYSIS_EXAMPLES,
     OUTPUT_PROTOCOL,
     PRODUCT_IDENTITY_PROTOCOL,
+    TOOL_USAGE_PROTOCOL,
     UNIFIED_EXECUTION_PROTOCOL,
     get_base_prompt,
-    get_tool_usage_guide,
+    get_folder_reference,
 )
 
 
@@ -56,7 +57,7 @@ def test_project_ids_preserve_shared_protocol_prefix_and_folder_isolation(folder
     ):
         assert protocol in shared_prefix
 
-    fixed_tool_rules = get_tool_usage_guide({}).replace("\n\n### 创建文件时的 parent_id\n", "").rstrip()
+    fixed_tool_rules = TOOL_USAGE_PROTOCOL.rstrip()
     assert fixed_tool_rules in shared_prefix, "项目目录 ID 不应打断固定的流式写入、标题或交互协议"
 
     static_sections = [
@@ -139,7 +140,7 @@ def test_tool_guide_keeps_only_available_folder_mappings(folder_types):
         "material": "创建素材(snippet)",
     }
     folder_ids = {kind: str(uuid5(UUID("09ab1059-6f47-440c-8ef3-8a47bfb38943"), kind)) for kind in folder_types}
-    guide = get_tool_usage_guide(folder_ids)
+    guide = get_folder_reference(folder_ids)
     mappings = [line for line in guide.splitlines() if line.startswith("- 创建") and " → parent_id=" in line]
 
     assert mappings == [f"- {label} → parent_id='{folder_ids[kind]}'" for kind, label in labels.items() if kind in folder_ids]

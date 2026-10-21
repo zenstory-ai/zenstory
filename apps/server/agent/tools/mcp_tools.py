@@ -3175,4 +3175,3 @@ MCP_TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "read_skill_resource": read_skill_resource,
 }
 
-ALL_MCP_TOOLS = list(MCP_TOOL_HANDLERS.values())

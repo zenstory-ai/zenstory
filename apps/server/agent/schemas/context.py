@@ -60,25 +60,6 @@ class ContextPriority(StrEnum):
         ]
 
 
-class ContextItemType(StrEnum):
-    """Types of context items."""
-
-    OUTLINE = "outline"
-    """Chapter/scene outline."""
-
-    DRAFT = "draft"
-    """Draft content."""
-
-    CHARACTER = "character"
-    """Character profile."""
-
-    LORE = "lore"
-    """World-building/lore entry."""
-
-    SNIPPET = "snippet"
-    """Reference snippet."""
-
-
 class ContextItem(BaseModel):
     """
     A single context item with metadata.

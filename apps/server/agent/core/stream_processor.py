@@ -19,9 +19,6 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-# Streaming markers
-FILE_START_MARKER = "<file>"
-FILE_END_MARKER = "</file>"
 
 # Upper bound on the length of a (whitespace/case) marker variant, e.g.
 # "<  /  file  >". We retain this many trailing chars as "possibly part of an

@@ -1346,7 +1346,7 @@ class SessionLoader:
         # 只有确实因预算截断时才对齐锚点；整段历史都放得下时起点就是会话开头，本来就稳定。
         return anchor_history_window(window) if len(window) < len(messages) else window
 
-    async def load_session_with_compaction(
+    async def load_session_and_context(
         self,
         session: Session,
         context_assembler,
@@ -1360,8 +1360,7 @@ class SessionLoader:
         """
         Load chat session, assemble context and build the cross-turn working set.
 
-        名字是历史遗留：这里**不做**任何会话压缩/总结（从来没有 compaction 模块），
-        历史只是按 token 预算取最近的滑动窗口。为不破坏调用方与测试桩保留原名。
+        这里不做会话压缩/总结：历史按 token 预算取最近的窗口（起点对齐锚点，见 anchor_history_window）。
 
         This is the primary method for new code. It combines:
         1. Chat session loading (newest-first history window + working set refs)

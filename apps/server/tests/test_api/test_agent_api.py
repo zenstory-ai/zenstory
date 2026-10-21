@@ -580,12 +580,12 @@ async def test_chat_project_not_found(client: AsyncClient, db_session: Session):
 @pytest.mark.integration
 @pytest.mark.skip(reason="POST /api/v1/agent/chat not implemented; chat is at /api/v1/agent/stream")
 async def test_chat_success_with_mock(client: AsyncClient, db_session: Session):
-    """Test chat endpoint with mocked LangGraph workflow."""
+    """Test chat endpoint with a mocked writing workflow."""
     user = create_test_user(db_session, "chat_user3")
     project = create_test_project(db_session, user.id)
     _, plain_key = create_test_api_key(db_session, user.id, scopes=["chat"])
 
-    # Mock the LangGraph workflow
+    # Mock the writing workflow
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
     async def mock_stream():

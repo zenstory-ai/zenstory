@@ -10,7 +10,7 @@ Provides centralized permission validation for file operations:
 
 from sqlmodel import Session
 
-from models import File, Project, User
+from models import File, Project
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -179,37 +179,6 @@ def check_file_access_in_tool_context(
     except NotFoundError as e:
         # 与按 id 加载失败共用同一条用户可见文案（真实原因已在权限层日志中）
         raise NotFoundError("文件不存在或已删除") from e
-
-
-def check_user_exists(
-    session: Session,
-    user_id: str,
-) -> User:
-    """
-    Check if user exists.
-
-    Args:
-        session: Database session
-        user_id: User ID
-
-    Returns:
-        The User object
-
-    Raises:
-        NotFoundError: If user doesn't exist
-    """
-    user = session.get(User, user_id)
-
-    if not user:
-        log_with_context(
-            logger,
-            40,  # ERROR
-            "User not found",
-            user_id=user_id,
-        )
-        raise NotFoundError(f"User not found: {user_id}")
-
-    return user
 
 
 class PermissionContext:

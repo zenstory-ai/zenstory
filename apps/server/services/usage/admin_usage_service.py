@@ -35,7 +35,6 @@ from services.usage.pricing import (
 
 UsageWindow = Literal["today", "yesterday", "7d"]
 UserSort = Literal["cost", "calls", "tokens"]
-WINDOW_DAYS = {"today": 1, "yesterday": 1, "7d": 7}
 LEGACY_PRICING_VERSION_WITHOUT_HOLIDAYS = "deepseek-flash-2026-10"
 LEGACY_HOLIDAY_CORRECTION_MODEL = "deepseek-flash"
 

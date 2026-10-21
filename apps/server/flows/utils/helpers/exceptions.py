@@ -18,16 +18,6 @@ class ValidationError(DeepNovelException):
     pass
 
 
-class FileProcessingError(DeepNovelException):
-    """文件处理错误"""
-    pass
-
-
-class DatabaseError(DeepNovelException):
-    """数据库操作错误"""
-    pass
-
-
 class LLMNonRetryableError(LLMAPIError):
     """
     LLM 错误：重试也不会成功（鉴权失败、余额不足、请求非法如上下文超长、

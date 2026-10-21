@@ -394,14 +394,6 @@ class StreamAdapter:
         # Emit done event
         yield done_event(file_mutated=self._file_mutated)
 
-    async def process_langgraph_events(
-        self,
-        events: AsyncIterator[WorkflowStreamEvent],
-    ) -> AsyncIterator[SSEEvent]:
-        """Backward-compatible alias for process_workflow_events."""
-        async for sse_event in self.process_workflow_events(events):
-            yield sse_event
-
     async def _process_workflow_event(
         self,
         event: WorkflowStreamEvent,
@@ -593,14 +585,6 @@ class StreamAdapter:
             # Pass through these events directly
             yield SSEEvent(type=event_type_value, data=data)
 
-    async def _process_langgraph_event(
-        self,
-        event: WorkflowStreamEvent,
-    ) -> AsyncIterator[SSEEvent]:
-        """Backward-compatible alias for _process_workflow_event."""
-        async for sse_event in self._process_workflow_event(event):
-            yield sse_event
-
     async def _handle_workflow_tool_result(
         self,
         data: dict[str, Any],
@@ -777,14 +761,6 @@ class StreamAdapter:
                 "size": len(content.encode("utf-8")) if isinstance(content, str) else 0,
             }
         return data
-
-    async def _handle_langgraph_tool_result(
-        self,
-        data: dict[str, Any],
-    ) -> AsyncIterator[SSEEvent]:
-        """Backward-compatible alias for _handle_workflow_tool_result."""
-        async for sse_event in self._handle_workflow_tool_result(data):
-            yield sse_event
 
     def _parse_tool_result_payload(self, raw_result: Any) -> Any:
         """Parse MCP tool_result payload with defensive fallbacks."""

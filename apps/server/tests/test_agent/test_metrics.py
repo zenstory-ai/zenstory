@@ -286,7 +286,7 @@ class TestAgentServiceMetrics:
             history_messages=[],
         )
         mock_loader = MagicMock()
-        mock_loader.load_session_with_compaction = AsyncMock(return_value=session_data)
+        mock_loader.load_session_and_context = AsyncMock(return_value=session_data)
         mock_message_manager = MagicMock()
         mock_message_manager.build_system_prompt.return_value = "system"
         mock_message_manager.build_turn_context.return_value = ""
@@ -337,7 +337,7 @@ class TestAgentServiceMetrics:
                 return []
 
         mock_loader = MagicMock()
-        mock_loader.load_session_with_compaction = AsyncMock(side_effect=RuntimeError("boom"))
+        mock_loader.load_session_and_context = AsyncMock(side_effect=RuntimeError("boom"))
 
         with (
             patch("agent.service.SessionLoader", return_value=mock_loader),

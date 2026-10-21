@@ -159,13 +159,6 @@ async def run_streaming_agent(
 # =============================================================================
 
 
-class ClarificationResult(NamedTuple):
-    """澄清检测结果。"""
-    needs_clarification: bool
-    confidence: float  # 0.0 - 1.0
-    reason: str
-
-
 class OutputEvaluationResult(NamedTuple):
     """Structured output evaluation result."""
 
@@ -221,34 +214,6 @@ def evaluate_agent_output(content: str, agent_type: str = "unknown") -> OutputEv
         should_complete=should_complete,
         should_clarify=should_clarify,
         reason=reason,
-    )
-
-
-def detect_clarification_needed(content: str, agent_type: str = "unknown") -> ClarificationResult:
-    """
-    Clarification must be triggered only by structured `request_clarification` tool calls.
-    Text heuristics and marker fallbacks are intentionally disabled.
-
-    Args:
-        content: Agent 输出内容（保留参数用于兼容，不参与判定）
-        agent_type: Agent 类型，用于特殊处理某些 agent 的输出格式
-
-    Returns:
-        ClarificationResult with needs_clarification flag, confidence, and reason
-    """
-    _ = content
-    # quality_reviewer 的输出是审查报告，不应触发澄清检测
-    if agent_type == "quality_reviewer":
-        return ClarificationResult(
-            needs_clarification=False,
-            confidence=0.0,
-            reason="quality_reviewer_exempt",
-        )
-
-    return ClarificationResult(
-        needs_clarification=False,
-        confidence=0.0,
-        reason="structured_tool_required",
     )
 
 

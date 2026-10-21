@@ -323,56 +323,6 @@ def validate_story_data(story: dict[str, Any]) -> bool:
     return True
 
 
-def validate_storyline_data(storyline: dict[str, Any]) -> bool:
-    """
-    验证剧情线数据格式
-
-    Args:
-        storyline: 剧情线数据字典
-
-    Returns:
-        是否有效
-
-    Raises:
-        ValidationError: 数据格式无效
-    """
-    required_fields = ["title", "description", "themes"]
-
-    for field in required_fields:
-        if field not in storyline:
-            raise ValidationError(f"剧情线缺少必需字段: {field}")
-
-    # 验证 title
-    if not isinstance(storyline["title"], str) or not storyline["title"].strip():
-        raise ValidationError("剧情线标题必须是非空字符串")
-
-    # 验证 description
-    if not isinstance(storyline["description"], str) or not storyline["description"].strip():
-        raise ValidationError("剧情线描述必须是非空字符串")
-
-    description_length = len(storyline["description"])
-    if description_length < 100:
-        raise ValidationError(f"剧情线描述过短（{description_length}字），建议至少200字")
-    if description_length > 600:
-        raise ValidationError(f"剧情线描述过长（{description_length}字），建议不超过400字")
-
-    # 验证 themes
-    if not isinstance(storyline["themes"], list) or len(storyline["themes"]) == 0:
-        raise ValidationError("剧情线主题必须是非空数组")
-    if len(storyline["themes"]) > 3:
-        raise ValidationError("剧情线主题不应超过3个")
-
-    # 验证 story_ids（可选）
-    if "story_ids" in storyline:
-        if not isinstance(storyline["story_ids"], list):
-            raise ValidationError("story_ids 必须是数组")
-        # 支持短篇小说：允许剧情线包含1个或多个剧情
-        if len(storyline["story_ids"]) < 1:
-            raise ValidationError("剧情线应包含至少1个剧情")
-
-    return True
-
-
 def validate_plots_response(data: dict[str, Any]) -> list[dict[str, Any]]:
     """
     验证情节点提取响应

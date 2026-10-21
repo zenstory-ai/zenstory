@@ -1,8 +1,8 @@
 """
 Agent API tests.
 
-Tests for the AI agent streaming endpoints with mocked LangGraph workflow.
-Updated for LangGraph architecture.
+Tests for the AI agent streaming endpoints with mocked writing workflow.
+Uses the in-house workflow graph.
 """
 
 from datetime import UTC, datetime
@@ -18,9 +18,9 @@ from services.core.auth_service import hash_password
 _CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 
 
-# Test helper: Create mock LangGraph stream events
-def create_mock_langgraph_events():
-    """Create mock LangGraph StreamEvent objects."""
+# Test helper: create mock workflow stream events
+def create_mock_workflow_events():
+    """Create mock workflow StreamEvent objects."""
     from agent.core.workflow_events import StreamEvent, StreamEventType
 
     async def mock_stream():
@@ -33,7 +33,7 @@ def create_mock_langgraph_events():
 
 @pytest.mark.integration
 async def test_agent_stream_request_success(client: AsyncClient, db_session: Session, writing_prompt_configs):
-    """Test successful agent streaming request with mocked LangGraph workflow."""
+    """Test successful agent streaming request with mocked writing workflow."""
     # Create user
     user = User(
         username="agent_user1",
@@ -55,9 +55,9 @@ async def test_agent_stream_request_success(client: AsyncClient, db_session: Ses
     db_session.add(project)
     db_session.commit()
 
-    # Mock the LangGraph workflow streaming
+    # Mock the writing workflow streaming
     with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
-        mock_workflow.return_value = create_mock_langgraph_events()
+        mock_workflow.return_value = create_mock_workflow_events()
 
         # Make request
         response = await client.post(
@@ -151,7 +151,7 @@ async def test_agent_health_check(client: AsyncClient):
 
 @pytest.mark.integration
 async def test_agent_stream_workflow_error(client: AsyncClient, db_session: Session, writing_prompt_configs):
-    """Test agent stream when LangGraph workflow returns error."""
+    """Test agent stream when the writing workflow returns an error."""
     # Create user
     user = User(
         username="agent_user4",
@@ -277,7 +277,7 @@ async def test_agent_stream_success_consumes_quota(client: AsyncClient, db_sessi
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation") as mock_refund,
     ):
-        mock_workflow.return_value = create_mock_langgraph_events()
+        mock_workflow.return_value = create_mock_workflow_events()
         response = await client.post(
             "/api/v1/agent/stream",
             json={
@@ -443,7 +443,7 @@ async def test_agent_stream_sse_format(client: AsyncClient, db_session: Session)
     db_session.commit()
 
     with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
-        mock_workflow.return_value = create_mock_langgraph_events()
+        mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(
             "/api/v1/agent/stream",
@@ -461,7 +461,7 @@ async def test_agent_stream_sse_format(client: AsyncClient, db_session: Session)
 
 @pytest.mark.integration
 async def test_agent_verify_mock_used(client: AsyncClient, db_session: Session):
-    """Verify that tests use mocked LangGraph workflow (no real API calls)."""
+    """Verify that tests use mocked writing workflow (no real API calls)."""
     # Create user
     user = User(
         username="agent_user6",
@@ -484,7 +484,7 @@ async def test_agent_verify_mock_used(client: AsyncClient, db_session: Session):
     db_session.commit()
 
     with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
-        mock_workflow.return_value = create_mock_langgraph_events()
+        mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(
             "/api/v1/agent/stream",
@@ -525,7 +525,7 @@ async def test_agent_stream_with_selected_text(client: AsyncClient, db_session: 
     db_session.commit()
 
     with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
-        mock_workflow.return_value = create_mock_langgraph_events()
+        mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(
             "/api/v1/agent/stream",
@@ -565,7 +565,7 @@ async def test_agent_stream_with_metadata(client: AsyncClient, db_session: Sessi
     db_session.commit()
 
     with patch("agent.service.run_writing_workflow_streaming") as mock_workflow:
-        mock_workflow.return_value = create_mock_langgraph_events()
+        mock_workflow.return_value = create_mock_workflow_events()
 
         response = await client.post(
             "/api/v1/agent/stream",

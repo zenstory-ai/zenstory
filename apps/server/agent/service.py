@@ -10,7 +10,7 @@ Features:
 - Multi-agent routing (planner/writer/quality_reviewer)
 - Steering message support
 
-Powered by LangGraph workflow orchestration + openai-agents-python.
+Built on the in-house workflow graph (agent/graph) and openai-agents-python.
 """
 
 import asyncio
@@ -1099,7 +1099,7 @@ class AgentService:
             ).to_sse()
 
             session_loader = SessionLoader(project_id, user_id)
-            session_data = await session_loader.load_session_with_compaction(
+            session_data = await session_loader.load_session_and_context(
                 session=session,
                 context_assembler=self.context_assembler,
                 query=message,

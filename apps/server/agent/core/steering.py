@@ -325,23 +325,6 @@ class SteeringQueueManager:
                 )
             return entry.queue
 
-    async def has_other_active_runs(self, session_id: str, run_id: str) -> bool:
-        """该 session 除了 run_id 之外是否还有别的活跃持有者。
-
-        用于「先结束的 run 不得吞掉仍在生成的 run 的引导消息」这条不变量：
-        队列只按 session 寻址（POST /agent/steer 的请求体没有 run_id），所以
-        无法把消息定向投递给某个 run；能做到的是让结束中的 run 在发现还有别
-        的 run 在生成时把消息交还回队列。
-        判定前先回收僵尸持有者，避免崩溃残留的 run 让判定恒为「还有别人」，
-        进而让消息在队列里空转到 TTL 过期（与 Redis 后端的
-        ZREMRANGEBYSCORE 同语义）。
-        """
-        async with self._lock:
-            entry = self._queues.get(session_id)
-            if entry is None:
-                return False
-            self._reap_stale_runs(session_id, entry)
-            return any(rid != run_id for rid in entry.active_runs)
 
     async def heartbeat_run(self, session_id: str, run_id: str) -> None:
         """续期单个持有者的心跳；已释放（不在册）的 run 不会被加回去。"""
@@ -757,7 +740,7 @@ return 0
 """
 
 
-# 「除了我自己以外还有几个活跃持有者」——与内存后端的 has_other_active_runs
+# 「除了我自己以外还有几个活跃持有者」——与内存后端的 requeue_if_other_active
 # 同语义。必须整段原子：拆成 ZREMRANGEBYSCORE / ZCARD / ZSCORE 三次 round-trip
 # 时，另一个 worker 上的并发 run 可能正好插在中间完成注册或释放，判定结果既
 # 可能凭空多出一个持有者（消息被交还给已经不存在的 run，滞留到 TTL），也可能
@@ -968,22 +951,6 @@ async def get_steering_queue_for_user_async(session_id: str, user_id: str) -> An
             await asyncio.to_thread(_redis_backfill_owner_sync, session_id, user_id)
         return RedisSteeringQueue(session_id)
     return await _queue_manager.get_queue_for_user(session_id, user_id)
-
-
-async def has_other_active_runs_async(session_id: str, run_id: str) -> bool:
-    """该 session 是否还有 run_id 之外的 stream run 在生成中。
-
-    两个后端必须给出同一个答案：内存后端看 SteeringQueueEntry.active_runs，
-    Redis 后端看 runs ZSET，两侧都先按心跳回收僵尸持有者。历史上这个模块反
-    复出问题的根源就是两套实现语义漂移，所以入口只有这一个。
-    """
-    if not run_id:
-        return False
-    if await _redis_available():
-        return await asyncio.to_thread(
-            _redis_has_other_active_runs_sync, session_id, run_id
-        )
-    return await _queue_manager.has_other_active_runs(session_id, run_id)
 
 
 async def heartbeat_steering_run_async(session_id: str, run_id: str) -> None:

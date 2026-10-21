@@ -52,33 +52,6 @@ class TestEvaluationSignals:
         assert detect_task_complete("").is_complete is False
         assert detect_task_complete("   ").is_complete is False
 
-    def test_detect_clarification_phrase_only_does_not_trigger(self):
-        """Clarification detection should ignore phrase-only text."""
-        from agent.graph.nodes import detect_clarification_needed
-
-        result = detect_clarification_needed("信息不够明确，请提供角色姓名和时间线？")
-        assert result.needs_clarification is False
-        assert result.reason == "structured_tool_required"
-
-    def test_detect_clarification_marker_only_does_not_trigger(self):
-        """Clarification detection should ignore legacy marker fallback."""
-        from agent.graph.nodes import detect_clarification_needed
-
-        result = detect_clarification_needed("请补充信息\n[NEEDS_CLARIFICATION]")
-        assert result.needs_clarification is False
-        assert result.reason == "structured_tool_required"
-
-    def test_quality_reviewer_exempt_from_clarification(self):
-        """quality_reviewer output should not trigger clarification stop."""
-        from agent.graph.nodes import detect_clarification_needed
-
-        result = detect_clarification_needed(
-            "请确认是否继续修改这段表达？",
-            agent_type="quality_reviewer",
-        )
-        assert result.needs_clarification is False
-        assert result.reason == "quality_reviewer_exempt"
-
 
 @pytest.mark.unit
 class TestRunStreamingAgent:

@@ -545,11 +545,4 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "read_skill_resource": READ_SKILL_RESOURCE_TOOL,
 }
 
-def get_tool_by_name(name: str) -> dict[str, Any] | None:
-    """Get a tool definition by name."""
-    return TOOL_SCHEMAS.get(name)
 
-
-def get_all_tool_names() -> list[str]:
-    """Get all tool names."""
-    return list(TOOL_SCHEMAS.keys())
