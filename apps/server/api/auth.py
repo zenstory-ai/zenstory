@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, ConfigDict, EmailStr, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator
 from services.auth import (
     ALLOW_LEGACY_REFRESH_WITHOUT_JTI,
     TOKEN_TYPE_REFRESH,
@@ -30,6 +30,7 @@ from services.auth import (
 )
 from services.verification_service import send_verification_code
 from sqlalchemy import delete, or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -49,6 +50,7 @@ from services.features import password_reset_service
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
 from services.features.registration_recovery_service import correct_registration_email
+from services.features.user_preference_service import get_ui_language, normalize_ui_language, set_ui_language
 from services.features.verification_service import clear_registration_verification
 from services.infra.email_client import InvalidRecipientError
 from services.subscription.subscription_service import subscription_service
@@ -109,6 +111,8 @@ class UserResponse(BaseModel):
     is_superuser: bool
     created_at: datetime
     updated_at: datetime
+    # Interface language saved on the account (follows the user across devices); None until known.
+    ui_language: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -584,8 +588,8 @@ async def register(
         session.rollback()
         raise APIException(error_code=ErrorCode.AUTH_EMAIL_UNDELIVERABLE, status_code=400) from None
     from services.first_work_service import enroll_new_user
-
     enroll_new_user(session, new_user)
+    set_ui_language(session, new_user.id, request.language)
     session.commit()
     session.refresh(new_user)
 
@@ -868,6 +872,7 @@ async def login(
             "email_verified": user.email_verified,
             "created_at": normalize_datetime_to_utc(user.created_at),
             "updated_at": normalize_datetime_to_utc(user.updated_at),
+            "ui_language": get_ui_language(session, user.id),
         }
     }
 
@@ -1080,13 +1085,21 @@ def refresh_token(
             "email_verified": user.email_verified,
             "created_at": normalize_datetime_to_utc(user.created_at),
             "updated_at": normalize_datetime_to_utc(user.updated_at),
+            "ui_language": get_ui_language(session, user.id),
         }
     }
 
 
+def _user_response(session: Session, user: User) -> UserResponse:
+    return UserResponse.model_validate(user).model_copy(
+        update={"ui_language": get_ui_language(session, user.id)}
+    )
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session),
 ):
     """
     Get current user information.
@@ -1094,7 +1107,7 @@ async def get_current_user_info(
     - Requires authentication
     - Returns current user profile
     """
-    return current_user
+    return await asyncio.to_thread(_user_response, session, current_user)
 
 
 @router.put("/me", response_model=UserResponse)
@@ -1151,7 +1164,35 @@ def update_current_user(
     session.commit()
     session.refresh(current_user)
 
-    return current_user
+    return _user_response(session, current_user)
+
+
+class UserPreferencesResponse(BaseModel):
+    ui_language: str | None
+
+
+class UpdateUserPreferencesRequest(BaseModel):
+    ui_language: str = Field(min_length=2, max_length=16)
+
+
+@router.put("/me/preferences", response_model=UserPreferencesResponse)
+def update_current_user_preferences(
+    request: UpdateUserPreferencesRequest,
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session),
+):
+    """Store the interface language the user switched to; unsupported values are ignored."""
+    if normalize_ui_language(request.ui_language) is None:
+        return UserPreferencesResponse(ui_language=get_ui_language(session, current_user.id))
+    try:
+        stored = set_ui_language(session, current_user.id, request.ui_language)
+        session.commit()
+    except IntegrityError:
+        # Two first saves raced to create the row: the other one won, so update it.
+        session.rollback()
+        stored = set_ui_language(session, current_user.id, request.ui_language)
+        session.commit()
+    return UserPreferencesResponse(ui_language=stored)
 
 
 @router.post("/change-password")

@@ -560,6 +560,7 @@ class StreamAdapter:
                 max_iterations=data.get("max_iterations", 0),
                 reason=data.get("reason", ""),
                 last_agent=data.get("last_agent"),
+                limit=data.get("limit"),
             )
 
         elif event_type_value in (

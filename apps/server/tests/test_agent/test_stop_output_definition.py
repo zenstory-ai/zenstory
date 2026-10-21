@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from agent.core.stream_billing import PROSE_MIN_CHARS, StreamBillingTracker
+from agent.core.stream_billing import PROSE_MIN_CHARS, StreamBillingTracker, prose_units
 
 pytestmark = pytest.mark.unit
 
@@ -260,6 +260,41 @@ def test_deadline_after_only_reads_is_refunded_but_after_a_reply_is_charged():
 
     replied = _tracker(_sse("content", {"text": _SHORT_ANSWER}), _error())
     assert _deadline(replied) == ("run_deadline_exceeded", False)
+
+
+def test_english_narration_is_not_prose_but_an_english_answer_is():
+    """英文一句过渡旁白有六七十个字母，按字母数会被当成回复；按单词折算后与中文同一口径。"""
+    narration = (
+        "Locking the design now, then handing the manuscript to the writer "
+        "so it comes back as a finished ~3,000-word story."
+    )
+    answer = (
+        "Chapter three drags: the first two scenes explain the bookshop's history, and the hero "
+        "only finds the untitled ledger in scene three. Readers wait too long, so move the ledger "
+        "to the opening page and let the history surface while she reads it."
+    )
+    assert prose_units(narration) < PROSE_MIN_CHARS <= prose_units(answer)
+    # 流式分片把单词拆开也不重复计数。
+    split = _tracker(*(_sse("content", {"text": narration[i : i + 3]}) for i in range(0, len(narration), 3)))
+    assert split.produced_output is False
+
+
+def test_deadline_after_only_a_memory_update_and_narration_is_refunded():
+    """时限到期前只改了 AI 记忆、说了一句过渡旁白（正文还在思考里）：作者要的东西没写出来，退还。"""
+    tracker = _tracker(
+        _sse("content", {"text": "Locking the design now, then handing the manuscript to the writer."}),
+        _sse(
+            "tool_result",
+            {"tool_name": "update_project", "status": "success", "data": {"updated_fields": ["summary", "notes"]}},
+        ),
+        _sse("handoff", {"target_agent": "writer"}),
+        _error(),
+    )
+    assert tracker.produced_output is True  # 停止 / 断线口径不变：改了项目信息算产出
+    assert _deadline(tracker) == ("run_deadline_exceeded", True)
+
+    wrote = _tracker(_create_file("c1", content="The bottle was green."), _error())
+    assert _deadline(wrote) == ("run_deadline_exceeded", False)
 
 
 def test_short_reply_does_not_make_a_stop_charged():

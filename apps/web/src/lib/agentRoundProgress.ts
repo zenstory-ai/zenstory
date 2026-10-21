@@ -3,25 +3,33 @@ const PARALLEL_WRITE_TASKS = new Set(['write_chapter', 'edit_file', 'delete_file
 const PROJECT_INFO_FIELDS = new Set(['summary', 'writing_style', 'notes']);
 
 /**
- * A reply segment (text between two tool calls) counts as real prose once it has this
- * many visible characters. A one-line narration before a tool call ("我先看一遍全书大纲。")
- * stays below it. Same value as the server's `stream_billing.PROSE_MIN_CHARS`, which
- * decides whether a stopped / interrupted round is charged.
+ * A reply segment (text between two tool calls) counts as real prose once it reaches this
+ * many units (see proseUnits). A one-line narration before a tool call ("我先看一遍全书大纲。",
+ * "Let me check the outline first.") stays below it. Same value as the server's
+ * `stream_billing.PROSE_MIN_CHARS`, which decides whether a stopped / interrupted round is charged.
  */
 export const PROSE_MIN_CHARS = 60;
+/** Units per Latin-letter word, as in the server's `stream_billing.LATIN_WORD_UNITS`. */
+const LATIN_WORD_UNITS = 1.5;
+const LATIN_WORD = /[A-Za-zÀ-ÖØ-öø-ÿ]+/g;
 
-/** Visible (non-whitespace) characters, the way the server counts prose. */
-export function visibleLength(text: string): number {
-  let count = 0;
+/**
+ * Prose length the way the server counts it (`stream_billing.prose_units`): each Latin word is
+ * LATIN_WORD_UNITS, every other non-whitespace character (Han, digit, punctuation) is 1.
+ */
+export function proseUnits(text: string): number {
+  let visible = 0;
   for (const ch of text) {
-    if (!/\s/.test(ch)) count += 1;
+    if (!/\s/.test(ch)) visible += 1;
   }
-  return count;
+  const words = text.match(LATIN_WORD) ?? [];
+  const letters = words.reduce((sum, word) => sum + word.length, 0);
+  return visible - letters + LATIN_WORD_UNITS * words.length;
 }
 
 /** Whether one streamed reply segment is real prose rather than a transitional line. */
 export function isRealProse(segmentContent: string): boolean {
-  return visibleLength(segmentContent) >= PROSE_MIN_CHARS;
+  return proseUnits(segmentContent) >= PROSE_MIN_CHARS;
 }
 
 /**
@@ -50,7 +58,7 @@ export function createProseCounter(): ProseCounter {
         segmentId = id;
         offset = 0;
       }
-      seen = visibleLength(segmentContent);
+      seen = proseUnits(segmentContent);
       return seen - offset >= PROSE_MIN_CHARS;
     },
     boundary() {

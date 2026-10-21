@@ -315,7 +315,7 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             },
             "current_phase": {
                 "type": "string",
-                "description": "当前写作阶段描述",
+                "description": "当前写作阶段描述（作者会在 AI 记忆里看到，用作者使用的语言写）",
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["current_phase"],
             },
             "writing_style": {

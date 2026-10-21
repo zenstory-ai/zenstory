@@ -203,6 +203,10 @@ def test_hint_writes_before_asking(force_en):
         assert "do not ask questions first" in hint
         assert "two alternative directions" in hint
         assert "ask two or three key questions" not in hint
+        # 英文作者的篇幅按单词给，不出现汉字口径（否则模型要在 800 汉字与作者的词数之间来回权衡）。
+        assert "about 500 words" in hint
+        for project_type in ("novel", "short", "screenplay"):
+            assert "Chinese characters" not in first_message_hint(project_type, force_en=True)
     else:
         assert "不要先提问" in hint
         assert "约 800 字的开头写进正文" in hint

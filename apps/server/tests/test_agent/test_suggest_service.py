@@ -1246,6 +1246,14 @@ class TestHelperMethods:
 
         assert "(暂无项目信息)" in prompt
 
+    def test_english_interface_asks_for_english_suggestions(self, suggest_service):
+        """英文界面的建议提示词要求英文输出；中文界面不变。"""
+        from agent.suggest_service import ENGLISH_OUTPUT_RULE
+
+        kwargs = {"system_prompt": "System", "context": "", "recent_messages": [], "_count": 3}
+        assert suggest_service._build_prompt(**kwargs, language="en-US").endswith(ENGLISH_OUTPUT_RULE)
+        assert ENGLISH_OUTPUT_RULE not in suggest_service._build_prompt(**kwargs, language="zh")
+
 
 # =============================================================================
 # Configuration Constants Tests

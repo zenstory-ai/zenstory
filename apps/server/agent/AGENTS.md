@@ -31,7 +31,7 @@ agent/
 │   ├── steering.py         # 运行中插话（steering）队列
 │   ├── progress_channel.py # 长工具（parallel_execute）的进度事件通道
 │   ├── output_truncation.py# 输出截断后的续写提示
-│   ├── author_facing_text.py # 作者可见文字整理（AgentTextShaper、交接原因、角色中文名）
+│   ├── author_facing_text.py # 作者可见文字整理（AgentTextShaper、交接原因、角色名：中文界面用中文名，英文界面只换内部 id）
 │   ├── session_loader.py   # 历史窗口 + 面包屑 + 跨轮工作集
 │   ├── message_manager.py  # 系统提示与本轮上下文构建、历史保存、作者语言判断
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
@@ -206,10 +206,10 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 
 - 每个 `/agent/stream` 恰好以一个终止帧结束（`done` / `workflow_complete` / 终止性 `workflow_stopped` / `error`）；逃逸异常先补发 error 帧。
   错误码与固定文案在 `core/stream_errors.py`。[terminal-frame][n-terminal]、[error-and-refund][n-refund]
-- 计费规则以 `core/stream_billing.py` 模块 docstring 为准：作者停止 / 断线 / 墙钟超时时，本轮没有实质产出（墙钟超时还要求结束时不在写
-  回复）则退还；失控停止（no_progress / 模型调用上限 / 工具轮数耗尽）且没有任何写入成功则退还；正常结束计费；出错时 error 帧
+- 计费规则以 `core/stream_billing.py` 模块 docstring 为准：作者停止 / 断线时本轮没有实质产出则退还；墙钟超时（含发布重启）只认写进
+  文件的正文、真正的回复或结束时正在写回复，只改了项目信息（AI 记忆）照样退还；失控停止（no_progress / 模型调用上限 / 工具轮数耗尽）且没有任何写入成功则退还；正常结束计费；出错时 error 帧
   `refundable: false`（如工具失败熔断）、已有产出或正在写回复则计费，其余退还。「实质产出」只有写入留下正文，或一段回复正文达到
-  `PROSE_MIN_CHARS`；思考、读文件、只建空文件、过渡旁白都不算。退还落库后补发 `quota_refunded`，结算只做一次。
+  `PROSE_MIN_CHARS` 个单位（`prose_units`：拉丁字母单词算 1.5，其余非空白字符算 1，英文过渡句与中文同口径）；思考、读文件、只建空文件、过渡旁白都不算。退还落库后补发 `quota_refunded`，结算只做一次。
   [error-and-refund][n-refund]、[stop-output-definition][n-output]
 - 作者停止走 `POST /agent/stop` → `SSEStreamPump.request_stop()`，连接上补发 `workflow_stopped(user_stopped)` 与 `done`；停止 / 断线 / 超时
   的取消路径会把进行中的 `<file>` 捕获补存，并由 `core/round_outcome.py` 写终态、退还时移除本轮空白占位文件。
@@ -298,7 +298,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
    新工作流还要改 `WorkflowType` 和 `WORKFLOW_AGENTS`。
 3. 工具集：`tools/registry.py` 的 `AGENT_TOOL_NAME_MAP`（缺了会落到 writer 的工具集）。
 4. 交接目标：`tools/tool_schemas.py` 里 `handoff_to_agent` 的 `target_agent` enum，和 `tools/mcp_tools.py` 的 `handoff_to_agent` 目标校验。
-5. 作者可见名字：`core/author_facing_text.py` 的 `_AGENT_NAMES`、`graph/writing_graph.py` 的 `agent_names`；规划类角色加进
+5. 作者可见名字：`core/author_facing_text.py` 的 `_AGENT_NAMES`（英文界面见 `_AGENT_NAMES_EN`）、`graph/writing_graph.py` 的 `agent_names`；规划类角色加进
    `graph/author_scope.py` 的 `PLANNING_AGENTS`。
 6. 前端：`apps/web/src/lib/agentDisplayName.ts` 的 `AGENT_DISPLAY_KEYS`、`apps/web/public/locales/{zh,en}/chat.json` 的 `chat:workflow.agents.<id>`、
    `apps/web/src/lib/thinkingDisplay.ts` 的 `UNDERSCORE_IDENTIFIER_KEYS`（带下划线的 id）或 `BACKTICK_ONLY_IDENTIFIER_KEYS`（普通英文词）。

@@ -11,12 +11,15 @@ import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { cn } from "../lib/utils";
 import {
   filterAvailableMetrics,
+  formatUsd,
+  formatYuan,
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
   getYearlySavings,
   toComparableMetricValue,
 } from "../lib/subscriptionEntitlements";
 import { buildUpgradeUrl } from "../config/upgradeExperience";
+import { PRO_USD_PRICE_CENTS, usesUsdPricing } from "../config/usdPricing";
 import { useAuth } from "../contexts/AuthContext";
 import { authConfig } from "../config/auth";
 import { trackUpgradeConversion } from "../lib/upgradeAnalytics";
@@ -91,17 +94,19 @@ export default function PricingPage() {
     ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
     : t("dashboard:billing.ctaUpgradePro", "开通 Pro");
 
-  const formatCurrency = (cents: number): string => {
-    const locale = i18n.language?.startsWith("en") ? "en-US" : "zh-CN";
-    const amount = (cents / 100).toLocaleString(locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-    return `¥${amount}`;
-  };
+  const showUsdPricing = usesUsdPricing(i18n.language);
+  const getDisplayPrices = (plan: (typeof sortedPlans)[number]) =>
+    showUsdPricing && plan.name === "pro"
+      ? { monthly: PRO_USD_PRICE_CENTS.month, yearly: PRO_USD_PRICE_CENTS.year, format: formatUsd }
+      : { monthly: plan.price_monthly_cents, yearly: plan.price_yearly_cents, format: formatYuan };
 
-  const formatPrice = (cents: number, cycle: BillingCycle): string => {
+  const formatPrice = (plan: (typeof sortedPlans)[number], cycle: BillingCycle): string => {
+    const prices = getDisplayPrices(plan);
+    const cents = cycle === "month" ? prices.monthly : prices.yearly;
     if (cents === 0) return t("dashboard:billing.free", "免费");
     return cycle === "month"
-      ? `${formatCurrency(cents)}${t("dashboard:billing.perMonth", "/月")}`
-      : `${formatCurrency(cents)}${t("dashboard:billing.perYear", "/年")}`;
+      ? `${prices.format(cents, i18n.language)}${t("dashboard:billing.perMonth", "/月")}`
+      : `${prices.format(cents, i18n.language)}${t("dashboard:billing.perYear", "/年")}`;
   };
 
   const metricDefinitions = useMemo(
@@ -110,14 +115,11 @@ export default function PricingPage() {
   );
 
   // Only Pro is paid, so the plan with the largest yearly saving is the offer.
-  const bestYearlySavings = useMemo(
-    () =>
-      sortedPlans.reduce<ReturnType<typeof getYearlySavings>>((best, plan) => {
-        const savings = getYearlySavings(plan.price_monthly_cents, plan.price_yearly_cents);
-        return savings && (!best || savings.percent > best.percent) ? savings : best;
-      }, null),
-    [sortedPlans]
-  );
+  const bestYearlySavings = sortedPlans.reduce<ReturnType<typeof getYearlySavings>>((best, plan) => {
+    const prices = getDisplayPrices(plan);
+    const savings = getYearlySavings(prices.monthly, prices.yearly);
+    return savings && (!best || savings.percent > best.percent) ? savings : best;
+  }, null);
 
   const handlePrimaryCta = () => {
     const destination = user
@@ -321,10 +323,7 @@ export default function PricingPage() {
                     </h2>
                     {plan.name !== "free" && (
                       <p className="mt-2 text-2xl font-semibold text-[hsl(var(--text-primary))]">
-                        {formatPrice(
-                          billingCycle === "month" ? plan.price_monthly_cents : plan.price_yearly_cents,
-                          billingCycle
-                        )}
+                        {formatPrice(plan, billingCycle)}
                       </p>
                     )}
                   </div>

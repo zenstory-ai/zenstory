@@ -12,6 +12,14 @@ interface SEOContextType {
 
 const SEOContext = createContext<SEOContextType | undefined>(undefined);
 
+/** Language of the HTML the server sent, read before Helmet rewrites `<html lang>`. */
+const STATIC_SHELL_LANG = typeof document === 'undefined' ? '' : document.documentElement.lang.toLowerCase();
+
+/** Whether the server-rendered title and tags are in the reader's language (unknown counts as yes). */
+function staticShellMatches(langKey: 'zh' | 'en'): boolean {
+  return !STATIC_SHELL_LANG || STATIC_SHELL_LANG.startsWith(langKey);
+}
+
 function readStaticSchema(): SEOConfig['schema'] | undefined {
   const element = document.querySelector<HTMLScriptElement>('script[type="application/ld+json"]');
   if (!element?.textContent) return undefined;
@@ -78,7 +86,7 @@ function getRouteConfig(pathname: string, language: string): SEOConfig {
   // Seed Helmet with the same values so its first reconciliation preserves
   // rather than removes the correct server-rendered Open Graph tags.
   const staticCanonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href;
-  if (staticCanonical === canonical && !resolved.noindex) {
+  if (staticCanonical === canonical && !resolved.noindex && staticShellMatches(langKey)) {
     const staticDescription = document.querySelector<HTMLMetaElement>('meta[name="description"]')?.content;
     return {
       ...resolved,
@@ -118,7 +126,8 @@ export function SEOProvider({ children }: { children: React.ReactNode }) {
       if (!heading) return;
       const description = document.querySelector<HTMLElement>('article p')?.textContent?.trim();
       const canonical = getPublicCanonicalUrl(window.location.href);
-      const title = `${heading} · ZenStory 文档 | ZenStory AI`;
+      const docsName = i18n.language.startsWith('zh') ? 'ZenStory 文档' : 'ZenStory Docs';
+      const title = `${heading} · ${docsName} | ZenStory AI`;
       const resolvedDescription = description?.slice(0, 180);
 
       setSeoConfig((previous) => ({
@@ -154,7 +163,7 @@ export function SEOProvider({ children }: { children: React.ReactNode }) {
       window.clearTimeout(timer);
       observer.disconnect();
     };
-  }, [location.pathname]);
+  }, [location.pathname, i18n.language]);
 
   const updateSEO = useCallback((updates: Partial<SEOConfig>) => {
     setSeoConfig(prev => ({ ...prev, ...updates }));

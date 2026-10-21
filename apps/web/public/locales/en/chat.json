@@ -132,6 +132,7 @@
     "lowTurnWarning": "Close to this round's limit — the AI will finish the most important part first.",
     "collaborationExhaustedSummary": "This is a big task, so the AI paused after many steps. Click \"Keep going\" to continue.",
     "toolCallExhaustedSummary": "This is a big task, so the AI paused after many steps. Click \"Keep going\" to continue.",
+    "timeLimitSummary": "This round was close to its time limit, so the AI stopped to write a summary. If the summary says something is left, click \"Keep going\".",
     "nextStepHint": "What next?",
     "actionContinue": "Keep going",
     "actionSplit": "Split into steps",
@@ -376,6 +377,7 @@
     "title": "You've used today's {{limit}} free AI messages",
     "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
     "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
+    "resetLocal": "They come back on {{local}} your time (00:00 Beijing time). What you type stays in the box until then.",
     "upgradeHint": "To keep writing now, get Pro: no daily message limit."
   },
   "nextStep": {
@@ -404,9 +406,9 @@
     },
     "example": {
       "hint": "Not sure yet? Try this:",
-      "novel": "Court intrigue: the empire's most overlooked sixth prince only wants enough troops to survive, but his father and brothers keep pushing him forward.",
-      "short": "Twist short story: on exam day, a film-star mother just out of prison kneels to her daughter at the school gate, and only the daughter knows why she went to prison.",
-      "screenplay": "Vertical short drama: a healer's apprentice comes down the mountain to marry, gets publicly jilted, and marries his fiancée's sister instead.",
+      "novel": "Fantasy mystery: a disgraced mapmaker is hired to chart a city that quietly redraws its own streets every night.",
+      "short": "Twist short story: the night before her wedding, a bride finds a letter in her own handwriting begging her not to go through with it.",
+      "screenplay": "Vertical short drama: a diner waitress learns the quiet regular she serves every morning is the billionaire who ruined her family.",
       "use": "Write this",
       "edit": "Let me tweak it"
     },

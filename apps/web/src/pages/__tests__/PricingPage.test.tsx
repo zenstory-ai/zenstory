@@ -10,6 +10,7 @@ const { trackEventMock } = vi.hoisted(() => ({
 }));
 let mockUser: { id: string } | null = null;
 let mockLoading = false;
+let mockLanguage = "zh-CN";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -28,7 +29,7 @@ vi.mock("react-i18next", () => ({
       }
       return key;
     },
-    i18n: { language: "zh-CN" },
+    i18n: { language: mockLanguage },
   }),
 }));
 
@@ -192,6 +193,7 @@ describe("PricingPage", () => {
     mockGetStatus.mockResolvedValue({ tier: "free", status: "active" });
     mockUser = null;
     mockLoading = false;
+    mockLanguage = "zh-CN";
   });
 
   it("renders catalog metrics and recommended badge", async () => {
@@ -282,6 +284,20 @@ describe("PricingPage", () => {
       expect(screen.queryByText(/¥399\/年|¥399\/year/i)).not.toBeInTheDocument();
       expect(monthlyControl).toHaveAttribute("aria-checked", "true");
     });
+  });
+
+  it("prices Pro in USD for English readers and takes the annual saving from the USD prices", async () => {
+    mockLanguage = "en";
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("$79/年")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /年付/ })).toHaveTextContent("省 34%");
+    expect(screen.queryByText(/¥/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "月付" }));
+    expect(await screen.findByText("$9.99/月")).toBeInTheDocument();
   });
 
   it("covers difference-only filter behavior", async () => {

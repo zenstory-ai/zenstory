@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
 import { authApi } from '../lib/api';
 import type { UserSubscription, UsageQuota } from '../types/subscription';
 import { logger } from '../lib/logger';
@@ -12,6 +13,7 @@ import { getLocale } from '../lib/i18n-helpers';
 import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
 import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
 import { claimPreferredProjectType } from '../lib/preferredProjectType';
+import { syncAccountLanguage } from '../lib/accountLanguage';
 
 export interface User {
   id: string;
@@ -24,6 +26,8 @@ export interface User {
   is_superuser: boolean;
   created_at: string;
   updated_at: string;
+  /** Interface language saved on the account; null until the user signs up with or switches to one. */
+  ui_language?: string | null;
   subscription?: UserSubscription;
   quota?: UsageQuota;
 }
@@ -297,6 +301,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       window.removeEventListener('auth:logout', onLogout as EventListener);
     };
   }, [setUser]);
+
+  // The interface language follows the account across devices (see lib/accountLanguage).
+  // A switch updates the signed-in user and its cache at once, so a reload inside the cache
+  // window does not bring back the previous language.
+  const signedInUserId = user?.id;
+  const accountLanguage = user?.ui_language;
+  const rememberAccountLanguage = React.useCallback((language: string) => {
+    setUserState(current => (current ? { ...current, ui_language: language } : current));
+    const cached = getValidCachedUser();
+    if (cached && cached.id === signedInUserId) saveUserCache({ ...cached, ui_language: language });
+  }, [signedInUserId]);
+  useEffect(() => {
+    if (!signedInUserId) return;
+    return syncAccountLanguage(i18next, accountLanguage, rememberAccountLanguage);
+  }, [signedInUserId, accountLanguage, rememberAccountLanguage]);
 
   useEffect(() => {
     if (loading) return;

@@ -757,6 +757,8 @@ describe('SimpleEditor', () => {
     await waitFor(() => {
       expect(polishButton).toHaveAttribute('title', 'editor:naturalPolishTooltipFree');
     });
+    // Visible on the button itself, not only in the hover title.
+    expect(polishButton).toHaveTextContent('editor:naturalPolishCost');
   });
 
   it('keeps the plain natural polish tooltip for unlimited plans', () => {

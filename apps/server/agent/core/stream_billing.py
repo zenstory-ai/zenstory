@@ -30,8 +30,12 @@
   或批次中途被打断前已完成子任务的 ``parallel_task_end``）；``update_project`` 改了
   作品名、简介、文风或备注（只更新任务板 / 当前进度不算）。只建了一个空文件（后面的
   正文还没写进去）不算。
-- 真正的回复正文：同一段正文（两次工具调用之间）累计到 ``PROSE_MIN_CHARS`` 个可见
-  字符。工具调用前那句「我先看一遍全书大纲。」这类过渡旁白到不了这个长度，不算。
+- 真正的回复正文：同一段正文（两次工具调用之间）累计到 ``PROSE_MIN_CHARS`` 个单位
+  （见 :func:`prose_units`：汉字、数字、标点各算 1，一个拉丁字母单词算 1.5，英文的一句
+  过渡旁白和中文一样到不了）。工具调用前那句「我先看一遍全书大纲。」这类过渡旁白不算。
+
+墙钟时限到期时，只改了项目信息（简介 / 文风 / 备注）不算产出：作者要的东西还没写出来，
+记忆里的一条提议不值一条额度（``file_written`` 与 ``prose_output`` 才算）。
 
 退还真正落库（``_refund_quota`` 返回 True）之后，api/agent.py 在终止帧之后再补发
 一帧 ``quota_refunded``（见 :func:`quota_refunded_frame`），前端据此告诉作者「这一轮
@@ -41,6 +45,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -54,6 +59,9 @@ WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "edit_file", "delet
 # （「我先看一遍全书大纲。」「正在查看已有的全书大纲，确认现有设定后再梳理主线。」）
 # 通常 10～30 字，到不了这里。前端 lib/agentRoundProgress.ts 用同一个值。
 PROSE_MIN_CHARS = 60
+# 一个拉丁字母单词折合的单位：60 个单位约等于两句中文或 40 个英文单词。
+LATIN_WORD_UNITS = 1.5
+_LATIN_WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+")
 # 这些帧意味着一段正文结束（模型转去调工具、换 agent）：之后的正文重新计数。
 _SEGMENT_BOUNDARY_EVENTS: frozenset[str] = frozenset(
     {"tool_call", "tool_result", "handoff", "agent_selected", "file_created", "parallel_start"}
@@ -129,8 +137,16 @@ def _is_terminal_event(event_type: str, payload: dict[str, Any]) -> bool:
     )
 
 
-def _visible_len(text: str) -> int:
-    return sum(1 for ch in text if not ch.isspace())
+def prose_units(text: str) -> float:
+    """回复正文的长度：拉丁字母单词各算 LATIN_WORD_UNITS，其余非空白字符（汉字、数字、标点）各算 1。
+
+    只数可见字符时，英文一句十来个词的过渡旁白就有六七十个字母，会被当成真正的回复。
+    前端 lib/agentRoundProgress.ts 的 proseUnits 用同一口径。
+    """
+    words = _LATIN_WORD_RE.findall(text)
+    letters = sum(len(word) for word in words)
+    others = sum(1 for ch in text if not ch.isspace()) - letters
+    return others + LATIN_WORD_UNITS * len(words)
 
 
 @dataclass
@@ -146,6 +162,10 @@ class StreamBillingTracker:
     produced_output: bool = False
     # 本轮是否有写入留下了正文（见模块说明）。只建空文件不算。
     write_succeeded: bool = False
+    # 写入是否落在文件上（不含只改项目信息的 update_project）；墙钟时限路径只认这个。
+    file_written: bool = False
+    # 是否出现过真正的回复正文（同一段累计到 PROSE_MIN_CHARS）。
+    prose_output: bool = False
     # 本轮是否以失控方式停止（见模块说明第 3 条）。
     runaway_stop: bool = False
     started_at: float = field(default_factory=time.monotonic)
@@ -160,8 +180,10 @@ class StreamBillingTracker:
     # 这一轮结束（终止帧 / error 帧）时，模型最后在做的是给作者写回复：最后一段正文
     # 之后没有再调工具。出错 / 时限路径据此把「短回答之后出错」照旧计费。
     ended_on_reply: bool = False
-    # 当前这段回复正文（两次工具调用之间）已累计的可见字符数。
-    _segment_chars: int = field(default=0, repr=False)
+    # 当前这段回复正文（两次工具调用之间）：到达 PROSE_MIN_CHARS 之前的原文（流式分片会把
+    # 一个单词拆开，所以按累计原文重算 prose_units），以及是否已经到达。
+    _segment_text: str = field(default="", repr=False)
+    _segment_reached: bool = field(default=False, repr=False)
     # parallel_task_start 帧里的子任务类型：(execution_id, task_id) -> task_type。
     _parallel_task_types: dict[tuple[str, str], str] = field(default_factory=dict, repr=False)
 
@@ -182,7 +204,7 @@ class StreamBillingTracker:
         if _is_terminal_event(event_type, payload):
             self.saw_terminal_event = True
 
-        if self._segment_chars > 0 and (
+        if (self._segment_reached or self._segment_text.strip()) and (
             event_type in _TERMINAL_EVENT_TYPES
             or event_type == "error"
             or (
@@ -211,7 +233,11 @@ class StreamBillingTracker:
         wrote = self._write_effect(event_type, payload)
         if wrote:
             self.write_succeeded = True
+            if not (event_type == "tool_result" and payload.get("tool_name") == "update_project"):
+                self.file_written = True
         prose = self._prose_reached(event_type, payload)
+        if prose:
+            self.prose_output = True
         if not self.produced_output and (wrote or prose):
             self.produced_output = True
             self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
@@ -305,14 +331,19 @@ class StreamBillingTracker:
         )
 
     def _prose_reached(self, event_type: str, payload: dict[str, Any]) -> bool:
-        """真正的回复正文：同一段正文累计到 PROSE_MIN_CHARS 个可见字符。"""
+        """真正的回复正文：同一段正文累计到 PROSE_MIN_CHARS 个单位（见 prose_units）。"""
         if event_type in _SEGMENT_BOUNDARY_EVENTS:
-            self._segment_chars = 0
+            self._segment_text = ""
+            self._segment_reached = False
             return False
         if event_type != "content":
             return False
-        self._segment_chars += _visible_len(str(payload.get("text") or ""))
-        return self._segment_chars >= PROSE_MIN_CHARS
+        if not self._segment_reached:
+            self._segment_text += str(payload.get("text") or "")
+            if prose_units(self._segment_text) >= PROSE_MIN_CHARS:
+                self._segment_reached = True
+                self._segment_text = ""
+        return self._segment_reached
 
     def decide(
         self,
@@ -338,7 +369,7 @@ class StreamBillingTracker:
             return f"{reason}_no_output", True
         if deadline_exceeded:
             reason = "server_restarting" if server_restarting else "run_deadline_exceeded"
-            return reason, not (self.produced_output or self.ended_on_reply)
+            return reason, not (self.file_written or self.prose_output or self.ended_on_reply)
         if self.runaway_stop and not self.write_succeeded and not unexpected_exception:
             return RUNAWAY_BILLING_REASON, True
         if self.saw_terminal_event and not self.saw_error_event and not unexpected_exception:

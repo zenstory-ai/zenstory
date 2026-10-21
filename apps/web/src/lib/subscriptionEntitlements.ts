@@ -256,6 +256,13 @@ export function formatYuan(cents: number, language: string | undefined): string 
   })}`;
 }
 
+export function formatUsd(cents: number, language: string | undefined): string {
+  return `$${(cents / 100).toLocaleString(resolveLocale(language), {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 export interface SubscriptionFeatureRow {
   key: string;
   label: string;

@@ -1086,3 +1086,32 @@ async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
     assert texts.endswith(WRAP_UP_TEXT)
     assert not any(e.type == StreamEventType.ITERATION_EXHAUSTED for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_english_author_sees_english_status_and_wrap_up():
+    """英文界面：路由状态条、交接原因和时限收尾说明都用英文，不夹中文固定文案。"""
+    import time
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.graph.writing_graph import WRAP_UP_TEXT_EN
+
+    meter = AgentRunMeter(wrap_up_after_s=600)
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        meter.started_at = time.monotonic() - 700
+        for event in _write_done("w1"):
+            yield event
+        yield _text(LONG_TEXT)
+        yield _handoff("quality_reviewer", "请审查第五章")
+
+    events = await _run_graph(
+        fake_agent,
+        _state("Write chapter five", generation_mode="fast", run_meter=meter, language="en"),
+    )
+
+    router_messages = [e.data["message"] for e in events if e.type == StreamEventType.ROUTER_THINKING]
+    assert router_messages == ["Fast mode: reading your request..."]
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert texts.endswith(WRAP_UP_TEXT_EN)

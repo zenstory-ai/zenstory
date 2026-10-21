@@ -472,6 +472,8 @@ export interface SSEIterationExhaustedData {
   max_iterations: number;
   reason: string;
   last_agent?: string;
+  /** "wall_clock" when the run stopped near the time limit (the work may already be done) */
+  limit?: string;
 }
 
 export interface SSERoutingMetadata {

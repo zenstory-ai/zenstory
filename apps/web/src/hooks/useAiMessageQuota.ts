@@ -35,6 +35,26 @@ export function formatAiQuotaResetDay(resetAt: string | null | undefined, langua
 }
 
 /**
+ * The reset moment in the reader's own time zone ("October 21 at 12:00 PM"), or null when that
+ * reads the same as Beijing time. The quota day stays the Beijing calendar day; this only saves a
+ * reader abroad the time-zone arithmetic. `timeZone` defaults to the browser's.
+ */
+export function formatAiQuotaResetLocal(
+  resetAt: string | null | undefined,
+  language?: string,
+  timeZone?: string,
+): string | null {
+  if (!resetAt) return null;
+  const date = parseUTCDate(resetAt);
+  if (Number.isNaN(date.getTime())) return null;
+  const locale = language?.startsWith("en") ? "en-US" : "zh-CN";
+  const options: Intl.DateTimeFormatOptions = { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" };
+  const local = new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(date);
+  const beijing = new Intl.DateTimeFormat(locale, { ...options, timeZone: "Asia/Shanghai" }).format(date);
+  return local === beijing ? null : local;
+}
+
+/**
  * Today's AI message allowance, from the same cached quota query the header badge polls.
  * `exhausted` is false while the quota is unknown, so nothing is blocked on a missing answer.
  *

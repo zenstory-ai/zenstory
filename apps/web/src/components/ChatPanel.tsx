@@ -154,6 +154,7 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
           const maxIterations = (card as { maxIterations?: unknown }).maxIterations;
           const reason = (card as { reason?: unknown }).reason;
           const lastAgent = (card as { lastAgent?: unknown }).lastAgent;
+          const limit = (card as { limit?: unknown }).limit;
 
           return {
             type: "iteration_exhausted",
@@ -162,6 +163,7 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
             maxIterations: typeof maxIterations === "number" ? maxIterations : undefined,
             reason: typeof reason === "string" ? reason : undefined,
             lastAgent: typeof lastAgent === "string" ? lastAgent : undefined,
+            limit: typeof limit === "string" ? limit : undefined,
           };
         }
 
@@ -1304,7 +1306,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       proseCounterRef.current.boundary();
       streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
     },
-    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
+    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit) => {
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
         layer,
@@ -1312,8 +1314,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         maxIterations,
         reason,
         lastAgent,
+        limit,
       }];
-      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent);
+      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent, limit);
     },
     onRouterThinking: streamCallbacks.onRouterThinking,
     onRouterDecided: streamCallbacks.onRouterDecided,

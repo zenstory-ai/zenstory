@@ -183,6 +183,8 @@ export interface StreamRenderItem {
   reason?: string;
   /** Name of the last agent that ran */
   lastAgent?: string;
+  /** What ended a paused run: "wall_clock" means it stopped near the time limit and may already be done */
+  limit?: string;
   /** First agent selected by the router */
   initialAgent?: string;
   /** Planned workflow execution path */
@@ -298,7 +300,8 @@ export interface UseChatStreamingOptions {
     iterationsUsed: number,
     maxIterations: number,
     reason: string,
-    lastAgent?: string
+    lastAgent?: string,
+    limit?: string
   ) => void;
 
   /** Called when router starts thinking */
@@ -1077,7 +1080,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
           iterationsUsed: number,
           maxIterations: number,
           reason: string,
-          lastAgent?: string
+          lastAgent?: string,
+          limit?: string
         ) => {
           updateStreamItems((prev) => [
             ...prev,
@@ -1089,6 +1093,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
               maxIterations,
               reason,
               lastAgent,
+              limit,
               timestamp: new Date(),
             },
           ]);

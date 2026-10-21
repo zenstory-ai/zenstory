@@ -1302,6 +1302,12 @@ export const SimpleEditor = ({
                 {isNaturalPolishRunning
                   ? t("editor:naturalPolishWorking")
                   : t("editor:naturalPolish")}
+                {/* The cost is visible before the click; the hover title alone is easy to miss. */}
+                {isLimitedAiQuota && !isNaturalPolishRunning && (
+                  <span className="text-[10px] text-[hsl(var(--text-secondary))]">
+                    {t("editor:naturalPolishCost")}
+                  </span>
+                )}
               </button>
             )}
 

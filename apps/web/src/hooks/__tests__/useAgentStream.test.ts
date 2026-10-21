@@ -1788,10 +1788,10 @@ describe('useAgentStream', () => {
       const callbacks = controller.getCallbacks()!
 
       act(() => {
-        callbacks.onIterationExhausted?.('tool_call', 10, 10, 'Max iterations reached', 'writer')
+        callbacks.onIterationExhausted?.('tool_call', 10, 10, 'Max iterations reached', 'writer', 'wall_clock')
       })
 
-      expect(onIterationExhausted).toHaveBeenCalledWith('tool_call', 10, 10, 'Max iterations reached', 'writer')
+      expect(onIterationExhausted).toHaveBeenCalledWith('tool_call', 10, 10, 'Max iterations reached', 'writer', 'wall_clock')
     })
   })
 

@@ -34,6 +34,8 @@ describe('LanguageSwitcher', () => {
 
     const button = screen.getByRole('button', { name: /中文/i })
     expect(button).toHaveAttribute('title', 'Switch to English')
+    // Someone who cannot read 中文 still hears what the button does.
+    expect(button).toHaveAccessibleName('中文 · Switch to English')
 
     fireEvent.click(button)
     expect(changeLanguage).toHaveBeenCalledWith('en')

@@ -27,6 +27,7 @@ from core.messages import get_message
 from database import get_session
 from models import RefreshTokenRecord, User
 from services.features.referral_service import complete_pending_referral_for_invitee
+from services.features.user_preference_service import get_ui_language
 from services.infra.email_client import InvalidRecipientError
 from utils.email_identity import email_identity_matches, normalize_email_identity
 from utils.logger import get_logger, log_with_context
@@ -186,6 +187,7 @@ async def verify_email(
             "email_verified": user.email_verified,
             "created_at": normalize_datetime_to_utc(user.created_at),
             "updated_at": normalize_datetime_to_utc(user.updated_at),
+            "ui_language": await asyncio.to_thread(get_ui_language, session, user.id),
         }
     }
 

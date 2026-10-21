@@ -197,7 +197,8 @@ export interface UseAgentStreamOptions {
     iterationsUsed: number,
     maxIterations: number,
     reason: string,
-    lastAgent?: string
+    lastAgent?: string,
+    limit?: string
   ) => void;
   /** Called when router starts thinking */
   onRouterThinking?: (message: string) => void;
@@ -1158,9 +1159,9 @@ export function useAgentStream(
             onAgentSelected?.(agentType, agentName, iteration, maxIterations, remaining);
           },
 
-          onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
+          onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit) => {
             if (isStaleEvent()) return;
-            onIterationExhausted?.(layer, iterationsUsed, maxIterations, reason, lastAgent);
+            onIterationExhausted?.(layer, iterationsUsed, maxIterations, reason, lastAgent, limit);
           },
 
           onRouterThinking: (message) => {

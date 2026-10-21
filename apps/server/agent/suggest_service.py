@@ -81,6 +81,14 @@ FALLBACK_SUGGESTIONS_EN = [
 AUTHOR_DIRECTED_MARKERS = ("用户", "请作者", "拍板", "the user")
 
 
+# 建议提示词是中文；英文界面要单独说清输出语言，否则模型照着中文示例写中文建议。
+ENGLISH_OUTPUT_RULE = (
+    "Output language: the author uses the English interface. Write every suggestion in English, "
+    "in the author's own voice (for example \"Write the full story from plan A\"), "
+    "at most 10 words each. Keep the JSON format described above."
+)
+
+
 def _is_author_directed(suggestion: str) -> bool:
     lowered = suggestion.lower()
     return any(marker in lowered for marker in AUTHOR_DIRECTED_MARKERS)
@@ -559,6 +567,8 @@ class SuggestService:
             conversation_label,
             chat_str,
         ]
+        if is_english:
+            prompt_parts += ["", ENGLISH_OUTPUT_RULE]
 
         return "\n".join(prompt_parts)
 

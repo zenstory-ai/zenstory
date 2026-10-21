@@ -56,7 +56,7 @@
   "ERR_MATERIAL_LLM_UNAVAILABLE": "AI is temporarily unavailable. Please try again later.",
   "ERR_MATERIAL_EXTRACTION_FAILED": "Chapters couldn't be decomposed. Check the text and retry.",
   "ERR_MATERIAL_PARTIALLY_COMPLETED": "Some content wasn't decomposed. Retry to fill in the rest.",
-  "ERR_MATERIAL_META_EXTRACTION_FAILED": "Cheat abilities and worldbuilding weren't extracted; everything else is done. Retry to fill them in.",
+  "ERR_MATERIAL_META_EXTRACTION_FAILED": "Special powers and worldbuilding weren't extracted; everything else is done. Retry to fill them in.",
   "ERR_MATERIAL_UPLOAD_FAILED": "The upload didn't finish. Please try again.",
   "ERR_MATERIAL_DECOMPOSE_FAILED": "Decomposition failed. Please retry.",
 

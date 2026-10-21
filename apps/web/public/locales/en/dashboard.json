@@ -77,7 +77,7 @@
     "ctaFreeStart": "Start Free",
     "ctaUpgradePro": "Get Pro",
     "trustTitle": "Upgrade with confidence",
-    "trustFlexible": "One-time Alipay payment with no automatic renewal",
+    "trustFlexible": "One-time payment with no automatic renewal. Card checkout in USD is opening soon; Alipay (CNY) is available now.",
     "trustSecurity": "Your work is sent over encrypted connections",
     "summaryStarter": "Write for free, from one idea to a first draft.",
     "summaryCreator": "Unlimited AI messages and projects — built for daily serials.",
@@ -206,21 +206,22 @@
   },
   "inspiration": {
     "title": "Creative Inspiration",
-    "novelPlaceholder": "Enter your creative idea, e.g., A programmer travels to ancient times and discovers his coding ability becomes cultivation.",
+    "novelPlaceholder": "Enter your creative idea, e.g., A programmer wakes up in 1890s London and finds her debugging instincts work on clockwork machines.",
     "shortPlaceholder": "Describe your story idea, e.g., Late night at a convenience store, an old man comes every night to buy the same discontinued candy.",
-    "screenplayPlaceholder": "Tell me what you want to shoot, e.g., A CEO gets rejected at a matchmaking corner for low income, decides to hide identity to pursue true love.",
+    "screenplayPlaceholder": "Tell me what you want to shoot, e.g., A CEO is turned down on a dating app for listing a modest job, and keeps the act going to find real love.",
     "novelDesc": "AI will help you conceptualize story framework, build world and characters based on your inspiration",
     "shortDesc": "AI will help you refine story structure, making the short story more compelling",
     "screenplayDesc": "AI will help you design episode plots, dialogue and twists, making the script more engaging",
     "example": {
-      "novel": "e.g. The empire's most overlooked sixth prince only wants enough troops to survive, but his father and brothers keep pushing him forward.",
-      "short": "e.g. On exam day, a film-star mother just out of prison kneels to her daughter at the school gate, and only the daughter knows why she went to prison.",
-      "screenplay": "e.g. A healer's apprentice comes down the mountain to marry, gets publicly jilted, and marries his fiancée's sister instead."
+      "novel": "e.g. A disgraced mapmaker is hired to chart a city that quietly redraws its own streets every night.",
+      "short": "e.g. The night before her wedding, a bride finds a letter in her own handwriting begging her not to go through with it.",
+      "screenplay": "e.g. A diner waitress learns the quiet regular she serves every morning is the billionaire who ruined her family."
     }
   },
   "ideaQuota": {
     "descriptionOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit.",
-    "descriptionTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit."
+    "descriptionTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit.",
+    "descriptionLocal": "They come back on {{local}} your time (00:00 Beijing time). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit."
   },
   "inspirations": {
     "featured": "Featured Inspirations",
@@ -630,10 +631,10 @@
     "trendLoading": "Loading trend…",
     "trendError": "Could not load the word trend",
     "trendRetry": "Retry trend",
-    "streakNote": "Only days with at least 10 handwritten words count toward the streak. AI edits do not count.",
-    "lastWriting": "Last handwritten edit",
-    "activity": "Handwritten activity",
-    "noActivity": "No handwritten activity yet",
+    "streakNote": "Only days with at least 10 words you typed yourself count toward the streak. AI edits do not count.",
+    "lastWriting": "Your last edit",
+    "activity": "Your own writing",
+    "noActivity": "Nothing written by you yet",
     "trendShow": "View your net word trend",
     "trendHide": "Hide your net word trend",
     "completedPercentage": "{{percent}}% completed"

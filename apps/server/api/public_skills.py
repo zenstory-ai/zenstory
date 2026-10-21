@@ -19,8 +19,10 @@ from sqlalchemy import case, delete, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, and_, col, func, select
 
+from config.official_skill_translations import localized_skill_text, official_names_matching
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.i18n import get_accept_language
 from database import get_session
 from models import PublicSkill, User, UserAddedSkill
 from services.skill_package_service import instructions_hidden_from_users
@@ -124,6 +126,7 @@ def _skill_to_response(
     is_added: bool = False,
     author_name: str | None = None,
     preview_chars: int | None = None,
+    language: str | None = None,
 ) -> PublicSkillResponse:
     """Convert PublicSkill model to response (preview_chars: 只回传正文开头这么多字符)."""
     tags = _safe_json_array(
@@ -134,10 +137,13 @@ def _skill_to_response(
     hidden = instructions_hidden_from_users(skill)
     instructions = "" if hidden else skill.instructions or ""
     truncated = preview_chars is not None and len(instructions) > preview_chars
+    name, description = localized_skill_text(
+        source=skill.source, name=skill.name, description=skill.description, language=language
+    )
     return PublicSkillResponse(
         id=skill.id,
-        name=skill.name,
-        description=skill.description,
+        name=name,
+        description=description,
         instructions=instructions[:preview_chars] if truncated else instructions,
         instructions_truncated=truncated,
         instructions_hidden=hidden,
@@ -197,6 +203,7 @@ async def list_public_skills(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_accept_language),
 ) -> PublicSkillListResponse:
     """List public skills with filtering and pagination."""
     # Build base query for approved skills
@@ -208,10 +215,14 @@ async def list_public_skills(
         conditions.append(PublicSkill.source == source)
     if search:
         search_pattern = f"%{search}%"
-        conditions.append(
-            (PublicSkill.name.ilike(search_pattern)) |
-            (PublicSkill.description.ilike(search_pattern))
-        )
+        search_condition = PublicSkill.name.ilike(search_pattern) | PublicSkill.description.ilike(search_pattern)
+        # English readers search the English names they see; official rows are stored in Chinese.
+        english_matches = official_names_matching(search) if language == "en" else []
+        if english_matches:
+            search_condition = search_condition | (
+                (PublicSkill.source == "official") & PublicSkill.name.in_(english_matches)
+            )
+        conditions.append(search_condition)
 
     # Count total
     count_stmt = select(func.count(PublicSkill.id)).where(and_(*conditions))
@@ -243,6 +254,7 @@ async def list_public_skills(
             is_added=skill.id in added_ids,
             author_name=author_name_map.get(skill.author_id),
             preview_chars=LIST_INSTRUCTIONS_PREVIEW_CHARS,
+            language=language,
         )
         for skill in skills
     ]
@@ -268,6 +280,7 @@ async def get_public_skill(
     skill_id: str,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_accept_language),
 ) -> PublicSkillResponse:
     """Get a public skill by ID."""
     skill = session.get(PublicSkill, skill_id)
@@ -291,7 +304,7 @@ async def get_public_skill(
         author = session.get(User, skill.author_id)
         author_name = author.username if author else None
 
-    return _skill_to_response(skill, is_added=is_added, author_name=author_name)
+    return _skill_to_response(skill, is_added=is_added, author_name=author_name, language=language)
 
 
 @router.post("/{skill_id}/add", response_model=AddSkillResponse)

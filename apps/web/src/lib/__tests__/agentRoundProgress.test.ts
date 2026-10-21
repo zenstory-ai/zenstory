@@ -45,6 +45,9 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(isRealProse('正在查看已有的全书大纲，确认现有设定后再梳理主线。')).toBe(false)
     expect(isRealProse('字'.repeat(PROSE_MIN_CHARS))).toBe(true)
     expect(isRealProse(' \n'.repeat(PROSE_MIN_CHARS))).toBe(false)
+    // English counts words, so a one-sentence narration stays below the bar like its Chinese twin.
+    expect(isRealProse('Let me check the outline and the character sheet before I start drafting chapter three.')).toBe(false)
+    expect(isRealProse("Chapter three drags: the first two scenes explain the bookshop's history, and the hero only finds the untitled ledger in scene three. Readers wait too long, so move the ledger to the opening page and let the history surface while she reads it.")).toBe(true)
   })
 
   it('restarts the prose count at a segment boundary inside one streamed segment, like the server', () => {
