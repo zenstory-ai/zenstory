@@ -148,7 +148,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **规划补写只认结构化请求类型**：Router 明确给出 `requested_file_types` 且包含 outline 时，规划师在聊天里交付多章规划、未写入大纲文件才有一次纠偏；缺少/非法类型或未请求大纲不从作者措辞补写。参见 [typed-boundaries][n-typed-boundaries]。
 - **作者改了什么给模型看，不猜授权**：`tools/author_changes.py` 按版本历史算净差异放进 `<author_edits>`（`query_files` 按 id 读全文时也带）；
   `edit_file` 在锁内比对本请求模型看过的正文（`mcp_tools._ReadSnapshots`，读到的内容由 `usage_hooks.ReadSnapshotPromotionMixin`
-  在下一次模型调用起生效），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。
+  在下一次模型调用起生效；换 agent 时清空，同一 agent 接着跑时保留），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。
   [author-edits-shown-not-guessed][n-author-edits]
 - **受保护稿件不由聊天删除或整份覆盖**：作者保存过正文的文件，在应用内对话中的 delete_file（含递归删除）和 create_file 同名剧集复用会拒绝；附加、焦点、点名、否定词、上一轮提议不授予权限，核验失败也不放行。作者使用现有文件菜单/编辑器；普通 edit_file、AI 自己的产物和直接人工 API 保持既有路径。参见 [typed-boundaries][n-typed-boundaries]。
 - **作者可见文字**：每个 agent run 的 TEXT 经 `core/author_facing_text.AgentTextShaper` 补段落空行；作者写中文时，紧接工具调用的
@@ -188,8 +188,10 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **写完 `</file>` 就结束 run 时同一 agent 续写**：有写权限的 agent 这次 run 里 create_file 成功、最后的文字以写完的 `<file>` 正文
   结束（`completion_evidence.ends_on_file_block`），且没有显式交接、澄清、轮数耗尽、错误时，同一 agent 再跑一轮（交接说明以
   `FILE_STREAM_CONTINUATION_MARKER` 开头）；放在计划交接 / 自动质检之前，正文与正文写入记录接续给续写轮；受 `max_iterations` 约束，
-  每轮都要真的新建并写完文件才再续。
-  [file-stream-continuation][n-continue]
+  每轮都要真的新建并写完文件才再续。同一 agent 紧接着自己再跑（续写、纠偏、只写总结、插话追加、截断续写）时，runner 从上一轮完整的
+  SDK 输入接着来（`runner._continued_run_input`，`state["native_run_holder"]`），请求只在末尾追加、读过的文件不用重读；换了 agent 照旧从折叠后的历史重建。
+  writer 的运行指令要求写多个文件时 `</file>` 之后直接 create_file 下一个（`nodes.WRITER_CHAIN_FILES_DIRECTIVE`）。
+  [file-stream-continuation][n-continue]、[same-agent-continuation][n-continued-run]
 - **「已保存 / 已还原 / 已修改」不做文字检测**：靠 `prompts/base.py` 的 `UNIFIED_EXECUTION_PROTOCOL` 约束（只有本轮对应工具成功后才这样说，
   没改就直说没改）。[file-stream-continuation][n-continue]
 - **任务板声明产物类型和来源**：文件任务声明 artifact_file_type、artifact_refs/file_id 或 unit_spec；收尾只用本请求写过、仍存在非空且类型匹配的项目文件。正文范围每个编号须有实际正文产物，大纲标题不能证明正文；新 done 声明缺证据时不保存任务板。缺类型的旧任务可读但不自动收尾。参见 [typed-boundaries][n-typed-boundaries]。
@@ -351,4 +353,5 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-snapshot]: ../../../.agents/notes/implemented/architecture/2026-10-21-context-snapshot-and-cache-stable-tools.md
 [n-body-turn]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-fast-mode-summary-and-file-body-turn.md
 [n-wrap-up]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-wall-clock-wrap-up.md
+[n-continued-run]: ../../../.agents/notes/implemented/architecture/2026-10-21-same-agent-runs-continue-the-previous-input.md
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md

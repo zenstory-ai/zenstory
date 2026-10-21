@@ -393,6 +393,39 @@ def build_run_input(
     return [*prefix, *api_messages, {"role": "user", "content": agent_directive}]
 
 
+def _continued_run(state: WritingState, agent_type: str) -> dict[str, Any] | None:
+    """The previous run to continue from, when the graph runs the same agent again right after it."""
+    holder = state.get("native_run_holder")
+    if not state.get("continue_native_run") or not isinstance(holder, dict):
+        return None
+    if holder.get("agent_type") != agent_type or not holder.get("items"):
+        return None
+    return holder
+
+
+def _continued_run_input(
+    previous: dict[str, Any],
+    state: WritingState,
+    agent_directive: str,
+    initial_steering: MessageList,
+) -> list[Any]:
+    """[上一轮完整的 SDK 输入][这之后新增的消息]：请求只在末尾追加，前缀缓存整段命中。
+
+    上一轮的工具调用与结果（读到的文件、写入结果）都还在，下一轮不用重读；同一 agent 的
+    运行指令已在里面，只有内容变了才再附一次。只用于同一 agent 紧接着自己的那一轮。
+    """
+    items: list[Any] = list(previous["items"])
+    later = list(state.get("messages") or [])[int(previous.get("messages_len") or 0):]
+    items.extend(m for m in normalize_messages_for_openai_agents(later) if m.get("role") == "user")
+    user_message = str(state.get("user_message") or "")
+    if user_message and user_message != previous.get("user_message"):
+        items.append({"role": "user", "content": user_message})
+    items.extend(initial_steering)
+    if agent_directive and agent_directive != previous.get("directive"):
+        items.append({"role": "user", "content": agent_directive})
+    return items
+
+
 def _append_assistant_turn_to_state_messages(
     state: WritingState,
     api_messages: MessageList,
@@ -801,7 +834,12 @@ async def run_openai_agents_streaming_agent(
     # 工具结果不回放给下一个 run，上一个 run 读过的内容不在这个 run 的上下文里。
     shared_guard = state.get("repeat_read_guard")
     read_guard = shared_guard if isinstance(shared_guard, RepeatReadGuard) else RepeatReadGuard()
-    read_guard.begin_agent_run()
+    # 同一 agent 紧接着自己再跑一轮（续写、纠偏、只写总结……）时带上上一轮完整的 SDK 输入：
+    # 读到的内容仍在上下文里，读取计数不清零（见 _continued_run_input）。
+    native_runs = state.get("native_run_holder")
+    continued = _continued_run(state, agent_type)
+    if continued is None:
+        read_guard.begin_agent_run()
     no_progress_stopped = False
     max_turns_exhausted = False
     turn_filter: _ModelCallCountingFilter | None = None
@@ -811,6 +849,8 @@ async def run_openai_agents_streaming_agent(
     run_meter = shared_meter if isinstance(shared_meter, AgentRunMeter) else AgentRunMeter()
     budget_stopped = False
     run_started_at = time.monotonic()
+    # 这次 run 正常结束时它完整的 SDK 输入（原输入 + 模型输出与工具结果），供同一 agent 的下一轮接着用。
+    completed_items: list[Any] | None = None
 
     # Read-only co-call instrumentation (item 1.4).
     # Approximation: within a single assistant turn, the SDK emits all tool_called events
@@ -842,8 +882,10 @@ async def run_openai_agents_streaming_agent(
         )
         return
 
+    history_len = len(api_messages)
     async for steering_event in _inject_initial_steering(api_messages, get_steering_messages):
         yield steering_event
+    initial_steering = api_messages[history_len:]
 
     start_model = await _preferred_model_name()
     yield StreamEvent(
@@ -905,8 +947,10 @@ async def run_openai_agents_streaming_agent(
         try:
             result = Runner.run_streamed(
                 sdk_agent,
-                input=build_run_input(
-                    api_messages, agent_directive, str(state.get("context_snapshot") or "")
+                input=(
+                    _continued_run_input(continued, state, agent_directive, initial_steering)
+                    if continued is not None
+                    else build_run_input(api_messages, agent_directive, str(state.get("context_snapshot") or ""))
                 ),
                 max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
                 # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
@@ -1394,7 +1438,11 @@ async def run_openai_agents_streaming_agent(
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
             cache_read_tokens=usage.get("cache_read_tokens", 0),
+            continued_previous_run=continued is not None,
         )
+        if not turns_exhausted:
+            with contextlib.suppress(Exception):
+                completed_items = list(result.to_input_list())
 
     except Exception as exc:
         error_info = classify_stream_exception(exc)
@@ -1426,6 +1474,17 @@ async def run_openai_agents_streaming_agent(
             thinking_text="".join(thinking_text_parts),
             tool_uses=tool_uses,
         )
+        if isinstance(native_runs, dict):
+            native_runs.clear()
+            if completed_items:
+                native_runs.update(
+                    agent_type=agent_type,
+                    items=completed_items,
+                    directive=agent_directive,
+                    user_message=str(state.get("user_message") or ""),
+                    # 之后追加到 state["messages"] 的（运行中插话）下一轮要补进输入
+                    messages_len=len(state.get("messages") or []),
+                )
         if mid_run_steering:
             # 工具边界消费的 steering 作为用户消息进入后续迭代的输入
             # （本次 SDK run 已经无法注入）。

@@ -1910,6 +1910,9 @@ async def run_writing_workflow_streaming(
         terminated_via_break = False
 
         run_meter: AgentRunMeter = state["run_meter"]
+        # 上一个正常结束的 agent run 完整的 SDK 输入（runner 写入）：同一 agent 紧接着自己再跑时
+        # 从它接着来，请求只在末尾追加、整段命中前缀缓存，读过的文件不用重读。
+        native_runs: dict[str, Any] = state.setdefault("native_run_holder", {})
         while current_agent_type and iteration < max_iterations:
             # 请求时间快用完：不再开新的 agent run（交接、自动送审、续写、纠偏、插话追加轮），
             # 这一轮停在已经完成的部分，作者回复「继续」接着做（不等墙钟时限把它从中间截断）。
@@ -1927,8 +1930,14 @@ async def run_writing_workflow_streaming(
                 break
             iteration += 1
             ToolContext.set_current_agent(current_agent_type)
-            # 上一程读到的新正文这一程看不到（工具结果不跨 agent 回放），edit_file 的陈旧检查不再认它。
-            ToolContext.begin_agent_run()
+            continue_native_run = (
+                previous_agent == current_agent_type and native_runs.get("agent_type") == current_agent_type
+            )
+            if not continue_native_run:
+                # 换了 agent：上一程读到的新正文这一程看不到（工具结果不跨 agent 回放），
+                # edit_file 的陈旧检查不再认它。同一 agent 接着跑时工具结果都还在，照常认。
+                native_runs.clear()
+                ToolContext.begin_agent_run()
 
             log_with_context(
                 logger,
@@ -2174,6 +2183,7 @@ async def run_writing_workflow_streaming(
                 previous_text=accumulated_content,
                 drop_english_narration=drop_english_narration,
             )
+            modified_state["continue_native_run"] = continue_native_run
             async for event in _shape_agent_text(
                 run_streaming_agent(
                     modified_state, current_agent_type, get_steering_messages=get_steering_messages

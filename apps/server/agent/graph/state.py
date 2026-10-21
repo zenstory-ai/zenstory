@@ -93,6 +93,9 @@ class WritingState(TypedDict, total=False):
     system_prompt: str
     # 项目资料快照（agent/context/turn_snapshot.py）：放在系统提示之后、历史之前，跨轮不变。
     context_snapshot: str
+    # 上一个正常结束的 agent run 的完整 SDK 输入（openai_agents/runner.py 写入）与本轮是否接着它跑。
+    native_run_holder: dict[str, Any]
+    continue_native_run: bool
     context_data: dict[str, Any]
 
     # Workflow state
