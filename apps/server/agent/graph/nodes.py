@@ -25,6 +25,12 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
+# 每写完一个文件就结束这次运行，系统会重开一轮续写：多一次模型调用、重开处缓存命中下降。
+# 放在运行指令（输入最后一条消息）里，离模型做决定的位置最近，不动前缀缓存。
+WRITER_CHAIN_FILES_DIRECTIVE = (
+    "这一轮要写多个文件时，每写完一个 </file>，在同一次回复里直接调用 create_file 建下一个，"
+    "不要停在 </file> 等下一轮；全部写完后再写给作者的总结。"
+)
 FAST_MODE_DIRECTIVE = (
     "本轮为快速模式，不送审：「稿件超过字数就交接给 quality_reviewer」「送审前只写一句进度」"
     "这两条规则这一轮都不适用。不要调用 handoff_to_agent 交给 quality_reviewer；写完正文后由你"
@@ -74,6 +80,8 @@ def build_agent_directive(state: WritingState, agent_type: str) -> str:
     specialized = SPECIALIZED_PROMPTS.get(agent_type, "")
     if specialized:
         parts.append(f"## 当前角色：{agent_type}\n\n{specialized}")
+        if agent_type == "writer":
+            parts.append(f"## 连续写多个文件\n\n{WRITER_CHAIN_FILES_DIRECTIVE}")
 
     # 用户范围约束（由 writing_graph 按路由结果生成）：本轮每个 agent（含交接后的
     # writer / 审稿人）都能看到，且不会像改写 user_message 那样在会话历史里多出一条
@@ -90,6 +98,7 @@ def build_agent_directive(state: WritingState, agent_type: str) -> str:
     length_requirements = str(state.get("length_requirements_directive") or "").strip()
     if agent_type == "writer" and length_requirements:
         parts.append(length_requirements)
+
 
     # 快速模式（前端「更快出结果」）：WRITER_PROMPT 的送审规则在这一轮不适用。
     # writing_graph 也会丢弃 writer → quality_reviewer 的交接，这里先让模型知道，
