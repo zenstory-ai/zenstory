@@ -390,18 +390,13 @@ test.describe('Authentication', () => {
       await expect(passwordInput).toHaveAttribute('required', '');
     });
 
-    test('register form requires all fields', async ({ page }) => {
+    test('register form asks only for email and password', async ({ page }) => {
       await gotoWithRetry(page, '/register');
 
-      const usernameInput = page.locator('input#username');
-      const emailInput = page.locator('input#email');
-      const passwordInput = page.locator('input#password');
-      const confirmPasswordInput = page.locator('input#confirmPassword');
-
-      await expect(usernameInput).toHaveAttribute('required', '');
-      await expect(emailInput).toHaveAttribute('required', '');
-      await expect(passwordInput).toHaveAttribute('required', '');
-      await expect(confirmPasswordInput).toHaveAttribute('required', '');
+      await expect(page.locator('input#email')).toHaveAttribute('required', '');
+      await expect(page.locator('input#password')).toHaveAttribute('required', '');
+      await expect(page.locator('input#username')).toHaveCount(0);
+      await expect(page.locator('input#confirmPassword')).toHaveCount(0);
     });
 
     test('register email field validates email format', async ({ page }) => {
@@ -411,14 +406,13 @@ test.describe('Authentication', () => {
       await expect(emailInput).toHaveAttribute('type', 'email');
     });
 
-    test('password fields are masked', async ({ page }) => {
+    test('password is masked until the author reveals it', async ({ page }) => {
       await gotoWithRetry(page, '/register');
 
       const passwordInput = page.locator('input#password');
-      const confirmPasswordInput = page.locator('input#confirmPassword');
-
       await expect(passwordInput).toHaveAttribute('type', 'password');
-      await expect(confirmPasswordInput).toHaveAttribute('type', 'password');
+      await page.getByRole('button', { name: /显示密码|Show password/ }).click();
+      await expect(passwordInput).toHaveAttribute('type', 'text');
     });
   });
 });

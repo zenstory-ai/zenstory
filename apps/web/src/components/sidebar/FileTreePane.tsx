@@ -697,7 +697,7 @@ export const FileTreePane: React.FC = () => {
   const loadErrorNotice = loadError ? (
     <div role="alert" className="p-3 text-sm text-[hsl(var(--text-secondary))]">
       <p>{t('editor:fileTree.loadFailed')}</p>
-      <Button type="button" variant="secondary" size={isMobile ? "touch" : "sm"} className="mt-2" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
+      <Button type="button" variant="secondary" size="touch" className="mt-2" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
         {t(loading ? 'common:loading' : 'common:retry')}
       </Button>
     </div>
