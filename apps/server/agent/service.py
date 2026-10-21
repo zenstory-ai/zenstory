@@ -162,9 +162,9 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
     if force_en:
         label = _PROJECT_TYPE_LABELS_EN.get(project_type or "", "project")
         delivery = (
-            "the episode 1 script (about 800 Chinese characters) into the script"
+            "the episode 1 script (about 500 words) into the script"
             if screenplay
-            else "an opening of about 800 Chinese characters into the manuscript"
+            else "an opening of about 500 words into the manuscript"
         )
         return (
             f"This is the author's first message in this \"{label}\". "
@@ -243,12 +243,17 @@ class AgentService:
             "AgentService initialized with workflow orchestration",
         )
 
+    # Pending out-of-band cleanups; shutdown waits for them (api.agent.wait_for_stream_cleanup).
+    background_cleanup_tasks: set[asyncio.Task] = set()
+
     @staticmethod
     def _schedule_background_cleanup(
         coro: Any, *, description: str, session_id: str | None
     ) -> asyncio.Task:
         """Run async cleanup out of band when generator cancellation makes awaiting risky."""
         task = asyncio.create_task(coro)
+        AgentService.background_cleanup_tasks.add(task)
+        task.add_done_callback(AgentService.background_cleanup_tasks.discard)
 
         def _log_task_result(done_task: asyncio.Task) -> None:
             try:
@@ -1512,6 +1517,7 @@ class AgentService:
                                 "maxIterations": event.data.get("max_iterations"),
                                 "reason": event.data.get("reason"),
                                 "lastAgent": event.data.get("last_agent"),
+                                "limit": event.data.get("limit"),
                             }
                         )
                     elif event_type == "error":

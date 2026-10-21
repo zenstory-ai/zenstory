@@ -122,7 +122,7 @@ export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryPr
               <div className={`p-2 rounded-full ${
                 tx.amount > 0
                   ? 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-light))]'
-                  : 'bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))]'
+                  : 'bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))]'
               }`}>
                 {TRANSACTION_TYPE_ICONS[tx.transaction_type] || TRANSACTION_TYPE_ICONS.default}
               </div>
@@ -142,12 +142,12 @@ export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryPr
               <p className={`text-sm font-medium ${
                 tx.amount > 0
                   ? 'text-[hsl(var(--success-light))]'
-                  : 'text-[hsl(var(--error))]'
+                  : 'text-[hsl(var(--error-text))]'
               }`}>
                 {tx.amount > 0 ? '+' : ''}{tx.amount}
               </p>
               {tx.is_expired && (
-                <p className="text-xs text-[hsl(var(--error))]">
+                <p className="text-xs text-[hsl(var(--error-text))]">
                   {t('expired')}
                 </p>
               )}

@@ -647,6 +647,8 @@ async def test_sdk_run_soft_lands_before_the_wall_clock_limit(monkeypatch):
     assert not any(e.type == StreamEventType.ERROR for e in events)
     exhausted = [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert len(exhausted) == 1 and "时间快用完了" in exhausted[0].data["reason"]
+    # The card tells the author it stopped near the time limit (the work may already be done).
+    assert exhausted[0].data["limit"] == "wall_clock"
     # The router already treats this stop reason as "not finished": 「继续」 resumes it.
     assert events[-1].data["stop_reason"] == "run_deadline_exceeded"
 

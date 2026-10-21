@@ -82,6 +82,22 @@ describe("ErrorBoundary", () => {
     expect(screen.getByText("panel content")).toBeInTheDocument();
   });
 
+  it("asks for a page reload instead of a retry when old code failed to load", () => {
+    function StaleChunk(): never {
+      throw new TypeError("Failed to fetch dynamically imported module: /assets/markdown-vendor-old.js");
+    }
+    render(
+      <ErrorBoundary area="chat">
+        <StaleChunk />
+      </ErrorBoundary>,
+    );
+
+    expect(screen.getByText("ZenStory 已更新")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新加载页面" }));
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("wraps children in a layout-neutral ph-no-capture container", () => {
     shouldThrow = false;
     render(

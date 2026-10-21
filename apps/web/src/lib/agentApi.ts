@@ -313,7 +313,8 @@ export function streamAgentRequest(
       iterationsUsed: number,
       maxIterations: number,
       reason: string,
-      lastAgent?: string
+      lastAgent?: string,
+      limit?: string
     ) => void;
     onRouterThinking?: (message: string) => void;
     onRouterDecided?: (
@@ -709,13 +710,15 @@ export function streamAgentRequest(
                 max_iterations: number;
                 reason: string;
                 last_agent?: string;
+                limit?: string;
               };
               callbacks.onIterationExhausted?.(
                 data.layer,
                 data.iterations_used,
                 data.max_iterations,
                 data.reason,
-                data.last_agent
+                data.last_agent,
+                data.limit
               );
               break;
             }
@@ -910,10 +913,12 @@ export function streamAgentRequest(
         return;
       }
       telemetry.noteFailure(failurePhase, error);
+      const transportFailed = failurePhase !== "callback";
       callbacks.onError?.(
-        toUserErrorMessage(err.message || "Stream error"),
+        // Browser network messages ("network error", "Load failed") mean nothing to authors.
+        transportFailed ? i18n.t('chat:stream.connectionInterrupted') : toUserErrorMessage(err.message || "Stream error"),
         "STREAM_ERROR",
-        failurePhase !== "callback",
+        transportFailed,
       );
     }
   };

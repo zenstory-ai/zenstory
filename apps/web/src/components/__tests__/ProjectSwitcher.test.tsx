@@ -138,7 +138,7 @@ describe('ProjectSwitcher', () => {
     for (const pencil of pencils) {
       expect(pencil).toHaveAccessibleName('Edit project')
       expect(pencil.className).not.toMatch(/(^|\s)opacity-0(\s|$)/)
-      expect(pencil.className).toContain('opacity-50')
+      expect(pencil).toHaveClass('opacity-50')
     }
   })
 
@@ -148,8 +148,8 @@ describe('ProjectSwitcher', () => {
     fireEvent.click(screen.getByRole('button', { name: /Alpha/ }))
 
     for (const pencil of screen.getAllByTestId('project-switcher-rename')) {
-      expect(pencil.className).toContain('opacity-100')
-      expect(pencil.className).not.toContain('opacity-50')
+      expect(pencil).toHaveClass('opacity-100')
+      expect(pencil).not.toHaveClass('opacity-50')
     }
   })
 

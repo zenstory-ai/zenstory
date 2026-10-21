@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { logger } from "./logger";
 import { BEFORE_CHUNK_RELOAD_EVENT } from "./editorDraftRecovery";
+import { markAppUpdateRequired } from "./appUpdate";
 
 const CHUNK_RELOAD_STORAGE_KEY = "zenstory:chunk-reload-once";
 const CHUNK_RELOAD_AT_STORAGE_KEY = "zenstory:chunk-reload-at";
@@ -18,6 +19,8 @@ const DYNAMIC_IMPORT_ERROR_PATTERNS = [
   "Importing a module script failed",
   "error loading dynamically imported module",
   "ChunkLoadError",
+  // Chrome, when a missing chunk is answered with an HTML page.
+  "is not a valid JavaScript MIME type",
 ];
 let pendingChunkReload: Promise<never> | null = null;
 let documentNavigationInProgress = false;
@@ -56,6 +59,8 @@ export function reloadForChunkErrorOnce(
     ) {
       sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, source);
     }
+    // The one automatic reload was already spent and old code still fails.
+    if (pendingChunkReload === null) markAppUpdateRequired();
     return pendingChunkReload !== null;
   }
 
@@ -64,6 +69,8 @@ export function reloadForChunkErrorOnce(
     detail: { reason: "chunk-reload" },
   });
   if (!window.dispatchEvent(captureEvent) || captureEvent.defaultPrevented) {
+    // An unsaved draft could not be protected; let the user reload when ready.
+    markAppUpdateRequired();
     return false;
   }
 

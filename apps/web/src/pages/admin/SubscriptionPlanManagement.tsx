@@ -441,7 +441,7 @@ export const SubscriptionPlanManagement: React.FC = () => {
                   </p>
                 </div>
               )}
-              {editingPlan.name === "pro" && (
+              {editingPlan.name === "pro" && inspirationsConfig.enabled && (
                 <div>
                   <label htmlFor="admin-plans-pro-copy-limit" className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
                     {t("plans.featuresDetail.inspiration_copies_monthly")}

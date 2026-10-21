@@ -421,7 +421,7 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
               <span className="max-w-[80px] truncate">{material.title}</span>
               <button
                 onClick={() => removeMaterial(material.id)}
-                className="hover:text-[hsl(var(--error))] transition-colors p-0.5 -mr-0.5"
+                className="hover:text-[hsl(var(--error-text))] transition-colors p-0.5 -mr-0.5"
                 title={t("chat:input.remove")}
               >
                 <X size={12} />
@@ -440,7 +440,7 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
           {quotes.map((quote) => (
             <span
               key={quote.id}
-              className="inline-flex items-center gap-1 px-2 py-0.5 bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))] rounded text-xs"
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning-text))] rounded text-xs"
               title={quote.text}
             >
               <Quote size={12} />
@@ -449,7 +449,7 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
               </span>
               <button
                 onClick={() => removeQuote(quote.id)}
-                className="hover:text-[hsl(var(--error))] transition-colors p-0.5 -mr-0.5"
+                className="hover:text-[hsl(var(--error-text))] transition-colors p-0.5 -mr-0.5"
                 title={t("chat:input.remove")}
               >
                 <X size={12} />

@@ -85,7 +85,7 @@ describe('SEOProvider domain metadata', () => {
     await waitFor(() => {
       expect(screen.getByTestId('canonical')).toHaveTextContent(`${window.location.origin}/docs/second`)
       expect(screen.getByTestId('og')).toHaveTextContent('article')
-      expect(screen.getByTestId('og')).toHaveTextContent('Second guide · ZenStory 文档 | ZenStory AI')
+      expect(screen.getByTestId('og')).toHaveTextContent('Second guide · ZenStory Docs | ZenStory AI')
       expect(screen.getByTestId('og')).toHaveTextContent('Second guide description.')
     })
   })

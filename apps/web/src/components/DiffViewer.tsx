@@ -350,11 +350,11 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
       {/* Toolbar */}
       <div className="px-3 py-2 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
-          <span className="flex items-center gap-1 text-[hsl(var(--success))]">
+          <span className="flex items-center gap-1 text-[hsl(var(--success-text))]">
             <Plus size={14} />
             {comparison.stats.lines_added} {t('editor:diff.linesAdded')}
           </span>
-          <span className="flex items-center gap-1 text-[hsl(var(--error))]">
+          <span className="flex items-center gap-1 text-[hsl(var(--error-text))]">
             <Minus size={14} />
             {comparison.stats.lines_removed} {t('editor:diff.linesRemoved')}
           </span>

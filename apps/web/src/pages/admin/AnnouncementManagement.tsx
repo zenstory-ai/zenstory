@@ -184,7 +184,7 @@ function AnnouncementEditor({ initial }: { initial: AdminAnnouncement }) {
               value={draft.action_url ?? ""}
               disabled={isBusy}
               maxLength={2048}
-              placeholder="/docs 或 https://…"
+              placeholder={t("admin.fields.actionUrlPlaceholder", "/docs 或 https://example.com")}
               onChange={(event) => setDraft((value) => ({ ...value, action_url: event.target.value }))}
               className="mt-2 min-h-11 w-full rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 text-base text-[hsl(var(--text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))]"
             />

@@ -24,6 +24,7 @@ import {
 } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
 import type {
+  AcquisitionStats,
   User,
   UserUpdateRequest,
   UsersListResponse,
@@ -1359,6 +1360,10 @@ export async function getGrowthDashboard(days: 7 | 14 | 30 = 7): Promise<GrowthD
   return api.get<GrowthDashboard>(`${ADMIN_BASE}/dashboard/growth?days=${days}`);
 }
 
+export async function getAcquisitionStats(days: 7 | 14 | 30 | 90 = 30): Promise<AcquisitionStats> {
+  return api.get<AcquisitionStats>(`${ADMIN_BASE}/dashboard/acquisition?days=${days}`);
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/dashboard/stats`);
   const payloadRecord = resolvePayloadRecord(payload);
@@ -1993,6 +1998,7 @@ export const adminApi = {
   // Dashboard
   getDashboardStats,
   getGrowthDashboard,
+  getAcquisitionStats,
   getActivationFunnel,
   getUpgradeConversionStats,
   getUpgradeFunnelStats,

@@ -21,6 +21,8 @@ python scripts/update_official_skill_content.py /private/reviewed-patch.json \
 
 The default is a rollback-only validation. Apply requires an exclusive, mode-0600 backup, validates every item, and compares ID/name/source/status/old text atomically before changing description/instructions only. The complete patch commits in one transaction; stale or non-official rows abort. Restrict database access to operators. Review/read back the changed rows and verify already-added skill loading; never use this tool to reseed identities or community content. Patch artifacts are one-time change records, not another runtime catalog.
 
+English readers see official skills through `apps/server/config/official_skill_translations.py` (keyed by the stored Chinese name). A patch or admin change that adds, renames, unpublishes or rewrites the description of an official skill ships with the matching table update in the same batch.
+
 ## Knowhow provenance and deliberate omissions
 
 References are pinned repository sources, not instructions to invoke their CLI pipelines:

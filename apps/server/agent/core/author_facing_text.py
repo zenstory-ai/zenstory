@@ -18,6 +18,11 @@ SYSTEM_HANDOFF_REASONS: dict[str, str] = {
     "工作流自动交接": "",
     "自动质量门控": "正文写好了，检查一遍质量",
 }
+# 英文界面下同一批原因的作者版本（键与上表一致）。
+SYSTEM_HANDOFF_REASONS_EN: dict[str, str] = {
+    "工作流自动交接": "",
+    "自动质量门控": "The draft is written; checking its quality",
+}
 
 # 和前端 chat:workflow.agents.* 的中文名一致。
 _AGENT_NAMES: dict[str, str] = {
@@ -25,6 +30,12 @@ _AGENT_NAMES: dict[str, str] = {
     "hook_designer": "爽点设计师",
     "planner": "大纲规划师",
     "writer": "内容创作者",
+}
+# 英文界面：和前端 en 的 chat:workflow.agents.* 一致。只替换内部 id；英文句子里本来就是
+# 普通单词的 writer / planner 保持原样。
+_AGENT_NAMES_EN: dict[str, str] = {
+    "quality_reviewer": "Reviewer",
+    "hook_designer": "Hook designer",
 }
 
 _ASCII_WORD_EDGE_BEFORE = r"(?<![A-Za-z0-9_])"
@@ -149,8 +160,8 @@ def _clean_line(line: str) -> str:
     return stripped
 
 
-def author_facing_text(text: object) -> str:
-    """去掉内部 id、字段名、工具名，并把流程用语换成作者能看懂的说法。"""
+def author_facing_text(text: object, english: bool = False) -> str:
+    """去掉内部 id、字段名、工具名，并把流程用语换成作者能看懂的说法（english：角色名用英文）。"""
     if not isinstance(text, str):
         return ""
     result = text.replace(_REMOVED, "")
@@ -163,7 +174,12 @@ def author_facing_text(text: object) -> str:
         _UUID_RE,
     ):
         result = pattern.sub(_REMOVED, result)
-    result = _AGENT_NAME_RE.sub(lambda m: _AGENT_NAMES[m.group(1).lower()], result)
+    if english:
+        result = _AGENT_NAME_RE.sub(
+            lambda m: _AGENT_NAMES_EN.get(m.group(1).lower(), m.group(1)), result
+        )
+    else:
+        result = _AGENT_NAME_RE.sub(lambda m: _AGENT_NAMES[m.group(1).lower()], result)
     result = _SNAKE_IDENTIFIER_RE.sub(_REMOVED, result)
     for old, new in _WORDING_REPLACEMENTS:
         result = result.replace(old, new)
@@ -171,14 +187,15 @@ def author_facing_text(text: object) -> str:
     return "\n".join(line for line in lines if line).strip()
 
 
-def author_facing_handoff_reason(reason: object) -> str:
+def author_facing_handoff_reason(reason: object, english: bool = False) -> str:
     """交接原因的作者版本。图自己生成的原因按表替换，模型写的原因走 author_facing_text。"""
     if not isinstance(reason, str):
         return ""
     stripped = reason.strip()
-    if stripped in SYSTEM_HANDOFF_REASONS:
-        return SYSTEM_HANDOFF_REASONS[stripped]
-    return author_facing_text(stripped)
+    table = SYSTEM_HANDOFF_REASONS_EN if english else SYSTEM_HANDOFF_REASONS
+    if stripped in table:
+        return table[stripped]
+    return author_facing_text(stripped, english)
 
 
 # ------------------------------------------------------------------ 流式正文

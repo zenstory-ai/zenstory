@@ -365,7 +365,7 @@ describe('PointsHistory', () => {
 
       await waitFor(() => {
         const amountElement = screen.getByText('-30')
-        expect(amountElement).toHaveClass('text-[hsl(var(--error))]')
+        expect(amountElement).toHaveClass('text-[hsl(var(--error-text))]')
       })
     })
 
@@ -431,7 +431,7 @@ describe('PointsHistory', () => {
 
       await waitFor(() => {
         const expiredBadge = screen.getByText('已过期')
-        expect(expiredBadge).toHaveClass('text-[hsl(var(--error))]')
+        expect(expiredBadge).toHaveClass('text-[hsl(var(--error-text))]')
       })
     })
   })

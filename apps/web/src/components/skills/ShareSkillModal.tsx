@@ -120,7 +120,7 @@ export function ShareSkillModal({
         </p>
 
         {error && (
-          <p className="text-sm text-[hsl(var(--error))]">{error}</p>
+          <p className="text-sm text-[hsl(var(--error-text))]">{error}</p>
         )}
       </div>
     </Modal>

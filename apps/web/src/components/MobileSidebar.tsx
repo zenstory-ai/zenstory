@@ -237,7 +237,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="mobile-nav-item text-[hsl(var(--error))] hover:bg-[hsl(var(--error)/0.1)] disabled:opacity-50"
+            className="mobile-nav-item text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.1)] disabled:opacity-50"
           >
             <LogOut className="w-5 h-5" />
             <span className="font-medium">

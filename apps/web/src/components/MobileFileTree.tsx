@@ -27,6 +27,7 @@ import { fileApi } from "../lib/api";
 import { FOLDER_TYPE_MAP, MATERIAL_FOLDER_NAMES } from "../lib/folderTypeMap";
 import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Button } from "./ui/Button";
 import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { FileSearchInput } from "./FileSearchInput";
@@ -686,7 +687,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           {!isFolder && (
             <button
               onClick={(e) => handleDelete(e, node.id, node.title)}
-              className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
+              className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
               title={t('common:delete')}
             >
               <Trash2 size={18} />
@@ -766,9 +767,9 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   const loadErrorNotice = loadError ? (
     <div role="alert" className="p-3 text-sm text-[hsl(var(--text-secondary))]">
       <p>{t('editor:fileTree.loadFailed')}</p>
-      <button type="button" className="btn-secondary mt-2 min-h-11" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
+      <Button type="button" variant="secondary" size="touch" className="mt-2" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
         {t(loading ? 'common:loading' : 'common:retry')}
-      </button>
+      </Button>
     </div>
   ) : null;
 
@@ -861,7 +862,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
 
       {loadErrorNotice}
       {uploadError && (
-        <div className="mx-3 mt-2 px-3 py-2 bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded text-[hsl(var(--error))] text-xs">
+        <div className="mx-3 mt-2 px-3 py-2 bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded text-[hsl(var(--error-text))] text-xs">
           {uploadError}
         </div>
       )}

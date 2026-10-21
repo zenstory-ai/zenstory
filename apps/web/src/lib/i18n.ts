@@ -57,17 +57,29 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import Backend from 'i18next-http-backend';
 
+/** Search and link-preview crawlers: they keep the Chinese default so each indexed page stays in one language. */
+const CRAWLER_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|inspectiontool/i;
+
 /**
  * Which language the app opens in. Detection order: an explicit `?lang=` (zenstory.ai links carry the
- * language of the page the visitor came from), then the preference stored in localStorage; no
- * browser-language guess. The detected language is cached, so a `?lang=` handoff outlives the first page.
+ * language of the page the visitor came from), then the preference stored in localStorage, then the
+ * browser's languages (people only, not crawlers). A browser language the app does not support falls
+ * back to Chinese. The detected language is cached, so the choice outlives the first page.
  */
-export const languageDetection = {
-  order: ['querystring', 'localStorage'],
-  lookupQuerystring: 'lang',
-  caches: ['localStorage'],
-  lookupLocalStorage: 'zenstory-language',
-};
+export function languageDetectionFor(userAgent: string) {
+  return {
+    order: CRAWLER_USER_AGENT.test(userAgent)
+      ? ['querystring', 'localStorage']
+      : ['querystring', 'localStorage', 'navigator'],
+    lookupQuerystring: 'lang',
+    caches: ['localStorage'],
+    lookupLocalStorage: 'zenstory-language',
+  };
+}
+
+export const languageDetection = languageDetectionFor(
+  typeof navigator === 'undefined' ? '' : navigator.userAgent,
+);
 
 export const languageOptions = {
   /** Default language when detection fails */

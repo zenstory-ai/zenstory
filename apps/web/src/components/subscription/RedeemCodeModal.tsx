@@ -111,7 +111,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error))] text-sm rounded-md">
+            <div className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] text-sm rounded-md">
               {error}
             </div>
           )}
@@ -119,7 +119,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
           {success && (
             <div
               role="status"
-              className={`mb-4 p-3 bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))] text-sm rounded-md ${celebrate ? 'animate-celebration-pop font-medium' : ''}`}
+              className={`mb-4 p-3 bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success-text))] text-sm rounded-md ${celebrate ? 'animate-celebration-pop font-medium' : ''}`}
             >
               {success}
             </div>

@@ -36,8 +36,10 @@ from agent.skills.package import (
     strip_nul_chars,
 )
 from config.datetime_utils import utcnow
+from config.official_skill_translations import localized_skill_text
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.i18n import get_accept_language
 from core.permissions import require_custom_skill_slot
 from database import get_session
 from models import PublicSkill, User, UserAddedSkill, UserSkill
@@ -154,6 +156,7 @@ async def list_skills(
     search: str | None = None,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_accept_language),
 ) -> SkillListResponse:
     """List all skills for current user (custom + added from public).
 
@@ -223,10 +226,13 @@ async def list_skills(
             record_id=public.id,
         )
         hidden = skill_package_service.instructions_hidden_from_users(public)
+        name, description = localized_skill_text(
+            source=public.source, name=public.name, description=public.description, language=language
+        )
         skills.append(SkillResponse(
             id=added.id,
-            name=added.custom_name or public.name,
-            description=public.description,
+            name=added.custom_name or name,
+            description=description,
             triggers=triggers,
             instructions="" if hidden else public.instructions,
             instructions_hidden=hidden,
@@ -451,6 +457,7 @@ async def get_my_skills(
     search: str | None = None,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    language: str = Depends(get_accept_language),
 ) -> MySkillsResponse:
     """Get all skills for current user (custom + added from public).
 
@@ -512,11 +519,14 @@ async def get_my_skills(
     added_skills = []
     for added, public in added_results:
         hidden = skill_package_service.instructions_hidden_from_users(public)
+        name, description = localized_skill_text(
+            source=public.source, name=public.name, description=public.description, language=language
+        )
         added_skills.append(AddedSkillResponse(
             id=added.id,
             public_skill_id=public.id,
-            name=added.custom_name or public.name,
-            description=public.description,
+            name=added.custom_name or name,
+            description=description,
             instructions="" if hidden else public.instructions,
             instructions_hidden=hidden,
             category=public.category,

@@ -98,7 +98,7 @@ export function EarnOpportunities({ className = '' }: EarnOpportunitiesProps) {
                   {t(`opportunityDescriptions.${opportunity.type}`, opportunity.description)}
                 </p>
                 {opportunity.is_completed && (
-                  <p className="text-xs text-[hsl(var(--success))]">
+                  <p className="text-xs text-[hsl(var(--success-text))]">
                     {t('completed', '已完成')}
                   </p>
                 )}

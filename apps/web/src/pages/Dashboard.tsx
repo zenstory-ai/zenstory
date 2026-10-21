@@ -309,7 +309,7 @@ function DashboardContent() {
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[hsl(var(--error))] hover:bg-[hsl(var(--error)/0.1)] transition-colors"
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.1)] transition-colors"
         >
           <LogOut className="w-4 h-4" />
           {t('nav.logout')}
@@ -558,7 +558,7 @@ function DashboardContent() {
                   handleLogout();
                   setShowMobileMenu(false);
                 }}
-                className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--error)/0.1)] rounded-lg text-sm text-[hsl(var(--error))] transition-colors text-left"
+                className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--error)/0.1)] rounded-lg text-sm text-[hsl(var(--error-text))] transition-colors text-left"
               >
                 <LogOut size={18} />
                 {t('nav.logout')}

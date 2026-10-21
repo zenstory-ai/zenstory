@@ -154,6 +154,7 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
           const maxIterations = (card as { maxIterations?: unknown }).maxIterations;
           const reason = (card as { reason?: unknown }).reason;
           const lastAgent = (card as { lastAgent?: unknown }).lastAgent;
+          const limit = (card as { limit?: unknown }).limit;
 
           return {
             type: "iteration_exhausted",
@@ -162,6 +163,7 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
             maxIterations: typeof maxIterations === "number" ? maxIterations : undefined,
             reason: typeof reason === "string" ? reason : undefined,
             lastAgent: typeof lastAgent === "string" ? lastAgent : undefined,
+            limit: typeof limit === "string" ? limit : undefined,
           };
         }
 
@@ -1304,7 +1306,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       proseCounterRef.current.boundary();
       streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
     },
-    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
+    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit) => {
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
         layer,
@@ -1312,8 +1314,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         maxIterations,
         reason,
         lastAgent,
+        limit,
       }];
-      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent);
+      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent, limit);
     },
     onRouterThinking: streamCallbacks.onRouterThinking,
     onRouterDecided: streamCallbacks.onRouterDecided,
@@ -2485,7 +2488,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" data-testid="chat-panel-header-title">
           <span className={`min-w-0 truncate whitespace-nowrap font-medium text-[hsl(var(--text-primary))] ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
           {isStreaming && (
-            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success))] animate-[breathe_1.5s_ease-in-out_infinite]">
+            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success-text))] animate-[breathe_1.5s_ease-in-out_infinite] motion-reduce:animate-none">
               · {t('chat:panel.processing')}
             </span>
           )}
@@ -2616,7 +2619,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
               {/* Error */}
               {error && !(isAiQuotaLimit && aiSendBlocked) && (
-                <div className="mt-3 bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-lg p-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div role="alert" className="mt-3 bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-lg p-3">
                   <div className="flex items-start gap-2">
                     <svg
                       className="w-4 h-4 text-[hsl(var(--warning-text))] mt-0.5 flex-shrink-0"
@@ -2642,7 +2645,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                         <button
                           type="button"
                           onClick={handleRetry}
-                          className="mt-2 inline-flex h-8 items-center rounded-md border border-[hsl(var(--warning)/0.35)] px-3 text-xs font-medium text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.12)] transition-colors"
+                          className="mt-2 inline-flex min-h-11 md:min-h-8 items-center rounded-md border border-[hsl(var(--warning)/0.35)] px-3 text-xs font-medium text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.12)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
                         >
                           {t('common:retry')}
                         </button>
@@ -2655,7 +2658,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                           <button
                             type="button"
                             onClick={() => setShowQuotaUpgradeModal(true)}
-                            className="inline-flex h-8 items-center rounded-md border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-3 text-xs font-medium text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.16)] transition-colors"
+                            className="inline-flex min-h-11 md:min-h-8 items-center rounded-md border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-3 text-xs font-medium text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.16)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
                           >
                             {t('dashboard:billing.ctaUpgradePro')}
                           </button>
@@ -2685,6 +2688,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               {quotaRefundNote && (
                 <p
                   data-testid="chat-quota-refund-note"
+                  role="status"
                   className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
                 >
                   {quotaRefundNote}
@@ -2693,7 +2697,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                       type="button"
                       data-testid="chat-resend-after-stop"
                       onClick={resendLastRound}
-                      className="ml-2 text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:underline"
+                      className="ml-2 rounded-sm text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
                     >
                       {t('chat:panel.resend')}
                     </button>
@@ -2713,7 +2717,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     data-testid="chat-retry-unanswered"
                     onClick={() => retryUnanswered(unansweredUserMessage)}
                     disabled={aiSendBlocked}
-                    className="ml-2 text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:underline disabled:cursor-not-allowed disabled:text-[hsl(var(--text-tertiary))] disabled:no-underline"
+                    className="ml-2 rounded-sm text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:cursor-not-allowed disabled:text-[hsl(var(--text-tertiary))] disabled:no-underline"
                   >
                     {t('chat:panel.resend')}
                   </button>

@@ -1406,6 +1406,14 @@ async def run_openai_agents_streaming_agent(
                     ),
                     "last_agent": agent_type,
                 }
+            # 前端据此选卡片文案：时限收尾时模型可能已经做完，只是收尾提醒让它写了总结。
+            exhausted_data["limit"] = (
+                LANDING_LIMIT_WALL_CLOCK
+                if time_landed
+                else LANDING_LIMIT_MODEL_CALL_BUDGET
+                if budget_landed
+                else "max_turns"
+            )
             yield StreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data=exhausted_data)
         elif clarification_event_data is not None:
             from agent.core.metrics import AGENT_CLARIFICATION_TOTAL, get_metrics_collector

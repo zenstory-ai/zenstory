@@ -123,7 +123,7 @@ export const SkillStatsDialog: React.FC<SkillStatsDialogProps> = ({
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
                         skill.skill_source === 'builtin'
                           ? 'bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]'
-                          : 'bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]'
+                          : 'bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success-text))]'
                       }`}>
                         {skill.skill_source === 'builtin' ? t('stats.builtin') : t('stats.user')}
                       </span>

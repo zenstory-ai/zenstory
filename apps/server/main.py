@@ -88,7 +88,16 @@ async def lifespan(_app: FastAPI):
         docs_url="/docs",
         log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
+    # Deploy handover: let running generations wrap up before Uvicorn's grace ends.
+    from agent.core.server_drain import install_sigterm_drain
+
+    install_sigterm_drain(asyncio.get_running_loop().call_soon_threadsafe)
     yield
+    from agent.core.server_drain import shutdown_budget_remaining_s
+    from api.agent import wait_for_stream_cleanup
+
+    # Refunds, round outcomes and partial-history saves of ended streams run in background tasks.
+    await wait_for_stream_cleanup(min(30.0, max(0.0, shutdown_budget_remaining_s() - 5)))
     # Usage-ledger rows are written by background tasks; let in-flight ones land.
     from services.usage.llm_usage_service import drain_pending_usage_records
 

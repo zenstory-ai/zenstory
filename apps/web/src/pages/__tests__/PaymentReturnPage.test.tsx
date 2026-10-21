@@ -21,7 +21,8 @@ vi.mock('../../lib/subscriptionApi', async () => {
     subscriptionApi: {
       getStatus: vi.fn().mockResolvedValue({
         tier: 'pro', status: 'active', display_name: '专业版', display_name_en: 'Pro',
-        current_period_end: '2027-10-05T00:00:00Z', days_remaining: 365,
+        // 00:30 on 5 October in Beijing, still 4 October in UTC.
+        current_period_end: '2027-10-04T16:30:00', days_remaining: 365,
         features: {
           ai_conversations_per_day: -1, max_projects: -1, materials_library_access: true,
           material_uploads: 5, material_decompositions: 5, custom_skills: 20,
@@ -39,7 +40,11 @@ const pendingOrder: PaymentOrder = {
 }
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, fallback: string) => fallback, i18n: { language: 'zh-CN' } }),
+  useTranslation: () => ({
+    t: (_key: string, fallback: string, values?: Record<string, unknown>) =>
+      fallback.replace(/{{(\w+)}}/g, (_match, name: string) => String(values?.[name] ?? '')),
+    i18n: { language: 'zh-CN' },
+  }),
 }))
 
 function renderPage(search: string) {
@@ -83,6 +88,8 @@ describe('PaymentReturnPage', () => {
     // Immediate feedback: a celebration, what was unlocked, and a way back to writing.
     expect(screen.getByTestId('celebration-burst')).toBeInTheDocument()
     expect(await screen.findByText('每日 AI 消息')).toBeInTheDocument()
+    // The end date is the Beijing calendar day of a naive UTC timestamp, as on the billing page.
+    expect(screen.getByText('有效期至 2027/10/05，现在就去写吧。')).toBeInTheDocument()
     expect(screen.queryByText(/priority_support|优先支持|16384/)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '开始写作' })).toBeInTheDocument()
   })

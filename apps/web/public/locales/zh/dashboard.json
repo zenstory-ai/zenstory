@@ -64,7 +64,6 @@
     "yearlyMaxSaveHintFallback": "可按月或按年购买",
     "yearlySaveBadge": "年付省 {{amount}} · {{percent}}%",
     "yearlyEquivalent": "折合 {{price}}/月",
-    "yearlySaveAmount": "比月付省 {{amount}}",
     "alternateYearlyPrice": "按年买 {{price}}，比月付省 {{amount}}",
     "alternateMonthlyPrice": "月付 {{price}}",
     "priceWithYearlyOffer": "{{monthly}}，或 {{yearly}}（折合 {{equivalent}}/月，省 {{percent}}%）",
@@ -197,9 +196,6 @@
     "emptyHint": "点上方「开始创作」就能建好第一个项目，想法可以先空着。",
     "emptyHintProjectsPage": "点「新建项目」，开始写你的第一部作品吧。",
     "searchPlaceholder": "搜索项目",
-    "confirmDeleteTitle": "确定删除这个项目？",
-    "confirmDeleteMessage": "项目里的所有内容会一起删除，且无法恢复。",
-    "confirmDeleteButton": "确认删除",
     "cancel": "取消",
     "cannotDeleteLast": "无法删除最后一个项目",
     "editName": "编辑项目名称",
@@ -224,7 +220,8 @@
   },
   "ideaQuota": {
     "descriptionOnDay": "北京时间 {{day}} 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。",
-    "descriptionTomorrow": "北京时间明天 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。"
+    "descriptionTomorrow": "北京时间明天 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。",
+    "descriptionLocal": "北京时间 {{day}} 00:00 恢复，也就是你那里的 {{local}}。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。"
   },
   "inspirations": {
     "featured": "精选灵感",

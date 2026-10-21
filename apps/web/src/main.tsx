@@ -1,3 +1,4 @@
+import './lib/polyfills'
 import { StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -10,7 +11,10 @@ import { initWebVitalsLogging, initWebVitalsMonitoring } from './lib/webVitals'
 import { initAnalytics } from './lib/analytics'
 import { captureAuthCallbackParams } from './lib/authCallbackParams'
 import { rememberEntrySource } from './lib/entrySource'
+import { rememberAcquisition } from './lib/acquisition'
 import { installChunkRecoveryHandlers } from './lib/chunkRecovery'
+import { startAppUpdateChecks } from './lib/appUpdate'
+import { installDomMutationGuard } from './lib/domMutationGuard'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,11 +30,14 @@ const queryClient = new QueryClient({
 
 // Pull OAuth credentials out of the URL before anything can report it.
 captureAuthCallbackParams()
+installDomMutationGuard()
 rememberEntrySource()
+rememberAcquisition()
 initAnalytics()
 initWebVitalsMonitoring()
 initWebVitalsLogging()
 installChunkRecoveryHandlers()
+startAppUpdateChecks()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

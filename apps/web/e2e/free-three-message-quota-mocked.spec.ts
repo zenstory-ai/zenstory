@@ -82,7 +82,9 @@ for (const width of [320, 390, 768, 1920]) {
         await expect(page.locator('#chat-panel')).toHaveCSS('opacity', '1');
       }
       const compact = page.getByTestId('quota-badge-compact');
-      await expect(compact).toHaveText('2/3');
+      // The digits are visual; screen readers get the full usage sentence instead.
+      await expect(compact.locator('span[aria-hidden="true"]')).toHaveText('2/3');
+      await expect(compact).toContainText('2/3');
       const compactUpgrade = compact.locator('..').getByRole('button');
       const button = (await compactUpgrade.boundingBox())!;
       if (width < 768) {

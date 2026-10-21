@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import sitemapPlugin from 'vite-plugin-sitemap'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -76,6 +76,27 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
 
 const orgRoutes = orgPageRoutes()
 
+/**
+ * Writes version.json naming the built entry script. The app polls it to notice
+ * that a newer build was deployed while a tab stayed open (src/lib/appUpdate.ts).
+ */
+function appVersionManifest(): Plugin {
+  let outDir = 'dist'
+  return {
+    name: 'zenstory-app-version-manifest',
+    apply: 'build',
+    configResolved(config) {
+      outDir = path.resolve(config.root, config.build.outDir)
+    },
+    closeBundle() {
+      const html = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8')
+      const entry = html.match(/<script type="module"[^>]*\ssrc="([^"]+)"/)?.[1]
+      if (!entry) throw new Error('Built index.html has no module entry script for version.json')
+      fs.writeFileSync(path.join(outDir, 'version.json'), `${JSON.stringify({ entry })}\n`)
+    },
+  }
+}
+
 const apiProxyTarget = (process.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
 const allowedHosts = (process.env.VITE_ALLOWED_HOSTS || 'localhost,127.0.0.1')
   .split(',')
@@ -86,6 +107,7 @@ const allowedHosts = (process.env.VITE_ALLOWED_HOSTS || 'localhost,127.0.0.1')
 export default defineConfig({
   plugins: [
     react(),
+    appVersionManifest(),
     sitemapPlugin({
       // 从环境变量读取 hostname,开发环境用 localhost
       hostname: process.env.VITE_BASE_URL || 'http://localhost:5173',

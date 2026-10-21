@@ -113,17 +113,17 @@ export const DiffToolbar = ({
               {t('editor:paragraphBlocksCount', { count: totalCount })}
             </span>
             {pendingCount > 0 && (
-              <span className="rounded-full bg-[hsl(var(--warning)/0.14)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--warning))]">
+              <span className="rounded-full bg-[hsl(var(--warning)/0.14)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--warning-text))]">
                 {t('editor:pendingCount', { count: pendingCount })}
               </span>
             )}
             {acceptedCount > 0 && (
-              <span className="rounded-full bg-[hsl(var(--success)/0.14)] px-2.5 py-1 text-xs text-[hsl(var(--success))]">
+              <span className="rounded-full bg-[hsl(var(--success)/0.14)] px-2.5 py-1 text-xs text-[hsl(var(--success-text))]">
                 ✓ {acceptedCount}
               </span>
             )}
             {rejectedCount > 0 && (
-              <span className="rounded-full bg-[hsl(var(--error)/0.14)] px-2.5 py-1 text-xs text-[hsl(var(--error))]">
+              <span className="rounded-full bg-[hsl(var(--error)/0.14)] px-2.5 py-1 text-xs text-[hsl(var(--error-text))]">
                 ✗ {rejectedCount}
               </span>
             )}
@@ -138,7 +138,7 @@ export const DiffToolbar = ({
             onClick={onAcceptAll}
             disabled={!canAcceptAll}
             className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all
-            text-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.1)]
+            text-[hsl(var(--success-text))] hover:bg-[hsl(var(--success)/0.1)]
             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={t('editor:acceptAll')}
           >
@@ -152,7 +152,7 @@ export const DiffToolbar = ({
             onClick={onRejectAll}
             disabled={!canRejectAll}
             className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all
-            text-[hsl(var(--error))] hover:bg-[hsl(var(--error)/0.1)]
+            text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.1)]
             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={t('editor:rejectAll')}
           >

@@ -20,10 +20,12 @@ from services.core.auth_service import get_current_superuser
 from services.features.activation_event_service import activation_event_service
 from services.features.points_service import effective_check_in_date, points_service
 from services.features.upgrade_funnel_event_service import upgrade_funnel_event_service
+from services.usage.acquisition_service import ACQUISITION_DAYS, get_acquisition_stats
 from services.usage.admin_growth_service import get_growth_dashboard
 from utils.logger import get_logger, log_with_context
 
 from .schemas import (
+    AcquisitionStatsResponse,
     ActivationFunnelResponse,
     DashboardStatsResponse,
     GrowthDashboardResponse,
@@ -72,6 +74,28 @@ def get_dashboard_growth(
         paid_orders=payload["current"]["metrics"]["paid_orders"],
     )
     return GrowthDashboardResponse(**payload)
+
+
+@router.get("/dashboard/acquisition", response_model=AcquisitionStatsResponse)
+def get_dashboard_acquisition(
+    days: int = Query(30),
+    current_user: User = Depends(get_current_superuser),
+    session: Session = Depends(get_session),
+):
+    """New accounts of the window by acquisition channel and source, with activation and paid rates."""
+    if days not in ACQUISITION_DAYS:
+        raise HTTPException(status_code=422, detail="days must be one of: 7, 14, 30, 90")
+    payload = get_acquisition_stats(session, days=days)
+    log_with_context(
+        logger,
+        logging.INFO,
+        "Retrieved acquisition stats",
+        user_id=current_user.id,
+        window_days=days,
+        total_signups=payload["total_signups"],
+        attributed_signups=payload["attributed_signups"],
+    )
+    return AcquisitionStatsResponse(**payload)
 
 
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)

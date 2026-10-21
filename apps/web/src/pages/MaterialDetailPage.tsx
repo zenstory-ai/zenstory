@@ -517,15 +517,16 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
 
   if (materialLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+      <div role="status" className="flex items-center justify-center h-dvh">
+        <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+        <span className="sr-only">{t("common:loading", { defaultValue: "加载中…" })}</span>
       </div>
     );
   }
 
   if (materialError && isFeatureNotIncludedError(materialError)) {
     return (
-      <div className="flex h-screen items-center justify-center px-4">
+      <div className="flex h-dvh items-center justify-center px-4">
         <MaterialsUpgradeNotice source="material_detail" className="max-w-md text-center" />
       </div>
     );
@@ -534,8 +535,8 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   if (materialError) {
     const isNotFound = materialError instanceof ApiError && materialError.status === 404;
     return (
-      <div className="flex flex-col items-center justify-center gap-3 h-screen">
-        <p className="text-[hsl(var(--text-secondary))]">
+      <div className="flex flex-col items-center justify-center gap-3 h-dvh">
+        <p role="alert" className="text-[hsl(var(--text-secondary))]">
           {isNotFound
             ? t("materials:detail.notFound")
             : t("materials:detail.loadError", { defaultValue: "素材详情加载失败，请重试。" })}
@@ -551,7 +552,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
 
   if (!material) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-dvh">
         <p className="text-[hsl(var(--text-secondary))]">{t("materials:detail.notFound")}</p>
       </div>
     );

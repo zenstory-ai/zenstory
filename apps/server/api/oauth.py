@@ -19,6 +19,7 @@ from services.auth import (
     create_refresh_token,
     generate_token_jti,
     get_refresh_token_expires_at,
+    unique_username,
     verify_token,
 )
 from sqlmodel import Session, select
@@ -38,6 +39,7 @@ from models.referral import InviteCode
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
 from services.subscription.subscription_service import subscription_service
+from services.usage.acquisition_service import normalize_acquisition
 from utils.email_identity import email_identity_matches, normalize_email_identity
 from utils.logger import get_logger, log_with_context
 from utils.request_context import get_log_context
@@ -172,6 +174,18 @@ def _should_use_secure_cookie() -> bool:
     return GOOGLE_REDIRECT_URI.startswith("https://")
 
 
+OAUTH_STATE_ACQUISITION_KEY = "acq"
+
+
+def _parse_acquisition_param(raw: str | None) -> dict | None:
+    if not raw:
+        return None
+    try:
+        return normalize_acquisition(json.loads(raw))
+    except ValueError:
+        return None
+
+
 def _encode_oauth_state(payload: dict[str, str]) -> str:
     raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
@@ -233,6 +247,7 @@ async def google_oauth_login(
     invite_code: str | None = Query(None, description="Invite code for new user registration"),
     invite: str | None = Query(None, description="Alias for invite_code"),
     code: str | None = Query(None, description="Alias for invite_code"),
+    acq: str | None = Query(None, max_length=1024, description="First-touch acquisition (JSON)"),
 ):
     """
     Initiate Google OAuth flow.
@@ -279,6 +294,11 @@ async def google_oauth_login(
     sanitized_invite_code = _sanitize_invite_code(raw_invite_code)
     if sanitized_invite_code:
         state_payload[OAUTH_STATE_INVITE_CODE_KEY] = sanitized_invite_code
+
+    # First-touch acquisition rides in the state so a new account records where it came from.
+    acquisition = _parse_acquisition_param(acq)
+    if acquisition:
+        state_payload[OAUTH_STATE_ACQUISITION_KEY] = json.dumps(acquisition, separators=(",", ":"))
 
     params["state"] = _encode_oauth_state(state_payload)
     auth_url = f"{GOOGLE_AUTH_URL}?{urllib.parse.urlencode(params)}"
@@ -646,33 +666,8 @@ async def google_oauth_callback(
                     invite_code=normalized_invite_code,
                 )
 
-        # Create new user
-        # Use name from Google, or fallback to email prefix
-        original_username = google_name or google_email.split("@")[0]
-
-        # Check if username already exists
-        # Optimize: Use single query instead of loop
-        username = original_username
-        if session.exec(
-            select(User).where(User.username == original_username)
-        ).first():
-            # If base username exists, query all conflicting usernames at once
-            conflicting_usernames = session.exec(
-                select(User.username).where(User.username.like(f"{original_username}%"))
-            ).all()
-
-            # Find the maximum numeric suffix
-            max_suffix = 0
-            for name in conflicting_usernames:
-                if name == original_username:
-                    continue
-                if name.startswith(original_username):
-                    suffix = name[len(original_username):]
-                    if suffix.isdigit():
-                        max_suffix = max(max_suffix, int(suffix))
-
-            # Generate unique username with the next available suffix
-            username = f"{original_username}{max_suffix + 1}"
+        # Create new user, named after Google or the email prefix.
+        username = unique_username(session, google_name or google_email.split("@")[0])
 
         new_user = User(
             username=username,
@@ -731,6 +726,7 @@ async def google_oauth_callback(
                 event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS,
                 event_metadata={
                     "source": "google_oauth",
+                    "acquisition": _parse_acquisition_param(state_payload.get(OAUTH_STATE_ACQUISITION_KEY)),
                     "invite_code_provided": bool(normalized_invite_code),
                     "invite_policy_variant": invite_policy_variant,
                     "invite_policy_rollout_percent": invite_policy_rollout_percent,

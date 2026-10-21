@@ -111,16 +111,36 @@ describe('Skill selection flow', () => {
   it('opens an accessible modal that closes with Escape and restores focus', async () => {
     const user = userEvent.setup({ delay: null })
     renderFlow()
-    const skillName = await screen.findByText('节奏控制')
-    const row = skillName.closest('[class*="cursor-pointer"]') as HTMLElement
-    row.tabIndex = 0
-    row.focus()
-    await user.click(skillName)
+    await screen.findByText('节奏控制')
+    // The row's details control is a native button, so the keyboard opens it.
+    const openDetails = screen.getByRole('button', { name: '节奏控制' })
+    openDetails.focus()
+    await user.keyboard('{Enter}')
 
-    expect(screen.getByRole('dialog', { name: /节奏控制/ })).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: /节奏控制/ })
+    expect(within(dialog).getByText('instructions of 节奏控制')).toBeInTheDocument()
+    // One scroll area: the Modal body, with no nested max-height scroller inside it.
+    expect(dialog.querySelectorAll('[class*="overflow-y-auto"]')).toHaveLength(1)
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(row).toHaveFocus()
+    expect(openDetails).toHaveFocus()
+  })
+
+  it('shows a load failure with retry instead of the empty-list text', async () => {
+    const user = userEvent.setup({ delay: null })
+    vi.mocked(skillsApi.list)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ skills, total: skills.length })
+    renderFlow()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('common:error')
+    expect(screen.queryByText('editor:fileTree.skillsEmpty')).not.toBeInTheDocument()
+
+    await user.click(within(alert).getByRole('button', { name: 'common:retry' }))
+    expect(await screen.findByText('节奏控制')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(skillsApi.list).toHaveBeenCalledTimes(2)
   })
 
   it('shows a note instead of instructions for an added official skill, full text for own skills', async () => {

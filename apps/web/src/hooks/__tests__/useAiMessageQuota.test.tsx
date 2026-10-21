@@ -10,7 +10,7 @@ vi.mock('../../lib/subscriptionApi', () => ({
   subscriptionQueryKeys: { quota: () => ['subscription-quota'] },
 }))
 
-import { isAiMessageQuotaExhausted, useAiMessageQuota } from '../useAiMessageQuota'
+import { formatAiQuotaResetLocal, isAiMessageQuotaExhausted, useAiMessageQuota } from '../useAiMessageQuota'
 
 const quota = (used: number, limit = 3) => ({
   ai_conversations: { used, limit, reset_at: '2026-10-09T16:00:00Z' },
@@ -52,3 +52,17 @@ describe('useAiMessageQuota', () => {
     expect(isAiMessageQuotaExhausted(value?.ai_conversations)).toBe(expected)
   })
 })
+
+describe('formatAiQuotaResetLocal', () => {
+  // 00:00 Beijing time on October 22 is noon on October 21 in New York (EDT).
+  const resetAt = '2026-10-21T16:00:00Z';
+
+  it("gives a reader abroad the reset moment in their own time zone", () => {
+    expect(formatAiQuotaResetLocal(resetAt, 'en', 'America/New_York')).toBe('October 21 at 12:00 PM');
+  });
+
+  it('says nothing extra when the reader already lives on Beijing time', () => {
+    expect(formatAiQuotaResetLocal(resetAt, 'zh', 'Asia/Shanghai')).toBeNull();
+    expect(formatAiQuotaResetLocal(null, 'en', 'America/New_York')).toBeNull();
+  });
+});

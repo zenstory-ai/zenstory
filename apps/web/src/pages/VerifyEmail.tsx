@@ -346,7 +346,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[hsl(var(--accent-primary)/0.1)] mb-4">
                 {success ? (
-                  <CheckCircle className="w-8 h-8 text-[hsl(var(--success))]" />
+                  <CheckCircle className="w-8 h-8 text-[hsl(var(--success-text))]" />
                 ) : (
                   <Mail className="w-8 h-8 text-[hsl(var(--accent-primary))]" />
                 )}

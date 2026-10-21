@@ -22,6 +22,8 @@ import { describeVersionSummary } from "../lib/versionSummary";
 import type { FileVersion, VersionComparison } from "../types";
 import { DiffViewer } from "./DiffViewer";
 import { Modal } from "./ui/Modal";
+import { Button } from "./ui/Button";
+import { IconButton } from "./ui/IconButton";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
@@ -86,9 +88,8 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   // the row. From 768px up the list stays visible beside the preview and the
   // author may keep scrolling it, so it is never treated as hidden there.
   const isMobile = useIsMobile();
-  const outerListRef = useRef<HTMLDivElement>(null);
-  const innerListRef = useRef<HTMLDivElement>(null);
-  const listScrollRef = useRef({ outer: 0, inner: 0 });
+  const listRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef(0);
   const listHidden = isMobile && (showComparison || preview !== null);
   const listRequestGenerationRef = useRef(0);
   const fileContextGenerationRef = useRef(0);
@@ -164,7 +165,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     setIsRollingBack(false);
     setPreview(null);
     setLoadingMore(false);
-    listScrollRef.current = { outer: 0, inner: 0 };
+    listScrollRef.current = 0;
     void loadVersions(0, false);
     return () => {
       fileContextGenerationRef.current += 1;
@@ -174,8 +175,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
 
   useLayoutEffect(() => {
     if (listHidden) return;
-    if (outerListRef.current) outerListRef.current.scrollTop = listScrollRef.current.outer;
-    if (innerListRef.current) innerListRef.current.scrollTop = listScrollRef.current.inner;
+    if (listRef.current) listRef.current.scrollTop = listScrollRef.current;
   }, [listHidden]);
 
   const handleSelectVersion = (versionNumber: number) => {
@@ -393,27 +393,23 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
             )}
           </div>
           <div className="flex items-center gap-1">
-            <button
+            <IconButton
               onClick={(e) => {
                 e.stopPropagation();
                 onViewContent(version.version_number);
               }}
-              className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
-              title={t('viewContent')}
-            >
-              <FileText size={14} className="text-[hsl(var(--text-secondary))]" />
-            </button>
-            <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRollback(version.version_number);
-                }}
-                className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
-                title={t('rollback')}
-                disabled={isRollingBack}
-              >
-                <RotateCcw size={14} className="text-[hsl(var(--text-secondary))]" />
-              </button>
+              label={t('viewContent')}
+              icon={<FileText size={14} />}
+            />
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                onRollback(version.version_number);
+              }}
+              label={t('rollback')}
+              icon={<RotateCcw size={14} />}
+              disabled={isRollingBack}
+            />
           </div>
         </div>
 
@@ -427,13 +423,13 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
             version.lines_removed > 0) && (
             <span className="flex items-center gap-1">
               {version.lines_added > 0 && (
-                <span className="text-[hsl(var(--success))] flex items-center">
+                <span className="text-[hsl(var(--success-text))] flex items-center">
                   <Plus size={12} />
                   {t('linesAdded', { count: version.lines_added })}
                 </span>
               )}
               {version.lines_removed > 0 && (
-                <span className="text-[hsl(var(--error))] flex items-center">
+                <span className="text-[hsl(var(--error-text))] flex items-center">
                   <Minus size={12} />
                   {t('linesRemoved', { count: version.lines_removed })}
                 </span>
@@ -457,7 +453,9 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         open={true}
         onClose={handleClose}
         size="full"
-        className="max-w-[900px] max-h-[80vh] p-0 overflow-hidden"
+        className="max-w-[900px] h-[min(80vh,720px)] p-0 overflow-hidden"
+        bodyClassName="p-0 flex flex-col overflow-hidden"
+        ariaLabel={`${t('title')} - ${fileTitle}`}
         showCloseButton={false}
       >
       {/* Header */}
@@ -467,14 +465,12 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           <h2 className="font-medium text-[hsl(var(--text-primary))]">{t('title')}</h2>
           <span className="text-sm text-[hsl(var(--text-secondary))]">- {fileTitle}</span>
         </div>
-        <button
+        <IconButton
           onClick={handleClose}
           disabled={isRollingBack}
-          aria-label={t('common:close')}
-          className="p-1 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
-        >
-          <X size={18} className="text-[hsl(var(--text-secondary))]" />
-        </button>
+          label={t('common:close')}
+          icon={<X size={18} />}
+        />
       </div>
 
       {/* Toolbar */}
@@ -506,12 +502,12 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 min-h-0 overflow-hidden flex">
         {/* Version List */}
         <div
-          ref={outerListRef}
+          ref={listRef}
           onScroll={(e) => {
-            if (!listHidden) listScrollRef.current.outer = e.currentTarget.scrollTop;
+            if (!listHidden) listScrollRef.current = e.currentTarget.scrollTop;
           }}
           data-testid="version-list"
           // Under 768px the list is too narrow beside a preview (one character per
@@ -520,14 +516,19 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
             showComparison || preview
               ? "hidden md:block md:w-1/3 md:border-r md:border-[hsl(var(--border-color))]"
               : "w-full"
-          } overflow-y-auto bg-[hsl(var(--bg-primary))]`}
+          } min-h-0 overflow-y-auto bg-[hsl(var(--bg-primary))]`}
         >
           {loading && (
             <div className="p-8 text-center text-[hsl(var(--text-secondary))]">{t('loading')}</div>
           )}
 
           {error && (
-            <div className="p-8 text-center text-[hsl(var(--error))]">{error}</div>
+            <div role="alert" className="p-8 flex flex-col items-center gap-3 text-center text-[hsl(var(--error-text))]">
+              <span>{error}</span>
+              <Button variant="secondary" size={isMobile ? 'touch' : 'sm'} onClick={() => void loadVersions(0, false)}>
+                {t('common:retry')}
+              </Button>
+            </div>
           )}
 
           {!loading && !error && versions.length === 0 && (
@@ -538,13 +539,8 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
 
           {!loading && !error && versions.length > 0 && (
             <div
-              ref={innerListRef}
-              onScroll={(e) => {
-                if (!listHidden) listScrollRef.current.inner = e.currentTarget.scrollTop;
-              }}
               data-testid="version-list-rows"
-              className="divide-y divide-[hsl(var(--border-color))] overflow-y-auto"
-              style={{ height: 600 }}
+              className="divide-y divide-[hsl(var(--border-color))]"
             >
               {versions.map((version, index) => (
                 <VersionRowWrapper
@@ -564,7 +560,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
               ))}
               {versions.length < total && (
                 <div className="p-3 flex justify-center">
-                  {pageError && <span role="alert" className="text-[hsl(var(--error))]">{pageError}</span>}
+                  {pageError && <span role="alert" className="text-[hsl(var(--error-text))]">{pageError}</span>}
                   <button
                     type="button"
                     className="btn"
@@ -588,13 +584,11 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
               <span className="text-sm text-[hsl(var(--text-secondary))]">
                 {t('versionTo', { v1: comparison.version1.number, v2: comparison.version2.number })}
               </span>
-              <button
+              <IconButton
                 onClick={() => setShowComparison(false)}
-                aria-label={t('closePreview', { defaultValue: '关闭预览' })}
-                className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
-              >
-                <X size={14} className="text-[hsl(var(--text-secondary))]" />
-              </button>
+                label={t('closePreview', { defaultValue: '关闭预览' })}
+                icon={<X size={14} />}
+              />
             </div>
             <div className="flex-1 overflow-auto">
               <DiffViewer comparison={comparison} />
@@ -621,15 +615,11 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                   <RotateCcw size={14} />
                   {t('rollback')}
                 </button>
-                <button
-                  type="button"
+                <IconButton
                   onClick={() => setPreview(null)}
-                  className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
-                  title={t('closePreview', { defaultValue: '关闭预览' })}
-                  aria-label={t('closePreview', { defaultValue: '关闭预览' })}
-                >
-                  <X size={14} className="text-[hsl(var(--text-secondary))]" />
-                </button>
+                  label={t('closePreview', { defaultValue: '关闭预览' })}
+                  icon={<X size={14} />}
+                />
               </div>
             </div>
             <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-sm text-[hsl(var(--text-primary))] font-sans">

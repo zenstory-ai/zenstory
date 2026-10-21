@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
 import { authApi } from '../lib/api';
 import type { UserSubscription, UsageQuota } from '../types/subscription';
 import { logger } from '../lib/logger';
 import { clearAuthStorage, getApiBase, resolveOwnedAuthSession, tryRefreshToken as tryRefreshTokenSingleFlight } from '../lib/apiClient';
 import { identifyUser, resetAnalytics, trackEvent } from '../lib/analytics';
 import { getEntrySource } from '../lib/entrySource';
+import { getAcquisition } from '../lib/acquisition';
 import { getLocale } from '../lib/i18n-helpers';
 import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
 import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
 import { claimPreferredProjectType } from '../lib/preferredProjectType';
+import { syncAccountLanguage } from '../lib/accountLanguage';
 
 export interface User {
   id: string;
@@ -23,6 +26,8 @@ export interface User {
   is_superuser: boolean;
   created_at: string;
   updated_at: string;
+  /** Interface language saved on the account; null until the user signs up with or switches to one. */
+  ui_language?: string | null;
   subscription?: UserSubscription;
   quota?: UsageQuota;
 }
@@ -31,7 +36,7 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
+  register: (email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
   logout: () => void;
   refreshToken: () => Promise<void>;
   handleOAuthCallback: (
@@ -297,6 +302,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [setUser]);
 
+  // The interface language follows the account across devices (see lib/accountLanguage).
+  // A switch updates the signed-in user and its cache at once, so a reload inside the cache
+  // window does not bring back the previous language.
+  const signedInUserId = user?.id;
+  const accountLanguage = user?.ui_language;
+  const rememberAccountLanguage = React.useCallback((language: string) => {
+    setUserState(current => (current ? { ...current, ui_language: language } : current));
+    const cached = getValidCachedUser();
+    if (cached && cached.id === signedInUserId) saveUserCache({ ...cached, ui_language: language });
+  }, [signedInUserId]);
+  useEffect(() => {
+    if (!signedInUserId) return;
+    return syncAccountLanguage(i18next, accountLanguage, rememberAccountLanguage);
+  }, [signedInUserId, accountLanguage, rememberAccountLanguage]);
+
   useEffect(() => {
     if (loading) return;
 
@@ -332,9 +352,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const register = async (username: string, email: string, password: string, inviteCode?: string) => {
-    // The verification email goes out in the language the visitor is using.
-    const data = await authApi.register({ username, email, password, invite_code: inviteCode, language: getLocale() });
+  const register = async (email: string, password: string, inviteCode?: string) => {
+    // The verification email goes out in the language the visitor is using; the
+    // server names the account after the email prefix.
+    const data = await authApi.register({ email, password, invite_code: inviteCode, language: getLocale(), acquisition: getAcquisition() });
     trackEvent('register_success', {
       method: 'password',
       email_verified: data.email_verified,
@@ -486,6 +507,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (inviteCode) {
       // Pass invite code for new-user gating (especially when registration requires invite codes)
       url.searchParams.set('invite_code', inviteCode);
+    }
+    const acquisition = getAcquisition();
+    if (acquisition) {
+      // Recorded on the account if this Google sign-in creates one.
+      url.searchParams.set('acq', JSON.stringify(acquisition));
     }
 
     window.location.href = url.toString();

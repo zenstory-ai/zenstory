@@ -110,7 +110,9 @@ describe('PaymentCheckoutModal', () => {
     expect(screen.getByRole('button', { name: /^去支付 ¥19$/ })).toBeInTheDocument()
     // The yearly option carries the saving so the better deal is visible before choosing.
     expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('最划算 · 省 17%')
-    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('折合 ¥15.83/月 · 比月付省 ¥38')
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('折合 ¥15.83/月')
+    // The saving is stated once, as a percentage, not again as an amount.
+    expect(screen.getByRole('radio', { name: /年付/ })).not.toHaveTextContent('比月付省')
     expect(screen.queryByText(/微信/)).not.toBeInTheDocument()
     expect(screen.queryByText(/服务器|收银台/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /年付/ }))

@@ -35,6 +35,7 @@ import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, ge
 import { resolveApiErrorMessage } from "./errorHandler";
 import { getLocale } from "./i18n-helpers";
 import { parseContentDispositionFilename } from "./contentDisposition";
+import type { Acquisition } from "./acquisition";
 import { logger } from "./logger";
 import { isFileTitleTooLong } from "./fileTitle";
 import { captureException, trackEvent } from "./analytics";
@@ -119,7 +120,7 @@ export const authApi = {
    * Register a new user account.
    *
    * @param data - Registration data
-   * @param data.username - Desired username (unique)
+   * @param data.username - Optional username; the server defaults to the email prefix
    * @param data.email - User's email address
    * @param data.password - User's password (will be hashed server-side)
    * @param data.invite_code - Optional invite code for closed beta or referrals
@@ -129,7 +130,6 @@ export const authApi = {
    * @example
    * ```ts
    * const user = await authApi.register({
-   *   username: 'writer',
    *   email: 'writer@example.com',
    *   password: 'securePassword123'
    * });
@@ -146,7 +146,7 @@ export const authApi = {
     return response.json() as Promise<{ email: string; verification_sent: boolean }>;
   },
 
-  register: async (data: { username: string; email: string; password: string; invite_code?: string; language?: 'zh' | 'en' }) => {
+  register: async (data: { username?: string; email: string; password: string; invite_code?: string; language?: 'zh' | 'en'; acquisition?: Acquisition }) => {
     const response = await fetch(`${getApiBase()}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

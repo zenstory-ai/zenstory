@@ -7,6 +7,7 @@ import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../../contexts/Ma
 import { fileApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { Button } from "../ui/Button";
 import { findAncestorFolderIds } from "../../lib/lastOpenedFile";
 import { notifyFileRemoved } from "../../lib/fileRemovalEvents";
 import { FOLDER_TYPE_MAP } from "../../lib/folderTypeMap";
@@ -489,6 +490,13 @@ export const FileTreePane: React.FC = () => {
       selectedItem?.id === node.id;
 
     const createFileType = getCreateFileType(node.title);
+    const activateNode = () => {
+      if (isFolder) {
+        toggleFolder(node.id);
+      } else {
+        handleSelect(node.id, node.file_type, node.title);
+      }
+    };
 
     return (
       <div key={node.id} style={{ marginLeft: depth > 0 ? 12 : 0 }}>
@@ -498,16 +506,23 @@ export const FileTreePane: React.FC = () => {
           data-file-id={node.id}
           data-file-type={node.file_type}
           data-file-title={node.title}
-          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors ${
+          role="treeitem"
+          tabIndex={0}
+          aria-level={depth + 1}
+          aria-expanded={isFolder ? isExpanded : undefined}
+          aria-selected={!isFolder ? isSelected : undefined}
+          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))] ${
             isSelected && !isFolder
               ? "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))]"
               : "text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
           }`}
-          onClick={() => {
-            if (isFolder) {
-              toggleFolder(node.id);
-            } else {
-              handleSelect(node.id, node.file_type, node.title);
+          onClick={activateNode}
+          onKeyDown={(e) => {
+            // Keys pressed on the row's own action buttons stay with those buttons.
+            if (e.target !== e.currentTarget) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              activateNode();
             }
           }}
         >
@@ -545,7 +560,7 @@ export const FileTreePane: React.FC = () => {
 
           {/* Action buttons */}
           {/* Phones have no hover: the draft folder keeps its import button visible there. */}
-          <div className={`${isMobile && isDraftFolder(node) ? "opacity-100" : "opacity-0 group-hover:opacity-100"} flex items-center gap-0.5 transition-opacity`}>
+          <div className={`${isMobile && isDraftFolder(node) ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"} flex items-center gap-0.5 transition-opacity`}>
             {/* For draft folder: + button triggers draft upload */}
             {isDraftFolder(node) ? (
               <button
@@ -566,6 +581,7 @@ export const FileTreePane: React.FC = () => {
                 disabled={isUploading}
                 className={`p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title={t('editor:fileTree.uploadMaterial')}
+                aria-label={t('editor:fileTree.uploadMaterial')}
               >
                 <Plus size={14} />
               </button>
@@ -580,6 +596,7 @@ export const FileTreePane: React.FC = () => {
                   }}
                   className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]"
                   title={`${t('common:create')} ${getFileTypeName(createFileType)}`}
+                  aria-label={`${t('common:create')} ${getFileTypeName(createFileType)}`}
                 >
                   <Plus size={14} />
                 </button>
@@ -606,6 +623,7 @@ export const FileTreePane: React.FC = () => {
                     : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))]"
                 }`}
                 title={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
+                aria-label={isMaterialAttached(node.id) ? t('editor:fileTree.removeFromChat') : t('editor:fileTree.addToChat')}
               >
                 {isMaterialAttached(node.id) ? <Check size={14} /> : <MessageSquarePlus size={14} />}
               </button>
@@ -615,8 +633,9 @@ export const FileTreePane: React.FC = () => {
             {!isFolder && (
               <button
                 onClick={(e) => handleDelete(e, node.id, node.title)}
-                className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))]"
+                className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error-text))]"
                 title={t('common:delete')}
+                aria-label={t('common:delete')}
               >
                 <Trash2 size={12} />
               </button>
@@ -626,7 +645,7 @@ export const FileTreePane: React.FC = () => {
 
         {/* Children */}
         {isFolder && isExpanded && (
-          <div className="mt-0.5">
+          <div role="group" className="mt-0.5">
             {/* New item input */}
             {isCreating === node.id && (
               <div
@@ -678,9 +697,9 @@ export const FileTreePane: React.FC = () => {
   const loadErrorNotice = loadError ? (
     <div role="alert" className="p-3 text-sm text-[hsl(var(--text-secondary))]">
       <p>{t('editor:fileTree.loadFailed')}</p>
-      <button type="button" className="btn-secondary mt-2 min-h-11" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
+      <Button type="button" variant="secondary" size="touch" className="mt-2" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
         {t(loading ? 'common:loading' : 'common:retry')}
-      </button>
+      </Button>
     </div>
   ) : null;
 
@@ -762,7 +781,9 @@ export const FileTreePane: React.FC = () => {
 
       {/* File Tree */}
       {loadErrorNotice}
-      {tree.map((node) => renderNode(node, 0))}
+      <div role="tree" aria-label={t('editor:sidebar.files')}>
+        {tree.map((node) => renderNode(node, 0))}
+      </div>
 
       <ConfirmDialog
         open={pendingDelete !== null && pendingDelete.projectId === currentProjectId}

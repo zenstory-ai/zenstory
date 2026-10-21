@@ -1575,3 +1575,34 @@ async def test_protected_route_with_expired_token(client: AsyncClient):
     )
 
     assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_register_without_username_names_the_account_after_the_email(client: AsyncClient, db_session, monkeypatch):
+    """Email sign-ups no longer pick a username: it defaults to a free email prefix."""
+    from models import User
+    from services.core.auth_service import hash_password
+
+    async def _mock_send_verification_code(_email: str, language: str = "zh"):
+        return True, None
+
+    monkeypatch.setattr("api.auth.send_verification_code", _mock_send_verification_code)
+    db_session.add(User(username="lin", email="lin@other.example", hashed_password=hash_password("x" * 8)))
+    db_session.commit()
+
+    first = await client.post(
+        "/api/auth/register",
+        json={"email": "lin@example.com", "password": "testpassword123", "language": "zh"},
+    )
+    second = await client.post(
+        "/api/auth/register",
+        json={"email": "lin@example.org", "password": "testpassword123", "username": "", "language": "zh"},
+    )
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    names = {
+        user.email: user.username
+        for user in db_session.exec(select(User).where(User.email.in_(["lin@example.com", "lin@example.org"]))).all()
+    }
+    assert names == {"lin@example.com": "lin1", "lin@example.org": "lin2"}

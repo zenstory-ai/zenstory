@@ -164,8 +164,7 @@ describe("PricingPage", () => {
     const [free, pro] = createDefaultTiers();
     mockGetCatalog.mockResolvedValue(createCatalog([free, { ...pro, entitlements: { ...pro.entitlements, custom_skills_limit: 3 } }]));
     render(<PricingPage />, { wrapper: createWrapper() });
-    await screen.findByText("选一个适合你的方案");
-    const toggle = screen.getByRole("switch", { name: "仅看差异" });
+    const toggle = await screen.findByRole("switch", { name: "仅看差异" });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-checked", "true");
@@ -221,7 +220,8 @@ describe("PricingPage", () => {
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
+      // The title stays put while loading; the catalog is ready once the loading status is gone.
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
       expect(screen.getByText("推荐")).toBeInTheDocument();
       expect(screen.getAllByText("每日 AI 消息").length).toBeGreaterThan(0);
     });
@@ -243,7 +243,8 @@ describe("PricingPage", () => {
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
+      // The title stays put while loading; the catalog is ready once the loading status is gone.
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
     expect(screen.queryByText("每日 AI 消息")).not.toBeInTheDocument();
     expect(screen.getAllByText("自定义技能").length).toBeGreaterThan(0);
@@ -255,7 +256,8 @@ describe("PricingPage", () => {
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
+      // The title stays put while loading; the catalog is ready once the loading status is gone.
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
     const monthlyControl = getControlByName(/月付|Monthly/i);
@@ -311,7 +313,8 @@ describe("PricingPage", () => {
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
+      // The title stays put while loading; the catalog is ready once the loading status is gone.
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
     const diffControl = getControlByName(/仅看差异|Only differences?/i);
@@ -404,6 +407,15 @@ describe("PricingPage", () => {
     expect(screen.getByTestId("payment-checkout-cycle")).toHaveAttribute("data-renewal", "true");
   });
 
+  it("keeps the page title while the catalog loads and announces loading separately", () => {
+    mockGetCatalog.mockReturnValue(new Promise(() => {}));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("选一个适合你的方案");
+    expect(screen.getByRole("status")).toHaveTextContent("加载中…");
+  });
+
   it("shows error state when catalog request fails", async () => {
     mockGetCatalog.mockRejectedValue(new Error("network"));
 
@@ -422,7 +434,8 @@ describe("PricingPage", () => {
     const { rerender } = render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
+      // The title stays put while loading; the catalog is ready once the loading status is gone.
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
     expect(trackEventMock).not.toHaveBeenCalledWith(
       "pricing_page_view",

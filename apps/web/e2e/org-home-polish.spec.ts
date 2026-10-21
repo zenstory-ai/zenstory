@@ -66,7 +66,7 @@ test('English home remains readable without JavaScript and keeps native video co
   await page.setViewportSize({ width: 390, height: 844 });
   // The finalized directory is served without Vercel's apex -> /org-home rewrite locally.
   await page.goto(baseURL + '/org-home/');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Write stories Make them real');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Write stories. Make them real.');
   await expect(page.locator('.showcase-controls')).toBeHidden();
   await expect(page.locator('.case-card')).toHaveCount(4);
   for (const video of await page.locator('video').all()) {

@@ -498,7 +498,7 @@ export function PublicHeader({
                     await handleLogout();
                     setShowMobileMenu(false);
                   }}
-                  className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--error)/0.1)] rounded text-sm text-[hsl(var(--error))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+                  className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--error)/0.1)] rounded text-sm text-[hsl(var(--error-text))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
                   role="menuitem"
                 >
                   <LogOut size={18} />

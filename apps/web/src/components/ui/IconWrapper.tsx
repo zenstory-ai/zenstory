@@ -23,9 +23,9 @@ const sizeMap = {
 const variantStyles = {
   default: '',
   primary: 'bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]',
-  success: 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]',
-  warning: 'bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))]',
-  error: 'bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))]',
+  success: 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))]',
+  warning: 'bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning-text))]',
+  error: 'bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))]',
   purple: 'bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]',
   gray: 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]',
 } as const;

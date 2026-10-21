@@ -292,6 +292,17 @@ describe('MessageList', () => {
     expect(screen.queryByText('Ordered limit reason')).not.toBeInTheDocument()
   })
 
+  it('says a run stopped near the time limit may already be done, live and after reload', () => {
+    const item: NonNullable<Message['displayItems']>[number] = { id: 'time', type: 'iteration_exhausted', layer: 'tool_call', limit: 'wall_clock', timestamp: new Date() }
+    const { unmount } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [item] })]} />)
+    expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
+    expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
+    unmount()
+
+    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'tool_call', limit: 'wall_clock' }] })]} />)
+    expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
+  })
+
   it.each([
     { reason: 'error', message: 'Ordered stop error' },
     { reason: 'clarification_needed', question: 'Ordered question', context: 'Ordered context', details: ['Ordered detail'] },

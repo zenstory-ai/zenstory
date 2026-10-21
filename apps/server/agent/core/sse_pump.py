@@ -65,6 +65,9 @@ class SSEStreamPump:
         self._stop_event = asyncio.Event()
         self._heartbeat_interval_s = max(0.01, float(heartbeat_interval_s))
         self._deadline_s = deadline_s if deadline_s and deadline_s > 0 else None
+        self._deadline_at: float | None = None
+        # 发布交接把时限提前了（见 agent.core.server_drain）：on_deadline 据此换终止帧。
+        self.deadline_moved_up = False
         self._queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=32)
         self._task: asyncio.Task[None] | None = None
 
@@ -91,6 +94,17 @@ class SSEStreamPump:
             finally:
                 raise cancellation
 
+    def end_within(self, seconds: float) -> None:
+        """把时限提前到 ``seconds`` 秒之后（只会提前，不会延后）；到点走同一条时限收尾。
+
+        还没开始迭代时记下，开始时生效。消费端最多晚一个心跳间隔注意到新时限。
+        """
+        loop = asyncio.get_running_loop()
+        target = loop.time() + max(0.0, float(seconds))
+        if self._deadline_at is None or target < self._deadline_at:
+            self._deadline_at = target
+            self.deadline_moved_up = True
+
     def request_stop(self) -> None:
         """作者要求停止：消费端尽快取消后台 task 并抛出 StreamStoppedByUser。"""
         self._stop_event.set()
@@ -116,13 +130,17 @@ class SSEStreamPump:
 
     async def __aiter__(self) -> AsyncIterator[str]:
         loop = asyncio.get_running_loop()
-        deadline_at = loop.time() + self._deadline_s if self._deadline_s else None
+        if self._deadline_s:
+            regular_deadline = loop.time() + self._deadline_s
+            if self._deadline_at is None or regular_deadline < self._deadline_at:
+                self._deadline_at = regular_deadline
+                self.deadline_moved_up = False
         self._task = asyncio.create_task(self._produce())
         try:
             while True:
                 wait_s = self._heartbeat_interval_s
-                if deadline_at is not None:
-                    remaining = deadline_at - loop.time()
+                if self._deadline_at is not None:
+                    remaining = self._deadline_at - loop.time()
                     if remaining <= 0:
                         async for frame in self._stop_for_deadline():
                             yield frame
@@ -130,7 +148,7 @@ class SSEStreamPump:
                 try:
                     item = await self._next_item(wait_s)
                 except TimeoutError:
-                    if deadline_at is not None and loop.time() >= deadline_at:
+                    if self._deadline_at is not None and loop.time() >= self._deadline_at:
                         async for frame in self._stop_for_deadline():
                             yield frame
                     yield HEARTBEAT_FRAME
@@ -186,4 +204,6 @@ class SSEStreamPump:
                     self._on_item(frame)
                 yield frame
         await self.wait_stopped()
-        raise StreamDeadlineExceeded(f"stream exceeded {self._deadline_s}s")
+        raise StreamDeadlineExceeded(
+            "stream ended for server drain" if self.deadline_moved_up else f"stream exceeded {self._deadline_s}s"
+        )

@@ -8,7 +8,7 @@ import type { Project, PatchProjectRequest } from "../types";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { ApiError } from "../lib/apiClient";
-import { adoptAllProjectProposals } from "../lib/projectNotes";
+import { adoptAllProjectProposals, displayProjectNotes, storedProjectNotes } from "../lib/projectNotes";
 import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
 import { inspirationsConfig } from "../config/inspirations";
@@ -24,7 +24,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   onClose,
   projectId,
 }) => {
-  const { t } = useTranslation('project', { keyPrefix: 'statusDialog' });
+  const { t, i18n } = useTranslation('project', { keyPrefix: 'statusDialog' });
   const navigate = useNavigate();
   const fieldId = useId();
   const [loading, setLoading] = useState(true);
@@ -433,10 +433,11 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
             <textarea
               id={`${fieldId}-notes`}
               ref={notesInputRef}
-              value={notes}
+              value={displayProjectNotes(notes, i18n?.language)}
               onChange={(e) => {
-                setNotes(e.target.value);
-                if (e.target.value.trim() === (projectRef.current?.notes || "").trim()) {
+                const nextNotes = storedProjectNotes(e.target.value, i18n?.language);
+                setNotes(nextNotes);
+                if (nextNotes.trim() === (projectRef.current?.notes || "").trim()) {
                   notesBaseRef.current = projectRef.current?.notes || "";
                 }
               }}
@@ -453,7 +454,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                     onClick={() => void viewLatestNotes()}>{t('viewLatestNotes')}</Button>
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
-                  <textarea id={`${fieldId}-latest-notes`} value={latestNotes} readOnly rows={3}
+                  <textarea id={`${fieldId}-latest-notes`} value={displayProjectNotes(latestNotes, i18n?.language)} readOnly rows={3}
                     className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] resize-y" />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>

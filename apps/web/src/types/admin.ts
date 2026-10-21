@@ -510,3 +510,33 @@ export interface GrowthDashboard {
   daily: Array<GrowthMetrics & { date: string }>;
   definitions: Record<string, string>;
 }
+
+export type AcquisitionChannel =
+  | "search" | "ai" | "social" | "org_site" | "referral" | "campaign" | "paid" | "direct" | "unknown";
+
+export interface AcquisitionCounts {
+  signups: number;
+  activated_users: number;
+  activation_rate: number | null;
+  paid_users: number;
+  paid_rate: number | null;
+}
+
+export interface AcquisitionChannelRow extends AcquisitionCounts {
+  channel: AcquisitionChannel;
+}
+
+export interface AcquisitionSourceRow extends AcquisitionChannelRow {
+  /** UTM source, referrer host or internal source code; empty when none was recorded. */
+  source: string;
+}
+
+export interface AcquisitionStats {
+  window_days: number;
+  period_start: string;
+  period_end: string;
+  total_signups: number;
+  attributed_signups: number;
+  channels: AcquisitionChannelRow[];
+  sources: AcquisitionSourceRow[];
+}

@@ -20,7 +20,7 @@ import { DashboardFilterPills, type FilterPillOption } from "../components/dashb
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
 export default function DashboardProjects() {
-  const { t } = useTranslation(['dashboard']);
+  const { t } = useTranslation(['dashboard', 'common']);
   const navigate = useNavigate();
   const {
     projects,
@@ -36,7 +36,8 @@ export default function DashboardProjects() {
   const showDeleteAction = isMobile || isTablet;
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
+  const [deletingProject, setDeletingProject] = useState(false);
   const [filterType, setFilterType] = useState<ProjectType | "all">("all");
 
   // Filter options for DashboardFilterPills
@@ -52,14 +53,21 @@ export default function DashboardProjects() {
   }, [t]);
 
   const handleDeleteProject = async (projectId: string) => {
+    if (!projectId || deletingProject) {
+      return;
+    }
+
+    setDeletingProject(true);
     try {
       await contextDeleteProject(projectId);
-      setDeleting(null);
+      setPendingDeleteProjectId(null);
     } catch (error) {
-      setDeleting(null);
+      setPendingDeleteProjectId(null);
       if (!(error instanceof ApiError && error.status === 401)) {
         toast.error(handleApiError(error));
       }
+    } finally {
+      setDeletingProject(false);
     }
   };
 
@@ -149,27 +157,30 @@ export default function DashboardProjects() {
               project={project}
               progress={project.id ? projectProgress.get(project.id) : undefined}
               onOpen={() => navigate(`/project/${project.id}`)}
-              onDelete={() => setDeleting(project.id || null)}
+              onDelete={() => setPendingDeleteProjectId(project.id || null)}
               alwaysShowDelete={showDeleteAction}
             />
           ))}
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Dialog: same copy as the home page's, and no closing while deleting */}
       <ConfirmDialog
-        open={!!deleting}
-        onClose={() => setDeleting(null)}
+        open={pendingDeleteProjectId !== null}
+        onClose={() => {
+          if (!deletingProject) setPendingDeleteProjectId(null);
+        }}
         onConfirm={() => {
-          if (deleting) {
-            return handleDeleteProject(deleting);
+          if (pendingDeleteProjectId) {
+            return handleDeleteProject(pendingDeleteProjectId);
           }
         }}
-        title={t('projects.confirmDeleteTitle')}
-        message={t('projects.confirmDeleteMessage')}
+        title={t('projects.deleteProject')}
+        message={t('projects.deleteConfirm')}
         variant="danger"
-        confirmLabel={t('projects.confirmDeleteButton')}
-        cancelLabel={t('projects.cancel')}
+        loading={deletingProject}
+        confirmLabel={t('common:delete')}
+        cancelLabel={t('common:cancel')}
       />
     </>
   );

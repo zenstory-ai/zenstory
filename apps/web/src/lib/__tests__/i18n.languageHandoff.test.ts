@@ -1,14 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18next from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
-import { languageDetection, languageOptions } from '../i18n';
+import { languageDetection, languageDetectionFor, languageOptions } from '../i18n';
 
 // zenstory.ai links into the app carry `?lang=` for the page the visitor came from.
-async function languageAt(url: string) {
+async function languageAt(url: string, detection = languageDetection) {
   window.history.replaceState({}, '', url);
   const instance = i18next.createInstance().use(LanguageDetector);
-  await instance.init({ ...languageOptions, detection: languageDetection, resources: {} });
+  await instance.init({ ...languageOptions, detection, resources: {} });
   return instance.language;
+}
+
+function browserLanguages(languages: string[]) {
+  vi.spyOn(navigator, 'languages', 'get').mockReturnValue(languages);
+  vi.spyOn(navigator, 'language', 'get').mockReturnValue(languages[0]);
 }
 
 describe('app language handoff from zenstory.ai', () => {
@@ -18,6 +23,7 @@ describe('app language handoff from zenstory.ai', () => {
 
   afterEach(() => {
     window.history.replaceState({}, '', '/');
+    vi.restoreAllMocks();
   });
 
   it('opens in English for a visitor sent from the English site and remembers it', async () => {
@@ -39,7 +45,29 @@ describe('app language handoff from zenstory.ai', () => {
     expect(await languageAt('/login?lang=fr')).toBe('en');
   });
 
-  it('keeps Chinese as the default without a lang parameter or stored preference', async () => {
+  it('follows the browser language when there is no lang parameter or stored preference', async () => {
+    browserLanguages(['en-US', 'en']);
+    expect(await languageAt('/login')).toBe('en');
+    expect(localStorage.getItem('zenstory-language')).toBe('en');
+
+    localStorage.clear();
+    browserLanguages(['zh-CN', 'zh']);
     expect(await languageAt('/login')).toBe('zh');
+  });
+
+  it('keeps Chinese for unsupported browser languages and for crawlers', async () => {
+    browserLanguages(['fr-FR', 'fr']);
+    expect(await languageAt('/')).toBe('zh');
+
+    localStorage.clear();
+    browserLanguages(['en-US', 'en']);
+    const googlebot = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+    expect(await languageAt('/', languageDetectionFor(googlebot))).toBe('zh');
+  });
+
+  it('keeps a stored preference over the browser language', async () => {
+    localStorage.setItem('zenstory-language', 'zh');
+    browserLanguages(['en-US', 'en']);
+    expect(await languageAt('/dashboard')).toBe('zh');
   });
 });

@@ -53,8 +53,7 @@ vi.mock('react-i18next', () => ({
           'projects.emptyHint': 'Click Start Writing above to create your first project',
           'projects.emptyHintProjectsPage': 'Click New Project to start your first book.',
           'projects.deleteProject': 'Delete project',
-          'projects.confirmDeleteTitle': 'Delete project',
-          'projects.confirmDeleteMessage': 'Delete this project?',
+          'projects.deleteConfirm': 'Delete this project?',
           'projectType.novel.name': 'Novel',
           'projectType.short.name': 'Short',
           'projectType.screenplay.name': 'Screenplay',
@@ -157,13 +156,20 @@ vi.mock('../../components/ui/ConfirmDialog', () => ({
     open,
     onConfirm,
     onClose,
+    title,
+    message,
+    loading,
   }: {
     open: boolean
     onConfirm: () => void
     onClose: () => void
+    title: string
+    message: string
+    loading?: boolean
   }) =>
     open ? (
-      <div>
+      <div role="dialog" aria-label={title} data-loading={String(Boolean(loading))}>
+        <p>{message}</p>
         <button onClick={onConfirm}>Delete</button>
         <button onClick={onClose}>Cancel</button>
       </div>
@@ -281,6 +287,27 @@ describe('DashboardProjects', () => {
       expect(mockDeleteProject).toHaveBeenCalledWith('project-1')
       expect(mockToastError).toHaveBeenCalledWith('delete failed')
     })
+  })
+
+  it('shows deletion in progress with the home page copy and cannot be dismissed until it settles', async () => {
+    let finishDelete: () => void = () => {}
+    mockDeleteProject.mockReturnValueOnce(new Promise<void>((resolve) => { finishDelete = resolve }))
+
+    render(<DashboardProjects />)
+
+    fireEvent.click(screen.getAllByTitle('Delete project')[0]!)
+    const dialog = screen.getByRole('dialog', { name: 'Delete project' })
+    expect(dialog).toHaveTextContent('Delete this project?')
+    expect(dialog).toHaveAttribute('data-loading', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(dialog).toHaveAttribute('data-loading', 'true'))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('dialog', { name: 'Delete project' })).toBeInTheDocument()
+
+    finishDelete()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mockDeleteProject).toHaveBeenCalledTimes(1)
   })
 
   it('supports empty-state rendering, keyboard navigation, and successful deletion', async () => {

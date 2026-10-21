@@ -120,6 +120,7 @@
   "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 这一步连续几次都没做成，这一轮先停下了。之前改好的内容不受影响。可以换个说法，或者把任务拆小一点再试。",
   "ERR_AGENT_NO_PROGRESS": "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。",
   "ERR_AGENT_RUN_TIMEOUT": "这一轮写得太久，先停下了。回复「继续」就能接着写。",
+  "ERR_AGENT_SERVER_RESTARTING": "ZenStory 正在更新，这一轮先停在这里，已经写好的内容都保留了。稍后回复「继续」就能接着写。",
   "ERR_AGENT_MODEL_CALL_LIMIT": "这次任务步骤太多，AI 先停下了。回复「继续」就能接着做。",
   "ERR_AGENT_OUTPUT_TRUNCATED": "可以回复「继续」，或缩小范围再试。",
   "ERR_AGENT_OUTPUT_REPEATEDLY_TRUNCATED": "请缩小范围，例如一次只写一章。",

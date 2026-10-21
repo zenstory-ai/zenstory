@@ -5,12 +5,25 @@ import { Users, FolderOpen, Lightbulb, CreditCard, RefreshCw, Coins, CalendarChe
 import { adminApi } from '@/lib/adminApi';
 import { AdminPageState } from '@/components/admin';
 import { StatsCard } from '@/components/admin/StatsCard';
+import { AdminSegmented } from '@/components/admin/AdminSegmented';
+import { Button } from '@/components/ui/Button';
 import { GrowthOverview } from '@/components/admin/GrowthOverview';
 import { RecentActivityList } from '@/components/admin/RecentActivityList';
 import { inspirationsConfig } from '@/config/inspirations';
 
 const WINDOW_OPTIONS = [7, 14, 30] as const;
 const MAX_VISIBLE_SOURCES = 8;
+
+/** A dashboard section that failed to load, with its own retry. */
+function SectionError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation(['admin', 'common']);
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-3">
+      <p className="text-sm text-[hsl(var(--error-text))]">{t('admin:dashboard.loadError', '加载失败，请重试')}</p>
+      <Button variant="secondary" size="touch" onClick={onRetry}>{t('common:retry')}</Button>
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const { t } = useTranslation(['admin', 'common']);
@@ -112,32 +125,17 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      <div className="admin-surface p-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-[hsl(var(--text-secondary))]">
-            {t('admin:dashboard.windowLabel', '时间窗口')}
-          </span>
-          {WINDOW_OPTIONS.map((days) => (
-            <button
-              key={days}
-              type="button"
-              onClick={() => {
-                setSelectedWindowDays(days);
-                setShowAllUpgradeSources(false);
-                setShowAllConversionSources(false);
-              }}
-              aria-pressed={selectedWindowDays === days}
-              className={`min-h-11 px-3 rounded-md text-sm transition-colors ${
-                selectedWindowDays === days
-                  ? 'bg-[hsl(var(--accent-primary)/0.15)] font-medium text-[var(--admin-accent-text)]'
-                  : 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
-              }`}
-            >
-              {t(`admin:dashboard.window${days}`, `${days}天`)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <AdminSegmented
+        label={t('admin:dashboard.windowLabel', '时间窗口')}
+        options={[...WINDOW_OPTIONS]}
+        value={selectedWindowDays}
+        onChange={(days) => {
+          setSelectedWindowDays(days);
+          setShowAllUpgradeSources(false);
+          setShowAllConversionSources(false);
+        }}
+        renderLabel={(days) => t(`admin:dashboard.window${days}`, `${days}天`)}
+      />
 
       <GrowthOverview days={selectedWindowDays} />
 
@@ -226,9 +224,7 @@ export default function AdminDashboard() {
             )}
 
             {!activationFunnelLoading && activationFunnelError && (
-              <p className="text-sm text-[hsl(var(--error-text))]">
-                {t('admin:dashboard.loadError', '加载失败，请重试')}
-              </p>
+              <SectionError onRetry={() => void refetchActivationFunnel()} />
             )}
 
             {!activationFunnelLoading && !activationFunnelError && (
@@ -261,9 +257,7 @@ export default function AdminDashboard() {
             )}
 
             {!upgradeFunnelLoading && upgradeFunnelError && (
-              <p className="text-sm text-[hsl(var(--error-text))]">
-                {t('admin:dashboard.loadError', '加载失败，请重试')}
-              </p>
+              <SectionError onRetry={() => void refetchUpgradeFunnel()} />
             )}
 
             {!upgradeFunnelLoading && !upgradeFunnelError && upgradeFunnel && (
@@ -380,7 +374,7 @@ export default function AdminDashboard() {
                     {hasMoreUpgradeSources && (
                       <button
                         type="button"
-                        className="text-sm text-[var(--admin-accent-text)] hover:underline"
+                        className="min-h-11 text-sm text-[var(--admin-accent-text)] hover:underline"
                         onClick={() => setShowAllUpgradeSources((prev) => !prev)}
                       >
                         {showAllUpgradeSources
@@ -412,9 +406,9 @@ export default function AdminDashboard() {
               )}
 
               {!upgradeConversionLoading && upgradeConversionError && (
-                <p className="mt-2 text-sm text-[hsl(var(--error-text))]">
-                  {t('admin:dashboard.loadError', '加载失败，请重试')}
-                </p>
+                <div className="mt-2">
+                  <SectionError onRetry={() => void refetchUpgradeConversion()} />
+                </div>
               )}
 
               {!upgradeConversionLoading && !upgradeConversionError && (
@@ -541,7 +535,7 @@ export default function AdminDashboard() {
                   {hasMoreConversionSources && (
                     <button
                       type="button"
-                      className="text-sm text-[var(--admin-accent-text)] hover:underline"
+                      className="min-h-11 text-sm text-[var(--admin-accent-text)] hover:underline"
                       onClick={() => setShowAllConversionSources((prev) => !prev)}
                     >
                       {showAllConversionSources

@@ -37,7 +37,7 @@ export const ReferralStats: React.FC = () => {
 
   if (statsError || !stats) {
     return (
-      <div className="text-center py-8 text-[hsl(var(--error))]">
+      <div className="text-center py-8 text-[hsl(var(--error-text))]">
         {t('stats.loadError')}
       </div>
     );
@@ -85,7 +85,7 @@ export const ReferralStats: React.FC = () => {
         {/* Successful invites */}
         <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4 transition-all hover:shadow-md">
           <div className="flex items-center gap-2 mb-2">
-            <Award size={16} className="text-[hsl(var(--success))]" />
+            <Award size={16} className="text-[hsl(var(--success-text))]" />
             <span className="text-xs text-[hsl(var(--text-secondary))] font-medium">{t('stats.successfulInvites')}</span>
           </div>
           <div className="text-2xl font-bold text-[hsl(var(--text-primary))]">
@@ -107,7 +107,7 @@ export const ReferralStats: React.FC = () => {
         {/* Available points */}
         <div className="bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-xl p-4 transition-all hover:shadow-md">
           <div className="flex items-center gap-2 mb-2">
-            <Coins size={16} className="text-[hsl(var(--warning))]" />
+            <Coins size={16} className="text-[hsl(var(--warning-text))]" />
             <span className="text-xs text-[hsl(var(--text-secondary))] font-medium">{t('stats.availablePoints')}</span>
           </div>
           <div className="text-2xl font-bold text-[hsl(var(--accent-primary))]">
@@ -125,7 +125,7 @@ export const ReferralStats: React.FC = () => {
             <Loader2 size={20} className="animate-spin text-[hsl(var(--text-secondary))]" />
           </div>
         ) : rewardsError && rewards.length === 0 ? (
-          <div className="text-center py-8 text-[hsl(var(--error))]">
+          <div className="text-center py-8 text-[hsl(var(--error-text))]">
             {t('stats.loadError')}
           </div>
         ) : rewards.length > 0 ? (
@@ -137,7 +137,7 @@ export const ReferralStats: React.FC = () => {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[hsl(var(--success))]">
+                    <span className="text-sm font-semibold text-[hsl(var(--success-text))]">
                       +{reward.amount} {getRewardTypeLabel(reward.reward_type)}
                     </span>
                     {reward.is_used && (
