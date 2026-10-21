@@ -38,7 +38,7 @@ import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
 import { requestChatOnOpen } from "../lib/pendingInspiration";
 import { Upload } from "lucide-react";
-import { AnnouncementBanner } from "../components/announcements/AnnouncementBanner";
+import { DashboardBannerSlot } from "../components/announcements/DashboardBannerSlot";
 
 const SUPPORTED_PROJECT_TYPES: ProjectType[] = ["novel", "short", "screenplay"];
 
@@ -411,7 +411,7 @@ export default function DashboardHome() {
   return (
     <>
       <section className="dashboard-start" aria-label={t("inspiration.title")}>
-      {userId && <AnnouncementBanner accountId={userId} />}
+      {userId && <DashboardBannerSlot accountId={userId} />}
       {/* Header Section */}
       <DashboardPageHeader
         title={t('hero.greeting', { name: user?.nickname || user?.username || t('hero.defaultName') })}

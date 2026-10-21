@@ -145,6 +145,7 @@ Status: Implemented locally, not deployed. The lightweight banner supersedes the
 - Closing hides this banner version locally, scoped by account; no server-side reader state or cross-device promise. A new published version may appear again. Storage failure permits current-session dismissal without claiming it was persisted.
 - Admin provides only the current title/description, optional button label/link and enabled state, with existing superuser permissions and transactional audit. Keep content version separate from the client-observed update timestamp used to reject stale saves or visibility changes. No audience segmentation, scheduler, language-content workflow, reader reporting or multi-step correction system.
 - Links open existing destinations safely without replacing the writing page or triggering paid actions. Banner and admin configuration revalidate on route entry despite the application's disabled default mount refetch; saving invalidates the ordinary banner query. No polling or full-page reload. Banner failure does not block the app. Keep the project editor and organization site outside this initial surface.
+- The same slot carries the [Pro renewal reminder](.agents/notes/implemented/feature/2026-10-20-pro-renewal-reminder-banner.md): an active paid plan with 7 days or fewer left, and again in its last day, shows its end date and a same-tab「续费 Pro」action into the existing checkout. While it is visible the announcement waits; still one banner, same visual shell, dismissal scoped by account, period end and stage.
 
 ## Open questions
 

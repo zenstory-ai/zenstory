@@ -164,6 +164,15 @@
     "paymentMaterialsUnlimited": "Unlimited material breakdowns",
     "paymentMaterialsFinite": "{{limit}} material breakdowns per month"
   },
+  "renewalReminder": {
+    "regionLabel": "Pro renewal reminder",
+    "titleWeek": "Pro ends on {{date}}",
+    "titleFinal": "Pro ends soon, back to Free after {{date}}",
+    "descriptionWeek": "Renewing early doesn't waste your remaining days. The new time starts from your current end date.",
+    "descriptionFinal": "Renew now and keep your remaining days. The new time starts from your current end date.",
+    "action": "Renew Pro",
+    "close": "Dismiss reminder"
+  },
   "hero": {
     "greeting": "Hello, {{name}}",
     "question": "What do you want to create today?",

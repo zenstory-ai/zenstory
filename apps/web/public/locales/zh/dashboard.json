@@ -164,6 +164,15 @@
     "paymentMaterialsUnlimited": "素材拆解不限次数",
     "paymentMaterialsFinite": "每月 {{limit}} 次素材拆解"
   },
+  "renewalReminder": {
+    "regionLabel": "Pro 到期提醒",
+    "titleWeek": "Pro 将于 {{date}} 到期",
+    "titleFinal": "Pro 即将到期，{{date}} 后回到免费版",
+    "descriptionWeek": "提前续费不会浪费剩余天数，新的时长从原到期日起顺延。",
+    "descriptionFinal": "现在续费，剩余天数照样保留，新的时长从原到期日起顺延。",
+    "action": "续费 Pro",
+    "close": "关闭提醒"
+  },
   "hero": {
     "greeting": "你好，{{name}}",
     "question": "今天想创作些什么呢？",
