@@ -44,18 +44,17 @@ describe('QuotaBadge compact', () => {
     vi.clearAllMocks()
   })
 
-  it('shows only used/limit and keeps the full wording in title and aria-label', async () => {
+  it('shows only used/limit and gives screen readers the full wording', async () => {
     mockGetQuota.mockResolvedValue(quotaResponse(4, 10))
 
     renderWithQuery(<QuotaBadge compact />)
 
     const pill = await screen.findByTestId('quota-badge-compact')
-    expect(pill).toHaveAttribute('aria-label', '今日 AI 消息 4/10 条')
     // A static counter is not a live region and must not compete with real status messages.
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(pill).toHaveAttribute('title', '今日 AI 消息 4/10 条')
-    expect(pill).toHaveTextContent(/^4\/10$/)
-    expect(screen.queryByText('今日 AI 消息 4/10 条')).not.toBeInTheDocument()
+    expect(screen.getByText('今日 AI 消息 4/10 条')).toHaveClass('sr-only')
+    expect(screen.getByText('4/10').closest('[aria-hidden="true"]')).not.toBeNull()
   })
 
   it('turns the upgrade action into an icon button with an accessible name', async () => {

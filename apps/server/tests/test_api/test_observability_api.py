@@ -112,8 +112,8 @@ async def test_validation_log_omits_submitted_values(client: AsyncClient, caplog
     with caplog.at_level(logging.WARNING, logger="core.error_handler"):
         response = await client.post(
             "/api/auth/register",
-            # Missing username: Pydantic's ``input`` would be the whole body.
-            json={"email": "leak@example.com", "password": secret},
+            # Missing email: Pydantic's ``input`` would be the whole body.
+            json={"username": "leak_user", "password": secret},
         )
 
     assert response.status_code == 422
@@ -122,8 +122,8 @@ async def test_validation_log_omits_submitted_values(client: AsyncClient, caplog
     assert records
     logged = json.dumps(records[0].custom_fields, default=str)
     assert secret not in logged
-    assert "leak@example.com" not in logged
-    assert "username" in logged
+    assert "leak_user" not in logged
+    assert "email" in logged
 
 
 # ------------------------------------------------------------------ CORS

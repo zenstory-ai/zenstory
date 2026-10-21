@@ -56,7 +56,7 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
       </div>
 
       {isCheckedIn ? (
-        <div className="flex items-center gap-2 text-[hsl(var(--success))]">
+        <div className="flex items-center gap-2 text-[hsl(var(--success-text))]">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
@@ -81,13 +81,13 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
       )}
 
       {checkInMutation.isSuccess && checkInMutation.data && (
-        <div className="mt-2 p-2 bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))] text-sm rounded">
+        <div className="mt-2 p-2 bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))] text-sm rounded">
           {t('checkInSuccess', '签到成功！+{{points}} 积分', { points: checkInMutation.data.points_earned })}
         </div>
       )}
 
       {checkInMutation.isError && (
-        <div className="mt-2 p-2 bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))] text-sm rounded">
+        <div className="mt-2 p-2 bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))] text-sm rounded">
           {t('checkInFailed', '签到失败，请重试')}
         </div>
       )}

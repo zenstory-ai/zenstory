@@ -366,7 +366,7 @@ describe("MaterialDetailPage", () => {
   it("distinguishes a genuine 404 from a retryable detail failure", async () => {
     mockGet.mockRejectedValueOnce(new Error("network down"));
     const { unmount } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
-    expect(await screen.findByText("素材详情加载失败，请重试。")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("素材详情加载失败，请重试。");
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
     unmount();
 
@@ -979,7 +979,7 @@ describe("MaterialDetailPage", () => {
   it("renders loading and not-found states", async () => {
     mockGet.mockImplementationOnce(() => new Promise(() => {}));
     const { unmount } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
-    expect(document.querySelector(".animate-spin")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("加载中…");
     unmount();
 
     mockGet.mockResolvedValueOnce(null);

@@ -274,6 +274,52 @@ describe("agent stream telemetry", () => {
     });
   });
 
+  describe("device interruptions", () => {
+    let visibility: DocumentVisibilityState = "visible";
+
+    beforeEach(() => {
+      visibility = "visible";
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibility });
+    });
+
+    afterEach(() => {
+      Reflect.deleteProperty(document, "visibilityState");
+      vi.unstubAllGlobals();
+    });
+
+    it("records a transport failure after the tab was hidden without reporting an exception", () => {
+      let clock = 1_000;
+      const telemetry = createAgentStreamTelemetry("project-1", () => clock);
+      visibility = "hidden";
+      document.dispatchEvent(new Event("visibilitychange"));
+      clock += 30_000;
+      visibility = "visible";
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      telemetry.failed("STREAM_ERROR", true);
+
+      expect(trackEventMock).toHaveBeenCalledWith("ai_chat_failed", expect.objectContaining({ hidden_ms: 30_000 }));
+      expect(captureExceptionMock).not.toHaveBeenCalled();
+    });
+
+    it("records a transport failure while offline without reporting an exception", () => {
+      vi.stubGlobal("navigator", { ...navigator, onLine: false });
+      createAgentStreamTelemetry("project-1").failed("STREAM_ERROR", true);
+
+      expect(trackEventMock).toHaveBeenCalledWith("ai_chat_failed", expect.objectContaining({ online: false }));
+      expect(captureExceptionMock).not.toHaveBeenCalled();
+    });
+
+    it("still reports a transport failure of a visible, online tab", () => {
+      createAgentStreamTelemetry("project-1").failed("STREAM_ERROR", true);
+
+      expect(captureExceptionMock).toHaveBeenCalledWith(
+        expect.any(AgentStreamError),
+        expect.objectContaining({ hidden_ms: 0, online: true }),
+      );
+    });
+  });
+
   it("settles only once per stream", () => {
     const telemetry = createAgentStreamTelemetry("p", () => 0);
     telemetry.completed();

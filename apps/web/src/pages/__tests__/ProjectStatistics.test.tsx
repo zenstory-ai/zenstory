@@ -162,6 +162,32 @@ describe('project statistics as one factual page', () => {
     expect(queryOptions().enabled).toBe(false);
   });
 
+  it.each([
+    ['zh', ['9月29日 – 10月5日', '2026年10月', '10月14日']],
+    ['en', ['Sep 29 – Oct 5', 'October 2026', 'Oct 14']],
+  ] as const)('labels weekly, monthly and daily trend rows from their dates in %s, not the English server label', (language, [week, month, day]) => {
+    const pick = (zhName: string, enName: RegExp) =>
+      fireEvent.click(screen.getByRole('button', { name: language === 'zh' ? zhName : enName }));
+    locale = language;
+    useQuery.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => ({
+      data: { data: [
+        queryKey[2] === 'weekly' ? { date: '2026-09-29', period_label: 'Sep 29-Oct 05', net_words: 120 }
+          : queryKey[2] === 'monthly' ? { date: '2026-10-01', period_label: 'October 2026', net_words: 900 }
+          : { date: '2026-10-14', net_words: 30 },
+      ] },
+      isLoading: false, error: null, refetch: trendRetry,
+    }));
+    view();
+    pick('查看手写字数趋势', /^view your net word trend$/i);
+    const series = () => screen.getByTestId('writing-trend-series');
+    expect(within(series()).getByText(day)).toBeInTheDocument();
+    pick('本周', /^this week$/i);
+    expect(within(series()).getByText(week)).toBeInTheDocument();
+    expect(within(series()).queryByText('Sep 29-Oct 05')).not.toBeInTheDocument();
+    pick('本月', /^this month$/i);
+    expect(within(series()).getByText(month)).toBeInTheDocument();
+  });
+
   it('has independent retry for failed trends, rather than a successful empty state', () => {
     trendError = new Error('offline'); view(); expand('查看手写字数趋势');
     expect(screen.getByRole('alert')).toHaveTextContent('字数趋势加载失败');

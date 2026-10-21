@@ -79,6 +79,10 @@ for (const theme of ['light', 'dark']) {
     for (const path of ['/login', '/register', '/forgot-password', '/verify-email?email=reader%40example.com', '/docs/user-guide/editor']) {
       await page.goto(path);
       await expect(page.locator('h1').first()).toBeVisible();
+      if (path.startsWith('/docs')) {
+        // The article fades in; check contrast on the settled page, not mid-animation.
+        await expect(page.locator('article.prose')).toHaveCSS('opacity', '1');
+      }
       if (path === '/login') {
         await page.locator('#identifier').fill('sample-user');
         await page.locator('#password').fill('disposable-password');

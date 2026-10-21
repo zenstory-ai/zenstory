@@ -132,7 +132,7 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
   }
 
   return (
-    <div className="max-w-full rounded-lg mb-2 opacity-60 hover:opacity-80 transition-opacity duration-700">
+    <div className="max-w-full rounded-lg mb-2">
       {/* Header */}
       <button
         type="button"
@@ -167,7 +167,7 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
       {/* Content */}
       {isExpanded && (
         <div className="px-2 py-1.5">
-          <div className="prose prose-xs max-w-none text-[hsl(var(--text-secondary))] opacity-80">
+          <div className="prose prose-xs max-w-none text-[hsl(var(--text-secondary))]">
             <LazyMarkdown>{displayContent}</LazyMarkdown>
           </div>
         </div>

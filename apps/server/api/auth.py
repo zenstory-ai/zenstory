@@ -6,6 +6,7 @@ import hashlib
 import logging
 import os
 from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -20,6 +21,7 @@ from services.auth import (
     get_current_active_user,
     get_refresh_token_expires_at,
     hash_password,
+    unique_username,
     verify_password,
     verify_token,
 )
@@ -52,6 +54,7 @@ from services.features.user_preference_service import get_ui_language, normalize
 from services.features.verification_service import clear_registration_verification
 from services.infra.email_client import InvalidRecipientError
 from services.subscription.subscription_service import subscription_service
+from services.usage.acquisition_service import normalize_acquisition
 from utils.email_identity import email_identity_matches, normalize_email_identity, validate_registration_email
 from utils.logger import get_logger, log_with_context
 
@@ -65,16 +68,21 @@ _REFRESH_ROTATION_CONFLICT_SECONDS = 10
 
 # Request/Response schemas
 class RegisterRequest(BaseModel):
-    username: str
+    # Optional: email sign-ups no longer ask for one; it defaults to the email prefix.
+    username: str | None = None
     email: EmailStr
     password: str
     language: str | None = "zh"  # Default to Chinese
     invite_code: str | None = None  # Invitation code for referral
     device_fingerprint: str | None = None  # Device fingerprint for fraud detection
+    # First-touch acquisition from the web app (codes and a host name; normalized server-side).
+    acquisition: dict[str, Any] | None = None
 
     @field_validator("username")
     @classmethod
-    def validate_username(cls, value: str) -> str:
+    def validate_username(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
         value = value.strip()
         if len(value) < 3:
             raise ValueError("username must be at least 3 characters")
@@ -459,15 +467,19 @@ async def register(
     except ValueError:
         raise APIException(error_code=ErrorCode.AUTH_EMAIL_UNDELIVERABLE, status_code=400) from None
 
-    # Check if username already exists
-    existing_user = session.exec(
-        select(User).where(User.username == request.username)
-    ).first()
-    if existing_user:
-        raise APIException(
-            error_code=ErrorCode.AUTH_USERNAME_EXISTS,
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+    # A chosen username must be free; otherwise derive one from the email prefix.
+    if request.username is not None:
+        existing_user = session.exec(
+            select(User).where(User.username == request.username)
+        ).first()
+        if existing_user:
+            raise APIException(
+                error_code=ErrorCode.AUTH_USERNAME_EXISTS,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        username = request.username
+    else:
+        username = unique_username(session, normalized_email.split("@")[0])
 
     # Check if email already exists
     existing_email = session.exec(
@@ -482,7 +494,7 @@ async def register(
     invite_code_optional, invite_policy_variant, invite_policy_rollout_percent = (
         _resolve_registration_invite_policy(
             email=normalized_email,
-            username=request.username,
+            username=username,
         )
     )
 
@@ -553,7 +565,7 @@ async def register(
     # bcrypt is CPU-bound (~0.3s); keep it off the event loop.
     hashed_password = await asyncio.to_thread(hash_password, request.password)
     new_user = User(
-        username=request.username,
+        username=username,
         email=normalized_email,
         hashed_password=hashed_password,
         email_verified=False
@@ -665,6 +677,7 @@ async def register(
             event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS,
             event_metadata={
                 "source": "register_api",
+                "acquisition": normalize_acquisition(request.acquisition),
                 "invite_policy_variant": invite_policy_variant,
                 "invite_policy_rollout_percent": invite_policy_rollout_percent,
                 "invite_code_optional": invite_code_optional,

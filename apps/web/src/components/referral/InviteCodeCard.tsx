@@ -95,7 +95,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
             aria-label={t('card.copyInviteCode')}
           >
             {copied ? (
-              <Check size={18} className="text-[hsl(var(--success))]" />
+              <Check size={18} className="text-[hsl(var(--success-text))]" />
             ) : (
               <Copy size={18} className="text-[hsl(var(--text-secondary))]" />
             )}
@@ -115,7 +115,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
       {/* Status indicators */}
       <div className="flex items-center gap-3 text-xs flex-wrap">
         {/* Usage counter */}
-        <div className={`flex items-center gap-1.5 ${isExhausted ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--text-secondary))]'}`}>
+        <div className={`flex items-center gap-1.5 ${isExhausted ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--text-secondary))]'}`}>
           <span>{t('card.used')}</span>
           <span className="font-semibold">{usageText}</span>
         </div>

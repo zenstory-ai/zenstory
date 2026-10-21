@@ -47,10 +47,15 @@ def test_normalize_invite_code_and_policy_resolution(monkeypatch):
     )
 
 
-@pytest.mark.parametrize("username", ["", "  ", "ab"])
-def test_register_request_rejects_short_or_blank_username(username: str):
+def test_register_request_rejects_a_short_username():
     with pytest.raises(ValidationError):
-        auth_module.RegisterRequest(username=username, email="valid@example.com", password="abcdef")
+        auth_module.RegisterRequest(username="ab", email="valid@example.com", password="abcdef")
+
+
+@pytest.mark.parametrize("username", [None, "", "  "])
+def test_register_request_treats_a_missing_or_blank_username_as_not_chosen(username):
+    request = auth_module.RegisterRequest(username=username, email="valid@example.com", password="abcdef")
+    assert request.username is None
 
 
 @pytest.mark.parametrize("password", ["", "abcde", "é" * 37])

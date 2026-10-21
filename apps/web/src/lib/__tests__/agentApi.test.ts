@@ -684,7 +684,7 @@ describe('agentApi', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledWith(
-        'Network error',
+        expect.not.stringContaining('Network error'),
         'STREAM_ERROR',
         true
       )

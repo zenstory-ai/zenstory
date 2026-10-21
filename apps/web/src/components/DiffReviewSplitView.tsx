@@ -254,7 +254,7 @@ export const DiffReviewSplitView = ({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onMouseDown={handleRootMouseDown}
-      className="diff-review flex flex-1 min-h-0 flex-col overflow-y-auto focus:outline-none md:flex-row md:overflow-hidden"
+      className="diff-review flex flex-1 min-h-0 flex-col overflow-y-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))] md:flex-row md:overflow-hidden"
     >
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
         <InlineDiffEditor
@@ -296,11 +296,13 @@ export const DiffReviewSplitView = ({
               ]).map((item) => (
                 <button
                   key={item.key}
+                  type="button"
                   onClick={() => setFilter(item.key)}
+                  aria-pressed={filter === item.key}
                   className={cn(
                     "flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] leading-none transition-colors",
                     filter === item.key
-                      ? "bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))]"
+                      ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"
                       : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
                   )}
                   title={`${item.label} (${item.count})`}

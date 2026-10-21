@@ -47,6 +47,7 @@ describe("chunkRecovery", () => {
     expect(recovery.isChunkLoadError(new Error("Failed to fetch dynamically imported module"))).toBe(true);
     expect(recovery.isChunkLoadError(new Error("ChunkLoadError: Loading chunk 1 failed"))).toBe(true);
     expect(recovery.isChunkLoadError(new Error("error loading dynamically imported module: /assets/page.js"))).toBe(true);
+    expect(recovery.isChunkLoadError(new TypeError("'text/html' is not a valid JavaScript MIME type for module script '/assets/page.js'."))).toBe(true);
     expect(recovery.isChunkLoadError(new Error("other error"))).toBe(false);
   });
 
@@ -56,6 +57,7 @@ describe("chunkRecovery", () => {
     expect(recovery.reloadForChunkErrorOnce(chunkError, "first-signal")).toBe(true);
     expect(recovery.reloadForChunkErrorOnce(chunkError, "duplicate-signal")).toBe(true);
     expect(reloadSpy).toHaveBeenCalledTimes(1);
+    expect((await import("../appUpdate")).getAppUpdateState().required).toBe(false);
 
     const LazySuccess = recovery.lazyRoute(
       async () => ({ default: () => createElement("div", null, "already available") }),
@@ -161,7 +163,7 @@ describe("chunkRecovery", () => {
     expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBe("vite:preloadError");
   });
 
-  it("leaves the chunk failure uncancelled when draft capture blocks the reload", () => {
+  it("leaves the chunk failure uncancelled when draft capture blocks the reload", async () => {
     const dispatchSpy = vi.spyOn(window, "dispatchEvent").mockImplementation((event) => {
       event.preventDefault();
       return false;
@@ -174,6 +176,7 @@ describe("chunkRecovery", () => {
     expect(reloadSpy).not.toHaveBeenCalled();
     expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBeNull();
     expect(sessionStorage.getItem("zenstory:chunk-reload-at")).toBeNull();
+    expect((await import("../appUpdate")).getAppUpdateState().required).toBe(true);
 
     dispatchSpy.mockRestore();
     expect(recovery.reloadForChunkErrorOnce(
@@ -308,6 +311,7 @@ describe("chunkRecovery", () => {
     vi.resetModules();
     const newPageRecovery: ChunkRecovery = await import("../chunkRecovery");
     expect(newPageRecovery.reloadForChunkErrorOnce(chunkError, "persistent-route")).toBe(false);
+    expect((await import("../appUpdate")).getAppUpdateState().required).toBe(true);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const caughtError = vi.fn();
     const LazyPersistentFailure = newPageRecovery.lazyRoute(

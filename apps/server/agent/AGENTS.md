@@ -215,6 +215,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   的取消路径会把进行中的 `<file>` 捕获补存，并由 `core/round_outcome.py` 写终态、退还时移除本轮空白占位文件。
   [graceful-stop][n-stop]、[abort-flushes-capture][n-flush]、[stop-output-definition][n-output]
 - 墙钟时限由 `SSEStreamPump` 执行：到点先发真实超时终态再等生产者收尾。[platform-deadline][n-deadline]、[deadline-terminal][n-deadline2]
+- 发布交接：SIGTERM 后 `core/server_drain.py` 让所有运行立即按时限收尾提醒，`api/agent.py` 把进行中的泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒），到点以 `ERR_AGENT_SERVER_RESTARTING` 收尾、计费同墙钟超时（`billing_reason=server_restarting`）；lifespan 关闭前等后台退还与终态任务。[deploy-drain][n-drain]
 - 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。[steering-busy-409][n-steer]
 - SSE 事件类型见 `core/events.py` 的 `EventType`。
 
@@ -355,3 +356,4 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-wrap-up]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-wall-clock-wrap-up.md
 [n-continued-run]: ../../../.agents/notes/implemented/architecture/2026-10-21-same-agent-runs-continue-the-previous-input.md
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md
+[n-drain]: ../../../.agents/notes/implemented/architecture/2026-10-21-deploy-drain-ends-running-generations.md

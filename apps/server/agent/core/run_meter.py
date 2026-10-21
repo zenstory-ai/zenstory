@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 
 from config.agent_runtime import AGENT_RUN_MAX_MODEL_CALLS, AGENT_RUN_WRAP_UP_AFTER_S
 
+from .server_drain import is_draining
+
 
 @dataclass
 class AgentRunMeter:
@@ -40,8 +42,8 @@ class AgentRunMeter:
 
     @property
     def past_wrap_up(self) -> bool:
-        """请求时间快用完了（离墙钟时限不到 3 分钟）。"""
-        return self.elapsed_s() >= self.wrap_up_after_s
+        """请求时间快用完了：离墙钟时限不到 3 分钟，或进程正在为发布交接收尾。"""
+        return is_draining() or self.elapsed_s() >= self.wrap_up_after_s
 
     def record_served_model(self, model: str) -> None:
         self.last_served_model = model

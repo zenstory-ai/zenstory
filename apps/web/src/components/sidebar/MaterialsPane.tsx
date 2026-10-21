@@ -352,7 +352,7 @@ export const MaterialsPane: React.FC = () => {
               {t('common:loading')}
             </div>
           ) : searchError ? (
-            <div className="px-2 py-2 text-xs text-[hsl(var(--error))]">
+            <div className="px-2 py-2 text-xs text-[hsl(var(--error-text))]">
               <p>{t('materials:searchLoadFailed', { defaultValue: '素材搜索失败，请重试。' })}</p>
               <button className="mt-1 underline" onClick={() => handleSearch(searchQuery)}>
                 {t('common:retry', { defaultValue: '重试' })}
@@ -411,7 +411,7 @@ export const MaterialsPane: React.FC = () => {
         ) : materialLib.accessDenied ? (
           <MaterialsUpgradeNotice source="editor_materials_pane" className="px-3 py-3" />
         ) : materialLib.error ? (
-          <div className="px-3 py-3 text-xs text-[hsl(var(--error))]">
+          <div className="px-3 py-3 text-xs text-[hsl(var(--error-text))]">
             <p>{t('materials:libraryLoadFailed', { defaultValue: '素材库加载失败，请重试。' })}</p>
             <button className="mt-1 underline" onClick={() => void materialLib.refetch()}>
               {t('common:retry', { defaultValue: '重试' })}

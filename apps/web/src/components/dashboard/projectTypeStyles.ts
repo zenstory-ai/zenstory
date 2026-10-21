@@ -28,18 +28,18 @@ export const PROJECT_TYPE_STYLES: Record<ProjectType, ProjectTypeStyle> = {
   short: {
     icon: FileText,
     labelKey: "projectType.short.name",
-    colorClass: "text-emerald-500",
-    bgClass: "bg-emerald-500/10",
-    gradientFrom: "from-emerald-500/20",
-    gradientTo: "to-teal-500/20",
+    colorClass: "text-[hsl(var(--success-text))]",
+    bgClass: "bg-[hsl(var(--success)/0.1)]",
+    gradientFrom: "from-[hsl(var(--success)/0.12)]",
+    gradientTo: "to-transparent",
   },
   screenplay: {
     icon: Clapperboard,
     labelKey: "projectType.screenplay.name",
-    colorClass: "text-amber-500",
-    bgClass: "bg-amber-500/10",
-    gradientFrom: "from-amber-500/20",
-    gradientTo: "to-orange-500/20",
+    colorClass: "text-[hsl(var(--warning-text))]",
+    bgClass: "bg-[hsl(var(--warning)/0.1)]",
+    gradientFrom: "from-[hsl(var(--warning)/0.12)]",
+    gradientTo: "to-transparent",
   },
 };
 

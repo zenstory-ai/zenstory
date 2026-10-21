@@ -15,7 +15,8 @@
       "title": "标题",
       "description": "说明",
       "actionLabel": "按钮文案（可选）",
-      "actionUrl": "按钮链接（可选）"
+      "actionUrl": "按钮链接（可选）",
+      "actionUrlPlaceholder": "/docs 或 https://example.com"
     },
     "linkHint": "按钮文案和链接都填写时才会展示；链接仅支持站内根路径或 HTTPS 地址",
     "saveAndShow": "保存并展示",

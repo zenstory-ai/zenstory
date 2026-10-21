@@ -259,7 +259,7 @@ export function SkillResourcesSection({
                     <button
                       type="button"
                       onClick={() => handleDelete(resource.path)}
-                      className="text-xs px-2 py-1 rounded bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error))] hover:bg-[hsl(var(--error)/0.2)]"
+                      className="text-xs px-2 py-1 rounded bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))] hover:bg-[hsl(var(--error)/0.2)]"
                     >
                       {t("resources.confirmDelete")}
                     </button>
@@ -275,7 +275,7 @@ export function SkillResourcesSection({
                   <button
                     type="button"
                     onClick={() => setConfirmDeletePath(resource.path)}
-                    className={`shrink-0 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error))] transition-colors ${isMobile ? "p-1.5" : "p-1"}`}
+                    className={`shrink-0 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error-text))] transition-colors ${isMobile ? "p-1.5" : "p-1"}`}
                     aria-label={t("resources.delete", { path: resource.path })}
                     title={t("resources.delete", { path: resource.path })}
                   >
@@ -345,7 +345,7 @@ export function SkillResourcesSection({
       )}
 
       {error && (
-        <p role="alert" className="text-xs text-[hsl(var(--error))]">
+        <p role="alert" className="text-xs text-[hsl(var(--error-text))]">
           {"message" in error ? error.message : t(error.key)}
         </p>
       )}

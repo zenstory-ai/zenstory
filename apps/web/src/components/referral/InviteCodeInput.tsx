@@ -107,9 +107,9 @@ export const InviteCodeInput: React.FC<InviteCodeInputProps> = ({
         {!isLoading && showValidation && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
             {isValid ? (
-              <CheckCircle className="w-4 h-4 text-[hsl(var(--success))]" />
+              <CheckCircle className="w-4 h-4 text-[hsl(var(--success-text))]" />
             ) : (
-              <XCircle className="w-4 h-4 text-[hsl(var(--error))]" />
+              <XCircle className="w-4 h-4 text-[hsl(var(--error-text))]" />
             )}
           </div>
         )}
@@ -119,7 +119,7 @@ export const InviteCodeInput: React.FC<InviteCodeInputProps> = ({
         <p
           id={validationMessageId}
           className={`text-sm flex items-center gap-1.5 ${
-            isValid ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--error))]'
+            isValid ? 'text-[hsl(var(--success-text))]' : 'text-[hsl(var(--error-text))]'
           }`}
         >
           {isValid ? (

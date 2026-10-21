@@ -1237,7 +1237,7 @@ export const SimpleEditor = ({
               data-testid="editor-word-count"
               onClick={() => toast.info(t('editor:wordCountHint'))}
               title={t('editor:wordCountHint')}
-              className="cursor-help text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
+              className="max-md:min-h-11 cursor-help text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
             >
               {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(displayContent)}</strong>
             </button>
@@ -1262,7 +1262,7 @@ export const SimpleEditor = ({
             {fileId && (
               <button
                 onClick={() => setShowVersionHistory(true)}
-                className="px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors"
+                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors"
                 title={t('versions:title')}
               >
                 <History size={14} />
@@ -1283,7 +1283,7 @@ export const SimpleEditor = ({
                   isNaturalPolishRunning
                 }
                 aria-disabled={!selectedText || undefined}
-                className="px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent aria-disabled:opacity-50"
+                className="max-md:min-h-11 px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent aria-disabled:opacity-50"
                 title={
                   !projectId
                     ? t("editor:naturalPolishMissingContext")
@@ -1318,10 +1318,10 @@ export const SimpleEditor = ({
                 {t('editor:saving')}
               </span>
             ) : isDirty ? (
-              <span className="text-xs text-[hsl(var(--warning))]">{t('editor:unsaved')}</span>
+              <span className="text-xs text-[hsl(var(--warning-text))]">{t('editor:unsaved')}</span>
             ) : lastSaved ? (
               <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
-                <Check size={12} className="text-[hsl(var(--success))]" />
+                <Check size={12} className="text-[hsl(var(--success-text))]" />
                 <SavedAgoLabel savedAt={lastSaved} />
               </span>
             ) : null}
@@ -1330,7 +1330,7 @@ export const SimpleEditor = ({
             <button
               onClick={() => void handleSave()}
               disabled={isSaving || !isDirty || readOnly || isStreaming || isNaturalPolishRunning}
-              className="px-3 py-1.5 text-xs bg-[hsl(var(--accent-primary))] text-white rounded hover:bg-[hsl(var(--accent-dark))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+              className="max-md:min-h-11 px-3 py-1.5 text-xs bg-[hsl(var(--accent-primary))] text-white rounded hover:bg-[hsl(var(--accent-dark))] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
             >
               <Save size={14} />
               {t('editor:save')}

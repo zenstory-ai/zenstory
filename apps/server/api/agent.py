@@ -39,6 +39,7 @@ from agent.core.round_outcome import (
     record_round_outcome,
     remove_empty_placeholders,
 )
+from agent.core.server_drain import add_drain_listener, is_draining
 from agent.core.sse_pump import SSEStreamPump, StreamDeadlineExceeded, StreamStoppedByUser
 from agent.core.steering import SteeringSessionBusyError
 from agent.core.stream_billing import StreamBillingTracker, _parse_sse, quota_refunded_frame
@@ -46,9 +47,11 @@ from agent.core.stream_errors import (
     classify_stream_exception,
     log_stream_exception,
     run_timeout_error,
+    server_restarting_error,
 )
 from agent.service import get_agent_service
 from config.agent_runtime import (
+    AGENT_DRAIN_STOP_AFTER_S,
     AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
     AGENT_SSE_HEARTBEAT_INTERVAL_S,
 )
@@ -120,6 +123,32 @@ class _RunningStream:
 # 按用户命名，拿到别人的 run id 也停不了。生产只有一个 API 进程（WEB_CONCURRENCY=1）；
 # 停止请求落到别的进程（如发布交接期间）时找不到运行，前端随即断开，按断线结算。
 _running_streams: dict[tuple[str, str], _RunningStream] = {}
+
+
+def _end_running_streams_for_drain() -> None:
+    # 发布交接：进行中的生成在关机宽限内收尾（见 agent.core.server_drain）。
+    for running in list(_running_streams.values()):
+        running.pump.end_within(AGENT_DRAIN_STOP_AFTER_S)
+    log_with_context(
+        logger, 30, "Server draining: ending running agent streams before shutdown",
+        running_streams=len(_running_streams), stop_after_s=AGENT_DRAIN_STOP_AFTER_S,
+    )
+
+
+add_drain_listener(_end_running_streams_for_drain)
+
+
+async def wait_for_stream_cleanup(timeout_s: float) -> None:
+    """关机前等后台的退还、终态写回与部分历史保存落定（有上限）。"""
+    from agent.service import AgentService
+
+    tasks = {
+        task
+        for task in (*_detached_refund_tasks, *_round_outcome_tasks, *AgentService.background_cleanup_tasks)
+        if not task.done()
+    }
+    if tasks and timeout_s > 0:
+        await asyncio.wait(tasks, timeout=timeout_s)
 
 # 认识停止约定（/stop、quota_refunded.removed_files、断线终态）的前端在 /stream 请求上带
 # 这个头。发布前打开的旧标签页不带：它断线时照旧只补存部分历史，不移除空白文件、
@@ -663,12 +692,15 @@ async def stream_request(
             error_delivery = delivery
             return StreamEvent(type=EventType.ERROR, data={**data, **delivery}).to_sse()
 
+        def _deadline_error():
+            return server_restarting_error() if pump.deadline_moved_up else run_timeout_error()
+
         def _deadline_terminal_frame() -> str | None:
             nonlocal deadline_exceeded
             deadline_exceeded = True
             if tracker.delivered_terminal_event:
                 return None
-            info = run_timeout_error()
+            info = _deadline_error()
             return error_event(
                 info.message, code=info.code, retryable=info.retryable, refundable=info.refundable
             ).to_sse()
@@ -694,6 +726,7 @@ async def stream_request(
                     unexpected_exception=unexpected_exception,
                     deadline_exceeded=deadline_exceeded,
                     user_stopped=user_stopped,
+                    server_restarting=pump.deadline_moved_up,
                 )
                 refund_applied = False
                 refund_fields = {
@@ -785,6 +818,8 @@ async def stream_request(
             task.add_done_callback(_round_outcome_tasks.discard)
 
         _running_streams[run_key] = _RunningStream(pump=pump, outcome=run_outcome)
+        if is_draining():
+            pump.end_within(AGENT_DRAIN_STOP_AFTER_S)
         try:
             async for event in pump:
                 event = _with_delivery(event)
@@ -861,11 +896,13 @@ async def stream_request(
             raise
         except StreamDeadlineExceeded:
             deadline_exceeded = True
-            info = run_timeout_error()
+            info = _deadline_error()
             log_with_context(
                 logger,
                 30,  # WARNING
-                "Agent stream exceeded wall-clock budget",
+                "Agent stream ended for server drain"
+                if pump.deadline_moved_up
+                else "Agent stream exceeded wall-clock budget",
                 user_id=user_id,
                 project_id=body.project_id,
                 agent_run_id=agent_run_id,
@@ -945,7 +982,9 @@ async def stream_request(
                 task = asyncio.create_task(_settle_after_deadline_cleanup())
                 _detached_refund_tasks.add(task)
                 task.add_done_callback(_detached_refund_tasks.discard)
-                billing_reason, should_refund, refund_applied = "run_deadline_exceeded", None, False
+                billing_reason, should_refund, refund_applied = (
+                    "server_restarting" if pump.deadline_moved_up else "run_deadline_exceeded"
+                ), None, False
             else:
                 billing_reason, should_refund, refund_applied = await _settle_billing(
                     detached=client_disconnected

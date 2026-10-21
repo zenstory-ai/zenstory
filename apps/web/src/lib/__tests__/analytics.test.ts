@@ -228,6 +228,34 @@ describe("analytics", () => {
     expect(analytics.sanitizeCaptureResult(null)).toBeNull();
   });
 
+  it("drops uncaught errors thrown only by scripts the app does not ship", async () => {
+    const analytics = await import("../analytics");
+    const own = `${window.location.origin}/assets/index-abc.js`;
+    const exception = (value: string, handled: boolean, filenames: string[]) => ({
+      uuid: "1",
+      event: "$exception",
+      properties: {
+        $exception_list: [{
+          type: "Error",
+          value,
+          mechanism: { handled },
+          stacktrace: { type: "raw", frames: filenames.map((filename) => ({ filename })) },
+        }],
+      },
+    });
+
+    // Extension or injected inline script, cross-origin script, layout warning.
+    expect(analytics.sanitizeCaptureResult(exception("LIDNotifyId is not defined", false, ["<anonymous>"]))).toBeNull();
+    expect(analytics.sanitizeCaptureResult(exception("La", false, [`${window.location.origin}/dashboard`]))).toBeNull();
+    expect(analytics.sanitizeCaptureResult(exception("Script error.", false, []))).toBeNull();
+    expect(analytics.sanitizeCaptureResult(exception("ResizeObserver loop completed with undelivered notifications.", false, []))).toBeNull();
+
+    // Our own scripts, errors we report ourselves, and unknown stackless failures stay.
+    expect(analytics.sanitizeCaptureResult(exception("this.o.at is not a function", false, [own]))).not.toBeNull();
+    expect(analytics.sanitizeCaptureResult(exception("Agent stream failed", true, ["<anonymous>"]))).not.toBeNull();
+    expect(analytics.sanitizeCaptureResult(exception("Failed to fetch dynamically imported module", false, []))).not.toBeNull();
+  });
+
   it("keeps opted-out browsers out of PostHog and can opt back in", async () => {
     const analytics = await import("../analytics");
     analytics.setAnalyticsOptOut(true);

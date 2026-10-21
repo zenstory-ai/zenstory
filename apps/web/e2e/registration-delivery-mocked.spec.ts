@@ -23,10 +23,8 @@ for (const width of [390, 768, 1440]) {
       await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto('/register?plan=pro');
-    await page.getByLabel('用户名', { exact: true }).fill('recovery-writer');
     await page.getByLabel('邮箱', { exact: true }).fill('writer@example.com');
     await page.getByLabel('密码', { exact: true }).fill('OwnedPassword1!');
-    await page.getByLabel('确认密码', { exact: true }).fill('OwnedPassword1!');
     await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: '创建账号', exact: true }).click();
     await expect(page.getByRole('heading', { name: '验证你的邮箱', exact: true })).toBeVisible();

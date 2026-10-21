@@ -460,18 +460,48 @@ describe('BillingPage', () => {
     expect(screen.queryByText('4/5')).not.toBeInTheDocument()
   })
 
-  it('renders error recovery and empty catalog states', () => {
-    statusResponse = { ...statusResponse, isError: true }
+  it('shows an empty catalog as no data only when the catalog loaded', () => {
     catalogResponse = { ...catalogResponse, data: { tiers: [] } }
-    quotaResponse = { ...quotaResponse, isError: true }
 
     render(<BillingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(refetchStatus).toHaveBeenCalled()
-    expect(refetchCatalog).toHaveBeenCalled()
-    expect(refetchQuota).toHaveBeenCalled()
     expect(screen.getByText('No data')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows a loading badge, not 「未开通」, while the current plan is loading', () => {
+    statusResponse = { ...statusResponse, data: undefined, isLoading: true }
+
+    render(<BillingPage />)
+
+    expect(screen.getByTestId('billing-current-plan-loading')).toHaveAttribute('role', 'status')
+    expect(screen.queryByText('Unknown')).not.toBeInTheDocument()
+  })
+
+  it('gives each card its own error and retry instead of placeholder values', () => {
+    statusResponse = { ...statusResponse, data: undefined, isError: true }
+    catalogResponse = { ...catalogResponse, data: undefined, isError: true }
+    quotaResponse = { ...quotaResponse, data: undefined, isError: true }
+
+    render(<BillingPage />)
+
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts).toHaveLength(3)
+    alerts.forEach((alert) => expect(alert).toHaveTextContent('Load failed'))
+    // A failed request never reads as no plan, no plans or a zero allowance.
+    expect(screen.queryByText('Unknown')).not.toBeInTheDocument()
+    expect(screen.queryByText('No data')).not.toBeInTheDocument()
+    expect(screen.queryByText(/up to 0 AI messages/)).not.toBeInTheDocument()
+    expect(screen.queryByTestId('billing-usage-ai_conversations')).not.toBeInTheDocument()
+
+    const [statusAlert, catalogAlert, quotaAlert] = alerts
+    fireEvent.click(within(statusAlert!).getByRole('button', { name: 'Retry' }))
+    expect(refetchStatus).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(catalogAlert!).getByRole('button', { name: 'Retry' }))
+    expect(refetchCatalog).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(quotaAlert!).getByRole('button', { name: 'Retry' }))
+    expect(refetchQuota).toHaveBeenCalledTimes(1)
+    expect(refetchStatus).toHaveBeenCalledTimes(1)
   })
 
   it('preserves the yearly checkout intent during Strict Mode initialization', () => {

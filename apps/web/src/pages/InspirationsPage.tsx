@@ -15,7 +15,7 @@ export default function InspirationsPage() {
     pending:
       "border border-yellow-500/30 bg-yellow-500/10 text-yellow-500 dark:text-yellow-400",
     approved:
-      "border border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]",
+      "border border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))]",
     rejected: "border border-red-500/30 bg-red-500/10 text-red-500 dark:text-red-400",
   };
 

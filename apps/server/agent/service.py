@@ -243,12 +243,17 @@ class AgentService:
             "AgentService initialized with workflow orchestration",
         )
 
+    # Pending out-of-band cleanups; shutdown waits for them (api.agent.wait_for_stream_cleanup).
+    background_cleanup_tasks: set[asyncio.Task] = set()
+
     @staticmethod
     def _schedule_background_cleanup(
         coro: Any, *, description: str, session_id: str | None
     ) -> asyncio.Task:
         """Run async cleanup out of band when generator cancellation makes awaiting risky."""
         task = asyncio.create_task(coro)
+        AgentService.background_cleanup_tasks.add(task)
+        task.add_done_callback(AgentService.background_cleanup_tasks.discard)
 
         def _log_task_result(done_task: asyncio.Task) -> None:
             try:

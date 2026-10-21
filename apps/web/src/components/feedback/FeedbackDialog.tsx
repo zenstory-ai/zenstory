@@ -197,7 +197,7 @@ export function FeedbackDialog({
             className="mb-2 block text-sm font-medium text-[hsl(var(--text-primary))]"
           >
             {t("feedback.issueLabel", "问题描述")}
-            <span className="ml-1 text-[hsl(var(--error))]">*</span>
+            <span className="ml-1 text-[hsl(var(--error-text))]">*</span>
           </label>
           <textarea
             id="feedback-issue-text"
@@ -221,7 +221,7 @@ export function FeedbackDialog({
             <span>{t("feedback.issueHint", "最多 {{max}} 字", { max: MAX_ISSUE_LENGTH })}</span>
             <span
               className={
-                issueCharsLeft < 0 ? "text-[hsl(var(--error))]" : "text-[hsl(var(--text-secondary))]"
+                issueCharsLeft < 0 ? "text-[hsl(var(--error-text))]" : "text-[hsl(var(--text-secondary))]"
               }
             >
               {issueTextLength}/{MAX_ISSUE_LENGTH}
@@ -287,7 +287,7 @@ export function FeedbackDialog({
                   </button>
                   <button
                     type="button"
-                    className="btn-ghost h-9 px-3 text-xs text-[hsl(var(--error))] hover:text-[hsl(var(--error))]"
+                    className="btn-ghost h-9 px-3 text-xs text-[hsl(var(--error-text))] hover:text-[hsl(var(--error-text))]"
                     onClick={handleRemoveScreenshot}
                     disabled={isSubmitting}
                   >
@@ -301,7 +301,7 @@ export function FeedbackDialog({
         </div>
 
         {validationError && (
-          <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--error)/0.28)] bg-[hsl(var(--error)/0.10)] px-3 py-2 text-sm text-[hsl(var(--error))]">
+          <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--error)/0.28)] bg-[hsl(var(--error)/0.10)] px-3 py-2 text-sm text-[hsl(var(--error-text))]">
             <AlertCircle size={16} className="mt-0.5 shrink-0" />
             <span>{validationError}</span>
           </div>

@@ -11,10 +11,16 @@ import { logger } from "../lib/logger";
 import { captureException } from "../lib/analytics";
 import { toUserErrorMessage } from "../lib/errorHandler";
 import { consumeOAuthPlanIntent } from "../lib/authFlow";
+import { getAccessToken } from "../lib/apiClient";
 
 // Failures whose raw message (provider codes such as access_denied, internal
 // checks) means nothing to the author; the page shows a generic message instead.
 class OAuthGenericError extends Error {}
+
+// The API rejects a callback whose OAuth state cookie is missing or different.
+// That happens to a stale second callback (Back to Google's account chooser,
+// another tab) after the first one already signed in and consumed the cookie.
+const SPENT_STATE_STAGES = new Set(["missing_state", "invalid_state", "state_mismatch"]);
 
 // Auth identity reconciliation can remount this page while its owner awaits /me.
 let callbackInFlight = false;
@@ -65,6 +71,15 @@ export default function OAuthCallback() {
         window.history.replaceState(window.history.state, document.title, window.location.pathname);
 
         if (providerError) {
+          if (failureStage && SPENT_STATE_STAGES.has(failureStage)) {
+            if (user || getAccessToken()) {
+              logger.info("OAuth callback with spent state ignored for an existing session", { stage: failureStage });
+              navigate("/dashboard", { replace: true });
+              return;
+            }
+            // "Session expired" would mislead: the sign-in simply did not finish.
+            throw new OAuthGenericError(providerError);
+          }
           throw providerError.startsWith("ERR_")
             ? new Error(providerError)
             : new OAuthGenericError(providerError);
@@ -182,7 +197,7 @@ export default function OAuthCallback() {
             )}
 
             {error && (
-              <div className="flex flex-col items-center justify-center gap-4">
+              <div role="alert" className="flex flex-col items-center justify-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-[hsl(var(--error)/0.1)] flex items-center justify-center">
                   <svg
                     className="w-8 h-8 text-[hsl(var(--error-text))]"

@@ -148,7 +148,7 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
       <Modal.Body className="space-y-4">
         {/* Error message */}
         {error && (
-          <div className="p-3 text-sm text-[hsl(var(--error))] bg-[hsl(var(--error)/0.1)] rounded border border-[hsl(var(--error)/0.3)]">
+          <div className="p-3 text-sm text-[hsl(var(--error-text))] bg-[hsl(var(--error)/0.1)] rounded border border-[hsl(var(--error)/0.3)]">
             {error}
           </div>
         )}
@@ -188,7 +188,7 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
               ))}
           </select>
           {folderError && (
-            <div className="mt-2 text-xs text-[hsl(var(--error))]">
+            <div className="mt-2 text-xs text-[hsl(var(--error-text))]">
               <span>{t('editor:fileTree.importDialog.folderLoadFailed', { defaultValue: '文件夹加载失败。' })}</span>{' '}
               <button className="underline" onClick={() => void loadFolders()}>
                 {t('common:retry', { defaultValue: '重试' })}
