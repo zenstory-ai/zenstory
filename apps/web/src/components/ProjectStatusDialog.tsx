@@ -433,9 +433,9 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
             <textarea
               id={`${fieldId}-notes`}
               ref={notesInputRef}
-              value={displayProjectNotes(notes, i18n.language)}
+              value={displayProjectNotes(notes, i18n?.language)}
               onChange={(e) => {
-                const nextNotes = storedProjectNotes(e.target.value);
+                const nextNotes = storedProjectNotes(e.target.value, i18n?.language);
                 setNotes(nextNotes);
                 if (nextNotes.trim() === (projectRef.current?.notes || "").trim()) {
                   notesBaseRef.current = projectRef.current?.notes || "";
@@ -454,7 +454,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                     onClick={() => void viewLatestNotes()}>{t('viewLatestNotes')}</Button>
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
-                  <textarea id={`${fieldId}-latest-notes`} value={displayProjectNotes(latestNotes, i18n.language)} readOnly rows={3}
+                  <textarea id={`${fieldId}-latest-notes`} value={displayProjectNotes(latestNotes, i18n?.language)} readOnly rows={3}
                     className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] resize-y" />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>

@@ -29,11 +29,17 @@ describe('note section headers in the interface language', () => {
   it('shows English labels to English readers and stores the original headers back', () => {
     const shown = displayProjectNotes(stored, 'en-US');
     expect(shown).not.toMatch(/[\u4e00-\u9fff]/);
-    expect(storedProjectNotes(shown)).toBe(stored);
+    expect(storedProjectNotes(shown, 'en-US')).toBe(stored);
+    // Indentation around a header survives the round trip.
+    expect(storedProjectNotes(displayProjectNotes('  【作者确认】', 'en'), 'en')).toBe('  【作者确认】');
   });
 
-  it('leaves Chinese readers and non-header lines untouched', () => {
+  it('never turns plain text into a header', () => {
     expect(displayProjectNotes(stored, 'zh')).toBe(stored);
-    expect(storedProjectNotes('作者确认 is mentioned inline')).toBe('作者确认 is mentioned inline');
+    expect(storedProjectNotes('作者确认 is mentioned inline', 'en')).toBe('作者确认 is mentioned inline');
+    // A Chinese reader's text is stored as typed, labels included.
+    expect(storedProjectNotes('【Confirmed by you】', 'zh')).toBe('【Confirmed by you】');
+    // An AI-written "[Confirmed by you]" line is not the label, so it cannot become author-confirmed.
+    expect(storedProjectNotes('[Confirmed by you]', 'en')).toBe('[Confirmed by you]');
   });
 });

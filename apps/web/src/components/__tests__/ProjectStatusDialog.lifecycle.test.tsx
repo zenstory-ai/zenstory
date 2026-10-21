@@ -21,6 +21,10 @@ import { subscribeToast, type ToastEvent } from '../../lib/toast'
 import { inspirationsConfig } from '../../config/inspirations'
 import i18n from '../../lib/i18n'
 import { logger } from '../../lib/logger'
+import { displayProjectNotes } from '../../lib/projectNotes'
+
+// These cases read the dialog in English: section headers appear as English labels.
+const shownNotes = (notes: string | null | undefined) => displayProjectNotes(notes ?? '', 'en')
 
 // No dialog/Modal/router/events/client/context replicas or module mocks.
 // All projectApi get/patch work passes through the real API/client to this fetch fence.
@@ -160,7 +164,7 @@ for (const strict of [false, true]) {
       await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
       expect(writes()).toHaveLength(1)
       expect(writes()[0].body).toEqual({ notes: adopted, expected_notes: source })
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(adopted)
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(adopted))
       await finish(writes(), { ...project('A'), notes: adopted })
       expect(state()).toMatchObject({ open: true, closeCount: 0 })
       expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('local summary draft')
@@ -175,7 +179,7 @@ for (const strict of [false, true]) {
       await finish([reads('A').at(-1)!], project('A', 'remote-1'))
       event('A')
       await finish([reads('A').at(-1)!], project('A', 'remote-2'))
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('local notes draft')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('local notes draft'))
       await click(user, screen.getByRole('button', { name: 'Save' }))
       expect(writes()[0].body).toEqual({ notes: 'local notes draft', expected_notes: project('A').notes })
     })
@@ -190,7 +194,7 @@ for (const strict of [false, true]) {
       await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
       await finish(writes(), { ...project('A'), notes: adopted })
       await finish([olderRead], { ...project('A'), notes: source })
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(adopted)
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(adopted))
       expect(screen.queryByRole('button', { name: 'Adopt all proposals' })).not.toBeInTheDocument()
       change('notes', adopted + '\n本地新约定')
       await click(user, screen.getByRole('button', { name: 'Save' }))
@@ -208,10 +212,10 @@ for (const strict of [false, true]) {
       const latest = '【作者确认】\n新的远端约定'
       await finish([reads('A').at(-1)!], { ...project('A'), notes: latest })
       await click(user, screen.getByRole('button', { name: 'Use latest notes' }))
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(latest)
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(latest))
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
       await finish([olderRead], project('A'))
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(latest)
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(latest))
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
       change('notes', latest + '\n本地补充')
       await click(user, screen.getByRole('button', { name: 'Save' }))
@@ -226,7 +230,7 @@ for (const strict of [false, true]) {
       await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
       await finish(writes(), { error: { code: 'ERR_RESOURCE_CONFLICT', message: 'notes changed' } }, 409)
       expect(state()).toMatchObject({ open: true, closeCount: 0 })
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('【作者确认】\n原提议'))
       expect(screen.getByRole('alert')).toHaveTextContent('Notes changed elsewhere. Your changes have not been saved.')
       expect(writes()).toHaveLength(1)
       expect(screen.queryByRole('button', { name: 'Save my version' })).not.toBeInTheDocument()
@@ -234,19 +238,19 @@ for (const strict of [false, true]) {
       await click(user, screen.getByRole('button', { name: 'View latest notes' }))
       await finish([reads('A').at(-1)!], { detail: 'Read unavailable' }, 503)
       expect(reads('A')).toHaveLength(beforePreview + 1)
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('【作者确认】\n原提议'))
       expect(screen.queryByRole('button', { name: 'Save my version' })).not.toBeInTheDocument()
       await click(user, screen.getByRole('button', { name: 'View latest notes' }))
       const latest = '【作者确认】\n另一端确认\n\n【AI 提议·待作者确认】\n原提议\n新提议'
       await finish([reads('A').at(-1)!], { ...project('A', 'latest'), notes: latest })
-      expect(screen.getByLabelText('Latest notes')).toHaveValue(latest)
+      expect(screen.getByLabelText('Latest notes')).toHaveValue(shownNotes(latest))
       expect(screen.getByLabelText('Latest notes')).toHaveAttribute('readonly')
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('【作者确认】\n原提议'))
       expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('keep local summary')
       expect(writes()).toHaveLength(1) // Viewing or retrying a GET never replays the PATCH.
       if (choice === 'use-latest') {
         await click(user, screen.getByRole('button', { name: 'Use latest notes' }))
-        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(latest)
+        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(latest))
         expect(writes()).toHaveLength(1)
         await click(user, screen.getByRole('button', { name: 'Adopt all proposals' }))
         expect(writes()[1].body).toEqual({ notes: '【作者确认】\n另一端确认\n\n原提议\n新提议', expected_notes: latest })
@@ -254,7 +258,7 @@ for (const strict of [false, true]) {
         await click(user, screen.getByRole('button', { name: 'Save my version' }))
         expect(writes()[1].body).toEqual({ notes: '【作者确认】\n原提议', expected_notes: latest })
         await finish([writes()[1]], choice === 'save-mine' ? { ...project('A'), notes: '【作者确认】\n原提议' } : { detail: 'Changed again' }, choice === 'save-mine' ? 200 : 409)
-        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('【作者确认】\n原提议')
+        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('【作者确认】\n原提议'))
         expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('keep local summary')
         expect(screen.queryByRole('textbox', { name: 'Latest notes' })).not.toBeInTheDocument()
         expect(screen.queryAllByRole('button', { name: 'View latest notes' })).toHaveLength(choice === 'save-mine' ? 0 : 1)
@@ -287,7 +291,7 @@ for (const strict of [false, true]) {
       await finish(oldInitial, outcome === 'success' ? project('A', 'obsolete-initial') : { detail: 'Obsolete initial load rejected' }, outcome === 'success' ? 200 : 503)
       observe(`initial-event-latest-after-old-${outcome}`, strict)
       expect.soft(screen.getByPlaceholderText(placeholders.summary)).toHaveValue(project('A', 'event-latest').summary)
-      expect.soft(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(project('A', 'event-latest').notes)
+      expect.soft(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(project('A', 'event-latest').notes))
       expect.soft(errorLogSpy.mock.calls).toHaveLength(logs)
     })
 
@@ -336,7 +340,7 @@ for (const strict of [false, true]) {
       await finish([aWrite], aOutcome === 'success' ? { ...project('A'), notes: 'A pending save' } : { detail: 'Old A save rejected' }, aOutcome === 'success' ? 200 : 503)
       observe(`A-${aOutcome}-while-B-save-active`, strict, { overlapReached: true, bOutcome })
       expect(state()).toMatchObject({ selected: 'B', open: true, closeCount: 0 })
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('B pending save')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('B pending save'))
       expect(screen.getByRole('button', { name: "Saving…" })).toBeDisabled()
       expect(errorLogSpy.mock.calls).toHaveLength(logs)
       expect(toasts).toHaveLength(toastCount)
@@ -346,7 +350,7 @@ for (const strict of [false, true]) {
         expect(toasts).toHaveLength(toastCount)
       } else {
         expect(state()).toMatchObject({ selected: 'B', open: true, closeCount: 0 })
-        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('B pending save')
+        expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('B pending save'))
         expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
         expect(toasts.slice(toastCount)).toMatchObject([{ type: 'error', message: "Couldn't save. Please try again." }])
         expect(errorLogSpy.mock.calls).toHaveLength(logs + 1)
@@ -404,7 +408,7 @@ for (const strict of [false, true]) {
       await finish(oldA, project('A', 'obsolete'))
       observe(`unmount-load-reopen-${next}`, strict)
       expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue(`${next} reopened dirty`)
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(project(next, 'reopened').notes)
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(project(next, 'reopened').notes))
       expect(state()).toMatchObject({ selected: next, open: true, closeCount: 1 })
     })
 
@@ -430,10 +434,10 @@ for (const strict of [false, true]) {
       event('A')
       const [older, latest] = reads('A').slice(start)
       await finish([latest], project('A', '2'))
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('local unsaved notes')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('local unsaved notes'))
       await finish([older], project('A', '1'))
       observe('event-dirty-out-of-order', strict)
-      expect.soft(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('local unsaved notes')
+      expect.soft(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('local unsaved notes'))
       expect.soft(screen.getByPlaceholderText(placeholders.summary)).toHaveValue(project('A', '2').summary)
       change('notes', project('A', '2').notes)
       const save = screen.getByRole('button', { name: 'Save' })
@@ -456,7 +460,7 @@ for (const strict of [false, true]) {
       await finish([writes()[0]], { ...project('A'), notes: 'A pending save' })
       observe('save-A-after-select-B', strict)
       expect.soft(state()).toMatchObject({ selected: 'B', open: true, closeCount: 0 })
-      expect.soft(screen.queryByPlaceholderText(placeholders.notes)).toHaveValue('B current dirty')
+      expect.soft(screen.queryByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('B current dirty'))
     })
 
     it('does not close reopened B from captured old unmounted A save callback', async () => {
@@ -517,7 +521,7 @@ for (const strict of [false, true]) {
       await click(user, screen.getByRole('button', { name: 'Save' }))
       await finish(writes(), { detail: 'Offline save rejected' }, 503)
       expect(toasts).toMatchObject([{ type: 'error', message: "Couldn't save. Please try again." }])
-      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('retry notes')
+      expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes('retry notes'))
       expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
       expect(state()).toMatchObject({ open: true, closeCount: 0 })
       await click(user, screen.getByRole('button', { name: 'Save' }))

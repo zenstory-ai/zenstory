@@ -7,26 +7,32 @@ const UNLABELED_HEADER = '【未标来源】';
  * English readers see these labels instead; saving maps them back, so the stored text never changes shape.
  */
 const ENGLISH_HEADER_LABELS: Record<string, string> = {
-  [CONFIRMED_HEADER]: '[Confirmed by you]',
-  [PROPOSALS_HEADER]: '[AI suggestions, not confirmed yet]',
-  [UNLABELED_HEADER]: '[Saved notes]',
+  [CONFIRMED_HEADER]: '【Confirmed by you】',
+  [PROPOSALS_HEADER]: '【AI suggestions, not confirmed yet】',
+  [UNLABELED_HEADER]: '【Saved notes】',
 };
 const STORED_HEADERS = Object.fromEntries(
   Object.entries(ENGLISH_HEADER_LABELS).map(([stored, label]) => [label, stored]),
 );
 
+const isEnglish = (language: string | undefined) => Boolean(language?.toLowerCase().startsWith('en'));
+
+/** Swap whole header lines, keeping any surrounding spaces so the caret does not jump. */
 function mapHeaderLines(notes: string, table: Record<string, string>): string {
-  return notes.replace(/^[^\r\n]*$/gm, line => table[line.trim()] ?? line);
+  return notes.replace(/^[^\r\n]*$/gm, line => {
+    const header = line.trim();
+    return header in table ? line.replace(header, table[header]) : line;
+  });
 }
 
 /** Notes as the author reads them: section headers in the interface language. */
 export function displayProjectNotes(notes: string, language: string | undefined): string {
-  return language?.toLowerCase().startsWith('en') ? mapHeaderLines(notes, ENGLISH_HEADER_LABELS) : notes;
+  return isEnglish(language) ? mapHeaderLines(notes, ENGLISH_HEADER_LABELS) : notes;
 }
 
-/** Inverse of displayProjectNotes: what gets stored and compared. */
-export function storedProjectNotes(displayed: string): string {
-  return mapHeaderLines(displayed, STORED_HEADERS);
+/** Inverse of displayProjectNotes for the same language: what gets stored and compared. */
+export function storedProjectNotes(displayed: string, language: string | undefined): string {
+  return isEnglish(language) ? mapHeaderLines(displayed, STORED_HEADERS) : displayed;
 }
 const HEADER_PREFIX = '^\\s*【\\s*(?:备注\\s*[·・]\\s*)?';
 const HEADER_SUFFIX = '\\s*】\\s*(?:[（(].*[)）])?\\s*$';
