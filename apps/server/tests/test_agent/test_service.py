@@ -1540,11 +1540,16 @@ class TestAgentServiceProcessStream:
         system_prompt = writing_state["system_prompt"]
         assert assembled_context[:200] not in system_prompt
         turn_context = writing_state["user_message"].rpartition(WORKING_SET_USER_MESSAGE_LABEL)[0].rstrip("\n")
-        assert assembled_context[:200] in turn_context  # context 内嵌于本轮用户消息的 <turn_context>
+        snapshot = writing_state["context_snapshot"]
+        # The session's first turn puts the assembled context in the project snapshot, not the turn context.
+        assert assembled_context[:200] in snapshot
+        assert assembled_context[:200] not in turn_context
 
-        # Ledger charges the system prompt and the turn context once each — no
+        # Ledger charges the system prompt, the snapshot and the turn context once each — no
         # re-adding of skill catalog/reference/context they already embed.
-        assert captured["reserved"] == estimate_text_tokens(system_prompt) + estimate_text_tokens(turn_context)
+        assert captured["reserved"] == (
+            estimate_text_tokens(system_prompt) + estimate_text_tokens(snapshot) + estimate_text_tokens(turn_context)
+        )
 
         legacy_reserved = captured["reserved"] + estimate_text_tokens(assembled_context)
         assert captured["reserved"] < legacy_reserved

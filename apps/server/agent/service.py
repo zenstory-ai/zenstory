@@ -36,6 +36,7 @@ from utils.logger import get_logger, log_with_context
 
 from .context import ContextAssembler, get_context_assembler
 from .context.budget import compute_history_token_budget
+from .context.turn_snapshot import plan_turn_context
 from .core.events import (
     context_event,
     done_event,
@@ -564,6 +565,7 @@ class AgentService:
         language: str,
         assembled_context: str | None,
         context_items: list[dict[str, Any]] | None,
+        full_assembled_context: str | None = None,
     ) -> tuple[list[dict[str, Any]], str, str]:
         """
         Build the skill catalog, resolve selected skills, the static system prompt
@@ -601,6 +603,7 @@ class AgentService:
             language=language,
             selected_skills=selected_skills or None,
             author_message=message,
+            full_assembled_context=full_assembled_context,
         )
         return selected_skills, system_prompt, turn_context
 
@@ -1126,6 +1129,20 @@ class AgentService:
                 user_id=user_id,
             )
 
+            # 项目资料快照（agent/context/turn_snapshot.py）：没变的上下文每个会话只发一次、放在
+            # 系统提示之后，可以一直命中前缀缓存；本轮只发新加入或改过的条目。
+            context_plan = await asyncio.to_thread(
+                plan_turn_context,
+                session_id=session_id,
+                project_id=project_id,
+                language=lang,
+                # 没有分块的上下文（如组装失败时的兜底）整段作为一个条目，不能在快照路径上丢掉。
+                context_blocks=list(getattr(context_data, "blocks", None) or [])
+                or ([{"key": "context", "text": context_data.context}] if context_data.context else []),
+                working_set_blocks=list(getattr(session_data, "working_set_blocks", None) or []),
+                working_set_tail=str(getattr(session_data, "working_set_tail", "") or ""),
+            )
+
             prompt_kwargs: dict[str, Any] = {
                 "project_id": project_id,
                 "user_id": user_id,
@@ -1134,8 +1151,14 @@ class AgentService:
                 "session_id": session_id,
                 "metadata": metadata,
                 "language": lang,
-                "assembled_context": context_data.context if context_data.context else None,
+                "assembled_context": (
+                    (context_plan.changed_context or None)
+                    if context_plan is not None
+                    else (context_data.context if context_data.context else None)
+                ),
                 "context_items": context_data.items if context_data.items else None,
+                # 「原始上下文完整」按整份上下文判断：快照 + 本轮更新合起来就是它。
+                "full_assembled_context": context_data.context if context_data.context else None,
             }
             if self._should_offload_session_work(session):
                 selected_skills, system_prompt, turn_context = await asyncio.to_thread(
@@ -1191,7 +1214,11 @@ class AgentService:
 
             # 跨轮工作集（上两轮读/写过的文件的当前全文）拼在本轮用户消息之前：
             # 系统提示与历史保持不变，前缀缓存可以一直命中到上一轮。
-            working_set_context = getattr(session_data, "working_set_context", "")
+            working_set_context = (
+                context_plan.working_set_context
+                if context_plan is not None
+                else getattr(session_data, "working_set_context", "")
+            )
             if not isinstance(working_set_context, str):
                 working_set_context = ""
             # 作者在 AI 写过之后亲手改了什么（agent/tools/author_changes.py），和工作集放在一起。
@@ -1220,8 +1247,10 @@ class AgentService:
             # 避免同一段文本重复扣减历史预算。
             from agent.utils.token_utils import estimate_text_tokens
 
+            context_snapshot = context_plan.snapshot_message if context_plan is not None else ""
             reserved_prompt_tokens = (
                 estimate_text_tokens(system_prompt or "")
+                + (estimate_text_tokens(context_snapshot) if context_snapshot else 0)
                 + (estimate_text_tokens(turn_context) if turn_context else 0)
                 + (estimate_text_tokens(working_set_context) if working_set_context else 0)
             )
@@ -1321,6 +1350,7 @@ class AgentService:
                 "session_id": session_id,
                 "generation_mode": generation_mode,
                 "system_prompt": system_prompt,
+                "context_snapshot": context_snapshot,
                 "context_data": {
                     "context": context_data.context if context_data.context else "",
                     "items": context_data.items,

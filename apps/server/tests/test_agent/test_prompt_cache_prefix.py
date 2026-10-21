@@ -28,20 +28,44 @@ from services.core.auth_service import hash_password
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
 
 
+CHARACTER_CARD = "角色：码头邮差阿昼，左手有旧伤，只在雾天送信。" * 12
+
+
 def _context(marker: str) -> ContextData:
-    """一轮的组装上下文：正文与角色卡都带本轮独有的标记。"""
-    text = f"## 相关内容详情\n### 第{marker}章 (id=ch-{marker}) [全文]\n雾港的第{marker}封信到了。"
+    """一轮的组装上下文：项目状态与角色卡两轮相同，正文章节每轮不同。"""
+    header = "项目状态 [核心信息]\n【项目简介】雾港来信，悬疑。"
+    chapter = f"【正文详情】\n第{marker}章 (id=ch-{marker}) [全文]\n雾港的第{marker}封信到了。"
+    card = f"【角色信息】\n阿昼 (id=char-1) [全文]\n{CHARACTER_CARD}"
     items = [
         {
-            "id": f"char-{marker}",
+            "id": "char-1",
             "type": "character",
-            "title": f"角色{marker}",
-            "content": f"角色{marker}：码头邮差。",
+            "title": "阿昼",
+            "content": CHARACTER_CARD,
             "priority": "constraint",
             "metadata": {"file_type": "character"},
         }
     ]
-    return ContextData(items=items, context=text, token_estimate=50)
+    return ContextData(
+        items=items,
+        context="\n\n".join([header, chapter, card]),
+        blocks=[
+            {"key": "header", "text": header},
+            {"key": f"【正文详情】:ch-{marker}", "text": chapter},
+            {"key": "【角色信息】:char-1", "text": card},
+        ],
+        token_estimate=50,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_snapshot_store(monkeypatch):
+    from agent.context.turn_snapshot import reset_snapshot_memory
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    reset_snapshot_memory()
+    yield
+    reset_snapshot_memory()
 
 
 @pytest.fixture
@@ -109,7 +133,7 @@ def _model_input(state: dict[str, Any], agent_type: str) -> tuple[str, list[dict
     from agent.graph.nodes import build_agent_directive
 
     return state["system_prompt"], build_run_input(
-        build_history_messages(state), build_agent_directive(state, agent_type)
+        build_history_messages(state), build_agent_directive(state, agent_type), state["context_snapshot"]
     )
 
 
@@ -144,22 +168,28 @@ async def test_consecutive_turns_share_system_prompt_and_history_byte_for_byte(d
                      "## 本轮回复语言", "## Reply language for this turn"):
         assert per_turn not in system_1
 
-    # 上一轮之前的历史（种子里的一问一答）是两轮共同的前缀，序列化后逐字节相同。
+    # [项目资料快照][上一轮之前的历史] 是两轮共同的前缀，序列化后逐字节相同：没变的上下文
+    # （项目状态、角色卡、第二章）只在快照里发一次，第二轮不再重发。
+    snapshot = input_1[0]
+    assert input_2[0] == snapshot
+    assert snapshot["content"].startswith("<project_snapshot>")
+    assert "阿昼" in snapshot["content"] and "雾港的第二封信" in snapshot["content"]
     history = [{"role": "user", "content": "先写第一章"}, {"role": "assistant", "content": "第一章已经写进正文。"}]
-    assert input_1[:2] == history
-    assert input_2[:2] == history
-    shared = _serialize(system_1, history)
+    assert input_1[1:3] == history
+    assert input_2[1:3] == history
+    shared = _serialize(system_1, [snapshot, *history])
     assert _serialize(system_1, input_1).startswith(shared[:-1])
     assert _serialize(system_2, input_2).startswith(shared[:-1])
 
-    # 本轮上下文只在本轮用户消息里，随轮次变化；历史里回放的是作者原话。
-    turn_1, turn_2 = input_1[2]["content"], input_2[4]["content"]
+    # 本轮上下文只在本轮用户消息里：第一轮的资料都在快照里，第二轮只带新出现的第三章。
+    turn_1, turn_2 = input_1[3]["content"], input_2[5]["content"]
     assert turn_1.startswith(TURN_CONTEXT_OPEN) and turn_2.startswith(TURN_CONTEXT_OPEN)
-    assert "雾港的第二封信" in turn_1 and "角色二" in turn_1 and "本轮作者用中文写消息" in turn_1
-    assert "雾港的第三封信" in turn_2 and "雾港的第二封信" not in turn_2
+    assert "雾港的第二封信" not in turn_1 and "本轮作者用中文写消息" in turn_1
+    assert "雾港的第三封信" in turn_2 and "本轮更新的项目资料" in turn_2
+    assert CHARACTER_CARD not in turn_2 and "雾港的第二封信" not in turn_2
     assert "wrote this turn's message in English" in turn_2
-    assert input_2[2] == {"role": "user", "content": "续写第二章"}
-    assert input_2[3]["role"] == "assistant"
+    assert input_2[3] == {"role": "user", "content": "续写第二章"}
+    assert input_2[4]["role"] == "assistant"
 
     # 角色与范围约束是这次运行的最后一条消息。
     assert input_1[-1]["content"].startswith(AGENT_DIRECTIVE_HEADER)
@@ -187,7 +217,9 @@ async def test_writer_reviewer_writer_share_system_prompt_history_and_turn_conte
 
     async def fake_runner(state, agent_type, system_prompt, get_steering_messages=None, agent_directive=""):
         api_messages = build_history_messages(state)
-        runs.append((agent_type, system_prompt, build_run_input(api_messages, agent_directive)))
+        runs.append(
+            (agent_type, system_prompt, build_run_input(api_messages, agent_directive, state["context_snapshot"]))
+        )
         if agent_type == "quality_reviewer":
             text = "第二章节奏偏慢，请压缩码头那段。"
             handoff = {"target_agent": "writer", "context": "按审稿意见压缩码头那段"}
@@ -229,13 +261,14 @@ async def test_writer_reviewer_writer_share_system_prompt_history_and_turn_conte
     assert "## 当前角色：" not in system
     assert "## 本轮用户范围约束" not in system
 
-    # [系统提示][历史][本轮用户消息（含 <turn_context>）] 是三次运行共同的前缀，逐字节相同。
-    shared_messages = runs[0][2][:3]
-    assert shared_messages[2]["content"].startswith(TURN_CONTEXT_OPEN)
-    assert "雾港的第二封信" in shared_messages[2]["content"]
+    # [系统提示][项目资料快照][历史][本轮用户消息（含 <turn_context>）] 是三次运行共同的前缀，逐字节相同。
+    shared_messages = runs[0][2][:4]
+    assert shared_messages[0]["content"].startswith("<project_snapshot>")
+    assert "雾港的第二封信" in shared_messages[0]["content"]
+    assert shared_messages[3]["content"].startswith(TURN_CONTEXT_OPEN)
     shared = _serialize(system, shared_messages)
     for _agent, run_system, run_input in runs:
-        assert run_input[:3] == shared_messages
+        assert run_input[:4] == shared_messages
         assert _serialize(run_system, run_input).startswith(shared[:-1])
 
     # 角色与范围约束只在各自运行的最后一条消息里，审稿人的指令不回流到返修 writer 的输入。

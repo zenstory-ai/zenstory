@@ -108,6 +108,10 @@ class SessionData:
     working_set_refs: list[dict[str, Any]] = field(default_factory=list)
     # 按当前库内容渲染的跨轮工作集纯文本块；没有可注入内容时为空串
     working_set_context: str = ""
+    # The same working set split for the context snapshot (agent/context/turn_snapshot.py):
+    # full-text files as keyed blocks, and the rest of the section sent every turn.
+    working_set_blocks: list[dict[str, str]] = field(default_factory=list)
+    working_set_tail: str = ""
     # 作者在 AI 写过之后亲手改了什么（<author_edits> 块，agent/tools/author_changes.py）；没有时为空串
     author_edits_context: str = ""
     author_edited_file_ids: set[str] = field(default_factory=set)
@@ -506,13 +510,17 @@ class SessionLoader:
             result.working_set_context = ""
             return
         try:
+            parts: dict[str, Any] = {}
             result.working_set_context = self._build_working_set_context(
                 session=session,
                 refs=refs,
                 full_in_context_ids=self._full_text_context_ids(result.context_data),
                 author_edited_file_ids=result.author_edited_file_ids,
                 rendered_full_contents=result.read_snapshots,
+                parts_out=parts,
             )
+            result.working_set_blocks = parts.get("blocks", [])
+            result.working_set_tail = parts.get("tail", "")
         except Exception as exc:  # 工作集是增益信息，失败不影响本轮请求
             log_with_context(
                 logger,
@@ -562,10 +570,13 @@ class SessionLoader:
         max_chars: int | None = None,
         author_edited_file_ids: set[str] | None = None,
         rendered_full_contents: dict[str, str] | None = None,
+        parts_out: dict[str, Any] | None = None,
     ) -> str:
         """渲染工作集文本块：最多 max_files 份全文、合计不超过 max_chars 字。
 
         rendered_full_contents：附了全文的文件记进去（file_id → 正文），作为本轮模型看到的正文快照。
+        parts_out：同一份工作集拆成 ``blocks``（附全文的文件，键 file:<id>，不带「上一轮已修改」
+        这类每轮都变的标注，标注放在 ``listing``）和 ``tail``（其余每轮照发的部分），供项目资料快照用。
         """
         from models import File
 
@@ -583,6 +594,7 @@ class SessionLoader:
         files_by_id = {str(f.id): f for f in files if getattr(f, "file_type", None) != "folder"}
 
         full_blocks: list[str] = []
+        snapshot_blocks: list[dict[str, str]] = []
         omitted: list[str] = []
         in_context: list[str] = []
         used_chars = 0
@@ -609,6 +621,11 @@ class SessionLoader:
                 full_blocks.append(
                     f"### {label} [全文，{count_words(content)} 字；{action}]\n{content}".rstrip()
                 )
+                snapshot_blocks.append({
+                    "key": f"file:{file.id}",
+                    "text": f"### 《{title}》 (id={file.id}) [全文，{count_words(content)} 字]\n{content}".rstrip(),
+                    "listing": f"- {label}（{action}，{count_words(content)} 字）",
+                })
                 if rendered_full_contents is not None:
                     rendered_full_contents[str(file.id)] = content
                 used_chars += len(content)
@@ -621,6 +638,7 @@ class SessionLoader:
         lines = ["<previous_turn_working_set>", WORKING_SET_HEADER, ""]
         for block in full_blocks:
             lines.extend([block, ""])
+        tail_start = len(lines)
         if in_context:
             lines.append("已在本轮上下文 <turn_context> 的项目上下文中标注[全文]（直接使用，不必重读）：")
             lines.extend(in_context)
@@ -632,6 +650,9 @@ class SessionLoader:
             )
             lines.extend(omitted)
             lines.append("")
+        if parts_out is not None:
+            parts_out["blocks"] = snapshot_blocks
+            parts_out["tail"] = "\n".join(lines[tail_start:]).strip()
         lines.append("</previous_turn_working_set>")
         return "\n".join(lines)
 

@@ -91,6 +91,8 @@ class WritingState(TypedDict, total=False):
 
     # Configuration
     system_prompt: str
+    # 项目资料快照（agent/context/turn_snapshot.py）：放在系统提示之后、历史之前，跨轮不变。
+    context_snapshot: str
     context_data: dict[str, Any]
 
     # Workflow state

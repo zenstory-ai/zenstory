@@ -277,6 +277,11 @@ class ContextData(BaseModel):
 
     context: str = Field(..., description="Formatted context string for prompt")
 
+    blocks: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="The same content as keyed blocks (header + one per item) for the context snapshot",
+    )
+
     items: list[dict[str, Any]] = Field(
         default_factory=list,
         description="List of context items used"

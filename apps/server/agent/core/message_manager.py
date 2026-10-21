@@ -585,9 +585,14 @@ class MessageManager:
         language: str | None = None,
         selected_skills: list[dict[str, Any]] | None = None,
         author_message: str | None = None,
+        full_assembled_context: str | None = None,
     ) -> str:
         """
         Build this turn's context block for the current user message.
+
+        With a context snapshot (agent/context/turn_snapshot.py) ``assembled_context``
+        holds only the blocks that changed since the snapshot; ``full_assembled_context``
+        is the whole assembled context, which decides whether it is complete.
 
         It holds everything that changes from turn to turn: narrative constraints
         taken from this turn's context items, skills the author selected for this
@@ -613,10 +618,13 @@ class MessageManager:
         force_en = self._force_en(language)
         parts: list[str] = []
 
+        raw_context_complete = self._raw_context_is_complete(
+            full_assembled_context if full_assembled_context is not None else assembled_context
+        )
         constraints, world_truth, world_surface = self._extract_structured_context(
             context_items=context_items,
             force_en=force_en,
-            raw_context_complete=self._raw_context_is_complete(assembled_context),
+            raw_context_complete=raw_context_complete,
         )
         parts.extend(
             self._build_narrative_constraints_section(
