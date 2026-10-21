@@ -502,7 +502,8 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # The coverage run alone takes 3–4.5 minutes; 5 left no room for slow runners.
+    timeout-minutes: 10
     steps:
     - name: Checkout code
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
