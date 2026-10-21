@@ -105,8 +105,9 @@ agent/
 预算（`apps/server/config/agent_runtime.py`，均可用同名环境变量覆盖）：`AGENT_COLLABORATION_MAX_ITERATIONS`（12，agent 轮数）、
 `AGENT_TOOL_CALL_MAX_ITERATIONS`（60，单次 run 的 SDK max_turns，最后 `runner.SOFT_LANDING_TURNS` 轮提示收尾）、
 `AGENT_RUN_MAX_MODEL_CALLS`（120，请求级）、`AGENT_RUN_WALL_CLOCK_TIMEOUT_S`（780，须早于 Railway 900 秒断连）、
+`AGENT_RUN_WRAP_UP_AFTER_S`（默认时限减 180 秒：之后每次模型调用都提醒收尾、图不再开新的 agent run）、
 `AGENT_SSE_HEARTBEAT_INTERVAL_S`（15）、`AGENT_AUTO_REVIEW_THRESHOLD_CHARS`（500）。见 [runtime-budget-and-heartbeat][n-budget]、
-[no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]。
+[no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]。
 
 ## 多 Agent 协作
 
@@ -228,17 +229,25 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   world_model 里只列标题 + id。
 - 跨轮（`core/session_loader.py`）：runner 回放历史时丢弃工具结果，新一轮靠面包屑（assistant 历史末尾的「[此前的工具操作]」，列创建 /
   编辑 / 删除和按 id 精确读取的文件）和工作集（最近 2 条 assistant 回复读写过的文件，按当前库内容整份注入，最多
-  `AGENT_WORKING_SET_MAX_FILES`=8 份、`AGENT_WORKING_SET_MAX_CHARS`=60000 字）。`service.py` 用
-  `SessionLoader.attach_working_set_to_user_content` 把它拼在本轮用户消息之前，不进系统提示、不改历史，前缀缓存可以一直命中。
-- 本轮上下文（`MessageManager.build_turn_context`，`<turn_context>`）：叙事约束、作者本条消息选的技能、组装的项目上下文、当前文件、
-  任务计划板快照、本轮回复语言。放在本轮用户消息最前面、工作集之前；系统提示只留基础提示、语言规则、布局说明和技能目录，
-  所以 `[系统提示][历史]` 跨轮、跨 agent 逐字不变（`tests/test_agent/test_prompt_cache_prefix.py`）。历史超过预算后窗口每轮滑动，
-  仍会在系统提示之后打断跨轮前缀。
-- 决策记录：[full-text-and-working-set][n-context]、[characters-and-core-lore][n-lore]、[cache-stable-prompt-layout][n-cache-layout]。
+  `AGENT_WORKING_SET_MAX_FILES`=8 份、`AGENT_WORKING_SET_MAX_CHARS`=60000 字）。
+- 项目资料快照（`context/turn_snapshot.py`）：组装的项目上下文与工作集按条目给出带键的块；会话第一轮（及重建时）渲染成
+  `<project_snapshot>`，作为模型输入第一条消息紧跟系统提示（`runner.build_run_input`，不写回 `state["messages"]`）；之后每轮只把
+  新出现或改过的块放进 `<turn_context>` 的「本轮更新的项目资料」，工作集只发清单。改动超过快照一半、20 轮、2 小时或项目 / 语言变化时重建。
+- 本轮上下文（`MessageManager.build_turn_context`，`<turn_context>`）：叙事约束、作者本条消息选的技能、本轮更新的项目资料、当前文件、
+  任务计划板快照、本轮回复语言，加工作集清单，放在本轮用户消息最前面（`SessionLoader.attach_working_set_to_user_content`）。
+  请求布局 `[系统提示][项目资料快照][历史][本轮上下文 + 作者消息][本次运行指令]`，前四段跨轮、跨 agent 逐字不变
+  （`tests/test_agent/test_prompt_cache_prefix.py`）。历史超出预算时窗口起点对齐锚点（`session_loader.anchor_history_window`），
+  停几轮再整段跳，不每轮滑动。
+- 决策记录：[full-text-and-working-set][n-context]、[characters-and-core-lore][n-lore]、[cache-stable-prompt-layout][n-cache-layout]、
+  [context-snapshot-and-cache-stable-tools][n-snapshot]。
 
 ## 工具
 
-工具清单以 `tools/registry.py` 为准：`DEFAULT_TOOL_NAMES`（planner / hook_designer / writer）、`QUALITY_REVIEWER_TOOL_NAMES`（审稿人，没有写工具）。
+工具清单以 `tools/registry.py` 为准：每个角色、每一轮在请求里看到的都是同一份 `EXPOSED_TOOL_NAMES`（前缀缓存不按角色分裂）；
+角色能执行哪些工具由 `AGENT_TOOL_NAME_MAP` 决定（`DEFAULT_TOOL_NAMES` 给 planner / hook_designer / writer，`QUALITY_REVIEWER_TOOL_NAMES`
+给审稿人，没有写工具），越权调用在 `tools_adapter` 里以 `tool_not_permitted_for_role` 拒绝，本轮不可用的工具写进运行指令的
+`## 本轮工具限制`。create_file 建好空文件后返回 `awaiting_body`，紧接着那次模型调用只能回复文字（`openai_agents/model.py`），
+正文必须以 <file> 流式写出。[fast-mode-summary-and-file-body-turn][n-body-turn]
 
 | 工具 | 用途 |
 |---|---|
@@ -337,4 +346,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-first-review]: ../../../.agents/notes/implemented/feature/2026-10-20-first-turn-skips-auto-review.md
 [n-fast-default]: ../../../.agents/notes/implemented/feature/2026-10-20-fast-mode-default-keeps-router.md
 [n-cache-layout]: ../../../.agents/notes/implemented/bug-fix/2026-10-20-agent-cache-stable-prompt-layout.md
+[n-snapshot]: ../../../.agents/notes/implemented/architecture/2026-10-21-context-snapshot-and-cache-stable-tools.md
+[n-body-turn]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-fast-mode-summary-and-file-body-turn.md
+[n-wrap-up]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-wall-clock-wrap-up.md
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md
