@@ -1848,6 +1848,22 @@ def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dic
     return _make_mcp_payload(payload, tool_name="create_file")
 
 
+def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
+    """create_file 建好了空文件：告诉模型下一次回复就写正文。
+
+    ``awaiting_body`` 是给 ``openai_agents/model.py`` 的结构化信号：紧接着的那次模型调用
+    只允许回复文字（tool_choice="none"），正文必须以 <file> 开头流式写出。
+    """
+    return {
+        **data,
+        "awaiting_body": True,
+        "next_step": (
+            f"「{title}」已建好，正文还是空的。下一次回复直接以 <file> 开头写它的正文，"
+            "写完用 </file> 结束；不要先调用其他工具。"
+        ),
+    }
+
+
 def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict[str, Any] | None:
     """create_file 被挡住时，判断它是不是在重复创建正挡路的那个空文件；是就把那个文件交回去。
 
@@ -1914,10 +1930,8 @@ def _repeat_of_pending_empty_file(args: dict[str, Any], project_id: str) -> dict
     )
     data = serialize_file(row)
     data["content"] = ""
-    data["next_step"] = (
-        f"「{title}」已经建好，正文还是空的。不要再调用 create_file，"
-        "接下来直接以 <file> 开头写它的正文，写完用 </file> 结束。"
-    )
+    data = _awaiting_body_data(data, title)
+    data["next_step"] = "不要再调用 create_file。" + data["next_step"]
     return _make_result(
         {"status": "success", "mutation_applied": False, "data": data},
         tool_name="create_file",
@@ -1998,10 +2012,12 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # folder 例外：文件夹是纯容器节点，永远不会收到 <file>…</file> 正文，
         # 给它置标记后无人清除（标记跨子任务可见），会硬阻断本轮后续所有建档，
         # 并让 writing_graph 的纠偏分支把章节正文追加到文件夹节点上。
+        awaiting_body = False
         if reservation is not None:
             file_id = result.get("id", "")
             if file_id and not _is_folder_file_type(result, args):
                 ToolContext.bind_pending_empty_file(reservation, file_id, title)
+                awaiting_body = True
             else:
                 ToolContext.release_pending_empty_file(reservation)
             reservation = None
@@ -2013,11 +2029,14 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             payload={"title": result.get("title"), "file_type": result.get("file_type")},
         )
 
+        data = _elide_reused_file_content(result)
+        if awaiting_body:
+            data = _awaiting_body_data(data, title)
         return _make_result(
             {
                 "status": "success",
                 "mutation_applied": result.get("mutation_applied") is True,
-                "data": _elide_reused_file_content(result),
+                "data": data,
             },
             tool_name=tool_name,
         )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import httpx
@@ -249,3 +250,53 @@ async def test_agent_stream_failure_after_output_raises_and_pins_the_retry(sdk_m
 
     # The author's retry in the same chat window goes to the backup.
     assert await _drain(sdk_model.build_failover_chat_model("mid-stream")) == ["d1"]
+
+
+# ------------------------------------------------- two-reply file protocol guard
+
+
+class _SettingsRecorder(_StreamingModel):
+    def __init__(self):
+        super().__init__(["ok"])
+        self.settings: list[object] = []
+
+    async def stream_response(self, _sys, _input, model_settings, *args, **kwargs):
+        self.settings.append(model_settings)
+        async for event in super().stream_response(_sys, _input, model_settings, *args, **kwargs):
+            yield event
+
+
+def _fn_call(name: str, call_id: str) -> dict:
+    return {"type": "function_call", "name": name, "call_id": call_id, "arguments": "{}"}
+
+
+def _output(call_id: str, data: dict) -> dict:
+    return {"type": "function_call_output", "call_id": call_id, "output": json.dumps({"status": "success", "data": data})}
+
+
+async def _tool_choice_for(sdk_models, items) -> object:
+    from agents import ModelSettings
+
+    recorder = _SettingsRecorder()
+    sdk_models["minimax"] = recorder
+    model = sdk_model.build_failover_chat_model("guard")
+    _ = [event async for event in model.stream_response("sys", items, ModelSettings(), [], None, [], None)]
+    return recorder.settings[0].tool_choice
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_reply_after_create_file_must_be_the_file_body(sdk_models):
+    user = {"role": "user", "content": "写第一章"}
+    created = [user, _fn_call("create_file", "c1"), _output("c1", {"id": "f1", "content": "", "awaiting_body": True})]
+    # create_file together with another tool in the same reply still awaits the body.
+    batch = [user, _fn_call("create_file", "c1"), _fn_call("update_project", "c2"),
+             _output("c1", {"id": "f1", "awaiting_body": True}), _output("c2", {"ok": True})]
+    # The body turn already happened; a later tool batch must not be locked out of tools.
+    later = [*created, {"role": "assistant", "content": "<file>正文</file>"},
+             _fn_call("query_files", "c3"), _output("c3", {"id": "f1", "content": "正文"})]
+
+    assert await _tool_choice_for(sdk_models, created) == "none"
+    assert await _tool_choice_for(sdk_models, batch) == "none"
+    assert await _tool_choice_for(sdk_models, later) is None
+    assert await _tool_choice_for(sdk_models, [user]) is None
