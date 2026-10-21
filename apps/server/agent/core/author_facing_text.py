@@ -31,6 +31,12 @@ _AGENT_NAMES: dict[str, str] = {
     "planner": "大纲规划师",
     "writer": "内容创作者",
 }
+# 英文界面：和前端 en 的 chat:workflow.agents.* 一致。只替换内部 id；英文句子里本来就是
+# 普通单词的 writer / planner 保持原样。
+_AGENT_NAMES_EN: dict[str, str] = {
+    "quality_reviewer": "Reviewer",
+    "hook_designer": "Hook designer",
+}
 
 _ASCII_WORD_EDGE_BEFORE = r"(?<![A-Za-z0-9_])"
 _ASCII_WORD_EDGE_AFTER = r"(?![A-Za-z0-9_])"
@@ -154,8 +160,8 @@ def _clean_line(line: str) -> str:
     return stripped
 
 
-def author_facing_text(text: object) -> str:
-    """去掉内部 id、字段名、工具名，并把流程用语换成作者能看懂的说法。"""
+def author_facing_text(text: object, english: bool = False) -> str:
+    """去掉内部 id、字段名、工具名，并把流程用语换成作者能看懂的说法（english：角色名用英文）。"""
     if not isinstance(text, str):
         return ""
     result = text.replace(_REMOVED, "")
@@ -168,7 +174,12 @@ def author_facing_text(text: object) -> str:
         _UUID_RE,
     ):
         result = pattern.sub(_REMOVED, result)
-    result = _AGENT_NAME_RE.sub(lambda m: _AGENT_NAMES[m.group(1).lower()], result)
+    if english:
+        result = _AGENT_NAME_RE.sub(
+            lambda m: _AGENT_NAMES_EN.get(m.group(1).lower(), m.group(1)), result
+        )
+    else:
+        result = _AGENT_NAME_RE.sub(lambda m: _AGENT_NAMES[m.group(1).lower()], result)
     result = _SNAKE_IDENTIFIER_RE.sub(_REMOVED, result)
     for old, new in _WORDING_REPLACEMENTS:
         result = result.replace(old, new)
@@ -184,7 +195,7 @@ def author_facing_handoff_reason(reason: object, english: bool = False) -> str:
     table = SYSTEM_HANDOFF_REASONS_EN if english else SYSTEM_HANDOFF_REASONS
     if stripped in table:
         return table[stripped]
-    return author_facing_text(stripped)
+    return author_facing_text(stripped, english)
 
 
 # ------------------------------------------------------------------ 流式正文

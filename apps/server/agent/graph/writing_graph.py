@@ -590,7 +590,7 @@ def _author_facing_handoff_event_data(
     display = dict(event_data)
     display["reason"] = author_facing_handoff_reason(event_data.get("reason"), english)
     if "context" in event_data:
-        display["context"] = author_facing_text(event_data.get("context"))
+        display["context"] = author_facing_text(event_data.get("context"), english)
     return display
 
 
@@ -2840,7 +2840,7 @@ async def run_writing_workflow_streaming(
                 if current_agent_type == "quality_reviewer" and _agent_can_write_files(next_agent):
                     # 审稿意见要直接显示给作者：去掉 id、字段名和流程用语。
                     review_limit_notes = author_facing_text(
-                        _review_notes_from_packet(handoff_packet, handoff_context)
+                        _review_notes_from_packet(handoff_packet, handoff_context), english
                     )
                     log_with_context(
                         logger,

@@ -41,7 +41,7 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 用户消息可能以 [新作品的第一条消息]（后面是作品类型）开头，最后的 [用户本轮原话] 才是用户这次说的话。作者还没看到任何产出：
 - 原话明确只要大纲/设定/人设、只问问题、只看稿不改，或要续写/修改已有内容 → 按选择规则和交付范围字段照常判断
 - 原话要先规划再写正文（“先定人设再写第一章”）→ planner + standard，write_content=true
-- 其余情况（一个想法、一句题材、“写个…”）→ 本轮交付开头：writer + quick，write_content=true，read_only=false，scope 写“简要设定+开头约800字”（短剧写“简要设定+第1集剧本”），requested_file_types 为 ["draft"]（短剧为 ["script"]）
+- 其余情况（一个想法、一句题材、“写个…”）→ 本轮交付开头：writer + quick，write_content=true，read_only=false，scope 写“简要设定+开头约800字”（作者用英文时写“简要设定+开头约500词”）（短剧写“简要设定+第1集剧本”），requested_file_types 为 ["draft"]（短剧为 ["script"]）
 
 ## 交付范围字段（只按用户原话判断，不要替用户扩大范围）
 - write_content：用户本轮是否要求产出或改写**正文**（章节/剧本/片段正文）。
