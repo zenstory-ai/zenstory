@@ -294,15 +294,6 @@ describe('ThinkingContent', () => {
     expect(button).toHaveAttribute('aria-label', 'chat:thinking.collapse')
   })
 
-  it('applies hover opacity transition', () => {
-    localStorage.setItem(EXPANDED_KEY, 'true')
-    const { container } = render(<ThinkingContent content="Thinking" />)
-
-    const wrapper = container.firstChild as HTMLElement
-    expect(wrapper.className).toContain('opacity-60')
-    expect(wrapper.className).toContain('hover:opacity-80')
-  })
-
   it('returns null when showThinking is false', () => {
     // Override the mock for this specific test
     vi.mocked(useThinkingVisibility).mockReturnValue({

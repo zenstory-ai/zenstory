@@ -918,7 +918,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       
       return (
         <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <Edit3 className="w-4 h-4 text-[hsl(var(--success-text))]" />
             <span className="text-sm text-[hsl(var(--success-text))] font-medium">
               {t('chat:tool.edit_success')}
@@ -936,7 +936,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             {onUndo && undoTarget && (
               <button
                 onClick={() => handleUndo(undoTarget)}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors ml-auto"
+                className="flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors ml-auto"
                 title={t('chat:tool.undo_edit')}
               >
                 <RotateCcw className="w-3 h-3" />

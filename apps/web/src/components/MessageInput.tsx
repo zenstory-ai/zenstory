@@ -772,7 +772,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             >
               <Quote size={12} className="shrink-0" />
               <span className="max-w-[150px] truncate">
-                {quote.text.length > 50 ? `${quote.text.slice(0, 50)}...` : quote.text}
+                {quote.text.length > 50 ? `${quote.text.slice(0, 50)}…` : quote.text}
               </span>
               <button
                 onClick={() => removeQuote(quote.id)}
@@ -861,7 +861,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             type="button"
             onClick={refreshSuggestions}
             disabled={isRefreshingSuggestions}
-            className="shrink-0 p-1 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
+            className="shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-0 md:min-w-0 p-1 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
             title={t("chat:input.refresh")}
             aria-label={t("chat:input.refresh")}
             aria-busy={isRefreshingSuggestions}
@@ -1075,11 +1075,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             // While arming the button stays clickable (aria-disabled) so a press gets an answer.
             disabled={isStopping}
             aria-disabled={!stopArmed || isStopping}
-            className={`shrink-0 flex items-center justify-center text-white rounded-lg transition-colors focus-visible:outline-none ${
+            className={`shrink-0 flex items-center justify-center rounded-lg transition-colors focus-visible:outline-none ${
               !stopArmed || isStopping
-                // Same look as the disabled send button in this spot.
-                ? 'bg-[hsl(var(--bg-tertiary))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))]'
-                : 'bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))]'
+                // Muted while arming: secondary ink on the tertiary fill, hairline ring.
+                ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] shadow-[inset_0_0_0_1px_hsl(var(--border-color))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))]'
+                // Same solid danger colors as ui/Button's danger variant.
+                : 'bg-[hsl(var(--danger-solid))] text-white hover:bg-[hsl(var(--danger-hover))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))]'
             } ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={stopButtonLabel}
             aria-label={stopButtonLabel}

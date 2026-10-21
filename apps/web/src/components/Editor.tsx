@@ -1637,21 +1637,22 @@ const EditorComponent: React.FC<EditorProps> = () => {
               </p>
               <div className="flex flex-wrap gap-2">
                 {draftRecovery.kind === "conflict" && !draftRecovery.applied && (
-                  <button
+                  <Button
                     type="button"
+                    size={isMobile ? "touch" : "sm"}
                     onClick={applyRecoveredDraft}
-                    className="min-h-11 rounded bg-[hsl(var(--accent-primary))] px-3 py-1.5 text-xs font-medium text-white"
                   >
                     {t("editor:draftRecovery.restore")}
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size={isMobile ? "touch" : "sm"}
                   onClick={discardRecoveredDraft}
-                  className="min-h-11 rounded border border-[hsl(var(--border-color))] px-3 py-1.5 text-xs"
                 >
                   {t("editor:draftRecovery.discard")}
-                </button>
+                </Button>
               </div>
             </div>
             {draftRecovery.kind === "conflict" && !draftRecovery.applied && (
@@ -1682,14 +1683,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p>{t("editor:serverSyncFailed.message")}</p>
-              <button
+              <Button
                 type="button"
+                size={isMobile ? "touch" : "sm"}
                 onClick={retryServerSync}
                 disabled={serverSyncIssue.retrying}
-                className="min-h-11 rounded bg-[hsl(var(--accent-primary))] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
               >
                 {t(serverSyncIssue.retrying ? "editor:serverSyncFailed.retrying" : "editor:serverSyncFailed.retry")}
-              </button>
+              </Button>
             </div>
           </div>
         )}

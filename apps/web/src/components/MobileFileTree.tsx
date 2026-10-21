@@ -27,6 +27,7 @@ import { fileApi } from "../lib/api";
 import { FOLDER_TYPE_MAP, MATERIAL_FOLDER_NAMES } from "../lib/folderTypeMap";
 import { toast } from "../lib/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Button } from "./ui/Button";
 import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { FileSearchInput } from "./FileSearchInput";
@@ -766,9 +767,9 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   const loadErrorNotice = loadError ? (
     <div role="alert" className="p-3 text-sm text-[hsl(var(--text-secondary))]">
       <p>{t('editor:fileTree.loadFailed')}</p>
-      <button type="button" className="btn-secondary mt-2 min-h-11" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
+      <Button type="button" variant="secondary" size="touch" className="mt-2" disabled={loading} aria-busy={loading} onClick={() => void loadData(true)}>
         {t(loading ? 'common:loading' : 'common:retry')}
-      </button>
+      </Button>
     </div>
   ) : null;
 

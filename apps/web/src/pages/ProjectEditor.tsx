@@ -8,6 +8,7 @@ import { Editor } from "../components/Editor";
 import { ChatPanel } from "../components/ChatPanel";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { PageLoader } from "../components/PageLoader";
+import { Button } from "../components/ui/Button";
 import { useProject } from "../contexts/ProjectContext";
 import { useAuth } from "../contexts/AuthContext";
 import { fileApi } from "../lib/api";
@@ -238,10 +239,10 @@ export default function ProjectEditor() {
   if (error) {
     return (
       <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
-        <div className="text-[hsl(var(--error-text))]">{t('projectLoadFailed')}</div>
-        <button onClick={() => refreshProjects()} className="btn btn-primary">
+        <div role="alert" className="text-[hsl(var(--error-text))]">{t('projectLoadFailed')}</div>
+        <Button onClick={() => refreshProjects()} className="max-md:min-h-11">
           {t('retry')}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -256,7 +257,8 @@ export default function ProjectEditor() {
       <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
         <div className="text-[hsl(var(--text-primary))]">{t('projectNotFound')}</div>
         <div className="flex gap-3">
-          <button
+          <Button
+            className="max-md:min-h-11"
             onClick={async () => {
               attemptedRefreshRef.current = null;
               setNotFound(false);
@@ -267,13 +269,12 @@ export default function ProjectEditor() {
                 setIsEnsuring(false);
               }
             }}
-            className="btn btn-primary"
           >
             {t('tryAgain')}
-          </button>
-          <button onClick={() => navigate("/dashboard", { replace: true })} className="btn btn-ghost">
+          </Button>
+          <Button variant="secondary" className="max-md:min-h-11" onClick={() => navigate("/dashboard", { replace: true })}>
             {t('backToDashboard')}
-          </button>
+          </Button>
         </div>
       </div>
     );

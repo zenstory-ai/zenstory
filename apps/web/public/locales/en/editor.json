@@ -260,6 +260,7 @@
     "rollbackTo": "Restore this snapshot",
     "confirmRollbackTitle": "Restore this project snapshot?",
     "addDescription": "Add description",
+    "editDescription": "Edit description",
     "noDescription": "No description",
     "files": "files",
     "folders": "folders",

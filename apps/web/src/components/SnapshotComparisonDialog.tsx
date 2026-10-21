@@ -18,6 +18,7 @@ import { fileVersionApi, versionApi } from '../lib/api';
 import { formatFullDate } from '../lib/dateUtils';
 import type { SnapshotComparison, VersionComparison } from '../types';
 import { Modal } from './ui/Modal';
+import { Button } from './ui/Button';
 import { DiffViewer } from './DiffViewer';
 
 type FileDiffState =
@@ -45,6 +46,8 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
   const [fileDiffs, setFileDiffs] = useState<Record<string, FileDiffState>>({});
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(() => new Set());
   const comparisonGeneration = useRef(0);
+  // Bumped by the retry button to run the comparison request again.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let isCurrent = true;
@@ -78,7 +81,7 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
     return () => {
       isCurrent = false;
     };
-  }, [snapshotId1, snapshotId2, t]);
+  }, [snapshotId1, snapshotId2, t, reloadKey]);
 
   const loadFileDiff = async (fileId: string, oldVersion: number, newVersion: number) => {
     const generation = comparisonGeneration.current;
@@ -189,9 +192,12 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
         )}
 
         {error && (
-          <div className="flex items-center gap-2 text-[hsl(var(--error-text))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-[hsl(var(--error-text))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
             <AlertCircle className="w-5 h-5" />
-            <span>{error}</span>
+            <span className="flex-1 min-w-0">{error}</span>
+            <Button variant="secondary" size="sm" className="max-md:min-h-11" onClick={() => setReloadKey((key) => key + 1)}>
+              {t('common:retry')}
+            </Button>
           </div>
         )}
 

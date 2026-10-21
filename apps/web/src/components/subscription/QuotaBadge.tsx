@@ -7,6 +7,7 @@ import { Sparkles } from "lucide-react";
 import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '../ui/Badge';
+import { IconButton } from '../ui/IconButton';
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
 import { trackUpgradeClick } from "../../lib/upgradeAnalytics";
 import {
@@ -96,27 +97,26 @@ export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
     <div ref={exposureRef} className={`flex items-center text-xs ${compact ? "shrink-0 gap-1" : "min-w-0 max-w-full flex-wrap gap-2"}`}>
       {compact ? (
         // Not a live region: the counter rarely changes, and role="status"
-        // would compete with the page's real status announcements.
+        // would compete with the page's real status announcements. Screen readers
+        // get the full wording; the bare digits are visual only.
         <span
           data-testid="quota-badge-compact"
           title={usageLabel}
-          aria-label={usageLabel}
           className="inline-flex"
         >
-          {badge}
+          <span className="sr-only">{usageLabel}</span>
+          <span aria-hidden="true" className="inline-flex">{badge}</span>
         </span>
       ) : badge}
       {shouldShowUpgradeAction && (
         compact ? (
-          <button
-            type="button"
+          <IconButton
             onClick={handleUpgradeClick}
-            title={upgradeLabel}
-            aria-label={upgradeLabel}
-            className="inline-flex min-h-11 min-w-11 md:min-h-0 md:min-w-0 items-center justify-center rounded-lg p-1 text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
-          >
-            <Sparkles size={14} aria-hidden="true" />
-          </button>
+            label={upgradeLabel}
+            icon={<Sparkles size={14} aria-hidden="true" />}
+            tone="plain"
+            className="text-[hsl(var(--accent-primary))]"
+          />
         ) : (
           <button
             type="button"

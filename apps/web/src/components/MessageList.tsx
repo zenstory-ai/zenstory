@@ -515,21 +515,21 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
               <div className={`mt-1 flex flex-wrap ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
                 <button
                   type="button"
-                  className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
+                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
                   onClick={() => onIterationAssistAction?.('continue', item)}
                 >
                   {t('workflow.actionContinue', { ns: 'chat' })}
                 </button>
                 <button
                   type="button"
-                  className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
+                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
                   onClick={() => onIterationAssistAction?.('split', item)}
                 >
                   {t('workflow.actionSplit', { ns: 'chat' })}
                 </button>
                 <button
                   type="button"
-                  className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                   onClick={() => onIterationAssistAction?.('manual', item)}
                 >
                   {t('workflow.actionManual', { ns: 'chat' })}
@@ -1050,21 +1050,21 @@ const Row = React.memo(function Row({
                         <div className={`mt-1 flex flex-wrap ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
                           <button
                             type="button"
-                            className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
+                            className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
                             onClick={() => onIterationAssistAction?.('continue', card)}
                           >
                             {t('workflow.actionContinue', { ns: 'chat' })}
                           </button>
                           <button
                             type="button"
-                            className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
+                            className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
                             onClick={() => onIterationAssistAction?.('split', card)}
                           >
                             {t('workflow.actionSplit', { ns: 'chat' })}
                           </button>
                           <button
                             type="button"
-                            className="text-[11px] px-2 py-0.5 rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                            className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                             onClick={() => onIterationAssistAction?.('manual', card)}
                           >
                             {t('workflow.actionManual', { ns: 'chat' })}

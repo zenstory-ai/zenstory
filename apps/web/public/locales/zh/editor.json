@@ -260,6 +260,7 @@
     "rollbackTo": "恢复这个快照",
     "confirmRollbackTitle": "恢复这个项目快照？",
     "addDescription": "添加描述",
+    "editDescription": "编辑描述",
     "noDescription": "无描述",
     "files": "个文件",
     "folders": "个文件夹",

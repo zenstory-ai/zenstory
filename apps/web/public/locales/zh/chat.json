@@ -48,7 +48,7 @@
     "roundSavedFilesMore": "{{files}}等 {{total}} 个文件",
     "creatingSession": "正在创建新对话",
     "newSessionFailed": "没能创建新对话，请重试",
-    "sessionRecoveryFailed": "对话暂时没能加载，请重试",
+    "sessionRecoveryFailed": "对话暂时没能加载，请重试。",
     "readWrittenFiles": "看正文"
   },
   "input": {

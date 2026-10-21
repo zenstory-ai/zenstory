@@ -29,6 +29,7 @@ import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { IconButton } from "./ui/IconButton";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 
 /**
@@ -396,23 +397,21 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                               {project.name}
                             </span>
                             <div className="flex items-center gap-0.5">
-                              <button
+                              <IconButton
                                 onClick={(e) =>
                                   project.id && handleStartEditing(project.id, project.name, e)
                                 }
                                 // Always visible: full strength on touch (no hover there), dimmed on
                                 // desktop until the row is hovered or the button is focused.
-                                className={`text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-all p-1 ${
+                                className={
                                   isMobile
                                     ? "opacity-100"
                                     : "opacity-50 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                                }`}
-                                title={t('editor:projectSwitcher.editName')}
-                                aria-label={t('editor:projectSwitcher.editName')}
+                                }
+                                label={t('editor:projectSwitcher.editName')}
+                                icon={<Pencil size={12} />}
                                 data-testid="project-switcher-rename"
-                              >
-                                <Pencil size={12} />
-                              </button>
+                              />
                               {project.id === currentProjectId && (
                                 <Check
                                   size={14}
@@ -430,15 +429,20 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                       )}
                     </div>
                     {editingProjectId !== project.id && (
-                      <button
+                      <IconButton
                         onClick={(e) =>
                           project.id && handleRequestDeleteProject(project.id, e)
                         }
-                        className="text-[hsl(var(--text-secondary))] opacity-0 group-hover:opacity-100 hover:text-[hsl(var(--error-text))] transition-all p-1"
-                        title={t('editor:projectSwitcher.deleteProject')}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                        // Hidden on desktop until hover or keyboard focus; always shown on touch.
+                        className={
+                          isMobile
+                            ? "opacity-100"
+                            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                        }
+                        tone="danger"
+                        label={t('editor:projectSwitcher.deleteProject')}
+                        icon={<Trash2 size={14} />}
+                      />
                     )}
                   </div>
                 ))}

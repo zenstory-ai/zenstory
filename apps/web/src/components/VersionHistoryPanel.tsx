@@ -32,6 +32,8 @@ import { describeVersionSummary } from '../lib/versionSummary';
 import type { Snapshot } from '../types';
 import { SnapshotComparisonDialog } from './SnapshotComparisonDialog';
 import { Modal } from './ui/Modal';
+import { Button } from './ui/Button';
+import { IconButton } from './ui/IconButton';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 
 /**
@@ -355,10 +357,12 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
           )}
 
           {error && (
-            <div className="flex items-center gap-2 text-[hsl(var(--error-text))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
+            <div role="alert" className="flex flex-wrap items-center gap-2 text-[hsl(var(--error-text))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
               <AlertCircle className="w-5 h-5" />
-              <span>{error}</span>
-              <button onClick={() => void loadSnapshots()}>{t('common:retry')}</button>
+              <span className="flex-1 min-w-0">{error}</span>
+              <Button variant="secondary" size="sm" className="max-md:min-h-11" onClick={() => void loadSnapshots()}>
+                {t('common:retry')}
+              </Button>
             </div>
           )}
 
@@ -388,7 +392,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       {index === 0 && (
-                        <span className="inline-block px-2 py-0.5 text-xs bg-[hsl(var(--success))] text-white rounded mr-2">
+                        <span className="inline-block px-2 py-0.5 text-xs bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))] rounded mr-2">
                           {t('editor:versionHistory.latestSaved')}
                         </span>
                       )}
@@ -441,25 +445,25 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                         autoFocus
                         disabled={actionBusy}
                       />
-                      <button
+                      <IconButton
                         onClick={() => {
                           if (snapshotId) handleSaveDescription(snapshotId);
                         }}
                         disabled={!isSelectable || actionBusy}
-                        className={`p-1.5 bg-[hsl(var(--success))] text-white rounded hover:bg-[hsl(var(--success-dark))] ${!isSelectable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
+                        label={t('common:save')}
+                        icon={<Check className="w-4 h-4" />}
+                        tone="plain"
+                        className="bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))]"
+                      />
+                      <IconButton
                         disabled={actionBusy}
                         onClick={() => {
                           setEditingId(null);
                           setEditDescription('');
                         }}
-                        className="p-1.5 bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] rounded hover:bg-[hsl(var(--bg-hover))]"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                        label={t('common:cancel')}
+                        icon={<X className="w-4 h-4" />}
+                      />
                     </div>
                   ) : (
                     <div className="flex items-start gap-2 mb-2">
@@ -468,17 +472,16 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                           <span className="text-[hsl(var(--text-secondary))]">{t('editor:versionHistory.noDescription')}</span>
                         )}
                       </p>
-                      <button
+                      <IconButton
                         onClick={() => {
                           if (!snapshotId) return;
                           setEditingId(snapshotId);
                           setEditDescription(describeVersionSummary(snapshot.description, t) ?? '');
                         }}
                         disabled={!isSelectable || actionBusy}
-                        className={`p-1 hover:bg-[hsl(var(--bg-hover))] rounded text-[hsl(var(--text-secondary))] ${!isSelectable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                        label={t('editor:versionHistory.editDescription', { defaultValue: '编辑描述' })}
+                        icon={<Edit2 className="w-3.5 h-3.5" />}
+                      />
                     </div>
                   )}
 
