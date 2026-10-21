@@ -615,8 +615,11 @@ def _build_agent(
     # ``thinking`` toggle for short single-shot calls (suggestions, polish).
     # #278: AGENT_REASONING_EFFORT exists only for controlled comparisons; it is unset in
     # production (see .agents/notes/.../2026-10-19-reasoning-effort-evaluation.md).
-    from agents import Agent, ModelSettings
+    from agents import Agent, ModelSettings, set_tracing_disabled
     from openai.types.shared import Reasoning
+
+    # 与 RunConfig(tracing_disabled=True) 双保险：在任何 run 开始前全局关掉 SDK tracing。
+    set_tracing_disabled(True)
 
     from agent.tools.mcp_tools import ToolContext
 
@@ -915,6 +918,10 @@ async def run_openai_agents_streaming_agent(
                 # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool
                 # execution to preserve the previous sequential contract and avoid Session races.
                 run_config=RunConfig(
+                    # 不向 OpenAI 的 trace 后端导出任何内容（作者的稿件与对话）。模型客户端在第一次
+                    # 模型调用时才建，那时 SDK 已经为这次 run 开了 trace，所以这里按 run 关掉。
+                    tracing_disabled=True,
+                    trace_include_sensitive_data=False,
                     tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
                     # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
                     # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；

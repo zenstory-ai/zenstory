@@ -246,8 +246,10 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 工具清单以 `tools/registry.py` 为准：每个角色、每一轮在请求里看到的都是同一份 `EXPOSED_TOOL_NAMES`（前缀缓存不按角色分裂）；
 角色能执行哪些工具由 `AGENT_TOOL_NAME_MAP` 决定（`DEFAULT_TOOL_NAMES` 给 planner / hook_designer / writer，`QUALITY_REVIEWER_TOOL_NAMES`
 给审稿人，没有写工具），越权调用在 `tools_adapter` 里以 `tool_not_permitted_for_role` 拒绝，本轮不可用的工具写进运行指令的
-`## 本轮工具限制`。create_file 建好空文件后返回 `awaiting_body`，紧接着那次模型调用只能回复文字（`openai_agents/model.py`），
-正文必须以 <file> 流式写出。[fast-mode-summary-and-file-body-turn][n-body-turn]
+`## 本轮工具限制`。create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次回复没先以 <file> 写完正文就调用的工具
+（delete_file / request_clarification 除外）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
+先写完正文再 create_file 下一个文件的连写照常。SDK tracing 每次 run 都关掉（`RunConfig(tracing_disabled=True)`），不向 OpenAI 导出内容。
+[fast-mode-summary-and-file-body-turn][n-body-turn]
 
 | 工具 | 用途 |
 |---|---|

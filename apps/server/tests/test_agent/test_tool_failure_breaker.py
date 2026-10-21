@@ -840,3 +840,49 @@ def test_repeated_read_only_refusal_trips_as_unavailable_call():
     assert trip is not None
     assert trip.reason == TRIP_REASON_TOOL_NOT_FOUND
     assert "相同参数" not in trip.user_message()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+async def test_agent_run_exports_no_traces_even_in_a_fresh_process(monkeypatch):
+    """The SDK must never send traces (authors' drafts and messages) to OpenAI's trace backend.
+
+    The model client is built at the first model call, after the SDK opened the run's
+    trace; production logged trace exports (401) on the first run of each new process.
+    """
+    from agents import add_trace_processor, set_tracing_disabled
+    from agents.tracing import TracingProcessor
+
+    class _Recorder(TracingProcessor):
+        def __init__(self):
+            self.events: list[str] = []
+
+        def on_trace_start(self, trace):
+            self.events.append("trace")
+
+        def on_trace_end(self, trace):
+            pass
+
+        def on_span_start(self, span):
+            self.events.append("span")
+
+        def on_span_end(self, span):
+            pass
+
+        def shutdown(self):
+            pass
+
+        def force_flush(self):
+            pass
+
+    recorder = _Recorder()
+    add_trace_processor(recorder)
+    set_tracing_disabled(False)  # a fresh server process: nothing has disabled tracing yet
+
+    def script(index: int) -> list[dict]:
+        return _text_chunks("好的。")
+
+    await _run_against_local_model(monkeypatch, script, None)
+
+    assert recorder.events == []
