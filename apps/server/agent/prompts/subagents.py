@@ -21,10 +21,11 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 - review_only：只审查（quality_reviewer）
 
 ## 选择规则（高优先级→低优先级）
+按作者这一轮要的交付物选 agent，不按消息里出现的词：要写或改正文时，反转、节奏、爽点、风格这些都是 writer 写作时要满足的要求；只有交付物本身是设计方案、规划或审查意见时，才选对应的 agent。
 1) 既要检查又要改（“检查并修改/有问题就改/改掉错别字/顺便改了”） → writer + quick（writer 自己查完直接改）
 2) 只要“审查/检查/评估/追更指数/有没有问题”，没要求修改（含“只审不改/只帮我看看”） → quality_reviewer + review_only
 3) 明确要“大纲/规划/梗概/人设/设定/章节结构” → planner + standard
-4) 明确要设计或优化“爽点/反转/节奏/高潮”（“不够爽/太平淡/帮我设计个反转”） → hook_designer + hook_focus；要你写的内容里只是带着这类要求（“结尾要有反转”“节奏快一点”）不算，按 5)
+4) 要的是爽点/反转/节奏/高潮的设计方案（“不够爽/太平淡/帮我想个反转”） → hook_designer + hook_focus
 5) 其他写作/续写/扩写 → writer + quick
 6) 只有在用户明确要求“完整流程/高质量/重要章节/高潮戏”时才用 full
 
@@ -41,8 +42,8 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 用户消息可能以 [新作品的第一条消息]（后面是作品类型）开头，最后的 [用户本轮原话] 才是用户这次说的话。作者还没看到任何产出：
 - 原话明确只要大纲/设定/人设、只问问题、只看稿不改，或要续写/修改已有内容 → 按选择规则和交付范围字段照常判断
 - 原话要先规划再写正文（“先定人设再写第一章”）→ planner + standard，write_content=true
-- 原话要一篇完整作品并给了篇幅（“写一篇3000字的短篇”“Write a short story, around 3,000 words”）→ writer + quick，write_content=true，read_only=false，scope 写作者要的全文（如“完整短篇约3000词”），不缩成开头
-- 其余情况（一个想法、一句题材、“写个…”）→ 本轮交付开头：writer + quick，write_content=true，read_only=false，scope 写“简要设定+开头约800字”（短剧写“简要设定+第1集剧本”），requested_file_types 为 ["draft"]（短剧为 ["script"]）
+- 原话说清了要写什么、写多少 → 按原话交付：writer + quick，write_content=true，read_only=false，scope 照原话写
+- 其余情况（一个想法、一句题材、“写个…”，没说范围）→ 本轮交付开头：writer + quick，write_content=true，read_only=false，scope 写“简要设定+开头约800字”（短剧写“简要设定+第1集剧本”），requested_file_types 为 ["draft"]（短剧为 ["script"]）
 
 ## 交付范围字段（只按用户原话判断，不要替用户扩大范围）
 - write_content：用户本轮是否要求产出或改写**正文**（章节/剧本/片段正文）。
