@@ -70,9 +70,9 @@ describe("DashboardBannerSlot", () => {
 
   it.each([
     ["8 days left", () => getStatus.mockResolvedValue(proStatus(8)), null],
-    ["7 days left", () => getStatus.mockResolvedValue(proStatus(7)), /^Pro 将于 .+ 到期$/],
-    ["1 day left", () => getStatus.mockResolvedValue(proStatus(1)), /^Pro 即将到期，.+ 后回到免费版$/],
-    ["under a day left", () => getStatus.mockResolvedValue(proStatus(0)), /^Pro 即将到期/],
+    ["7 days left", () => getStatus.mockResolvedValue(proStatus(7)), /^你的 Pro .+到期$/],
+    ["1 day left", () => getStatus.mockResolvedValue(proStatus(1)), "你的 Pro 快到期了"],
+    ["under a day left", () => getStatus.mockResolvedValue(proStatus(0)), "你的 Pro 快到期了"],
     ["free plan", () => getStatus.mockResolvedValue(proStatus(0, { tier: "free", current_period_end: null, days_remaining: null })), null],
     ["cancelled Pro", () => getStatus.mockResolvedValue(proStatus(1, { status: "cancelled" })), null],
     ["status request failed", () => getStatus.mockRejectedValue(new Error("offline")), null],
@@ -110,6 +110,6 @@ describe("DashboardBannerSlot", () => {
 
     getStatus.mockResolvedValue(proStatus(1));
     renderSlot();
-    expect(await screen.findByText(/^Pro 即将到期/)).toBeVisible();
+    expect(await screen.findByText("你的 Pro 快到期了")).toBeVisible();
   });
 });

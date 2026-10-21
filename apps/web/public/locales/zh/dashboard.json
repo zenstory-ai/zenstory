@@ -166,10 +166,10 @@
   },
   "renewalReminder": {
     "regionLabel": "Pro 到期提醒",
-    "titleWeek": "Pro 将于 {{date}} 到期",
-    "titleFinal": "Pro 即将到期，{{date}} 后回到免费版",
-    "descriptionWeek": "提前续费不会浪费剩余天数，新的时长从原到期日起顺延。",
-    "descriptionFinal": "现在续费，剩余天数照样保留，新的时长从原到期日起顺延。",
+    "titleWeek": "你的 Pro {{date}}到期",
+    "titleFinal": "你的 Pro 快到期了",
+    "descriptionWeek": "现在续费不会浪费剩下的天数，新时长接在到期日之后。",
+    "descriptionFinal": "{{date}}之后会回到免费版。现在续费，剩下的天数照样算。",
     "action": "续费 Pro",
     "close": "关闭提醒"
   },

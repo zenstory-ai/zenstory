@@ -14,16 +14,18 @@ Pro 是支付宝一次性付款、不自动续费。2026-10-20 只读查询生�
 2. **纯前端，按现有 `GET /api/v1/subscription/me` 的 `days_remaining` 判定。** `useRenewalReminder` 只对 `tier != free` 且 `status == active` 的账号生效：`days_remaining <= 7` 为「到期前 7 天」档，`<= 1` 为「最后 1 天」档（`days_remaining` 向下取整，0 表示不足 24 小时）。邀请试用、兑换码开通的 Pro 同样提醒，因为到期后同样回到免费版。不改后端、不加迁移。
 3. **首页仍只有一条横幅。** `DashboardBannerSlot` 中续费提醒优先于站内公告；提醒被关闭或不在窗口内时，公告照常显示。不进入项目编辑器。
 4. **关闭按「账号 + 到期时间 + 档位」记在浏览器本地。** 关掉 7 天档后最后 1 天仍会再提醒一次；续费会改变到期时间，下一个周期重新计算。存储不可用时只在本次会话收起。状态查询 `refetchOnMount: "always"`，从别处续费后回首页即消失。
-5. **文案只陈述事实。** 标题给出北京日期（`formatBeijingPeriodDate`），说明写「提前续费不会浪费剩余天数，新的时长从原到期日起顺延」——这是 `create_user_subscription` 对有效期内同套餐续费的现有行为。不承诺优惠、不写免费额度数字。
+5. **文案口语、只陈述事实。** 7 天档「你的 Pro 11月4日到期／现在续费不会浪费剩下的天数，新时长接在到期日之后。」，最后 1 天档「你的 Pro 快到期了／11月4日之后会回到免费版。现在续费，剩下的天数照样算。」日期用北京时间的月日（`formatBeijingMonthDay`，英文为 "November 4"），7 天内不需要年份。「接在到期日之后」是 `create_user_subscription` 对有效期内同套餐续费的现有行为。不承诺优惠、不写免费额度数字。
 6. **归因。** 按钮在当前页跳到 `/dashboard/billing?plan=pro&source=renewal_reminder`，复用账单页既有的 `plan=pro` 直接打开结账弹窗与 `source` → `upgrade_source` 传递，订单的 `payment_order.upgrade_source` 记为 `renewal_reminder`。展示／点击走既有升级漏斗（`source=renewal_reminder`, `surface=card`, `meta.stage`），关闭另记 PostHog `renewal_reminder_dismissed`。打开结账弹窗不是付款，付款仍需用户在弹窗内确认。
+7. **从提醒进入的结账默认选月付。** 点击时写入账单页既有的 `payment_cycle_intent=month`（定价页选月付用的同一通道），其他入口仍默认年付。依据是 2026-10-20 生产数据：会被提醒的付费用户全部买的是月付，年付 0 笔；让他们续费时先把年付改回月付只会多一步。用户仍可在弹窗里切到年付。
 
-验证：`DashboardBannerSlot.test.tsx` 覆盖 8/7/1/0 天、免费、已取消、状态请求失败时的横幅选择，续费链接归因，以及关闭 7 天档后最后 1 天档仍出现（已用改坏阈值与去掉档位键两种变异确认测试会失败）；`AnnouncementBanner` 既有测试覆盖外观抽取。Chromium mock E2E（`billing-announcements-mocked.spec.ts`）在 390px 下验证提醒占位、公告让位、无横向溢出、点击后结账弹窗打开，以及创建订单请求体带 `upgrade_source: renewal_reminder`。未做真实付款或线上验收。
+验证：`DashboardBannerSlot.test.tsx` 覆盖 8/7/1/0 天、免费、已取消、状态请求失败时的横幅选择，续费链接归因，以及关闭 7 天档后最后 1 天档仍出现（已用改坏阈值与去掉档位键两种变异确认测试会失败）；`AnnouncementBanner` 既有测试覆盖外观抽取。Chromium mock E2E（`billing-announcements-mocked.spec.ts`）在 390px 下验证提醒占位、公告让位、无横向溢出、点击后结账弹窗打开且默认选中月付，以及创建订单请求体带 `cycle: month` 与 `upgrade_source: renewal_reminder`。未做真实付款或线上验收。
 
 ## Alternatives considered
 
 - **在公告后台发一条「Pro 快到期」公告。** 零开发、当天可上线；但公告对所有已登录用户可见，免费用户也会看到，且占掉唯一公告位。为此给公告加分群会把轻量横幅变成投递系统，正是上一份笔记有意不做的。
 - **后端定时任务发到期邮件。** 触达不依赖用户打开首页，覆盖只在编辑器里写作的人；但需要排程基础设施、邮件模板与退订处理，生产也没有现成的定时任务，赶不上 11-04 首批到期。首版先做站内提醒，邮件视续费数据再议。
 - **到期后显示「Pro 已到期」提醒。** 能挽回已流失的用户；但到期后状态接口返回免费版、不再带原到期信息，需要后端补字段。首版只做到期前。
+- **提醒进入的结账沿用年付默认。** 续费时刚好推一次年付，也能测年付在续费时刻的转化；但这批用户全是月付买家，默认 ¥399 会让最常见的续费多一步、甚至在价格上被吓退。季度档与年付的推广等续费数据出来再定。
 - **点击只跳账单页、不直接打开结账弹窗。** 更克制；但用户点的就是「续费 Pro」，多一步只会增加流失，且账单页头部按钮本来就直接打开同一个弹窗。
 
 ## Consequences

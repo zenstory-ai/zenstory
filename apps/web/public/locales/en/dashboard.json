@@ -166,10 +166,10 @@
   },
   "renewalReminder": {
     "regionLabel": "Pro renewal reminder",
-    "titleWeek": "Pro ends on {{date}}",
-    "titleFinal": "Pro ends soon, back to Free after {{date}}",
-    "descriptionWeek": "Renewing early doesn't waste your remaining days. The new time starts from your current end date.",
-    "descriptionFinal": "Renew now and keep your remaining days. The new time starts from your current end date.",
+    "titleWeek": "Your Pro plan ends {{date}}",
+    "titleFinal": "Your Pro plan is about to end",
+    "descriptionWeek": "Renew now and you won't lose a day. The new period starts when this one ends.",
+    "descriptionFinal": "You'll be back on Free after {{date}}. Renew now and keep your remaining days.",
     "action": "Renew Pro",
     "close": "Dismiss reminder"
   },

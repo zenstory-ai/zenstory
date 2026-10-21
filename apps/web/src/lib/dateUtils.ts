@@ -268,6 +268,13 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
  * periods follow. With `exclusiveEnd` the value is a period's end (the instant
  * the next period starts), so the last day inside the period is shown.
  */
+/** Format an instant as its Beijing month and day ("11月4日" / "November 4") for near-term dates. */
+export function formatBeijingMonthDay(value: string): string {
+  const date = parseUTCDate(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString(getLocaleCode(), { month: "long", day: "numeric", timeZone: "Asia/Shanghai" });
+}
+
 export function formatBeijingPeriodDate(
   value: string | null | undefined,
   { exclusiveEnd = false }: { exclusiveEnd?: boolean } = {},

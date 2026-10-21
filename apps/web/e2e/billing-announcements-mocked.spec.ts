@@ -87,7 +87,7 @@ test('paid accounts lead with expiry, usage and renewal, not an acquisition offe
   await expect(page.getByRole('dialog', { name: '续费 Pro', exact: true })).toBeVisible();
 });
 
-test('an expiring Pro takes the banner slot and its renewal order is attributed to the reminder', async ({ page }) => {
+test('an expiring Pro takes the banner slot and its monthly renewal order is attributed to the reminder', async ({ page }) => {
   await setup(page, 'pro');
   await page.route('**/api/v1/subscription/me', route => route.fulfill({ json: {
     tier: 'pro', display_name: 'Pro', status: 'active', current_period_end: '2026-11-04T04:00:00Z', days_remaining: 3,
@@ -103,16 +103,17 @@ test('an expiring Pro takes the banner slot and its renewal order is attributed 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/dashboard');
   const reminder = page.getByRole('region', { name: 'Pro 到期提醒', exact: true });
-  await expect(reminder.getByText('Pro 将于 2026/11/04 到期', { exact: true })).toBeVisible();
+  await expect(reminder.getByText('你的 Pro 11月4日到期', { exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: '站内公告', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: test.info().outputPath('renewal-reminder-mobile.png') });
   await reminder.getByRole('link', { name: '续费 Pro', exact: true }).click();
   const checkout = page.getByRole('dialog', { name: '续费 Pro', exact: true });
   await expect(checkout).toBeVisible();
-  await checkout.getByRole('button', { name: /^去支付/ }).click();
+  await expect(checkout.getByRole('radio', { name: /^月付/ })).toBeChecked();
+  await checkout.getByRole('button', { name: '去支付 ¥49', exact: true }).click();
   await expect.poll(() => orderBodies.length).toBe(1);
-  expect(orderBodies[0]).toMatchObject({ upgrade_source: 'renewal_reminder' });
+  expect(orderBodies[0]).toMatchObject({ cycle: 'month', upgrade_source: 'renewal_reminder' });
 });
 
 test('admin publishes one banner, dismissal persists, a new version reappears, and stopping preserves published content', async ({ page }) => {
