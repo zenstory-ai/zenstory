@@ -10,13 +10,13 @@ Status: implemented
 
 - 注册页去掉用户名和确认密码。密码框带「显示密码 / 隐藏密码」按钮（`aria-pressed`），作者可自行核对输入。
 - 邀请码选填且邀请功能开启时折叠为「有邀请码？」链接，点开才显示输入框；邀请链接预填、策略要求必填、或返回邀请码相关错误时直接展开。邀请功能关闭（[隐藏积分与邀请](2026-10-20-hide-points-and-referral.md)）时选填的邀请码不显示也不发送，必填时照常显示。
-- 邮箱框用原生 `<datalist>` 按已输入的前缀补全常见后缀（qq.com、163.com、gmail.com、126.com、outlook.com、foxmail.com 等，`lib/emailSuggestions.ts`）。
+- 邮箱框按已输入的前缀补全常见后缀（qq.com、163.com、gmail.com、126.com、outlook.com、foxmail.com 等，`lib/emailSuggestions.ts`），列表画在输入框正下方（`components/EmailSuggestionInput.tsx`，最多 6 项，沿用输入框的边框、圆角与表面色）：combobox 语义，上下键移动、回车选中、Esc 关闭，选中后焦点移到密码框。
 - 后端 `RegisterRequest.username` 改为可选（空白视为未填）；未填时用邮箱前缀生成未被占用的用户名（重名加数字后缀，不足 3 字符补齐），与 Google 注册共用 `services/core/auth_service.unique_username`。旧前端仍可传用户名，规则不变。邀请码策略按邮箱判定，与原来一致。
 
 ## Alternatives considered
 
 - **保留确认密码。** 最强理由：减少打错密码导致无法登录。被否：显示密码按钮同样能核对，且有忘记密码流程兜底；多一项输入对所有人都有成本。
-- **自定义邮箱补全下拉。** 最强理由：外观可控、移动端表现一致。被否：需要自行处理键盘导航与读屏语义；原生 datalist 可访问性由浏览器负责。
+- **原生 `<datalist>`。** 最强理由：键盘与读屏语义由浏览器负责，代码最少。被否：Mac 上的 Safari / Chrome 把弹层画在离输入框很远的位置、使用系统样式，与表单不协调（预览中实测）；自绘列表按 combobox 模式补齐键盘与读屏语义。
 - **注册后再让作者设置用户名。** 最强理由：用户名仍由作者决定。未采用：多一步打断进入工作台；作者随时可在设置里修改用户名。
 
 ## Consequences

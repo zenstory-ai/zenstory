@@ -394,17 +394,29 @@ describe("Register", () => {
     expect(screen.getByRole("button", { name: /auth:register\.hidePassword/ })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("suggests common mail domains for what has been typed", () => {
+  it("suggests common mail domains under the field and completes one on click or Enter", async () => {
+    const user = userEvent.setup();
     renderWithRoute("/register");
     const email = screen.getByLabelText("auth:register.emailLabel");
 
-    fireEvent.change(email, { target: { value: "lin@g" } });
+    await user.click(email);
+    await user.type(email, "lin@g");
+    expect(email).toHaveAttribute("aria-expanded", "true");
+    const [option] = screen.getAllByRole("option");
+    expect(option).toHaveTextContent("lin@gmail.com");
+    await user.click(option);
 
-    const options = [...document.querySelectorAll("#register-email-suggestions option")].map(
-      (option) => (option as HTMLOptionElement).value,
-    );
-    expect(email).toHaveAttribute("list", "register-email-suggestions");
-    expect(options).toEqual(["lin@gmail.com"]);
+    expect(email).toHaveValue("lin@gmail.com");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("auth:register.passwordLabel")).toHaveFocus();
+
+    await user.clear(email);
+    await user.type(email, "mo");
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{Enter}");
+    expect(email).toHaveValue("mo@163.com");
+    expect(mockRegister).not.toHaveBeenCalled();
   });
 
   it("folds an optional invite code behind a link and opens it on request", async () => {

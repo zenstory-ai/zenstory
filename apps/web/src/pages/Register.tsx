@@ -13,7 +13,7 @@ import { translateError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { normalizePlanIntent, type PlanIntent } from "../lib/authFlow";
 import { Eye, EyeOff } from "lucide-react";
-import { emailSuggestions } from "../lib/emailSuggestions";
+import { EmailSuggestionInput } from "../components/EmailSuggestionInput";
 
 const MAX_PASSWORD_BYTES = 72;
 
@@ -137,7 +137,6 @@ export const Register: React.FC = () => {
   const inviteCodeAllowed = referralConfig.enabled || !inviteCodeOptional;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
   const isPasswordLengthValid = password.length >= 6;
-  const suggestedEmails = emailSuggestions(email);
   // An allowed but optional code folds behind a link unless it is prefilled or already typed.
   const showInviteCodeField = !inviteCodeOptional || inviteCodePrefilled || inviteOpen || trimmedInviteCode.length > 0;
   // The submit button is only disabled while a request is running or after
@@ -448,29 +447,23 @@ export const Register: React.FC = () => {
               >
                 {t('auth:register.emailLabel')}
               </label>
-              <input
+              <EmailSuggestionInput
                 id="email"
-                type="email"
                 autoComplete="email"
                 value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
+                onValueChange={(value) => {
+                  setEmail(value);
                   resetSubmitStateOnInput();
                 }}
+                onSuggestionChosen={() => document.getElementById("password")?.focus()}
                 className="input min-h-11"
                 placeholder={t('auth:register.emailPlaceholder')}
                 required
                 autoFocus
-                list="register-email-suggestions"
                 disabled={loading || success}
                 aria-invalid={trimmedEmail.length > 0 && !isEmailValid}
                 aria-describedby={formError ? "register-form-error" : "register-email-helper"}
               />
-              <datalist id="register-email-suggestions">
-                {suggestedEmails.map((suggestion) => (
-                  <option key={suggestion} value={suggestion} />
-                ))}
-              </datalist>
               <p id="register-email-helper" className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
                 {t('auth:register.emailRule', '验证码会发到这个邮箱')}
               </p>
