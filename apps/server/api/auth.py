@@ -28,6 +28,7 @@ from services.auth import (
 )
 from services.verification_service import send_verification_code
 from sqlalchemy import delete, or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -47,7 +48,7 @@ from services.features import password_reset_service
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
 from services.features.registration_recovery_service import correct_registration_email
-from services.features.user_preference_service import get_ui_language, set_ui_language
+from services.features.user_preference_service import get_ui_language, normalize_ui_language, set_ui_language
 from services.features.verification_service import clear_registration_verification
 from services.infra.email_client import InvalidRecipientError
 from services.subscription.subscription_service import subscription_service
@@ -1168,8 +1169,16 @@ def update_current_user_preferences(
     session: Session = Depends(get_session),
 ):
     """Store the interface language the user switched to; unsupported values are ignored."""
-    stored = set_ui_language(session, current_user.id, request.ui_language)
-    session.commit()
+    if normalize_ui_language(request.ui_language) is None:
+        return UserPreferencesResponse(ui_language=get_ui_language(session, current_user.id))
+    try:
+        stored = set_ui_language(session, current_user.id, request.ui_language)
+        session.commit()
+    except IntegrityError:
+        # Two first saves raced to create the row: the other one won, so update it.
+        session.rollback()
+        stored = set_ui_language(session, current_user.id, request.ui_language)
+        session.commit()
     return UserPreferencesResponse(ui_language=stored)
 
 

@@ -4,6 +4,9 @@ import { logger } from './logger';
 
 const SUPPORTED_LANGUAGES = new Set(['zh', 'en']);
 
+// Saves go out one after another, so the last switch is the one the account keeps.
+let pendingSave: Promise<unknown> = Promise.resolve();
+
 function primaryLanguage(language: string | null | undefined): string {
   return (language ?? '').split('-')[0].toLowerCase();
 }
@@ -11,9 +14,14 @@ function primaryLanguage(language: string | null | undefined): string {
 /**
  * Keep the interface language on the signed-in account. The account's language (sent with the
  * user payload) wins, so a new device or browser opens in it; a language the user switches to
- * afterwards is saved back. Returns the cleanup for sign-out or a different account.
+ * afterwards is reported through `onSwitched` (so the signed-in user and its cache follow at once)
+ * and saved back. Returns the cleanup for sign-out or a different account.
  */
-export function syncAccountLanguage(i18n: I18n, accountLanguage: string | null | undefined): () => void {
+export function syncAccountLanguage(
+  i18n: I18n,
+  accountLanguage: string | null | undefined,
+  onSwitched?: (language: string) => void,
+): () => void {
   let active = true;
   let saved = primaryLanguage(accountLanguage);
   if (SUPPORTED_LANGUAGES.has(saved) && saved !== primaryLanguage(i18n.language)) {
@@ -24,7 +32,10 @@ export function syncAccountLanguage(i18n: I18n, accountLanguage: string | null |
     const language = primaryLanguage(lng);
     if (!active || !SUPPORTED_LANGUAGES.has(language) || language === saved) return;
     saved = language;
-    api.put('/api/auth/me/preferences', { ui_language: language })
+    onSwitched?.(language);
+    pendingSave = pendingSave
+      .catch(() => undefined)
+      .then(() => api.put('/api/auth/me/preferences', { ui_language: language }))
       .catch(error => logger.warn('[AccountLanguage] Failed to save the interface language', error));
   };
   i18n.on('languageChanged', onLanguageChanged);

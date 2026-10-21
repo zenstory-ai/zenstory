@@ -36,13 +36,14 @@ def get_ui_language(session: Session, user_id: str) -> str | None:
 
 
 def set_ui_language(session: Session, user_id: str, language: str | None) -> str | None:
-    """Store a supported language (unsupported values are ignored) and return what is stored.
+    """Stage a supported language and return it; an unsupported value changes nothing and returns None.
 
-    Adds to the caller's session without committing, so sign-up can keep it in its own transaction.
+    Adds to the caller's session without committing or reading anything else, so sign-up can keep
+    it in its own transaction.
     """
     normalized = normalize_ui_language(language)
     if normalized is None:
-        return get_ui_language(session, user_id)
+        return None
     preference = session.get(UserPreference, user_id)
     if preference is None:
         preference = UserPreference(user_id=user_id)

@@ -302,12 +302,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [setUser]);
 
   // The interface language follows the account across devices (see lib/accountLanguage).
+  // A switch updates the signed-in user and its cache at once, so a reload inside the cache
+  // window does not bring back the previous language.
   const signedInUserId = user?.id;
   const accountLanguage = user?.ui_language;
+  const rememberAccountLanguage = React.useCallback((language: string) => {
+    setUserState(current => (current ? { ...current, ui_language: language } : current));
+    const cached = getValidCachedUser();
+    if (cached && cached.id === signedInUserId) saveUserCache({ ...cached, ui_language: language });
+  }, [signedInUserId]);
   useEffect(() => {
     if (!signedInUserId) return;
-    return syncAccountLanguage(i18next, accountLanguage);
-  }, [signedInUserId, accountLanguage]);
+    return syncAccountLanguage(i18next, accountLanguage, rememberAccountLanguage);
+  }, [signedInUserId, accountLanguage, rememberAccountLanguage]);
 
   useEffect(() => {
     if (loading) return;

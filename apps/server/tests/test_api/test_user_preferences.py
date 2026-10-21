@@ -72,3 +72,15 @@ async def test_sign_up_stores_the_interface_language(client: AsyncClient, db_ses
 
     user = db_session.exec(select(User).where(User.email == "english_writer@example.com")).one()
     assert db_session.get(UserPreference, user.id).ui_language == "en"
+
+
+@pytest.mark.integration
+def test_staging_an_unsupported_language_reads_nothing(db_session):
+    """Sign-up stages the language inside its own transaction: an unsupported value must not touch the session."""
+    from unittest.mock import MagicMock
+
+    from services.features.user_preference_service import set_ui_language
+
+    session = MagicMock()
+    assert set_ui_language(session, "user-1", "fr") is None
+    assert session.method_calls == []
