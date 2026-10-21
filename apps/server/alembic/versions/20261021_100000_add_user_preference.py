@@ -15,6 +15,10 @@ depends_on = None
 
 
 def upgrade():
+    # The API's start-up create_all may already have made this table (for example if the new code
+    # started before this migration ran); the migration then only records the revision.
+    if "user_preference" in sa.inspect(op.get_bind()).get_table_names():
+        return
     op.create_table(
         "user_preference",
         sa.Column("user_id", sa.String(), nullable=False),

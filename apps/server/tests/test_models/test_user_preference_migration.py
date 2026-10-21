@@ -55,3 +55,18 @@ def test_user_preference_migration_is_additive_and_reversible(tmp_path: Path):
     with engine.begin() as connection:
         assert connection.execute(text("SELECT value FROM migration_sentinel")).scalar_one() == "preserve-me"
     engine.dispose()
+
+
+@pytest.mark.integration
+def test_user_preference_migration_accepts_a_table_made_at_start_up(tmp_path: Path):
+    """create_all at API start-up may create the table before the migration runs."""
+    db_url = f"sqlite:///{tmp_path / 'user-preference-existing.db'}"
+    engine = create_engine(db_url)
+    SQLModel.metadata.create_all(engine)
+    engine.dispose()
+    _alembic(db_url, "stamp", DOWN_REVISION)
+    _alembic(db_url, "upgrade", REVISION)
+
+    engine = create_engine(db_url)
+    assert "user_preference" in inspect(engine).get_table_names()
+    engine.dispose()
