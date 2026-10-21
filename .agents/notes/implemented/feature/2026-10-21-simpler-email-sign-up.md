@@ -9,7 +9,7 @@ Status: implemented
 ## Decision
 
 - 注册页去掉用户名和确认密码。密码框带「显示密码 / 隐藏密码」按钮（`aria-pressed`），作者可自行核对输入。
-- 邀请码选填时折叠为「有邀请码？」链接，点开才显示输入框；邀请链接预填、策略要求必填、或返回邀请码相关错误时直接展开。
+- 邀请码选填且邀请功能开启时折叠为「有邀请码？」链接，点开才显示输入框；邀请链接预填、策略要求必填、或返回邀请码相关错误时直接展开。邀请功能关闭（[隐藏积分与邀请](2026-10-20-hide-points-and-referral.md)）时选填的邀请码不显示也不发送，必填时照常显示。
 - 邮箱框用原生 `<datalist>` 按已输入的前缀补全常见后缀（qq.com、163.com、gmail.com、126.com、outlook.com、foxmail.com 等，`lib/emailSuggestions.ts`）。
 - 后端 `RegisterRequest.username` 改为可选（空白视为未填）；未填时用邮箱前缀生成未被占用的用户名（重名加数字后缀，不足 3 字符补齐），与 Google 注册共用 `services/core/auth_service.unique_username`。旧前端仍可传用户名，规则不变。邀请码策略按邮箱判定，与原来一致。
 
