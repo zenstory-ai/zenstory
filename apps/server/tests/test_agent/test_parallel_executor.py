@@ -471,6 +471,22 @@ class TestExecuteParallel:
         log.warning.assert_called_once()
         log.error.assert_not_called()
 
+    @pytest.mark.parametrize("task", [
+        {"tool": "query_files", "description": "Read", "args": {"id": "f1"}},
+        {"name": "query_files", "description": "Read", "arguments": {"id": "f1"}},
+    ])
+    async def test_common_key_aliases_for_type_and_params_are_accepted(self, task):
+        """Production logs: models write tool/args instead of type/params; a wasted call each time."""
+        with (
+            patch("agent.tools.parallel_executor.handle_query_files", return_value=_make_result({"status": "success"})) as handler,
+            patch("agent.core.progress_channel.emit_progress"),
+        ):
+            parsed = json.loads((await execute_parallel([task]))["content"][0]["text"])
+
+        assert parsed["status"] != "error"
+        handler.assert_called_once()
+        assert handler.call_args.args[0] == {"id": "f1"}
+
     async def test_invalid_type_beyond_limit_still_rejects_whole_batch(self):
         tasks = [
             {"type": "query_files", "description": "Read", "params": {}}

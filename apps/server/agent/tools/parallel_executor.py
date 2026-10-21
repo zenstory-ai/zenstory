@@ -438,6 +438,29 @@ async def handle_query_files(params: dict[str, Any]) -> dict[str, Any]:
         raise
 
 
+# 模型常把任务类型写成 tool / name、把参数写成 args / arguments（生产日志里「缺少必填字段 type」
+# 每天都有几次，每次白烧一轮模型调用）：取值合法时照收。
+_TASK_TYPE_ALIASES = ("tool", "tool_name", "name", "action")
+_TASK_PARAMS_ALIASES = ("args", "arguments", "input", "parameters")
+
+
+def _normalize_task_keys(task: Any) -> Any:
+    if not isinstance(task, dict) or isinstance(task.get("type"), str):
+        return task
+    normalized = dict(task)
+    for key in _TASK_TYPE_ALIASES:
+        value = normalized.get(key)
+        if isinstance(value, str) and value in PARALLEL_TASK_TYPES:
+            normalized["type"] = value
+            break
+    if "params" not in normalized:
+        for key in _TASK_PARAMS_ALIASES:
+            if isinstance(normalized.get(key), dict):
+                normalized["params"] = normalized[key]
+                break
+    return normalized
+
+
 async def execute_parallel(
     tasks: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -459,6 +482,7 @@ async def execute_parallel(
     from agent.core.progress_channel import emit_progress
     from agent.tools.mcp_tools import ToolContext
 
+    tasks = [_normalize_task_keys(task) for task in tasks]
     # Validate the complete request before truncating or dispatching any task.
     # A malformed later task must not leave an earlier write partially applied.
     for index, task in enumerate(tasks):
@@ -469,7 +493,12 @@ async def execute_parallel(
                 if isinstance(task, dict) and "type" not in task
                 else "type 必须是合法的任务类型字符串"
             )
-            logger.warning("parallel_execute validation rejected at tasks[%s]: %s", index, reason)
+            logger.warning(
+                "parallel_execute validation rejected at tasks[%s]: %s (keys=%s)",
+                index,
+                reason,
+                sorted(task) if isinstance(task, dict) else type(task).__name__,
+            )
             return _make_error(
                 f"tasks[{index}]（第 {index + 1} 项）{reason}。"
                 f"合法取值：{', '.join(PARALLEL_TASK_TYPES)}。"
