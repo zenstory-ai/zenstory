@@ -654,6 +654,8 @@ class FileEditor:
         content = old_content
         applied_edits = []
         failed_edits: list[dict[str, Any]] = []
+        # old 与 new 一字不差、原文里确实有这段：模型要的就是原样，不算失败也不计入已应用。
+        unchanged_edits: list[dict[str, Any]] = []
         warnings: list[str] = []
 
         # 只规范化每个 edit 自己写进去的新文本，不动没被编辑的段落，免得改稿
@@ -799,8 +801,13 @@ class FileEditor:
                     raise ValueError(f"Edit {i}: unknown operation '{op}'. Valid ops: replace, insert_after, insert_before, append, prepend, delete")
 
                 if content == content_before_edit and len(applied_edits) > applied_before_edit:
-                    # 报告成功就必须真的改了：撤回这一条的 applied 记录，按失败处理。
+                    # 报告成功就必须真的改了：撤回这一条的 applied 记录。
                     del applied_edits[applied_before_edit:]
+                    if op == "replace" and edit.get("old") == edit.get("new"):
+                        # 模型自己写的 old/new 相同，原文已是目标内容。报成失败只会让它原样重发到熔断。
+                        unchanged_edits.append({"index": i, "op": op, "reason": "already_matches"})
+                        warnings.append(f"Edit {i}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
+                        continue
                     raise _no_change_error(i, edit, quote_style)
             except Exception as e:
                 failed_op = str(edit.get("op", "")).strip() if isinstance(edit, dict) else ""
@@ -892,6 +899,7 @@ class FileEditor:
             "new_word_count": count_words(content),
             "details": applied_edits,
             "failed_edits": failed_edits,
+            "unchanged_edits": unchanged_edits,
             "partial_success": bool(applied_edits and failed_edits),
             "all_failed": bool(failed_edits and not applied_edits),
             "warnings": warnings,
