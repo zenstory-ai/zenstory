@@ -10,6 +10,8 @@ const mockInvalidateQueries = vi.fn()
 const mockUseAuth = vi.fn()
 let checkedIn = false
 let checkInPending = false
+const queryEnabled: Array<boolean | undefined> = []
+const pointsFlag = vi.hoisted(() => ({ enabled: true }))
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -42,7 +44,10 @@ vi.mock('../../contexts/AuthContext', () => ({
 }))
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: { checked_in: checkedIn } }),
+  useQuery: (options: { enabled?: boolean }) => {
+    queryEnabled.push(options.enabled)
+    return { data: { checked_in: checkedIn } }
+  },
   useMutation: () => ({ mutate: mockMutate, isPending: checkInPending }),
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }))
@@ -54,11 +59,15 @@ vi.mock('../../lib/pointsApi', () => ({
   },
 }))
 
+vi.mock('../../config/points', () => ({ pointsConfig: pointsFlag }))
+
 describe('UserMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     checkedIn = false
     checkInPending = false
+    queryEnabled.length = 0
+    pointsFlag.enabled = true
     mockUseAuth.mockReturnValue({
       user: {
         username: 'Alice',
@@ -136,6 +145,18 @@ describe('UserMenu', () => {
 
     render(<UserMenuMobile onLogout={vi.fn()} />)
     expect(screen.getByTestId('contact-support-link-mobile')).toHaveAttribute('href', 'mailto:support@zenstory.ai')
+  })
+
+  it('hides check-in and skips its status request while points are off', () => {
+    pointsFlag.enabled = false
+    render(<UserMenu />)
+    fireEvent.click(screen.getByTestId('user-menu-button'))
+    render(<UserMenuMobile />)
+
+    expect(screen.queryByTestId('check-in-button')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('check-in-button-mobile')).not.toBeInTheDocument()
+    expect(queryEnabled.length).toBeGreaterThan(0)
+    expect(queryEnabled.every((enabled) => enabled === false)).toBe(true)
   })
 
   it('returns null when no user is logged in', () => {

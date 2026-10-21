@@ -30,6 +30,6 @@ Choose a duration and follow the Alipay payment steps. Payments are one-time and
 
 After returning, check your plan and expiration. If processing is pending, wait rather than paying again. For a charge without benefits, retain the order information and contact support.
 
-Redeem a code on Plans & Benefits when you have one. The points and invitation pages show points history and available rewards.
+Redeem a code on Plans & Benefits when you have one.
 
 Related: [materials](materials.md), [skills](skills.md), and [error messages](../troubleshooting/error-messages.md).

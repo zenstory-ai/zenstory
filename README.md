@@ -124,7 +124,7 @@ flowchart LR
 
 ### 在线版
 
-打开 [app.zenstory.ai](https://app.zenstory.ai) 注册即可；有朋友的邀请码可以填上，没有也能注册。免费版每天 3 条 AI 消息（北京时间 00:00 重置）、最多 3 个项目，各套餐的对比见[定价页](https://app.zenstory.ai/pricing)。
+打开 [app.zenstory.ai](https://app.zenstory.ai) 注册即可，不需要邀请码。免费版每天 3 条 AI 消息（北京时间 00:00 重置）、最多 3 个项目，各套餐的对比见[定价页](https://app.zenstory.ai/pricing)。
 
 新建一个「短篇小说」项目，第一条请求可以先要一份能改的提纲，不急着写正文（示例来自[快速开始](https://zenstory.ai/docs/getting-started/quick-start)）：
 
@@ -168,7 +168,8 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 
 | 功能 | 需要的配置 |
 | --- | --- |
-| 让别人注册 | 默认要邀请码，管理员在「设置 → 邀请」生成；不要邀请码就设 `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` |
+| 让别人注册 | 默认要邀请码，管理员在后台「邀请系统」生成；不要邀请码就设 `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` |
+| 积分与邀请（可选，默认关闭） | 前端 `VITE_POINTS_ENABLED=true` 显示积分页和签到，`VITE_REFERRAL_ENABLED=true` 显示「设置 → 邀请」和注册页的可选邀请码；改后重新构建前端 |
 | 邮箱注册的验证码 | `REDIS_URL`、`RESEND_API_KEY`、`RESEND_FROM_EMAIL`；快速启动不带 Redis，要用 `docker-compose.full.yml` |
 | 重启后保持登录 | `JWT_SECRET_KEY`（至少 32 字符；快速启动时可以写进根目录的 `.env`） |
 | 语音输入 | `TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY` |
@@ -315,11 +316,11 @@ Agent 用自己的模型写，ZenStory 负责存稿和整理上下文。`files p
 
 ### 在线版注册要邀请码吗？
 
-不用。打开 app.zenstory.ai 注册即可；有朋友的邀请码可以填上，没有也能注册。已经注册的人在「设置 → 邀请」里点「生成邀请码」，每人最多生成 3 个，每个能用 3 次；分享出来的链接形如 `https://app.zenstory.ai/register?code=XXXX-XXXX`，打开会自动填好。
+不用。打开 app.zenstory.ai 注册即可。在线版目前关闭了邀请和积分，注册页不显示邀请码。
 
 ### 自己部署后，第一个账号怎么建？别人怎么注册？
 
-第一个账号用 `scripts/create_admin.py` 建，命令见[自己部署](#自己部署)，它不需要邀请码，也不用验证邮箱。别人注册默认要邀请码，管理员在「设置 → 邀请」或后台「邀请系统」生成；不要邀请码，就在 `docker-compose.yml` 的 `server.environment` 下加 `AUTH_REGISTER_INVITE_CODE_OPTIONAL: "true"`（本地开发写进 `apps/server/.env`），再 `docker compose up -d`；前端可在 `web.environment` 下再加 `VITE_INVITE_CODE_OPTIONAL: "true"`，让表单一开始就显示「邀请码（可选）」（[#1](https://github.com/zenstory-ai/zenstory/issues/1)）。用邮箱注册的人要收到验证码才能登录，这需要 Redis 和 `RESEND_API_KEY`。
+第一个账号用 `scripts/create_admin.py` 建，命令见[自己部署](#自己部署)，它不需要邀请码，也不用验证邮箱。别人注册默认要邀请码，管理员在后台「邀请系统」生成（前端设 `VITE_REFERRAL_ENABLED=true` 后，「设置 → 邀请」也能生成）；不要邀请码，就在 `docker-compose.yml` 的 `server.environment` 下加 `AUTH_REGISTER_INVITE_CODE_OPTIONAL: "true"`（本地开发写进 `apps/server/.env`），再 `docker compose up -d`；前端可在 `web.environment` 下再加 `VITE_INVITE_CODE_OPTIONAL: "true"`，让表单一开始就按可选处理（邀请关闭时不显示邀请码，开启时显示「邀请码（可选）」）（[#1](https://github.com/zenstory-ai/zenstory/issues/1)）。用邮箱注册的人要收到验证码才能登录，这需要 Redis 和 `RESEND_API_KEY`。
 
 只给几个信得过的人用，也可以再运行 `create_admin.py`，换上对方的邮箱和一个新的 `ZENSTORY_ADMIN_USERNAME`（默认是 `admin`，不能重复）。这样建的都是管理员账号，能进管理后台改提示词、套餐和用户；建好后在后台「用户管理」里编辑这个账号，取消「超级用户」。
 

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { LogoMark } from "../components/Logo";
 import { useAuth } from "../contexts/AuthContext";
 import { authConfig, hasOAuthProviders } from "../config/auth";
+import { referralConfig } from "../config/referral";
 import { PublicHeader } from "../components/PublicHeader";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { InviteCodeInput } from "../components/referral/InviteCodeInput";
@@ -131,10 +132,14 @@ export const Register: React.FC = () => {
     : "/login";
   const trimmedEmail = email.trim();
   const trimmedInviteCode = inviteCode.trim();
+  // With referral off, an optional invite code is neither shown nor sent; a
+  // required one still gates registration.
+  const inviteCodeAllowed = referralConfig.enabled || !inviteCodeOptional;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
   const isPasswordLengthValid = password.length >= 6;
   const suggestedEmails = emailSuggestions(email);
-  const showInviteCode = !inviteCodeOptional || inviteCodePrefilled || inviteOpen || trimmedInviteCode.length > 0;
+  // An allowed but optional code folds behind a link unless it is prefilled or already typed.
+  const showInviteCodeField = !inviteCodeOptional || inviteCodePrefilled || inviteOpen || trimmedInviteCode.length > 0;
   // The submit button is only disabled while a request is running or after
   // success. Incomplete forms stay clickable so every click gets a visible
   // answer (inline message + toast) instead of a silent no-op.
@@ -299,7 +304,8 @@ export const Register: React.FC = () => {
         rejectSubmit(t('auth:errors.inviteCodeRequired'), 'invite_code');
         return;
       }
-      const result = await register(trimmedEmail, password, trimmedInviteCode || undefined);
+      const sendInviteCode = referralConfig.enabled || !effectiveInviteCodeOptional;
+      const result = await register(trimmedEmail, password, (sendInviteCode && trimmedInviteCode) || undefined);
       if (result?.verification_sent === false) {
         const path = selectedPlan ? `/verify-email?${new URLSearchParams({ plan: selectedPlan }).toString()}` : '/verify-email';
         navigate(path, { state: { email: result.email || trimmedEmail, verificationSent: false } });
@@ -344,7 +350,7 @@ export const Register: React.FC = () => {
         }, 0);
         return;
       }
-      googleLogin({ inviteCode: trimmedInviteCode || undefined, planIntent: selectedPlan });
+      googleLogin({ inviteCode: (inviteCodeAllowed && trimmedInviteCode) || undefined, planIntent: selectedPlan });
     } else if (provider === 'apple') {
       appleLogin();
     }
@@ -520,8 +526,9 @@ export const Register: React.FC = () => {
             </div>
 
             {/* Invite Code */}
+            {inviteCodeAllowed && (
             <div className="mb-6">
-              {showInviteCode ? (
+              {showInviteCodeField ? (
                 <InviteCodeInput
                   value={inviteCode}
                   onChange={(value) => {
@@ -543,6 +550,7 @@ export const Register: React.FC = () => {
                 </button>
               )}
             </div>
+            )}
 
             <div className="mb-6">
               <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm leading-6 text-[hsl(var(--text-secondary))]">

@@ -62,7 +62,7 @@ Historical 7/14-day promotion targets belong to the [April lane design](../../..
 
 Origins come from `E2E_BASE_URL` and `E2E_API_URL`. Credentials and browser storage state are test-only private material; avoid copying real account tokens into fixtures or reports. `PLAYWRIGHT_AUTH_FILE` can isolate the browser auth file per run. Helpers do not create their own users merely because a credential is configured.
 
-The product defaults to the inspiration module disabled. Managed browser servers enable both `INSPIRATIONS_ENABLED` and `VITE_INSPIRATIONS_ENABLED` so library scenarios can run; set both false for a disabled-state check. Reused external servers need matching configuration. Version, skill creation, chat, voice and specialized checks have their own opt-in flags; read the selected spec.
+The product defaults to the inspiration module disabled. Managed browser servers enable both `INSPIRATIONS_ENABLED` and `VITE_INSPIRATIONS_ENABLED` so library scenarios can run; set both false for a disabled-state check. Managed browser servers also set `VITE_POINTS_ENABLED` and `VITE_REFERRAL_ENABLED` to true (product default false) for the points and referral specs. Reused external servers need matching configuration. Version, skill creation, chat, voice and specialized checks have their own opt-in flags; read the selected spec.
 
 ## Write focused regressions
 

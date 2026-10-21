@@ -23,6 +23,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pointsApi } from "../lib/pointsApi";
+import { pointsConfig } from "../config/points";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import { getUserDisplayName } from "../lib/userDisplayName";
 
@@ -213,7 +214,7 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
   const { data: checkInStatus } = useQuery({
     queryKey: ['check-in-status'],
     queryFn: () => pointsApi.getCheckInStatus(),
-    enabled: !!user,
+    enabled: !!user && pointsConfig.enabled,
   });
 
   // Check-in mutation
@@ -341,20 +342,22 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
             )}
 
             {/* Check-in button */}
-            <button
-              type="button"
-              onClick={handleCheckIn}
-              disabled={isCheckedIn || checkInMutation.isPending}
-              className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
-              data-testid="check-in-button"
-            >
-              <CalendarCheck size={16} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
-              {isCheckedIn
-                ? t('settings:points.alreadyCheckedIn', '今日已签到')
-                : checkInMutation.isPending
-                  ? t('common:processing', "处理中…")
-                  : t('settings:points.checkIn', '签到领积分')}
-            </button>
+            {pointsConfig.enabled && (
+              <button
+                type="button"
+                onClick={handleCheckIn}
+                disabled={isCheckedIn || checkInMutation.isPending}
+                className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="check-in-button"
+              >
+                <CalendarCheck size={16} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
+                {isCheckedIn
+                  ? t('settings:points.alreadyCheckedIn', '今日已签到')
+                  : checkInMutation.isPending
+                    ? t('common:processing', "处理中…")
+                    : t('settings:points.checkIn', '签到领积分')}
+              </button>
+            )}
 
             {/* Future: Profile settings link */}
             {/* <button className="w-full px-3 py-2 text-left text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] flex items-center gap-2">
@@ -441,7 +444,7 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
   const { data: checkInStatus } = useQuery({
     queryKey: ['check-in-status'],
     queryFn: () => pointsApi.getCheckInStatus(),
-    enabled: !!user,
+    enabled: !!user && pointsConfig.enabled,
   });
 
   // Check-in mutation
@@ -507,22 +510,24 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
       )}
 
       {/* Check-in button */}
-      <button
-        type="button"
-        onClick={handleCheckIn}
-        disabled={isCheckedIn || checkInMutation.isPending}
-        className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
-        data-testid="check-in-button-mobile"
-      >
-        <CalendarCheck size={18} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
-        <span>
-          {isCheckedIn
-            ? t('settings:points.alreadyCheckedIn', '今日已签到')
-            : checkInMutation.isPending
-              ? t('common:processing', "处理中…")
-              : t('settings:points.checkIn', '签到领积分')}
-        </span>
-      </button>
+      {pointsConfig.enabled && (
+        <button
+          type="button"
+          onClick={handleCheckIn}
+          disabled={isCheckedIn || checkInMutation.isPending}
+          className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))] disabled:opacity-50 disabled:cursor-not-allowed"
+          data-testid="check-in-button-mobile"
+        >
+          <CalendarCheck size={18} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
+          <span>
+            {isCheckedIn
+              ? t('settings:points.alreadyCheckedIn', '今日已签到')
+              : checkInMutation.isPending
+                ? t('common:processing', "处理中…")
+                : t('settings:points.checkIn', '签到领积分')}
+          </span>
+        </button>
+      )}
 
       {/* Contact support */}
       <a

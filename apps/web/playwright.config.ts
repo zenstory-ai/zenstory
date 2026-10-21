@@ -29,6 +29,8 @@ const ciMaxFailures = Number.parseInt(process.env.E2E_MAX_FAILURES ?? '5', 10)
 // Product defaults remain off; set both flags to false to test the disabled app.
 const inspirationTestFlag = process.env.INSPIRATIONS_ENABLED ?? 'true'
 const inspirationWebTestFlag = process.env.VITE_INSPIRATIONS_ENABLED ?? inspirationTestFlag
+const pointsWebTestFlag = process.env.VITE_POINTS_ENABLED ?? 'true'
+const referralWebTestFlag = process.env.VITE_REFERRAL_ENABLED ?? 'true'
 
 /**
  * Performance-optimized Playwright configuration
@@ -147,7 +149,12 @@ export default defineConfig({
     ? [
       {
         command: 'pnpm dev --host 127.0.0.1 --port 5173',
-        env: { VITE_INSPIRATIONS_ENABLED: inspirationWebTestFlag, VITE_API_BASE_URL: e2eApiBaseUrl },
+        env: {
+          VITE_INSPIRATIONS_ENABLED: inspirationWebTestFlag,
+          VITE_POINTS_ENABLED: pointsWebTestFlag,
+          VITE_REFERRAL_ENABLED: referralWebTestFlag,
+          VITE_API_BASE_URL: e2eApiBaseUrl,
+        },
         url: process.env.E2E_BASE_URL || 'http://127.0.0.1:5173',
         reuseExistingServer,
         // Reduced from 120s - dev server should start faster
@@ -168,7 +175,12 @@ export default defineConfig({
       },
       {
         command: 'pnpm dev --host 127.0.0.1 --port 5173',
-        env: { VITE_INSPIRATIONS_ENABLED: inspirationWebTestFlag, VITE_API_BASE_URL: e2eApiBaseUrl },
+        env: {
+          VITE_INSPIRATIONS_ENABLED: inspirationWebTestFlag,
+          VITE_POINTS_ENABLED: pointsWebTestFlag,
+          VITE_REFERRAL_ENABLED: referralWebTestFlag,
+          VITE_API_BASE_URL: e2eApiBaseUrl,
+        },
         url: process.env.E2E_BASE_URL || 'http://127.0.0.1:5173',
         reuseExistingServer,
         // Reduced from 120s - dev server should start faster
