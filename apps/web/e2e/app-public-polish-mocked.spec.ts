@@ -29,12 +29,13 @@ for (const language of ['zh', 'en']) {
         await page.goto('/pricing');
         const yearly = page.getByRole('radio', { name: language === 'zh' ? /年付/ : /Yearly/ });
         const monthly = page.getByRole('radio', { name: language === 'zh' ? '月付' : 'Monthly', exact: true });
-        const annualPrice = page.getByText(language === 'zh' ? '¥399/年' : '¥399/year', { exact: true });
-        const monthlyPrice = page.getByText(language === 'zh' ? '¥49/月' : '¥49/month', { exact: true });
+        // English readers see Pro's USD list price; the yearly saving comes from those USD prices.
+        const annualPrice = page.getByText(language === 'zh' ? '¥399/年' : '$79/year', { exact: true });
+        const monthlyPrice = page.getByText(language === 'zh' ? '¥49/月' : '$9.99/month', { exact: true });
         await expect(yearly).toHaveAttribute('aria-checked', 'true');
         await expect(annualPrice).toBeVisible();
         await expect(monthlyPrice).toHaveCount(0);
-        await expect(page.getByText(/32%/)).toHaveCount(1);
+        await expect(page.getByText(language === 'zh' ? /32%/ : /34%/)).toHaveCount(1);
         await page.screenshot({ path: info.outputPath('pricing-year.png'), fullPage: true, animations: 'disabled' });
         await monthly.click();
         await expect(monthlyPrice).toBeVisible();
