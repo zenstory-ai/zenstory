@@ -249,3 +249,32 @@ async def test_agent_stream_failure_after_output_raises_and_pins_the_retry(sdk_m
 
     # The author's retry in the same chat window goes to the backup.
     assert await _drain(sdk_model.build_failover_chat_model("mid-stream")) == ["d1"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ({}, {"minimax": 120.0, "deepseek": 45.0}),
+        ({"MINIMAX_CLIENT_TIMEOUT_S": "90", "DEEPSEEK_CLIENT_TIMEOUT_S": "30"}, {"minimax": 90.0, "deepseek": 30.0}),
+    ],
+)
+def test_each_provider_gets_its_own_read_timeout(monkeypatch, env, expected):
+    """Production (2026-10-21/22): 14 runs failed when the primary took over 45s to send its first byte
+    on 150k+ token inputs; the backup answers fast and keeps the short timeout."""
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("MINIMAX_API_KEY", "synthetic-minimax")
+    monkeypatch.setenv("LLM_BACKUP_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-deepseek")
+    for name in ("MINIMAX_CLIENT_TIMEOUT_S", "DEEPSEEK_CLIENT_TIMEOUT_S"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    llm_providers.reset_provider_client_cache()
+
+    timeouts = {p.name: llm_providers.get_async_client(p).timeout.read for p in llm_providers.configured_providers()}
+    sync_timeouts = {p.name: llm_providers.get_sync_client(p).timeout for p in llm_providers.configured_providers()}
+
+    llm_providers.reset_provider_client_cache()
+    assert timeouts == expected
+    assert sync_timeouts == expected

@@ -12,6 +12,8 @@ configuration:
   ``MINIMAX_API_KEY`` / ``MINIMAX_BASE_URL``
 - ``MINIMAX_REASONING_EFFORT`` (default ``high``): MiniMax defaults to ``max``
   when the request names no effort.
+- read timeout (longest silence between bytes, including the wait for the first byte):
+  ``MINIMAX_CLIENT_TIMEOUT_S`` (default 120), ``DEEPSEEK_CLIENT_TIMEOUT_S`` (default 45).
 
 A model name must have a price in ``services/usage/pricing.py``; the free-user
 cost budget refuses calls to unpriced models.
@@ -57,7 +59,7 @@ def _get_non_negative_int_env(name: str, default: int) -> int:
 
 
 # Shared by every provider's request-path client (the names predate the backup).
-LLM_CLIENT_TIMEOUT_S = _get_positive_float_env("DEEPSEEK_CLIENT_TIMEOUT_S", 45.0)
+# The read timeout (longest silence between bytes) is per provider: ProviderKind.read_timeout_s.
 LLM_CLIENT_CONNECT_TIMEOUT_S = _get_positive_float_env("DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S", 5.0)
 LLM_CLIENT_MAX_RETRIES = _get_non_negative_int_env("DEEPSEEK_CLIENT_MAX_RETRIES", 2)
 
@@ -78,6 +80,13 @@ class ProviderKind:
     # Env var naming the effort sent when the caller names none (None: send nothing).
     reasoning_effort_env: str | None = None
     default_reasoning_effort: str | None = None
+    # Longest silence between bytes before a call counts as timed out. Includes the wait for the
+    # first byte, which grows with uncached input length.
+    read_timeout_env: str = "DEEPSEEK_CLIENT_TIMEOUT_S"
+    default_read_timeout_s: float = 45.0
+
+    def read_timeout_s(self) -> float:
+        return _get_positive_float_env(self.read_timeout_env, self.default_read_timeout_s)
 
 
 DEEPSEEK = ProviderKind(
@@ -102,6 +111,10 @@ MINIMAX = ProviderKind(
     reasoning_efforts=frozenset({"low", "medium", "high", "xhigh", "max"}),
     reasoning_effort_env="MINIMAX_REASONING_EFFORT",
     default_reasoning_effort="high",
+    # Measured 2026-10-22: ~49s before the first byte on a ~320k-character uncached input;
+    # production inputs reach 260k tokens.
+    read_timeout_env="MINIMAX_CLIENT_TIMEOUT_S",
+    default_read_timeout_s=120.0,
 )
 
 PROVIDER_KINDS: dict[str, ProviderKind] = {kind.name: kind for kind in (DEEPSEEK, MINIMAX)}
@@ -275,7 +288,7 @@ def get_async_client(provider: ModelProvider) -> AsyncOpenAI:
     client = AsyncOpenAI(
         api_key=provider.api_key,
         base_url=provider.base_url,
-        timeout=Timeout(LLM_CLIENT_TIMEOUT_S, connect=LLM_CLIENT_CONNECT_TIMEOUT_S),
+        timeout=Timeout(provider.kind.read_timeout_s(), connect=LLM_CLIENT_CONNECT_TIMEOUT_S),
         max_retries=LLM_CLIENT_MAX_RETRIES,
     )
     _async_clients[key] = (client, loop)
@@ -300,7 +313,7 @@ def get_sync_client(
     """A sync OpenAI client for a provider slot (material ingestion)."""
     from services.usage.model_call_guard import install_sync_cost_guard
 
-    resolved_timeout = timeout if timeout is not None else LLM_CLIENT_TIMEOUT_S
+    resolved_timeout = timeout if timeout is not None else provider.kind.read_timeout_s()
     resolved_retries = max_retries if max_retries is not None else LLM_CLIENT_MAX_RETRIES
     key = (provider.slot, provider.base_url, provider.api_key, resolved_timeout, resolved_retries)
     client = _sync_clients.get(key)

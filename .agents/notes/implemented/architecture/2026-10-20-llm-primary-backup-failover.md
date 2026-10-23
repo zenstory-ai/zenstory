@@ -19,6 +19,7 @@ Status: implemented
 7. **推理开关差异**：MiniMax 不能关推理（`thinking.type=disabled` 返回 400），默认 effort 是 max；我们默认发 `MINIMAX_REASONING_EFFORT=high`。要求关推理的短调用（输入建议、润色）优先走能关推理的供应商；只能走 MiniMax 时用最低 effort，并给 `max_tokens` 加 2048 余量。
 8. **计价**（`services/usage/pricing.py`）：按模型的 `pricing_version` 选价目表，账本行写入本模型的版本；MiniMax M3.1-Flash 全天同价（缓存命中 0.1 / 未命中 1 / 输出 4 元每百万）。免费成本预算对没有价目的模型仍然拒绝（fail closed），管理后台按每行的版本计价。
 9. `LLMClient` 只保留生产在用的 `acomplete`（同步、流式、结构化方法没有生产调用方，删除而不是一并改造）；素材客户端改名 `MaterialLLMClient`。
+10. **读超时按供应商**（2026-10-22 补充）：读超时是两次收到数据之间的最长间隔，包括等首字节的时间。DeepSeek `DEEPSEEK_CLIENT_TIMEOUT_S` 默认 45 秒；MiniMax `MINIMAX_CLIENT_TIMEOUT_S` 默认 120 秒。MiniMax 处理长输入时首字节慢：实测约 32 万字符、未命中缓存的输入要等约 49 秒。生产输入最长到 26 万 token，10-21/22 有 14 次 run 因 45 秒读超时直接报错。
 
 ## Alternatives considered
 
