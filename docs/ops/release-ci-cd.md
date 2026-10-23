@@ -195,6 +195,79 @@ staging API runs the new code. Do not add a startup schema check that fails
 surfacing a missed step, and it does not protect the old API from the new
 frontend.
 
+## Upload storage acceptance
+
+`/health/ready` checks only the database and Redis, and stays that way: a bucket
+outage or credential fault would otherwise pull the whole API out of rotation,
+including chat and editing that never touch uploads. Upload storage is verified
+by an explicit operator step instead.
+
+On 2026-10-21 Railway reset every Bucket credential after a security incident
+([disclosure](https://blog.railway.com/p/security-disclosure-recommendation-redeploy-buckets-and-reconnect-github-after-the-credential-reset)).
+Production kept the old `UPLOAD_S3_SECRET_ACCESS_KEY` with an unchanged access
+key ID. Every signed request returned `403 SignatureDoesNotMatch`, material
+uploads failed with a generic 503 and readiness stayed 200. Replacing only the
+secret and redeploying the same source fixed it.
+
+`scripts/release_preflight_check.py --probe-upload-storage` loads the API's
+`UploadStorageSettings` and signs through the same `S3UploadStorage` request
+path. It PUTs one random 64-byte object at `preflight/<32 hex>.bin` with
+`If-None-Match: *`, reads it back, compares SHA-256 and deletes it; it never
+names, reads or overwrites an upload. A PUT the provider rejects with a 4xx wrote
+nothing and is not cleaned up (a 412 is never deleted); after a network error or
+5xx it still sends DELETE. A failed cleanup prints the synthetic key for manual
+removal. Output is one fixed reason class, never the response body or a
+credential:
+
+| Reason | Meaning |
+| --- | --- |
+| `signature` | `SignatureDoesNotMatch`: the secret usually no longer matches the bucket credentials |
+| `auth` | `InvalidAccessKeyId`, `AccessDenied` or any other 401/403: not proof that the secret is wrong |
+| `clock` | `RequestTimeTooSkewed` |
+| `config` | `NoSuchBucket`, `AuthorizationHeaderMalformed`, `PermanentRedirect`, or invalid variables |
+| `network` | the endpoint could not be reached or the read was cut off |
+| `provider` | 5xx or any other unexpected response |
+| `not_found` / `conflict` / `integrity` | read-back missing, random key already taken, or bytes differ |
+
+With `--strict`, an S3 backend fails unless the round trip was requested; the
+local backend passes without a network call. Run it with production API
+variables (service `server`):
+
+1. Before pushing a `prod-v*` tag, from the release source checkout. This proves
+   the variables the new deployment will read work with the release's signing
+   code:
+
+   ```sh
+   cd apps/server
+   railway run --service server --environment production -- \
+     python scripts/release_preflight_check.py --strict --probe-upload-storage
+   ```
+
+2. After the new deployment is live, inside it, to exercise the deployed code
+   and process environment (pass `--deployment-instance` if more than one
+   instance is listed):
+
+   ```sh
+   railway ssh --service server --environment production -- \
+     python scripts/release_preflight_check.py --strict --probe-upload-storage
+   ```
+
+3. After any bucket credential or `UPLOAD_*` variable change, including a
+   provider-initiated reset outside a release: update the variable, let the API
+   redeploy, then repeat step 2.
+
+Staging uses `--environment staging`, its API service and its own bucket. Never
+run `railway run env` or `printenv`; the script prints no secret values.
+
+This is a point-in-time check. It cannot prevent or detect a credential reset
+that happens after it ran, and the October reset happened outside any release.
+Between checks, every failed signed request logs `Private object storage
+<METHOD> failed: reason=<class> status=<HTTP status> code=<known S3 code>`, so
+a generic upload 503 can be traced to its class in the API logs; the response to
+users stays a generic 503. The probe writes and deletes one object, so it is not
+part of the read-only three-day check. It is not scheduled and not part of
+readiness.
+
 ## Effect on active users
 
 The production API volume (`server-volume`, checked 2026-10-12) is still mounted at

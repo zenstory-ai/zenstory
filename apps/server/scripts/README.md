@@ -8,7 +8,7 @@
 
 ```bash
 cd apps/server
-python scripts/release_preflight_check.py --strict
+python scripts/release_preflight_check.py --strict --probe-upload-storage
 ```
 
 检查项：
@@ -17,6 +17,8 @@ python scripts/release_preflight_check.py --strict
 - `ALLOW_LEGACY_UNTYPED_TOKENS` / `ALLOW_LEGACY_REFRESH_WITHOUT_JTI`
 - `CORS_ORIGINS`
 - `RATE_LIMIT_BACKEND`
+- Zpay 配置
+- 上传存储：校验 `UPLOAD_*` 配置；`--probe-upload-storage` 用 API 同一签名路径对 `preflight/` 下随机合成对象做 PUT/GET/DELETE 并比对 SHA-256，只输出固定原因分类。strict 模式下 S3 后端必须带该参数。生产用法见 [release-ci-cd](../../../docs/ops/release-ci-cd.md#upload-storage-acceptance)
 - Alembic heads 是否唯一
 
 

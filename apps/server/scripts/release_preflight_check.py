@@ -58,6 +58,55 @@ def _check_zpay_configuration() -> bool:
     )
 
 
+STORAGE_REASON_HINTS = {
+    "signature": "request signature rejected; the secret usually no longer matches the bucket credentials",
+    "auth": "access denied or unknown access key; check the key id and bucket permissions",
+    "clock": "request time is skewed from the provider clock",
+    "config": "bucket, region or endpoint does not match the provider",
+    "network": "storage endpoint unreachable",
+    "provider": "unexpected storage provider response",
+    "not_found": "synthetic object missing right after its write",
+    "conflict": "random synthetic key already exists",
+    "integrity": "read-back bytes differ from the written bytes",
+}
+
+
+def upload_storage_preflight(*, probe: bool, strict: bool, client=None) -> tuple[bool, str]:
+    """Check the configured upload backend; with ``probe``, round-trip a synthetic S3 object."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from config.upload_storage import UploadStorageSettings
+    from services.infra.upload_storage import S3UploadStorage
+
+    try:
+        settings = UploadStorageSettings.from_environment()
+    except ValueError as exc:
+        # Validation messages name variables, never their values.
+        return False, f"config: {exc}"
+    if settings.backend == "local":
+        return True, "local backend (no object storage to probe)"
+    if not probe:
+        detail = "s3 configured; round trip not run (pass --probe-upload-storage)"
+        return not strict, detail
+    storage = S3UploadStorage(settings, client=client)
+    try:
+        result = storage.probe_round_trip()
+    finally:
+        storage.close()
+    if result.ok:
+        return True, "s3 synthetic object PUT/GET/DELETE matched (sha256)"
+    detail = f"{result.step} failed: {result.reason} ({STORAGE_REASON_HINTS.get(result.reason or '', 'unclassified')})"
+    if result.cleanup == "failed":
+        detail += f"; synthetic object {result.key} may remain, delete it manually"
+    elif result.cleanup == "not_needed":
+        detail += "; nothing was written"
+    return False, detail
+
+
+def _check_upload_storage(*, probe: bool, strict: bool) -> bool:
+    ok, detail = upload_storage_preflight(probe=probe, strict=strict)
+    return _print_result(ok, "Upload storage", detail)
+
+
 def _parse_migration_literal(value_node: ast.expr) -> str | list[str] | tuple[str, ...] | None:
     try:
         value = ast.literal_eval(value_node)
@@ -135,6 +184,11 @@ def main() -> int:
         action="store_true",
         help="Fail when ENVIRONMENT is not production/staging",
     )
+    parser.add_argument(
+        "--probe-upload-storage",
+        action="store_true",
+        help="Write, read back and delete one synthetic object in the configured S3 bucket",
+    )
     args = parser.parse_args()
 
     _load_dotenv_if_available()
@@ -209,6 +263,7 @@ def main() -> int:
     )
 
     all_ok &= _check_zpay_configuration()
+    all_ok &= _check_upload_storage(probe=args.probe_upload_storage, strict=args.strict)
 
     versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"
     heads = _get_alembic_heads(versions_dir)

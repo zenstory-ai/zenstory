@@ -15,17 +15,44 @@ from urllib.parse import quote, urlsplit
 import httpx
 
 from config.upload_storage import UploadStorageSettings
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 MATERIAL_PREFIX = "material"
 FEEDBACK_PREFIX = "feedback"
+PREFLIGHT_PREFIX = "preflight"
 SAFE_OWNER_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 OPAQUE_NAME_RE = re.compile(r"^[0-9a-f]{32}\.[a-z0-9]{1,8}$")
 MAX_MATERIAL_BYTES = 20 * 1024 * 1024
 MAX_FEEDBACK_BYTES = 5 * 1024 * 1024
+MAX_ERROR_BODY_BYTES = 4096
+S3_ERROR_CODE_RE = re.compile(rb"<Code>([A-Za-z]{1,64})</Code>")
+# Fixed, secret-free failure classes keyed by the S3 error code. A 403 alone does
+# not mean the secret is wrong: only SignatureDoesNotMatch says the signing key
+# differs from the provider's; other 401/403 responses fall back to "auth".
+S3_ERROR_REASONS = {
+    "SignatureDoesNotMatch": "signature",
+    "InvalidAccessKeyId": "auth",
+    "AccessDenied": "auth",
+    "AllAccessDisabled": "auth",
+    "AccountProblem": "auth",
+    "ExpiredToken": "auth",
+    "InvalidToken": "auth",
+    "RequestTimeTooSkewed": "clock",
+    "AuthorizationHeaderMalformed": "config",
+    "NoSuchBucket": "config",
+    "PermanentRedirect": "config",
+}
 
 
 class UploadStorageError(RuntimeError):
     """A private storage operation failed or a reference was unsafe."""
+
+    def __init__(self, message: str, *, reason: str | None = None, status: int | None = None):
+        super().__init__(message)
+        self.reason = reason
+        self.status = status
 
 
 class UploadReferenceError(UploadStorageError):
@@ -48,6 +75,15 @@ class StoredObject:
     created: bool = True
 
 
+@dataclass(frozen=True)
+class StorageProbeResult:
+    ok: bool
+    step: str
+    reason: str | None
+    cleanup: str
+    key: str
+
+
 def _sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
@@ -57,6 +93,35 @@ def _safe_suffix(suffix: str) -> str:
     if not re.fullmatch(r"[a-z0-9]{1,8}", normalized):
         raise UploadReferenceError("unsafe upload suffix")
     return normalized
+
+
+def _s3_error_code(response: httpx.Response) -> str | None:
+    """Read a known S3 error code from a bounded prefix of a failed response."""
+    body = b""
+    try:
+        for chunk in response.iter_bytes():
+            body += chunk
+            if len(body) >= MAX_ERROR_BODY_BYTES:
+                break
+    except httpx.HTTPError:
+        return None
+    match = S3_ERROR_CODE_RE.search(body[:MAX_ERROR_BODY_BYTES])
+    code = match.group(1).decode() if match else None
+    return code if code in S3_ERROR_REASONS else None
+
+
+def _storage_failure(method: str, reason: str, *, status: int | None = None, code: str | None = None):
+    # Only fixed values reach the log: never the response body, URL or credentials.
+    logger.warning(
+        "Private object storage %s failed: reason=%s status=%s code=%s",
+        method,
+        reason,
+        status if status is not None else "-",
+        code or "-",
+    )
+    return UploadStorageError(
+        f"private object storage {method} failed ({reason})", reason=reason, status=status
+    )
 
 
 def _safe_owner(owner_id: str) -> str:
@@ -298,16 +363,29 @@ class S3UploadStorage:
             )
             response = self.client.send(request, stream=method == "GET")
         except httpx.HTTPError as exc:
-            raise UploadStorageError(f"private object storage {method} failed") from exc
-        if method == "GET" and response.status_code == 404:
-            response.close()
-            raise UploadNotFoundError("private upload object not found")
+            raise _storage_failure(method, "network") from exc
         if method == "PUT" and response.status_code == 412:
             response.close()
-            raise UploadConflictError("private upload object already exists")
+            raise UploadConflictError(
+                "private upload object already exists", reason="conflict", status=412
+            )
         if response.status_code < 200 or response.status_code >= 300:
-            response.close()
-            raise UploadStorageError(f"private object storage {method} failed")
+            status = response.status_code
+            try:
+                code = _s3_error_code(response)
+            finally:
+                response.close()
+            if method == "GET" and status == 404 and code != "NoSuchBucket":
+                raise UploadNotFoundError(
+                    "private upload object not found", reason="not_found", status=404
+                )
+            if code is not None:
+                reason = S3_ERROR_REASONS[code]
+            elif status in {401, 403}:
+                reason = "auth"
+            else:
+                reason = "provider"
+            raise _storage_failure(method, reason, status=status, code=code)
         if method == "GET":
             if max_response_bytes is None:
                 response.close()
@@ -326,6 +404,8 @@ class S3UploadStorage:
                     content=b"".join(chunks),
                     request=request,
                 )
+            except httpx.HTTPError as exc:
+                raise _storage_failure(method, "network") from exc
             finally:
                 response.close()
         response.close()
@@ -401,6 +481,46 @@ class S3UploadStorage:
     def delete(self, reference: str, *, kind: str, owner_id: str | None = None) -> None:
         key = self._key_from_uri(reference, kind=kind, owner_id=owner_id)
         self._signed_request("DELETE", key)
+
+    def probe_round_trip(self) -> StorageProbeResult:
+        """PUT, GET and DELETE one synthetic object through the production signing path.
+
+        The object gets a fresh random name under ``preflight/`` and the no-overwrite
+        PUT, so the probe never touches an upload. It is deleted unless the PUT was
+        rejected outright (nothing written) or found someone else's object.
+        """
+        key = f"{PREFLIGHT_PREFIX}/{secrets.token_hex(16)}.bin"
+        content = secrets.token_bytes(64)
+        step = "put"
+        failure: UploadStorageError | None = None
+        try:
+            self._signed_request("PUT", key, content)
+            step = "get"
+            body = self._signed_request("GET", key, max_response_bytes=len(content)).content
+            step = "verify"
+            if _sha256_bytes(body) != _sha256_bytes(content):
+                raise UploadStorageError("synthetic object bytes differ", reason="integrity")
+        except UploadStorageError as exc:
+            failure = exc
+        cleanup = "not_needed"
+        rejected_put = (
+            step == "put" and failure is not None and failure.status is not None and failure.status < 500
+        )
+        if not rejected_put:
+            try:
+                self._signed_request("DELETE", key)
+                cleanup = "deleted"
+            except UploadStorageError as exc:
+                cleanup = "failed"
+                if failure is None:
+                    failure, step = exc, "delete"
+        return StorageProbeResult(
+            ok=failure is None,
+            step="done" if failure is None else step,
+            reason=None if failure is None else failure.reason,
+            cleanup=cleanup,
+            key=key,
+        )
 
     def close(self) -> None:
         self.client.close()

@@ -26,3 +26,5 @@ staging 可独立验证 PUT/GET/DELETE、API 鉴权、worker 字节一致性和�
 参考：[Railway Buckets](https://docs.railway.com/storage-buckets)、[AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html)。
 
 文档中的 `python scripts/migrate_upload_storage.py` 直接入口显式补上 server 导入路径；独立子进程清空 PYTHONPATH 并从临时目录执行 `--help` 的回归通过，避免 pytest 的自动路径配置掩盖实际运维启动失败。
+
+发布前与部署后的存储往返验收、S3 失败的固定分类日志见 [2026-10-22 上传存储发布验收探测](../bug-fix/2026-10-22-upload-storage-release-probe.md)。
