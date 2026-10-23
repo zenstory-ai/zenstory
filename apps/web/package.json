@@ -47,7 +47,7 @@
     "ajv@<7": "6.14.0",
     "brace-expansion@<2": "1.1.21",
     "brace-expansion@>=2 <3": "2.1.4",
-    "dompurify": "3.4.16",
+    "dompurify": "3.4.17",
     "fflate@<0.5.4": "0.5.4",
     "fflate@>=0.8 <0.8.3": "0.8.3",
     "source-map-js@<1.2.2": "1.2.2",
