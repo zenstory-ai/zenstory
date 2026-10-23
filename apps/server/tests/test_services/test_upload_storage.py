@@ -356,6 +356,13 @@ def test_probe_read_back_mismatch_fails_and_still_deletes():
     assert bucket.objects == {}
 
 
+def test_probe_oversized_read_back_is_an_integrity_failure():
+    bucket = _FakeBucket(GET=lambda _request: httpx.Response(200, content=b"<html>" + b"x" * 200))
+    result = bucket.storage().probe_round_trip()
+    assert (result.step, result.reason, result.cleanup) == ("get", "integrity", "deleted")
+    assert bucket.objects == {}
+
+
 def test_probe_read_denied_after_write_still_deletes():
     bucket = _FakeBucket(GET=lambda _request: _s3_error(403, "AccessDenied"))
     result = bucket.storage().probe_round_trip()

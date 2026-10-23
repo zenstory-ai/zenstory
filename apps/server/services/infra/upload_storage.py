@@ -396,7 +396,9 @@ class S3UploadStorage:
                 for chunk in response.iter_bytes():
                     size += len(chunk)
                     if size > max_response_bytes:
-                        raise UploadStorageError("private object exceeds download limit")
+                        raise UploadStorageError(
+                            "private object exceeds download limit", reason="integrity"
+                        )
                     chunks.append(chunk)
                 return httpx.Response(
                     status_code=response.status_code,

@@ -109,6 +109,7 @@ def test_stale_secret_fails_the_release_with_a_redacted_signature_reason(preflig
 
 @pytest.mark.parametrize(("probe_ok", "exit_code"), [(True, 0), (False, 1)])
 def test_main_exit_code_follows_the_probe(preflight, monkeypatch, capsys, probe_ok, exit_code):
+    calls: list[dict] = []
     for name, value in {
         "JWT_SECRET_KEY": "x" * 40,
         "CORS_ORIGINS": "https://app.zenstory.ai",
@@ -118,10 +119,15 @@ def test_main_exit_code_follows_the_probe(preflight, monkeypatch, capsys, probe_
         monkeypatch.setenv(name, value)
     _set_s3_env(monkeypatch)
     detail = "s3 synthetic object PUT/GET/DELETE matched (sha256)" if probe_ok else "put failed: network"
-    monkeypatch.setattr(preflight, "upload_storage_preflight", lambda **_kwargs: (probe_ok, detail))
+    monkeypatch.setattr(
+        preflight,
+        "upload_storage_preflight",
+        lambda **kwargs: calls.append(kwargs) or (probe_ok, detail),
+    )
     monkeypatch.setattr("sys.argv", ["release_preflight_check.py", "--probe-upload-storage"])
 
     assert preflight.main() == exit_code
+    assert calls == [{"probe": True, "strict": False}]
     output = capsys.readouterr().out
     assert f"[{'PASS' if probe_ok else 'FAIL'}] Upload storage: {detail}" in output
     assert SECRET not in output

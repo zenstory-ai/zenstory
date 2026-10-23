@@ -182,7 +182,7 @@ def main() -> int:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Fail when ENVIRONMENT is not production/staging",
+        help="Fail when ENVIRONMENT is not production/staging, or S3 is configured without the probe",
     )
     parser.add_argument(
         "--probe-upload-storage",

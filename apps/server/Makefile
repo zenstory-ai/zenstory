@@ -170,10 +170,10 @@ test-db-reset:
 	$(DOCKER_COMPOSE) -f $(TEST_FILE) up -d
 	@echo "$(COLOR_GREEN)Test database reset!$(COLOR_RESET)"
 
-## preflight-release: Run release preflight configuration checks
+## preflight-release: Run release preflight checks (S3 backends write, read back and delete one synthetic object)
 preflight-release:
 	@echo "$(COLOR_BLUE)Running release preflight checks...$(COLOR_RESET)"
-	$(VENV_PYTHON) scripts/release_preflight_check.py --strict
+	$(VENV_PYTHON) scripts/release_preflight_check.py --strict --probe-upload-storage
 	@echo "$(COLOR_GREEN)Release preflight checks passed!$(COLOR_RESET)"
 
 ## smoke-release: Run critical backend smoke tests before release

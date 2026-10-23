@@ -9,8 +9,8 @@
 ## Decision
 
 - `S3UploadStorage._signed_request` 读取失败响应前 4KB 中的 S3 `<Code>`，映射为固定分类：`SignatureDoesNotMatch`→`signature`；`InvalidAccessKeyId`、`AccessDenied` 等及其余 401/403→`auth`；`RequestTimeTooSkewed`→`clock`；`NoSuchBucket`、`AuthorizationHeaderMalformed`、`PermanentRedirect`→`config`；连接失败与下载中断→`network`；其余（含 5xx）→`provider`。`UploadStorageError` 带 `reason` 与 `status`，每次失败记一条 WARNING，只含方法、分类、HTTP 状态和白名单内的 S3 code，不记响应体、URL、key 或凭据。GET 404 仍是 `UploadNotFoundError` 且不记日志，但 `NoSuchBucket` 改为 `config` 存储错误。对用户的响应保持通用 503。
-- `S3UploadStorage.probe_round_trip()` 在 `preflight/<32 hex>.bin` 用无覆盖 PUT 写 64 个随机字节，GET 读回比对 SHA-256，再 DELETE，返回步骤、分类、清理结果和合成 key。PUT 被 4xx（含 412）拒绝时不发 DELETE：没有写入，也绝不删除不属于本次探测的对象；网络错误或 5xx 时写入结果未知，仍尝试 DELETE。清理失败本身也算失败。
-- `scripts/release_preflight_check.py` 新增 `--probe-upload-storage`，始终校验 `UPLOAD_*` 配置；local 后端按既有契约直接通过，不发网络请求；`--strict` 时 S3 后端未带探测参数即失败。失败行给出分类与操作提示，清理失败时打印合成 key 供手工删除。
+- `S3UploadStorage.probe_round_trip()` 在 `preflight/<32 hex>.bin` 用无覆盖 PUT 写 64 个随机字节，GET 读回比对 SHA-256（读回超长或不符都记为 `integrity`），再 DELETE，返回步骤、分类、清理结果和合成 key。PUT 被 4xx（含 412）拒绝时不发 DELETE：没有写入，也绝不删除不属于本次探测的对象；网络错误或 5xx 时写入结果未知，仍尝试 DELETE。清理失败本身也算失败。
+- `scripts/release_preflight_check.py` 新增 `--probe-upload-storage`，始终校验 `UPLOAD_*` 配置；local 后端按既有契约直接通过，不发网络请求；`--strict` 时 S3 后端未带探测参数即失败，`make preflight-release` 同步带上该参数。失败行给出分类与操作提示，清理失败时打印合成 key 供手工删除。
 - 运维步骤写在 `docs/ops/release-ci-cd.md#upload-storage-acceptance`：打 `prod-v*` tag 前用 `railway run --service server --environment production` 从发布源码跑一次；新部署上线后用 `railway ssh` 在容器里再跑一次；任何 bucket 凭据或 `UPLOAD_*` 变量变化（包括平台在发布之外发起的重置）后重新部署并重跑。
 
 ## Alternatives considered
