@@ -65,12 +65,16 @@ const CRAWLER_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|inspectio
  * language of the page the visitor came from), then the preference stored in localStorage, then the
  * browser's languages (people only, not crawlers). A browser language the app does not support falls
  * back to Chinese. The detected language is cached, so the choice outlives the first page.
+ *
+ * Regional codes are reduced to the language (`zh-CN` → `zh`) before matching: i18next takes the first
+ * exact match, so otherwise Edge's `['zh-CN', 'en', …]` on Chinese Windows would open in English.
  */
 export function languageDetectionFor(userAgent: string) {
   return {
     order: CRAWLER_USER_AGENT.test(userAgent)
       ? ['querystring', 'localStorage']
       : ['querystring', 'localStorage', 'navigator'],
+    convertDetectedLanguage: (language: string) => language.split('-')[0],
     lookupQuerystring: 'lang',
     caches: ['localStorage'],
     lookupLocalStorage: 'zenstory-language',

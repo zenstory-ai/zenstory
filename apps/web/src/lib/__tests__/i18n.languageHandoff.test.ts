@@ -55,6 +55,16 @@ describe('app language handoff from zenstory.ai', () => {
     expect(await languageAt('/login')).toBe('zh');
   });
 
+  it('ranks a regional Chinese browser language above a later English one', async () => {
+    // Edge on Chinese Windows lists zh-CN first and then plain English codes.
+    browserLanguages(['zh-CN', 'en', 'en-GB', 'en-US']);
+    expect(await languageAt('/register')).toBe('zh');
+
+    localStorage.clear();
+    browserLanguages(['zh-TW', 'en']);
+    expect(await languageAt('/register')).toBe('zh');
+  });
+
   it('keeps Chinese for unsupported browser languages and for crawlers', async () => {
     browserLanguages(['fr-FR', 'fr']);
     expect(await languageAt('/')).toBe('zh');
