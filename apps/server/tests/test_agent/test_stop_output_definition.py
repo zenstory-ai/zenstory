@@ -376,3 +376,9 @@ def test_update_project_counts_only_when_project_info_changed(data, is_output):
 def test_failed_update_project_is_not_output():
     tracker = _tracker(_update_project({"updated_fields": ["summary"]}, status="error"))
     assert tracker.produced_output is False
+
+
+
+def test_a_file_the_author_asked_to_keep_empty_is_not_a_placeholder():
+    tracker = _tracker(_create_file("ch10", empty_by_request=True), _create_file("ch11"))
+    assert tracker.removable_placeholders() == [{"id": "ch11", "title": "《ch11》"}]

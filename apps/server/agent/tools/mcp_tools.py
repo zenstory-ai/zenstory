@@ -698,6 +698,16 @@ class ToolContext:
         return messages
 
     @classmethod
+    def set_body_requested(cls, requested: bool | None) -> None:
+        """路由对作者本轮是否要正文的判断（routing write_content；None = 不知道）。"""
+        cls._get_context()["body_requested"] = requested
+
+    @classmethod
+    def author_wants_no_body(cls) -> bool:
+        """路由明确判断作者这一轮不要正文（只有这时 create_file 的 empty 才生效）。"""
+        return cls._get_context().get("body_requested") is False
+
+    @classmethod
     def get_author_scope(cls) -> AuthorScope | None:
         """作者本轮说了什么、指向了哪些文件；没有作者原话（非应用内对话）时为 None。"""
         context = cls._get_context()
@@ -1992,6 +2002,10 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
 
     content = args.get("content", "")
     title = args.get("title", "")
+    # 作者明确只要建文件（「只建标题，不写内容」）：这个空文件就是交付物，不等正文。
+    # 只在路由判断作者本轮不要正文时生效，作者要正文时模型传了也照常等正文。
+    empty_requested = coerce_bool(args.get("empty"))
+    empty_by_request = empty_requested and not content and ToolContext.author_wants_no_body()
 
     # 检查是否已有待写入的空文件（防止连续创建空文件导致内容丢失）。
     # 检查与置位必须原子完成：两者之间隔着 DB INSERT（还跨 asyncio.to_thread
@@ -1999,7 +2013,7 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
     # 空文件，后置位的把先置位的覆盖掉——先建的空文件从此没有任何指针。
     # 因此这里先 try_reserve 占坑，落库后再 bind 真实 file_id。
     reservation: str | None = None
-    if not content:
+    if not content and not empty_by_request:
         reservation = f"reserve-{uuid4().hex}"
         acquired, blocking_title = ToolContext.try_reserve_pending_empty_file(
             reservation, title
@@ -2063,6 +2077,10 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         data = _elide_reused_file_content(result)
         if awaiting_body:
             data = _awaiting_body_data(data, title)
+            if empty_requested:
+                data["next_step"] = "作者这一轮要正文，empty 不生效。" + data["next_step"]
+        elif empty_by_request:
+            data = {**data, "empty_by_request": True}
         return _make_result(
             {
                 "status": "success",

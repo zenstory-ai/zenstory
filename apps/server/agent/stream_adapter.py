@@ -836,6 +836,9 @@ class StreamAdapter:
         )
 
         file_type = file_data.get("file_type", "")
+        # 作者只要建文件的空文件同样不会有正文：不进入捕获，后面的回复文字照常发出。
+        if coerce_bool(file_data.get("empty_by_request")):
+            return
         # folder 是纯容器节点，永远不会收到 <file>…</file> 正文。给它开启流式
         # 捕获会把后续叙述全部扣在 WAITING_START 缓冲里（前端长时间无输出），
         # 并让流结束时的 at_eof 兜底把叙述当正文 update_file 写进文件夹行。

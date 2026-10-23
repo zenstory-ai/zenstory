@@ -2115,3 +2115,33 @@ async def test_keyword_query_returns_verbatim_match_snippets(db_session):
     assert rows["第46集"]["match_count"] == 2
     snippets = rows["第46集"]["matches"]
     assert len(snippets) == 2 and all("银刀" in s and s in body for s in snippets)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("body_requested", [False, True])
+async def test_empty_create_file_only_skips_the_body_turn_when_the_author_wants_no_body(db_session, body_requested):
+    """Production (2026-10-21): 「建立第10章、第11章，不用写内容，建立标题就行」 was refused four times and tripped
+    the breaker, because every empty create_file waited for a <file> body."""
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, f"empty{int(body_requested)}")
+    ToolContext.set_context(session=db_session, user_id=user.id, project_id=project.id, session_id="sess-empty")
+    ToolContext.set_body_requested(body_requested)
+    try:
+        first = _parse_payload(await create_file({"title": "第10章", "file_type": "draft", "empty": True}))
+        second = _parse_payload(await create_file({"title": "第11章", "file_type": "draft", "empty": True}))
+    finally:
+        ToolContext.clear_pending_empty_file()
+        ToolContext.clear_context()
+
+    assert first["status"] == "success"
+    if body_requested:
+        # The author asked for prose: `empty` does not switch off the body turn.
+        assert first["data"]["awaiting_body"] is True
+        assert second["error_type"] == "pending_empty_file_unwritten"
+    else:
+        for payload in (first, second):
+            assert payload["status"] == "success"
+            assert payload["data"]["empty_by_request"] is True
+            assert "awaiting_body" not in payload["data"]

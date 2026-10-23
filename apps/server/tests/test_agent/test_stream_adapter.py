@@ -1069,6 +1069,17 @@ class TestHandleCreateFileResult:
         assert adapter._pending_file_write is None
         assert adapter._stream_processor.state == StreamState.IDLE
 
+    @pytest.mark.asyncio
+    async def test_create_file_kept_empty_by_request(self, adapter):
+        """作者只要标题的空文件不等 <file> 正文，后面的回复文字不被扣下。"""
+        result_data = {"id": "ch-10", "file_type": "draft", "title": "第10章", "content": "", "empty_by_request": True}
+
+        events = [e async for e in adapter._handle_create_file_result(result_data)]
+
+        assert events == []
+        assert adapter._pending_file_write is None
+        assert adapter._stream_processor.state == StreamState.IDLE
+
 
 class TestHandleEditFileResult:
     """Tests for _handle_edit_file_result method."""

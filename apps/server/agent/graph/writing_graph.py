@@ -1899,6 +1899,10 @@ async def run_writing_workflow_streaming(
         scope_directive = _build_scope_directive(routing_metadata)
         if scope_directive:
             state["scope_directive"] = scope_directive
+        # create_file(empty=true) 只在作者本轮明确不要正文时生效。
+        ToolContext.set_body_requested(
+            routing_metadata.get("write_content") if isinstance(routing_metadata, dict) else None
+        )
         if read_only_request:
             # 工具层强制：写文件工具的调用一律拒绝执行（见 tools_adapter），不只靠系统提示约束。
             state["read_only"] = True

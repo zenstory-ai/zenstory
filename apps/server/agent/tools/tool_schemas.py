@@ -47,6 +47,10 @@ CREATE_FILE_TOOL: dict[str, Any] = {
             "metadata": {
                 "type": "object",
                 "description": "文件元数据（JSON对象）"
+            },
+            "empty": {
+                "type": "boolean",
+                "description": "作者明确只要建文件、这一轮不写内容时（如「只建标题」「先建空章节」）设为 true：文件保持空白，不用写正文。作者要正文时设了也不生效"
             }
         },
         "required": ["title", "file_type"]

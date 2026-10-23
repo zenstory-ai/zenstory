@@ -272,6 +272,8 @@ class StreamBillingTracker:
             and not str(data.get("content") or "").strip()
             and data.get("reused_existing") is not True
             and data.get("file_type") != _FOLDER_FILE_TYPE
+            # 作者只要建文件时，空文件本身就是交付物，退还时也不移除。
+            and data.get("empty_by_request") is not True
         ):
             self.created_empty_files[file_id] = str(data.get("title") or "")
 
