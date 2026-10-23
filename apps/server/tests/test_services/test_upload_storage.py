@@ -375,3 +375,88 @@ def test_probe_reports_a_failed_cleanup():
     result = bucket.storage().probe_round_trip()
     assert not result.ok
     assert (result.step, result.reason, result.cleanup) == ("delete", "auth", "failed")
+
+
+class _TrackedStream(httpx.SyncByteStream):
+    """Unbuffered response body that records how much was pulled and whether it was closed."""
+
+    def __init__(self, prefix: bytes = b"", *, total: int = 1024 * 1024, chunk: int = 1024):
+        self.prefix, self.total, self.chunk = prefix, total, chunk
+        self.consumed = 0
+        self.closed = False
+
+    def __iter__(self):
+        data = self.prefix
+        while self.consumed < self.total:
+            piece = data[: self.chunk] or b"x" * self.chunk
+            data = data[self.chunk :]
+            self.consumed += len(piece)
+            yield piece
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.mark.parametrize("method", ["PUT", "GET", "DELETE"])
+def test_s3_error_body_is_read_as_a_bounded_prefix_and_closed(method):
+    from services.infra.upload_storage import MAX_ERROR_BODY_BYTES
+
+    stream = _TrackedStream(b"<Error><Code>SignatureDoesNotMatch</Code><Message>")
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(403, stream=stream)
+
+    storage = S3UploadStorage(_s3_settings(), client=httpx.Client(transport=httpx.MockTransport(handle)))
+    reference = f"s3://zenstory-stage/material/user-1/{'a' * 32}.txt"
+    with pytest.raises(UploadStorageError) as raised:
+        if method == "PUT":
+            storage.put_material(owner_id="user-1", timestamp="t", original_name="a.txt", content=b"x")
+        elif method == "GET":
+            storage.read_material_reference(reference, owner_id="user-1")
+        else:
+            storage.delete(reference, kind="material", owner_id="user-1")
+
+    assert raised.value.reason == "signature"
+    assert requests[0].headers["accept-encoding"] == "identity"
+    # At most one transport chunk past the 4 KiB prefix, never the 1 MiB body.
+    assert stream.consumed < MAX_ERROR_BODY_BYTES + stream.chunk
+    assert stream.consumed < stream.total
+    assert stream.closed
+
+
+def test_s3_compressed_error_body_is_not_decompressed():
+    stream = _TrackedStream(b"\x1f\x8b compressed")
+
+    storage = S3UploadStorage(
+        _s3_settings(),
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    403, headers={"Content-Encoding": "gzip"}, stream=stream
+                )
+            )
+        ),
+    )
+    with pytest.raises(UploadStorageError) as raised:
+        storage.read_feedback(f"s3://zenstory-stage/feedback/{'a' * 32}.png")
+
+    assert raised.value.reason == "auth"
+    assert stream.consumed == 0
+    assert stream.closed
+
+
+def test_s3_successful_put_and_delete_close_their_responses():
+    streams: list[_TrackedStream] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        streams.append(_TrackedStream(total=0))
+        return httpx.Response(200 if request.method == "PUT" else 204, stream=streams[-1])
+
+    storage = S3UploadStorage(_s3_settings(), client=httpx.Client(transport=httpx.MockTransport(handle)))
+    stored = storage.put_material(owner_id="user-1", timestamp="t", original_name="a.txt", content=b"x")
+    storage.delete(stored.reference, kind="material", owner_id="user-1")
+
+    assert len(streams) == 2
+    assert all(stream.closed for stream in streams)

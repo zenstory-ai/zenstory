@@ -96,16 +96,24 @@ def _safe_suffix(suffix: str) -> str:
 
 
 def _s3_error_code(response: httpx.Response) -> str | None:
-    """Read a known S3 error code from a bounded prefix of a failed response."""
-    body = b""
+    """Read a known S3 error code from a bounded raw prefix of a failed, unread response."""
+    encoding = response.headers.get("content-encoding", "").strip().lower()
+    if encoding not in {"", "identity"}:
+        # Decompressing could inflate a small body without bound: classify by status only.
+        return None
+    body = bytearray()
     try:
-        for chunk in response.iter_bytes():
-            body += chunk
+        # Raw transport chunks: at most one read past the limit is ever pulled.
+        for chunk in response.iter_raw():
+            body += chunk[: MAX_ERROR_BODY_BYTES - len(body)]
             if len(body) >= MAX_ERROR_BODY_BYTES:
                 break
+    except httpx.StreamConsumed:
+        # A transport that hands back an already-read body (in-memory mocks).
+        body = bytearray(response.content[:MAX_ERROR_BODY_BYTES])
     except httpx.HTTPError:
         return None
-    match = S3_ERROR_CODE_RE.search(body[:MAX_ERROR_BODY_BYTES])
+    match = S3_ERROR_CODE_RE.search(body)
     code = match.group(1).decode() if match else None
     return code if code in S3_ERROR_REASONS else None
 
@@ -351,6 +359,8 @@ class S3UploadStorage:
             "Host": host,
             "X-Amz-Content-Sha256": payload_hash,
             "X-Amz-Date": amz_date,
+            # Unsigned; keeps error bodies readable without decompression.
+            "Accept-Encoding": "identity",
         }
         if method == "PUT":
             request_headers["If-None-Match"] = "*"
@@ -361,7 +371,8 @@ class S3UploadStorage:
                 headers=request_headers,
                 content=content if method == "PUT" else None,
             )
-            response = self.client.send(request, stream=method == "GET")
+            # Stream every method so a failed response is never buffered whole.
+            response = self.client.send(request, stream=True)
         except httpx.HTTPError as exc:
             raise _storage_failure(method, "network") from exc
         if method == "PUT" and response.status_code == 412:
