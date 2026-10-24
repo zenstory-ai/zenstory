@@ -185,20 +185,31 @@ def _resume_target_version(file_id: str) -> tuple[str, str] | None:
     return updated_at.isoformat(), str(file_type or "")
 
 
+def _with_creation_versions(entries: list[dict[str, str]]) -> list[dict[str, str]]:
+    """回滚候选带上各自建好时的版本（create_file 结果里的 updated_at，记在待写条目上）。"""
+    targets: list[dict[str, str]] = []
+    for entry in entries:
+        version = ToolContext.pending_empty_file_version(str(entry.get("file_id") or ""))
+        targets.append({**entry, "updated_at": version} if version else dict(entry))
+    return targets
+
+
 def _rollback_unfinished_empty_files(
     entries: list[dict[str, str]],
 ) -> set[str]:
-    """Soft-delete verified empty artifacts when correction cannot continue."""
-    if not entries:
-        return set()
+    """Soft-delete verified empty artifacts when correction cannot continue.
 
-    ids = [entry["file_id"] for entry in entries if entry.get("file_id")]
-    if not ids:
+    每个条目要带上文件建好时的版本 ``updated_at``（见 ``_with_creation_versions``）：只有库里的版本仍是它、
+    正文仍为空、仍在本项目时才软删。之后被作者或别的写入动过（例如改了标题）、或拿不出建好时版本的
+    文件一律保留，由调用方报告为未完成；不拿回滚时重新读到的版本冒充建好时的版本。
+    """
+    targets = [entry for entry in entries or [] if entry.get("file_id") and entry.get("updated_at")]
+    if not targets:
         return set()
 
     try:
         with ToolContext.short_lived_session() as session:
-            return _soft_delete_verified_empty_files(session, ids)
+            return _soft_delete_verified_empty_files(session, targets)
     except Exception as exc:
         logger.warning(
             "Failed to roll back unfinished empty files",
@@ -208,8 +219,8 @@ def _rollback_unfinished_empty_files(
         return set()
 
 
-def _soft_delete_verified_empty_files(session: Any, ids: list[str]) -> set[str]:
-    """在给定 session 上软删除仍为空的文件；失败时回滚并抛出。"""
+def _soft_delete_verified_empty_files(session: Any, entries: list[dict[str, str]]) -> set[str]:
+    """在给定 session 上软删除仍为空、版本仍是建好时那个的文件；失败时回滚并抛出。"""
     from sqlalchemy import update
     from sqlmodel import select
 
@@ -220,23 +231,27 @@ def _soft_delete_verified_empty_files(session: Any, ids: list[str]) -> set[str]:
     try:
         rolled_back: set[str] = set()
         with session.begin_nested():
-            for file_id in ids:
+            for entry in entries:
+                file_id = entry["file_id"]
                 # Read scalar columns rather than an ORM identity-map object,
-                # then include the observed content in the UPDATE predicate.
-                # If a user/other run writes content between verification and
-                # rollback, rowcount becomes zero and their write is preserved.
+                # then include the observed content and version in the UPDATE
+                # predicate. If a user/other run writes (body, title, metadata)
+                # between verification and rollback, rowcount becomes zero and
+                # their write is preserved.
                 row = session.exec(
-                    select(File.content, File.is_deleted, File.project_id).where(
+                    select(File.content, File.is_deleted, File.project_id, File.updated_at).where(
                         File.id == file_id
                     )
                 ).first()
                 if row is None:
                     continue
-                content, is_deleted, row_project_id = row
+                content, is_deleted, row_project_id, updated_at = row
                 if (
                     row_project_id != project_id
                     or is_deleted
                     or str(content or "").strip()
+                    or updated_at is None
+                    or updated_at.isoformat() != entry["updated_at"]
                 ):
                     continue
 
@@ -247,6 +262,7 @@ def _soft_delete_verified_empty_files(session: Any, ids: list[str]) -> set[str]:
                         File.project_id == project_id,
                         File.is_deleted.is_(False),
                         File.content == content,
+                        File.updated_at == updated_at,
                     )
                     .values(is_deleted=True, deleted_at=utcnow())
                 )
@@ -480,7 +496,7 @@ async def _roll_back_empty_files_after_exhaustion(
     if not unfinished:
         return
 
-    rolled_back = await asyncio.to_thread(_rollback_unfinished_empty_files, unfinished)
+    rolled_back = await asyncio.to_thread(_rollback_unfinished_empty_files, _with_creation_versions(unfinished))
     for entry in unfinished:
         if entry["file_id"] in rolled_back:
             ToolContext.clear_pending_empty_file(entry["file_id"])
@@ -2536,7 +2552,9 @@ async def run_writing_workflow_streaming(
                         if resume is not None and resume.refusal == FILE_BODY_RESUME_VERSION_CHANGED
                         else set()
                     )
-                    rollback_entries = [entry for entry in unfinished if entry["file_id"] not in kept_ids]
+                    rollback_entries = _with_creation_versions(
+                        [entry for entry in unfinished if entry["file_id"] not in kept_ids]
+                    )
                     rolled_back = (
                         await asyncio.to_thread(_rollback_unfinished_empty_files, rollback_entries)
                         if rollback_entries

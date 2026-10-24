@@ -1014,12 +1014,17 @@ class TestWritingGraphFileCorrectionDbVerification:
         from agent.graph.writing_graph import run_writing_workflow_streaming
 
         calls: list[dict] = []
+        from models import File
+
+        created = db_session.get(File, file_id)
+        # create_file 结果里的版本：补不成时只回滚之后没被动过的空产物
+        version = created.updated_at.isoformat() if created is not None else None
 
         async def fake_run_streaming_agent(state, agent_type, *_args, **_kwargs):
             calls.append({"agent": agent_type, "user_message": state.get("user_message", "")})
             if len(calls) == 1:
                 # 只有第一轮调用了 create_file(空)，标记因此只置一次
-                ToolContext.set_pending_empty_file(file_id, title)
+                ToolContext.set_pending_empty_file(file_id, title, version)
                 for event in _create_file_done():
                     yield event
             yield StreamEvent(

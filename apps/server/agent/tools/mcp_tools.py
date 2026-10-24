@@ -217,7 +217,9 @@ class _PendingEmptyFileState:
     has_pending / latest / snapshot 的语义不变（writing_graph 的边界核验照旧兜底）。
     """
 
-    __slots__ = ("_lock", "_entries", "_reservations", "_reject_count", "_streamed", "_reply_seq", "_created_in")
+    __slots__ = (
+        "_lock", "_entries", "_reservations", "_reject_count", "_streamed", "_reply_seq", "_created_in", "_versions",
+    )
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -232,6 +234,8 @@ class _PendingEmptyFileState:
         # 上一次回复建的文件，这一次回复必须先写它的正文（见 overdue_unwritten）。
         self._reply_seq = 0
         self._created_in: dict[str, int] = {}
+        # create_file 结果里的版本（updated_at）：补不成时只回滚这之后没被任何写入动过的空文件。
+        self._versions: dict[str, str] = {}
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -268,10 +272,11 @@ class _PendingEmptyFileState:
                     return title
             return None
 
-    def add(self, file_id: str, title: str) -> None:
+    def add(self, file_id: str, title: str, version: str | None = None) -> None:
         with self._lock:
             self._created_in[file_id] = self._reply_seq
             self._entries[file_id] = title
+            self._set_version(file_id, version)
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
             self._reject_count = 0
@@ -305,9 +310,11 @@ class _PendingEmptyFileState:
             if file_id is None:
                 self._entries.clear()
                 self._streamed.clear()
+                self._versions.clear()
             else:
                 self._entries.pop(file_id, None)
                 self._streamed.discard(file_id)
+                self._versions.pop(file_id, None)
             self._reject_count = 0
 
     def clear_all(self) -> None:
@@ -315,7 +322,19 @@ class _PendingEmptyFileState:
             self._entries.clear()
             self._reservations.clear()
             self._streamed.clear()
+            self._versions.clear()
             self._reject_count = 0
+
+    def version(self, file_id: str) -> str | None:
+        """这个待写文件建好时的版本；不是待写条目或没有记下时为 None。"""
+        with self._lock:
+            return self._versions.get(file_id) if file_id in self._entries else None
+
+    def _set_version(self, file_id: str, version: str | None) -> None:
+        if isinstance(version, str) and version:
+            self._versions[file_id] = version
+        else:
+            self._versions.pop(file_id, None)
 
     # ---- 原子占坑 ----------------------------------------------------------
     def try_reserve(self, ticket: str, title: str) -> tuple[bool, str | None]:
@@ -366,13 +385,14 @@ class _PendingEmptyFileState:
             file_id, title_ = unwritten[0]
             return {"file_id": file_id, "title": title_}
 
-    def bind(self, ticket: str, file_id: str, title: str) -> None:
-        """占坑成功且文件已落库：把票据换成真实 file_id。"""
+    def bind(self, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
+        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
         with self._lock:
             self._reservations.pop(ticket, None)
             if file_id:
                 self._entries[file_id] = title
                 self._created_in[file_id] = self._reply_seq
+                self._set_version(file_id, version)
                 # 幂等复用命中同一文件时它重新等待正文，旧标记作废
                 self._streamed.discard(file_id)
                 self._reject_count = 0
@@ -931,11 +951,14 @@ class ToolContext:
         return None
 
     @classmethod
-    def set_pending_empty_file(cls, file_id: str, title: str) -> None:
-        """标记有一个空文件等待流式写入（追加进集合，不覆盖已有条目）。"""
+    def set_pending_empty_file(cls, file_id: str, title: str, version: str | None = None) -> None:
+        """标记有一个空文件等待流式写入（追加进集合，不覆盖已有条目）。
+
+        version：文件建好时的 updated_at（create_file 结果里的值）；没有时补不成也不会回滚它。
+        """
         state = cls._get_pending_empty_file_state()
         if state is not None:
-            state.add(file_id, title)
+            state.add(file_id, title, version)
             return
         # 未调用 set_context 的场景（如直接 set/get 的单测）退回本上下文的 ContextVar
         _pending_empty_file_var.set({"file_id": file_id, "title": title})
@@ -998,6 +1021,12 @@ class ToolContext:
             state.mark_latest_body_streamed()
 
     @classmethod
+    def pending_empty_file_version(cls, file_id: str) -> str | None:
+        """待写空文件建好时的版本（create_file 结果里的 updated_at）；不知道时为 None。"""
+        state = cls._get_pending_empty_file_state()
+        return state.version(file_id) if state is not None else None
+
+    @classmethod
     def rearm_pending_file_body(cls, file_id: str) -> bool:
         """StreamAdapter 为空文件纠偏轮重新等这个文件的正文（见 _PendingEmptyFileState.rearm）。
 
@@ -1031,11 +1060,11 @@ class ToolContext:
         return True, None
 
     @classmethod
-    def bind_pending_empty_file(cls, ticket: str, file_id: str, title: str) -> None:
-        """占坑成功且文件已落库：把票据换成真实 file_id。"""
+    def bind_pending_empty_file(cls, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
+        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
         state = cls._get_pending_empty_file_state()
         if state is not None:
-            state.bind(ticket, file_id, title)
+            state.bind(ticket, file_id, title, version)
             return
         _pending_empty_file_var.set({"file_id": file_id, "title": title})
 
@@ -2081,7 +2110,10 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         if reservation is not None:
             file_id = result.get("id", "")
             if file_id and not _is_folder_file_type(result, args):
-                ToolContext.bind_pending_empty_file(reservation, file_id, title)
+                created_version = result.get("updated_at")
+                ToolContext.bind_pending_empty_file(
+                    reservation, file_id, title, created_version if isinstance(created_version, str) else None
+                )
                 awaiting_body = True
             else:
                 ToolContext.release_pending_empty_file(reservation)

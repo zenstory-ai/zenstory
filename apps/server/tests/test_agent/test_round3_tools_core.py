@@ -385,7 +385,7 @@ def test_correction_exhaustion_rolls_back_verified_empty_artifact(db_session):
     )
     try:
         rolled_back = _rollback_unfinished_empty_files(
-            [{"file_id": file.id, "title": file.title}]
+            [{"file_id": file.id, "title": file.title, "updated_at": file.updated_at.isoformat()}]
         )
         assert rolled_back == {file.id}
         db_session.expire_all()

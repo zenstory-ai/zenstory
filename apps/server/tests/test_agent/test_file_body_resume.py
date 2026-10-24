@@ -738,3 +738,119 @@ async def test_adapter_does_not_arm_unless_the_exact_pending_guard_is_restored(c
         assert adapter._stream_processor.state == StreamState.IDLE
     finally:
         ToolContext.clear_context()
+
+
+# ---------------------------------------------------------------- 补不成时的回滚只删没被动过的空产物
+
+
+async def test_author_rename_during_the_last_failed_correction_keeps_the_file(workspace):
+    """最后一次纠偏期间作者改了标题（正文仍空）：补不成也不软删作者动过的文件，如实报告未完成。
+
+    （独立审查的跨层复现：此前回滚只比较正文，作者改名的空文件照样被删。）
+    """
+    last = Reply(text="<file>   </file>")
+    model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [Reply(text="还在构思。")], [last]])
+    last.before = _author_renames(workspace, model)
+
+    outcome = await _run(workspace, model)
+
+    assert len(model.run_inputs) == 3
+    drafts = _drafts(workspace)
+    assert len(drafts) == 1
+    assert drafts[0].title == "作者改的标题"
+    assert drafts[0].is_deleted is False and drafts[0].content == ""
+    exhausted = [f for f in outcome.of("iteration_exhausted") if f.data.get("layer") == "empty_file_correction"]
+    assert exhausted, "保留下来的文件报告为未完成"
+    assert outcome.of("workflow_complete") == []
+
+
+def _rollback_with(workspace, entries):
+    from agent.graph.writing_graph import _rollback_unfinished_empty_files
+
+    ToolContext.set_context(
+        session=workspace.session, user_id=workspace.user.id, project_id=workspace.project.id, session_id="s"
+    )
+    try:
+        return _rollback_unfinished_empty_files(entries)
+    finally:
+        ToolContext.clear_context()
+
+
+def _empty_draft(workspace, **fields):
+    from agent.tools.file_ops.serialization import serialize_file
+
+    draft = File(project_id=workspace.project.id, title=CHAPTER, file_type="draft", content="", **fields)
+    workspace.session.add(draft)
+    workspace.session.commit()
+    workspace.session.refresh(draft)
+    return draft, serialize_file(draft)["updated_at"]
+
+
+def test_rollback_deletes_an_untouched_empty_artifact_with_its_creation_version(workspace):
+    draft, created_at_version = _empty_draft(workspace)
+
+    rolled_back = _rollback_with(workspace, [{"file_id": draft.id, "title": CHAPTER, "updated_at": created_at_version}])
+
+    assert rolled_back == {draft.id}
+    workspace.session.expire_all()
+    assert workspace.session.get(File, draft.id).is_deleted is True
+
+
+@pytest.mark.parametrize("case", ["no_creation_version", "changed_since_creation", "has_body", "other_project"])
+def test_rollback_keeps_files_it_cannot_prove_untouched(workspace, case):
+    draft, created_at_version = _empty_draft(workspace)
+    entry = {"file_id": draft.id, "title": CHAPTER, "updated_at": created_at_version}
+    if case == "no_creation_version":
+        entry.pop("updated_at")
+    elif case == "changed_since_creation":
+        from api import files as files_api
+
+        files_api.update_file(draft.id, files_api.FileUpdate(title="作者改的标题"), current_user=workspace.user, session=workspace.session)
+    elif case == "has_body":
+        draft.content = "作者写的一句。"
+        workspace.session.add(draft)
+        workspace.session.commit()
+    else:
+        other = Project(name="别的作品", owner_id=workspace.user.id)
+        workspace.session.add(other)
+        workspace.session.commit()
+        draft.project_id = other.id
+        workspace.session.add(draft)
+        workspace.session.commit()
+
+    rolled_back = _rollback_with(workspace, [entry])
+
+    assert rolled_back == set()
+    workspace.session.expire_all()
+    assert workspace.session.get(File, draft.id).is_deleted is False
+
+
+def test_rollback_keeps_a_file_changed_between_verification_and_delete(workspace, monkeypatch):
+    """核验通过之后、软删之前文件被改了（版本前进）：带版本条件的 UPDATE 不命中，文件保留。"""
+    from datetime import timedelta
+
+    from sqlalchemy import text
+
+    draft, created_at_version = _empty_draft(workspace)
+    session = workspace.session
+    original_exec = session.exec
+    calls = {"n": 0}
+
+    def exec_with_concurrent_change(statement, *args, **kwargs):
+        result = original_exec(statement, *args, **kwargs)
+        calls["n"] += 1
+        if calls["n"] == 1:  # 核验读完之后，另一个写入把版本推前
+            session.connection().execute(
+                text("UPDATE file SET updated_at = :later WHERE id = :id"),
+                {"later": draft.updated_at + timedelta(seconds=5), "id": draft.id},
+            )
+        return result
+
+    monkeypatch.setattr(session, "exec", exec_with_concurrent_change)
+
+    rolled_back = _rollback_with(workspace, [{"file_id": draft.id, "title": CHAPTER, "updated_at": created_at_version}])
+    monkeypatch.undo()
+
+    assert rolled_back == set()
+    session.expire_all()
+    assert session.get(File, draft.id).is_deleted is False
