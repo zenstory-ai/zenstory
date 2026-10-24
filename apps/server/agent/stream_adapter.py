@@ -42,8 +42,19 @@ from .core.events import (
 )
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import error_message_for, stream_error_from_event_data
-from .core.stream_processor import StreamProcessor, StreamResult
-from .core.workflow_events import CHAT_HOLD_BEGIN, CHAT_HOLD_DISCARD, StreamEventType
+from .core.stream_processor import StreamProcessor, StreamResult, StreamState
+from .core.workflow_events import (
+    CHAT_HOLD_BEGIN,
+    CHAT_HOLD_DISCARD,
+    FILE_BODY_RESUME_CAPTURE_ACTIVE,
+    FILE_BODY_RESUME_GUARD_MISSING,
+    FILE_BODY_RESUME_NOT_BOUND,
+    FILE_BODY_RESUME_NOT_EMPTY,
+    FILE_BODY_RESUME_UNAVAILABLE,
+    FILE_BODY_RESUME_VERSION_CHANGED,
+    FileBodyResume,
+    StreamEventType,
+)
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
 
 logger = get_logger(__name__)
@@ -419,6 +430,11 @@ class StreamAdapter:
                 yield sse_event
             return
 
+        if event_type == StreamEventType.FILE_BODY_RESUME:
+            async for sse_event in self._resume_file_body(data.get("request")):
+                yield sse_event
+            return
+
         if event_type_value in _CHAT_HOLD_RELEASE_EVENT_TYPES:
             # 下一个 agent、交接、收尾 / 出错：被扣着的对话文字没被图丢掉，就按原顺序放出。
             for sse_event in self._release_held_chat():
@@ -517,9 +533,10 @@ class StreamAdapter:
                 # NOTE: deliberately keep self._pending_file_write and the
                 # ToolContext pending-empty-file guard set. The StreamProcessor is
                 # now reset (no further cross-agent capture), but the guard remains
-                # the signal the workflow loop reads to re-run the writer, and the
-                # end-of-stream cleanup clears it so it cannot leak to the next
-                # request.
+                # the signal the workflow loop reads to re-run the writer; the
+                # correction run re-arms this same capture only through the graph's
+                # FILE_BODY_RESUME (see _resume_file_body). The end-of-stream
+                # cleanup clears it so it cannot leak to the next request.
 
         elif event_type == StreamEventType.ERROR:
             # LLM 中途出错时 runner 不发 MESSAGE_END，进行中的 <file> 捕获不会在
@@ -564,6 +581,8 @@ class StreamAdapter:
                 reason=data.get("reason", ""),
                 last_agent=data.get("last_agent"),
                 limit=data.get("limit"),
+                unfinished_files=_card_files(data.get("unfinished_files")),
+                rolled_back_files=_card_files(data.get("rolled_back_files")),
             )
 
         elif event_type_value in (
@@ -873,6 +892,68 @@ class StreamAdapter:
             baseline_updated_at=file_data.get("updated_at"),
         )
 
+    async def _resume_file_body(self, request: Any) -> AsyncIterator[SSEEvent]:
+        """图的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
+
+        上一个 agent run 的 MESSAGE_END 已把还在等正文的捕获复位成 IDLE；不重新等待，
+        纠偏轮写出的 <file> 正文只会落进聊天。只认本适配器自己记下的待写文件（这一请求里
+        成功的 create_file 结果）：同一个 id、建的时候是空文件、图刚读到的版本仍是
+        create_file 结果里的版本（之后作者或别的写入都没动过它）。落库照旧走
+        _save_file_content_sync 的作者保护与版本检查。
+        """
+        if not isinstance(request, FileBodyResume):
+            return
+        pending = self._pending_file_write
+        processor = self._stream_processor
+        already_waiting = (
+            pending is not None
+            and processor.state == StreamState.WAITING_START
+            and processor.file_id == pending.file_id
+            and not processor.temp_buffer
+        )
+        refusal: str | None = None
+        if not self.config.process_file_markers or self._fatal_stream_error:
+            refusal = FILE_BODY_RESUME_UNAVAILABLE
+        elif pending is None or pending.file_id != request.file_id:
+            refusal = FILE_BODY_RESUME_NOT_BOUND
+        elif pending.original_content_length > 0:
+            refusal = FILE_BODY_RESUME_NOT_EMPTY
+        elif pending.baseline_updated_at is None or pending.baseline_updated_at != request.expected_updated_at:
+            refusal = FILE_BODY_RESUME_VERSION_CHANGED
+        elif not already_waiting and processor.state != StreamState.IDLE:
+            refusal = FILE_BODY_RESUME_CAPTURE_ACTIVE
+        elif not self._rearm_pending_guard(pending.file_id):
+            # 捕获与守卫要一起恢复：守卫不在（或恢复失败）时不开捕获，纠偏轮就不会被安排。
+            refusal = FILE_BODY_RESUME_GUARD_MISSING
+        elif not already_waiting:
+            # IDLE 下暂扣的行首 / 空标签对文字先交还对话，再开始等正文。
+            async for sse_event in self._flush_active_capture():
+                yield sse_event
+            processor.start_file_write(pending.file_id)
+
+        if refusal is None:
+            request.armed = True
+        else:
+            request.refusal = refusal
+        log_with_context(
+            logger,
+            20 if refusal is None else 30,  # INFO / WARNING
+            "Empty-file correction capture resumed" if refusal is None else "Empty-file correction capture not resumed",
+            file_id=request.file_id,
+            refusal=refusal,
+        )
+
+    @staticmethod
+    def _rearm_pending_guard(file_id: str) -> bool:
+        """恢复这个文件的待写守卫；只有确实恢复了才返回 True（异常也按失败处理）。"""
+        try:
+            from agent.tools.mcp_tools import ToolContext
+
+            return ToolContext.rearm_pending_file_body(file_id) is True
+        except Exception as exc:  # noqa: BLE001 - a failed guard must decline the resume
+            log_with_context(logger, 30, "Pending file guard re-arm failed", file_id=file_id, error_type=type(exc).__name__)
+            return False
+
     @staticmethod
     def _resolve_original_content_length(file_data: dict[str, Any], content: str) -> int:
         """取目标文件本次写入前的正文长度。
@@ -908,7 +989,7 @@ class StreamAdapter:
                 error_type=type(exc).__name__,
             )
             return None
-        if not (result.file_complete and result.file_id and result.final_content):
+        if not (result.file_complete and result.file_id and result.final_content.strip()):
             return None
         if self._should_refuse_truncated_overwrite(result):
             log_with_context(
@@ -1093,20 +1174,31 @@ class StreamAdapter:
             self._clear_pending_empty_file_guard(result.file_id)
             return
 
+        # 空的或只有空白的 <file> 块不算写成正文：不落库、不发结束事件，待写绑定与守卫都留着，
+        # 由图的边界核验按空文件处理（有界纠偏、回滚或如实报告未完成），不当作已交付。
+        if not result.final_content.strip():
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Blank <file> block is not a written body; the file stays pending",
+                file_id=result.file_id,
+                streamed_length=len(result.final_content),
+            )
+            return
+
         # Save accumulated file content to database before emitting end event
-        if result.final_content:
-            saved = await self._save_file_content(result.file_id, result.final_content)
-            if not saved:
-                self._fatal_stream_error = True
-                # Clear pending state to avoid blocking future create_file calls.
-                self._pending_file_write = None
-                self._clear_pending_empty_file_guard(result.file_id)
-                yield error_event(
-                    message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
-                    code=ErrorCode.AGENT_FILE_SAVE_FAILED,
-                    retryable=True,
-                )
-                return
+        saved = await self._save_file_content(result.file_id, result.final_content)
+        if not saved:
+            self._fatal_stream_error = True
+            # Clear pending state to avoid blocking future create_file calls.
+            self._pending_file_write = None
+            self._clear_pending_empty_file_guard(result.file_id)
+            yield error_event(
+                message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
+                code=ErrorCode.AGENT_FILE_SAVE_FAILED,
+                retryable=True,
+            )
+            return
 
         yield file_content_end_event(result.file_id)
 
@@ -1429,6 +1521,21 @@ _CHAT_HOLD_RELEASE_EVENT_TYPES: frozenset[str] = frozenset(
         StreamEventType.ERROR.value,
     }
 )
+
+
+def _card_files(raw: Any) -> list[dict[str, str]] | None:
+    """状态卡上点名的文件：只留 id 与标题（图里的条目用 file_id）；没给就是 None。"""
+    if not isinstance(raw, list):
+        return None
+    files: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        file_id = item.get("id") or item.get("file_id")
+        title = item.get("title")
+        if isinstance(file_id, str) and file_id and isinstance(title, str):
+            files.append({"id": file_id, "title": title})
+    return files
 
 
 def create_stream_adapter(

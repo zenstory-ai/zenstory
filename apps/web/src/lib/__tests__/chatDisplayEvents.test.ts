@@ -42,6 +42,13 @@ describe('persisted chat display sequence', () => {
     expect(items[0].content).not.toContain('mystery_agent');
   });
 
+  it('keeps the unfinished and removed files of an empty-file stop after a reload', () => {
+    const events = [{ type: 'iteration_exhausted', data: { layer: 'empty_file_correction', iterations_used: 2, max_iterations: 2, reason: 'internal',
+      unfinished_files: [{ id: 'kept', title: '第一章' }], rolled_back_files: [{ id: 'gone', title: '第二章' }] } }];
+    const items = parseChatDisplayEvents(JSON.stringify({ display_events: events }), [], timestamp, t)!;
+    expect(items[0]).toMatchObject({ type: 'iteration_exhausted', layer: 'empty_file_correction', unfinishedFiles: ['第一章'], rolledBackFiles: ['第二章'] });
+  });
+
   it('maps reasoning, routing, exhaustion and completion using the same fields as live callbacks', () => {
     const events = [
       { type: 'thinking_content', content: 'Reasoning' },

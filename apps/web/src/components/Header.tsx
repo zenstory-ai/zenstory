@@ -86,7 +86,14 @@ export const Header: React.FC<HeaderProps> = () => {
   const navigate = useNavigate();
   const { t } = useTranslation(['editor', 'common', 'dashboard', 'home']);
   const exportUpgradePrompt = getUpgradePromptDefinition("export_format_quota_blocked");
-  const { currentProjectId, triggerFileTreeRefresh, setSelectedItem, selectedItem } = useProject();
+  const { currentProjectId, currentProject, triggerFileTreeRefresh, setSelectedItem, selectedItem } = useProject();
+  // A screenplay project's text is its scripts (the file tree says 剧本): the export entry says so too.
+  // Only the wording differs; what is exported is the same.
+  const isScreenplay = currentProject?.project_type === 'screenplay';
+  const exportLabel = isScreenplay ? t('editor:header.exportScript') : t('editor:header.export');
+  const exportWithOutlineLabel = isScreenplay
+    ? t('editor:header.exportScriptWithOutline')
+    : t('editor:header.exportWithOutline');
   const [showSettings, setShowSettings] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
@@ -128,17 +135,25 @@ export const Header: React.FC<HeaderProps> = () => {
         // Only promise the outline when the file name says it is in there: an API
         // deployed before include_outline ignores it and sends the text only.
         if (result?.includesOutline === true) {
-          toast.success(t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
+          toast.success(isScreenplay
+            ? t('editor:header.exportScriptWithOutlineSuccess')
+            : t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
         } else if (result?.noOutlineYet) {
-          toast.info(t('editor:header.exportNoOutlineYet', '这部作品还没有写好的大纲，这次导出了正文'));
+          toast.info(isScreenplay
+            ? t('editor:header.exportScriptNoOutlineYet')
+            : t('editor:header.exportNoOutlineYet', '这部作品还没有写好的大纲，这次导出了正文'));
         } else if (result?.includesOutline === false) {
-          toast.info(t('editor:header.exportOutlineSkipped', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'));
+          toast.info(isScreenplay
+            ? t('editor:header.exportScriptOutlineSkipped')
+            : t('editor:header.exportOutlineSkipped', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'));
         } else {
           toast.success(t('editor:header.exportDone', '已导出为 TXT 文件'));
         }
       } else {
         await exportDrafts();
-        toast.success(t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
+        toast.success(isScreenplay
+          ? t('editor:header.exportScriptSuccess')
+          : t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
       }
       if (closeMobileMenu) {
         setShowMobileMenu(false);
@@ -206,7 +221,7 @@ export const Header: React.FC<HeaderProps> = () => {
     ...(currentProjectId
       ? [{
           icon: FileText,
-          label: t('editor:header.exportWithOutline'),
+          label: exportWithOutlineLabel,
           disabled: exportLoading,
           onClick: () => {
             void handleExport(false, true);
@@ -294,8 +309,8 @@ export const Header: React.FC<HeaderProps> = () => {
                 disabled={exportLoading}
                 aria-busy={exportLoading}
                 className={desktopIconButtonClass}
-                title={t('editor:header.export')}
-                aria-label={t('editor:header.export')}
+                title={exportLabel}
+                aria-label={exportLabel}
               >
                 {exportLoading ? (
                   <span role="status" aria-label={t('common:loading')}>
@@ -407,7 +422,7 @@ export const Header: React.FC<HeaderProps> = () => {
                 ) : (
                   <Download size={18} />
                 )}
-                {t('editor:header.export')}
+                {exportLabel}
               </button>
             )}
             {currentProjectId && (
@@ -428,7 +443,7 @@ export const Header: React.FC<HeaderProps> = () => {
                 ) : (
                   <FileText size={18} className="shrink-0" />
                 )}
-                {t('editor:header.exportWithOutline')}
+                {exportWithOutlineLabel}
               </button>
             )}
             {downloadableFile && (

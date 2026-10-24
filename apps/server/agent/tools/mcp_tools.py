@@ -217,7 +217,9 @@ class _PendingEmptyFileState:
     has_pending / latest / snapshot 的语义不变（writing_graph 的边界核验照旧兜底）。
     """
 
-    __slots__ = ("_lock", "_entries", "_reservations", "_reject_count", "_streamed", "_reply_seq", "_created_in")
+    __slots__ = (
+        "_lock", "_entries", "_reservations", "_reject_count", "_streamed", "_reply_seq", "_created_in", "_versions",
+    )
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -232,6 +234,8 @@ class _PendingEmptyFileState:
         # 上一次回复建的文件，这一次回复必须先写它的正文（见 overdue_unwritten）。
         self._reply_seq = 0
         self._created_in: dict[str, int] = {}
+        # create_file 结果里的版本（updated_at）：补不成时只回滚这之后没被任何写入动过的空文件。
+        self._versions: dict[str, str] = {}
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -268,10 +272,11 @@ class _PendingEmptyFileState:
                     return title
             return None
 
-    def add(self, file_id: str, title: str) -> None:
+    def add(self, file_id: str, title: str, version: str | None = None) -> None:
         with self._lock:
             self._created_in[file_id] = self._reply_seq
             self._entries[file_id] = title
+            self._set_version(file_id, version)
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
             self._reject_count = 0
@@ -288,15 +293,28 @@ class _PendingEmptyFileState:
             if self._entries:
                 self._streamed.add(next(reversed(self._entries)))
 
+    def rearm(self, file_id: str) -> bool:
+        """纠偏轮重新等这个文件的正文：没被捕获的「正文已写出」标记作废，建于第几次回复不变。
+
+        返回这个文件是否仍是待写条目（不是就什么也不做）。
+        """
+        with self._lock:
+            if file_id not in self._entries:
+                return False
+            self._streamed.discard(file_id)
+            return True
+
     def discard(self, file_id: str | None = None) -> None:
         """file_id 为 None 时清空全部，否则只摘掉指定条目。"""
         with self._lock:
             if file_id is None:
                 self._entries.clear()
                 self._streamed.clear()
+                self._versions.clear()
             else:
                 self._entries.pop(file_id, None)
                 self._streamed.discard(file_id)
+                self._versions.pop(file_id, None)
             self._reject_count = 0
 
     def clear_all(self) -> None:
@@ -304,7 +322,19 @@ class _PendingEmptyFileState:
             self._entries.clear()
             self._reservations.clear()
             self._streamed.clear()
+            self._versions.clear()
             self._reject_count = 0
+
+    def version(self, file_id: str) -> str | None:
+        """这个待写文件建好时的版本；不是待写条目或没有记下时为 None。"""
+        with self._lock:
+            return self._versions.get(file_id) if file_id in self._entries else None
+
+    def _set_version(self, file_id: str, version: str | None) -> None:
+        if isinstance(version, str) and version:
+            self._versions[file_id] = version
+        else:
+            self._versions.pop(file_id, None)
 
     # ---- 原子占坑 ----------------------------------------------------------
     def try_reserve(self, ticket: str, title: str) -> tuple[bool, str | None]:
@@ -355,13 +385,14 @@ class _PendingEmptyFileState:
             file_id, title_ = unwritten[0]
             return {"file_id": file_id, "title": title_}
 
-    def bind(self, ticket: str, file_id: str, title: str) -> None:
-        """占坑成功且文件已落库：把票据换成真实 file_id。"""
+    def bind(self, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
+        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
         with self._lock:
             self._reservations.pop(ticket, None)
             if file_id:
                 self._entries[file_id] = title
                 self._created_in[file_id] = self._reply_seq
+                self._set_version(file_id, version)
                 # 幂等复用命中同一文件时它重新等待正文，旧标记作废
                 self._streamed.discard(file_id)
                 self._reject_count = 0
@@ -920,11 +951,14 @@ class ToolContext:
         return None
 
     @classmethod
-    def set_pending_empty_file(cls, file_id: str, title: str) -> None:
-        """标记有一个空文件等待流式写入（追加进集合，不覆盖已有条目）。"""
+    def set_pending_empty_file(cls, file_id: str, title: str, version: str | None = None) -> None:
+        """标记有一个空文件等待流式写入（追加进集合，不覆盖已有条目）。
+
+        version：文件建好时的 updated_at（create_file 结果里的值）；没有时补不成也不会回滚它。
+        """
         state = cls._get_pending_empty_file_state()
         if state is not None:
-            state.add(file_id, title)
+            state.add(file_id, title, version)
             return
         # 未调用 set_context 的场景（如直接 set/get 的单测）退回本上下文的 ContextVar
         _pending_empty_file_var.set({"file_id": file_id, "title": title})
@@ -987,6 +1021,22 @@ class ToolContext:
             state.mark_latest_body_streamed()
 
     @classmethod
+    def pending_empty_file_version(cls, file_id: str) -> str | None:
+        """待写空文件建好时的版本（create_file 结果里的 updated_at）；不知道时为 None。"""
+        state = cls._get_pending_empty_file_state()
+        return state.version(file_id) if state is not None else None
+
+    @classmethod
+    def rearm_pending_file_body(cls, file_id: str) -> bool:
+        """StreamAdapter 为空文件纠偏轮重新等这个文件的正文（见 _PendingEmptyFileState.rearm）。
+
+        下一次回复照样要先以 <file> 写正文，其他工具仍按 file_body_pending 拒绝。返回这个文件的
+        待写守卫是否确实恢复：没有请求上下文、或它已不是待写条目时为 False，调用方不能恢复捕获。
+        """
+        state = cls._get_pending_empty_file_state()
+        return state.rearm(file_id) if state is not None else False
+
+    @classmethod
     def try_reserve_pending_empty_file(
         cls, ticket: str, title: str
     ) -> tuple[bool, str | None]:
@@ -1010,11 +1060,11 @@ class ToolContext:
         return True, None
 
     @classmethod
-    def bind_pending_empty_file(cls, ticket: str, file_id: str, title: str) -> None:
-        """占坑成功且文件已落库：把票据换成真实 file_id。"""
+    def bind_pending_empty_file(cls, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
+        """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
         state = cls._get_pending_empty_file_state()
         if state is not None:
-            state.bind(ticket, file_id, title)
+            state.bind(ticket, file_id, title, version)
             return
         _pending_empty_file_var.set({"file_id": file_id, "title": title})
 
@@ -1864,7 +1914,9 @@ def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dic
     """create_file 被「上一个空文件还没写正文」挡回时的错误，点名解除方法。
 
     error_type 让工具失败熔断器把它识别为顺序性拒绝（先做前置动作即可成功），
-    不按「同一调用连续失败」熔断；pending_file_id 让模型能直接 edit_file 补写。
+    不按「同一调用连续失败」熔断。解除方法与 create_file 的 next_step、正文待写守卫
+    （tools_adapter.file_body_pending_text）一致：下一次回复以 <file> 写正文；
+    不建议 edit_file——下一次回复里它会被守卫拒绝。
     """
     blocking_name = blocking_title or "未知"
     blocking_id = ""
@@ -1872,16 +1924,13 @@ def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dic
         if entry.get("title") == blocking_title:
             blocking_id = str(entry.get("file_id") or "")
     id_part = f"（id={blocking_id}）" if blocking_id else ""
-    edit_part = (
-        f"，或调用 edit_file(id={blocking_id}, op=append) 写入正文" if blocking_id else ""
-    )
     payload: dict[str, Any] = {
         "status": "error",
         "error_type": "pending_empty_file_unwritten",
         "error": (
             f"文件「{title}」未创建：上一个文件「{blocking_name}」{id_part}正文还是空的，"
             "一次只能流式写入一个文件。"
-            f"下一步：先在回复里用 <file>完整内容</file> 写出「{blocking_name}」的正文{edit_part}；"
+            f"下一步：下一次回复直接以 <file> 开头写完「{blocking_name}」的正文、用 </file> 结束；"
             f"写完后再调用 create_file 创建「{title}」。在此之前重复调用 create_file 只会再次被拒绝。"
         ),
     }
@@ -2061,7 +2110,12 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         if reservation is not None:
             file_id = result.get("id", "")
             if file_id and not _is_folder_file_type(result, args):
-                ToolContext.bind_pending_empty_file(reservation, file_id, title)
+                # 只有本轮新建的文件记下建好时的版本（之后补不成可以回滚）；复用的既有空文件
+                # 照样等正文，但不是本轮产物，不记版本，回滚不删它。
+                created_version = None if result.get("reused_existing") is True else result.get("updated_at")
+                ToolContext.bind_pending_empty_file(
+                    reservation, file_id, title, created_version if isinstance(created_version, str) else None
+                )
                 awaiting_body = True
             else:
                 ToolContext.release_pending_empty_file(reservation)

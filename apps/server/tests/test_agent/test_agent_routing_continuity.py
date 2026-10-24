@@ -16,6 +16,7 @@ from sqlmodel import Session, desc, select
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from tests.test_agent.body_write_events import edit_file_events
+from tests.test_agent.file_body_resume_helpers import accept_resumes, resumable_target
 
 LONG_TEXT = "第五章的正文。" * 200
 
@@ -83,8 +84,10 @@ async def _run_graph(fake_agent, state, *, router=None, auto_review_threshold=10
         ):
             return [
                 event
-                async for event in run_writing_workflow_streaming(
-                    state=state, thread_id="t", auto_review_threshold=auto_review_threshold
+                async for event in accept_resumes(
+                    run_writing_workflow_streaming(
+                        state=state, thread_id="t", auto_review_threshold=auto_review_threshold
+                    )
                 )
             ]
     finally:
@@ -235,7 +238,10 @@ async def test_rework_stays_unreviewed_across_empty_file_correction_round():
             ToolContext.clear_pending_empty_file()
         yield _text(LONG_TEXT)
 
-    with patch("agent.graph.writing_graph._probe_pending_file_body", return_value="empty"):
+    with (
+        patch("agent.graph.writing_graph._probe_pending_file_body", return_value="empty"),
+        resumable_target(),
+    ):
         await _run_graph(fake_agent, _state("写第五章", generation_mode="quality"))
 
     assert calls == ["writer", "quality_reviewer", "writer", "writer"]
@@ -377,8 +383,12 @@ async def test_tool_call_exhaustion_rolls_back_pending_empty_file():
         events = await _run_graph(fake_agent, _state("写第六章"))
 
     rollback.assert_called_once_with([{"file_id": "f6", "title": "第六章"}])
-    notice = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert "《第六章》" in notice and "已撤销" in notice
+    # 回滚之后才发这一轮唯一的耗尽卡，层不变，带上已撤销的文件；不再另发文字说明。
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card["layer"] == "tool_call" and card["iterations_used"] == 60
+    assert card["rolled_back_files"] == [{"file_id": "f6", "title": "第六章"}]
+    assert "unfinished_files" not in card
+    assert not any(e.type == StreamEventType.TEXT for e in events)
 
 
 @pytest.mark.asyncio
@@ -402,6 +412,8 @@ async def test_tool_call_exhaustion_keeps_files_whose_body_was_written():
 
     rollback.assert_not_called()
     assert not any(e.type == StreamEventType.TEXT for e in events)
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card == {"layer": "tool_call", "iterations_used": 60, "max_iterations": 60}, "没有空文件时卡片不变"
 
 
 # ----------------------------------------- session_loader：路由信号与面包屑

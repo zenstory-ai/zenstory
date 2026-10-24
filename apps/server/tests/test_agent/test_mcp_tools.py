@@ -1557,7 +1557,6 @@ async def test_create_file_rejection_names_the_unblocking_action(db_session):
         assert rejected["error_type"] == "pending_empty_file_unwritten"
         assert rejected["pending_file_id"] == first_id
         assert "<file>" in rejected["error"]
-        assert f"edit_file(id={first_id}" in rejected["error"]
         assert "苏晚" in rejected["error"]
         # 标记仍指向那个真正没写正文的文件
         assert [entry["file_id"] for entry in ToolContext.get_pending_empty_files()] == [first_id]

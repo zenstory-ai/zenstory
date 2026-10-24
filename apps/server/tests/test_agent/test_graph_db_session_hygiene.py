@@ -99,7 +99,9 @@ async def test_probe_and_rollback_use_short_lived_sessions(db_session, tracked_s
     try:
         state = await asyncio.to_thread(_probe_pending_file_body, empty.id)
         rolled_back = await asyncio.to_thread(
-            _rollback_unfinished_empty_files, [{"file_id": empty.id, "title": empty.title}]
+            _rollback_unfinished_empty_files,
+            # 建好时的版本：只回滚之后没被动过的空产物
+            [{"file_id": empty.id, "title": empty.title, "updated_at": empty.updated_at.isoformat()}],
         )
 
         assert state == _PENDING_BODY_EMPTY

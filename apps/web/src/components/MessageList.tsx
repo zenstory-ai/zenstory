@@ -22,14 +22,14 @@ import { User, Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown }
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
 import { ThinkingContent } from './ThinkingContent';
-import type { AgentContextItem, FileEditUndoTarget, ToolCall } from '../types';
+import type { AgentContextItem, FileEditUndoTarget, IterationExhaustedLayer, ToolCall } from '../types';
 import { getLocaleCode } from '../lib/i18n-helpers';
 import { stripThinkTags } from '../lib/utils';
 import { getAgentDisplayName } from '../lib/agentDisplayName';
 import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
 import { RoundEndNote } from './RoundEndNote';
-import type { RoundStopOutcome } from '../lib/chatRoundEnd';
+import { exhaustionLeftFilesUnfinished, type RoundStopOutcome } from '../lib/chatRoundEnd';
 import { isClarificationStop as isClarificationStopItem } from '../lib/nextStep';
 
 /** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
@@ -79,12 +79,14 @@ export type MessageStatusCard =
     }
   | {
       type: 'iteration_exhausted';
-      layer?: "collaboration" | "tool_call";
+      layer?: IterationExhaustedLayer;
       iterationsUsed?: number;
       maxIterations?: number;
       reason?: string;
       lastAgent?: string;
       limit?: string;
+      unfinishedFiles?: string[];
+      rolledBackFiles?: string[];
     };
 
 export interface Message {
@@ -177,7 +179,7 @@ interface MessageListProps {
   onIterationAssistAction?: (
     action: 'continue' | 'split' | 'manual',
     item: {
-      layer?: "collaboration" | "tool_call";
+      layer?: IterationExhaustedLayer;
       maxIterations?: number;
       iterationsUsed?: number;
       reason?: string;
@@ -279,6 +281,38 @@ const contextItemTitle = (item: AgentContextItem) => {
  * thinking_status / agent_selected 提示，澄清已经有 workflow_stopped 提问卡片，
  * 再画一张「handoff_to_agent 完成」的工具卡片只会把内部名字露给作者。
  */
+/**
+ * What an iteration_exhausted card says. A round that stopped with a file that never got its text
+ * (empty_file_correction, or a tool-turn stop that names such files) names the files left
+ * unfinished and the empty ones removed, instead of the 「任务比较大」 summary.
+ */
+function iterationExhaustedText(
+  t: TFunction,
+  card: { layer?: IterationExhaustedLayer; limit?: string; unfinishedFiles?: string[]; rolledBackFiles?: string[] },
+): { title: string; lines: string[] } {
+  if (exhaustionLeftFilesUnfinished(card)) {
+    const joiner = t('panel.removedFilesJoiner', { ns: 'chat' });
+    const lines = [
+      card.unfinishedFiles?.length
+        ? t('workflow.emptyFileUnresolved', { ns: 'chat', titles: card.unfinishedFiles.join(joiner) })
+        : null,
+      card.rolledBackFiles?.length
+        ? t('workflow.emptyFileRolledBack', { ns: 'chat', titles: card.rolledBackFiles.join(joiner) })
+        : null,
+    ].filter((line): line is string => Boolean(line));
+    return {
+      title: t('workflow.emptyFileUnfinished', { ns: 'chat' }),
+      lines: lines.length > 0 ? lines : [t('workflow.emptyFileUnfinishedSummary', { ns: 'chat' })],
+    };
+  }
+  const summary = card.limit === 'wall_clock'
+    ? t('workflow.timeLimitSummary', { ns: 'chat' })
+    : card.layer === 'collaboration'
+      ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
+      : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
+  return { title: t('workflow.iterationExhausted', { ns: 'chat' }), lines: [summary] };
+}
+
 const CONTROL_FLOW_TOOL_NAMES = new Set(['handoff_to_agent', 'request_clarification']);
 
 const visibleToolCalls = (calls: ToolCall[] | undefined): ToolCall[] =>
@@ -385,9 +419,11 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
 /**
  * Props passed to each message Row component.
  */
-function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistAction, isStreaming = false }: {
+function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistAction, isStreaming = false, chatMessageId }: {
   items: StreamRenderItem[];
   onUndo?: MessageListProps['onUndo'];
+  /** The saved assistant message these items belong to (absent while streaming). */
+  chatMessageId?: string;
   onOpenFile?: MessageListProps['onOpenFile'];
   onIterationAssistAction?: MessageListProps['onIterationAssistAction'];
   isStreaming?: boolean;
@@ -448,6 +484,8 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
               isPending={toolCall.status === 'pending' && isStreaming}
               interrupted={toolCall.status === 'pending' && !isStreaming}
               onUndo={onUndo}
+              toolUseId={toolCall.id}
+              chatMessageId={chatMessageId}
               onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
             />
           ))}
@@ -494,12 +532,8 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
         </div>
       );
     } else if (item.type === 'iteration_exhausted') {
-      // 7. iteration_exhausted - 这一轮的步数/协作轮数用完：正常暂停，用中性样式。
-      const summaryText = item.limit === 'wall_clock'
-        ? t('workflow.timeLimitSummary', { ns: 'chat' })
-        : item.layer === 'collaboration'
-          ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
-          : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
+      // 7. iteration_exhausted - 这一轮的步数/协作轮数用完，或有文件没写成正文：暂停，用中性样式。
+      const exhausted = iterationExhaustedText(t, item);
 
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
@@ -507,11 +541,13 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
             <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
             <div className="flex flex-col gap-0.5 min-w-0">
               <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
-                {t('workflow.iterationExhausted', { ns: 'chat' })}
+                {exhausted.title}
               </span>
-              <span className="text-xs text-[hsl(var(--text-primary))] break-words">
-                {summaryText}
-              </span>
+              {exhausted.lines.map((line) => (
+                <span key={line} className="text-xs text-[hsl(var(--text-primary))] break-words">
+                  {line}
+                </span>
+              ))}
               <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
                 {t('workflow.nextStepHint', { ns: 'chat' })}
               </span>
@@ -779,7 +815,7 @@ const Row = React.memo(function Row({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
-          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} isStreaming={isStreaming} />
+          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
         ) : <>
         {/* Thinking content - show streaming if active, otherwise show historical segments */}
         {message.role === 'assistant' && (
@@ -921,6 +957,8 @@ const Row = React.memo(function Row({
                 isPending={toolCall.status === 'pending' && isStreaming}
                 interrupted={toolCall.status === 'pending' && !isStreaming}
                 onUndo={onUndo}
+                toolUseId={toolCall.id}
+                chatMessageId={message.backendMessageId}
                 onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
               />
             ))}
@@ -938,6 +976,8 @@ const Row = React.memo(function Row({
                 result={result.result ?? {}}
                 error={result.status === 'error' ? result.error : undefined}
                 onUndo={onUndo}
+                toolUseId={result.id}
+                chatMessageId={message.backendMessageId}
                 onOpenFile={result.status === 'success' ? onOpenFile : undefined}
               />
             ))}
@@ -1031,12 +1071,8 @@ const Row = React.memo(function Row({
               }
 
               if (card.type === 'iteration_exhausted') {
-                // 正常暂停（不是失败）：中性样式。
-                const summaryText = card.limit === 'wall_clock'
-                  ? t('workflow.timeLimitSummary', { ns: 'chat' })
-                  : card.layer === 'collaboration'
-                    ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
-                    : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
+                // 暂停（不是失败）：中性样式。
+                const exhausted = iterationExhaustedText(t, card);
 
                 return (
                   <div key={`status-${idx}`} className="max-w-full">
@@ -1044,11 +1080,13 @@ const Row = React.memo(function Row({
                       <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
                       <div className="flex flex-col gap-0.5 min-w-0">
                         <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
-                          {t('workflow.iterationExhausted', { ns: 'chat' })}
+                          {exhausted.title}
                         </span>
-                        <span className="text-xs text-[hsl(var(--text-primary))] break-words">
-                          {summaryText}
-                        </span>
+                        {exhausted.lines.map((line) => (
+                          <span key={line} className="text-xs text-[hsl(var(--text-primary))] break-words">
+                            {line}
+                          </span>
+                        ))}
                         <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
                           {t('workflow.nextStepHint', { ns: 'chat' })}
                         </span>

@@ -1529,6 +1529,15 @@ class AgentService:
                                 "reason": event.data.get("reason"),
                                 "lastAgent": event.data.get("last_agent"),
                                 "limit": event.data.get("limit"),
+                                # 空文件补不成：未写完 / 已撤销的文件（id 与标题），刷新后照样说清楚。
+                                **{
+                                    card_key: event.data[event_key]
+                                    for event_key, card_key in (
+                                        ("unfinished_files", "unfinishedFiles"),
+                                        ("rolled_back_files", "rolledBackFiles"),
+                                    )
+                                    if isinstance(event.data.get(event_key), list)
+                                },
                             }
                         )
                     elif event_type == "error":

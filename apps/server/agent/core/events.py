@@ -640,9 +640,21 @@ def agent_selected_event(
     )
 
 
+class IterationExhaustedFile(BaseModel):
+    """A file named on an iteration_exhausted card: id and title only, never its text."""
+    id: str
+    title: str
+
+
 class IterationExhaustedEventData(BaseModel):
     """Data for iteration_exhausted events."""
-    layer: str = Field(..., description="Which layer hit the limit: 'collaboration' or 'tool_call'")
+    layer: str = Field(
+        ...,
+        description=(
+            "Which layer stopped the round: 'collaboration', 'tool_call', or 'empty_file_correction' "
+            "(a created file never got its body: it was rolled back or is left unfinished)"
+        ),
+    )
     iterations_used: int = Field(..., description="Total iterations used")
     max_iterations: int = Field(..., description="Maximum allowed")
     reason: str = Field(..., description="Human-readable explanation")
@@ -650,6 +662,12 @@ class IterationExhaustedEventData(BaseModel):
     limit: str | None = Field(
         default=None,
         description="What ended the run: 'wall_clock' (time wrap-up), 'model_call_budget' or 'max_turns'",
+    )
+    unfinished_files: list[IterationExhaustedFile] | None = Field(
+        default=None, description="empty_file_correction: files left without a body (kept, could not be rolled back)",
+    )
+    rolled_back_files: list[IterationExhaustedFile] | None = Field(
+        default=None, description="empty_file_correction: empty files this round created and removed again",
     )
 
 
@@ -723,6 +741,8 @@ def iteration_exhausted_event(
     reason: str,
     last_agent: str | None = None,
     limit: str | None = None,
+    unfinished_files: list[dict[str, str]] | None = None,
+    rolled_back_files: list[dict[str, str]] | None = None,
 ) -> StreamEvent:
     """Create an iteration_exhausted event when iteration limit is reached."""
     data = IterationExhaustedEventData(
@@ -732,9 +752,13 @@ def iteration_exhausted_event(
         reason=reason,
         last_agent=last_agent,
         limit=limit,
+        unfinished_files=unfinished_files,
+        rolled_back_files=rolled_back_files,
     ).model_dump()
-    if limit is None:
-        data.pop("limit")  # only runner stops carry it; keep other events' stored shape unchanged
+    # Only the stops that carry them keep these keys; other events' stored shape is unchanged.
+    for key, value in (("limit", limit), ("unfinished_files", unfinished_files), ("rolled_back_files", rolled_back_files)):
+        if value is None:
+            data.pop(key)
     return StreamEvent(type=EventType.ITERATION_EXHAUSTED, data=data)
 
 

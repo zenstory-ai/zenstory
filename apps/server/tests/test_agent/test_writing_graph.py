@@ -13,6 +13,7 @@ from agent.openai_agents.repeat_read_guard import ReadPlan
 from agent.tools.mcp_tools import ToolContext
 from agent.tools.task_progress import ArtifactEvidence
 from tests.test_agent.body_write_events import create_file_events
+from tests.test_agent.file_body_resume_helpers import accept_resumes, resumable_target
 
 
 def _record_created_file(state, file_id: str, title: str) -> None:
@@ -864,11 +865,12 @@ class TestWritingGraphFileCorrection:
                 patch("agent.graph.writing_graph.router_node", AsyncMock(return_value={})),
                 patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
                 patch("agent.graph.writing_graph.run_streaming_agent", new=fake_run_streaming_agent),
+                resumable_target(),
             ):
                 events = [
-                    event async for event in run_writing_workflow_streaming(
+                    event async for event in accept_resumes(run_writing_workflow_streaming(
                         state=state, thread_id="t",
-                    )
+                    ))
                 ]
         finally:
             ToolContext.clear_context()
@@ -877,9 +879,11 @@ class TestWritingGraphFileCorrection:
         assert len(calls) == 2
         assert calls[0]["agent"] == "writer"
         assert calls[1]["agent"] == "writer"
-        # The correction turn must carry the "file still empty / finish it" reminder.
-        assert "正文仍为空" in calls[1]["user_message"]
-        assert "edit_file" in calls[1]["user_message"]
+        # The correction resumes the same file's capture before the correction turn
+        # (two-reply protocol; the real adapter path is in test_file_body_resume.py).
+        resumes = [event.data["request"] for event in events if event.type == StreamEventType.FILE_BODY_RESUME]
+        assert [request.file_id for request in resumes] == ["file-X"]
+        assert "file-X" in calls[1]["user_message"]
         # And the workflow still completes after the correction.
         assert any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
 
@@ -925,11 +929,12 @@ class TestWritingGraphFileCorrection:
                 patch("agent.graph.writing_graph.router_node", AsyncMock(return_value={})),
                 patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
                 patch("agent.graph.writing_graph.run_streaming_agent", new=fake_run_streaming_agent),
+                resumable_target(),
             ):
                 _ = [
-                    event async for event in run_writing_workflow_streaming(
+                    event async for event in accept_resumes(run_writing_workflow_streaming(
                         state=state, thread_id="t",
-                    )
+                    ))
                 ]
         finally:
             ToolContext.clear_context()
@@ -962,11 +967,12 @@ class TestWritingGraphFileCorrection:
                 patch("agent.graph.writing_graph.router_node", AsyncMock(return_value={})),
                 patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
                 patch("agent.graph.writing_graph.run_streaming_agent", new=fake_run_streaming_agent),
+                resumable_target(),
             ):
                 _ = [
-                    event async for event in run_writing_workflow_streaming(
+                    event async for event in accept_resumes(run_writing_workflow_streaming(
                         state=state, thread_id="t",
-                    )
+                    ))
                 ]
         finally:
             ToolContext.clear_context()
@@ -1000,17 +1006,25 @@ class TestWritingGraphFileCorrectionDbVerification:
         return file
 
     @staticmethod
-    async def _run(db_session, file_id: str, title: str) -> list[dict]:
-        """跑一轮 writer：工具阶段置上 pending 标记，正文由 edit_file 侧写库。"""
+    async def _run(db_session, file_id: str, title: str, *, adapter_resumes: bool = True) -> list[dict]:
+        """跑一轮 writer：工具阶段置上 pending 标记，正文由 edit_file 侧写库。
+
+        纠偏目标照常落库核验；adapter_resumes 替身回执 StreamAdapter 的捕获恢复。
+        """
         from agent.graph.writing_graph import run_writing_workflow_streaming
 
         calls: list[dict] = []
+        from models import File
+
+        created = db_session.get(File, file_id)
+        # create_file 结果里的版本：补不成时只回滚之后没被动过的空产物
+        version = created.updated_at.isoformat() if created is not None else None
 
         async def fake_run_streaming_agent(state, agent_type, *_args, **_kwargs):
             calls.append({"agent": agent_type, "user_message": state.get("user_message", "")})
             if len(calls) == 1:
                 # 只有第一轮调用了 create_file(空)，标记因此只置一次
-                ToolContext.set_pending_empty_file(file_id, title)
+                ToolContext.set_pending_empty_file(file_id, title, version)
                 for event in _create_file_done():
                     yield event
             yield StreamEvent(
@@ -1029,11 +1043,8 @@ class TestWritingGraphFileCorrectionDbVerification:
                 patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
                 patch("agent.graph.writing_graph.run_streaming_agent", new=fake_run_streaming_agent),
             ):
-                _ = [
-                    event async for event in run_writing_workflow_streaming(
-                        state=state, thread_id="t",
-                    )
-                ]
+                events = run_writing_workflow_streaming(state=state, thread_id="t")
+                _ = [event async for event in (accept_resumes(events) if adapter_resumes else events)]
         finally:
             ToolContext.clear_context()
 
@@ -1065,6 +1076,17 @@ class TestWritingGraphFileCorrectionDbVerification:
         assert len(calls) == 1 + MAX_FILE_CORRECTION_ATTEMPTS
         assert "正文仍为空" in calls[1]["user_message"]
         assert file.id in calls[1]["user_message"]
+        db_session.expire_all()
+        assert db_session.get(type(file), file.id).is_deleted is True
+
+    @pytest.mark.asyncio
+    async def test_still_empty_body_without_resumed_capture_rolls_back_at_once(self, db_session):
+        """没有恢复正文捕获（适配器没在等这个文件）：不跑会写进聊天的纠偏轮，直接回滚空产物。"""
+        file = self._make_file(db_session, content="")
+
+        calls = await self._run(db_session, file.id, file.title, adapter_resumes=False)
+
+        assert len(calls) == 1
         db_session.expire_all()
         assert db_session.get(type(file), file.id).is_deleted is True
 
@@ -1130,9 +1152,9 @@ class TestWritingGraphFileCorrectionDbVerification:
                 patch("agent.graph.writing_graph.run_streaming_agent", new=fake_run_streaming_agent),
             ):
                 _ = [
-                    event async for event in run_writing_workflow_streaming(
+                    event async for event in accept_resumes(run_writing_workflow_streaming(
                         state=state, thread_id="t",
-                    )
+                    ))
                 ]
         finally:
             ToolContext.clear_context()

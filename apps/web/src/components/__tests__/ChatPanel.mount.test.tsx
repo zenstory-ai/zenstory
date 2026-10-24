@@ -1986,6 +1986,242 @@ describe('ChatPanel mount smoke', () => {
     expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
   })
 
+  it('shows no follow-up chips after a round that ended in an error, even if its reply offered options', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      withEarlierTurn()
+      render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      localStorage.setItem(
+        'zenstory_suggestions_cache_project-1',
+        JSON.stringify({ suggestions: ['按大纲续写第三章正文'], updatedAt: Date.now() }),
+      )
+      mockStreamSnapshot.items = [{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS, timestamp: new Date() }]
+      const options = capturedUseAgentStream.options as unknown as RoundOptions & {
+        onError: (message: string, code?: string, retryable?: boolean) => void
+        onFileContent: (fileId: string, chunk: string) => void
+      }
+
+      await act(async () => {
+        options.onFileContent('ch-2', '已经保存的正文')
+        options.onError('这一轮写得太久，先停下了。', 'ERR_AGENT_RUN_TIMEOUT', false)
+        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null, { partial: true })
+      })
+      await act(async () => { vi.advanceTimersByTime(20000) })
+
+      // The error note is the next step: no reply options, no /suggest, no chips cached from an earlier round.
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
+      expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+    } finally { vi.useRealTimers() }
+  })
+
+  it('opens a chat whose last round ended in an error without follow-up chips', async () => {
+    localStorage.setItem(
+      'zenstory_suggestions_cache_project-1',
+      JSON.stringify({ suggestions: ['按大纲续写第三章正文'], updatedAt: Date.now() }),
+    )
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-interrupted', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z',
+      metadata: JSON.stringify({
+        stop_reason: 'run_deadline_exceeded',
+        stop_outcome: { reason: 'error', charged: true, saved_output: true, written_files: [{ id: 'ch-2', title: '第2章', words: 2908 }] },
+      }),
+    }] as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
+    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+    expect(lastMessageInputProps().aiSuggestions).toEqual([])
+    expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+  })
+
+  it.each<[string, { unfinishedFiles?: string[]; rolledBackFiles?: string[] }, Record<string, unknown>]>([
+    ['empty_file_correction', { unfinishedFiles: ['第一章'] }, { unfinishedFiles: [{ id: 'kept', title: '第一章' }] }],
+    // Tool-turn cap hit while a created file still had no text: the same card names the file it removed.
+    ['tool_call', { rolledBackFiles: ['第一章'] }, { rolledBackFiles: [{ id: 'gone', title: '第一章' }] }],
+  ])('shows no follow-up chips after a %s stop with an unwritten file, live and after reload', async (layer, liveFiles, savedFiles) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      withEarlierTurn()
+      const { unmount } = render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      localStorage.setItem(
+        'zenstory_suggestions_cache_project-1',
+        JSON.stringify({ suggestions: ['按大纲写第二章'], updatedAt: Date.now() }),
+      )
+      mockStreamSnapshot.items = [{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS, timestamp: new Date() }]
+      const options = capturedUseAgentStream.options as unknown as RoundOptions & {
+        onIterationExhausted: (layer: string, used: number, max: number, reason: string, lastAgent?: string, limit?: string,
+          files?: { unfinishedFiles?: string[]; rolledBackFiles?: string[] }) => void
+      }
+
+      await act(async () => {
+        options.onIterationExhausted(layer, 2, 2, 'internal', 'writer', undefined, liveFiles)
+        // The stream still ends with done: the round stopped unfinished, it did not fail.
+        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null)
+      })
+      await act(async () => { vi.advanceTimersByTime(20000) })
+
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+      unmount()
+    } finally { vi.useRealTimers() }
+
+    localStorage.setItem(
+      'zenstory_suggestions_cache_project-1',
+      JSON.stringify({ suggestions: ['按大纲写第二章'], updatedAt: Date.now() }),
+    )
+    vi.mocked(fetchSuggestions).mockClear()
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-unfinished', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z',
+      metadata: JSON.stringify({
+        status_cards: [{ type: 'iteration_exhausted', layer, ...savedFiles }],
+      }),
+    }] as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
+    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+    expect(lastMessageInputProps().aiSuggestions).toEqual([])
+    expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+    const lastList = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ statusCards?: Array<Record<string, unknown>> }> }
+    expect(lastList.messages?.[0]?.statusCards?.[0]).toMatchObject({ layer, ...liveFiles })
+  })
+
+  it('still leads with the offered options after a saved tool-turn stop that names no files', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-limit', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z',
+      metadata: JSON.stringify({ status_cards: [{ type: 'iteration_exhausted', layer: 'tool_call', maxIterations: 60 }] }),
+    }] as never)
+    vi.mocked(fetchSuggestions).mockResolvedValueOnce(['按设定写第二章正文'])
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴', '按设定写第二章正文']))
+  })
+
+  describe('a /suggest response that arrives after the round moved on', () => {
+    type LifecycleOptions = RoundOptions & {
+      onStart: () => void
+      onError: (message: string, code?: string, retryable?: boolean) => void
+      onFileContent: (fileId: string, chunk: string) => void
+    }
+    const CACHE_KEY = 'zenstory_suggestions_cache_project-1'
+    const deferred = () => {
+      let resolve!: (suggestions: string[] | null) => void
+      const promise = new Promise<string[] | null>((r) => { resolve = r })
+      return { promise, resolve }
+    }
+    const failRound = async (options: LifecycleOptions) => {
+      await act(async () => {
+        options.onStart()
+        options.onFileContent('ch-2', '已经保存的正文')
+        options.onError('这一轮写得太久，先停下了。', 'ERR_AGENT_RUN_TIMEOUT', false)
+        await options.onComplete([{ type: 'content', id: 'reply', content: '写到一半' }], null, { partial: true })
+      })
+    }
+
+    it('from opening the chat writes neither chips nor cache after an error round', async () => {
+      const slow = deferred()
+      vi.mocked(fetchSuggestions).mockReturnValueOnce(slow.promise)
+      withEarlierTurn()
+      render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+      await failRound(capturedUseAgentStream.options as unknown as LifecycleOptions)
+      await act(async () => { slow.resolve(['按大纲续写第三章正文']) })
+
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(localStorage.getItem(CACHE_KEY)).toBeNull()
+    })
+
+    it('led by the last reply\'s options writes nothing after an error round', async () => {
+      const slow = deferred()
+      vi.mocked(fetchSuggestions).mockReturnValueOnce(slow.promise)
+      vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+        id: 'msg-options', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+        tool_calls: null, created_at: '2026-10-05T10:00:00Z', metadata: null,
+      }] as never)
+      render(<ChatPanel />)
+      await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴']))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+      await failRound(capturedUseAgentStream.options as unknown as LifecycleOptions)
+      await act(async () => { slow.resolve(['按设定写第二章正文']) })
+
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(localStorage.getItem(CACHE_KEY)).toBeNull()
+    })
+
+    it('after a finished round writes nothing once the next round has failed', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      try {
+        withEarlierTurn()
+        render(<ChatPanel />)
+        await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+        const options = capturedUseAgentStream.options as unknown as LifecycleOptions
+        const slow = deferred()
+        vi.mocked(fetchSuggestions).mockReturnValueOnce(slow.promise)
+        await act(async () => {
+          await options.onComplete([{ type: 'content', id: 'turn-1', content: '第一章写好了' }], null)
+        })
+        await act(async () => { vi.advanceTimersByTime(1600) })
+        await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(2))
+
+        await failRound(options)
+        await act(async () => { slow.resolve(['按大纲写第二章']) })
+
+        expect(lastMessageInputProps().aiSuggestions).toEqual([])
+        expect(localStorage.getItem(CACHE_KEY)).toBeNull()
+      } finally { vi.useRealTimers() }
+    })
+
+    it('from opening the chat is superseded by 换一批', async () => {
+      const opening = deferred()
+      const manual = deferred()
+      vi.mocked(fetchSuggestions).mockReturnValueOnce(opening.promise).mockReturnValueOnce(manual.promise)
+      withEarlierTurn()
+      render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      const refresh = () => (lastMessageInputProps() as unknown as { onRefreshSuggestions: () => Promise<void> }).onRefreshSuggestions()
+
+      await act(async () => { void refresh() })
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(2))
+      await act(async () => { manual.resolve(['新的一批']) })
+      await act(async () => { opening.resolve(['旧的一批']) })
+
+      expect(lastMessageInputProps().aiSuggestions).toEqual(['新的一批'])
+      expect(JSON.parse(localStorage.getItem(CACHE_KEY)!).suggestions).toEqual(['新的一批'])
+    })
+
+    it('from 换一批 writes nothing after an error round', async () => {
+      withEarlierTurn()
+      render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      const manual = deferred()
+      vi.mocked(fetchSuggestions).mockReturnValueOnce(manual.promise)
+      const refresh = () => (lastMessageInputProps() as unknown as { onRefreshSuggestions: () => Promise<void> }).onRefreshSuggestions()
+
+      await act(async () => { void refresh() })
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(2))
+      await failRound(capturedUseAgentStream.options as unknown as LifecycleOptions)
+      await act(async () => { manual.resolve(['按大纲写第二章']) })
+
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(localStorage.getItem(CACHE_KEY)).toBeNull()
+    })
+  })
+
   it('uses local fallback only when the suggestion request fails', async () => {
     vi.mocked(fetchSuggestions).mockResolvedValueOnce(null)
     withEarlierTurn()
@@ -2457,7 +2693,7 @@ describe('ChatPanel new-author flow', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '撤销' }))
     })
-    expect(mockRollback).toHaveBeenCalledWith('file-1', 3, '2026-10-08T10:01:00Z')
+    expect(mockRollback).toHaveBeenCalledWith('file-1', 3, '2026-10-08T10:01:00Z', { chatMessageId: undefined, toolUseId: undefined })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
     vi.unstubAllGlobals()

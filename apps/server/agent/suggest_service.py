@@ -105,12 +105,15 @@ class SuggestService:
         except Exception as exc:
             # In local/dev/e2e environments we may not have an API key configured.
             # Suggestions should degrade gracefully instead of crashing the endpoint.
+            # 异常文本可能带着配置或供应商回显：只记固定原因与类型。
             log_with_context(
                 logger,
                 logging.WARNING,
                 "LLM client unavailable for suggestions; falling back to canned suggestions",
+                stage="init",
+                failure="llm_unavailable",
                 error_type=type(exc).__name__,
-                error_message=str(exc),
+                exc_info=False,
             )
             self.llm = None
 
@@ -226,11 +229,12 @@ class SuggestService:
                 ),
                 timeout=SUGGEST_LLM_TIMEOUT_S,
             )
+            # 日志只记长度与固定分类：回复里可能复述作品正文，异常文本也可能带着回复原文。
             log_with_context(
                 logger,
                 logging.INFO,
                 "Received LLM response for suggestions",
-                response=result[:200] if result else "",  # Limit log length
+                stage="llm_call",
                 response_length=len(result) if result else 0,
             )
 
@@ -242,7 +246,9 @@ class SuggestService:
                     logger,
                     logging.WARNING,
                     "Failed to parse suggestions from LLM response",
-                    raw_response=result[:200],
+                    stage="parse",
+                    failure="parse_failed",
+                    response_length=len(result) if result else 0,
                     falling_back=True,
                 )
                 return self._get_fallback_suggestions(count, language)
@@ -254,9 +260,10 @@ class SuggestService:
                 logger,
                 logging.ERROR,
                 "Error generating suggestions",
+                failure="timeout" if isinstance(e, TimeoutError) else "exception",
                 error_type=type(e).__name__,
-                error_message=str(e),
                 falling_back=True,
+                exc_info=False,
             )
             return self._get_fallback_suggestions(count, language)
 
@@ -467,7 +474,8 @@ class SuggestService:
                 logger,
                 logging.WARNING,
                 "JSON decode error, attempting repair",
-                error=str(e),
+                stage="parse",
+                error_type=type(e).__name__,
             )
 
         # If standard parsing failed, try JSON repair
@@ -491,7 +499,8 @@ class SuggestService:
                 logger,
                 logging.WARNING,
                 "JSON repair also failed",
-                error=str(e),
+                stage="parse",
+                error_type=type(e).__name__,
             )
 
         return None

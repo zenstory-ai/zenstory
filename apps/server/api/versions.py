@@ -135,12 +135,19 @@ class RollbackResponse(BaseModel):
     new_version_number: int | None
     snapshot_created: bool
     version_quota_exceeded: bool
+    # 这次撤销对应的聊天修改卡已标成已撤销（请求带了卡片 id 且锚点一致时）。
+    undo_recorded: bool = False
 
 
 class RollbackRequest(BaseModel):
-    """Optional exact token; absent body keeps intentional history restoration."""
+    """Optional exact token; absent body keeps intentional history restoration.
+
+    chat_message_id / tool_use_id：从聊天修改卡发起的撤销，成功后把那张卡标成已撤销。
+    """
 
     expected_updated_at: datetime | None = None
+    chat_message_id: str | None = None
+    tool_use_id: str | None = None
 
 
 # ==================== API Endpoints ====================
@@ -467,6 +474,26 @@ def rollback_to_version(
             )
 
 
+        undo_recorded = False
+        if (
+            rollback_request is not None
+            and rollback_request.expected_updated_at is not None
+            and rollback_request.chat_message_id
+            and rollback_request.tool_use_id
+        ):
+            from services.chat_tool_cards import record_edit_card_undone
+
+            undo_recorded = record_edit_card_undone(
+                session,
+                user_id=current_user.id,
+                project_id=updated_file.project_id,
+                file_id=file_id,
+                message_id=rollback_request.chat_message_id,
+                tool_use_id=rollback_request.tool_use_id,
+                before_version_number=version_number,
+                expected_after_updated_at=rollback_request.expected_updated_at,
+            )
+
         return RollbackResponse(
             success=True,
             message=f"Successfully rolled back to version {version_number}",
@@ -477,6 +504,7 @@ def rollback_to_version(
             ),
             snapshot_created=new_version is not None,
             version_quota_exceeded=version_quota_exceeded,
+            undo_recorded=undo_recorded,
         )
     except ValueError as e:
         raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404, detail=str(e)) from e

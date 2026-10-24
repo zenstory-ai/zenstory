@@ -6,6 +6,7 @@
 - #29 纠偏配额用尽后 pending-empty-file 标记永不清除，后续 create_file 全被硬拒
 """
 
+from contextlib import nullcontext
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -13,6 +14,7 @@ import pytest
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.tools.mcp_tools import ToolContext
 from tests.test_agent.body_write_events import edit_file_events
+from tests.test_agent.file_body_resume_helpers import accept_resumes, resumable_target
 
 LONG_TEXT = "第五章的正文。" * 200
 
@@ -55,8 +57,12 @@ async def _run_graph(
     get_steering_messages=None,
     auto_review_threshold: int = 100000,
     session=None,
+    resume_ok: bool = True,
 ) -> list[StreamEvent]:
-    """跑一次工作流，返回全部 SSE 事件。"""
+    """跑一次工作流，返回全部 SSE 事件。
+
+    resume_ok：替身假定空文件纠偏目标核验通过、StreamAdapter 已恢复捕获（见 file_body_resume_helpers）。
+    """
     from agent.graph.writing_graph import run_writing_workflow_streaming
 
     state = {"user_message": "写第五章", "messages": [], "system_prompt": ""}
@@ -69,16 +75,15 @@ async def _run_graph(
             ),
             patch("agent.graph.writing_graph.get_next_node", return_value=initial_agent),
             patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
+            resumable_target() if resume_ok else nullcontext(),
         ):
-            return [
-                event
-                async for event in run_writing_workflow_streaming(
-                    state=state,
-                    thread_id="t",
-                    auto_review_threshold=auto_review_threshold,
-                    get_steering_messages=get_steering_messages,
-                )
-            ]
+            events = run_writing_workflow_streaming(
+                state=state,
+                thread_id="t",
+                auto_review_threshold=auto_review_threshold,
+                get_steering_messages=get_steering_messages,
+            )
+            return [event async for event in (accept_resumes(events) if resume_ok else events)]
     finally:
         ToolContext.clear_context()
 
@@ -372,10 +377,124 @@ class TestRound3PendingEmptyFileGuardPreservesFailureEvidence:
 
         events = await _run_graph(fake_agent)
 
-        assert calls == ["writer"] * (1 + MAX_FILE_CORRECTION_ATTEMPTS) + [
-            "quality_reviewer"
+        # 补写用完仍是空文件：这一轮如实停在未完成，不再按这一轮的请求送审，也不宣告完成。
+        assert calls == ["writer"] * (1 + MAX_FILE_CORRECTION_ATTEMPTS)
+        assert guard_seen_by_reviewer == []
+        assert not any(event.type == StreamEventType.HANDOFF for event in events)
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+        exhausted = [
+            event
+            for event in events
+            if event.type == StreamEventType.ITERATION_EXHAUSTED
+            and event.data.get("layer") == "empty_file_correction"
         ]
-        assert guard_seen_by_reviewer == [True]
+        assert exhausted
+        assert exhausted[0].data["unfinished_files"]
+
+    @pytest.mark.asyncio
+    async def test_unverifiable_target_is_reported_without_a_correction_round(self):
+        """核验不了纠偏目标（没有数据库 / 适配器没恢复捕获）：不跑纠偏轮，保留守卫并报告未完成。"""
+        calls: list[str] = []
+        guard_seen_by_reviewer: list[bool] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            if agent_type == "quality_reviewer":
+                guard_seen_by_reviewer.append(ToolContext.has_pending_empty_file())
+                yield _text("审查完毕。[TASK_COMPLETE]")
+                return
+            ToolContext.set_pending_empty_file("file-1", "第五章")
+            yield _create_file_done()
+            yield _text("只建了空文件。")
+            yield _handoff("quality_reviewer")
+
+        events = await _run_graph(fake_agent, resume_ok=False)
+
+        assert calls == ["writer"]
+        assert guard_seen_by_reviewer == []
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+        exhausted = [
+            event
+            for event in events
+            if event.type == StreamEventType.ITERATION_EXHAUSTED
+            and event.data.get("layer") == "empty_file_correction"
+        ]
+        assert exhausted and exhausted[0].data["unfinished_files"] == [{"file_id": "file-1", "title": "第五章"}]
+
+    @pytest.mark.asyncio
+    async def test_unresolved_planner_file_does_not_continue_the_planned_writer(self):
+        """规划师的空大纲没能恢复写入：不按计划交给 writer 写正文。"""
+        calls: list[str] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            if agent_type == "planner":
+                ToolContext.set_pending_empty_file("outline-1", "大纲")
+                yield _create_file_done()
+                yield _text("大纲建好了。")
+            else:
+                yield _text("第一章正文写好了。[TASK_COMPLETE]")
+
+        events = await _run_graph(
+            fake_agent,
+            initial_agent="planner",
+            router_result={
+                "current_agent": "planner",
+                "workflow_plan": "standard",
+                "workflow_agents": ["writer"],
+                "routing_metadata": {"write_content": True, "read_only": False},
+            },
+            resume_ok=False,
+        )
+
+        assert calls == ["planner"]
+        assert not any(event.type == StreamEventType.HANDOFF for event in events)
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+
+    @pytest.mark.asyncio
+    async def test_completion_marker_does_not_complete_a_round_with_an_unresolved_empty_file(self):
+        calls: list[str] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            ToolContext.set_pending_empty_file("file-1", "第五章")
+            yield _create_file_done()
+            yield _text("第五章写好了。[TASK_COMPLETE]")
+
+        events = await _run_graph(fake_agent, resume_ok=False)
+
+        assert calls == ["writer"]
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+
+    @pytest.mark.asyncio
+    async def test_read_only_role_with_a_pending_marker_is_not_handed_to_a_writer(self):
+        """当前角色没有写权限（审稿人）时，不替它换一个 writer 去补写：本轮不授予的写权限不合成。"""
+        calls: list[str] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            if agent_type == "quality_reviewer":
+                ToolContext.set_pending_empty_file("file-1", "第五章")
+                yield _text("审查完毕。")
+            else:
+                yield _text("补写正文。")
+
+        events = await _run_graph(
+            fake_agent,
+            initial_agent="quality_reviewer",
+            router_result={
+                "current_agent": "quality_reviewer",
+                "workflow_plan": "review_only",
+                "workflow_agents": [],
+                "routing_metadata": {"read_only": False, "write_content": False},
+            },
+        )
+
+        assert calls == ["quality_reviewer"]
+        assert not any(
+            event.type == StreamEventType.FILE_BODY_RESUME for event in events
+        ), "不为没有写权限的角色恢复正文写入"
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
         exhausted = [
             event
             for event in events

@@ -467,6 +467,63 @@ describe('ToolResultCard', () => {
       })
     })
 
+    it('names its tool call and saved message when undoing, so the server can mark this card', async () => {
+      const user = userEvent.setup()
+      const onUndo = vi.fn()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          result={{ data: { id: 'file-1', undo: { before_version_number: 7, expected_after_updated_at: '2026-10-06T12:34:56.000Z' }, details: [] } }}
+          onUndo={onUndo}
+          toolUseId="tool-edit-1"
+          chatMessageId="assistant-1"
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /undo/i }))
+
+      expect(onUndo).toHaveBeenCalledWith({
+        fileId: 'file-1',
+        beforeVersionNumber: 7,
+        expectedAfterUpdatedAt: '2026-10-06T12:34:56.000Z',
+        chatMessageId: 'assistant-1',
+        toolUseId: 'tool-edit-1',
+      })
+    })
+
+    it.each([
+      ['recorded on the card after a refresh', true, false],
+      ['undone in this chat', false, true],
+    ])('shows an undone edit as undone without another undo (%s)', async (_label, recorded, live) => {
+      const { UndoneEditsContext, undoneEditKey } = await import('../../lib/undoneEdits')
+      const target = { fileId: 'file-1', beforeVersionNumber: 7, expectedAfterUpdatedAt: '2026-10-06T12:34:56.000Z' }
+      const undone = new Set(live ? [undoneEditKey(target)] : [])
+      render(
+        <UndoneEditsContext.Provider value={undone}>
+          <ToolResultCard
+            type="tool_result"
+            toolName="edit_file"
+            result={{
+              data: {
+                id: 'file-1',
+                undo: {
+                  before_version_number: 7,
+                  expected_after_updated_at: '2026-10-06T12:34:56.000Z',
+                  ...(recorded ? { undone: true } : {}),
+                },
+                details: [],
+              },
+            }}
+            onUndo={vi.fn()}
+          />
+        </UndoneEditsContext.Provider>
+      )
+
+      expect(screen.getByText('chat:tool.edit_undone')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
+    })
+
     it.each([
       ['missing descriptor', undefined],
       ['non-object descriptor', 'legacy'],

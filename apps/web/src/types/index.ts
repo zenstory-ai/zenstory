@@ -466,14 +466,28 @@ export interface SSEAgentSelectedData {
   remaining?: number;
 }
 
+/**
+ * Which layer stopped the round. empty_file_correction: a created file never got its text
+ * (it was removed again, or is left unfinished because it could not be removed safely).
+ */
+export type IterationExhaustedLayer = "collaboration" | "tool_call" | "empty_file_correction";
+
+/** A stop with a file still waiting for its text: titles of the files left unfinished / removed again (never their text). */
+export interface IterationExhaustedFiles {
+  unfinishedFiles?: string[];
+  rolledBackFiles?: string[];
+}
+
 export interface SSEIterationExhaustedData {
-  layer: "collaboration" | "tool_call";
+  layer: IterationExhaustedLayer;
   iterations_used: number;
   max_iterations: number;
   reason: string;
   last_agent?: string;
   /** "wall_clock" when the run stopped near the time limit (the work may already be done) */
   limit?: string;
+  unfinished_files?: { id?: string; title?: string }[];
+  rolled_back_files?: { id?: string; title?: string }[];
 }
 
 export interface SSERoutingMetadata {
@@ -731,6 +745,8 @@ export interface RollbackResponse {
   new_version_number: number | null;
   snapshot_created: boolean;
   version_quota_exceeded: boolean;
+  /** The chat edit card this undo came from was marked undone (absent on older servers). */
+  undo_recorded?: boolean;
 }
 
 /** Immutable provenance required to undo one specific AI file edit. */
@@ -738,6 +754,9 @@ export interface FileEditUndoTarget {
   fileId: string;
   beforeVersionNumber: number;
   expectedAfterUpdatedAt: string;
+  /** The saved assistant message and tool call of the card, so the server can mark that card undone. */
+  chatMessageId?: string;
+  toolUseId?: string;
 }
 
 // ==================== Text Quote ====================

@@ -17,7 +17,7 @@
  * - Internationalization support via react-i18next
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../lib/i18n';
 import {
@@ -45,6 +45,7 @@ import {
   Layers,
 } from 'lucide-react';
 import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
+import { UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
 
@@ -144,6 +145,10 @@ interface ToolResultCardProps {
    * Only shown for successful edit_file results.
    */
   onUndo?: (target: FileEditUndoTarget) => void;
+
+  /** The tool call of this card and its saved assistant message: an undo names them so the server marks this card undone. */
+  toolUseId?: string;
+  chatMessageId?: string;
 
   /** Open the exact file from a successful create/update result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
@@ -562,6 +567,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   isPending,
   interrupted,
   onUndo,
+  toolUseId,
+  chatMessageId,
   onOpenFile,
   onApply,
   onRetry,
@@ -569,6 +576,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   onViewSnippet,
 }) => {
   const { t } = useTranslation(['chat', 'common']);
+  const undoneEdits = useContext(UndoneEditsContext);
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleUndo = useCallback((target: FileEditUndoTarget) => {
@@ -868,8 +876,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               fileId,
               beforeVersionNumber,
               expectedAfterUpdatedAt,
+              ...(chatMessageId && toolUseId ? { chatMessageId, toolUseId } : {}),
             }
           : null;
+      // The author undid this edit: here (live) or as recorded on the card by the server (after a refresh).
+      const undone = undoTarget !== null && (undo?.undone === true || undoneEdits.has(undoneEditKey(undoTarget)));
       const details = data.details as Array<{
         op: string;
         old_preview?: string;
@@ -933,7 +944,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 {t('chat:tool.edit_restored_author_deletion')}
               </span>
             )}
-            {onUndo && undoTarget && (
+            {undone ? (
+              <span className="ml-auto shrink-0 text-xs text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.edit_undone')}
+              </span>
+            ) : onUndo && undoTarget && (
               <button
                 onClick={() => handleUndo(undoTarget)}
                 className="flex items-center gap-1 min-h-11 md:min-h-0 shrink-0 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors ml-auto"

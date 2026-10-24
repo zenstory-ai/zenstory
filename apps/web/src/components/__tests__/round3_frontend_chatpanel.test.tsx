@@ -195,12 +195,19 @@ vi.mock('../../lib/api', () => ({
   versionApi: {},
 }))
 
-vi.mock('../MessageList', () => ({
-  MessageList: React.forwardRef((props: Record<string, unknown>, _ref) => {
-    messageListMock(props)
-    return <div data-testid="mock-message-list" />
-  }),
-}))
+const undoneEditsSeen = vi.hoisted(() => vi.fn<(undone: ReadonlySet<string>) => void>())
+const lastUndoneEdits = (): ReadonlySet<string> => undoneEditsSeen.mock.lastCall?.[0] ?? new Set<string>()
+
+vi.mock('../MessageList', async () => {
+  const { UndoneEditsContext } = await import('../../lib/undoneEdits')
+  return {
+    MessageList: React.forwardRef((props: Record<string, unknown>, _ref) => {
+      messageListMock(props)
+      undoneEditsSeen(React.useContext(UndoneEditsContext))
+      return <div data-testid="mock-message-list" />
+    }),
+  }
+})
 
 vi.mock('../MessageInput', () => ({
   MessageInput: (props: Record<string, unknown>) => {
@@ -437,9 +444,26 @@ describe('ChatPanel immutable edit undo', () => {
       'file-immutable',
       7,
       '2026-10-06T12:34:56.000Z',
+      { chatMessageId: undefined, toolUseId: undefined },
     )
     expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
     expect(triggerEditorRefreshMock).toHaveBeenCalledWith('file-immutable')
+  })
+
+  it('names the card it undid and shows that edit as undone once the undo succeeded', async () => {
+    const { undoneEditKey } = await import('../../lib/undoneEdits')
+    rollbackMock.mockResolvedValue({ success: true, snapshot_created: true, version_quota_exceeded: false, undo_recorded: true })
+    const onUndo = await renderAndGetUndo()
+    const fromCard = { ...target, chatMessageId: 'assistant-message', toolUseId: 'tool-edit-1' }
+    expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
+
+    await undoAndConfirm(onUndo, fromCard)
+
+    expect(rollbackMock).toHaveBeenCalledWith('file-immutable', 7, '2026-10-06T12:34:56.000Z', {
+      chatMessageId: 'assistant-message',
+      toolUseId: 'tool-edit-1',
+    })
+    await waitFor(() => expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(true))
   })
 
   it('confirms with the file-level undo message, not the snapshot pre-save promise', async () => {
@@ -503,5 +527,8 @@ describe('ChatPanel immutable edit undo', () => {
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(triggerFileTreeRefreshMock).not.toHaveBeenCalled()
     expect(triggerEditorRefreshMock).not.toHaveBeenCalled()
+    // A rejected undo (the text changed after the edit) never shows the edit as undone.
+    const { undoneEditKey } = await import('../../lib/undoneEdits')
+    expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
   })
 })

@@ -609,12 +609,16 @@ def _seed_round(db_session, project, user):
 
 
 def _create_file_result(file) -> str:
+    # 与真实 create_file 结果一样带建好时的版本（serialize_file 的 updated_at）。
     return _sse(
         "tool_result",
         {
             "tool_name": "create_file",
             "status": "success",
-            "data": {"id": file.id, "title": file.title, "content": "", "file_type": "draft"},
+            "data": {
+                "id": file.id, "title": file.title, "content": "", "file_type": "draft",
+                "updated_at": file.updated_at.isoformat(),
+            },
         },
     )
 
@@ -740,6 +744,53 @@ async def test_refunded_stop_keeps_a_blank_chapter_the_author_has_unsaved_text_i
     assert db_session.get(File, placeholder.id).is_deleted is False
     # 作者没在里面打字的空章节照常移除。
     assert db_session.get(File, filled.id).is_deleted is True
+
+
+@pytest.mark.integration
+async def test_refunded_stop_keeps_a_new_blank_chapter_the_author_renamed_meanwhile(
+    client: AsyncClient, db_session
+):
+    """这一轮新建的空章节，作者在生成期间给它改了标题（版本前进，正文仍空）：照样退还，
+    但它不再是这一轮原样留下的占位文件，不删；终态不说移除了它。"""
+    from config.datetime_utils import advance_timestamp, utcnow
+    from models import ChatMessage, File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        placeholder.title = "作者改的标题"
+        placeholder.updated_at = advance_timestamp(placeholder.updated_at, now=utcnow())
+        db_session.add(placeholder)
+        db_session.commit()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert _frame_data(rest, "quota_refunded") == {"refunded": True, "kind": "stopped"}
+    db_session.expire_all()
+    kept = db_session.get(File, placeholder.id)
+    assert kept.is_deleted is False and kept.title == "作者改的标题"
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_outcome"] == {"reason": "user_stopped", "charged": False, "saved_output": False}
 
 
 @pytest.mark.integration
@@ -1651,3 +1702,59 @@ async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
     log = _billing_log(log_spy)
     assert log["billing_reason"] == "server_restarting"
     assert log["deadline_exceeded"] is True
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("with_body", [True, False])
+async def test_deadline_round_records_an_interrupted_outcome_after_capture_settles(
+    client, db_session, monkeypatch, with_body
+):
+    """时限截停的一轮（含审稿后返修被打断）：残稿补存落定后记 stop_outcome（已中断），刷新后不像正常结束。
+
+    stop_reason 保留 run_deadline_exceeded，「继续」照常可恢复；字数只认保存回执。
+    """
+    from models import ChatMessage
+    from utils.text_metrics import count_words
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
+    assistant = db_session.get(ChatMessage, message_id)
+    assistant.message_metadata = json.dumps({"stop_reason": "run_deadline_exceeded"})
+    db_session.add(assistant)
+    db_session.commit()
+    monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        if with_body:
+            yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
+            yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
+        # 审稿人要求返修，writer 的返修调用还在途时撞上时限
+        yield _sse("handoff", {"target_agent": "writer", "reason": "返修"})
+        await asyncio.sleep(30)
+
+    receipts = {filled.id: count_words(_PROSE)} if with_body else {}
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id, receipts)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True),
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert "ERR_AGENT_RUN_TIMEOUT" in text
+    assert _frame_data(text, "done") is None and _frame_data(text, "workflow_complete") is None
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "run_deadline_exceeded"
+    outcome = metadata["stop_outcome"]
+    assert outcome["reason"] == "error"
+    assert outcome["charged"] is with_body
+    if with_body:
+        assert outcome["written_files"] == [
+            {"id": filled.id, "title": filled.title, "words": count_words(_PROSE)}
+        ]
+    else:
+        assert "written_files" not in outcome
