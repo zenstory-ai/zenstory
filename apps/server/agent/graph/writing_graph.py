@@ -1812,6 +1812,7 @@ async def run_writing_workflow_streaming(
                 workflow_agents.pop(0)
             workflow_plan = router_result.get("workflow_plan", "quick")
             routing_metadata = router_result.get("routing_metadata", {})
+            followup_resolved = router_result.get("followup_resolved") is True
             # 路由自己那次 LLM 调用的用量：随事件下发，由 stream_adapter 汇入
             # 整轮 usage 累加器，否则这部分 token 永远不进任何统计。
             routing_usage = router_result.get("routing_usage")
@@ -2542,6 +2543,7 @@ async def run_writing_workflow_streaming(
             if (
                 current_agent_type == "planner"
                 and not chat_plan_corrected
+                and not followup_resolved
                 and not next_agent
                 and deferred_handoff is None
                 and not clarification_stopped

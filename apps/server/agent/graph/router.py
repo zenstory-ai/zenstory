@@ -161,6 +161,7 @@ async def router_node(state: WritingState) -> dict:
         base_decision = _parse_router_response(response)
         decision, resolution_metadata = _resolve_turn_decision(state, base_decision)
         resumed_agents = resolution_metadata.pop("_workflow_agents", None)
+        followup_resolved = resolution_metadata.pop("_followup_resolved", False) is True
         workflow_agents = (
             []
             if decision.clarify_first is True
@@ -185,6 +186,9 @@ async def router_node(state: WritingState) -> dict:
             "current_agent": decision.agent_type,
             "workflow_plan": decision.workflow_type,
             "workflow_agents": workflow_agents,
+            # Server-internal fact from a successful trusted-state resolution.
+            # It is deliberately outside routing_metadata so it is not emitted or persisted.
+            "followup_resolved": followup_resolved,
             "routing_metadata": {
                 **decision.model_dump(),
                 **resolution_metadata,
@@ -853,7 +857,10 @@ def _resolve_turn_decision(
         turn_disposition=disposition,
         clarify_first=decision.clarify_first,
     )
-    metadata: dict[str, Any] = {"scope_constraints": constraints}
+    metadata: dict[str, Any] = {
+        "scope_constraints": constraints,
+        "_followup_resolved": True,
+    }
     if disposition == "resume_interrupted_task" and stop_reason == "output_truncated":
         metadata["previous_stop_reason"] = stop_reason
     if disposition == "resume_interrupted_task":

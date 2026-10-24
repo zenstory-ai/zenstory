@@ -151,7 +151,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **计划交接不扩大交付**：交接说明固定追加 `author_scope.PLANNED_HANDOFF_SCOPE_NOTE`（已完成的不重做、不改刚交付的文件、
   不追加作者没要的产出）。[vague-and-plan-files][n-vague]
 - **补问由结构化路由决定**：`clarify_first=true` 时本轮不写文件、不交接，复用现有拒写工具与 request_clarification；不按词表/选区文字标记判断。技术路由故障不伪装成「请再说清楚」。
-- **规划补写只认请求类型和真实产物**：明确 requested_file_types 含 outline、planner 正常结束、无显式/延期交接或异常停止、非只读/补问、有剩余轮数且本请求写过的真实 typed 文件中没有非空 outline，最多补一次（正常计划中待执行 writer 不跳过此检查）；读取失败不补，不按聊天章号或80%覆盖判断。
+- **规划补写只认请求类型和真实产物**：明确 requested_file_types 含 outline、planner 正常结束、无显式/延期交接或异常停止、非只读/补问、有剩余轮数且本请求写过的真实 typed 文件中没有非空 outline，最多补一次（新任务计划中待执行 writer 不跳过此检查）；已由 resolver 核实的可信续接/澄清不凭本轮台账断言上轮大纲未写，不把该跳过当作交付证明；读取失败不补，不按聊天章号或80%覆盖判断。
 - **作者改了什么给模型看，不猜授权**：`tools/author_changes.py` 按版本历史算净差异放进 `<author_edits>`（`query_files` 按 id 读全文时也带）；
   `edit_file` 在锁内比对本请求模型看过的正文（`mcp_tools._ReadSnapshots`，读到的内容由 `usage_hooks.ReadSnapshotPromotionMixin`
   在下一次模型调用起生效；换 agent 时清空，同一 agent 接着跑时保留），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。

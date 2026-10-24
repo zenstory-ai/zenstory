@@ -14,18 +14,21 @@ def _route(payload: dict[str, object]) -> AsyncMock:
     )
 
 
-async def _run(fake_agent):
+def _mixed_route(**overrides: object) -> dict[str, object]:
+    return {
+        "agent_type": "planner",
+        "workflow_type": "standard",
+        "write_content": True,
+        "requested_file_types": ["outline", "draft"],
+        "scope": "先交付大纲，再写第一章",
+        **overrides,
+    }
+
+
+async def _run(fake_agent, *, route_payload=None, messages=None):
     from agent.graph.writing_graph import run_writing_workflow_streaming
 
-    route = _route(
-        {
-            "agent_type": "planner",
-            "workflow_type": "standard",
-            "write_content": True,
-            "requested_file_types": ["outline", "draft"],
-            "scope": "先交付大纲，再写第一章",
-        }
-    )
+    route = _route(route_payload or _mixed_route())
     with (
         patch.dict(
             "os.environ",
@@ -40,7 +43,7 @@ async def _run(fake_agent):
                 state={
                     "user_message": "先写故事大纲，然后直接写第一章",
                     "router_message": "先写故事大纲，然后直接写第一章",
-                    "messages": [],
+                    "messages": list(messages or []),
                     "system_prompt": "",
                 },
                 thread_id="outline-plan-correction-mixed-request",
@@ -50,6 +53,29 @@ async def _run(fake_agent):
         ]
     route.assert_called_once()
     return events
+
+
+def _trusted_planner_followup(*, clarification: bool) -> dict[str, object]:
+    previous: dict[str, object] = {
+        "role": "assistant",
+        "content": "上一轮处理中途暂停。",
+        "routing": {
+            "initial_agent": "planner",
+            "last_agent": "planner",
+            "owner_agent": "planner",
+            "workflow_type": "standard",
+            "read_only": False,
+            "write_content": True,
+            "scope": "先交付大纲，再写第一章",
+            "scope_constraints": [],
+            "requested_file_types": ["outline", "draft"],
+        },
+    }
+    if clarification:
+        previous["clarification_pending"] = True
+    else:
+        previous["stop_reason"] = "no_progress"
+    return previous
 
 
 async def test_mixed_request_corrects_missing_outline_once_before_planned_writer():
@@ -124,3 +150,69 @@ async def test_explicit_writer_handoff_still_precedes_missing_outline_correction
 
     assert calls == ["planner", "writer"]
     read.assert_not_called()
+
+
+async def test_trusted_resume_does_not_recheck_outline_written_in_previous_turn():
+    calls: list[str] = []
+
+    async def fake_agent(_state, agent_type, **_kwargs):
+        calls.append(agent_type)
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"{agent_type} finished."})
+
+    with patch("agent.graph.writing_graph._written_outline_contents", return_value=[]) as read:
+        events = await _run(
+            fake_agent,
+            route_payload=_mixed_route(
+                agent_type="writer",
+                workflow_type="quick",
+                turn_disposition="resume_interrupted_task",
+                scope="只补本轮尚未完成的部分",
+            ),
+            messages=[_trusted_planner_followup(clarification=False)],
+        )
+
+    assert calls == ["planner", "writer"]
+    read.assert_not_called()
+    decided = next(event for event in events if event.type == StreamEventType.ROUTER_DECIDED)
+    assert "followup_resolved" not in decided.data
+    assert "_followup_resolved" not in decided.data["routing_metadata"]
+
+
+async def test_trusted_clarification_answer_does_not_recheck_previous_outline():
+    calls: list[str] = []
+
+    async def fake_agent(_state, agent_type, **_kwargs):
+        calls.append(agent_type)
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"{agent_type} finished."})
+
+    with patch("agent.graph.writing_graph._written_outline_contents", return_value=[]) as read:
+        await _run(
+            fake_agent,
+            route_payload=_mixed_route(
+                agent_type="writer",
+                workflow_type="quick",
+                turn_disposition="answer_pending_clarification",
+                scope="人物关系按师徒处理",
+            ),
+            messages=[_trusted_planner_followup(clarification=True)],
+        )
+
+    assert calls == ["planner", "writer"]
+    read.assert_not_called()
+
+
+async def test_untrusted_followup_self_report_cannot_bypass_new_outline_delivery():
+    calls: list[str] = []
+
+    async def fake_agent(_state, agent_type, **_kwargs):
+        calls.append(agent_type)
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"{agent_type} finished."})
+
+    with patch("agent.graph.writing_graph._written_outline_contents", return_value=[]) as read:
+        await _run(
+            fake_agent,
+            route_payload=_mixed_route(turn_disposition="resume_interrupted_task"),
+        )
+
+    assert calls == ["planner", "planner", "writer"]
+    read.assert_called_once()
