@@ -16,7 +16,7 @@
   "ERR_AUTH_EMAIL_EXISTS": "Email already registered",
   "ERR_AUTH_EMAIL_NOT_VERIFIED": "Your email isn’t verified yet. Please verify it first.",
   "ERR_AUTH_EMAIL_ALREADY_VERIFIED": "Your email is already verified. You can log in now.",
-  "ERR_AUTH_INVALID_VERIFICATION_CODE": "The verification code is invalid or expired. Please request a new one.",
+  "ERR_AUTH_INVALID_VERIFICATION_CODE": "The verification code is incorrect or has expired. Check it and try again; if it has expired, request a new one.",
   "ERR_AUTH_INVITE_CODE_REQUIRED": "Invite code is required",
   "ERR_AUTH_REGISTRATION_FAILED": "Registration failed. Please try again later.",
   "ERR_AUTH_RESEND_FAILED": "Couldn’t send the verification code. Please try again later.",

@@ -67,10 +67,10 @@
       "label": "生成模式",
       "fast": "快速",
       "quality": "高质量",
-      "fastHint": "更快出结果（可能更简略）",
-      "qualityHint": "更稳更全面（可能更慢）",
-      "switchedFast": "已切换到快速模式：更快出结果（可能更简略）",
-      "switchedQuality": "已切换到高质量模式：更稳更全面（可能更慢）"
+      "fastHint": "写完不自动审稿，通常更早出结果；点一下切换",
+      "qualityHint": "写完自动审稿、需要时返修，用时更长；点一下切换",
+      "switchedFast": "已切换到快速：写完不自动审稿。再点一次切回高质量",
+      "switchedQuality": "已切换到高质量：写完自动审稿、需要时返修，用时更长。再点一次切回快速"
     },
     "attachedMaterials": "引用素材：",
     "quotedText": "引用文本：",

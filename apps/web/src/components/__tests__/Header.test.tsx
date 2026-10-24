@@ -19,6 +19,7 @@ const { mockToastError, mockToastSuccess, mockToastInfo, mockHandleApiError, moc
 
 // Create mutable mock values
 let mockCurrentProjectId: string | null = null
+let mockCurrentProject: { id: string; project_type: string } | null = null
 let mockSelectedItem: { id: string; type: string; title: string } | null = null
 const mockDownloadCurrentFile = vi.fn()
 let mockIsMobile = false
@@ -49,6 +50,8 @@ const headerTranslations: Record<string, string> = {
   'common:feedback.entry': '问题反馈',
   'editor:header.exportWithOutline': '导出大纲与正文',
   'editor:header.export': '导出正文（TXT）',
+  'editor:header.exportScript': '导出整部剧本（TXT）',
+  'editor:header.exportScriptWithOutline': '导出大纲与剧本',
   'editor:header.downloadFile': '下载当前文件（TXT）',
   'editor:header.downloadFileSuccess': '已下载《{{title}}》',
   'common:loading': '加载中…',
@@ -184,6 +187,7 @@ vi.mock('../feedback/FeedbackDialog', () => ({
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProjectId: mockCurrentProjectId,
+    currentProject: mockCurrentProject,
     triggerFileTreeRefresh: mockTriggerFileTreeRefresh,
     setSelectedItem: mockSetSelectedItem,
     selectedItem: mockSelectedItem,
@@ -390,6 +394,20 @@ describe('Header', () => {
       render(<Header />)
 
       expect(screen.queryByTestId('download-icon')).not.toBeInTheDocument()
+    })
+
+    it('names the export after scripts in a screenplay project and keeps 正文 for novels', () => {
+      mockCurrentProjectId = 'project-123'
+      mockCurrentProject = { id: 'project-123', project_type: 'screenplay' }
+      const { unmount } = render(<Header />)
+      expect(screen.getByRole('button', { name: '导出整部剧本（TXT）' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '导出正文（TXT）' })).not.toBeInTheDocument()
+      unmount()
+
+      mockCurrentProject = { id: 'project-123', project_type: 'novel' }
+      render(<Header />)
+      expect(screen.getByRole('button', { name: '导出正文（TXT）' })).toBeInTheDocument()
+      mockCurrentProject = null
     })
 
     it('shows export button when project is selected', () => {

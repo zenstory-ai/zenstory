@@ -67,10 +67,10 @@
       "label": "Mode",
       "fast": "Fast",
       "quality": "Quality",
-      "fastHint": "Faster output (may be more concise)",
-      "qualityHint": "More thorough (may take longer)",
-      "switchedFast": "Switched to Fast mode: faster output, less detail.",
-      "switchedQuality": "Switched to Quality mode: better output quality, longer generation."
+      "fastHint": "No automatic review after writing, so results usually come sooner. Click to switch",
+      "qualityHint": "Reviews the writing automatically and revises when needed; takes longer. Click to switch",
+      "switchedFast": "Switched to Fast: no automatic review after writing. Click again to switch back to Quality.",
+      "switchedQuality": "Switched to Quality: writing is reviewed automatically and revised when needed, which takes longer. Click again to switch back to Fast."
     },
     "attachedMaterials": "Referenced materials:",
     "quotedText": "Quoted text:",

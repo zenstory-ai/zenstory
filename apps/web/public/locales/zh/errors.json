@@ -16,7 +16,7 @@
   "ERR_AUTH_EMAIL_EXISTS": "邮箱已被注册",
   "ERR_AUTH_EMAIL_NOT_VERIFIED": "邮箱未验证，请先验证邮箱",
   "ERR_AUTH_EMAIL_ALREADY_VERIFIED": "邮箱已验证，可以直接登录",
-  "ERR_AUTH_INVALID_VERIFICATION_CODE": "验证码无效或已过期，请重新获取",
+  "ERR_AUTH_INVALID_VERIFICATION_CODE": "验证码不正确或已过期。请核对后重新输入；如果已过期，再重新获取。",
   "ERR_AUTH_INVITE_CODE_REQUIRED": "请输入邀请码",
   "ERR_AUTH_REGISTRATION_FAILED": "注册失败，请稍后重试",
   "ERR_AUTH_RESEND_FAILED": "验证码发送失败，请稍后重试",
