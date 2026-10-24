@@ -337,6 +337,7 @@ jobs:
           tests/test_services/test_commercial_backend_postgres.py \
           tests/test_services/test_material_refunds_postgres.py \
           tests/test_services/test_agent_file_preconditions_postgres.py \
+          tests/test_services/test_edit_undo_card_postgres.py \
           tests/test_services/test_agent_auth_postgres.py \
           tests/test_services/test_auth_refresh_revocation_postgres.py \
           tests/test_services/test_registration_recovery_postgres.py \

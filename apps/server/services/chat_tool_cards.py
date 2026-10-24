@@ -4,11 +4,12 @@
 不新建表或第二份变更账本；撤销本身仍是既有的条件回滚（file_version_service.rollback_to_version）。
 """
 
+import contextlib
 import json
 from datetime import datetime
 from typing import Any
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc
 from models import ChatMessage, ChatSession
@@ -53,7 +54,13 @@ def record_edit_card_undone(
     只标调用方指明、并能证明来自这次撤销的那一张：消息是当前用户在同一项目里的助手消息，
     卡的工具调用 id 一致，撤销锚点（文件、修改前版本、修改后版本 token）与这次撤销完全相同。
     任何一项对不上就不标。撤销已经提交，标记失败只记日志。
+
+    同一条消息里的几张卡可能同时撤销：读改写整份 tool_calls 时先锁住这一行（PostgreSQL 行锁；
+    SQLite 用与文件写入同一套进程内条带锁），在锁下重新读最新内容，后提交的不会覆盖先提交的标记。
     """
+    from agent.tools.file_ops.edit import acquire_file_write_lock
+    from database import is_postgres
+
     try:
         message = session.get(ChatMessage, message_id)
         if message is None or message.role != "assistant" or not message.tool_calls:
@@ -61,31 +68,58 @@ def record_edit_card_undone(
         chat = session.get(ChatSession, message.session_id)
         if chat is None or chat.user_id != user_id or chat.project_id != project_id:
             return False
-        calls = json.loads(message.tool_calls)
-        if not isinstance(calls, list):
-            return False
-        for call in calls:
-            if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "edit_file":
-                continue
-            data, undo = _card_undo(call)
-            if (
-                data is None
-                or undo is None
-                or data.get("id") != file_id
-                or type(undo.get("before_version_number")) is not int
-                or undo["before_version_number"] != before_version_number
-                or not _same_token(undo.get("expected_after_updated_at"), expected_after_updated_at)
-            ):
-                return False
-            undo["undone"] = True
-            message.tool_calls = json.dumps(calls, ensure_ascii=False)
-            session.add(message)
-            session.commit()
-            return True
-        return False
+        lock_ctx = contextlib.nullcontext() if is_postgres else acquire_file_write_lock(message_id)
+        with lock_ctx:
+            return _mark_locked_card(
+                session, message_id, file_id, tool_use_id, before_version_number, expected_after_updated_at
+            )
     except Exception as exc:  # noqa: BLE001 - the undo itself already committed
         session.rollback()
         log_with_context(
             logger, 30, "Failed to record an undone edit card", file_id=file_id, error_type=type(exc).__name__
         )
         return False
+
+
+def _mark_locked_card(
+    session: Session,
+    message_id: str,
+    file_id: str,
+    tool_use_id: str,
+    before_version_number: int,
+    expected_after_updated_at: datetime,
+) -> bool:
+    """锁住消息行后从最新值改写那一张卡（populate_existing：不用身份映射里的旧对象）。"""
+    message = session.exec(
+        select(ChatMessage)
+        .where(ChatMessage.id == message_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).first()
+    if message is None or not message.tool_calls:
+        session.rollback()
+        return False
+    calls = json.loads(message.tool_calls)
+    if not isinstance(calls, list):
+        session.rollback()
+        return False
+    for call in calls:
+        if not isinstance(call, dict) or call.get("id") != tool_use_id or call.get("name") != "edit_file":
+            continue
+        data, undo = _card_undo(call)
+        if (
+            data is None
+            or undo is None
+            or data.get("id") != file_id
+            or type(undo.get("before_version_number")) is not int
+            or undo["before_version_number"] != before_version_number
+            or not _same_token(undo.get("expected_after_updated_at"), expected_after_updated_at)
+        ):
+            break
+        undo["undone"] = True
+        message.tool_calls = json.dumps(calls, ensure_ascii=False)
+        session.add(message)
+        session.commit()
+        return True
+    session.rollback()  # 没有可标的卡：释放行锁
+    return False
