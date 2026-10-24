@@ -14,6 +14,7 @@ Status: implemented
 
 - 撤销请求（`RollbackRequest`）可选带上这张卡的 `chat_message_id` 与 `tool_use_id`。条件回滚成功后，`services/chat_tool_cards.record_edit_card_undone` 只在能证明来源时把那一张卡标成已撤销：消息是当前用户在同一项目里的助手消息，卡的工具调用 id 一致，撤销锚点（文件 id、修改前版本、修改后 token）与这次撤销完全相同。写在既有 `tool_calls` JSON 的 `result.undo.undone`，不改助手原话，不新建表或第二份变更账本。响应带 `undo_recorded`（旧服务端没有这个字段，前端按 false 处理；旧前端不带卡片 id，撤销照旧生效）。
 - 前端：ToolResultCard 把自己的 tool_use_id 与已落库消息 id 放进撤销目标。撤销真实成功后，ChatPanel 在 `UndoneEditsContext`（按文件 + 修改前版本 + 修改后 token）里记下这次修改，卡片当场显示「已撤销」/「Undone」并去掉撤销按钮；刷新后读 `undo.undone`。409 冲突、作者之后改过、请求失败都不标、不显示已撤销，错误提示照旧。
+- 同一条消息里的几张卡可能同时撤销：标记时先锁住这条助手消息（PostgreSQL `SELECT … FOR UPDATE`；SQLite 用文件写入同一套进程内条带锁），在锁下以 `populate_existing` 重读最新 `tool_calls` 再改那一张卡，后提交的不会覆盖先提交的标记。
 - 撤销本身（条件回滚、恢复前备份、版本额度、编辑器刷新、计费）不变。
 
 ## Alternatives considered
@@ -31,4 +32,5 @@ Status: implemented
 ## Verification
 
 - `apps/server/tests/test_services/test_edit_undo_card_state.py`（真实回滚接口 + 临时 SQLite）：成功撤销只标自己那张卡、助手原话不变、重复撤销 409 且不再写；作者之后改过时 409、作者新稿保留、不标；指错工具调用 / 别人的消息 / 别的修改 token / 不带 id / 别的项目都不标。修改前 6 项失败（无 `undo_recorded`），作者后改冲突一例本来就通过；修改后与既有撤销测试共 34 项通过。
+- 最终整批审查在本地 PostgreSQL 复现两张卡同时撤销后只剩一个标记（两次都返回 True，落库 [True, None]）。新增 `tests/test_services/test_edit_undo_card_postgres.py`（加入 CI 串行 PostgreSQL 测试列表），修改前失败、修改后通过；SQLite 下原有授权 / 锚点 / 冲突 / 重复撤销用例 34 项不变。
 - 前端：ToolResultCard（撤销带卡片 id、落库已撤销 / 当场已撤销都显示「已撤销」且无按钮）、ChatPanel（撤销请求带卡片 id、成功后记入已撤销、409 不记）。在不含本修改的临时副本里运行这些用例失败（模块缺失、撤销未带卡片 id），修改后 ChatPanel / MessageList / ToolResultCard / RoundEnd 6 个测试文件 339 项通过。
