@@ -581,6 +581,8 @@ class StreamAdapter:
                 reason=data.get("reason", ""),
                 last_agent=data.get("last_agent"),
                 limit=data.get("limit"),
+                unfinished_files=_card_files(data.get("unfinished_files")),
+                rolled_back_files=_card_files(data.get("rolled_back_files")),
             )
 
         elif event_type_value in (
@@ -1519,6 +1521,21 @@ _CHAT_HOLD_RELEASE_EVENT_TYPES: frozenset[str] = frozenset(
         StreamEventType.ERROR.value,
     }
 )
+
+
+def _card_files(raw: Any) -> list[dict[str, str]] | None:
+    """状态卡上点名的文件：只留 id 与标题（图里的条目用 file_id）；没给就是 None。"""
+    if not isinstance(raw, list):
+        return None
+    files: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        file_id = item.get("id") or item.get("file_id")
+        title = item.get("title")
+        if isinstance(file_id, str) and file_id and isinstance(title, str):
+            files.append({"id": file_id, "title": title})
+    return files
 
 
 def create_stream_adapter(

@@ -21,7 +21,8 @@ Status: implemented
 ## Decision
 
 - ChatPanel：本轮以 SSE error 结束（含时限、熔断、上游错误；以及没有终止帧就断开的 STREAM_CLOSED）时，`roundProgressRef.endedInError` 记下，onComplete 不再从回复取选项、不请求 `/suggest`，清空 chips 与这个项目的建议缓存。错误说明、重试、已保存文件和手动输入不变；作者手动点「换一批」照常请求。
-- 刷新 / 重新打开：最后一条助手消息的 `stop_outcome.reason === "error"` 时同样不给 chips、不读缓存、不请求 `/suggest`。
+- 停在「这一轮没写完」（`iteration_exhausted.layer=empty_file_correction`，流照常以 done 结束）的一轮同样不给 chips、清缓存。
+- 刷新 / 重新打开：最后一条助手消息的 `stop_outcome.reason === "error"`，或带 empty_file_correction 状态卡（时间线或旧状态卡）时，同样不给 chips、不读缓存、不请求 `/suggest`。
 - 服务端（`api/agent.py`）：时限截停、连接仍在、结算已完成的一轮，在残稿补存交回消息 id 之后按保存回执记 `stop_outcome(reason=error)`（既有 `_schedule_round_outcome` / RoundEndNote）。超时终态仍先发出；`stop_reason` 保留 `run_deadline_exceeded`，「继续」照常可恢复；断线后延迟结算的那条路径不变。
 - 正常完成、只读完成、合法的空文件、澄清、作者停止的轮次不受影响。不新增字段、表、澄清状态机或模型调用，不按标题 / 回复文字判断是否完成。
 

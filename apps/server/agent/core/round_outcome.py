@@ -87,7 +87,7 @@ class RunOutcome:
 
 # RoundWrittenFiles 关心的帧；其余帧（content、thinking、心跳……）不解析 JSON。
 _WRITTEN_FILE_EVENTS: frozenset[str] = frozenset(
-    {"tool_call", "tool_result", "file_created", "file_content", "router_decided"}
+    {"tool_call", "tool_result", "file_created", "file_content", "router_decided", "iteration_exhausted"}
 )
 _FOLDER_FILE_TYPE = "folder"
 
@@ -152,6 +152,11 @@ class RoundWrittenFiles:
             self.requested_body_write = (
                 routing.get("write_content") is True and routing.get("read_only") is not True
             )
+        elif event_type == "iteration_exhausted":
+            # 空文件补不成时图已撤销的空文件：它们不再存在，不列为「未确认保存」。
+            for item in payload.get("rolled_back_files") or []:
+                if isinstance(item, dict) and isinstance(item.get("id"), str):
+                    self._created_empty.pop(item["id"], None)
         elif event_type == "file_created":
             self._remember_title(payload.get("file_id"), payload.get("title"))
         elif event_type == "file_content":

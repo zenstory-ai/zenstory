@@ -97,7 +97,7 @@ import { StreamActivityLine } from "./StreamActivityLine";
 import { createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
 import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
-import { formatRoundDelivery, hasSubstantiveDisplayItems, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
+import { formatRoundDelivery, hasSubstantiveDisplayItems, parseIterationExhaustedFiles, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
 import type { QuotaResponse } from "../types/subscription";
 
 const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Message["statusCards"] | undefined => {
@@ -156,10 +156,17 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
           const reason = (card as { reason?: unknown }).reason;
           const lastAgent = (card as { lastAgent?: unknown }).lastAgent;
           const limit = (card as { limit?: unknown }).limit;
+          const unfinished = layer === "empty_file_correction"
+            ? parseIterationExhaustedFiles(
+              (card as { unfinishedFiles?: unknown }).unfinishedFiles,
+              (card as { rolledBackFiles?: unknown }).rolledBackFiles,
+            )
+            : {};
 
           return {
             type: "iteration_exhausted",
-            layer: layer === "collaboration" || layer === "tool_call" ? layer : undefined,
+            layer: layer === "collaboration" || layer === "tool_call" || layer === "empty_file_correction" ? layer : undefined,
+            ...unfinished,
             iterationsUsed: typeof iterationsUsed === "number" ? iterationsUsed : undefined,
             maxIterations: typeof maxIterations === "number" ? maxIterations : undefined,
             reason: typeof reason === "string" ? reason : undefined,
@@ -177,6 +184,15 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
     return undefined;
   }
 };
+
+/**
+ * A saved round that ended in an error (stop_outcome) or stopped with a file that never got its
+ * text (the empty_file_correction card, in the saved timeline or the legacy status cards).
+ */
+const roundEndedUnfinished = (message: Message): boolean =>
+  message.stopOutcome?.reason === "error"
+  || Boolean(message.statusCards?.some((card) => card.type === "iteration_exhausted" && card.layer === "empty_file_correction"))
+  || Boolean(message.displayItems?.some((item) => item.type === "iteration_exhausted" && item.layer === "empty_file_correction"));
 
 const parseToolCallsFromHistory = (toolCallsRaw?: string | null): Pick<Message, "toolCalls" | "toolResults"> & { orderedToolCalls?: import("../types").ToolCall[] } => {
   if (!toolCallsRaw) return {};
@@ -517,7 +533,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * left text in a file / the server charged / real output exists (a write, or a reply
    * segment long enough to be prose rather than a one-line narration before a tool call).
    */
-  const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false, endedInError: false });
+  // endedIncomplete: the round stopped with a file that never got its text (empty_file_correction card).
+  const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false });
   /** Reply text since the last segment boundary, counted like the server (see createProseCounter). */
   const proseCounterRef = useRef(createProseCounter());
   /** The author pressed 停止 in this project's current round; the note waits for how the round ended. */
@@ -918,8 +935,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       return;
     }
     const lastLoaded = sourceMessages[sourceMessages.length - 1];
-    if (lastLoaded?.role === "assistant" && lastLoaded.stopOutcome?.reason === "error") {
-      // The last round ended in an error (see onCompleteHandler): no follow-up chips after a refresh either.
+    if (lastLoaded?.role === "assistant" && roundEndedUnfinished(lastLoaded)) {
+      // The last round ended in an error or stopped unfinished (see onCompleteHandler): no
+      // follow-up chips after a refresh either.
       clearSuggestionCache(projectId);
       setAiSuggestions([]);
       setSuggestionDisplayState("ready");
@@ -1176,13 +1194,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const nothingWritten = completionMeta?.stoppedByAuthor
       ? completionMeta.producedOutput === false
       : completionMeta?.partial === true && !roundProgressRef.current.producedOutput;
-    // Ended in an error (stream error frame, including the time limit, or a dropped connection):
-    // work is unfinished in ways chips cannot see (rework pending, unconfirmed files, an
-    // interrupted writer). The error note and manual input are the next step: no reply
-    // options, no /suggest, and no chips cached from an earlier round.
+    // Ended in an error (stream error frame, including the time limit, or a dropped connection),
+    // or stopped with a file that never got its text (the 「这一轮没写完」 card): work is unfinished
+    // in ways chips cannot see (rework pending, unconfirmed files, an interrupted writer). The
+    // error note / card and manual input are the next step: no reply options, no /suggest, and
+    // no chips cached from an earlier round.
     const endedInError = completionMeta?.partial === true && roundProgressRef.current.endedInError;
-    if (nothingWritten || endedInError) {
-      if (endedInError && currentProjectId) clearSuggestionCache(currentProjectId);
+    const endedUnfinished = endedInError || roundProgressRef.current.endedIncomplete;
+    if (nothingWritten || endedUnfinished) {
+      if (endedUnfinished && currentProjectId) clearSuggestionCache(currentProjectId);
       setAiSuggestions([]);
       setSuggestionDisplayState("ready");
       return;
@@ -1257,7 +1277,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       terminalStatusCardsRef.current = [];
       setQuotaRefund(null);
       setUserStop(null);
-      roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false, endedInError: false };
+      roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false };
       proseCounterRef.current.reset();
       stopRequestedProjectRef.current = null;
       resetOnCompleteFlag();
@@ -1331,7 +1351,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       proseCounterRef.current.boundary();
       streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
     },
-    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit) => {
+    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit, files) => {
+      if (layer === "empty_file_correction") roundProgressRef.current.endedIncomplete = true;
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
         layer,
@@ -1340,8 +1361,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         reason,
         lastAgent,
         limit,
+        ...files,
       }];
-      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent, limit);
+      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent, limit, ...(files ? [files] : []));
     },
     onRouterThinking: streamCallbacks.onRouterThinking,
     onRouterDecided: streamCallbacks.onRouterDecided,

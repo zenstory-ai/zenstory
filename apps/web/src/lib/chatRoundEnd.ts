@@ -62,6 +62,22 @@ export function parseWrittenFiles(raw: unknown): RoundWrittenFile[] {
 }
 
 /**
+ * The files named on an empty_file_correction stop card ([{id, title}] as the server sends them,
+ * live as `unfinished_files` / `rolled_back_files`, saved as `unfinishedFiles` / `rolledBackFiles`).
+ * Only titles are kept; absent lists stay absent.
+ */
+export function parseIterationExhaustedFiles(unfinished: unknown, rolledBack: unknown): {
+  unfinishedFiles?: string[];
+  rolledBackFiles?: string[];
+} {
+  const titles = (raw: unknown) => parseWrittenFiles(raw).map((file) => file.title);
+  return {
+    ...(Array.isArray(unfinished) ? { unfinishedFiles: titles(unfinished) } : {}),
+    ...(Array.isArray(rolledBack) ? { rolledBackFiles: titles(rolledBack) } : {}),
+  };
+}
+
+/**
  * Reads `message_metadata.stop_outcome` (written by the server after a stop / disconnect
  * settles; see agent/core/round_outcome.py). Returns null for every other message.
  */

@@ -21,6 +21,8 @@ Status: implemented
 - 只有 `armed` 才安排纠偏轮，指令改为与 create_file 的 `next_step`、守卫同一个动作：这一次回复第一行直接输出 `<file>`，写完整正文，用 `</file>` 结束，写完前不要调用工具，不要只在对话里复述。不再要求 edit_file，也不再要求「同一轮补齐另几个空文件」（一次只能流式写一个文件；其余的在下个边界再核验）。`pending_empty_file_unwritten` 的拒绝文案同样去掉 edit_file 解除法。
 - 空的或只有空白的 `<file>` 块不算写成：StreamAdapter 不落库、不发 `file_content_end`，待写绑定与守卫都留着，交给图的边界核验（中止补存同样只认非空白正文）。
 - 没恢复成（配额用尽、核验不了、不在本项目、已删除、已有正文、适配器不在等它或守卫不在、版本变了、当前角色没有写权限）就不跑纠偏轮：回滚仍为空的本请求产物并说明，报告无法回滚的未完成文件；版本变了的文件（建后作者或别的写入动过）不回滚也不写。随后这一轮停在未完成：不按计划或显式交接继续、不送审、不因完成标记发 WORKFLOW_COMPLETE；已写成的文件与真实用量照旧，计费按既有终态规则（不新增退还条件）。`_probe_pending_file_body` 把不在本请求项目里的文件按 gone 处理。
+- 回滚只删没被动过的空产物：待写条目记下 create_file 结果里的版本（updated_at），`_rollback_unfinished_empty_files` 只在库里版本仍是它、正文为空、同项目时软删，UPDATE 条件带上刚读到的 updated_at；之后被改过（例如作者在最后一次纠偏期间改了标题）或拿不出建好时版本的文件保留并报告未完成，不用回滚时重新读到的版本冒充建好时的版本。工具轮数耗尽的回滚走同一个 helper。
+- 停下时的状态卡接通既有协议：`iteration_exhausted.layer=empty_file_correction` 与 `unfinished_files` 本来就有，只是 StreamAdapter 发 SSE 时丢了文件、历史状态卡也没存、前端只认 collaboration / tool_call。现在停止分支一律发这张卡（全部撤销了也发），带 `unfinished_files`（没能撤销、仍空着）与 `rolled_back_files`（已撤销），只有 id 与标题；SSE、`status_cards`（`unfinishedFiles` / `rolledBackFiles`）与时间线都保留；前端卡片说「这一轮没写完」并点名文件（中英），不再显示「任务比较大」。交付回执不再把已撤销的空文件列为「未确认保存」。层名不在退还条件里，计费不变。
 - 恢复写入的纠偏轮：正文类文件（draft / script）按 create_file 后的 `<file>` 正文同口径计入自动质检门的本轮字数，并与 create_file 后一样可开始 CHAT_HOLD；这一程写完的是之前建好的文件，续写条件（`ends_on_file_block`）同样成立。计费与回合回执只认 StreamAdapter 的保存回执，没有改变。
 
 ## Alternatives considered
@@ -42,4 +44,5 @@ Status: implemented
 
 - 先写 `apps/server/tests/test_agent/test_file_body_resume.py`（真实 graph + runner 事件映射与钩子 + tools_adapter 守卫/熔断 + create_file + StreamAdapter + 临时 SQLite，只替换模型与路由），在 base `6fb42851` 上 7 项失败（正文进聊天并在两轮后被回滚、作者改动 / 跨项目 / 先问清楚仍纠偏、取消时没有捕获），3 项既有保护通过；修复后 17 项通过（含适配器的拒绝与幂等用例）。
 - 锁住旧合同的图单元测试改用 `file_body_resume_helpers`（替身：目标核验通过、适配器已回执），新增「没恢复捕获就立即回滚」「核验不了只报告」用例；`test_mcp_tools` 不再断言 edit_file 解除法。
+- 最终整批审查（`df8e2f39`）后的回修：作者在最后一次纠偏期间改名的空文件被删（迁入审查的跨层复现）及核验与删除之间的并发改动，修改前 4 项失败；未完成状态卡在 SSE / 落库 / 前端丢失文件与层名，后端 4 项、前端 4 项修改前失败。正确依赖环境（Python 3.12、openai 3.37、agents 0.21、Prefect 3.6.29）下运行。
 - 独立审查（`b0f74cf3`）后的回修，先写 red 再修：空 / 只有空白的 `<file>` 块（跨层，2 例）、守卫缺失 / 已清 / 只有别的文件 / 恢复抛错时不得 armed（4 例）、补不成后不交接审稿与不宣告完成（含计划交接、显式送审 + 配额用尽、完成标记，3 例并改正 2 个锁住旧 fallthrough 的用例）、审稿人带着待写标记时不改派 writer（1 例）；修改前共 11 项失败，修改后这三个文件 49 项通过。

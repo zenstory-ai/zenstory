@@ -383,14 +383,17 @@ async def test_empty_or_blank_body_keeps_the_file_pending_until_the_round_stops_
     stored = workspace.session.get(File, file_id)
     assert stored.content == "" and stored.is_deleted is True, "仍为空的本轮产物被回滚"
     assert outcome.of("workflow_complete") == [], "没写成就不宣告完成"
-    assert "还没写入正文" in outcome.chat_text
+    # 前端认得的结构化未完成状态：哪份已撤销、哪份没能撤销（只有 id 与标题）。
+    [card] = [f.data for f in outcome.of("iteration_exhausted") if f.data.get("layer") == "empty_file_correction"]
+    assert card["rolled_back_files"] == [{"id": file_id, "title": CHAPTER}]
+    assert card.get("unfinished_files") in (None, [])
     tracker = StreamBillingTracker()
     for frame in outcome.frames:
         tracker.observe(frame.to_sse())
     assert tracker.write_succeeded is False and tracker.produced_output is False
     delivery = outcome.delivery()
     assert delivery.get("written_files") is None
-    assert delivery["unwritten_files"] == [{"id": file_id, "title": CHAPTER}]
+    assert delivery.get("unwritten_files") is None, "已撤销的空文件不再列为「未确认保存」"
 
 
 def _author_renames(workspace, model: ScriptedModel) -> Callable[[], None]:
@@ -759,8 +762,9 @@ async def test_author_rename_during_the_last_failed_correction_keeps_the_file(wo
     assert len(drafts) == 1
     assert drafts[0].title == "作者改的标题"
     assert drafts[0].is_deleted is False and drafts[0].content == ""
-    exhausted = [f for f in outcome.of("iteration_exhausted") if f.data.get("layer") == "empty_file_correction"]
-    assert exhausted, "保留下来的文件报告为未完成"
+    [card] = [f.data for f in outcome.of("iteration_exhausted") if f.data.get("layer") == "empty_file_correction"]
+    assert card["unfinished_files"] == [{"id": drafts[0].id, "title": CHAPTER}], "保留下来的文件报告为未完成"
+    assert card.get("rolled_back_files") in (None, [])
     assert outcome.of("workflow_complete") == []
 
 

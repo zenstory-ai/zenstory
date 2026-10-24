@@ -19,6 +19,8 @@ import type {
   ApplyAction,
   FileEditOutcome,
   FileType,
+  IterationExhaustedFiles,
+  IterationExhaustedLayer,
   SSEHandoffData,
   SSERoutingMetadata,
   SSEWorkflowCompleteData,
@@ -175,8 +177,11 @@ export interface StreamRenderItem {
   maxIterations?: number;
   /** Number of remaining iterations available */
   remaining?: number;
-  /** Layer of the multi-agent workflow (collaboration or tool_call) */
-  layer?: "collaboration" | "tool_call";
+  /** Which layer stopped the round (see IterationExhaustedLayer) */
+  layer?: IterationExhaustedLayer;
+  /** empty_file_correction: titles of files left unfinished / removed again */
+  unfinishedFiles?: string[];
+  rolledBackFiles?: string[];
   /** Number of iterations actually used */
   iterationsUsed?: number;
   /** Reason for stopping or completing the workflow */
@@ -296,12 +301,13 @@ export interface UseChatStreamingOptions {
 
   /** Called when iteration limit is exhausted */
   onIterationExhausted?: (
-    layer: "collaboration" | "tool_call",
+    layer: IterationExhaustedLayer,
     iterationsUsed: number,
     maxIterations: number,
     reason: string,
     lastAgent?: string,
-    limit?: string
+    limit?: string,
+    files?: IterationExhaustedFiles
   ) => void;
 
   /** Called when router starts thinking */
@@ -1076,12 +1082,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
          * Called when iteration limit is exhausted
          */
         onIterationExhausted: (
-          layer: "collaboration" | "tool_call",
+          layer: IterationExhaustedLayer,
           iterationsUsed: number,
           maxIterations: number,
           reason: string,
           lastAgent?: string,
-          limit?: string
+          limit?: string,
+          files?: IterationExhaustedFiles
         ) => {
           updateStreamItems((prev) => [
             ...prev,
@@ -1094,6 +1101,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
               reason,
               lastAgent,
               limit,
+              ...files,
               timestamp: new Date(),
             },
           ]);

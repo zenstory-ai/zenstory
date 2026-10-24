@@ -2039,6 +2039,58 @@ describe('ChatPanel mount smoke', () => {
     expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
   })
 
+  it('shows no follow-up chips after a round that stopped with an unwritten file, live and after reload', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      withEarlierTurn()
+      const { unmount } = render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      localStorage.setItem(
+        'zenstory_suggestions_cache_project-1',
+        JSON.stringify({ suggestions: ['按大纲写第二章'], updatedAt: Date.now() }),
+      )
+      mockStreamSnapshot.items = [{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS, timestamp: new Date() }]
+      const options = capturedUseAgentStream.options as unknown as RoundOptions & {
+        onIterationExhausted: (layer: string, used: number, max: number, reason: string, lastAgent?: string, limit?: string,
+          files?: { unfinishedFiles?: string[]; rolledBackFiles?: string[] }) => void
+      }
+
+      await act(async () => {
+        options.onIterationExhausted('empty_file_correction', 2, 2, 'internal', 'writer', undefined, { unfinishedFiles: ['第一章'] })
+        // The stream still ends with done: the round stopped unfinished, it did not fail.
+        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null)
+      })
+      await act(async () => { vi.advanceTimersByTime(20000) })
+
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+      unmount()
+    } finally { vi.useRealTimers() }
+
+    localStorage.setItem(
+      'zenstory_suggestions_cache_project-1',
+      JSON.stringify({ suggestions: ['按大纲写第二章'], updatedAt: Date.now() }),
+    )
+    vi.mocked(fetchSuggestions).mockClear()
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-unfinished', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z',
+      metadata: JSON.stringify({
+        status_cards: [{ type: 'iteration_exhausted', layer: 'empty_file_correction', unfinishedFiles: [{ id: 'kept', title: '第一章' }] }],
+      }),
+    }] as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
+    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+    expect(lastMessageInputProps().aiSuggestions).toEqual([])
+    expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+    const lastList = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ statusCards?: Array<Record<string, unknown>> }> }
+    expect(lastList.messages?.[0]?.statusCards?.[0]).toMatchObject({ layer: 'empty_file_correction', unfinishedFiles: ['第一章'] })
+  })
+
   it('uses local fallback only when the suggestion request fails', async () => {
     vi.mocked(fetchSuggestions).mockResolvedValueOnce(null)
     withEarlierTurn()

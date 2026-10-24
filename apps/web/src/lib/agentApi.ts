@@ -20,9 +20,12 @@ import type {
   AgentRequest,
   AgentContextItem,
   FileEditOutcome,
+  IterationExhaustedFiles,
+  IterationExhaustedLayer,
   SSEEvent,
   SSEEventType,
   SSEHandoffData,
+  SSEIterationExhaustedData,
   SSERouterDecidedData,
   SSERoutingMetadata,
   SSEWorkflowCompleteData,
@@ -32,7 +35,7 @@ import { api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, res
 import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
-import { formatRoundDelivery, parseWrittenFiles } from "./chatRoundEnd";
+import { formatRoundDelivery, parseIterationExhaustedFiles, parseWrittenFiles } from "./chatRoundEnd";
 import i18n from "./i18n";
 import { createAgentStreamTelemetry, type AgentStreamTelemetry } from "./agentStreamTelemetry";
 
@@ -309,12 +312,13 @@ export function streamAgentRequest(
       remaining?: number
     ) => void;
     onIterationExhausted?: (
-      layer: "collaboration" | "tool_call",
+      layer: IterationExhaustedLayer,
       iterationsUsed: number,
       maxIterations: number,
       reason: string,
       lastAgent?: string,
-      limit?: string
+      limit?: string,
+      files?: IterationExhaustedFiles
     ) => void;
     onRouterThinking?: (message: string) => void;
     onRouterDecided?: (
@@ -704,21 +708,18 @@ export function streamAgentRequest(
               break;
             }
             case "iteration_exhausted": {
-              const data = event.data as {
-                layer: "collaboration" | "tool_call";
-                iterations_used: number;
-                max_iterations: number;
-                reason: string;
-                last_agent?: string;
-                limit?: string;
-              };
+              const data = event.data as SSEIterationExhaustedData;
+              const files = data.layer === "empty_file_correction"
+                ? parseIterationExhaustedFiles(data.unfinished_files, data.rolled_back_files)
+                : undefined;
               callbacks.onIterationExhausted?.(
                 data.layer,
                 data.iterations_used,
                 data.max_iterations,
                 data.reason,
                 data.last_agent,
-                data.limit
+                data.limit,
+                ...(files ? [files] : []),
               );
               break;
             }

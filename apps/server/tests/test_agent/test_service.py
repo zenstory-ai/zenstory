@@ -936,6 +936,56 @@ class TestAgentServiceProcessStream:
             }
         ]
 
+    async def test_process_stream_keeps_unfinished_file_card_facts_for_live_and_reload(
+        self, mock_agent_service, test_user_with_project, db_session: Session
+    ):
+        """空文件纠偏补不成的状态卡：SSE 与落库（状态卡 + 时间线）都带上未写完 / 已撤销的文件（只有 id 与标题）。"""
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        async def unfinished_stream():
+            yield StreamEvent(
+                type=StreamEventType.ITERATION_EXHAUSTED,
+                data={
+                    "layer": "empty_file_correction",
+                    "iterations_used": 2,
+                    "max_iterations": 2,
+                    "reason": "文件正文补写未完成，且无法安全回滚空文件。请继续对话完成这些文件。",
+                    "unfinished_files": [{"file_id": "file-kept", "title": "第一章"}],
+                    "rolled_back_files": [{"file_id": "file-removed", "title": "第二章"}],
+                    "last_agent": "writer",
+                },
+            )
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        with patch("agent.service.run_writing_workflow_streaming", return_value=unfinished_stream()):
+            events = [
+                event async for event in service.process_stream(
+                    project_id=str(project.id), user_id=str(user.id), message="写两章", session=db_session,
+                )
+            ]
+
+        frame = next(event for event in events if event.startswith("event: iteration_exhausted"))
+        data = json.loads(frame.split("data:", 1)[1].strip())
+        assert data["layer"] == "empty_file_correction"
+        assert data["unfinished_files"] == [{"id": "file-kept", "title": "第一章"}]
+        assert data["rolled_back_files"] == [{"id": "file-removed", "title": "第二章"}]
+        latest_assistant = db_session.exec(
+            select(ChatMessage)
+            .where(ChatMessage.role == "assistant")
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+        ).first()
+        metadata = json.loads(latest_assistant.message_metadata or "{}")
+        card = metadata["status_cards"][0]
+        assert card["layer"] == "empty_file_correction"
+        assert card["unfinishedFiles"] == [{"id": "file-kept", "title": "第一章"}]
+        assert card["rolledBackFiles"] == [{"id": "file-removed", "title": "第二章"}]
+        timeline = next(event for event in metadata["display_events"] if event["type"] == "iteration_exhausted")
+        assert timeline["data"]["unfinished_files"] == [{"id": "file-kept", "title": "第一章"}]
+
     async def test_process_stream_with_custom_session_id(
         self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
     ):

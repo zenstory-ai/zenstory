@@ -88,7 +88,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     // Return the key as-is to match actual component behavior; step-label numbers are appended.
     t: (key: string, options?: Record<string, unknown>) =>
-      [key, options?.step, options?.n].filter((part) => part !== undefined).join(' '),
+      [key, options?.step, options?.n, options?.titles].filter((part) => part !== undefined).join(' '),
   }),
 }))
 
@@ -290,6 +290,22 @@ describe('MessageList', () => {
     }
     // The internal stop reason stays out of the author-facing card
     expect(screen.queryByText('Ordered limit reason')).not.toBeInTheDocument()
+  })
+
+  it('says a round with an unwritten file is unfinished and names the files, live and after reload', () => {
+    const item: NonNullable<Message['displayItems']>[number] = { id: 'empty', type: 'iteration_exhausted', layer: 'empty_file_correction',
+      unfinishedFiles: ['第一章'], rolledBackFiles: ['第二章', '第三章'], timestamp: new Date() }
+    const { unmount } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [item] })]} />)
+    expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
+    expect(screen.getByText('workflow.emptyFileUnresolved 第一章')).toBeInTheDocument()
+    expect(screen.getByText('workflow.emptyFileRolledBack 第二章panel.removedFilesJoiner第三章')).toBeInTheDocument()
+    expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
+    unmount()
+
+    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'empty_file_correction', rolledBackFiles: ['第二章'] }] })]} />)
+    expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
+    expect(screen.getByText('workflow.emptyFileRolledBack 第二章')).toBeInTheDocument()
+    expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
   })
 
   it('says a run stopped near the time limit may already be done, live and after reload', () => {

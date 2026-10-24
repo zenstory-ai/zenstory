@@ -1,6 +1,7 @@
 import type { StreamRenderItem } from '../hooks/useChatStreaming';
 import type { ToolCall } from '../types';
 import { formatHandoffMessage } from './agentDisplayName';
+import { parseIterationExhaustedFiles } from './chatRoundEnd';
 
 /**
  * A finished reply keeps what the round did (plan, handoffs, tools, text) but not the
@@ -57,7 +58,7 @@ export function parseChatDisplayEvents(
           break;
         }
         case 'iteration_exhausted':
-          items.push({ ...base, type: 'iteration_exhausted', layer: data.layer, iterationsUsed: data.iterations_used, maxIterations: data.max_iterations, reason: data.reason, lastAgent: data.last_agent, limit: data.limit });
+          items.push({ ...base, type: 'iteration_exhausted', layer: data.layer, iterationsUsed: data.iterations_used, maxIterations: data.max_iterations, reason: data.reason, lastAgent: data.last_agent, limit: data.limit, ...parseIterationExhaustedFiles(data.unfinished_files, data.rolled_back_files) });
           break;
         case 'workflow_stopped':
         case 'workflow_complete':

@@ -2584,26 +2584,25 @@ async def run_writing_workflow_streaming(
                         rolled_back_count=len(rolled_back),
                         unresolved_count=len(unresolved),
                     )
-                    if unresolved:
-                        yield StreamEvent(
-                            type=StreamEventType.ITERATION_EXHAUSTED,
-                            data={
-                                "layer": "empty_file_correction",
-                                "iterations_used": file_correction_attempts,
-                                "max_iterations": MAX_FILE_CORRECTION_ATTEMPTS,
-                                "reason": (
-                                    "文件正文补写未完成，且无法安全回滚空文件。"
-                                    "请继续对话完成这些文件。"
-                                ),
-                                "unfinished_files": unresolved,
-                                "last_agent": current_agent_type,
-                            },
-                        )
-                    # 回滚掉的空文件同样告诉作者（与工具轮数耗尽时同一句说明）。
-                    rolled_back_titles = [entry["title"] for entry in unfinished if entry["file_id"] in rolled_back]
-                    notice = _unfinished_file_notice(rolled_back_titles, [], english)
-                    if notice:
-                        yield StreamEvent(type=StreamEventType.TEXT, data={"text": notice})
+                    # 这一轮停在未完成的状态卡（既有的 empty_file_correction 层）：点名没能撤销、仍空着
+                    # 的文件与已撤销的空文件（只有 id 与标题）。全部撤销了也照发，作者不会把它当成写完了。
+                    rolled_back_entries = [entry for entry in unfinished if entry["file_id"] in rolled_back]
+                    yield StreamEvent(
+                        type=StreamEventType.ITERATION_EXHAUSTED,
+                        data={
+                            "layer": "empty_file_correction",
+                            "iterations_used": file_correction_attempts,
+                            "max_iterations": MAX_FILE_CORRECTION_ATTEMPTS,
+                            "reason": (
+                                "文件正文补写未完成，且无法安全回滚空文件。请继续对话完成这些文件。"
+                                if unresolved
+                                else "文件正文没有写成，已撤销这些空文件。"
+                            ),
+                            "unfinished_files": unresolved,
+                            "rolled_back_files": rolled_back_entries,
+                            "last_agent": current_agent_type,
+                        },
+                    )
                     # 文件没写成、也补不了：这一轮停在未完成。不再按计划或显式交接继续、不送审、
                     # 也不因完成标记宣告完成；已写成的文件与真实用量照旧，计费由既有终态规则判断。
                     if (read_only_notice := _take_read_only_notice()) is not None:

@@ -31,6 +31,8 @@ import type {
   ConflictType,
   ApplyAction,
   FileEditOutcome,
+  IterationExhaustedFiles,
+  IterationExhaustedLayer,
   SSEHandoffData,
   SSERoutingMetadata,
   SSEWorkflowCompleteData,
@@ -193,12 +195,13 @@ export interface UseAgentStreamOptions {
   ) => void;
   /** Called when iteration limit is exhausted */
   onIterationExhausted?: (
-    layer: "collaboration" | "tool_call",
+    layer: IterationExhaustedLayer,
     iterationsUsed: number,
     maxIterations: number,
     reason: string,
     lastAgent?: string,
-    limit?: string
+    limit?: string,
+    files?: IterationExhaustedFiles
   ) => void;
   /** Called when router starts thinking */
   onRouterThinking?: (message: string) => void;
@@ -1159,9 +1162,9 @@ export function useAgentStream(
             onAgentSelected?.(agentType, agentName, iteration, maxIterations, remaining);
           },
 
-          onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit) => {
+          onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit, files) => {
             if (isStaleEvent()) return;
-            onIterationExhausted?.(layer, iterationsUsed, maxIterations, reason, lastAgent, limit);
+            onIterationExhausted?.(layer, iterationsUsed, maxIterations, reason, lastAgent, limit, ...(files ? [files] : []));
           },
 
           onRouterThinking: (message) => {
