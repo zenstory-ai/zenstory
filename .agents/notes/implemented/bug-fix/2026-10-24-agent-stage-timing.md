@@ -6,10 +6,10 @@
 
 ## Decision
 
-扩展现有 `AgentRunMeter`，仍通过 `service.run_report` 汇入唯一的 `Agent stream billing evaluated` 日志，复用 request_id / agent_run_id；不新增日志流、数据库、观测平台、依赖或 LLM 调用。原字段含义、计费和终态不变。
+扩展现有 `AgentRunMeter`，仍通过 `service.run_report` 汇入唯一的 `Agent stream billing evaluated` 日志，复用 request_id / agent_run_id；不新增日志流、数据库、观测平台、依赖或 LLM 调用。计费、终态及原统计口径不变；record_agent_run 在 SDK pump 清理后收尾，既有 llm_duration_ms 因而包含这一小段清理等待，仍不是模型净耗时。
 
 - `run_stage_timings` 固定阶段：prepare_context、router、model、tool、file_save，以及 agent_planner / agent_hook_designer / agent_writer / agent_quality_reviewer。每项仅 count、total_ms、max_ms、error_count、interrupted_count。未运行的阶段不出现。
-- prepare_context 从 process_stream 入口至工作流开始（包含会话、历史、上下文与工具初始化）；早期失败/取消在已有 finally 收尾。路由关闭或可信状态直接恢复时不虚构 router 调用。
+- prepare_context 从 process_stream 入口至工作流开始（包含会话、历史、上下文与工具初始化）；早期失败/取消在已有 finally 收尾。仅实际执行 router 时计时；与 #306 合并后，router 关闭但有可信待澄清/截停状态仍需调用原 router，该次也计入。无待续状态的普通 off 路径不虚构调用。
 - model 使用既有 SDK on_llm_start/on_llm_end 测量每次调用生命周期，排除调用之间的工具时间，包含 SDK/provider/failover/流消费等待；不是供应商推理时间，也不是逐 token 性能。未收到 end 的调用按 error 或 interrupted 封口，不伪造 usage。
 - tool 仅围绕权限/守卫通过后的实际项目工具执行；正常返回表示调用返回，不保证业务成功。守卫拒绝不当成实际工具启动。file_save 是流式落库等待；失败与取消仍计时，不改变超时后的原有后台语义。
 - `run_first_tool_started_ms` 为首个真实工具执行起点；`run_first_body_persisted_ms` 为首个观察到非空 draft/script 正文实际保存/变更成功的时刻。空文件、非正文、无变化、拒绝/失败都不是成功证据。流式写入由保存结果确认；edit/parallel 使用已有 BodyWriteTracker 的成功结果、逐项 mutation_applied=true 和非空字数；只覆盖已有 writer / planned_body_delivery 观察范围，其他未规划角色的工具正文可能保守漏记，不为观测改变送审流程。未观察到成功为 null，不证明绝未写入（例如超时后线程可能仍完成）。
