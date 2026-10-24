@@ -89,9 +89,20 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     This is for backward compatibility with existing code that still uses
     standard HTTPException.
     """
+    route = request.scope.get("route")
+    route_methods = getattr(route, "methods", None)
+    # Matched endpoints may raise genuine business 404/405 errors. Only the
+    # router's unmatched path/method diagnostics are redundant with completion.
+    is_routing_error = (
+        exc.status_code == 404 and request.scope.get("endpoint") is None
+    ) or (
+        exc.status_code == 405
+        and route_methods is not None
+        and request.method not in route_methods
+    )
     log_with_context(
         logger,
-        logging.WARNING,
+        logging.DEBUG if is_routing_error else logging.WARNING,
         "HTTPException raised",
         detail=str(exc.detail),
         status_code=exc.status_code,

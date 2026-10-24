@@ -97,10 +97,10 @@ def extract_character_mentions_task(
     try:
         data = client.extract_json_from_response(response)
         logger.debug(f"[角色提及提取] JSON 解析成功: chapter_id={chapter_id}")
-    except Exception as e:
+    except Exception as error:
         logger.error(
-            f"[角色提及提取] JSON 解析失败: chapter_id={chapter_id}, error={str(e)}, "
-            f"response_preview={response.content[:500]}"
+            f"[角色提及提取] JSON 解析失败: chapter_id={chapter_id}, "
+            f"error_type={type(error).__name__}, response_length={len(response.content)}"
         )
         raise
 
@@ -265,9 +265,10 @@ def build_character_entity_task(
     try:
         data = client.extract_json_from_response(response)
         logger.debug(f"[角色实体构建] JSON 解析成功: character_name={character_name}")
-    except Exception as e:
+    except Exception as error:
         logger.error(
-            f"[角色实体构建] JSON 解析失败: character_name={character_name}, error={str(e)}"
+            f"[角色实体构建] JSON 解析失败: character_name={character_name}, "
+            f"error_type={type(error).__name__}, response_length={len(response.content)}"
         )
         raise
 
@@ -437,9 +438,10 @@ def build_all_character_entities_task(
                 created_count += 1
             elif result.get("status") == "updated":
                 updated_count += 1
-        except Exception as e:
+        except Exception as error:
             logger.error(
-                f"[批量角色实体构建] 角色 {character_name} 构建失败: {e}",
+                f"[批量角色实体构建] 角色 {character_name} 构建失败: "
+                f"error_type={type(error).__name__}",
                 exc_info=True
             )
             failed_count += 1
