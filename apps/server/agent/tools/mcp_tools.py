@@ -288,6 +288,12 @@ class _PendingEmptyFileState:
             if self._entries:
                 self._streamed.add(next(reversed(self._entries)))
 
+    def rearm(self, file_id: str) -> None:
+        """纠偏轮重新等这个文件的正文：没被捕获的「正文已写出」标记作废，建于第几次回复不变。"""
+        with self._lock:
+            if file_id in self._entries:
+                self._streamed.discard(file_id)
+
     def discard(self, file_id: str | None = None) -> None:
         """file_id 为 None 时清空全部，否则只摘掉指定条目。"""
         with self._lock:
@@ -985,6 +991,16 @@ class ToolContext:
         state = cls._get_pending_empty_file_state()
         if state is not None:
             state.mark_latest_body_streamed()
+
+    @classmethod
+    def rearm_pending_file_body(cls, file_id: str) -> None:
+        """StreamAdapter 为空文件纠偏轮重新等这个文件的正文（见 _PendingEmptyFileState.rearm）。
+
+        下一次回复照样要先以 <file> 写正文，其他工具仍按 file_body_pending 拒绝。
+        """
+        state = cls._get_pending_empty_file_state()
+        if state is not None:
+            state.rearm(file_id)
 
     @classmethod
     def try_reserve_pending_empty_file(
@@ -1864,7 +1880,9 @@ def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dic
     """create_file 被「上一个空文件还没写正文」挡回时的错误，点名解除方法。
 
     error_type 让工具失败熔断器把它识别为顺序性拒绝（先做前置动作即可成功），
-    不按「同一调用连续失败」熔断；pending_file_id 让模型能直接 edit_file 补写。
+    不按「同一调用连续失败」熔断。解除方法与 create_file 的 next_step、正文待写守卫
+    （tools_adapter.file_body_pending_text）一致：下一次回复以 <file> 写正文；
+    不建议 edit_file——下一次回复里它会被守卫拒绝。
     """
     blocking_name = blocking_title or "未知"
     blocking_id = ""
@@ -1872,16 +1890,13 @@ def _pending_empty_file_rejection(blocking_title: str | None, title: str) -> dic
         if entry.get("title") == blocking_title:
             blocking_id = str(entry.get("file_id") or "")
     id_part = f"（id={blocking_id}）" if blocking_id else ""
-    edit_part = (
-        f"，或调用 edit_file(id={blocking_id}, op=append) 写入正文" if blocking_id else ""
-    )
     payload: dict[str, Any] = {
         "status": "error",
         "error_type": "pending_empty_file_unwritten",
         "error": (
             f"文件「{title}」未创建：上一个文件「{blocking_name}」{id_part}正文还是空的，"
             "一次只能流式写入一个文件。"
-            f"下一步：先在回复里用 <file>完整内容</file> 写出「{blocking_name}」的正文{edit_part}；"
+            f"下一步：下一次回复直接以 <file> 开头写完「{blocking_name}」的正文、用 </file> 结束；"
             f"写完后再调用 create_file 创建「{title}」。在此之前重复调用 create_file 只会再次被拒绝。"
         ),
     }

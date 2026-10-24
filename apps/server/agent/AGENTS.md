@@ -191,6 +191,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   计划交接的 `handoff_packet.todo` 带用户 `scope`。角色提示、截断续写、篇幅要求、快速模式同样放在这里，不进系统提示。
   [scope][n-scope]、[cache-stable-prompt-layout][n-cache-layout]
 - **空文件纠偏轮由建空文件的 agent 自己补写**；被纠偏打断一轮的有界回复原话带过纠偏轮，不从标点推断等待状态。[scope][n-scope]
+  纠偏轮前图发内部事件 `FILE_BODY_RESUME`（`core/workflow_events.FileBodyResume`，不发给前端）：先落库核验最近那份空文件仍在本项目、未删除、为空，StreamAdapter 只为自己按 create_file 结果在等、版本未变的同一文件重新等待 `<file>`；回执 `armed` 才跑纠偏轮，指令与守卫一致（下一次回复以 `<file>` 写正文，不用 edit_file）；否则回滚 / 报告，版本变了的不回滚。[resume-capture][n-resume]
 - **写完 `</file>` 就结束 run 时同一 agent 续写**：有写权限的 agent 这次 run 里 create_file 成功、最后的文字以写完的 `<file>` 正文
   结束（`completion_evidence.ends_on_file_block`），且没有显式交接、澄清、轮数耗尽、错误时，同一 agent 再跑一轮（交接说明以
   `FILE_STREAM_CONTINUATION_MARKER` 开头）；放在计划交接 / 自动质检之前，正文与正文写入记录接续给续写轮；受 `max_iterations` 约束，
@@ -359,6 +360,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-cache-layout]: ../../../.agents/notes/implemented/bug-fix/2026-10-20-agent-cache-stable-prompt-layout.md
 [n-snapshot]: ../../../.agents/notes/implemented/architecture/2026-10-21-context-snapshot-and-cache-stable-tools.md
 [n-body-turn]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-fast-mode-summary-and-file-body-turn.md
+[n-resume]: ../../../.agents/notes/implemented/bug-fix/2026-10-24-empty-file-correction-resumes-capture.md
 [n-wrap-up]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-wall-clock-wrap-up.md
 [n-continued-run]: ../../../.agents/notes/implemented/architecture/2026-10-21-same-agent-runs-continue-the-previous-input.md
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md

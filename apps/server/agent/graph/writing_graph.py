@@ -26,6 +26,8 @@ from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception,
 from agent.core.workflow_events import (
     CHAT_HOLD_BEGIN,
     CHAT_HOLD_DISCARD,
+    FILE_BODY_RESUME_VERSION_CHANGED,
+    FileBodyResume,
     StreamEvent,
     StreamEventType,
 )
@@ -117,8 +119,8 @@ def _probe_pending_file_body(file_id: str) -> str:
     create_file(空) + edit_file(op=append) 这条常走路径会被误判成空文件。
 
     核验不了时（无 file_id / 无可用 session / 查询失败）返回 unverifiable，
-    由调用方保留原来的纠偏兜底。这里用列级查询，绕开 ORM 身份映射里可能陈旧的
-    实例，直接读数据库当前值。
+    由调用方走不恢复写入的回滚 / 报告路径。这里用列级查询，绕开 ORM 身份映射里可能陈旧的
+    实例，直接读数据库当前值。不在本请求项目里的文件按 gone 处理：不补写、不回滚。
     """
     if not file_id:
         return _PENDING_BODY_UNVERIFIABLE
@@ -130,7 +132,7 @@ def _probe_pending_file_body(file_id: str) -> str:
 
         with ToolContext.short_lived_session() as session:
             row = session.exec(
-                select(File.content, File.is_deleted).where(File.id == file_id)
+                select(File.content, File.is_deleted, File.project_id).where(File.id == file_id)
             ).first()
     except Exception as e:
         logger.debug(f"Pending empty-file verification failed: {e}")
@@ -138,10 +140,49 @@ def _probe_pending_file_body(file_id: str) -> str:
 
     if row is None:
         return _PENDING_BODY_GONE
-    content, is_deleted = row[0], row[1]
-    if is_deleted:
+    content, is_deleted, row_project_id = row[0], row[1], row[2]
+    project_id = ToolContext.get_project_id()
+    if is_deleted or (project_id and row_project_id != project_id):
         return _PENDING_BODY_GONE
     return _PENDING_BODY_EMPTY if not str(content or "").strip() else _PENDING_BODY_WRITTEN
+
+
+def _resume_target_version(file_id: str) -> tuple[str, str] | None:
+    """空文件纠偏轮恢复正文写入前再读一次目标：返回 (updated_at.isoformat(), file_type)。
+
+    只在同一项目、未删除、正文仍为空、不是文件夹时返回；其余情况（含读不到）返回 None，
+    纠偏轮不恢复写入。StreamAdapter 再拿这个版本与 create_file 结果里的版本比较。
+    """
+    project_id = ToolContext.get_project_id()
+    if not file_id or not project_id:
+        return None
+    try:
+        from sqlmodel import select
+
+        from models import File
+        from models.file_model import FILE_TYPE_FOLDER
+
+        with ToolContext.short_lived_session() as session:
+            row = session.exec(
+                select(File.content, File.is_deleted, File.project_id, File.updated_at, File.file_type).where(
+                    File.id == file_id
+                )
+            ).first()
+    except Exception as e:
+        log_with_context(logger, 30, "Empty-file resume target read failed", error_type=type(e).__name__)
+        return None
+    if row is None:
+        return None
+    content, is_deleted, row_project_id, updated_at, file_type = row
+    if (
+        is_deleted
+        or row_project_id != project_id
+        or str(content or "").strip()
+        or updated_at is None
+        or str(file_type or "").strip().lower() == FILE_TYPE_FOLDER
+    ):
+        return None
+    return updated_at.isoformat(), str(file_type or "")
 
 
 def _rollback_unfinished_empty_files(
@@ -1688,6 +1729,9 @@ async def run_writing_workflow_streaming(
     # 本轮交接包（todo / evidence 要渲染进下一个 agent 的交接信息）。
     incoming_handoff_packet: dict[str, Any] | None = None
     file_correction_attempts: int = 0  # 跟踪「创建了空文件但未写入正文」的纠正次数
+    # 下一程是 StreamAdapter 已为空文件恢复了正文写入的纠偏轮；正文类文件时带上它的写入记录。
+    resumed_correction = False
+    resumed_body_write: BodyWrite | None = None
     # 被空文件纠偏轮暂存的显式 handoff：纠偏分支会用 continue 跳过本轮末尾的
     # 交接决策，若不暂存，模型这一轮请求的目标 agent（例如 WRITER_PROMPT 强制
     # 要求的 quality_reviewer 送审）会连同 handoff_packet 一起被静默吞掉。
@@ -2129,6 +2173,10 @@ async def run_writing_workflow_streaming(
             # （body_writes.py）。只认成功的写入：写工具全部失败（例如数据库被锁）时
             # 不送审，否则审稿人会把 writer 叫回来重试同一个失败的写入。
             body_tracker = BodyWriteTracker()
+            run_resumed_body = resumed_correction
+            run_resumed_write = resumed_body_write
+            resumed_correction = False
+            resumed_body_write = None
             # 这一 run 写完正文以后、可能还会送审：之后给作者的文字先扣在适配器里，
             # 真的送审时丢掉（审稿人或返修后的 writer 写唯一一份总结），不送审时原样放出。
             # 审稿只可能来自自动质检门或计划好的 quality_reviewer：两者都没有时不扣。
@@ -2156,11 +2204,16 @@ async def run_writing_workflow_streaming(
                 and (enable_graph_auto_review or reviewer_planned_next)
             )
             chat_hold_started = False
+            if run_resumed_write is not None and (current_agent_type == "writer" or planned_body_delivery):
+                # 恢复写入的纠偏轮：正文就在这一程的 <file> 里，与 create_file 后的正文同样记账。
+                body_tracker.writes.append(run_resumed_write)
+            else:
+                run_resumed_write = None
             # 正文可能已由计划内的上游写完：后续角色只读稿或小修，也要扣住
             # 将被审稿取代的总结，不依赖它再次调用写工具才开始扣留。
-            if (
-                chat_hold_eligible
-                and measured_body_words(carried_writer_body_writes) >= auto_review_threshold
+            if chat_hold_eligible and (
+                run_resumed_write is not None
+                or measured_body_words(carried_writer_body_writes) >= auto_review_threshold
             ):
                 chat_hold_started = True
                 yield StreamEvent(type=StreamEventType.CHAT_HOLD, data={"action": CHAT_HOLD_BEGIN})
@@ -2427,13 +2480,46 @@ async def run_writing_workflow_streaming(
                 )
                 body_state = probed_states[0] if probed_states else _PENDING_BODY_UNVERIFIABLE
 
-                # 只读请求（用户明确说了别改文件）不安排补写：写工具调用本就会被拒绝，
-                # 万一仍出现空文件，直接走下面的回滚分支，而不是让 agent 去写正文。
+                # 纠偏轮由「建了空文件的那个 agent」自己补写：空文件是它建的
+                # （它必然有写权限），交给 writer 会让 writer 去补 planner 的大纲/
+                # 人设——只要大纲的请求因此凭空多出一轮 writer，还会顺带触发自动
+                # 质检；计划序列里排着的 writer 也会在纠偏后撞上自交接被判无效。
+                correction_agent = (
+                    current_agent_type
+                    if _agent_can_write_files(current_agent_type)
+                    else "writer"
+                )
+                # 只读、先问清楚的请求（作者没授权本轮写文件）不安排补写：写工具调用本就会被
+                # 拒绝，万一仍出现空文件，直接走下面的回滚分支，而不是让 agent 去写正文。
                 can_schedule_correction = (
                     not read_only_request
+                    and not clarify_first_request
                     and iteration < max_iterations
                     and file_correction_attempts < MAX_FILE_CORRECTION_ATTEMPTS
                 )
+                # 纠偏轮只能用两次回复协议写正文（下一次回复以 <file> 开头；守卫拒绝其他工具），
+                # 而上一个 run 的 MESSAGE_END 已把捕获复位。先请 StreamAdapter 为同一个文件重新
+                # 等正文：目标是最近建的那份（适配器正绑定着它），落库前再读一次库确认仍在本项目、
+                # 未删除、仍为空，并把版本交给适配器与 create_file 的结果比较。没恢复成就不安排
+                # 纠偏轮，走下面的回滚 / 报告分支。一次只恢复一个文件，其余的下个边界再核验。
+                resume: FileBodyResume | None = None
+                resume_type = ""
+                if unfinished and can_schedule_correction:
+                    target_facts = await asyncio.to_thread(
+                        _resume_target_version, unfinished[-1]["file_id"]
+                    )
+                    if target_facts is not None:
+                        resume = FileBodyResume(
+                            file_id=unfinished[-1]["file_id"], expected_updated_at=target_facts[0]
+                        )
+                        resume_type = target_facts[1]
+                        yield StreamEvent(
+                            type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}
+                        )
+                resumed = resume is not None and resume.armed
+                if resumed:
+                    pending_file_id = unfinished[-1]["file_id"]
+                    pending_title = unfinished[-1]["title"]
                 if not unfinished:
                     # 正文已经写入（或文件已被删除）：对应标记已逐一清除。
                     log_with_context(
@@ -2445,11 +2531,20 @@ async def run_writing_workflow_streaming(
                         body_state=body_state,
                         pending_count=len(pendings),
                     )
-                elif not can_schedule_correction:
-                    # 配额用尽或已是最后一轮：回滚能确认的空产物。无法确认/
-                    # 回滚的条目继续保留守卫，并向客户端报告明确的未完成状态。
-                    rolled_back = await asyncio.to_thread(
-                        _rollback_unfinished_empty_files, unfinished
+                elif not resumed:
+                    # 配额用尽、已是最后一轮、不允许写，或没能为同一个文件恢复正文写入：回滚能
+                    # 确认的空产物。建文件后被改过版本的文件（作者或别的写入动过）不回滚、不写，
+                    # 和其他无法确认/回滚的条目一样保留守卫，并向客户端报告明确的未完成状态。
+                    kept_ids = (
+                        {resume.file_id}
+                        if resume is not None and resume.refusal == FILE_BODY_RESUME_VERSION_CHANGED
+                        else set()
+                    )
+                    rollback_entries = [entry for entry in unfinished if entry["file_id"] not in kept_ids]
+                    rolled_back = (
+                        await asyncio.to_thread(_rollback_unfinished_empty_files, rollback_entries)
+                        if rollback_entries
+                        else set()
                     )
                     for entry in unfinished:
                         if entry["file_id"] in rolled_back:
@@ -2462,12 +2557,15 @@ async def run_writing_workflow_streaming(
                     log_with_context(
                         logger,
                         30,  # WARNING
-                        "Empty-file correction exhausted",
+                        "Empty-file correction exhausted"
+                        if not can_schedule_correction
+                        else "Empty-file correction not resumable",
                         file_id=pending_file_id,
                         title=pending_title,
                         attempts=file_correction_attempts,
                         iteration=iteration,
                         body_state=body_state,
+                        resume_refusal=resume.refusal if resume is not None else None,
                         unfinished_count=len(unfinished),
                         rolled_back_count=len(rolled_back),
                         unresolved_count=len(unresolved),
@@ -2489,15 +2587,6 @@ async def run_writing_workflow_streaming(
                         )
                 else:
                     file_correction_attempts += 1
-                    # 纠偏轮由「建了空文件的那个 agent」自己补写：空文件是它建的
-                    # （它必然有写权限），交给 writer 会让 writer 去补 planner 的大纲/
-                    # 人设——只要大纲的请求因此凭空多出一轮 writer，还会顺带触发自动
-                    # 质检；计划序列里排着的 writer 也会在纠偏后撞上自交接被判无效。
-                    correction_agent = (
-                        current_agent_type
-                        if _agent_can_write_files(current_agent_type)
-                        else "writer"
-                    )
                     log_with_context(
                         logger,
                         30,  # WARNING
@@ -2509,7 +2598,6 @@ async def run_writing_workflow_streaming(
                         body_state=body_state,
                         unfinished_count=len(unfinished),
                     )
-                    id_hint = f"(id={pending_file_id})" if pending_file_id else ""
                     # 暂存本轮的显式 handoff：纠偏轮的 continue 会跳过本轮末尾的
                     # 交接决策，不暂存就等于把模型请求的送审/交接静默丢弃。
                     if next_agent:
@@ -2523,25 +2611,27 @@ async def run_writing_workflow_streaming(
                     carried_agent_content = agent_content
                     carried_writer_body_writes = writer_body_writes
                     carried_reply_text = reply_text
+                    # 与 create_file 的 next_step、正文待写守卫同一个动作：下一次回复以 <file> 写正文。
                     handoff_context = (
-                        f"[系统提醒] 你创建的文件《{pending_title}》{id_hint} 正文仍为空——"
-                        "上一轮没有用 <file>…</file> 完成流式写入（很可能漏了结尾的 </file>）。"
-                        "请立即调用 edit_file（id="
-                        f"{pending_file_id or '<该文件id>'}，op=append）把完整正文写入该文件；"
-                        "不要重复创建文件，也不要只在对话里复述正文。"
-                        "若该文件已有部分正文，只补齐缺失的部分，不要重复写入已有段落。"
+                        f"[系统提醒] 你创建的文件《{pending_title}》(id={pending_file_id}) 正文仍为空："
+                        "上一轮没有用 <file>…</file> 写完它的正文。系统已为这个文件重新打开正文写入。"
+                        "这一次回复第一行直接输出 <file>，接着写它的完整正文，最后用 </file> 结束；"
+                        "写完之前不要调用任何工具（create_file / edit_file 都会被拒绝），"
+                        "也不要只在对话里复述正文。"
                     )
-                    if len(unfinished) > 1:
-                        # 还有别的空文件同样在等补写，必须一次性全部点名，
-                        # 否则模型只补第一份，其余的下一轮就没人再提醒了。
-                        others = "；".join(
-                            f"《{item['title']}》(id={item['file_id'] or '未知'})"
-                            for item in unfinished[1:]
+                    # 纠偏轮写进正文类文件的字数照常计入自动质检门（与 create_file 后的 <file> 同口径）。
+                    resumed_body_write = (
+                        BodyWrite(
+                            file_id=pending_file_id,
+                            title=pending_title,
+                            file_type=resume_type,
+                            full_body=True,
+                            text_offset=0,
                         )
-                        handoff_context += (
-                            f"\n[系统提醒] 另有 {len(unfinished) - 1} 个文件同样正文为空，"
-                            f"请在同一轮内一并补齐：{others}。"
-                        )
+                        if resume_type in CONTENT_FILE_TYPES
+                        else None
+                    )
+                    resumed_correction = True
                     previous_agent = current_agent_type
                     current_agent_type = correction_agent
                     incoming_handoff_packet = None
@@ -2609,7 +2699,8 @@ async def run_writing_workflow_streaming(
             # 自动质检之前，规划师写完再交给 writer、writer 写完再送审。
             if (
                 can_rerun_same_agent
-                and run_create_succeeded
+                # 恢复写入的纠偏轮写完的是之前建好的文件，同样算这一程写完了一个文件。
+                and (run_create_succeeded or run_resumed_body)
                 and not ToolContext.has_pending_empty_file()
                 and ends_on_file_block(agent_tail_text)
             ):

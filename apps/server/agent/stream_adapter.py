@@ -42,8 +42,18 @@ from .core.events import (
 )
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import error_message_for, stream_error_from_event_data
-from .core.stream_processor import StreamProcessor, StreamResult
-from .core.workflow_events import CHAT_HOLD_BEGIN, CHAT_HOLD_DISCARD, StreamEventType
+from .core.stream_processor import StreamProcessor, StreamResult, StreamState
+from .core.workflow_events import (
+    CHAT_HOLD_BEGIN,
+    CHAT_HOLD_DISCARD,
+    FILE_BODY_RESUME_CAPTURE_ACTIVE,
+    FILE_BODY_RESUME_NOT_BOUND,
+    FILE_BODY_RESUME_NOT_EMPTY,
+    FILE_BODY_RESUME_UNAVAILABLE,
+    FILE_BODY_RESUME_VERSION_CHANGED,
+    FileBodyResume,
+    StreamEventType,
+)
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
 
 logger = get_logger(__name__)
@@ -419,6 +429,11 @@ class StreamAdapter:
                 yield sse_event
             return
 
+        if event_type == StreamEventType.FILE_BODY_RESUME:
+            async for sse_event in self._resume_file_body(data.get("request")):
+                yield sse_event
+            return
+
         if event_type_value in _CHAT_HOLD_RELEASE_EVENT_TYPES:
             # 下一个 agent、交接、收尾 / 出错：被扣着的对话文字没被图丢掉，就按原顺序放出。
             for sse_event in self._release_held_chat():
@@ -517,9 +532,10 @@ class StreamAdapter:
                 # NOTE: deliberately keep self._pending_file_write and the
                 # ToolContext pending-empty-file guard set. The StreamProcessor is
                 # now reset (no further cross-agent capture), but the guard remains
-                # the signal the workflow loop reads to re-run the writer, and the
-                # end-of-stream cleanup clears it so it cannot leak to the next
-                # request.
+                # the signal the workflow loop reads to re-run the writer; the
+                # correction run re-arms this same capture only through the graph's
+                # FILE_BODY_RESUME (see _resume_file_body). The end-of-stream
+                # cleanup clears it so it cannot leak to the next request.
 
         elif event_type == StreamEventType.ERROR:
             # LLM 中途出错时 runner 不发 MESSAGE_END，进行中的 <file> 捕获不会在
@@ -871,6 +887,58 @@ class StreamAdapter:
             file_data.get("title", ""),
             original_content_length=original_content_length,
             baseline_updated_at=file_data.get("updated_at"),
+        )
+
+    async def _resume_file_body(self, request: Any) -> AsyncIterator[SSEEvent]:
+        """图的空文件纠偏轮开始前：为同一个文件重新等待 <file> 正文，结果写回 request。
+
+        上一个 agent run 的 MESSAGE_END 已把还在等正文的捕获复位成 IDLE；不重新等待，
+        纠偏轮写出的 <file> 正文只会落进聊天。只认本适配器自己记下的待写文件（这一请求里
+        成功的 create_file 结果）：同一个 id、建的时候是空文件、图刚读到的版本仍是
+        create_file 结果里的版本（之后作者或别的写入都没动过它）。落库照旧走
+        _save_file_content_sync 的作者保护与版本检查。
+        """
+        if not isinstance(request, FileBodyResume):
+            return
+        pending = self._pending_file_write
+        processor = self._stream_processor
+        refusal: str | None = None
+        if not self.config.process_file_markers or self._fatal_stream_error:
+            refusal = FILE_BODY_RESUME_UNAVAILABLE
+        elif pending is None or pending.file_id != request.file_id:
+            refusal = FILE_BODY_RESUME_NOT_BOUND
+        elif pending.original_content_length > 0:
+            refusal = FILE_BODY_RESUME_NOT_EMPTY
+        elif pending.baseline_updated_at is None or pending.baseline_updated_at != request.expected_updated_at:
+            refusal = FILE_BODY_RESUME_VERSION_CHANGED
+        elif (
+            processor.state == StreamState.WAITING_START
+            and processor.file_id == pending.file_id
+            and not processor.temp_buffer
+        ):
+            pass  # 已经在等这个文件的正文（重复请求）：不重置
+        elif processor.state != StreamState.IDLE:
+            refusal = FILE_BODY_RESUME_CAPTURE_ACTIVE
+        else:
+            # IDLE 下暂扣的行首 / 空标签对文字先交还对话，再开始等正文。
+            async for sse_event in self._flush_active_capture():
+                yield sse_event
+            processor.start_file_write(pending.file_id)
+
+        if refusal is None:
+            request.armed = True
+            with contextlib.suppress(Exception):
+                from agent.tools.mcp_tools import ToolContext
+
+                ToolContext.rearm_pending_file_body(pending.file_id)
+        else:
+            request.refusal = refusal
+        log_with_context(
+            logger,
+            20 if refusal is None else 30,  # INFO / WARNING
+            "Empty-file correction capture resumed" if refusal is None else "Empty-file correction capture not resumed",
+            file_id=request.file_id,
+            refusal=refusal,
         )
 
     @staticmethod
