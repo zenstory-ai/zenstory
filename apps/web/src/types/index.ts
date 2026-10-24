@@ -472,7 +472,7 @@ export interface SSEAgentSelectedData {
  */
 export type IterationExhaustedLayer = "collaboration" | "tool_call" | "empty_file_correction";
 
-/** empty_file_correction: titles of the files left unfinished / removed again (never their text). */
+/** A stop with a file still waiting for its text: titles of the files left unfinished / removed again (never their text). */
 export interface IterationExhaustedFiles {
   unfinishedFiles?: string[];
   rolledBackFiles?: string[];

@@ -292,8 +292,8 @@ describe('MessageList', () => {
     expect(screen.queryByText('Ordered limit reason')).not.toBeInTheDocument()
   })
 
-  it('says a round with an unwritten file is unfinished and names the files, live and after reload', () => {
-    const item: NonNullable<Message['displayItems']>[number] = { id: 'empty', type: 'iteration_exhausted', layer: 'empty_file_correction',
+  it.each(['empty_file_correction', 'tool_call'] as const)('says a %s stop with an unwritten file is unfinished and names the files, live and after reload', layer => {
+    const item: NonNullable<Message['displayItems']>[number] = { id: 'empty', type: 'iteration_exhausted', layer,
       unfinishedFiles: ['第一章'], rolledBackFiles: ['第二章', '第三章'], timestamp: new Date() }
     const { unmount } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [item] })]} />)
     expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
@@ -302,10 +302,17 @@ describe('MessageList', () => {
     expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
     unmount()
 
-    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'empty_file_correction', rolledBackFiles: ['第二章'] }] })]} />)
+    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer, rolledBackFiles: ['第二章'] }] })]} />)
     expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
     expect(screen.getByText('workflow.emptyFileRolledBack 第二章')).toBeInTheDocument()
     expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
+  })
+
+  it('keeps the big-task summary on a tool-turn stop that names no files', () => {
+    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'tool_call', rolledBackFiles: [], unfinishedFiles: [] }] })]} />)
+    expect(screen.getByText('workflow.iterationExhausted')).toBeInTheDocument()
+    expect(screen.getByText('workflow.toolCallExhaustedSummary')).toBeInTheDocument()
+    expect(screen.queryByText('workflow.emptyFileUnfinished')).not.toBeInTheDocument()
   })
 
   it('says a run stopped near the time limit may already be done, live and after reload', () => {

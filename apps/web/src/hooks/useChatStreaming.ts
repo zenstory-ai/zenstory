@@ -179,7 +179,7 @@ export interface StreamRenderItem {
   remaining?: number;
   /** Which layer stopped the round (see IterationExhaustedLayer) */
   layer?: IterationExhaustedLayer;
-  /** empty_file_correction: titles of files left unfinished / removed again */
+  /** Stop with a file still waiting for its text: titles of files left unfinished / removed again */
   unfinishedFiles?: string[];
   rolledBackFiles?: string[];
   /** Number of iterations actually used */

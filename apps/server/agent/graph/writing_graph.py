@@ -449,40 +449,15 @@ def _format_handoff_packet_items(packet: dict[str, Any] | None) -> str:
     return "".join(f"\n\n{section}" for section in sections)
 
 
-def _unfinished_file_notice(
-    rolled_back: list[str], unresolved: list[str], english: bool = False
-) -> str:
-    """工具调用轮数耗尽时留下空文件：回滚 / 无法回滚的说明（随 assistant 正文落库）。"""
-    lines: list[str] = []
-    if english:
-        if rolled_back:
-            titles = ", ".join(f"\"{title}\"" for title in rolled_back)
-            lines.append(f"{titles} had no text yet, so the empty file was removed. Reply \"continue\" to write it again.")
-        if unresolved:
-            titles = ", ".join(f"\"{title}\"" for title in unresolved)
-            lines.append(
-                f"{titles} has no text yet and could not be removed automatically. "
-                "Reply \"continue\" to finish it, or delete it yourself."
-            )
-    else:
-        if rolled_back:
-            titles = "、".join(f"《{title}》" for title in rolled_back)
-            lines.append(f"{titles}还没写入正文，已撤销这个空文件。回复「继续」会重新写。")
-        if unresolved:
-            titles = "、".join(f"《{title}》" for title in unresolved)
-            lines.append(f"{titles}还没写入正文，也没能自动撤销。回复「继续」补完，或手动删除。")
-    if not lines:
-        return ""
-    return "\n\n——\n" + "\n".join(lines)
-
-
-async def _roll_back_empty_files_after_exhaustion(
+async def _settle_empty_files_after_exhaustion(
     agent_type: str | None,
     english: bool = False,
-) -> AsyncIterator[StreamEvent]:
-    """工具调用轮数耗尽且还有 pending 空文件：核验 → 回滚空文件 → 文字说明。
+) -> dict[str, list[dict[str, str]]]:
+    """工具调用轮数耗尽且还有 pending 空文件：核验 → 回滚空文件，返回耗尽卡上的文件事实。
 
-    与空文件纠偏分支「配额用尽」时同一套核验与回滚，只是不再安排补写轮。
+    与空文件纠偏分支「配额用尽」时同一套核验与回滚，只是不再安排补写轮。返回
+    ``unfinished_files``（留下来、仍没有正文的）与 ``rolled_back_files``（已撤销的空文件），
+    哪个为空就不给哪个键；没有空文件时返回空字典，耗尽卡保持原样。
     """
     unfinished: list[dict[str, str]] = []
     for entry in ToolContext.get_pending_empty_files():
@@ -494,26 +469,28 @@ async def _roll_back_empty_files_after_exhaustion(
             continue
         unfinished.append({"file_id": file_id, "title": title})
     if not unfinished:
-        return
+        return {}
 
     rolled_back = await asyncio.to_thread(_rollback_unfinished_empty_files, _with_creation_versions(unfinished))
     for entry in unfinished:
         if entry["file_id"] in rolled_back:
             ToolContext.clear_pending_empty_file(entry["file_id"])
-    rolled_back_titles = [e["title"] for e in unfinished if e["file_id"] in rolled_back]
-    unresolved_titles = [e["title"] for e in unfinished if e["file_id"] not in rolled_back]
+    rolled_back_files = [e for e in unfinished if e["file_id"] in rolled_back]
+    unresolved_files = [e for e in unfinished if e["file_id"] not in rolled_back]
     log_with_context(
         logger,
         30,  # WARNING
         "Tool-call exhaustion left empty files; rolled back what could be verified",
         agent_type=agent_type,
         unfinished_count=len(unfinished),
-        rolled_back_count=len(rolled_back_titles),
-        unresolved_count=len(unresolved_titles),
+        rolled_back_count=len(rolled_back_files),
+        unresolved_count=len(unresolved_files),
     )
-    notice = _unfinished_file_notice(rolled_back_titles, unresolved_titles, english)
-    if notice:
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": notice})
+    return {
+        key: files
+        for key, files in (("unfinished_files", unresolved_files), ("rolled_back_files", rolled_back_files))
+        if files
+    }
 
 
 # 写完 </file> 就结束了 run（openai-agents 把不带工具调用的回复当作最终输出）：同一个 agent
@@ -2184,6 +2161,8 @@ async def run_writing_workflow_streaming(
             explicit_handoff_event_data: dict[str, Any] | None = None
             clarification_stopped = False
             tool_call_exhausted = False
+            # 轮数耗尽时还有空文件在等正文：这张卡等 run 收尾、核验 / 回滚之后再发（见下）。
+            deferred_tool_call_exhausted: StreamEvent | None = None
             invalid_handoff_stopped = False
             # 本 run 写进正文类文件（draft / script）的内容，自动质检门只看它
             # （body_writes.py）。只认成功的写入：写工具全部失败（例如数据库被锁）时
@@ -2375,9 +2354,12 @@ async def run_writing_workflow_streaming(
                     and event.data.get("layer") == "tool_call"
                 ):
                     tool_call_exhausted = True
-                    if (notice := _take_read_only_notice()) is not None:
-                        yield notice
-                    yield event
+                    if ToolContext.has_pending_empty_file():
+                        deferred_tool_call_exhausted = event
+                    else:
+                        if (notice := _take_read_only_notice()) is not None:
+                            yield notice
+                        yield event
                 else:
                     if event.type == StreamEventType.ERROR and (
                         notice := _take_read_only_notice()
@@ -2443,6 +2425,18 @@ async def run_writing_workflow_streaming(
             if carried_reply_text:
                 reply_text = author_reply_tail(f"{carried_reply_text}\n\n{reply_text}")
                 carried_reply_text = ""
+
+            if deferred_tool_call_exhausted is not None:
+                # 本轮不再安排补写：先核验 / 回滚等正文的空文件（run 的 MESSAGE_END 已收尾捕获），
+                # 再把它们的最终事实放进同一张耗尽卡。层不变，计费照旧按失控停止识别。
+                file_facts = await _settle_empty_files_after_exhaustion(current_agent_type, english)
+                if (notice := _take_read_only_notice()) is not None:
+                    yield notice
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={**deferred_tool_call_exhausted.data, **file_facts},
+                )
+                deferred_tool_call_exhausted = None
 
             # Corrective feedback for an abandoned file write.
             #
@@ -2764,13 +2758,8 @@ async def run_writing_workflow_streaming(
                 break
             # Tool-call exhaustion should stop workflow; never continue with planned/auto handoff.
             if tool_call_exhausted:
-                # 轮数耗尽时不再安排补写轮（本轮已经停了），但 create_file 留下的空文件
-                # 不能就这么留在文件树里：落库核验后回滚确认为空的，回滚不了的明确告诉用户。
-                if ToolContext.has_pending_empty_file():
-                    async for notice_event in _roll_back_empty_files_after_exhaustion(
-                        current_agent_type, english
-                    ):
-                        yield notice_event
+                # 轮数耗尽时不再安排补写轮（本轮已经停了）；create_file 留下的空文件已在上面
+                # 核验 / 回滚，结果写在耗尽卡上。
                 terminated_via_break = True
                 break
 

@@ -97,7 +97,7 @@ import { StreamActivityLine } from "./StreamActivityLine";
 import { createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
 import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
-import { formatRoundDelivery, hasSubstantiveDisplayItems, parseIterationExhaustedFiles, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
+import { exhaustionLeftFilesUnfinished, formatRoundDelivery, hasSubstantiveDisplayItems, parseIterationExhaustedFiles, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
 import type { QuotaResponse } from "../types/subscription";
 
 const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Message["statusCards"] | undefined => {
@@ -156,12 +156,10 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
           const reason = (card as { reason?: unknown }).reason;
           const lastAgent = (card as { lastAgent?: unknown }).lastAgent;
           const limit = (card as { limit?: unknown }).limit;
-          const unfinished = layer === "empty_file_correction"
-            ? parseIterationExhaustedFiles(
-              (card as { unfinishedFiles?: unknown }).unfinishedFiles,
-              (card as { rolledBackFiles?: unknown }).rolledBackFiles,
-            )
-            : {};
+          const unfinished = parseIterationExhaustedFiles(
+            (card as { unfinishedFiles?: unknown }).unfinishedFiles,
+            (card as { rolledBackFiles?: unknown }).rolledBackFiles,
+          );
 
           return {
             type: "iteration_exhausted",
@@ -187,12 +185,12 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
 
 /**
  * A saved round that ended in an error (stop_outcome) or stopped with a file that never got its
- * text (the empty_file_correction card, in the saved timeline or the legacy status cards).
+ * text (an iteration_exhausted card saying so, in the saved timeline or the legacy status cards).
  */
 const roundEndedUnfinished = (message: Message): boolean =>
   message.stopOutcome?.reason === "error"
-  || Boolean(message.statusCards?.some((card) => card.type === "iteration_exhausted" && card.layer === "empty_file_correction"))
-  || Boolean(message.displayItems?.some((item) => item.type === "iteration_exhausted" && item.layer === "empty_file_correction"));
+  || Boolean(message.statusCards?.some((card) => card.type === "iteration_exhausted" && exhaustionLeftFilesUnfinished(card)))
+  || Boolean(message.displayItems?.some((item) => item.type === "iteration_exhausted" && exhaustionLeftFilesUnfinished(item)));
 
 const parseToolCallsFromHistory = (toolCallsRaw?: string | null): Pick<Message, "toolCalls" | "toolResults"> & { orderedToolCalls?: import("../types").ToolCall[] } => {
   if (!toolCallsRaw) return {};
@@ -533,7 +531,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * left text in a file / the server charged / real output exists (a write, or a reply
    * segment long enough to be prose rather than a one-line narration before a tool call).
    */
-  // endedIncomplete: the round stopped with a file that never got its text (empty_file_correction card).
+  // endedIncomplete: the round stopped with a file that never got its text (see exhaustionLeftFilesUnfinished).
   const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false });
   /** Reply text since the last segment boundary, counted like the server (see createProseCounter). */
   const proseCounterRef = useRef(createProseCounter());
@@ -1375,7 +1373,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
     },
     onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit, files) => {
-      if (layer === "empty_file_correction") roundProgressRef.current.endedIncomplete = true;
+      if (exhaustionLeftFilesUnfinished({ layer, ...files })) roundProgressRef.current.endedIncomplete = true;
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
         layer,

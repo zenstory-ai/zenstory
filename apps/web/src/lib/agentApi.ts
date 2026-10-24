@@ -709,8 +709,9 @@ export function streamAgentRequest(
             }
             case "iteration_exhausted": {
               const data = event.data as SSEIterationExhaustedData;
-              const files = data.layer === "empty_file_correction"
-                ? parseIterationExhaustedFiles(data.unfinished_files, data.rolled_back_files)
+              const parsed = parseIterationExhaustedFiles(data.unfinished_files, data.rolled_back_files);
+              const files = data.layer === "empty_file_correction" || Object.keys(parsed).length > 0
+                ? parsed
                 : undefined;
               callbacks.onIterationExhausted?.(
                 data.layer,

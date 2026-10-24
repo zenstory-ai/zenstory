@@ -671,16 +671,16 @@ describe('agentApi', () => {
       expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
     })
 
-    it('passes the unfinished and removed files of an empty-file stop to the exhaustion callback', async () => {
+    it.each(['empty_file_correction', 'tool_call'])('passes the unfinished and removed files of a %s stop to the exhaustion callback', async (layer) => {
       const onIterationExhausted = vi.fn()
-      const payload = { layer: 'empty_file_correction', iterations_used: 2, max_iterations: 2, reason: 'internal',
+      const payload = { layer, iterations_used: 2, max_iterations: 2, reason: 'internal',
         last_agent: 'writer', unfinished_files: [{ id: 'kept', title: 'Chapter 1' }],
         rolled_back_files: [{ id: 'gone', title: 'Chapter 2' }] }
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true,
         body: createMockStream([`event: iteration_exhausted\ndata: ${JSON.stringify(payload)}\n\n`]) }))
       streamAgentRequest({ project_id: 'test-project', message: 'Write two chapters' }, { onIterationExhausted })
       await vi.waitFor(() => expect(onIterationExhausted).toHaveBeenCalledTimes(1))
-      expect(onIterationExhausted).toHaveBeenCalledWith('empty_file_correction', 2, 2, 'internal', 'writer', undefined,
+      expect(onIterationExhausted).toHaveBeenCalledWith(layer, 2, 2, 'internal', 'writer', undefined,
         { unfinishedFiles: ['Chapter 1'], rolledBackFiles: ['Chapter 2'] })
     })
 

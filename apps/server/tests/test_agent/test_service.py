@@ -936,10 +936,12 @@ class TestAgentServiceProcessStream:
             }
         ]
 
+    @pytest.mark.parametrize("layer", ["empty_file_correction", "tool_call"])
     async def test_process_stream_keeps_unfinished_file_card_facts_for_live_and_reload(
-        self, mock_agent_service, test_user_with_project, db_session: Session
+        self, mock_agent_service, test_user_with_project, db_session: Session, layer
     ):
-        """空文件纠偏补不成的状态卡：SSE 与落库（状态卡 + 时间线）都带上未写完 / 已撤销的文件（只有 id 与标题）。"""
+        """空文件补不成 / 工具调用轮数耗尽时还有空文件的状态卡：SSE 与落库（状态卡 + 时间线）都带上
+        未写完 / 已撤销的文件（只有 id 与标题）。"""
         from agent.core.workflow_events import StreamEvent, StreamEventType
 
         service, _ = mock_agent_service
@@ -950,7 +952,7 @@ class TestAgentServiceProcessStream:
             yield StreamEvent(
                 type=StreamEventType.ITERATION_EXHAUSTED,
                 data={
-                    "layer": "empty_file_correction",
+                    "layer": layer,
                     "iterations_used": 2,
                     "max_iterations": 2,
                     "reason": "文件正文补写未完成，且无法安全回滚空文件。请继续对话完成这些文件。",
@@ -970,7 +972,7 @@ class TestAgentServiceProcessStream:
 
         frame = next(event for event in events if event.startswith("event: iteration_exhausted"))
         data = json.loads(frame.split("data:", 1)[1].strip())
-        assert data["layer"] == "empty_file_correction"
+        assert data["layer"] == layer
         assert data["unfinished_files"] == [{"id": "file-kept", "title": "第一章"}]
         assert data["rolled_back_files"] == [{"id": "file-removed", "title": "第二章"}]
         latest_assistant = db_session.exec(
@@ -980,7 +982,7 @@ class TestAgentServiceProcessStream:
         ).first()
         metadata = json.loads(latest_assistant.message_metadata or "{}")
         card = metadata["status_cards"][0]
-        assert card["layer"] == "empty_file_correction"
+        assert card["layer"] == layer
         assert card["unfinishedFiles"] == [{"id": "file-kept", "title": "第一章"}]
         assert card["rolledBackFiles"] == [{"id": "file-removed", "title": "第二章"}]
         timeline = next(event for event in metadata["display_events"] if event["type"] == "iteration_exhausted")

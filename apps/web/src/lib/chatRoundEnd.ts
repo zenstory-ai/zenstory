@@ -62,9 +62,10 @@ export function parseWrittenFiles(raw: unknown): RoundWrittenFile[] {
 }
 
 /**
- * The files named on an empty_file_correction stop card ([{id, title}] as the server sends them,
- * live as `unfinished_files` / `rolled_back_files`, saved as `unfinishedFiles` / `rolledBackFiles`).
- * Only titles are kept; absent lists stay absent.
+ * The files named on an iteration_exhausted card that stopped with a file still waiting for its text
+ * (empty_file_correction, or a tool-turn stop that settled such files): [{id, title}] as the server
+ * sends them, live as `unfinished_files` / `rolled_back_files`, saved as `unfinishedFiles` /
+ * `rolledBackFiles`. Only titles are kept; absent lists stay absent.
  */
 export function parseIterationExhaustedFiles(unfinished: unknown, rolledBack: unknown): {
   unfinishedFiles?: string[];
@@ -75,6 +76,19 @@ export function parseIterationExhaustedFiles(unfinished: unknown, rolledBack: un
     ...(Array.isArray(unfinished) ? { unfinishedFiles: titles(unfinished) } : {}),
     ...(Array.isArray(rolledBack) ? { rolledBackFiles: titles(rolledBack) } : {}),
   };
+}
+
+/**
+ * Whether an iteration_exhausted card says the round stopped unfinished because a created file never
+ * got its text: the empty_file_correction layer, or any card that names such files.
+ */
+export function exhaustionLeftFilesUnfinished(card: {
+  layer?: string;
+  unfinishedFiles?: string[];
+  rolledBackFiles?: string[];
+}): boolean {
+  return card.layer === "empty_file_correction"
+    || Boolean(card.unfinishedFiles?.length || card.rolledBackFiles?.length);
 }
 
 /**

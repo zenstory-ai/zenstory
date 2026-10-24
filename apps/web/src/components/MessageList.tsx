@@ -29,7 +29,7 @@ import { getAgentDisplayName } from '../lib/agentDisplayName';
 import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
 import { RoundEndNote } from './RoundEndNote';
-import type { RoundStopOutcome } from '../lib/chatRoundEnd';
+import { exhaustionLeftFilesUnfinished, type RoundStopOutcome } from '../lib/chatRoundEnd';
 import { isClarificationStop as isClarificationStopItem } from '../lib/nextStep';
 
 /** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
@@ -282,15 +282,15 @@ const contextItemTitle = (item: AgentContextItem) => {
  * 再画一张「handoff_to_agent 完成」的工具卡片只会把内部名字露给作者。
  */
 /**
- * What an iteration_exhausted card says. empty_file_correction is a round that stopped with a
- * file that never got its text: it names the files left unfinished and the empty ones removed,
- * instead of the 「任务比较大」 summary of the other two layers.
+ * What an iteration_exhausted card says. A round that stopped with a file that never got its text
+ * (empty_file_correction, or a tool-turn stop that names such files) names the files left
+ * unfinished and the empty ones removed, instead of the 「任务比较大」 summary.
  */
 function iterationExhaustedText(
   t: TFunction,
   card: { layer?: IterationExhaustedLayer; limit?: string; unfinishedFiles?: string[]; rolledBackFiles?: string[] },
 ): { title: string; lines: string[] } {
-  if (card.layer === 'empty_file_correction') {
+  if (exhaustionLeftFilesUnfinished(card)) {
     const joiner = t('panel.removedFilesJoiner', { ns: 'chat' });
     const lines = [
       card.unfinishedFiles?.length

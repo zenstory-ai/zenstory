@@ -46,6 +46,8 @@ class Reply:
     before: Callable[[], None] | None = None
     # 输出完 text 之后一直等着（模拟仍在途的模型调用），用来测取消。
     hang: asyncio.Event | None = None
+    # 这次调用的工具执行完后 SDK 撞上 max_turns（runner 据此发 tool_call 层的轮数耗尽）。
+    exceeds_max_turns: bool = False
 
 
 @dataclass
@@ -137,6 +139,10 @@ class _ScriptedResult:
                     name="tool_output",
                     item=SimpleNamespace(call_id=call_id, output=text),
                 )
+            if reply.exceeds_max_turns:
+                from agents.exceptions import MaxTurnsExceeded
+
+                raise MaxTurnsExceeded("synthetic max_turns")
             if self._agent.tool_use_behavior(None, results).is_final_output:
                 return  # 熔断 / 控制流工具：SDK 不再发起下一次模型调用
 
@@ -903,3 +909,79 @@ def test_reused_blank_episode_is_writable_but_never_a_rollback_target(workspace)
     workspace.session.expire_all()
     assert workspace.session.get(File, episode.id).is_deleted is False
 
+
+# ------------------------------- 工具调用轮数耗尽时还有空文件：同一张结构化卡片带上这些文件的最终事实
+
+
+def _rejected_lookup(before: Callable[[], None] | None = None) -> Reply:
+    """建文件后的下一次回复没写正文就去查资料（被待写守卫拒绝），随后撞上 max_turns。"""
+    return Reply(text="我先查一下前文。", tools=(("query_files", {"query": "前文"}),), before=before,
+                 exceeds_max_turns=True)
+
+
+def _exhaustion_card(outcome: Outcome) -> dict[str, Any]:
+    [card] = outcome.of("iteration_exhausted")
+    assert card.data["layer"] == "tool_call", "层不变：计费仍按失控停止识别"
+    return card.data
+
+
+def _assert_round_stops_without_completion(outcome: Outcome) -> None:
+    assert outcome.of("workflow_complete") == [] and outcome.of("handoff") == []
+    assert "撤销" not in outcome.chat_text, "文件事实在卡片里，不再另发一段文字说明"
+    assert outcome.of("done")
+
+
+async def test_tool_turn_cap_with_an_untouched_new_empty_file_rolls_it_back_on_the_card(workspace):
+    model = ScriptedModel(runs=[[CREATE, _rejected_lookup()]])
+
+    outcome = await _run(workspace, model)
+
+    file_id = _created_id(model)
+    workspace.session.expire_all()
+    assert workspace.session.get(File, file_id).is_deleted is True
+    card = _exhaustion_card(outcome)
+    assert card["rolled_back_files"] == [{"id": file_id, "title": CHAPTER}]
+    assert card.get("unfinished_files") in (None, [])
+    _assert_round_stops_without_completion(outcome)
+    assert outcome.delivery() == {}, "已撤销的空文件不再列为「未确认保存」"
+    assert outcome.billing() == ("runaway_no_progress", True), "失控且没写成：照旧退还"
+    # 真实的 tool_result 帧带着建好时的版本：停止退还的占位候选拿得到它。
+    tracker = StreamBillingTracker()
+    for frame in outcome.frames:
+        tracker.observe(frame.to_sse())
+    created_version = model.tool_calls[0].output["data"]["updated_at"]
+    assert tracker.removable_placeholders() == [{"id": file_id, "title": CHAPTER, "updated_at": created_version}]
+
+
+async def test_tool_turn_cap_keeps_a_new_empty_file_the_author_renamed_and_names_it_unfinished(workspace):
+    model = ScriptedModel(runs=[[CREATE]])
+    model.runs[0].append(_rejected_lookup(before=_author_renames(workspace, model)))
+
+    outcome = await _run(workspace, model)
+
+    file_id = _created_id(model)
+    workspace.session.expire_all()
+    kept = workspace.session.get(File, file_id)
+    assert kept.is_deleted is False and kept.title == "作者改的标题"
+    card = _exhaustion_card(outcome)
+    assert card["unfinished_files"] == [{"id": file_id, "title": CHAPTER}]
+    assert card.get("rolled_back_files") in (None, [])
+    _assert_round_stops_without_completion(outcome)
+    assert outcome.delivery() == {"unwritten_files": [{"id": file_id, "title": CHAPTER}]}
+    assert outcome.billing() == ("runaway_no_progress", True)
+
+
+async def test_tool_turn_cap_keeps_a_reused_blank_episode_and_names_it_unfinished(workspace):
+    folder, episode = _blank_episode(workspace)
+    reuse = Reply(tools=(("create_file", {"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1}),))
+    model = ScriptedModel(runs=[[reuse, _rejected_lookup()]])
+
+    outcome = await _run(workspace, model, routing=_routing(scope="写第1集", requested_file_types=["script"]))
+
+    assert model.tool_calls[0].output["data"]["reused_existing"] is True
+    workspace.session.expire_all()
+    assert workspace.session.get(File, episode.id).is_deleted is False
+    card = _exhaustion_card(outcome)
+    assert card["unfinished_files"] == [{"id": episode.id, "title": "第1集"}]
+    assert card.get("rolled_back_files") in (None, [])
+    _assert_round_stops_without_completion(outcome)

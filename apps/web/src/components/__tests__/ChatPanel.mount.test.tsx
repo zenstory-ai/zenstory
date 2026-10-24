@@ -2039,7 +2039,11 @@ describe('ChatPanel mount smoke', () => {
     expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
   })
 
-  it('shows no follow-up chips after a round that stopped with an unwritten file, live and after reload', async () => {
+  it.each<[string, { unfinishedFiles?: string[]; rolledBackFiles?: string[] }, Record<string, unknown>]>([
+    ['empty_file_correction', { unfinishedFiles: ['第一章'] }, { unfinishedFiles: [{ id: 'kept', title: '第一章' }] }],
+    // Tool-turn cap hit while a created file still had no text: the same card names the file it removed.
+    ['tool_call', { rolledBackFiles: ['第一章'] }, { rolledBackFiles: [{ id: 'gone', title: '第一章' }] }],
+  ])('shows no follow-up chips after a %s stop with an unwritten file, live and after reload', async (layer, liveFiles, savedFiles) => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       withEarlierTurn()
@@ -2057,7 +2061,7 @@ describe('ChatPanel mount smoke', () => {
       }
 
       await act(async () => {
-        options.onIterationExhausted('empty_file_correction', 2, 2, 'internal', 'writer', undefined, { unfinishedFiles: ['第一章'] })
+        options.onIterationExhausted(layer, 2, 2, 'internal', 'writer', undefined, liveFiles)
         // The stream still ends with done: the round stopped unfinished, it did not fail.
         await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null)
       })
@@ -2078,7 +2082,7 @@ describe('ChatPanel mount smoke', () => {
       id: 'msg-unfinished', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
       tool_calls: null, created_at: '2026-10-05T10:00:00Z',
       metadata: JSON.stringify({
-        status_cards: [{ type: 'iteration_exhausted', layer: 'empty_file_correction', unfinishedFiles: [{ id: 'kept', title: '第一章' }] }],
+        status_cards: [{ type: 'iteration_exhausted', layer, ...savedFiles }],
       }),
     }] as never)
     render(<ChatPanel />)
@@ -2088,7 +2092,19 @@ describe('ChatPanel mount smoke', () => {
     expect(lastMessageInputProps().aiSuggestions).toEqual([])
     expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
     const lastList = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ statusCards?: Array<Record<string, unknown>> }> }
-    expect(lastList.messages?.[0]?.statusCards?.[0]).toMatchObject({ layer: 'empty_file_correction', unfinishedFiles: ['第一章'] })
+    expect(lastList.messages?.[0]?.statusCards?.[0]).toMatchObject({ layer, ...liveFiles })
+  })
+
+  it('still leads with the offered options after a saved tool-turn stop that names no files', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-limit', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z',
+      metadata: JSON.stringify({ status_cards: [{ type: 'iteration_exhausted', layer: 'tool_call', maxIterations: 60 }] }),
+    }] as never)
+    vi.mocked(fetchSuggestions).mockResolvedValueOnce(['按设定写第二章正文'])
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴', '按设定写第二章正文']))
   })
 
   describe('a /suggest response that arrives after the round moved on', () => {

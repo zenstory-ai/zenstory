@@ -383,8 +383,12 @@ async def test_tool_call_exhaustion_rolls_back_pending_empty_file():
         events = await _run_graph(fake_agent, _state("写第六章"))
 
     rollback.assert_called_once_with([{"file_id": "f6", "title": "第六章"}])
-    notice = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert "《第六章》" in notice and "已撤销" in notice
+    # 回滚之后才发这一轮唯一的耗尽卡，层不变，带上已撤销的文件；不再另发文字说明。
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card["layer"] == "tool_call" and card["iterations_used"] == 60
+    assert card["rolled_back_files"] == [{"file_id": "f6", "title": "第六章"}]
+    assert "unfinished_files" not in card
+    assert not any(e.type == StreamEventType.TEXT for e in events)
 
 
 @pytest.mark.asyncio
@@ -408,6 +412,8 @@ async def test_tool_call_exhaustion_keeps_files_whose_body_was_written():
 
     rollback.assert_not_called()
     assert not any(e.type == StreamEventType.TEXT for e in events)
+    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert card == {"layer": "tool_call", "iterations_used": 60, "max_iterations": 60}, "没有空文件时卡片不变"
 
 
 # ----------------------------------------- session_loader：路由信号与面包屑
