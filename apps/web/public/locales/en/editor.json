@@ -23,6 +23,8 @@
     "exportScriptSuccess": "Script exported as a TXT file",
     "exportScriptWithOutline": "Export outline & script",
     "exportScriptWithOutlineSuccess": "Outline and script exported as a TXT file",
+    "exportScriptOutlineSkipped": "Only the script was exported this time. The outline could not be included; please try again in a few minutes.",
+    "exportScriptNoOutlineYet": "This work has no written outline yet, so the script was exported.",
     "exportSuccess": "Manuscript exported as a TXT file",
     "versionHistory": "Project snapshots",
     "settings": "Settings",

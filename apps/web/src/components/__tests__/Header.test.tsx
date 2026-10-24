@@ -52,6 +52,8 @@ const headerTranslations: Record<string, string> = {
   'editor:header.export': '导出正文（TXT）',
   'editor:header.exportScript': '导出整部剧本（TXT）',
   'editor:header.exportScriptWithOutline': '导出大纲与剧本',
+  'editor:header.exportScriptOutlineSkipped': '这次只导出了剧本，大纲没能一起导出，请过几分钟再试',
+  'editor:header.exportScriptNoOutlineYet': '这部作品还没有写好的大纲，这次导出了剧本',
   'editor:header.downloadFile': '下载当前文件（TXT）',
   'editor:header.downloadFileSuccess': '已下载《{{title}}》',
   'common:loading': '加载中…',
@@ -531,6 +533,29 @@ describe('Header', () => {
       })
       expect(mockToastInfo).not.toHaveBeenCalledWith('这次只导出了正文，大纲没能一起导出，请过几分钟再试')
       expect(mockToastSuccess).not.toHaveBeenCalledWith('大纲和正文已导出为 TXT 文件')
+    })
+
+    it.each([
+      ['the outline could not be included', { filename: '剧名_剧本.txt', includesOutline: false }, '这次只导出了剧本，大纲没能一起导出，请过几分钟再试', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'],
+      ['the work has no outline yet', { filename: '剧名_剧本（暂无大纲）.txt', includesOutline: false, noOutlineYet: true }, '这部作品还没有写好的大纲，这次导出了剧本', '这部作品还没有写好的大纲，这次导出了正文'],
+    ])('says 剧本 in a screenplay project when %s', async (_label, result, expected, novelText) => {
+      mockCurrentProjectId = 'project-123'
+      mockCurrentProject = { id: 'project-123', project_type: 'screenplay' }
+      mockExportDrafts.mockResolvedValueOnce(result)
+      try {
+        render(<Header />)
+
+        fireEvent.click(screen.getByTestId('header-more-actions'))
+        fireEvent.click(screen.getByText('导出大纲与剧本'))
+
+        await waitFor(() => {
+          expect(mockToastInfo).toHaveBeenCalledWith(expected)
+        })
+        expect(mockToastInfo).not.toHaveBeenCalledWith(novelText)
+        expect(mockExportDrafts).toHaveBeenCalledWith({ includeOutline: true })
+      } finally {
+        mockCurrentProject = null
+      }
     })
 
     it('uses a neutral toast when the exported file name is unreadable', async () => {
