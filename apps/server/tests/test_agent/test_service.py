@@ -1961,6 +1961,11 @@ class TestProcessStreamRunHeartbeatAndReport:
         assert run_report["output_tokens"] == 5
         assert run_report["stop_reason"] == "end_turn"
         assert "model_calls" in run_report and "llm_duration_ms" in run_report
+        preparation = run_report["stage_timings"]["prepare_context"]
+        assert preparation["count"] == 1 and preparation["total_ms"] >= 0
+        assert preparation["error_count"] == 0
+        assert run_report["first_tool_started_ms"] is None
+        assert run_report["first_body_persisted_ms"] is None
 
 
 @pytest.mark.integration

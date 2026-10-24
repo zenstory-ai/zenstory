@@ -477,6 +477,10 @@ async def test_billing_log_line_carries_run_summary(client: AsyncClient, db_sess
             yield _sse("content", {"text": "好的"})
             run_report.update(
                 {
+                    "first_tool_started_ms": 100.0,
+                    "first_body_persisted_ms": None,
+                    "stage_timings": {"model": {"count": 2, "total_ms": 1000.0, "max_ms": 600.0,
+                                                  "error_count": 0, "interrupted_count": 0}},
                     "model": "deepseek-test",
                     "input_tokens": 1200,
                     "output_tokens": 300,
@@ -515,6 +519,10 @@ async def test_billing_log_line_carries_run_summary(client: AsyncClient, db_sess
     assert summary["run_stop_reason"] == "end_turn"
     assert summary["billing_reason"] == "completed"
     assert summary["refunded"] is False
+    assert summary["run_first_tool_started_ms"] == 100.0
+    assert summary["run_first_body_persisted_ms"] is None
+    assert summary["run_stage_timings"]["model"]["max_ms"] == 600.0
+
 
 
 # ------------------------------------------------------------------ 停止 / 断线一轮的收尾
