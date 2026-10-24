@@ -389,19 +389,15 @@ _SOURCE_TRUNCATION_MARKER = "\n…（中间内容已截断）…\n"
 def quote_author_requirement_sources(
     sources: list[tuple[str, str]], *, max_chars: int = 4000
 ) -> list[str]:
-    """在字符预算内传递带来源的作者 / 项目原文。
+    """原文来源各留首尾份额，余量优先最新；不按语义筛选或改写。
 
-    ``sources`` 按时间先后排列。函数从最新来源向前使用预算，再把选中
-    的来源按时间顺序返回。长来源保留首尾并标明中间截断，避免只保留样文开头。
-    除了在预算边界截断，不根据关键词、数字、
-    否定词或标点筛选、改写原文，也不推导篇幅上下限。
-
-    返回值中标签和截断标记也计入 ``max_chars``。不完整的输入项会被忽略。
+    sources 按时间排列，返回仍按时间排列。标签、分隔换行和截断标记
+    均计入预算；预算不足以容纳全部来源的最小摘录时，优先保留最新来源。
     """
     if max_chars <= 0:
         return []
 
-    selected_newest_first: list[str] = []
+    selected: list[tuple[str, str, int]] = []
     remaining = max_chars
     for source in reversed(sources or []):
         if not isinstance(source, (tuple, list)) or len(source) != 2:
@@ -409,22 +405,40 @@ def quote_author_requirement_sources(
         label, text = source
         if not isinstance(label, str) or not isinstance(text, str) or not text.strip():
             continue
-
         prefix = f"【{label.strip() or '来源'}】\n"
-        quoted = prefix + text
-        if len(quoted) <= remaining:
-            selected_newest_first.append(quoted)
-            remaining -= len(quoted)
-            continue
+        minimum = min(len(text), len(_SOURCE_TRUNCATION_MARKER) + 2)
+        cost = len(prefix) + minimum + bool(selected)
+        if cost > remaining:
+            break
+        selected.append((prefix, text, minimum))
+        remaining -= cost
 
-        available_text = remaining - len(prefix) - len(_SOURCE_TRUNCATION_MARKER)
-        if available_text >= 0:
-            tail_chars = available_text // 2
-            excerpt = text[:available_text - tail_chars] + _SOURCE_TRUNCATION_MARKER
-            selected_newest_first.append(prefix + excerpt + (text[-tail_chars:] if tail_chars else ""))
-        break
+    if not selected:
+        return []
+    selected.reverse()
+    allocations = [minimum for _, _, minimum in selected]
+    # 先为每个来源增加同等份额，避免长本轮样文饿死项目风格和早期要求。
+    fair_extra = remaining // (2 * len(selected))
+    for index, (_, text, _) in enumerate(selected):
+        extra = min(fair_extra, len(text) - allocations[index])
+        allocations[index] += extra
+        remaining -= extra
+    # 保留最新要求优先级；不尝试猜测哪一句更重要。
+    for index in reversed(range(len(selected))):
+        extra = min(remaining, len(selected[index][1]) - allocations[index])
+        allocations[index] += extra
+        remaining -= extra
 
-    return list(reversed(selected_newest_first))
+    quoted = []
+    for (prefix, text, _), allocation in zip(selected, allocations, strict=True):
+        if allocation < len(text):
+            available = allocation - len(_SOURCE_TRUNCATION_MARKER)
+            tail_chars = available // 2
+            text = (text[:available - tail_chars] + _SOURCE_TRUNCATION_MARKER
+                    + (text[-tail_chars:] if tail_chars else ""))
+        quoted.append(prefix + text)
+    return quoted
+
 
 
 __all__ = [

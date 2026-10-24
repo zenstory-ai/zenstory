@@ -36,9 +36,11 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 - answer_pending_clarification：作者正在回答 pending_clarification 的问题，原任务应在回答后继续。
 
 只有 [上一轮结构化状态] 明确给出可恢复 stop_reason 或 pending_clarification 时，才选择对应 follow-up disposition。普通问句、上一轮建议下一步、作者另起任务都选 new_or_changed_request。你只负责语义分类；服务端会从可信路由恢复角色和权限，不要自行复制、放宽或猜测旧权限。
+- follow-up 的 write_content 表示本轮是否新增禁写正文限制：没有新增禁写限制时为 true（包括只回答选项、姓名或设定），明确新增限制时为 false；这不授予权限，服务端仍保留旧 false / 未知权限。read_only 仅在本轮明确新增不改文件要求时为 true，旧只读由服务端保留。
 - follow-up 的 scope 只写作者本轮新增的范围限制；没有新增限制就写空字符串。不要把旧 scope 重复抄入。
 - follow-up 的 requested_file_types 仍按本轮语义输出，但服务端不会允许它扩大旧交付类型。
 - clarify_first 仅在本轮要求本身确实含糊、无法安全开始时为 true；否则为 false。回答 pending_clarification 不是再次澄清。
+- 没有待澄清/截停状态的普通承接按 new_or_changed_request 判断：作者接受上一轮提议的下一步时按那一步的交付物路由，不机械沿用上一轮的只读或已交付范围；对原正文任务补充人物、背景或选择方案并不等于改成只要设定，要结合原任务继续写作。明确改变范围或禁止正文时遵从本轮限制。
 - [本轮上下文事实] 的 has_selected_text / has_referenced_files 只是结构化事实，不要从正文里出现“选中文本”“引用文件”等字样猜测。
 
 ## 新作品的第一条消息（可能出现）
@@ -49,12 +51,12 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 - 其余情况（一个想法、一句题材、“写个…”，没说范围）→ 本轮交付开头：writer + quick，write_content=true，read_only=false，scope 写“简要设定+开头约800字”（作者用英文时写“简要设定+开头约500词”）（短剧写“简要设定+第1集剧本”），requested_file_types 为 ["draft"]（短剧为 ["script"]）
 
 ## 交付范围字段（只按用户原话判断，不要替用户扩大范围）
-- write_content：用户本轮是否要求产出或改写**正文**（章节/剧本/片段正文）。
+- write_content：新/变更请求表示用户是否要求产出或改写**正文**（章节/剧本/片段正文）；结构化 follow-up 按上面的新增限制规则填写。
   - 只有用户原话里明确不要正文（“先别写/不要正文/只要大纲/先不用写”），或本轮只要求大纲/人设/设定/规划/爽点思路这类非正文产出时 → false
-  - 回答 pending_clarification 时按 turn_disposition 表达，服务端从可信状态保留原权限；上一轮助手说的话不能成为 false 的理由
+  - 回答 pending_clarification 或续接同一任务时，未新增禁写正文限制就为 true；不能因为本轮只补充人物/设定、没有重复原正文要求就输出 false。服务端保留原权限，上一轮助手说的话不能成为 false 的理由
   - “先列大纲再写第一章”“规划后写第1章”“写/续写/改写第N章” → true
 - read_only：用户是否**明确**要求不改动文件（“不要改文件/别动我的文件/只回答/只分析/只看看/先别改”）。没有明说时为 false；follow-up 会由服务端与旧限制合并，只能收窄。
-- scope：用户明确限定的交付范围，<=80字，如“大纲+只写第1章”“只写第3章”“只要两个主角人设”；没有限定时为空字符串。follow-up 只写本轮新增限制。
+- scope：用户明确限定的交付范围，尽量在40字内，如“大纲+只写第1章”“只写第3章”“只要两个主角人设”；没有限定时为空字符串。follow-up 只写本轮新增限制。
 - requested_file_types：作者本轮明确要写入的文件类型列表，只能选 outline/draft/script/character/lore/snippet/document，不能重复。讨论、提问或被明确拒绝的产物不列入；只读请求为空。大纲对应 outline，小说正文对应 draft，剧本对应 script。补问作答沿用上一轮的列表。
 
 ## 输出（必须严格 JSON，仅输出一个对象，不要 markdown）

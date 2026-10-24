@@ -2544,7 +2544,6 @@ async def run_writing_workflow_streaming(
                 and not chat_plan_corrected
                 and not next_agent
                 and deferred_handoff is None
-                and not workflow_agents
                 and not clarification_stopped
                 and not invalid_handoff_stopped
                 and not tool_call_exhausted

@@ -516,7 +516,7 @@ def test_author_requirement_sources_prioritize_newest_but_return_selected_source
     newest_quote = "【本轮】\n以本轮说法为准"
 
     assert quote_author_requirement_sources(
-        [oldest, middle, newest], max_chars=len(middle_quote) + len(newest_quote)
+        [oldest, middle, newest], max_chars=len(middle_quote) + 1 + len(newest_quote)
     ) == [middle_quote, newest_quote]
 
 
@@ -554,3 +554,22 @@ def test_long_source_keeps_author_instructions_at_both_ends_instead_of_only_samp
     assert quoted.startswith("【本轮原话】\n按第三人称写，保留这个声线。")
     assert quoted.endswith("最后补充：不要写满2000字，也不要解释结尾。")
     assert len(quoted) == 4000
+
+
+@pytest.mark.unit
+def test_long_latest_source_cannot_starve_project_and_earlier_sources():
+    sources = [("项目写作风格", "保持限知视角，不替人物解释。"),
+               ("项目备注", "保留人物已经作出的选择。"),
+               ("早期作者要求", "不用写满2000字。") ]
+    sources += [(f"历史{i}", f"历史开头{i}：" + "合成资料" * 200 + f"：历史结尾{i}") for i in range(40)]
+    sources += [("本轮原话", "本轮开头：" + "合成样文" * 2000 + "：本轮结尾，保留留白。") ]
+    quoted = quote_author_requirement_sources(sources)
+    assert len(quoted) == len(sources)
+    assert len("\n".join(quoted)) <= 4000
+    for (label, text), excerpt in zip(sources, quoted, strict=True):
+        assert excerpt.startswith(f"【{label}】\n" + text[:2])
+        assert excerpt.endswith(text[-2:])
+    assert sources[0][1] in quoted[0]
+    assert sources[1][1] in quoted[1]
+    assert sources[2][1] in quoted[2]
+    assert quoted[-1].endswith("：本轮结尾，保留留白。")

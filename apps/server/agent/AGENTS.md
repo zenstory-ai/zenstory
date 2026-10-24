@@ -151,7 +151,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **计划交接不扩大交付**：交接说明固定追加 `author_scope.PLANNED_HANDOFF_SCOPE_NOTE`（已完成的不重做、不改刚交付的文件、
   不追加作者没要的产出）。[vague-and-plan-files][n-vague]
 - **补问由结构化路由决定**：`clarify_first=true` 时本轮不写文件、不交接，复用现有拒写工具与 request_clarification；不按词表/选区文字标记判断。技术路由故障不伪装成「请再说清楚」。
-- **规划补写只认请求类型和真实产物**：明确 requested_file_types 含 outline、planner 正常结束、无任何待交接/异常停止、非只读/补问、有剩余轮数且本请求写过的真实 typed 文件中没有非空 outline，最多补一次；读取失败不补，不按聊天章号或80%覆盖判断。
+- **规划补写只认请求类型和真实产物**：明确 requested_file_types 含 outline、planner 正常结束、无显式/延期交接或异常停止、非只读/补问、有剩余轮数且本请求写过的真实 typed 文件中没有非空 outline，最多补一次（正常计划中待执行 writer 不跳过此检查）；读取失败不补，不按聊天章号或80%覆盖判断。
 - **作者改了什么给模型看，不猜授权**：`tools/author_changes.py` 按版本历史算净差异放进 `<author_edits>`（`query_files` 按 id 读全文时也带）；
   `edit_file` 在锁内比对本请求模型看过的正文（`mcp_tools._ReadSnapshots`，读到的内容由 `usage_hooks.ReadSnapshotPromotionMixin`
   在下一次模型调用起生效；换 agent 时清空，同一 agent 接着跑时保留），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。
@@ -167,7 +167,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   质量门可用且作者要正文时，writer 前的原计划可写角色也按成功正文写入扣留；同一交付的累计正文达到门槛、实际沿计划前缀交接才丢弃，不按问号决定；未展示原话交接下游，
   正文记录接续给 writer。只有规划、失败写入、未执行交接和结构化澄清原样释放。[planned-body-review][n-planned-body]
 - **送审证据用落库后的事实**：送审交接附 `[本轮正文字数]`（落库后的 `count_words`）和 `[作者要求来源摘录（可能包含无关内容）]`
-  （`review_evidence.quote_author_requirement_sources`：来源标记和有预算的原话，不按数字/否定正则换算要求；
+  （`review_evidence.quote_author_requirement_sources`：来源标记和有预算的原话，各来源先留份额、余量优先最新，不按数字/否定正则换算要求；
   写作/审稿在原调用中理解上下文、最新要求和范围；摘录不代表新增授权），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
   放不进预算的长文件只附本请求改动的那段（写入前正文由 `ToolContext.remember_pre_write_content` 记下）。
   多文件在既有总预算内逐文件分配，每份保留来源文件 ID 与 `updated_at`；附了全文的来源行写「以下是全文，不用再读取」，未附全文的部分明确标注，按 ID 精确 `query_files` 按章节读取，不把省略部分当作已经核对。返修交接的 `[返修对象当前正文]` 只附审稿意见点到的文件。

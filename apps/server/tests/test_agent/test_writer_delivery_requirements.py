@@ -142,3 +142,33 @@ async def test_synthetic_local_revision_preserves_other_paragraphs(delivery_proj
     assert actual.split("\n\n")[0] == original.split("\n\n")[0]
     assert actual.split("\n\n")[2] == original.split("\n\n")[2]
     assert "收回口袋" in actual
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_long_latest_sample_keeps_project_and_old_requirements_for_writer_and_reviewer(delivery_project, db_session):
+    project, _, _ = delivery_project
+    project.notes = "保留人物已经作出的选择。"
+    db_session.add(project)
+    db_session.commit()
+    latest = "按既有要求续写第三章。" + "合成参考样文" * 1000 + "结尾不要解释。"
+    ToolContext._get_context()["author_message"] = latest
+    captured = []
+
+    async def fake_runner(state, agent_type, system_prompt, **kwargs):
+        captured.append((agent_type, kwargs.get("agent_directive", ""), state.get("user_message", "")))
+        if agent_type == "writer":
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "本轮内容待核对。"})
+            yield StreamEvent(type=StreamEventType.HANDOFF, data={"target_agent": "quality_reviewer", "context": "核对本轮"})
+        else:
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "尚未保存正文，不声称完成。[TASK_COMPLETE]"})
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    await _run_delivery({"user_message": latest, "messages": [], "system_prompt": ""}, fake_runner)
+    writer = next(directive for role, directive, _ in captured if role == "writer")
+    reviewer = next(message for role, _, message in captured if role == "quality_reviewer")
+    for delivery in (writer, reviewer):
+        assert project.writing_style in delivery
+        assert project.notes in delivery
+        assert "每章不少于1800字" in delivery
+        assert "结尾不要解释。" in delivery

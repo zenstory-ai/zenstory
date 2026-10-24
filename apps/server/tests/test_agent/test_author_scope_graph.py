@@ -100,12 +100,16 @@ async def test_structured_route_keeps_planned_writer_independent_of_planner_punc
             return
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第一章写好了。"})
 
-    events = await _run(
-        _route({"agent_type": "planner", "workflow_type": "standard", "write_content": True,
-                "requested_file_types": ["outline", "draft"], "scope": "大纲+第1章"}),
-        fake_agent,
-        message="帮我构思一个都市异能故事的大纲，然后直接写第一章",
-    )
+    with patch(
+        "agent.graph.writing_graph._written_outline_contents",
+        return_value=["已保存的核心故事大纲"],
+    ):
+        events = await _run(
+            _route({"agent_type": "planner", "workflow_type": "standard", "write_content": True,
+                    "requested_file_types": ["outline", "draft"], "scope": "大纲+第1章"}),
+            fake_agent,
+            message="帮我构思一个都市异能故事的大纲，然后直接写第一章",
+        )
 
     assert calls == ["planner", "writer"]
     assert SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING in seen["planner"]["scope"]
@@ -342,7 +346,7 @@ async def test_outline_read_failure_does_not_trigger_a_blind_correction():
     assert calls == ["planner"]
 
 
-async def test_planned_handoff_takes_precedence_over_outline_correction():
+async def test_missing_outline_is_corrected_once_before_planned_writer_handoff():
     calls: list[str] = []
 
     async def fake_agent(_state, agent_type, **_kwargs):
@@ -357,7 +361,7 @@ async def test_planned_handoff_takes_precedence_over_outline_correction():
             message="写大纲后继续写第一章",
         )
 
-    assert calls == ["planner", "writer"]
+    assert calls == ["planner", "planner", "writer"]
 
 
 async def test_answer_approving_a_plan_is_not_turned_into_an_outline_file():

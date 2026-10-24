@@ -132,7 +132,7 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
         "owner_agent": initial_agent,
     }
     if routing_metadata.get("clarify_first") is True:
-        # 这一轮是为笼统要求先问清楚：下一轮不再问第二次（graph/writing_graph._should_clarify_first）。
+        # 记录本轮先澄清的路由事实；跨轮等待仍只认结构化 clarification_pending。
         routing["clarify_first"] = True
     return routing
 
