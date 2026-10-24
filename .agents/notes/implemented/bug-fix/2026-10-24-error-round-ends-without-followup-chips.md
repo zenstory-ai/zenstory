@@ -23,6 +23,7 @@ Status: implemented
 - ChatPanel：本轮以 SSE error 结束（含时限、熔断、上游错误；以及没有终止帧就断开的 STREAM_CLOSED）时，`roundProgressRef.endedInError` 记下，onComplete 不再从回复取选项、不请求 `/suggest`，清空 chips 与这个项目的建议缓存。错误说明、重试、已保存文件和手动输入不变；作者手动点「换一批」照常请求。
 - 停在「这一轮没写完」（`iteration_exhausted.layer=empty_file_correction`，流照常以 done 结束）的一轮同样不给 chips、清缓存。
 - 刷新 / 重新打开：最后一条助手消息的 `stop_outcome.reason === "error"`，或带 empty_file_correction 状态卡（时间线或旧状态卡）时，同样不给 chips、不读缓存、不请求 `/suggest`。
+- 晚到的建议不回写：所有自动与手动建议入口（打开对话、上一条回复带选项、回合结束后的延时请求、「换一批」）共用既有的 `suggestionRequestSeqRef` 作为递增令牌：请求前取令牌，写回复选项、建议或缓存前都核验；回合开始、发送、出错、停在未完成、切换项目 / 新对话，以及新的请求都会让旧令牌失效。网络请求不取消、不自动重试，只是作废的回应什么都不写。
 - 服务端（`api/agent.py`）：时限截停、连接仍在、结算已完成的一轮，在残稿补存交回消息 id 之后按保存回执记 `stop_outcome(reason=error)`（既有 `_schedule_round_outcome` / RoundEndNote）。超时终态仍先发出；`stop_reason` 保留 `run_deadline_exceeded`，「继续」照常可恢复；断线后延迟结算的那条路径不变。
 - 正常完成、只读完成、合法的空文件、澄清、作者停止的轮次不受影响。不新增字段、表、澄清状态机或模型调用，不按标题 / 回复文字判断是否完成。
 
@@ -41,5 +42,6 @@ Status: implemented
 
 ## Verification
 
+- 最终整批审查后补：停在「这一轮没写完」的一轮实时与刷新后不给 chips（1 例），以及晚到的 `/suggest` 回应在出错后不回写（打开对话、回复选项领头、回合结束后的延时请求、「换一批」被取代 / 遇到出错，共 5 例，修改前全部失败），ChatPanel 相关 5 个测试文件 210 项通过。
 - `ChatPanel.mount.test.tsx` 新增两例（即时 error 轮次带回复选项与旧缓存、刷新后最后一轮 `stop_outcome.reason=error`），修改前 2 项失败（多请求一次 `/suggest`、显示旧缓存 chips），修改后 ChatPanel 相关 6 个测试文件 230 项通过。
 - `test_agent_stream_hardening.py` 新增时限截停（带正文 / 不带正文、含审稿后交回 writer 的帧）记录 `stop_outcome`：修改前 2 项失败（没有 `stop_outcome`），修改后该文件与 `/agent` API 测试共 117 项通过；`stop_reason` 仍为 `run_deadline_exceeded`。

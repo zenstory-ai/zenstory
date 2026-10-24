@@ -878,22 +878,31 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const fetchAndApplySuggestions = useCallback(async (
     projectId: string,
     sourceMessages: Message[],
-    options?: { allowFallback?: boolean; lead?: string[] }
+    options?: { allowFallback?: boolean; lead?: string[]; requestSeq?: number }
   ): Promise<string[] | null> => {
+    // Every request holds the suggestion token current when it started (callers that write
+    // around it pass theirs). A newer request, a new round, an error or unfinished stop, or a
+    // project / chat switch moves the token on: a response arriving after that writes nothing,
+    // neither chips nor cache.
+    const requestSeq = options?.requestSeq ?? ++suggestionRequestSeqRef.current;
+    const stillCurrent = () =>
+      currentProjectIdRef.current === projectId && suggestionRequestSeqRef.current === requestSeq;
     // Options the last reply offered in the author's words lead, shown at once; the model fills
     // the remaining slots, so a step forward ("write chapter 2") stays one tap away.
     const lead = options?.lead ?? [];
     const keepLead = () => {
+      if (!stillCurrent()) return null;
       writeSuggestionCache(projectId, lead);
       return lead;
     };
     if (lead.length > 0) {
+      if (!stillCurrent()) return null;
       setAiSuggestions(lead);
       setSuggestionDisplayState("ready");
       if (lead.length >= SUGGESTION_COUNT) return keepLead();
     }
     const allowed = await canRequestSuggestions(projectId);
-    if (currentProjectIdRef.current !== projectId) return null;
+    if (!stillCurrent()) return null;
     if (!allowed) {
       setAiSuggestions(lead);
       setSuggestionDisplayState("ready");
@@ -901,8 +910,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
     const fetched = await fetchSuggestions(projectId, toRecentMessages(sourceMessages), SUGGESTION_COUNT);
 
-    // Ignore stale responses from previous projects/requests.
-    if (currentProjectIdRef.current !== projectId) {
+    // Ignore stale responses from previous projects/requests/rounds.
+    if (!stillCurrent()) {
       return null;
     }
 
@@ -948,7 +957,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       ? optionsOfferedInReply(lastLoaded.content)
       : null;
     if (offered) {
-      await fetchAndApplySuggestions(projectId, sourceMessages, { lead: offered });
+      await fetchAndApplySuggestions(projectId, sourceMessages, { lead: offered, requestSeq });
       return;
     }
 
@@ -961,7 +970,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
 
     setSuggestionDisplayState("loading");
-    const fetchPromise = fetchAndApplySuggestions(projectId, sourceMessages);
+    const fetchPromise = fetchAndApplySuggestions(projectId, sourceMessages, { requestSeq });
 
     const firstResult = await Promise.race([
       fetchPromise.then((suggestions) => ({ timedOut: false, suggestions })),
@@ -1202,14 +1211,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const endedInError = completionMeta?.partial === true && roundProgressRef.current.endedInError;
     const endedUnfinished = endedInError || roundProgressRef.current.endedIncomplete;
     if (nothingWritten || endedUnfinished) {
+      suggestionRequestSeqRef.current += 1;  // a request still in flight from before writes nothing
       if (endedUnfinished && currentProjectId) clearSuggestionCache(currentProjectId);
       setAiSuggestions([]);
       setSuggestionDisplayState("ready");
       return;
     }
     setSuggestionDisplayState("loading");
+    const completionRequestSeq = ++suggestionRequestSeqRef.current;
     suggestionTimeoutRef.current = setTimeout(async () => {
       const currentMessages = messagesRef.current;  // Use ref to get latest messages
+      if (suggestionRequestSeqRef.current !== completionRequestSeq) return;  // the next round already started
       if (currentProjectId) {
         const lastMessage = currentMessages[currentMessages.length - 1];
         const suggestionKey = `${currentProjectId}:${currentMessages.length}:${lastMessage?.id ?? ""}`;
@@ -1223,13 +1235,22 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           const result = await fetchAndApplySuggestions(currentProjectId, currentMessages, {
             allowFallback: true,
             lead: offered ?? undefined,
+            requestSeq: completionRequestSeq,
           });
-          if (currentProjectIdRef.current !== currentProjectId || lastAutoSuggestionKeyRef.current !== suggestionKey) return;
+          if (
+            currentProjectIdRef.current !== currentProjectId
+            || lastAutoSuggestionKeyRef.current !== suggestionKey
+            || suggestionRequestSeqRef.current !== completionRequestSeq
+          ) return;
           const displayState = result === null && aiSuggestionsRef.current.length === 0 ? "fallback" : "ready";
           lastAutoSuggestionStateRef.current = displayState;
           setSuggestionDisplayState(displayState);
         } catch (error) {
-          if (currentProjectIdRef.current !== currentProjectId || lastAutoSuggestionKeyRef.current !== suggestionKey) return;
+          if (
+            currentProjectIdRef.current !== currentProjectId
+            || lastAutoSuggestionKeyRef.current !== suggestionKey
+            || suggestionRequestSeqRef.current !== completionRequestSeq
+          ) return;
           // Silent failure - suggestion is non-critical
           logger.error("Failed to fetch suggestions:", error);
           const displayState = aiSuggestionsRef.current.length === 0 ? "fallback" : "ready";
@@ -1278,6 +1299,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setQuotaRefund(null);
       setUserStop(null);
       roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false };
+      suggestionRequestSeqRef.current += 1;  // suggestions for the previous round no longer apply
       proseCounterRef.current.reset();
       stopRequestedProjectRef.current = null;
       resetOnCompleteFlag();
@@ -1305,6 +1327,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onComplete: onCompleteHandler,
     onError: (message, code, retryable) => {
       roundProgressRef.current.endedInError = true;
+      suggestionRequestSeqRef.current += 1;
       streamCallbacks.onError(message, code, retryable);
       invalidateQuota();
       if (code === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' || code === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED') {
@@ -1673,6 +1696,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     clearStreamItems();
     setMatchedSkills([]);
     reset();
+    suggestionRequestSeqRef.current += 1;  // the previous project's suggestions never land here
     setAiSuggestions([]);
     setSuggestionDisplayState("loading");
     contextItemsRef.current = [];
@@ -1831,7 +1855,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       sendLockRef.current = false;
     }, 0);
 
-    // Clear AI suggestions when user sends a message
+    // Clear AI suggestions when user sends a message (and drop any still in flight)
+    suggestionRequestSeqRef.current += 1;
     setAiSuggestions([]);
     setSuggestionDisplayState("loading");
     if (suggestionTimeoutRef.current) {
@@ -2172,6 +2197,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     creatingSessionRef.current = requestSeq;
     setIsCreatingSession(true);
     setStarterProjectId(null);
+    suggestionRequestSeqRef.current += 1;  // the old chat's suggestions never land in the new one
     setAiSuggestions([]);
     setSuggestionDisplayState("loading");
     if (suggestionTimeoutRef.current) clearTimeout(suggestionTimeoutRef.current);
@@ -2246,12 +2272,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
 
     setIsRefreshingSuggestions(true);
+    const requestSeq = ++suggestionRequestSeqRef.current;  // supersedes any earlier request
     try {
       setSuggestionDisplayState("loading");
-      await fetchAndApplySuggestions(currentProjectId, messagesRef.current, { allowFallback: true });
+      await fetchAndApplySuggestions(currentProjectId, messagesRef.current, { allowFallback: true, requestSeq });
     } catch (error) {
       logger.error("Failed to refresh suggestions:", error);
-      if (aiSuggestionsRef.current.length === 0) {
+      if (suggestionRequestSeqRef.current === requestSeq && aiSuggestionsRef.current.length === 0) {
         setSuggestionDisplayState("fallback");
       }
     } finally {
