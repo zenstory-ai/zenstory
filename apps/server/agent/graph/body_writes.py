@@ -42,6 +42,8 @@ class BodyWrite:
     text_offset: int | None = None
     # edit_file：工具返回的改后全文字数（new_word_count）；没返回时为 None。
     file_words: int | None = None
+    # Diagnostic fact only: legacy success/word-count quality gating is unchanged.
+    mutation_applied: bool = False
 
 
 def _tool_payload(result: Any) -> dict[str, Any] | None:
@@ -142,6 +144,7 @@ class BodyWriteTracker:
                 file_type=str(data.get("file_type")),
                 words=_edit_words(tool_input.get("edits")),
                 file_words=_int_or_none(data.get("new_word_count")),
+                mutation_applied=payload.get("mutation_applied") is True,
             )
         elif name == "parallel_execute":
             recorded = self._observe_parallel(tool_input, data)
@@ -184,6 +187,7 @@ class BodyWriteTracker:
                 words=words,
                 full_body=full_body,
                 file_words=file_words,
+                mutation_applied=isinstance(result, dict) and result.get("mutation_applied") is True,
             )
             self.writes.append(last)
         return last

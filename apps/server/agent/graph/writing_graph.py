@@ -1837,7 +1837,8 @@ async def run_writing_workflow_streaming(
                     },
                 }
             else:
-                router_result = await router_node(state)
+                with state["run_meter"].measure_stage("router"):
+                    router_result = await router_node(state)
 
             current_agent_type = get_next_node(router_result)
             workflow_agents = list(router_result.get("workflow_agents", []))
@@ -2355,7 +2356,15 @@ async def run_writing_workflow_streaming(
                     StreamEventType.TOOL_USE,
                     StreamEventType.TOOL_RESULT,
                 ):
+                    previous_write_count = len(body_tracker.writes)
                     body_write = body_tracker.observe(event, text_length=len(agent_content))
+                    if any(
+                        write.mutation_applied
+                        and write.text_offset is None
+                        and (write.file_words if write.file_words is not None else write.words) > 0
+                        for write in body_tracker.writes[previous_write_count:]
+                    ):
+                        run_meter.mark_first_body_persisted()
                     if (
                         body_write is not None
                         and chat_hold_eligible
