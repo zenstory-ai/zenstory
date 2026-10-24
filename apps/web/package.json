@@ -62,7 +62,8 @@
     "protobufjs": "7.6.5",
     "react-window": "^2.2.5",
     "rollup": "4.59.0",
-    "ws": "8.21.0"
+    "ws": "8.21.0",
+    "zod@>=4 <4.6.7": "4.6.7"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -114,7 +115,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "happy-dom": "^20.8.9",
+    "happy-dom": "^21.0.4",
     "jsdom": "^24.0.0",
     "micromark": "^4.0.2",
     "micromark-extension-gfm": "^3.0.0",
