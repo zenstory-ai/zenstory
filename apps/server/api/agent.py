@@ -997,6 +997,10 @@ async def stream_request(
                 _schedule_round_outcome(refund_applied)
             elif error_delivery and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="error", delivery=error_delivery)
+            elif deadline_exceeded and not settlement_pending and knows_stop_contract:
+                # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
+                # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
+                _schedule_round_outcome(refund_applied, stop_kind="error")
             elif partial_delivery and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="incomplete", delivery=partial_delivery)
             elif completed_delivery and knows_stop_contract:

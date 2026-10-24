@@ -516,7 +516,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * left text in a file / the server charged / real output exists (a write, or a reply
    * segment long enough to be prose rather than a one-line narration before a tool call).
    */
-  const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false });
+  const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false, endedInError: false });
   /** Reply text since the last segment boundary, counted like the server (see createProseCounter). */
   const proseCounterRef = useRef(createProseCounter());
   /** The author pressed 停止 in this project's current round; the note waits for how the round ended. */
@@ -823,6 +823,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   }, [getSuggestionCacheKey]);
 
+  const clearSuggestionCache = useCallback((projectId: string) => {
+    try {
+      localStorage.removeItem(getSuggestionCacheKey(projectId));
+    } catch {
+      // Ignore cache failures (non-critical UX optimization)
+    }
+  }, [getSuggestionCacheKey]);
+
   const writeSuggestionCache = useCallback((projectId: string, suggestions: string[]) => {
     try {
       const payload: SuggestionCachePayload = {
@@ -907,8 +915,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setSuggestionDisplayState("ready");
       return;
     }
-    const cached = readCachedSuggestions(projectId);
     const lastLoaded = sourceMessages[sourceMessages.length - 1];
+    if (lastLoaded?.role === "assistant" && lastLoaded.stopOutcome?.reason === "error") {
+      // The last round ended in an error (see onCompleteHandler): no follow-up chips after a refresh either.
+      clearSuggestionCache(projectId);
+      setAiSuggestions([]);
+      setSuggestionDisplayState("ready");
+      return;
+    }
+    const cached = readCachedSuggestions(projectId);
     const offered = cached === null && lastLoaded?.role === "assistant"
       ? optionsOfferedInReply(lastLoaded.content)
       : null;
@@ -956,7 +971,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (firstResult.suggestions === null && aiSuggestionsRef.current.length === 0) {
       setSuggestionDisplayState("fallback");
     }
-  }, [canRequestSuggestions, fetchAndApplySuggestions, readCachedSuggestions, setAiSuggestions]);
+  }, [canRequestSuggestions, clearSuggestionCache, fetchAndApplySuggestions, readCachedSuggestions, setAiSuggestions]);
 
   const finalizePendingContextClears = useCallback(() => {
     if (pendingMaterialClearRef.current) {
@@ -1159,7 +1174,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const nothingWritten = completionMeta?.stoppedByAuthor
       ? completionMeta.producedOutput === false
       : completionMeta?.partial === true && !roundProgressRef.current.producedOutput;
-    if (nothingWritten) {
+    // Ended in an error (stream error frame, including the time limit, or a dropped connection):
+    // work is unfinished in ways chips cannot see (rework pending, unconfirmed files, an
+    // interrupted writer). The error note and manual input are the next step: no reply
+    // options, no /suggest, and no chips cached from an earlier round.
+    const endedInError = completionMeta?.partial === true && roundProgressRef.current.endedInError;
+    if (nothingWritten || endedInError) {
+      if (endedInError && currentProjectId) clearSuggestionCache(currentProjectId);
       setAiSuggestions([]);
       setSuggestionDisplayState("ready");
       return;
@@ -1199,6 +1220,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     streamCallbacks,
     getStreamItemsSnapshot,
     currentProjectId,
+    clearSuggestionCache,
     fetchAndApplySuggestions,
     finalizePendingContextClears,
     hydrateAssistantBackendMessage,
@@ -1233,7 +1255,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       terminalStatusCardsRef.current = [];
       setQuotaRefund(null);
       setUserStop(null);
-      roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false };
+      roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false, endedInError: false };
       proseCounterRef.current.reset();
       stopRequestedProjectRef.current = null;
       resetOnCompleteFlag();
@@ -1260,6 +1282,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Completion and error callbacks
     onComplete: onCompleteHandler,
     onError: (message, code, retryable) => {
+      roundProgressRef.current.endedInError = true;
       streamCallbacks.onError(message, code, retryable);
       invalidateQuota();
       if (code === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' || code === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED') {

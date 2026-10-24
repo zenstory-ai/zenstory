@@ -1651,3 +1651,59 @@ async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
     log = _billing_log(log_spy)
     assert log["billing_reason"] == "server_restarting"
     assert log["deadline_exceeded"] is True
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("with_body", [True, False])
+async def test_deadline_round_records_an_interrupted_outcome_after_capture_settles(
+    client, db_session, monkeypatch, with_body
+):
+    """时限截停的一轮（含审稿后返修被打断）：残稿补存落定后记 stop_outcome（已中断），刷新后不像正常结束。
+
+    stop_reason 保留 run_deadline_exceeded，「继续」照常可恢复；字数只认保存回执。
+    """
+    from models import ChatMessage
+    from utils.text_metrics import count_words
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
+    assistant = db_session.get(ChatMessage, message_id)
+    assistant.message_metadata = json.dumps({"stop_reason": "run_deadline_exceeded"})
+    db_session.add(assistant)
+    db_session.commit()
+    monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        if with_body:
+            yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
+            yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
+        # 审稿人要求返修，writer 的返修调用还在途时撞上时限
+        yield _sse("handoff", {"target_agent": "writer", "reason": "返修"})
+        await asyncio.sleep(30)
+
+    receipts = {filled.id: count_words(_PROSE)} if with_body else {}
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id, receipts)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True),
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert "ERR_AGENT_RUN_TIMEOUT" in text
+    assert _frame_data(text, "done") is None and _frame_data(text, "workflow_complete") is None
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "run_deadline_exceeded"
+    outcome = metadata["stop_outcome"]
+    assert outcome["reason"] == "error"
+    assert outcome["charged"] is with_body
+    if with_body:
+        assert outcome["written_files"] == [
+            {"id": filled.id, "title": filled.title, "words": count_words(_PROSE)}
+        ]
+    else:
+        assert "written_files" not in outcome

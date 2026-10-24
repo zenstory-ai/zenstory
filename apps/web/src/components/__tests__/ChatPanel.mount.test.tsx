@@ -1986,6 +1986,59 @@ describe('ChatPanel mount smoke', () => {
     expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
   })
 
+  it('shows no follow-up chips after a round that ended in an error, even if its reply offered options', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      withEarlierTurn()
+      render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      localStorage.setItem(
+        'zenstory_suggestions_cache_project-1',
+        JSON.stringify({ suggestions: ['按大纲续写第三章正文'], updatedAt: Date.now() }),
+      )
+      mockStreamSnapshot.items = [{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS, timestamp: new Date() }]
+      const options = capturedUseAgentStream.options as unknown as RoundOptions & {
+        onError: (message: string, code?: string, retryable?: boolean) => void
+        onFileContent: (fileId: string, chunk: string) => void
+      }
+
+      await act(async () => {
+        options.onFileContent('ch-2', '已经保存的正文')
+        options.onError('这一轮写得太久，先停下了。', 'ERR_AGENT_RUN_TIMEOUT', false)
+        await options.onComplete([{ type: 'content', id: 'reply', content: REPLY_WITH_OPTIONS }], null, { partial: true })
+      })
+      await act(async () => { vi.advanceTimersByTime(20000) })
+
+      // The error note is the next step: no reply options, no /suggest, no chips cached from an earlier round.
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(lastMessageInputProps().suggestionDisplayState).toBe('ready')
+      expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+    } finally { vi.useRealTimers() }
+  })
+
+  it('opens a chat whose last round ended in an error without follow-up chips', async () => {
+    localStorage.setItem(
+      'zenstory_suggestions_cache_project-1',
+      JSON.stringify({ suggestions: ['按大纲续写第三章正文'], updatedAt: Date.now() }),
+    )
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-interrupted', session_id: 'session-1', role: 'assistant', content: REPLY_WITH_OPTIONS,
+      tool_calls: null, created_at: '2026-10-05T10:00:00Z',
+      metadata: JSON.stringify({
+        stop_reason: 'run_deadline_exceeded',
+        stop_outcome: { reason: 'error', charged: true, saved_output: true, written_files: [{ id: 'ch-2', title: '第2章', words: 2908 }] },
+      }),
+    }] as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
+    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+    expect(lastMessageInputProps().aiSuggestions).toEqual([])
+    expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+  })
+
   it('uses local fallback only when the suggestion request fails', async () => {
     vi.mocked(fetchSuggestions).mockResolvedValueOnce(null)
     withEarlierTurn()
