@@ -80,6 +80,7 @@ import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
 import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
 import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
 import { optionsOfferedInReply } from "../lib/replyOptions";
+import { UndoneEditsContext, undoneEditKey } from "../lib/undoneEdits";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
@@ -541,6 +542,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   /** The author's own wording for the current round (used for the auto snapshot description). */
   const lastUserRequestRef = useRef<string | null>(null);
   const [pendingUndoTarget, setPendingUndoTarget] = useState<FileEditUndoTarget | null>(null);
+  const [undoneEdits, setUndoneEdits] = useState<ReadonlySet<string>>(() => new Set());
   const [isUndoing, setIsUndoing] = useState(false);
   const lastRetryRequestRef = useRef<{
     projectId: string;
@@ -2333,7 +2335,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         target.fileId,
         target.beforeVersionNumber,
         target.expectedAfterUpdatedAt,
+        { chatMessageId: target.chatMessageId, toolUseId: target.toolUseId },
       );
+      // The text is back to before this edit: the card stops offering it (a repeat would only conflict).
+      setUndoneEdits((previous) => new Set(previous).add(undoneEditKey(target)));
       if (!result.snapshot_created) {
         if (result.version_quota_exceeded) {
           toast.error(t('versions:quota.limitDescription'));
@@ -2576,6 +2581,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           ) : (
             <div>
               {/* Chat messages */}
+              <UndoneEditsContext.Provider value={undoneEdits}>
               <MessageList
                 ref={messageListRef}
                 messages={messages}
@@ -2591,6 +2597,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 isThinking={isThinking}
                 scrollContainerRef={messagesScrollContainerRef}
               />
+              </UndoneEditsContext.Provider>
 
               {/* Edit progress indicator */}
               {editProgress && (

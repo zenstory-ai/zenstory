@@ -2510,7 +2510,7 @@ describe('ChatPanel new-author flow', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '撤销' }))
     })
-    expect(mockRollback).toHaveBeenCalledWith('file-1', 3, '2026-10-08T10:01:00Z')
+    expect(mockRollback).toHaveBeenCalledWith('file-1', 3, '2026-10-08T10:01:00Z', { chatMessageId: undefined, toolUseId: undefined })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
     vi.unstubAllGlobals()

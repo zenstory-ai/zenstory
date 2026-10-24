@@ -203,6 +203,7 @@
     "query_files_default": "Find files",
     "update_status_description": "Record project information",
     "edit_success": "Edit done",
+    "edit_undone": "Undone",
     "edit_touched_author_edits": "Changed text you edited yourself",
     "edit_restored_author_deletion": "Put back a paragraph you deleted; you can undo this",
     "edits_summary_one": "{{editsApplied}} edit · {{size}}",

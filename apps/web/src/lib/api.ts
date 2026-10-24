@@ -912,11 +912,15 @@ export const fileVersionApi = {
     fileId: string,
     versionNumber: number,
     expectedUpdatedAt?: string,
+    card?: { chatMessageId?: string; toolUseId?: string },
   ) => {
     const path = `/api/v1/files/${fileId}/versions/${versionNumber}/rollback`;
-    return expectedUpdatedAt === undefined
-      ? api.post<RollbackResponse>(path)
-      : api.post<RollbackResponse>(path, { expected_updated_at: expectedUpdatedAt });
+    if (expectedUpdatedAt === undefined) return api.post<RollbackResponse>(path);
+    // An undo from a chat edit card names that card, so the server can mark it undone.
+    const cardIds = card?.chatMessageId && card.toolUseId
+      ? { chat_message_id: card.chatMessageId, tool_use_id: card.toolUseId }
+      : {};
+    return api.post<RollbackResponse>(path, { expected_updated_at: expectedUpdatedAt, ...cardIds });
   },
 };
 

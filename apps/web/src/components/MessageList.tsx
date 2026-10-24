@@ -385,9 +385,11 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
 /**
  * Props passed to each message Row component.
  */
-function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistAction, isStreaming = false }: {
+function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistAction, isStreaming = false, chatMessageId }: {
   items: StreamRenderItem[];
   onUndo?: MessageListProps['onUndo'];
+  /** The saved assistant message these items belong to (absent while streaming). */
+  chatMessageId?: string;
   onOpenFile?: MessageListProps['onOpenFile'];
   onIterationAssistAction?: MessageListProps['onIterationAssistAction'];
   isStreaming?: boolean;
@@ -448,6 +450,8 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
               isPending={toolCall.status === 'pending' && isStreaming}
               interrupted={toolCall.status === 'pending' && !isStreaming}
               onUndo={onUndo}
+              toolUseId={toolCall.id}
+              chatMessageId={chatMessageId}
               onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
             />
           ))}
@@ -779,7 +783,7 @@ const Row = React.memo(function Row({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
-          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} isStreaming={isStreaming} />
+          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
         ) : <>
         {/* Thinking content - show streaming if active, otherwise show historical segments */}
         {message.role === 'assistant' && (
@@ -921,6 +925,8 @@ const Row = React.memo(function Row({
                 isPending={toolCall.status === 'pending' && isStreaming}
                 interrupted={toolCall.status === 'pending' && !isStreaming}
                 onUndo={onUndo}
+                toolUseId={toolCall.id}
+                chatMessageId={message.backendMessageId}
                 onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
               />
             ))}
@@ -938,6 +944,8 @@ const Row = React.memo(function Row({
                 result={result.result ?? {}}
                 error={result.status === 'error' ? result.error : undefined}
                 onUndo={onUndo}
+                toolUseId={result.id}
+                chatMessageId={message.backendMessageId}
                 onOpenFile={result.status === 'success' ? onOpenFile : undefined}
               />
             ))}

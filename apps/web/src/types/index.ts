@@ -731,6 +731,8 @@ export interface RollbackResponse {
   new_version_number: number | null;
   snapshot_created: boolean;
   version_quota_exceeded: boolean;
+  /** The chat edit card this undo came from was marked undone (absent on older servers). */
+  undo_recorded?: boolean;
 }
 
 /** Immutable provenance required to undo one specific AI file edit. */
@@ -738,6 +740,9 @@ export interface FileEditUndoTarget {
   fileId: string;
   beforeVersionNumber: number;
   expectedAfterUpdatedAt: string;
+  /** The saved assistant message and tool call of the card, so the server can mark that card undone. */
+  chatMessageId?: string;
+  toolUseId?: string;
 }
 
 // ==================== Text Quote ====================

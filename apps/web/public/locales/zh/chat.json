@@ -203,6 +203,7 @@
     "query_files_default": "查找文件",
     "update_status_description": "记录项目信息",
     "edit_success": "修改完成",
+    "edit_undone": "已撤销",
     "edit_touched_author_edits": "改到了你手动改过的地方",
     "edit_restored_author_deletion": "放回了你删掉的段落，可以撤销",
     "edits_summary": "{{editsApplied}} 处变更 · {{size}}",
