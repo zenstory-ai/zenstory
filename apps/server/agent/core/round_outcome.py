@@ -303,12 +303,14 @@ def remove_empty_placeholders(
     """移除这一轮新建、到现在仍然没有正文的文件（软删除）；返回真正移除了的 {id, title}。
 
     调用方保证 ``candidates`` 只来自本轮 ``create_file`` 新建的空文件（见
-    StreamBillingTracker.removable_placeholders）。这里在项目锁内逐个再查一次：
-    文件仍在本项目、没被删、不是文件夹、正文为空、没有子节点，才移除。任何异常只记日志，
-    不影响已经完成的退还。
+    StreamBillingTracker.removable_placeholders），每个带着 create_file 结果里的版本
+    ``updated_at``。这里在项目锁内逐个再查一次：文件仍在本项目、没被删、不是文件夹、正文为空、
+    没有子节点、版本仍是建好时那个（作者之后改过标题等就保留），才以带版本条件的 UPDATE 移除；
+    没带版本的候选不删。任何异常只记日志，不影响已经完成的退还。
     """
     if not candidates:
         return []
+    from sqlalchemy import update
     from sqlmodel import select
 
     from config.datetime_utils import advance_timestamp, utcnow
@@ -328,12 +330,16 @@ def remove_empty_placeholders(
                 if is_postgres:
                     query = query.with_for_update(key_share=True)
                 file = session.exec(query.execution_options(populate_existing=True)).first()
+                created_version = candidate.get("updated_at")
                 if (
                     file is None
                     or file.project_id != project_id
                     or file.is_deleted
                     or file.file_type == "folder"
                     or (file.content or "").strip()
+                    or not created_version
+                    or file.updated_at is None
+                    or file.updated_at.isoformat() != created_version
                 ):
                     continue
                 has_children = session.exec(
@@ -342,11 +348,19 @@ def remove_empty_placeholders(
                 if has_children is not None:
                     continue
                 now = utcnow()
-                file.is_deleted = True
-                file.deleted_at = now
-                file.updated_at = advance_timestamp(file.updated_at, now=now)
-                session.add(file)
-                removed.append({"id": file.id, "title": file.title or candidate.get("title", "")})
+                result = session.exec(
+                    update(File)
+                    .where(
+                        File.id == file.id,
+                        File.project_id == project_id,
+                        File.is_deleted.is_(False),
+                        File.content == file.content,
+                        File.updated_at == file.updated_at,
+                    )
+                    .values(is_deleted=True, deleted_at=now, updated_at=advance_timestamp(file.updated_at, now=now))
+                )
+                if result.rowcount == 1:
+                    removed.append({"id": file.id, "title": file.title or candidate.get("title", "")})
             session.commit()
     except Exception as exc:
         log_with_context(

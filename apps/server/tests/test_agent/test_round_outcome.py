@@ -56,7 +56,8 @@ def _file(db_session, project: Project, title: str, **fields) -> File:
 
 
 def _candidate(file: File) -> dict[str, str]:
-    return {"id": file.id, "title": file.title}
+    # 与 StreamBillingTracker 一样带上 create_file 结果里的版本（这些文件建好后没被动过）。
+    return {"id": file.id, "title": file.title, "updated_at": file.updated_at.isoformat()}
 
 
 def _is_deleted(db_session, file: File) -> bool:
@@ -162,6 +163,39 @@ def test_only_the_safe_candidates_of_a_mixed_batch_are_removed(db_session):
 
     assert [item["id"] for item in removed] == [empty.id]
     assert _is_deleted(db_session, written) is False
+
+
+def test_placeholder_the_author_renamed_after_creation_is_kept(db_session):
+    """本轮新建的空文件，作者在别处改了标题（版本前进）：退还的停止不把它当占位文件删掉。
+
+    候选从计费 tracker 看到的 create_file 结果来，带着建好时的版本；删除前比的是这个版本，
+    不是删除时刚读到的版本。"""
+    from agent.core.stream_billing import StreamBillingTracker
+    from config.datetime_utils import advance_timestamp, utcnow
+
+    project = _project(db_session)
+    placeholder = _file(db_session, project, "AI 起的标题")
+    tracker = StreamBillingTracker()
+    tracker.observe(_created(placeholder.id, placeholder.title, updated_at=placeholder.updated_at.isoformat()))
+    candidates = tracker.removable_placeholders()
+
+    placeholder.title = "作者改的标题"
+    placeholder.updated_at = advance_timestamp(placeholder.updated_at, now=utcnow())
+    db_session.add(placeholder)
+    db_session.commit()
+
+    assert remove_empty_placeholders(project.id, candidates) == []
+    assert _is_deleted(db_session, placeholder) is False
+    assert db_session.get(File, placeholder.id).title == "作者改的标题"
+
+
+def test_placeholder_without_its_creation_version_is_kept(db_session):
+    """说不出建好时版本的候选不删（宁可留一个空文件，也不删可能被作者动过的文件）。"""
+    project = _project(db_session)
+    placeholder = _file(db_session, project, "第4章")
+
+    assert remove_empty_placeholders(project.id, [{"id": placeholder.id, "title": "第4章"}]) == []
+    assert _is_deleted(db_session, placeholder) is False
 
 
 # ------------------------------------------------------------------------- record_round_outcome

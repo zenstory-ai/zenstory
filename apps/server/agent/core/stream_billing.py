@@ -173,6 +173,8 @@ class StreamBillingTracker:
     first_output_ms: int | None = None
     # 本轮 create_file 新建、当时还是空白的文件：id -> 标题（文件夹、复用已有文件不算）。
     created_empty_files: dict[str, str] = field(default_factory=dict)
+    # 同一批文件在 create_file 结果里的版本（updated_at）：退还时只删版本仍是它的文件。
+    created_empty_versions: dict[str, str] = field(default_factory=dict)
     # 收到过非空流式正文的文件 id。
     filled_file_ids: set[str] = field(default_factory=set)
     # session_started 帧里的聊天会话 id（停止路径的 done 帧带上它）。
@@ -243,9 +245,14 @@ class StreamBillingTracker:
             self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
 
     def removable_placeholders(self) -> list[dict[str, str]]:
-        """本轮新建、之后也没收到任何正文的文件（候选；落库前还要再查一次是否为空）。"""
+        """本轮新建、之后也没收到任何正文的文件（候选；落库前还要再查一次是否为空、版本是否未变）。"""
         return [
-            {"id": file_id, "title": title}
+            {
+                "id": file_id,
+                "title": title,
+                **({"updated_at": self.created_empty_versions[file_id]}
+                   if file_id in self.created_empty_versions else {}),
+            }
             for file_id, title in self.created_empty_files.items()
             if file_id not in self.filled_file_ids
         ]
@@ -276,6 +283,9 @@ class StreamBillingTracker:
             and data.get("empty_by_request") is not True
         ):
             self.created_empty_files[file_id] = str(data.get("title") or "")
+            version = data.get("updated_at")
+            if isinstance(version, str) and version:
+                self.created_empty_versions[file_id] = version
 
     def _write_effect(self, event_type: str, payload: dict[str, Any]) -> bool:
         """这一帧是否意味着某个文件被写进了正文（或被删除）、项目信息被改了。"""

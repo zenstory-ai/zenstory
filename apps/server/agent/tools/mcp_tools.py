@@ -2110,7 +2110,9 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         if reservation is not None:
             file_id = result.get("id", "")
             if file_id and not _is_folder_file_type(result, args):
-                created_version = result.get("updated_at")
+                # 只有本轮新建的文件记下建好时的版本（之后补不成可以回滚）；复用的既有空文件
+                # 照样等正文，但不是本轮产物，不记版本，回滚不删它。
+                created_version = None if result.get("reused_existing") is True else result.get("updated_at")
                 ToolContext.bind_pending_empty_file(
                     reservation, file_id, title, created_version if isinstance(created_version, str) else None
                 )

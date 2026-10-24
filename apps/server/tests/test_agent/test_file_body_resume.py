@@ -858,3 +858,48 @@ def test_rollback_keeps_a_file_changed_between_verification_and_delete(workspace
     assert rolled_back == set()
     session.expire_all()
     assert session.get(File, draft.id).is_deleted is False
+
+
+# ------------------------------------- 只有本轮新建的空文件可以回滚：复用的既有空白剧集不是本轮产物
+
+
+def _blank_episode(workspace) -> tuple[File, File]:
+    """剧本作品里作者此前就有的空白第1集（本轮之前建好、从未写过）。"""
+    workspace.project.project_type = "screenplay"
+    workspace.session.add(workspace.project)
+    folder = File(id=f"{workspace.project.id}-script-folder", project_id=workspace.project.id, title="剧本",
+                  content="", file_type="folder")
+    workspace.session.add(folder)
+    workspace.session.flush()
+    episode = File(project_id=workspace.project.id, parent_id=folder.id, title="第1集", content="",
+                   file_type="script", order=1)
+    workspace.session.add(episode)
+    workspace.session.commit()
+    workspace.session.refresh(episode)
+    return folder, episode
+
+
+def test_reused_blank_episode_is_writable_but_never_a_rollback_target(workspace):
+    """create_file 复用了已有的空白剧集：照样等正文，但没有「本轮建好时的版本」，回滚不删它。
+
+    （独立审查的合成复现：复用结果的版本被当成本轮建档版本，从未动过的旧空白剧集被软删。）
+    """
+    from agent.graph.writing_graph import _rollback_unfinished_empty_files, _with_creation_versions
+    from agent.tools.mcp_tools import _create_file_sync
+
+    folder, episode = _blank_episode(workspace)
+    ToolContext.set_context(
+        workspace.session, workspace.user.id, workspace.project.id, "s", author_message="写第1集", read_snapshots={}
+    )
+    try:
+        _create_file_sync({"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1})
+        # 复用的就是这一集（没有另建），它仍在等正文。
+        assert ToolContext.get_pending_empty_files() == [{"file_id": episode.id, "title": "第1集"}]
+        rolled_back = _rollback_unfinished_empty_files(_with_creation_versions(ToolContext.get_pending_empty_files()))
+    finally:
+        ToolContext.clear_context()
+
+    assert rolled_back == set()
+    workspace.session.expire_all()
+    assert workspace.session.get(File, episode.id).is_deleted is False
+
