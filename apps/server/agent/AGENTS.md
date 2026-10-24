@@ -96,10 +96,11 @@ agent/
    `MessageManager.build_system_prompt` 建只含跨轮、跨角色不变内容的系统提示，`build_turn_context` 建本轮上下文
    （拼进本轮用户消息，见「上下文与跨轮记忆」），`ToolContext.set_context` 设置工具上下文，然后
    `StreamAdapter.process_workflow_events(run_writing_workflow_streaming(...))`，结束时保存历史。
-3. `run_writing_workflow_streaming`（`graph/writing_graph.py`）选初始 agent，顺序是：`resume_route_after_exhaustion`
-   （上一轮截停后只回「继续」）→ 笼统要求先问清楚 → `inherit_routing_after_clarification`（仅 llm 策略）→
-   `router_node`（llm）或固定从 writer 开始（off）。策略来自 `AGENT_ROUTER_STRATEGY`；前端 `generation_mode=fast`
-   （前端默认）照常走 llm 路由、只关自动质检，`quality` 强制 llm 并开自动质检。[fast-mode-default][n-fast-default]之后循环跑 agent，直到完成或达到协作轮数上限。
+3. `run_writing_workflow_streaming`（`graph/writing_graph.py`）使用现有 `router_node` 的结构化决策选择角色；
+   不按「继续」词表、短答字数、只读关键词或笼统改稿正则绕过路由。`turn_disposition` 区分新/变更请求、
+   中断续接和澄清作答；只有匹配可信持久化状态才继承，权限只收窄。`AGENT_ROUTER_STRATEGY=off` 普通请求仍固定 writer，
+   但存在可信中断/澄清状态时也走同一个 router，避免续接丢失范围。前端 `generation_mode=fast` 照常路由、只关自动质检，
+   `quality` 强制 llm 并开自动质检。[fast-mode-default][n-fast-default]之后循环直到完成或协作轮数上限。
 4. `nodes.run_streaming_agent`：共用系统提示 + `nodes.build_agent_directive`（角色提示 + `scope_directive` 等，作为这次输入的最后一条消息）
    → `openai_agents/runner.run_openai_agents_streaming_agent`。[cache-stable-prompt-layout][n-cache-layout]
    runner 用 `Runner.run_streamed` 跑 SDK，事件映射：`response.output_text.delta` → TEXT，reasoning delta → THINKING，
@@ -134,24 +135,23 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 ### Router
 
 - 输入：用户本轮原话；有上一条 assistant 消息时，user 消息为 `[上一轮助手结尾]`（最后 600 字 + 状态卡摘要）+
-  `[上一轮路由]`（落库 routing 的一行 JSON）+ `[用户本轮原话]`（`build_router_user_message`，系统提示不变）。确定性的延续（见上文第 3 步）先于 LLM 路由，命中时不调路由模型。
-  ROUTER_PROMPT 区分补问作答（沿用上一轮全部路由字段）和确认提议的下一步（按那一步路由，不沿用
+  `[上一轮路由]`（落库 routing 的一行 JSON）+ `[用户本轮原话]`（`build_router_user_message`，系统提示不变）。另附可信停止/待澄清状态、结构化问题和本轮真实选区/引用存在标记；不从正文标签猜这些事实。
+  ROUTER_PROMPT 区分补问作答、中断续接和确认提议的下一步（按那一步路由，不沿用
   read_only=true / write_content=false / 已交付的 scope）。
   作者在这部作品里的第一条消息（`service.FIRST_MESSAGE_ENTRIES`，会话里还没有 AI 回复）时 user 消息为
   `[新作品的第一条消息]`（作品类型）+ `[用户本轮原话]`，ROUTER_PROMPT 按「先写再给方向」判断交付范围；模型输入另附
   `service.first_message_hint`（不落库）。[first-turn-writes][n-first-turn]
 - 输出：`current_agent`、`workflow_plan`、`workflow_agents`（已裁剪）、`routing_metadata`（`RouterDecision` 全量，含
-  `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`requested_file_types`；ROUTER_PROMPT 要求 scope <= 40 字，`MAX_SCOPE_CHARS`=80 硬截断）。
-- 决策记录：[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
+  `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`requested_file_types`，以及可选严格 `turn_disposition` / `clarify_first`）。缺新字段按普通成功路由、不继承；显式非法技术失败并保留真实 usage。普通旧格式 scope 保留80字符兼容；真实继承不截断旧限制或新收窄，服务端 `scope_constraints` 最多8项、每项80字符、JSON2048字符，完整跨轮持久化；超限在工具前失败。requested types 沿用旧列表，不扩张并集。
+- 决策记录：[semantic-routing-and-evidence](../../../.agents/notes/implemented/bug-fix/2026-10-24-agent-semantic-routing-and-evidence.md)、[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
 
 ### 用户范围与交接规则
 
 - **等作者回答使用结构化事件**：需要回答才能继续时调用 `request_clarification`，普通问号和条件句不控制计划交接；跨轮延续只认落库的 `clarification_pending`，不从回复标点猜等待状态。参见 [typed-boundaries][n-typed-boundaries]。
 - **计划交接不扩大交付**：交接说明固定追加 `author_scope.PLANNED_HANDOFF_SCOPE_NOTE`（已完成的不重做、不改刚交付的文件、
   不追加作者没要的产出）。[vague-and-plan-files][n-vague]
-- **笼统要求先问清楚**：`author_scope.is_vague_edit_request` 命中时不走路由，writer 单独一轮先问（`state["clarify_first"]`，写文件
-  工具以 `error_type="clarify_first"` 拒绝，显式交接丢弃）；上一轮只提了一处修改或已经问过一次时不问。[vague-and-plan-files][n-vague]
-- **规划补写只认结构化请求类型**：Router 明确给出 `requested_file_types` 且包含 outline 时，规划师在聊天里交付多章规划、未写入大纲文件才有一次纠偏；缺少/非法类型或未请求大纲不从作者措辞补写。参见 [typed-boundaries][n-typed-boundaries]。
+- **补问由结构化路由决定**：`clarify_first=true` 时本轮不写文件、不交接，复用现有拒写工具与 request_clarification；不按词表/选区文字标记判断。技术路由故障不伪装成「请再说清楚」。
+- **规划补写只认请求类型和真实产物**：明确 requested_file_types 含 outline、planner 正常结束、无任何待交接/异常停止、非只读/补问、有剩余轮数且本请求写过的真实 typed 文件中没有非空 outline，最多补一次；读取失败不补，不按聊天章号或80%覆盖判断。
 - **作者改了什么给模型看，不猜授权**：`tools/author_changes.py` 按版本历史算净差异放进 `<author_edits>`（`query_files` 按 id 读全文时也带）；
   `edit_file` 在锁内比对本请求模型看过的正文（`mcp_tools._ReadSnapshots`，读到的内容由 `usage_hooks.ReadSnapshotPromotionMixin`
   在下一次模型调用起生效；换 agent 时清空，同一 agent 接着跑时保留），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。
@@ -161,14 +161,14 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   英文过程句不发给作者。[no-english-narration][n-narration]
 - **只给作者一份总结**：writer（非快速模式、非返修、未到审查上限，且开着自动质检门或计划里下一个是 quality_reviewer）写正文类文件、
   可能送审时（create_file 的正文还没写出来；edit_file / write_chapter 累计字数到了送审阈值；或计划送审）图发 `CHAT_HOLD(begin)`，StreamAdapter 扣住之后的对话文字（正文不扣）；真的交给
-  quality_reviewer 时在 HANDOFF 前发 `CHAT_HOLD(discard)`，由审稿人（或返修后的 writer）写唯一总结，writer 的问题以
-  `[内容创作者要问作者的问题]` 交给它们；不送审时扣着的文字在下一个 agent / 交接 / 收尾 / 出错事件前或流结束时原样放出
+  quality_reviewer 时在 HANDOFF 前发 `CHAT_HOLD(discard)`，由审稿人（或返修后的 writer）写唯一总结，writer 的有界原话以
+  `[上一角色未展示的回复]` 交给它们（仅最后闭合 file 之后、600字符含截断标记，不含文件正文，不是新授权）；不送审时扣着的文字在下一个 agent / 交接 / 收尾 / 出错事件前或流结束时原样放出
   （run 中途的 STEERING_RECEIVED 不放出）。CHAT_HOLD 不发给前端。[single-summary][n-summary]
-  质量门可用且作者要正文时，writer 前的原计划可写角色也按成功正文写入扣留；同一交付的累计正文达到门槛、实际沿计划前缀交接且没有收尾问题才丢弃，
-  正文记录接续给 writer。只有规划、失败写入、未执行交接和提问原样释放。[planned-body-review][n-planned-body]
-- **送审证据用落库后的事实**：送审交接附 `[本轮正文字数]`（落库后的 `count_words`）和 `[作者的篇幅要求]`
-  （`review_evidence.find_length_requirements`：原话 + `length_requirement_bounds` 换算的达标区间，单个目标数 ±15%，
-  范围和上下限是硬要求；区间内不算缺陷），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
+  质量门可用且作者要正文时，writer 前的原计划可写角色也按成功正文写入扣留；同一交付的累计正文达到门槛、实际沿计划前缀交接才丢弃，不按问号决定；未展示原话交接下游，
+  正文记录接续给 writer。只有规划、失败写入、未执行交接和结构化澄清原样释放。[planned-body-review][n-planned-body]
+- **送审证据用落库后的事实**：送审交接附 `[本轮正文字数]`（落库后的 `count_words`）和 `[作者要求来源摘录（可能包含无关内容）]`
+  （`review_evidence.quote_author_requirement_sources`：来源标记和有预算的原话，不按数字/否定正则换算要求；
+  写作/审稿在原调用中理解上下文、最新要求和范围；摘录不代表新增授权），读取有时间上限、超时用已读到的；`[待审查内容]` 取本请求写过的正文落库后的样子，
   放不进预算的长文件只附本请求改动的那段（写入前正文由 `ToolContext.remember_pre_write_content` 记下）。
   多文件在既有总预算内逐文件分配，每份保留来源文件 ID 与 `updated_at`；附了全文的来源行写「以下是全文，不用再读取」，未附全文的部分明确标注，按 ID 精确 `query_files` 按章节读取，不把省略部分当作已经核对。返修交接的 `[返修对象当前正文]` 只附审稿意见点到的文件。
   [single-summary][n-summary]、[writer-delivery-requirements][n-length]、[thinking-loop-inputs][n-thinking]、[quality-mode-lean][n-lean]
@@ -190,7 +190,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `state["messages"]`；系统提示里固定写明它与系统提示同等效力），每次跑 agent 前按当前 agent 重新生成（「规划完直接交接 writer」只给规划类角色）；
   计划交接的 `handoff_packet.todo` 带用户 `scope`。角色提示、截断续写、篇幅要求、快速模式同样放在这里，不进系统提示。
   [scope][n-scope]、[cache-stable-prompt-layout][n-cache-layout]
-- **空文件纠偏轮由建空文件的 agent 自己补写**；被纠偏打断的一轮若以提问收尾，「等用户回答」带过纠偏轮。[scope][n-scope]
+- **空文件纠偏轮由建空文件的 agent 自己补写**；被纠偏打断一轮的有界回复原话带过纠偏轮，不从标点推断等待状态。[scope][n-scope]
 - **写完 `</file>` 就结束 run 时同一 agent 续写**：有写权限的 agent 这次 run 里 create_file 成功、最后的文字以写完的 `<file>` 正文
   结束（`completion_evidence.ends_on_file_block`），且没有显式交接、澄清、轮数耗尽、错误时，同一 agent 再跑一轮（交接说明以
   `FILE_STREAM_CONTINUATION_MARKER` 开头）；放在计划交接 / 自动质检之前，正文与正文写入记录接续给续写轮；受 `max_iterations` 约束，

@@ -91,360 +91,6 @@ async def _run_graph(fake_agent, state, *, router=None, auto_review_threshold=10
         ToolContext.clear_context()
 
 
-# ------------------------------------------------------------ 「继续」直达
-
-
-@pytest.mark.unit
-def test_continue_after_read_only_review_resumes_reviewer_with_its_scope():
-    """正文非空时也能拿到上一个 agent：只读审查被截停后「继续」不会变成 writer。"""
-    from agent.graph.router import resume_route_after_exhaustion
-
-    previous = {
-        "content": "阶段总结：前 30 章已核对……\n\n[此前的工具操作]\n- 读取了《第一章》(id=c1)",
-        "stop_reason": "max_turns_exceeded",
-        "last_agent": "quality_reviewer",
-        "routing": {
-            "initial_agent": "quality_reviewer",
-            "workflow_type": "review_only",
-            "read_only": True,
-            "write_content": False,
-            "scope": "前60章一致性",
-        },
-    }
-    result = resume_route_after_exhaustion(_state("继续", previous))
-
-    assert result is not None
-    assert result["current_agent"] == "quality_reviewer"
-    assert result["workflow_plan"] == "review_only"
-    metadata = result["routing_metadata"]
-    assert metadata["read_only"] is True
-    assert metadata["write_content"] is False
-    assert metadata["scope"] == "前60章一致性"
-
-
-@pytest.mark.unit
-def test_continue_falls_back_to_persisted_routing_agents():
-    from agent.graph.router import resume_route_after_exhaustion
-
-    routing = {"initial_agent": "planner", "workflow_type": "standard", "write_content": True}
-    previous = {"content": "规划到一半……", "stop_reason": "no_progress", "routing": routing}
-    assert resume_route_after_exhaustion(_state("继续", previous))["current_agent"] == "planner"
-
-    previous["routing"] = {**routing, "last_agent": "writer"}
-    assert resume_route_after_exhaustion(_state("继续", previous))["current_agent"] == "writer"
-
-    previous.pop("routing")
-    assert resume_route_after_exhaustion(_state("继续", previous)) is None
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(("routing", "resumed", "remaining"), [
-    # planner -> writer interrupted while planning: the writer stage is still owed (#269).
-    ({"initial_agent": "planner", "workflow_type": "standard", "write_content": True,
-      "scope": "先规划，再写第1—3章", "last_agent": "planner"}, "planner", ["writer"]),
-    # full: interrupted in hook_designer, only the writer is left.
-    ({"initial_agent": "planner", "workflow_type": "full", "write_content": True,
-      "last_agent": "hook_designer"}, "hook_designer", ["writer"]),
-    # Already in the last stage: nothing more is planned.
-    ({"initial_agent": "planner", "workflow_type": "standard", "write_content": True,
-      "last_agent": "writer"}, "writer", []),
-    # Outline only: the trimmed plan never had a writer.
-    ({"initial_agent": "planner", "workflow_type": "standard", "write_content": False,
-      "last_agent": "planner"}, "planner", []),
-    # Read-only and review rounds never gain a writing stage.
-    ({"initial_agent": "planner", "workflow_type": "standard", "read_only": True,
-      "last_agent": "planner"}, "planner", []),
-    ({"initial_agent": "writer", "workflow_type": "quick", "write_content": True,
-      "last_agent": "quality_reviewer"}, "quality_reviewer", []),
-])
-def test_continue_resumes_the_rest_of_the_interrupted_plan(routing, resumed, remaining):
-    from agent.graph.router import resume_route_after_exhaustion
-
-    previous = {"content": "写到一半", "stop_reason": "run_deadline_exceeded", "routing": routing}
-    result = resume_route_after_exhaustion(_state("继续", previous))
-
-    assert result["current_agent"] == resumed
-    assert result["workflow_agents"] == remaining
-    assert result["routing_metadata"]["scope"] == routing.get("scope", "")
-    assert result["routing_metadata"]["read_only"] is (routing.get("read_only") is True)
-    if remaining:
-        assert result["workflow_plan"] == routing["workflow_type"]
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "stop_reason", ["model_call_budget_exhausted", "run_deadline_exceeded", "output_truncated"]
-)
-def test_budget_and_deadline_stops_are_resumable(stop_reason):
-    from agent.graph.router import resume_route_after_exhaustion
-
-    previous = {"content": "写到一半", "stop_reason": stop_reason, "last_agent": "writer"}
-    assert resume_route_after_exhaustion(_state("继续", previous)) is not None
-
-
-@pytest.mark.unit
-def test_user_cancelled_turn_is_not_resumed_by_bypass():
-    from agent.graph.router import resume_route_after_exhaustion
-
-    previous = {"content": "写到一半", "stop_reason": "cancelled"}
-    assert resume_route_after_exhaustion(_state("继续", previous)) is None
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "message",
-    [
-        "继续",
-        "continue",
-        "Continue.",
-        "请基于上一步结果继续完成剩余任务，优先最关键目标。",
-        "Please continue from the previous result and finish the remaining work, "
-        "prioritizing the most critical goal.",
-    ],
-)
-def test_continue_button_new_and_old_prompts_both_take_the_bypass(message):
-    from agent.graph.router import resume_route_after_exhaustion
-
-    previous = {"content": "写到一半", "stop_reason": "max_turns_exceeded", "last_agent": "writer"}
-    assert resume_route_after_exhaustion(_state(message, previous)) is not None
-
-
-# ------------------------------------------------- 回答提问时沿用上一轮路由
-
-
-@pytest.mark.unit
-def test_reply_to_clarification_card_inherits_full_routing():
-    from agent.graph.router import inherit_routing_after_clarification
-
-    previous = {
-        "content": "[workflow_stopped]\nreason: clarification_needed\nquestion: 主角叫什么？",
-        "clarification_pending": True,
-        "routing": {
-            "initial_agent": "planner",
-            "workflow_type": "standard",
-            "read_only": False,
-            "write_content": False,
-            "scope": "只要两个主角人设",
-            "last_agent": "planner",
-        },
-    }
-    result = inherit_routing_after_clarification(_state("主角叫陈默，金手指是读心", previous))
-
-    assert result is not None
-    assert result["current_agent"] == "planner"
-    assert result["workflow_plan"] == "standard"
-    assert result["workflow_agents"] == [], "write_content=false 仍剔除 writer"
-    assert result["routing_metadata"]["scope"] == "只要两个主角人设"
-    assert result["routing_metadata"]["reason"] == "inherit_after_clarification"
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "assistant_content",
-    [
-        "第一章写好了。需要我继续写第二章吗？\n\n[此前的工具操作]\n- 创建了《第一章》(id=c1)",
-        "第一章写好了。如果你愿意，我可以继续写第二章。",
-    ],
-)
-def test_short_yes_to_question_or_conditional_prose_routes_normally_without_structured_clarification(
-    assistant_content,
-):
-    from agent.graph.router import inherit_routing_after_clarification
-
-    previous = {
-        "content": assistant_content,
-        "routing": {
-            "initial_agent": "writer",
-            "workflow_type": "quick",
-            "read_only": False,
-            "write_content": True,
-            "scope": "只写第1章",
-            "last_agent": "writer",
-        },
-    }
-    assert inherit_routing_after_clarification(_state("可以", previous)) is None
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    ("reply", "previous_routing", "content"),
-    [
-        # 带了新要求的长回复交给 LLM 路由
-        ("可以，不过第二章要把师父的身世也交代清楚，再加一场山门外的打斗，节奏快一点，结尾留个钩子", None, None),
-        # 明确收窄
-        ("可以，先别写正文", None, None),
-        ("只要大纲", None, None),
-        # 上一轮是只读：问话很可能在征求放开限制，不能沿用成禁令
-        ("可以", {"read_only": True}, None),
-        ("可以", {"write_content": False}, None),
-        # 上一轮没有提问
-        ("可以", None, "第一章写好了。"),
-    ],
-)
-def test_reply_routes_normally_when_inheritance_is_unsafe(reply, previous_routing, content):
-    from agent.graph.router import inherit_routing_after_clarification
-
-    routing = {
-        "initial_agent": "writer",
-        "workflow_type": "quick",
-        "read_only": False,
-        "write_content": True,
-        "scope": "",
-        "last_agent": "writer",
-    }
-    routing.update(previous_routing or {})
-    previous = {"content": content or "第一章写好了。需要我继续写第二章吗？", "routing": routing}
-    assert inherit_routing_after_clarification(_state(reply, previous)) is None
-
-
-_WRITER_QUESTION_TURN = {
-    "content": "第一章写好了，已保存。要不要接着写第二章？",
-    "routing": {
-        "initial_agent": "writer",
-        "workflow_type": "quick",
-        "read_only": False,
-        "write_content": True,
-        "scope": "",
-        "last_agent": "writer",
-    },
-}
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "reply",
-    [
-        # 只读 / 审查意图：沿用 writer 会让它在用户说了不改之后照样改稿
-        "只审不改，看看第一章",
-        "帮我审查一下第一章",
-        "第一章有没有问题？",
-        "先别改，只帮我看看",
-        "Just review chapter 1, don't change it",
-        # 换成规划类任务：交给 LLM 路由重新选 agent
-        "给后面十章列个大纲",
-        "先补一下反派的人设",
-        "outline the next arc",
-    ],
-)
-def test_reply_switching_to_review_or_planning_after_writer_question_routes_normally(reply):
-    from agent.graph.router import inherit_routing_after_clarification
-
-    assert inherit_routing_after_clarification(_state(reply, _WRITER_QUESTION_TURN)) is None
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize("reply", ["只审不改", "帮我审查一下第一章", "先别改，看看就行"])
-def test_review_reply_to_writer_clarification_card_routes_normally(reply):
-    from agent.graph.router import inherit_routing_after_clarification
-
-    previous = {
-        **_WRITER_QUESTION_TURN,
-        "content": "[workflow_stopped]\nreason: clarification_needed\nquestion: 要写哪一章？",
-        "clarification_pending": True,
-    }
-    assert inherit_routing_after_clarification(_state(reply, previous)) is None
-
-
-@pytest.mark.unit
-def test_planning_words_inside_a_clarification_answer_still_inherit():
-    from agent.graph.router import inherit_routing_after_clarification
-
-    previous = {
-        "content": "[workflow_stopped]\nreason: clarification_needed\nquestion: 主角人设按哪版来？",
-        "clarification_pending": True,
-        "routing": {**_WRITER_QUESTION_TURN["routing"], "initial_agent": "planner", "last_agent": "planner"},
-    }
-    result = inherit_routing_after_clarification(_state("按第二版人设", previous))
-
-    assert result is not None
-    assert result["current_agent"] == "planner"
-
-
-# 上一轮是 writer 的任务，写完后自动审稿（或 writer 送审）交给了 quality_reviewer：
-# 审稿人在结尾提问，作者的回答要交回负责任务的 writer（审稿人没有写文件的工具）。
-_WRITER_TASK_REVIEWED = {
-    "initial_agent": "writer",
-    "workflow_type": "quick",
-    "read_only": False,
-    "write_content": True,
-    "scope": "第四节",
-    "requested_file_types": ["draft"],
-    "last_agent": "quality_reviewer",
-}
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    ("routing", "expected"),
-    [
-        # 落库没有 owner_agent 的旧数据：审稿人不是本轮任务的负责人，交回 initial_agent。
-        (_WRITER_TASK_REVIEWED, "writer"),
-        # 新数据：planner 交给 writer 写、writer 送审，负责任务的是 writer。
-        ({**_WRITER_TASK_REVIEWED, "initial_agent": "planner", "workflow_type": "standard",
-          "owner_agent": "writer"}, "writer"),
-        # 上一轮明确是审稿任务：照旧沿用审稿人。
-        ({"initial_agent": "quality_reviewer", "workflow_type": "review_only", "read_only": False,
-          "write_content": None, "scope": "", "last_agent": "quality_reviewer",
-          "owner_agent": "quality_reviewer"}, "quality_reviewer"),
-    ],
-)
-def test_reply_after_a_recorded_review_clarification_goes_to_the_task_owner(routing, expected):
-    from agent.graph.router import build_router_user_message, inherit_routing_after_clarification
-
-    previous = {
-        "content": "[workflow_stopped]\nreason: clarification_needed\nquestion: 要把那句交代写实一点吗？",
-        "clarification_pending": True,
-        "routing": routing,
-    }
-    result = inherit_routing_after_clarification(_state("可以", previous))
-
-    assert result is not None
-    assert result["current_agent"] == expected
-    # LLM 路由看到的「上一轮的 agent」也是负责任务的那个。
-    summary = build_router_user_message(_state("按第三条改", previous))
-    assert f'"last_agent": "{expected}"' in summary
-
-
-@pytest.mark.unit
-def test_reply_without_persisted_routing_routes_normally():
-    from agent.graph.router import inherit_routing_after_clarification
-
-    previous = {"content": "需要我继续写第二章吗？"}
-    assert inherit_routing_after_clarification(_state("可以", previous)) is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_graph_reuses_previous_routing_without_calling_the_router():
-    calls: list[str] = []
-
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append(agent_type)
-        yield _text("大纲已按陈默的设定补全。")
-
-    previous = {
-        "content": "",
-        "clarification_pending": True,
-        "routing": {
-            "initial_agent": "planner",
-            "workflow_type": "standard",
-            "read_only": False,
-            "write_content": False,
-            "scope": "只要大纲",
-            "last_agent": "planner",
-        },
-    }
-    router = AsyncMock(return_value={"current_agent": "writer", "workflow_agents": []})
-    events = await _run_graph(
-        fake_agent, _state("主角叫陈默", previous, generation_mode="quality"), router=router
-    )
-
-    router.assert_not_called()
-    assert calls == ["planner"]
-    decided = next(e for e in events if e.type == StreamEventType.ROUTER_DECIDED)
-    assert decided.data["routing_metadata"]["write_content"] is False
-
-
 # ---------------------------------------------------------- 审稿闸门（F9）
 
 
@@ -646,16 +292,21 @@ def test_internal_evidence_markers_are_not_rendered():
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "content",
-    ["审查通过，可以发布。\n[任务完成]", "审查通过。【任务完成】", "审查通过。[TASK_COMPLETE]\n"],
+    ("content", "visible"),
+    [
+        ("审查通过，可以发布。\n[任务完成]", "审查通过，可以发布。"),
+        ("审查通过。【任务完成】", "审查通过。"),
+        ("审查通过。[TASK_COMPLETE]\n", "审查通过。"),
+    ],
 )
-def test_chinese_task_complete_marker_counts_as_completion(content):
-    from agent.graph.nodes import detect_task_complete, ends_with_question_to_user
+def test_chinese_task_complete_marker_counts_as_completion(content, visible):
+    from agent.graph.completion_evidence import author_reply_tail
+    from agent.graph.nodes import detect_task_complete
 
     result = detect_task_complete(content, "quality_reviewer")
     assert result.is_complete is True
     assert result.reason == "explicit_complete_marker"
-    assert ends_with_question_to_user(content) is False
+    assert author_reply_tail(content) == visible
 
 
 @pytest.mark.unit
@@ -666,10 +317,12 @@ def test_chinese_marker_mid_text_is_not_completion():
 
 
 @pytest.mark.unit
-def test_question_before_chinese_marker_still_counts_as_question():
-    from agent.graph.nodes import ends_with_question_to_user
+def test_question_prose_and_completion_marker_are_preserved_independently():
+    from agent.graph.completion_evidence import author_reply_tail
 
-    assert ends_with_question_to_user("第一章写好了。需要我继续写第二章吗？\n[任务完成]") is True
+    assert author_reply_tail("第一章写好了。需要我继续写第二章吗？\n[任务完成]") == (
+        "第一章写好了。需要我继续写第二章吗？"
+    )
 
 
 @pytest.mark.asyncio
@@ -900,12 +553,44 @@ def _latest_assistant(db_session: Session, project_id: str):
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("writing_prompt_configs")
+async def test_service_passes_real_selected_and_reference_facts_to_router_state(
+    routing_service, routing_service_project, db_session: Session
+):
+    captured: dict = {}
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+
+    async def events():
+        yield _router_decided("quality_reviewer", "review_only", read_only=True)
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    def workflow(state, **_kwargs):
+        captured.update(state)
+        return events()
+
+    with patch("agent.service.run_writing_workflow_streaming", side_effect=workflow):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="看看这里",
+            selected_text="被选中的一段",
+            metadata={"attached_file_ids": ["synthetic-file-id"]},
+            session=db_session,
+        ):
+            pass
+
+    assert captured["has_selected_text"] is True
+    assert captured["has_referenced_files"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
 async def test_routing_round_trips_from_save_to_next_turn_resume(
     routing_service, routing_service_project, db_session: Session
 ):
     """本轮落库的路由，下一轮加载历史后能让「继续」恢复成只读审稿人。"""
     from agent.core.session_loader import SessionLoader
-    from agent.graph.router import resume_route_after_exhaustion
+    from agent.graph.router import RouterDecision, _resolve_turn_decision
 
     project = routing_service_project["project"]
     user = routing_service_project["user"]
@@ -935,6 +620,7 @@ async def test_routing_round_trips_from_save_to_next_turn_resume(
         "read_only": True,
         "write_content": False,
         "scope": "前60章",
+        "scope_constraints": [],
         "requested_file_types": [],
         "last_agent": "quality_reviewer",
         "owner_agent": "quality_reviewer",
@@ -946,10 +632,19 @@ async def test_routing_round_trips_from_save_to_next_turn_resume(
         "router_message": "继续",
         "messages": history + [{"role": "user", "content": "继续"}],
     }
-    resumed = resume_route_after_exhaustion(state)
-    assert resumed is not None
-    assert resumed["current_agent"] == "quality_reviewer"
-    assert resumed["routing_metadata"]["read_only"] is True
+    resumed, metadata = _resolve_turn_decision(
+        state,
+        RouterDecision(
+            agent_type="writer",
+            workflow_type="quick",
+            turn_disposition="resume_interrupted_task",
+            read_only=False,
+            write_content=True,
+        ),
+    )
+    assert resumed.agent_type == "quality_reviewer"
+    assert resumed.read_only is True
+    assert metadata["scope_constraints"] == ["前60章"]
 
 
 @pytest.mark.asyncio
@@ -960,7 +655,7 @@ async def test_reviewer_reached_by_handoff_is_not_saved_as_the_task_owner(
     """I16：writer 写完交给审稿人（自动质量门控 / 送审），审稿人在结尾提问；作者回答时
     下一轮要回到 writer。落库的 last_agent 仍是最后说话的审稿人，owner_agent 是 writer。"""
     from agent.core.session_loader import SessionLoader
-    from agent.graph.router import inherit_routing_after_clarification
+    from agent.graph.router import RouterDecision, _resolve_turn_decision
 
     project = routing_service_project["project"]
     user = routing_service_project["user"]
@@ -1001,9 +696,17 @@ async def test_reviewer_reached_by_handoff_is_not_saved_as_the_task_owner(
         "router_message": "可以",
         "messages": history + [{"role": "user", "content": "可以"}],
     }
-    inherited = inherit_routing_after_clarification(state)
-    assert inherited is not None
-    assert inherited["current_agent"] == "writer"
+    inherited, _metadata = _resolve_turn_decision(
+        state,
+        RouterDecision(
+            agent_type="planner",
+            workflow_type="standard",
+            turn_disposition="answer_pending_clarification",
+            read_only=False,
+            write_content=True,
+        ),
+    )
+    assert inherited.agent_type == "writer"
 
 
 @pytest.mark.asyncio

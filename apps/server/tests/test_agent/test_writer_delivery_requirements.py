@@ -54,14 +54,14 @@ async def _run_delivery(state, fake_runner):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.parametrize("latest", ["续写第三章", "续写第三章，这章改为1200字左右"])
+@pytest.mark.parametrize("latest", ["续写第三章", "续写第三章，这章改为1200字左右", "续写第三章，这一章不用写满2000字"])
 async def test_first_writer_receives_history_and_latest_length_before_writing(delivery_project, latest):
     from agent.graph import writing_graph
     context = ToolContext._get_context()
     context["author_message"] = latest
     captured = []
     calls = []
-    collect = writing_graph._collect_length_requirement_sources
+    collect = writing_graph._collect_author_requirement_sources
 
     def record_sources():
         calls.append(True)
@@ -77,17 +77,20 @@ async def test_first_writer_receives_history_and_latest_length_before_writing(de
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "本轮尚无已保存正文，不报告完成。[TASK_COMPLETE]"})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
-    with patch.object(writing_graph, "_collect_length_requirement_sources", new=record_sources):
+    with patch.object(writing_graph, "_collect_author_requirement_sources", new=record_sources):
         await _run_delivery({"user_message": latest, "router_message": latest, "messages": [],
                              "system_prompt": "项目风格：自然口语，少形容词。"}, fake_runner)
     writer = next(prompt for role, prompt, _ in captured if role == "writer")
-    assert "[作者的篇幅要求]" in writer
+    assert "[作者要求来源摘录（可能包含无关内容）]" in writer
     assert "每章不少于1800字" in writer
     assert "作者在本会话说过" in writer
     if "1200" in latest:
         assert writer.index("1800") < writer.index("1200")
-        assert "后说的为准" in writer
+        assert "作者最新要求为准" in writer
         assert "作者本轮原话" in writer
+    if "不用写满" in latest:
+        assert latest in writer
+        assert "硬下限" not in writer
     reviewer_input = next(message for role, _, message in captured if role == "quality_reviewer")
     assert "每章不少于1800字" in reviewer_input
     if "1200" in latest:

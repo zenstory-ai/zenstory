@@ -43,6 +43,9 @@ async def test_untrusted_route_never_returns_a_writer_default(payload):
      "scope": "only outline", "requested_file_types": ["outline"]},
     {"agent_type": "reviewer-like", "workflow_type": "review-like", "read_only": True,
      "write_content": False, "scope": "review only"},
+    {"agent_type": "writer", "workflow_type": "quick", "turn_disposition": "continue-ish",
+     "write_content": True},
+    {"agent_type": "writer", "workflow_type": "quick", "clarify_first": "probably"},
 ])
 async def test_full_graph_stops_before_any_agent_or_tool_and_keeps_usage(payload):
     calls = []

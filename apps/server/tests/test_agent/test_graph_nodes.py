@@ -131,59 +131,30 @@ class TestAgentToolsMap:
 
 
 @pytest.mark.unit
-class TestQuestionToUserDetection:
-    """ends_with_question_to_user：保守地识别「agent 以向用户提问收尾」。"""
+class TestAuthorReplyTail:
+    """交接只做文件协议分隔，不根据问号或列表猜语义。"""
 
-    @pytest.mark.parametrize(
-        "text",
-        [
-            "大纲已完成。你觉得这个方向如何？",
-            "Should I start writing chapter 1?",
-            "需要我开始写第一章吗？😊",
-            "**要不要继续写第二章？**",
-            "你更倾向哪个方向？\n\n1. 热血升级\n2. 悬疑探案",
-            "请选择：主角是男是女？\n- 男\n- 女",
-            "<file>第一章正文……</file>\n\n正文已写好，需要调整节奏吗？",
-            "开写前请确认：\n1. 主角叫什么？\n2. 故事发生在哪个年代？",
-            "你更倾向哪个方向？\n1、热血升级\n2）悬疑探案\nA. 都市\n(b) 仙侠",
-            # 中文写法常省掉「.」后的空格，照样是选项列表
-            "你更倾向哪个方向？\n1.甜宠路线\n2.虐恋路线",
-        ],
-    )
-    def test_detects_question_endings(self, text):
-        from agent.graph.nodes import ends_with_question_to_user
+    def test_keeps_all_author_facing_text_after_last_closed_file(self):
+        from agent.graph.completion_evidence import author_reply_tail
 
-        assert ends_with_question_to_user(text) is True
+        assert author_reply_tail(
+            "<file>这是正文。他问：‘你是谁？’</file>\n\n"
+            "已保存第三章。\n- 改了开场\n- 保留了悬念\n[TASK_COMPLETE]"
+        ) == "已保存第三章。\n- 改了开场\n- 保留了悬念"
 
-    @pytest.mark.parametrize(
-        "text",
-        [
-            "",
-            "   ",
-            "大纲已创建完成。",
-            "你好吗？我已经把大纲写好了。",
-            "已创建以下文件：\n- 第1章 大纲\n- 主角人设",
-            # 台词里的问句不是在问用户
-            "“你到底是谁？”",
-            "<file>他问：“你是谁？”</file>",
-            # 未闭合的 <file> 块是正文，不是对话
-            "<file>他抬头问：你是谁？",
-            # 加粗的陈述行不是列表项，也不是问句
-            "大纲写好了，请过目：\n**第一卷 已完成。**",
-            # 大纲要点的最后一条恰好是悬念问句，不等于在问用户
-            "大纲要点：\n- 开场：林风被逐出宗门\n- 悬念：谁在暗中观察他？",
-            # 「1.5万字」「e.g.」开头的陈述句不是列表项：不能借上一行的问句被判成「提问 + 选项」
-            "开头节奏你满意吗？\n1.5万字的第一章已经写完。",
-            "要不要加一段回忆？\ne.g. 回忆放到第三章更自然。",
-            "要不要再压缩一点？\ne.g.回忆放到第三章更自然。",
-            # 只有一条列表项、恰好是问句：多半是要点里的设问，不算逐条提问
-            "大纲如下：\n- 悬念：谁在暗中观察？",
-        ],
-    )
-    def test_ignores_statements_dialogue_and_file_bodies(self, text):
-        from agent.graph.nodes import ends_with_question_to_user
+    def test_returns_empty_when_the_last_file_is_unclosed(self):
+        from agent.graph.completion_evidence import author_reply_tail
 
-        assert ends_with_question_to_user(text) is False
+        assert author_reply_tail("前置说明\n<file>仍在写入的正文？") == ""
+
+    def test_caps_the_complete_payload_including_truncation_marker(self):
+        from agent.graph.completion_evidence import author_reply_tail
+
+        result = author_reply_tail("<file>正文</file>\n" + "补" * 800, max_chars=600)
+
+        assert len(result) <= 600
+        assert "内容已截断" in result
+        assert "正文" not in result
 
 
 @pytest.mark.unit
@@ -226,10 +197,3 @@ class TestScopeDirectiveInjection:
 
         assert "## 当前角色：writer" in directive
         assert "本轮用户范围约束" not in directive
-
-
-@pytest.mark.unit
-def test_full_width_parenthesized_options_count_as_question():
-    from agent.graph.nodes import ends_with_question_to_user
-
-    assert ends_with_question_to_user("你更倾向哪个方向？\n（1）甜宠\n（2）虐恋") is True

@@ -2,7 +2,7 @@
 
 import json
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -47,8 +47,17 @@ async def test_only_output_truncation_continue_injects_system_guidance(reason, e
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": "已完成本轮指定修改。"})
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
+    from agent.graph.router import router_node
+
+    state = _state("接着把尚未完成的部分做完", _previous(reason))
+    response = {"content": [{"type": "text", "text": json.dumps({
+        "agent_type": "writer", "workflow_type": "quick",
+        "turn_disposition": "resume_interrupted_task",
+    })}]}
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
+        route = await router_node(state)
     with patch("agent.graph.nodes.run_openai_agents_streaming_agent", new=fake_runner):
-        await _run_graph(run_streaming_agent, _state("继续", _previous(reason)))
+        await _run_graph(run_streaming_agent, state, router=AsyncMock(return_value=route))
     assert captured
     assert ("上一步在思考阶段达到输出上限" in captured[0]) is expected
     if expected:
@@ -85,9 +94,9 @@ async def test_repeat_classification_uses_prior_assistant_metadata(monkeypatch, 
 
 @pytest.mark.unit
 def test_text_that_mentions_truncation_is_not_stop_metadata():
-    from agent.graph.router import resume_route_after_exhaustion
+    from agent.graph.router import has_pending_followup_state
     previous = {"role": "assistant", "content": "[output_truncated] reached cap", "stop_reason": "end_turn"}
-    assert resume_route_after_exhaustion(_state("继续", previous)) is None
+    assert has_pending_followup_state(_state("继续", previous)) is False
 
 
 @pytest.mark.unit

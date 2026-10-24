@@ -56,15 +56,24 @@ def test_existing_complete_syntax_repairs_preserve_restrictions(text):
     assert decision.scope == "Inspect only"
 
 
-def test_resume_without_a_valid_recorded_agent_routes_normally():
-    from agent.graph.router import resume_route_after_exhaustion
+def test_resume_with_malformed_recorded_agent_fails_closed():
+    from agent.graph.router import RouterDecision, RouterFailure, _resolve_turn_decision
     state = {"user_message": "继续", "messages": [{"role": "assistant", "content": "Synthetic pause.",
-             "stop_reason": "max_turns_exceeded", "last_agent": "unrecognized"}]}
-    assert resume_route_after_exhaustion(state) is None
+             "stop_reason": "max_turns_exceeded", "last_agent": "unrecognized",
+             "routing": {"initial_agent": "unrecognized", "workflow_type": "quick"}}]}
+    with pytest.raises(RouterFailure):
+        _resolve_turn_decision(state, RouterDecision(
+            agent_type="writer", workflow_type="quick",
+            turn_disposition="resume_interrupted_task",
+        ))
 
 
-def test_clarification_without_a_valid_task_owner_routes_normally():
-    from agent.graph.router import inherit_routing_after_clarification
+def test_clarification_with_malformed_task_owner_fails_closed():
+    from agent.graph.router import RouterDecision, RouterFailure, _resolve_turn_decision
     state = {"user_message": "B", "messages": [{"role": "assistant", "content": "A or B?",
              "clarification_pending": True, "routing": {"initial_agent": "unrecognized", "write_content": False}}]}
-    assert inherit_routing_after_clarification(state) is None
+    with pytest.raises(RouterFailure):
+        _resolve_turn_decision(state, RouterDecision(
+            agent_type="planner", workflow_type="standard",
+            turn_disposition="answer_pending_clarification",
+        ))

@@ -1,4 +1,4 @@
-"""LLM 路由能看到上一轮：助手结尾 + 落库路由拼进 user 消息（DeepSeek 客户端全部 mock）。
+"""LLM 路由只看到可信跨轮状态、落库路由与本轮结构化事实（客户端全部 mock）。
 
 分类效果要用真实模型探测验证，这里只验证管线：发给路由模型的消息长什么样、
 第一轮是否与改动前完全一致、系统提示是否保持稳定前缀。
@@ -54,6 +54,20 @@ WRITER_ROUTING = {
 }
 
 
+def test_first_project_turn_keeps_real_selection_facts_for_non_vague_editing():
+    from agent.graph.router import build_router_user_message
+
+    built = build_router_user_message({
+        "user_message": "润色一下", "messages": [],
+        "first_message_project_label": "长篇小说", "has_selected_text": True,
+        "has_referenced_files": True,
+    })
+    assert "[新作品的第一条消息]" in built
+    facts = built.split("[本轮上下文事实]\n", 1)[1].split("\n[用户本轮原话]", 1)[0]
+    assert json.loads(facts) == {"has_selected_text": True, "has_referenced_files": True}
+    assert built.endswith("[用户本轮原话]\n润色一下")
+
+
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_first_turn_sends_exactly_the_raw_user_message():
@@ -74,7 +88,25 @@ async def test_first_turn_sends_exactly_the_raw_user_message():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_router_sees_previous_tail_and_routing_before_the_reply():
+async def test_first_turn_includes_true_selected_and_reference_facts_without_text_guessing():
+    state = {
+        "user_message": "看看这里",
+        "router_message": "看看这里",
+        "messages": [{"role": "user", "content": "看看这里"}],
+        "has_selected_text": True,
+        "has_referenced_files": True,
+    }
+    _, messages = await _route(state)
+
+    assert messages[1]["content"] == (
+        '[本轮上下文事实]\n{"has_selected_text": true, "has_referenced_files": true}'
+        "\n[用户本轮原话]\n看看这里"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_router_sees_bounded_previous_tail_routing_and_current_facts():
     from agent.prompts.subagents import ROUTER_PROMPT
 
     reply = "第一章已写完，陈默在雨夜接到最后一单。需要我继续写第二章吗？"
@@ -87,34 +119,41 @@ async def test_router_sees_previous_tail_and_routing_before_the_reply():
     assert messages[0] == {"role": "system", "content": ROUTER_PROMPT}
     user_content = messages[1]["content"]
     tail_section, rest = user_content.split("\n[上一轮路由]\n")
-    routing_section, raw = rest.split("\n[用户本轮原话]\n")
-    assert tail_section == "[上一轮助手结尾]\n" + reply
-    assert json.loads(routing_section) == WRITER_ROUTING
+    routing_section, rest = rest.split("\n[本轮上下文事实]\n")
+    facts_section, raw = rest.split("\n[用户本轮原话]\n")
+    assert json.loads(routing_section) == {**WRITER_ROUTING, "owner_agent": "writer"}
     assert list(json.loads(routing_section)) == [
         "initial_agent",
         "last_agent",
+        "owner_agent",
         "workflow_type",
         "write_content",
         "read_only",
         "scope",
     ]
+    assert json.loads(facts_section) == {
+        "has_selected_text": False,
+        "has_referenced_files": False,
+    }
     assert raw == "可以"
-    # 工具面包屑和 UI 装饰都不交给路由器
+    assert tail_section == "[上一轮助手结尾]\n" + reply
     assert "[此前的工具操作]" not in user_content
     assert "【本轮用户消息】" not in user_content
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_long_previous_reply_is_cut_to_its_tail():
-    from agent.graph.router import ROUTER_PREV_TAIL_MAX_CHARS
-
+async def test_long_previous_reply_is_bounded_to_its_tail():
     body = "开头的铺垫" + "雨一直下。" * 400
     question = "主角性格偏隐忍还是张扬？"
     previous = {"content": body + question, "routing": {"initial_agent": "planner"}}
     _, messages = await _route(_state("隐忍吧", previous))
 
-    tail = messages[1]["content"].split("\n[上一轮路由]\n")[0].removeprefix("[上一轮助手结尾]\n")
+    from agent.graph.router import ROUTER_PREV_TAIL_MAX_CHARS
+
+    tail = messages[1]["content"].split("\n[上一轮路由]\n")[0].removeprefix(
+        "[上一轮助手结尾]\n"
+    )
     assert tail.startswith("…")
     assert tail.endswith(question)
     assert len(tail) == ROUTER_PREV_TAIL_MAX_CHARS + 1
@@ -154,27 +193,33 @@ async def test_clarification_card_question_reaches_router_even_with_prose():
 
     _, messages = await _route(_state("B，主角叫陈默，金手指是能看见别人的寿命，写到第一章结束", previous))
 
-    tail = messages[1]["content"].split("\n[上一轮路由]\n")[0]
-    assert tail.startswith("[上一轮助手结尾]\n开书前确认两点。\n[workflow_stopped]")
-    assert "question: 开篇选哪种？A 外卖途中觉醒 B 被开除后觉醒" in tail
-    routing = json.loads(messages[1]["content"].split("\n[上一轮路由]\n")[1].split("\n[用户本轮原话]\n")[0])
+    content = messages[1]["content"]
+    state_summary = json.loads(
+        content.split("[上一轮结构化状态]\n", 1)[1].split("\n[上一轮路由]\n", 1)[0]
+    )
+    assert state_summary["clarification_pending"] is True
+    assert state_summary["pending_clarification"]["question"] == (
+        "开篇选哪种？A 外卖途中觉醒 B 被开除后觉醒"
+    )
+    assert content.startswith("[上一轮助手结尾]\n开书前确认两点。\n")
+    routing = json.loads(content.split("\n[上一轮路由]\n")[1].split("\n[本轮上下文事实]\n")[0])
     assert routing["last_agent"] == "planner"
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_status_only_turn_without_loader_field_still_passes_card_text():
+async def test_status_card_looking_prose_without_structured_field_is_not_parsed():
     content = "[workflow_stopped]\nreason: clarification_needed\nquestion: 主角叫什么？"
     _, messages = await _route(_state("主角叫陈默，是个外卖员", {"content": content}))
 
-    assert messages[1]["content"] == (
-        "[上一轮助手结尾]\n" + content + "\n[用户本轮原话]\n主角叫陈默，是个外卖员"
-    )
+    assert content not in messages[1]["content"]
+    assert "[上一轮结构化状态]" not in messages[1]["content"]
+    assert messages[1]["content"] == "主角叫陈默，是个外卖员"
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_previous_turn_without_text_or_routing_keeps_old_message():
+async def test_previous_turn_without_structured_state_only_adds_current_facts():
     _, messages = await _route(_state("帮我写第一章", {"content": [{"type": "thinking", "thinking": "…"}]}))
 
     assert messages[1] == {"role": "user", "content": "帮我写第一章"}
@@ -190,7 +235,9 @@ def test_router_prompt_explains_every_section_the_builder_emits():
         _state("可以", {"content": "要继续写第二章吗？", "routing": WRITER_ROUTING})
     )
     headers = re.findall(r"^\[[^\]\n]+\]$", built, flags=re.MULTILINE)
-    assert headers == ["[上一轮助手结尾]", "[上一轮路由]", "[用户本轮原话]"]
+    assert headers == [
+        "[上一轮助手结尾]", "[上一轮路由]", "[本轮上下文事实]", "[用户本轮原话]",
+    ]
     for header in headers:
         assert header in ROUTER_PROMPT
 
@@ -216,6 +263,10 @@ async def test_first_message_in_a_work_names_the_project_type():
         assert header in ROUTER_PROMPT
     assert "简要设定+开头约800字" in ROUTER_PROMPT
 
+    selected_first = {**state, "has_selected_text": True, "has_referenced_files": False}
+    assert "[本轮上下文事实]\n" in build_router_user_message(selected_first)
+    assert '"has_selected_text": true' in build_router_user_message(selected_first)
+
     # 已经有上一轮时只按上一轮拼（service 也不会再给第一条的标记）。
     later = _state("可以", {"content": "要继续写第二章吗？", "routing": WRITER_ROUTING})
     later["first_message_project_label"] = "长篇小说"
@@ -226,19 +277,11 @@ async def test_first_message_in_a_work_names_the_project_type():
 def test_router_prompt_rules_for_replies_and_write_content():
     from agent.prompts.subagents import ROUTER_PROMPT
 
-    # 补问作答（任务还没做完）沿用上一轮全部路由字段
-    assert re.search(
-        r"A 补问.*沿用上一轮路由的 agent.*workflow_type、write_content、read_only 和 scope", ROUTER_PROMPT
-    )
-    # 确认上一轮提议的下一步：按提议的那一步路由，不沿用只读 / 不要正文 / 已交付的范围
-    # （与 inherit_routing_after_clarification 把这些问句收尾交回 LLM 路由的理由一致）
-    offer_rule = re.search(r"^- B 提议下一步：.*$", ROUTER_PROMPT, flags=re.MULTILINE)
-    assert offer_rule
-    for required in ("writer + quick", "write_content=true", "read_only=false"):
-        assert required in offer_rule.group(0)
-    assert re.search(r"不要沿用上一轮的 read_only=true、write_content=false 或已交付的 scope", offer_rule.group(0))
-    # 旧的「确认一律沿用 write_content / read_only」规则不能回来
-    assert "write_content / read_only 也沿用" not in ROUTER_PROMPT
+    assert all(value in ROUTER_PROMPT for value in (
+        "new_or_changed_request", "resume_interrupted_task", "answer_pending_clarification",
+    ))
+    assert "不要靠固定短语、字数、标点" in ROUTER_PROMPT
+    assert "服务端会从可信路由恢复角色和权限" in ROUTER_PROMPT
     # write_content=false 只认用户原话里的明确否定，补充设定信息不算
     assert re.search(r"只有用户原话里明确不要正文（“先别写/不要正文/只要大纲/先不用写”）", ROUTER_PROMPT)
     assert "上一轮助手说的话不能成为 false 的理由" in ROUTER_PROMPT
@@ -256,7 +299,8 @@ async def test_router_previous_summary_preserves_exact_requested_file_types(file
         "routing": {**WRITER_ROUTING, "requested_file_types": file_types},
     }
     _, messages = await _route(_state("只补充人物动机", previous))
-    summary = messages[1]["content"].split("\n[上一轮路由]\n")[1].split("\n[用户本轮原话]\n")[0]
+    content = messages[1]["content"]
+    summary = content.split("\n[上一轮路由]\n", 1)[1].split("\n[本轮上下文事实]\n")[0]
     assert json.loads(summary)["requested_file_types"] == file_types
 
 

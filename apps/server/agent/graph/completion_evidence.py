@@ -20,6 +20,25 @@ _TASK_COMPLETE_RE = re.compile(
 )
 
 
+def author_reply_tail(tail_text: str, *, max_chars: int = 600) -> str:
+    """Bound the post-file prose without interpreting questions, intent or consent."""
+    text = normalize_file_markers(tail_text or "")
+    close = text.rfind("</file>")
+    if close != -1:
+        text = text[close + len("</file>"):]
+    if "<file>" in text:
+        return ""
+    text = _TASK_COMPLETE_RE.sub("", text).strip()
+    if len(text) <= max_chars:
+        return text
+    marker = "\n…（中间内容已截断）…\n"
+    if max_chars <= len(marker):
+        return marker[:max(0, max_chars)]
+    available = max_chars - len(marker)
+    tail_chars = available // 2
+    return text[:available - tail_chars] + marker + (text[-tail_chars:] if tail_chars else "")
+
+
 def ends_on_file_block(tail_text: str) -> bool:
     """最后一次工具调用之后的文字是不是以一段非空、已闭合的 ``<file>`` 正文结束。
 
@@ -49,5 +68,6 @@ def ends_on_file_block(tail_text: str) -> bool:
 
 
 __all__ = [
+    "author_reply_tail",
     "ends_on_file_block",
 ]
