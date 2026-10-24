@@ -36,6 +36,15 @@ def test_long_reply_preserves_opening_and_final_author_decision_without_question
     assert len(result) == 600
 
 
+def test_nonstandard_file_marker_normalization_never_logs_reply_content(caplog):
+    from agent.graph.completion_evidence import author_reply_tail
+
+    private = "synthetic-private-author-prose"
+    assert author_reply_tail(f"{private}<File>正文</File>交接说明") == "交接说明"
+    fields = [getattr(record, "custom_fields", {}) for record in caplog.records]
+    assert private not in repr(fields)
+
+
 def test_scope_directive_keeps_all_cumulative_constraints_without_comparing_meaning():
     from agent.graph.writing_graph import _build_scope_directive
 
