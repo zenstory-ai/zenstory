@@ -195,14 +195,15 @@ vi.mock('../../lib/api', () => ({
   versionApi: {},
 }))
 
-const undoneEditsSeen = vi.hoisted(() => ({ current: new Set<string>() as ReadonlySet<string> }))
+const undoneEditsSeen = vi.hoisted(() => vi.fn<(undone: ReadonlySet<string>) => void>())
+const lastUndoneEdits = (): ReadonlySet<string> => undoneEditsSeen.mock.lastCall?.[0] ?? new Set<string>()
 
 vi.mock('../MessageList', async () => {
   const { UndoneEditsContext } = await import('../../lib/undoneEdits')
   return {
     MessageList: React.forwardRef((props: Record<string, unknown>, _ref) => {
       messageListMock(props)
-      undoneEditsSeen.current = React.useContext(UndoneEditsContext)
+      undoneEditsSeen(React.useContext(UndoneEditsContext))
       return <div data-testid="mock-message-list" />
     }),
   }
@@ -454,7 +455,7 @@ describe('ChatPanel immutable edit undo', () => {
     rollbackMock.mockResolvedValue({ success: true, snapshot_created: true, version_quota_exceeded: false, undo_recorded: true })
     const onUndo = await renderAndGetUndo()
     const fromCard = { ...target, chatMessageId: 'assistant-message', toolUseId: 'tool-edit-1' }
-    expect(undoneEditsSeen.current.has(undoneEditKey(target))).toBe(false)
+    expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
 
     await undoAndConfirm(onUndo, fromCard)
 
@@ -462,7 +463,7 @@ describe('ChatPanel immutable edit undo', () => {
       chatMessageId: 'assistant-message',
       toolUseId: 'tool-edit-1',
     })
-    await waitFor(() => expect(undoneEditsSeen.current.has(undoneEditKey(target))).toBe(true))
+    await waitFor(() => expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(true))
   })
 
   it('confirms with the file-level undo message, not the snapshot pre-save promise', async () => {
@@ -528,6 +529,6 @@ describe('ChatPanel immutable edit undo', () => {
     expect(triggerEditorRefreshMock).not.toHaveBeenCalled()
     // A rejected undo (the text changed after the edit) never shows the edit as undone.
     const { undoneEditKey } = await import('../../lib/undoneEdits')
-    expect(undoneEditsSeen.current.has(undoneEditKey(target))).toBe(false)
+    expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(false)
   })
 })
