@@ -1,4 +1,4 @@
-"""重复读取守卫、上限软着陆、失控停止退款与「继续」直达的回归测试。
+"""重复读取守卫、上限软着陆、失控停止退款与结构化续接的回归测试。
 
 线上事故：付费用户的 agent 反复 query_files 同一批文件直到单 agent 100 轮上限，
 连续两次；「继续」又从头规划、再读一遍。熔断器只数失败，成功的重复读取看起来像进展。
@@ -796,54 +796,57 @@ def test_stream_adapter_passes_error_reason_to_sse_frame():
     assert frame["refundable"] is True
 
 
-# --------------------------------------------------------- 「继续」直达
+# --------------------------------------------------------- 结构化续接
 
 
 def _state_after(stop_reason: str | None, user_message: str = "继续", content: str = "阶段总结……"):
-    previous = {"role": "assistant", "content": content}
+    previous = {"role": "assistant", "content": content,
+                "routing": {"initial_agent": "writer", "last_agent": "writer",
+                            "workflow_type": "quick", "write_content": True, "scope": "第一到三章"}}
     if stop_reason:
         previous["stop_reason"] = stop_reason
-    return {
-        "user_message": user_message,
-        "router_message": user_message,
-        "messages": [
-            {"role": "user", "content": "把第一到三章都改一遍"},
-            previous,
-            {"role": "user", "content": user_message},
-        ],
-    }
+    return {"user_message": user_message, "router_message": user_message,
+            "messages": [{"role": "user", "content": "把第一到三章都改一遍"}, previous]}
+
+
+async def _followup_route(state, disposition="resume_interrupted_task"):
+    from agent.graph.router import router_node
+
+    payload = {"agent_type": "writer", "workflow_type": "quick",
+               "turn_disposition": disposition, "scope": ""}
+    response = {"content": [{"type": "text", "text": json.dumps(payload)}]}
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
+        return await router_node(state)
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("message", ["继续", "继续。", "  请继续！", "请基于上一步结果继续完成剩余任务，优先最关键目标。"])
-def test_bare_continue_after_exhaustion_resumes_previous_agent(message):
-    from agent.graph.router import resume_route_after_exhaustion
-
+@pytest.mark.parametrize("message", ["继续", "接着把没做完的部分做完", "请基于上一步结果继续完成剩余任务，优先最关键目标。"])
+async def test_semantic_continue_after_exhaustion_resumes_previous_agent(message):
     state = _state_after("max_turns_exceeded", message)
-    state["messages"][1]["last_agent"] = "writer"
-    result = resume_route_after_exhaustion(state)
-    assert result is not None
+    result = await _followup_route(state)
     assert result["current_agent"] == "writer"
     assert result["workflow_plan"] == "quick"
     assert result["workflow_agents"] == []
+    assert result["routing_metadata"]["scope"] == "第一到三章"
 
 
 @pytest.mark.unit
-def test_continue_uses_last_agent_from_status_card_text():
-    from agent.graph.router import resume_route_after_exhaustion
-
-    card_text = "[iteration_exhausted]\nlayer: tool_call\niterations: 100/100\nlast_agent: planner"
-    result = resume_route_after_exhaustion(_state_after(None, content=card_text))
-    assert result is not None and result["current_agent"] == "planner"
+async def test_continue_does_not_infer_agent_from_status_card_prose():
+    card_text = "[iteration_exhausted]\nlayer: tool_call\nlast_agent: planner"
+    result = await _followup_route(_state_after(None, content=card_text))
+    assert result["current_agent"] == "writer"
+    assert "previous_stop_reason" not in result["routing_metadata"]
 
 
 @pytest.mark.unit
-def test_continue_routes_normally_otherwise():
-    from agent.graph.router import resume_route_after_exhaustion
-
-    assert resume_route_after_exhaustion(_state_after("end_turn")) is None
-    assert resume_route_after_exhaustion(_state_after("max_turns_exceeded", "继续写第四章，加一段打斗")) is None
-    assert resume_route_after_exhaustion({"user_message": "继续", "messages": []}) is None
+async def test_followup_without_trusted_stop_or_with_changed_request_routes_normally():
+    result = await _followup_route(_state_after("end_turn"))
+    assert result["routing_metadata"]["scope"] == ""
+    result = await _followup_route(_state_after("max_turns_exceeded", "继续写第四章，加一段打斗"),
+                                   "new_or_changed_request")
+    assert result["routing_metadata"]["scope"] == ""
+    result = await _followup_route({"user_message": "继续", "messages": []})
+    assert result["routing_metadata"]["scope"] == ""
 
 
 # ------------------------------------------------ writing_graph：审查上限与交接台账
@@ -988,7 +991,7 @@ async def test_handoffs_carry_request_read_and_write_log(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.parametrize("recorded_agent", ["writer", None])
-async def test_continue_uses_bypass_only_with_a_recorded_agent(recorded_agent):
+async def test_continue_uses_router_decision_even_with_a_recorded_agent(recorded_agent):
     from agent.graph.writing_graph import run_writing_workflow_streaming
     from agent.tools.mcp_tools import ToolContext
 
@@ -1014,14 +1017,9 @@ async def test_continue_uses_bypass_only_with_a_recorded_agent(recorded_agent):
         ToolContext.clear_context()
 
     decided = next(e for e in events if e.type == StreamEventType.ROUTER_DECIDED)
-    if recorded_agent is not None:
-        router.assert_not_called()
-        assert calls == ["writer"]
-        assert decided.data["routing_metadata"]["reason"] == "resume_after_exhaustion"
-    else:
-        router.assert_awaited_once()
-        assert calls == ["planner", "writer"]
-        assert decided.data["routing_metadata"].get("reason") != "resume_after_exhaustion"
+    router.assert_awaited_once()
+    assert calls == ["planner", "writer"]
+    assert decided.data["initial_agent"] == "planner"
 
 
 def test_stale_content_lets_the_file_be_read_again_without_the_unchanged_hint():

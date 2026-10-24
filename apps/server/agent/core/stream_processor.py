@@ -189,7 +189,7 @@ def normalize_file_markers(content: str) -> str:
             logger,
             30,  # WARNING
             "Normalized non-standard file markers",
-            original_snippet=original[:100],
+            stage="file_marker_normalization",
         )
 
     return content

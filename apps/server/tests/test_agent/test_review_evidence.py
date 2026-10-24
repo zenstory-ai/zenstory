@@ -10,10 +10,9 @@ import pytest
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.review_evidence import (
     MAX_REPETITION_EVIDENCE,
-    LengthBounds,
     find_numeric_fact_pairs,
     find_repetition_evidence,
-    length_requirement_bounds,
+    quote_author_requirement_sources,
 )
 from tests.test_agent.body_write_events import edit_file_events
 
@@ -490,33 +489,87 @@ def test_review_neighbors_use_metadata_sequence_before_misleading_title(db_sessi
         ToolContext.clear_context()
 
 
-# ----------------------------------------------------------------- 篇幅容差
+# ----------------------------------------------------------- 作者要求原文
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize(
-    ("clause", "bounds"),
-    [
-        # 单个目标数是约数：±15% 内都算达标（生产里 3377→2899 逐字削减的起因）。
-        ("单章约2000字", LengthBounds(1700, 2300, hard=False)),
-        ("3000字左右", LengthBounds(2550, 3450, hard=False)),
-        ("扩写到两千五百字", LengthBounds(2125, 2875, hard=False)),
-        ("全篇1.5万字", LengthBounds(12750, 17250, hard=False)),
-        ("以下是要求：每章2000字", LengthBounds(1700, 2300, hard=False)),
-        # 作者给了范围或上下限：那一侧是硬要求，不放宽。
-        ("每集500-900字", LengthBounds(500, 900, hard=True)),
-        ("两千字到三千字", LengthBounds(2000, 3000, hard=True)),
-        ("每章不超过3000字", LengthBounds(None, 3000, hard=True)),
-        ("控制在3000字以内", LengthBounds(None, 3000, hard=True)),
-        ("至少两千字", LengthBounds(2000, None, hard=True)),
-        ("每章字数要求1000字以上", LengthBounds(1000, None, hard=True)),
-    ],
-)
-def test_length_requirement_bounds(clause, bounds):
-    assert length_requirement_bounds(clause) == bounds
+def test_author_requirement_sources_preserve_polarity_punctuation_and_languages_verbatim():
+    sources = [
+        ("作者本轮原话", "不用写满2000字；别再补字数。"),
+        ("Author message", "Keep it under 1,500 words—do not pad it."),
+        ("作者补充", "終わりは短く、余韻を残して。"),
+    ]
+
+    assert quote_author_requirement_sources(sources) == [
+        "【作者本轮原话】\n不用写满2000字；别再补字数。",
+        "【Author message】\nKeep it under 1,500 words—do not pad it.",
+        "【作者补充】\n終わりは短く、余韻を残して。",
+    ]
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("clause", ["三千多字", "全文8000字，每章2000字", "三四千字"])
-def test_unclear_length_requirements_stay_as_quotes(clause):
-    assert length_requirement_bounds(clause) is None
+def test_author_requirement_sources_prioritize_newest_but_return_selected_sources_chronologically():
+    oldest = ("早期", "早期要求" * 30)
+    middle = ("上轮", "保留这条要求")
+    newest = ("本轮", "以本轮说法为准")
+    middle_quote = "【上轮】\n保留这条要求"
+    newest_quote = "【本轮】\n以本轮说法为准"
+
+    assert quote_author_requirement_sources(
+        [oldest, middle, newest], max_chars=len(middle_quote) + 1 + len(newest_quote)
+    ) == [middle_quote, newest_quote]
+
+
+@pytest.mark.unit
+def test_author_requirement_source_truncation_is_explicit_and_counts_labels_and_marker_in_budget():
+    prefix = "【作者原话】\n"
+    marker = "\n…（中间内容已截断）…\n"
+    budget = len(prefix) + 5 + len(marker)
+
+    quoted = quote_author_requirement_sources(
+        [("作者原话", "甲乙丙丁戊己庚辛壬癸" * 3)], max_chars=budget
+    )
+
+    assert quoted == [prefix + "甲乙丙" + marker + "壬癸"]
+    assert sum(map(len, quoted)) == budget
+
+
+@pytest.mark.unit
+def test_author_requirement_sources_ignore_structurally_invalid_entries_without_rewriting_valid_text():
+    sources = [
+        ("", "  保留前后空格  "),
+        ("空文本", ""),
+        ("非文本", None),
+        "not-a-source-pair",
+    ]
+
+    assert quote_author_requirement_sources(sources) == ["【来源】\n  保留前后空格  "]
+    assert quote_author_requirement_sources([], max_chars=10) == []
+    assert quote_author_requirement_sources([("x", "text")], max_chars=0) == []
+
+
+def test_long_source_keeps_author_instructions_at_both_ends_instead_of_only_sample_opening():
+    source = "按第三人称写，保留这个声线。\n" + "这是供参考的样文。" * 700 + "\n最后补充：不要写满2000字，也不要解释结尾。"
+    [quoted] = quote_author_requirement_sources([("本轮原话", source)])
+    assert quoted.startswith("【本轮原话】\n按第三人称写，保留这个声线。")
+    assert quoted.endswith("最后补充：不要写满2000字，也不要解释结尾。")
+    assert len(quoted) == 4000
+
+
+@pytest.mark.unit
+def test_long_latest_source_cannot_starve_project_and_earlier_sources():
+    sources = [("项目写作风格", "保持限知视角，不替人物解释。"),
+               ("项目备注", "保留人物已经作出的选择。"),
+               ("早期作者要求", "不用写满2000字。") ]
+    sources += [(f"历史{i}", f"历史开头{i}：" + "合成资料" * 200 + f"：历史结尾{i}") for i in range(40)]
+    sources += [("本轮原话", "本轮开头：" + "合成样文" * 2000 + "：本轮结尾，保留留白。") ]
+    quoted = quote_author_requirement_sources(sources)
+    assert len(quoted) == len(sources)
+    assert len("\n".join(quoted)) <= 4000
+    for (label, text), excerpt in zip(sources, quoted, strict=True):
+        assert excerpt.startswith(f"【{label}】\n" + text[:2])
+        assert excerpt.endswith(text[-2:])
+    assert sources[0][1] in quoted[0]
+    assert sources[1][1] in quoted[1]
+    assert sources[2][1] in quoted[2]
+    assert quoted[-1].endswith("：本轮结尾，保留留白。")

@@ -364,23 +364,31 @@ async def test_reviewer_rework_does_not_start_planned_body_carry():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_planned_planner_question_is_released_even_when_writer_continues():
-    """作者已要正文，既有计划继续 writer，但规划师向作者提出的问题不能随总结丢掉。"""
-    question = "第一章已经保存。\n\n需要保留这个悬念吗？"
+async def test_planned_planner_reply_is_handed_to_the_writer_without_question_detection():
+    """规划师说明被下游回复取代时，整段原话交给实际 writer，不看问号。"""
+    from agent.graph.writing_graph import WRITER_REPLY_HEADER
+
+    reply = "第一章已经保存。\n\n这里保留了账目疑点作为后续钩子"
+    writer_messages: list[str] = []
 
     async def fake_agent(state, agent_type, *_args, **_kwargs):
         if agent_type == "planner":
             for event in create_file_events("draft-1", "第一章"):
                 yield event
-            yield _text(f"<file>{BODY * 2}</file>\n\n{question}")
+            yield _text(f"<file>{BODY * 2}</file>\n\n{reply}")
         else:
+            if agent_type == "writer":
+                writer_messages.append(state["user_message"])
             yield _text("核对结束。")
 
     events = await _run_graph(
         fake_agent, generation_mode="quality", initial_agent="planner", workflow_agents=["writer"],
         routing_metadata=PLANNED_PROSE, auto_review_threshold=500,
     )
-    assert question in await _author_visible_text(events)
+    assert len(writer_messages) == 1
+    assert f"{WRITER_REPLY_HEADER}\n{reply}" in writer_messages[0]
+    assert BODY not in writer_messages[0].split(WRITER_REPLY_HEADER, 1)[1]
+    assert reply not in await _author_visible_text(events)
 
 
 @pytest.mark.asyncio
@@ -656,17 +664,17 @@ async def test_steering_mid_run_does_not_release_the_held_summary():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_writer_question_survives_when_its_summary_is_superseded():
-    """writer 以问作者的问题收尾、又被自动送审：问题原样交给审稿人和返修 writer，不随总结一起丢掉。"""
-    from agent.graph.writing_graph import WRITER_QUESTION_HEADER
+async def test_full_writer_reply_survives_review_and_rework_without_file_body():
+    """CHAT_HOLD 丢弃的原话整段交给实际下游，不再只按问号抽取一句。"""
+    from agent.graph.writing_graph import WRITER_REPLY_HEADER
 
-    question = "第二章结尾要走悲剧还是圆满？"
+    reply = "第一章已保存，约1200字。\n\n编辑说明：结尾保留了火炉这个意象"
     messages: list[tuple[str, str]] = []
 
     async def fake_agent(state, agent_type, *_args, **_kwargs):
         messages.append((agent_type, state["user_message"]))
         if agent_type == "writer" and len(messages) == 1:
-            for event in _writer_writes_chapter(summary=f"第一章写好了，约1200字。\n\n{question}"):
+            for event in _writer_writes_chapter(summary=reply):
                 yield event
             return
         if agent_type == "quality_reviewer":
@@ -680,10 +688,12 @@ async def test_writer_question_survives_when_its_summary_is_superseded():
 
     assert [agent for agent, _ in messages] == ["writer", "quality_reviewer", "writer"]
     reviewer_message = messages[1][1]
-    assert f"{WRITER_QUESTION_HEADER}\n{question}" in reviewer_message
-    assert "约1200字" not in reviewer_message.split(WRITER_QUESTION_HEADER, 1)[1]
-    assert f"{WRITER_QUESTION_HEADER}\n{question}" in messages[2][1]
-    assert question not in await _author_visible_text(events)
+    assert f"{WRITER_REPLY_HEADER}\n{reply}" in reviewer_message
+    assert BODY not in reviewer_message.split(WRITER_REPLY_HEADER, 1)[1]
+    assert f"{WRITER_REPLY_HEADER}\n{reply}" in messages[2][1]
+    assert reviewer_message.count(reply) == 1
+    assert messages[2][1].count(reply) == 1
+    assert reply not in await _author_visible_text(events)
 
 
 @pytest.mark.asyncio
@@ -893,7 +903,7 @@ def project_with_history(db_session):
     chat = ChatSession(user_id=user.id, project_id=project.id)
     db_session.add(chat)
     db_session.commit()
-    for content in ("写一部都市小说，单章约 2000 字。", "好的"):
+    for content in ("写一部都市小说，单章约 2000 字。", "这一章不用写满2000字", "好的"):
         db_session.add(ChatMessage(session_id=chat.id, role="user", content=content))
     db_session.commit()
     chapter = File(project_id=project.id, title="第三章", content=BODY, file_type="draft")
@@ -905,9 +915,9 @@ def project_with_history(db_session):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_review_handoff_carries_editor_count_and_earlier_length_requirements(db_session, project_with_history):
-    """writer 交接写「约2800字」，审稿人拿到编辑器字数，以及本会话早先和项目设定里的篇幅要求。"""
-    from agent.graph.writing_graph import BODY_WORD_COUNT_HEADER, LENGTH_REQUIREMENT_HEADER
+async def test_review_handoff_carries_editor_count_and_raw_author_sources(db_session, project_with_history):
+    """编辑器字数仍是程序事实；历史要求连同否定原话交给模型，不预算上下限。"""
+    from agent.graph.writing_graph import AUTHOR_REQUIREMENT_SOURCE_HEADER, BODY_WORD_COUNT_HEADER
     from utils.text_metrics import count_words
 
     chapter = project_with_history["chapter"]
@@ -935,9 +945,12 @@ async def test_review_handoff_carries_editor_count_and_earlier_length_requiremen
     message = reviewer_messages[0]
     counts = message.split(BODY_WORD_COUNT_HEADER + "\n", 1)[1]
     assert counts.startswith(f"- 《第三章》{count_words(BODY)} 字\n")
-    requirements = message.split(LENGTH_REQUIREMENT_HEADER + "\n", 1)[1]
-    assert "「写一部都市小说，单章约 2000 字」（作者在本会话说过）" in requirements
-    assert "「第一人称，每章约2500字左右」（项目写作风格） → 达标区间 2125–2875 字" in requirements
+    requirements = message.split(AUTHOR_REQUIREMENT_SOURCE_HEADER + "\n", 1)[1]
+    assert "【项目写作风格】\n第一人称，每章约2500字左右" in requirements
+    assert "【作者在本会话说过】\n写一部都市小说，单章约 2000 字。" in requirements
+    assert "【作者在本会话说过】\n这一章不用写满2000字" in requirements
+    assert "硬下限" not in requirements
+    assert "达标区间" not in requirements
     packet = next(e for e in events if e.type == StreamEventType.HANDOFF).data["handoff_packet"]
     assert f"《第三章》编辑器字数 {count_words(BODY)}" in packet["evidence"]
 
@@ -1010,27 +1023,6 @@ async def test_review_receives_persisted_planner_body_when_writer_has_no_chat(db
     assert BODY * 2 in reviewer_messages[0]
     assert BODY_WORD_COUNT_HEADER in reviewer_messages[0]
     assert f"《第三章》{count_words(BODY * 2)} 字" in reviewer_messages[0]
-
-
-@pytest.mark.unit
-def test_find_length_requirements_quotes_only_length_clauses():
-    from agent.graph.review_evidence import find_length_requirements
-
-    found = find_length_requirements(
-        [
-            ("项目写作风格", "节奏快。每集约500-900字，台词短"),
-            ("作者在本会话说过", "主角叫陈默。他写了三千字的检讨"),
-            ("作者在本会话说过", "第一章字数太少了，没有2500字"),
-            ("作者本轮原话", "还得改，每章字数要求1000字以上"),
-            ("作者本轮原话", "还得改，每章字数要求1000字以上"),
-        ]
-    )
-
-    assert found == [
-        "「每集约500-900字，台词短」（项目写作风格） → 硬要求 500–900 字",
-        "「第一章字数太少了，没有2500字」（作者在本会话说过） → 达标区间 2125–2875 字（目标 ±15%）",
-        "「还得改，每章字数要求1000字以上」（作者本轮原话） → 硬下限 1000 字",
-    ]
 
 
 # ------------------------------------------------------------- 段落分隔（I03）

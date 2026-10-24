@@ -1241,10 +1241,32 @@ class SessionLoader:
                 break
         if cards:
             last_card = cards[-1]
-            hints["clarification_pending"] = (
+            clarification_pending = (
                 str(last_card.get("type") or "") == "workflow_stopped"
                 and str(last_card.get("reason") or "") == "clarification_needed"
             )
+            hints["clarification_pending"] = clarification_pending
+            if clarification_pending:
+                pending: dict[str, Any] = {}
+                question = str(
+                    last_card.get("question") or last_card.get("message") or ""
+                ).strip()
+                context = str(last_card.get("context") or "").strip()
+                if question:
+                    pending["question"] = question[:400]
+                if context:
+                    pending["context"] = context[:400]
+                details = last_card.get("details")
+                if isinstance(details, list):
+                    normalized_details = [
+                        str(detail).strip()[:160]
+                        for detail in details[:8]
+                        if detail is not None and str(detail).strip()
+                    ]
+                    if normalized_details:
+                        pending["details"] = normalized_details
+                if pending:
+                    hints["pending_clarification"] = pending
         return hints
 
     def _build_status_cards_history_content(

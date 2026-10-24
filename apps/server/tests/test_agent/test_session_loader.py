@@ -298,6 +298,7 @@ class TestSessionLoaderHistoryBudget:
                             "type": "workflow_stopped",
                             "reason": "clarification_needed",
                             "question": "请确认主角姓名",
+                            "context": "姓名会影响后续称呼",
                             "details": ["主角姓名", "时代背景"],
                         }
                     ],
@@ -317,6 +318,12 @@ class TestSessionLoaderHistoryBudget:
         assert assistant_msg["content"]
         assert "clarification_needed" in assistant_msg["content"]
         assert "请确认主角姓名" in assistant_msg["content"]
+        assert assistant_msg["clarification_pending"] is True
+        assert assistant_msg["pending_clarification"] == {
+            "question": "请确认主角姓名",
+            "context": "姓名会影响后续称呼",
+            "details": ["主角姓名", "时代背景"],
+        }
 
     def test_load_chat_session_prefers_latest_active_and_deactivates_stale(
         self,

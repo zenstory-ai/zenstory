@@ -1431,7 +1431,7 @@ class TestWritingGraphUserScope:
 
     @pytest.mark.asyncio
     async def test_question_prose_does_not_stop_structured_planned_handoff(self):
-        """Only a structured clarification stop can block the typed planned handoff."""
+        """With a saved outline, question prose is not a structured clarification stop."""
         calls: list[str] = []
 
         async def fake_agent(_state, agent_type, **_kwargs):
@@ -1446,16 +1446,20 @@ class TestWritingGraphUserScope:
                 data={"text": "你更倾向哪个方向？\n\n1. 热血升级\n2. 悬疑探案"},
             )
 
-        events = await self._run(
-            self._route({
-                "agent_type": "planner",
-                "workflow_type": "standard",
-                "write_content": True,
-                "requested_file_types": ["outline", "draft"],
-            }),
-            fake_agent,
-            message="帮我规划一下故事",
-        )
+        with patch(
+            "agent.graph.writing_graph._written_outline_contents",
+            return_value=["合成已落库的非空大纲"],
+        ):
+            events = await self._run(
+                self._route({
+                    "agent_type": "planner",
+                    "workflow_type": "standard",
+                    "write_content": True,
+                    "requested_file_types": ["outline", "draft"],
+                }),
+                fake_agent,
+                message="帮我规划一下故事",
+            )
 
         assert calls == ["planner", "writer"]
         assert any(event.type == StreamEventType.HANDOFF for event in events)

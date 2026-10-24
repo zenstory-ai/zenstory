@@ -226,53 +226,6 @@ def text_contains_cjk(text: object) -> bool:
     return isinstance(text, str) and bool(_CJK_CHAR_RE.search(text))
 
 
-_PARAGRAPH_SPLIT_RE = re.compile(r"\n\s*\n")
-_SIMPLE_LIST_ITEM_RE = re.compile(r"^\s*(?:[-*•·]\s+|[(（]?\d{1,2}[.、)）]\s*|[(（]?[A-Ha-h][.、)）]\s*)\S")
-_SENTENCE_RE = re.compile(r"[^。！!？?；;]+[。！!？?；;]*")
-_QUESTION_END_RE = re.compile(r"[？?][\s*_~`」”』\"']*$")
-_TASK_COMPLETE_MARKER_RE = re.compile(r"\[TASK_COMPLETE\]", re.IGNORECASE)
-
-
-def _trailing_question_sentences(line: str) -> str:
-    """一行里末尾连续的问句（「第一章写好了。要走悲剧还是圆满？」只取后一句）。"""
-    sentences = [s for s in _SENTENCE_RE.findall(line.strip()) if s.strip()]
-    kept: list[str] = []
-    for sentence in reversed(sentences):
-        if not _QUESTION_END_RE.search(sentence.strip()):
-            break
-        kept.insert(0, sentence)
-    return "".join(kept).strip() or line.strip()
-
-
-def trailing_question_text(tail_text: object) -> str:
-    """agent 收尾时问作者的那几句（调用方已判定以提问收尾，见 ``ends_with_question_to_user``）。
-
-    取最后一个 ``</file>`` 之后、最后一段里的问句；最后一段是选项列表时连同引出它的问句一起。
-    同一行里问句前面的陈述（常是估算的字数）不要。
-    """
-    text = tail_text if isinstance(tail_text, str) else ""
-    lowered = text.lower()
-    if "</file>" in lowered:
-        text = text[lowered.rfind("</file>") + len("</file>") :]
-    text = _TASK_COMPLETE_MARKER_RE.sub("", text)
-    paragraphs = [p.strip() for p in _PARAGRAPH_SPLIT_RE.split(text) if p.strip()]
-    if not paragraphs:
-        return ""
-    lines = [line for line in paragraphs[-1].splitlines() if line.strip()]
-    lead_index = len(lines) - 1
-    while lead_index >= 0 and _SIMPLE_LIST_ITEM_RE.match(lines[lead_index]):
-        lead_index -= 1
-    items = lines[lead_index + 1 :]
-    if lead_index >= 0:
-        lead = _trailing_question_sentences(lines[lead_index])
-    elif len(paragraphs) > 1:
-        previous_lines = [line for line in paragraphs[-2].splitlines() if line.strip()]
-        lead = _trailing_question_sentences(previous_lines[-1]) if previous_lines else ""
-    else:
-        lead = ""
-    return "\n".join(part.strip() for part in [lead, *items] if part.strip())
-
-
 class AgentTextShaper:
     """一个 agent run 的 TEXT 流在发给作者之前的整理。
 

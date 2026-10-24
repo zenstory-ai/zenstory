@@ -103,8 +103,8 @@ def partial_save_stop_reason(elapsed_s: float, deadline_s: float | None) -> str:
 def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
     """把 ROUTER_DECIDED 事件转成落库的 message_metadata.routing。
 
-    下一轮的「继续」直达与回答提问时的路由沿用（graph/router.py）从这里读回
-    上一轮的 agent 和用户范围；只留这几个字段，不存 reason / confidence。
+    下一轮的语义 follow-up 路由（graph/router.py）从这里读回可信 agent、用户范围
+    与累计限制；只留执行合同字段，不存 reason / confidence。
     """
     routing_metadata = data.get("routing_metadata")
     if not isinstance(routing_metadata, dict):
@@ -112,6 +112,7 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
     initial_agent = str(data.get("initial_agent") or routing_metadata.get("agent_type") or "")
     write_content = routing_metadata.get("write_content")
     scope = routing_metadata.get("scope")
+    scope_constraints = routing_metadata.get("scope_constraints")
     routing = {
         "initial_agent": initial_agent,
         "workflow_type": str(
@@ -120,6 +121,9 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
         "read_only": routing_metadata.get("read_only") is True,
         "write_content": write_content if isinstance(write_content, bool) else None,
         "scope": scope.strip() if isinstance(scope, str) else "",
+        "scope_constraints": (
+            list(scope_constraints) if isinstance(scope_constraints, list) else []
+        ),
         "requested_file_types": routing_metadata.get("requested_file_types", []),
         # last_agent：这一轮最后说话的 agent；owner_agent：负责这一轮任务的 agent。
         # writer 写完经自动质量门控 / 送审交给审稿人时，last_agent 变成 quality_reviewer，
@@ -128,7 +132,7 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
         "owner_agent": initial_agent,
     }
     if routing_metadata.get("clarify_first") is True:
-        # 这一轮是为笼统要求先问清楚：下一轮不再问第二次（graph/writing_graph._should_clarify_first）。
+        # 记录本轮先澄清的路由事实；跨轮等待仍只认结构化 clarification_pending。
         routing["clarify_first"] = True
     return routing
 
@@ -1317,6 +1321,7 @@ class AgentService:
             # 线程会同时在同一个 SQLAlchemy Session 上 flush/commit/refresh
             # （Session 非线程安全；check_same_thread=False 只是让 sqlite3 不报错）。
             # 传 None + create_session_func，让每个工作线程自建 session。
+            referenced_file_ids = referenced_file_ids_from_metadata(metadata)
             ToolContext.set_context(
                 session=None if _should_offload_tool_execution() else session,
                 user_id=user_id,
@@ -1335,7 +1340,7 @@ class AgentService:
                 # 作者手改过的文件：应用内对话一律不能删除或整份覆盖；局部修改不拦，
                 # 作者改了什么见 <author_edits>（agent/tools/author_changes.py）。
                 focus_file_id=focus_file_id if isinstance(focus_file_id, str) else None,
-                referenced_file_ids=referenced_file_ids_from_metadata(metadata),
+                referenced_file_ids=referenced_file_ids,
                 author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
                 read_snapshots=getattr(session_data, "read_snapshots", None),
@@ -1355,6 +1360,8 @@ class AgentService:
                 "user_id": user_id or "",
                 "session_id": session_id,
                 "generation_mode": generation_mode,
+                "has_selected_text": bool(selected_text),
+                "has_referenced_files": bool(referenced_file_ids),
                 "system_prompt": system_prompt,
                 "context_snapshot": context_snapshot,
                 "context_data": {

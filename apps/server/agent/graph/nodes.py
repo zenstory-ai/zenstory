@@ -6,7 +6,6 @@ helpers. The model/tool loop is provided by agent.openai_agents.
 """
 
 import re
-import unicodedata
 from collections.abc import AsyncIterator
 from typing import Any, NamedTuple
 
@@ -224,86 +223,6 @@ def evaluate_agent_output(content: str, agent_type: str = "unknown") -> OutputEv
         should_clarify=should_clarify,
         reason=reason,
     )
-
-
-# =============================================================================
-# Question-to-user Detection
-# =============================================================================
-
-# 选项列表行：「- xxx」「* xxx」「• xxx」「1. xxx」「2、xxx」「(3) xxx」「（4）xxx」「A. xxx」
-# 「-」「*」后必须跟空白，否则 `**加粗**` 行会被误当成列表项。
-# 数字编号后的 ASCII「.」不能紧跟数字（「1.甜宠路线」算列表项，「1.5万字…」不算）；
-# 字母编号后的 ASCII「.」必须跟空白（否则「e.g. …」会被当成列表项）。
-# 「、」「)」「）」后都不要求空白。
-_LIST_ITEM_RE = re.compile(
-    r"^\s*(?:[-*•·]\s+|[(（]?\d{1,2}(?:\.(?!\d)\s*|[、)）]\s*)|[(（]?[A-Ha-h](?:\.\s+|[、)）]\s*))\S"
-)
-_QUESTION_MARKS = ("?", "？")
-
-
-def _strip_trailing_decorations(line: str) -> str:
-    """去掉行尾的空白、markdown 强调符与 emoji/符号，保留引号和括号。
-
-    引号刻意不剥：以 `“你是谁？”` 收尾的是角色台词，不是在问用户。
-    """
-    chars = list(line.rstrip())
-    while chars:
-        ch = chars[-1]
-        category = unicodedata.category(ch)
-        if ch.isspace() or ch in "*_~`" or category.startswith("S") or category in {"Mn", "Cf"}:
-            chars.pop()
-            continue
-        break
-    return "".join(chars)
-
-
-def ends_with_question_to_user(tail_text: str) -> bool:
-    """判断 agent 最后一段对话文本是否以向用户提问收尾。
-
-    只看「最后一次工具调用之后」的文本（调用方负责截取），并且保守判定：
-    1) 最后一个非空行不是列表项，且以问号结尾；或
-    2) 末尾是一段列表，且列表每一条都是问句，或列表前一行是问句
-       （「你更倾向哪个方向？」+ 选项）。
-
-    以下情况一律不算提问：文本里还有未闭合的 `<file>` 块（那是正文，不是对话）；
-    问句在引号内（台词）；问号出现在中间而结尾是陈述句。
-    结构化的 request_clarification 仍是首选信号；这里只用来兜住模型直接用
-    文字发问、却被计划交接/自动质检门越过用户继续往下跑的情况。
-    """
-    text = (tail_text or "").strip()
-    if not text:
-        return False
-
-    lowered = text.lower()
-    if "</file>" in lowered:
-        text = text[lowered.rfind("</file>") + len("</file>"):].strip()
-        lowered = text.lower()
-    if "<file" in lowered:
-        return False
-
-    text, _ = _strip_task_complete_marker(text)
-
-    lines = [line for line in (raw.rstrip() for raw in text.splitlines()) if line.strip()]
-    if not lines:
-        return False
-
-    def _is_question(line: str) -> bool:
-        return _strip_trailing_decorations(line).endswith(_QUESTION_MARKS)
-
-    if not _LIST_ITEM_RE.match(lines[-1]):
-        return _is_question(lines[-1])
-
-    # 末尾是列表：大纲要点里常有「悬念：谁在暗中观察？」这种以问号结尾的条目，
-    # 所以不能只看最后一条。只有两种列表算在问用户：
-    # 至少两条且每一条都是问句（逐条提问；只有一条时多半是要点里的设问），
-    # 或引出列表的那一行是问句（提问 + 选项）。
-    idx = len(lines) - 1
-    while idx >= 0 and _LIST_ITEM_RE.match(lines[idx]):
-        idx -= 1
-    list_items = lines[idx + 1:]
-    if len(list_items) >= 2 and all(_is_question(item) for item in list_items):
-        return True
-    return idx >= 0 and _is_question(lines[idx])
 
 
 # =============================================================================

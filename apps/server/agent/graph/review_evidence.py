@@ -381,179 +381,71 @@ def find_numeric_fact_pairs(
     return pairs[:MAX_FACT_PAIRS]
 
 
-# ----------------------------------------------------------------- 篇幅要求
+# ----------------------------------------------------------- 作者要求原文
 
-# 作者说过的篇幅要求（「单章约2000字」「每集500-900字」「每章字数要求1000字以上」）。
-# 审稿人原来只认作者本轮原话里的篇幅（subagents.py「没达到用户原话里明确的篇幅」），
-# 早先说过的、写进项目设定的要求它看不到（I05：U075 1369 字对 2000 字的要求被判通过，
-# U070「作者本轮没有指定篇幅，不按篇幅返工」）。这里只把原话摘出来交给审稿人，
-# 不换算成数字下结论：「8000字左右的短篇」说的是全篇还是单章，由审稿人看上下文判断。
-MAX_LENGTH_REQUIREMENTS = 6
-_LENGTH_CLAUSE_MAX_CHARS = 60
-_LENGTH_CLAUSE_SPLIT_RE = re.compile(r"[。！？!?；;\n]+")
-_LENGTH_NUMBER_RE = re.compile(
-    r"(?:\d[\d,，]*(?:\.\d+)?|[一二两三四五六七八九十百千万]+)\s*(?:多|余)?\s*(?:[kK千万])?\s*字"
-)
-_LENGTH_CUE_RE = re.compile(
-    r"每[一]?[章集节篇幕]|单[章集篇]|一[章集]|章节|全[文章篇]|本[章集]|这[一]?[章集]|篇幅|字数"
-    r"|左右|上下|以上|以内|以下|不少于|不低于|不超过|至少|起码|控制在|保持在|扩[写充]?到|写到|写满|写够"
-)
+_SOURCE_TRUNCATION_MARKER = "\n…（中间内容已截断）…\n"
 
 
-# 篇幅目标的容差：作者给的是单个目标数（「单章约2000字」）时，实际字数在目标 ±15% 内就算达标。
-# 生产里返修 writer 为把 3377 字削到 2899 字连续调了约 25 次 edit_file（「2905，还多 5 字」），
-# 每次都重发整段上下文；单个数字本来就是约数，几个百分点的差不是缺陷。作者给了范围或
-# 明确上下限（「500-900字」「不超过3000字」「至少2000字」）时，那一侧是硬要求，不放宽。
-LENGTH_TOLERANCE = 0.15
-_AMOUNT = r"\d[\d,，]*(?:\.\d+)?|[零〇一二两三四五六七八九十百千万]+"
-_LENGTH_AMOUNT_RE = re.compile(rf"(?P<number>{_AMOUNT})\s*(?P<more>多|余)?\s*(?P<unit>[kK千万])?\s*字")
-_LENGTH_RANGE_RE = re.compile(
-    rf"(?P<low>{_AMOUNT})\s*(?P<low_unit>[kK千万])?\s*字?\s*(?:-|~|～|—|–|至|到)+\s*"
-    rf"(?P<high>{_AMOUNT})\s*(?P<high_unit>[kK千万])?\s*字"
-)
-# 上下限用语：「不超过 / 至少」在数字前面（中间最多隔几个字，如「最多写3000字」），
-# 「以内 / 以上」紧跟在「字」后面。只看数字附近，「以下是要求：每章2000字」不算上限。
-_LENGTH_UPPER_PREFIX_RE = re.compile(r"(?:不超过|不要超过|别超过|不能超过|不多于|最多|上限)[^\d零〇一二两三四五六七八九十]{0,3}$")
-_LENGTH_LOWER_PREFIX_RE = re.compile(r"(?:不少于|不能少于|不低于|至少|起码|最少|下限|写满|写够)[^\d零〇一二两三四五六七八九十]{0,3}$")
-_LENGTH_UPPER_SUFFIX_RE = re.compile(r"\s*(?:以内|以下|之内)")
-_LENGTH_LOWER_SUFFIX_RE = re.compile(r"\s*以上")
-_AMOUNT_UNITS = {"k": 1000, "K": 1000, "千": 1000, "万": 10000}
+def quote_author_requirement_sources(
+    sources: list[tuple[str, str]], *, max_chars: int = 4000
+) -> list[str]:
+    """原文来源各留首尾份额，余量优先最新；不按语义筛选或改写。
 
-
-@dataclass(frozen=True)
-class LengthBounds:
-    """一条篇幅要求的达标区间（编辑器字数）；low / high 为 None 表示那一侧没有限制。"""
-
-    low: int | None
-    high: int | None
-    hard: bool  # True：作者给的范围或上下限；False：单个目标数放宽 ±LENGTH_TOLERANCE
-
-    def describe(self) -> str:
-        if not self.hard:
-            return f"达标区间 {self.low}–{self.high} 字（目标 ±{round(LENGTH_TOLERANCE * 100)}%）"
-        if self.low is not None and self.high is not None:
-            return f"硬要求 {self.low}–{self.high} 字"
-        if self.high is not None:
-            return f"硬上限 {self.high} 字"
-        return f"硬下限 {self.low} 字"
-
-
-def _parse_chinese_amount(raw: str) -> int | None:
-    """「两千」「两千五」「一万五」「两千零五」「十五」；「三四千」这类约数返回 None。"""
-    total = section = 0
-    pending: int | None = None
-    last_unit = 0
-    for ch in raw:
-        if ch in "零〇":
-            last_unit = 1  # 「两千零五」：零后面的数字按个位算
-            continue
-        if ch in _CN_DIGITS:
-            if pending is not None:
-                return None
-            pending = _CN_DIGITS[ch]
-        elif ch in _CN_UNITS:
-            section += (pending if pending is not None else 1) * _CN_UNITS[ch]
-            last_unit, pending = _CN_UNITS[ch], None
-        elif ch == "万":
-            total += (section + (pending or 0) or 1) * 10000
-            section, last_unit, pending = 0, 10000, None
-        else:
-            return None
-    if pending is not None:
-        # 「两千五」= 2500：末尾的数字是上一个单位的下一位。
-        section += pending * (last_unit // 10 if last_unit >= 100 else 1)
-    return total + section
-
-
-def _parse_amount(raw: str, unit: str | None) -> int | None:
-    raw = raw.replace(",", "").replace("，", "")
-    if raw[0].isdigit():
-        try:
-            value = float(raw)
-        except ValueError:
-            return None
-    else:
-        parsed = _parse_chinese_amount(raw)
-        if parsed is None:
-            return None
-        value = float(parsed)
-    return round(value * _AMOUNT_UNITS.get(unit or "", 1)) or None
-
-
-def length_requirement_bounds(clause: str) -> LengthBounds | None:
-    """把一条篇幅原话换算成达标区间；说不清（多个数字、「三千多字」、约数连写）时返回 None。
-
-    - 「500-900字」「2000到3000字」：作者给的范围，硬要求。
-    - 单个数字带「不超过 / 以内 / 最多」：硬上限；带「至少 / 不少于 / 以上」：硬下限。
-    - 其余单个数字（「约2000字」「3000字左右」「扩写到3000字」）：目标 ±LENGTH_TOLERANCE。
-
-    只换算数字，不判断说的是全篇还是单章：那由读原话的角色按上下文判断。
+    sources 按时间排列，返回仍按时间排列。标签、分隔换行和截断标记
+    均计入预算；预算不足以容纳全部来源的最小摘录时，优先保留最新来源。
     """
-    text = clause or ""
-    range_match = _LENGTH_RANGE_RE.search(text)
-    if range_match:
-        if len(_LENGTH_AMOUNT_RE.findall(text[: range_match.start()] + text[range_match.end() :])):
-            return None
-        low_unit = range_match.group("low_unit") or range_match.group("high_unit")
-        low = _parse_amount(range_match.group("low"), low_unit)
-        high = _parse_amount(range_match.group("high"), range_match.group("high_unit"))
-        if low is None or high is None or low >= high:
-            return None
-        return LengthBounds(low, high, hard=True)
-    amounts = list(_LENGTH_AMOUNT_RE.finditer(text))
-    if len(amounts) != 1 or amounts[0].group("more"):
-        return None
-    amount = amounts[0]
-    target = _parse_amount(amount.group("number"), amount.group("unit"))
-    if target is None:
-        return None
-    prefix, suffix = text[: amount.start()], text[amount.end() :]
-    upper = bool(_LENGTH_UPPER_PREFIX_RE.search(prefix) or _LENGTH_UPPER_SUFFIX_RE.match(suffix))
-    lower = bool(_LENGTH_LOWER_PREFIX_RE.search(prefix) or _LENGTH_LOWER_SUFFIX_RE.match(suffix))
-    if upper != lower:
-        return LengthBounds(None, target, hard=True) if upper else LengthBounds(target, None, hard=True)
-    if upper:
-        return None
-    return LengthBounds(round(target * (1 - LENGTH_TOLERANCE)), round(target * (1 + LENGTH_TOLERANCE)), hard=False)
+    if max_chars <= 0:
+        return []
 
-
-def find_length_requirements(sources: list[tuple[str, str]]) -> list[str]:
-    """从作者的话和项目设定里摘出篇幅要求，返回「「原话」（来源）→ 达标区间」列表，按出现顺序、去重。
-
-    sources 是 (来源说明, 文本)，按时间先后排列。只认同时带「数字 + 字」和篇幅用语的短分句；
-    长句（多半是贴进来的正文）不看。最多保留最后 MAX_LENGTH_REQUIREMENTS 条。
-    能换算时在原话后面附上达标区间（见 length_requirement_bounds），换算不了只给原话。
-    """
-    found: list[str] = []
-    seen: set[str] = set()
-    for label, text in sources:
-        if not isinstance(text, str) or not text.strip():
+    selected: list[tuple[str, str, int]] = []
+    remaining = max_chars
+    for source in reversed(sources or []):
+        if not isinstance(source, (tuple, list)) or len(source) != 2:
             continue
-        for clause in _LENGTH_CLAUSE_SPLIT_RE.split(text):
-            clause = clause.strip(" \t，,、：:")
-            if not clause or len(clause) > _LENGTH_CLAUSE_MAX_CHARS:
-                continue
-            if not _LENGTH_NUMBER_RE.search(clause) or not _LENGTH_CUE_RE.search(clause):
-                continue
-            key = re.sub(r"\s+", "", clause)
-            if key in seen:
-                continue
-            seen.add(key)
-            item = f"「{clause}」（{label}）" if label else f"「{clause}」"
-            bounds = length_requirement_bounds(clause)
-            found.append(f"{item} → {bounds.describe()}" if bounds else item)
-    return found[-MAX_LENGTH_REQUIREMENTS:]
+        label, text = source
+        if not isinstance(label, str) or not isinstance(text, str) or not text.strip():
+            continue
+        prefix = f"【{label.strip() or '来源'}】\n"
+        minimum = min(len(text), len(_SOURCE_TRUNCATION_MARKER) + 2)
+        cost = len(prefix) + minimum + bool(selected)
+        if cost > remaining:
+            break
+        selected.append((prefix, text, minimum))
+        remaining -= cost
+
+    if not selected:
+        return []
+    selected.reverse()
+    allocations = [minimum for _, _, minimum in selected]
+    # 先为每个来源增加同等份额，避免长本轮样文饿死项目风格和早期要求。
+    fair_extra = remaining // (2 * len(selected))
+    for index, (_, text, _) in enumerate(selected):
+        extra = min(fair_extra, len(text) - allocations[index])
+        allocations[index] += extra
+        remaining -= extra
+    # 保留最新要求优先级；不尝试猜测哪一句更重要。
+    for index in reversed(range(len(selected))):
+        extra = min(remaining, len(selected[index][1]) - allocations[index])
+        allocations[index] += extra
+        remaining -= extra
+
+    quoted = []
+    for (prefix, text, _), allocation in zip(selected, allocations, strict=True):
+        if allocation < len(text):
+            available = allocation - len(_SOURCE_TRUNCATION_MARKER)
+            tail_chars = available // 2
+            text = (text[:available - tail_chars] + _SOURCE_TRUNCATION_MARKER
+                    + (text[-tail_chars:] if tail_chars else ""))
+        quoted.append(prefix + text)
+    return quoted
+
 
 
 __all__ = [
-    "LENGTH_TOLERANCE",
-    "LengthBounds",
     "MAX_FACT_PAIRS",
-    "MAX_LENGTH_REQUIREMENTS",
     "MAX_REPETITION_EVIDENCE",
     "REPEAT_WINDOW",
-    "find_length_requirements",
     "find_numeric_fact_pairs",
     "find_repetition_evidence",
-    "length_requirement_bounds",
+    "quote_author_requirement_sources",
 ]

@@ -782,28 +782,29 @@ class TestJSONParsing:
         assert "valid suggestion" in suggestions
         assert "another valid" in suggestions
 
-    def test_validate_suggestions_drops_instructions_aimed_at_the_author(self, suggest_service):
-        """建议是作者点一下就发给 AI 的话，指向作者本人的指令要丢掉。"""
+    def test_validate_suggestions_does_not_guess_semantics_from_words(self, suggest_service):
+        """合法故事内容不能因为碰巧出现「用户」或「拍板」而被误删。"""
         suggestions = suggest_service._validate_suggestions([
-            "请用户拍板开篇方案",
-            "按方案 A 写全文",
-            "请作者确认主角年龄",
-            "Ask the user which ending",
-            "开头方案请你拍板",
-            "把第二章结尾改得更紧",
+            "描写用户代表拍板的瞬间",
+            "让角色质疑用户至上",
+            "刻画董事长拍板后的沉默",
         ])
 
-        assert suggestions == ["按方案 A 写全文", "把第二章结尾改得更紧"]
+        assert suggestions == [
+            "描写用户代表拍板的瞬间",
+            "让角色质疑用户至上",
+            "刻画董事长拍板后的沉默",
+        ]
 
     @pytest.mark.asyncio
-    async def test_author_directed_suggestions_are_removed_without_padding(
+    async def test_generated_suggestions_are_not_semantically_reclassified_after_generation(
         self, suggest_service, test_user_with_project, db_session: Session
     ):
-        """过滤不合格建议，保留有效条目，不凑数。"""
+        """生成模型负责建议语义，服务层只校验响应结构和基本字符串约束。"""
         user = test_user_with_project["user"]
         project = test_user_with_project["project"]
         suggest_service.llm.acomplete.return_value = json.dumps({
-            "suggestions": ["请用户拍板开篇方案", "按方案 A 写全文", "等用户确认后再写"]
+            "suggestions": ["描写用户代表拍板的瞬间", "按方案 A 写全文", "等用户确认后再写"]
         })
 
         suggestions = await suggest_service.generate_suggestions(
@@ -813,8 +814,10 @@ class TestJSONParsing:
             count=3,
         )
 
-        assert suggestions == ["按方案 A 写全文"]
-        assert not any("用户" in s or "拍板" in s for s in suggestions)
+        assert suggestions == ["描写用户代表拍板的瞬间", "按方案 A 写全文", "等用户确认后再写"]
+        prompt = suggest_service.llm.acomplete.call_args.kwargs["messages"][0]["content"]
+        assert "点击后应能直接作为作者发给 AI 的下一步请求" in prompt
+        assert "不要写成 AI 对作者的追问" in prompt
 
 
 # =============================================================================

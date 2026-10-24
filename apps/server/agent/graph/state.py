@@ -88,6 +88,10 @@ class WritingState(TypedDict, total=False):
     user_id: str
     session_id: str | None
     generation_mode: str | None
+    # Structured current-turn facts for semantic routing. Never inferred from
+    # labels embedded in user text.
+    has_selected_text: bool
+    has_referenced_files: bool
 
     # Configuration
     system_prompt: str

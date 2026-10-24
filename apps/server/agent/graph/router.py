@@ -8,12 +8,14 @@ intent and route to the appropriate writing agent.
 import ast
 import json
 import re
+from contextlib import suppress
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator
 
 from agent.core import llm_failover
 from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception
+from agent.graph.completion_evidence import author_reply_tail
 from agent.graph.state import WritingState
 from agent.openai_agents.events import parse_json_object
 from agent.prompts.subagents import ROUTER_PROMPT
@@ -28,6 +30,11 @@ AgentType = Literal["planner", "hook_designer", "writer", "quality_reviewer"]
 # Workflow type definitions
 WorkflowType = Literal["quick", "standard", "full", "hook_focus", "review_only"]
 ArtifactFileType = Literal["outline", "draft", "script", "character", "lore", "snippet", "document"]
+TurnDisposition = Literal[
+    "new_or_changed_request",
+    "resume_interrupted_task",
+    "answer_pending_clarification",
+]
 
 # Workflow type to agent sequence mapping
 # 每个工作流定义了初始 Agent 之后的 Agent 序列（上限）。实际计划交接序列由
@@ -92,6 +99,8 @@ class RouterDecision(BaseModel):
     read_only: bool = False
     scope: str = ""
     requested_file_types: list[ArtifactFileType] = Field(default_factory=list, max_length=7)
+    turn_disposition: TurnDisposition | None = None
+    clarify_first: StrictBool | None = None
 
     @field_validator("requested_file_types")
     @classmethod
@@ -149,8 +158,17 @@ async def router_node(state: WritingState) -> dict:
         # 有上一轮助手回复时，把它的结尾和落库路由一起交给路由器（见
         # build_router_user_message）；第一轮仍只发用户原话，与改动前完全一致。
         response = await _route_with_chat_model(build_router_user_message(state))
-        decision = _parse_router_response(response)
-        workflow_agents = plan_workflow_agents(decision)
+        base_decision = _parse_router_response(response)
+        decision, resolution_metadata = _resolve_turn_decision(state, base_decision)
+        resumed_agents = resolution_metadata.pop("_workflow_agents", None)
+        followup_resolved = resolution_metadata.pop("_followup_resolved", False) is True
+        workflow_agents = (
+            []
+            if decision.clarify_first is True
+            else resumed_agents
+            if isinstance(resumed_agents, list)
+            else plan_workflow_agents(decision)
+        )
 
         log_with_context(
             logger,
@@ -168,7 +186,13 @@ async def router_node(state: WritingState) -> dict:
             "current_agent": decision.agent_type,
             "workflow_plan": decision.workflow_type,
             "workflow_agents": workflow_agents,
-            "routing_metadata": decision.model_dump(),
+            # Server-internal fact from a successful trusted-state resolution.
+            # It is deliberately outside routing_metadata so it is not emitted or persisted.
+            "followup_resolved": followup_resolved,
+            "routing_metadata": {
+                **decision.model_dump(),
+                **resolution_metadata,
+            },
             # 路由这次 LLM 调用的用量随决策一起上报，由 writing_graph 放进
             # ROUTER_DECIDED 事件，最终汇入 stream_adapter 的 usage 累加器。
             "routing_usage": response.get("usage"),
@@ -355,6 +379,8 @@ def _parse_router_response(response: dict) -> RouterDecision:
             for field in ("read_only", "write_content"):
                 if field in payload and _coerce_optional_bool(payload[field]) is None:
                     raise RouterFailure("schema", failed_fields=(field,))
+            if "clarify_first" in payload and not isinstance(payload["clarify_first"], bool):
+                raise RouterFailure("schema", failed_fields=("clarify_first",))
             if "scope" in payload and not isinstance(payload["scope"], str):
                 raise RouterFailure("schema", failed_fields=("scope",))
             normalized = _normalize_router_payload(payload)
@@ -498,7 +524,12 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
 
     scope_raw = payload.get("scope")
     scope = str(scope_raw).strip() if isinstance(scope_raw, str) else ""
-    scope = scope[:MAX_SCOPE_CHARS]
+    turn_disposition = payload.get("turn_disposition")
+    # Existing single-turn output historically clipped scope. Keep that
+    # compatibility, but never clip a follow-up restriction: clipping would
+    # silently grant more authority than the router actually requested.
+    if turn_disposition not in {"resume_interrupted_task", "answer_pending_clarification"}:
+        scope = scope[:MAX_SCOPE_CHARS]
 
     return {
         "agent_type": agent_type,
@@ -510,6 +541,8 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         "read_only": _coerce_optional_bool(payload.get("read_only")) is True,
         "scope": scope,
         "requested_file_types": payload.get("requested_file_types", []),
+        "turn_disposition": turn_disposition,
+        "clarify_first": payload.get("clarify_first"),
     }
 
 
@@ -560,175 +593,17 @@ def get_next_node(state: WritingState) -> AgentType:
 
 
 # =============================================================================
-# 跨轮路由延续：「继续」直达上一个 agent / 回答提问时沿用上一轮路由
+# Cross-turn routing: semantic disposition + trusted structured state
 # =============================================================================
-#
-# 上一轮的路由结果由 service 存进 assistant 消息的 message_metadata.routing
-# （initial_agent / workflow_type / read_only / write_content / scope / last_agent），
-# session_loader 把它连同状态卡里的 lastAgent、是否以澄清卡收尾一起放进历史 dict：
-#   history["routing"]               -> dict
-#   history["last_agent"]            -> str（状态卡 lastAgent）
-#   history["clarification_pending"] -> bool（workflow_stopped + clarification_needed）
 
 _AGENT_TYPES: tuple[str, ...] = ("planner", "hook_designer", "writer", "quality_reviewer")
 
-# 上一条 assistant 消息落库的 stop_reason：表示那一轮被上限或时限截停、没做完。
-# - max_turns_exceeded（runner.MAX_TURNS_STOP_REASON）/ no_progress（repeat_read_guard）
-# - model_call_budget_exhausted（runner.MODEL_CALL_BUDGET_STOP_REASON，请求级调用预算用完）
-# - run_deadline_exceeded（service 在墙钟时限取消时随部分历史落库）
-# - output_truncated（runner.OUTPUT_TRUNCATED_STOP_REASON，最后一次响应只有思考就撞上输出上限）
-# 用户主动停止生成（cancelled）不算：那是用户自己的决定，「继续」照常走路由。
 RESUMABLE_STOP_REASONS: frozenset[str] = frozenset(
-    {
-        "max_turns_exceeded",
-        "no_progress",
-        "model_call_budget_exhausted",
-        "run_deadline_exceeded",
-        "output_truncated",
-    }
+    {"max_turns_exceeded", "no_progress", "model_call_budget_exhausted",
+     "run_deadline_exceeded", "output_truncated"}
 )
-
-# 「继续」类的简短跟进。前端「继续」按钮预填的文案改成了「继续」/「continue」，
-# 旧版前端（以及历史里）预填的长句仍要认：Vercel 先上线、Railway 还没跟上的
-# 那段时间里，旧按钮发出的「继续」不能被重新路由。
-_CONTINUE_MESSAGES: frozenset[str] = frozenset(
-    {
-        "继续",
-        "继续吧",
-        "请继续",
-        "继续写",
-        "接着写",
-        "接着",
-        "接着来",
-        "继续完成",
-        "go on",
-        "continue",
-        "please continue",
-        "请基于上一步结果继续完成剩余任务，优先最关键目标",
-        "please continue from the previous result and finish the remaining work, "
-        "prioritizing the most critical goal",
-    }
-)
-_CONTINUE_TRAILING_PUNCT = " \t\r\n。.!！~～…,，"
-_LAST_AGENT_RE = re.compile(r"last_agent:\s*([a-z_]+)")
-
-# 回答澄清 / 确认上一轮提问时，回复不超过这个长度才直接沿用上一轮路由；
-# 更长的回复多半带了新要求，交给 LLM 路由重新判断。
-CLARIFICATION_REPLY_MAX_CHARS = 40
-
-# 用户回复里出现这些明确的收窄说法时不沿用上一轮路由（交给 LLM 路由按原话判断）。
-_NARROWING_MARKERS: tuple[str, ...] = (
-    "先别写",
-    "别写正文",
-    "不要正文",
-    "不写正文",
-    "只要大纲",
-    "不用写",
-    "先不写",
-    "don't write",
-    "do not write",
-    "no prose",
-    "outline only",
-    "only the outline",
-)
-
-# 只读 / 审查意图：出现就不沿用（澄清卡与问句收尾两种情况都适用）。沿用写作路由会让
-# writer 带着 create/edit/delete 工具接手，用户说了「只审不改」也照样改稿；
-# 交给 LLM 路由才能判成 quality_reviewer + review_only 并挂上只读护栏。
-_READ_ONLY_INTENT_MARKERS: tuple[str, ...] = (
-    "不改",
-    "不要改",
-    "别改",
-    "不用改",
-    "先别动",
-    "不要动",
-    "只看",
-    "只帮我看",
-    "看看",
-    "审",
-    "检查",
-    "评估",
-    "有没有问题",
-    "挑毛病",
-    "追更指数",
-    "review",
-    "check",
-    "proofread",
-    "evaluate",
-    "critique",
-    "feedback",
-    "don't change",
-    "do not change",
-    "don't edit",
-    "do not edit",
-    "no changes",
-    "read only",
-    "read-only",
-    "just look",
-)
-
-# 换成规划类任务：只在「问句收尾」时生效。上一轮多半是 writer 写完问下一步，
-# 用户转去要大纲 / 人设 / 设定时应重新选 agent。澄清卡不适用——planner 问
-# 「人设按哪版来？」时，回答里带「人设」是正常作答，应当沿用。
-_PLANNING_INTENT_MARKERS: tuple[str, ...] = (
-    "大纲",
-    "细纲",
-    "规划",
-    "人设",
-    "设定",
-    "世界观",
-    "outline",
-    "planning",
-    "character profile",
-    "worldbuilding",
-    "world-building",
-)
-
-# session_loader 追加到 assistant 正文后的合成段落（工具面包屑 / 状态卡摘要）：
-# 判断「上一轮是否以提问收尾」时必须先剥掉，否则结尾永远是面包屑。
-_SYNTHESIZED_SECTION_HEADERS: tuple[str, ...] = (
-    "[此前的工具操作]",
-    "[Previous tool actions]",
-    "[workflow_stopped]",
-    "[iteration_exhausted]",
-)
-
-
-def _is_bare_continue(message: str) -> bool:
-    normalized = (message or "").strip().lower().rstrip(_CONTINUE_TRAILING_PUNCT).strip()
-    return normalized in _CONTINUE_MESSAGES
-
-
-def _message_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "\n".join(
-            str(block.get("text") or "")
-            for block in content
-            if isinstance(block, dict) and block.get("type") == "text"
-        )
-    return ""
-
-
-def _reply_text(content: Any) -> str:
-    """assistant 消息里模型自己说的话：去掉 session_loader 追加的合成段落。"""
-    if isinstance(content, list):
-        text = "\n".join(
-            str(block.get("text") or "")
-            for block in content
-            if isinstance(block, dict)
-            and block.get("type") == "text"
-            and not str(block.get("text") or "").lstrip().startswith(_SYNTHESIZED_SECTION_HEADERS)
-        )
-    else:
-        text = _message_text(content)
-    cut = len(text)
-    for header in _SYNTHESIZED_SECTION_HEADERS:
-        index = text.find(header)
-        if index != -1:
-            cut = min(cut, index)
-    return text[:cut].strip()
+MAX_SCOPE_CONSTRAINTS = 8
+MAX_SCOPE_CONSTRAINTS_JSON_CHARS = 2048
 
 
 def _last_assistant_message(messages: list[Any]) -> dict[str, Any] | None:
@@ -748,117 +623,128 @@ def _previous_routing(previous: dict[str, Any]) -> dict[str, Any]:
     return routing if isinstance(routing, dict) else {}
 
 
-def _inherited_scope_fields(routing: dict[str, Any], *, keep_scope: bool = True) -> dict[str, Any]:
-    """上一轮的用户范围字段（write_content / read_only / scope），按 RouterDecision 的口径规整。"""
-    write_content = routing.get("write_content")
-    scope_raw = routing.get("scope") if keep_scope else ""
-    scope = scope_raw.strip()[:MAX_SCOPE_CHARS] if isinstance(scope_raw, str) else ""
-    return {
-        "write_content": write_content if isinstance(write_content, bool) else None,
-        "read_only": routing.get("read_only") is True,
-        "scope": scope,
-        "requested_file_types": routing.get("requested_file_types", []),
-    }
-
-
-def resume_route_after_exhaustion(state: WritingState) -> dict[str, Any] | None:
-    """上一轮被上限截停、用户只回「继续」时，直接交给上一轮的 agent 走 quick 工作流。
-
-    之前「继续」会重新走一遍 LLM 路由，常被规划成 planner → writer 的多 agent 流程，
-    每个 agent 又从头把文件读一遍——线上就是这样连着两次读到轮数上限的。
-
-    判据：上一条 assistant 消息的 stop_reason 属于 RESUMABLE_STOP_REASONS，或它只有
-    状态卡、合成文本里带着 ``[iteration_exhausted]`` + ``layer: tool_call``（旧数据）。
-
-    上一轮的 agent 依次取：状态卡的 lastAgent（history["last_agent"]；旧数据从合成
-    文本的 ``last_agent:`` 里取）→ 落库路由的 last_agent → 落库路由的 initial_agent →
-    无合法 agent 时正常路由。上一轮的 read_only / scope / write_content 原样带过来：只读审查被截停后
-    说「继续」，恢复的仍是只读的审稿人，而不是拿着写工具的 writer。
-    返回 None 表示照常路由。
-    """
-    user_message = str(state.get("router_message") or state.get("user_message") or "")
-    if not _is_bare_continue(user_message):
-        return None
+def has_pending_followup_state(state: WritingState) -> bool:
+    """Return whether router-off mode still needs a semantic decision."""
     previous = _last_assistant_message(list(state.get("messages") or []))
     if previous is None:
-        return None
+        return False
+    stop_reason = previous.get("stop_reason")
+    return (
+        isinstance(stop_reason, str) and stop_reason in RESUMABLE_STOP_REASONS
+    ) or previous.get("clarification_pending") is True
 
-    text = _message_text(previous.get("content"))
-    stop_reason = str(previous.get("stop_reason") or "")
-    exhausted_card = "[iteration_exhausted]" in text and "layer: tool_call" in text
-    if stop_reason not in RESUMABLE_STOP_REASONS and not exhausted_card:
-        return None
 
-    routing = _previous_routing(previous)
-    match = _LAST_AGENT_RE.search(text)
-    agent_type = (
-        _valid_agent(previous.get("last_agent"))
-        or _valid_agent(match.group(1) if match else None)
-        or _valid_agent(routing.get("last_agent"))
-        or _valid_agent(routing.get("initial_agent"))
-    )
-    if agent_type is None:
-        return None
+def _validate_scope_constraints(constraints: list[Any], *, field: str) -> list[str]:
+    if any(
+        not isinstance(item, str)
+        or not item.strip()
+        or len(item.strip()) > MAX_SCOPE_CHARS
+        for item in constraints
+    ):
+        raise RouterFailure("schema", failed_fields=(field,))
+    normalized: list[str] = []
+    for item in constraints:
+        stripped = item.strip()
+        if stripped not in normalized:
+            normalized.append(stripped)
+    if len(normalized) > MAX_SCOPE_CONSTRAINTS:
+        raise RouterFailure("schema", failed_fields=(field,))
+    try:
+        encoded = json.dumps(normalized, ensure_ascii=False)
+    except (TypeError, ValueError):
+        raise RouterFailure("schema", failed_fields=(field,)) from None
+    if len(encoded) > MAX_SCOPE_CONSTRAINTS_JSON_CHARS:
+        raise RouterFailure("schema", failed_fields=(field,))
+    return normalized
 
-    scope_fields = _inherited_scope_fields(routing)
-    remaining = _remaining_planned_agents(routing, agent_type)
-    if remaining:
-        # 截停时原计划还没走完（例如规划师还在规划、writer 还没开始）：接着走剩下的阶段，
-        # 不把「先规划再写第1—3章」缩成只剩规划（#269）。
-        workflow_type = str(routing.get("workflow_type")).strip()
-    else:
-        workflow_type = "review_only" if agent_type == "quality_reviewer" else "quick"
-    log_with_context(
-        logger,
-        20,  # INFO
-        "Resuming exhausted run with the previous agent (router skipped)",
-        agent_type=agent_type,
-        previous_stop_reason=stop_reason or None,
-        read_only=scope_fields["read_only"],
-        has_scope=bool(scope_fields["scope"]),
-        remaining_agents=remaining,
+
+def _inherited_scope_fields(routing: dict[str, Any]) -> dict[str, Any]:
+    """Validate persisted authority fields before a follow-up inherits them."""
+    if "initial_agent" in routing and _valid_agent(routing.get("initial_agent")) is None:
+        raise RouterFailure("schema", failed_fields=("previous_routing.initial_agent",))
+    workflow = routing.get("workflow_type")
+    if "workflow_type" in routing and (
+        not isinstance(workflow, str) or workflow.strip() not in WORKFLOW_AGENTS
+    ):
+        raise RouterFailure("schema", failed_fields=("previous_routing.workflow_type",))
+    for field in ("last_agent", "owner_agent"):
+        if field in routing and routing[field] is not None and _valid_agent(routing[field]) is None:
+            raise RouterFailure("schema", failed_fields=(f"previous_routing.{field}",))
+    write_content = routing.get("write_content")
+    if write_content is not None and not isinstance(write_content, bool):
+        raise RouterFailure("schema", failed_fields=("previous_routing.write_content",))
+    read_only = routing.get("read_only", False)
+    if not isinstance(read_only, bool):
+        raise RouterFailure("schema", failed_fields=("previous_routing.read_only",))
+    scope = routing.get("scope", "")
+    if not isinstance(scope, str):
+        raise RouterFailure("schema", failed_fields=("previous_routing.scope",))
+    scope = scope.strip()
+    if len(scope) > MAX_SCOPE_CHARS:
+        raise RouterFailure("schema", failed_fields=("previous_routing.scope",))
+    requested = routing.get("requested_file_types", [])
+    allowed = get_args(ArtifactFileType)
+    if (
+        not isinstance(requested, list)
+        or len(requested) > len(allowed)
+        or any(not isinstance(item, str) or item not in allowed for item in requested)
+        or len(requested) != len(set(requested))
+    ):
+        raise RouterFailure("schema", failed_fields=("previous_routing.requested_file_types",))
+    constraints = routing.get("scope_constraints", [])
+    if not isinstance(constraints, list):
+        raise RouterFailure("schema", failed_fields=("previous_routing.scope_constraints",))
+    constraints = _validate_scope_constraints(
+        constraints, field="previous_routing.scope_constraints"
     )
     return {
-        "current_agent": agent_type,
-        "workflow_plan": workflow_type,
-        "workflow_agents": remaining,
-        "routing_metadata": {
-            "agent_type": agent_type,
-            "workflow_type": workflow_type,
-            "reason": "resume_after_exhaustion",
-            "confidence": 1.0,
-            **({"previous_stop_reason": stop_reason} if stop_reason == "output_truncated" else {}),
-            **scope_fields,
-        },
+        "write_content": write_content,
+        "read_only": read_only,
+        "scope": scope,
+        "requested_file_types": list(requested),
+        "scope_constraints": constraints,
     }
+
+
+def _accumulate_scope_constraints(
+    old_scope: str, existing: list[str], current_scope: str
+) -> list[str]:
+    if len(current_scope) > MAX_SCOPE_CHARS:
+        raise RouterFailure("schema", failed_fields=("scope",))
+    accumulated: list[str] = []
+    for item in (old_scope, *existing, current_scope):
+        normalized = item.strip()
+        if normalized and normalized not in accumulated:
+            accumulated.append(normalized)
+    return _validate_scope_constraints(accumulated, field="scope_constraints")
 
 
 def _remaining_planned_agents(routing: dict[str, Any], agent_type: str) -> list[str]:
-    """上一轮落库路由的计划序列里，排在被恢复的 agent 之后、还没跑的阶段。
-
-    只用结构化的落库路由重算（同一个 plan_workflow_agents，按 write_content / read_only 裁剪），
-    不从回复文字猜进度。审稿人恢复时不接写作阶段；路由不完整或 agent 不在原计划里时为空。
-    """
     initial = _valid_agent(routing.get("initial_agent"))
     workflow = str(routing.get("workflow_type") or "").strip()
     if initial is None or workflow not in WORKFLOW_AGENTS or agent_type == "quality_reviewer":
         return []
-    try:
-        decision = RouterDecision(
-            agent_type=initial,  # type: ignore[arg-type]
-            workflow_type=workflow,  # type: ignore[arg-type]
-            **_inherited_scope_fields(routing),
-        )
-    except ValidationError:
-        return []
-    sequence = [initial, *plan_workflow_agents(decision)]
+    fields = _inherited_scope_fields(routing)
+    decision = RouterDecision(
+        agent_type=initial,  # type: ignore[arg-type]
+        workflow_type=workflow,  # type: ignore[arg-type]
+        write_content=fields["write_content"],
+        read_only=fields["read_only"],
+        scope=fields["scope"],
+        requested_file_types=fields["requested_file_types"],
+    )
+    planned = plan_workflow_agents(decision)
+    # Match the graph's initial-stage deduplication. A resumed middle stage is
+    # persisted as this round's initial agent, not a new copy of the same stage.
+    while planned and planned[0] == initial:
+        planned.pop(0)
+    sequence = [initial, *planned]
     if agent_type not in sequence:
         return []
     return sequence[sequence.index(agent_type) + 1:]
 
 
 def _is_review_task(routing: dict[str, Any]) -> bool:
-    """上一轮本身就是审稿任务（路由一开始就交给审稿人，或 review_only 工作流）。"""
     return (
         _valid_agent(routing.get("initial_agent")) == "quality_reviewer"
         or str(routing.get("workflow_type") or "").strip() == "review_only"
@@ -866,13 +752,7 @@ def _is_review_task(routing: dict[str, Any]) -> bool:
 
 
 def task_owner_agent(routing: dict[str, Any]) -> str | None:
-    """上一轮负责任务的 agent（回答它的提问时交回给它）。
-
-    service 落库的 owner_agent 优先：它是这一轮最后一个不是「交接来审稿」的 agent。
-    旧数据没有 owner_agent：last_agent 是 quality_reviewer、而上一轮不是审稿任务时，
-    审稿人只是自动质量门控 / 送审带来的，交回 initial_agent；没有可信 owner 时正常路由。
-    上一轮明确是审稿任务时才沿用审稿人。
-    """
+    """Resolve the task owner from persisted routing, never from prose."""
     owner = _valid_agent(routing.get("owner_agent"))
     last = _valid_agent(routing.get("last_agent"))
     initial = _valid_agent(routing.get("initial_agent"))
@@ -881,130 +761,160 @@ def task_owner_agent(routing: dict[str, Any]) -> str | None:
     return last or owner or initial
 
 
-def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] | None:
-    """Resume a recorded clarification, never infer a wait state from assistant prose.
+def _trusted_resume_agent(previous: dict[str, Any], routing: dict[str, Any]) -> str | None:
+    return (
+        _valid_agent(previous.get("last_agent"))
+        or _valid_agent(routing.get("last_agent"))
+        or _valid_agent(routing.get("initial_agent"))
+    )
 
-    New narrowing/read-only instructions go through normal routing. A short answer to a
-    structured clarification retains the recorded task owner and requested deliverables.
-    """
-    user_message = str(state.get("router_message") or state.get("user_message") or "").strip()
-    if not user_message or len(user_message) > CLARIFICATION_REPLY_MAX_CHARS:
-        return None
-    lowered = user_message.lower()
-    if any(marker in lowered for marker in _NARROWING_MARKERS + _READ_ONLY_INTENT_MARKERS):
-        return None
+
+def _compose_followup_write_content(old: bool | None, current: bool | None) -> bool | None:
+    if old is False or current is False:
+        return False
+    if old is True:
+        return True
+    return None
+
+
+def _resolve_turn_decision(
+    state: WritingState, decision: RouterDecision
+) -> tuple[RouterDecision, dict[str, Any]]:
+    """Apply semantic disposition to trusted previous state without text heuristics."""
+    disposition = decision.turn_disposition
+    if disposition not in {"resume_interrupted_task", "answer_pending_clarification"}:
+        constraints = _validate_scope_constraints(
+            [decision.scope] if decision.scope else [], field="scope_constraints"
+        )
+        return decision, {"scope_constraints": constraints}
 
     previous = _last_assistant_message(list(state.get("messages") or []))
     if previous is None:
-        return None
+        log_with_context(
+            logger, 20, "Router follow-up disposition has no matching state",
+            turn_disposition=disposition, followup_resolution="state_mismatch",
+        )
+        constraints = _validate_scope_constraints(
+            [decision.scope] if decision.scope else [], field="scope_constraints"
+        )
+        return decision, {"scope_constraints": constraints}
+
     routing = _previous_routing(previous)
-    if not routing:
-        return None
-
-    if previous.get("clarification_pending") is not True:
-        return None
-
-    initial_agent = _valid_agent(routing.get("initial_agent"))
-    agent_type = task_owner_agent(routing)
-    if agent_type is None:
-        return None
-    previous_workflow = str(routing.get("workflow_type") or "").strip()
-    if agent_type == initial_agent and previous_workflow in WORKFLOW_AGENTS:
-        workflow_type = previous_workflow
+    stop_reason = previous.get("stop_reason")
+    if disposition == "resume_interrupted_task":
+        matches_state = isinstance(stop_reason, str) and stop_reason in RESUMABLE_STOP_REASONS
+        agent_type = _trusted_resume_agent(previous, routing) if matches_state else None
     else:
-        workflow_type = _infer_workflow_from_agent(agent_type)  # type: ignore[arg-type]
+        matches_state = previous.get("clarification_pending") is True
+        agent_type = task_owner_agent(routing) if matches_state else None
 
-    decision = RouterDecision(
+    if not matches_state or not routing:
+        log_with_context(
+            logger, 20, "Router follow-up disposition has no matching state",
+            turn_disposition=disposition, followup_resolution="state_mismatch",
+        )
+        constraints = _validate_scope_constraints(
+            [decision.scope] if decision.scope else [], field="scope_constraints"
+        )
+        return decision, {"scope_constraints": constraints}
+
+    fields = _inherited_scope_fields(routing)
+    if agent_type is None:
+        raise RouterFailure("schema", failed_fields=("previous_routing.last_agent",))
+    constraints = _accumulate_scope_constraints(
+        fields["scope"], fields["scope_constraints"], decision.scope
+    )
+    read_only = fields["read_only"] or decision.read_only
+    write_content = _compose_followup_write_content(
+        fields["write_content"], decision.write_content
+    )
+    initial = _valid_agent(routing.get("initial_agent"))
+    previous_workflow = str(routing.get("workflow_type") or "").strip()
+    if disposition == "resume_interrupted_task":
+        remaining = _remaining_planned_agents(routing, agent_type)
+        workflow_type = (
+            previous_workflow
+            if remaining and previous_workflow in WORKFLOW_AGENTS
+            else _infer_workflow_from_agent(agent_type)  # type: ignore[arg-type]
+        )
+    else:
+        workflow_type = (
+            previous_workflow
+            if agent_type == initial and previous_workflow in WORKFLOW_AGENTS
+            else _infer_workflow_from_agent(agent_type)  # type: ignore[arg-type]
+        )
+        remaining = []
+
+    resolved = RouterDecision(
         agent_type=agent_type,  # type: ignore[arg-type]
-        workflow_type=workflow_type,  # type: ignore[arg-type]
-        reason="inherit_after_clarification",
-        confidence=1.0,
-        **_inherited_scope_fields(routing),
-    )
-    workflow_agents = plan_workflow_agents(decision)
-    log_with_context(
-        logger,
-        20,  # INFO
-        "Short reply to the previous turn's question; reusing its routing (router skipped)",
-        agent_type=agent_type,
         workflow_type=workflow_type,
-        clarification_card=True,
-        read_only=decision.read_only,
-        write_content=decision.write_content,
+        reason=decision.reason,
+        confidence=decision.confidence,
+        write_content=write_content,
+        read_only=read_only,
+        scope=fields["scope"],
+        requested_file_types=fields["requested_file_types"],
+        turn_disposition=disposition,
+        clarify_first=decision.clarify_first,
     )
-    return {
-        "current_agent": agent_type,
-        "workflow_plan": workflow_type,
-        "workflow_agents": workflow_agents,
-        "routing_metadata": decision.model_dump(),
+    metadata: dict[str, Any] = {
+        "scope_constraints": constraints,
+        "_followup_resolved": True,
     }
+    if disposition == "resume_interrupted_task" and stop_reason == "output_truncated":
+        metadata["previous_stop_reason"] = stop_reason
+    if disposition == "resume_interrupted_task":
+        metadata["_workflow_agents"] = remaining
+    return resolved, metadata
 
+# ----------------------------------------------------------- Router context
 
-# ----------------------------------------------------------- 路由器看上一轮
-
-# 交给 LLM 路由的上一轮助手结尾：只取模型自己说的话的最后这么多字（它的提问、
-# 收尾的下一步建议都在结尾）；状态卡摘要（澄清卡的问题、截停信息）另取，单独封顶。
 ROUTER_PREV_TAIL_MAX_CHARS = 600
-ROUTER_PREV_CARD_MAX_CHARS = 400
-
-# 上一轮路由里交给路由器的字段（顺序即输出顺序）。
 _ROUTER_PREV_ROUTING_KEYS: tuple[str, ...] = (
-    "initial_agent",
-    "last_agent",
-    "workflow_type",
-    "write_content",
-    "read_only",
-    "scope",
+    "initial_agent", "last_agent", "owner_agent", "workflow_type",
+    "write_content", "read_only", "scope", "scope_constraints",
     "requested_file_types",
 )
+_SYNTHESIZED_SECTION_HEADERS: tuple[str, ...] = (
+    "[此前的工具操作]",
+    "[Previous tool actions]",
+    "[workflow_stopped]",
+    "[iteration_exhausted]",
+)
 
-_STATUS_CARD_HEADERS: tuple[str, ...] = ("[workflow_stopped]", "[iteration_exhausted]")
-_BREADCRUMB_HEADERS: tuple[str, ...] = ("[此前的工具操作]", "[Previous tool actions]")
 
-
-def _status_card_text(previous: dict[str, Any]) -> str:
-    """上一轮状态卡的合成摘要。
-
-    session_loader 在历史 dict 上放了 ``status_card_text``（正文非空时摘要不进回放，
-    只能从这里拿到）；没有这个字段时，从正文里截出合成的状态卡段落。
-    """
-    text = previous.get("status_card_text")
-    if isinstance(text, str):
-        return text.strip()
-    content = _message_text(previous.get("content"))
-    starts = [content.find(header) for header in _STATUS_CARD_HEADERS if header in content]
-    if not starts:
+def _previous_reply_tail(previous: dict[str, Any]) -> str:
+    content = previous.get("content")
+    if isinstance(content, list):
+        text = "\n".join(
+            str(block.get("text") or "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
         return ""
-    start = min(starts)
-    end = len(content)
-    for header in _BREADCRUMB_HEADERS:
-        index = content.find(header, start)
+    cut = len(text)
+    for header in _SYNTHESIZED_SECTION_HEADERS:
+        index = text.find(header)
         if index != -1:
-            end = min(end, index)
-    return content[start:end].strip()
-
-
-def _previous_turn_tail(previous: dict[str, Any]) -> str:
-    reply = _reply_text(previous.get("content"))
-    if len(reply) > ROUTER_PREV_TAIL_MAX_CHARS:
-        reply = "…" + reply[-ROUTER_PREV_TAIL_MAX_CHARS:]
-    card = _status_card_text(previous)
-    if len(card) > ROUTER_PREV_CARD_MAX_CHARS:
-        card = card[:ROUTER_PREV_CARD_MAX_CHARS] + "…"
-    return "\n".join(part for part in (reply, card) if part)
+            cut = min(cut, index)
+    text = text[:cut].strip()
+    text = author_reply_tail(text, max_chars=max(len(text) + 1, ROUTER_PREV_TAIL_MAX_CHARS))
+    if len(text) > ROUTER_PREV_TAIL_MAX_CHARS:
+        return "…" + text[-ROUTER_PREV_TAIL_MAX_CHARS:]
+    return text
 
 
 def _previous_routing_summary(previous: dict[str, Any]) -> str:
     routing = dict(_previous_routing(previous))
-    # 状态卡上的 lastAgent 是这一轮最后说话的 agent（会话加载时取最后一张卡）。
     card_agent = _valid_agent(previous.get("last_agent"))
     if card_agent:
         routing["last_agent"] = card_agent
-    # 交给路由器的「上一轮的 agent」是负责任务的那个：自动审稿 / 送审时最后说话的是
-    # 审稿人，它没有写文件的工具，作者的回答要回到写稿的 agent。
     owner = task_owner_agent(routing)
     if owner:
-        routing["last_agent"] = owner
+        routing["owner_agent"] = owner
     summary: dict[str, Any] = {}
     for key in _ROUTER_PREV_ROUTING_KEYS:
         value = routing.get(key)
@@ -1012,8 +922,14 @@ def _previous_routing_summary(previous: dict[str, Any]) -> str:
             if isinstance(value, bool):
                 summary[key] = value
         elif key == "scope":
-            if isinstance(value, str) and value.strip():
-                summary[key] = value.strip()[:MAX_SCOPE_CHARS]
+            if isinstance(value, str) and value.strip() and len(value.strip()) <= MAX_SCOPE_CHARS:
+                summary[key] = value.strip()
+        elif key == "scope_constraints":
+            if isinstance(value, list):
+                with suppress(RouterFailure):
+                    summary[key] = _validate_scope_constraints(
+                        value, field="previous_routing.scope_constraints"
+                    )
         elif key == "requested_file_types":
             allowed = get_args(ArtifactFileType)
             if (
@@ -1028,34 +944,75 @@ def _previous_routing_summary(previous: dict[str, Any]) -> str:
     return json.dumps(summary, ensure_ascii=False) if summary else ""
 
 
+def _previous_followup_state_summary(previous: dict[str, Any]) -> str:
+    summary: dict[str, Any] = {}
+    stop_reason = previous.get("stop_reason")
+    if isinstance(stop_reason, str) and stop_reason in RESUMABLE_STOP_REASONS:
+        summary["stop_reason"] = stop_reason
+    if previous.get("clarification_pending") is True:
+        summary["clarification_pending"] = True
+        pending = previous.get("pending_clarification")
+        if isinstance(pending, dict):
+            safe_pending: dict[str, Any] = {}
+            for key in ("question", "context"):
+                value = pending.get(key)
+                if isinstance(value, str) and value.strip():
+                    safe_pending[key] = value.strip()[:400]
+            details = pending.get("details")
+            if isinstance(details, list):
+                safe_pending["details"] = [
+                    item.strip()[:160]
+                    for item in details[:8]
+                    if isinstance(item, str) and item.strip()
+                ]
+            if safe_pending:
+                summary["pending_clarification"] = safe_pending
+    return json.dumps(summary, ensure_ascii=False) if summary else ""
+
+
 def build_router_user_message(state: WritingState) -> str:
-    """LLM 路由的 user 消息：上一轮助手结尾 + 上一轮路由 + 用户本轮原话。
-
-    路由器只看用户本条原话时，「可以」「B」「隐忍吧」这类回答会被当成孤立指令重新
-    分类（换 agent、把 write_content 判成 false 后以最高优先级下发「不要写正文」）。
-    确定性的沿用规则（inherit_routing_after_clarification）先处理最常见的短回答，
-    没命中的情况由这里把上一轮交给路由器自己判断。
-
-    没有上一轮助手回复（或它既没有正文也没有落库路由）时原样返回用户原话；作者在这部作品
-    里的第一条消息（state["first_message_project_label"] 非空）多一段作品类型。动态内容只放在
-    user 消息里，系统提示保持稳定前缀。
-    """
+    """Build bounded semantic context from structured state and current facts."""
     user_message = str(state.get("router_message") or state.get("user_message") or "")
     previous = _last_assistant_message(list(state.get("messages") or []))
     if previous is None:
         first_message_label = str(state.get("first_message_project_label") or "")
         if first_message_label:
-            # 作者在这部作品里的第一条消息：ROUTER_PROMPT「新作品的第一条消息」按先写再给方向判断。
-            return f"[新作品的第一条消息]\n作品类型：{first_message_label}\n[用户本轮原话]\n{user_message}"
-        return user_message
-    tail = _previous_turn_tail(previous)
-    routing = _previous_routing_summary(previous)
-    if not tail and not routing:
-        return user_message
+            sections = [f"[新作品的第一条消息]\n作品类型：{first_message_label}"]
+            if state.get("has_selected_text") is True or state.get("has_referenced_files") is True:
+                facts = {
+                    "has_selected_text": state.get("has_selected_text") is True,
+                    "has_referenced_files": state.get("has_referenced_files") is True,
+                }
+                sections.append(f"[本轮上下文事实]\n{json.dumps(facts, ensure_ascii=False)}")
+            sections.append(f"[用户本轮原话]\n{user_message}")
+            return "\n".join(sections)
+        if state.get("has_selected_text") is not True and state.get("has_referenced_files") is not True:
+            return user_message
+        facts = {
+            "has_selected_text": state.get("has_selected_text") is True,
+            "has_referenced_files": state.get("has_referenced_files") is True,
+        }
+        return (
+            f"[本轮上下文事实]\n{json.dumps(facts, ensure_ascii=False)}\n"
+            f"[用户本轮原话]\n{user_message}"
+        )
+
     sections: list[str] = []
+    tail = _previous_reply_tail(previous)
+    followup = _previous_followup_state_summary(previous)
+    routing = _previous_routing_summary(previous)
     if tail:
         sections.append(f"[上一轮助手结尾]\n{tail}")
+    if followup:
+        sections.append(f"[上一轮结构化状态]\n{followup}")
     if routing:
         sections.append(f"[上一轮路由]\n{routing}")
+    if not sections and state.get("has_selected_text") is not True and state.get("has_referenced_files") is not True:
+        return user_message
+    facts = {
+        "has_selected_text": state.get("has_selected_text") is True,
+        "has_referenced_files": state.get("has_referenced_files") is True,
+    }
+    sections.append(f"[本轮上下文事实]\n{json.dumps(facts, ensure_ascii=False)}")
     sections.append(f"[用户本轮原话]\n{user_message}")
     return "\n".join(sections)
