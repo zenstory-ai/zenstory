@@ -4,6 +4,8 @@
 
 AGENTS.md (imported above) is the shared project contract for working-tree safety, development commands, staging/production releases, three-day checks, validation and decision notes.
 
+For Agent semantic decisions, follow [the shared rule](AGENTS.md#agent-semantic-decisions): do not use keywords, phrase/substring matching, regex, or length/punctuation heuristics to infer intent, continuation, consent, scope, authority, or completion. Use validated structured decisions and actual state/evidence. Bounded protocol parsing and content/concurrency protection remain required; this rule does not authorize removing existing guards.
+
 Additional sources of truth:
 
 - [DESIGN.md](DESIGN.md): UI and product design decisions.

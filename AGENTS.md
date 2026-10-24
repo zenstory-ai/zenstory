@@ -33,6 +33,14 @@ See `docs/ops/release-ci-cd.md` for gates, drain windows, source receipts, and v
 
 ## Development and verification
 
+### Agent semantic decisions
+
+- Do not infer user intent, consent, clarification, continuation, task completion, agent/workflow selection, write authority, or requested scope from keyword lists, substring/exact-phrase matching, regular expressions, or message length/punctuation heuristics applied to natural-language user or assistant text. Do not add more phrases or synonyms to patch these decisions.
+- Interpret natural-language intent through the existing model/router and its validated structured contract. Enforce permissions, scope, and completion against application state, current-request constraints, and actual execution/artifact evidence; model prose or a self-reported status is not proof of authorization or delivery. Do not add a separate classifier call or framework by default.
+- Explicit UI actions may use a defined structured request contract, but the server must validate its source and current scope. A stale action flag must not override an edited message or turn an earlier write permission into authority for a new request.
+- Bounded syntax operations remain valid: JSON/schema and state-enum validation, documented machine-protocol parsing, path/identifier checks, exact edit anchors, version/concurrency checks, and presentation formatting. They must not be repurposed to guess natural-language meaning or expand authority. Parsing a completion tag alone does not prove the requested work was delivered.
+- Existing semantic shortcuts are migration work, not an exception for new code. Replace them in bounded, regression-tested changes; do not simply delete read-only, content, terminal-state, or billing guards. Preserve compatible success paths, actual usage, and safe manual retry without silently broadening scope.
+
 Use the existing installed runtime and root pnpm lockfile. Typical commands:
 
 ```sh
