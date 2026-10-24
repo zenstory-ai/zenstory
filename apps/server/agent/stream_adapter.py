@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.error_codes import ErrorCode
-from models.file_model import FILE_TYPE_FOLDER
+from models.file_model import FILE_TYPE_DRAFT, FILE_TYPE_FOLDER, FILE_TYPE_SCRIPT
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
@@ -40,6 +40,7 @@ from .core.events import (
     tool_call_event,
     tool_result_event,
 )
+from .core.run_meter import AgentRunMeter
 from .core.stream_errors import error_message_for, stream_error_from_event_data
 from .core.stream_processor import StreamProcessor, StreamResult
 from .core.workflow_events import CHAT_HOLD_BEGIN, CHAT_HOLD_DISCARD, StreamEventType
@@ -91,6 +92,8 @@ class StreamAdapterConfig:
     process_file_markers: bool = True
     # 流开头已发过 skill_matched 的技能（显式选择），load_skill 它们时不再重复发
     matched_skill_ids: tuple[str, ...] = ()
+    # Request-level fixed-stage timing; optional for tests and non-request callers.
+    run_meter: AgentRunMeter | None = None
 
 
 @dataclass
@@ -926,7 +929,16 @@ class StreamAdapter:
             file_id=file_id,
             content_length=len(content),
         )
-        task = asyncio.create_task(self._save_file_content(file_id, content, record_mutation=False))
+        pending = self._pending_file_write
+        file_type = pending.file_type if pending is not None and pending.file_id == file_id else ""
+        task = asyncio.create_task(
+            self._save_file_content(
+                file_id,
+                content,
+                record_mutation=False,
+                file_type=file_type,
+            )
+        )
         self._abort_capture = (file_id, count_words(content), task)
         _ABORT_SAVE_TASKS.add(task)
         task.add_done_callback(_ABORT_SAVE_TASKS.discard)
@@ -1136,13 +1148,22 @@ class StreamAdapter:
 
             ToolContext.clear_pending_empty_file(file_id or None)
 
-    async def _save_file_content(self, file_id: str, content: str, *, record_mutation: bool = True) -> bool:
+    async def _save_file_content(
+        self,
+        file_id: str,
+        content: str,
+        *,
+        record_mutation: bool = True,
+        file_type: str | None = None,
+    ) -> bool:
         """
         Save accumulated file content to database.
 
         Args:
             file_id: ID of the file to update
             content: Content to save
+            file_type: Target type snapshot for a background abort save. Normal
+                in-flow saves derive it from the current pending write.
         """
         log_with_context(
             logger,
@@ -1153,8 +1174,13 @@ class StreamAdapter:
             user_id=self.config.user_id,
         )
 
+        pending = self._pending_file_write
+        resolved_file_type = file_type or (
+            pending.file_type
+            if pending is not None and pending.file_id == file_id
+            else ""
+        )
         try:
-            pending = self._pending_file_write
             baseline_updated_at = (
                 pending.baseline_updated_at
                 if pending is not None and pending.file_id == file_id
@@ -1163,15 +1189,26 @@ class StreamAdapter:
             save_args: tuple[Any, ...] = (file_id, content)
             if baseline_updated_at is not None:
                 save_args = (*save_args, baseline_updated_at)
-            saved, content_changed = await asyncio.wait_for(
-                asyncio.to_thread(
-                    self._save_file_content_sync,
-                    *save_args,
-                ),
-                timeout=STREAM_FILE_SAVE_TIMEOUT_S,
-            )
+            run_meter = self.config.run_meter
+            timing = run_meter.measure_stage("file_save") if run_meter is not None else contextlib.nullcontext()
+            with timing:
+                saved, content_changed = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self._save_file_content_sync,
+                        *save_args,
+                    ),
+                    timeout=STREAM_FILE_SAVE_TIMEOUT_S,
+                )
             if saved and content_changed and record_mutation:
                 self._file_mutated = True
+            if (
+                saved
+                and content_changed
+                and content.strip()
+                and str(resolved_file_type).strip().lower() in {FILE_TYPE_DRAFT, FILE_TYPE_SCRIPT}
+                and run_meter is not None
+            ):
+                run_meter.mark_first_body_persisted()
             if saved:
                 self._saved_file_word_counts[file_id] = count_words(content)
             else:
@@ -1399,6 +1436,7 @@ def create_stream_adapter(
     user_id: str | None = None,
     process_file_markers: bool = True,
     matched_skill_ids: Iterable[str] | None = None,
+    run_meter: AgentRunMeter | None = None,
 ) -> StreamAdapter:
     """
     Factory function to create a StreamAdapter.
@@ -1408,6 +1446,7 @@ def create_stream_adapter(
         user_id: User ID for logging
         process_file_markers: Whether to process <file> markers
         matched_skill_ids: Skills already announced via skill_matched (explicitly selected)
+        run_meter: Optional request-level timing recorder
 
     Returns:
         Configured StreamAdapter instance
@@ -1417,6 +1456,7 @@ def create_stream_adapter(
         user_id=user_id,
         process_file_markers=process_file_markers,
         matched_skill_ids=tuple(str(item) for item in (matched_skill_ids or []) if item),
+        run_meter=run_meter,
     )
     return StreamAdapter(config)
 

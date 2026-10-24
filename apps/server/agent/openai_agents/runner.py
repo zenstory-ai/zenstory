@@ -17,7 +17,7 @@ from agent.core.output_truncation import (
     trailing_output_truncations,
 )
 from agent.core.progress_channel import reset_progress_emitter, set_progress_emitter
-from agent.core.run_meter import AgentRunMeter
+from agent.core.run_meter import AgentRunMeter, TimingOutcome
 from agent.core.stream_errors import (
     MODEL_CALL_LIMIT_ERROR_TYPE,
     classify_stream_exception,
@@ -683,6 +683,7 @@ def _build_agent(
             read_only=read_only,
             read_guard=read_guard,
             read_only_reason=read_only_reason,
+            run_meter=run_meter,
         ),
         # 控制流工具生效、或工具失败熔断时即结束 run，避免 SDK 在「工作流已暂停」
         # 之后再跑一整轮模型调用并真实执行其工具（详见 _stop_run_on_control_flow_tool）。
@@ -897,6 +898,8 @@ async def run_openai_agents_streaming_agent(
     # in-tool progress events (via the progress channel emitter installed below).
     run_queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
     pump_task: asyncio.Task[None] | None = None
+    run_hooks: Any = None
+    timing_outcome: TimingOutcome = "completed"
     try:
         from agents import RunConfig, Runner, ToolExecutionConfig
         from agents.exceptions import MaxTurnsExceeded
@@ -945,6 +948,7 @@ async def run_openai_agents_streaming_agent(
             lambda event: run_queue.put_nowait(("progress", event))
         )
         try:
+            run_hooks = build_agent_run_hooks(start_model, run_meter=run_meter)
             result = Runner.run_streamed(
                 sdk_agent,
                 input=(
@@ -956,7 +960,7 @@ async def run_openai_agents_streaming_agent(
                 # 每次模型调用结束写一行用量账本（llm_usage_event），按调用自身时间计价；
                 # 之后 run 报错/取消也不会丢掉已完成调用的用量。同一钩子在执行本轮工具前
                 # 告诉空文件守卫"上一份正文已在本条回复里写完"（见 usage_hooks）。
-                hooks=build_agent_run_hooks(start_model),
+                hooks=run_hooks,
                 # When DeepSeek emits multiple tool_calls in one turn, the SDK would run them
                 # concurrently (asyncio.create_task). Project tools share a single SQLAlchemy
                 # Session via ToolContext, which is NOT safe for concurrent use. Serialize tool
@@ -1452,7 +1456,11 @@ async def run_openai_agents_streaming_agent(
             with contextlib.suppress(Exception):
                 completed_items = list(result.to_input_list())
 
+    except (asyncio.CancelledError, GeneratorExit):
+        timing_outcome = "interrupted"
+        raise
     except Exception as exc:
+        timing_outcome = "error"
         error_info = classify_stream_exception(exc)
         log_stream_exception(
             logger,
@@ -1468,13 +1476,19 @@ async def run_openai_agents_streaming_agent(
             data=error_info.as_event_data(error_type=type(exc).__name__),
         )
     finally:
-        run_meter.record_agent_run((time.monotonic() - run_started_at) * 1000)
         # Stop the SDK pump if it is still running (e.g. the consumer aborted
         # early before the stream drained), so it cannot outlive this run.
         if pump_task is not None and not pump_task.done():
             pump_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await pump_task
+        if run_hooks is not None:
+            # A call lacking on_llm_end is unfinished, even if the consumer ended normally.
+            run_hooks.finish_timing("error" if timing_outcome == "error" else "interrupted")
+        run_meter.record_agent_run(
+            (time.monotonic() - run_started_at) * 1000,
+            agent_type=agent_type, outcome=timing_outcome,
+        )
         _append_assistant_turn_to_state_messages(
             state,
             api_messages,

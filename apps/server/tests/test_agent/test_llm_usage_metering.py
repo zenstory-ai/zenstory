@@ -94,8 +94,10 @@ class _FakeStreamingCompletions:
 async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_request):
     from agents import Agent, OpenAIChatCompletionsModel, RunConfig, Runner
 
+    from agent.core.run_meter import AgentRunMeter
     from agent.openai_agents.usage_hooks import build_agent_run_hooks
 
+    meter = AgentRunMeter()
     completions = _FakeStreamingCompletions()
     client = SimpleNamespace(chat=SimpleNamespace(completions=completions), base_url="http://fake")
     agent = Agent(
@@ -106,7 +108,7 @@ async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_
     result = Runner.run_streamed(
         agent,
         input="写一章",
-        hooks=build_agent_run_hooks("deepseek-flash"),
+        hooks=build_agent_run_hooks("deepseek-flash", run_meter=meter),
         run_config=RunConfig(tracing_disabled=True),
     )
     async for _event in result.stream_events():
@@ -118,6 +120,11 @@ async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_
     assert event.user_id == bound_request.id
     assert (event.source, event.project_id, event.correlation_id) == ("agent", "project-9", "run-abc")
     assert (event.cache_hit_tokens, event.cache_miss_tokens, event.output_tokens) == (800, 200, 70)
+
+    timing = meter.timing_report()["stage_timings"]["model"]
+    assert timing["count"] == 1
+    assert timing["total_ms"] >= 0
+    assert timing["interrupted_count"] == 0
 
 
 @pytest.mark.unit

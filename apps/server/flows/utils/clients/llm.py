@@ -15,7 +15,14 @@ from flows.utils.helpers.logging import get_logger, log_error_with_context
 _ACCOUNT_FAILURE_STATUSES = {401, 402, 403, 404}
 # Other 4xx (context too long, malformed request) fail the same way on retry.
 _NON_RETRYABLE_STATUSES = {400, 413, 422}
-_ERROR_PREVIEW_CHARS = 500
+_SAFE_FINISH_REASONS = frozenset({"stop", "length", "content_filter", "tool_calls", "function_call"})
+
+
+def _safe_finish_reason(finish_reason: Any) -> str:
+    """Return only provider finish reasons that are safe to expose in metadata."""
+    if isinstance(finish_reason, str) and finish_reason in _SAFE_FINISH_REASONS:
+        return finish_reason
+    return "unknown"
 
 
 def _repair_json_object(json_str: str) -> dict[str, Any] | None:
@@ -33,6 +40,12 @@ def _classify_llm_exception(error: Exception) -> LLMAPIError:
     """Wrap an OpenAI SDK error; only transient failures stay retryable."""
     from core.error_handler import APIException
     from services.usage.cost_budget import COST_LIMIT_CODE, UNAVAILABLE_CODE
+
+    if isinstance(error, llm_failover.JSONResponseFormatUnavailableError):
+        return LLMNonRetryableError(
+            "当前模型暂不支持所需的 JSON 输出格式",
+            ErrorCode.MATERIAL_LLM_UNAVAILABLE,
+        )
     if isinstance(error, APIException) and error.error_code in {COST_LIMIT_CODE, UNAVAILABLE_CODE}:
         return LLMNonRetryableError("今日免费模型预算已用尽或暂不可用", error.error_code)
     status_code = getattr(error, "status_code", None)
@@ -237,12 +250,16 @@ class MaterialLLMClient:
                 repaired = _repair_json_object(json_str)
                 if repaired is not None:
                     logger = get_logger(__name__)
-                    logger.warning(f"LLM 响应 JSON 非法，已用 json_repair 修复 (finish_reason={response.finish_reason})")
+                    logger.warning(
+                        "LLM 响应 JSON 非法，已用 json_repair 修复 "
+                        f"(finish_reason={_safe_finish_reason(response.finish_reason)})"
+                    )
                     return repaired
 
         raise LLMOutputError(
-            f"无法从响应中提取有效的 JSON (finish_reason={response.finish_reason}): "
-            f"{content[:_ERROR_PREVIEW_CHARS]}"
+            "无法从响应中提取有效的 JSON "
+            f"(failure=invalid_json, finish_reason={_safe_finish_reason(response.finish_reason)}, "
+            f"content_length={len(content)})"
         )
 
     def validate_response_format(

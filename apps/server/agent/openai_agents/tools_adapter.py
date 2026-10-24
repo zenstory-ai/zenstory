@@ -6,6 +6,7 @@ import functools
 import inspect
 import json
 from collections.abc import Callable
+from contextlib import nullcontext
 from typing import Any
 
 from agent.core.metrics import (
@@ -14,6 +15,7 @@ from agent.core.metrics import (
     TOOL_CALLS_TOTAL,
     get_metrics_collector,
 )
+from agent.core.run_meter import AgentRunMeter
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
@@ -73,7 +75,12 @@ def _parse_tool_arguments(raw_arguments: str, *, tool_name: str) -> tuple[dict[s
     )
 
 
-async def invoke_project_tool(tool_name: str, raw_arguments: str) -> str:
+async def invoke_project_tool(
+    tool_name: str,
+    raw_arguments: str,
+    *,
+    run_meter: AgentRunMeter | None = None,
+) -> str:
     """Invoke a project tool from an SDK FunctionTool callback."""
     metrics = get_metrics_collector()
     metrics.increment_counter(TOOL_CALLS_TOTAL)
@@ -90,9 +97,13 @@ async def invoke_project_tool(tool_name: str, raw_arguments: str) -> str:
             return tool_error_text(f"Unknown tool: {tool_name}", tool_name=tool_name)
 
         try:
-            result = tool_func(parsed_args or {})
-            if inspect.isawaitable(result):
-                result = await result
+            if run_meter is not None:
+                run_meter.mark_first_tool_started()
+            timing = run_meter.measure_stage("tool") if run_meter is not None else nullcontext()
+            with timing:
+                result = tool_func(parsed_args or {})
+                if inspect.isawaitable(result):
+                    result = await result
             return _normalize_tool_result_text(result)
         except Exception as exc:
             metrics.increment_counter(TOOL_CALLS_ERRORS)
@@ -191,6 +202,7 @@ def build_agent_function_tools(
     read_only: bool = False,
     read_guard: RepeatReadGuard | None = None,
     read_only_reason: str = READ_ONLY_REASON_USER_REQUEST,
+    run_meter: AgentRunMeter | None = None,
 ) -> list[Any]:
     """Build SDK FunctionTool instances for the given writing agent role.
 
@@ -208,6 +220,8 @@ def build_agent_function_tools(
     同样不再执行。
     read_only_reason：写工具为什么不可用。user_request（默认）是作者明说不改文件；
     clarify_first 是作者的要求太笼统，本轮先问清楚（拒绝说明和描述前缀不同）。
+    run_meter：请求级耗时记录器。只有权限、只读、待补正文与重复读取守卫都放行后，
+    才记录首次工具开始并计量实际工具调用耗时；返回成功只表示调用结束，不代表业务写入成功。
     """
     from agents import FunctionTool
 
@@ -236,6 +250,15 @@ def build_agent_function_tools(
             _tool_name: str = name,
             _refusal: Callable[[str], str] | None = refusal,
         ) -> str:
+            async def invoke_allowed(arguments: str) -> str:
+                if run_meter is None:
+                    return await invoke_project_tool(_tool_name, arguments)
+                return await invoke_project_tool(
+                    _tool_name,
+                    arguments,
+                    run_meter=run_meter,
+                )
+
             if failure_breaker is not None and failure_breaker.is_open:
                 return failure_breaker.short_circuit_text(_tool_name)
             if read_guard is not None and read_guard.is_open:
@@ -252,10 +275,10 @@ def build_agent_function_tools(
                 if plan.blocked_output is not None:
                     output = plan.blocked_output
                 else:
-                    output = await invoke_project_tool(_tool_name, plan.arguments)
+                    output = await invoke_allowed(plan.arguments)
                     output = read_guard.observe(_tool_name, plan, output)
             else:
-                output = await invoke_project_tool(_tool_name, raw_arguments)
+                output = await invoke_allowed(raw_arguments)
             if failure_breaker is not None:
                 output = failure_breaker.observe(_tool_name, raw_arguments, output)
             return output

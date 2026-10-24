@@ -388,7 +388,9 @@ def _adapter_with_capture(monkeypatch, saved: list[tuple[str, str]], *, original
 
     adapter = StreamAdapter()
 
-    async def fake_save(file_id: str, content: str, *, record_mutation: bool = True) -> bool:
+    async def fake_save(
+        file_id: str, content: str, *, record_mutation: bool = True, file_type: str | None = None,
+    ) -> bool:
         saved.append((file_id, content))
         return True
 

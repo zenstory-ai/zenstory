@@ -774,7 +774,8 @@ class AgentService:
             if not run_heartbeat_task.done():
                 run_heartbeat_task.cancel()
 
-        run_meter = AgentRunMeter()
+        run_meter = AgentRunMeter(timing_origin=run_started_monotonic)
+        context_timing_recorded = False
 
         # Initialize tracking variables before try block for exception safety
         all_tool_calls: list[dict[str, Any]] = []
@@ -1379,6 +1380,7 @@ class AgentService:
                 process_file_markers=True,
                 # 流开头已为显式选择的技能发过 skill_matched，load_skill 它们时不再重复发
                 matched_skill_ids=[selected["id"] for selected in selected_skills],
+                run_meter=run_meter,
             )
             usage_source["adapter"] = stream_adapter
 
@@ -1386,6 +1388,8 @@ class AgentService:
                 # Process through workflow stream
                 # Use session_id as thread_id for trace correlation
                 thread_id = f"{project_id}:{session_id}" if session_id else project_id
+                run_meter.record_stage("prepare_context", (time.monotonic() - run_started_monotonic) * 1000)
+                context_timing_recorded = True
                 async for event in stream_adapter.process_workflow_events(
                     run_writing_workflow_streaming(
                         writing_state,
@@ -1770,6 +1774,11 @@ class AgentService:
             ).to_sse()
 
         finally:
+            if not context_timing_recorded:
+                run_meter.record_stage(
+                    "prepare_context", (time.monotonic() - run_started_monotonic) * 1000,
+                    outcome="interrupted" if stream_cancelled else "error",
+                )
             # Cleanup steering queue（只释放本 run 的持有，并发 run 不受影响）
             if stream_cancelled:
 
@@ -1889,6 +1898,7 @@ class AgentService:
                         "max_model_calls": run_meter.max_model_calls,
                         "agent_runs": run_meter.agent_runs,
                         "llm_duration_ms": round(run_meter.llm_duration_ms, 1),
+                        **run_meter.timing_report(),
                         "duration_ms": total_duration,
                         "stop_reason": assistant_stop_reason,
                         "tool_calls_count": len(all_tool_calls),

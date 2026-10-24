@@ -14,9 +14,11 @@ text read in the previous reply is now in front of the model
 
 from __future__ import annotations
 
+import time
 import types
 from typing import Any
 
+from agent.core.run_meter import AgentRunMeter, TimingOutcome
 from agent.core.stream_processor import StreamProcessor
 from agent.tools.mcp_tools import ToolContext
 from models.llm_usage import LLM_USAGE_SOURCE_AGENT
@@ -30,18 +32,36 @@ logger = get_logger(__name__)
 class UsageMeteringMixin:
     """``on_llm_end`` that writes one ``llm_usage_event`` row per model call."""
 
-    def __init__(self, attribution: LLMUsageAttribution, model: str) -> None:
+    def __init__(self, attribution: LLMUsageAttribution, model: str, run_meter: AgentRunMeter | None = None) -> None:
         self._attribution = attribution
         self._model = model
+        self._run_meter = run_meter
+        self._llm_started_at: float | None = None
 
     @property
     def attribution(self) -> LLMUsageAttribution:
         return self._attribution
 
+    async def on_llm_start(self, context: Any, agent: Any, system_prompt: Any, input_items: Any) -> None:
+        self._llm_started_at = time.monotonic()
+        await super().on_llm_start(context, agent, system_prompt, input_items)  # type: ignore[misc]
+
+    def finish_timing(self, outcome: TimingOutcome) -> None:
+        """Close an unfinished SDK call without inventing usage or leaking input."""
+        if self._llm_started_at is not None:
+            if self._run_meter is not None:
+                self._run_meter.record_stage(
+                    "model",
+                    (time.monotonic() - self._llm_started_at) * 1000,
+                    outcome=outcome,
+                )
+            self._llm_started_at = None
+
     async def on_llm_end(self, context: Any, agent: Any, response: Any) -> None:
         # The SDK awaits this hook before its next model call or tool step, so
         # the write is scheduled in the background rather than awaited.
         del context
+        self.finish_timing("completed")
         # The model that served this call: after a failover it is the backup's.
         served = getattr(getattr(agent, "model", None), "served_model", None)
         schedule_llm_usage_record(
@@ -76,11 +96,7 @@ def _reply_has_closed_file_block(text: str) -> bool:
     processor = StreamProcessor()
     processor.start_file_write("on-llm-end-probe")
     result = processor.process_content(text)
-    return (
-        result.file_complete
-        and not result.auto_completed
-        and bool(result.final_content.strip())
-    )
+    return result.file_complete and not result.auto_completed and bool(result.final_content.strip())
 
 
 class PendingBodyStreamedMixin:
@@ -144,7 +160,7 @@ def _hooks_class() -> type:
     return cls
 
 
-def build_agent_run_hooks(model: str) -> Any:
+def build_agent_run_hooks(model: str, *, run_meter: AgentRunMeter | None = None) -> Any:
     """Bind the current request's user/project/run id (read before the SDK task starts)."""
     attribution = LLMUsageAttribution(
         user_id=ToolContext.get_user_id(),
@@ -152,4 +168,4 @@ def build_agent_run_hooks(model: str) -> Any:
         project_id=ToolContext.get_project_id(),
         correlation_id=get_agent_run_id(),
     )
-    return _hooks_class()(attribution, model)
+    return _hooks_class()(attribution, model, run_meter)

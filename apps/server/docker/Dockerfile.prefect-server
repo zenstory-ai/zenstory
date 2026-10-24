@@ -11,7 +11,7 @@ WORKDIR /app
 # satisfying Prefect's declared `fastapi<1.0.0` range. 0.123.7 is covered by the
 # compatibility contract in CI.
 RUN pip install --no-cache-dir \
-    prefect==3.6.28 \
+    prefect==3.6.29 \
     asyncpg \
     psycopg2-binary \
     importlib-metadata \
