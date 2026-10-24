@@ -9,7 +9,7 @@ pydantic-settings>=2.0.0
 
 # DeepSeek OpenAI-compatible API client and Agents SDK.
 # openai-agents 0.21.x is the newest line that fits this stack: 0.22+ requires
-# starlette>=1.3.1, but FastAPI is held at 0.123.x (starlette<0.51) for Prefect 3.6.28
+# starlette>=1.3.1, but FastAPI is held at 0.123.x (starlette<0.51) for Prefect 3.6.29
 # (see below). 0.21 needs openai 3.x, which uses HTTPX2 internally: pass openai.Timeout,
 # not httpx.Timeout, to the clients. The old <2.44 openai cap is gone: 0.18+ builds the
 # usage objects with the cache_write_tokens field that newer openai requires.
@@ -23,7 +23,7 @@ tiktoken==0.14.0
 # Prefect server image: the API, server, and worker must resolve the same tested
 # Prefect/FastAPI pair. FastAPI 0.141.x breaks PrefectRouter at runtime even though
 # Prefect's declared upper bound is <1.0, so FastAPI is pinned above as well.
-prefect==3.6.28
+prefect==3.6.29
 # Keep the metadata backport explicit for the Python 3.11 server/worker images.
 importlib-metadata>=4.4
 

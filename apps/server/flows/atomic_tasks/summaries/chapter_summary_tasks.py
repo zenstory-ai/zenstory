@@ -74,6 +74,7 @@ def generate_chapter_summary_task(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_chapter_id=chapter_id,
+        response_format={"type": "json_object"},
     )
 
     # 提取 JSON
@@ -83,10 +84,10 @@ def generate_chapter_summary_task(
     try:
         data = client.extract_json_from_response(response)
         logger.debug(f"[章节摘要] JSON 解析成功: chapter_id={chapter_id}")
-    except Exception as e:
+    except Exception as error:
         logger.error(
             f"[章节摘要] JSON 解析失败: chapter_id={chapter_id}, "
-            f"error={str(e)}, response_preview={response.content[:500]}"
+            f"error_type={type(error).__name__}, response_length={len(response.content)}"
         )
         raise
 
@@ -95,10 +96,10 @@ def generate_chapter_summary_task(
 
     try:
         validate_chapter_summary_data(data)
-    except Exception as e:
+    except Exception as error:
         logger.error(
             f"[章节摘要] 验证失败: chapter_id={chapter_id}, "
-            f"error={str(e)}, data={data}"
+            f"error_type={type(error).__name__}"
         )
         raise
 

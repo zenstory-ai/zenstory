@@ -446,7 +446,7 @@ jobs:
           "$(grep '^fastapi==' apps/server/requirements.txt)" \
           asyncpg \
           psycopg2-binary
-        python -c 'import fastapi, prefect; assert prefect.__version__ == "3.6.28"; assert fastapi.__version__ == "0.123.7"'
+        python -c 'import fastapi, prefect; assert prefect.__version__ == "3.6.29"; assert fastapi.__version__ == "0.123.7"'
 
     - name: Upgrade the old schema and exercise server API, client, task, and flow
       env:

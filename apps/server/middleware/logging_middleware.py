@@ -101,10 +101,10 @@ class LoggingMiddleware:
             trace_id,
         )
 
-        # Log incoming request
+        # Keep request-start diagnostics at DEBUG; completion is the access record.
         log_with_context(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             f"{request.method} {request.url.path}",
             **request_info,
         )
