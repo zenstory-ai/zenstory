@@ -56,6 +56,20 @@ LLM_CIRCUIT_OPEN_S = _env_int("LLM_CIRCUIT_OPEN_S", 120)
 THINKING_HEADROOM_TOKENS = 2048
 
 _ACCOUNT_FAILURE_STATUSES = frozenset({401, 402, 403, 404})
+_DOCUMENTED_JSON_OBJECT_MODELS = frozenset({("deepseek", "deepseek-flash")})
+
+
+class JSONResponseFormatUnavailableError(RuntimeError):
+    """No configured sync provider has the required documented JSON mode."""
+
+
+def _requires_json_object(kwargs: dict[str, Any]) -> bool:
+    response_format = kwargs.get("response_format")
+    return isinstance(response_format, dict) and response_format.get("type") == "json_object"
+
+
+def _supports_json_object(provider: ModelProvider) -> bool:
+    return (provider.name, provider.model) in _DOCUMENTED_JSON_OBJECT_MODELS
 
 
 def _status_code_of(exc: BaseException) -> int | None:
@@ -352,6 +366,12 @@ def create_chat_completion(
 ) -> tuple[Any, ModelProvider]:
     """Sync ``acreate_chat_completion`` for Prefect material tasks."""
     ordered = ordered_providers(session_id, thinking_enabled=thinking_enabled)
+    if _requires_json_object(kwargs):
+        ordered = [provider for provider in ordered if _supports_json_object(provider)]
+        if not ordered:
+            raise JSONResponseFormatUnavailableError(
+                "No configured provider supports the required JSON object response format"
+            )
     for index, provider in enumerate(ordered):
         client = llm_providers.get_sync_client(provider, timeout=timeout, max_retries=max_retries)
         try:

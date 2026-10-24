@@ -26,6 +26,7 @@ overrides:
   react-window: ^2.2.5
   rollup: 4.59.0
   ws: 8.21.0
+  'zod@>=4 <4.6.7': 4.6.7
 allowBuilds:
   core-js: true
   esbuild: true

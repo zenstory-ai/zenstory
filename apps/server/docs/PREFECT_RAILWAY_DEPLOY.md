@@ -14,7 +14,7 @@
 | Prefect Server | `apps/server/docker/Dockerfile.prefect-server` | `start-prefect-server.sh` |
 | Prefect Worker | `apps/server/docker/Dockerfile.prefect-worker` | `start-prefect-worker.sh` |
 
-Server 镜像固定 Prefect `3.6.28` 和 FastAPI `0.123.7`，Worker 从 `apps/server/requirements.txt` 一次安装依赖。版本兼容由 CI 的 `Prefect compatibility` 检查验证，更新时同步核对镜像与依赖。
+Server 镜像固定 Prefect `3.6.29` 和 FastAPI `0.123.7`，Worker 从 `apps/server/requirements.txt` 一次安装依赖。版本兼容由 CI 的 `Prefect compatibility` 检查验证，更新时同步核对镜像与依赖。
 
 在已核实的 Railway 项目、服务和环境中设置 Dockerfile 路径。仓库中的 Dockerfile 路径相对构建上下文；不要依赖本地目录猜测云服务归属。
 
@@ -50,7 +50,7 @@ API 与 Worker 必须连同一环境的 Prefect Server；Worker 的业务数据�
 prefect deploy --name "$deployment_name" --pool "$POOL_NAME"
 ```
 
-Prefect `3.6.28` 在多 deployment 的 `--all` 模式下会忽略 `--pool` 覆盖。当前启动脚本逐个登记，避免 staging 误用 YAML 中的生产默认池。`prefect.yaml` 的工作目录为容器内 `/app`，不要直接当作本地流程目录运行。
+当前启动脚本逐个登记 deployment，不依赖多 deployment 的 `--all` 池覆盖行为，避免 staging 误用 YAML 中的生产默认池。`prefect.yaml` 的工作目录为容器内 `/app`，不要直接当作本地流程目录运行。
 
 替换已有 Worker 前，按发布流程暂停目标工作池，确认没有 pending、running、cancelling、paused flow 或 processing ingestion job，再进行已授权的发布。新 Worker 心跳正常且旧部署状态为 `REMOVED` 后才恢复工作池；仅看到新 Worker online 不足以恢复。生产流程须同时通过精确源码的 main CI、E2E 和发布授权。
 

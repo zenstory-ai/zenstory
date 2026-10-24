@@ -6,7 +6,6 @@
 - validate_plots_task: 情节点完整性校验
 """
 
-import json
 from typing import Any
 
 from prefect import get_run_logger
@@ -115,10 +114,10 @@ def extract_chapter_plots_task(
     try:
         data = client.extract_json_from_response(response)
         logger.debug(f"[情节点提取] JSON 解析成功: chapter_id={chapter_id}, data_keys={list(data.keys())}")
-    except Exception as e:
+    except Exception as error:
         logger.error(
-            f"[情节点提取] JSON 解析失败: chapter_id={chapter_id}, error={str(e)}, "
-            f"response_preview={response.content[:500]}"
+            f"[情节点提取] JSON 解析失败: chapter_id={chapter_id}, "
+            f"error_type={type(error).__name__}, response_length={len(response.content)}"
         )
         raise
 
@@ -128,10 +127,10 @@ def extract_chapter_plots_task(
     try:
         plots = validate_plots_response(data)
         logger.info(f"[情节点提取] 验证成功: chapter_id={chapter_id}, plots_count={len(plots)}")
-    except Exception as e:
+    except Exception as error:
         logger.error(
-            f"[情节点提取] 验证失败: chapter_id={chapter_id}, error={str(e)}, "
-            f"data={json.dumps(data, ensure_ascii=False)[:1000]}"
+            f"[情节点提取] 验证失败: chapter_id={chapter_id}, "
+            f"error_type={type(error).__name__}"
         )
         raise
 

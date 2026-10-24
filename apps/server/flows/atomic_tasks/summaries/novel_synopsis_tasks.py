@@ -85,10 +85,10 @@ def generate_novel_synopsis_task(
 
     try:
         data = client.extract_json_from_response(response)
-    except Exception as e:
+    except Exception as error:
         logger.error(
-            f"[小说梗概] JSON 解析失败: novel_id={novel_id}, error={str(e)}, "
-            f"response_preview={response.content[:500]}"
+            f"[小说梗概] JSON 解析失败: novel_id={novel_id}, "
+            f"error_type={type(error).__name__}, response_length={len(response.content)}"
         )
         raise
 
@@ -97,10 +97,10 @@ def generate_novel_synopsis_task(
 
     try:
         validate_novel_synopsis_data(data)
-    except Exception as e:
+    except Exception as error:
         logger.error(
             f"[小说梗概] 验证失败: novel_id={novel_id}, "
-            f"error={str(e)}, data={data}"
+            f"error_type={type(error).__name__}"
         )
         raise
 
