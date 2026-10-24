@@ -364,6 +364,35 @@ async def test_second_correction_resumes_the_same_file_once(workspace):
     assert model.errors("file_body_pending") == []
 
 
+@pytest.mark.parametrize("blank", ["", "   \n  \n"])
+async def test_empty_or_blank_body_keeps_the_file_pending_until_the_round_stops_unfinished(workspace, blank):
+    """<file></file> 或只有空白：不算写成。文件仍待写，按有界纠偏补写；补写用完后回滚空文件、如实收尾，
+
+    不能因为模型写了完成标记就按正常完成结束（也不再交接 / 审稿 / 宣告完成）。
+    """
+    blank_body = Reply(text=f"<file>{blank}</file>\n\n第一章写好了。[TASK_COMPLETE]")
+    model = ScriptedModel(runs=[[CREATE, blank_body], [Reply(text=f"<file>{blank}</file>")], [Reply(text=f"<file>{blank}</file>")]])
+
+    outcome = await _run(workspace, model)
+
+    file_id = _created_id(model)
+    assert len(model.run_inputs) == 3, "空白正文不解除待写，两次纠偏都照常安排"
+    assert outcome.adapter.get_saved_file_word_counts() == {}
+    assert not any(frame.data.get("file_id") == file_id for frame in outcome.of("file_content_end"))
+    workspace.session.expire_all()
+    stored = workspace.session.get(File, file_id)
+    assert stored.content == "" and stored.is_deleted is True, "仍为空的本轮产物被回滚"
+    assert outcome.of("workflow_complete") == [], "没写成就不宣告完成"
+    assert "还没写入正文" in outcome.chat_text
+    tracker = StreamBillingTracker()
+    for frame in outcome.frames:
+        tracker.observe(frame.to_sse())
+    assert tracker.write_succeeded is False and tracker.produced_output is False
+    delivery = outcome.delivery()
+    assert delivery.get("written_files") is None
+    assert delivery["unwritten_files"] == [{"id": file_id, "title": CHAPTER}]
+
+
 def _author_renames(workspace, model: ScriptedModel) -> Callable[[], None]:
     def rename() -> None:
         from api import files as files_api
@@ -567,6 +596,18 @@ async def test_cancel_during_resumed_body_saves_only_the_streamed_part(workspace
 # ---------------------------------------------------------------- StreamAdapter 只恢复自己在等的文件
 
 
+@pytest.fixture
+def guard():
+    """真实的待写守卫：f1 是本请求建好、还没写正文的文件。"""
+    ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+    ToolContext.begin_model_reply()
+    ToolContext.set_pending_empty_file("f1", CHAPTER)
+    try:
+        yield
+    finally:
+        ToolContext.clear_context()
+
+
 def _bound_adapter(*, original_content_length: int = 0) -> StreamAdapter:
     adapter = StreamAdapter(StreamAdapterConfig(project_id="p", user_id="u"))
     adapter.set_pending_file_write(
@@ -604,7 +645,7 @@ async def _end_agent_run(adapter: StreamAdapter) -> None:
         ("reused", "f1", "v1", "not_empty"),
     ],
 )
-async def test_adapter_refuses_files_it_is_not_safely_waiting_for(setup, file_id, version, refusal):
+async def test_adapter_refuses_files_it_is_not_safely_waiting_for(guard, setup, file_id, version, refusal):
     from agent.core.stream_processor import StreamState
 
     if setup == "unbound":
@@ -619,7 +660,7 @@ async def test_adapter_refuses_files_it_is_not_safely_waiting_for(setup, file_id
     assert adapter._stream_processor.state == StreamState.IDLE
 
 
-async def test_adapter_does_not_reset_a_capture_that_is_already_writing():
+async def test_adapter_does_not_reset_a_capture_that_is_already_writing(guard):
     from agent.core.stream_processor import StreamState
     from agent.core.workflow_events import StreamEventType
 
@@ -633,7 +674,7 @@ async def test_adapter_does_not_reset_a_capture_that_is_already_writing():
     assert "已经在写的正文" in adapter._stream_processor.content_buffer + adapter._stream_processor.temp_buffer
 
 
-async def test_adapter_refuses_after_a_fatal_stream_error():
+async def test_adapter_refuses_after_a_fatal_stream_error(guard):
     adapter = _bound_adapter()
     await _end_agent_run(adapter)
     adapter._fatal_stream_error = True
@@ -643,7 +684,7 @@ async def test_adapter_refuses_after_a_fatal_stream_error():
     assert request.armed is False and request.refusal == "unavailable"
 
 
-async def test_repeated_resume_is_idempotent_and_the_body_is_saved_once(monkeypatch):
+async def test_repeated_resume_is_idempotent_and_the_body_is_saved_once(guard, monkeypatch):
     from agent.core.stream_processor import StreamState
     from agent.core.workflow_events import StreamEventType
 
@@ -657,8 +698,12 @@ async def test_repeated_resume_is_idempotent_and_the_body_is_saved_once(monkeypa
 
     monkeypatch.setattr(adapter, "_save_file_content", fake_save)
 
+    # 上一程没被捕获的闭合块让守卫以为「正文已写出」：恢复后这个标记必须作废。
+    ToolContext.mark_latest_pending_body_streamed()
     first = await _resume(adapter)
     second = await _resume(adapter)
+    ToolContext.begin_model_reply()
+    assert ToolContext.overdue_file_body() == CHAPTER, "恢复后下一次回复仍须先写正文"
     frames = await _feed(adapter, StreamEventType.TEXT, {"text": f"<file>\n{BODY}\n</file>\n"})
 
     assert first.armed and second.armed
@@ -666,3 +711,30 @@ async def test_repeated_resume_is_idempotent_and_the_body_is_saved_once(monkeypa
     assert adapter._stream_processor.state == StreamState.IDLE
     assert any(frame.type.value == "file_content_end" for frame in frames)
     assert all("合成正文" not in str(frame.data.get("text") or "") for frame in frames if frame.type.value == "content")
+
+
+@pytest.mark.parametrize("case", ["no_request_context", "guard_cleared", "other_file_pending", "rearm_raises"])
+async def test_adapter_does_not_arm_unless_the_exact_pending_guard_is_restored(case, monkeypatch):
+    """armed 要同时证明捕获与这个文件的待写守卫都已恢复；守卫缺失 / 不对 / 恢复失败时不开捕获。"""
+    from agent.core.stream_processor import StreamState
+
+    if case != "no_request_context":
+        ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
+        ToolContext.set_pending_empty_file("f2" if case == "other_file_pending" else "f1", CHAPTER)
+        if case == "guard_cleared":
+            ToolContext.clear_pending_empty_file("f1")
+    if case == "rearm_raises":
+        def boom(_file_id):
+            raise RuntimeError("synthetic guard failure")
+
+        monkeypatch.setattr(ToolContext, "rearm_pending_file_body", boom)
+    try:
+        adapter = _bound_adapter()
+        await _end_agent_run(adapter)
+
+        request = await _resume(adapter)
+
+        assert request.armed is False and request.refusal == "guard_missing"
+        assert adapter._stream_processor.state == StreamState.IDLE
+    finally:
+        ToolContext.clear_context()

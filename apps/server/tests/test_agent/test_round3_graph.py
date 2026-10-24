@@ -377,10 +377,11 @@ class TestRound3PendingEmptyFileGuardPreservesFailureEvidence:
 
         events = await _run_graph(fake_agent)
 
-        assert calls == ["writer"] * (1 + MAX_FILE_CORRECTION_ATTEMPTS) + [
-            "quality_reviewer"
-        ]
-        assert guard_seen_by_reviewer == [True]
+        # 补写用完仍是空文件：这一轮如实停在未完成，不再按这一轮的请求送审，也不宣告完成。
+        assert calls == ["writer"] * (1 + MAX_FILE_CORRECTION_ATTEMPTS)
+        assert guard_seen_by_reviewer == []
+        assert not any(event.type == StreamEventType.HANDOFF for event in events)
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
         exhausted = [
             event
             for event in events
@@ -409,8 +410,91 @@ class TestRound3PendingEmptyFileGuardPreservesFailureEvidence:
 
         events = await _run_graph(fake_agent, resume_ok=False)
 
-        assert calls == ["writer", "quality_reviewer"]
-        assert guard_seen_by_reviewer == [True]
+        assert calls == ["writer"]
+        assert guard_seen_by_reviewer == []
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+        exhausted = [
+            event
+            for event in events
+            if event.type == StreamEventType.ITERATION_EXHAUSTED
+            and event.data.get("layer") == "empty_file_correction"
+        ]
+        assert exhausted and exhausted[0].data["unfinished_files"] == [{"file_id": "file-1", "title": "第五章"}]
+
+    @pytest.mark.asyncio
+    async def test_unresolved_planner_file_does_not_continue_the_planned_writer(self):
+        """规划师的空大纲没能恢复写入：不按计划交给 writer 写正文。"""
+        calls: list[str] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            if agent_type == "planner":
+                ToolContext.set_pending_empty_file("outline-1", "大纲")
+                yield _create_file_done()
+                yield _text("大纲建好了。")
+            else:
+                yield _text("第一章正文写好了。[TASK_COMPLETE]")
+
+        events = await _run_graph(
+            fake_agent,
+            initial_agent="planner",
+            router_result={
+                "current_agent": "planner",
+                "workflow_plan": "standard",
+                "workflow_agents": ["writer"],
+                "routing_metadata": {"write_content": True, "read_only": False},
+            },
+            resume_ok=False,
+        )
+
+        assert calls == ["planner"]
+        assert not any(event.type == StreamEventType.HANDOFF for event in events)
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+
+    @pytest.mark.asyncio
+    async def test_completion_marker_does_not_complete_a_round_with_an_unresolved_empty_file(self):
+        calls: list[str] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            ToolContext.set_pending_empty_file("file-1", "第五章")
+            yield _create_file_done()
+            yield _text("第五章写好了。[TASK_COMPLETE]")
+
+        events = await _run_graph(fake_agent, resume_ok=False)
+
+        assert calls == ["writer"]
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
+
+    @pytest.mark.asyncio
+    async def test_read_only_role_with_a_pending_marker_is_not_handed_to_a_writer(self):
+        """当前角色没有写权限（审稿人）时，不替它换一个 writer 去补写：本轮不授予的写权限不合成。"""
+        calls: list[str] = []
+
+        async def fake_agent(state, agent_type, *_args, **_kwargs):
+            calls.append(agent_type)
+            if agent_type == "quality_reviewer":
+                ToolContext.set_pending_empty_file("file-1", "第五章")
+                yield _text("审查完毕。")
+            else:
+                yield _text("补写正文。")
+
+        events = await _run_graph(
+            fake_agent,
+            initial_agent="quality_reviewer",
+            router_result={
+                "current_agent": "quality_reviewer",
+                "workflow_plan": "review_only",
+                "workflow_agents": [],
+                "routing_metadata": {"read_only": False, "write_content": False},
+            },
+        )
+
+        assert calls == ["quality_reviewer"]
+        assert not any(
+            event.type == StreamEventType.FILE_BODY_RESUME for event in events
+        ), "不为没有写权限的角色恢复正文写入"
+        assert not any(event.type == StreamEventType.WORKFLOW_COMPLETE for event in events)
         exhausted = [
             event
             for event in events

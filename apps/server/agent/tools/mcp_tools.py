@@ -288,11 +288,16 @@ class _PendingEmptyFileState:
             if self._entries:
                 self._streamed.add(next(reversed(self._entries)))
 
-    def rearm(self, file_id: str) -> None:
-        """纠偏轮重新等这个文件的正文：没被捕获的「正文已写出」标记作废，建于第几次回复不变。"""
+    def rearm(self, file_id: str) -> bool:
+        """纠偏轮重新等这个文件的正文：没被捕获的「正文已写出」标记作废，建于第几次回复不变。
+
+        返回这个文件是否仍是待写条目（不是就什么也不做）。
+        """
         with self._lock:
-            if file_id in self._entries:
-                self._streamed.discard(file_id)
+            if file_id not in self._entries:
+                return False
+            self._streamed.discard(file_id)
+            return True
 
     def discard(self, file_id: str | None = None) -> None:
         """file_id 为 None 时清空全部，否则只摘掉指定条目。"""
@@ -993,14 +998,14 @@ class ToolContext:
             state.mark_latest_body_streamed()
 
     @classmethod
-    def rearm_pending_file_body(cls, file_id: str) -> None:
+    def rearm_pending_file_body(cls, file_id: str) -> bool:
         """StreamAdapter 为空文件纠偏轮重新等这个文件的正文（见 _PendingEmptyFileState.rearm）。
 
-        下一次回复照样要先以 <file> 写正文，其他工具仍按 file_body_pending 拒绝。
+        下一次回复照样要先以 <file> 写正文，其他工具仍按 file_body_pending 拒绝。返回这个文件的
+        待写守卫是否确实恢复：没有请求上下文、或它已不是待写条目时为 False，调用方不能恢复捕获。
         """
         state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.rearm(file_id)
+        return state.rearm(file_id) if state is not None else False
 
     @classmethod
     def try_reserve_pending_empty_file(

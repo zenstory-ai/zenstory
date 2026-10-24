@@ -10,7 +10,7 @@ from agent.schemas.context import ContextData
 
 SENTINEL = "SENTINEL-作品正文-7731"
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = [pytest.mark.unit]
 
 
 @pytest.fixture
@@ -49,6 +49,7 @@ async def _generate(service, db_session):
     )
 
 
+@pytest.mark.asyncio
 async def test_success_logs_length_not_the_model_reply(service, db_session, caplog):
     service.llm.acomplete.return_value = json.dumps(
         {"suggestions": [f"{SENTINEL} 一", f"{SENTINEL} 二", f"{SENTINEL} 三"]}, ensure_ascii=False
@@ -63,6 +64,7 @@ async def test_success_logs_length_not_the_model_reply(service, db_session, capl
     assert "response_length" in text
 
 
+@pytest.mark.asyncio
 async def test_parse_failure_logs_a_fixed_category_not_the_raw_reply(service, db_session, caplog):
     service.llm.acomplete.return_value = f"这不是 JSON：{SENTINEL}"
     caplog.set_level(logging.DEBUG, logger="agent.suggest_service")
@@ -75,6 +77,7 @@ async def test_parse_failure_logs_a_fixed_category_not_the_raw_reply(service, db
     assert "parse_failed" in text
 
 
+@pytest.mark.asyncio
 async def test_exception_logs_its_type_not_its_text(service, db_session, caplog):
     service.llm.acomplete.side_effect = RuntimeError(f"provider echoed {SENTINEL}")
     caplog.set_level(logging.DEBUG, logger="agent.suggest_service")
@@ -85,3 +88,17 @@ async def test_exception_logs_its_type_not_its_text(service, db_session, caplog)
     text = _suggest_log_text(caplog)
     assert SENTINEL not in text
     assert "RuntimeError" in text
+
+
+def test_constructor_failure_logs_a_fixed_reason_not_the_exception_text(caplog):
+    """模型客户端建不起来（例如缺配置）：只记固定原因与异常类型，不记异常原文、不附异常栈。"""
+    from agent.suggest_service import SuggestService
+
+    caplog.set_level(logging.DEBUG, logger="agent.suggest_service")
+    with patch("agent.suggest_service.get_llm_client", side_effect=RuntimeError(f"config echoed {SENTINEL}")):
+        svc = SuggestService()
+
+    assert svc.llm is None
+    text = _suggest_log_text(caplog)
+    assert SENTINEL not in text
+    assert "llm_unavailable" in text and "RuntimeError" in text

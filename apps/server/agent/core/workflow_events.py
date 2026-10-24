@@ -49,6 +49,7 @@ FILE_BODY_RESUME_NOT_EMPTY = "not_empty"  # 建文件时就有正文（复用命
 FILE_BODY_RESUME_VERSION_CHANGED = "version_changed"  # 建文件之后有人改过它
 FILE_BODY_RESUME_CAPTURE_ACTIVE = "capture_active"  # 还有别的捕获在进行
 FILE_BODY_RESUME_UNAVAILABLE = "unavailable"  # 不处理 <file> 标记，或流已出错
+FILE_BODY_RESUME_GUARD_MISSING = "guard_missing"  # 这个文件的待写守卫已不在（或恢复失败）
 
 
 @dataclass
@@ -58,6 +59,7 @@ class FileBodyResume:
     file_id: str
     # 图刚从数据库读到的版本（updated_at.isoformat()）：必须与 create_file 结果里的版本相同。
     expected_updated_at: str
+    # 捕获与这个文件的待写守卫都已恢复时才为 True。
     armed: bool = False
     refusal: str | None = None
 

@@ -16,10 +16,11 @@ Status: implemented
 ## Decision
 
 - 新增一个图 → StreamAdapter 的内部控制事件 `FILE_BODY_RESUME`（与 CHAT_HOLD 同类，不发给前端），`data["request"]` 是 `FileBodyResume(file_id, expected_updated_at)`，适配器把 `armed` / 固定 `refusal` 写回它。
-- 图的纠偏分支只在本来就允许补写时尝试（非只读、非先问清楚、还有纠偏配额与协作轮数，纠偏角色有写权限），目标是最近建的那份未完成文件（适配器正绑定着它）。发事件前 `_resume_target_version` 再读一次库：同一 ToolContext 项目、未删除、正文仍为空、不是文件夹，取 `updated_at.isoformat()`。
-- StreamAdapter 只恢复自己在等的那份（本请求 create_file 成功结果设的 `_pending_file_write`）：同一 id、建时为空（`original_content_length == 0`）、图读到的版本等于 create_file 结果里的版本、没有进行中的非 IDLE 捕获、流未出错。已经在等同一文件时重复请求不重置。恢复后清掉没被捕获的「正文已写出」标记（`ToolContext.rearm_pending_file_body`），下一次回复仍须先写正文，守卫与熔断器不变。落库照旧走 `_save_file_content_sync(protect_author_content=True, expected_updated_at=create_file 结果的版本)`。
+- 图的纠偏分支只在本来就允许补写时尝试：当前角色自己有写权限（不再在当前角色没有写权限时改派 writer：本轮没授予的写权限不合成）、非只读、非先问清楚、还有纠偏配额与协作轮数。目标是最近建的那份未完成文件（适配器正绑定着它）。发事件前 `_resume_target_version` 再读一次库：同一 ToolContext 项目、未删除、正文仍为空、不是文件夹，取 `updated_at.isoformat()`。
+- StreamAdapter 只恢复自己在等的那份（本请求 create_file 成功结果设的 `_pending_file_write`）：同一 id、建时为空（`original_content_length == 0`）、图读到的版本等于 create_file 结果里的版本、没有进行中的非 IDLE 捕获、流未出错。`armed` 同时证明捕获与这个文件的待写守卫都已恢复：先 `ToolContext.rearm_pending_file_body` 恢复精确的守卫条目（清掉没被捕获的「正文已写出」标记，返回是否确实恢复；没有请求上下文、条目已不在或抛错都算失败，回执 `guard_missing`），成功后才开始等 `<file>`。已经在等同一文件时重复请求不重置。下一次回复仍须先写正文，守卫与熔断器不变。落库照旧走 `_save_file_content_sync(protect_author_content=True, expected_updated_at=create_file 结果的版本)`。
 - 只有 `armed` 才安排纠偏轮，指令改为与 create_file 的 `next_step`、守卫同一个动作：这一次回复第一行直接输出 `<file>`，写完整正文，用 `</file>` 结束，写完前不要调用工具，不要只在对话里复述。不再要求 edit_file，也不再要求「同一轮补齐另几个空文件」（一次只能流式写一个文件；其余的在下个边界再核验）。`pending_empty_file_unwritten` 的拒绝文案同样去掉 edit_file 解除法。
-- 没恢复成（核验不了、不在本项目、已删除、已有正文、适配器不在等它、版本变了）就不跑纠偏轮，走原来的回滚 / 报告分支：回滚仍为空的本请求产物，报告无法回滚的未完成文件。版本变了的文件（建后作者或别的写入动过）不回滚也不写，保留守卫并报告未完成。`_probe_pending_file_body` 把不在本请求项目里的文件按 gone 处理。
+- 空的或只有空白的 `<file>` 块不算写成：StreamAdapter 不落库、不发 `file_content_end`，待写绑定与守卫都留着，交给图的边界核验（中止补存同样只认非空白正文）。
+- 没恢复成（配额用尽、核验不了、不在本项目、已删除、已有正文、适配器不在等它或守卫不在、版本变了、当前角色没有写权限）就不跑纠偏轮：回滚仍为空的本请求产物并说明，报告无法回滚的未完成文件；版本变了的文件（建后作者或别的写入动过）不回滚也不写。随后这一轮停在未完成：不按计划或显式交接继续、不送审、不因完成标记发 WORKFLOW_COMPLETE；已写成的文件与真实用量照旧，计费按既有终态规则（不新增退还条件）。`_probe_pending_file_body` 把不在本请求项目里的文件按 gone 处理。
 - 恢复写入的纠偏轮：正文类文件（draft / script）按 create_file 后的 `<file>` 正文同口径计入自动质检门的本轮字数，并与 create_file 后一样可开始 CHAT_HOLD；这一程写完的是之前建好的文件，续写条件（`ends_on_file_block`）同样成立。计费与回合回执只认 StreamAdapter 的保存回执，没有改变。
 
 ## Alternatives considered
@@ -33,10 +34,12 @@ Status: implemented
 ## Consequences
 
 - 收益：空文件纠偏轮第一次就能把正文写回同一个文件，正文不进聊天，不再因指令与守卫矛盾连续拒绝到熔断；作者改过、删掉、不在本项目或本轮未授权写入的文件不会被写入。
-- 代价：多一个内部控制事件和一份回执；没有 StreamAdapter 的调用方（例如只跑图的单元测试）不会再安排纠偏轮，而是直接回滚 / 报告。核验不了的空文件以前还会白跑一轮纠偏，现在立即回滚或报告。
+- 代价：多一个内部控制事件和一份回执；没有 StreamAdapter 的调用方（例如只跑图的单元测试）不会再安排纠偏轮，而是直接回滚 / 报告。核验不了的空文件以前还会白跑一轮纠偏，现在立即回滚或报告；补不成时整轮停在未完成，计划里后面的角色、显式交接与自动送审都不再执行（以前会照常交接、审稿甚至宣告完成）。
+- 计费口径未改：补不成而停下的一轮仍以 done 结束，按「正常结束计费」判断（工具轮数耗尽那种「失控停止且没写成就退还」不覆盖这个层级）；是否把它纳入退还属于计费策略，留给单独决定。
 - 不改模型、思考强度、时间预算、重试或熔断阈值；首次为何漏写正文（模型行为）仍未知，本修复只让恢复路径闭环，不能证明线上失败率已降低。
 
 ## Verification
 
 - 先写 `apps/server/tests/test_agent/test_file_body_resume.py`（真实 graph + runner 事件映射与钩子 + tools_adapter 守卫/熔断 + create_file + StreamAdapter + 临时 SQLite，只替换模型与路由），在 base `6fb42851` 上 7 项失败（正文进聊天并在两轮后被回滚、作者改动 / 跨项目 / 先问清楚仍纠偏、取消时没有捕获），3 项既有保护通过；修复后 17 项通过（含适配器的拒绝与幂等用例）。
 - 锁住旧合同的图单元测试改用 `file_body_resume_helpers`（替身：目标核验通过、适配器已回执），新增「没恢复捕获就立即回滚」「核验不了只报告」用例；`test_mcp_tools` 不再断言 edit_file 解除法。
+- 独立审查（`b0f74cf3`）后的回修，先写 red 再修：空 / 只有空白的 `<file>` 块（跨层，2 例）、守卫缺失 / 已清 / 只有别的文件 / 恢复抛错时不得 armed（4 例）、补不成后不交接审稿与不宣告完成（含计划交接、显式送审 + 配额用尽、完成标记，3 例并改正 2 个锁住旧 fallthrough 的用例）、审稿人带着待写标记时不改派 writer（1 例）；修改前共 11 项失败，修改后这三个文件 49 项通过。

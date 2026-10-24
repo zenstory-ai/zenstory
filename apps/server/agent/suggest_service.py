@@ -105,12 +105,15 @@ class SuggestService:
         except Exception as exc:
             # In local/dev/e2e environments we may not have an API key configured.
             # Suggestions should degrade gracefully instead of crashing the endpoint.
+            # 异常文本可能带着配置或供应商回显：只记固定原因与类型。
             log_with_context(
                 logger,
                 logging.WARNING,
                 "LLM client unavailable for suggestions; falling back to canned suggestions",
+                stage="init",
+                failure="llm_unavailable",
                 error_type=type(exc).__name__,
-                error_message=str(exc),
+                exc_info=False,
             )
             self.llm = None
 

@@ -2480,19 +2480,15 @@ async def run_writing_workflow_streaming(
                 )
                 body_state = probed_states[0] if probed_states else _PENDING_BODY_UNVERIFIABLE
 
-                # 纠偏轮由「建了空文件的那个 agent」自己补写：空文件是它建的
-                # （它必然有写权限），交给 writer 会让 writer 去补 planner 的大纲/
-                # 人设——只要大纲的请求因此凭空多出一轮 writer，还会顺带触发自动
-                # 质检；计划序列里排着的 writer 也会在纠偏后撞上自交接被判无效。
-                correction_agent = (
-                    current_agent_type
-                    if _agent_can_write_files(current_agent_type)
-                    else "writer"
-                )
-                # 只读、先问清楚的请求（作者没授权本轮写文件）不安排补写：写工具调用本就会被
-                # 拒绝，万一仍出现空文件，直接走下面的回滚分支，而不是让 agent 去写正文。
+                # 纠偏轮由「建了空文件的那个 agent」自己补写：空文件是它建的，交给 writer
+                # 会让 writer 去补 planner 的大纲/人设（凭空多一轮 writer 与自动质检，计划里的
+                # writer 也会撞上自交接）。当前角色自己没有写权限（审稿人）时不替它换一个
+                # writer：本轮没授予的写权限不合成，按下面的未完成分支收尾。
+                # 只读、先问清楚的请求（作者没授权本轮写文件）同样不安排补写。
+                correction_agent = current_agent_type
                 can_schedule_correction = (
-                    not read_only_request
+                    _agent_can_write_files(current_agent_type)
+                    and not read_only_request
                     and not clarify_first_request
                     and iteration < max_iterations
                     and file_correction_attempts < MAX_FILE_CORRECTION_ATTEMPTS
@@ -2585,6 +2581,17 @@ async def run_writing_workflow_streaming(
                                 "last_agent": current_agent_type,
                             },
                         )
+                    # 回滚掉的空文件同样告诉作者（与工具轮数耗尽时同一句说明）。
+                    rolled_back_titles = [entry["title"] for entry in unfinished if entry["file_id"] in rolled_back]
+                    notice = _unfinished_file_notice(rolled_back_titles, [], english)
+                    if notice:
+                        yield StreamEvent(type=StreamEventType.TEXT, data={"text": notice})
+                    # 文件没写成、也补不了：这一轮停在未完成。不再按计划或显式交接继续、不送审、
+                    # 也不因完成标记宣告完成；已写成的文件与真实用量照旧，计费由既有终态规则判断。
+                    if (read_only_notice := _take_read_only_notice()) is not None:
+                        yield read_only_notice
+                    terminated_via_break = True
+                    break
                 else:
                     file_correction_attempts += 1
                     log_with_context(

@@ -13,6 +13,7 @@ Status: implemented
 - 收到回复：`stage=llm_call`、`response_length`。
 - 解析失败：`stage=parse`、`failure=parse_failed`、`response_length`、`falling_back`；JSON 解码 / 修复失败只记 `error_type`。
 - 异常：`failure=timeout|exception`、`error_type`、`falling_back`，`exc_info=False` 不附异常栈。
+- 建不起模型客户端（`SuggestService.__init__`）：`stage=init`、`failure=llm_unavailable`、`error_type`，不记异常原文、不附异常栈。
 - `request_id` / `agent_run_id` 仍由 `log_with_context` 从请求上下文自动带上。不新增观测框架、表或面板，返回给前端的建议与回退逻辑不变。
 
 ## Alternatives considered
@@ -26,4 +27,4 @@ Status: implemented
 
 ## Verification
 
-`apps/server/tests/test_agent/test_suggest_log_privacy.py` 用带哨兵字符串的合成回复/异常覆盖成功、解析失败、异常三条路径；修改前 3 项失败（哨兵出现在日志里），修改后与既有 suggest 服务、解析、`/agent/suggest` API 测试共 99 项通过。
+`apps/server/tests/test_agent/test_suggest_log_privacy.py` 用带哨兵字符串的合成回复/异常覆盖成功、解析失败、异常三条路径；修改前 3 项失败（哨兵出现在日志里），修改后与既有 suggest 服务、解析、`/agent/suggest` API 测试共 99 项通过。独立审查指出构造失败路径仍记 `str(exc)`（原用例只构造成功），补构造失败哨兵用例：修改前失败，修改后通过。

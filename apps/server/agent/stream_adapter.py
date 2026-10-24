@@ -47,6 +47,7 @@ from .core.workflow_events import (
     CHAT_HOLD_BEGIN,
     CHAT_HOLD_DISCARD,
     FILE_BODY_RESUME_CAPTURE_ACTIVE,
+    FILE_BODY_RESUME_GUARD_MISSING,
     FILE_BODY_RESUME_NOT_BOUND,
     FILE_BODY_RESUME_NOT_EMPTY,
     FILE_BODY_RESUME_UNAVAILABLE,
@@ -902,6 +903,12 @@ class StreamAdapter:
             return
         pending = self._pending_file_write
         processor = self._stream_processor
+        already_waiting = (
+            pending is not None
+            and processor.state == StreamState.WAITING_START
+            and processor.file_id == pending.file_id
+            and not processor.temp_buffer
+        )
         refusal: str | None = None
         if not self.config.process_file_markers or self._fatal_stream_error:
             refusal = FILE_BODY_RESUME_UNAVAILABLE
@@ -911,15 +918,12 @@ class StreamAdapter:
             refusal = FILE_BODY_RESUME_NOT_EMPTY
         elif pending.baseline_updated_at is None or pending.baseline_updated_at != request.expected_updated_at:
             refusal = FILE_BODY_RESUME_VERSION_CHANGED
-        elif (
-            processor.state == StreamState.WAITING_START
-            and processor.file_id == pending.file_id
-            and not processor.temp_buffer
-        ):
-            pass  # 已经在等这个文件的正文（重复请求）：不重置
-        elif processor.state != StreamState.IDLE:
+        elif not already_waiting and processor.state != StreamState.IDLE:
             refusal = FILE_BODY_RESUME_CAPTURE_ACTIVE
-        else:
+        elif not self._rearm_pending_guard(pending.file_id):
+            # 捕获与守卫要一起恢复：守卫不在（或恢复失败）时不开捕获，纠偏轮就不会被安排。
+            refusal = FILE_BODY_RESUME_GUARD_MISSING
+        elif not already_waiting:
             # IDLE 下暂扣的行首 / 空标签对文字先交还对话，再开始等正文。
             async for sse_event in self._flush_active_capture():
                 yield sse_event
@@ -927,10 +931,6 @@ class StreamAdapter:
 
         if refusal is None:
             request.armed = True
-            with contextlib.suppress(Exception):
-                from agent.tools.mcp_tools import ToolContext
-
-                ToolContext.rearm_pending_file_body(pending.file_id)
         else:
             request.refusal = refusal
         log_with_context(
@@ -940,6 +940,17 @@ class StreamAdapter:
             file_id=request.file_id,
             refusal=refusal,
         )
+
+    @staticmethod
+    def _rearm_pending_guard(file_id: str) -> bool:
+        """恢复这个文件的待写守卫；只有确实恢复了才返回 True（异常也按失败处理）。"""
+        try:
+            from agent.tools.mcp_tools import ToolContext
+
+            return ToolContext.rearm_pending_file_body(file_id) is True
+        except Exception as exc:  # noqa: BLE001 - a failed guard must decline the resume
+            log_with_context(logger, 30, "Pending file guard re-arm failed", file_id=file_id, error_type=type(exc).__name__)
+            return False
 
     @staticmethod
     def _resolve_original_content_length(file_data: dict[str, Any], content: str) -> int:
@@ -976,7 +987,7 @@ class StreamAdapter:
                 error_type=type(exc).__name__,
             )
             return None
-        if not (result.file_complete and result.file_id and result.final_content):
+        if not (result.file_complete and result.file_id and result.final_content.strip()):
             return None
         if self._should_refuse_truncated_overwrite(result):
             log_with_context(
@@ -1161,20 +1172,31 @@ class StreamAdapter:
             self._clear_pending_empty_file_guard(result.file_id)
             return
 
+        # 空的或只有空白的 <file> 块不算写成正文：不落库、不发结束事件，待写绑定与守卫都留着，
+        # 由图的边界核验按空文件处理（有界纠偏、回滚或如实报告未完成），不当作已交付。
+        if not result.final_content.strip():
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Blank <file> block is not a written body; the file stays pending",
+                file_id=result.file_id,
+                streamed_length=len(result.final_content),
+            )
+            return
+
         # Save accumulated file content to database before emitting end event
-        if result.final_content:
-            saved = await self._save_file_content(result.file_id, result.final_content)
-            if not saved:
-                self._fatal_stream_error = True
-                # Clear pending state to avoid blocking future create_file calls.
-                self._pending_file_write = None
-                self._clear_pending_empty_file_guard(result.file_id)
-                yield error_event(
-                    message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
-                    code=ErrorCode.AGENT_FILE_SAVE_FAILED,
-                    retryable=True,
-                )
-                return
+        saved = await self._save_file_content(result.file_id, result.final_content)
+        if not saved:
+            self._fatal_stream_error = True
+            # Clear pending state to avoid blocking future create_file calls.
+            self._pending_file_write = None
+            self._clear_pending_empty_file_guard(result.file_id)
+            yield error_event(
+                message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
+                code=ErrorCode.AGENT_FILE_SAVE_FAILED,
+                retryable=True,
+            )
+            return
 
         yield file_content_end_event(result.file_id)
 
