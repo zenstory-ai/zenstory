@@ -573,3 +573,25 @@ def test_latest_text_owner_detection(db_session, owner_project):
     _author_saves(db_session, user, chapter, AUTHOR_CH3)
     db_session.expire_all()
     assert latest_text_is_authors(db_session, db_session.get(File, chapter.id)) is True
+
+
+async def test_chat_delete_refuses_the_authors_reviewed_reject_save(db_session, owner_project):
+    """作者在审阅里拒掉 AI 修改、存下自己的写法（编辑器发的 ai_edit/AI edit (reviewed)），聊天不能删除它。"""
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project)
+    files_api.update_file(
+        chapter.id,
+        files_api.FileUpdate(
+            content=AUTHOR_CH3, change_type="ai_edit", change_summary="AI edit (reviewed)"
+        ),
+        current_user=user,
+        session=db_session,
+    )
+
+    payload = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": chapter.id}, message="删掉第三章"
+    )
+
+    assert payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False
