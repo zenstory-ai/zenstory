@@ -294,7 +294,9 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
         "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格）和任务列表。"
         "同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending。"
         "summary/current_phase/writing_style 传值即整体替换；新增内容时先合并现有内容。"
-        "notes 只保存作者自己写的内容，你新增或改写的条目不会保存；建议写在回复里。"
+        "notes 只在作者明确让你记住时传，只追加作者原话（已有备注由系统保留，不能删改）；"
+        "结果的 notes_added 是实际记下的条目。"
+        "summary 只描述作品，不标「已确认」，不写你自己选定或建议的内容；建议写在回复里。"
         "新的非文件完成任务须明确 task_kind=conversation；文件任务必须有对应类型的实际产物证据。"
         "进度和已完成文件引用由系统维护，不要提交或推断这些字段。"
         "给作品定了名字时传 title：项目还叫默认名（如「我的小说」）或之前由 AI 起的名字时会改名，"
@@ -314,7 +316,7 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             },
             "summary": {
                 "type": "string",
-                "description": "项目摘要/背景介绍（整体替换；先合并现有内容）",
+                "description": "项目摘要/背景介绍（整体替换；先合并现有内容；不写你自己选定或建议的内容）",
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["summary"],
             },
             "current_phase": {
@@ -330,8 +332,8 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             "notes": {
                 "type": "string",
                 "description": (
-                    "AI 记忆的备注，只由作者在 AI 记忆里写；你传入的新增或改写内容不会保存，"
-                    "已有条目由系统保留"
+                    "作者明确让你记住的内容，用作者原话，一条一件事（「；」或换行分隔），"
+                    "不加推断、补充、前缀或括号；只传新条目，系统追加到备注末尾，已有条目原样保留"
                 ),
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"],
             },

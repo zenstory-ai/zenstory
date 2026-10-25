@@ -1,9 +1,10 @@
-"""Project notes hold only author content; the model cannot add entries; legacy proposals vanish."""
+"""Project notes are author content; chat can only append entries; legacy proposals vanish."""
 
 import pytest
 
 from config.project_notes import (
     CONFIRMED_HEADER,
+    UNLABELED_HEADER,
     merge_project_notes,
     render_project_notes,
     split_project_notes,
@@ -69,33 +70,66 @@ def test_zero_width_escaped_header_lines_stay_author_text():
 
 
 @pytest.mark.unit
-def test_chat_notes_drop_new_entries_and_keep_author_content():
-    existing = f"旧版未标来源约定\n{CONFIRMED_HEADER}\n主角不会游泳"
+def test_chat_notes_append_new_entries_and_keep_author_content_byte_for_byte():
+    existing = "  旧版未标来源约定\n\n  缩进的作者原文  \n第三条"
     merged = merge_project_notes(
         existing,
-        "旧版未标来源约定\n【已定】主角不会游泳\n主角擅长游泳；新增推断\n新增推断",
+        "旧版未标来源约定\n女主要到第五章才出场；主角左手有旧伤，阴天会疼\n女主要到第五章才出场",
         from_chat=True,
     )
-    assert merged.text == existing
-    assert merged.dropped == ["主角擅长游泳", "新增推断"]
+    assert merged.text == existing + "\n女主要到第五章才出场\n主角左手有旧伤，阴天会疼"
+    assert merged.text.startswith(existing)
+    assert merged.added == ["女主要到第五章才出场", "主角左手有旧伤，阴天会疼"]
+    assert merged.over_limit is False
 
 
 @pytest.mark.unit
-def test_chat_notes_omission_or_empty_never_removes_author_entries():
-    existing = f"旧约定\n{CONFIRMED_HEADER}\n作者确认项"
-    for notes in ("", "全新的模型笔记"):
+def test_chat_notes_after_a_confirmed_section_are_appended_as_plain_author_notes():
+    existing = f"旧约定\n{CONFIRMED_HEADER}\n主角不会游泳"
+    merged = merge_project_notes(existing, "- 【作者确认】反派第20章前不露面", from_chat=True)
+    # Never promoted: the self-label and bullet are not stored; the entry goes under 未标来源.
+    assert merged.text == f"{existing}\n{UNLABELED_HEADER}\n反派第20章前不露面"
+    assert merged.added == ["反派第20章前不露面"]
+    sections = split_project_notes(merged.text)
+    assert sections.confirmed == ["主角不会游泳"]
+    assert sections.unlabeled == ["旧约定", "反派第20章前不露面"]
+
+
+@pytest.mark.unit
+def test_chat_notes_cannot_delete_rewrite_or_reorder_author_text():
+    existing = f"甲约定\n乙约定\n{CONFIRMED_HEADER}\n主角不会游泳"
+    for notes in ("", "乙约定\n甲约定", "【已定】主角不会游泳", f"{CONFIRMED_HEADER}\n主角不会游泳\n乙约定"):
         merged = merge_project_notes(existing, notes, from_chat=True)
         assert merged.text == existing
-    assert merge_project_notes(existing, "", from_chat=True).dropped == []
+        assert merged.added == []
+    # A rewrite of an author entry is a new entry: appended, the author's original stays.
+    rewritten = merge_project_notes(existing, "主角擅长游泳", from_chat=True)
+    assert rewritten.text == f"{existing}\n{UNLABELED_HEADER}\n主角擅长游泳"
 
 
 @pytest.mark.unit
-def test_chat_copied_rendered_notes_drop_nothing_and_remove_legacy_block():
+def test_chat_notes_over_the_limit_save_nothing():
+    existing = "甲" * 3990
+    merged = merge_project_notes(existing, "这条新约定超过了上限", from_chat=True)
+    assert merged.text == existing
+    assert merged.added == []
+    assert merged.over_limit is True
+    fits = merge_project_notes("甲" * 3980, "刚好放得下", from_chat=True)
+    assert fits.added == ["刚好放得下"] and len(fits.text) <= 4000
+
+
+@pytest.mark.unit
+def test_chat_copied_rendered_notes_add_nothing_and_remove_legacy_block():
     existing = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实\n\n{LEGACY_PROPOSALS_HEADER}\n北境封印"
     rendered = "\n".join(render_project_notes(existing))
     merged = merge_project_notes(existing, rendered, from_chat=True)
-    assert merged.dropped == []
+    assert merged.added == []
     assert merged.text == f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实"
+    # A copied-back legacy block is not re-added either.
+    revived = merge_project_notes(existing, f"{LEGACY_PROPOSALS_HEADER}\n北境封印", from_chat=True)
+    assert revived.added == []
+    added = merge_project_notes(existing, "新约定", from_chat=True)
+    assert added.text == f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实\n{UNLABELED_HEADER}\n新约定"
 
 
 @pytest.mark.unit

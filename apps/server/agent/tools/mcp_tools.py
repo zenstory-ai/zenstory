@@ -2718,7 +2718,7 @@ async def update_project(
     return _update_project_sync(args, written_artifact_ids)
 
 
-NOTES_NOT_SAVED_NOTE = "这些条目没有保存：AI 记忆只保留作者自己写的内容，你的想法和建议写在回复里。"
+NOTES_FULL_NOTE = "备注已接近 4000 字上限，这次没有记入；请作者在 AI 记忆里精简后再记。"
 
 
 def _update_project_sync(
@@ -2739,18 +2739,25 @@ def _update_project_sync(
         normalized_args = _normalize_update_project_args(args)
         result = {}
 
-        # AI 记忆只存作者自己的内容：应用内模型新增或改写的 notes 条目不保存（见 config/project_notes）。
-        notes_dropped: list[str] = []
+        # 应用内对话的 notes 只追加：已有作者内容逐字节保留，新条目作为普通备注追加，
+        # 结果的 notes_added 列出存下的原文，结果卡据此提供撤销（见 config/project_notes）。
+        notes_added: list[str] = []
+        notes_over_limit = False
         notes_transform: Callable[[str | None], str | None] | None = None
         notes_arg = normalized_args.get("notes")
         if isinstance(notes_arg, str):
             from_chat = isinstance(ToolContext._get_context().get("author_message"), str)
 
             def transform_notes(existing_notes: str | None) -> str | None:
-                nonlocal notes_dropped
+                nonlocal notes_added, notes_over_limit
                 merged = merge_project_notes(existing_notes, notes_arg, from_chat=from_chat)
-                notes_dropped = merged.dropped
-                # Unchanged notes are not written, so they do not count as an updated field.
+                notes_added = merged.added
+                notes_over_limit = merged.over_limit
+                # Unchanged notes are not written, so they do not count as an updated field (no
+                # billable output).  A chat call that appends nothing does not write either, even
+                # to drop a legacy proposal block: every read already hides it.
+                if from_chat and not merged.added:
+                    return None
                 return None if merged.text == (existing_notes or "") else merged.text
 
             notes_transform = transform_notes
@@ -2783,23 +2790,25 @@ def _update_project_sync(
             status_result = executor.update_project_status(
                 **status_kwargs,
             )
-            if notes_dropped:
+            if notes_added or notes_over_limit:
                 log_with_context(
                     logger,
                     20,
-                    "update_project dropped model notes entries",
+                    "update_project appended chat notes entries",
                     project_id=project_id,
-                    dropped_count=len(notes_dropped),
+                    added_count=len(notes_added),
+                    over_limit=notes_over_limit,
                 )
             result["project_status"] = status_result
             # Backward compatibility: keep common fields at top level for older clients.
             result["project_id"] = status_result.get("project_id")
             result["updated_fields"] = status_result.get("updated_fields", [])
             result["current_status"] = status_result.get("current_status", {})
-            if notes_dropped:
-                # Also on a partial plan rejection: the other fields were still saved.
-                result["notes_not_saved"] = notes_dropped
-                result["notes_note"] = NOTES_NOT_SAVED_NOTE
+            # Also on a partial plan rejection: the other fields were still saved.
+            if notes_added and "notes" in result["updated_fields"]:
+                result["notes_added"] = notes_added
+            if notes_over_limit:
+                result["notes_note"] = NOTES_FULL_NOTE
             for key in (
                 "project_name_updated",
                 "project_name",

@@ -98,3 +98,53 @@ export function withAuthorNotes(stored: string, edited: string, confirmedFrom?: 
   }
   return out.join(lineEnding(stored));
 }
+
+export interface NoteEntriesRemoval {
+  /** Stored notes without the removed lines (and without an 【未标来源】 header they left empty). */
+  text: string;
+  /** Entries found and removed, by exact trimmed equality with a whole stored line. */
+  removed: string[];
+  /** Entries no longer stored as written (the author edited or deleted them). */
+  missing: string[];
+}
+
+/**
+ * Undo of the entries one chat update_project appended (`notes_added`, each stored on its own
+ * line): removes the last line exactly equal (trimmed) to each entry, never a header or a line of
+ * a legacy proposal block, and keeps every other byte. An entry the author has since edited stays.
+ */
+export function withoutNoteEntries(stored: string, entries: string[]): NoteEntriesRemoval {
+  const lines = stored.split(/\r?\n/);
+  const legacy = new Set<number>();
+  let inLegacy = false;
+  lines.forEach((line, index) => {
+    if (isHeaderLine(line)) inLegacy = legacyProposalsHeader.test(line);
+    if (inLegacy) legacy.add(index);
+  });
+  const drop = new Set<number>();
+  const removed: string[] = [];
+  const missing: string[] = [];
+  for (const entry of entries) {
+    const target = entry.trim();
+    let found = -1;
+    for (let index = lines.length - 1; index >= 0 && target; index--) {
+      const line = lines[index];
+      if (drop.has(index) || legacy.has(index) || isHeaderLine(line)) continue;
+      if (line.trim() === target) { found = index; break; }
+    }
+    if (found >= 0) {
+      drop.add(found);
+      removed.push(entry);
+    } else missing.push(entry);
+  }
+  if (drop.size === 0) return { text: stored, removed, missing };
+  const kept = lines.filter((_, index) => !drop.has(index));
+  // An 【未标来源】 header that only introduced the removed lines goes with them.
+  const out = kept.filter((line, index) => {
+    if (!unlabeledHeader.test(line)) return true;
+    const rest = kept.slice(index + 1);
+    const next = rest.findIndex(isHeaderLine);
+    return (next < 0 ? rest : rest.slice(0, next)).some(other => other.trim());
+  });
+  return { text: out.join(lineEnding(stored)).trimEnd(), removed, missing };
+}

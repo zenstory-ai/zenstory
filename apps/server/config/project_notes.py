@@ -1,9 +1,11 @@
 """Source-aware project-note storage.
 
-Notes hold only the author's own content: entries without a header (saved by the author in the
-AI 记忆 panel, or recorded before sources existed) and the 【作者确认】 section.  Application-chat
-tools cannot add, rewrite, clear or promote entries: the model's new text is dropped and reported
-back to it.  Direct non-chat callers keep the whole-field editing behavior.
+Notes are author content: entries without a header (saved by the author in the AI 记忆 panel,
+recorded before sources existed, or appended by the chat AI when the author asked it to remember
+something) and the 【作者确认】 section.  For application-chat tools notes are append-only: stored
+text is kept byte-for-byte (never deleted, rewritten, reordered or promoted) and entries not already
+present are appended as plain notes; the chat card shows them with an undo.  Direct non-chat
+callers keep the whole-field editing behavior.
 
 Notes saved before 2026-10-25 may still contain an 【AI 提议·待作者确认】 block (a removed
 feature).  Every read treats it as absent and no write keeps it, so it disappears on the next save.
@@ -14,11 +16,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from config.project_status import PROJECT_STATUS_MAX_LENGTHS
+
 CONFIRMED_HEADER = "【作者确认】"
 UNLABELED_HEADER = "【未标来源】"
 
 CONFIRMED_EXPLANATION = "作者确认过的约定；应用内 AI 不能修改或删除"
-UNLABELED_EXPLANATION = "作者在记忆面板保存或历史遗留的约定；应用内 AI 不能修改或删除"
+UNLABELED_EXPLANATION = "作者在记忆面板保存、在对话里让你记下或历史遗留的约定；应用内 AI 不能修改或删除"
 
 _HEADER_PREFIX = r"^\s*【\s*(?:备注\s*[·・]\s*)?"
 _HEADER_SUFFIX = r"\s*】\s*(?:[（(].*[)）])?\s*$"
@@ -52,8 +56,10 @@ class ProjectNotesSections:
 @dataclass
 class ProjectNotesMerge:
     text: str
-    # Entries the chat model passed that are not already author content; not stored.
-    dropped: list[str] = field(default_factory=list)
+    # Entries appended by this chat call, exactly as stored (one per line), in order.
+    added: list[str] = field(default_factory=list)
+    # Appending would exceed the notes limit, so nothing was appended.
+    over_limit: bool = False
 
 
 def _is_author_header(line: str) -> bool:
@@ -145,26 +151,48 @@ def _entries(lines: list[str]) -> list[str]:
     ]
 
 
+def _ends_in_confirmed_section(notes: str) -> bool:
+    confirmed = False
+    for line in notes.splitlines():
+        if _CONFIRMED_HEADER_RE.match(line):
+            confirmed = True
+        elif _UNLABELED_HEADER_RE.match(line):
+            confirmed = False
+    return confirmed
+
+
 def merge_project_notes(existing: str | None, notes: str, *, from_chat: bool) -> ProjectNotesMerge:
     """Apply an update_project ``notes`` argument.
 
-    ``from_chat`` (an application-chat model call): the stored author content is kept
-    byte-for-byte, and every entry of ``notes`` that is not already there (by entry key, so a
-    copied-back rendered header or a self-label such as 「【已定】」 changes nothing) is dropped.
+    ``from_chat`` (an application-chat model call): append-only.  The stored author content is kept
+    byte-for-byte; every entry of ``notes`` not already there (by entry key, so a copied-back
+    rendered header or a self-label such as 「【已定】」 changes nothing) is appended on its own line
+    as a plain (unlabeled) note, without bullets or self-labels.  If that would exceed the notes
+    limit, nothing is appended.
 
     Otherwise (a direct non-chat caller) ``notes`` replaces the whole field.  Either way no legacy
     proposal block survives.
     """
     if not from_chat:
         return ProjectNotesMerge(text=without_legacy_proposals(notes.strip()) or "")
-    current = split_project_notes(existing)
-    authoritative = {_entry_key(entry) for entry in _entries([*current.unlabeled, *current.confirmed])}
+    base = without_legacy_proposals(existing) or ""
+    current = split_project_notes(base)
+    known = {_entry_key(entry) for entry in _entries([*current.unlabeled, *current.confirmed])}
     incoming = split_project_notes(notes)
-    dropped: list[str] = []
-    seen: set[str] = set()
+    added: list[str] = []
     for entry in _entries([*incoming.unlabeled, *incoming.confirmed]):
-        key = _entry_key(entry)
-        if key not in authoritative and key not in seen:
-            seen.add(key)
-            dropped.append(entry)
-    return ProjectNotesMerge(text=without_legacy_proposals(existing) or "", dropped=dropped)
+        text = _SELF_LABEL_RE.sub("", _BULLET_RE.sub("", entry)).strip()
+        key = _entry_key(text)
+        if key and key not in known:
+            known.add(key)
+            added.append(text)
+    if not added:
+        return ProjectNotesMerge(text=base)
+    tail = "\n".join(added)
+    if _ends_in_confirmed_section(base):
+        tail = f"{UNLABELED_HEADER}\n{tail}"
+    separator = "" if not base.strip() or base.endswith("\n") else "\n"
+    text = f"{base}{separator}{tail}" if base.strip() else tail
+    if len(text.strip()) > PROJECT_STATUS_MAX_LENGTHS["notes"]:
+        return ProjectNotesMerge(text=base, over_limit=True)
+    return ProjectNotesMerge(text=text, added=added)

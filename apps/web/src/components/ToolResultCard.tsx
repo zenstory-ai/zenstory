@@ -48,6 +48,7 @@ import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
 import { UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
+import { RememberedNotes } from './RememberedNotes';
 
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
@@ -370,6 +371,24 @@ const classifyToolFailure = (errorType: string | undefined): ToolFailureKind => 
 const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
 
 /**
+ * Notes entries an update_project call appended because the author asked the AI to remember them
+ * (`notes_added`, exact stored text), with the project to undo them in. The server sets it only
+ * when the notes were written, also on a partial (task board rejected) result.
+ */
+const readNotesAdded = (
+  data: Record<string, unknown> | undefined,
+): { projectId: string; entries: string[] } | null => {
+  const projectId = typeof data?.project_id === 'string' ? data.project_id.trim() : '';
+  const entries = Array.isArray(data?.notes_added)
+    ? [...new Set(data.notes_added
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter(Boolean))]
+    : [];
+  return projectId && entries.length > 0 ? { projectId, entries } : null;
+};
+
+/**
  * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
  * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
  */
@@ -660,7 +679,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const { label } = getToolDisplayInfo(toolName, t);
       const { kind, message: userMessage } = resolveToolFailure(result, t);
       const intentionalSkip = INTENTIONAL_SKIP_KINDS.has(kind);
+      // update_project with a rejected task board still saved its notes (partial result).
+      const partialNotes = toolName === 'update_project'
+        ? readNotesAdded((result?.data || result) as Record<string, unknown> | undefined)
+        : null;
       return (
+        <div>
         <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
             {intentionalSkip ? (
@@ -675,6 +699,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">
             {userMessage}
           </p>
+        </div>
+          {partialNotes && !isPending && !interrupted && (
+            <RememberedNotes projectId={partialNotes.projectId} entries={partialNotes.entries} />
+          )}
         </div>
       );
     }
@@ -840,8 +868,29 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const updatedLabels = updatedFields
         .map((f) => fieldLabels[f] || f)
         .join(t('common:separator'));
-      
+      const notesAdded = readNotesAdded(data);
+      const changed = updatedFields.length > 0
+        || data.project_name_updated === true
+        || projectStatus?.project_name_updated === true
+        || (data.plan !== undefined && data.plan !== null)
+        || notesAdded !== null;
+
+      // Nothing visible changed (e.g. notes copied back unchanged): no green success.
+      if (!changed) {
+        return (
+          <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+              <span className="text-sm text-[hsl(var(--text-secondary))]">
+                {typeof data.notes_note === 'string' ? t('chat:notesAdded.full') : t('chat:tool.status_unchanged')}
+              </span>
+            </div>
+          </div>
+        );
+      }
+
       return (
+        <div>
         <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
@@ -854,6 +903,13 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               </span>
             )}
           </div>
+          {typeof data.notes_note === 'string' && (
+            <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">{t('chat:notesAdded.full')}</p>
+          )}
+        </div>
+          {notesAdded && !isPending && !interrupted && (
+            <RememberedNotes projectId={notesAdded.projectId} entries={notesAdded.entries} />
+          )}
         </div>
       );
     }

@@ -23,7 +23,7 @@
     "shareSuccessApproved": "灵感已发布到灵感库",
     "shareFailed": "投稿失败，请重试",
     "cancel": "取消",
-    "infoBanner": "AI 写作时会参考这里的内容。对话中 AI 可能更新简介、写作风格和当前阶段；备注只保存你自己写的内容。",
+    "infoBanner": "AI 写作时会参考这里的内容。对话中 AI 可能更新简介、写作风格和当前阶段；你明确让 AI 记住的话会追加到备注，可在对话里撤销。",
     "placeholders": {
       "summary": "小说类型、世界观、主角设定等核心信息",
       "writingStyle": "语言风格、叙事节奏、文字特点等",

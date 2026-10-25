@@ -148,7 +148,7 @@ def copy_inspiration_to_project(
         summary=snapshot.get("project_summary"),
         current_phase=snapshot.get("project_current_phase"),
         writing_style=snapshot.get("project_writing_style"),
-        notes=snapshot.get("project_notes"),
+        notes=without_legacy_proposals(snapshot.get("project_notes")),
     )
     session.add(project)
     from services.first_work_service import consume_for_author_project

@@ -1537,11 +1537,11 @@ def test_legacy_proposal_block_is_not_in_the_model_context(db_session, test_proj
 
 @pytest.mark.unit
 def test_project_notes_copied_back_from_context_change_nothing():
-    """模型把上下文里的备注块（连同标题行）照抄回 notes：标题不变成条目，没有条目被丢弃。"""
+    """模型把上下文里的备注块（连同标题行）照抄回 notes：标题不变成条目，不追加任何条目。"""
     from agent.context.assembler import _render_project_notes
     from config.project_notes import merge_project_notes
 
     rendered = "\n".join(_render_project_notes(_LEGACY_NOTES))
     merged = merge_project_notes(_LEGACY_NOTES, rendered, from_chat=True)
-    assert merged.dropped == []
+    assert merged.added == []
     assert merged.text == "主角冷静\n\n【作者确认】\n女主要到第五章才出场"

@@ -23,7 +23,7 @@
     "shareSuccessApproved": "Inspiration published to library",
     "shareFailed": "Couldn't submit. Please try again.",
     "cancel": "Cancel",
-    "infoBanner": "AI refers to this when writing for you. In chats it may update the summary, writing style and current phase; notes keep only what you write.",
+    "infoBanner": "AI refers to this when writing for you. In chats it may update the summary, writing style and current phase; when you ask it to remember something, it adds that to notes, and you can undo it in the chat.",
     "placeholders": {
       "summary": "Genre, world, protagonist and other core details",
       "writingStyle": "Voice, pacing, prose style, etc.",
