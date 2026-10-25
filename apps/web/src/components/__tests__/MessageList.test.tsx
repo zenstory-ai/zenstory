@@ -330,12 +330,14 @@ describe('MessageList', () => {
     const onAction = vi.fn()
     const timeItem: NonNullable<Message['displayItems']>[number] = { id: 'time', type: 'iteration_exhausted', layer: 'tool_call', limit: 'wall_clock', timestamp: new Date() }
     const emptyItem: NonNullable<Message['displayItems']>[number] = { id: 'empty', type: 'iteration_exhausted', layer: 'tool_call', unfinishedFiles: ['第一章'], rolledBackFiles: ['第二章'], timestamp: new Date() }
-    const { unmount } = render(<MessageList
-      messages={[
-        createMessage({ id: 'm-1', role: 'assistant', content: '', displayItems: [timeItem] }),
-        createMessage({ id: 'm-2', role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'collaboration', maxIterations: 4 }] }),
-      ]}
-      streamRenderItems={[emptyItem]}
+    const messages = [
+      createMessage({ id: 'm-1', role: 'assistant', content: '', displayItems: [timeItem] }),
+      createMessage({ id: 'm-2', role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'collaboration', maxIterations: 4 }] }),
+    ]
+    const streamRenderItems = [emptyItem]
+    const { rerender } = render(<MessageList
+      messages={messages}
+      streamRenderItems={streamRenderItems}
       onIterationAssistAction={onAction}
       nextStepsBlocked
     />)
@@ -347,12 +349,12 @@ describe('MessageList', () => {
     expect(screen.queryByText('workflow.nextStepHint')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'workflow.actionContinue' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'workflow.actionSplit' })).not.toBeInTheDocument()
-    unmount()
 
-    // Messages come back (a new Beijing day, or Pro): the same cards offer the next steps again.
-    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [timeItem] })]} onIterationAssistAction={onAction} nextStepsBlocked={false} />)
+    // Messages come back (a new Beijing day, or Pro): the same list, only the flag changes.
+    rerender(<MessageList messages={messages} streamRenderItems={streamRenderItems} onIterationAssistAction={onAction} nextStepsBlocked={false} />)
     expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'workflow.actionContinue' }))
+    expect(screen.getAllByRole('button', { name: 'workflow.actionContinue' })).toHaveLength(3)
+    fireEvent.click(screen.getAllByRole('button', { name: 'workflow.actionContinue' })[0])
     expect(onAction).toHaveBeenCalledWith('continue', timeItem)
   })
 

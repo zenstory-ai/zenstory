@@ -40,7 +40,7 @@ _OTHER_ERROR_TYPE = "other"
 @dataclass
 class _ToolFailureStats:
     count: int = 0
-    batch_count: int = 0
+    rolled_back_batches: int = 0
     error_types: dict[str, int] = field(default_factory=dict)
 
 
@@ -143,15 +143,16 @@ class AgentRunMeter:
         finally:
             self.record_stage(stage, (time.monotonic() - started) * 1000, outcome=outcome)
 
-    def record_tool_failure(self, tool_name: str, error_type: object, *, batch: bool) -> None:
-        """An executed tool returned status=error (business failure; raised errors stay in tool.error_count).
+    def record_tool_failure(self, tool_name: str, error_type: object, *, rolled_back_batch: bool) -> None:
+        """An executed tool returned status=error or partial (business failure; raised errors stay in tool.error_count).
 
-        Counts only: the tool name (registry key), a bounded error_type id, and whether the call was a
-        multi-edit batch, which fails as a whole by default. No arguments, file text or messages.
+        Counts only: the tool name (registry key), a bounded error_type id, and whether a multi-edit
+        batch was rolled back as a whole (the default without continue_on_error). No arguments,
+        file text or messages.
         """
         stats = self._tool_failures.setdefault(tool_name, _ToolFailureStats())
         stats.count += 1
-        stats.batch_count += batch
+        stats.rolled_back_batches += rolled_back_batch
         key = error_type if isinstance(error_type, str) and _ERROR_TYPE_PATTERN.fullmatch(error_type) else _OTHER_ERROR_TYPE
         if key not in stats.error_types and len(stats.error_types) >= _MAX_ERROR_TYPES_PER_TOOL:
             key = _OTHER_ERROR_TYPE
@@ -179,7 +180,11 @@ class AgentRunMeter:
                 for stage, stats in self._stage_timings.items()
             },
             "tool_failures": {
-                tool: {"count": stats.count, "batch_count": stats.batch_count, "error_types": dict(stats.error_types)}
+                tool: {
+                    "count": stats.count,
+                    "rolled_back_batches": stats.rolled_back_batches,
+                    "error_types": dict(stats.error_types),
+                }
                 for tool, stats in self._tool_failures.items()
             },
         }

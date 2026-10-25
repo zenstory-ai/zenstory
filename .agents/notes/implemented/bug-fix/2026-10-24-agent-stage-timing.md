@@ -14,7 +14,7 @@
 - tool 仅围绕权限/守卫通过后的实际项目工具执行；正常返回表示调用返回，不保证业务成功。守卫拒绝不当成实际工具启动。file_save 是流式落库等待；失败与取消仍计时，不改变超时后的原有后台语义。
 - `run_first_tool_started_ms` 为首个真实工具执行起点；`run_first_body_persisted_ms` 为首个观察到非空 draft/script 正文实际保存/变更成功的时刻。空文件、非正文、无变化、拒绝/失败都不是成功证据。流式写入由保存结果确认；edit/parallel 使用已有 BodyWriteTracker 的成功结果、逐项 mutation_applied=true 和非空字数；只覆盖已有 writer / planned_body_delivery 观察范围，其他未规划角色的工具正文可能保守漏记，不为观测改变送审流程。未观察到成功为 null，不证明绝未写入（例如超时后线程可能仍完成）。
 - 诊断时间原点为 service 入口，独立于原 wrap-up 预算原点。角色耗时包含模型、工具、流消费；阶段会嵌套/重叠，不可相加当请求总时长。
-- `tool_failures`（2026-10-24 补充，见 [额度用完与撤销冲突提示](2026-10-24-used-up-day-and-undo-conflict-hints.md)）：按工具名统计真正执行、正常返回 `status=error` 的业务失败次数、多项 edits 批量失败次数与有上限的 error_type 计数；`tool` 阶段的 error_count 仍只计异常。
+- `tool_failures`（2026-10-24 补充，见 [额度用完与撤销冲突提示](2026-10-24-used-up-day-and-undo-conflict-hints.md)）：按工具名统计真正执行、正常返回 `status=error` / `partial` 的业务失败次数、整批回滚次数与有上限的 error_type 计数；`tool` 阶段的 error_count 仍只计异常。
 - 仅新增固定分类与数值，不带用户正文、模型原文、工具参数、原始异常、作品/文件/用户标识。已有 request_id 关联保持不变；本批不扩大到全仓旧日志清理。
 
 ## Alternatives considered
