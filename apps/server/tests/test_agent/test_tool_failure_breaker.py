@@ -872,6 +872,27 @@ def test_repeated_read_only_refusal_trips_as_unavailable_call():
     assert "相同参数" not in trip.user_message()
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("refusal_kind", ["role", "clarify_first"])
+def test_repeated_role_or_clarify_refusal_trips_as_unavailable_call(refusal_kind):
+    """F-26：角色无权限、先澄清时的拒绝同样没有执行，熔断原因与文案同「本轮不可用」。"""
+    from agent.openai_agents.tools_adapter import clarify_first_refusal_text, role_refusal_text
+
+    refusal = (
+        role_refusal_text("edit_file", "quality_reviewer")
+        if refusal_kind == "role"
+        else clarify_first_refusal_text("edit_file")
+    )
+    breaker = ToolFailureBreaker()
+    for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
+        breaker.observe("edit_file", '{"id": "f1"}', refusal)
+
+    trip = breaker.trip
+    assert trip is not None
+    assert trip.reason == TRIP_REASON_TOOL_NOT_FOUND
+    assert "用不了的功能" in trip.user_message()
+
+
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_metrics_and_model_cache")

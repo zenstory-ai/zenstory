@@ -8,7 +8,7 @@ SDK 的 max_turns（AGENT_TOOL_CALL_MAX_ITERATIONS）只限制模型轮数，挡
 agent run（writer → quality_reviewer → writer 的往返不会让计数归零）。
 熔断判定只看工具结果本身（工具名 + 归一化参数 + 归一化错误），不依赖错误来源：
 - 同一调用（同名 + 同参数）以等价错误连续失败 MAX_IDENTICAL_TOOL_FAILURES 次 → 熔断
-  （调用的是不存在的工具或被只读请求拒绝时原因记为 TRIP_REASON_TOOL_NOT_FOUND，文案不说「相同参数」）；
+  （调用的是不存在的工具，或在执行前被只读请求 / 角色权限 / 先澄清拒绝时原因记为 TRIP_REASON_TOOL_NOT_FOUND，文案不说「相同参数」）；
 - 本次请求累计失败 MAX_TOOL_FAILURES_PER_REQUEST 次（参数/错误各不相同的乱试）→ 熔断。
 第一、二次失败照常把错误交还模型，让它有机会换参数/换方法自行恢复；
 同一调用一旦成功，它的连续失败计数清零。
@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent.openai_agents.events import parse_json_object, tool_error_text
+from agent.openai_agents.repeat_read_guard import GUARD_ERROR_TYPES
 
 # 同一调用以等价错误连续失败多少次后熔断。取 3：第 1 次失败让模型看到错误，
 # 第 2 次（原样重试）在错误里附上「别再原样重试」的提示，第 3 次仍旧失败就停。
@@ -43,10 +44,9 @@ MAX_TOOL_FAILURES_PER_REQUEST = 10
 # file_body_pending 是 tools_adapter 在执行前挡回的同类拒绝（建文件后的下一次回复没先写正文）。
 _ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten", "file_body_pending"})
 
-# 重复读取守卫（repeat_read_guard）主动拦下的结果：不是工具失败，由守卫自己计数并
-# 判定「无进展」；熔断器若也记账，同一文件第 4～6 次读取会先以「相同参数连续失败」
+# 重复读取守卫（repeat_read_guard.GUARD_ERROR_TYPES）主动拦下的结果：不是工具失败，由守卫
+# 自己计数并判定「无进展」；熔断器若也记账，同一文件第 4～6 次读取会先以「相同参数连续失败」
 # 熔断，抢走守卫的停止原因与计费口径。
-_GUARD_ERROR_TYPES = frozenset({"repeated_read", "no_progress_stop"})
 
 # 触发原因，写进停止事件的 data.reason，供日志/测试区分。
 TRIP_REASON_IDENTICAL = "repeated_identical_tool_failure"
@@ -55,8 +55,19 @@ TRIP_REASON_TOTAL = "too_many_tool_failures"
 # 调用根本没执行，也没有「参数」可言，单独一个原因与文案，不说成「以相同参数失败」。
 TRIP_REASON_TOOL_NOT_FOUND = "repeated_unavailable_tool_call"
 _TOOL_NOT_FOUND_ERROR_TYPE = "tool_not_found"
-# 调用根本没执行的错误：工具不存在，或只读请求拒绝了写工具。
-_UNEXECUTED_CALL_ERROR_TYPES = frozenset({_TOOL_NOT_FOUND_ERROR_TYPE, "read_only_request"})
+# tools_adapter 在执行前拒绝写工具时用的 error_type（它从这里 import，两边不再各写一份字面量）。
+READ_ONLY_REQUEST_ERROR_TYPE = "read_only_request"
+ROLE_NOT_PERMITTED_ERROR_TYPE = "tool_not_permitted_for_role"
+CLARIFY_FIRST_ERROR_TYPE = "clarify_first"
+# 调用根本没执行的错误：工具不存在，或只读请求 / 角色权限 / 先澄清拒绝了写工具。
+_UNEXECUTED_CALL_ERROR_TYPES = frozenset(
+    {
+        _TOOL_NOT_FOUND_ERROR_TYPE,
+        READ_ONLY_REQUEST_ERROR_TYPE,
+        ROLE_NOT_PERMITTED_ERROR_TYPE,
+        CLARIFY_FIRST_ERROR_TYPE,
+    }
+)
 
 # 对外展示的错误摘要上限（SQL 报错可能带完整语句和参数）。
 _ERROR_PREVIEW_CHARS = 200
@@ -234,7 +245,7 @@ class ToolFailureBreaker:
         """记录一次工具结果，返回交给模型的输出（重复失败时附带不要原样重试的提示）。"""
         key = (tool_name, _normalize_arguments(raw_arguments))
         payload = _parse_error_payload(output_text, tool_name)
-        if payload is not None and payload.get("error_type") in _GUARD_ERROR_TYPES:
+        if payload is not None and payload.get("error_type") in GUARD_ERROR_TYPES:
             return output_text
         if payload is None:
             # 同一调用成功：它的连续失败计数清零。累计失败数不清零——那是整次请求的兜底。
@@ -303,8 +314,11 @@ def _with_repeat_hint(output_text: str, count: int, threshold: int) -> str:
 
 
 __all__ = [
+    "CLARIFY_FIRST_ERROR_TYPE",
     "MAX_IDENTICAL_TOOL_FAILURES",
     "MAX_TOOL_FAILURES_PER_REQUEST",
+    "READ_ONLY_REQUEST_ERROR_TYPE",
+    "ROLE_NOT_PERMITTED_ERROR_TYPE",
     "TRIP_REASON_IDENTICAL",
     "TRIP_REASON_TOOL_NOT_FOUND",
     "TRIP_REASON_TOTAL",
