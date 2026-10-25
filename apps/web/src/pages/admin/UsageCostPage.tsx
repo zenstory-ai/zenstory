@@ -15,7 +15,6 @@ import {
   type UsageDailyRow,
   type UsageDetailDays,
   type UsageMetrics,
-  type UsagePeriod,
   type UsageSourceRow,
   type UsageUserSort,
   type UsageWindow,
@@ -56,15 +55,11 @@ function Kpi({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function PriceLine({ period }: { period: UsagePeriod }) {
+function PriceLine() {
   const { t } = useTranslation("admin");
-  const band = (key: "peak" | "offpeak") => {
-    const prices = period.prices[key];
-    return `${t(`usage.${key}`)} ${prices.cache_hit} / ${prices.cache_miss} / ${prices.output}`;
-  };
   return (
     <p className="text-xs text-[hsl(var(--text-secondary))]">
-      {t("usage.priceLine", { peak: band("peak"), offpeak: band("offpeak") })}
+      {t("usage.priceLine")}
     </p>
   );
 }
@@ -464,7 +459,7 @@ export default function UsageCostPage() {
         {summary.data && totals && (
           <div className="space-y-4">
             <div className="space-y-1">
-              <PriceLine period={summary.data} />
+              <PriceLine />
               <p className="text-xs text-[hsl(var(--text-secondary))]">{t("usage.notCounted")}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

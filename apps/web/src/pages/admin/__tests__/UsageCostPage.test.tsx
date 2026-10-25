@@ -214,7 +214,7 @@ describe("UsageCostPage", () => {
     expect(screen.getByText("¥12.35")).toBeInTheDocument();
     expect(screen.getByText("¥10.00 / ¥2.35")).toBeInTheDocument();
     expect(screen.getByText("1,000 / 200 / 50")).toBeInTheDocument();
-    expect(screen.getByText(/usage.priceLine:usage.peak 0.04 \/ 2 \/ 8\|usage.offpeak 0.02 \/ 1 \/ 4/)).toBeInTheDocument();
+    expect(screen.getByText("usage.priceLine")).toBeInTheDocument();
     expect(screen.getByText("usage.notCounted")).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "usage.sources.material" })).toBeInTheDocument();
     // The daily breakdown is only for the 7-day window.

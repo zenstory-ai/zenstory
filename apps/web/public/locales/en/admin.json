@@ -686,7 +686,7 @@
   },
   "usage": {
     "title": "Usage & cost",
-    "subtitle": "Estimated DeepSeek cost by user (not a provider invoice), by Beijing time",
+    "subtitle": "Model usage and estimated cost by user, using Beijing-time windows",
     "window": "Period",
     "windows": {
       "today": "Today",
@@ -695,10 +695,10 @@
     },
     "refresh": "Refresh",
     "loadError": "Couldn't load usage",
-    "priceLine": "Prices (CNY per 1M tokens, cache hit / miss / output): {{peak}}; {{offpeak}}. Peak is 9–12 and 14–18 Beijing time, Monday–Friday excluding Chinese public holidays; all other times are off-peak.",
-    "notCounted": "Only completed model calls that return usage are recorded; calls completed before a request is cancelled or times out may still be counted. Embeddings are excluded.",
+    "priceLine": "DeepSeek uses peak and off-peak pricing; MiniMax M3.1 Flash has one rate all day.",
+    "notCounted": "Costs are estimates, not a provider invoice; only calls that returned usage are included (calls completed before cancellation or timeout may still appear), and embeddings are excluded.",
     "totalCost": "Total cost",
-    "peakOffpeak": "Peak / off-peak cost",
+    "peakOffpeak": "Cost by time band (peak / off-peak)",
     "calls": "Calls",
     "activeUsers": "Active users",
     "tokenSplit": "Tokens (hit / miss / output)",

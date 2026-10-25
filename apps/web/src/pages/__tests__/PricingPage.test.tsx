@@ -72,7 +72,7 @@ vi.mock("../../lib/analytics", () => ({
 
 import PricingPage from "../PricingPage";
 
-function createWrapper() {
+function createWrapper(entry = "/pricing") {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -83,7 +83,7 @@ function createWrapper() {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>{children}</MemoryRouter>
+        <MemoryRouter initialEntries={[entry]}>{children}</MemoryRouter>
       </QueryClientProvider>
     );
   };
@@ -266,23 +266,23 @@ describe("PricingPage", () => {
     expect(monthlyControl).not.toBeNull();
     expect(yearlyControl).not.toBeNull();
     expect(monthlyControl).toHaveAttribute("role", "radio");
-    // Yearly is the default offer. Its saving belongs to the cycle control,
-    // while each plan card shows only the selected cycle's price.
-    expect(yearlyControl).toHaveAttribute("aria-checked", "true");
-    expect(monthlyControl).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText(/¥399\/年|¥399\/year/i)).toBeInTheDocument();
-    expect(screen.queryByText(/¥49\/月|¥49\/month/i)).not.toBeInTheDocument();
+    // Monthly is the default offer. The annual saving stays in the cycle
+    // control, while each plan card shows only the selected cycle's price.
+    expect(monthlyControl).toHaveAttribute("aria-checked", "true");
+    expect(yearlyControl).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText(/¥49\/月|¥49\/month/i)).toBeInTheDocument();
+    expect(screen.queryByText(/¥399\/年|¥399\/year/i)).not.toBeInTheDocument();
     expect(yearlyControl).toHaveTextContent(/省\s*32%|save\s*32%/i);
     expect(screen.getAllByText(/省\s*32%|save\s*32%/i)).toHaveLength(1);
 
-    if (monthlyControl) {
-      fireEvent.click(monthlyControl);
+    if (yearlyControl) {
+      fireEvent.click(yearlyControl);
     }
 
     await waitFor(() => {
-      expect(screen.getByText(/¥49\/月|¥49\/month/i)).toBeInTheDocument();
-      expect(screen.queryByText(/¥399\/年|¥399\/year/i)).not.toBeInTheDocument();
-      expect(monthlyControl).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByText(/¥399\/年|¥399\/year/i)).toBeInTheDocument();
+      expect(screen.queryByText(/¥49\/月|¥49\/month/i)).not.toBeInTheDocument();
+      expect(yearlyControl).toHaveAttribute("aria-checked", "true");
     });
   });
 
@@ -292,12 +292,12 @@ describe("PricingPage", () => {
 
     render(<PricingPage />, { wrapper: createWrapper() });
 
-    expect(await screen.findByText("$79/年")).toBeInTheDocument();
+    expect(await screen.findByText("$9.99/月")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /年付/ })).toHaveTextContent("省 34%");
     expect(screen.queryByText(/¥/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("radio", { name: "月付" }));
-    expect(await screen.findByText("$9.99/月")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /年付/ }));
+    expect(await screen.findByText("$79/年")).toBeInTheDocument();
   });
 
   it("covers difference-only filter behavior", async () => {
@@ -339,6 +339,30 @@ describe("PricingPage", () => {
     await screen.findAllByText("每日 AI 消息");
     expect(screen.getAllByRole("button", { name: /免费开始|Start Free|Create Project Free/i })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i })).toHaveLength(1);
+  });
+
+  it("defaults the public pricing page and checkout to monthly", async () => {
+    mockUser = { id: "user-1" };
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(getControlByName(/月付|Monthly/i)).toBeEnabled());
+
+    expect(getControlByName(/月付|Monthly/i)).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i })[0]);
+    expect(screen.getByTestId("payment-checkout-cycle")).toHaveTextContent("month");
+  });
+
+  it("preserves an explicit annual deep link on the public pricing page", async () => {
+    mockUser = { id: "user-1" };
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper("/pricing?cycle=yearly") });
+    await waitFor(() => expect(getControlByName(/年付|Yearly/i)).toBeEnabled());
+
+    expect(getControlByName(/年付|Yearly/i)).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i })[0]);
+    expect(screen.getByTestId("payment-checkout-cycle")).toHaveTextContent("year");
   });
 
   it("does not claim unlimited Pro benefits when the catalog supplies finite limits", async () => {
