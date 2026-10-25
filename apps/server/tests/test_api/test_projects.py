@@ -645,12 +645,10 @@ async def test_patch_project_metadata_rejects_too_long_fields(client: AsyncClien
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("competing_writer", ["ai_proposal", "manual_patch"])
-def test_notes_patch_rejects_stale_baseline_after_another_writer(db_session, competing_writer):
-    """A stale manual draft cannot erase a committed AI proposal or another author's edit."""
-    from agent.tools.file_ops.project import ProjectOperations
+def test_notes_patch_rejects_stale_baseline_after_another_writer(db_session):
+    """A stale manual draft cannot erase another author client's edit."""
     from api.projects import PatchProjectRequest, patch_project
-    from config.project_notes import CONFIRMED_HEADER, merge_project_notes
+    from config.project_notes import CONFIRMED_HEADER
     from core.error_codes import ErrorCode
     from core.error_handler import APIException
 
@@ -671,21 +669,12 @@ def test_notes_patch_rejects_stale_baseline_after_another_writer(db_session, com
     )
 
     with Session(db_session.get_bind()) as competing_session:
-        if competing_writer == "ai_proposal":
-            ProjectOperations(competing_session, owner_id).update_project_status(
-                project_id,
-                notes_transform=lambda existing: merge_project_notes(
-                    existing, notes=None, proposals="刚到达的 AI 提议",
-                    author_quotes=None, author_messages=["继续写"],
-                ).text,
-            )
-        else:
-            patch_project(
-                project_id,
-                PatchProjectRequest(expected_notes=baseline, notes="另一端刚保存的作者约定"),
-                current_user=competing_session.get(User, owner_id),
-                session=competing_session,
-            )
+        patch_project(
+            project_id,
+            PatchProjectRequest(expected_notes=baseline, notes="另一端刚保存的作者约定"),
+            current_user=competing_session.get(User, owner_id),
+            session=competing_session,
+        )
         winner = competing_session.get(Project, project_id)
         winner_notes, winner_updated_at = winner.notes, winner.updated_at
 
@@ -761,6 +750,64 @@ async def test_notes_patch_matching_baseline_saves_and_clears(
     db_session.refresh(project)
     assert project.notes == saved_notes
     assert project.summary == "New summary"
+
+
+@pytest.mark.integration
+async def test_notes_patch_with_legacy_proposal_block_the_client_never_saw(client: AsyncClient, db_session):
+    """Stored notes from before the AI-proposal removal: hidden on read, no spurious 409, gone on save."""
+    from services.core.auth_service import hash_password
+
+    owner = User(
+        username="notes-legacy", email="notes-legacy@example.com",
+        hashed_password=hash_password("password123"), email_verified=True, is_active=True,
+    )
+    db_session.add(owner)
+    db_session.commit()
+    author_part = "作者旧约定\n【作者确认】\n作者事实"
+    legacy_block = "【AI 提议·待作者确认】\n沈度是关键配角；北境封印"
+    project = Project(name="Legacy notes", owner_id=owner.id, notes=f"{author_part}\n\n{legacy_block}")
+    db_session.add(project)
+    db_session.commit()
+    login = await client.post(
+        "/api/auth/login", data={"username": owner.username, "password": "password123"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    seen = (await client.get(f"/api/v1/projects/{project.id}", headers=headers)).json()["notes"]
+    assert seen == author_part
+    listed = (await client.get("/api/v1/projects", headers=headers)).json()
+    assert [row["notes"] for row in listed if row["id"] == project.id] == [author_part]
+
+    response = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"notes": f"{seen}\n作者新写的", "expected_notes": seen},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["notes"] == f"{author_part}\n作者新写的"
+    db_session.refresh(project)
+    assert project.notes == f"{author_part}\n作者新写的"
+
+    # A client that still has the old raw text cannot write the block back either.
+    project.notes = f"{author_part}\n\n{legacy_block}"
+    db_session.add(project)
+    db_session.commit()
+    old_client = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"notes": f"作者改过\n\n{legacy_block}", "expected_notes": f"{author_part}\n\n{legacy_block}"},
+        headers=headers,
+    )
+    assert old_client.status_code == 200
+    db_session.refresh(project)
+    assert project.notes == "作者改过"
+
+    # A real change to the author's part is still a conflict.
+    stale = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"notes": "过期草稿", "expected_notes": author_part},
+        headers=headers,
+    )
+    assert stale.status_code == 409
 
 
 @pytest.mark.parametrize("expected_notes", ["", None, "  Current memory  "])

@@ -1915,46 +1915,115 @@ def _stored_notes(db_session, project) -> str:
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_update_project_records_all_new_model_notes_as_proposals(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import split_project_notes
+async def test_update_project_drops_model_notes_and_keeps_other_fields(db_session):
+    """The model cannot record anything in notes, even with the author's quote; the tool says so."""
+    from agent.tools.mcp_tools import NOTES_NOT_SAVED_NOTE, ToolContext
+    from config.project_notes import CONFIRMED_HEADER
 
-    user, project = _make_user_and_project(db_session, "notes-proposals")
+    user, project = _make_user_and_project(db_session, f"notes-drop-{uuid4().hex[:5]}")
+    existing = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实"
+    project.notes = existing
+    db_session.add(project)
+    db_session.commit()
     _set_author_round(db_session, user, project, "记住，主角不会游泳。")
     try:
         payload = _parse_payload(
-            await update_project(
-                {"notes": "主角不会游泳", "author_quotes": ["主角不会游泳"]}
-            )
+            await update_project({
+                "summary": "新摘要",
+                "notes": "作者旧约定\n作者事实\n主角不会游泳；北境封印是伏笔",
+                "author_quotes": ["主角不会游泳"],
+                "proposals": "旧参数里的建议",
+            })
         )
         assert payload["status"] == "success"
-        sections = split_project_notes(_stored_notes(db_session, project))
-        assert sections.confirmed == []
-        assert sections.proposals == ["主角不会游泳"]
+        data = payload["data"]
+        assert data["notes_not_saved"] == ["主角不会游泳", "北境封印是伏笔"]
+        assert data["notes_note"] == NOTES_NOT_SAVED_NOTE
+        # Unchanged notes are not an updated field (no billable "project info" output).
+        assert data["updated_fields"] == ["summary"]
+        assert _stored_notes(db_session, project) == existing
+        from models import Project
+
+        assert db_session.get(Project, project.id).summary == "新摘要"
+
+        copied = _parse_payload(await update_project({"notes": existing}))
+        assert "notes_not_saved" not in copied["data"]
     finally:
         ToolContext.clear_context()
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+async def test_update_project_partial_plan_rejection_still_reports_dropped_notes(db_session, monkeypatch):
+    from agent.tools.file_ops import FileToolExecutor
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, f"notes-partial-{uuid4().hex[:5]}")
+    monkeypatch.setattr(
+        FileToolExecutor,
+        "execute_update_plan",
+        lambda self, **kwargs: {"status": "error", "error": "任务计划板未更新"},
+    )
+    _set_author_round(db_session, user, project, "继续写")
+    try:
+        payload = _parse_payload(
+            await update_project({"summary": "新摘要", "notes": "模型推断", "tasks": []})
+        )
+    finally:
+        ToolContext.clear_context()
+
+    assert payload["status"] == "partial"
+    assert payload["data"]["notes_not_saved"] == ["模型推断"]
+    assert payload["data"]["updated_fields"] == ["summary"]
+    assert _stored_notes(db_session, project) == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_update_project_preserves_existing_authoritative_notes_when_model_omits_or_rewrites(db_session):
     from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, split_project_notes
+    from config.project_notes import CONFIRMED_HEADER
 
     user, project = _make_user_and_project(db_session, "notes-preserve")
-    project.notes = f"旧约定\n{CONFIRMED_HEADER}\n主角不会游泳"
+    existing = f"旧约定\n{CONFIRMED_HEADER}\n主角不会游泳"
+    project.notes = existing
     db_session.add(project)
     db_session.commit()
     _set_author_round(db_session, user, project, "主角会游泳吗？")
     try:
-        payload = _parse_payload(await update_project({"notes": "主角会游泳"}))
-        assert payload["status"] == "success"
-        sections = split_project_notes(_stored_notes(db_session, project))
-        assert sections.unlabeled == ["旧约定"]
-        assert sections.confirmed == ["主角不会游泳"]
-        assert sections.proposals == ["主角会游泳"]
+        for notes in ("主角会游泳", ""):
+            payload = _parse_payload(await update_project({"notes": notes}))
+            assert payload["status"] == "success"
+            assert _stored_notes(db_session, project) == existing
     finally:
         ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_update_project_removes_legacy_proposal_block_on_write(db_session):
+    from agent.tools.mcp_tools import ToolContext
+    from config.project_notes import CONFIRMED_HEADER
+
+    user, project = _make_user_and_project(db_session, f"notes-legacy-{uuid4().hex[:5]}")
+    author_part = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实"
+    project.notes = f"{author_part}\n\n【AI 提议·待作者确认】\n沈度是关键配角；北境封印"
+    db_session.add(project)
+    db_session.commit()
+    _set_author_round(db_session, user, project, "继续写")
+    try:
+        status_only = _parse_payload(await update_project({"current_phase": "第1章"}))
+        assert status_only["data"]["current_status"]["notes"] == author_part
+
+        payload = _parse_payload(
+            await update_project({"notes": "作者旧约定\n作者事实\n沈度是关键配角；北境封印"})
+        )
+    finally:
+        ToolContext.clear_context()
+
+    assert payload["status"] == "success"
+    assert payload["data"]["notes_not_saved"] == ["沈度是关键配角", "北境封印"]
+    assert _stored_notes(db_session, project) == author_part
 
 
 @pytest.mark.asyncio
@@ -1969,7 +2038,7 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
     from agent.tools.file_ops import FileToolExecutor
     from agent.tools.mcp_tools import ToolContext
     from api.projects import PatchProjectRequest, patch_project
-    from config.project_notes import CONFIRMED_HEADER, split_project_notes
+    from config.project_notes import CONFIRMED_HEADER
 
     user, project = _make_user_and_project(db_session, "notes-race")
     project.notes = f"{CONFIRMED_HEADER}\n旧事实"
@@ -1995,130 +2064,13 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
     monkeypatch.setattr(FileToolExecutor, "update_project_status", update_after_author_patch)
     _set_author_round(db_session, user, project, "继续写")
     try:
-        payload = _parse_payload(await update_project({"notes": "模型新增推断"}))
+        payload = _parse_payload(await update_project({"notes": "旧事实\n模型新增推断"}))
     finally:
         ToolContext.clear_context()
 
     assert payload["status"] == "success"
-    sections = split_project_notes(_stored_notes(db_session, project))
-    assert sections.confirmed == ["旧事实", "作者刚确认"]
-    assert sections.proposals == ["模型新增推断"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_numbered_reply_never_promotes_proposal(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import PROPOSALS_HEADER, split_project_notes
-
-    entries = ["主角不会游泳", "魂灯点一次少活一年"]
-    user, project = _make_user_and_project(db_session, f"notes-no-promote-{uuid4().hex[:5]}")
-    project.notes = PROPOSALS_HEADER + "\n" + "\n".join(entries)
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "确认以上全部提议")
-    try:
-        payload = _parse_payload(
-            await update_project(
-                {"notes": "\n".join(entries), "author_quotes": ["确认以上全部提议"]}
-            )
-        )
-        assert payload["status"] == "success"
-        sections = split_project_notes(_stored_notes(db_session, project))
-        assert sections.confirmed == []
-        assert sections.proposals == entries
-    finally:
-        ToolContext.clear_context()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_proposals_only_uses_locked_notes_transform(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER, split_project_notes
-
-    user, project = _make_user_and_project(db_session, "notes-proposals-only")
-    project.notes = f"{CONFIRMED_HEADER}\n作者事实\n{PROPOSALS_HEADER}\n旧提议"
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "清空 AI 提议")
-    try:
-        payload = _parse_payload(await update_project({"proposals": ""}))
-    finally:
-        ToolContext.clear_context()
-
-    assert payload["status"] == "success"
-    sections = split_project_notes(_stored_notes(db_session, project))
-    assert sections.confirmed == ["作者事实"]
-    assert sections.proposals == []
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_reports_only_newly_added_proposals(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
-
-    user, project = _make_user_and_project(db_session, f"notes-added-{uuid4().hex[:5]}")
-    project.notes = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实\n{PROPOSALS_HEADER}\n旧提议"
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "继续写")
-    try:
-        downgraded = _parse_payload(
-            await update_project({"notes": "作者旧约定\n作者事实\n旧提议\n新推断甲；新推断乙"})
-        )
-        assert downgraded["status"] == "success"
-        assert downgraded["data"]["proposals_added"] == ["新推断甲", "新推断乙"]
-        assert downgraded["data"]["notes_recorded_as_proposals"] == ["新推断甲", "新推断乙"]
-        assert "采纳全部提议" not in downgraded["data"]["notes_note"]
-
-        explicit = _parse_payload(
-            await update_project({"proposals": "旧提议\n新推断甲；新推断乙\n作者事实\n新提议丙"})
-        )
-        assert explicit["status"] == "success"
-        assert explicit["data"]["proposals_added"] == ["新提议丙"]
-        assert "proposals_removed" not in explicit["data"]
-
-        replaced = _parse_payload(await update_project({"proposals": "旧提议；新提议丙"}))
-        assert replaced["status"] == "success"
-        assert "proposals_added" not in replaced["data"]
-        # The model dropped its own pending entries: reported so they are not later shown as
-        # author-ignored.
-        assert replaced["data"]["proposals_removed"] == ["新推断甲", "新推断乙"]
-
-        plain = _parse_payload(await update_project({"current_phase": "第1章"}))
-        assert "proposals_added" not in plain["data"]
-    finally:
-        ToolContext.clear_context()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_notes_over_shared_budget_fails_before_any_write(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
-
-    user, project = _make_user_and_project(db_session, "notes-budget")
-    kept_rules = "约" * 3200
-    existing = f"{CONFIRMED_HEADER}\n{kept_rules}\n{PROPOSALS_HEADER}\n" + "提" * 1000
-    project.notes = existing
-    project.summary = "旧摘要"
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "继续写")
-    try:
-        payload = _parse_payload(await update_project({"summary": "新摘要", "notes": "新增推断"}))
-        assert payload["status"] == "error"
-        assert payload["error_type"] == "notes_over_budget"
-        db_session.expire_all()
-        from models import Project
-
-        stored = db_session.get(Project, project.id)
-        assert stored.notes == existing
-        assert stored.summary == "旧摘要"
-    finally:
-        ToolContext.clear_context()
+    assert payload["data"]["notes_not_saved"] == ["模型新增推断"]
+    assert _stored_notes(db_session, project) == f"{CONFIRMED_HEADER}\n旧事实\n作者刚确认"
 
 
 @pytest.mark.asyncio

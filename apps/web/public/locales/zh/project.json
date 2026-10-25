@@ -9,8 +9,6 @@
     "save": "保存",
     "saving": "保存中…",
     "saveFailed": "保存失败，请重试",
-    "adoptAllProposals": "全部采纳",
-    "proposalsAdopted": "已采纳提议",
     "notesConflict": "备注已在别处更新，你的修改尚未保存。",
     "viewLatestNotes": "查看最新备注",
     "latestNotes": "最新备注",
@@ -25,22 +23,12 @@
     "shareSuccessApproved": "灵感已发布到灵感库",
     "shareFailed": "投稿失败，请重试",
     "cancel": "取消",
-    "infoBanner": "AI 写作时会参考这里的内容，对话中也可能帮你更新。",
+    "infoBanner": "AI 写作时会参考这里的内容。对话中 AI 可能更新简介、写作风格和当前阶段；备注只保存你自己写的内容。",
     "placeholders": {
       "summary": "小说类型、世界观、主角设定等核心信息",
       "writingStyle": "语言风格、叙事节奏、文字特点等",
       "currentPhase": "写到哪里了，接下来要完成什么",
       "notes": "写作要点、注意事项、待解决的问题等"
-    },
-    "proposalsTitle": "AI 提议 · {{count}} 条",
-    "proposalsHint": "采纳的条目会成为长期约定，忽略的会被删除。",
-    "adoptProposal": "采纳",
-    "ignoreProposal": "忽略",
-    "adoptProposalLabel": "采纳：{{entry}}",
-    "ignoreProposalLabel": "忽略：{{entry}}",
-    "proposalsIgnored": "已忽略提议",
-    "latestProposalsCount": "另有 {{count}} 条 AI 提议待确认",
-    "showMoreProposals": "展开其余 {{count}} 条",
-    "showLessProposals": "收起"
+    }
   }
 }

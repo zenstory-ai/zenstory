@@ -1,9 +1,12 @@
 """Source-aware project-note storage.
 
-Application-chat tools may manage only the AI-proposal section.  Existing unlabeled and
-author-confirmed entries are durable author facts: model output cannot omit, rewrite, clear, or
-promote them.  Direct human APIs call the merge without author-message context and retain the
-legacy whole-field editing behavior.
+Notes hold only the author's own content: entries without a header (saved by the author in the
+AI 记忆 panel, or recorded before sources existed) and the 【作者确认】 section.  Application-chat
+tools cannot add, rewrite, clear or promote entries: the model's new text is dropped and reported
+back to it.  Direct non-chat callers keep the whole-field editing behavior.
+
+Notes saved before 2026-10-25 may still contain an 【AI 提议·待作者确认】 block (a removed
+feature).  Every read treats it as absent and no write keeps it, so it disappears on the next save.
 """
 
 from __future__ import annotations
@@ -12,28 +15,20 @@ import re
 from dataclasses import dataclass, field
 
 CONFIRMED_HEADER = "【作者确认】"
-PROPOSALS_HEADER = "【AI 提议·待作者确认】"
 UNLABELED_HEADER = "【未标来源】"
 
 CONFIRMED_EXPLANATION = "作者确认过的约定；应用内 AI 不能修改或删除"
 UNLABELED_EXPLANATION = "作者在记忆面板保存或历史遗留的约定；应用内 AI 不能修改或删除"
-PROPOSALS_EXPLANATION = "尚未存为作者约定；本轮按作者要求使用，长期采用由作者点按钮采纳"
-# Context-only block (never stored): proposals this chat session added earlier that the author has
-# since ignored/deleted.  Derived from earlier update_project ``proposals_added`` results.
-IGNORED_PROPOSALS_HEADER = "【备注·作者已忽略的 AI 提议】"
-IGNORED_PROPOSALS_EXPLANATION = "作者已点忽略或已从 AI 记忆删掉；不要再提出，也不要换个说法重提"
-IGNORED_PROPOSALS_MAX_ENTRIES = 20
-IGNORED_PROPOSAL_MAX_CHARS = 80
 
 _HEADER_PREFIX = r"^\s*【\s*(?:备注\s*[·・]\s*)?"
 _HEADER_SUFFIX = r"\s*】\s*(?:[（(].*[)）])?\s*$"
 _CONFIRMED_HEADER_RE = re.compile(_HEADER_PREFIX + r"作者(?:已)?确认" + _HEADER_SUFFIX)
-_PROPOSALS_HEADER_RE = re.compile(_HEADER_PREFIX + r"AI\s*提议[^】]*" + _HEADER_SUFFIX, re.I)
 _UNLABELED_HEADER_RE = re.compile(_HEADER_PREFIX + r"未标来源" + _HEADER_SUFFIX)
-# The context-only ignored block (render_project_notes(ignored=...)).  Recognized so a model that
-# copies the rendered notes back into update_project(notes=...) does not turn the block's header,
-# explanation or entries into pending proposals: everything under it is discarded.
-_IGNORED_HEADER_RE = re.compile(_HEADER_PREFIX + r"作者已忽略的\s*AI\s*提议" + _HEADER_SUFFIX, re.I)
+# Legacy 【AI 提议·待作者确认】 block and the context-only 「作者已忽略的 AI 提议」 shape: the header and
+# everything under it until the next author header are not notes.
+_LEGACY_PROPOSALS_HEADER_RE = re.compile(
+    _HEADER_PREFIX + r"(?:作者已忽略的\s*)?AI\s*提议[^】]*" + _HEADER_SUFFIX, re.I
+)
 _ENTRY_SPLIT_RE = re.compile(r"[；;]")
 _BULLET_RE = re.compile(r"^\s*(?:[-*•·]+|\d+[.、)）]|[（(]\d+[)）])\s*")
 _SELF_LABEL_RE = re.compile(
@@ -52,36 +47,46 @@ _CN_NUMERAL_RUN_RE = re.compile(r"[零〇一二两三四五六七八九十百千
 class ProjectNotesSections:
     unlabeled: list[str] = field(default_factory=list)
     confirmed: list[str] = field(default_factory=list)
-    proposals: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ProjectNotesMerge:
     text: str
-    downgraded: list[str] = field(default_factory=list)
-    confirmed_added: list[str] = field(default_factory=list)
-    # Proposal entries present after the merge but not before, in stored order and stored text, so
-    # a human client can adopt or drop each one by exact trimmed equality.
-    proposals_added: list[str] = field(default_factory=list)
-    # Proposal entries present before the merge but not after (the model replaced or cleared its
-    # own pending proposals).  Lets the ignored-proposal block tell model-side removals apart from
-    # the author's ignore/delete.
-    proposals_removed: list[str] = field(default_factory=list)
+    # Entries the chat model passed that are not already author content; not stored.
+    dropped: list[str] = field(default_factory=list)
+
+
+def _is_author_header(line: str) -> bool:
+    return bool(_CONFIRMED_HEADER_RE.match(line) or _UNLABELED_HEADER_RE.match(line))
+
+
+def without_legacy_proposals(notes: str | None) -> str | None:
+    """``notes`` without any legacy AI-proposal block; otherwise byte-for-byte unchanged.
+
+    Used on every read (API responses, agent context) and every write, so the block is never shown,
+    counted or written back.  Notes without such a block are returned as given.
+    """
+    if not notes:
+        return notes
+    kept: list[str] = []
+    skipping = dropped = False
+    for line in notes.splitlines(keepends=True):
+        if _LEGACY_PROPOSALS_HEADER_RE.match(line):
+            skipping = dropped = True
+            continue
+        if skipping and _is_author_header(line):
+            skipping = False
+        if not skipping:
+            kept.append(line)
+    return "".join(kept).strip() if dropped else notes
 
 
 def split_project_notes(notes: str | None) -> ProjectNotesSections:
     sections = ProjectNotesSections()
-    discarded: list[str] = []
     current = sections.unlabeled
-    for raw_line in (notes or "").splitlines():
-        if _IGNORED_HEADER_RE.match(raw_line):
-            current = discarded
-            continue
+    for raw_line in (without_legacy_proposals(notes) or "").splitlines():
         if _CONFIRMED_HEADER_RE.match(raw_line):
             current = sections.confirmed
-            continue
-        if _PROPOSALS_HEADER_RE.match(raw_line):
-            current = sections.proposals
             continue
         if _UNLABELED_HEADER_RE.match(raw_line):
             current = sections.unlabeled
@@ -92,37 +97,17 @@ def split_project_notes(notes: str | None) -> ProjectNotesSections:
     return sections
 
 
-def compose_project_notes(sections: ProjectNotesSections) -> str:
-    blocks: list[str] = []
-    if sections.unlabeled:
-        blocks.append("\n".join(sections.unlabeled))
-    if sections.confirmed:
-        blocks.append("\n".join([CONFIRMED_HEADER, *sections.confirmed]))
-    if sections.proposals:
-        blocks.append("\n".join([PROPOSALS_HEADER, *sections.proposals]))
-    return "\n\n".join(blocks)
-
-
-def render_project_notes(notes: str | None, *, ignored: list[str] | None = None) -> list[str]:
+def render_project_notes(notes: str | None) -> list[str]:
     sections = split_project_notes(notes)
     lines: list[str] = []
     for header, explanation, entries in (
         (CONFIRMED_HEADER, CONFIRMED_EXPLANATION, sections.confirmed),
         (UNLABELED_HEADER, UNLABELED_EXPLANATION, sections.unlabeled),
-        (PROPOSALS_HEADER, PROPOSALS_EXPLANATION, sections.proposals),
     ):
         if entries:
             lines.append(f"{header.replace('【', '【备注·', 1)}（{explanation}）")
             lines.extend(entries)
             lines.append("")
-    if ignored:
-        lines.append(f"{IGNORED_PROPOSALS_HEADER}（{IGNORED_PROPOSALS_EXPLANATION}）")
-        lines.extend(
-            entry if len(entry) <= IGNORED_PROPOSAL_MAX_CHARS
-            else entry[:IGNORED_PROPOSAL_MAX_CHARS] + "…"
-            for entry in ignored
-        )
-        lines.append("")
     return lines
 
 
@@ -151,175 +136,35 @@ def _entry_key(entry: str) -> str:
     return _normalize(_SELF_LABEL_RE.sub("", _BULLET_RE.sub("", entry)))
 
 
-def _split_line(line: str) -> tuple[str, list[str]]:
-    separator = "；" if "；" in line or ";" not in line else ";"
-    parts = [part.strip() for part in _ENTRY_SPLIT_RE.split(line)]
-    return separator, [part for part in parts if _entry_key(part)]
-
-
-def _keys_of(lines: list[str]) -> set[str]:
-    return {_entry_key(entry) for line in lines for entry in _split_line(line)[1]}
-
-
-def net_earlier_proposals(changes: list[tuple[list[str], list[str]]]) -> list[str]:
-    """Fold chronological ``(proposals_added, proposals_removed)`` pairs of earlier update_project
-    results into the entries the model added and did not itself later remove (oldest first).
-
-    A model call that replaced or cleared its own pending proposal is not an author action, so the
-    replaced entry must not be reported as author-ignored.  A later re-add counts again.
-    """
-    entries: dict[str, str] = {}
-    for added, removed in changes:
-        for entry in removed:
-            entries.pop(_entry_key(entry), None)
-        for entry in added:
-            key = _entry_key(entry)
-            if key:
-                entries.pop(key, None)
-                entries[key] = entry
-    return list(entries.values())
-
-
-def ignored_proposals(notes: str | None, earlier_added: list[str] | None) -> list[str]:
-    """Earlier-added proposal entries whose key is now in no section of ``notes``.
-
-    ``earlier_added`` is the chronological ``proposals_added`` of this session's earlier
-    update_project results.  An entry still pending, or moved into an author section (adopted or
-    kept by the author's own edit), is not ignored.  Newest entries win the cap; output keeps
-    chronological order, one entry per key.
-    """
-    sections = split_project_notes(notes)
-    present = _keys_of(sections.unlabeled) | _keys_of(sections.confirmed) | _keys_of(sections.proposals)
-    seen: set[str] = set()
-    newest_first: list[str] = []
-    for entry in reversed(earlier_added or []):
-        key = _entry_key(entry)
-        if not key or key in present or key in seen:
-            continue
-        seen.add(key)
-        newest_first.append(entry.strip())
-        if len(newest_first) >= IGNORED_PROPOSALS_MAX_ENTRIES:
-            break
-    return list(reversed(newest_first))
-
-
-def _flatten_unique(lines: list[str], *, excluded: set[str] | None = None) -> list[str]:
-    excluded = excluded or set()
-    seen: set[str] = set()
-    result: list[str] = []
-    for line in lines:
-        separator, entries = _split_line(line)
-        kept: list[str] = []
-        for entry in entries:
-            key = _entry_key(entry)
-            if not key or key in excluded or key in seen:
-                continue
-            seen.add(key)
-            kept.append(entry)
-        if kept:
-            result.append(separator.join(kept))
-    return result
-
-
-def _new_proposal_entries(previous: list[str], merged: list[str]) -> list[str]:
-    previous_keys = _keys_of(previous)
-    added: list[str] = []
-    for line in merged:
-        for entry in _split_line(line)[1]:
-            key = _entry_key(entry)
-            if key not in previous_keys:
-                previous_keys.add(key)
-                added.append(entry)
-    return added
-
-
-def _removed_proposal_entries(previous: list[str], merged: list[str]) -> list[str]:
-    merged_keys = _keys_of(merged)
-    removed: list[str] = []
-    seen: set[str] = set()
-    for line in previous:
-        for entry in _split_line(line)[1]:
-            key = _entry_key(entry)
-            if key and key not in merged_keys and key not in seen:
-                seen.add(key)
-                removed.append(entry)
-    return removed
-
-
-def merge_project_notes(
-    existing: str | None,
-    *,
-    notes: str | None,
-    proposals: str | None,
-    author_quotes: list[str] | None,
-    author_messages: list[str] | None,
-    previous_proposals: list[tuple[int, str]] | None = None,
-) -> ProjectNotesMerge:
-    """Merge note updates without deriving authority from prose.
-
-    ``author_messages is not None`` identifies an application-chat/model call.  In that path all
-    existing unlabeled and confirmed entries are preserved byte-for-byte.  Every new or changed
-    entry from ``notes`` is an AI proposal.  ``author_quotes`` and numbered prior replies are
-    intentionally ignored.  Only an explicit ``proposals`` argument replaces/clears the proposal
-    section.
-
-    With no author-message context, the caller is a direct/non-chat path and the legacy whole-field
-    editing contract is retained.
-    """
-    del author_quotes, previous_proposals
-    current = split_project_notes(existing)
-
-    if author_messages is None:
-        if notes is not None and not notes.strip() and proposals is None:
-            return ProjectNotesMerge(text="")
-        result = split_project_notes(notes) if notes is not None else ProjectNotesSections(
-            unlabeled=list(current.unlabeled), confirmed=list(current.confirmed)
-        )
-        if proposals is None:
-            if notes is None or not result.proposals:
-                result.proposals = list(current.proposals)
-        else:
-            given = split_project_notes(proposals)
-            result.proposals = _flatten_unique([*given.unlabeled, *given.confirmed, *given.proposals])
-        return ProjectNotesMerge(
-            text=compose_project_notes(result),
-            proposals_added=_new_proposal_entries(current.proposals, result.proposals),
-            proposals_removed=_removed_proposal_entries(current.proposals, result.proposals),
-        )
-
-    authoritative_keys = _keys_of(current.unlabeled) | _keys_of(current.confirmed)
-    incoming_note_lines: list[str] = []
-    if notes is not None:
-        incoming = split_project_notes(notes)
-        incoming_note_lines = [*incoming.unlabeled, *incoming.confirmed]
-        # When the dedicated proposals argument is absent, accept a copied/rendered proposal
-        # section for backward compatibility.  When it is present (including an empty string),
-        # that explicit field owns replacement/clearing and the copy inside notes cannot re-add it.
-        if proposals is None:
-            incoming_note_lines.extend(incoming.proposals)
-    proposed_from_notes = _flatten_unique(incoming_note_lines, excluded=authoritative_keys)
-
-    if proposals is None:
-        proposal_lines = [*current.proposals, *proposed_from_notes]
-    else:
-        given = split_project_notes(proposals)
-        proposal_lines = [*given.unlabeled, *given.confirmed, *given.proposals, *proposed_from_notes]
-
-    result = ProjectNotesSections(
-        unlabeled=list(current.unlabeled),
-        confirmed=list(current.confirmed),
-        proposals=_flatten_unique(proposal_lines, excluded=authoritative_keys),
-    )
-    current_proposal_keys = _keys_of(current.proposals)
-    downgraded = [
-        entry
-        for line in proposed_from_notes
-        for entry in _split_line(line)[1]
-        if _entry_key(entry) not in current_proposal_keys
+def _entries(lines: list[str]) -> list[str]:
+    return [
+        part.strip()
+        for line in lines
+        for part in _ENTRY_SPLIT_RE.split(line)
+        if _entry_key(part)
     ]
-    return ProjectNotesMerge(
-        text=compose_project_notes(result),
-        downgraded=downgraded,
-        proposals_added=_new_proposal_entries(current.proposals, result.proposals),
-        proposals_removed=_removed_proposal_entries(current.proposals, result.proposals),
-    )
+
+
+def merge_project_notes(existing: str | None, notes: str, *, from_chat: bool) -> ProjectNotesMerge:
+    """Apply an update_project ``notes`` argument.
+
+    ``from_chat`` (an application-chat model call): the stored author content is kept
+    byte-for-byte, and every entry of ``notes`` that is not already there (by entry key, so a
+    copied-back rendered header or a self-label such as 「【已定】」 changes nothing) is dropped.
+
+    Otherwise (a direct non-chat caller) ``notes`` replaces the whole field.  Either way no legacy
+    proposal block survives.
+    """
+    if not from_chat:
+        return ProjectNotesMerge(text=without_legacy_proposals(notes.strip()) or "")
+    current = split_project_notes(existing)
+    authoritative = {_entry_key(entry) for entry in _entries([*current.unlabeled, *current.confirmed])}
+    incoming = split_project_notes(notes)
+    dropped: list[str] = []
+    seen: set[str] = set()
+    for entry in _entries([*incoming.unlabeled, *incoming.confirmed]):
+        key = _entry_key(entry)
+        if key not in authoritative and key not in seen:
+            seen.add(key)
+            dropped.append(entry)
+    return ProjectNotesMerge(text=without_legacy_proposals(existing) or "", dropped=dropped)

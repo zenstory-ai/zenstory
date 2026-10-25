@@ -1496,169 +1496,52 @@ class TestContextPrioritizer:
 
 
 @pytest.mark.unit
-def test_project_notes_render_ai_proposals_apart_from_author_confirmed():
-    """备注来源分区保留，并区分本轮使用与长期作者约定。"""
-    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
+def test_project_notes_render_author_sections():
+    from config.project_notes import CONFIRMED_HEADER
 
-    notes = (
-        "反派身份第20章前不得揭露\n\n"
-        f"{CONFIRMED_HEADER}\n主角不会游泳\n\n"
-        f"{PROPOSALS_HEADER}\n反派其实是主角的父亲"
-    )
+    notes = "反派身份第20章前不得揭露\n\n" f"{CONFIRMED_HEADER}\n主角不会游泳"
     context = ContextAssembler()._format_context([], None, {"notes": notes})
 
     confirmed_at = context.index("【备注·作者确认】")
     unlabeled_at = context.index("【备注·未标来源】")
-    proposals_at = context.index("【备注·AI 提议·待作者确认】")
     assert confirmed_at < context.index("主角不会游泳") < unlabeled_at
-    assert unlabeled_at < context.index("反派身份第20章前不得揭露") < proposals_at
-    assert proposals_at < context.index("反派其实是主角的父亲")
-    assert "尚未存为作者约定" in context[proposals_at:]
-    assert "本轮按作者要求使用" in context[proposals_at:]
-    assert "长期采用由作者点按钮采纳" in context[proposals_at:]
+    assert unlabeled_at < context.index("反派身份第20章前不得揭露")
 
 
-_ROUND_TRIP_NOTES = (
+_LEGACY_NOTES = (
     "主角冷静\n\n"
     "【作者确认】\n女主要到第五章才出场\n\n"
-    "【AI 提议·待作者确认】\n沧不夺舍"
+    "【AI 提议·待作者确认】\n沧不夺舍；反派第20章揭露"
 )
 
 
 @pytest.mark.unit
-def test_project_notes_copied_back_from_context_keep_their_sections():
-    """模型按提示把上下文里的备注块（连同标题行）照抄回 notes：分区不变，标题不变成条目。"""
-    from agent.context.assembler import _render_project_notes
-    from config.project_notes import merge_project_notes, split_project_notes
-
-    rendered = "\n".join(_render_project_notes(_ROUND_TRIP_NOTES))
-    merged = merge_project_notes(
-        _ROUND_TRIP_NOTES,
-        notes=rendered,
-        proposals=None,
-        author_quotes=None,
-        author_messages=["接着写第三章"],
-    )
-    before = split_project_notes(_ROUND_TRIP_NOTES)
-    after = split_project_notes(merged.text)
-    assert after == before
-    assert merged.downgraded == [] and merged.confirmed_added == []
-
-
-@pytest.mark.unit
-def test_project_notes_copied_back_with_a_new_quoted_entry_keeps_it_as_proposal():
-    from agent.context.assembler import _render_project_notes
-    from config.project_notes import merge_project_notes, split_project_notes
-
-    rendered = "\n".join(_render_project_notes(_ROUND_TRIP_NOTES))
-    merged = merge_project_notes(
-        _ROUND_TRIP_NOTES,
-        notes=rendered + "\n反派第20章揭露",
-        proposals=None,
-        author_quotes=["反派第20章揭露"],
-        author_messages=["再记一条：反派第20章揭露。"],
-    )
-    after = split_project_notes(merged.text)
-    assert after.unlabeled == ["主角冷静"]
-    assert after.confirmed == ["女主要到第五章才出场"]
-    assert after.proposals == ["沧不夺舍", "反派第20章揭露"]
-
-
-_IGNORED_CASE_NOTES = (
-    "主角冷静\n\n"
-    "【作者确认】\n女主要到第五章才出场；沈度是司礼监掌印\n\n"
-    "【AI 提议·待作者确认】\n反派第20章揭露"
-)
-# 本会话里早先 update_project 结果的 proposals_added（旧 → 新）：
-# 「沈度是司礼监掌印」被采纳进作者确认，「反派第20章揭露」仍待确认，其余两条已被作者忽略。
-_EARLIER_PROPOSALS_ADDED = [
-    "关键配角：沈度，条件是萧昀登基后保留司礼监",
-    "沈度是司礼监掌印",
-    "反派第20章揭露",
-    "女主前期隐藏身份",
-]
-
-
-@pytest.mark.unit
-def test_ignored_proposals_are_listed_after_the_notes_but_adopted_and_pending_are_not(
-    db_session, test_project
-):
-    """真实模型回归：作者点了忽略，下一轮模型用 proposals 整体替换时换个说法又加了回来。"""
-    test_project.notes = _IGNORED_CASE_NOTES
+def test_legacy_proposal_block_is_not_in_the_model_context(db_session, test_project):
+    test_project.notes = _LEGACY_NOTES
     db_session.commit()
-
     context = ContextAssembler().assemble(
-        session=db_session,
-        project_id=test_project.id,
-        max_tokens=4000,
-        earlier_proposals=_EARLIER_PROPOSALS_ADDED,
+        session=db_session, project_id=test_project.id, max_tokens=4000
     ).context
+    assert "女主要到第五章才出场" in context and "主角冷静" in context
+    assert "沧不夺舍" not in context and "AI 提议" not in context
 
-    header = "【备注·作者已忽略的 AI 提议】（作者已点忽略或已从 AI 记忆删掉；不要再提出，也不要换个说法重提）"
-    assert header in context
-    block = context[context.index(header):]
-    assert context.index("【备注·AI 提议·待作者确认】") < context.index(header)
-    assert "关键配角：沈度，条件是萧昀登基后保留司礼监" in block
-    assert "女主前期隐藏身份" in block
-    assert block.index("关键配角") < block.index("女主前期隐藏身份")
-    # 已采纳（在作者确认里）和仍待确认的不列为已忽略
-    assert "沈度是司礼监掌印" not in block
-    assert "反派第20章揭露" not in block
-
-
-@pytest.mark.unit
-def test_no_earlier_proposals_means_no_ignored_block(db_session, test_project):
-    test_project.notes = _IGNORED_CASE_NOTES
+    # Notes that are only a legacy block count as no notes at all.
+    test_project.notes = "【AI 提议·待作者确认】\n沧不夺舍"
     db_session.commit()
-    assembler = ContextAssembler()
-
-    for earlier in (None, [], ["沈度是司礼监掌印", "反派第20章揭露"]):
-        context = assembler.assemble(
-            session=db_session,
-            project_id=test_project.id,
-            max_tokens=4000,
-            earlier_proposals=earlier,
-        ).context
-        assert "作者已忽略的 AI 提议" not in context
-
-
-@pytest.mark.unit
-def test_ignored_block_shows_even_when_every_note_was_ignored(db_session, test_project):
-    """作者把全部提议都忽略掉、备注变空时，块仍要出现，否则模型会把它们原样加回。"""
-    test_project.notes = ""
-    db_session.commit()
-
     context = ContextAssembler().assemble(
-        session=db_session,
-        project_id=test_project.id,
-        max_tokens=4000,
-        earlier_proposals=["女主前期隐藏身份"],
+        session=db_session, project_id=test_project.id, max_tokens=4000
     ).context
-
-    assert "【备注·作者已忽略的 AI 提议】" in context
-    assert "女主前期隐藏身份" in context
+    assert "沧不夺舍" not in context
+    assert "项目状态 [待收集]" in context
 
 
 @pytest.mark.unit
-def test_ignored_proposals_are_deduplicated_capped_and_truncated():
-    from config.project_notes import (
-        IGNORED_PROPOSAL_MAX_CHARS,
-        IGNORED_PROPOSALS_MAX_ENTRIES,
-        ignored_proposals,
-        render_project_notes,
-    )
+def test_project_notes_copied_back_from_context_change_nothing():
+    """模型把上下文里的备注块（连同标题行）照抄回 notes：标题不变成条目，没有条目被丢弃。"""
+    from agent.context.assembler import _render_project_notes
+    from config.project_notes import merge_project_notes
 
-    many = [f"第{n}条提议" for n in range(IGNORED_PROPOSALS_MAX_ENTRIES + 5)]
-    long_entry = "很长" * IGNORED_PROPOSAL_MAX_CHARS
-    earlier = ["- 女主前期隐藏身份", *many, "女主前期隐藏身份。", long_entry]
-
-    ignored = ignored_proposals("", earlier)
-    assert len(ignored) == IGNORED_PROPOSALS_MAX_ENTRIES
-    # 最近的优先保留，按出现先后排列；条目键相同的只留最近一次
-    assert ignored[-1] == long_entry
-    assert ignored[-2] == "女主前期隐藏身份。"
-    assert "- 女主前期隐藏身份" not in ignored
-
-    rendered = render_project_notes("", ignored=ignored)
-    assert rendered[0].startswith("【备注·作者已忽略的 AI 提议】")
-    assert rendered[-2] == long_entry[:IGNORED_PROPOSAL_MAX_CHARS] + "…"
+    rendered = "\n".join(_render_project_notes(_LEGACY_NOTES))
+    merged = merge_project_notes(_LEGACY_NOTES, rendered, from_chat=True)
+    assert merged.dropped == []
+    assert merged.text == "主角冷静\n\n【作者确认】\n女主要到第五章才出场"

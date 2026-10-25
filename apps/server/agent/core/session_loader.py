@@ -33,8 +33,6 @@ logger = get_logger(__name__)
 
 # 跨轮工作集取最近几条 assistant 回复里的文件读写记录
 WORKING_SET_RECENT_TURNS = 2
-# 「作者已忽略的 AI 提议」从最近几条 assistant 回复的 update_project 结果（proposals_added）里找
-EARLIER_PROPOSALS_RECENT_TURNS = 20
 
 WORKING_SET_HEADER = (
     "以下为上一轮读取/修改过的文件当前全文（完整，非预览，截至本轮开始）；"
@@ -108,8 +106,6 @@ class SessionData:
     context_data: Any | None = None
     # 最近两轮 assistant 读/写过的文件（新 → 旧，已去重），每项 {file_id, title, action}
     working_set_refs: list[dict[str, Any]] = field(default_factory=list)
-    # 最近 EARLIER_PROPOSALS_RECENT_TURNS 条 assistant 回复里 update_project 新增的提议原文（旧 → 新）
-    earlier_proposals: list[str] = field(default_factory=list)
     # 按当前库内容渲染的跨轮工作集纯文本块；没有可注入内容时为空串
     working_set_context: str = ""
     # The same working set split for the context snapshot (agent/context/turn_snapshot.py):
@@ -158,7 +154,6 @@ class SessionLoader:
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
         max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
-        earlier_proposals: list[str] | None = None,
     ):
         """
         Assemble context using the context assembler.
@@ -172,7 +167,6 @@ class SessionLoader:
             attached_library_materials: List of library material references
             text_quotes: List of user-selected text quotes
             max_tokens: Maximum tokens for context
-            earlier_proposals: Proposal entries earlier update_project calls added in this session
 
         Returns:
             Assembled context data
@@ -215,7 +209,6 @@ class SessionLoader:
             max_tokens=max_tokens,
             include_characters=True,
             include_lores=True,
-            earlier_proposals=earlier_proposals,
         )
 
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
@@ -370,10 +363,6 @@ class SessionLoader:
             session=session,
             chat_session_id=chat_session.id,
         )
-        result.earlier_proposals = self._load_recent_proposals_added(
-            session=session,
-            chat_session_id=chat_session.id,
-        )
 
         return result
 
@@ -434,61 +423,6 @@ class SessionLoader:
                     }
                 )
         return refs
-
-    def _load_recent_proposals_added(
-        self,
-        *,
-        session: Session,
-        chat_session_id: str,
-    ) -> list[str]:
-        """最近 EARLIER_PROPOSALS_RECENT_TURNS 条 assistant 回复里未失败的 update_project 结果的
-        proposals_added（存储原文，旧 → 新），减去之后模型自己 proposals_removed 掉的。
-        与当前备注比对后，已不在任何分区的就是作者忽略的。"""
-        from models import ChatMessage
-
-        rows = session.exec(
-            select(ChatMessage)
-            .where(
-                and_(
-                    ChatMessage.session_id == chat_session_id,
-                    ChatMessage.role == "assistant",
-                    ChatMessage.tool_calls.is_not(None),
-                )
-            )
-            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
-            .limit(EARLIER_PROPOSALS_RECENT_TURNS)
-        ).all()
-
-        from config.project_notes import net_earlier_proposals
-
-        def _entries(value: Any) -> list[str]:
-            if not isinstance(value, list):
-                return []
-            return [entry for entry in value if isinstance(entry, str) and entry.strip()]
-
-        changes: list[tuple[list[str], list[str]]] = []
-        for row in reversed(rows):  # 旧 → 新
-            tool_calls = self._parse_json_value(getattr(row, "tool_calls", None))
-            for tc in tool_calls if isinstance(tool_calls, list) else []:
-                if not isinstance(tc, dict) or tc.get("name") != "update_project":
-                    continue
-                # 只跳过失败的调用。partial（计划板被拒但备注已保存）在流里记成 success 并带 error 文案，
-                # 它的 proposals_added 是真写进备注的，卡片上也能点忽略，必须算进来。
-                status = str(tc.get("status") or "").strip().lower()
-                if status in _FAILED_TOOL_STATUSES:
-                    continue
-                result = self._parse_json_value(tc.get("result"))
-                if not isinstance(result, dict):
-                    continue
-                if str(result.get("status") or "").strip().lower() in _FAILED_TOOL_STATUSES:
-                    continue
-                data = result.get("data") if isinstance(result.get("data"), dict) else {}
-                added = _entries(result.get("proposals_added", data.get("proposals_added")))
-                removed = _entries(result.get("proposals_removed", data.get("proposals_removed")))
-                if added or removed:
-                    changes.append((added, removed))
-        # 模型自己用 proposals= 改写/清掉的旧提议不是作者忽略的，先减掉
-        return net_earlier_proposals(changes)
 
     def attach_author_edits(self, session: Session, result: SessionData) -> None:
         """上下文和工作集里的文件：算作者在 AI 写过之后亲手改了什么（<author_edits>）；
@@ -761,7 +695,6 @@ class SessionLoader:
                 attached_library_materials,
                 text_quotes,
                 max_tokens,
-                earlier_proposals=result.earlier_proposals,
             )
             self.attach_author_edits(read_session, result)
             self.attach_working_set(read_session, result)
@@ -1496,7 +1429,6 @@ class SessionLoader:
                 attached_library_materials,
                 text_quotes,
                 max_tokens,
-                earlier_proposals=result.earlier_proposals,
             )
             self.attach_author_edits(session, result)
             self.attach_working_set(session, result)
