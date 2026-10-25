@@ -2053,3 +2053,48 @@ async def test_stopped_round_with_an_unconfirmed_body_save_says_so_live_and_afte
         "saved_output": False,
         "unwritten_files": [{"id": placeholder.id, "title": placeholder.title}],
     }
+
+
+@pytest.mark.integration
+async def test_deadline_after_a_clean_done_records_the_completed_receipt(client, db_session, monkeypatch):
+    """done 已经送达之后时限才到：这一轮按完成计费，落库的终态也必须是完成回执，
+    不能记成「已中断」却又计入额度。"""
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _empty, _filled, _older = _seed_round(db_session, project, user)
+    assistant = db_session.get(ChatMessage, message_id)
+    assistant.message_metadata = json.dumps({"stop_reason": "end_turn"})
+    db_session.add(assistant)
+    db_session.commit()
+    monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+
+    async def frames():
+        yield _sse("router_decided", {"initial_agent": "writer", "routing_metadata": _WRITE_REQUEST})
+        yield _sse("text", {"text": "已更新全部内容。"})
+        yield _sse("done", {"assistant_message_id": message_id})
+        # 收尾清理还没结束就撞上时限
+        await asyncio.sleep(30)
+
+    refund = AsyncMock(return_value=True)
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent._refund_quota", new=refund),
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        if agent_api._round_outcome_tasks:
+            await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert "ERR_AGENT_RUN_TIMEOUT" not in text
+    refund.assert_not_called()
+    done = _frame_data(text, "done")
+    assert done["no_file_changes"] is True
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "end_turn"
+    assert metadata["stop_outcome"]["reason"] == "completed"
+    assert metadata["stop_outcome"]["charged"] is True
+    assert metadata["stop_outcome"]["no_file_changes"] is True

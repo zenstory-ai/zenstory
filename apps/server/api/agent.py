@@ -982,8 +982,13 @@ async def stream_request(
             running = _running_streams.get(run_key)
             if running is not None and running.pump is pump:
                 del _running_streams[run_key]
+            # done 等正常终止帧已经产生之后才到的时限没有截断这一轮（与 tracker.decide 同一口径）：
+            # 按结束方式结算、记终态，不当成截停。
+            deadline_cut = deadline_exceeded and not (
+                tracker.saw_terminal_event and not tracker.saw_error_event
+            )
             settlement_pending = (
-                deadline_exceeded and client_disconnected and not pump.producer_stopped
+                deadline_cut and client_disconnected and not pump.producer_stopped
             )
             if settlement_pending:
                 # The timeout already reached the author. Keep cancellation/lease
@@ -1015,7 +1020,7 @@ async def stream_request(
                 _schedule_round_outcome(refund_applied)
             elif error_delivery and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="error", delivery=error_delivery)
-            elif deadline_exceeded and not settlement_pending and knows_stop_contract:
+            elif deadline_cut and not settlement_pending and knows_stop_contract:
                 # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
                 # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
                 _schedule_round_outcome(refund_applied, stop_kind="error")
