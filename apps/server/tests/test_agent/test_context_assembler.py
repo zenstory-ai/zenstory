@@ -778,7 +778,7 @@ class TestContextAssembler:
         assert "项目状态" in context
         assert "项目文件清单" in context
         # Check detail sections
-        assert "相关内容详情" in context
+        assert "【大纲详情】" in context
         # Check specific sections based on content
         if "【大纲详情】" in context or "【正文详情】" in context:
             assert True  # At least one detail section exists

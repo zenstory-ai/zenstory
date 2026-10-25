@@ -50,3 +50,5 @@ Status: implemented
 - `tests/test_agent/test_context_budget.py`：截断改为 `TRUNCATION_SUFFIX` 并记录 `shown_chars` / `original_chars`。
 - `tests/test_agent/test_subagent_prompts.py`、`test_writing_guidance_contract.py`：读取预算、返工上限、交接读取规则、hybrid_search 措辞、旁白规则。
 - 另跑：test_context_assembler、test_context_prioritizer、test_message_manager_{metadata,permissions,skills,folder_ids}、test_prompt_alignment、test_runtime_prompt_source、tests/test_prompts、test_service、test_metrics、test_agent_service_session_id、test_db_only_writing_configuration、test_material_workflow、test_round3_{converge,graph,history,constants}、test_scenarios、test_suggest_service，以及 tests/test_api 的 agent_api_structure / agent_context_capacity / chat_history_order_postgres / materials_story_scope 与 tests/test_services 的 data_isolation / vector_metadata_projection / vector_search_launch_hardening，全部通过（postgres 用例在无 PG 时跳过）。
+
+后续（2026-10-25）：项目上下文改走快照路径后，「相关内容详情」段头与 `FULL_TEXT_CONTEXT_NOTICE` 已送不到模型，已删除；条目的 [全文] / [已截断] 标注与系统提示里的读取约定保持不变，见 [context-snapshot-and-cache-stable-tools](../architecture/2026-10-21-context-snapshot-and-cache-stable-tools.md)。

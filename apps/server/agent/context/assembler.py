@@ -65,14 +65,6 @@ PROJECT_STATUS_TOKEN_RATIO = 0.25
 MIN_PROJECT_STATUS_FIELD_TOKENS = 120
 
 
-# 「相关内容详情」段头的读取约定：带 [全文] 标注的条目无需再 query_files。
-# 限定「截至本请求开始」：本轮上下文每个请求只组装一次，本请求内被 agent 改过的
-# 文件，这里的 [全文] 已经是改前版本。
-FULL_TEXT_CONTEXT_NOTICE = (
-    "标注[全文]的条目就是该文件当前完整内容（截至本请求开始；本请求内被修改过的文件除外），"
-    "直接使用，不要再读取。"
-)
-
 # 角色卡 / 设定的名字作为子串出现在用户本轮原话里时的相关度加成。
 # 中文查询没有空格，_extract_query_terms 会把整句当成一个词，
 # 「林凡和苏瑶在山门重逢」永远匹配不到标题「林凡」，所以单独按子串判断。
@@ -264,17 +256,10 @@ class ContextAssembler:
                 inventory_token_budget=inventory_token_budget,
             )
         )
-        # 条目标题行渲染时额外带 " (id=…) [全文]/[已截断：…]"，以及「相关内容详情」
-        # 段头的读取约定：只让真正入选的条目各自承担这部分开销（item_overhead），
-        # 段头开销先预留，否则整块会超出 max_tokens。
-        # 检索片段要等下面预选之后才知道有没有，因此段头开销无条件预留
-        # （没有任何条目时这份预算本来就用不上）。
-        section_overhead = estimate_text_tokens(
-            f"{'=' * 60}\n相关内容详情\n{'=' * 60}\n{FULL_TEXT_CONTEXT_NOTICE}\n"
-        )
-        item_token_budget = max(
-            MIN_ITEM_TOKEN_BUDGET, max_tokens - header_tokens - section_overhead
-        )
+        # 条目标题行渲染时额外带 " (id=…) [全文]/[已截断：…]"：只让真正入选的条目
+        # 各自承担这部分开销（item_overhead）。[全文] 的读取约定在系统提示里
+        # （prompts/base.py），上下文里不再有段头。
+        item_token_budget = max(MIN_ITEM_TOKEN_BUDGET, max_tokens - header_tokens)
 
         # 6.1 预选：先在不含检索片段的条目上跑一遍预算，只把**真正入选**的文件
         # 排除出检索。历史缺陷是把收集到的全部文件 id 都传给 exclude_entity_ids，
@@ -2146,16 +2131,6 @@ class ContextAssembler:
         for section_items in sections.values():
             section_items.sort(key=lambda x: x.title or "")
 
-        # Only add detailed sections if we have items
-        has_detailed_content = any([
-            sections["outline"],
-            sections["draft"],
-            sections["snippet"],
-            sections["character"],
-            sections["lore"],
-            sections["quote"],
-        ])
-
         blocks: list[dict[str, str]] = [{"key": "header", "text": "\n".join(parts).strip()}]
 
         def add_block(section: str, item: ContextItem, start: int) -> None:
@@ -2164,13 +2139,6 @@ class ContextAssembler:
             file_id = self._item_file_id(item)
             label = f"{section}{item.title}" + (f" (id={file_id})" if file_id else "")
             blocks.append({"key": f"{section}:{item.id or item.title}", "text": f"{section}\n{body}", "label": label})
-
-        if has_detailed_content:
-            parts.append(separator)
-            parts.append("相关内容详情")
-            parts.append(separator)
-            parts.append(FULL_TEXT_CONTEXT_NOTICE)
-            parts.append("")
 
         # Outlines (detailed content)
         if sections["outline"]:
