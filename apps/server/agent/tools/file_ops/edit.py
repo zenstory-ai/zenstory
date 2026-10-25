@@ -770,6 +770,21 @@ class FileEditor:
                 content_before_edit = content
                 applied_before_edit = len(applied_edits)
 
+                old_field = edit.get("old")
+                if op == "replace" and isinstance(old_field, str) and old_field and edit.get("new") == old_field:
+                    # old 与 new 相同就是不改。只核对原文里逐字（含引号写法等价）有这段，不走模糊/近似
+                    # 定位：那条路按原文边缘标点扩展范围，会把模型漏抄的逗号、句号删掉还报成功（F-01）。
+                    if locate_exact_or_quote_equivalent(content, old_field) is None:
+                        suggestions = suggest_similar_lines(content, old_field)
+                        raise _not_found(
+                            f"Edit {i}: old 与 new 相同，但原文里没有逐字对应的这段（标点也要一致），没有修改。"
+                            f"不需要改这里就去掉这条；要改请从当前文件原文中复制。候选片段: {suggestions}"
+                        )
+                    # 模型重复确认已完成的改动：如实报未修改，但不算失败（否则它会原样重发到熔断）。
+                    unchanged_edits.append({"index": i, "op": op, "reason": "already_matches"})
+                    warnings.append(f"Edit {i}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
+                    continue
+
                 if op == "replace":
                     content = self._apply_replace(
                         content, edit, i, applied_edits, warnings, quote_style=quote_style
@@ -812,11 +827,6 @@ class FileEditor:
                 if content == content_before_edit and len(applied_edits) > applied_before_edit:
                     # 报告成功就必须真的改了：撤回这一条的 applied 记录。
                     del applied_edits[applied_before_edit:]
-                    if op == "replace" and edit.get("old") == edit.get("new"):
-                        # 模型自己写的 old/new 相同，原文已是目标内容。报成失败只会让它原样重发到熔断。
-                        unchanged_edits.append({"index": i, "op": op, "reason": "already_matches"})
-                        warnings.append(f"Edit {i}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
-                        continue
                     raise _no_change_error(i, edit, quote_style)
             except Exception as e:
                 failed_op = str(edit.get("op", "")).strip() if isinstance(edit, dict) else ""

@@ -30,3 +30,7 @@ Status: implemented
 ## Verification
 
 `test_edit_file_paragraph_integrity.py` 改写两条：单条相同 replace 报未修改、不失败、正文不变；与一条真实改动同批时不回滚、真实改动生效。两条在改动前都失败（抛 `EditBatchError`）。引号类 `no_change`（`test_curly_to_ascii_noop_is_reported_honestly`）照旧报错。`pytest tests/test_agent -k edit`：259 passed；熔断与流式加固测试 140 passed。
+
+### 补充（2026-10-25）
+
+old 与 new 相同的判断已挪到定位之前：原文逐字（含引号写法等价）有这段才报 `already_matches`，否则报 `anchor_not_found`，不再走模糊定位。见 [2026-10-25-fuzzy-edit-closing-quote-and-identical-replace](2026-10-25-fuzzy-edit-closing-quote-and-identical-replace.md)。
