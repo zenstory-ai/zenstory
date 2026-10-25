@@ -812,6 +812,48 @@ async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+@pytest.mark.parametrize("trigger", ["wall_clock", "server_drain"])
+async def test_wrap_up_keeps_the_writer_summary_when_review_will_not_run(trigger, monkeypatch):
+    """writer 交给审稿人时已到收尾时间（墙钟或发布交接）：审稿不会再跑，不丢 writer 的总结、
+    不发悬空的 HANDOFF；交接里【要告诉作者】的话照实转述，最后是收尾说明。"""
+    import time
+
+    from agent.core import server_drain
+    from agent.core.run_meter import AgentRunMeter
+    from agent.core.workflow_events import CHAT_HOLD_BEGIN, CHAT_HOLD_DISCARD
+    from agent.graph.writing_graph import WRAP_UP_TEXT
+
+    monkeypatch.setattr(server_drain, "_draining_since", None)
+    calls: list[str] = []
+    meter = AgentRunMeter(wrap_up_after_s=600)
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        for event in _write_done("w1"):
+            yield event
+        yield _text(LONG_TEXT)
+        if trigger == "wall_clock":
+            meter.started_at = time.monotonic() - 700
+        else:
+            monkeypatch.setattr(server_drain, "_draining_since", time.monotonic())
+        for event in _handoff_call("quality_reviewer", "请审查第五章\n[要告诉作者]\n旧稿可以在历史版本里找回"):
+            yield event
+
+    with patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True):
+        events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
+
+    assert calls == ["writer"]
+    holds = [e.data.get("action") for e in events if e.type == StreamEventType.CHAT_HOLD]
+    assert CHAT_HOLD_BEGIN in holds
+    assert CHAT_HOLD_DISCARD not in holds
+    assert not any(e.type == StreamEventType.HANDOFF for e in events)
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert LONG_TEXT in texts
+    assert texts.endswith(f"\n\n旧稿可以在历史版本里找回{WRAP_UP_TEXT}")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 @pytest.mark.parametrize(("messages_left", "continue_hint"), [(False, False), (None, True)])
 async def test_wrap_up_does_not_say_reply_continue_once_today_is_used_up(messages_left, continue_hint):
     """最后一条免费消息撞上收尾：回复「继续」发不出去，不再这样说；读不到额度时保持原说明。"""

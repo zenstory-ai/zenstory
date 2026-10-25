@@ -3123,6 +3123,8 @@ async def run_writing_workflow_streaming(
                 pending_next_agent == "quality_reviewer"
                 and current_agent_type == "writer"
                 and (agent_content.strip() or writer_body_writes)
+                # 已到收尾时间：审稿人不会再跑（见下面的 will_run_next_agent），不读稿、不做检测。
+                and not run_meter.past_wrap_up
             ):
                 event_context = ""
                 if pending_handoff_event_data is not None:
@@ -3325,7 +3327,22 @@ async def run_writing_workflow_streaming(
             # dangling handoff immediately followed by ITERATION_EXHAUSTED (the promised
             # agent never speaks). Suppress it on the final iteration and let the loop
             # fall through to the exhaustion branch instead.
-            will_run_next_agent = bool(pending_next_agent) and iteration < max_iterations
+            # 已到收尾时间（墙钟或发布交接）时下一个 agent 也不会再跑：不丢 writer 暂存的回复、
+            # 不发 HANDOFF，交给循环顶部的收尾分支发收尾说明后结束。
+            wrap_up_stops_next_agent = (
+                bool(pending_next_agent) and iteration < max_iterations and run_meter.past_wrap_up
+            )
+            will_run_next_agent = (
+                bool(pending_next_agent) and iteration < max_iterations and not wrap_up_stops_next_agent
+            )
+            # 交接前 writer 按回复协议把要告诉作者的话写在交接里：和快速模式丢掉交接时一样转述。
+            if (
+                wrap_up_stops_next_agent
+                and current_agent_type == "writer"
+                and pending_next_agent == "quality_reviewer"
+                and (author_notes := _author_notes_from_handoff(handoff_context))
+            ):
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"\n\n{author_notes}"})
 
             if (
                 planned_body_delivery
@@ -3375,7 +3392,9 @@ async def run_writing_workflow_streaming(
                 and will_run_next_agent
                 and pending_next_agent in planned_body_targets
             )
-            current_agent_type = pending_next_agent if will_run_next_agent else None
+            current_agent_type = (
+                pending_next_agent if will_run_next_agent or wrap_up_stops_next_agent else None
+            )
             rework_from_reviewer = (
                 previous_agent == "quality_reviewer" and current_agent_type is not None
             )
