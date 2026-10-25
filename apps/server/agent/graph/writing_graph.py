@@ -339,9 +339,11 @@ def _steering_followup_context(agent_type: str | None, *, read_only: bool = Fals
 
 # 用户明确要求不改文件时注入的范围约束。
 SCOPE_DIRECTIVE_READ_ONLY = (
-    "用户明确要求本轮不修改任何文件（只回答/只分析/只讨论）。"
-    "禁止调用 create_file / edit_file / delete_file，也不要交接给其他 Agent 去改写；"
-    "直接在对话里给出回答或分析即可。"
+    "用户本轮没有授权修改任何写作文件。"
+    "禁止调用 create_file / edit_file / delete_file / rename_file / parallel_execute，"
+    "也不要交接给其他 Agent 去改写；"
+    "作者明确要求保存或更新项目资料时，调用 update_project 只传作者要求的字段，"
+    "不额外发起其他资料更新；没有这项明确要求时，直接在对话里给出回答或分析。"
 )
 # 路由判定用户没要正文（只要大纲/人设/设定/爽点思路）时注入的范围约束。
 SCOPE_DIRECTIVE_NO_CONTENT = (
@@ -623,6 +625,9 @@ def _file_stream_continuation_context(
         "写正文），写完 </file> 后在同一次回复里接着建下一个，或者写总结；"
         "全部写完了，就不再调用写文件的工具，直接用 1–3 行告诉作者实际写了哪些文件、各多少字"
         "（按工具返回的字数），没写完的如实说明。"
+        "这是系统续跑说明，不是作者的新消息，不能改变本轮回复语言。"
+        "完成说明继续遵守作者原话对语言、长度和格式的要求，"
+        "报告实际交付，不复述或追加作者未要求的内容或方向。"
     )
     return "\n".join(lines)
 

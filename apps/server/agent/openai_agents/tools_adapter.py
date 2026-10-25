@@ -147,14 +147,19 @@ _WRITE_TOOLS_TEXT = "create_file / edit_file / delete_file / rename_file / paral
 
 # 写文件工具本轮为什么不可用：写进这次运行的系统指令（最后一条消息）。不改工具描述：
 # 工具清单在请求里排在对话前面，按轮次变化会让整段前缀缓存失效。
-READ_ONLY_TOOLS_NOTE = f"本轮作者要求只回答、不修改文件：{_WRITE_TOOLS_TEXT} 调用会被拒绝，直接在对话里回答。"
+READ_ONLY_TOOLS_NOTE = (
+    f"本轮没有修改写作文件的授权：{_WRITE_TOOLS_TEXT} 调用会被拒绝。"
+    "作者明确要求保存或更新项目资料时，调用 update_project 只传作者要求的字段；"
+    "没有这项明确要求时，直接在对话里回答。"
+)
 
 
 def read_only_refusal_text(tool_name: str) -> str:
     """只读请求下写文件工具的拒绝结果：可恢复错误，交还模型改为直接回答。"""
     return tool_error_text(
-        "用户本轮明确要求不修改任何文件（只回答/只分析），该写操作未执行。"
-        "不要重试任何写文件工具，请直接在对话里给出回答或分析。",
+        "用户本轮没有授权修改写作文件，该写操作未执行。不要重试任何写文件工具。"
+        "作者明确要求保存或更新项目资料时，调用 update_project 只传作者要求的字段；"
+        "没有这项明确要求时，请直接在对话里给出回答或分析。",
         error_type=READ_ONLY_REQUEST_ERROR_TYPE,
         tool_name=tool_name,
     )

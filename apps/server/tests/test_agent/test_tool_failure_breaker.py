@@ -673,33 +673,48 @@ async def test_sdk_run_recovers_when_retry_succeeds(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_read_only_write_tools_refuse_without_executing():
+async def test_read_only_refuses_every_file_write_but_allows_project_metadata():
     from agent.openai_agents.tools_adapter import build_agent_function_tools
+    from agent.tools.registry import FILE_WRITE_TOOL_NAMES
 
     executed: list[str] = []
 
-    async def fake_tool(args):
-        executed.append("called")
-        return {"content": [{"type": "text", "text": _ok()}]}
+    def fake_tool(name):
+        async def invoke(_args):
+            executed.append(name)
+            return {"content": [{"type": "text", "text": _ok()}]}
+
+        return invoke
 
     breaker = ToolFailureBreaker()
+    handlers = {
+        name: fake_tool(name)
+        for name in {*FILE_WRITE_TOOL_NAMES, "query_files", "update_project"}
+    }
     with patch.dict(
         "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
-        {"create_file": fake_tool, "query_files": fake_tool},
+        handlers,
     ):
         tools = {
             tool.name: tool
             for tool in build_agent_function_tools("writer", failure_breaker=breaker, read_only=True)
         }
-        refused = json.loads(await tools["create_file"].on_invoke_tool(None, '{"title": "x"}'))
-        allowed = json.loads(await tools["query_files"].on_invoke_tool(None, "{}"))
+        refused = {
+            name: json.loads(await tools[name].on_invoke_tool(None, "{}"))
+            for name in FILE_WRITE_TOOL_NAMES
+        }
+        query_result = json.loads(await tools["query_files"].on_invoke_tool(None, "{}"))
+        update_result = json.loads(
+            await tools["update_project"].on_invoke_tool(None, '{"notes":"作者明确要求保存的事实"}')
+        )
 
-    assert refused["status"] == "error"
-    assert refused["error_type"] == "read_only_request"
-    assert allowed["status"] == "success"
-    # 只有读工具真正执行；拒绝计入熔断器的累计失败
-    assert executed == ["called"]
-    assert breaker.total_failures == 1
+    assert all(result["status"] == "error" for result in refused.values())
+    assert all(result["error_type"] == "read_only_request" for result in refused.values())
+    assert query_result["status"] == "success"
+    assert update_result["status"] == "success"
+    # 只有查询与项目资料 handler 真正执行；所有文件写回调都在适配层被拒绝。
+    assert executed == ["query_files", "update_project"]
+    assert breaker.total_failures == len(FILE_WRITE_TOOL_NAMES)
 
 
 @pytest.mark.asyncio
