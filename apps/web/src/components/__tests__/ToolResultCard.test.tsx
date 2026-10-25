@@ -1245,6 +1245,59 @@ describe('ToolResultCard', () => {
       expect(container.querySelector('.border-\\[hsl\\(var\\(--warning\\)\\)\\]')).toBeNull()
     })
 
+    it('shows a partially applied sub-task as partial, not completed', () => {
+      const { container } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="parallel_execute"
+          result={{
+            total_tasks: 2,
+            completed: 1,
+            partial: 1,
+            failed: 0,
+            any_failed: true,
+            tasks: [
+              parallelResult.tasks[0],
+              { id: 't1', type: 'edit_file', description: '改第二章两处', status: 'partial', result: { status: 'partial' } },
+            ],
+          }}
+        />
+      )
+      expect(screen.getByText('chat:tool.parallel_summary_with_partial')).toBeInTheDocument()
+      expect(screen.getByText('chat:tool.taskPartiallyCompleted')).toBeInTheDocument()
+      expect(container.querySelector('.border-\\[hsl\\(var\\(--warning\\)\\)\\]')).not.toBeNull()
+    })
+
+    it('counts partial sub-tasks from the task list when an older payload has no partial total', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="parallel_execute"
+          result={{
+            total_tasks: 1,
+            completed: 0,
+            failed: 0,
+            tasks: [{ id: 't1', type: 'edit_file', description: '改两处', status: 'partial', result: {} }],
+          }}
+        />
+      )
+      expect(screen.getByText('chat:tool.parallel_summary_with_partial')).toBeInTheDocument()
+    })
+
+    it('does not mark an unknown sub-task status as completed', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="parallel_execute"
+          result={{
+            total_tasks: 1,
+            tasks: [{ id: 't1', type: 'edit_file', description: '改两处', status: 'cancelled', result: {} }],
+          }}
+        />
+      )
+      expect(screen.getByText('chat:tool.taskOutcomeUnknown')).toBeInTheDocument()
+    })
+
     it('renders all-success runs without an error row', () => {
       render(
         <ToolResultCard

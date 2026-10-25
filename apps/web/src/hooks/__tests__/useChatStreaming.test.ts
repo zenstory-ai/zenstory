@@ -1024,6 +1024,55 @@ describe('useChatStreaming', () => {
         )
       })
 
+      it('uses the partial label for a partially applied parallel task', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onParallelTaskStart?.('exec-1', 'task-1', 'edit_file', '改两处')
+          callbacks.onParallelTaskEnd?.('exec-1', 'task-1', 'partial')
+        })
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+
+        expect(result.current.streamRenderItems).toHaveLength(1)
+        expect(result.current.streamRenderItems[0].content).toContain('chat:workflow.parallelTaskPartial')
+      })
+
+      it('does not claim completion for an unknown parallel task status', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onParallelTaskStart?.('exec-1', 'task-1', 'edit_file', '改两处')
+          callbacks.onParallelTaskEnd?.('exec-1', 'task-1', 'cancelled')
+        })
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+
+        expect(result.current.streamRenderItems).toHaveLength(1)
+        expect(result.current.streamRenderItems[0].content).toContain('chat:workflow.parallelTaskEnded')
+      })
+
+      it('mentions partially applied tasks in the parallel end line', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onParallelEnd?.('exec-1', 2, 1, 0, 10, 1)
+        })
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+
+        expect(result.current.streamRenderItems[0].content).toContain('chat:workflow.parallelEndWithPartial')
+      })
+
       it('adds thinking_status item for steering_received', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
