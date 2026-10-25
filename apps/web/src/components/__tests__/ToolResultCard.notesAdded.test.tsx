@@ -63,8 +63,8 @@ describe('update_project notes the AI remembered', () => {
     expect(screen.getByText('chat:tool.status_updated')).toBeInTheDocument()
     await user.click(undoButton())
     await screen.findByText('chat:notesAdded.undone')
+    expect(await screen.findByText('chat:tool.status_unchanged')).toBeInTheDocument()
     expect(screen.queryByText('chat:tool.status_updated')).not.toBeInTheDocument()
-    expect(screen.getByText('chat:tool.status_unchanged')).toBeInTheDocument()
   })
 
   it('after undo other updated fields stay listed, without notes', async () => {
@@ -73,8 +73,8 @@ describe('update_project notes the AI remembered', () => {
     expect(screen.getByText('(chat:project.field.summarycommon:separatorchat:project.field.notes)')).toBeInTheDocument()
     await user.click(undoButton())
     await screen.findByText('chat:notesAdded.undone')
+    expect(await screen.findByText('(chat:project.field.summary)')).toBeInTheDocument()
     expect(screen.getByText('chat:tool.status_updated')).toBeInTheDocument()
-    expect(screen.getByText('(chat:project.field.summary)')).toBeInTheDocument()
   })
 
   it('removes only exact matches when the author already edited an entry, and says so', async () => {
