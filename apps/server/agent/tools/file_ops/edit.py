@@ -1644,6 +1644,12 @@ class FileEditor:
                 )
                 if block_span:
                     start, end, block_score = block_span
+                    # 段落兜底与近似匹配一样只给出唯一一处：点名第 2 处及以后就是插错位置。
+                    if occurrence is not None and occurrence != 1:
+                        raise ValueError(
+                            f"Edit {edit_index}: 段落兜底只找到 1 处锚点，"
+                            f"occurrence out of range (1..1)"
+                        )
                     pos = end
                     notes = []
                     pos, text = self._position_insert(
@@ -1827,6 +1833,12 @@ class FileEditor:
                 )
                 if block_span:
                     start, end, block_score = block_span
+                    # 段落兜底与近似匹配一样只给出唯一一处：点名第 2 处及以后就是插错位置。
+                    if occurrence is not None and occurrence != 1:
+                        raise ValueError(
+                            f"Edit {edit_index}: 段落兜底只找到 1 处锚点，"
+                            f"occurrence out of range (1..1)"
+                        )
                     pos = start
                     notes = []
                     pos, text = self._position_insert(

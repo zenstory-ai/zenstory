@@ -24,3 +24,7 @@ Status: implemented
 ## Verification
 
 `cd apps/server && .venv/bin/pytest tests -k "text_matching or edit_file or parallel" -q`；ea85c83 以 git worktree 逐条验证过拆掉守卫后测试变红。
+
+### 补充（2026-10-25，审计 F-15）
+
+insert_after / insert_before 的第三级兜底（`find_unique_line_span` 的 `fuzzy_paragraph`）以前不看 `occurrence`：长文里锚点有错字、模型点名 occurrence=2 时，照样插到唯一那一段。现在与近似匹配一样，occurrence 不是 1 就报 `occurrence out of range (1..1)`，正文不动。回归 `test_round3_edit_match.py::test_fuzzy_paragraph_fallback_rejects_occurrence_beyond_one`（两个方向，改动前都插入成功）。

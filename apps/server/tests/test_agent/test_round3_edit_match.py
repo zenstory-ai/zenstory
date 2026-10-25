@@ -195,6 +195,25 @@ def test_fuzzy_paragraph_reports_confidence_and_fallback(editor):
     assert 0.9 <= detail["confidence"] < 1.0
 
 
+@pytest.mark.parametrize("op", ["insert_after", "insert_before"])
+def test_fuzzy_paragraph_fallback_rejects_occurrence_beyond_one(editor, op):
+    """F-15：段落兜底只会找到唯一一段。模型点名第 2 处说明它以为文中有多处，
+    此时插到这唯一一段就是插错位置，必须和近似匹配一样报越界、正文不动。"""
+    content, target = _long_content_forcing_paragraph_fallback()
+    anchor = target.replace("推门而出", "排门而出")
+    applied: list[dict] = []
+
+    with pytest.raises(ValueError, match=r"occurrence out of range \(1\.\.1\)"):
+        getattr(editor, f"_apply_{op}")(
+            content,
+            {"op": op, "anchor": anchor, "text": "【新增】", "occurrence": 2},
+            0,
+            applied,
+            [],
+        )
+    assert applied == []
+
+
 def test_suggest_similar_lines_does_not_rank_short_title_first():
     """同款包含捷径也污染了建议列表：短标题不得挤到真正相关的段落前面。"""
     suggestions = suggest_similar_lines(_BUG21_CONTENT, _BUG21_ANCHOR, max_items=3)
