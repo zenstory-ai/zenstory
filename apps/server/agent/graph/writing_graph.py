@@ -53,8 +53,8 @@ from agent.graph.nodes import (
     run_streaming_agent,
 )
 from agent.graph.review_evidence import (
-    find_numeric_fact_pairs,
     find_repetition_evidence,
+    list_character_card_facts,
     quote_author_requirement_sources,
 )
 from agent.graph.router import (
@@ -719,15 +719,14 @@ _REVIEW_AUTO_CHECK_MAX_TARGETS = 2
 _REVIEW_AUTO_CHECK_PREVIOUS_SIBLINGS = 2
 _REVIEW_AUTO_CHECK_MAX_CHARACTER_CARDS = 10
 _REVIEW_AUTO_CHECK_MAX_REPEATS = 8
-_REVIEW_AUTO_CHECK_MAX_FACTS = 6
 
 
 def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]] | None:
-    """读本请求写过的正文（draft / script，最多 2 个）和参照文件，跑复读与数字事实对照。
+    """读本请求写过的正文（draft / script，最多 2 个）和参照文件，跑复读检测并列出角色卡事实。
 
-    参照文件：同一父目录、同类型、按 order（与文件清单同一排序键）排在它前面的 2 个文件，
-    以及项目里最多 10 张角色卡。同步执行（调用方放进工作线程），用短生命周期 session。
-    没有可检测的正文时返回 None；返回 (复读证据, 事实对照)。
+    复读参照：同一父目录、同类型、按 order（与文件清单同一排序键）排在它前面的 2 个文件。
+    角色卡事实：项目里最多 10 张角色卡上明写的年龄。同步执行（调用方放进工作线程），
+    用短生命周期 session。没有可检测的正文时返回 None；返回 (复读证据, 角色卡事实)。
     """
     project_id = ToolContext.get_project_id()
     if not project_id or not file_ids:
@@ -776,10 +775,9 @@ def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[st
             .order_by(File.order, File.created_at)
             .limit(_REVIEW_AUTO_CHECK_MAX_CHARACTER_CARDS)
         ).all()
-        card_refs = [(f"角色：{title}", content or "") for title, content in cards if (content or "").strip()]
+        facts = list_character_card_facts([(title, content or "") for title, content in cards])
 
         repeats: list[str] = []
-        facts: list[str] = []
         for target in targets:
             parent_clause = (
                 File.parent_id.is_(None) if target.parent_id is None else File.parent_id == target.parent_id
@@ -811,9 +809,8 @@ def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[st
 
             target_text = target.content or ""
             repeats.extend(find_repetition_evidence(target.title, target_text, neighbors))
-            facts.extend(find_numeric_fact_pairs((target.title, target_text), neighbors + card_refs))
 
-    return repeats[:_REVIEW_AUTO_CHECK_MAX_REPEATS], facts[:_REVIEW_AUTO_CHECK_MAX_FACTS]
+    return repeats[:_REVIEW_AUTO_CHECK_MAX_REPEATS], facts
 
 
 async def _review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]] | None:
@@ -3214,7 +3211,7 @@ async def run_writing_workflow_streaming(
                     }
                     handoff_packet = counted_packet
 
-                # 程序检测证据（逐字复读、数字事实对照）：只在 writer 写完交给审稿人时做，
+                # 程序检测证据（逐字复读、角色卡事实）：只在 writer 写完交给审稿人时做，
                 # 用户手动审查 / review_only 不做；读不到或超时就照常送审。
                 review_guard_for_checks = _guard_from_state(state)
                 if (
