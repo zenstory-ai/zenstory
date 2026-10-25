@@ -204,7 +204,19 @@ class BodyWriteTracker:
             # partial：并行 edit_file 只生效了一部分，已生效的 edit 照常计入（下面按 failed_edits 扣除）。
             if not isinstance(task, dict) or task.get("status") not in {"completed", "partial"}:
                 continue
-            plan = planned[index] if index < len(planned) and isinstance(planned[index], dict) else {}
+            source_index = task.get("source_index")
+            planned_index = (
+                source_index
+                if isinstance(source_index, int)
+                and not isinstance(source_index, bool)
+                and 0 <= source_index < len(planned)
+                else index
+            )
+            plan = (
+                planned[planned_index]
+                if planned_index < len(planned) and isinstance(planned[planned_index], dict)
+                else {}
+            )
             params = plan.get("params") if isinstance(plan.get("params"), dict) else {}
             result = task.get("result")
             result_data = result.get("data") if isinstance(result, dict) else None

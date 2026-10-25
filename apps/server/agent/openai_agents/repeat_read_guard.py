@@ -187,6 +187,8 @@ class ReadPlan:
     blocked_notes: tuple[str, ...] = ()
     # parallel_execute 改写后的子任务（用于写入识别 id/标题）。
     tasks: tuple[dict[str, Any], ...] = ()
+    # parallel_execute 改写后下标 → 过滤前原始 tasks 下标。只由服务端 plan() 生成。
+    source_indices: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -290,17 +292,19 @@ class RepeatReadGuard:
             return ReadPlan(arguments=raw_arguments)
 
         kept: list[Any] = []
+        kept_source_indices: list[int] = []
         read_keys: dict[int, ReadKey] = {}
         blocked_notes: list[str] = []
         blocked_titles: list[str] = []
         # 同一批里重复的读取也要算上（同批两次读同一文件，第二次就是重复）。
         pending: dict[ReadKey, int] = {}
-        for task in tasks:
+        for source_index, task in enumerate(tasks):
             key = None
             if isinstance(task, dict) and task.get("type") == READ_TOOL_NAME:
                 key = _read_key(task.get("params"))
             if key is None:
                 kept.append(task)
+                kept_source_indices.append(source_index)
                 continue
             seen = self._read_counts.get(key, 0) + pending.get(key, 0)
             if seen + 1 >= READ_BLOCK_AT:
@@ -311,10 +315,16 @@ class RepeatReadGuard:
             pending[key] = pending.get(key, 0) + 1
             read_keys[len(kept)] = key
             kept.append(task)
+            kept_source_indices.append(source_index)
 
         kept_dicts = tuple(task for task in kept if isinstance(task, dict))
         if not blocked_notes:
-            return ReadPlan(arguments=raw_arguments, read_keys=read_keys, tasks=kept_dicts)
+            return ReadPlan(
+                arguments=raw_arguments,
+                read_keys=read_keys,
+                tasks=kept_dicts,
+                source_indices=tuple(kept_source_indices),
+            )
         if not kept:
             return ReadPlan(
                 arguments=raw_arguments,
@@ -331,6 +341,7 @@ class RepeatReadGuard:
             read_keys=read_keys,
             blocked_notes=tuple(blocked_notes),
             tasks=kept_dicts,
+            source_indices=tuple(kept_source_indices),
         )
 
     def _register_blocked(self, key: ReadKey) -> str:
@@ -402,6 +413,10 @@ class RepeatReadGuard:
             for index, task_result in enumerate(task_results):
                 if not isinstance(task_result, dict):
                     continue
+                if index < len(plan.source_indices):
+                    # 执行器按过滤后的批次重新编号；把服务端计划保存的原始下标附回结果，
+                    # 供下游用原始工具参数核算正文写入。覆盖结果里的同名字段，不信任调用方输入。
+                    task_result["source_index"] = plan.source_indices[index]
                 task_type = task_result.get("type")
                 planned = plan.tasks[index] if index < len(plan.tasks) else {}
                 params = planned.get("params") if isinstance(planned.get("params"), dict) else {}

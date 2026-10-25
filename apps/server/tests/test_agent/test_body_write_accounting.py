@@ -13,6 +13,7 @@ import pytest
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.body_writes import BodyWriteTracker, body_words_written
+from agent.openai_agents.repeat_read_guard import READ_BLOCK_AT, RepeatReadGuard
 from utils.text_metrics import count_words
 
 pytestmark = pytest.mark.unit
@@ -94,6 +95,55 @@ def test_parallel_partial_edit_counts_only_applied_edits(task_status):
     words = body_words_written(tracker.finish(""))
 
     assert words == count_words(SUCCESS_TEXT)
+
+
+def test_parallel_body_words_keep_original_task_after_repeat_read_is_filtered():
+    """守卫删掉前面的重复读取后，成功编辑仍按过滤前的原始任务参数计字。"""
+    guard = RepeatReadGuard()
+    read_args = json.dumps({"id": "draft-1", "response_mode": "full"})
+    read_output = json.dumps(
+        {"status": "success", "data": [{"id": "draft-1", "title": "第一章", "content": "正文"}]},
+        ensure_ascii=False,
+    )
+    for _ in range(READ_BLOCK_AT - 1):
+        read_plan = guard.plan("query_files", read_args)
+        guard.observe("query_files", read_plan, read_output)
+
+    parallel_input = {
+        "tasks": [
+            {"type": "query_files", "params": {"id": "draft-1", "response_mode": "full"}},
+            {"type": "edit_file", "params": {"id": "draft-1", "edits": PARTIAL_EDITS}},
+        ]
+    }
+    plan = guard.plan("parallel_execute", json.dumps(parallel_input, ensure_ascii=False))
+    assert [task["type"] for task in json.loads(plan.arguments)["tasks"]] == ["edit_file"]
+
+    executor_output = json.dumps(
+        {
+            "status": "success",
+            "data": {
+                "tasks": [
+                    {
+                        "type": "edit_file",
+                        "status": "partial",
+                        "result": _partial_edit_payload(),
+                    }
+                ]
+            },
+        },
+        ensure_ascii=False,
+    )
+    guarded_payload = json.loads(guard.observe("parallel_execute", plan, executor_output))
+
+    tracker = BodyWriteTracker()
+    tracker.observe(_use("p-filtered", "parallel_execute", parallel_input), text_length=0)
+    tracker.observe(
+        _result("p-filtered", "parallel_execute", guarded_payload),
+        text_length=0,
+    )
+
+    assert guarded_payload["data"]["tasks"][0]["source_index"] == 1
+    assert body_words_written(tracker.finish("")) == count_words(SUCCESS_TEXT)
 
 
 def _reused_create_events(call_id: str = "create-1") -> list[StreamEvent]:

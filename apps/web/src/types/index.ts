@@ -1346,6 +1346,7 @@ export interface ParallelEndEvent {
   total_tasks: number;
   completed: number;
   failed: number;
+  partial?: number;
   duration_ms: number;
   requested_task_count?: number;
   dropped_count?: number;

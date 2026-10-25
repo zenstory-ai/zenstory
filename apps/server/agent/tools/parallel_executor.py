@@ -725,7 +725,7 @@ async def execute_parallel(
     # and per-task status+error, which both the LLM and the UI card read.
     #
     # Route through the shared MCP payload builder so the aggregate is subject to
-    # the same TOOL_RESULT_MAX_CHARS guardrail (+ overflow_ref) as every other
+    # the same TOOL_RESULT_MAX_CHARS guardrail as every other
     # tool — the concatenated per-task results can otherwise be arbitrarily large.
     from agent.tools.mcp_tools import _make_result as _mcp_make_result
 
