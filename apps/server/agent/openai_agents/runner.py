@@ -42,7 +42,7 @@ from agent.openai_agents.repeat_read_guard import (
     NO_PROGRESS_STOP_TOTAL,
     RepeatReadGuard,
 )
-from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
+from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker, _parse_error_payload
 from agent.openai_agents.tools_adapter import (
     READ_ONLY_REASON_CLARIFY_FIRST,
     READ_ONLY_REASON_USER_REQUEST,
@@ -191,7 +191,22 @@ def _stop_run_on_control_flow_tool(
         run_meter.budget_stopped = True
         return ToolsToFinalOutputResult(is_final_output=True, final_output="")
 
+    # 建文件后的下一次回复没写正文就调了工具、被前置守卫挡回（结构化 file_body_pending），且这份
+    # 文件此刻仍在等正文：不让模型在本 run 里接着盲试，正常结束这次 run（MESSAGE_END 照常带用量），
+    # 交给图落库核验，再经 FILE_BODY_RESUME 为同一个文件安排纠偏轮。以上终态都优先于它。
+    if any(_is_file_body_pending(tool_result) for tool_result in tool_results or []):
+        from agent.tools.mcp_tools import ToolContext
+
+        if ToolContext.overdue_file_bodies():
+            return ToolsToFinalOutputResult(is_final_output=True, final_output="")
+
     return ToolsToFinalOutputResult(is_final_output=False, final_output=None)
+
+
+def _is_file_body_pending(tool_result: Any) -> bool:
+    output = getattr(tool_result, "output", "")
+    payload = _parse_error_payload(output if isinstance(output, str) else str(output))
+    return payload is not None and payload.get("error_type") == "file_body_pending"
 
 
 class _ModelCallCountingFilter:

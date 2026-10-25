@@ -25,6 +25,7 @@ import { authConfig } from "../config/auth";
 import { trackUpgradeConversion } from "../lib/upgradeAnalytics";
 import { trackEvent } from "../lib/analytics";
 import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckoutModal";
+import { parsePaymentCycleIntent } from "../lib/paymentCycleIntent";
 
 type BillingCycle = "month" | "year";
 
@@ -37,7 +38,9 @@ export default function PricingPage() {
   const { user, loading } = useAuth();
   const userId = user?.id ?? null;
   const isAuthenticated = Boolean(userId);
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("year");
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(
+    () => parsePaymentCycleIntent(searchParams.get("cycle")) ?? "month"
+  );
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const attributionSource = useMemo(() => {

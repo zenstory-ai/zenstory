@@ -40,7 +40,8 @@ MAX_TOOL_FAILURES_PER_REQUEST = 10
 # 错误里点名的前置动作就会成功，属于正常的自我纠正路径。只计入累计失败上限，
 # 不参与「同一调用连续失败」判定——否则模型补写正文前多试了两次 create_file，
 # 整条工作流就被 ERROR 终止，空文件纠偏轮也跑不到，只留下一个空文件。
-_ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten"})
+# file_body_pending 是 tools_adapter 在执行前挡回的同类拒绝（建文件后的下一次回复没先写正文）。
+_ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten", "file_body_pending"})
 
 # 重复读取守卫（repeat_read_guard）主动拦下的结果：不是工具失败，由守卫自己计数并
 # 判定「无进展」；熔断器若也记账，同一文件第 4～6 次读取会先以「相同参数连续失败」

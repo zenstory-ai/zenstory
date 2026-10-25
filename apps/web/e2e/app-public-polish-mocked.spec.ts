@@ -32,14 +32,14 @@ for (const language of ['zh', 'en']) {
         // English readers see Pro's USD list price; the yearly saving comes from those USD prices.
         const annualPrice = page.getByText(language === 'zh' ? '¥399/年' : '$79/year', { exact: true });
         const monthlyPrice = page.getByText(language === 'zh' ? '¥49/月' : '$9.99/month', { exact: true });
-        await expect(yearly).toHaveAttribute('aria-checked', 'true');
-        await expect(annualPrice).toBeVisible();
-        await expect(monthlyPrice).toHaveCount(0);
-        await expect(page.getByText(language === 'zh' ? /32%/ : /34%/)).toHaveCount(1);
-        await page.screenshot({ path: info.outputPath('pricing-year.png'), fullPage: true, animations: 'disabled' });
-        await monthly.click();
+        await expect(monthly).toHaveAttribute('aria-checked', 'true');
         await expect(monthlyPrice).toBeVisible();
         await expect(annualPrice).toHaveCount(0);
+        await expect(page.getByText(language === 'zh' ? /32%/ : /34%/)).toHaveCount(1);
+        await page.screenshot({ path: info.outputPath('pricing-month.png'), fullPage: true, animations: 'disabled' });
+        await yearly.click();
+        await expect(annualPrice).toBeVisible();
+        await expect(monthlyPrice).toHaveCount(0);
         // Native keyboard selection retains the same billing intent.
         await monthly.press('ArrowRight');
         await expect(yearly).toHaveAttribute('aria-checked', 'true');
@@ -57,7 +57,7 @@ for (const language of ['zh', 'en']) {
           expect(Math.abs(actions[0]!.y - actions[1]!.y)).toBeLessThanOrEqual(1);
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await page.screenshot({ path: info.outputPath('pricing-month.png'), fullPage: true, animations: 'disabled' });
+        await page.screenshot({ path: info.outputPath('pricing-year.png'), fullPage: true, animations: 'disabled' });
         const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
         expect(result.violations.filter(issue => ['serious', 'critical'].includes(issue.impact ?? ''))).toEqual([]);
         expect(writes, 'public browsing never makes a generation or payment request').toEqual([]);

@@ -50,9 +50,9 @@ for (const theme of ['light', 'dark']) {
     await page.getByRole('button', { name: '开通 Pro', exact: true }).click();
     const checkout = page.getByRole('dialog');
     await expect(checkout).toBeVisible();
-    await expect(checkout.getByRole('button', { name: '去支付 ¥399' })).toBeVisible();
-    await checkout.getByRole('radio', { name: /^月付/ }).click();
     await expect(checkout.getByRole('button', { name: '去支付 ¥49' })).toBeVisible();
+    await checkout.getByRole('radio', { name: /^年付/ }).click();
+    await expect(checkout.getByRole('button', { name: '去支付 ¥399' })).toBeVisible();
     await page.keyboard.press('Escape');
     await page.getByTestId('billing-help').locator('summary').click();
     await expect(page.getByRole('button', { name: '兑换码', exact: true })).toHaveCount(0);
@@ -256,7 +256,7 @@ test('unknown payment availability remains distinct from disabled checkout', asy
   await page.getByRole('button', { name: '开通 Pro', exact: true }).click();
   const checkout = page.getByRole('dialog');
   await expect(checkout.getByRole('alert')).toContainText('暂时无法在线支付');
-  await expect(checkout.getByRole('button', { name: '去支付 ¥399' })).toBeDisabled();
+  await expect(checkout.getByRole('button', { name: '去支付 ¥49' })).toBeDisabled();
   await expect(page.getByTestId('billing-checkout-unavailable')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '兑换码', exact: true })).toHaveCount(0);
 });

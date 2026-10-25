@@ -27,6 +27,7 @@ import { trackEvent } from "../lib/analytics";
 import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import type { PaymentCycle } from "../types/payment";
+import { parsePaymentCycleIntent } from "../lib/paymentCycleIntent";
 
 type UsageKey =
   | "ai_conversations"
@@ -73,9 +74,11 @@ export default function BillingPage() {
   const headerActionSize = useIsMobile() ? "touch" : "md";
   const billingUpgradePrompt = getUpgradePromptDefinition("billing_header_upgrade");
   const [paymentCycle] = useState<PaymentCycle>(() => {
-    // Yearly is the default offer; an explicit monthly choice on the pricing page wins.
-    const storedCycle = sessionStorage.getItem("payment_cycle_intent");
-    return storedCycle === "month" ? "month" : "year";
+    // A deep link is the clearest intent, followed by a choice made on pricing.
+    // Ordinary billing entry starts with the lower-commitment monthly option.
+    return parsePaymentCycleIntent(searchParams.get("cycle"))
+      ?? parsePaymentCycleIntent(sessionStorage.getItem("payment_cycle_intent"))
+      ?? "month";
   });
   useEffect(() => {
     sessionStorage.removeItem("payment_cycle_intent");

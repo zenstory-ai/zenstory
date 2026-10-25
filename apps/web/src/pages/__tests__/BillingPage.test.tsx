@@ -291,6 +291,20 @@ describe('BillingPage', () => {
     expect(screen.getByText('Payment modal')).toHaveAttribute('data-cycle', 'month')
   })
 
+  it('defaults ordinary billing entry to monthly checkout', () => {
+    currentSearch = 'plan=pro'
+    render(<BillingPage />)
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-cycle', 'month')
+  })
+
+  it('lets an explicit annual deep link override the monthly default and stored intent', () => {
+    sessionStorage.setItem('payment_cycle_intent', 'month')
+    currentSearch = 'plan=pro&cycle=yearly'
+    render(<StrictMode><BillingPage /></StrictMode>)
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-cycle', 'year')
+    expect(sessionStorage.getItem('payment_cycle_intent')).toBeNull()
+  })
+
   it('shows the free price once while preserving paid billing periods', () => {
     render(<BillingPage />)
 
@@ -504,7 +518,7 @@ describe('BillingPage', () => {
     expect(refetchStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('preserves the yearly checkout intent during Strict Mode initialization', () => {
+  it('preserves an explicit yearly checkout intent during Strict Mode initialization', () => {
     sessionStorage.setItem('payment_cycle_intent', 'year')
     currentSearch = 'plan=pro'
     render(<StrictMode><BillingPage /></StrictMode>)

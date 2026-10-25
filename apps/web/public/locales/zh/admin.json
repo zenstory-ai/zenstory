@@ -686,7 +686,7 @@
   },
   "usage": {
     "title": "用量与成本",
-    "subtitle": "每位用户的 DeepSeek 调用量和估算成本（非供应商账单），按北京时间统计",
+    "subtitle": "按用户汇总模型用量与估算成本，按北京时间统计",
     "window": "时间范围",
     "windows": {
       "today": "今天",
@@ -695,10 +695,10 @@
     },
     "refresh": "刷新",
     "loadError": "用量数据加载失败",
-    "priceLine": "价格（元/百万 tokens，缓存命中 / 未命中 / 输出）：{{peak}}；{{offpeak}}。高峰为北京时间周一至周五（中国法定节假日除外）9–12 点、14–18 点，其余时段为空闲。",
-    "notCounted": "仅记录已完成并返回用量的模型调用；请求取消或超时前已完成的调用仍可能记账，向量嵌入不计入。",
+    "priceLine": "DeepSeek 按峰谷计价；MiniMax M3.1 Flash 全天同价。",
+    "notCounted": "费用为估算值，不是供应商账单；仅含返回用量的调用（取消或超时前已完成的调用仍可能计入），不含向量嵌入。",
     "totalCost": "总费用",
-    "peakOffpeak": "高峰 / 空闲费用",
+    "peakOffpeak": "时段费用（高峰 / 空闲）",
     "calls": "调用次数",
     "activeUsers": "活跃用户",
     "tokenSplit": "Tokens（命中 / 未命中 / 输出）",

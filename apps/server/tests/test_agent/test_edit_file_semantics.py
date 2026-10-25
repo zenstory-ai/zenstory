@@ -274,6 +274,81 @@ def test_failed_batch_rolls_back_whole_call_and_lists_every_failure(
     assert _version_count(version_engine, chapter.id) == versions_before
 
 
+def test_rolled_back_new_text_is_not_an_anchor_and_a_rebuilt_batch_applies(
+    db_session, test_user, chapter, version_engine
+):
+    """2026-10-25 事故：模型把整批回滚掉的 new 当成下一次的 old。匹配保护不放宽：它照样找不到、
+    一处都不落库；按当前原文重建的完整批次照常整批生效。"""
+    editor = FileEditor(db_session, user_id=test_user.id)
+    with pytest.raises(EditBatchError):
+        editor.edit_file(
+            chapter.id,
+            [
+                {"op": "replace", "old": "窗外下着雨", "new": "窗外飘着雪"},
+                {"op": "replace", "old": "这句话根本不存在于原文里", "new": "x"},
+            ],
+        )
+    versions_before = _version_count(version_engine, chapter.id)
+
+    with pytest.raises(EditBatchError) as exc:
+        editor.edit_file(
+            chapter.id,
+            [
+                {"op": "replace", "old": "窗外飘着雪", "new": "窗外飘着大雪"},
+                {"op": "replace", "old": "屋里很安静", "new": "屋里静悄悄的"},
+            ],
+        )
+    assert [item["error_type"] for item in exc.value.failed_edits] == [EDIT_ERROR_ANCHOR_NOT_FOUND]
+    assert _stored_content(version_engine, chapter.id) == chapter.content
+    assert _version_count(version_engine, chapter.id) == versions_before
+
+    result = editor.edit_file(
+        chapter.id,
+        [
+            {"op": "replace", "old": "窗外下着雨", "new": "窗外飘着雪"},
+            {"op": "replace", "old": "屋里很安静", "new": "屋里静悄悄的"},
+        ],
+    )
+    assert result["mutation_applied"] is True
+    assert _stored_content(version_engine, chapter.id) == "他点了点头。她点了点头。窗外飘着雪，屋里静悄悄的。"
+
+
+def test_later_failure_candidates_can_hold_an_earlier_rolled_back_edit_so_rebuild_from_the_saved_text(
+    db_session, test_user, chapter, version_engine
+):
+    """edit 0 先在本批的中间文本里生效，edit 1 找不到锚点：整批回滚，但 edit 1 的候选片段取自
+    中间文本、带着没保存的 edit 0 新文。候选不能当已保存原文；重读已保存正文后重建的整批照常生效。"""
+    versions_before = _version_count(version_engine, chapter.id)
+    editor = FileEditor(db_session, user_id=test_user.id)
+    with pytest.raises(EditBatchError) as exc:
+        editor.edit_file(
+            chapter.id,
+            [
+                {"op": "replace", "old": "窗外下着雨", "new": "窗外飘着雪"},
+                {"op": "replace", "old": "窗外飘着雪，远处传来一阵急促的马蹄声和喊叫声", "new": "x"},
+            ],
+        )
+
+    [failed] = exc.value.failed_edits
+    assert failed["index"] == 1 and failed["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
+    saved = _stored_content(version_engine, chapter.id)
+    assert saved == chapter.content and _version_count(version_engine, chapter.id) == versions_before
+    # 候选片段来自 edit 0 生效后的中间文本：其中的新文从未保存
+    assert "窗外飘着雪" in failed["error"] and "窗外飘着雪" not in saved
+    assert "候选片段里的当前原文" not in str(exc.value), "不再把候选片段说成当前原文"
+
+    # 重读已保存的正文，按它重建完整批次
+    result = editor.edit_file(
+        chapter.id,
+        [
+            {"op": "replace", "old": "窗外下着雨", "new": "窗外飘着雪"},
+            {"op": "replace", "old": "屋里很安静", "new": "屋里静悄悄的"},
+        ],
+    )
+    assert result["mutation_applied"] is True
+    assert _stored_content(version_engine, chapter.id) == "他点了点头。她点了点头。窗外飘着雪，屋里静悄悄的。"
+
+
 def test_continue_on_error_keeps_successful_edits_and_tags_failures(
     db_session, test_user, chapter, version_engine
 ):
