@@ -31,6 +31,7 @@ from sqlmodel import Session
 from agent.core.events import EventType, StreamEvent, done_event, error_event
 from agent.core.round_outcome import (
     ROUND_KIND_COMPLETED,
+    RUN_DEADLINE_STOP_REASON,
     STOP_KIND_CLIENT_DISCONNECTED,
     STOP_KIND_USER_STOPPED,
     RoundWrittenFiles,
@@ -700,6 +701,9 @@ async def stream_request(
         def _deadline_terminal_frame() -> str | None:
             nonlocal deadline_exceeded
             deadline_exceeded = True
+            # 泵已请求取消、取消还没送达生成器：先交给 process_stream 真实原因，残稿补存
+            # 落库可「继续」的 stop_reason（发布交接提前的时限也一样）。
+            run_outcome.deadline_stop_reason = RUN_DEADLINE_STOP_REASON
             if tracker.delivered_terminal_event:
                 return None
             info = _deadline_error()

@@ -33,6 +33,8 @@ logger = get_logger(__name__)
 STOP_KIND_USER_STOPPED = "user_stopped"
 STOP_KIND_CLIENT_DISCONNECTED = "client_disconnected"
 STOP_KINDS: frozenset[str] = frozenset({STOP_KIND_USER_STOPPED, STOP_KIND_CLIENT_DISCONNECTED})
+# 时限截停落库的 stop_reason（与 runner 的同名原因一致，在 router.RESUMABLE_STOP_REASONS 里）。
+RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
 # 正常收尾的写入回执（不是停止）：只由真实提交结果生成，见 RoundWrittenFiles.completion_receipt。
 ROUND_KIND_COMPLETED = "completed"
 # 写终态时可以被停止原因覆盖的 stop_reason：没有原因、或本来就是取消类的原因。
@@ -46,6 +48,9 @@ class RunOutcome:
     """路由层与 process_stream 之间共享的这一轮收尾信息（同一事件循环内使用）。"""
 
     stop_kind: str | None = None
+    # 时限截停（墙钟或发布交接提前的时限）：路由层在取消送达 process_stream 之前写入
+    # RUN_DEADLINE_STOP_REASON，残稿补存据此落库可「继续」的 stop_reason。
+    deadline_stop_reason: str | None = None
     # 作者停止时编辑器里还有没存下的字的文件（前端停止前的保存失败或超时，随 /stop 送来）：
     # 这一轮被退还时不当作空白占位文件移除，见 :meth:`removable`。
     keep_file_ids: set[str] = field(default_factory=set)
@@ -514,6 +519,7 @@ __all__ = [
     "STOP_KIND_CLIENT_DISCONNECTED",
     "STOP_KIND_USER_STOPPED",
     "ROUND_KIND_COMPLETED",
+    "RUN_DEADLINE_STOP_REASON",
     "RoundWrittenFiles",
     "RunOutcome",
     "build_stop_outcome",

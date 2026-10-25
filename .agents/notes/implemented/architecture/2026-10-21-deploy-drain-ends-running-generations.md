@@ -14,7 +14,7 @@ Status: implemented
 
 - `agent/core/server_drain.py`：lifespan 启动时把收尾挂在 Uvicorn 的 SIGTERM 处理器之前（只在主线程安装，原处理器照常执行），信号到达时把 `begin_drain` 排进事件循环。
 - 收尾开始后 `AgentRunMeter.past_wrap_up` 立即为真：每次模型调用都按「时间快到了」提醒收尾，工作流不再开新的 agent run，多数生成会自然结束。
-- `api/agent.py` 的收尾监听把所有进行中 SSE 泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒）之后（`SSEStreamPump.end_within`，只提前不延后）；收尾期间开始的流同样处理。到点走既有的时限收尾：先发终止帧，再按取消路径落库部分历史、补存进行中的文件正文并结算。终止帧换成 `ERR_AGENT_SERVER_RESTARTING`（「ZenStory 正在更新……回复『继续』就能接着写」，不可重试、可退还），与墙钟超时同一条计费规则，只把 `billing_reason` 记为 `server_restarting`。
+- `api/agent.py` 的收尾监听把所有进行中 SSE 泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒）之后（`SSEStreamPump.end_within`，只提前不延后）；收尾期间开始的流同样处理。到点走既有的时限收尾：先发终止帧，再按取消路径落库部分历史、补存进行中的文件正文并结算。终止帧换成 `ERR_AGENT_SERVER_RESTARTING`（「ZenStory 正在更新……回复『继续』就能接着写」，不可重试、可退还），与墙钟超时同一条计费规则，只把 `billing_reason` 记为 `server_restarting`。补存的助手消息记 `stop_reason=run_deadline_exceeded`，「继续」能结构化恢复；原因由路由层在取消送达之前写到 `RunOutcome.deadline_stop_reason`（2026-10-25 起，见 [时限截停的 stop_reason 由路由层交给取消补存](../bug-fix/2026-10-25-deadline-stop-reason-from-route.md)。此前按已用时长推断，截停的一轮会被记成 `cancelled`，之后又被改成 `error`，无法恢复）。
 - lifespan 关闭时在 SIGTERM 后 290 秒的预算内（最多 30 秒）等后台的退还、终态写回与 `AgentService` 的取消清理任务落定，再排空用量记录。
 - Railway 300 秒排空与 Uvicorn 295 秒宽限保持不变。
 

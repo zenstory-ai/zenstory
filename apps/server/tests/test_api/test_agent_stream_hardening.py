@@ -1705,6 +1705,55 @@ async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("drain", [True, False])
+async def test_deadline_hands_the_resumable_stop_reason_to_the_cancelled_run(
+    client: AsyncClient, db_session, monkeypatch, drain
+):
+    """时限截停（含发布交接把时限提前到几分钟）：取消送达生成器之前，路由层已经把
+    run_deadline_exceeded 交给 process_stream，残稿补存据此落库，「继续」可以结构化恢复。"""
+    from agent.core import server_drain
+
+    _token, project, user = await _login_with_project(client, db_session)
+    monkeypatch.setattr(server_drain, "_draining_since", None)
+    monkeypatch.setattr(agent_api, "AGENT_DRAIN_STOP_AFTER_S", 0.05)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+    if not drain:
+        monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    seen_at_cancel: list[object] = []
+
+    class _RecordingService(_FakeService):
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                seen_at_cancel.append(getattr(run_outcome, "deadline_stop_reason", None))
+                raise
+            finally:
+                if run_outcome is not None:
+                    run_outcome.resolve_message_id(None)
+
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
+    with (
+        patch("api.agent.get_agent_service", return_value=_RecordingService(None)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True),
+    ):
+        response = await agent_api.stream_request(
+            body=body, session=db_session, current_user=user, accept_language=None, _rate_limit=0
+        )
+        iterator = response.body_iterator
+        received = [await iterator.__anext__()]
+        if drain:
+            server_drain.begin_drain()
+        received.extend([frame async for frame in iterator])
+
+    text = "".join(received)
+    assert ("ERR_AGENT_SERVER_RESTARTING" if drain else "ERR_AGENT_RUN_TIMEOUT") in text
+    assert seen_at_cancel == ["run_deadline_exceeded"]
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("with_body", [True, False])
 async def test_deadline_round_records_an_interrupted_outcome_after_capture_settles(
     client, db_session, monkeypatch, with_body

@@ -495,15 +495,6 @@ def test_guard_rewritten_parallel_batch_pairs_results_by_type():
 # ------------------------------------------------------- service：路由落库
 
 
-@pytest.mark.unit
-def test_partial_save_stop_reason_distinguishes_deadline_from_user_stop():
-    from agent.service import partial_save_stop_reason
-
-    assert partial_save_stop_reason(1200.5, 1200) == "run_deadline_exceeded"
-    assert partial_save_stop_reason(30.0, 1200) == "cancelled"
-    assert partial_save_stop_reason(5000.0, 0) == "cancelled"
-
-
 @pytest.fixture
 def routing_service_project(db_session: Session):
     from models import Project, User
@@ -723,12 +714,14 @@ async def test_reviewer_reached_by_handoff_is_not_saved_as_the_task_owner(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("writing_prompt_configs")
-@pytest.mark.parametrize(
-    ("timeout_s", "expected"), [(1200, "cancelled"), (0.000001, "run_deadline_exceeded")]
-)
+@pytest.mark.parametrize("deadline", [False, True])
 async def test_cancelled_partial_save_persists_stop_reason_and_routing(
-    routing_service, routing_service_project, db_session: Session, timeout_s, expected
+    routing_service, routing_service_project, db_session: Session, deadline
 ):
+    """取消补存的 stop_reason 由路由层交来的原因决定，不按已用时长推断：发布交接把时限提前到
+    几分钟时，这一轮也记成可「继续」的时限截停；之后记「已中断」终态也不会覆盖它。"""
+    from agent.core.round_outcome import RunOutcome, record_round_outcome
+    from agent.graph.router import RESUMABLE_STOP_REASONS
     from models import ChatMessage
 
     project = routing_service_project["project"]
@@ -742,23 +735,29 @@ async def test_cancelled_partial_save_persists_stop_reason_and_routing(
         started.set()
         await asyncio.sleep(3600)
 
+    run_outcome = RunOutcome()
+
     async def consume():
         async for _ in routing_service.process_stream(
             project_id=str(project.id),
             user_id=str(user.id),
             message="写第六章",
             session=db_session,
+            run_outcome=run_outcome,
         ):
             pass
 
     with (
         patch("agent.service.run_writing_workflow_streaming", return_value=slow_workflow()),
         patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
-        patch("agent.service.AGENT_RUN_WALL_CLOCK_TIMEOUT_S", timeout_s),
+        patch("database.create_session", side_effect=lambda: Session(db_session.get_bind())),
     ):
         task = asyncio.create_task(consume())
         await started.wait()
         await asyncio.sleep(0)
+        if deadline:
+            # 路由层的时限分支（sse_pump 的 on_deadline）在取消送达之前同步记下原因。
+            run_outcome.deadline_stop_reason = "run_deadline_exceeded"
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -770,10 +769,16 @@ async def test_cancelled_partial_save_persists_stop_reason_and_routing(
             if saved is not None:
                 break
 
-    assert saved is not None
-    metadata = json.loads(saved.message_metadata)
-    assert metadata["stop_reason"] == expected
-    assert metadata["routing"]["last_agent"] == "writer"
+        assert saved is not None
+        metadata = json.loads(saved.message_metadata)
+        assert metadata["stop_reason"] == ("run_deadline_exceeded" if deadline else "cancelled")
+        assert metadata["routing"]["last_agent"] == "writer"
+        if deadline:
+            # 时限截停的一轮随后记「已中断」终态（api/agent.py 的 stop_kind="error"）。
+            assert record_round_outcome(saved.id, stop_kind="error", outcome={"reason": "error"})
+            db_session.expire_all()
+            final = json.loads(db_session.get(ChatMessage, saved.id).message_metadata)
+            assert final["stop_reason"] in RESUMABLE_STOP_REASONS
 
 
 @pytest.mark.asyncio

@@ -28,7 +28,6 @@ from config.agent_runtime import (
     AGENT_CHAT_HISTORY_TOKEN_BUDGET,
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_CONTEXT_TOKEN_BUDGET,
-    AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
 )
 from config.datetime_utils import utcnow
 from database import create_session
@@ -80,24 +79,13 @@ from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
 logger = get_logger(__name__)
 
-# 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限到期
-# 也是以取消的方式到达 process_stream（sse_pump 取消后台 task），按已用时长区分。
+# 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限与发布交接
+# 也是以取消的方式到达 process_stream（sse_pump 取消后台 task）：原因由路由层写在
+# RunOutcome 上（stop_kind / deadline_stop_reason），都没有时才是这个。
 PARTIAL_SAVE_CANCELLED_STOP_REASON = "cancelled"
 # 前端「重试 / 重新发送」一条没得到回复的消息时在 metadata 里带上它（见
 # _drop_unanswered_retry_message_sync）。
 RETRY_UNANSWERED_METADATA_KEY = "retry_unanswered"
-PARTIAL_SAVE_DEADLINE_STOP_REASON = "run_deadline_exceeded"
-
-
-def partial_save_stop_reason(elapsed_s: float, deadline_s: float | None) -> str:
-    """取消路径的 stop_reason：已用时长达到墙钟时限就是时限截停，否则是用户停止。
-
-    process_stream 先于 SSE 泵开始计时，所以泵按时限取消时这里的已用时长一定
-    不小于时限；用户在时限前主动停止时一定小于时限。
-    """
-    if deadline_s and deadline_s > 0 and elapsed_s >= deadline_s:
-        return PARTIAL_SAVE_DEADLINE_STOP_REASON
-    return PARTIAL_SAVE_CANCELLED_STOP_REASON
 
 
 def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
@@ -1680,11 +1668,11 @@ class AgentService:
             # done 事件还没发出去时被取消，队列里仍可能有已确认 queued 的
             # steering，跳过后台任务就等于让随后的 cleanup 把它删掉。是否重写
             # 整轮由任务内部按 history_saved 判定。
-            # 在取消到达的这一刻判定（后台补存还要等落库任务和 drain，时长会继续走）。
-            cancel_stop_reason = partial_save_stop_reason(
-                time.monotonic() - run_started_monotonic,
-                AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
-            )
+            # 时限截停的原因由路由层在取消送达之前写入（发布交接把时限提前到几分钟时，
+            # 已用时长远小于墙钟时限，不能按时长推断）。
+            cancel_stop_reason = (
+                run_outcome.deadline_stop_reason if run_outcome is not None else None
+            ) or PARTIAL_SAVE_CANCELLED_STOP_REASON
             if user_id:
 
                 async def _drain_then_save_partial_history() -> None:
