@@ -662,6 +662,7 @@ class SessionLoader:
                     "key": f"file:{file.id}",
                     "text": f"### 《{title}》 (id={file.id}) [全文，{count_words(content)} 字]\n{content}".rstrip(),
                     "listing": f"- {label}（{action}，{count_words(content)} 字）",
+                    "label": f"《{title}》 (id={file.id})",
                 })
                 if rendered_full_contents is not None:
                     rendered_full_contents[str(file.id)] = content

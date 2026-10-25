@@ -2158,9 +2158,12 @@ class ContextAssembler:
 
         blocks: list[dict[str, str]] = [{"key": "header", "text": "\n".join(parts).strip()}]
 
-        def add_block(section: str, item_key: str, start: int) -> None:
+        def add_block(section: str, item: ContextItem, start: int) -> None:
             body = "\n".join(parts[start:]).strip()
-            blocks.append({"key": f"{section}:{item_key}", "text": f"{section}\n{body}"})
+            # label 在条目离开后续轮次的上下文时用来点名（turn_snapshot 的「本轮未核对」列表）。
+            file_id = self._item_file_id(item)
+            label = f"{section}{item.title}" + (f" (id={file_id})" if file_id else "")
+            blocks.append({"key": f"{section}:{item.id or item.title}", "text": f"{section}\n{body}", "label": label})
 
         if has_detailed_content:
             parts.append(separator)
@@ -2179,7 +2182,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【大纲详情】", item.id or item.title, start)
+                add_block("【大纲详情】", item, start)
 
         # Drafts (detailed content)
         if sections["draft"]:
@@ -2191,7 +2194,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【正文详情】", item.id or item.title, start)
+                add_block("【正文详情】", item, start)
 
         # Snippets
         if sections["snippet"]:
@@ -2221,7 +2224,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【参考素材】", item.id or item.title, start)
+                add_block("【参考素材】", item, start)
 
         # Characters
         if sections["character"]:
@@ -2231,7 +2234,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【角色信息】", item.id or item.title, start)
+                add_block("【角色信息】", item, start)
 
         # Lores
         if sections["lore"]:
@@ -2243,7 +2246,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【世界设定】", item.id or item.title, start)
+                add_block("【世界设定】", item, start)
 
         # Quotes (user-selected text)
         if sections["quote"]:
@@ -2254,7 +2257,7 @@ class ContextAssembler:
                 parts.append(f"{item.title}")
                 parts.append(item.content)
                 parts.append("")
-                add_block("【用户引用文本】", item.id or item.title, start)
+                add_block("【用户引用文本】", item, start)
 
         return "\n".join(parts), blocks
 

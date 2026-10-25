@@ -71,3 +71,45 @@ def test_working_set_bodies_live_in_the_snapshot_and_the_listing_is_sent_each_tu
         assert "上一轮已修改" in plan.working_set_context and "雨夜。" not in plan.working_set_context
     assert "第九章" in first.working_set_context
     assert second.changed_context == ""  # the body did not change: nothing re-sent
+
+
+def _focus_chapter(n: int, *, focus: bool, size: int = 1) -> dict:
+    mark = " ← 当前焦点" if focus else ""
+    return {
+        "key": f"【正文详情】:ch{n}",
+        "text": f"【正文详情】\n第{n}章 (id=ch{n}){mark} [全文]\n" + "雨夜。" * size,
+        "label": f"第{n}章 (id=ch{n})",
+    }
+
+
+def test_a_document_that_left_the_turn_is_flagged_as_unchecked_in_the_turn_context():
+    """turn1 {A(focus), B}, turn2 {B, C(focus)}: the snapshot still carries A's old full text and focus
+    mark, so this turn must say A was not checked (or rebuild); C's new focus is the only current one."""
+    first = _plan([HEADER, CARD, _focus_chapter(1, focus=True), _focus_chapter(2, focus=False)])
+    second = _plan([HEADER, CARD, _focus_chapter(2, focus=False), _focus_chapter(3, focus=True)])
+
+    assert first.rebuilt
+    if second.rebuilt:
+        assert "第1章" not in second.snapshot_message
+        assert second.snapshot_message.count("← 当前焦点") == 1
+        return
+    assert second.snapshot_message == first.snapshot_message  # the cached prefix is untouched
+    assert "第3章 (id=ch3) ← 当前焦点" in second.changed_context
+    stale_section = second.changed_context.split(turn_snapshot.GONE_CONTEXT_HEADER, 1)[1]
+    assert "第1章 (id=ch1)" in stale_section
+    assert "第2章" not in stale_section and "阿昼" not in stale_section
+
+
+def test_documents_that_left_the_turn_count_toward_the_rebuild_ratio():
+    """A large document that is no longer in the turn is dead weight in the snapshot: rebuild it away."""
+    _plan([HEADER, CARD, _focus_chapter(1, focus=True, size=400)])
+    second = _plan([HEADER, CARD, _focus_chapter(2, focus=True)])
+
+    assert second.rebuilt
+    assert "第1章" not in second.snapshot_message
+
+
+def test_an_unchanged_turn_sends_no_stale_listing():
+    blocks = [HEADER, CARD, _focus_chapter(1, focus=True)]
+    _plan(blocks)
+    assert _plan(blocks).changed_context == ""

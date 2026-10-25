@@ -242,7 +242,8 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `AGENT_WORKING_SET_MAX_FILES`=8 份、`AGENT_WORKING_SET_MAX_CHARS`=60000 字）。
 - 项目资料快照（`context/turn_snapshot.py`）：组装的项目上下文与工作集按条目给出带键的块；会话第一轮（及重建时）渲染成
   `<project_snapshot>`，作为模型输入第一条消息紧跟系统提示（`runner.build_run_input`，不写回 `state["messages"]`）；之后每轮只把
-  新出现或改过的块放进 `<turn_context>` 的「本轮更新的项目资料」，工作集只发清单。改动超过快照一半、20 轮、2 小时或项目 / 语言变化时重建。
+  新出现或改过的块放进 `<turn_context>` 的「本轮更新的项目资料」，工作集只发清单；快照里有、本轮已不在的块列为「本轮未核对的快照条目」
+  （[全文] 与焦点标记可能过期）。改动加离开的块超过快照一半、20 轮、2 小时或项目 / 语言变化时重建。
 - 本轮上下文（`MessageManager.build_turn_context`，`<turn_context>`）：叙事约束、作者本条消息选的技能、本轮更新的项目资料、当前文件、
   任务计划板快照、本轮回复语言，加工作集清单，放在本轮用户消息最前面（`SessionLoader.attach_working_set_to_user_content`）。
   请求布局 `[系统提示][项目资料快照][历史][本轮上下文 + 作者消息][本次运行指令]`，前四段跨轮、跨 agent 逐字不变
