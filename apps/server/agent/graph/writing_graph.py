@@ -599,8 +599,45 @@ def _file_stream_continuation_context(
     written_titles: list[str],
     open_tasks: list[dict[str, Any]],
     user_scope: str,
+    *,
+    english: bool = False,
 ) -> str:
     """文件正文结束时就停止 run 后，同一个 agent 接着那一轮的交接说明。"""
+    if english:
+        saved = ", ".join(f'"{title}"' for title in written_titles if title)
+        lines = [
+            f"{FILE_STREAM_CONTINUATION_MARKER}: the previous response stopped after the file body "
+            "without creating the next file or giving the author a summary, so the author has not "
+            "seen a result in the conversation yet."
+        ]
+        if saved:
+            lines.append(f"Already saved for this request: {saved}. Do not rewrite these files.")
+        if user_scope:
+            lines.append(f"The delivery scope requested by the author for this turn: {user_scope}.")
+        if open_tasks:
+            status_names = {"pending": "not started", "in_progress": "in progress"}
+            task_lines = []
+            for task in open_tasks:
+                line = f"- {task.get('task')} ({status_names.get(str(task.get('status')), '')})"
+                progress = str(task.get("progress") or "").strip()
+                if progress:
+                    line += f": {progress}"
+                task_lines.append(line)
+            lines.append("Tasks still open on the task board:\n" + "\n".join(task_lines))
+        lines.append(
+            "Compare the work with the author's requirements. If any requested files are still "
+            "missing, call create_file for the next one (after the tool returns, begin the next "
+            "response with <file> and write the body). After </file>, create the next file in the "
+            "same response or give the summary. When everything is complete, do not call another "
+            "file-writing tool; tell the author in 1–3 lines exactly which files were written and "
+            "their word counts from the tool results, and state honestly what remains incomplete. "
+            "This is a system continuation instruction, not a new author message, and it must not "
+            "change the response language. Continue to follow the author's original requirements "
+            "for language, length, and format. Report only what was actually delivered, without "
+            "repeating or adding content or directions the author did not request."
+        )
+        return "\n".join(lines)
+
     saved = "、".join(f"《{title}》" for title in written_titles if title)
     lines = [
         f"{FILE_STREAM_CONTINUATION_MARKER}，没有接着建下一个文件，也没有给作者写总结，"
@@ -2791,7 +2828,10 @@ async def run_writing_workflow_streaming(
                     list(continuation_guard.files_written.values()) if continuation_guard else []
                 )
                 handoff_context = _file_stream_continuation_context(
-                    written_titles, _open_board_tasks(), user_scope
+                    written_titles,
+                    _open_board_tasks(),
+                    user_scope,
+                    english=_author_is_english(state),
                 )
                 if mid_run_steering_seen:
                     handoff_context += "\n" + _steering_followup_context(

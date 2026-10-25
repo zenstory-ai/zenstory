@@ -98,6 +98,7 @@ async def _run(
     fake_agent,
     *,
     message: str = "把后面几集都写了",
+    language: str | None = None,
     initial: str = "writer",
     workflow_agents: list[str] | None = None,
     routing_metadata: dict | None = None,
@@ -112,7 +113,12 @@ async def _run(
         "workflow_agents": list(workflow_agents or []),
         "routing_metadata": routing_metadata or {"agent_type": initial},
     }
-    state = {"user_message": message, "messages": [], "system_prompt": ""}
+    state = {
+        "user_message": message,
+        "messages": [],
+        "system_prompt": "",
+        "language": language,
+    }
     ToolContext.set_context(session=None, user_id="u", project_id="p", session_id="s")
     try:
         with (
@@ -182,6 +188,43 @@ async def test_writer_that_stops_at_file_close_continues_and_summarizes():
     # 作者最后看到的是总结，不是空回复或开场句。
     assert _visible_text(events).rstrip().endswith("各约 120 字。")
     assert not any(event.type == StreamEventType.ITERATION_EXHAUSTED for event in events)
+
+
+async def test_english_writer_continuation_keeps_locale_and_delivery_context():
+    """英文作者的同 agent 续跑使用英文说明，同时保留已存文件、任务进度和原始范围。"""
+    runs: list[tuple[str, str]] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        runs.append((agent_type, str(state.get("user_message") or "")))
+        if len(runs) == 1:
+            for event in _create(state, "c1", "f1", "Chapter 1 — Rain"):
+                yield event
+            yield _file("The rain started before dawn. " * 20)
+        else:
+            yield _text("Chapter 1 is saved; chapter 2 remains incomplete.")
+
+    scope = "chapters 1–2, about 800 words each"
+    task = "Write chapters 1–2"
+    progress = "Chapter 1 saved"
+    events = await _run(
+        fake_agent,
+        message="Write the first two chapters in English.",
+        language="en-US",
+        tasks=[{"task": task, "status": "in_progress", "progress": progress}],
+        routing_metadata={"agent_type": "writer", "scope": scope},
+    )
+
+    assert [agent for agent, _ in runs] == ["writer", "writer"]
+    continuation = runs[1][1]
+    assert "[系统提醒] 你上一次回复在文件正文结束时就停止了:" in continuation
+    assert "Chapter 1 — Rain" in continuation
+    assert task in continuation
+    assert progress in continuation
+    assert scope in continuation
+    assert "Tasks still open on the task board" in continuation
+    assert "任务计划板上还没完成的任务" not in continuation
+    assert "作者这一轮要求的交付范围" not in continuation
+    assert _visible_text(events).rstrip().endswith("chapter 2 remains incomplete.")
 
 
 async def test_writer_with_new_body_at_unclosed_eof_continues_and_summarizes():
