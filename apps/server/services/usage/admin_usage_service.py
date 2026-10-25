@@ -9,6 +9,7 @@ Decimal only for the response.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
@@ -18,7 +19,16 @@ from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from models.entities import User
-from models.llm_usage import PRICE_BAND_OFFPEAK, PRICE_BAND_PEAK, LLMUsageEvent
+from models.llm_usage import (
+    CALL_OUTCOME_CANCELLED,
+    CALL_OUTCOME_ERROR,
+    CALL_OUTCOME_SUCCESS,
+    CALL_OUTCOME_TIMEOUT,
+    PRICE_BAND_OFFPEAK,
+    PRICE_BAND_PEAK,
+    LLMUsageEvent,
+    has_usage_tokens,
+)
 from services.usage.pricing import (
     BEIJING_TZ_NAME,
     CHINA_PUBLIC_HOLIDAY_RANGES,
@@ -168,9 +178,14 @@ def _aggregate_columns(c: Any = EVENTS) -> list[Any]:
     ]
 
 
-def _in_period(period: Period) -> list[Any]:
+def _period_bounds(period: Period) -> list[Any]:
     start, end = period.utc_bounds
     return [EVENTS.occurred_at >= start, EVENTS.occurred_at < end]
+
+
+def _in_period(period: Period) -> list[Any]:
+    """Usage and cost rows of the period: failed or cancelled attempts without tokens are left out."""
+    return [*_period_bounds(period), has_usage_tokens(EVENTS)]
 
 
 def _day_bucket(period: Period) -> Any:
@@ -395,4 +410,141 @@ def get_user_daily_usage(
         "totals": totals,
         "by_source": _by_source(session, period, user_id=user.id),
         "daily": _daily_rows(session, period, user_id=user.id),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Model metrics
+# ---------------------------------------------------------------------------
+#
+# One ledger row is one provider attempt (a failover writes a failed row for the
+# first provider and an answered row for the second; the OpenAI client's own HTTP
+# retries stay inside one attempt). Rows written before the metric columns, and
+# call sites that do not report them (material flows), have outcome NULL:
+# counted as "not recorded", never as success or zero.
+
+
+def _percentile(sorted_values: list[int], fraction: float) -> int | None:
+    """Nearest-rank percentile of an ascending list (None when empty)."""
+    if not sorted_values:
+        return None
+    rank = max(1, math.ceil(fraction * len(sorted_values)))
+    return sorted_values[rank - 1]
+
+
+def _distribution(values: list[int]) -> dict[str, int | None]:
+    ordered = sorted(values)
+    return {"p50": _percentile(ordered, 0.5), "p95": _percentile(ordered, 0.95), "samples": len(ordered)}
+
+
+@dataclass
+class _ModelTimings:
+    latency: list[int]
+    ttft: list[int]
+    decode_output_tokens: int = 0
+    decode_ms: int = 0
+    decode_samples: int = 0
+
+    def add(self, duration_ms: int, ttft_ms: int | None, output_tokens: int) -> None:
+        self.latency.append(duration_ms)
+        if ttft_ms is None:
+            return
+        self.ttft.append(ttft_ms)
+        # Generation phase = first output delta -> stream end. Calls whose provider
+        # reported no output tokens (no usage) cannot give a speed.
+        generation_ms = duration_ms - ttft_ms
+        if output_tokens > 0 and generation_ms > 0:
+            self.decode_output_tokens += output_tokens
+            self.decode_ms += generation_ms
+            self.decode_samples += 1
+
+    def payload(self) -> dict[str, Any]:
+        # Ratio of sums over the window, not a mean of per-call speeds.
+        speed = round(self.decode_output_tokens * 1000 / self.decode_ms, 1) if self.decode_ms > 0 else None
+        return {
+            "latency_ms": _distribution(self.latency),
+            "ttft_ms": _distribution(self.ttft),
+            "decode_tps": {"value": speed, "samples": self.decode_samples},
+        }
+
+
+def _outcome_count(outcome: str) -> Any:
+    return func.coalesce(func.sum(case((EVENTS.outcome == outcome, 1), else_=0)), 0)
+
+
+def _model_metrics_row(counts: Any, timings: _ModelTimings) -> dict[str, Any]:
+    success = int(counts.success or 0)
+    finished = success + int(counts.error or 0) + int(counts.timeout or 0)
+    peak = units_to_cny(counts.peak_units)
+    offpeak = units_to_cny(counts.offpeak_units)
+    return {
+        "attempts": int(counts.calls or 0),
+        "success": success,
+        "error": int(counts.error or 0),
+        "timeout": int(counts.timeout or 0),
+        "cancelled": int(counts.cancelled or 0),
+        "not_recorded": int(counts.not_recorded or 0),
+        # success / (success + error + timeout); cancelled and not-recorded attempts are left out.
+        "success_rate": round(success / finished, 4) if finished else None,
+        **timings.payload(),
+        "cache_hit_tokens": int(counts.cache_hit_tokens or 0),
+        "cache_miss_tokens": int(counts.cache_miss_tokens or 0),
+        "output_tokens": int(counts.output_tokens or 0),
+        "cost_cny": format_cny(peak + offpeak),
+    }
+
+
+def get_model_metrics(
+    session: Session,
+    window: UsageWindow,
+    *,
+    source: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Per-model success rate, latency, time to first token, decode speed, tokens and cost."""
+    period = window_period(window, now)
+    conditions = _period_bounds(period)
+    if source is not None:
+        conditions.append(EVENTS.source == source)
+
+    count_columns = [
+        *_aggregate_columns(),
+        _outcome_count(CALL_OUTCOME_SUCCESS).label("success"),
+        _outcome_count(CALL_OUTCOME_ERROR).label("error"),
+        _outcome_count(CALL_OUTCOME_TIMEOUT).label("timeout"),
+        _outcome_count(CALL_OUTCOME_CANCELLED).label("cancelled"),
+        func.coalesce(func.sum(case((EVENTS.outcome.is_(None), 1), else_=0)), 0).label("not_recorded"),
+    ]
+    by_model = {
+        row.model: row
+        for row in session.exec(select(EVENTS.model, *count_columns).where(*conditions).group_by(EVENTS.model)).all()
+    }
+    totals = session.exec(select(*count_columns).where(*conditions)).one()
+
+    # Percentiles need the individual answered attempts: two small integers per row of the window.
+    timings: dict[str, _ModelTimings] = {model: _ModelTimings([], []) for model in by_model}
+    pooled = _ModelTimings([], [])
+    timing_rows = session.exec(
+        select(EVENTS.model, EVENTS.duration_ms, EVENTS.ttft_ms, EVENTS.output_tokens).where(
+            *conditions,
+            EVENTS.outcome == CALL_OUTCOME_SUCCESS,
+            EVENTS.duration_ms.is_not(None),
+        )
+    ).all()
+    for row in timing_rows:
+        duration = int(row.duration_ms)
+        ttft = int(row.ttft_ms) if row.ttft_ms is not None else None
+        output = int(row.output_tokens or 0)
+        # The three reads are separate statements: a row committed in between may name a new model.
+        timings.setdefault(row.model, _ModelTimings([], [])).add(duration, ttft, output)
+        pooled.add(duration, ttft, output)
+
+    items = [{"model": model, **_model_metrics_row(row, timings[model])} for model, row in by_model.items()]
+    items.sort(key=lambda item: (-item["attempts"], item["model"]))
+    return {
+        "window": window,
+        **_period_payload(period),
+        "source": source,
+        "items": items,
+        "totals": _model_metrics_row(totals, pooled),
     }

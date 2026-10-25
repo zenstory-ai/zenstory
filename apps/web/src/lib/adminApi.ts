@@ -1236,6 +1236,47 @@ export interface UserDailyUsageResponse extends UsagePeriod {
   daily: UsageDailyRow[];
 }
 
+/** Ledger sources (models.llm_usage.LLM_USAGE_SOURCES). */
+export type UsageSource = "agent" | "router" | "suggest" | "polish" | "material";
+
+/** Nearest-rank percentiles in milliseconds; null without samples. */
+export interface UsageDistribution {
+  p50: number | null;
+  p95: number | null;
+  samples: number;
+}
+
+/** Call metrics over provider attempts (a failover counts both attempts). */
+export interface ModelMetrics {
+  attempts: number;
+  success: number;
+  error: number;
+  timeout: number;
+  cancelled: number;
+  not_recorded: number;
+  /** success / (success + error + timeout), 0..1; null without finished attempts. */
+  success_rate: number | null;
+  latency_ms: UsageDistribution;
+  ttft_ms: UsageDistribution;
+  /** Output tokens / generation time (first output delta to stream end), tokens per second. */
+  decode_tps: { value: number | null; samples: number };
+  cache_hit_tokens: number;
+  cache_miss_tokens: number;
+  output_tokens: number;
+  cost_cny: string;
+}
+
+export interface ModelMetricsRow extends ModelMetrics {
+  model: string;
+}
+
+export interface ModelMetricsResponse extends UsagePeriod {
+  window: UsageWindow;
+  source: UsageSource | null;
+  items: ModelMetricsRow[];
+  totals: ModelMetrics;
+}
+
 /** Usage and CNY cost totals for a Beijing-day window. */
 export async function getUsageSummary(window: UsageWindow): Promise<UsageSummaryResponse> {
   return api.get<UsageSummaryResponse>(`${ADMIN_BASE}/usage/summary?window=${window}`);
@@ -1255,6 +1296,13 @@ export async function getUsageByUser(params: {
   if (params.page) query.set("page", String(params.page));
   if (params.page_size) query.set("page_size", String(params.page_size));
   return api.get<UserUsageListResponse>(`${ADMIN_BASE}/usage/users?${query.toString()}`);
+}
+
+/** Per-model success rate, latency, time to first token and decode speed for a window. */
+export async function getUsageByModel(window: UsageWindow, source?: UsageSource): Promise<ModelMetricsResponse> {
+  const query = new URLSearchParams({ window });
+  if (source) query.set("source", source);
+  return api.get<ModelMetricsResponse>(`${ADMIN_BASE}/usage/models?${query.toString()}`);
 }
 
 /** One user's daily usage for the last 7, 14 or 30 Beijing days. */
@@ -1990,6 +2038,7 @@ export const adminApi = {
   // 用量与成本
   getUsageSummary,
   getUsageByUser,
+  getUsageByModel,
   getUserDailyUsage,
 
   // 审计日志

@@ -69,8 +69,10 @@ class LLMClient:
         try:
             from services.usage.cost_budget import budget_attribution
             with budget_attribution(usage_attribution):
+                # With an attribution every attempt is written to the usage ledger there.
                 response, provider = await llm_failover.acreate_chat_completion(
                     call_site=getattr(usage_attribution, "source", None) or "llm_client",
+                    usage_attribution=usage_attribution,
                     thinking_enabled=thinking_enabled,
                     messages=messages,
                     temperature=temperature if temperature is not None else self.DEFAULT_TEMPERATURE,
@@ -97,12 +99,6 @@ class LLMClient:
             served_model_sink["model"] = provider.model
 
         usage = response.usage
-        if usage_attribution is not None:
-            from services.usage.llm_usage_service import schedule_llm_usage_record
-
-            # Fire-and-forget: suggest wraps this call in asyncio.wait_for,
-            # so awaiting the ledger write would spend the caller's deadline.
-            schedule_llm_usage_record(usage_attribution, model=provider.model, usage=usage)
         log_with_context(
             logger,
             20,  # INFO

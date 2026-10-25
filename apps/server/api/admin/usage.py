@@ -1,4 +1,4 @@
-"""Admin "Usage & cost": per-user DeepSeek token usage and CNY cost."""
+"""Admin "Usage & cost": per-user token usage and CNY cost, and per-model call metrics."""
 
 from datetime import datetime
 from typing import Literal
@@ -13,6 +13,7 @@ from database import get_session
 from models.entities import User
 from services.core.auth_service import get_current_superuser
 from services.usage.admin_usage_service import (
+    get_model_metrics,
     get_usage_summary,
     get_user_daily_usage,
     list_user_usage,
@@ -21,6 +22,8 @@ from services.usage.admin_usage_service import (
 router = APIRouter(prefix="/usage", tags=["admin-usage"])
 
 UsageWindowParam = Literal["today", "yesterday", "7d"]
+# models.llm_usage.LLM_USAGE_SOURCES
+UsageSourceParam = Literal["agent", "router", "suggest", "polish", "material"]
 USER_DAILY_DAYS = (7, 14, 30)
 
 
@@ -92,6 +95,49 @@ class UserDailyUsageResponse(UsagePeriod):
     daily: list[UsageDailyRow]
 
 
+class Distribution(BaseModel):
+    # Nearest-rank percentiles in milliseconds; None when there are no samples.
+    p50: int | None
+    p95: int | None
+    samples: int
+
+
+class DecodeSpeed(BaseModel):
+    # Output tokens / generation time (first output delta -> stream end), tokens per second.
+    value: float | None
+    samples: int
+
+
+class ModelMetrics(BaseModel):
+    # Provider attempts in the window (a failover counts both attempts).
+    attempts: int
+    success: int
+    error: int
+    timeout: int
+    cancelled: int
+    not_recorded: int
+    # success / (success + error + timeout), 0..1; None without finished attempts.
+    success_rate: float | None
+    latency_ms: Distribution
+    ttft_ms: Distribution
+    decode_tps: DecodeSpeed
+    cache_hit_tokens: int
+    cache_miss_tokens: int
+    output_tokens: int
+    cost_cny: str
+
+
+class ModelMetricsRow(ModelMetrics):
+    model: str
+
+
+class ModelMetricsResponse(UsagePeriod):
+    window: UsageWindowParam
+    source: UsageSourceParam | None
+    items: list[ModelMetricsRow]
+    totals: ModelMetrics
+
+
 @router.get("/summary", response_model=UsageSummaryResponse)
 def usage_summary(
     window: UsageWindowParam = "today",
@@ -99,6 +145,16 @@ def usage_summary(
     session: Session = Depends(get_session),
 ):
     return get_usage_summary(session, window)
+
+
+@router.get("/models", response_model=ModelMetricsResponse)
+def usage_by_model(
+    window: UsageWindowParam = "today",
+    source: UsageSourceParam | None = None,
+    _current_user: User = Depends(get_current_superuser),
+    session: Session = Depends(get_session),
+):
+    return get_model_metrics(session, window, source=source)
 
 
 @router.get("/users", response_model=UserUsageListResponse)

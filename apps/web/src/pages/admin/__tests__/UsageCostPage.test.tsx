@@ -7,9 +7,12 @@ import { adminApi } from "../../../lib/adminApi";
 type QueryOptions = { queryKey: unknown[]; queryFn: () => unknown; enabled?: boolean };
 const queryMock = vi.fn();
 const refetch = vi.fn();
+const invalidateQueries = vi.fn();
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: QueryOptions) => queryMock(options),
+  useQueryClient: () => ({ invalidateQueries }),
+  useIsFetching: () => 0,
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -18,6 +21,8 @@ vi.mock("react-i18next", () => ({
         if ("count" in options) return `${key}:${String(options.count)}`;
         if ("name" in options) return `${key}:${String(options.name)}`;
         if ("peak" in options) return `${key}:${String(options.peak)}|${String(options.offpeak)}`;
+        if ("finished" in options) return `${String(options.success)} / ${String(options.finished)}`;
+        if ("value" in options) return `${String(options.value)} tok/s`;
       }
       return key;
     },
@@ -26,7 +31,7 @@ vi.mock("react-i18next", () => ({
 }));
 vi.mock("../../../lib/i18n-helpers", () => ({ getLocaleCode: () => "en-US" }));
 vi.mock("../../../lib/adminApi", () => ({
-  adminApi: { getUsageSummary: vi.fn(), getUsageByUser: vi.fn(), getUserDailyUsage: vi.fn() },
+  adminApi: { getUsageSummary: vi.fn(), getUsageByUser: vi.fn(), getUserDailyUsage: vi.fn(), getUsageByModel: vi.fn() },
 }));
 vi.mock("../../../components/ui/Modal", () => ({
   Modal: ({ open, title, children, onClose }: { open: boolean; title: string; children: React.ReactNode; onClose: () => void }) =>
@@ -95,6 +100,43 @@ const detail = (days: number) => ({
   daily: Array.from({ length: days }, (_, index) => dailyRow(`d-${index}`, "0.0000")),
 });
 
+const distribution = (p50: number | null, p95: number | null, samples: number) => ({ p50, p95, samples });
+const modelMetrics = (overrides: Record<string, unknown> = {}) => ({
+  attempts: 10,
+  success: 4,
+  error: 3,
+  timeout: 1,
+  cancelled: 1,
+  not_recorded: 1,
+  success_rate: 0.5,
+  latency_ms: distribution(5_000, 20_000, 4),
+  ttft_ms: distribution(850, 4_000, 3),
+  decode_tps: { value: 100, samples: 2 },
+  cache_hit_tokens: 0,
+  cache_miss_tokens: 400,
+  output_tokens: 3_000,
+  cost_cny: "0.0120",
+  ...overrides,
+});
+const modelsFor = (source: string) => ({
+  window: "today",
+  ...period,
+  period_start: "2026-10-07",
+  period_end: "2026-10-07",
+  source: source || null,
+  items: [
+    { model: "deepseek-flash", ...modelMetrics() },
+    {
+      model: "MiniMax-M3.1-Flash",
+      ...modelMetrics({
+        attempts: 1, success: 1, error: 0, timeout: 0, cancelled: 0, not_recorded: 0, success_rate: 1,
+        latency_ms: distribution(900, 900, 1), ttft_ms: distribution(null, null, 0), decode_tps: { value: null, samples: 0 },
+      }),
+    },
+  ],
+  totals: modelMetrics({ attempts: 11, success: 5, success_rate: 0.5556 }),
+});
+
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location">{location.search}</div>;
@@ -122,8 +164,49 @@ describe("UsageCostPage", () => {
       if (name === "users") {
         return { data: { ...period, items: [userRow], total: 41, page: 1, page_size: 20 }, isLoading: false, isFetching: false, isError: false, refetch };
       }
+      if (name === "models") return { data: modelsFor(rest[1]), isLoading: false, isFetching: false, isError: false, refetch };
       return { data: detail(Number(rest[1])), isLoading: false, isError: false, refetch };
     });
+  });
+
+  it("shows per-model success rate with its counts, latency, first token, decode speed and N/A", () => {
+    renderPage();
+    expect(screen.getByText("usage.models.title")).toBeInTheDocument();
+    const deepseek = within(screen.getByText("deepseek-flash").closest("tr")!);
+    expect(deepseek.getByText("50%")).toBeInTheDocument();
+    // Numerator and denominator next to the rate: 4 / (4 + 3 + 1).
+    expect(deepseek.getByText("4 / 8")).toBeInTheDocument();
+    expect(deepseek.getByText("3 / 1 / 1 / 1")).toBeInTheDocument();
+    expect(deepseek.getByText("5 s / 20 s")).toBeInTheDocument();
+    expect(deepseek.getByText("850 ms / 4 s")).toBeInTheDocument();
+    expect(deepseek.getByText("100 tok/s")).toBeInTheDocument();
+    expect(deepseek.getByText("usage.models.samples:2")).toBeInTheDocument();
+    expect(deepseek.getByText("400 / 3,000")).toBeInTheDocument();
+
+    // Not streamed: no first token and no decode speed, shown as N/A rather than 0.
+    const minimax = within(screen.getByText("MiniMax-M3.1-Flash").closest("tr")!);
+    expect(minimax.getByText("usage.models.na / usage.models.na")).toBeInTheDocument();
+    expect(minimax.getByText("usage.models.na")).toBeInTheDocument();
+    expect(minimax.getAllByText("usage.models.samples:0")).toHaveLength(2);
+
+    // The pooled row comes from the server, not an average of the two rows above.
+    const totals = within(screen.getByText("usage.models.allModels").closest("tr")!);
+    expect(totals.getByText("55.6%")).toBeInTheDocument();
+
+    for (const key of ["attempts", "successRate", "latency", "ttft", "decode", "notRecorded"]) {
+      expect(screen.getByText(`usage.models.definitions.${key}`)).toBeInTheDocument();
+    }
+  });
+
+  it("filters the model metrics by feature within the same window, and refresh reloads them", () => {
+    renderPage();
+    expect(lastKey("models")).toEqual(["admin", "usage", "models", "today", ""]);
+    fireEvent.change(screen.getByRole("combobox", { name: "usage.models.sourceFilter" }), { target: { value: "agent" } });
+    expect(lastKey("models")).toEqual(["admin", "usage", "models", "today", "agent"]);
+    fireEvent.click(within(screen.getByRole("group", { name: "usage.window" })).getByRole("button", { name: "usage.windows.7d" }));
+    expect(lastKey("models")).toEqual(["admin", "usage", "models", "7d", "agent"]);
+    fireEvent.click(screen.getByRole("button", { name: "usage.refresh" }));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["admin", "usage", "models"] });
   });
 
   it("shows KPIs, price line and per-source cost for today", () => {
@@ -133,7 +216,7 @@ describe("UsageCostPage", () => {
     expect(screen.getByText("1,000 / 200 / 50")).toBeInTheDocument();
     expect(screen.getByText(/usage.priceLine:usage.peak 0.04 \/ 2 \/ 8\|usage.offpeak 0.02 \/ 1 \/ 4/)).toBeInTheDocument();
     expect(screen.getByText("usage.notCounted")).toBeInTheDocument();
-    expect(screen.getByText("usage.sources.material")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "usage.sources.material" })).toBeInTheDocument();
     // The daily breakdown is only for the 7-day window.
     expect(screen.queryByText("usage.byDay")).not.toBeInTheDocument();
     expect(lastKey("summary")).toEqual(["admin", "usage", "summary", "today"]);
@@ -201,11 +284,14 @@ describe("UsageCostPage", () => {
     queryMock.mockImplementation((options: QueryOptions) => {
       const name = options.queryKey[2];
       if (name === "summary") return { data: undefined, isLoading: false, isFetching: false, isError: true, refetch };
+      if (name === "models") return { data: { ...modelsFor(""), items: [], totals: modelMetrics({ attempts: 0, success_rate: null }) }, isLoading: false, isFetching: false, isError: false, refetch };
       return { data: { ...period, items: [], total: 0, page: 1, page_size: 20 }, isLoading: false, isFetching: false, isError: false, refetch };
     });
     renderPage();
     expect(screen.getByText("usage.loadError")).toBeInTheDocument();
     expect(screen.getByText("usage.noUsers")).toBeInTheDocument();
+    expect(screen.getByText("usage.models.empty")).toBeInTheDocument();
+    expect(screen.queryByText("usage.models.allModels")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "common:retry" }));
     expect(refetch).toHaveBeenCalled();
   });
@@ -213,9 +299,10 @@ describe("UsageCostPage", () => {
   it("wires query functions to the admin API", async () => {
     renderPage("/admin/usage?user=user-1");
     const calls = queryMock.mock.calls.map(([options]) => options as QueryOptions);
-    for (const options of calls.slice(-3)) {
+    for (const options of calls.slice(-4)) {
       await options.queryFn();
     }
+    expect(adminApi.getUsageByModel).toHaveBeenCalledWith("today", undefined);
     expect(adminApi.getUsageSummary).toHaveBeenCalledWith("today");
     expect(adminApi.getUsageByUser).toHaveBeenCalledWith({ window: "today", sort: "cost", search: undefined, page: 1, page_size: 20 });
     expect(adminApi.getUserDailyUsage).toHaveBeenCalledWith("user-1", 7);

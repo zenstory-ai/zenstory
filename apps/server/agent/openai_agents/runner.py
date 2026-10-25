@@ -654,6 +654,7 @@ def _build_agent(
     # 与 RunConfig(tracing_disabled=True) 双保险：在任何 run 开始前全局关掉 SDK tracing。
     set_tracing_disabled(True)
 
+    from agent.openai_agents.usage_hooks import agent_usage_attribution
     from agent.tools.mcp_tools import ToolContext
 
     effort = agent_runtime.AGENT_REASONING_EFFORT
@@ -664,6 +665,8 @@ def _build_agent(
         model=build_failover_chat_model(
             ToolContext.get_session_id(),
             on_served=run_meter.record_served_model if run_meter is not None else None,
+            # Failed and cancelled attempts get a zero-token ledger row (admin model metrics).
+            usage_attribution=agent_usage_attribution(),
         ),
         model_settings=ModelSettings(
             temperature=1.0,

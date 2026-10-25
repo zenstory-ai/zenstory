@@ -5,19 +5,40 @@ Each agent run gets a ``FailoverChatModel``. Every model call of the run asks
 slot, else the primary) and moves to the other provider only when the call
 fails before streaming anything. Providers and models are configured in
 ``agent/core/llm_providers.py``.
+
+Each provider attempt is timed for the admin model metrics: the usage hook
+writes a successful call's row (with its tokens) from ``take_call_timing``;
+failed and cancelled attempts are written here with zero tokens.
 """
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
+import time
 from collections.abc import AsyncIterator, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agent.core import llm_failover, llm_providers
 from agent.core.llm_providers import ModelProvider
 
+if TYPE_CHECKING:
+    from services.usage.llm_usage_service import CallTiming, LLMUsageAttribution
+
 # (slot, base_url, api_key, model) -> (client, SDK model built on it)
 _models: dict[tuple[str, str, str, str], tuple[Any, Any]] = {}
+
+# The first event that carries generated output: text, reasoning, refusal or tool
+# arguments (the SDK streams those as deltas). ``response.created`` is emitted on
+# the first chunk of any kind and is not output.
+_FIRST_OUTPUT_EVENT_TYPES = frozenset({
+    "response.output_text.delta",
+    "response.reasoning_text.delta",
+    "response.reasoning_summary_text.delta",
+    "response.refusal.delta",
+    "response.function_call_arguments.delta",
+})
+_COMPLETED_EVENT_TYPE = "response.completed"
 
 
 def _replay_reasoning_content(_context: Any) -> bool:
@@ -85,11 +106,52 @@ class FailoverChatModel:
         session_id: str | None,
         *,
         on_served: Callable[[str], None] | None = None,
+        usage_attribution: LLMUsageAttribution | None = None,
     ) -> None:
         self._session_id = session_id
         self._on_served = on_served
+        self._usage_attribution = usage_attribution
         # Model name that served the latest call (usage ledger, logs).
         self.served_model: str | None = None
+        # Timing of the latest successful call, taken once by the usage hook.
+        self._call_timing: CallTiming | None = None
+
+    def take_call_timing(self) -> CallTiming | None:
+        timing, self._call_timing = self._call_timing, None
+        return timing
+
+    def _succeeded(self, started: float, ttft_ms: int | None = None) -> None:
+        from models.llm_usage import CALL_OUTCOME_SUCCESS
+        from services.usage.llm_usage_service import CallTiming, elapsed_ms
+
+        self._call_timing = CallTiming(CALL_OUTCOME_SUCCESS, elapsed_ms(started), ttft_ms)
+
+    def _record_failed_attempt(
+        self, provider: ModelProvider, started: float, exc: BaseException, ttft_ms: int | None = None
+    ) -> None:
+        """A zero-token ledger row for an attempt that failed or was cancelled (never raises).
+
+        Our own refusal before the request (the cost backstop) is not an attempt and writes nothing.
+        """
+        if self._usage_attribution is None:
+            return
+        from services.usage.llm_usage_service import (
+            CallTiming,
+            UsageTokens,
+            elapsed_ms,
+            failure_outcome,
+            schedule_llm_usage_record,
+        )
+
+        outcome = failure_outcome(exc)
+        if outcome is None:
+            return
+        schedule_llm_usage_record(
+            self._usage_attribution,
+            model=provider.model,
+            tokens=UsageTokens(),
+            timing=CallTiming(outcome, elapsed_ms(started), ttft_ms),
+        )
 
     async def preferred_model(self) -> str:
         """The model the next call will try first."""
@@ -102,12 +164,18 @@ class FailoverChatModel:
 
     async def get_response(self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any) -> Any:
         ordered = await llm_failover.aordered_providers(self._session_id)
+        self._call_timing = None
         for index, provider in enumerate(ordered):
+            attempt_started = time.monotonic()
             try:
                 response = await _sdk_model_for(provider).get_response(
                     system_instructions, input, _settings_for(provider, model_settings), *args, **kwargs
                 )
+            except asyncio.CancelledError as exc:
+                self._record_failed_attempt(provider, attempt_started, exc)
+                raise
             except Exception as exc:
+                self._record_failed_attempt(provider, attempt_started, exc)
                 if not llm_failover.is_provider_unavailable(exc):
                     raise
                 await llm_failover.arecord_failure(provider, self._session_id, exc)
@@ -115,6 +183,7 @@ class FailoverChatModel:
                     raise
                 llm_failover.log_failover(provider, ordered[index + 1], call_site="agent")
                 continue
+            self._succeeded(attempt_started)
             self._served(provider)
             await llm_failover.arecord_success(provider, self._session_id, ordered)
             return response
@@ -124,8 +193,12 @@ class FailoverChatModel:
         self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any
     ) -> AsyncIterator[Any]:
         ordered = await llm_failover.aordered_providers(self._session_id)
+        self._call_timing = None
         for index, provider in enumerate(ordered):
             started = False
+            attempt_started = time.monotonic()
+            ttft_ms: int | None = None
+            completed = False
             try:
                 async for event in _sdk_model_for(provider).stream_response(
                     system_instructions, input, _settings_for(provider, model_settings), *args, **kwargs
@@ -133,8 +206,23 @@ class FailoverChatModel:
                     if not started:
                         started = True
                         self._served(provider)
+                    event_type = getattr(event, "type", None)
+                    if ttft_ms is None and event_type in _FIRST_OUTPUT_EVENT_TYPES:
+                        from services.usage.llm_usage_service import elapsed_ms
+
+                        ttft_ms = elapsed_ms(attempt_started)
+                    if event_type == _COMPLETED_EVENT_TYPE:
+                        # Timed when the provider finished, before the SDK consumes the event.
+                        completed = True
+                        self._succeeded(attempt_started, ttft_ms)
                     yield event
+            except (asyncio.CancelledError, GeneratorExit) as exc:
+                if not completed:
+                    self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
+                raise
             except Exception as exc:
+                if not completed:
+                    self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
                 if not llm_failover.is_provider_unavailable(exc):
                     raise
                 # Pins the session to the other provider even mid-stream, so the
@@ -146,6 +234,8 @@ class FailoverChatModel:
                 continue
             if not started:
                 self._served(provider)
+            if not completed:
+                self._succeeded(attempt_started, ttft_ms)
             await llm_failover.arecord_success(provider, self._session_id, ordered)
             return
 
@@ -157,6 +247,7 @@ def build_failover_chat_model(
     session_id: str | None,
     *,
     on_served: Callable[[str], None] | None = None,
+    usage_attribution: LLMUsageAttribution | None = None,
 ) -> Any:
     """A ``FailoverChatModel`` that is also an instance of the SDK's ``Model``."""
     base = _base_model_class()
@@ -164,7 +255,7 @@ def build_failover_chat_model(
     if cls is None:
         cls = type("FailoverChatModel", (FailoverChatModel, base), {})
         _failover_classes[base] = cls
-    return cls(session_id, on_served=on_served)
+    return cls(session_id, on_served=on_served, usage_attribution=usage_attribution)
 
 
 def reset_sdk_model_cache() -> None:

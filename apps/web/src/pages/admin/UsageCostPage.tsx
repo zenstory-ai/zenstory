@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
@@ -8,6 +8,10 @@ import { AdminSegmented } from "../../components/admin/AdminSegmented";
 import { Modal } from "../../components/ui/Modal";
 import {
   adminApi,
+  type ModelMetrics,
+  type ModelMetricsRow,
+  type UsageDistribution,
+  type UsageSource,
   type UsageDailyRow,
   type UsageDetailDays,
   type UsageMetrics,
@@ -26,6 +30,13 @@ const PAGE_SIZE = 20;
 const WINDOWS: UsageWindow[] = ["today", "yesterday", "7d"];
 const DETAIL_DAYS: UsageDetailDays[] = [7, 14, 30];
 const SORTS: UsageUserSort[] = ["cost", "calls", "tokens"];
+const SOURCES: UsageSource[] = ["agent", "router", "suggest", "polish", "material"];
+const METRIC_DEFINITIONS = ["attempts", "successRate", "latency", "ttft", "decode", "notRecorded"] as const;
+// The model table has nine columns: tighter cells and wrapping headers keep it within a desktop page.
+const metricCellClass = "px-3 py-3 text-left text-sm";
+const metricNumberCellClass = "px-3 py-3 text-right text-sm tabular-nums";
+const metricHeadClass = "px-3 py-3 text-left text-sm font-semibold";
+const metricNumberHeadClass = "px-3 py-3 text-right text-sm font-semibold";
 
 const totalTokens = (row: UsageMetrics) => row.cache_hit_tokens + row.cache_miss_tokens + row.output_tokens;
 
@@ -138,6 +149,135 @@ function DailyTable({ rows, showUsers }: { rows: UsageDailyRow[]; showUsers?: bo
   );
 }
 
+/** "850 ms" under a second, "12.3 s" above; N/A without samples (never 0). */
+function formatMs(value: number | null, locale: string, na: string): string {
+  if (value === null) return na;
+  if (value < 1000) return `${value.toLocaleString(locale)} ms`;
+  return `${(value / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
+}
+
+function DistributionCell({ value }: { value: UsageDistribution }) {
+  const { t } = useTranslation("admin");
+  const locale = getLocaleCode();
+  const na = t("usage.models.na");
+  return (
+    <td className={metricNumberCellClass}>
+      <div className="whitespace-nowrap">{formatMs(value.p50, locale, na)} / {formatMs(value.p95, locale, na)}</div>
+      <div className="text-xs text-[hsl(var(--text-secondary))]">{t("usage.models.samples", { count: value.samples })}</div>
+    </td>
+  );
+}
+
+function ModelMetricsTableRow({ label, row, emphasis }: { label: string; row: ModelMetrics; emphasis?: boolean }) {
+  const { t } = useTranslation("admin");
+  const locale = getLocaleCode();
+  const na = t("usage.models.na");
+  const finished = row.success + row.error + row.timeout;
+  const rate = row.success_rate === null
+    ? na
+    : row.success_rate.toLocaleString(locale, { style: "percent", maximumFractionDigits: 1 });
+  return (
+    <tr className={`border-b border-[hsl(var(--separator-color))] last:border-0 ${emphasis ? "font-semibold" : ""}`}>
+      <td className={`${metricCellClass} whitespace-nowrap`}>{label}</td>
+      <td className={metricNumberCellClass}>{row.attempts.toLocaleString(locale)}</td>
+      <td className={metricNumberCellClass}>
+        <div>{rate}</div>
+        <div className="text-xs font-normal text-[hsl(var(--text-secondary))]">
+          {t("usage.models.rateDetail", { success: row.success.toLocaleString(locale), finished: finished.toLocaleString(locale) })}
+        </div>
+      </td>
+      <td className={`${metricNumberCellClass} whitespace-nowrap`}>
+        {[row.error, row.timeout, row.cancelled, row.not_recorded].map((count) => count.toLocaleString(locale)).join(" / ")}
+      </td>
+      <DistributionCell value={row.latency_ms} />
+      <DistributionCell value={row.ttft_ms} />
+      <td className={metricNumberCellClass}>
+        <div className="whitespace-nowrap">
+          {row.decode_tps.value === null
+            ? na
+            : t("usage.models.tokensPerSecond", { value: row.decode_tps.value.toLocaleString(locale, { maximumFractionDigits: 1 }) })}
+        </div>
+        <div className="text-xs font-normal text-[hsl(var(--text-secondary))]">{t("usage.models.samples", { count: row.decode_tps.samples })}</div>
+      </td>
+      <td className={`${metricNumberCellClass} whitespace-nowrap`}>
+        {(row.cache_hit_tokens + row.cache_miss_tokens).toLocaleString(locale)} / {row.output_tokens.toLocaleString(locale)}
+      </td>
+      <td className={metricNumberCellClass}>{formatCny(row.cost_cny, locale)}</td>
+    </tr>
+  );
+}
+
+function ModelMetricsSection({ usageWindow }: { usageWindow: UsageWindow }) {
+  const { t } = useTranslation("admin");
+  const [source, setSource] = useState<UsageSource | "">("");
+  const models = useQuery({
+    queryKey: ["admin", "usage", "models", usageWindow, source],
+    queryFn: () => adminApi.getUsageByModel(usageWindow, source || undefined),
+  });
+  const rows: ModelMetricsRow[] = models.data?.items ?? [];
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t("usage.models.title")}</h2>
+          <p className="text-xs text-[hsl(var(--text-secondary))]">{t("usage.models.subtitle")}</p>
+        </div>
+        <AdminSelect
+          wrapperClassName="w-full sm:w-auto"
+          className="w-full"
+          aria-label={t("usage.models.sourceFilter")}
+          value={source}
+          onChange={(event) => setSource(event.target.value as UsageSource | "")}
+        >
+          <option value="">{t("usage.models.allSources")}</option>
+          {SOURCES.map((value) => (
+            <option key={value} value={value}>{t(`usage.sources.${value}`)}</option>
+          ))}
+        </AdminSelect>
+      </div>
+      <AdminPageState
+        isLoading={models.isLoading}
+        isFetching={models.isFetching}
+        isError={models.isError}
+        isEmpty={rows.length === 0}
+        errorText={t("usage.loadError")}
+        emptyText={t("usage.models.empty")}
+        onRetry={() => void models.refetch()}
+      >
+        {models.data && (
+          <div className="admin-table-shell overflow-x-auto">
+            <table className="w-full min-w-[880px] text-[hsl(var(--text-primary))]">
+              <thead>
+                <tr className="border-b border-[hsl(var(--separator-color))]">
+                  <th className={metricHeadClass}>{t("usage.models.model")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.models.attempts")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.models.successRate")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.models.outcomes")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.models.latency")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.models.ttft")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.models.decode")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.models.tokens")}</th>
+                  <th className={metricNumberHeadClass}>{t("usage.cost")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => <ModelMetricsTableRow key={row.model} label={row.model} row={row} />)}
+                {rows.length > 1 && <ModelMetricsTableRow label={t("usage.models.allModels")} row={models.data.totals} emphasis />}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AdminPageState>
+      <details className="admin-surface px-4 py-3 text-xs text-[hsl(var(--text-secondary))]">
+        <summary className="cursor-pointer text-sm font-medium text-[hsl(var(--text-primary))]">{t("usage.models.definitionsTitle")}</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-4">
+          {METRIC_DEFINITIONS.map((key) => <li key={key}>{t(`usage.models.definitions.${key}`)}</li>)}
+        </ul>
+      </details>
+    </section>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="admin-table-shell">
@@ -226,6 +366,8 @@ function UserCard({ row, onOpen }: { row: UserUsageRow; onOpen: (row: UserUsageR
 
 export default function UsageCostPage() {
   const { t } = useTranslation(["admin", "common"]);
+  const queryClient = useQueryClient();
+  const modelsFetching = useIsFetching({ queryKey: ["admin", "usage", "models"] }) > 0;
   const [searchParams, setSearchParams] = useSearchParams();
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("today");
   const [sort, setSort] = useState<UsageUserSort>("cost");
@@ -300,8 +442,12 @@ export default function UsageCostPage() {
           <button
             type="button"
             className="btn-secondary flex items-center gap-2"
-            disabled={summary.isFetching || users.isFetching}
-            onClick={() => { void summary.refetch(); void users.refetch(); }}
+            disabled={summary.isFetching || users.isFetching || modelsFetching}
+            onClick={() => {
+              void summary.refetch();
+              void users.refetch();
+              void queryClient.invalidateQueries({ queryKey: ["admin", "usage", "models"] });
+            }}
           >
             <RefreshCw className="h-4 w-4" />
             {t("usage.refresh")}
@@ -345,6 +491,8 @@ export default function UsageCostPage() {
           </div>
         )}
       </AdminPageState>
+
+      <ModelMetricsSection usageWindow={usageWindow} />
 
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

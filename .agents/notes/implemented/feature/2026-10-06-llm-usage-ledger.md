@@ -45,6 +45,8 @@ Status: implemented
 
 **上线顺序**：先在生产手动执行 `alembic upgrade head`（照惯例先 `pg_dump` 备份），再合并服务端和 worker 代码。否则 `init_db` 的 `create_all` 会先建表，之后 `op.create_table` 失败；Prefect worker 也会写这张表。表建好、新代码跑起来之后再执行回填（先 `--dry-run`）。
 
+**2026-10-24 补充**（[按模型的调用指标](2026-10-24-admin-model-call-metrics.md)）：账本新增可空列 `outcome / duration_ms / ttft_ms`，写作助手、路由、建议、润色的失败与取消尝试也写一行（三项 token 为 0），路由与 `LLMClient` 的成功行改由 `llm_failover.acreate_chat_completion` 按尝试写入。用量与成本、增长、获客、成本兜底的账本查询统一加 `has_usage_tokens()`，口径与本记录一致。
+
 ## Alternatives considered
 
 - **直接聚合 `chat_message.message_metadata.usage`，不建新表**。最强理由：零迁移，历史数据现成。被否：只覆盖写作助手的完整轮次，清空对话会硬删除，取消/失败路径没有 usage，一轮只有一个时间戳，没法按每次调用定档位；建议、润色、素材拆解根本不在里面。

@@ -30,11 +30,14 @@ import os
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agent.core import llm_providers
 from agent.core.llm_providers import ModelProvider
 from utils.logger import get_logger, log_with_context
+
+if TYPE_CHECKING:
+    from services.usage.llm_usage_service import LLMUsageAttribution
 
 logger = get_logger(__name__)
 
@@ -320,28 +323,75 @@ def _call_kwargs(
     return call
 
 
+def _meter_attempt(
+    attribution: LLMUsageAttribution | None,
+    provider: ModelProvider,
+    started: float,
+    *,
+    usage: Any = None,
+    exc: BaseException | None = None,
+) -> None:
+    """One ledger row per provider attempt: tokens on success, zero tokens on failure (never raises).
+
+    Our own refusal before the request (the cost backstop) is not an attempt and writes nothing.
+    """
+    if attribution is None:
+        return
+    from models.llm_usage import CALL_OUTCOME_SUCCESS
+    from services.usage.llm_usage_service import (
+        CallTiming,
+        UsageTokens,
+        elapsed_ms,
+        failure_outcome,
+        schedule_llm_usage_record,
+    )
+
+    outcome = CALL_OUTCOME_SUCCESS if exc is None else failure_outcome(exc)
+    if outcome is None:
+        return
+    # Fire-and-forget: callers (suggest under asyncio.wait_for, routing before the
+    # first token) must not wait on the database.
+    schedule_llm_usage_record(
+        attribution,
+        model=provider.model,
+        usage=usage,
+        tokens=UsageTokens() if exc is not None else None,
+        timing=CallTiming(outcome, elapsed_ms(started)),
+    )
+
+
 async def acreate_chat_completion(
     *,
     call_site: str,
     session_id: str | None = None,
     thinking_enabled: bool = True,
     reasoning_effort: str | None = None,
+    usage_attribution: LLMUsageAttribution | None = None,
     **kwargs: Any,
 ) -> tuple[Any, ModelProvider]:
     """``chat.completions.create`` on the first available provider.
 
     ``kwargs`` are the request without ``model``. Returns the response and the
     provider that served it. Streaming responses fail over only when opening
-    the stream fails.
+    the stream fails. With ``usage_attribution`` every attempt (failed,
+    cancelled or answered) is written to the usage ledger; streaming requests
+    are not metered here (their usage and end arrive after this returns).
     """
+    if kwargs.get("stream"):
+        usage_attribution = None
     ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)
+        attempt_started = time.monotonic()
         try:
             response = await client.chat.completions.create(
                 **_call_kwargs(provider, kwargs, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort)
             )
+        except asyncio.CancelledError as exc:
+            _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
+            raise
         except Exception as exc:
+            _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
             if not is_provider_unavailable(exc):
                 raise
             await arecord_failure(provider, session_id, exc)
@@ -349,6 +399,7 @@ async def acreate_chat_completion(
                 raise
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
+        _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
         await arecord_success(provider, session_id, ordered)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")

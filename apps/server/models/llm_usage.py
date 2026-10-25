@@ -1,6 +1,7 @@
 """Append-only ledger of chat-model calls (any provider), one row per model call."""
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Index, false
 from sqlmodel import Field, SQLModel
@@ -22,6 +23,24 @@ LLM_USAGE_SOURCES = (
 
 PRICE_BAND_PEAK = "peak"
 PRICE_BAND_OFFPEAK = "offpeak"
+
+# How one provider attempt ended (``outcome``). NULL: recorded before these
+# columns existed, or by a call site that does not report it (material flows).
+CALL_OUTCOME_SUCCESS = "success"
+CALL_OUTCOME_ERROR = "error"
+CALL_OUTCOME_TIMEOUT = "timeout"
+CALL_OUTCOME_CANCELLED = "cancelled"
+CALL_OUTCOMES = (CALL_OUTCOME_SUCCESS, CALL_OUTCOME_ERROR, CALL_OUTCOME_TIMEOUT, CALL_OUTCOME_CANCELLED)
+
+
+def has_usage_tokens(columns: Any) -> Any:
+    """SQL condition for rows that carry tokens (``LLMUsageEvent`` or its table ``.c``).
+
+    Failed and cancelled attempts are recorded with zero tokens for the model
+    metrics; usage, cost, growth and acquisition reports count only rows with
+    tokens, which is every row they saw before those attempts were recorded.
+    """
+    return (columns.cache_hit_tokens + columns.cache_miss_tokens + columns.output_tokens) > 0
 
 
 class LLMUsageEvent(SQLModel, table=True):
@@ -52,3 +71,11 @@ class LLMUsageEvent(SQLModel, table=True):
     # agent_run_id, novel:<id>, or chat_message:<id> for backfilled rows.
     correlation_id: str | None = Field(default=None, max_length=128)
     is_backfilled: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    # Model metrics for this provider attempt; NULL = not recorded (never "0" or "success").
+    outcome: str | None = Field(default=None, max_length=16)
+    # Request sent -> stream finished / response returned / error raised; includes
+    # the OpenAI client's own HTTP retries inside this attempt.
+    duration_ms: int | None = Field(default=None)
+    # Streaming only: request sent -> first output delta (text, reasoning, refusal or
+    # tool arguments). The SDK's response.created fires on any first chunk and is not counted.
+    ttft_ms: int | None = Field(default=None)
