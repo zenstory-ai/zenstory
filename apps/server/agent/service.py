@@ -1788,7 +1788,20 @@ class AgentService:
             )
             adapter = usage_source.get("adapter")
             if run_outcome is not None and adapter is not None:
-                run_outcome.saved_file_word_counts.update(adapter.get_saved_file_word_counts())
+                # 与取消路径一样：先补存进行中的 <file> 正文并等它的保存回执（受
+                # STREAM_FILE_SAVE_TIMEOUT_S 限时），下面 finally 交回消息 id 时字数才是真的。
+                try:
+                    saved_counts = await adapter.settle_aborted_capture()
+                except Exception as settle_exc:
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Failed to settle in-flight file capture after stream failure",
+                        session_id=session_id,
+                        error_type=type(settle_exc).__name__,
+                    )
+                    saved_counts = adapter.get_saved_file_word_counts()
+                run_outcome.saved_file_word_counts.update(saved_counts)
             yield error_event(
                 error_info.message,
                 code=error_info.code,

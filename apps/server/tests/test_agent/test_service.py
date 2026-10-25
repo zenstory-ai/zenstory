@@ -1400,6 +1400,45 @@ class TestAgentServiceProcessStream:
             {"type": "content", "content": "partial reply"}
         ]
 
+    async def test_process_stream_settles_in_flight_capture_before_reporting_an_exception(
+        self, mock_agent_service, test_user_with_project, db_session: Session
+    ):
+        """工作流抛异常时与取消路径一样先补存进行中的 <file> 正文，再交回字数与消息 id。"""
+        from agent.core.round_outcome import RunOutcome
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        async def mock_failing_stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "partial reply"})
+            raise RuntimeError("provider dropped the stream")
+
+        outcome = RunOutcome()
+        settle = AsyncMock(return_value={"in-flight": 7})
+        with (
+            patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
+            patch("agent.stream_adapter.StreamAdapter.settle_aborted_capture", new=settle),
+            patch("agent.stream_adapter.StreamAdapter.get_saved_file_word_counts", return_value={}),
+        ):
+            mock_workflow.return_value = mock_failing_stream()
+
+            events: list[str] = []
+            async for event in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="hello",
+                session=db_session,
+                run_outcome=outcome,
+            ):
+                events.append(event)
+                if "event: error" in event:
+                    assert outcome.saved_file_word_counts == {"in-flight": 7}
+
+        assert any("event: error" in event for event in events)
+        settle.assert_awaited_once()
+
     async def test_process_stream_schedules_background_cleanup_on_cancellation(
         self, mock_agent_service, test_user_with_project, db_session: Session, caplog
     ):
