@@ -332,6 +332,20 @@ def test_partial_delivery_uses_save_receipts_not_create_shells_or_stream_end():
     assert "unwritten_files" not in files.delivery(final_word_counts={"filled": 5, "empty": 5})
 
 
+def test_file_the_author_asked_to_keep_empty_is_neither_written_nor_unwritten():
+    """作者只要建标题（create_file empty_by_request=true）：空文件本身就是交付物，不算「未确认保存」，
+    也不算写进了正文；同一轮里普通的空壳照旧列为未确认保存。"""
+    files = RoundWrittenFiles()
+    files.observe(_frame("router_decided", {"routing_metadata": {"write_content": False}}))
+    files.observe(_created("ch-10", "第10章", empty_by_request=True))
+
+    assert files.delivery(final_word_counts={}) == {}
+    assert files.completion_receipt(final_word_counts={}, any_write_succeeded=False) == {}
+
+    files.observe(_created("ch-11", "第11章"))
+    assert files.delivery(final_word_counts={}) == {"unwritten_files": [{"id": "ch-11", "title": "第11章"}]}
+
+
 def test_partial_delivery_does_not_invent_work_for_old_or_deleted_files():
     files = RoundWrittenFiles()
     files.observe(_created("old", "已有角色", reused_existing=True))

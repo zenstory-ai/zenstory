@@ -263,7 +263,8 @@ class RoundWrittenFiles:
             if content.strip():
                 self._entry(file_id).body += content
                 self._tool_writes.add(file_id)
-            else:
+            elif data.get("empty_by_request") is not True:
+                # 作者只要建文件（empty_by_request）时空文件本身就是交付物：不算未确认保存。
                 self._created_empty[file_id] = str(data.get("title") or "")
         elif tool_name == "edit_file":
             mutation_applied = data.get("mutation_applied")

@@ -19,6 +19,7 @@ Status: implemented
 - 只在路由明确判断作者本轮不要正文时生效（`ToolContext.author_wants_no_body()`，由 writing_graph 在路由后按 `routing_metadata.write_content` 设置）。作者要正文、或路由没给出判断时，传了也照常等正文，结果的 `next_step` 说明 empty 不生效。
 - 生效的文件不进入待写状态：不占空文件守卫、不触发正文待写守卫、不触发空文件纠偏轮。结果带 `empty_by_request: true`。
 - StreamAdapter 不为它进入 `<file>` 捕获，后续回复文字照常发出。计费的占位文件清理也不把它当空白占位，这一轮被退还时不移除。
+- 回合写入回执（`RoundWrittenFiles`）也不把它列为「未确认保存」：它不是漏写的正文，也不算写进了正文。正常收尾不因它补「未确认保存」说明，历史也不记 `incomplete`（2026-10-25 审计 F-05 补上；之前回执仍把它算进新建空壳）。
 
 ## Alternatives considered
 

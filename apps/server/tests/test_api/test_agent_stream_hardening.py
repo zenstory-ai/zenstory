@@ -1758,3 +1758,20 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
         ]
     else:
         assert "written_files" not in outcome
+
+
+@pytest.mark.integration
+async def test_author_requested_empty_chapter_completes_without_an_incomplete_stamp(client, db_session):
+    """作者只要建「第10章」标题（empty_by_request）：正常 done 不带「未确认保存」，历史也不记 incomplete。"""
+    done, metadata, _file = await _run_completed_round(
+        client, db_session,
+        lambda file: [_sse("tool_result", {"tool_name": "create_file", "status": "success", "data": {
+            "id": file.id, "title": file.title, "content": "", "file_type": "draft",
+            "empty_by_request": True, "updated_at": file.updated_at.isoformat(),
+        }})],
+        routing={"write_content": False, "read_only": False},
+    )
+
+    assert "unwritten_files" not in done
+    assert "written_files" not in done
+    assert metadata == {"stop_reason": "end_turn"}
