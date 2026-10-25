@@ -188,3 +188,20 @@ def test_product_identity_does_not_depend_on_database_role_definition():
     role_at = prompt.index("你是一位资深网文编辑")
     identity_at = prompt.index(PRODUCT_IDENTITY_PROTOCOL)
     assert role_at < identity_at < prompt.index(OUTPUT_PROTOCOL)
+
+
+@pytest.mark.unit
+def test_base_prompt_rename_rule_points_only_to_rename_file():
+    """#273/F-13：只改标题时只走 rename_file，提示词里不能再有新建副本搬运正文的旧规则。"""
+    prompt = get_base_prompt(
+        project_id="proj-1",
+        folder_ids={"draft": "draft-folder"},
+        config={"role_definition": "Test role", "capabilities": "", "directory_structure": "{draft}",
+                "content_structure": "", "file_types": "draft", "writing_guidelines": ""},
+    )
+
+    tool_list = TOOL_USAGE_PROTOCOL.split("### parallel_execute")[0]
+    assert "\n- rename_file" in tool_list
+    assert "改标题" not in prompt
+    assert "建一个新标题的文件" not in prompt
+    assert "只改文件名（文件标题）时用 rename_file" in prompt
