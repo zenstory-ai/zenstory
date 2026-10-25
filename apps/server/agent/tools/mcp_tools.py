@@ -213,7 +213,7 @@ class _PendingEmptyFileState:
     """
 
     __slots__ = (
-        "_lock", "_entries", "_reservations", "_reject_count", "_streamed", "_reply_seq", "_created_in", "_versions",
+        "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
     )
 
     def __init__(self) -> None:
@@ -222,7 +222,6 @@ class _PendingEmptyFileState:
         self._entries: dict[str, str] = {}
         # ticket -> title，正在建库途中（还没拿到真实 file_id）的占坑
         self._reservations: dict[str, str] = {}
-        self._reject_count = 0
         # 正文已以闭合 <file> 块出现在模型回复里、只差 adapter 落库的条目
         self._streamed: set[str] = set()
         # 第几次模型回复（每次模型调用开始时 +1），以及每个待写文件是在第几次回复里建的：
@@ -278,7 +277,6 @@ class _PendingEmptyFileState:
             self._set_version(file_id, version)
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
-            self._reject_count = 0
 
     def mark_body_streamed(self, file_id: str) -> None:
         """记录该待写文件的正文已以闭合 <file> 块完整出现在模型回复里。"""
@@ -314,7 +312,6 @@ class _PendingEmptyFileState:
                 self._entries.pop(file_id, None)
                 self._streamed.discard(file_id)
                 self._versions.pop(file_id, None)
-            self._reject_count = 0
 
     def clear_all(self) -> None:
         with self._lock:
@@ -322,7 +319,6 @@ class _PendingEmptyFileState:
             self._reservations.clear()
             self._streamed.clear()
             self._versions.clear()
-            self._reject_count = 0
 
     def version(self, file_id: str) -> str | None:
         """这个待写文件建好时的版本；不是待写条目或没有记下时为 None。"""
@@ -360,7 +356,6 @@ class _PendingEmptyFileState:
                 # repeated an invalid action. The workflow boundary owns recovery
                 # (finish or roll back); forgetting the marker silently leaves an
                 # empty file in the project.
-                self._reject_count += 1
                 return False, unwritten[-1]
 
             self._reservations[ticket] = title
@@ -394,7 +389,6 @@ class _PendingEmptyFileState:
                 self._set_version(file_id, version)
                 # 幂等复用命中同一文件时它重新等待正文，旧标记作废
                 self._streamed.discard(file_id)
-                self._reject_count = 0
 
     def release(self, ticket: str) -> None:
         """占坑作废（创建失败 / 建出来的是文件夹）：只回滚票据。"""
