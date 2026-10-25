@@ -331,7 +331,10 @@ def _meter_attempt(
     usage: Any = None,
     exc: BaseException | None = None,
 ) -> None:
-    """One ledger row per provider attempt: tokens on success, zero tokens on failure (never raises)."""
+    """One ledger row per provider attempt: tokens on success, zero tokens on failure (never raises).
+
+    Our own refusal before the request (the cost backstop) is not an attempt and writes nothing.
+    """
     if attribution is None:
         return
     from models.llm_usage import CALL_OUTCOME_SUCCESS
@@ -344,6 +347,8 @@ def _meter_attempt(
     )
 
     outcome = CALL_OUTCOME_SUCCESS if exc is None else failure_outcome(exc)
+    if outcome is None:
+        return
     # Fire-and-forget: callers (suggest under asyncio.wait_for, routing before the
     # first token) must not wait on the database.
     schedule_llm_usage_record(
@@ -369,8 +374,11 @@ async def acreate_chat_completion(
     ``kwargs`` are the request without ``model``. Returns the response and the
     provider that served it. Streaming responses fail over only when opening
     the stream fails. With ``usage_attribution`` every attempt (failed,
-    cancelled or answered) is written to the usage ledger.
+    cancelled or answered) is written to the usage ledger; streaming requests
+    are not metered here (their usage and end arrive after this returns).
     """
+    if kwargs.get("stream"):
+        usage_attribution = None
     ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)

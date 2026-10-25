@@ -535,7 +535,8 @@ def get_model_metrics(
         duration = int(row.duration_ms)
         ttft = int(row.ttft_ms) if row.ttft_ms is not None else None
         output = int(row.output_tokens or 0)
-        timings[row.model].add(duration, ttft, output)
+        # The three reads are separate statements: a row committed in between may name a new model.
+        timings.setdefault(row.model, _ModelTimings([], [])).add(duration, ttft, output)
         pooled.add(duration, ttft, output)
 
     items = [{"model": model, **_model_metrics_row(row, timings[model])} for model, row in by_model.items()]

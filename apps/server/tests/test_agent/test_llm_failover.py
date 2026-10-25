@@ -412,3 +412,53 @@ async def test_single_shot_calls_record_every_attempt(endpoints, attempts):
     attempts.clear()
     await _call(session_id="s-2")
     assert attempts == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_stream_closed_after_it_completed_is_not_also_a_cancelled_attempt(sdk_models, attempts):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    sdk_models["minimax"] = _StreamingModel(
+        [_event("response.output_text.delta"), _event("response.completed"), _event("response.output_item.done")]
+    )
+    model = sdk_model.build_failover_chat_model("closed", usage_attribution=LLMUsageAttribution(user_id="u", source="agent"))
+    stream = model.stream_response("sys", [], SimpleNamespace(reasoning=None), [], None, [], None)
+    async for event in stream:
+        if event.type == "response.completed":
+            break
+    await stream.aclose()  # GeneratorExit after the provider finished
+
+    assert attempts == []  # only the usage hook writes this call, as a success
+    assert model.take_call_timing().outcome == "success"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_our_own_budget_refusal_is_not_a_provider_attempt(sdk_models, endpoints, attempts):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    attribution = LLMUsageAttribution(user_id="u", source="agent")
+    refusal = APIException(error_code="ERR_QUOTA_AI_DAILY_COST_EXCEEDED", status_code=402)
+    sdk_models["minimax"] = _StreamingModel([], error=refusal)
+    with pytest.raises(APIException):
+        await _drain(sdk_model.build_failover_chat_model("budget", usage_attribution=attribution))
+
+    endpoints["minimax"].script = [refusal]
+    with pytest.raises(APIException):
+        await _call(session_id="budget-2", usage_attribution=LLMUsageAttribution(user_id="u", source="router"))
+    assert attempts == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_read_timeout_in_the_middle_of_a_stream_is_a_timeout(sdk_models, attempts):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    # The OpenAI client wraps timeouts only while sending; mid-stream it surfaces httpx's own error.
+    sdk_models["minimax"] = _StreamingModel(
+        [_event("response.reasoning_text.delta")], error=httpx.ReadTimeout("read timed out")
+    )
+    with pytest.raises(httpx.ReadTimeout):
+        await _drain(sdk_model.build_failover_chat_model("slow", usage_attribution=LLMUsageAttribution(user_id="u", source="agent")))
+    assert [row[1] for row in attempts] == ["timeout"]

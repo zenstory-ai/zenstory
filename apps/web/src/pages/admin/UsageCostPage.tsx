@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
@@ -367,6 +367,7 @@ function UserCard({ row, onOpen }: { row: UserUsageRow; onOpen: (row: UserUsageR
 export default function UsageCostPage() {
   const { t } = useTranslation(["admin", "common"]);
   const queryClient = useQueryClient();
+  const modelsFetching = useIsFetching({ queryKey: ["admin", "usage", "models"] }) > 0;
   const [searchParams, setSearchParams] = useSearchParams();
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("today");
   const [sort, setSort] = useState<UsageUserSort>("cost");
@@ -441,7 +442,7 @@ export default function UsageCostPage() {
           <button
             type="button"
             className="btn-secondary flex items-center gap-2"
-            disabled={summary.isFetching || users.isFetching}
+            disabled={summary.isFetching || users.isFetching || modelsFetching}
             onClick={() => {
               void summary.refetch();
               void users.refetch();

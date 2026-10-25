@@ -4,6 +4,7 @@ Synthetic ledger rows only; no model calls. One row is one provider attempt.
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import get_args
 
 import pytest
 from httpx import AsyncClient
@@ -178,3 +179,10 @@ async def test_attempt_rows_without_tokens_leave_usage_cost_and_growth_unchanged
     # Dora only had a failed attempt: not an AI-active or activated author.
     assert growth["current"]["metrics"]["ai_active_users"] == 1
     assert growth["current"]["metrics"]["cohort_activated_users"] == 1
+
+
+def test_source_filter_accepts_exactly_the_ledger_sources():
+    from api.admin.usage import UsageSourceParam
+    from models.llm_usage import LLM_USAGE_SOURCES
+
+    assert get_args(UsageSourceParam) == LLM_USAGE_SOURCES

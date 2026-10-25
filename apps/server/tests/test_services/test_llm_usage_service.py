@@ -181,9 +181,14 @@ def test_openai_timeout_is_a_timeout_not_a_connection_error():
     import httpx
     import openai
 
+    from core.error_handler import APIException
+
     request = httpx.Request("POST", "https://llm.test")
     assert svc.failure_outcome(openai.APITimeoutError(request=request)) == "timeout"
+    assert svc.failure_outcome(httpx.ReadTimeout("mid-stream")) == "timeout"
     assert svc.failure_outcome(openai.APIConnectionError(request=request)) == "error"
+    # Our own refusal before any request (cost backstop) is not a provider attempt.
+    assert svc.failure_outcome(APIException(error_code="ERR_QUOTA_AI_DAILY_COST_EXCEEDED", status_code=402)) is None
 
 
 @pytest.mark.integration

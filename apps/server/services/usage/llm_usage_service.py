@@ -69,26 +69,29 @@ def elapsed_ms(started: float) -> int:
     return max(0, round((time.monotonic() - started) * 1000))
 
 
-def failure_outcome(exc: BaseException) -> str:
-    """``cancelled`` when the caller gave up on the call, ``timeout`` for a provider/HTTP timeout, else ``error``.
+def failure_outcome(exc: BaseException) -> str | None:
+    """How a failed attempt ended: ``cancelled``, ``timeout`` or ``error``; None when no provider was asked.
 
     Cancellation covers the author's stop, a disconnect, the run's wall-clock
     limit, deploy drain and the suggestion deadline: the call did not fail, it
-    was abandoned, so it stays out of the success rate.
+    was abandoned, so it stays out of the success rate. Our own refusal before
+    the request (``APIException``: the free cost backstop, a budget we cannot
+    confirm) is not a provider attempt and returns None. A read timeout in the
+    middle of a stream surfaces as ``httpx.TimeoutException`` (the OpenAI client
+    only wraps timeouts while sending), so both count as ``timeout``.
     """
+    import httpx
+    import openai
+
+    from core.error_handler import APIException
     from models.llm_usage import CALL_OUTCOME_CANCELLED, CALL_OUTCOME_ERROR, CALL_OUTCOME_TIMEOUT
 
+    if isinstance(exc, APIException):
+        return None
     if isinstance(exc, asyncio.CancelledError | GeneratorExit):
         return CALL_OUTCOME_CANCELLED
-    if isinstance(exc, TimeoutError):
+    if isinstance(exc, TimeoutError | httpx.TimeoutException | openai.APITimeoutError):
         return CALL_OUTCOME_TIMEOUT
-    try:
-        import openai
-
-        if isinstance(exc, openai.APITimeoutError):
-            return CALL_OUTCOME_TIMEOUT
-    except ImportError:  # pragma: no cover - openai is a hard dependency
-        pass
     return CALL_OUTCOME_ERROR
 
 
@@ -282,7 +285,8 @@ def schedule_llm_usage_record(
 
     Tokens and the timestamp are taken now; the database write runs in a
     background task (``asyncio.to_thread``) so the caller never waits on it.
-    Every call site on the loop (agent hooks, router, ``LLMClient.acomplete``)
+    Every call site on the loop (agent hooks and ``FailoverChatModel``,
+    ``llm_failover.acreate_chat_completion`` for routing, suggestions and polish)
     sits in a request path, and suggest wraps its model call in
     ``asyncio.wait_for``, so none of them may wait on the database. Returns
     the task (for tests), or None when nothing is to be written. Never raises.

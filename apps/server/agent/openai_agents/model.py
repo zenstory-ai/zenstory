@@ -129,7 +129,10 @@ class FailoverChatModel:
     def _record_failed_attempt(
         self, provider: ModelProvider, started: float, exc: BaseException, ttft_ms: int | None = None
     ) -> None:
-        """A zero-token ledger row for an attempt that failed or was cancelled (never raises)."""
+        """A zero-token ledger row for an attempt that failed or was cancelled (never raises).
+
+        Our own refusal before the request (the cost backstop) is not an attempt and writes nothing.
+        """
         if self._usage_attribution is None:
             return
         from services.usage.llm_usage_service import (
@@ -140,11 +143,14 @@ class FailoverChatModel:
             schedule_llm_usage_record,
         )
 
+        outcome = failure_outcome(exc)
+        if outcome is None:
+            return
         schedule_llm_usage_record(
             self._usage_attribution,
             model=provider.model,
             tokens=UsageTokens(),
-            timing=CallTiming(failure_outcome(exc), elapsed_ms(started), ttft_ms),
+            timing=CallTiming(outcome, elapsed_ms(started), ttft_ms),
         )
 
     async def preferred_model(self) -> str:

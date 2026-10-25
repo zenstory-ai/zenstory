@@ -12,6 +12,7 @@ const invalidateQueries = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: QueryOptions) => queryMock(options),
   useQueryClient: () => ({ invalidateQueries }),
+  useIsFetching: () => 0,
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
