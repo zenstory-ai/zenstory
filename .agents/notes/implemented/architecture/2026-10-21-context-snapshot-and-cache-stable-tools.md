@@ -14,7 +14,7 @@ Status: implemented
 
 ## Decision
 
-1. **统一工具清单**（`tools/registry.py` `EXPOSED_TOOL_NAMES`、`openai_agents/tools_adapter.py`）：每个角色、每一轮发同一份工具清单，顺序与描述都不变。角色权限与只读 / 先问清楚改在调用时检查（越权返回 `error_type=tool_not_permitted_for_role`，只读照旧 `read_only_request`），不可用说明写进这次运行的系统指令（`## 本轮工具限制`），它是输入最后一条消息，不影响缓存。
+1. **统一工具清单**（`tools/registry.py` `EXPOSED_TOOL_NAMES`、`openai_agents/tools_adapter.py`）：每个角色、每一轮发同一份工具清单，顺序与描述都不变。角色权限与只读 / 先问清楚改在调用时检查（越权返回 `error_type=tool_not_permitted_for_role`，只读照旧 `read_only_request`；2026-10-25 补：这几种执行前的拒绝连续 3 次时熔断原因都是 `repeated_unavailable_tool_call`，不说「以相同参数连续失败」，error_type 常量由 `tool_failure_breaker` 定义、`tools_adapter` 引用），不可用说明写进这次运行的系统指令（`## 本轮工具限制`），它是输入最后一条消息，不影响缓存。
 2. **锚定历史窗口**（`core/session_loader.py` `anchor_history_window`）：按预算截断后，窗口起点只落在锚点 user 消息上（会话序号每 8 条一个；没有序号时按 id 哈希兜底），只在窗口较旧的一半里找，最多让出半个窗口。起点因此停在同一个锚点上几轮，再整段跳到下一个，而不是每轮滑一条。
 3. **项目资料快照**（`context/turn_snapshot.py`）：
    - 组装器（`ContextAssembler._format_context_with_blocks`）和工作集（`SessionLoader._build_working_set_context(parts_out=…)`）都按条目给出带键的块（项目状态与文件清单一块、每个条目一块、工作集每个文件一块；工作集块不带「上一轮已修改」这类每轮都变的标注，标注留在每轮的清单里）。
