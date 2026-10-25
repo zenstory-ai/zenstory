@@ -858,7 +858,8 @@ class TestParallelReadForwarding:
         assert kwargs["response_mode"] == "full"
         assert kwargs["content_preview_chars"] == 50
         assert kwargs["include_content"] is True
-        assert kwargs["metadata_filter"] == {"tag": "keep"}
+        # metadata_filter 已从 query_files 删除：模型照旧传来也只是被忽略。
+        assert "metadata_filter" not in kwargs
         task = json.loads(result["content"][0]["text"])["data"]["tasks"][0]
         assert task["status"] == "completed"
         assert task["result"]["data"][0]["content"] == "正文"

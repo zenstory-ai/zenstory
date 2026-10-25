@@ -368,8 +368,8 @@ async def handle_query_files(params: dict[str, Any]) -> dict[str, Any]:
         return _make_error("project_id not set")
 
     try:
-        # 原样转发子任务参数（response_mode / content_preview_chars / include_content /
-        # metadata_filter 等），与独立调用 query_files 完全同义；只有项目作用域由
+        # 原样转发子任务参数（response_mode / content_preview_chars / include_content
+        # 等），与独立调用 query_files 完全同义；只有项目作用域由
         # 服务端上下文决定，不信任模型传入的 project_id/user_id。以前这里只挑了几个
         # 键转发，response_mode="full" 被丢掉，模型拿到预览后又去重读。
         forwarded = _scoped_task_params(params)

@@ -1082,7 +1082,6 @@ async def test_query_files_forwards_new_wrapper_params():
         file_type=None,
         file_types=None,
         parent_id=None,
-        metadata_filter=None,
         limit=50,
         offset=0,
         response_mode="summary",

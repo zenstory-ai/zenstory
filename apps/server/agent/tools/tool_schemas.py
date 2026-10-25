@@ -227,10 +227,6 @@ QUERY_FILES_TOOL: dict[str, Any] = {
                 "type": "string",
                 "description": "父文件ID过滤"
             },
-            "metadata_filter": {
-                "type": "object",
-                "description": "元数据字段过滤"
-            },
             "limit": {
                 "type": "integer",
                 "description": "最大返回数量（默认 50；不按 id 且 response_mode=full 时默认 10）",

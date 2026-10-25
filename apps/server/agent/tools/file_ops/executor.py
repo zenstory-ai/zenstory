@@ -170,7 +170,6 @@ class FileToolExecutor:
         file_type: str | None = None,
         file_types: list[str] | None = None,
         parent_id: str | None = None,
-        metadata_filter: dict[str, Any] | None = None,
         limit: int = 50,
         offset: int = 0,
         response_mode: str | None = None,
@@ -180,7 +179,7 @@ class FileToolExecutor:
         """
         Query and search files (unified method).
 
-        Supports keyword search, type filtering, parent filtering, and metadata filtering.
+        Supports keyword search, type filtering and parent filtering.
 
         Args:
             project_id: Project ID
@@ -188,7 +187,6 @@ class FileToolExecutor:
             file_type: Single file type filter (optional)
             file_types: Multiple file types filter (optional, use this OR file_type)
             parent_id: Parent file ID filter (optional)
-            metadata_filter: Metadata field filters (optional)
             limit: Maximum results
             offset: Offset for pagination
             response_mode: "summary" / "full"; None = full for ``id`` lookups,
@@ -207,7 +205,6 @@ class FileToolExecutor:
             file_type=file_type,
             file_types=file_types,
             parent_id=parent_id,
-            metadata_filter=metadata_filter,
             limit=limit,
             offset=offset,
             response_mode=response_mode,

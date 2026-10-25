@@ -2501,7 +2501,6 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
             "file_type": args.get("file_type"),
             "file_types": args.get("file_types"),
             "parent_id": args.get("parent_id"),
-            "metadata_filter": args.get("metadata_filter"),
             "limit": args.get("limit", default_limit),
             "offset": args.get("offset", 0),
         }
