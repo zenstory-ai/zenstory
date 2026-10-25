@@ -771,7 +771,7 @@ class FileEditor:
                 applied_before_edit = len(applied_edits)
 
                 old_field = edit.get("old")
-                if op == "replace" and isinstance(old_field, str) and old_field and edit.get("new") == old_field:
+                if op == "replace" and isinstance(old_field, str) and old_field and self._peek_replace_new(edit) == old_field:
                     # old 与 new 相同就是不改。只核对原文里逐字（含引号写法等价）有这段，不走模糊/近似
                     # 定位：那条路按原文边缘标点扩展范围，会把模型漏抄的逗号、句号删掉还报成功（F-01）。
                     if locate_exact_or_quote_equivalent(content, old_field) is None:
@@ -1092,6 +1092,18 @@ class FileEditor:
                 f"Edit {edit_index}: {op} 的 text 为空，没有可写入的内容。"
                 f"要写入的文本请放在 text 字段里。"
             )
+
+    @classmethod
+    def _peek_replace_new(cls, edit: dict[str, Any]) -> Any:
+        """按 _resolve_replace_new 的优先级取替换文本，但不写警告、不报错（只用于比较）。"""
+        new_text = edit.get("new")
+        if new_text is not None:
+            return new_text
+        for key in cls._REPLACE_NEW_ALIASES:
+            value = edit.get(key)
+            if isinstance(value, str):
+                return value
+        return None
 
     @classmethod
     def _resolve_replace_new(

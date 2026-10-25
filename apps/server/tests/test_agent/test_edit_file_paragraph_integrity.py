@@ -533,6 +533,23 @@ def test_identical_replace_never_takes_the_fuzzy_path(db_session, owner_project)
     assert db_session.get(File, chapter.id).content == original
 
 
+@pytest.mark.parametrize("new_key", ["text", "content", "new_text", "replacement"])
+def test_identical_replace_under_a_new_alias_never_takes_the_fuzzy_path(db_session, owner_project, new_key):
+    """F-01 补漏：模型把替换文本写在 new 的别名键下，old 与它相同时同样不能走模糊命中删标点。"""
+    user, project = owner_project
+    original = "　　林舟点头说：“这个方案很好，真的。”然后走了。"
+    chapter = _add_file(db_session, project, original)
+
+    with pytest.raises(EditBatchError) as exc:
+        FileEditor(db_session, user.id).edit_file(
+            chapter.id, [{"op": "replace", "old": "这个方案很好真的”", new_key: "这个方案很好真的”"}]
+        )
+
+    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == original
+
+
 def test_corner_to_curly_conversion_is_applied_not_normalized_back(db_session, owner_project):
     """U079 的形状：「」稿件里把对白改成 “”，规范化器不能再把它改回「」还报成功。"""
     user, project = owner_project
