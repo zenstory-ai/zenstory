@@ -63,6 +63,7 @@
     "steerButton": "补充要求",
     "steerHint": "AI 正在生成，补充的要求会在它的下一步生效",
     "steerSent": "已补充，AI 下一步会参考",
+    "steerSentAsNextMessage": "这一轮已收尾，这句会在它结束后作为新消息发出",
     "steerFailed": "补充没有发出，请重试",
     "mode": {
       "label": "生成模式",

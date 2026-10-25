@@ -306,11 +306,11 @@ describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () =
     sendSteeringMessageMock.mockReset()
   })
 
-  it('后端返回 404 时既弹 toast 也向上抛出', async () => {
-    sendSteeringMessageMock.mockRejectedValue(new Error('Request failed: 404'))
+  it('投递失败（非「本轮已收尾」）时既弹 toast 也向上抛出', async () => {
+    sendSteeringMessageMock.mockRejectedValue(new Error('Request failed: 500'))
     const onSteer = await renderAndGetSteer()
 
-    await expect(onSteer('把主角改名为林川')).rejects.toThrow('Request failed: 404')
+    await expect(onSteer('把主角改名为林川')).rejects.toThrow('Request failed: 500')
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith('chat:input.steerFailed')
     expect(vi.mocked(toast.success)).not.toHaveBeenCalled()
   })
@@ -337,6 +337,67 @@ describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () =
     mockAgentStreamState.sessionId = null
     await renderAndGetSteer()
     expect(capturedMessageInputProps.props?.canSteer).toBe(false)
+  })
+})
+
+describe('F-28 /agent/steer 404（本轮已收尾）退回一般发送', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const panel = () => (
+    <QueryClientProvider client={client}>
+      <ChatPanel />
+    </QueryClientProvider>
+  )
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    capturedMessageInputProps.props = null
+    mockAgentStreamState.isStreaming = true
+    mockAgentStreamState.sessionId = 'session-1'
+    sendSteeringMessageMock.mockReset()
+  })
+
+  async function steerThenFinishStream(error: unknown, text: string) {
+    if (error) sendSteeringMessageMock.mockRejectedValue(error)
+    else sendSteeringMessageMock.mockResolvedValue(undefined)
+    const view = rtlRender(panel())
+    await waitFor(() => expect(screen.getByTestId('mock-message-input')).toBeInTheDocument())
+    const onSteer = capturedMessageInputProps.props?.onSteer as (message: string) => Promise<void>
+    const result = onSteer(text).then(() => 'resolved', () => 'rejected')
+    const settled = await result
+    // 本轮还没结束：不能抢在它前面开新一轮。
+    expect(startStreamMock).not.toHaveBeenCalled()
+    mockAgentStreamState.isStreaming = false
+    mockAgentStreamState.sessionId = null
+    view.rerender(panel())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    view.rerender(panel())
+    return settled
+  }
+
+  it('404：输入照常清空，本轮结束后作为下一条普通消息发送一次', async () => {
+    const settled = await steerThenFinishStream(new ApiError(404, 'ERR_CHAT_SESSION_NOT_FOUND'), '结尾别大团圆')
+
+    expect(settled).toBe('resolved')
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith('chat:input.steerSentAsNextMessage')
+    await waitFor(() => expect(startStreamMock).toHaveBeenCalledTimes(1))
+    expect(startStreamMock.mock.lastCall?.[0]).toEqual(expect.objectContaining({ message: '结尾别大团圆' }))
+    expect(sendSteeringMessageMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('其它失败（可能已入队）不退回发送，避免同一句话扣两次额度', async () => {
+    const settled = await steerThenFinishStream(new ApiError(500, 'ERR_INTERNAL_SERVER_ERROR'), '换个视角')
+
+    expect(settled).toBe('rejected')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('chat:input.steerFailed')
+    expect(startStreamMock).not.toHaveBeenCalled()
+  })
+
+  it('已送达的引导不会在本轮结束后再发一次', async () => {
+    const settled = await steerThenFinishStream(null, '补一句')
+
+    expect(settled).toBe('resolved')
+    expect(startStreamMock).not.toHaveBeenCalled()
   })
 })
 

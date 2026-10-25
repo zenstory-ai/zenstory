@@ -31,7 +31,7 @@ import type {
   SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
 } from "../types";
-import { api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { ApiError, api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
@@ -1104,7 +1104,9 @@ export async function sendSteeringRequest(
         .json()
         .catch(() => ({ detail: `HTTP ${response.status}` }));
       const errorMessage = resolveApiErrorMessage(error, `HTTP ${response.status}`);
-      throw new Error(toUserErrorMessage(errorMessage));
+      // Keep the status: 404 means no run will read this follow-up (the round has
+      // already wrapped up), so the caller sends it as the next message instead.
+      throw new ApiError(response.status, errorMessage);
     }
 
     return response.json();

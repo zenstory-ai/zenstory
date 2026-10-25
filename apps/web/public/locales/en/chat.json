@@ -63,6 +63,7 @@
     "steerButton": "Add request",
     "steerHint": "AI is generating — what you add applies at its next step",
     "steerSent": "Added — the AI will use it at the next step",
+    "steerSentAsNextMessage": "This reply is wrapping up — your note will go out as the next message",
     "steerFailed": "Couldn't send. Please try again.",
     "mode": {
       "label": "Mode",

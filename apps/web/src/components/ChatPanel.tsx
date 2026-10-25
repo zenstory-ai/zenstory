@@ -1904,13 +1904,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     selectedSkillIds?: string[],
     extraMetadata?: Record<string, unknown>,
   ) => {
-    if (!message.trim() || isStreaming || sendLockRef.current || newChatAfterStopRef.current || creatingSessionRef.current !== null || sessionRecoveryBlockedRef.current) return;
+    if (!message.trim() || isStreaming || sendLockRef.current || newChatAfterStopRef.current || creatingSessionRef.current !== null || sessionRecoveryBlockedRef.current) return false;
 
     // Used up for today: keep the words as the draft and explain, instead of sending.
     if (aiSendBlocked) {
       saveDraft(message);
       setShowQuotaUpgradeModal(true);
-      return;
+      return false;
     }
 
     // Clear draft after sending
@@ -1971,7 +1971,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       quote_count: quotes.length,
     });
 
-    startRound(request, { userBubble: true });
+    return startRound(request, { userBubble: true });
   }, [isStreaming, aiSendBlocked, saveDraft, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, clearDraft, currentProjectId, startRound]);
 
   /**
@@ -2034,6 +2034,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * The backend queues it and the agent picks it up at its next step, so the
    * toast sets that expectation ("applies at the next step").
    */
+  // A follow-up that reached the server after the round stopped reading them (404 from
+  // /agent/steer): sent once as the next message when the reply settles.
+  const [steerFallback, setSteerFallback] = useState<{ projectId: string; message: string } | null>(null);
+
   const handleSteer = useCallback(async (message: string) => {
     // 不能静默 return / 静默吞异常：调用方（MessageInput）以「没有抛错 = 已送达」
     // 来决定是否清空输入框，而 setInput("") 会连带把持久化草稿覆写成空串，
@@ -2048,13 +2052,35 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
       await sendSteeringMessage(message);
     } catch (err) {
+      // 404: no run will read it (the round has wrapped up), and nothing was queued or
+      // counted. Send it as the next message instead. Any other failure may already be
+      // queued, so the words stay in the input rather than risk a second send.
+      if (err instanceof ApiError && err.status === 404 && currentProjectId) {
+        setSteerFallback({ projectId: currentProjectId, message });
+        toast.success(t("chat:input.steerSentAsNextMessage"));
+        return;
+      }
       logger.error("Failed to send steering message", err);
       toast.error(t("chat:input.steerFailed"));
       // 继续抛出，让输入框保留用户已输入的内容。
       throw err;
     }
     toast.success(t("chat:input.steerSent"));
-  }, [isStreaming, sendSteeringMessage, t]);
+  }, [currentProjectId, isStreaming, sendSteeringMessage, t]);
+
+  useEffect(() => {
+    if (!steerFallback || isStreaming) return;
+    setSteerFallback(null);
+    const { projectId, message } = steerFallback;
+    if (currentProjectIdRef.current !== projectId) {
+      toast.error(t("chat:input.steerFailed"));
+      return;
+    }
+    void handleSendMessage(message).then((sent) => {
+      // Could not start a round (new chat pending, used up for today, …): back in the input.
+      if (!sent) saveDraft(draft.trim() ? `${draft.trimEnd()}\n${message}` : message);
+    });
+  }, [steerFallback, isStreaming, handleSendMessage, saveDraft, draft, t]);
 
   const handleIterationAssistAction = useCallback(
     (action: 'continue' | 'split' | 'manual') => {
