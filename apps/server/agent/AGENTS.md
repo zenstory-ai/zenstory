@@ -205,7 +205,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **重复建挡路的空文件**：空文件守卫（一次只流式写一个文件）挡住的 create_file，若要建的正是挡路的那个空文件，返回那个文件
   （`content=""` + `next_step`）；挡路的是别的文件时照旧 `pending_empty_file_unwritten`（`mcp_tools._repeat_of_pending_empty_file`）。
   [repeat-create][n-repeat]
-- **项目备注由作者维护确认来源**：Agent 的新/改写条目仅为 AI 提议，引文、编号或答应文字不能升格；旧的作者确认和未标来源条目即使漏传或 notes="" 也保留。proposals 只替换提议区，三块共用4000字；结果的 `proposals_added` 列出本次新增条目（存储原文），聊天结果卡和 AI 记忆提议列表的逐条采纳/忽略按钮走人工 `expected_notes` PATCH，不消耗 AI 消息；本会话早先 `proposals_added` 里、现已不在备注任何分区的条目，在上下文里列为「备注·作者已忽略的 AI 提议」（只提示，不拦截重新加回）；作者直接保存 AI 记忆文本框仍可编辑自己的条目。参见 [proposals-in-chat][n-proposals-in-chat]。作者自己的项目名也不能由模型布尔值或原话放行改名。参见 [typed-boundaries][n-typed-boundaries]。
+- **AI 记忆备注只存作者自己的内容**：备注只有作者在 AI 记忆里写的条目（未标来源 / 作者确认）；应用内 Agent 的 notes 不能新增、改写、清空或升格任何条目（引文、编号、答应文字同样不算），新内容直接丢弃，结果用 `notes_not_saved` 和一句 `notes_note` 告诉模型建议写在回复里；没有提议区。旧备注里遗留的「AI 提议·待作者确认」块在每次读取（API 序列化、上下文、作者原话来源）里视为不存在，任何写入都不写回，人工 PATCH 的 `expected_notes` 比较两边都去掉该块（`config.project_notes.without_legacy_proposals`）。参见 [notes][n-notes]、[remove-proposals][n-remove-proposals]。作者自己的项目名也不能由模型布尔值或原话放行改名。参见 [typed-boundaries][n-typed-boundaries]。
 - **回复语言跟随作者最近一条消息**（`message_manager.detect_author_language`），本轮上下文 `<turn_context>` 末尾写明本轮语言，所有角色共用；界面语言只在
   看不出时兜底。[reply-language][n-lang]
 
@@ -353,7 +353,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-two-replies]: ../../../.agents/notes/implemented/bug-fix/2026-10-10-file-streaming-protocol-two-replies.md
 
 [n-typed-boundaries]: ../../../.agents/notes/implemented/architecture/2026-10-14-typed-authority-and-delivery-evidence.md
-[n-proposals-in-chat]: ../../../.agents/notes/implemented/feature/2026-10-25-memory-proposals-in-chat.md
+[n-remove-proposals]: ../../../.agents/notes/implemented/feature/2026-10-25-remove-memory-proposals.md
 [n-rename]: ../../../.agents/notes/implemented/feature/2026-10-19-agent-rename-file-tool.md
 [n-range]: ../../../.agents/notes/implemented/feature/2026-10-19-query-files-range-reads.md
 [n-first-turn]: ../../../.agents/notes/implemented/feature/2026-10-19-first-turn-writes-before-asking.md
