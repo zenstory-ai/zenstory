@@ -3,12 +3,17 @@
 Metering must never break a user request: every public function here catches
 and logs its own errors, and writes through its own short-lived session (never
 the caller's, which may be mid-transaction or shared with agent tools).
+
+Call sites that report a ``CallTiming`` write one row per provider attempt,
+including failed and cancelled attempts without tokens, for the admin model
+metrics.
 """
 
 from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from collections.abc import Callable, Mapping
 from contextvars import Context
 from dataclasses import dataclass
@@ -47,6 +52,44 @@ class UsageTokens:
     @property
     def total(self) -> int:
         return self.cache_hit + self.cache_miss + self.output
+
+
+@dataclass(frozen=True)
+class CallTiming:
+    """How one provider attempt ended. Numbers and an outcome only, never content."""
+
+    outcome: str
+    duration_ms: int
+    # Streaming calls only: request sent -> first output delta.
+    ttft_ms: int | None = None
+
+
+def elapsed_ms(started: float) -> int:
+    """Milliseconds since a ``time.monotonic()`` reading."""
+    return max(0, round((time.monotonic() - started) * 1000))
+
+
+def failure_outcome(exc: BaseException) -> str:
+    """``cancelled`` when the caller gave up on the call, ``timeout`` for a provider/HTTP timeout, else ``error``.
+
+    Cancellation covers the author's stop, a disconnect, the run's wall-clock
+    limit, deploy drain and the suggestion deadline: the call did not fail, it
+    was abandoned, so it stays out of the success rate.
+    """
+    from models.llm_usage import CALL_OUTCOME_CANCELLED, CALL_OUTCOME_ERROR, CALL_OUTCOME_TIMEOUT
+
+    if isinstance(exc, asyncio.CancelledError | GeneratorExit):
+        return CALL_OUTCOME_CANCELLED
+    if isinstance(exc, TimeoutError):
+        return CALL_OUTCOME_TIMEOUT
+    try:
+        import openai
+
+        if isinstance(exc, openai.APITimeoutError):
+            return CALL_OUTCOME_TIMEOUT
+    except ImportError:  # pragma: no cover - openai is a hard dependency
+        pass
+    return CALL_OUTCOME_ERROR
 
 
 @dataclass(frozen=True)
@@ -117,6 +160,7 @@ def build_usage_event(
     correlation_id: str | None = None,
     occurred_at: datetime | None = None,
     is_backfilled: bool = False,
+    timing: CallTiming | None = None,
 ) -> LLMUsageEvent:
     moment = naive_utc(occurred_at or utcnow())
     return LLMUsageEvent(
@@ -133,6 +177,9 @@ def build_usage_event(
         occurred_at=moment,
         correlation_id=correlation_id,
         is_backfilled=is_backfilled,
+        outcome=timing.outcome if timing is not None else None,
+        duration_ms=timing.duration_ms if timing is not None else None,
+        ttft_ms=timing.ttft_ms if timing is not None else None,
     )
 
 
@@ -144,11 +191,12 @@ def record_llm_usage(
     tokens: UsageTokens | None = None,
     occurred_at: datetime | None = None,
     session_factory: SessionFactory | None = None,
+    timing: CallTiming | None = None,
 ) -> bool:
     """Insert one ledger row. Returns True when a row was written.
 
-    Skips silently when there is no user to bill or no tokens; swallows and
-    logs every error.
+    Skips silently when there is no user to bill, or no tokens and no timing;
+    swallows and logs every error.
     """
     try:
         if attribution is None or not attribution.user_id:
@@ -156,7 +204,7 @@ def record_llm_usage(
         from services.usage.cost_budget import call_started_at
         occurred_at = occurred_at or call_started_at(attribution.user_id)
         counted = tokens if tokens is not None else extract_usage_tokens(usage)
-        if counted.total <= 0:
+        if counted.total <= 0 and timing is None:
             return False
         event = build_usage_event(
             user_id=attribution.user_id,
@@ -166,6 +214,7 @@ def record_llm_usage(
             project_id=attribution.project_id,
             correlation_id=attribution.correlation_id,
             occurred_at=occurred_at,
+            timing=timing,
         )
         session = (session_factory or _session_factory)()
         try:
@@ -227,6 +276,7 @@ def schedule_llm_usage_record(
     model: str,
     usage: Any = None,
     tokens: UsageTokens | None = None,
+    timing: CallTiming | None = None,
 ) -> asyncio.Task[bool] | None:
     """Fire-and-forget ledger write for code running on the event loop.
 
@@ -241,7 +291,7 @@ def schedule_llm_usage_record(
         if attribution is None or not attribution.user_id:
             return None
         counted = tokens if tokens is not None else extract_usage_tokens(usage)
-        if counted.total <= 0:
+        if counted.total <= 0 and timing is None:
             return None
         from services.usage.cost_budget import call_started_at
         occurred_at = call_started_at(attribution.user_id) or utcnow()
@@ -253,6 +303,7 @@ def schedule_llm_usage_record(
                 model=model,
                 tokens=counted,
                 occurred_at=occurred_at,
+                timing=timing,
             ),
             context=context,
         )

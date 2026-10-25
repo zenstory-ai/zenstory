@@ -24,7 +24,7 @@ from sqlmodel import Session, func, select
 from config.datetime_utils import beijing_day_bounds, normalize_datetime_to_utc, utcnow
 from models.activation_event import ACTIVATION_EVENT_SIGNUP_SUCCESS, ActivationEvent
 from models.entities import User
-from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST, LLMUsageEvent
+from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST, LLMUsageEvent, has_usage_tokens
 from models.payment import PaymentOrder
 
 ACQUISITION_DAYS = (7, 14, 30, 90)
@@ -155,6 +155,7 @@ def get_acquisition_stats(session: Session, *, days: int) -> dict[str, Any]:
                 *cohort,
                 LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST,
                 LLMUsageEvent.is_backfilled.is_(False),
+                has_usage_tokens(LLMUsageEvent),
                 LLMUsageEvent.occurred_at >= User.created_at,
                 LLMUsageEvent.occurred_at < end,
             )

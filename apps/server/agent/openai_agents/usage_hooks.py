@@ -63,11 +63,15 @@ class UsageMeteringMixin:
         del context
         self.finish_timing("completed")
         # The model that served this call: after a failover it is the backup's.
-        served = getattr(getattr(agent, "model", None), "served_model", None)
+        sdk_model = getattr(agent, "model", None)
+        served = getattr(sdk_model, "served_model", None)
+        # Outcome, duration and time to first token of the attempt that answered (FailoverChatModel).
+        take_timing = getattr(sdk_model, "take_call_timing", None)
         schedule_llm_usage_record(
             self._attribution,
             model=served if isinstance(served, str) and served else self._model,
             usage=getattr(response, "usage", None),
+            timing=take_timing() if callable(take_timing) else None,
         )
 
 
@@ -160,12 +164,16 @@ def _hooks_class() -> type:
     return cls
 
 
-def build_agent_run_hooks(model: str, *, run_meter: AgentRunMeter | None = None) -> Any:
-    """Bind the current request's user/project/run id (read before the SDK task starts)."""
-    attribution = LLMUsageAttribution(
+def agent_usage_attribution() -> LLMUsageAttribution:
+    """The current request's user/project/run id (read before the SDK task starts)."""
+    return LLMUsageAttribution(
         user_id=ToolContext.get_user_id(),
         source=LLM_USAGE_SOURCE_AGENT,
         project_id=ToolContext.get_project_id(),
         correlation_id=get_agent_run_id(),
     )
-    return _hooks_class()(attribution, model, run_meter)
+
+
+def build_agent_run_hooks(model: str, *, run_meter: AgentRunMeter | None = None) -> Any:
+    """Bind the current request's user/project/run id (read before the SDK task starts)."""
+    return _hooks_class()(agent_usage_attribution(), model, run_meter)

@@ -1,5 +1,6 @@
 """Usage extraction and the never-raising ledger recorder."""
 
+import asyncio
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -135,6 +136,54 @@ def test_record_skips_without_user_or_tokens(db_session: Session):
     assert svc.record_llm_usage(LLMUsageAttribution(user_id=None, source="agent"), model="m", usage=usage) is False
     assert svc.record_llm_usage(LLMUsageAttribution(user_id=user.id, source="agent"), model="m", usage={}) is False
     assert _events(db_session) == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_failed_attempt_is_written_without_tokens_and_old_rows_stay_unrecorded(db_session: Session):
+    user = _user(db_session, "meter_attempts")
+    # A failed attempt has no usage but is still a row for the model metrics.
+    task = svc.schedule_llm_usage_record(
+        LLMUsageAttribution(user_id=user.id, source="agent"),
+        model="deepseek-flash",
+        tokens=UsageTokens(),
+        timing=svc.CallTiming("timeout", 45_000),
+    )
+    assert task is not None
+    await svc.drain_pending_usage_records()
+    # A call site that does not report timing keeps the old contract: no tokens, no row; tokens -> outcome NULL.
+    assert svc.record_llm_usage(LLMUsageAttribution(user_id=user.id, source="material"), model="m", usage={}) is False
+    svc.record_llm_usage(LLMUsageAttribution(user_id=user.id, source="material"), model="m", tokens=UsageTokens(output=9))
+    rows = {event.source: event for event in _events(db_session)}
+    failed = rows["agent"]
+    assert (failed.outcome, failed.duration_ms, failed.ttft_ms) == ("timeout", 45_000, None)
+    assert (failed.cache_hit_tokens, failed.cache_miss_tokens, failed.output_tokens) == (0, 0, 0)
+    unrecorded = rows["material"]
+    assert (unrecorded.outcome, unrecorded.duration_ms, unrecorded.ttft_ms) == (None, None, None)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("exc", "outcome"),
+    [
+        (asyncio.CancelledError(), "cancelled"),
+        (GeneratorExit(), "cancelled"),
+        (TimeoutError(), "timeout"),
+        (RuntimeError("boom"), "error"),
+    ],
+)
+def test_failure_outcome_classes(exc, outcome):
+    assert svc.failure_outcome(exc) == outcome
+
+
+@pytest.mark.unit
+def test_openai_timeout_is_a_timeout_not_a_connection_error():
+    import httpx
+    import openai
+
+    request = httpx.Request("POST", "https://llm.test")
+    assert svc.failure_outcome(openai.APITimeoutError(request=request)) == "timeout"
+    assert svc.failure_outcome(openai.APIConnectionError(request=request)) == "error"
 
 
 @pytest.mark.integration

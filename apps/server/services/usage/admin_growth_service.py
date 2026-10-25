@@ -21,7 +21,7 @@ from config.datetime_utils import (
     utcnow,
 )
 from models.entities import User
-from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST, LLMUsageEvent
+from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST, LLMUsageEvent, has_usage_tokens
 from models.payment import PaymentOrder
 from models.subscription import SubscriptionHistory
 
@@ -91,6 +91,7 @@ def _metrics(
         customer,
         author_initiated,
         LLMUsageEvent.is_backfilled.is_(False),
+        has_usage_tokens(LLMUsageEvent),
         LLMUsageEvent.occurred_at >= start,
         LLMUsageEvent.occurred_at < end,
     )
@@ -112,6 +113,7 @@ def _metrics(
             User.created_at < end,
             author_initiated,
             LLMUsageEvent.is_backfilled.is_(False),
+            has_usage_tokens(LLMUsageEvent),
             LLMUsageEvent.occurred_at >= User.created_at,
             LLMUsageEvent.occurred_at < observation_end,
         )
@@ -267,6 +269,7 @@ def _daily(session: Session, current: GrowthPeriod, *, days: int) -> list[dict[s
             customer,
             LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST,
             LLMUsageEvent.is_backfilled.is_(False),
+            has_usage_tokens(LLMUsageEvent),
             LLMUsageEvent.occurred_at >= start,
             LLMUsageEvent.occurred_at < end,
         )
@@ -288,6 +291,7 @@ def _daily(session: Session, current: GrowthPeriod, *, days: int) -> list[dict[s
             User.created_at < end,
             LLMUsageEvent.source != LLM_USAGE_SOURCE_SUGGEST,
             LLMUsageEvent.is_backfilled.is_(False),
+            has_usage_tokens(LLMUsageEvent),
             LLMUsageEvent.occurred_at >= User.created_at,
             LLMUsageEvent.occurred_at < end,
         )

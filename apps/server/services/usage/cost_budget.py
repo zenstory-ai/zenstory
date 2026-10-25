@@ -23,7 +23,7 @@ from sqlmodel import select
 from config.datetime_utils import utcnow
 from core.error_handler import APIException
 from models.ai_cost_budget import AICostDailyBudget, AICostReservation
-from models.llm_usage import LLMUsageEvent
+from models.llm_usage import LLMUsageEvent, has_usage_tokens
 from models.subscription import SubscriptionPlan, UserSubscription
 from services.usage.pricing import (
     COST_WEIGHTS_BY_VERSION,
@@ -203,6 +203,7 @@ def reserve_model_call(
                         LLMUsageEvent.user_id == user_id,
                         LLMUsageEvent.occurred_at >= start,
                         LLMUsageEvent.occurred_at < end,
+                        has_usage_tokens(LLMUsageEvent),
                     )
                 ).all()
                 if any(

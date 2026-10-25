@@ -75,3 +75,55 @@ def test_llm_usage_event_migration_round_trip(tmp_path: Path):
         ).one()
         assert tuple(row) == (0, 0, 0, 0)
     engine.dispose()
+
+
+CALL_METRICS_REVISION = "20261024_120000"
+CALL_METRICS_DOWN_REVISION = "20261021_100000"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_llm_usage_call_metrics_migration_round_trip(tmp_path: Path):
+    """Additive nullable columns: old rows read as not recorded; re-running skips existing columns."""
+    db_url = f"sqlite:///{tmp_path / 'llm-usage-call-metrics.db'}"
+    engine = create_engine(db_url)
+    SQLModel.metadata.create_all(engine)
+    engine.dispose()
+
+    _alembic(db_url, "stamp", "head")
+    _alembic(db_url, "downgrade", CALL_METRICS_DOWN_REVISION)
+    engine = create_engine(db_url)
+    columns = {column["name"] for column in inspect(engine).get_columns("llm_usage_event")}
+    assert not {"outcome", "duration_ms", "ttft_ms"} & columns
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO llm_usage_event (id, user_id, source, model, price_band, pricing_version, occurred_at, "
+                "cache_hit_tokens, cache_miss_tokens, output_tokens, is_backfilled) "
+                "VALUES ('old', 'u1', 'agent', 'deepseek-flash', 'peak', 'v', '2026-10-06 02:00:00', 0, 0, 5, 0)"
+            )
+        )
+    engine.dispose()
+
+    _alembic(db_url, "upgrade", CALL_METRICS_REVISION)
+    engine = create_engine(db_url)
+    columns = {column["name"]: column for column in inspect(engine).get_columns("llm_usage_event")}
+    for name in ("outcome", "duration_ms", "ttft_ms"):
+        assert columns[name]["nullable"] is True, name
+        assert columns[name]["default"] is None, name
+    with engine.connect() as connection:
+        assert connection.execute(
+            text("SELECT outcome, duration_ms, ttft_ms FROM llm_usage_event WHERE id = 'old'")
+        ).one() == (None, None, None)
+    engine.dispose()
+
+    # Staging adds the columns by hand: upgrading over them is a no-op, and downgrade still works.
+    _alembic(db_url, "downgrade", CALL_METRICS_DOWN_REVISION)
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE llm_usage_event ADD COLUMN outcome VARCHAR(16)"))
+    engine.dispose()
+    _alembic(db_url, "upgrade", CALL_METRICS_REVISION)
+    engine = create_engine(db_url)
+    assert {"outcome", "duration_ms", "ttft_ms"} <= {c["name"] for c in inspect(engine).get_columns("llm_usage_event")}
+    engine.dispose()

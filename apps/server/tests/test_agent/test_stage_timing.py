@@ -72,6 +72,24 @@ async def test_model_hooks_exclude_tool_gap_and_keep_real_usage(monkeypatch):
     }
 
 
+@pytest.mark.asyncio
+async def test_usage_hook_writes_the_answered_attempt_timing_once():
+    from services.usage.llm_usage_service import CallTiming
+
+    timing = CallTiming("success", 12_000, 1_500)
+    sdk_model = SimpleNamespace(served_model="deepseek-flash", take_call_timing=lambda: timing)
+    hooks = build_agent_run_hooks("synthetic-model", run_meter=AgentRunMeter(started_at=0.0))
+    response = SimpleNamespace(usage=SimpleNamespace(input_tokens=2, output_tokens=3))
+    with patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record") as schedule:
+        await hooks.on_llm_start(None, None, "private-input", [])
+        await hooks.on_llm_end(None, SimpleNamespace(model=sdk_model), response)
+        # An agent whose model reports no timing (tests, other models) keeps outcome NULL.
+        await hooks.on_llm_end(None, SimpleNamespace(model=SimpleNamespace(served_model=None)), response)
+    assert schedule.call_args_list[0].kwargs["timing"] is timing
+    assert schedule.call_args_list[0].kwargs["model"] == "deepseek-flash"
+    assert schedule.call_args_list[1].kwargs["timing"] is None
+
+
 def test_role_timing_keeps_legacy_sdk_run_counter():
     meter = AgentRunMeter()
     meter.record_agent_run(123.0, agent_type="planner")

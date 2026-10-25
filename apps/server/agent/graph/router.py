@@ -291,6 +291,9 @@ async def _route_with_chat_model(user_message: str) -> dict[str, Any]:
         response, provider = await llm_failover.acreate_chat_completion(
             call_site="router",
             session_id=ToolContext.get_session_id(),
+            # Every attempt is written to the ledger in the background: routing sits in front of
+            # every writing turn and must not add a database round trip before the first token.
+            usage_attribution=_router_usage_attribution(),
             messages=[
                 {"role": "system", "content": ROUTER_PROMPT},
                 {"role": "user", "content": user_message},
@@ -304,7 +307,6 @@ async def _route_with_chat_model(user_message: str) -> dict[str, Any]:
             # reasoning room. Only tokens actually generated are billed.
             max_tokens=4096,
         )
-    _meter_router_call(response, provider.model)
     choice = response.choices[0] if response.choices else None
     text = choice.message.content or "" if choice is not None else ""
     return {
@@ -319,29 +321,18 @@ async def _route_with_chat_model(user_message: str) -> dict[str, Any]:
     }
 
 
-def _meter_router_call(response: object, model: str) -> None:
-    """Schedule the routing call's ledger write in the background (never raises).
-
-    Routing sits in front of every writing turn; the write must not add a
-    database round trip to the time before the first token.
-    """
+def _router_usage_attribution() -> Any:
+    """Who the routing call is billed to, with the run id for the ledger."""
     from agent.tools.mcp_tools import ToolContext
     from models.llm_usage import LLM_USAGE_SOURCE_ROUTER
-    from services.usage.llm_usage_service import (
-        LLMUsageAttribution,
-        schedule_llm_usage_record,
-    )
+    from services.usage.llm_usage_service import LLMUsageAttribution
     from utils.request_context import get_agent_run_id
 
-    schedule_llm_usage_record(
-        LLMUsageAttribution(
-            user_id=ToolContext.get_user_id(),
-            source=LLM_USAGE_SOURCE_ROUTER,
-            project_id=ToolContext.get_project_id(),
-            correlation_id=get_agent_run_id(),
-        ),
-        model=model,
-        usage=getattr(response, "usage", None),
+    return LLMUsageAttribution(
+        user_id=ToolContext.get_user_id(),
+        source=LLM_USAGE_SOURCE_ROUTER,
+        project_id=ToolContext.get_project_id(),
+        correlation_id=get_agent_run_id(),
     )
 
 

@@ -278,3 +278,137 @@ def test_each_provider_gets_its_own_read_timeout(monkeypatch, env, expected):
     llm_providers.reset_provider_client_cache()
     assert timeouts == expected
     assert sync_timeouts == expected
+
+
+# --------------------------------------------------------------- per-attempt model metrics
+
+
+def _event(event_type: str):
+    return SimpleNamespace(type=event_type)
+
+
+class _ClockedStreamingModel:
+    """Streams (seconds offset, event type) steps against a fake monotonic clock."""
+
+    def __init__(self, clock: list[float], steps: list[tuple[float, str]], error: BaseException | None = None):
+        self._clock = clock
+        self._steps = steps
+        self._error = error
+
+    async def stream_response(self, *_args, **_kwargs):
+        for at, event_type in self._steps:
+            self._clock[0] = at
+            yield _event(event_type)
+        if self._error is not None:
+            raise self._error
+
+
+@pytest.fixture
+def attempts(monkeypatch):
+    """Ledger rows the model would schedule, as (model, outcome, duration_ms, ttft_ms, tokens)."""
+    from services.usage import llm_usage_service
+
+    rows: list[tuple] = []
+
+    def schedule(attribution, *, model, usage=None, tokens=None, timing=None):
+        counted = tokens if tokens is not None else llm_usage_service.extract_usage_tokens(usage)
+        rows.append((model, timing.outcome, timing.duration_ms, timing.ttft_ms, counted.total))
+
+    monkeypatch.setattr(llm_usage_service, "schedule_llm_usage_record", schedule)
+    return rows
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_first_token_is_the_first_output_delta_not_response_created(sdk_models, monkeypatch, attempts):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    clock = [100.0]
+    monkeypatch.setattr(sdk_model.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr("services.usage.llm_usage_service.time.monotonic", lambda: clock[0])
+    sdk_models["minimax"] = _ClockedStreamingModel(clock, [
+        (101.0, "response.created"),  # first chunk of any kind (role only)
+        (104.0, "response.output_item.added"),
+        (106.5, "response.function_call_arguments.delta"),  # first generated output: tool arguments
+        (110.0, "response.output_text.delta"),
+        (120.0, "response.completed"),
+    ])
+    model = sdk_model.build_failover_chat_model(
+        "ttft", usage_attribution=LLMUsageAttribution(user_id="u", source="agent")
+    )
+    await _drain(model)
+    clock[0] = 130.0  # the SDK consumes the completed event later; the call already ended
+
+    timing = model.take_call_timing()
+    assert (timing.outcome, timing.duration_ms, timing.ttft_ms) == ("success", 20_000, 6_500)
+    assert model.take_call_timing() is None  # taken once by the usage hook
+    assert attempts == []  # the answered attempt's row is written by the usage hook, with its tokens
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_failover_records_the_failed_attempt_under_its_own_model(sdk_models, monkeypatch, attempts):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    clock = [0.0]
+    monkeypatch.setattr(sdk_model.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr("services.usage.llm_usage_service.time.monotonic", lambda: clock[0])
+    down = openai.APITimeoutError(request=httpx.Request("POST", "https://llm.test"))
+    sdk_models["minimax"] = _ClockedStreamingModel(clock, [], error=down)
+    sdk_models["deepseek"] = _ClockedStreamingModel(clock, [(2.0, "response.reasoning_text.delta"), (5.0, "response.completed")])
+    model = sdk_model.build_failover_chat_model(
+        "failover", usage_attribution=LLMUsageAttribution(user_id="u", source="agent")
+    )
+    await _drain(model)
+
+    # One logical call, two attempts: the timed-out primary and the backup that answered.
+    assert attempts == [("MiniMax-M3.1-Flash", "timeout", 0, None, 0)]
+    timing = model.take_call_timing()
+    assert (timing.outcome, timing.ttft_ms) == ("success", 2_000)
+    assert model.served_model == "deepseek-flash"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mid_stream_error_and_cancellation_are_recorded_without_tokens(sdk_models, attempts):
+    import asyncio
+
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    attribution = LLMUsageAttribution(user_id="u", source="agent")
+    sdk_models["minimax"] = _StreamingModel(
+        [_event("response.created"), _event("response.output_text.delta")],
+        error=openai.APIConnectionError(request=httpx.Request("POST", "https://llm.test")),
+    )
+    with pytest.raises(openai.APIConnectionError):
+        await _drain(sdk_model.build_failover_chat_model("mid", usage_attribution=attribution))
+    assert [(row[1], row[3] is not None, row[4]) for row in attempts] == [("error", True, 0)]
+
+    attempts.clear()
+    sdk_models["deepseek"] = _StreamingModel([_event("response.created")], error=asyncio.CancelledError())
+    with pytest.raises(asyncio.CancelledError):
+        await _drain(sdk_model.build_failover_chat_model("mid", usage_attribution=attribution))
+    assert [(row[0], row[1], row[4]) for row in attempts] == [("deepseek-flash", "cancelled", 0)]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_single_shot_calls_record_every_attempt(endpoints, attempts):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    answered = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="ok"), finish_reason="stop")],
+        usage={"prompt_tokens": 10, "completion_tokens": 5},
+    )
+    endpoints["minimax"].script = [_status_error(openai.InternalServerError, 503)]
+    endpoints["deepseek"].script = [answered]
+    await _call(usage_attribution=LLMUsageAttribution(user_id="u", source="suggest"))
+    assert [(row[0], row[1], row[3], row[4]) for row in attempts] == [
+        ("MiniMax-M3.1-Flash", "error", None, 0),
+        ("deepseek-flash", "success", None, 15),  # non-streaming: no first-token time
+    ]
+
+    # No attribution (e.g. a call that is not billed to anyone): nothing is written.
+    attempts.clear()
+    await _call(session_id="s-2")
+    assert attempts == []
