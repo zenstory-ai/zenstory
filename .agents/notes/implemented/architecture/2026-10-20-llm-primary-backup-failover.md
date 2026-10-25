@@ -16,7 +16,7 @@ Status: implemented
 4. **会话固定**：供应商不可用（不论是否已有输出）都把这个会话（`chat_session.id`）固定到另一个槽位 `LLM_SESSION_PIN_TTL_S`（默认 30 分钟），作者点重试和之后的轮次都用它，不来回切（保住前缀缓存）。成功调用的槽位与会话当前顺序不同时，会话改固定到实际服务的槽位。
 5. **熔断**：一个槽位 60 秒内失败 3 次，打开 120 秒；打开期间新会话先试另一个槽位（阈值、窗口、时长可用 `LLM_CIRCUIT_*` 覆盖）。状态放 Redis（有 `REDIS_URL` 时，API 与 Prefect worker 共享），Redis 不可用时退回进程内存。
 6. **Agent SDK**：每次 run 一个 `FailoverChatModel`，每次模型调用按上面的顺序选供应商。`reasoning_content` 在同一 run 的工具轮之间一律回传（MiniMax 要求完整回传，DeepSeek 接受）。账本、运行摘要、`MESSAGE_START` 记录实际服务的模型。
-7. **推理开关差异**：MiniMax 不能关推理（`thinking.type=disabled` 返回 400），默认 effort 是 max；我们默认发 `MINIMAX_REASONING_EFFORT=high`。要求关推理的短调用（输入建议、润色）优先走能关推理的供应商；只能走 MiniMax 时用最低 effort，并给 `max_tokens` 加 2048 余量。
+7. **推理开关差异**：MiniMax 不能关推理（`thinking.type=disabled` 返回 400），默认 effort 是 max；我们默认发 `MINIMAX_REASONING_EFFORT=high`。要求关推理的短调用（输入建议、润色）优先走能关推理的供应商；只能走 MiniMax 时用最低 effort，并给 `max_tokens` 加 2048 余量。这个偏好只在没有会话固定、熔断也没打开时决定先后（2026-10-25 修正：原实现在固定/熔断调整之后再排序，能关推理的供应商熔断打开时仍排第一，卡住型故障期间输入建议每次都在 25 秒超时前等不到切换）。
 8. **计价**（`services/usage/pricing.py`）：按模型的 `pricing_version` 选价目表，账本行写入本模型的版本；MiniMax M3.1-Flash 全天同价（缓存命中 0.1 / 未命中 1 / 输出 4 元每百万）。免费成本预算对没有价目的模型仍然拒绝（fail closed），管理后台按每行的版本计价。
 9. `LLMClient` 只保留生产在用的 `acomplete`（同步、流式、结构化方法没有生产调用方，删除而不是一并改造）；素材客户端改名 `MaterialLLMClient`。
 10. **读超时按供应商**（2026-10-22 补充）：读超时是两次收到数据之间的最长间隔，包括等首字节的时间。DeepSeek `DEEPSEEK_CLIENT_TIMEOUT_S` 默认 45 秒；MiniMax `MINIMAX_CLIENT_TIMEOUT_S` 默认 120 秒。MiniMax 处理长输入时首字节慢：实测约 32 万字符、未命中缓存的输入要等约 49 秒。生产输入最长到 26 万 token，10-21/22 有 14 次 run 因 45 秒读超时直接报错。

@@ -163,6 +163,27 @@ async def test_thinking_off_calls_use_a_provider_that_can_turn_it_off(endpoints)
 
 
 @pytest.mark.unit
+def test_thinking_off_preference_does_not_override_an_open_circuit_or_pin(endpoints):
+    """Thinking-off calls prefer the provider that can turn reasoning off only as a tie-break.
+
+    While that provider's circuit is open (e.g. it stalls until the 25 s suggestion timeout),
+    or the session is pinned away from it after a failure, the other provider goes first.
+    """
+    deepseek = next(p for p in llm_providers.configured_providers() if p.name == "deepseek")
+    assert [p.name for p in llm_failover.ordered_providers(None, thinking_enabled=False)] == ["deepseek", "minimax"]
+
+    llm_failover.record_failure(deepseek, "pinned", TimeoutError())
+    assert [p.name for p in llm_failover.ordered_providers("pinned", thinking_enabled=False)] == ["minimax", "deepseek"]
+    # One failure does not open the circuit: other calls keep the preference.
+    assert llm_failover.ordered_providers(None, thinking_enabled=False)[0].name == "deepseek"
+
+    for _ in range(llm_failover.LLM_CIRCUIT_FAILURE_THRESHOLD):
+        llm_failover.record_failure(deepseek, None, TimeoutError())
+    assert [p.name for p in llm_failover.ordered_providers(None, thinking_enabled=False)] == ["minimax", "deepseek"]
+    assert [p.name for p in llm_failover.ordered_providers(None)] == ["minimax", "deepseek"]
+
+
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_minimax_gets_configured_effort_and_model_override(endpoints, monkeypatch):
     monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash-Preview")
