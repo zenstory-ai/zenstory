@@ -869,6 +869,30 @@ async def test_edit_file_forwards_continue_on_error():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+@pytest.mark.parametrize("error_name", ["ForbiddenError", "UnauthorizedError"])
+async def test_edit_file_reports_access_refusal_as_permission_denied(error_name):
+    """F-27：权限拒绝发生在写入之前，要报 permission_denied 且明确一处都没改，
+    不能落进「可能已套用」的通用分支。"""
+    from agent.tools import permissions
+
+    mock_executor = MagicMock()
+    mock_executor.edit_file.side_effect = getattr(permissions, error_name)("Access denied")
+
+    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
+        "agent.tools.mcp_tools.ToolContext._get_context",
+        return_value={"project_id": "proj-1"},
+    ):
+        result = await edit_file({"id": "f-1", "edits": [{"op": "append", "text": "x"}]})
+
+    payload = _parse_payload(result)
+    assert payload["status"] == "error"
+    assert payload["error_type"] == "permission_denied"
+    assert payload["edits_applied"] == 0
+    assert payload["mutation_applied"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_edit_file_accepts_file_id_alias():
     """Backward compatibility: accept file_id as an alias for id."""
     mock_executor = MagicMock()

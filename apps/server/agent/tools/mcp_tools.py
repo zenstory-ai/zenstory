@@ -47,7 +47,7 @@ from agent.tools.file_ops.serialization import (
     QUERY_FILES_RESPONSE_MODE_FULL,
     serialize_file,
 )
-from agent.tools.permissions import NotFoundError
+from agent.tools.permissions import ForbiddenError, NotFoundError, UnauthorizedError
 from config.project_notes import merge_project_notes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
@@ -2293,7 +2293,8 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
     except NotFoundError as e:
         # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
         return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)
-    except PermissionError as e:
+    except (ForbiddenError, UnauthorizedError) as e:
+        # 工具层自己的权限拒绝（不是内建的 PermissionError/OSError），都发生在写入之前。
         return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED)
     except Exception as e:
         # 未分类异常可能发生在提交之后（例如台账记录），不能断言「一处都没生效」。
