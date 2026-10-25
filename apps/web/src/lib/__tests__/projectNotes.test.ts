@@ -93,4 +93,13 @@ describe('undoing entries the chat AI appended', () => {
     expect(withoutNoteEntries(stored, ['【作者确认】', '原确认 ']).removed).toEqual(['原确认 ']);
     expect(withoutNoteEntries(stored, ['不存在'])).toEqual({ text: stored, removed: [], missing: ['不存在'] });
   });
+
+  it('keeps every other author byte: unrelated empty headers, trailing whitespace, line endings', () => {
+    // An empty 【未标来源】 header the AI did not introduce stays, and so does the author's tail.
+    const unrelated = '【未标来源】\n【作者确认】\n原确认\n【未标来源】\n新条目\n作者的尾巴  \n\n';
+    expect(withoutNoteEntries(unrelated, ['新条目']).text)
+      .toBe('【未标来源】\n【作者确认】\n原确认\n【未标来源】\n作者的尾巴  \n\n');
+    expect(withoutNoteEntries('甲\r\n乙\n丙', ['乙']).text).toBe('甲\r\n丙');
+    expect(withoutNoteEntries('甲\r\n乙\n丙', ['丙']).text).toBe('甲\r\n乙');
+  });
 });

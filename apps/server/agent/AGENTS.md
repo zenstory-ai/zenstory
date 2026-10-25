@@ -205,7 +205,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **重复建挡路的空文件**：空文件守卫（一次只流式写一个文件）挡住的 create_file，若要建的正是挡路的那个空文件，返回那个文件
   （`content=""` + `next_step`）；挡路的是别的文件时照旧 `pending_empty_file_unwritten`（`mcp_tools._repeat_of_pending_empty_file`）。
   [repeat-create][n-repeat]
-- **AI 记忆备注对 Agent 只追加，作者让记才记**：备注是作者内容（未标来源 / 作者确认）；应用内 Agent 的 notes 不能删除、改写、重排或升格已有内容（逐字节保留），不在其中的条目按普通备注（未标来源）追加到末尾，结果 `notes_added` 列出存下的原文，聊天结果卡显示「已记入 AI 记忆」和一个撤销（人工 `expected_notes` PATCH，只删仍逐字一致的行，409 时用新基线重试一次，不消耗 AI 消息）。只靠提示词约束「作者明确让记住时才写、用原话、不加推断」，没有意图或原话匹配代码。追加后超过 4000 字则备注整段不写，结果带一句 `notes_note`；没有新条目时不写、`updated_fields` 不含 notes。旧备注里遗留的「AI 提议·待作者确认」块在每次读取（API 序列化、上下文、作者原话来源、灵感复制）里视为不存在，任何备注写入都不写回，人工 PATCH 的 `expected_notes` 比较两边都去掉该块（`config.project_notes.without_legacy_proposals`）。参见 [notes][n-notes]、[remove-proposals][n-remove-proposals]。作者自己的项目名也不能由模型布尔值或原话放行改名。参见 [typed-boundaries][n-typed-boundaries]。
+- **AI 记忆备注对 Agent 只追加，作者让记才记**：备注是作者内容（未标来源 / 作者确认）；应用内 Agent 的 notes 不能删除、改写、重排或升格已有内容（逐字节保留），不在其中的条目按普通备注（未标来源）追加到末尾（形似分区标题的行或「；」片段不追加，追加内容不能开出作者确认分区或旧提议块），结果 `notes_added` 列出存下的原文，聊天结果卡显示「已记入 AI 记忆」和一个撤销（人工 `expected_notes` PATCH，只删仍逐字一致的行和紧挨其上方删空的「未标来源」标题，409 时用新基线重试一次，不消耗 AI 消息）。只靠提示词约束「作者明确让记住时才写、用原话、不加推断」，没有意图或原话匹配代码。追加后超过 4000 字则备注整段不写，结果带一句 `notes_note`；没有新条目时不写、`updated_fields` 不含 notes。旧备注里遗留的「AI 提议·待作者确认」块在每次读取（API 序列化、上下文、作者原话来源、灵感复制）里视为不存在，任何备注写入都不写回，人工 PATCH 的 `expected_notes` 比较两边都去掉该块（`config.project_notes.without_legacy_proposals`）。参见 [notes][n-notes]、[remove-proposals][n-remove-proposals]。作者自己的项目名也不能由模型布尔值或原话放行改名。参见 [typed-boundaries][n-typed-boundaries]。
 - **回复语言跟随作者最近一条消息**（`message_manager.detect_author_language`），本轮上下文 `<turn_context>` 末尾写明本轮语言，所有角色共用；界面语言只在
   看不出时兜底。[reply-language][n-lang]
 

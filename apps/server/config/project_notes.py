@@ -21,8 +21,12 @@ from config.project_status import PROJECT_STATUS_MAX_LENGTHS
 CONFIRMED_HEADER = "【作者确认】"
 UNLABELED_HEADER = "【未标来源】"
 
-CONFIRMED_EXPLANATION = "作者确认过的约定；应用内 AI 不能修改或删除"
-UNLABELED_EXPLANATION = "作者在记忆面板保存、在对话里让你记下或历史遗留的约定；应用内 AI 不能修改或删除"
+# No 「；」 in the explanations: a header copied back flattened onto one line must not split into
+# fragments that look like entries.
+CONFIRMED_EXPLANATION = "作者确认过的约定，你不能修改或删除，作者可在 AI 记忆里编辑"
+UNLABELED_EXPLANATION = (
+    "作者在记忆面板保存、在对话里让你记下或历史遗留的约定，你不能修改或删除，作者可在 AI 记忆里编辑"
+)
 
 _HEADER_PREFIX = r"^\s*【\s*(?:备注\s*[·・]\s*)?"
 _HEADER_SUFFIX = r"\s*】\s*(?:[（(].*[)）])?\s*$"
@@ -142,12 +146,18 @@ def _entry_key(entry: str) -> str:
     return _normalize(_SELF_LABEL_RE.sub("", _BULLET_RE.sub("", entry)))
 
 
+def _is_section_header(text: str) -> bool:
+    return _is_author_header(text) or bool(_LEGACY_PROPOSALS_HEADER_RE.match(text))
+
+
 def _entries(lines: list[str]) -> list[str]:
+    # A fragment shaped like a section header (e.g. a header flattened onto one line with 「；」) is
+    # not an entry: stored on its own line it would start a section and relabel what follows.
     return [
         part.strip()
         for line in lines
         for part in _ENTRY_SPLIT_RE.split(line)
-        if _entry_key(part)
+        if _entry_key(part) and not _is_section_header(part)
     ]
 
 
@@ -165,9 +175,11 @@ def merge_project_notes(existing: str | None, notes: str, *, from_chat: bool) ->
     """Apply an update_project ``notes`` argument.
 
     ``from_chat`` (an application-chat model call): append-only.  The stored author content is kept
-    byte-for-byte; every entry of ``notes`` not already there (by entry key, so a copied-back
-    rendered header or a self-label such as 「【已定】」 changes nothing) is appended on its own line
-    as a plain (unlabeled) note, without bullets or self-labels.  If that would exceed the notes
+    byte-for-byte; every entry of ``notes`` not already there (by entry key, so a self-label such
+    as 「【已定】」 changes nothing) is appended on its own line as a plain (unlabeled) note, without
+    bullets or self-labels.  Section-header-shaped lines or 「；」 fragments (a copied-back rendered
+    header, 【作者确认】, a legacy 【AI 提议】 header) are never appended, so appended text can never
+    open a confirmed or hidden section.  If that would exceed the notes
     limit, nothing is appended.
 
     Otherwise (a direct non-chat caller) ``notes`` replaces the whole field.  Either way no legacy

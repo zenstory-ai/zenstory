@@ -100,7 +100,7 @@ export function withAuthorNotes(stored: string, edited: string, confirmedFrom?: 
 }
 
 export interface NoteEntriesRemoval {
-  /** Stored notes without the removed lines (and without an 【未标来源】 header they left empty). */
+  /** Stored notes without the removed lines (and an 【未标来源】 header that only introduced them). */
   text: string;
   /** Entries found and removed, by exact trimmed equality with a whole stored line. */
   removed: string[];
@@ -111,10 +111,14 @@ export interface NoteEntriesRemoval {
 /**
  * Undo of the entries one chat update_project appended (`notes_added`, each stored on its own
  * line): removes the last line exactly equal (trimmed) to each entry, never a header or a line of
- * a legacy proposal block, and keeps every other byte. An entry the author has since edited stays.
+ * a legacy proposal block, and keeps every other byte, line endings included. An entry the author
+ * has since edited stays.
  */
 export function withoutNoteEntries(stored: string, entries: string[]): NoteEntriesRemoval {
-  const lines = stored.split(/\r?\n/);
+  // parts alternate line, line ending, line, …; seps[i] is the line ending after lines[i].
+  const parts = stored.split(/(\r?\n)/);
+  const lines = parts.filter((_, index) => index % 2 === 0);
+  const seps = parts.filter((_, index) => index % 2 === 1);
   const legacy = new Set<number>();
   let inLegacy = false;
   lines.forEach((line, index) => {
@@ -138,13 +142,21 @@ export function withoutNoteEntries(stored: string, entries: string[]): NoteEntri
     } else missing.push(entry);
   }
   if (drop.size === 0) return { text: stored, removed, missing };
-  const kept = lines.filter((_, index) => !drop.has(index));
-  // An 【未标来源】 header that only introduced the removed lines goes with them.
-  const out = kept.filter((line, index) => {
-    if (!unlabeledHeader.test(line)) return true;
-    const rest = kept.slice(index + 1);
-    const next = rest.findIndex(isHeaderLine);
-    return (next < 0 ? rest : rest.slice(0, next)).some(other => other.trim());
-  });
-  return { text: out.join(lineEnding(stored)).trimEnd(), removed, missing };
+  // The 【未标来源】 header directly above a removed line goes with it when nothing is left under it.
+  for (const index of [...drop]) {
+    let header = index - 1;
+    while (header >= 0 && drop.has(header)) header--;
+    if (header < 0 || !unlabeledHeader.test(lines[header])) continue;
+    let next = header + 1;
+    let empty = true;
+    for (; next < lines.length && !isHeaderLine(lines[next]); next++) {
+      if (!drop.has(next) && lines[next].trim()) { empty = false; break; }
+    }
+    if (empty) drop.add(header);
+  }
+  const kept = lines.map((_, index) => index).filter(index => !drop.has(index));
+  const text = kept
+    .map((index, position) => lines[index] + (position < kept.length - 1 ? seps[index] : ''))
+    .join('');
+  return { text, removed, missing };
 }

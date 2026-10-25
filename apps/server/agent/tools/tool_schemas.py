@@ -295,8 +295,8 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
         "同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending。"
         "summary/current_phase/writing_style 传值即整体替换；新增内容时先合并现有内容。"
         "notes 只在作者明确让你记住时传，只追加作者原话（已有备注由系统保留，不能删改）；"
-        "结果的 notes_added 是实际记下的条目。"
-        "summary 只描述作品，不标「已确认」，不写你自己选定或建议的内容；建议写在回复里。"
+        "结果的 notes_added 是实际记下的条目，没有它不要说已记住；作者要删改已有备注时不传 notes，请作者在 AI 记忆里编辑。"
+        "summary 只描述作品，不标「已确认」，不写你自己选定或建议的内容；writing_style 只写作者提过的要求；建议写在回复里。"
         "新的非文件完成任务须明确 task_kind=conversation；文件任务必须有对应类型的实际产物证据。"
         "进度和已完成文件引用由系统维护，不要提交或推断这些字段。"
         "给作品定了名字时传 title：项目还叫默认名（如「我的小说」）或之前由 AI 起的名字时会改名，"
@@ -326,7 +326,7 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             },
             "writing_style": {
                 "type": "string",
-                "description": "写作风格指南（整体替换；先合并现有内容）",
+                "description": "作者提过的写作风格要求（整体替换；先合并现有内容；不写你自己定的规则）",
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["writing_style"],
             },
             "notes": {

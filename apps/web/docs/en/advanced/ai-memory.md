@@ -13,7 +13,7 @@ Open **AI Memory** at the top of project chat, edit, and save. Cancel does not s
 | Current Phase | What is saved and the next task | 1,000 characters |
 | Notes | Easily confused facts, open decisions, relevant filenames | 4,000 characters |
 
-You do not need to fill the limits. Put important constraints first and detailed background in files. The AI can update the summary, writing style, and current phase; check stored results after important decisions. Notes are yours: when you explicitly say "remember ..." in chat, the AI appends your words to notes, and the result card in the chat lists what it saved with an **Undo** button. Otherwise the AI does not write notes and keeps its suggestions in its replies.
+You do not need to fill the limits. Put important constraints first and detailed background in files. The AI can update the summary, writing style, and current phase; check stored results after important decisions. Notes are yours: when you explicitly say "remember ..." in chat, the AI appends your words to notes, and the result card in the chat lists what it saved with an **Undo** button. Otherwise the AI does not write notes and keeps its suggestions in its replies. The AI cannot edit or delete existing notes; change them yourself in AI Memory.
 
 ## Separate decisions and progress
 

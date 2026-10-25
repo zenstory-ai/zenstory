@@ -17,7 +17,7 @@
  * - Internationalization support via react-i18next
  */
 
-import React, { useCallback, useContext } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../lib/i18n';
 import {
@@ -596,6 +596,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 }) => {
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
+  const [notesUndone, setNotesUndone] = useState(false);
+  const handleNotesUndone = useCallback(() => setNotesUndone(true), []);
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleUndo = useCallback((target: FileEditUndoTarget) => {
@@ -865,15 +867,17 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         notes: t('chat:project.field.notes'),
       };
 
-      const updatedLabels = updatedFields
+      const notesAdded = readNotesAdded(data);
+      // After the author undid the remembered notes, the header no longer claims them as updated.
+      const shownFields = notesUndone ? updatedFields.filter((f) => f !== 'notes') : updatedFields;
+      const updatedLabels = shownFields
         .map((f) => fieldLabels[f] || f)
         .join(t('common:separator'));
-      const notesAdded = readNotesAdded(data);
-      const changed = updatedFields.length > 0
-        || data.project_name_updated === true
+      const otherChanges = data.project_name_updated === true
         || projectStatus?.project_name_updated === true
-        || (data.plan !== undefined && data.plan !== null)
-        || notesAdded !== null;
+        || (data.plan !== undefined && data.plan !== null);
+      const changed = updatedFields.length > 0 || otherChanges || notesAdded !== null;
+      const stillChanged = shownFields.length > 0 || otherChanges || (notesAdded !== null && !notesUndone);
 
       // Nothing visible changed (e.g. notes copied back unchanged): no green success.
       if (!changed) {
@@ -891,11 +895,15 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
       return (
         <div>
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={stillChanged
+          ? 'bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2'
+          : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2'}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))]">
-              {t('chat:tool.status_updated')}
+            {stillChanged
+              ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
+              : <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />}
+            <span className={stillChanged ? 'text-sm text-[hsl(var(--success-text))]' : 'text-sm text-[hsl(var(--text-secondary))]'}>
+              {stillChanged ? t('chat:tool.status_updated') : t('chat:tool.status_unchanged')}
             </span>
             {updatedLabels && (
               <span className="text-xs text-[hsl(var(--text-secondary))]">
@@ -908,7 +916,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           )}
         </div>
           {notesAdded && !isPending && !interrupted && (
-            <RememberedNotes projectId={notesAdded.projectId} entries={notesAdded.entries} />
+            <RememberedNotes projectId={notesAdded.projectId} entries={notesAdded.entries} onUndone={handleNotesUndone} />
           )}
         </div>
       );

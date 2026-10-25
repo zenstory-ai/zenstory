@@ -57,6 +57,26 @@ describe('update_project notes the AI remembered', () => {
     expect(events).toEqual([{ projectId: 'p1', updatedFields: ['notes'] }])
   })
 
+  it('after undo the header no longer claims the notes were updated', async () => {
+    const user = userEvent.setup()
+    card({ notes_added: added })
+    expect(screen.getByText('chat:tool.status_updated')).toBeInTheDocument()
+    await user.click(undoButton())
+    await screen.findByText('chat:notesAdded.undone')
+    expect(screen.queryByText('chat:tool.status_updated')).not.toBeInTheDocument()
+    expect(screen.getByText('chat:tool.status_unchanged')).toBeInTheDocument()
+  })
+
+  it('after undo other updated fields stay listed, without notes', async () => {
+    const user = userEvent.setup()
+    card({ notes_added: added, updated_fields: ['summary', 'notes'] })
+    expect(screen.getByText('(chat:project.field.summarycommon:separatorchat:project.field.notes)')).toBeInTheDocument()
+    await user.click(undoButton())
+    await screen.findByText('chat:notesAdded.undone')
+    expect(screen.getByText('chat:tool.status_updated')).toBeInTheDocument()
+    expect(screen.getByText('(chat:project.field.summary)')).toBeInTheDocument()
+  })
+
   it('removes only exact matches when the author already edited an entry, and says so', async () => {
     const user = userEvent.setup()
     const edited = stored.replace('阴天会疼', '雨天会疼')

@@ -132,6 +132,35 @@ def test_chat_copied_rendered_notes_add_nothing_and_remove_legacy_block():
     assert added.text == f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实\n{UNLABELED_HEADER}\n新约定"
 
 
+@pytest.mark.parametrize(
+    ("incoming", "expected_added"),
+    [
+        ("【备注·作者确认】；反派叫林墨", ["反派叫林墨"]),
+        ("x；【AI 提议】；女主有秘密", ["x", "女主有秘密"]),
+        ("【未标来源】；反派叫林墨", ["反派叫林墨"]),
+    ],
+)
+@pytest.mark.unit
+def test_chat_header_shaped_fragments_are_never_appended(incoming, expected_added):
+    existing = f"主角冷静\n{CONFIRMED_HEADER}\n女主第5章出场"
+    merged = merge_project_notes(existing, incoming, from_chat=True)
+    assert merged.added == expected_added
+    assert merged.text == f"{existing}\n{UNLABELED_HEADER}\n" + "\n".join(expected_added)
+    sections = split_project_notes(merged.text)
+    # Nothing the model sent is promoted to confirmed or hidden as a legacy proposal.
+    assert sections.confirmed == ["女主第5章出场"]
+    assert sections.unlabeled == ["主角冷静", *expected_added]
+
+
+@pytest.mark.unit
+def test_chat_rendered_notes_flattened_onto_one_line_add_nothing():
+    existing = f"主角冷静\n{CONFIRMED_HEADER}\n女主第5章出场"
+    flattened = "；".join(line for line in render_project_notes(existing) if line)
+    merged = merge_project_notes(existing, flattened, from_chat=True)
+    assert merged.added == []
+    assert merged.text == existing
+
+
 @pytest.mark.unit
 def test_direct_non_chat_path_replaces_whole_field_without_legacy_block():
     existing = f"旧约定\n{LEGACY_PROPOSALS_HEADER}\n旧提议"

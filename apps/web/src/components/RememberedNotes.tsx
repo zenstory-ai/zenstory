@@ -10,6 +10,8 @@ interface RememberedNotesProps {
   projectId: string;
   /** Exact stored entries this update_project call appended to the notes (`notes_added`). */
   entries: string[];
+  /** Called once the entries are no longer stored (undone now, or already gone). */
+  onUndone?: () => void;
 }
 
 type Outcome = { kind: 'undone'; changed: number } | { kind: 'gone' };
@@ -22,7 +24,7 @@ const isConflict = (err: unknown) => err instanceof ApiError && err.status === 4
  * `expected_notes`, no AI message): it reads the current notes on click, so cards restored from
  * history issue no reads on mount, and removes only lines still stored exactly as written.
  */
-export const RememberedNotes: React.FC<RememberedNotesProps> = ({ projectId, entries }) => {
+export const RememberedNotes: React.FC<RememberedNotesProps> = ({ projectId, entries, onUndone }) => {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -32,8 +34,10 @@ export const RememberedNotes: React.FC<RememberedNotesProps> = ({ projectId, ent
 
   // The undo button unmounts with the list; keep keyboard focus in the card.
   useEffect(() => {
-    if (outcome) statusRef.current?.focus();
-  }, [outcome]);
+    if (!outcome) return;
+    statusRef.current?.focus();
+    onUndone?.();
+  }, [outcome, onUndone]);
 
   const undo = async () => {
     if (busy) return;
