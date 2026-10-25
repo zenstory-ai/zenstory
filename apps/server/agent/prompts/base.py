@@ -66,12 +66,26 @@ def get_base_prompt(
     parts.append("")
     parts.append(get_folder_reference(folder_ids))
     parts.append("")
-    parts.append(config["directory_structure"].format(**folder_ids))
+    parts.append(_format_directory_structure(config["directory_structure"], folder_ids))
     parts.append("")
     parts.append(config.get("character_detection", get_default_character_detection(folder_ids)))
     parts.append(f"## 当前项目 ID: {project_id}")
 
     return "\n".join(parts)
+
+
+class _KeepUnknownPlaceholders(dict):
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def _format_directory_structure(template: str, folder_ids: dict[str, str]) -> str:
+    """填入目录 ID。directory_structure 由管理员编辑：未知占位符原样保留，
+    单个花括号等无法格式化的写法整段按原文输出，不让该类项目的请求报错。"""
+    try:
+        return template.format_map(_KeepUnknownPlaceholders(folder_ids))
+    except (ValueError, IndexError, AttributeError, KeyError, TypeError):
+        return template
 
 
 # =============================================================================
