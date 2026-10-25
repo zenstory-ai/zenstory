@@ -1,6 +1,8 @@
-"""自动质检门的字数只算真正落进正文的写入。
+"""自动质检门的字数只算真正落进正文的写入（F-16 / F-17）。
 
-- edit_file 部分成功：失败的那几处编辑没写进文件，字数不算。
+- edit_file 部分成功：失败的那几处编辑没写进文件，字数不算；
+- create_file 复用已有正文的文件：没收到 </file> 的流式正文会被 StreamAdapter 拒存，
+  字数不算；完整闭合的覆写照常算。
 """
 
 from __future__ import annotations
@@ -90,3 +92,67 @@ def test_parallel_partial_edit_counts_only_applied_edits():
     words = body_words_written(tracker.finish(""))
 
     assert words == count_words(SUCCESS_TEXT)
+
+
+def _reused_create_events(call_id: str = "create-1") -> list[StreamEvent]:
+    payload = {
+        "status": "success",
+        "mutation_applied": False,
+        "data": {
+            "id": "episode-3",
+            "title": "第3集",
+            "file_type": "script",
+            "content": "",
+            "content_elided": True,
+            "reused_existing": True,
+            "original_content_length": 8000,
+            "mutation_applied": False,
+        },
+    }
+    return [
+        _use(call_id, "create_file", {"title": "第3集", "file_type": "script"}),
+        _result(call_id, "create_file", payload),
+    ]
+
+
+PROSE = "残" * 600
+
+
+def test_reused_non_empty_file_with_unclosed_block_is_not_counted():
+    """StreamAdapter 拒绝用未闭合的残稿覆盖已有正文：没保存的字数不能触发送审。"""
+    tracker = BodyWriteTracker()
+    for event in _reused_create_events():
+        tracker.observe(event, text_length=0)
+
+    words = body_words_written(tracker.finish(f"<file>{PROSE}"))
+
+    assert words == 0
+
+
+def test_reused_non_empty_file_with_closed_block_is_counted():
+    """完整以 </file> 结尾的覆写会落库，照常计入。"""
+    tracker = BodyWriteTracker()
+    for event in _reused_create_events():
+        tracker.observe(event, text_length=0)
+
+    words = body_words_written(tracker.finish(f"<file>{PROSE}</file>\n\n第3集写好了。"))
+
+    assert words == count_words(PROSE)
+
+
+def test_new_file_with_unclosed_block_is_still_counted():
+    """新建的空文件：适配器会把截断的正文补全落库，计数口径不变。"""
+    tracker = BodyWriteTracker()
+    tracker.observe(_use("create-2", "create_file", {"title": "第五章", "file_type": "draft"}), text_length=0)
+    tracker.observe(
+        _result(
+            "create-2",
+            "create_file",
+            {"status": "success", "data": {"id": "draft-5", "title": "第五章", "file_type": "draft", "content": ""}},
+        ),
+        text_length=0,
+    )
+
+    words = body_words_written(tracker.finish(f"<file>{PROSE}"))
+
+    assert words == count_words(PROSE)

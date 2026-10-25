@@ -5,7 +5,8 @@
 被送去审稿（I03，10-10 / 10-11 生产仍有 5 次）。这里改为只看写进正文类文件的内容：
 
 - create_file 建的是 draft / script：算紧随其后的 ``<file>…</file>`` 正文（writer 的
-  TEXT 里能看到同一段正文，与 StreamAdapter 落库的是同一份）；
+  TEXT 里能看到同一段正文，与 StreamAdapter 落库的是同一份）；复用已有正文的文件时，
+  没有 ``</file>`` 结尾的正文会被 StreamAdapter 拒存，不算；
 - edit_file 改的是 draft / script：算这次写进去的文字（edits 里 ``new`` / ``text``）；
 - parallel_execute 的 write_chapter / edit_file 子任务同理。
 
@@ -21,11 +22,13 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent.constants import CONTENT_FILE_TYPES
+from agent.constants import CONTENT_FILE_TYPES, coerce_bool
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from utils.text_metrics import count_words
 
-_FILE_BLOCK_RE = re.compile(r"<\s*file\b[^>]*>(.*?)(?:<\s*/\s*file\s*>|$)", re.IGNORECASE | re.DOTALL)
+_FILE_BLOCK_RE = re.compile(
+    r"<\s*file\b[^>]*>(.*?)(?:(?P<close><\s*/\s*file\s*>)|$)", re.IGNORECASE | re.DOTALL
+)
 _EDIT_TEXT_KEYS = ("new", "text")
 
 
@@ -41,6 +44,9 @@ class BodyWrite:
     full_body: bool = False
     # create_file：正文在之后的 <file> 块里，记下当时 writer 文字的长度，run 结束时再取。
     text_offset: int | None = None
+    # create_file 复用了已有正文的文件：StreamAdapter 不拿没收到 </file> 的残稿整体覆盖原文
+    # （_should_refuse_truncated_overwrite），所以只有闭合的 <file> 块才算写进去了。
+    requires_closed_block: bool = False
     # edit_file：工具返回的改后全文字数（new_word_count）；没返回时为 None。
     file_words: int | None = None
     # Diagnostic fact only: legacy success/word-count quality gating is unchanged.
@@ -101,6 +107,18 @@ def _edit_words(edits: Any, failed: set[int] | None = None) -> int:
     return total
 
 
+def _reuses_existing_body(data: dict[str, Any]) -> bool:
+    """create_file 命中复用分支、且目标文件原本有正文（与 StreamAdapter 的覆盖保护同一判断）。"""
+    if not coerce_bool(data.get("reused_existing")):
+        return False
+    content = data.get("content")
+    try:
+        original = int(data.get("original_content_length"))
+    except (TypeError, ValueError):
+        original = 0
+    return max(original, len(content) if isinstance(content, str) else 0) > 0
+
+
 def _int_or_none(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
@@ -150,6 +168,7 @@ class BodyWriteTracker:
                 file_type=str(created_type),
                 full_body=True,
                 text_offset=text_length,
+                requires_closed_block=_reuses_existing_body(data),
             )
         elif name == "edit_file" and _is_body_type(data.get("file_type")):
             recorded = BodyWrite(
@@ -215,7 +234,8 @@ class BodyWriteTracker:
             later = [offset for offset in offsets if offset > write.text_offset]
             segment = agent_text[write.text_offset : min(later) if later else len(agent_text)]
             match = _FILE_BLOCK_RE.search(segment)
-            write.words = count_words(match.group(1)) if match else 0
+            saved = match is not None and (match.group("close") is not None or not write.requires_closed_block)
+            write.words = count_words(match.group(1)) if saved else 0
             write.text_offset = None
         return list(self.writes)
 
