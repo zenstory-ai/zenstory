@@ -258,7 +258,8 @@ async def test_agent_stream_fails_over_only_before_output(sdk_models):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_stream_failure_after_output_raises_and_pins_the_retry(sdk_models):
-    sdk_models["minimax"] = _StreamingModel(["m1"], error=openai.APIConnectionError(
+    m1 = SimpleNamespace(type="response.output_text.delta")
+    sdk_models["minimax"] = _StreamingModel([m1], error=openai.APIConnectionError(
         request=httpx.Request("POST", "https://llm.test")
     ))
     sdk_models["deepseek"] = _StreamingModel(["d1"])
@@ -270,6 +271,113 @@ async def test_agent_stream_failure_after_output_raises_and_pins_the_retry(sdk_m
 
     # The author's retry in the same chat window goes to the backup.
     assert await _drain(sdk_model.build_failover_chat_model("mid-stream")) == ["d1"]
+
+
+# --------------------------------------------------------------- real SDK stream handler
+
+
+def _chunk(*, role: str | None = None, content: str | None = None, finish_reason: str | None = None):
+    from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, Choice, ChoiceDelta
+
+    return ChatCompletionChunk(
+        id="chunk",
+        object="chat.completion.chunk",
+        created=0,
+        model="synthetic",
+        choices=[Choice(index=0, delta=ChoiceDelta(role=role, content=content), finish_reason=finish_reason)],
+    )
+
+
+@pytest.fixture
+def chunk_endpoints(endpoints, monkeypatch):
+    """Real SDK Chat Completions models whose clients stream scripted chunks, then optionally fail."""
+    scripts: dict[str, tuple[list, BaseException | None]] = {}
+    calls: dict[str, int] = {"minimax": 0, "deepseek": 0}
+    clients: dict[str, openai.AsyncOpenAI] = {}
+
+    def client_for(provider):
+        if provider.name not in clients:
+            client = openai.AsyncOpenAI(api_key="synthetic", base_url="https://llm.test/v1", max_retries=0)
+
+            async def create(**_kwargs):
+                calls[provider.name] += 1
+                chunks, error = scripts[provider.name]
+
+                async def stream():
+                    for chunk in chunks:
+                        yield chunk
+                    if error is not None:
+                        raise error
+
+                return stream()
+
+            client.chat.completions.create = create
+            clients[provider.name] = client
+        return clients[provider.name]
+
+    monkeypatch.setattr(llm_providers, "get_async_client", client_for)
+    sdk_model._models.clear()
+    yield scripts, calls
+    sdk_model._models.clear()
+
+
+async def _drain_real(model) -> list[object]:
+    from agents import ModelSettings
+    from agents.models.interface import ModelTracing
+
+    return [
+        event
+        async for event in model.stream_response("sys", "hi", ModelSettings(), [], None, [], ModelTracing.DISABLED)
+    ]
+
+
+def _read_timeout():
+    return openai.APITimeoutError(request=httpx.Request("POST", "https://llm.test"))
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_role_only_chunk_then_a_stall_still_fails_over(chunk_endpoints):
+    """The SDK emits ``response.created`` on the first chunk of any kind; that is not output."""
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant")], _read_timeout())
+    scripts["deepseek"] = ([_chunk(role="assistant"), _chunk(content="答"), _chunk(finish_reason="stop")], None)
+    model = sdk_model.build_failover_chat_model("role-only")
+
+    events = await _drain_real(model)
+
+    types = [event.type for event in events]
+    assert types.count("response.created") == 1  # the stalled attempt's preamble never reached the runner
+    assert "response.output_text.delta" in types and types[-1] == "response.completed"
+    assert calls == {"minimax": 1, "deepseek": 1}
+    assert model.served_model == "deepseek-flash"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_stall_after_real_output_does_not_fail_over(chunk_endpoints):
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _chunk(content="写了一半")], _read_timeout())
+    scripts["deepseek"] = ([_chunk(content="不该出现"), _chunk(finish_reason="stop")], None)
+    model = sdk_model.build_failover_chat_model("after-output")
+
+    with pytest.raises(openai.APITimeoutError):
+        await _drain_real(model)
+    assert calls == {"minimax": 1, "deepseek": 0}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_an_empty_normal_completion_is_a_success(chunk_endpoints):
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _chunk(finish_reason="stop")], None)
+    model = sdk_model.build_failover_chat_model("empty")
+
+    events = await _drain_real(model)
+
+    assert [event.type for event in events] == ["response.created", "response.completed"]
+    assert calls == {"minimax": 1, "deepseek": 0}
+    assert model.served_model == "MiniMax-M3.1-Flash"
 
 
 @pytest.mark.unit

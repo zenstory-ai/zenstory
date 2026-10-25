@@ -3,7 +3,9 @@
 Each agent run gets a ``FailoverChatModel``. Every model call of the run asks
 ``agent/core/llm_failover.py`` which provider to use (the chat session's pinned
 slot, else the primary) and moves to the other provider only when the call
-fails before streaming anything. Providers and models are configured in
+fails before streaming any output. Lifecycle events such as ``response.created``
+are held back until the first output, so a provider that stalls after them still
+fails over. Providers and models are configured in
 ``agent/core/llm_providers.py``.
 
 Each provider attempt is timed for the admin model metrics: the usage hook
@@ -195,6 +197,10 @@ class FailoverChatModel:
         ordered = await llm_failover.aordered_providers(self._session_id)
         self._call_timing = None
         for index, provider in enumerate(ordered):
+            # Events before the first output or completion (``response.created``,
+            # ``output_item.added``) are held back: until output reaches the runner,
+            # this attempt can still be dropped and the call served by the other provider.
+            preamble: list[Any] = []
             started = False
             attempt_started = time.monotonic()
             ttft_ms: int | None = None
@@ -203,9 +209,6 @@ class FailoverChatModel:
                 async for event in _sdk_model_for(provider).stream_response(
                     system_instructions, input, _settings_for(provider, model_settings), *args, **kwargs
                 ):
-                    if not started:
-                        started = True
-                        self._served(provider)
                     event_type = getattr(event, "type", None)
                     if ttft_ms is None and event_type in _FIRST_OUTPUT_EVENT_TYPES:
                         from services.usage.llm_usage_service import elapsed_ms
@@ -215,6 +218,15 @@ class FailoverChatModel:
                         # Timed when the provider finished, before the SDK consumes the event.
                         completed = True
                         self._succeeded(attempt_started, ttft_ms)
+                    if not started:
+                        if ttft_ms is None and not completed:
+                            preamble.append(event)
+                            continue
+                        started = True
+                        self._served(provider)
+                        for held in preamble:
+                            yield held
+                        preamble.clear()
                     yield event
             except (asyncio.CancelledError, GeneratorExit) as exc:
                 if not completed:
@@ -234,6 +246,8 @@ class FailoverChatModel:
                 continue
             if not started:
                 self._served(provider)
+                for held in preamble:
+                    yield held
             if not completed:
                 self._succeeded(attempt_started, ttft_ms)
             await llm_failover.arecord_success(provider, self._session_id, ordered)

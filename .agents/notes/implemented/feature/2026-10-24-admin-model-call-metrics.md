@@ -21,7 +21,7 @@ Status: implemented
 |---|---|
 | `outcome` VARCHAR(16) NULL | `success` / `error` / `timeout` / `cancelled`；NULL = 未记录（本列之前的行、回填行、素材拆解） |
 | `duration_ms` INT NULL | 发起调用 → 流结束（`response.completed`）/ 非流式响应返回 / 抛错；免费账号含成本守卫（`model_call_guard`）调用前预留、调用后结算的两次数据库事务；付费账号含 OpenAI 客户端自身的 HTTP 重试（`max_retries`，免费账号的调用守卫设为 0） |
-| `ttft_ms` INT NULL | 只流式：发起调用（免费账号同样含成本预留）→ 第一个输出 delta（`output_text` / `reasoning_text` / `reasoning_summary_text` / `refusal` / `function_call_arguments`）。SDK 的 `response.created` 在首个任意 chunk（可能只有 role）就发，不算 |
+| `ttft_ms` INT NULL | 只流式：发起调用（免费账号同样含成本预留）→ 第一个输出 delta（`output_text` / `reasoning_text` / `reasoning_summary_text` / `refusal` / `function_call_arguments`）。SDK 的 `response.created` 在首个任意 chunk（可能只有 role）就发，不算；主备切换也以同一个输出边界判断「已开始」（2026-10-25 起已实现，见主备切换 note 第 3 条） |
 
 **记录点**（都不 await 数据库，沿用 `schedule_llm_usage_record`）：
 
