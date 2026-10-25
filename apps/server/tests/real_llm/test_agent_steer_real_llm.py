@@ -46,10 +46,15 @@ async def test_steer_real_llm_injected_during_stream(
         },
         headers=context["headers"],
     )
-    assert steer_response.status_code == 200
-    steer_json = steer_response.json()
-    assert steer_json.get("queued") is True
-    assert steer_json.get("message_id")
+    # A fast reply can reach the run's sealing drain before the steer lands: then the
+    # steer is refused with 404 (the frontend sends it as the next message) instead of
+    # being acknowledged and never read. Both outcomes are correct.
+    assert steer_response.status_code in (200, 404), steer_response.text
+    steer_acknowledged = steer_response.status_code == 200
+    if steer_acknowledged:
+        steer_json = steer_response.json()
+        assert steer_json.get("queued") is True
+        assert steer_json.get("message_id")
 
     stream_response = await stream_task
     assert stream_response.status_code == 200
@@ -59,9 +64,10 @@ async def test_steer_real_llm_injected_during_stream(
     names = event_names(events)
     assert names
     assert "session_started" in names
-    assert "steering_received" in names, (
-        f"Expected steering_received in events, got: {names[-20:]}"
-    )
+    if steer_acknowledged:
+        assert "steering_received" in names, (
+            f"Expected steering_received in events, got: {names[-20:]}"
+        )
     assert any(
         name in {"done", "error", "workflow_stopped", "workflow_complete"}
         for name in names
