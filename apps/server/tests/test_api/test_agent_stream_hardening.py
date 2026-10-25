@@ -1997,6 +1997,62 @@ async def test_disconnect_keeps_placeholders_when_the_capture_never_settles(clie
     assert db_session.get(File, placeholder.id).is_deleted is False
 
 
+@pytest.mark.integration
+async def test_stop_keeps_placeholders_when_the_message_id_arrives_after_the_live_wait(
+    client, db_session, monkeypatch
+):
+    """停止路径当场等不到消息 id（补存结果当时未知）：这一轮照常退还，但空白占位保留，
+    当场的 quota_refunded 与刷新后的 stop_outcome 说的一样——都没有移除文件。不在后台悄悄删掉
+    一个当场没告诉作者的文件。"""
+    from models import ChatMessage, File
+
+    monkeypatch.setattr(agent_api, "STOP_MESSAGE_ID_WAIT_S", 0.05)
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    late: set[asyncio.Task] = set()
+
+    class _LateIdService:
+        """取消后补存要一会儿才落定，晚于停止路径当场的等待才交回消息 id。"""
+
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                yield _create_file_result(placeholder)
+                await asyncio.sleep(30)
+            finally:
+                async def _resolve_late():
+                    await asyncio.sleep(0.2)
+                    run_outcome.resolve_message_id(message_id)
+
+                late.add(asyncio.get_running_loop().create_task(_resolve_late()))
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_LateIdService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*late)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert "removed_files" not in _frame_data(rest, "quota_refunded")
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome["charged"] is False
+    assert "removed_files" not in outcome
+
+
 # ------------------------------------- 停止 / 断线回执：保存没确认就不说「已保存」（F-03）
 
 

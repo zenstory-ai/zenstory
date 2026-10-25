@@ -62,8 +62,8 @@ class RunOutcome:
     def removable(self, candidates: list[dict[str, str]]) -> list[dict[str, str]]:
         """去掉不能当空白占位移除的文件，剩下的才交给 remove_empty_placeholders。
 
-        作者编辑器里还有未保存文字的文件不动；这一轮补存过正文的文件也不动：保存失败或超时
-        （回执为 None）时后台线程可能稍后才提交，结果未知就保留。
+        作者编辑器里还有未保存文字的文件不动；这一轮有补存回执的文件也不动（任何回执都算，
+        包括 0 字）：保存失败或超时（回执为 None）时后台线程可能稍后才提交，结果未知就保留。
         """
         keep = self.keep_file_ids | set(self.saved_file_word_counts)
         if not keep:

@@ -655,8 +655,6 @@ async def stream_request(
         refund_task: asyncio.Task[bool] | None = None
         # 作者停止、这一轮被退还时移除的空白占位文件（停止路径当场移除并告诉前端）。
         removed_files: list[dict[str, str]] = []
-        # 停止路径已退还、但当场等不到残稿补存落定（消息 id）：移除留给收尾任务，等补存后再做。
-        placeholder_removal_deferred = False
         # (billing_reason, should_refund, refund_applied)；整个请求只结算一次。
         settlement: tuple[str, bool, bool] | None = None
         # 本轮写进了正文的文件：停止 / 断线的终态列给作者（见 round_outcome.RoundWrittenFiles）。
@@ -771,11 +769,11 @@ async def stream_request(
             pending_refund: asyncio.Task[bool] | None,
             removed: list[dict[str, str]],
             delivery: dict[str, Any] | None = None,
-            remove_placeholders: bool = False,
         ) -> None:
             # 停止 / 断线一轮的收尾：断线时等后台退还落定，退还了才移除空白占位文件；
             # 然后把终态写回这一轮的助手消息，刷新、重进项目后作者看得到。
             charged = charged_now
+            remove_placeholders = False
             if pending_refund is not None:
                 refunded = bool(await pending_refund)
                 charged = not refunded
@@ -825,7 +823,6 @@ async def stream_request(
                 task = asyncio.get_running_loop().create_task(
                     _finalize_stopped_round(
                         stop_kind, charged_now, pending_refund, list(removed_files), delivery,
-                        remove_placeholders=placeholder_removal_deferred and refund_applied,
                     )
                 )
             except RuntimeError:
@@ -886,15 +883,14 @@ async def stream_request(
                 yield done_frame
                 billing_reason, _, refund_applied = await _settle_billing()
                 if refund_applied:
-                    # 消息 id 已交回说明残稿补存已落定，可以当场移除；还没交回就留给收尾任务。
+                    # 消息 id 已交回说明残稿补存已落定，可以当场移除。当场等不到就是补存结果未知：
+                    # 保留占位，也不留给收尾任务在后台删（作者当场收到的说明不会提到它）。
                     if assistant_message_id:
                         removed_files = await _offload(
                             remove_empty_placeholders,
                             body.project_id,
                             run_outcome.removable(tracker.removable_placeholders()),
                         )
-                    else:
-                        placeholder_removal_deferred = True
                     yield quota_refunded_frame(billing_reason, removed_files)
             except (asyncio.CancelledError, GeneratorExit):
                 # 收尾途中客户端断开：照断线路径结算（不能再挂起）。
