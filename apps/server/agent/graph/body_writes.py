@@ -10,7 +10,8 @@
 - parallel_execute 的 write_chapter / edit_file 子任务同理。
 
 字数用 `count_words`，与编辑器一致。只认成功的写入（edit_file 部分成功且确实改了文件
-也算）；大纲、设定、角色、素材、文档都不算。
+也算，但失败的那几处编辑——``failed_edits`` 里的 index——不算）；大纲、设定、角色、素材、
+文档都不算。
 """
 
 from __future__ import annotations
@@ -72,12 +73,25 @@ def _write_applied(payload: dict[str, Any]) -> bool:
     return status == "partial" and payload.get("mutation_applied") is True
 
 
-def _edit_words(edits: Any) -> int:
+def _failed_edit_indices(result_data: dict[str, Any]) -> set[int]:
+    """edit_file 部分成功时没生效的那几处编辑（failed_edits 的 0-based index）。"""
+    failed = result_data.get("failed_edits")
+    if not isinstance(failed, list):
+        return set()
+    return {
+        item["index"]
+        for item in failed
+        if isinstance(item, dict) and isinstance(item.get("index"), int) and not isinstance(item.get("index"), bool)
+    }
+
+
+def _edit_words(edits: Any, failed: set[int] | None = None) -> int:
+    """这次写进去的字数；failed 里的编辑没生效，不算。"""
     if not isinstance(edits, list):
         return 0
     total = 0
-    for edit in edits:
-        if not isinstance(edit, dict) or edit.get("op") == "delete":
+    for index, edit in enumerate(edits):
+        if not isinstance(edit, dict) or edit.get("op") == "delete" or (failed and index in failed):
             continue
         for key in _EDIT_TEXT_KEYS:
             value = edit.get(key)
@@ -142,7 +156,7 @@ class BodyWriteTracker:
                 file_id=str(data.get("id") or tool_input.get("id") or ""),
                 title=str(data.get("title") or ""),
                 file_type=str(data.get("file_type")),
-                words=_edit_words(tool_input.get("edits")),
+                words=_edit_words(tool_input.get("edits"), _failed_edit_indices(data)),
                 file_words=_int_or_none(data.get("new_word_count")),
                 mutation_applied=payload.get("mutation_applied") is True,
             )
@@ -173,7 +187,7 @@ class BodyWriteTracker:
                 full_body = True
             elif task_type == "edit_file":
                 file_type = result_data.get("file_type")
-                words = _edit_words(params.get("edits"))
+                words = _edit_words(params.get("edits"), _failed_edit_indices(result_data))
                 full_body = False
                 file_words = _int_or_none(result_data.get("new_word_count"))
             else:
