@@ -275,6 +275,14 @@ async def test_wait_message_id_does_not_swallow_cancellation():
     assert await outcome.wait_message_id(1.0) == "m2"
 
 
+def test_removable_keeps_files_whose_capture_save_was_attempted():
+    """补存过正文的文件不当空白占位移除：失败 / 超时（回执 None）时后台线程可能稍后才提交。"""
+    outcome = RunOutcome(keep_file_ids={"typed"}, saved_file_word_counts={"timed_out": None, "saved": 12})
+    candidates = [{"id": fid, "title": fid} for fid in ("blank", "typed", "timed_out", "saved")]
+
+    assert outcome.removable(candidates) == [{"id": "blank", "title": "blank"}]
+
+
 # ---------------------------------------------------------------------- RoundWrittenFiles
 
 

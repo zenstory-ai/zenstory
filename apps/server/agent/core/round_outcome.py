@@ -55,10 +55,15 @@ class RunOutcome:
     _message_id: asyncio.Future[str | None] | None = field(default=None, repr=False)
 
     def removable(self, candidates: list[dict[str, str]]) -> list[dict[str, str]]:
-        """去掉作者编辑器里还有未保存文字的文件，剩下的才交给 remove_empty_placeholders。"""
-        if not self.keep_file_ids:
+        """去掉不能当空白占位移除的文件，剩下的才交给 remove_empty_placeholders。
+
+        作者编辑器里还有未保存文字的文件不动；这一轮补存过正文的文件也不动：保存失败或超时
+        （回执为 None）时后台线程可能稍后才提交，结果未知就保留。
+        """
+        keep = self.keep_file_ids | set(self.saved_file_word_counts)
+        if not keep:
             return candidates
-        return [item for item in candidates if item.get("id") not in self.keep_file_ids]
+        return [item for item in candidates if item.get("id") not in keep]
 
     def _future(self) -> asyncio.Future[str | None]:
         if self._message_id is None:

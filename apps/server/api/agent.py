@@ -654,6 +654,8 @@ async def stream_request(
         refund_task: asyncio.Task[bool] | None = None
         # 作者停止、这一轮被退还时移除的空白占位文件（停止路径当场移除并告诉前端）。
         removed_files: list[dict[str, str]] = []
+        # 停止路径已退还、但当场等不到残稿补存落定（消息 id）：移除留给收尾任务，等补存后再做。
+        placeholder_removal_deferred = False
         # (billing_reason, should_refund, refund_applied)；整个请求只结算一次。
         settlement: tuple[str, bool, bool] | None = None
         # 本轮写进了正文的文件：停止 / 断线的终态列给作者（见 round_outcome.RoundWrittenFiles）。
@@ -765,6 +767,7 @@ async def stream_request(
             pending_refund: asyncio.Task[bool] | None,
             removed: list[dict[str, str]],
             delivery: dict[str, Any] | None = None,
+            remove_placeholders: bool = False,
         ) -> None:
             # 停止 / 断线一轮的收尾：断线时等后台退还落定，退还了才移除空白占位文件；
             # 然后把终态写回这一轮的助手消息，刷新、重进项目后作者看得到。
@@ -772,13 +775,17 @@ async def stream_request(
             if pending_refund is not None:
                 refunded = bool(await pending_refund)
                 charged = not refunded
-                if refunded:
-                    removed = await _offload(
-                        remove_empty_placeholders,
-                        body.project_id,
-                        run_outcome.removable(tracker.removable_placeholders()),
-                    )
+                remove_placeholders = refunded
+            # service 补存完残稿（解析器尾缓冲、未闭合围栏里的整章）才交回消息 id：移除空白
+            # 占位前先等它。等不到（超时 / 不会落库）就是补存结果未知，保留占位——宁可留一个
+            # 空章节，也不让补存撞上已删除的文件而丢稿。
             message_id = await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
+            if remove_placeholders and message_id:
+                removed = await _offload(
+                    remove_empty_placeholders,
+                    body.project_id,
+                    run_outcome.removable(tracker.removable_placeholders()),
+                )
             if not message_id:
                 return
             if delivery is None:
@@ -809,7 +816,8 @@ async def stream_request(
             try:
                 task = asyncio.get_running_loop().create_task(
                     _finalize_stopped_round(
-                        stop_kind, charged_now, pending_refund, list(removed_files), delivery
+                        stop_kind, charged_now, pending_refund, list(removed_files), delivery,
+                        remove_placeholders=placeholder_removal_deferred and refund_applied,
                     )
                 )
             except RuntimeError:
@@ -872,11 +880,15 @@ async def stream_request(
                 yield done_frame
                 billing_reason, _, refund_applied = await _settle_billing()
                 if refund_applied:
-                    removed_files = await _offload(
-                        remove_empty_placeholders,
-                        body.project_id,
-                        run_outcome.removable(tracker.removable_placeholders()),
-                    )
+                    # 消息 id 已交回说明残稿补存已落定，可以当场移除；还没交回就留给收尾任务。
+                    if assistant_message_id:
+                        removed_files = await _offload(
+                            remove_empty_placeholders,
+                            body.project_id,
+                            run_outcome.removable(tracker.removable_placeholders()),
+                        )
+                    else:
+                        placeholder_removal_deferred = True
                     yield quota_refunded_frame(billing_reason, removed_files)
             except (asyncio.CancelledError, GeneratorExit):
                 # 收尾途中客户端断开：照断线路径结算（不能再挂起）。
