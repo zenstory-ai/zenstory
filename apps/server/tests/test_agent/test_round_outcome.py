@@ -354,6 +354,39 @@ def test_file_the_author_asked_to_keep_empty_is_neither_written_nor_unwritten():
     assert files.delivery(final_word_counts={}) == {"unwritten_files": [{"id": "ch-11", "title": "第11章"}]}
 
 
+def test_stopped_delivery_keeps_unconfirmed_bodies_and_drops_untouched_or_removed_shells():
+    files = RoundWrittenFiles()
+    files.observe(_created("blank", "刚建好"))
+    files.observe(_created("tail", "尾缓冲"))  # 正文只在补存里，没有正文帧
+    files.observe(_created("streamed", "流式"))
+    files.observe(_frame("file_content", {"file_id": "streamed", "chunk": "林舟推开门。"}))
+
+    delivery = files.stopped_delivery(final_word_counts={"tail": None})
+    assert delivery == {"unwritten_files": [{"id": "tail", "title": "尾缓冲"}, {"id": "streamed", "title": "流式"}]}
+    assert files.saved_output(delivery, final_word_counts={"tail": None}, any_write_succeeded=True) is False
+
+    # 有确认写入时照旧列出没写成的空壳，退还时真正移除了的除外。
+    receipts = {"tail": None, "streamed": 5}
+    delivery = files.stopped_delivery(final_word_counts=receipts, removed_ids={"blank"})
+    assert delivery == {
+        "written_files": [{"id": "streamed", "title": "流式", "words": 5}],
+        "unwritten_files": [{"id": "tail", "title": "尾缓冲"}],
+    }
+    assert files.saved_output(delivery, final_word_counts=receipts, any_write_succeeded=True) is True
+
+
+def test_saved_output_does_not_claim_an_unconfirmed_stream_into_an_existing_file():
+    """流进已有文件的正文没有保存回执：没有可列的文件，也不能说「已写入的内容已保存」；
+    只有列不出文件的写入（并行写章、删除）时沿用计费口径。"""
+    files = RoundWrittenFiles()
+    files.observe(_frame("file_created", {"file_id": "old", "title": "第3章"}))
+    files.observe(_frame("file_content", {"file_id": "old", "chunk": "雨还在下。"}))
+    assert files.saved_output({}, final_word_counts={}, any_write_succeeded=True) is False
+    assert files.saved_output({}, final_word_counts={"old": None}, any_write_succeeded=True) is False
+    assert RoundWrittenFiles().saved_output({}, final_word_counts={}, any_write_succeeded=True) is True
+    assert RoundWrittenFiles().saved_output({}, final_word_counts={}, any_write_succeeded=False) is False
+
+
 def test_partial_delivery_does_not_invent_work_for_old_or_deleted_files():
     files = RoundWrittenFiles()
     files.observe(_created("old", "已有角色", reused_existing=True))

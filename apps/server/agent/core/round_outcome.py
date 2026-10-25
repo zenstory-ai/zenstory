@@ -210,6 +210,57 @@ class RoundWrittenFiles:
         return {**({"written_files": written} if written else {}),
                 **({"unwritten_files": unwritten} if unwritten else {})}
 
+    def stopped_delivery(
+        self,
+        *,
+        final_word_counts: dict[str, int | None],
+        removed_ids: set[str] | frozenset[str] = frozenset(),
+    ) -> dict[str, Any]:
+        """停止 / 断线（实时 ``done`` 与落库的 ``stop_outcome`` 同一份）的写入回执。
+
+        与 :meth:`delivery` 同一口径，只少两类空壳：退还时真正移除了的；以及一份都没写成时，
+        这一轮没往里写过正文（没有流式正文、也没有补存）的空壳——刚建好就停下，不算漏写。
+        写过正文却没有确认保存回执的新建文件照样列为未确认保存。
+        """
+        delivery = self.delivery(final_word_counts=final_word_counts)
+        written = delivery.get("written_files")
+        unwritten = [
+            item for item in delivery.get("unwritten_files", [])
+            if item["id"] not in removed_ids
+            and (written or self._body_attempted(item["id"], final_word_counts))
+        ]
+        return {**({"written_files": written} if written else {}),
+                **({"unwritten_files": unwritten} if unwritten else {})}
+
+    def saved_output(
+        self,
+        delivery: dict[str, Any],
+        *,
+        final_word_counts: dict[str, int | None],
+        any_write_succeeded: bool,
+    ) -> bool:
+        """作者看到的「写入的内容已保存」：只由确认的写入推出，不看流式正文帧。
+
+        有确认写入的文件就是 True。列不出文件的写入（并行写章、删除）沿用计费口径
+        ``any_write_succeeded``，但这一轮只要有流式正文没拿到确认保存回执就不这么说。
+        计费仍按 ``StreamBillingTracker.write_succeeded``，与这里无关。
+        """
+        if delivery.get("written_files"):
+            return True
+        return any_write_succeeded and not self._has_unconfirmed_body(final_word_counts)
+
+    def _body_attempted(self, file_id: str, final_word_counts: dict[str, int | None]) -> bool:
+        entry = self._files.get(file_id)
+        return file_id in final_word_counts or bool(entry and entry.body.strip())
+
+    def _has_unconfirmed_body(self, final_word_counts: dict[str, int | None]) -> bool:
+        if any(count is None for count in final_word_counts.values()):
+            return True
+        return any(
+            entry.body.strip() and file_id not in self._tool_writes and not final_word_counts.get(file_id)
+            for file_id, entry in self._files.items()
+        )
+
     def completion_receipt(
         self, *, final_word_counts: dict[str, int | None], any_write_succeeded: bool
     ) -> dict[str, Any]:

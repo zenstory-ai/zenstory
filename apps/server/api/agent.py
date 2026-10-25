@@ -788,10 +788,11 @@ async def stream_request(
                 )
             if not message_id:
                 return
+            receipts = run_outcome.saved_file_word_counts
             if delivery is None:
-                delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
-                if not delivery.get("written_files"):
-                    delivery.pop("unwritten_files", None)
+                delivery = written_files.stopped_delivery(
+                    final_word_counts=receipts, removed_ids={item.get("id", "") for item in removed}
+                )
             await _offload(
                 record_round_outcome,
                 message_id,
@@ -799,7 +800,10 @@ async def stream_request(
                 outcome=build_stop_outcome(
                     stop_kind=stop_kind,
                     charged=charged,
-                    saved_output=tracker.write_succeeded,
+                    # 作者看到的「已保存」只认确认的保存回执；计费仍按 tracker 的帧口径。
+                    saved_output=written_files.saved_output(
+                        delivery, final_word_counts=receipts, any_write_succeeded=tracker.write_succeeded
+                    ),
                     removed_files=removed,
                     **delivery,
                 ),
@@ -860,9 +864,7 @@ async def stream_request(
                 tracker.observe_delivery(stop_frame)
                 yield stop_frame
                 assistant_message_id = await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
-                delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
-                if not delivery.get("written_files"):
-                    delivery.pop("unwritten_files", None)
+                delivery = written_files.stopped_delivery(final_word_counts=run_outcome.saved_file_word_counts)
                 if not assistant_message_id:
                     for item in delivery.get("written_files", []):
                         item.pop("words", None)

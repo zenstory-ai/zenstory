@@ -1907,6 +1907,8 @@ async def test_refunded_round_waits_for_the_capture_save_before_removing_its_pla
     outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
     assert "removed_files" not in outcome
     assert [item["id"] for item in outcome["written_files"]] == [placeholder.id]
+    # 保存回执确认了补存：作者看到「已保存」，即使计费口径（没有正文帧）退还了这一轮。
+    assert outcome["saved_output"] is True
 
 
 @pytest.mark.integration
@@ -1944,3 +1946,61 @@ async def test_disconnect_keeps_placeholders_when_the_capture_never_settles(clie
     refund.assert_called_once()
     db_session.expire_all()
     assert db_session.get(File, placeholder.id).is_deleted is False
+
+
+# ------------------------------------- 停止 / 断线回执：保存没确认就不说「已保存」（F-03）
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("ending", ["stop", "disconnect"])
+@pytest.mark.parametrize("receipts", [{"placeholder": None}, {}], ids=["save_failed_or_timed_out", "no_receipt"])
+async def test_stopped_round_with_an_unconfirmed_body_save_says_so_live_and_after_reload(
+    client, db_session, ending, receipts
+):
+    """正文已流进本轮新建的章节，残稿补存失败 / 超时（回执 None）或没有回执：这一轮照旧计费，
+    但 done 与刷新后的 stop_outcome 都列「未确认保存」，不说「已写入的内容已保存」。"""
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    receipts = {placeholder.id: None} if receipts else {}
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        yield _sse("file_content", {"file_id": placeholder.id, "chunk": _PROSE})
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id, receipts)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(3):
+            await iterator.__anext__()
+        if ending == "stop":
+            await agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            )
+            rest = "".join([frame async for frame in iterator])
+            done = _frame_data(rest, "done")
+            assert done["unwritten_files"] == [{"id": placeholder.id, "title": placeholder.title}]
+            assert "written_files" not in done
+        else:
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_not_called()  # 计费口径不变：流式正文帧算产出
+    db_session.expire_all()
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome == {
+        "reason": "user_stopped" if ending == "stop" else "client_disconnected",
+        "charged": True,
+        "saved_output": False,
+        "unwritten_files": [{"id": placeholder.id, "title": placeholder.title}],
+    }
