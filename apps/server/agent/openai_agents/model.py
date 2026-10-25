@@ -210,7 +210,13 @@ class FailoverChatModel:
                     system_instructions, input, _settings_for(provider, model_settings), *args, **kwargs
                 ):
                     event_type = getattr(event, "type", None)
-                    if ttft_ms is None and event_type in _FIRST_OUTPUT_EVENT_TYPES:
+                    # An empty delta (openai-agents 0.17.6 emits one for a role chunk with
+                    # ``content: ""``) is not output yet.
+                    if (
+                        ttft_ms is None
+                        and event_type in _FIRST_OUTPUT_EVENT_TYPES
+                        and getattr(event, "delta", None) != ""
+                    ):
                         from services.usage.llm_usage_service import elapsed_ms
 
                         ttft_ms = elapsed_ms(attempt_started)

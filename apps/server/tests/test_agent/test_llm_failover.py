@@ -337,10 +337,14 @@ def _read_timeout():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_a_role_only_chunk_then_a_stall_still_fails_over(chunk_endpoints):
-    """The SDK emits ``response.created`` on the first chunk of any kind; that is not output."""
+@pytest.mark.parametrize("first_content", [None, ""], ids=["no_content", "empty_content"])
+async def test_a_role_only_chunk_then_a_stall_still_fails_over(chunk_endpoints, first_content):
+    """The SDK emits ``response.created`` on the first chunk of any kind; that is not output.
+
+    DeepSeek-style providers send ``content: ""`` with the role; openai-agents 0.17.6 turns that
+    into an empty ``output_text.delta``, which is not output either."""
     scripts, calls = chunk_endpoints
-    scripts["minimax"] = ([_chunk(role="assistant")], _read_timeout())
+    scripts["minimax"] = ([_chunk(role="assistant", content=first_content)], _read_timeout())
     scripts["deepseek"] = ([_chunk(role="assistant"), _chunk(content="答"), _chunk(finish_reason="stop")], None)
     model = sdk_model.build_failover_chat_model("role-only")
 
