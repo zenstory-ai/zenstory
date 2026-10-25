@@ -86,7 +86,7 @@ import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { ProjectStatusDialog } from "./ProjectStatusDialog";
-import { useDraftPersistence } from "../hooks/useDraftPersistence";
+import { appendDraftForProject, useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
 import { nextAiQuotaResetMs, aiQuotaPeriodKey } from "../hooks/useAiMessageQuota";
@@ -1897,24 +1897,30 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * @param message - The user's message text to send (shown and stored as-is)
    * @param selectedSkillIds - Skills explicitly selected via chips (sent as selected_skill_ids)
    * @param extraMetadata - Extra request metadata (e.g. `{ entry: "dashboard_idea" }`)
+   * @param options.keepComposer - Send only these words: the draft, attachments and quotes
+   *   staged in the composer stay there (a follow-up sent on after its round wrapped up)
    */
   // Handle sending a message
   const handleSendMessage = useCallback(async (
     message: string,
     selectedSkillIds?: string[],
     extraMetadata?: Record<string, unknown>,
+    { keepComposer = false }: { keepComposer?: boolean } = {},
   ) => {
     if (!message.trim() || isStreaming || sendLockRef.current || newChatAfterStopRef.current || creatingSessionRef.current !== null || sessionRecoveryBlockedRef.current) return false;
 
     // Used up for today: keep the words as the draft and explain, instead of sending.
     if (aiSendBlocked) {
-      saveDraft(message);
+      if (!keepComposer) saveDraft(message);
       setShowQuotaUpgradeModal(true);
       return false;
     }
 
     // Clear draft after sending
-    clearDraft();
+    if (!keepComposer) clearDraft();
+    const sentFileIds = keepComposer ? [] : attachedFileIds;
+    const sentLibraryMaterials = keepComposer ? [] : attachedLibraryMaterials;
+    const sentQuotes = keepComposer ? [] : quotes;
 
     // The first message typed in a work's first conversation gets the server's first-message
     // hint (write an opening, then offer directions) like the starter example does.
@@ -1941,13 +1947,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         current_file_title: selectedItem?.title,
 
         // Include attached material IDs (project files)
-        attached_file_ids: attachedFileIds.length > 0 ? attachedFileIds : undefined,
+        attached_file_ids: sentFileIds.length > 0 ? sentFileIds : undefined,
 
         // Include attached library materials
-        attached_library_materials: attachedLibraryMaterials.length > 0 ? attachedLibraryMaterials : undefined,
+        attached_library_materials: sentLibraryMaterials.length > 0 ? sentLibraryMaterials : undefined,
 
         // Include text quotes
-        text_quotes: quotes.length > 0 ? quotes.map(q => ({
+        text_quotes: sentQuotes.length > 0 ? sentQuotes.map(q => ({
           text: q.text,
           fileId: q.fileId,
           fileTitle: q.fileTitle,
@@ -1957,8 +1963,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       },
     };
 
-    pendingMaterialClearRef.current = attachedFileIds.length > 0 || attachedLibraryMaterials.length > 0;
-    pendingQuoteClearRef.current = quotes.length > 0;
+    pendingMaterialClearRef.current = sentFileIds.length > 0 || sentLibraryMaterials.length > 0;
+    pendingQuoteClearRef.current = sentQuotes.length > 0;
 
     trackEvent("ai_chat_submitted", {
       project_id: currentProjectId,
@@ -1966,9 +1972,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       entry: entry ?? "typed",
       generation_mode: generationMode,
       selected_item_type: selectedItem?.type,
-      attached_file_count: attachedFileIds.length,
-      attached_library_material_count: attachedLibraryMaterials.length,
-      quote_count: quotes.length,
+      attached_file_count: sentFileIds.length,
+      attached_library_material_count: sentLibraryMaterials.length,
+      quote_count: sentQuotes.length,
     });
 
     return startRound(request, { userBubble: true });
@@ -2035,8 +2041,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * toast sets that expectation ("applies at the next step").
    */
   // A follow-up that reached the server after the round stopped reading them (404 from
-  // /agent/steer): sent once as the next message when the reply settles.
-  const [steerFallback, setSteerFallback] = useState<{ projectId: string; message: string } | null>(null);
+  // /agent/steer): sent once as the next message when the reply settles. `stopped`: the
+  // author pressed Stop meanwhile, so no paid round starts unasked; the words go back
+  // into the input instead.
+  const [steerFallback, setSteerFallback] = useState<
+    { projectId: string; message: string; stopped?: boolean } | null
+  >(null);
 
   const handleSteer = useCallback(async (message: string) => {
     // 不能静默 return / 静默吞异常：调用方（MessageInput）以「没有抛错 = 已送达」
@@ -2071,14 +2081,23 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   useEffect(() => {
     if (!steerFallback || isStreaming) return;
     setSteerFallback(null);
-    const { projectId, message } = steerFallback;
+    const { projectId, message, stopped } = steerFallback;
     if (currentProjectIdRef.current !== projectId) {
-      toast.error(t("chat:input.steerFailed"));
+      // The author switched works while waiting: the words go into that work's input.
+      if (appendDraftForProject(projectId, message)) toast.success(t("chat:input.steerReturnedToInput"));
+      else toast.error(t("chat:input.steerFailed"));
       return;
     }
-    void handleSendMessage(message).then((sent) => {
+    const backToInput = () => saveDraft(draft.trim() ? `${draft.trimEnd()}\n${message}` : message);
+    if (stopped) {
+      backToInput();
+      toast.success(t("chat:input.steerReturnedToInput"));
+      return;
+    }
+    // Only these words go out: what the author typed or staged meanwhile stays in the composer.
+    void handleSendMessage(message, undefined, undefined, { keepComposer: true }).then((sent) => {
       // Could not start a round (new chat pending, used up for today, …): back in the input.
-      if (!sent) saveDraft(draft.trim() ? `${draft.trimEnd()}\n${message}` : message);
+      if (!sent) backToInput();
     });
   }, [steerFallback, isStreaming, handleSendMessage, saveDraft, draft, t]);
 
@@ -2322,6 +2341,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // still finish on its own before the stop reaches the server. Marked before stop():
     // a stop pressed before run_started ends the round synchronously inside stop().
     if (currentProjectId) stopRequestedProjectRef.current = currentProjectId;
+    setSteerFallback((pending) => (pending && !pending.stopped ? { ...pending, stopped: true } : pending));
     // Text the author typed in the editor (for example into a chapter the AI just created)
     // is saved first: on a refunded stop the server removes this round's still-blank files,
     // and it can only see text that has been saved. When that save fails or times out, the

@@ -45,6 +45,26 @@ function loadDraftFromStorage(projectId: string | null): string {
 }
 
 /**
+ * Append a line to another project's persisted draft (the panel may already show a
+ * different project, so its in-memory draft cannot be used).
+ *
+ * @returns Whether the draft was stored
+ */
+export function appendDraftForProject(projectId: string, text: string): boolean {
+  try {
+    const stored = localStorage.getItem(DRAFT_STORAGE_KEY);
+    const drafts: DraftStore = stored ? JSON.parse(stored) : {};
+    const current = loadDraftFromStorage(projectId);
+    drafts[projectId] = { ...drafts[projectId], default: current.trim() ? `${current.trimEnd()}\n${text}` : text };
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+    return true;
+  } catch (e) {
+    logger.warn('Failed to save draft:', e);
+    return false;
+  }
+}
+
+/**
  * Return type for the useDraftPersistence hook.
  */
 export interface DraftPersistenceResult {
