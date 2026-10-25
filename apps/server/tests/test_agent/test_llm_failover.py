@@ -462,3 +462,278 @@ async def test_a_read_timeout_in_the_middle_of_a_stream_is_a_timeout(sdk_models,
     with pytest.raises(httpx.ReadTimeout):
         await _drain(sdk_model.build_failover_chat_model("slow", usage_attribution=LLMUsageAttribution(user_id="u", source="agent")))
     assert [row[1] for row in attempts] == ["timeout"]
+
+
+# --------------------------------------------------------------- redacted failure diagnostics
+
+
+def _private_status_error(status=422, body=None):
+    response = httpx.Response(
+        status,
+        request=httpx.Request("POST", "https://llm.test/PRIVATE_URL"),
+        headers={"x-request-id": "PRIVATE_PROVIDER_ID"},
+    )
+    return openai.APIStatusError("PRIVATE_EXCEPTION_TEXT", response=response, body=body)
+
+
+def _diagnostics(caplog):
+    return [r for r in caplog.records if r.getMessage() == "LLM provider attempt failed"]
+
+
+def _assert_private_failure(record):
+    assert not record.exc_info
+    assert not record.exc_text
+    assert "PRIVATE_" not in repr((record.getMessage(), record.custom_fields))
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["deepseek", "minimax"])
+async def test_422_is_observed_without_retry_or_raw_data(endpoints, monkeypatch, caplog, attempts, provider):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+    from utils.request_context import bind_request_context, reset_request_context
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", provider)
+    monkeypatch.setenv("LLM_BACKUP_PROVIDER", "minimax" if provider == "deepseek" else "deepseek")
+    error = _private_status_error(body={
+        "base_resp": {"status_code": 2013, "status_msg": "PRIVATE_BODY"},
+        "message": "PRIVATE_MESSAGE",
+        "param": "messages",
+    })
+    endpoints[provider].script = [error]
+    tokens = bind_request_context(request_id="synthetic-request", agent_run_id="synthetic-run")
+    try:
+        with pytest.raises(openai.APIStatusError) as raised:
+            await llm_failover.acreate_chat_completion(
+                call_site="router", messages=[{"role": "user", "content": "PRIVATE_PROMPT"}],
+                usage_attribution=LLMUsageAttribution(user_id="PRIVATE_ACCOUNT", source="router"),
+            )
+    finally:
+        reset_request_context(tokens)
+
+    assert raised.value is error
+    assert sum(len(ep.calls) for ep in endpoints.values()) == 1
+    assert len(attempts) == 1 and attempts[0][1:] == ("error", attempts[0][2], None, 0)
+    records = _diagnostics(caplog)
+    assert len(records) == 1
+    record = records[0]
+    _assert_private_failure(record)
+    assert record.custom_fields == {
+        "request_id": "synthetic-request", "agent_run_id": "synthetic-run",
+        "provider": provider, "model": "deepseek-flash" if provider == "deepseek" else "MiniMax-M3.1-Flash",
+        "slot": "primary", "call_site": "router", "phase": "request",
+        "status_code": 422, "failure_category": "request_rejected",
+        "provider_error_format": "base_resp",
+        "provider_reason": "invalid_parameters",
+        "provider_error_code": 2013 if provider == "minimax" else None,
+        "failed_field": "messages",
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", [
+    None, "PRIVATE_RAW_BODY", ["PRIVATE_LIST"],
+    {"base_resp": {"status_code": True, "status_msg": "PRIVATE_BODY"}},
+    {"base_resp": {"status_code": "2013", "status_msg": "PRIVATE_BODY"}},
+    {"base_resp": {"status_code": 987654321, "status_msg": "PRIVATE_BODY"}},
+    {"error": {"code": "PRIVATE_CODE", "type": "PRIVATE_TYPE", "param": "PRIVATE_PARAM"}},
+    {"base_resp": "PRIVATE_BAD_SHAPE", "param": ["PRIVATE_PARAM"]},
+])
+async def test_unknown_minimax_errors_remain_unknown_and_private(endpoints, caplog, body):
+    error = _private_status_error(body=body)
+    endpoints["minimax"].script = [error]
+    with pytest.raises(openai.APIStatusError):
+        await _call()
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
+    assert record.custom_fields["provider_reason"] == "unknown"
+    assert record.custom_fields["provider_error_code"] is None
+    assert record.custom_fields["failed_field"] is None
+    assert record.custom_fields["call_site"] == "other"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("provider", "status", "reason"), [
+    ("deepseek", 400, "invalid_format"), ("deepseek", 401, "authentication_failed"),
+    ("deepseek", 402, "insufficient_balance"), ("deepseek", 429, "rate_limited"),
+    ("deepseek", 500, "server_error"), ("deepseek", 503, "server_overloaded"),
+    ("deepseek", 418, "unknown"), ("minimax", 422, "unknown"),
+])
+async def test_provider_http_reasons_are_not_guessed_from_messages(
+    endpoints, monkeypatch, caplog, provider, status, reason,
+):
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", provider)
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER")
+    endpoints[provider].script = [_private_status_error(status, {
+        "code": "PRIVATE_CODE", "type": "PRIVATE_TYPE", "param": "PRIVATE_PARAM",
+        "message": "PRIVATE_context length quota invalid request",
+    })]
+    with pytest.raises(openai.APIStatusError):
+        await _call()
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
+    assert record.custom_fields["provider_reason"] == reason
+    assert record.custom_fields["failed_field"] is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("started", [False, True])
+@pytest.mark.parametrize("provider", ["deepseek", "minimax"])
+async def test_sdk_stream_failure_is_observed_before_and_after_output(
+    sdk_models, endpoints, monkeypatch, caplog, attempts, started, provider,
+):
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", provider)
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER")
+    error = httpx.ReadTimeout("PRIVATE_TIMEOUT")
+    sdk_models[provider] = _StreamingModel([_event("response.output_text.delta")] if started else [], error)
+    with pytest.raises(httpx.ReadTimeout) as raised:
+        await _drain(sdk_model.build_failover_chat_model(
+            "PRIVATE_SESSION", usage_attribution=LLMUsageAttribution(user_id="PRIVATE_ACCOUNT", source="agent"),
+        ))
+    assert raised.value is error
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
+    assert record.custom_fields["phase"] == ("stream" if started else "stream_start")
+    assert record.custom_fields["failure_category"] == "timeout"
+    assert record.custom_fields["provider"] == provider
+    assert [r[1] for r in attempts] == ["timeout"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_sdk_nonstream_failure_has_diagnostics(sdk_models, caplog):
+    error = _private_status_error(body={"base_resp": {"status_code": 1042}})
+
+    async def get_response(*_args, **_kwargs):
+        raise error
+
+    sdk_models["minimax"] = SimpleNamespace(get_response=get_response)
+    with pytest.raises(openai.APIStatusError):
+        await sdk_model.build_failover_chat_model("synthetic").get_response("s", [], SimpleNamespace(reasoning=None))
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
+    assert record.custom_fields["phase"] == "request"
+    assert record.custom_fields["provider_reason"] == "invalid_characters"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("provider", ["deepseek", "minimax"])
+def test_sync_material_failure_has_the_same_safe_diagnostics(endpoints, monkeypatch, caplog, provider):
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", provider)
+    monkeypatch.delenv("LLM_BACKUP_PROVIDER")
+    error = _private_status_error(body={"base_resp": {"status_code": 2013, "status_msg": "PRIVATE_BODY"}})
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        raise error
+
+    monkeypatch.setattr(llm_providers, "get_sync_client", lambda *_a, **_kw: SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+    ))
+    with pytest.raises(openai.APIStatusError) as raised:
+        llm_failover.create_chat_completion(call_site="material", messages=[])
+    assert raised.value is error and len(calls) == 1
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
+    assert record.custom_fields["provider"] == provider
+    assert record.custom_fields["call_site"] == "material"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_each_failed_provider_has_one_diagnostic_even_when_backup_succeeds(endpoints, caplog):
+    endpoints["minimax"].script = [_private_status_error(503, {"base_resp": {"status_code": 2064}})]
+    _, served = await _call()
+    assert served.name == "deepseek"
+    record, = _diagnostics(caplog)
+    assert record.custom_fields["provider_reason"] == "server_overloaded"
+    assert record.custom_fields["provider_error_code"] == 2064
+    _assert_private_failure(record)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_polish_failure_uses_its_existing_source_label(endpoints, caplog):
+    endpoints["minimax"].script = [_private_status_error()]
+    with pytest.raises(openai.APIStatusError):
+        await llm_failover.acreate_chat_completion(call_site="polish", messages=[])
+    record, = _diagnostics(caplog)
+    assert record.custom_fields["call_site"] == "polish"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_httpx2_midstream_timeout_is_classified_without_reading_its_text(sdk_models, caplog):
+    import httpx2
+
+    sdk_models["minimax"] = _StreamingModel([_event("response.output_text.delta")], httpx2.ReadTimeout("PRIVATE_TIMEOUT"))
+    with pytest.raises(httpx2.ReadTimeout):
+        await _drain(sdk_model.build_failover_chat_model("synthetic"))
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
+    assert record.custom_fields["failure_category"] == "timeout"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_unknown_exception_is_never_stringified(endpoints, caplog):
+    class PrivateError(Exception):
+        def __str__(self):
+            raise AssertionError("must not read exception text")
+
+    error = PrivateError()
+    endpoints["minimax"].script = [error]
+    with pytest.raises(PrivateError) as raised:
+        await _call()
+    assert raised.value is error
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
+    assert record.custom_fields["failure_category"] == "unknown"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_success_cancellation_and_our_budget_refusal_are_not_provider_errors(endpoints, caplog):
+    import asyncio
+
+    await _call()
+    for error in [asyncio.CancelledError(), APIException(error_code="ERR_AI_COST_BUDGET_UNAVAILABLE", status_code=503)]:
+        endpoints["minimax"].script = [error]
+        with pytest.raises(type(error)):
+            await _call()
+    assert _diagnostics(caplog) == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [413, 422, 503])
+async def test_diagnostics_do_not_execute_exception_properties_or_change_failover(endpoints, caplog, status):
+    class OriginalProviderError(Exception):
+        @property
+        def body(self):
+            raise RuntimeError("PRIVATE_ACCESSOR")
+
+        @property
+        def param(self):
+            raise RuntimeError("PRIVATE_ACCESSOR")
+
+    original = OriginalProviderError()
+    original.status_code = status
+    endpoints["minimax"].script = [original]
+    if status == 503:
+        _, provider = await _call()
+        assert provider.name == "deepseek"
+        assert len(endpoints["deepseek"].calls) == 1
+    else:
+        with pytest.raises(OriginalProviderError) as raised:
+            await _call()
+        assert raised.value is original
+        assert endpoints["deepseek"].calls == []
+    record, = _diagnostics(caplog)
+    _assert_private_failure(record)
