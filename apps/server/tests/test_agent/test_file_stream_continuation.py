@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
-from agent.graph.completion_evidence import ends_on_file_block
+from agent.graph.completion_evidence import ends_on_file_block, ends_on_unclosed_file_block
 from agent.openai_agents.repeat_read_guard import ReadPlan
 from agent.tools.mcp_tools import ToolContext
 
@@ -42,18 +42,56 @@ def _tool(call_id: str, name: str) -> list[StreamEvent]:
     ]
 
 
-def _create(state, call_id: str, file_id: str, title: str) -> list[StreamEvent]:
+def _create(
+    state,
+    call_id: str,
+    file_id: str,
+    title: str,
+    *,
+    file_type: str | None = None,
+    reused_existing: bool = False,
+) -> list[StreamEvent]:
     """一次成功的 create_file：台账记账（runner 做的事）+ 工具事件。"""
+    tool_input = {"title": title}
+    data: dict[str, object] = {"id": file_id, "title": title}
+    if file_type is not None:
+        tool_input["file_type"] = file_type
+        data["file_type"] = file_type
+    if reused_existing:
+        data.update({"reused_existing": True, "original_content_length": 100})
+    payload = {"status": "success", "data": data}
     state["repeat_read_guard"].observe(
         "create_file",
-        ReadPlan(arguments=json.dumps({"title": title})),
-        json.dumps({"status": "success", "data": {"id": file_id, "title": title}}),
+        ReadPlan(arguments=json.dumps(tool_input)),
+        json.dumps(payload),
     )
-    return _tool(call_id, "create_file")
+    return [
+        StreamEvent(
+            type=StreamEventType.TOOL_USE,
+            data={
+                "id": call_id,
+                "name": "create_file",
+                "status": "complete",
+                "input": tool_input,
+            },
+        ),
+        StreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={
+                "tool_use_id": call_id,
+                "name": "create_file",
+                "result": {"content": [{"type": "text", "text": json.dumps(payload)}]},
+            },
+        ),
+    ]
 
 
 def _file(body: str) -> StreamEvent:
     return _text(f"<file>\n{body}\n</file>\n")
+
+
+def _unclosed_file(body: str) -> StreamEvent:
+    return _text(f"<file>\n{body}\n")
 
 
 async def _run(
@@ -137,13 +175,93 @@ async def test_writer_that_stops_at_file_close_continues_and_summarizes():
 
     assert [agent for agent, _ in runs] == ["writer", "writer"]
     continuation = runs[1][1]
-    assert "上一次回复写完 </file> 就结束了" in continuation
+    assert "上一次回复在文件正文结束时就停止了" in continuation
     assert "《第2集 暗流》" in continuation
     assert "撰写第2-3集剧本（进行中）" in continuation
     assert "第2-3集" in continuation
     # 作者最后看到的是总结，不是空回复或开场句。
     assert _visible_text(events).rstrip().endswith("各约 120 字。")
     assert not any(event.type == StreamEventType.ITERATION_EXHAUSTED for event in events)
+
+
+async def test_writer_with_new_body_at_unclosed_eof_continues_and_summarizes():
+    """EOF 抢救已保存的新剧本仍须续跑同一 writer，给作者可见总结。"""
+    runs: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        runs.append(agent_type)
+        if len(runs) == 1:
+            yield _text("正在新建第1集剧本文件。")
+            for event in _create(
+                state,
+                "c1",
+                "f1",
+                "第1集 深夜单",
+                file_type="script",
+            ):
+                yield event
+            yield _unclosed_file("第一集剧本正文。" * 20)
+        else:
+            yield _text("第1集剧本已经写入，共约 160 字。")
+
+    events = await _run(fake_agent)
+
+    assert runs == ["writer", "writer"]
+    assert _visible_text(events).rstrip().endswith("第1集剧本已经写入，共约 160 字。")
+
+
+async def test_unclosed_reused_body_does_not_continue_after_overwrite_refusal():
+    """已有非空正文的截断覆盖会被适配器拒绝，不能据此补跑总结。"""
+    runs: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        runs.append(agent_type)
+        for event in _create(
+            state,
+            "c1",
+            "f1",
+            "第1集 深夜单",
+            file_type="script",
+            reused_existing=True,
+        ):
+            yield event
+        yield _unclosed_file("截断的替换稿。")
+
+    await _run(fake_agent)
+
+    assert runs == ["writer"]
+
+
+async def test_carried_body_write_does_not_justify_later_unclosed_continuation():
+    """上一轮正文记录不能替代当前 run 的 EOF 新正文保存证据。"""
+    runs: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        runs.append(agent_type)
+        if len(runs) == 1:
+            for event in _create(
+                state,
+                "c1",
+                "f1",
+                "第1集 深夜单",
+                file_type="script",
+            ):
+                yield event
+            yield _file("第一集剧本正文。" * 20)
+        else:
+            for event in _create(
+                state,
+                "c2",
+                "outline-2",
+                "分集大纲",
+                file_type="outline",
+            ):
+                yield event
+            yield _unclosed_file("大纲正文。" * 20)
+
+    await _run(fake_agent)
+
+    assert runs == ["writer", "writer"]
 
 
 async def test_planner_finishes_its_plan_before_the_planned_writer_runs():
@@ -261,3 +379,17 @@ async def test_rework_writer_that_stops_at_file_close_continues():
 )
 async def test_ends_on_file_block(tail, expected):
     assert ends_on_file_block(tail) is expected
+
+
+@pytest.mark.parametrize(
+    ("tail", "expected"),
+    [
+        ("<file>\n正文\n", True),
+        ("<file>\n\n", False),
+        ("<file>\n正文\n</file>\n", False),
+        ("只是一句话", False),
+        ("", False),
+    ],
+)
+async def test_ends_on_unclosed_file_block(tail, expected):
+    assert ends_on_unclosed_file_block(tail) is expected

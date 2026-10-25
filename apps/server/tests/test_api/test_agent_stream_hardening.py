@@ -898,6 +898,7 @@ async def test_stopped_round_done_frame_names_the_written_files_like_the_stop_ou
 
     done = _frame_data(rest, "done")
     assert done["stop_reason"] == "user_stopped"
+    assert done["file_mutated"] is True
     assert done["written_files"] == [
         {"id": filled.id, "title": "第2章 入宅", "words": 12},
         {"id": older.id, "title": "作者自己建的空白页"},
@@ -905,6 +906,87 @@ async def test_stopped_round_done_frame_names_the_written_files_like_the_stop_ou
     db_session.expire_all()
     outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
     assert outcome["written_files"] == done["written_files"]
+
+
+@pytest.mark.integration
+async def test_stopped_round_does_not_infer_file_mutation_from_an_unconfirmed_body_frame(
+    client: AsyncClient, db_session
+):
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(filled)
+        yield _sse("file_content", {"file_id": filled.id, "chunk": "尚未确认保存的正文。"})
+        await asyncio.sleep(30)
+
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, {filled.id: None}),
+        ),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(3):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    done = _frame_data(rest, "done")
+    assert done["file_mutated"] is False
+    assert "written_files" not in done
+    assert done["unwritten_files"] == [{"id": filled.id, "title": filled.title}]
+
+
+@pytest.mark.integration
+async def test_stopped_project_metadata_update_is_saved_without_reporting_a_file_mutation(
+    client: AsyncClient, db_session
+):
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, _filled, _older = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse(
+            "tool_result",
+            {
+                "tool_name": "update_project",
+                "status": "success",
+                "data": {"updated_fields": ["summary", "notes"]},
+            },
+        )
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert _frame_data(rest, "done")["file_mutated"] is False
+    db_session.expire_all()
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome["saved_output"] is True
 
 
 @pytest.mark.integration
@@ -981,12 +1063,59 @@ async def test_complete_delivery_keeps_normal_done_without_round_warning(client,
             await asyncio.gather(*agent_api._round_outcome_tasks)
     # Fully delivered: a write receipt (#267), but no "save not confirmed" warning.
     done = _frame_data(text, "done")
+    assert done["file_mutated"] is True
     assert [item["id"] for item in done["written_files"]] == [empty.id, filled.id]
     assert "unwritten_files" not in done
     db_session.expire_all()
     outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata or "{}")["stop_outcome"]
     assert outcome["reason"] == "completed"
     assert "unwritten_files" not in outcome
+
+
+@pytest.mark.integration
+async def test_api_keeps_a_service_confirmed_file_mutation_without_a_delivery_receipt(
+    client, db_session
+):
+    _token, project, user = await _login_with_project(client, db_session)
+
+    async def frames():
+        yield _sse("done", {"file_mutated": True})
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+
+    assert _frame_data(text, "done")["file_mutated"] is True
+
+
+@pytest.mark.integration
+async def test_completed_project_metadata_update_does_not_report_a_file_mutation(
+    client, db_session
+):
+    _token, project, user = await _login_with_project(client, db_session)
+
+    async def frames():
+        yield _sse(
+            "tool_result",
+            {
+                "tool_name": "update_project",
+                "status": "success",
+                "data": {"updated_fields": ["writing_style"]},
+            },
+        )
+        yield _sse("done", {"file_mutated": False})
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+
+    assert _frame_data(text, "done")["file_mutated"] is False
 
 
 @pytest.mark.integration
@@ -1239,6 +1368,7 @@ async def test_stop_done_uses_confirmed_save_count_or_omits_pending_count(client
         rest = "".join([frame async for frame in iterator])
         await asyncio.gather(*agent_api._round_outcome_tasks)
     done = _frame_data(rest, "done")
+    assert done["file_mutated"] is True
     expected = [{"id": filled.id, "title": filled.title, "words": count_words(db_session.get(File, filled.id).content)}]
     if not receipt_ready:
         expected[0].pop("words")

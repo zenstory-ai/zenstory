@@ -46,7 +46,11 @@ from agent.graph.body_writes import (
     latest_file_word_counts,
     measured_body_words,
 )
-from agent.graph.completion_evidence import author_reply_tail, ends_on_file_block
+from agent.graph.completion_evidence import (
+    author_reply_tail,
+    ends_on_file_block,
+    ends_on_unclosed_file_block,
+)
 from agent.graph.nodes import (
     detect_task_complete,
     evaluate_agent_output,
@@ -495,9 +499,9 @@ async def _settle_empty_files_after_exhaustion(
     }
 
 
-# 写完 </file> 就结束了 run（openai-agents 把不带工具调用的回复当作最终输出）：同一个 agent
-# 接着跑一轮，见 completion_evidence.ends_on_file_block 与主循环里的续写分支。
-FILE_STREAM_CONTINUATION_MARKER = "[系统提醒] 你上一次回复写完 </file> 就结束了"
+# 文件正文结束时就结束了 run（openai-agents 把不带工具调用的回复当作最终输出）：同一个 agent
+# 接着跑一轮。显式 </file> 和 EOF 抢救的新正文分别由 completion_evidence 的两个边界函数识别。
+FILE_STREAM_CONTINUATION_MARKER = "[系统提醒] 你上一次回复在文件正文结束时就停止了"
 
 # 这一轮不送审时，writer 调用 handoff_to_agent(quality_reviewer) 收到的拒绝说明（工具结果）：
 # 交接前按回复协议它只写了一句进度，同一次 run 里接着给作者写总结。见 first-turn-skips-auto-review
@@ -594,7 +598,7 @@ def _file_stream_continuation_context(
     open_tasks: list[dict[str, Any]],
     user_scope: str,
 ) -> str:
-    """写完 </file> 就结束 run 之后，同一个 agent 接着那一轮的交接说明。"""
+    """文件正文结束时就停止 run 后，同一个 agent 接着那一轮的交接说明。"""
     saved = "、".join(f"《{title}》" for title in written_titles if title)
     lines = [
         f"{FILE_STREAM_CONTINUATION_MARKER}，没有接着建下一个文件，也没有给作者写总结，"
@@ -2451,6 +2455,10 @@ async def run_writing_workflow_streaming(
                         )
 
             writer_body_writes = body_tracker.finish(agent_content)
+            run_saved_unclosed_body = any(
+                write.full_body and write.words > 0 and not write.requires_closed_block
+                for write in writer_body_writes
+            )
             run_create_succeeded = bool(run_create_call_ids - run_failed_call_ids)
             reply_text = author_reply_tail(held_reply_text if chat_hold_started else agent_tail_text)
 
@@ -2756,19 +2764,22 @@ async def run_writing_workflow_streaming(
                 and iteration < max_iterations
             )
 
-            # 写完 </file> 就结束了 run（I08）：流式写文件协议把正文放在回复文字里，
-            # openai-agents 把不带工具调用的回复当作最终输出，模型写完一个文件没在同一次
-            # 回复里接着调用 create_file 时，run 就在这里停了——计划里没写的文件、给作者的
-            # 总结都还没写，这不是模型决定收尾。同一个 agent 接着跑一轮，带上已保存的文件、
+            # 文件正文结束时就结束了 run（I08）：流式写文件协议把正文放在回复文字里，
+            # openai-agents 把不带工具调用的回复当作最终输出。显式闭合正文，或在 EOF 被适配器
+            # 抢救保存的新正文，都可能让 run 在这里停下——计划里没写的文件、给作者的总结
+            # 都还没写，这不是模型决定收尾。同一个 agent 接着跑一轮，带上已保存的文件、
             # 作者的范围和任务板上没完成的任务：还有没写的接着写，写完了就给作者总结。
             # 每一轮都必须真的新建并写完一个文件才会再续，受 max_iterations 约束；放在计划交接 /
             # 自动质检之前，规划师写完再交给 writer、writer 写完再送审。
+            ended_on_saved_file_body = ends_on_file_block(agent_tail_text) or (
+                run_saved_unclosed_body and ends_on_unclosed_file_block(agent_tail_text)
+            )
             if (
                 can_rerun_same_agent
                 # 恢复写入的纠偏轮写完的是之前建好的文件，同样算这一程写完了一个文件。
                 and (run_create_succeeded or run_resumed_body)
                 and not ToolContext.has_pending_empty_file()
-                and ends_on_file_block(agent_tail_text)
+                and ended_on_saved_file_body
             ):
                 continuation_guard = _guard_from_state(state)
                 written_titles = (
@@ -2784,7 +2795,7 @@ async def run_writing_workflow_streaming(
                 log_with_context(
                     logger,
                     20,  # INFO
-                    "Agent run ended on a closed <file> block; continuing the same agent",
+                    "Agent run ended on a saved <file> body; continuing the same agent",
                     agent_type=current_agent_type,
                     iteration=iteration,
                     written_files=len(written_titles),
