@@ -97,27 +97,6 @@ async def _run_graph(fake_agent, state, *, router=None, auto_review_threshold=10
 # ---------------------------------------------------------- 审稿闸门（F9）
 
 
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_fast_mode_drops_writer_handoff_to_reviewer():
-    calls: list[str] = []
-
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append(agent_type)
-        for event in _write_done("w1"):
-            yield event
-        yield _text(LONG_TEXT)
-        for event in _handoff_call("quality_reviewer", "请审查第五章\n[要告诉作者]\n无"):
-            yield event
-
-    events = await _run_graph(fake_agent, _state("写第五章", generation_mode="fast"))
-
-    # The writer already wrote its summary: no rerun, nothing appended.
-    assert calls == ["writer"]
-    assert not any(e.type == StreamEventType.HANDOFF for e in events)
-    assert not any(e.type == StreamEventType.TEXT and "无" == e.data.get("text", "").strip() for e in events)
-
-
 def _handoff_call(target: str, context: str) -> list[StreamEvent]:
     """A real handoff: the handoff_to_agent tool call, then the graph's HANDOFF event."""
     return [
@@ -126,48 +105,67 @@ def _handoff_call(target: str, context: str) -> list[StreamEvent]:
     ]
 
 
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_fast_mode_progress_only_handoff_gets_a_summary_with_the_author_notes():
-    calls: list[tuple[str, str]] = []
+async def _writer_calls_handoff_tool(state, target: str = "quality_reviewer"):
+    """The writer calls the real handoff_to_agent tool; like the runner, only a `handoff` result
+    becomes a HANDOFF event, and a refusal goes back to the same run as a tool result."""
+    from agent.tools import mcp_tools
 
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append((agent_type, str(state.get("user_message") or "")))
-        if len(calls) == 1:
-            for event in _write_done("w1"):
-                yield event
-            yield _text("第五章扩写好了，我再通读核对一遍。")
-            for event in _handoff_call(
-                "quality_reviewer", "请审查第五章\n[要告诉作者]\n旧稿可以在历史版本里找回\n[审查重点]\n节奏"
-            ):
-                yield event
-        else:
-            yield _text("第五章写好了，2100 字。")
+    calls: list[str] = []
+    tool_results: list[dict] = []
 
-    events = await _run_graph(fake_agent, _state("把第五章扩写一下", generation_mode="fast"))
-
-    assert [agent for agent, _ in calls] == ["writer", "writer"]
-    summary_context = calls[1][1]
-    assert "快速模式" in summary_context
-    assert "旧稿可以在历史版本里找回" in summary_context
-    assert "节奏" not in summary_context  # only the author-facing part is relayed
-    assert not any(e.type == StreamEventType.HANDOFF for e in events)
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_fast_mode_dropped_handoff_after_a_summary_still_relays_author_notes():
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
+    async def fake_agent(_state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type != "writer" or calls.count("writer") > 1:
+            yield _text("审完了。[TASK_COMPLETE]")
+            return
         for event in _write_done("w1"):
             yield event
-        yield _text(LONG_TEXT)
-        for event in _handoff_call("quality_reviewer", "请审查\n[要告诉作者]\n旧稿可以在历史版本里找回"):
-            yield event
+        yield _text("第五章扩写好了，我再通读核对一遍。")
+        raw = await mcp_tools.handoff_to_agent(
+            {"target_agent": target, "context": "请审查第五章\n[要告诉作者]\n旧稿可以在历史版本里找回"}
+        )
+        result = json.loads(raw["content"][0]["text"])
+        tool_results.append(result)
+        if result.get("status") == "handoff":
+            yield _handoff(target, result["context"])
+        else:
+            yield _text("第五章写好了，2100 字。旧稿可以在历史版本里找回。")
 
-    events = await _run_graph(fake_agent, _state("重写第五章", generation_mode="fast"))
+    with patch("agent.tools.mcp_tools._load_recent_artifact_refs_for_handoff", return_value=[]):
+        events = await _run_graph(fake_agent, state)
+    return calls, tool_results, events
 
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_fast_mode_handoff_tool_refuses_review_and_the_writer_summarizes_in_the_same_run():
+    calls, tool_results, events = await _writer_calls_handoff_tool(
+        _state("把第五章扩写一下", generation_mode="fast")
+    )
+
+    assert calls == ["writer"]
+    assert tool_results[0]["status"] == "error"
+    refusal = tool_results[0]["error"]
+    assert "快速模式" in refusal and "[要告诉作者]" in refusal
+    assert not any(e.type == StreamEventType.HANDOFF for e in events)
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert texts.endswith("旧稿可以在历史版本里找回")
+    assert texts.endswith("第五章写好了，2100 字。旧稿可以在历史版本里找回。")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("state_extra", "target", "expected_agents"),
+    [
+        ({"generation_mode": "quality"}, "quality_reviewer", ["writer", "quality_reviewer"]),
+        ({"generation_mode": "fast"}, "planner", ["writer", "planner"]),
+    ],
+)
+async def test_handoff_tool_keeps_other_handoffs(state_extra, target, expected_agents):
+    calls, tool_results, _ = await _writer_calls_handoff_tool(_state("写第五章", **state_extra), target)
+
+    assert tool_results[0]["status"] == "handoff"
+    assert calls == expected_agents
 
 
 @pytest.mark.asyncio

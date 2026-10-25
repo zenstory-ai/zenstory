@@ -877,6 +877,24 @@ class ToolContext:
         return current_agent if isinstance(current_agent, str) and current_agent else None
 
     @classmethod
+    def set_review_handoff_refusal(cls, message: str | None) -> None:
+        """这一轮不送审时（快速模式 / 作品第一条消息）writer 交给审稿人会收到的拒绝说明；None 表示照常送审。"""
+        context = cls._get_context()
+        if not context:
+            return
+        next_context = dict(context)
+        if message:
+            next_context["review_handoff_refusal"] = message
+        else:
+            next_context.pop("review_handoff_refusal", None)
+        _tool_context_var.set(next_context)
+
+    @classmethod
+    def review_handoff_refusal(cls) -> str | None:
+        message = cls._get_context().get("review_handoff_refusal")
+        return message if isinstance(message, str) and message else None
+
+    @classmethod
     def set_current_agent(cls, current_agent: str | None) -> None:
         """Update current agent in request-scoped context.
 
@@ -2949,6 +2967,11 @@ async def handoff_to_agent(args: dict[str, Any]) -> dict[str, Any]:
             f"Self handoff is not allowed: {current_agent} -> {target_agent}",
             tool_name=tool_name,
         )
+
+    # 这一轮不送审：拒绝 writer 交给审稿人，同一次 run 里由 writer 自己给作者写总结。
+    review_refusal = ToolContext.review_handoff_refusal()
+    if review_refusal and current_agent == "writer" and target_agent == "quality_reviewer":
+        return _make_error(review_refusal, tool_name=tool_name)
 
     # Normalize optional structured handoff fields
     completed_list = completed if isinstance(completed, list) else []

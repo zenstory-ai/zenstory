@@ -174,7 +174,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   [single-summary][n-summary]、[writer-delivery-requirements][n-length]、[thinking-loop-inputs][n-thinking]、[quality-mode-lean][n-lean]
 - **自动质检门只认成功的正文写入**：按 `graph/body_writes.py` 计 draft / script 里实际写进的字数；改大纲、设定、角色和聊天文字不算；
   写入全部失败时不送审。[single-summary][n-summary]、[tool-failure-breaker][n-breaker]、[review-gating][n-review]
-- **作品第一条消息不送审**：`state["first_message_project_label"]` 非空的一轮关掉自动质检门，writer 自己 `handoff_to_agent(quality_reviewer)` 也丢弃；交接前没给作者写话时，同一个 writer 再跑一轮只写总结（`FIRST_ROUND_SUMMARY_CONTEXT`，一次）。作者读到的是 writer 自己的交付说明，不是返修记录；路由显式安排的审稿照常。[first-turn-skips-review][n-first-review]
+- **作品第一条消息不送审**：`state["first_message_project_label"]` 非空的一轮关掉自动质检门，writer 自己调用 `handoff_to_agent(quality_reviewer)` 时工具直接拒绝（`ToolContext.review_handoff_refusal`，文案 `FIRST_ROUND_REVIEW_REFUSAL`；快速模式同理用 `FAST_MODE_REVIEW_REFUSAL`），writer 在同一次 run 里给作者写总结并带上「[要告诉作者]」的话，图里不再丢弃交接或补跑。作者读到的是 writer 自己的交付说明，不是返修记录；路由显式安排的审稿照常。[first-turn-skips-review][n-first-review]
 - **StreamProcessor 丢掉 IDLE 下独占一行的标记**：没有进行中的捕获时，独占一行（不在 ``` 围栏里）的 `<file>` / `</file>` 不进对话，
   行内提到、反引号包着的照常保留。[single-summary][n-summary]
 - **只读请求不改文件**：router `read_only=true` 时不交接给有写权限的 agent（显式 handoff 也拦），提示卡
