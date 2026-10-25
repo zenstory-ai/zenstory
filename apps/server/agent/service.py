@@ -46,14 +46,6 @@ from .core.events import (
 )
 from .core.llm_providers import primary_model_name
 from .core.message_manager import MessageManager
-from .core.metrics import (
-    AGENT_REQUESTS_DURATION_MS,
-    AGENT_REQUESTS_ERRORS,
-    AGENT_REQUESTS_TOTAL,
-    CONTEXT_ITEMS_COUNT,
-    CONTEXT_TOKENS_TOTAL,
-    get_metrics_collector,
-)
 from .core.round_outcome import RunOutcome
 from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
@@ -688,8 +680,6 @@ class AgentService:
         # 作者发出这条消息的时间：user 行落库在回合结束时，created_at 要用它，刷新后时间才不跳。
         user_sent_at = start_time.replace(tzinfo=None)
         run_started_monotonic = time.monotonic()
-        metrics = get_metrics_collector()
-        metrics.increment_counter(AGENT_REQUESTS_TOTAL)
         message_preview = message[:100] + "..." if len(message) > 100 else message
 
         log_with_context(
@@ -1133,10 +1123,6 @@ class AgentService:
 
             context_data = session_data.context_data
             history_messages = session_data.history_messages
-            token_count = max(0, int(getattr(context_data, "token_estimate", 0) or 0))
-            item_count = len(getattr(context_data, "items", []) or [])
-            metrics.increment_counter(CONTEXT_TOKENS_TOTAL, amount=token_count)
-            metrics.increment_counter(CONTEXT_ITEMS_COUNT, amount=item_count)
 
             # Emit context event to frontend
             if context_data and context_data.items:
@@ -1778,7 +1764,6 @@ class AgentService:
             raise
         except Exception as e:
             request_failed = True
-            metrics.increment_counter(AGENT_REQUESTS_ERRORS)
             error_info = classify_stream_exception(e)
             log_stream_exception(
                 logger,
@@ -1944,7 +1929,6 @@ class AgentService:
                         "session_id": session_id,
                     }
                 )
-            metrics.observe_histogram(AGENT_REQUESTS_DURATION_MS, total_duration)
             completed_with_errors = request_failed or had_stream_error
             if completed_with_errors:
                 completion_level = 30  # WARNING

@@ -504,15 +504,12 @@ def test_landing_reminder_fires_when_request_budget_is_nearly_spent():
 
 
 @pytest.fixture
-def _reset_metrics_and_model_cache():
-    from agent.core.metrics import reset_metrics_collector
+def _reset_model_cache():
     from agent.openai_agents.model import reset_sdk_model_cache
 
-    reset_metrics_collector()
     reset_sdk_model_cache()
     yield
     reset_sdk_model_cache()
-    reset_metrics_collector()
 
 
 async def _unused_edit(_args):  # pragma: no cover - 脚本里不调用 edit_file
@@ -521,7 +518,7 @@ async def _unused_edit(_args):  # pragma: no cover - 脚本里不调用 edit_fil
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_stops_as_no_progress_when_model_keeps_rereading(monkeypatch):
     executed: list[dict] = []
 
@@ -555,7 +552,7 @@ async def test_sdk_run_stops_as_no_progress_when_model_keeps_rereading(monkeypat
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_hard_cap_reports_actual_turns_and_stop_reason(monkeypatch):
     monkeypatch.setattr("agent.openai_agents.runner.AGENT_TOOL_CALL_MAX_ITERATIONS", 5)
 
@@ -587,7 +584,7 @@ async def test_sdk_run_hard_cap_reports_actual_turns_and_stop_reason(monkeypatch
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_soft_landing_summary_still_ends_as_exhausted(monkeypatch):
     monkeypatch.setattr("agent.openai_agents.runner.AGENT_TOOL_CALL_MAX_ITERATIONS", 5)
 
@@ -612,7 +609,7 @@ async def test_sdk_run_soft_landing_summary_still_ends_as_exhausted(monkeypatch)
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_soft_lands_on_request_budget_instead_of_hard_error(monkeypatch):
     from agent.core.run_meter import AgentRunMeter
 
@@ -642,7 +639,7 @@ async def test_sdk_run_soft_lands_on_request_budget_instead_of_hard_error(monkey
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_soft_lands_before_the_wall_clock_limit(monkeypatch):
     """Two production runs (50+ model calls) were cut at 780s mid-work: near the limit the
     agent is told to finish the open file and summarize, and the turn ends resumable."""
@@ -674,7 +671,7 @@ async def test_sdk_run_soft_lands_before_the_wall_clock_limit(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_resets_read_counts_left_by_the_previous_agent(monkeypatch):
     """上一个 agent 已把 f1 读了 3 次：新 run 第一次读 f1 要真正执行、不带「已读过」提示。"""
     executed: list[dict] = []

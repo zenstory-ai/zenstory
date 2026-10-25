@@ -68,11 +68,6 @@ GUARD_ERROR_TYPES: frozenset[str] = frozenset(
 NO_PROGRESS_STOP_REASON = "no_progress"
 NO_PROGRESS_ERROR_TYPE = "NoProgressStop"
 
-# 指标名（agent.core.metrics 的计数器按字符串注册）。
-READ_DUPLICATE_TOTAL = "agent.read.duplicate.total"
-READ_BLOCKED_TOTAL = "agent.read.blocked.total"
-NO_PROGRESS_STOP_TOTAL = "agent.no_progress.stop.total"
-
 # 计数只在一个 agent run 内累计，所以提示里说的「之前的工具结果」确实在当前上下文里。
 _READ_HINT_TEXT = "该文件全文本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
 _SUMMARY_READ_HINT_TEXT = "该文件摘要本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
@@ -341,8 +336,6 @@ class RepeatReadGuard:
     def _register_blocked(self, key: ReadKey) -> str:
         self.blocked_reads += 1
         self.duplicate_reads += 1
-        _increment_metric(READ_BLOCKED_TOTAL)
-        _increment_metric(READ_DUPLICATE_TOTAL)
         label = self._file_label(key[1])
         if self.trip is None and self.blocked_reads >= self.max_blocked_reads:
             self.trip = NoProgressTrip(
@@ -500,7 +493,6 @@ class RepeatReadGuard:
             self.files_read[file_id] = self._titles.get(file_id, title)
         if count >= READ_HINT_AT:
             self.duplicate_reads += 1
-            _increment_metric(READ_DUPLICATE_TOTAL)
         return count
 
     def _record_write(self, file_id: str, title: str) -> None:
@@ -610,20 +602,10 @@ def _blocked_error_text(model_text: str, *, user_message: str, tool_name: str) -
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _increment_metric(name: str) -> None:
-    try:
-        from agent.core.metrics import get_metrics_collector
-
-        get_metrics_collector().increment_counter(name)
-    except Exception:  # pragma: no cover - 指标失败不能影响工具调用
-        pass
-
-
 __all__ = [
     "GUARD_ERROR_TYPES",
     "MAX_BLOCKED_READS_PER_REQUEST",
     "NO_PROGRESS_STOP_REASON",
-    "NO_PROGRESS_STOP_TOTAL",
     "NO_PROGRESS_USER_MESSAGE",
     "READ_BLOCK_AT",
     "REPEATED_READ_ERROR_TYPE",

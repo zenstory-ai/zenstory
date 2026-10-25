@@ -576,20 +576,17 @@ def _tool_messages(request_body: dict) -> list[str]:
 
 
 @pytest.fixture
-def _reset_metrics_and_model_cache():
-    from agent.core.metrics import reset_metrics_collector
+def _reset_model_cache():
     from agent.openai_agents.model import reset_sdk_model_cache
 
-    reset_metrics_collector()
     reset_sdk_model_cache()
     yield
     reset_sdk_model_cache()
-    reset_metrics_collector()
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkeypatch):
     from agent.core.workflow_events import StreamEventType
     from agent.openai_agents.runner import TOOL_FAILURE_STOP_REASON
@@ -647,7 +644,7 @@ async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkey
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_recovers_when_retry_succeeds(monkeypatch):
     from agent.core.workflow_events import StreamEventType
 
@@ -739,7 +736,7 @@ async def test_runner_uses_request_breaker_and_read_only_flag_from_state():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_read_only_request_write_attempt_recovers_with_answer(monkeypatch):
     """只读请求下模型照着提示词/历史调用 create_file：拿到可恢复错误后改为直接回答，
     整个 run 正常结束，没有 ERROR，写工具从未执行。"""
@@ -778,7 +775,7 @@ async def test_sdk_read_only_request_write_attempt_recovers_with_answer(monkeypa
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_reviewer_write_call_is_returned_to_model_not_fatal(monkeypatch):
     """审稿人照着共享历史调 edit_file：工具清单人人相同，调用按角色拒绝，
     错误交还模型，run 以回答正常结束（不存在的工具见下一个测试）。"""
@@ -803,7 +800,7 @@ async def test_reviewer_write_call_is_returned_to_model_not_fatal(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_unknown_tool_thrash_is_bounded_by_breaker(monkeypatch):
     """模型反复调用不存在的工具：同样受熔断器约束，不会一直烧到 max_turns。"""
     from agent.core.workflow_events import StreamEventType
@@ -895,7 +892,7 @@ def test_repeated_role_or_clarify_refusal_trips_as_unavailable_call(refusal_kind
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_agent_run_exports_no_traces_even_in_a_fresh_process(monkeypatch):
     """The SDK must never send traces (authors' drafts and messages) to OpenAI's trace backend.
 
@@ -946,7 +943,7 @@ def _tool_call_then(index: int, call_id: str, name: str, args: str, final: str) 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_same_agent_next_run_continues_the_previous_run_append_only(monkeypatch):
     """A continuation run (same agent right after itself) starts from the previous run's full
     input: the request only grows at the end (prompt-cache hit) and files read stay readable."""
@@ -982,7 +979,7 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_a_different_agent_does_not_continue_the_previous_run(monkeypatch):
     async def fake_query(_args):
         return {"content": [{"type": "text", "text": json.dumps({"status": "success", "data": {"id": "f1"}})}]}

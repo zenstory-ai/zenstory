@@ -13,14 +13,6 @@ from typing import Any
 import pytest
 from agents.run_config import CallModelData, ModelInputData
 
-from agent.core.metrics import (
-    MODEL_INPUT_FILTER_CHARS_AFTER,
-    MODEL_INPUT_FILTER_CHARS_BEFORE,
-    TOOL_OUTPUT_TRIMMED_CHARS,
-    TOOL_OUTPUT_TRIMMED_TOTAL,
-    get_metrics_collector,
-    reset_metrics_collector,
-)
 from agent.openai_agents.intra_run_trimmer import (
     COMPACTION_REASON,
     DEFAULT_MAX_INPUT_CHARS,
@@ -408,30 +400,21 @@ def test_does_not_mutate_original_items_when_compacting():
     assert original == snapshot
 
 
-def test_metrics_measure_model_input_reduction_over_budget():
-    reset_metrics_collector()
+def test_over_budget_input_shrinks_to_a_fraction():
     items = [_fc("read-1", "query_files"), _fco("read-1", json.dumps({"id": "file-1", "content": "X" * 80_000}))]
 
-    _run(IntraRunToolOutputTrimmer(max_input_chars=10_000), items)
+    out = _run(IntraRunToolOutputTrimmer(max_input_chars=10_000), items)
 
-    metrics = get_metrics_collector().get_all_metrics()
-    before = metrics["histograms"][MODEL_INPUT_FILTER_CHARS_BEFORE]["summary"]
-    after = metrics["histograms"][MODEL_INPUT_FILTER_CHARS_AFTER]["summary"]
-    assert before["count"] == after["count"] == 1
-    assert before["max"] > 80_000
-    assert after["max"] < before["max"] / 4
-    assert metrics["counters"][TOOL_OUTPUT_TRIMMED_TOTAL]["value"] == 1
-    assert metrics["counters"][TOOL_OUTPUT_TRIMMED_CHARS]["value"] > 0
+    before = _chars(items)
+    assert before > 80_000
+    assert _chars(out) < before / 4
+    assert COMPACTION_REASON in _outputs(out)[0]
 
 
-def test_no_trim_metrics_under_budget():
-    reset_metrics_collector()
-    _run(IntraRunToolOutputTrimmer(), [_fc("c1", "query_files"), _fco("c1", BIG)])
-    metrics = get_metrics_collector().get_all_metrics()
-    assert TOOL_OUTPUT_TRIMMED_TOTAL not in metrics["counters"]
-    before = metrics["histograms"][MODEL_INPUT_FILTER_CHARS_BEFORE]["summary"]
-    after = metrics["histograms"][MODEL_INPUT_FILTER_CHARS_AFTER]["summary"]
-    assert before["max"] == after["max"]
+def test_under_budget_input_is_untouched():
+    items = [_fc("c1", "query_files"), _fco("c1", BIG)]
+    out = _run(IntraRunToolOutputTrimmer(), items)
+    assert out == items
 
 
 @pytest.mark.parametrize(

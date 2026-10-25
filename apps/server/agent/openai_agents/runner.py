@@ -39,7 +39,6 @@ from agent.openai_agents.events import (
 from agent.openai_agents.model import build_failover_chat_model
 from agent.openai_agents.repeat_read_guard import (
     NO_PROGRESS_STOP_REASON,
-    NO_PROGRESS_STOP_TOTAL,
     RepeatReadGuard,
 )
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker, _parse_error_payload
@@ -871,17 +870,6 @@ async def run_openai_agents_streaming_agent(
     # 这次 run 正常结束时它完整的 SDK 输入（原输入 + 模型输出与工具结果），供同一 agent 的下一轮接着用。
     completed_items: list[Any] | None = None
 
-    # Read-only co-call instrumentation (item 1.4).
-    # Approximation: within a single assistant turn, the SDK emits all tool_called events
-    # first, then tool_output events (even with max_function_tool_concurrency=1, which
-    # serialises *execution* but not the event ordering for calls batched in one response).
-    # We track per-turn how many read-only tool calls appear before the first tool_output
-    # of that turn; when ≥2 are observed we record a co-call event.  A new "turn" begins
-    # after every tool_output (the model produced a fresh response with new tool requests).
-    _READONLY_TOOLS: frozenset[str] = frozenset({"query_files"})
-    _turn_readonly_pending: int = 0   # read-only calls seen since last tool_output
-    _turn_has_output: bool = False    # whether the current turn has received any tool_output
-
     if run_meter.exhausted:
         # 上一个 agent run 已经把预算用完（例如最后一次调用恰好以交接结束）：
         # 不再发起任何模型调用，直接以预算用尽结束整条工作流。
@@ -1077,16 +1065,6 @@ async def run_openai_agents_streaming_agent(
                             "result": None,
                         }
                     )
-                    # Read-only co-call tracking: count read-only calls before outputs arrive.
-                    # A tool_called arriving after a turn's outputs starts a NEW turn, so
-                    # reset the per-turn tracking here (not in the tool_output block) — that
-                    # keeps the turn guard set for the whole turn and avoids counting every
-                    # tool_output as a separate turn.
-                    if _turn_has_output:
-                        _turn_has_output = False
-                        _turn_readonly_pending = 0
-                    if tool_name in _READONLY_TOOLS:
-                        _turn_readonly_pending += 1
                     yield StreamEvent(
                         type=StreamEventType.TOOL_USE,
                         data={
@@ -1097,21 +1075,6 @@ async def run_openai_agents_streaming_agent(
                         },
                     )
                 elif event_name == "tool_output":
-                    # First tool_output of this turn: flush the pending read-only count.
-                    # The guard stays set for the rest of the turn; the next tool_called
-                    # batch resets it. This counts each turn exactly once (the previous
-                    # in-block reset made it count every tool_output as a turn).
-                    if not _turn_has_output:
-                        _turn_has_output = True
-                        from agent.core.metrics import (
-                            TOOL_READONLY_COCALL_TOTAL,
-                            TOOL_READONLY_TURNS_TOTAL,
-                            get_metrics_collector,
-                        )
-                        _mc = get_metrics_collector()
-                        _mc.increment_counter(TOOL_READONLY_TURNS_TOTAL)
-                        if _turn_readonly_pending >= 2:
-                            _mc.increment_counter(TOOL_READONLY_COCALL_TOTAL)
                     call_id, result_text = _tool_output_payload(item)
                     tool_name = tool_names_by_call_id.get(call_id, "")
                     tool_input = tool_inputs_by_call_id.get(call_id, {})
@@ -1246,9 +1209,6 @@ async def run_openai_agents_streaming_agent(
             # 重复读取无进展：与熔断同一个收尾——先让 usage 入账，再以 ERROR 结束整条
             # 工作流（不再交接/送审）。本请求没有任何写入成功时 refundable=True，
             # stream_billing 据 reason=no_progress 退还额度（billing_reason=runaway_no_progress）。
-            from agent.core.metrics import get_metrics_collector
-
-            get_metrics_collector().increment_counter(NO_PROGRESS_STOP_TOTAL)
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -1438,9 +1398,6 @@ async def run_openai_agents_streaming_agent(
             )
             yield StreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data=exhausted_data)
         elif clarification_event_data is not None:
-            from agent.core.metrics import AGENT_CLARIFICATION_TOTAL, get_metrics_collector
-
-            get_metrics_collector().increment_counter(AGENT_CLARIFICATION_TOTAL)
             yield StreamEvent(type=StreamEventType.WORKFLOW_STOPPED, data=clarification_event_data)
         elif handoff_event_data is not None:
             yield StreamEvent(type=StreamEventType.HANDOFF, data=handoff_event_data)

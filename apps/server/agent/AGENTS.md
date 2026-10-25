@@ -43,8 +43,7 @@ agent/
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
 │   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
 │   ├── llm_failover.py     # 主备切换：会话固定、熔断、只在没有输出时换供应商
-│   ├── llm_client.py       # 输入建议 / 润色的单次调用
-│   └── metrics.py
+│   └── llm_client.py       # 输入建议 / 润色的单次调用
 ├── graph/                  # 多 agent 工作流（自研编排，非 LangGraph）
 │   ├── writing_graph.py    # run_writing_workflow_streaming：路由、agent 循环、交接、自动质检
 │   ├── router.py           # 意图路由（RouterDecision、跨轮路由延续）

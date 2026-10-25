@@ -9,12 +9,6 @@ from collections.abc import Callable
 from contextlib import nullcontext
 from typing import Any
 
-from agent.core.metrics import (
-    TOOL_CALLS_DURATION_MS,
-    TOOL_CALLS_ERRORS,
-    TOOL_CALLS_TOTAL,
-    get_metrics_collector,
-)
 from agent.core.run_meter import AgentRunMeter
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
@@ -117,43 +111,36 @@ async def invoke_project_tool(
     run_meter: AgentRunMeter | None = None,
 ) -> str:
     """Invoke a project tool from an SDK FunctionTool callback."""
-    metrics = get_metrics_collector()
-    metrics.increment_counter(TOOL_CALLS_TOTAL)
+    parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
+    if parse_error_text is not None:
+        return parse_error_text
 
-    with metrics.time_histogram(TOOL_CALLS_DURATION_MS):
-        parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
-        if parse_error_text is not None:
-            metrics.increment_counter(TOOL_CALLS_ERRORS)
-            return parse_error_text
+    tool_func = TOOL_FUNCTIONS.get(tool_name)
+    if tool_func is None:
+        return tool_error_text(f"Unknown tool: {tool_name}", tool_name=tool_name)
 
-        tool_func = TOOL_FUNCTIONS.get(tool_name)
-        if tool_func is None:
-            metrics.increment_counter(TOOL_CALLS_ERRORS)
-            return tool_error_text(f"Unknown tool: {tool_name}", tool_name=tool_name)
-
-        try:
-            if run_meter is not None:
-                run_meter.mark_first_tool_started()
-            timing = run_meter.measure_stage("tool") if run_meter is not None else nullcontext()
-            with timing:
-                result = tool_func(parsed_args or {})
-                if inspect.isawaitable(result):
-                    result = await result
-            text = _normalize_tool_result_text(result)
-            if run_meter is not None:
-                _record_business_failure(run_meter, tool_name, parsed_args or {}, text)
-            return text
-        except Exception as exc:
-            metrics.increment_counter(TOOL_CALLS_ERRORS)
-            log_with_context(
-                logger,
-                40,  # ERROR
-                "OpenAI Agents tool execution error",
-                tool_name=tool_name,
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
-            return tool_error_text(str(exc), tool_name=tool_name)
+    try:
+        if run_meter is not None:
+            run_meter.mark_first_tool_started()
+        timing = run_meter.measure_stage("tool") if run_meter is not None else nullcontext()
+        with timing:
+            result = tool_func(parsed_args or {})
+            if inspect.isawaitable(result):
+                result = await result
+        text = _normalize_tool_result_text(result)
+        if run_meter is not None:
+            _record_business_failure(run_meter, tool_name, parsed_args or {}, text)
+        return text
+    except Exception as exc:
+        log_with_context(
+            logger,
+            40,  # ERROR
+            "OpenAI Agents tool execution error",
+            tool_name=tool_name,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        return tool_error_text(str(exc), tool_name=tool_name)
 
 
 _WRITE_TOOLS_TEXT = "create_file / edit_file / delete_file / rename_file / parallel_execute"
