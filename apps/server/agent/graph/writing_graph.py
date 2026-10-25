@@ -2521,6 +2521,7 @@ async def run_writing_workflow_streaming(
                 # writer 也会撞上自交接）。当前角色自己没有写权限（审稿人）时不替它换一个
                 # writer：本轮没授予的写权限不合成，按下面的未完成分支收尾。
                 # 只读、先问清楚的请求（作者没授权本轮写文件）同样不安排补写。
+                # 模型调用预算用尽或已到收尾时间时下一轮跑不起来：先判断，不先恢复捕获再停下。
                 correction_agent = current_agent_type
                 can_schedule_correction = (
                     _agent_can_write_files(current_agent_type)
@@ -2528,6 +2529,8 @@ async def run_writing_workflow_streaming(
                     and not clarify_first_request
                     and iteration < max_iterations
                     and file_correction_attempts < MAX_FILE_CORRECTION_ATTEMPTS
+                    and not run_meter.exhausted
+                    and not run_meter.past_wrap_up
                 )
                 # 纠偏轮只能用两次回复协议写正文（下一次回复以 <file> 开头；守卫拒绝其他工具），
                 # 而上一个 run 的 MESSAGE_END 已把捕获复位。先请 StreamAdapter 为同一个文件重新

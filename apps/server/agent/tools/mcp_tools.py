@@ -231,7 +231,7 @@ class _PendingEmptyFileState:
         # 正文已以闭合 <file> 块出现在模型回复里、只差 adapter 落库的条目
         self._streamed: set[str] = set()
         # 第几次模型回复（每次模型调用开始时 +1），以及每个待写文件是在第几次回复里建的：
-        # 上一次回复建的文件，这一次回复必须先写它的正文（见 overdue_unwritten）。
+        # 上一次回复建的文件，这一次回复必须先写它的正文（见 overdue_unwritten_files）。
         self._reply_seq = 0
         self._created_in: dict[str, int] = {}
         # create_file 结果里的版本（updated_at）：补不成时只回滚这之后没被任何写入动过的空文件。
@@ -264,13 +264,17 @@ class _PendingEmptyFileState:
         with self._lock:
             self._reply_seq += 1
 
-    def overdue_unwritten(self) -> str | None:
-        """上一次（或更早的）回复建好、这次回复还没写出正文的文件标题；没有时 None。"""
+    def overdue_unwritten_files(self) -> list[dict[str, str]]:
+        """上一次（或更早的）回复建好、这次回复还没写出正文的文件：精确 {id, title}（按置位先后）。
+
+        created_here：本请求新建、记下了建好时版本的文件（复用的已有剧集没有，可能已有正文）。
+        """
         with self._lock:
-            for file_id, title in self._entries.items():
-                if file_id not in self._streamed and self._created_in.get(file_id, self._reply_seq) < self._reply_seq:
-                    return title
-            return None
+            return [
+                {"id": file_id, "title": title, "created_here": file_id in self._versions}
+                for file_id, title in self._entries.items()
+                if file_id not in self._streamed and self._created_in.get(file_id, self._reply_seq) < self._reply_seq
+            ]
 
     def add(self, file_id: str, title: str, version: str | None = None) -> None:
         with self._lock:
@@ -1003,10 +1007,10 @@ class ToolContext:
             state.begin_reply()
 
     @classmethod
-    def overdue_file_body(cls) -> str | None:
-        """上一次回复建好、这次回复还没写正文的文件标题（两次回复协议被跳过）。"""
+    def overdue_file_bodies(cls) -> list[dict[str, str]]:
+        """上一次回复建好、这次回复还没写正文的文件（两次回复协议被跳过）：见 overdue_unwritten_files；没有请求上下文时为空。"""
         state = cls._get_pending_empty_file_state()
-        return state.overdue_unwritten() if state is not None else None
+        return state.overdue_unwritten_files() if state is not None else []
 
     @classmethod
     def mark_latest_pending_body_streamed(cls) -> None:

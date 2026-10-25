@@ -257,9 +257,10 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 角色能执行哪些工具由 `AGENT_TOOL_NAME_MAP` 决定（`DEFAULT_TOOL_NAMES` 给 planner / hook_designer / writer，`QUALITY_REVIEWER_TOOL_NAMES`
 给审稿人，没有写工具），越权调用在 `tools_adapter` 里以 `tool_not_permitted_for_role` 拒绝，本轮不可用的工具写进运行指令的
 `## 本轮工具限制`。create_file 建好空文件后返回 `awaiting_body` 与 `next_step`；下一次回复没先以 <file> 写完正文就调用的工具
-（delete_file / request_clarification 除外）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
+（request_clarification 与按精确 id 非递归删除本请求新建的这份待写文件除外，删成功后守卫随之清除）以 `file_body_pending` 拒绝（`tools_adapter`，按 on_llm_start 记的回复序号判断），
+拒绝后 runner 同步结束当前 run，由图核验并经 `FILE_BODY_RESUME` 安排纠偏轮；这类拒绝不参与同参数熔断，仍计入请求累计上限。
 先写完正文再 create_file 下一个文件的连写照常。SDK tracing 每次 run 都关掉（`RunConfig(tracing_disabled=True)`），不向 OpenAI 导出内容。
-[fast-mode-summary-and-file-body-turn][n-body-turn]
+[fast-mode-summary-and-file-body-turn][n-body-turn]、[pending-refusal-returns-to-correction][n-pending-refusal]
 
 | 工具 | 用途 |
 |---|---|
@@ -361,6 +362,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-snapshot]: ../../../.agents/notes/implemented/architecture/2026-10-21-context-snapshot-and-cache-stable-tools.md
 [n-body-turn]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-fast-mode-summary-and-file-body-turn.md
 [n-resume]: ../../../.agents/notes/implemented/bug-fix/2026-10-24-empty-file-correction-resumes-capture.md
+[n-pending-refusal]: ../../../.agents/notes/implemented/bug-fix/2026-10-25-pending-body-refusal-returns-to-correction.md
 [n-wrap-up]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-wall-clock-wrap-up.md
 [n-continued-run]: ../../../.agents/notes/implemented/architecture/2026-10-21-same-agent-runs-continue-the-previous-input.md
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md

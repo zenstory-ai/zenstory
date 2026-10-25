@@ -160,6 +160,8 @@ class StreamAdapter:
 
         # Track current tool call for result matching
         self._current_tool_calls: dict[str, dict[str, Any]] = {}
+        # delete_file 调用要删的 id（按 call id）：删掉的正是在等正文的文件时，收尾这份捕获。
+        self._delete_targets: dict[str, str] = {}
 
         # Track latest model message metadata (for persistence accuracy)
         self._last_message_stop_reason: str | None = None
@@ -193,6 +195,7 @@ class StreamAdapter:
         self._pending_file_write = None
         self._content_started = False
         self._current_tool_calls.clear()
+        self._delete_targets.clear()
         self._last_message_stop_reason = None
         self._last_message_usage = None
         self._matched_skill_ids = set(self.config.matched_skill_ids)
@@ -496,6 +499,10 @@ class StreamAdapter:
                 tool_id = data.get("id", "")
                 tool_name = data.get("name", "")
                 tool_input = data.get("input", {})
+                if tool_name == "delete_file" and tool_id and isinstance(tool_input, dict):
+                    target_id = tool_input.get("id")
+                    if isinstance(target_id, str) and target_id:
+                        self._delete_targets[tool_id] = target_id
                 yield tool_call_event(tool_name, tool_input, tool_use_id=tool_id or None)
 
         elif event_type == StreamEventType.TOOL_RESULT:
@@ -693,6 +700,24 @@ class StreamAdapter:
                 error=error,
                 tool_use_id=tool_use_id or None,
             )
+
+            if tool_name == "delete_file":
+                deleted_id = self._delete_targets.pop(tool_use_id, None)
+                pending = self._pending_file_write
+                if (
+                    deleted_id is not None
+                    and pending is not None
+                    and pending.file_id == deleted_id
+                    and status == "success"
+                    and isinstance(parsed_result, dict)
+                    and parsed_result.get("mutation_applied") is True
+                ):
+                    # 模型取消了在等正文的那份文件：同一 run 里之后的 <file> 不能再落进已删文件。
+                    # 等待中的缓冲按既有语义回到对话；待写守卫由 tools_adapter 按同一删除结果清除。
+                    if self._stream_processor.file_id == deleted_id:
+                        async for event in self._flush_active_capture():
+                            yield event
+                    self._pending_file_write = None
 
             # Handle file creation
             if tool_name == "create_file" and status == "success":

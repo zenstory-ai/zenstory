@@ -217,6 +217,13 @@ class EditBatchError(EditFileError):
             f"失败项 edits[{'、'.join(str(item['index']) for item in failed_edits)}]"
             f"（0-based）。{reasons}"
         )
+        if any(item.get("error_type") == EDIT_ERROR_ANCHOR_NOT_FOUND for item in failed_edits):
+            # 事故里模型把整批回滚掉的 new 当成下一次的 old，反复找不到。
+            message += (
+                "\n注意：本批所有 new 都没有保存，正文仍是原来的样子，不能把它们当作下一次的 old / anchor。"
+                "按失败项给出的候选片段里的当前原文重建完整 edits 列表；没有可靠候选时，"
+                "先用 query_files 按 id 读取相关段落再改。"
+            )
         first_type = failed_edits[0].get("error_type") if failed_edits else None
         super().__init__(message, error_type=str(first_type or EDIT_ERROR_GENERIC))
 

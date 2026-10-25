@@ -186,8 +186,34 @@ def role_refusal_text(tool_name: str, agent_type: str) -> str:
 
 
 # 两次回复协议：上一次回复建好的文件，这一次回复必须先以 <file> 开头写正文。没写正文就调用的工具
-# 一律不执行（删掉这个文件、请作者澄清除外）；先写正文再在同一条回复里建下一个文件照常允许。
-FILE_BODY_PENDING_ALLOWED_TOOLS = frozenset({"delete_file", "request_clarification"})
+# 一律不执行（请作者澄清、非递归删掉本请求新建的这份待写文件除外，见 _cancels_overdue_file）；
+# 先写正文再在同一条回复里建下一个文件照常允许。
+FILE_BODY_PENDING_ALLOWED_TOOLS = frozenset({"request_clarification"})
+
+
+def _cancels_overdue_file(raw_arguments: str, overdue_ids: set[str]) -> str | None:
+    """delete_file 的参数正好是「取消一份待写文件」（精确 id、非递归）时返回这个 id，否则 None。
+
+    与执行路径用同一个参数解析和同一个 recursive 判定，放行的就是将要执行的那次删除。
+    参数解析不了、没有 id、别的文件、递归删除（含删父目录）都不算。
+    """
+    from agent.constants import coerce_bool
+
+    parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="delete_file")
+    if parse_error is not None or not isinstance(parsed, dict):
+        return None
+    file_id = parsed.get("id")
+    if isinstance(file_id, str) and file_id in overdue_ids and not coerce_bool(parsed.get("recursive")):
+        return file_id
+    return None
+
+
+def _deleted(output: str) -> bool:
+    try:
+        payload = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return isinstance(payload, dict) and payload.get("status") == "success" and payload.get("mutation_applied") is True
 
 
 def file_body_pending_text(tool_name: str, title: str) -> str:
@@ -295,11 +321,20 @@ def build_agent_function_tools(
                 return failure_breaker.short_circuit_text(_tool_name)
             if read_guard is not None and read_guard.is_open:
                 return read_guard.short_circuit_text(_tool_name)
-            overdue_title = (
-                ToolContext.overdue_file_body() if _tool_name not in FILE_BODY_PENDING_ALLOWED_TOOLS else None
+            overdue = ToolContext.overdue_file_bodies() if _tool_name not in FILE_BODY_PENDING_ALLOWED_TOOLS else []
+            cancelled_id = (
+                # 复用的已有剧集可能已有正文，不算「取消本请求建的空文件」。
+                _cancels_overdue_file(raw_arguments, {entry["id"] for entry in overdue if entry["created_here"]})
+                if overdue and _tool_name == "delete_file"
+                else None
             )
-            if overdue_title:
-                output = file_body_pending_text(_tool_name, overdue_title)
+            if cancelled_id is not None:
+                overdue = []
+            if overdue:
+                output = file_body_pending_text(_tool_name, overdue[0]["title"])
+                # 工具没有执行：只在运行摘要里记一次固定分类，不记首个工具开始、不算回滚批次。
+                if run_meter is not None:
+                    run_meter.record_tool_failure(_tool_name, "file_body_pending", rolled_back_batch=False)
             elif _refusal is not None:
                 output = _refusal(_tool_name)
             elif read_guard is not None:
@@ -311,6 +346,10 @@ def build_agent_function_tools(
                     output = read_guard.observe(_tool_name, plan, output)
             else:
                 output = await invoke_allowed(raw_arguments)
+            if cancelled_id is not None and _deleted(output):
+                # 待写文件确实删掉了：守卫随这次删除结果收敛（StreamAdapter 按同一结果解除捕获），
+                # 模型在本 run 里接着做别的不会再被它拒绝；图在 run 边界的「已删除」核验照旧兜底。
+                ToolContext.clear_pending_empty_file(cancelled_id)
             if failure_breaker is not None:
                 output = failure_breaker.observe(_tool_name, raw_arguments, output)
             return output

@@ -224,11 +224,13 @@ def _routing(**overrides: Any) -> dict[str, Any]:
     return routing
 
 
-async def _run(workspace, model: ScriptedModel, *, routing: dict[str, Any] | None = None) -> Outcome:
+async def _run(
+    workspace, model: ScriptedModel, *, routing: dict[str, Any] | None = None, meter: AgentRunMeter | None = None
+) -> Outcome:
     from agent.graph.writing_graph import run_writing_workflow_streaming
 
     message = "写第一章"
-    meter = AgentRunMeter()
+    meter = meter or AgentRunMeter()
     state: dict[str, Any] = {
         "user_message": message,
         "router_message": message,
@@ -340,9 +342,10 @@ async def test_correction_reply_streams_the_body_into_the_same_empty_file(worksp
 
 
 async def test_resumed_reply_still_refuses_edit_file_before_the_body(workspace):
-    """守卫不放宽：纠偏轮里先调 edit_file 照样被拒、不执行；随后写 <file> 正文落库。"""
+    """守卫不放宽：纠偏轮里先调 edit_file 照样被拒、不执行，并结束这一纠偏轮；
+    第二次纠偏恢复同一个文件，写 <file> 正文落库（仍在既有纠偏配额内）。"""
     attempt = Reply(tools=(("edit_file", {"id": "__target__", "edits": [{"op": "append", "text": "不应写入"}]}),))
-    model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [attempt, WRITE_BODY]])
+    model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [attempt], [WRITE_BODY]])
 
     def bind_target_id() -> None:
         attempt.tools = (("edit_file", {"id": _created_id(model), "edits": [{"op": "append", "text": "不应写入"}]}),)
@@ -352,6 +355,7 @@ async def test_resumed_reply_still_refuses_edit_file_before_the_body(workspace):
     outcome = await _run(workspace, model)
 
     _assert_body_saved_once(workspace, outcome, model)
+    assert len(model.run_inputs) == 3, "被拒的纠偏轮结束后，第二次纠偏写正文"
     refused = model.errors("file_body_pending")
     assert [call.name for call in refused] == ["edit_file"]
     assert "不应写入" not in _drafts(workspace)[0].content
@@ -712,7 +716,7 @@ async def test_repeated_resume_is_idempotent_and_the_body_is_saved_once(guard, m
     first = await _resume(adapter)
     second = await _resume(adapter)
     ToolContext.begin_model_reply()
-    assert ToolContext.overdue_file_body() == CHAPTER, "恢复后下一次回复仍须先写正文"
+    assert [entry["id"] for entry in ToolContext.overdue_file_bodies()] == ["f1"], "恢复后下一次回复仍须先写正文"
     frames = await _feed(adapter, StreamEventType.TEXT, {"text": f"<file>\n{BODY}\n</file>\n"})
 
     assert first.armed and second.armed
@@ -985,3 +989,243 @@ async def test_tool_turn_cap_keeps_a_reused_blank_episode_and_names_it_unfinishe
     assert card["unfinished_files"] == [{"id": episode.id, "title": "第1集"}]
     assert card.get("rolled_back_files") in (None, [])
     _assert_round_stops_without_completion(outcome)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-25 事故：待补正文被拒后应回到纠偏，而不是盲试到熔断；待补期间只能取消那份文件
+# ---------------------------------------------------------------------------
+
+NEXT_CREATE = ("create_file", {"title": "第二章", "file_type": "draft"})
+
+
+def _pending_draft_id(model: ScriptedModel) -> str:
+    created = [call for call in model.tool_calls if call.name == "create_file" and call.output.get("status") == "success"]
+    assert len(created) == 1, "只有建第一章那次 create_file 执行了"
+    return created[0].output["data"]["id"]
+
+
+def _assert_pending_body_saved_once(workspace, outcome: Outcome, model: ScriptedModel) -> str:
+    file_id = _pending_draft_id(model)
+    stored = workspace.session.get(File, file_id)
+    workspace.session.refresh(stored)
+    assert stored.is_deleted is False and stored.content.strip() == BODY
+    assert outcome.adapter.get_saved_file_word_counts() == {file_id: count_words(BODY)}
+    assert [f.data.get("file_id") for f in outcome.of("file_content_end")] == [file_id]
+    assert "合成正文" not in outcome.chat_text
+    return file_id
+
+
+def _seed_written_draft(workspace, title: str = "第三章", parent_id: str | None = None) -> File:
+    draft = File(project_id=workspace.project.id, title=title, file_type="draft",
+                 content="这一章已经写好的合成正文。", parent_id=parent_id)
+    workspace.session.add(draft)
+    workspace.session.commit()
+    workspace.session.refresh(draft)
+    return draft
+
+
+async def test_first_pending_refusal_ends_the_run_and_the_correction_writes_the_same_file(workspace):
+    """事故形态：建好第一章后没写正文，连续重试建第二章。首次拒绝后就交回纠偏轮，不再盲试到熔断。"""
+    retry = Reply(tools=(NEXT_CREATE,))
+    model = ScriptedModel(runs=[[CREATE, retry, retry, retry], [WRITE_BODY]])
+
+    outcome = await _run(workspace, model)
+
+    file_id = _assert_pending_body_saved_once(workspace, outcome, model)
+    assert len(model.errors("file_body_pending")) == 1, "被拒一次就结束当前 run"
+    assert len(model.run_inputs) == 2
+    assert file_id in json.dumps(model.run_inputs[1], ensure_ascii=False), "纠偏轮点名同一个文件"
+    assert [d.title for d in _drafts(workspace)] == [CHAPTER], "第二章没有被建出来"
+    breaker = outcome.state["tool_failure_breaker"]
+    assert breaker.is_open is False and breaker.total_failures == 1
+    assert outcome.of("error") == []
+    assert len(outcome.of("done")) == 1
+    assert outcome.billing() == ("completed", False)
+    # 三次模型调用的真实用量都入账（被提前结束的 run 也发了正常 MESSAGE_END）
+    assert outcome.adapter.get_last_message_metadata()["usage"]["input_tokens"] == 30
+    failures = outcome.state["run_meter"].timing_report()["tool_failures"]
+    assert failures == {"create_file": {"count": 1, "rolled_back_batches": 0, "error_types": {"file_body_pending": 1}}}
+
+
+async def test_pending_refusal_and_a_delete_of_another_draft_in_one_batch_deletes_nothing(workspace):
+    other = _seed_written_draft(workspace)
+    other_id, other_version = other.id, other.updated_at
+    batch = Reply(tools=(("delete_file", {"id": other_id}), NEXT_CREATE))
+    model = ScriptedModel(runs=[[CREATE, batch], [WRITE_BODY]])
+
+    outcome = await _run(workspace, model)
+
+    workspace.session.expire_all()
+    kept = workspace.session.get(File, other_id)
+    assert kept.is_deleted is False and kept.content == "这一章已经写好的合成正文。"
+    assert kept.updated_at == other_version
+    assert [call.name for call in model.errors("file_body_pending")] == ["delete_file", "create_file"]
+    _assert_pending_body_saved_once(workspace, outcome, model)
+    assert outcome.of("error") == []
+
+
+async def test_recursive_delete_of_the_pending_files_folder_is_refused(workspace):
+    folder = File(project_id=workspace.project.id, title="正文", file_type="folder", content="")
+    workspace.session.add(folder)
+    workspace.session.commit()
+    sibling = _seed_written_draft(workspace, parent_id=folder.id)
+    folder_id, sibling_id = folder.id, sibling.id
+    create_in_folder = Reply(tools=(("create_file", {"title": CHAPTER, "file_type": "draft", "parent_id": folder_id}),))
+    model = ScriptedModel(runs=[[create_in_folder, Reply(tools=(("delete_file", {"id": folder_id, "recursive": True}),))],
+                                [WRITE_BODY]])
+
+    outcome = await _run(workspace, model)
+
+    workspace.session.expire_all()
+    assert workspace.session.get(File, folder_id).is_deleted is False
+    assert workspace.session.get(File, sibling_id).is_deleted is False
+    _assert_pending_body_saved_once(workspace, outcome, model)
+
+
+async def test_cancelling_the_exact_pending_file_settles_the_adapter_and_the_guard(workspace):
+    """精确取消待补文件：真的删掉它；同一 run 之后的 <file> 不再被已删文件的绑定吞掉，边界处守卫清除、不纠偏。"""
+    cancel = Reply(tools=(("delete_file", {"id": "__target__"}),))
+    # 取消后同一 run 里又写了一个 <file> 块（之后有收尾文字，不触发「以 </file> 结尾就续写」）。
+    after_cancel = Reply(text="<file>\n另一段合成正文。\n</file>\n\n第一章先不写了。")
+    model = ScriptedModel(runs=[[CREATE, cancel, after_cancel], [WRITE_BODY]])
+
+    def bind_target_id() -> None:
+        cancel.tools = (("delete_file", {"id": _created_id(model)}),)
+
+    cancel.before = bind_target_id
+
+    outcome = await _run(workspace, model)
+
+    file_id = _created_id(model)
+    workspace.session.expire_all()
+    stored = workspace.session.get(File, file_id)
+    assert stored.is_deleted is True and stored.content == ""
+    assert outcome.adapter.get_saved_file_word_counts() == {}
+    assert outcome.of("file_content_end") == []
+    assert "另一段合成正文" in outcome.chat_text, "等待中的缓冲按既有语义回到对话"
+    assert len(model.run_inputs) == 1, "已取消的文件不安排纠偏轮"
+    assert outcome.of("iteration_exhausted") == []
+    assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+
+
+@pytest.mark.parametrize("limit", ["wrap_up", "model_calls"])
+async def test_no_resume_is_armed_when_time_or_model_budget_is_used_up(workspace, monkeypatch, limit):
+    """图在边界核验空文件时，时间或模型调用预算已不够再跑一轮：不先恢复捕获，按既有路径回滚并报告未完成。"""
+    from agent.graph import writing_graph
+
+    meter = AgentRunMeter(wrap_up_after_s=0) if limit == "wrap_up" else AgentRunMeter()
+    probe = writing_graph._probe_pending_file_body
+
+    def probe_after_budget_is_used(file_id: str) -> str:
+        if limit == "model_calls":
+            meter.model_calls = meter.max_model_calls
+        return probe(file_id)
+
+    monkeypatch.setattr(writing_graph, "_probe_pending_file_body", probe_after_budget_is_used)
+    model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [WRITE_BODY]])
+
+    outcome = await _run(workspace, model, meter=meter)
+
+    file_id = _created_id(model)
+    assert len(model.run_inputs) == 1, "不跑纠偏轮"
+    workspace.session.expire_all()
+    assert workspace.session.get(File, file_id).is_deleted is True
+    [card] = [f.data for f in outcome.of("iteration_exhausted") if f.data.get("layer") == "empty_file_correction"]
+    assert card["rolled_back_files"] == [{"id": file_id, "title": CHAPTER}]
+    assert outcome.of("workflow_complete") == []
+    assert len(outcome.of("done")) == 1
+
+
+async def test_model_call_budget_terminal_keeps_priority_over_the_pending_correction(workspace):
+    """预算在 run 内用完时 runner 以既有的模型调用上限终态结束，不进纠偏。"""
+    meter = AgentRunMeter(max_model_calls=2)
+
+    def use_up_model_calls() -> None:
+        meter.model_calls = meter.max_model_calls  # 脚本模型不经过 runner 的计数过滤器
+
+    model = ScriptedModel(runs=[[CREATE, Reply(tools=(NEXT_CREATE,), before=use_up_model_calls)], [WRITE_BODY]])
+
+    outcome = await _run(workspace, model, meter=meter)
+
+    assert len(model.run_inputs) == 1
+    [error] = outcome.of("error")
+    assert error.data["code"] == "ERR_AGENT_MODEL_CALL_LIMIT"
+    assert outcome.of("done") == []
+
+
+async def test_request_failure_cap_still_stops_before_any_correction(workspace):
+    """前置拒绝仍计入请求累计 10 次上限：到了上限就按熔断终止，不为纠偏放宽总预算。"""
+    misses = Reply(tools=tuple(
+        ("edit_file", {"id": f"missing-{index}", "edits": [{"op": "append", "text": "x"}]}) for index in range(9)
+    ))
+    model = ScriptedModel(runs=[[misses, CREATE, Reply(tools=(NEXT_CREATE,))], [WRITE_BODY]])
+
+    outcome = await _run(workspace, model)
+
+    breaker = outcome.state["tool_failure_breaker"]
+    assert breaker.is_open and breaker.trip.reason == "too_many_tool_failures"
+    assert len(model.run_inputs) == 1, "熔断优先，不再安排纠偏轮"
+    assert len(outcome.of("error")) == 1 and outcome.of("done") == []
+
+
+async def test_refusals_in_every_correction_round_end_unfinished_and_roll_back(workspace):
+    """纠偏轮里每次都先调工具被拒：用完既有纠偏配额后回滚空文件、如实报告未完成，不熔断、不宣告完成。"""
+    lookup = Reply(tools=(("query_files", {"query": "前文"}),))
+    model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [lookup], [lookup], [WRITE_BODY]])
+
+    outcome = await _run(workspace, model)
+
+    file_id = _created_id(model)
+    assert len(model.run_inputs) == 3, "只用既有的 2 次纠偏配额"
+    assert len(model.errors("file_body_pending")) == 2
+    workspace.session.expire_all()
+    assert workspace.session.get(File, file_id).is_deleted is True
+    [card] = [f.data for f in outcome.of("iteration_exhausted") if f.data.get("layer") == "empty_file_correction"]
+    assert card["rolled_back_files"] == [{"id": file_id, "title": CHAPTER}]
+    assert outcome.state["tool_failure_breaker"].is_open is False
+    assert outcome.of("error") == [] and outcome.of("workflow_complete") == []
+    assert len(outcome.of("done")) == 1
+
+
+async def test_after_an_exact_cancel_the_same_run_goes_on_to_create_and_write_the_next_file(workspace):
+    """取消待补文件后，同一个 run 里建下一份并写完正文：不再被已删文件的守卫拒绝、不被提前结束成「完成」。"""
+    cancel = Reply(tools=(("delete_file", {"id": "__target__"}),))
+    write_next = Reply(text=f"<file>\n{BODY}\n</file>\n\n第二章写好了。")
+    model = ScriptedModel(runs=[[CREATE, cancel, Reply(tools=(NEXT_CREATE,)), write_next]])
+
+    def bind_target_id() -> None:
+        cancel.tools = (("delete_file", {"id": _created_id(model)}),)
+
+    cancel.before = bind_target_id
+
+    outcome = await _run(workspace, model)
+
+    assert model.errors("file_body_pending") == []
+    assert len(model.run_inputs) == 1
+    created = [call.output["data"]["id"] for call in model.tool_calls if call.name == "create_file"]
+    first_id, second_id = created
+    workspace.session.expire_all()
+    assert workspace.session.get(File, first_id).is_deleted is True
+    assert workspace.session.get(File, second_id).content.strip() == BODY
+    assert outcome.adapter.get_saved_file_word_counts() == {second_id: count_words(BODY)}
+    assert outcome.of("error") == [] and len(outcome.of("done")) == 1
+
+
+async def test_a_reused_episode_with_a_body_is_not_deletable_as_a_cancel(workspace):
+    """create_file 复用了已有剧集（可能已有正文）：待补期间按它的精确 id 删除也不执行。"""
+    folder, episode = _blank_episode(workspace)
+    episode.content = "这一集此前已经写好的合成正文。"
+    workspace.session.add(episode)
+    workspace.session.commit()
+    episode_id = episode.id
+    reuse = Reply(tools=(("create_file", {"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1}),))
+    model = ScriptedModel(runs=[[reuse, Reply(tools=(("delete_file", {"id": episode_id}),))]])
+
+    outcome = await _run(workspace, model, routing=_routing(scope="写第1集", requested_file_types=["script"]))
+
+    assert model.tool_calls[0].output["data"]["reused_existing"] is True
+    assert [call.name for call in model.errors("file_body_pending")] == ["delete_file"]
+    workspace.session.expire_all()
+    kept = workspace.session.get(File, episode_id)
+    assert kept.is_deleted is False and kept.content == "这一集此前已经写好的合成正文。"
+    assert len(outcome.of("done")) == 1
