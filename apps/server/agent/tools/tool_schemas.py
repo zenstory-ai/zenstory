@@ -28,7 +28,7 @@ CREATE_FILE_TOOL: dict[str, Any] = {
         "properties": {
             "title": {
                 "type": "string",
-                "description": "文件标题/名称，最多 255 字；正文必须放入 content，不要放在标题中",
+                "description": "文件标题/名称，最多 255 字；不要把正文放在标题中，工具返回后用 <file> 流式输出正文",
                 "maxLength": 255
             },
             "file_type": {
@@ -226,10 +226,6 @@ QUERY_FILES_TOOL: dict[str, Any] = {
             "parent_id": {
                 "type": "string",
                 "description": "父文件ID过滤"
-            },
-            "metadata_filter": {
-                "type": "object",
-                "description": "元数据字段过滤"
             },
             "limit": {
                 "type": "integer",

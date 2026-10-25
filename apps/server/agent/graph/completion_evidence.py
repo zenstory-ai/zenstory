@@ -67,7 +67,22 @@ def ends_on_file_block(tail_text: str) -> bool:
     return any(block.strip() for block in blocks)
 
 
+def ends_on_unclosed_file_block(tail_text: str) -> bool:
+    """最后一段文字是不是非空且仍未闭合的 ``<file>`` 正文。
+
+    这里只识别流式文件协议的边界；是否属于可在 EOF 抢救保存的新文件正文，
+    由调用方结合本次 run 的结构化写入记录判断。
+    """
+    normalized = normalize_file_markers(tail_text or "")
+    start = normalized.rfind("<file>")
+    if start == -1:
+        return False
+    body = normalized[start + len("<file>") :]
+    return "</file>" not in body and bool(body.strip())
+
+
 __all__ = [
     "author_reply_tail",
     "ends_on_file_block",
+    "ends_on_unclosed_file_block",
 ]

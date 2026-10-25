@@ -1,4 +1,4 @@
-"""第三轮 review 回归测试：文件 CRUD（agent/tools/file_ops/crud.py, router.py）。
+"""第三轮 review 回归测试：文件 CRUD（agent/tools/file_ops/crud.py）。
 
 覆盖三条确认缺陷：
 - #15：agent 侧 create_file/update_file 不校验「parent 必须是 folder」，
@@ -13,14 +13,12 @@
 import pytest
 from sqlmodel import Session, select
 
-from agent.tools.file_ops import crud as crud_module
 from agent.tools.file_ops.crud import (
     FileCRUD,
     find_nearest_folder_ancestor,
     is_descendant_of,
     validate_parent_assignment,
 )
-from agent.tools.file_ops.router import execute_file_tool_call
 from models import File, Project, User
 
 
@@ -444,32 +442,4 @@ def test_delete_file_unknown_recursive_value_is_conservative(
     crud.delete_file(id=folder_id, recursive="fals")
 
     assert _deleted_flags(db_session, [folder_id]) == [True]
-    assert _deleted_flags(db_session, child_ids) == [False] * len(child_ids)
-
-
-@pytest.mark.unit
-def test_router_coerces_recursive_before_dispatch(
-    db_session: Session, test_user: User, novel_project: Project, monkeypatch
-):
-    """路由入口就把布尔参数强转好，执行器拿到的是真 bool。"""
-    seen: dict[str, object] = {}
-
-    real_delete = crud_module.FileCRUD.delete_file
-
-    def spy_delete(self, id, recursive=False):  # noqa: A002 - 保持与被测签名一致
-        seen["recursive"] = recursive
-        return real_delete(self, id=id, recursive=recursive)
-
-    monkeypatch.setattr(crud_module.FileCRUD, "delete_file", spy_delete)
-
-    folder_id, child_ids = _build_folder_with_children(db_session, novel_project)
-    result = execute_file_tool_call(
-        db_session,
-        "delete_file",
-        {"id": folder_id, "recursive": "false"},
-        test_user.id,
-    )
-
-    assert result["status"] == "success"
-    assert seen["recursive"] is False
     assert _deleted_flags(db_session, child_ids) == [False] * len(child_ids)

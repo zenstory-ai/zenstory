@@ -28,6 +28,12 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     })).toBe(false)
   })
 
+  it('counts a partially applied parallel edit as a write', () => {
+    expect(isWriteToolResult('parallel_execute', 'success', {
+      tasks: [{ type: 'edit_file', status: 'partial' }],
+    })).toBe(true)
+  })
+
   it('counts update_project only when the project info an author sees changed', () => {
     expect(isWriteToolResult('update_project', 'success', { updated_fields: ['summary'] })).toBe(true)
     expect(isWriteToolResult('update_project', 'success', { updated_fields: [], project_name_updated: true })).toBe(true)

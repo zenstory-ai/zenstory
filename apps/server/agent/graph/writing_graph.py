@@ -16,6 +16,7 @@ from typing import Any
 from agent.constants import CONTENT_FILE_TYPES
 from agent.core.author_facing_text import (
     AgentTextShaper,
+    author_facing_agent_name,
     author_facing_handoff_reason,
     author_facing_text,
     text_contains_cjk,
@@ -45,15 +46,19 @@ from agent.graph.body_writes import (
     latest_file_word_counts,
     measured_body_words,
 )
-from agent.graph.completion_evidence import author_reply_tail, ends_on_file_block
+from agent.graph.completion_evidence import (
+    author_reply_tail,
+    ends_on_file_block,
+    ends_on_unclosed_file_block,
+)
 from agent.graph.nodes import (
     detect_task_complete,
     evaluate_agent_output,
     run_streaming_agent,
 )
 from agent.graph.review_evidence import (
-    find_numeric_fact_pairs,
     find_repetition_evidence,
+    list_character_card_facts,
     quote_author_requirement_sources,
 )
 from agent.graph.router import (
@@ -494,17 +499,23 @@ async def _settle_empty_files_after_exhaustion(
     }
 
 
-# 写完 </file> 就结束了 run（openai-agents 把不带工具调用的回复当作最终输出）：同一个 agent
-# 接着跑一轮，见 completion_evidence.ends_on_file_block 与主循环里的续写分支。
-FILE_STREAM_CONTINUATION_MARKER = "[系统提醒] 你上一次回复写完 </file> 就结束了"
+# 文件正文结束时就结束了 run（openai-agents 把不带工具调用的回复当作最终输出）：同一个 agent
+# 接着跑一轮。显式 </file> 和 EOF 抢救的新正文分别由 completion_evidence 的两个边界函数识别。
+FILE_STREAM_CONTINUATION_MARKER = "[系统提醒] 你上一次回复在文件正文结束时就停止了"
 
-# 作品的第一条消息这一轮不送审：writer 想交给审稿人时丢掉交接，让它自己给作者写总结（交接前按
-# 回复协议它不写总结）。见 first-turn-skips-auto-review。
-FIRST_ROUND_SUMMARY_CONTEXT = (
-    "[系统提醒] 这是作者在这部作品里的第一条消息，这一轮不送审，作者在对话里还什么都没看到。"
+# 这一轮不送审时，writer 调用 handoff_to_agent(quality_reviewer) 收到的拒绝说明（工具结果）：
+# 交接前按回复协议它只写了一句进度，同一次 run 里接着给作者写总结。见 first-turn-skips-auto-review
+# 与 fast-mode-summary-and-file-body-turn。
+_REVIEW_REFUSAL_SUMMARY_RULES = (
+    "原本要写进「[要告诉作者]」的话（如旧稿可以在历史版本里找回、要问作者的问题）写在总结最后。"
+    "交接前已经给作者写过总结的，只补上这些话，没有就不用再写。"
+)
+FIRST_ROUND_REVIEW_REFUSAL = (
+    "这是作者在这部作品里的第一条消息，这一轮不送审，交接没有执行，作者在对话里还没看到总结。"
     "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：先用一两句说写了哪些文件、"
     "各多少字（按工具返回的字数），再用三五句话交代主角、背景和核心冲突，"
     "最后列两个可以换的方向，每个一句话、用「」括起来，作者可以照着直接回复。"
+    + _REVIEW_REFUSAL_SUMMARY_RULES
 )
 
 
@@ -536,15 +547,13 @@ async def _wrap_up_text(english: bool) -> str:
     if messages_left is False:
         return WRAP_UP_TEXT_NO_MESSAGES_LEFT_EN if english else WRAP_UP_TEXT_NO_MESSAGES_LEFT
     return WRAP_UP_TEXT_EN if english else WRAP_UP_TEXT
-FAST_MODE_SUMMARY_CONTEXT = (
-    "[系统提醒] 本轮是快速模式，不送审，刚才的交接没有执行，作者在对话里只看到了你那句进度说明。"
+FAST_MODE_REVIEW_REFUSAL = (
+    "本轮是快速模式，不送审，交接没有执行。"
     "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：写了哪些文件、各多少字"
     "（按工具返回的字数），简要说内容；不要说已经通读核对、送审或审稿。"
+    + _REVIEW_REFUSAL_SUMMARY_RULES
 )
-AUTHOR_NOTES_RELAY_HEADER = "下面是你原本写在交接里、要转告作者的话，照实写在总结最后："
 AUTHOR_NOTES_MARKER = "[要告诉作者]"
-# 交接前只写一句进度（如「第三章扩写好了，我再通读核对一遍」）时，这句话不算给作者的总结。
-PROGRESS_ONLY_MAX_CHARS = 80
 
 
 def _author_notes_from_handoff(context: Any) -> str:
@@ -589,7 +598,7 @@ def _file_stream_continuation_context(
     open_tasks: list[dict[str, Any]],
     user_scope: str,
 ) -> str:
-    """写完 </file> 就结束 run 之后，同一个 agent 接着那一轮的交接说明。"""
+    """文件正文结束时就停止 run 后，同一个 agent 接着那一轮的交接说明。"""
     saved = "、".join(f"《{title}》" for title in written_titles if title)
     lines = [
         f"{FILE_STREAM_CONTINUATION_MARKER}，没有接着建下一个文件，也没有给作者写总结，"
@@ -681,6 +690,29 @@ def _author_is_english(state: WritingState) -> bool:
     return str(state.get("language") or "").strip().lower().startswith("en")
 
 
+def _workflow_stopped_message(kind: str, agent_type: object, *, english: bool) -> str:
+    """作者看得到的 workflow_stopped 提示：跟随界面语言，角色用作者可见的名字。
+
+    kind：self_handoff（模型把任务交给自己）、planned_self_handoff（计划里下一步还是自己）、
+    read_only_blocked（只读请求拦下了交给能改文件的角色；agent_type 是被拦下的目标角色）。
+    """
+    name = author_facing_agent_name(agent_type, english)
+    if kind == "read_only_blocked":
+        if english:
+            return (
+                f"You asked for answers only this turn, so nothing was passed to the {name} to edit. "
+                "Tell me what to change when you want edits."
+            )
+        return f"你要求本轮只回答、不改文件，所以没有转给{name}去修改。需要改动时，直接告诉我改哪里即可。"
+    if kind == "planned_self_handoff":
+        if english:
+            return f"The plan passed the task from the {name} back to itself, so the run stopped here."
+        return f"按计划{name}要把任务转给自己，这一轮先停在这里。"
+    if english:
+        return f"The {name} tried to pass the task to itself; that step was skipped."
+    return f"{name}试图把任务转给自己，这一步没有执行。"
+
+
 def _guard_from_state(state: WritingState) -> RepeatReadGuard | None:
     guard = state.get("repeat_read_guard")
     return guard if isinstance(guard, RepeatReadGuard) else None
@@ -695,15 +727,14 @@ _REVIEW_AUTO_CHECK_MAX_TARGETS = 2
 _REVIEW_AUTO_CHECK_PREVIOUS_SIBLINGS = 2
 _REVIEW_AUTO_CHECK_MAX_CHARACTER_CARDS = 10
 _REVIEW_AUTO_CHECK_MAX_REPEATS = 8
-_REVIEW_AUTO_CHECK_MAX_FACTS = 6
 
 
 def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]] | None:
-    """读本请求写过的正文（draft / script，最多 2 个）和参照文件，跑复读与数字事实对照。
+    """读本请求写过的正文（draft / script，最多 2 个）和参照文件，跑复读检测并列出角色卡事实。
 
-    参照文件：同一父目录、同类型、按 order（与文件清单同一排序键）排在它前面的 2 个文件，
-    以及项目里最多 10 张角色卡。同步执行（调用方放进工作线程），用短生命周期 session。
-    没有可检测的正文时返回 None；返回 (复读证据, 事实对照)。
+    复读参照：同一父目录、同类型、按 order（与文件清单同一排序键）排在它前面的 2 个文件。
+    角色卡事实：项目里最多 10 张角色卡上明写的年龄。同步执行（调用方放进工作线程），
+    用短生命周期 session。没有可检测的正文时返回 None；返回 (复读证据, 角色卡事实)。
     """
     project_id = ToolContext.get_project_id()
     if not project_id or not file_ids:
@@ -752,10 +783,9 @@ def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[st
             .order_by(File.order, File.created_at)
             .limit(_REVIEW_AUTO_CHECK_MAX_CHARACTER_CARDS)
         ).all()
-        card_refs = [(f"角色：{title}", content or "") for title, content in cards if (content or "").strip()]
+        facts = list_character_card_facts([(title, content or "") for title, content in cards])
 
         repeats: list[str] = []
-        facts: list[str] = []
         for target in targets:
             parent_clause = (
                 File.parent_id.is_(None) if target.parent_id is None else File.parent_id == target.parent_id
@@ -787,9 +817,8 @@ def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[st
 
             target_text = target.content or ""
             repeats.extend(find_repetition_evidence(target.title, target_text, neighbors))
-            facts.extend(find_numeric_fact_pairs((target.title, target_text), neighbors + card_refs))
 
-    return repeats[:_REVIEW_AUTO_CHECK_MAX_REPEATS], facts[:_REVIEW_AUTO_CHECK_MAX_FACTS]
+    return repeats[:_REVIEW_AUTO_CHECK_MAX_REPEATS], facts
 
 
 async def _review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]] | None:
@@ -1844,7 +1873,15 @@ async def run_writing_workflow_streaming(
         first_message_round = bool(state.get("first_message_project_label"))
         if first_message_round:
             enable_graph_auto_review = False
-        first_round_summary_rerun_used = False
+        # 这一轮不送审时，writer 自己交给审稿人也由 handoff_to_agent 拒绝（工具结果里写明改为直接
+        # 给作者写总结），不在图里丢弃交接再补跑。路由显式安排的审稿不经过这个工具，照常。
+        ToolContext.set_review_handoff_refusal(
+            FIRST_ROUND_REVIEW_REFUSAL
+            if first_message_round
+            else FAST_MODE_REVIEW_REFUSAL
+            if generation_mode == "fast"
+            else None
+        )
 
         # Natural-language disposition comes from the existing router. A trusted
         # interrupted/pending task also routes in off mode so a followup cannot
@@ -2179,11 +2216,6 @@ async def run_writing_workflow_streaming(
             # 「以向用户提问结束」（此时不能替用户做决定继续自动交接）。
             agent_tail_text: str = ""
             held_reply_text: str = ""
-            # 交接调用前 writer 对作者说的话。一次回复里的多个工具调用先全部发出、再出结果，tail 在
-            # 每个工具事件处清空，所以按「这一批工具调用之前」记，而不是按交接调用那一刻。
-            prose_before_handoff = ""
-            prose_before_tool_turn = ""
-            tool_turn_open = False
             handoff_packet: dict[str, Any] | None = None
             explicit_handoff_event_data: dict[str, Any] | None = None
             clarification_stopped = False
@@ -2294,16 +2326,7 @@ async def run_writing_workflow_streaming(
                     agent_tail_text += text
                     if chat_hold_started:
                         held_reply_text += text
-                    tool_turn_open = False
                 elif event.type in (StreamEventType.TOOL_USE, StreamEventType.TOOL_RESULT):
-                    if event.type == StreamEventType.TOOL_USE:
-                        if not tool_turn_open:
-                            prose_before_tool_turn = agent_tail_text
-                            tool_turn_open = True
-                        if event.data.get("name") == "handoff_to_agent":
-                            prose_before_handoff = prose_before_tool_turn
-                    else:
-                        tool_turn_open = False
                     agent_tail_text = ""
 
                 if (
@@ -2331,9 +2354,8 @@ async def run_writing_workflow_streaming(
                             data={
                                 "reason": "invalid_handoff",
                                 "agent_type": current_agent_type,
-                                "message": (
-                                    f"无效交接：{current_agent_type} 不能交接给自己。"
-                                    "请直接完成当前任务或交接给其他 Agent。"
+                                "message": _workflow_stopped_message(
+                                    "self_handoff", current_agent_type, english=english
                                 ),
                                 "target_agent": next_agent,
                             },
@@ -2433,6 +2455,10 @@ async def run_writing_workflow_streaming(
                         )
 
             writer_body_writes = body_tracker.finish(agent_content)
+            run_saved_unclosed_body = any(
+                write.full_body and write.words > 0 and not write.requires_closed_block
+                for write in writer_body_writes
+            )
             run_create_succeeded = bool(run_create_call_ids - run_failed_call_ids)
             reply_text = author_reply_tail(held_reply_text if chat_hold_started else agent_tail_text)
 
@@ -2738,19 +2764,22 @@ async def run_writing_workflow_streaming(
                 and iteration < max_iterations
             )
 
-            # 写完 </file> 就结束了 run（I08）：流式写文件协议把正文放在回复文字里，
-            # openai-agents 把不带工具调用的回复当作最终输出，模型写完一个文件没在同一次
-            # 回复里接着调用 create_file 时，run 就在这里停了——计划里没写的文件、给作者的
-            # 总结都还没写，这不是模型决定收尾。同一个 agent 接着跑一轮，带上已保存的文件、
+            # 文件正文结束时就结束了 run（I08）：流式写文件协议把正文放在回复文字里，
+            # openai-agents 把不带工具调用的回复当作最终输出。显式闭合正文，或在 EOF 被适配器
+            # 抢救保存的新正文，都可能让 run 在这里停下——计划里没写的文件、给作者的总结
+            # 都还没写，这不是模型决定收尾。同一个 agent 接着跑一轮，带上已保存的文件、
             # 作者的范围和任务板上没完成的任务：还有没写的接着写，写完了就给作者总结。
             # 每一轮都必须真的新建并写完一个文件才会再续，受 max_iterations 约束；放在计划交接 /
             # 自动质检之前，规划师写完再交给 writer、writer 写完再送审。
+            ended_on_saved_file_body = ends_on_file_block(agent_tail_text) or (
+                run_saved_unclosed_body and ends_on_unclosed_file_block(agent_tail_text)
+            )
             if (
                 can_rerun_same_agent
                 # 恢复写入的纠偏轮写完的是之前建好的文件，同样算这一程写完了一个文件。
                 and (run_create_succeeded or run_resumed_body)
                 and not ToolContext.has_pending_empty_file()
-                and ends_on_file_block(agent_tail_text)
+                and ended_on_saved_file_body
             ):
                 continuation_guard = _guard_from_state(state)
                 written_titles = (
@@ -2766,7 +2795,7 @@ async def run_writing_workflow_streaming(
                 log_with_context(
                     logger,
                     20,  # INFO
-                    "Agent run ended on a closed <file> block; continuing the same agent",
+                    "Agent run ended on a saved <file> body; continuing the same agent",
                     agent_type=current_agent_type,
                     iteration=iteration,
                     written_files=len(written_titles),
@@ -2847,9 +2876,8 @@ async def run_writing_workflow_streaming(
                         data={
                             "reason": READ_ONLY_HANDOFF_BLOCKED_REASON,
                             "agent_type": current_agent_type,
-                            "message": (
-                                f"你要求本轮只回答、不改文件，已跳过交接给 {next_agent} 去修改。"
-                                "需要改动时，直接告诉我改哪里即可。"
+                            "message": _workflow_stopped_message(
+                                "read_only_blocked", next_agent, english=english
                             ),
                             "target_agent": next_agent,
                         },
@@ -2870,67 +2898,6 @@ async def run_writing_workflow_streaming(
                 next_agent = None
                 explicit_handoff_event_data = None
                 handoff_packet = None
-
-            # 快速模式 / 作品第一条消息：这一轮不送审，writer 自己交给审稿人时丢弃交接。
-            # 交接前 writer 按协议只写一句进度、把要告诉作者的话放进交接 context；丢掉交接后
-            # 作者只剩那一句进度，所以没写总结时让它再跑一轮、只给作者写总结（带上那些话），
-            # 已经写了总结时把那些话直接补给作者。
-            review_skipped_reason = (
-                "first_message"
-                if first_message_round
-                else "fast_mode"
-                if generation_mode == "fast"
-                else None
-            )
-            if (
-                review_skipped_reason is not None
-                and current_agent_type == "writer"
-                and next_agent == "quality_reviewer"
-            ):
-                author_notes = _author_notes_from_handoff(handoff_context)
-                # 作者在生成中途发来的话由下面的 steering 追加轮处理（它也会给作者写总结），
-                # 只写总结的一轮会把它丢掉。
-                # 快速模式已在指令里要求 writer 自己写总结；它仍按送审协议交接时，交接前那句
-                # 话就是送审前的进度。第一条消息沿用原规则：写了话就不重跑。
-                prose = prose_before_handoff.strip()
-                wrote_no_summary = (
-                    len(prose) < PROGRESS_ONLY_MAX_CHARS
-                    if review_skipped_reason == "fast_mode"
-                    else not prose
-                )
-                needs_summary = (
-                    not first_round_summary_rerun_used
-                    and wrote_no_summary
-                    and not mid_run_steering_seen
-                    and iteration < max_iterations
-                )
-                log_with_context(
-                    logger,
-                    20,  # INFO
-                    "Review skipped this round: dropping writer handoff to quality_reviewer",
-                    reason=review_skipped_reason,
-                    rerun_for_summary=needs_summary,
-                    has_author_notes=bool(author_notes),
-                )
-                next_agent = None
-                explicit_handoff_event_data = None
-                handoff_packet = None
-                if needs_summary:
-                    first_round_summary_rerun_used = True
-                    handoff_context = (
-                        FIRST_ROUND_SUMMARY_CONTEXT
-                        if review_skipped_reason == "first_message"
-                        else FAST_MODE_SUMMARY_CONTEXT
-                    )
-                    if author_notes:
-                        handoff_context += f"\n\n{AUTHOR_NOTES_RELAY_HEADER}\n{author_notes}"
-                    carried_agent_content = agent_content
-                    carried_writer_body_writes = writer_body_writes
-                    previous_agent = current_agent_type
-                    incoming_handoff_packet = None
-                    continue
-                if author_notes:
-                    yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"\n\n{author_notes}"})
 
             # 审查轮数上限：writer 不能再显式送审；审稿人要求返修时不再交回 writer，
             # 而是正常收尾并把审稿意见展示给用户。
@@ -3028,8 +2995,8 @@ async def run_writing_workflow_streaming(
                         data={
                             "reason": "invalid_handoff",
                             "agent_type": current_agent_type,
-                            "message": (
-                                f"无效自动交接：{current_agent_type} 不能交接给自己。"
+                            "message": _workflow_stopped_message(
+                                "planned_self_handoff", current_agent_type, english=english
                             ),
                             "target_agent": next_planned,
                         },
@@ -3054,7 +3021,6 @@ async def run_writing_workflow_streaming(
                     "completed": planned_guard.completed_items() if planned_guard else [],
                     "todo": planned_todo,
                     "evidence": [f"workflow_plan={workflow_plan}"],
-                    "artifact_refs": planned_guard.written_file_ids() if planned_guard else [],
                 }
 
                 log_with_context(
@@ -3107,7 +3073,6 @@ async def run_writing_workflow_streaming(
                     "completed": review_guard.completed_items() if review_guard else [],
                     "todo": ["执行质量审查并返回问题清单"],
                     "evidence": [],
-                    "artifact_refs": review_guard.written_file_ids() if review_guard else [],
                 }
 
                 pending_handoff_event_data = {
@@ -3192,7 +3157,7 @@ async def run_writing_workflow_streaming(
                     }
                     handoff_packet = counted_packet
 
-                # 程序检测证据（逐字复读、数字事实对照）：只在 writer 写完交给审稿人时做，
+                # 程序检测证据（逐字复读、角色卡事实）：只在 writer 写完交给审稿人时做，
                 # 用户手动审查 / review_only 不做；读不到或超时就照常送审。
                 review_guard_for_checks = _guard_from_state(state)
                 if (
@@ -3405,6 +3370,7 @@ async def run_writing_workflow_streaming(
             )
 
         ToolContext.set_current_agent(None)
+        ToolContext.set_review_handoff_refusal(None)
 
         # 自然结束（没有 WORKFLOW_COMPLETE）或协作轮数耗尽：只读提示卡片在这里、
         # 轮数耗尽卡片之前发出。上面的终止分支已经发过的，这里取到的是 None。

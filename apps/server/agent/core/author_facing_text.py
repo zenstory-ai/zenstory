@@ -38,14 +38,35 @@ _AGENT_NAMES_EN: dict[str, str] = {
     "hook_designer": "Hook designer",
 }
 
+# 系统自己写的提示（不是改写模型的句子）里用的完整英文角色名，和前端 en 的
+# chat:workflow.agents.* 一致。
+_AGENT_DISPLAY_NAMES_EN: dict[str, str] = {
+    "quality_reviewer": "Reviewer",
+    "hook_designer": "Hook designer",
+    "planner": "Outline planner",
+    "writer": "Writer",
+}
+
+
+def author_facing_agent_name(agent_type: object, english: bool = False) -> str:
+    """角色 id 的作者可见名字；不认识的 id 不外露，用通用说法。"""
+    key = str(agent_type or "").strip().lower()
+    if english:
+        return _AGENT_DISPLAY_NAMES_EN.get(key, "The assistant")
+    return _AGENT_NAMES.get(key, "写作助手")
+
+
 _ASCII_WORD_EDGE_BEFORE = r"(?<![A-Za-z0-9_])"
 _ASCII_WORD_EDGE_AFTER = r"(?![A-Za-z0-9_])"
 
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 
+# 工具名和字段名都是字母段的蛇形命名（query_files、word_count），或 id / ids。作品里的
+# HP、chapter_3 这类写法不算，不删（审计 F-29）。
+_INTERNAL_NAME = r"(?:[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z]+)+|[Ii][Dd][Ss]?)"
 # [query_files]、【edit_file】、`content_length` 这类整段包起来的内部名字：连括号一起去掉。
 _WRAPPED_IDENTIFIER_RE = re.compile(
-    r"(?:调用|使用|通过|用)?\s*[\[【`]\s*[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*(?:\s*[=:：]\s*[^\]】`]*)?\s*[\]】`]"
+    r"(?:调用|使用|通过|用)?\s*[\[【`]\s*" + _INTERNAL_NAME + r"(?:\s*[=:：]\s*[^\]】`]*)?\s*[\]】`]"
 )
 # 括号里只剩 id / 字段的说明：(id=…)、（file_id: …）、(word_count=812, content_length=900)
 _PAREN_FIELDS_RE = re.compile(
@@ -56,8 +77,8 @@ _PAREN_FIELDS_RE = re.compile(
 _FIELD_VALUE = r"\s*[^\s，。；、,;)）\]】]*"
 _FIELD_ASSIGNMENT_RE = re.compile(
     _ASCII_WORD_EDGE_BEFORE
-    + r"(?:[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*\s*="
-    + r"|(?:[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+|[Ii][Dd][Ss]?)\s*[:：](?=\s*[0-9A-Za-z]))"
+    + r"(?:" + _INTERNAL_NAME + r"\s*="
+    + r"|" + _INTERNAL_NAME + r"\s*[:：](?=\s*[0-9A-Za-z]))"
     + _FIELD_VALUE
 )
 _UUID_RE = re.compile(_UUID)
@@ -66,7 +87,7 @@ _UUID_RE = re.compile(_UUID)
 _SNAKE_IDENTIFIER_RE = re.compile(
     r"(?:调用|使用|通过|用)?\s*"
     + _ASCII_WORD_EDGE_BEFORE
-    + r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+"
+    + r"[a-z][a-z0-9]*(?:_[a-z]+)+"
     + _ASCII_WORD_EDGE_AFTER
 )
 _AGENT_NAME_RE = re.compile(
@@ -108,7 +129,13 @@ _CJK = r"㐀-鿿豈-﫿"
 _CLAUSE_SPLIT_RE = re.compile(r"([，,；;。！？!?\n])")
 # 分句里删掉内部写法以后，剩下的汉字、字母和数字少于这个数（如只剩「显示」），整个分句不要。
 _MIN_CLAUSE_CHARS = 3
-_MEANINGFUL_CHAR_RE = re.compile(rf"[{_CJK}A-Za-z0-9]")
+# 引号里的片段（作品原文、作者原话、台词）原样保留：先换成私用区占位字符，清理完再放回。
+# 直引号成对出现在同一行才算；单引号 ‘’ 和英文缩写的撇号同形，不算。
+_QUOTED_RE = re.compile(r"「[^「」\n]*」|『[^『』\n]*』|“[^“”\n]*”|\"[^\"\n]*\"")
+_QUOTE_SLOT_BASE = 0xE000
+_QUOTE_SLOT_LIMIT = 0xF8FF - _QUOTE_SLOT_BASE + 1
+_QUOTE_SLOT_RE = re.compile("[\ue000-\uf8ff]")
+_MEANINGFUL_CHAR_RE = re.compile(rf"[{_CJK}A-Za-z0-9\ue000-\uf8ff]")
 
 _EMPTY_BRACKETS_RE = re.compile(r"[(（\[【]\s*[,，、;；:：]*\s*[)）\]】]")
 _REPEATED_PUNCT_RE = re.compile(r"([,，、;；:：。])(?:\s*[,，、;；:：])+")
@@ -164,7 +191,16 @@ def author_facing_text(text: object, english: bool = False) -> str:
     """去掉内部 id、字段名、工具名，并把流程用语换成作者能看懂的说法（english：角色名用英文）。"""
     if not isinstance(text, str):
         return ""
-    result = text.replace(_REMOVED, "")
+    result = _QUOTE_SLOT_RE.sub("", text.replace(_REMOVED, ""))
+    quoted: list[str] = []
+
+    def _hold_quote(match: re.Match[str]) -> str:
+        if len(quoted) >= _QUOTE_SLOT_LIMIT:
+            return match.group(0)
+        quoted.append(match.group(0))
+        return chr(_QUOTE_SLOT_BASE + len(quoted) - 1)
+
+    result = _QUOTED_RE.sub(_hold_quote, result)
     for pattern in (
         _RULE_JARGON_PAREN_RE,
         _RULE_JARGON_RE,
@@ -184,7 +220,8 @@ def author_facing_text(text: object, english: bool = False) -> str:
     for old, new in _WORDING_REPLACEMENTS:
         result = result.replace(old, new)
     lines = [_clean_line(line).replace(_REMOVED, "") for line in result.splitlines()]
-    return "\n".join(line for line in lines if line).strip()
+    result = "\n".join(line for line in lines if line).strip()
+    return _QUOTE_SLOT_RE.sub(lambda m: quoted[ord(m.group(0)) - _QUOTE_SLOT_BASE], result)
 
 
 def author_facing_handoff_reason(reason: object, english: bool = False) -> str:

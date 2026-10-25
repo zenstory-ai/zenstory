@@ -78,6 +78,21 @@ class TestAuthorFacingText:
         ):
             assert author_facing_text(text) == text
 
+    def test_quoted_story_text_is_not_rewritten(self):
+        """F-29：引号里是作品原文或作者原话，不做流程用语替换，也不删里面的写法。"""
+        assert (
+            author_facing_text("第三章里两人「交接」密信的情节要加强，返工时注意节奏")
+            == "第三章里两人「交接」密信的情节要加强，再改一轮时注意节奏"
+        )
+        assert author_facing_text('面板写作“HP=100”和“【HP】满格”前后矛盾') == '面板写作“HP=100”和“【HP】满格”前后矛盾'
+        assert author_facing_text('文件名 "chapter_3" 要改成中文') == '文件名 "chapter_3" 要改成中文'
+        assert author_facing_text("台词『阻断退路』保留，调用 [query_files] 读第3章") == "台词『阻断退路』保留，读第3章"
+
+    def test_story_terms_that_look_like_code_are_kept(self):
+        """F-29：作品里的【HP】、HP=100、chapter_3 不是工具名或字段，不删。"""
+        for text in ("主角面板【HP】一栏和HP=100的描写前后矛盾", "把 chapter_3 的结尾改得更紧"):
+            assert author_facing_text(text) == text
+
     def test_list_items_keep_their_bullets(self):
         assert (
             author_facing_text(f"- 修正 id={FILE_UUID} 的错别字\n- 第二段对白重复")

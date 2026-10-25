@@ -15,7 +15,7 @@ Status: implemented
 
 **记下名字是谁起的**（`agent/tools/file_ops/project.py`）
 
-- 项目表没有元数据字段，本次不改表结构。每次 `update_project` 改了项目名，`_apply_ai_title` 在同一次提交里往 `agent_artifact_ledger` 写一行：`action="project_title"`、`tool_name="update_project"`、`artifact_ref="project:{id}"`、`payload={"project_name": 新名字, "source": "ai_auto" | "author_requested"}`。`project_title` 不在 `STANDARD_HANDOFF_ARTIFACT_ACTIONS` 里，不会进交接包的 artifact_refs。
+- 项目表没有元数据字段，本次不改表结构。每次 `update_project` 改了项目名，`_apply_ai_title` 在同一次提交里往 `agent_artifact_ledger` 写一行：`action="project_title"`、`tool_name="update_project"`、`artifact_ref="project:{id}"`、`payload={"project_name": 新名字, "source": "ai_auto" | "author_requested"}`。这类记录不进交接包（2026-10-25 起交接包已不带 artifact_refs，工具动作也不再写 ledger，见 [删除工具动作 ledger](../simplification/2026-10-25-drop-tool-action-artifact-ledger.md)）。
 - `_is_ai_auto_named` 取这个项目最近一条 `project_title` 记录：`source == "ai_auto"` 且 `project_name` 等于项目现在的名字，才算 AI 起的名。作者之后在界面里改过名（名字对不上），或者那次改名是作者要求的（`author_requested`），都按作者起的名字处理。读记录出错时也按作者起的名字处理（宁可不改）。
 - 改名条件变为：项目名属于 `DEFAULT_PROJECT_NAMES`，或是 AI 自动命名留下的名字，或本次带了 `author_requested=true`。作品名的规范化（去书名号、1–30 字）对三种情况都一样，`author_requested` 不跳过校验。
 

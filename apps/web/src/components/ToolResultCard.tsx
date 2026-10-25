@@ -1160,6 +1160,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const failed =
         (data.failed as number) ??
         tasks.filter((task) => task.status === 'failed').length;
+      // partial: a continue_on_error edit applied only some of its edits (older payloads lack the total).
+      const partial =
+        typeof data.partial === 'number'
+          ? data.partial
+          : tasks.filter((task) => task.status === 'partial').length;
       const taskResultOf = (task: Record<string, unknown>) =>
         task.result && typeof task.result === 'object'
           ? (task.result as Record<string, unknown>)
@@ -1171,7 +1176,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       // 标题里的「失败」数不含有意没动的子任务（它们在下面逐条说明）。
       const skippedCount = tasks.filter(isIntentionalSkip).length;
       const shownFailed = Math.max(0, failed - skippedCount);
-      const anyFailed = shownFailed > 0;
+      const anyFailed = shownFailed > 0 || partial > 0;
       const accentClass = anyFailed
         ? 'text-[hsl(var(--warning-text))]'
         : 'text-[hsl(var(--success-text))]';
@@ -1187,15 +1192,22 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           <div className="flex items-center gap-2">
             <Layers className={`w-4 h-4 ${accentClass}`} />
             <span className={`text-sm ${accentClass}`}>
-              {skippedCount > 0
-                ? t('chat:tool.parallel_summary_with_skipped', { total, completed, skipped: skippedCount, failed: shownFailed })
-                : t('chat:tool.parallel_summary', { total, completed, failed })}
+              {partial > 0
+                ? skippedCount > 0
+                  ? t('chat:tool.parallel_summary_with_partial_and_skipped', { total, completed, partial, skipped: skippedCount, failed: shownFailed })
+                  : t('chat:tool.parallel_summary_with_partial', { total, completed, partial, failed })
+                : skippedCount > 0
+                  ? t('chat:tool.parallel_summary_with_skipped', { total, completed, skipped: skippedCount, failed: shownFailed })
+                  : t('chat:tool.parallel_summary', { total, completed, failed })}
             </span>
           </div>
           {tasks.length > 0 && (
             <div className="mt-2 space-y-1">
               {tasks.map((task, index) => {
                 const isFailed = task.status === 'failed';
+                const isPartial = task.status === 'partial';
+                // Statuses this client does not know are neither success nor failure.
+                const isUnknown = !isFailed && !isPartial && task.status !== 'completed';
                 const taskResult = taskResultOf(task);
                 const skipped = isIntentionalSkip(task);
                 // Localized task kind; unknown internal types are hidden, never shown raw.
@@ -1214,6 +1226,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
                     ) : isFailed ? (
                       <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
+                    ) : isPartial ? (
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--warning-text))]" />
+                    ) : isUnknown ? (
+                      <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
                     ) : (
                       <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--success-text))]" />
                     )}
@@ -1233,6 +1249,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       ) : isFailed ? (
                         <div className="text-[hsl(var(--text-secondary))] break-words">
                           {(isChineseUi() ? readUserFacingText(taskResult?.user_message) : null) ?? t('chat:tool.taskNotCompleted')}
+                        </div>
+                      ) : isPartial ? (
+                        <div className="text-[hsl(var(--text-secondary))] break-words">
+                          {t('chat:tool.taskPartiallyCompleted')}
+                        </div>
+                      ) : isUnknown ? (
+                        <div className="text-[hsl(var(--text-secondary))] break-words">
+                          {t('chat:tool.taskOutcomeUnknown')}
                         </div>
                       ) : touchedAuthorEdits(taskResult) ? (
                         <div className="text-[hsl(var(--text-secondary))] break-words">

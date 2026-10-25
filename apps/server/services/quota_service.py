@@ -478,11 +478,17 @@ class QuotaService:
     def create_default_quota(
         self, session: Session, user_id: str, commit: bool = True
     ) -> UsageQuota:
-        """Create default usage quota for a new user."""
+        """Idempotently create a default quota row for a user.
+
+        Concurrent first requests may both observe a missing row. The unique
+        user index arbitrates initialization; the loser reads the winner's row
+        instead of aborting its request. ``commit=False`` keeps the caller's
+        surrounding transaction open.
+        """
         now = utcnow()
         period_start, period_end = beijing_day_bounds(now)
 
-        quota = UsageQuota(
+        candidate = UsageQuota(
             user_id=user_id,
             period_start=period_start,
             period_end=period_end,
@@ -491,7 +497,31 @@ class QuotaService:
             monthly_period_start=self._get_month_start(now),
             monthly_period_end=self._get_next_month_start(now),
         )
-        session.add(quota)
+
+        dialect_name = session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert as dialect_insert
+        elif dialect_name == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert as dialect_insert
+        else:
+            raise RuntimeError(f"Unsupported quota database dialect: {dialect_name}")
+
+        values = {
+            column.name: getattr(candidate, column.name)
+            for column in UsageQuota.__table__.columns
+        }
+        # Preserve the old session.add(...); flush() contract: callers may be
+        # creating the owning User in this same transaction.
+        session.flush()
+        session.exec(
+            dialect_insert(UsageQuota)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["user_id"])
+        )
+        quota = self.get_user_quota(session, user_id)
+        if quota is None:
+            raise RuntimeError("Quota initialization did not produce a row")
+
         if commit:
             session.commit()
             session.refresh(quota)

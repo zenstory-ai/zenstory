@@ -31,6 +31,7 @@ from config.agent_runtime import (
 )
 from config.datetime_utils import utcnow
 from database import create_session
+from services.chat_session_service import latest_active_chat_session
 from utils.logger import get_logger, log_with_context
 
 from .context import ContextAssembler, get_context_assembler
@@ -46,14 +47,6 @@ from .core.events import (
 )
 from .core.llm_providers import primary_model_name
 from .core.message_manager import MessageManager
-from .core.metrics import (
-    AGENT_REQUESTS_DURATION_MS,
-    AGENT_REQUESTS_ERRORS,
-    AGENT_REQUESTS_TOTAL,
-    CONTEXT_ITEMS_COUNT,
-    CONTEXT_TOKENS_TOTAL,
-    get_metrics_collector,
-)
 from .core.round_outcome import RunOutcome
 from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
@@ -63,7 +56,6 @@ from .core.steering import (
     create_steering_queue_async,
     drain_and_seal_steering_async,
     heartbeat_steering_run_async,
-    requeue_steering_if_other_active_async,
 )
 from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .graph.state import WritingState
@@ -283,10 +275,10 @@ class AgentService:
         """
         Resolve the `session_id` used by:
         - SSE `session_started` event (frontend steering + continuity)
-        - ToolContext (task board + artifact ledger)
+        - ToolContext (task board)
 
         IMPORTANT: This value must exist in `chat_session.id` because
-        `agent_artifact_ledger.session_id` has a FK to `chat_session.id`.
+        `chat_message.session_id` has a FK to `chat_session.id`.
         """
         from models import ChatSession
         from services.chat_session_service import lock_active_chat_session
@@ -295,7 +287,7 @@ class AgentService:
         normalized_requested = (requested_session_id or "").strip()
 
         # 1) If caller provided a runtime session id, we REQUIRE it to exist in
-        #    `chat_session.id` because agent_artifact_ledger has an FK to it.
+        #    `chat_session.id` because chat_message has an FK to it.
         #    - If it exists and belongs to this user+project, reuse it.
         #    - If it doesn't exist, create it with that exact id (so we can echo
         #      it back in `session_started` for steering continuity).
@@ -375,43 +367,20 @@ class AgentService:
                 #   backend deploy while an active chat_session (with history) exists.
                 #   In that case, we must NOT create a new chat_session (which would
                 #   effectively "lose" the current active history in UI).
-                existing_actives = session.exec(
-                    select(ChatSession)
-                    .where(
-                        and_(
-                            ChatSession.project_id == project_id,
-                            ChatSession.user_id == user_id,
-                            ChatSession.is_active,
-                        )
-                    )
-                    .order_by(
-                        desc(ChatSession.updated_at),
-                        desc(ChatSession.created_at),
-                        desc(ChatSession.id),
-                    )
-                ).all()
-
-                if existing_actives:
+                active = latest_active_chat_session(
+                    session, project_id=project_id, user_id=user_id
+                )
+                if active is not None:
                     log_with_context(
                         logger,
-                        20,  # INFO
+                        20,
                         "Requested session_id not found; falling back to active chat session",
                         project_id=project_id,
                         user_id=user_id,
                         requested_session_id=normalized_requested,
-                        resolved_session_id=existing_actives[0].id,
+                        resolved_session_id=active.id,
                     )
-
-                    # Repair stale multi-active states defensively (newest wins).
-                    if len(existing_actives) > 1:
-                        for stale in existing_actives[1:]:
-                            if stale.is_active:
-                                stale.is_active = False
-                                session.add(stale)
-                        session.commit()
-                        session.refresh(existing_actives[0])
-
-                    return existing_actives[0].id
+                    return active.id
 
                 chat_session = ChatSession(
                     id=normalized_requested,
@@ -427,37 +396,14 @@ class AgentService:
                 return chat_session.id
 
         # 2) Otherwise, use the newest active session (if any).
-        active_sessions = session.exec(
-            select(ChatSession)
-            .where(
-                and_(
-                    ChatSession.project_id == project_id,
-                    ChatSession.user_id == user_id,
-                    ChatSession.is_active,
-                )
-            )
-            .order_by(
-                desc(ChatSession.updated_at),
-                desc(ChatSession.created_at),
-                desc(ChatSession.id),
-            )
-        ).all()
-        chat_session = active_sessions[0] if active_sessions else None
-
-        # Repair stale multi-active states defensively (newest wins).
-        if chat_session is not None and len(active_sessions) > 1:
-            for stale in active_sessions[1:]:
-                if stale.is_active:
-                    stale.is_active = False
-                    session.add(stale)
-            session.commit()
-            session.refresh(chat_session)
-
+        chat_session = latest_active_chat_session(
+            session, project_id=project_id, user_id=user_id
+        )
         if chat_session is not None:
             return chat_session.id
 
-        # 3) If no active session exists yet, create one now so tools can safely
-        #    write agent_artifact_ledger rows during streaming.
+        # 3) If no active session exists yet, create one now so the round's
+        #    messages and task board have a persisted session to belong to.
         chat_session = ChatSession(
             user_id=user_id,
             project_id=project_id,
@@ -688,8 +634,6 @@ class AgentService:
         # 作者发出这条消息的时间：user 行落库在回合结束时，created_at 要用它，刷新后时间才不跳。
         user_sent_at = start_time.replace(tzinfo=None)
         run_started_monotonic = time.monotonic()
-        metrics = get_metrics_collector()
-        metrics.increment_counter(AGENT_REQUESTS_TOTAL)
         message_preview = message[:100] + "..." if len(message) > 100 else message
 
         log_with_context(
@@ -705,9 +649,9 @@ class AgentService:
             current_file_id=metadata.get("current_file_id") if metadata else None,
         )
 
-        # Resolve chat-session id for continuity + artifact-ledger FK safety.
-        # (Historically this was a standalone runtime UUID; but artifact ledger
-        # requires `session_id` to exist in `chat_session.id`.)
+        # Resolve chat-session id for continuity + FK safety.
+        # (Historically this was a standalone runtime UUID; persisted rows
+        # require `session_id` to exist in `chat_session.id`.)
         requested_session_id = session_id
         if user_id:
             if self._should_offload_session_work(session):
@@ -736,7 +680,6 @@ class AgentService:
             session_id,
             user_id,
             run_id=steering_run_id,
-            exclusive_run=True,
         )
 
         # 周期心跳：独立 task 每隔 _RUN_HEARTBEAT_INTERVAL_S 秒续期本 run 的持有，
@@ -963,40 +906,21 @@ class AgentService:
                 retry_session.commit()
                 return True
 
-        async def _hand_back_steering(pending: list[str]) -> bool:
-            """本 run 兜底 drain 出来的 steering，若还有并发 run 在生成就交还。
-
-            队列只按 chat session 寻址（POST /agent/steer 的请求体没有 run_id），
-            无法把消息定向投给某个 run；能保证的不变量是「已经结束的 run 不得
-            吞掉本该由仍在生成的 run 消费的引导」。因此这里原子地确认除本 run
-            之外仍有活跃持有者并把消息放回队列，避免最后一个并发 run 恰好在
-            探测与回填之间退出、把消息写进已删除队列。
-            返回 True 表示已交还，调用方不再把它们写进本轮历史。
-
-            保存历史前与收尾保存前都在本 run 仍持有队列时调用；
-            探测按「除自己以外」计数，历史真正写完后才释放当前 run。
-            """
-            if not pending or not user_id:
-                return False
-
+        async def _drain_late_steering(*, failure_message: str) -> list[str]:
+            """Drain and seal once before cleanup, returning only newly drained text."""
+            already_consumed = len(consumed_steering)
             try:
-                return await requeue_steering_if_other_active_async(
-                    session_id,
-                    steering_run_id,
-                    user_id,
-                    pending,
-                )
+                await get_steering_messages(seal=True)
             except Exception as exc:
-                # 原子回填失败时消息仍由本轮历史兜底，绝不静默丢弃。
                 log_with_context(
                     logger,
                     30,  # WARNING
-                    "Failed to requeue steering messages for concurrent run",
+                    failure_message,
                     session_id=session_id,
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
-                return False
+            return list(consumed_steering[already_consumed:])
 
         async def _finish_history_write(write: Any, *args: Any) -> Any:
             """Keep finalization ownership until an uncancellable SQL worker finishes."""
@@ -1116,14 +1040,23 @@ class AgentService:
                 attached_library_materials=attached_library_materials,
                 text_quotes=text_quotes,
                 max_tokens=AGENT_CONTEXT_TOKEN_BUDGET,
+                # 按本轮已解析（并将写回）的会话 id 读历史与工作集
+                chat_session_id=session_id if user_id else None,
             )
+            loaded_session_id = getattr(session_data, "session_id", None)
+            if user_id and loaded_session_id and loaded_session_id != session_id:
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Loaded chat session differs from the resolved session",
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    loaded_session_id=loaded_session_id,
+                )
 
             context_data = session_data.context_data
             history_messages = session_data.history_messages
-            token_count = max(0, int(getattr(context_data, "token_estimate", 0) or 0))
-            item_count = len(getattr(context_data, "items", []) or [])
-            metrics.increment_counter(CONTEXT_TOKENS_TOTAL, amount=token_count)
-            metrics.increment_counter(CONTEXT_ITEMS_COUNT, amount=item_count)
 
             # Emit context event to frontend
             if context_data and context_data.items:
@@ -1357,17 +1290,14 @@ class AgentService:
                 "project_id": project_id,
                 "user_id": user_id or "",
                 "session_id": session_id,
+                # 作者界面语言（zh / en…）：graph 的作者可见文案按它选英文或中文。
+                "language": lang,
                 "generation_mode": generation_mode,
                 "has_selected_text": bool(selected_text),
                 "has_referenced_files": bool(referenced_file_ids),
                 "system_prompt": system_prompt,
                 "context_snapshot": context_snapshot,
-                "context_data": {
-                    "context": context_data.context if context_data.context else "",
-                    "items": context_data.items,
-                },
                 "messages": messages,
-                "tool_calls": [],
                 "run_meter": run_meter,
             }
 
@@ -1564,32 +1494,16 @@ class AgentService:
                 # 保存历史前统一取出，保证 /agent/steer 已确认 queued 的输入
                 # 随本轮落库，而不是被随后的 cleanup 静默删除。
                 # 这段 drain 覆盖的是「工作流结束 → 保存历史」这个窗口，它比
-                # finally 里那段更宽：本 run 已经不会再把消息喂给模型了，若同一
-                # chat session 还有别的 run 正在流式生成，这些消息本该由它消费，
-                # 必须交还回队列，而不是写成本轮历史里一条挂在已结束轮次上的
-                # 用户消息（那样仍在生成的 run 永远收不到这条引导）。
+                # finally 里那段更宽：本 run 已经不会再把消息喂给模型，必须把
+                # 已确认 queued 的消息随本轮历史落库。
                 # 这里同时封口：本 run 之后不会再把引导喂给模型，保存历史期间再到的引导回 404，
                 # 由前端作为下一条消息发出，而不是回 200「下一步会用上」再挂在已结束的一轮上。
                 # 封口幂等，finally 里那次 drain 照旧兜底取出封口前刚入队的消息。
-                already_consumed_pre_save = len(consumed_steering)
-                try:
-                    await get_steering_messages(seal=True)
-                except Exception as exc:
-                    log_with_context(
-                        logger,
-                        30,  # WARNING
-                        "Failed to drain remaining steering messages before history save",
-                        session_id=session_id,
-                        error=str(exc),
-                        error_type=type(exc).__name__,
+                await _drain_late_steering(
+                    failure_message=(
+                        "Failed to drain remaining steering messages before history save"
                     )
-                pre_save_late_steering = list(
-                    consumed_steering[already_consumed_pre_save:]
                 )
-                if pre_save_late_steering and await _hand_back_steering(
-                    pre_save_late_steering
-                ):
-                    del consumed_steering[already_consumed_pre_save:]
 
                 # Save to history。落库放进独立任务并 shield：PG 下
                 # save_messages 内部走 asyncio.to_thread，工作线程一旦启动就
@@ -1719,24 +1633,11 @@ class AgentService:
                         ):
                             run_outcome.resolve_message_id(history_save_task.result())
 
-                    already_consumed = len(consumed_steering)
-                    try:
-                        await get_steering_messages(seal=True)
-                    except Exception as exc:
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Failed to drain steering queue before cancellation save",
-                            session_id=session_id,
-                            error=str(exc),
-                            error_type=type(exc).__name__,
+                    late_steering = await _drain_late_steering(
+                        failure_message=(
+                            "Failed to drain steering queue before cancellation save"
                         )
-                    late_steering = list(consumed_steering[already_consumed:])
-                    if late_steering and await _hand_back_steering(
-                        late_steering
-                    ):
-                        del consumed_steering[already_consumed:]
-                        late_steering = []
+                    )
 
                     if history_saved:
                         if late_steering:
@@ -1763,7 +1664,6 @@ class AgentService:
             raise
         except Exception as e:
             request_failed = True
-            metrics.increment_counter(AGENT_REQUESTS_ERRORS)
             error_info = classify_stream_exception(e)
             log_stream_exception(
                 logger,
@@ -1775,7 +1675,20 @@ class AgentService:
             )
             adapter = usage_source.get("adapter")
             if run_outcome is not None and adapter is not None:
-                run_outcome.saved_file_word_counts.update(adapter.get_saved_file_word_counts())
+                # 与取消路径一样：先补存进行中的 <file> 正文并等它的保存回执（受
+                # STREAM_FILE_SAVE_TIMEOUT_S 限时），下面 finally 交回消息 id 时字数才是真的。
+                try:
+                    saved_counts = await adapter.settle_aborted_capture()
+                except Exception as settle_exc:
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Failed to settle in-flight file capture after stream failure",
+                        session_id=session_id,
+                        error_type=type(settle_exc).__name__,
+                    )
+                    saved_counts = adapter.get_saved_file_word_counts()
+                run_outcome.saved_file_word_counts.update(saved_counts)
             yield error_event(
                 error_info.message,
                 code=error_info.code,
@@ -1789,7 +1702,7 @@ class AgentService:
                     "prepare_context", (time.monotonic() - run_started_monotonic) * 1000,
                     outcome="interrupted" if stream_cancelled else "error",
                 )
-            # Cleanup steering queue（只释放本 run 的持有，并发 run 不受影响）
+            # Cleanup steering queue（只释放本 run；TTL 后接管的新 run 不受影响）
             if stream_cancelled:
 
                 async def _cleanup_after_cancellation_save() -> None:
@@ -1821,25 +1734,9 @@ class AgentService:
                     # steering（正常路径在保存历史前已 drain 过，这里覆盖请求失败
                     # 未走到保存点、以及「历史刚落库到队列被删」这段窗口里新入队
                     # 的消息），保证已确认 queued 的输入不会凭空消失。
-                    already_consumed = len(consumed_steering)
-                    try:
-                        await get_steering_messages(seal=True)
-                    except Exception as exc:
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Failed to drain steering queue before cleanup",
-                            session_id=session_id,
-                            error=str(exc),
-                            error_type=type(exc).__name__,
-                        )
-                    late_steering = list(consumed_steering[already_consumed:])
-
-                    # Legacy concurrent holders still receive their steering, while
-                    # this run remains registered through its own final history write.
-                    if late_steering and await _hand_back_steering(late_steering):
-                        del consumed_steering[already_consumed:]
-                        late_steering = []
+                    late_steering = await _drain_late_steering(
+                        failure_message="Failed to drain steering queue before cleanup"
+                    )
 
                     if user_id and not history_saved:
                         # 与取消路径对等的补偿保存：本轮只要产生过任何值得保留的
@@ -1916,7 +1813,6 @@ class AgentService:
                         "session_id": session_id,
                     }
                 )
-            metrics.observe_histogram(AGENT_REQUESTS_DURATION_MS, total_duration)
             completed_with_errors = request_failed or had_stream_error
             if completed_with_errors:
                 completion_level = 30  # WARNING

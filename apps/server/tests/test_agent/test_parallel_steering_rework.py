@@ -16,7 +16,6 @@ from unittest.mock import patch
 
 import pytest
 
-from agent.core import progress_channel
 from agent.core.progress_channel import (
     emit_progress,
     reset_progress_emitter,
@@ -390,9 +389,10 @@ class TestRunnerIntegration:
 @pytest.mark.unit
 class TestSteeringPersistence:
     def test_steering_messages_saved_as_user_turns(self, db_session):
-        from agent.core.message_manager import MessageManager
-        from models import ChatMessage, Project, User
         from sqlmodel import select
+
+        from agent.core.message_manager import MessageManager
+        from models import ChatMessage, ChatSession, Project, User
 
         user = User(
             email="steer-persist@example.com",
@@ -407,13 +407,15 @@ class TestSteeringPersistence:
 
         project = Project(name="Steer Project", owner_id=user.id, project_type="novel")
         db_session.add(project)
+        db_session.flush()
+        chat_session = ChatSession(project_id=project.id, user_id=user.id)
+        db_session.add(chat_session)
         db_session.commit()
-        db_session.refresh(project)
 
         manager = MessageManager(project_id=project.id, user_id=user.id)
         manager._save_messages_with_session(
             db_session,
-            None,
+            chat_session.id,
             "原始用户消息",
             "助手最终回复",
             None,
@@ -443,9 +445,10 @@ class TestSteeringPersistence:
         assert chat_session.message_count == 4
 
     def test_no_steering_messages_keeps_two_message_turns(self, db_session):
-        from agent.core.message_manager import MessageManager
-        from models import ChatMessage, Project, User
         from sqlmodel import select
+
+        from agent.core.message_manager import MessageManager
+        from models import ChatMessage, ChatSession, Project, User
 
         user = User(
             email="steer-none@example.com",
@@ -460,12 +463,14 @@ class TestSteeringPersistence:
 
         project = Project(name="No Steer Project", owner_id=user.id, project_type="novel")
         db_session.add(project)
+        db_session.flush()
+        chat_session = ChatSession(project_id=project.id, user_id=user.id)
+        db_session.add(chat_session)
         db_session.commit()
-        db_session.refresh(project)
 
         manager = MessageManager(project_id=project.id, user_id=user.id)
         manager._save_messages_with_session(
-            db_session, None, "你好", "你好，有什么可以帮你", None, None
+            db_session, chat_session.id, "你好", "你好，有什么可以帮你", None, None
         )
 
         rows = db_session.exec(select(ChatMessage)).all()

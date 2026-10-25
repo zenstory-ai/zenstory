@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import os
 from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 from sqlalchemy import create_engine, func
@@ -19,12 +20,14 @@ from models.subscription import (
     RedemptionCode,
     SubscriptionHistory,
     SubscriptionPlan,
+    UsageQuota,
     UserSubscription,
 )
 from services.features.referral_service import (
     complete_referral_and_reward,
     create_invite_code,
 )
+from services.quota_service import quota_service
 from services.subscription.redemption_service import redemption_service
 
 pytestmark = pytest.mark.skipif(
@@ -44,6 +47,7 @@ TABLES = [
     UserReward.__table__,
     UserStats.__table__,
     PointsTransaction.__table__,
+    UsageQuota.__table__,
 ]
 
 
@@ -212,3 +216,81 @@ def test_concurrent_invite_creation_respects_active_cap(pg_engine):
             .where(InviteCode.owner_id == owner_id, InviteCode.is_active.is_(True))
         ).one()
         assert active_count == 3
+
+
+def test_concurrent_first_quota_reservations_share_one_initialized_row(
+    pg_engine, monkeypatch
+):
+    """Two first requests must both reserve instead of racing on the unique user row."""
+    with Session(pg_engine) as setup:
+        member = _user(setup, "quota-first-reservation")
+        member_id = member.id
+
+    barrier = Barrier(2)
+    original_get = quota_service.get_user_quota
+
+    def synchronize_missing_read(session: Session, user_id: str):
+        quota = original_get(session, user_id)
+        if quota is None:
+            barrier.wait(timeout=10)
+        return quota
+
+    monkeypatch.setattr(quota_service, "get_user_quota", synchronize_missing_read)
+
+    def reserve():
+        with Session(pg_engine) as session:
+            return quota_service.reserve_ai_conversation(session, member_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        reservations = list(pool.map(lambda _: reserve(), range(2)))
+
+    assert all(reservation is not None for reservation in reservations)
+    with Session(pg_engine) as verify:
+        rows = verify.exec(
+            select(UsageQuota).where(UsageQuota.user_id == member_id)
+        ).all()
+        assert len(rows) == 1
+        assert rows[0].ai_conversations_used == 2
+
+
+def test_quota_initialization_without_commit_keeps_caller_transaction_owned(pg_engine):
+    member_id = "quota-no-commit-target"
+    with Session(pg_engine) as caller:
+        caller.add(
+            User(
+                id=member_id,
+                email="pg-quota-no-commit-target@example.com",
+                username="pg-quota-no-commit-target",
+                hashed_password="hashed",
+                email_verified=True,
+                is_active=True,
+            )
+        )
+        quota = quota_service.create_default_quota(caller, member_id, commit=False)
+        assert quota.user_id == member_id
+        caller.rollback()
+
+    with Session(pg_engine) as verify:
+        assert verify.get(User, member_id) is None
+        assert verify.exec(
+            select(UsageQuota).where(UsageQuota.user_id == member_id)
+        ).first() is None
+
+
+def test_default_quota_conflict_preserves_existing_usage(pg_engine):
+    with Session(pg_engine) as setup:
+        member = _user(setup, "quota-existing-usage")
+        quota = quota_service.create_default_quota(setup, member.id)
+        quota.ai_conversations_used = 2
+        setup.add(quota)
+        setup.commit()
+        member_id = member.id
+
+    with Session(pg_engine) as caller:
+        quota_service.create_default_quota(caller, member_id)
+
+    with Session(pg_engine) as verify:
+        quota = verify.exec(
+            select(UsageQuota).where(UsageQuota.user_id == member_id)
+        ).one()
+        assert quota.ai_conversations_used == 2

@@ -13,15 +13,12 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _reset_metrics_and_model_cache():
-    from agent.core.metrics import reset_metrics_collector
+def _reset_model_cache():
     from agent.openai_agents.model import reset_sdk_model_cache
 
-    reset_metrics_collector()
     reset_sdk_model_cache()
     yield
     reset_sdk_model_cache()
-    reset_metrics_collector()
 
 
 @pytest.mark.unit
@@ -85,8 +82,7 @@ async def test_reviewer_write_tools_refuse_without_executing():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_invoke_project_tool_returns_mcp_text_and_metrics():
-    from agent.core.metrics import TOOL_CALLS_ERRORS, TOOL_CALLS_TOTAL, get_metrics_collector
+async def test_invoke_project_tool_returns_mcp_text():
     from agent.openai_agents.tools_adapter import invoke_project_tool
 
     async def fake_tool(args):
@@ -96,9 +92,6 @@ async def test_invoke_project_tool_returns_mcp_text_and_metrics():
         result_text = await invoke_project_tool("demo_tool", '{"x": 1}')
 
     assert json.loads(result_text) == {"status": "success", "args": {"x": 1}}
-    metrics = get_metrics_collector().get_all_metrics()
-    assert metrics["counters"][TOOL_CALLS_TOTAL]["value"] == 1
-    assert TOOL_CALLS_ERRORS not in metrics["counters"]
 
 
 @pytest.mark.unit
@@ -503,24 +496,6 @@ def test_normalize_omits_tool_use_and_tool_result_blocks():
     assert "工具调用" not in blob and "工具结果" not in blob
 
 
-def _called(name, call_id):
-    return SimpleNamespace(
-        type="run_item_stream_event",
-        name="tool_called",
-        item=SimpleNamespace(
-            raw_item={"name": name, "call_id": call_id, "arguments": "{}"}
-        ),
-    )
-
-
-def _output(call_id, text="ok"):
-    return SimpleNamespace(
-        type="run_item_stream_event",
-        name="tool_output",
-        item=SimpleNamespace(raw_item={"call_id": call_id}, output=text),
-    )
-
-
 async def test_runner_wires_intra_run_trimmer_into_run_config():
     """The intra-run tool-output trimmer is attached as the model-input filter."""
     from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
@@ -552,46 +527,3 @@ async def test_runner_wires_intra_run_trimmer_into_run_config():
     # 外层是请求级模型调用计数器，内层仍是 IntraRunToolOutputTrimmer。
     assert isinstance(run_config.call_model_input_filter._inner, IntraRunToolOutputTrimmer)
     assert run_config.tool_execution.max_function_tool_concurrency == 1
-
-
-async def test_readonly_cocall_metric_counts_each_turn_once():
-    """Regression lock: the read-only co-call metric counts each turn once, not per output."""
-    from agent.core.metrics import (
-        TOOL_READONLY_COCALL_TOTAL,
-        TOOL_READONLY_TURNS_TOTAL,
-        get_metrics_collector,
-    )
-    from agent.openai_agents.runner import run_openai_agents_streaming_agent
-
-    class FakeResult:
-        raw_responses = []
-
-        def cancel(self, mode="immediate"):
-            pass
-
-        async def stream_events(self):
-            # Turn 1: two read-only calls then their two outputs -> ONE turn, ONE co-call.
-            yield _called("query_files", "c1")
-            yield _called("query_files", "c2")
-            yield _output("c1")
-            yield _output("c2")
-            # Turn 2: a single non-read-only call -> ONE turn, NO co-call.
-            yield _called("create_file", "c3")
-            yield _output("c3")
-
-    state = {"user_message": "x", "messages": [], "system_prompt": "base"}
-    with (
-        patch("agent.openai_agents.runner._build_agent", return_value=object()),
-        patch("agents.Runner.run_streamed", return_value=FakeResult()),
-    ):
-        _ = [
-            event
-            async for event in run_openai_agents_streaming_agent(
-                state=state, agent_type="writer", system_prompt="system"
-            )
-        ]
-
-    counters = get_metrics_collector().get_all_metrics()["counters"]
-    # Pre-fix bug: TURNS counted every tool_output (would be 3). Correct is 2 turns.
-    assert counters[TOOL_READONLY_TURNS_TOTAL]["value"] == 2
-    assert counters[TOOL_READONLY_COCALL_TOTAL]["value"] == 1

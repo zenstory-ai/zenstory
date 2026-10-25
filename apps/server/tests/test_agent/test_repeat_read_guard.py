@@ -231,6 +231,25 @@ def test_parallel_write_subtask_resets_reads_and_is_recorded():
 
 
 @pytest.mark.unit
+def test_partially_applied_parallel_edit_still_resets_reads():
+    """并行 edit_file 只生效了一部分（status=partial）：文件已经改了，之前的读取作废。"""
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard)
+    raw = json.dumps({"tasks": [{"type": "edit_file", "params": {"id": "f1", "edits": []}}]})
+    plan = guard.plan("parallel_execute", raw)
+    guard.observe(
+        "parallel_execute",
+        plan,
+        _parallel_output(
+            [{"type": "edit_file", "status": "partial", "result": {"status": "partial", "data": {"id": "f1"}}}]
+        ),
+    )
+    assert json.loads(_guarded_read(guard))["status"] == "success"
+    assert guard.written_file_ids() == ["f1"]
+
+
+@pytest.mark.unit
 def test_handoff_summary_lists_titles_and_ids_without_content():
     guard = RepeatReadGuard()
     _guarded_read(guard)
@@ -485,15 +504,12 @@ def test_landing_reminder_fires_when_request_budget_is_nearly_spent():
 
 
 @pytest.fixture
-def _reset_metrics_and_model_cache():
-    from agent.core.metrics import reset_metrics_collector
+def _reset_model_cache():
     from agent.openai_agents.model import reset_sdk_model_cache
 
-    reset_metrics_collector()
     reset_sdk_model_cache()
     yield
     reset_sdk_model_cache()
-    reset_metrics_collector()
 
 
 async def _unused_edit(_args):  # pragma: no cover - 脚本里不调用 edit_file
@@ -502,7 +518,7 @@ async def _unused_edit(_args):  # pragma: no cover - 脚本里不调用 edit_fil
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_stops_as_no_progress_when_model_keeps_rereading(monkeypatch):
     executed: list[dict] = []
 
@@ -536,7 +552,7 @@ async def test_sdk_run_stops_as_no_progress_when_model_keeps_rereading(monkeypat
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_hard_cap_reports_actual_turns_and_stop_reason(monkeypatch):
     monkeypatch.setattr("agent.openai_agents.runner.AGENT_TOOL_CALL_MAX_ITERATIONS", 5)
 
@@ -568,7 +584,7 @@ async def test_sdk_run_hard_cap_reports_actual_turns_and_stop_reason(monkeypatch
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_soft_landing_summary_still_ends_as_exhausted(monkeypatch):
     monkeypatch.setattr("agent.openai_agents.runner.AGENT_TOOL_CALL_MAX_ITERATIONS", 5)
 
@@ -593,7 +609,7 @@ async def test_sdk_run_soft_landing_summary_still_ends_as_exhausted(monkeypatch)
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_soft_lands_on_request_budget_instead_of_hard_error(monkeypatch):
     from agent.core.run_meter import AgentRunMeter
 
@@ -623,7 +639,7 @@ async def test_sdk_run_soft_lands_on_request_budget_instead_of_hard_error(monkey
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_soft_lands_before_the_wall_clock_limit(monkeypatch):
     """Two production runs (50+ model calls) were cut at 780s mid-work: near the limit the
     agent is told to finish the open file and summarize, and the turn ends resumable."""
@@ -655,7 +671,7 @@ async def test_sdk_run_soft_lands_before_the_wall_clock_limit(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_resets_read_counts_left_by_the_previous_agent(monkeypatch):
     """上一个 agent 已把 f1 读了 3 次：新 run 第一次读 f1 要真正执行、不带「已读过」提示。"""
     executed: list[dict] = []
@@ -984,7 +1000,6 @@ async def test_handoffs_carry_request_read_and_write_log(monkeypatch):
     review_packet = next(
         e.data["handoff_packet"] for e in handoffs if e.data["target_agent"] == "quality_reviewer"
     )
-    assert review_packet["artifact_refs"] == ["f5"]
     assert review_packet["completed"] == ["已修改《第五章》(id=f5)"]
 
 

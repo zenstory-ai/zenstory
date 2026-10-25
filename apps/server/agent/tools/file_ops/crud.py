@@ -6,8 +6,6 @@ This module provides Create, Read, Update, Delete operations on the File model:
 - update_file: Update existing file
 - delete_file: Delete a file (with optional recursive deletion)
 - query_files: Query and search files (unified)
-
-Extracted from the monolithic file_executor.py for better maintainability.
 """
 
 import contextlib
@@ -1066,7 +1064,6 @@ class FileCRUD:
         file_type: str | None = None,
         file_types: list[str] | None = None,
         parent_id: str | None = None,
-        metadata_filter: dict[str, Any] | None = None,
         limit: int = 50,
         offset: int = 0,
         response_mode: str | None = None,
@@ -1076,7 +1073,7 @@ class FileCRUD:
         """
         Query and search files (unified method).
 
-        Supports keyword search, type filtering, parent filtering, and metadata filtering.
+        Supports keyword search, type filtering and parent filtering.
 
         Args:
             project_id: Project ID
@@ -1085,7 +1082,6 @@ class FileCRUD:
             file_type: Single file type filter (optional)
             file_types: Multiple file types filter (optional, use this OR file_type)
             parent_id: Parent file ID filter (optional)
-            metadata_filter: Metadata field filters (optional)
             limit: Maximum results
             offset: Offset for pagination
             response_mode: Response format mode ("summary" or "full"). None =
@@ -1149,10 +1145,6 @@ class FileCRUD:
         files = [file for file, _, _ in rows]
         previews = {file.id: preview for file, preview, _ in rows}
         content_lengths = {file.id: content_length for file, _, content_length in rows}
-
-        # Metadata filtering deliberately remains AFTER SQL pagination.
-        if metadata_filter:
-            files = self._filter_by_metadata(files, metadata_filter)
 
         serialized = [
             serialize_query_file(
@@ -1307,7 +1299,8 @@ class FileCRUD:
         # Apply keyword search
         if query:
             stmt = stmt.where(
-                (File.title.contains(query)) | (File.content.contains(query))  # type: ignore[attr-defined]
+                (File.title.contains(query, autoescape=True))  # type: ignore[attr-defined]
+                | (File.content.contains(query, autoescape=True))  # type: ignore[attr-defined]
             )
 
         # Apply parent filter
@@ -1325,68 +1318,6 @@ class FileCRUD:
         stmt = stmt.offset(offset).limit(limit)
 
         return stmt
-
-    def _filter_by_metadata(
-        self,
-        files: list[File],
-        metadata_filter: dict[str, Any],
-    ) -> list[File]:
-        """
-        Filter files by metadata fields.
-
-        Since SQLite's JSON support is limited, we filter in Python.
-
-        Args:
-            files: List of File objects
-            metadata_filter: Dict of field -> value to match
-
-        Returns:
-            Filtered list of files
-        """
-        filtered = []
-        for file in files:
-            # Parse file metadata
-            if not file.file_metadata:
-                continue
-
-            try:
-                file_meta = json.loads(file.file_metadata)
-            except (json.JSONDecodeError, TypeError):
-                continue
-
-            # Check all filter conditions (AND logic)
-            match = True
-            for key, expected_value in metadata_filter.items():
-                actual_value = file_meta.get(key)
-
-                # Handle different comparison types
-                if actual_value is None:
-                    match = False
-                    break
-                elif isinstance(expected_value, list):
-                    # For array fields like tags, check if any match
-                    if isinstance(actual_value, list):
-                        if not any(v in actual_value for v in expected_value):
-                            match = False
-                            break
-                    else:
-                        if actual_value not in expected_value:
-                            match = False
-                            break
-                else:
-                    # Direct equality comparison (case-insensitive for strings)
-                    if isinstance(actual_value, str) and isinstance(expected_value, str):
-                        if actual_value.lower() != expected_value.lower():
-                            match = False
-                            break
-                    elif actual_value != expected_value:
-                        match = False
-                        break
-
-            if match:
-                filtered.append(file)
-
-        return filtered
 
     def _serialize_metadata(self, metadata: dict[str, Any] | None) -> str | None:
         """Serialize metadata dict to JSON string."""

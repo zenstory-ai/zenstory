@@ -43,8 +43,7 @@ agent/
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
 │   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
 │   ├── llm_failover.py     # 主备切换：会话固定、熔断、只在没有输出时换供应商
-│   ├── llm_client.py       # 输入建议 / 润色的单次调用
-│   └── metrics.py
+│   └── llm_client.py       # 输入建议 / 润色的单次调用
 ├── graph/                  # 多 agent 工作流（自研编排，非 LangGraph）
 │   ├── writing_graph.py    # run_writing_workflow_streaming：路由、agent 循环、交接、自动质检
 │   ├── router.py           # 意图路由（RouterDecision、跨轮路由延续）
@@ -78,12 +77,12 @@ agent/
 │   ├── mcp_tools.py        # 工具实现（MCP_TOOL_HANDLERS）与 ToolContext
 │   ├── registry.py         # schema / handler / agent 工具集的唯一接线处
 │   ├── parallel_executor.py# parallel_execute
-│   ├── file_executor.py / file_ops/ # 文件 CRUD、编辑、项目操作
+│   ├── file_ops/           # 文件 CRUD、编辑、项目操作（FileToolExecutor 组合三者）
 │   ├── author_changes.py   # 作者在 AI 写过之后的净改动
 │   ├── author_edit_guard.py# 作者手改文件的删除 / 整份覆盖保护
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照
 │   └── permissions.py
-└── utils/                  # aho_corasick、token_utils、world_model_visibility
+└── utils/                  # token_utils、world_model_visibility
 ```
 
 ## 请求与流
@@ -92,7 +91,7 @@ agent/
    预扣一次 AI 对话额度；用 `SSEStreamPump` 包住 `AgentService.process_stream`，`StreamBillingTracker` 记账每一帧。
    同文件还有 `/stop`（作者停止）、`/steer`（运行中插话）、`/suggest`、`/health`。新增会触发 LLM 的端点必须同时有
    鉴权 + 项目权限 + 成本上限 + 按用户限流（见该文件模块 docstring）。
-2. `AgentService.process_stream`（`service.py`）：`SessionLoader` 取历史与跨轮工作集，`ContextAssembler` 组装上下文，
+2. `AgentService.process_stream`（`service.py`）：`SessionLoader` 按本轮已解析的会话 id（`chat_session_id`，不是重新挑最新活跃会话）取历史与跨轮工作集，`ContextAssembler` 组装上下文，
    `MessageManager.build_system_prompt` 建只含跨轮、跨角色不变内容的系统提示，`build_turn_context` 建本轮上下文
    （拼进本轮用户消息，见「上下文与跨轮记忆」），`ToolContext.set_context` 设置工具上下文，然后
    `StreamAdapter.process_workflow_events(run_writing_workflow_streaming(...))`，结束时保存历史。
@@ -174,7 +173,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   [single-summary][n-summary]、[writer-delivery-requirements][n-length]、[thinking-loop-inputs][n-thinking]、[quality-mode-lean][n-lean]
 - **自动质检门只认成功的正文写入**：按 `graph/body_writes.py` 计 draft / script 里实际写进的字数；改大纲、设定、角色和聊天文字不算；
   写入全部失败时不送审。[single-summary][n-summary]、[tool-failure-breaker][n-breaker]、[review-gating][n-review]
-- **作品第一条消息不送审**：`state["first_message_project_label"]` 非空的一轮关掉自动质检门，writer 自己 `handoff_to_agent(quality_reviewer)` 也丢弃；交接前没给作者写话时，同一个 writer 再跑一轮只写总结（`FIRST_ROUND_SUMMARY_CONTEXT`，一次）。作者读到的是 writer 自己的交付说明，不是返修记录；路由显式安排的审稿照常。[first-turn-skips-review][n-first-review]
+- **作品第一条消息不送审**：`state["first_message_project_label"]` 非空的一轮关掉自动质检门，writer 自己调用 `handoff_to_agent(quality_reviewer)` 时工具直接拒绝（`ToolContext.review_handoff_refusal`，文案 `FIRST_ROUND_REVIEW_REFUSAL`；快速模式同理用 `FAST_MODE_REVIEW_REFUSAL`），writer 在同一次 run 里给作者写总结并带上「[要告诉作者]」的话，图里不再丢弃交接或补跑。作者读到的是 writer 自己的交付说明，不是返修记录；路由显式安排的审稿照常。[first-turn-skips-review][n-first-review]
 - **StreamProcessor 丢掉 IDLE 下独占一行的标记**：没有进行中的捕获时，独占一行（不在 ``` 围栏里）的 `<file>` / `</file>` 不进对话，
   行内提到、反引号包着的照常保留。[single-summary][n-summary]
 - **只读请求不改文件**：router `read_only=true` 时不交接给有写权限的 agent（显式 handoff 也拦），提示卡
@@ -242,7 +241,8 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `AGENT_WORKING_SET_MAX_FILES`=8 份、`AGENT_WORKING_SET_MAX_CHARS`=60000 字）。
 - 项目资料快照（`context/turn_snapshot.py`）：组装的项目上下文与工作集按条目给出带键的块；会话第一轮（及重建时）渲染成
   `<project_snapshot>`，作为模型输入第一条消息紧跟系统提示（`runner.build_run_input`，不写回 `state["messages"]`）；之后每轮只把
-  新出现或改过的块放进 `<turn_context>` 的「本轮更新的项目资料」，工作集只发清单。改动超过快照一半、20 轮、2 小时或项目 / 语言变化时重建。
+  新出现或改过的块放进 `<turn_context>` 的「本轮更新的项目资料」，工作集只发清单；快照里有、本轮已不在的块列为「本轮未核对的快照条目」
+  （[全文] 与焦点标记可能过期）。改动加离开的块超过快照一半、20 轮、2 小时或项目 / 语言变化时重建。
 - 本轮上下文（`MessageManager.build_turn_context`，`<turn_context>`）：叙事约束、作者本条消息选的技能、本轮更新的项目资料、当前文件、
   任务计划板快照、本轮回复语言，加工作集清单，放在本轮用户消息最前面（`SessionLoader.attach_working_set_to_user_content`）。
   请求布局 `[系统提示][项目资料快照][历史][本轮上下文 + 作者消息][本次运行指令]`，前四段跨轮、跨 agent 逐字不变

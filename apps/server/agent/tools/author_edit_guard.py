@@ -75,6 +75,9 @@ def latest_text_is_authors(session: Any, file: Any) -> bool:
 
     Unknown legacy provenance (no versions) is not claimed as author-owned.  A content/version
     mismatch is protected because it represents a write newer than the latest recorded AI state.
+    ``ai_edit`` versions count as AI-written, except the editor's review save
+    (``user/ai_edit/"AI edit (reviewed)"``) right after an AI-written version: the author
+    reviewed that AI change and saved their own result.  Only the version tuples are read.
     """
     content = getattr(file, "content", None) or ""
     if not content.strip():
@@ -89,10 +92,20 @@ def latest_text_is_authors(session: Any, file: Any) -> bool:
     latest_content = service._get_contents_for_versions(session, {file.id: latest})[file.id]
     if latest_content != content:
         return True
-    return not (
-        latest.change_source == _AI_CHANGE_SOURCE
-        or latest.change_type == _AI_EDIT_CHANGE_TYPE
-    )
+    if latest.change_source == _AI_CHANGE_SOURCE:
+        return False
+    if latest.change_type != _AI_EDIT_CHANGE_TYPE:
+        return True
+    return _is_review_save_after_ai_write(session, service, latest)
+
+
+def _is_review_save_after_ai_write(session: Any, service: Any, latest: Any) -> bool:
+    from agent.tools.author_changes import AI, AUTHOR, version_actor
+
+    if version_actor(latest) != AUTHOR or latest.version_number <= 1:
+        return False
+    previous = service.get_version_by_number(session, latest.file_id, latest.version_number - 1)
+    return previous is not None and version_actor(previous) == AI
 
 
 def enforce_author_content_protection(

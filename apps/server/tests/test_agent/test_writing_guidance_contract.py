@@ -52,3 +52,15 @@ def test_read_budget_prevents_redundant_rereads():
     assert "query_files" in prompt
     # 旁白：只在本轮第一次调用工具前说一句
     assert "本轮第一次调用工具前" in prompt
+
+
+def test_file_protocol_is_stated_once_without_contradicting_the_one_line_rule():
+    """O-4：<file> 协议只在一处说明；「整轮一句过程说明」不再和「create_file 前禁止说话」打架。"""
+    prompt = get_base_prompt("project-test", {"draft": "d-id"}, {
+        "role_definition": "R", "capabilities": "C", "directory_structure": "{draft}",
+        "content_structure": "S", "file_types": "T", "writing_guidelines": "G",
+    })
+    assert prompt.count("`<file/>`") == 1
+    assert prompt.count("**下一次回复**第一行就输出 `<file>`") == 1
+    assert "禁止**说话" not in prompt
+    assert "严格静默" not in prompt

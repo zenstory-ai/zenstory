@@ -68,11 +68,6 @@ GUARD_ERROR_TYPES: frozenset[str] = frozenset(
 NO_PROGRESS_STOP_REASON = "no_progress"
 NO_PROGRESS_ERROR_TYPE = "NoProgressStop"
 
-# 指标名（agent.core.metrics 的计数器按字符串注册）。
-READ_DUPLICATE_TOTAL = "agent.read.duplicate.total"
-READ_BLOCKED_TOTAL = "agent.read.blocked.total"
-NO_PROGRESS_STOP_TOTAL = "agent.no_progress.stop.total"
-
 # 计数只在一个 agent run 内累计，所以提示里说的「之前的工具结果」确实在当前上下文里。
 _READ_HINT_TEXT = "该文件全文本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
 _SUMMARY_READ_HINT_TEXT = "该文件摘要本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
@@ -192,6 +187,8 @@ class ReadPlan:
     blocked_notes: tuple[str, ...] = ()
     # parallel_execute 改写后的子任务（用于写入识别 id/标题）。
     tasks: tuple[dict[str, Any], ...] = ()
+    # parallel_execute 改写后下标 → 过滤前原始 tasks 下标。只由服务端 plan() 生成。
+    source_indices: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -295,17 +292,19 @@ class RepeatReadGuard:
             return ReadPlan(arguments=raw_arguments)
 
         kept: list[Any] = []
+        kept_source_indices: list[int] = []
         read_keys: dict[int, ReadKey] = {}
         blocked_notes: list[str] = []
         blocked_titles: list[str] = []
         # 同一批里重复的读取也要算上（同批两次读同一文件，第二次就是重复）。
         pending: dict[ReadKey, int] = {}
-        for task in tasks:
+        for source_index, task in enumerate(tasks):
             key = None
             if isinstance(task, dict) and task.get("type") == READ_TOOL_NAME:
                 key = _read_key(task.get("params"))
             if key is None:
                 kept.append(task)
+                kept_source_indices.append(source_index)
                 continue
             seen = self._read_counts.get(key, 0) + pending.get(key, 0)
             if seen + 1 >= READ_BLOCK_AT:
@@ -316,10 +315,16 @@ class RepeatReadGuard:
             pending[key] = pending.get(key, 0) + 1
             read_keys[len(kept)] = key
             kept.append(task)
+            kept_source_indices.append(source_index)
 
         kept_dicts = tuple(task for task in kept if isinstance(task, dict))
         if not blocked_notes:
-            return ReadPlan(arguments=raw_arguments, read_keys=read_keys, tasks=kept_dicts)
+            return ReadPlan(
+                arguments=raw_arguments,
+                read_keys=read_keys,
+                tasks=kept_dicts,
+                source_indices=tuple(kept_source_indices),
+            )
         if not kept:
             return ReadPlan(
                 arguments=raw_arguments,
@@ -336,13 +341,12 @@ class RepeatReadGuard:
             read_keys=read_keys,
             blocked_notes=tuple(blocked_notes),
             tasks=kept_dicts,
+            source_indices=tuple(kept_source_indices),
         )
 
     def _register_blocked(self, key: ReadKey) -> str:
         self.blocked_reads += 1
         self.duplicate_reads += 1
-        _increment_metric(READ_BLOCKED_TOTAL)
-        _increment_metric(READ_DUPLICATE_TOTAL)
         label = self._file_label(key[1])
         if self.trip is None and self.blocked_reads >= self.max_blocked_reads:
             self.trip = NoProgressTrip(
@@ -386,7 +390,7 @@ class RepeatReadGuard:
             return output_text
         title = _first_file_title(payload.get("data"))
         if title is None:
-            # 文件不存在 / 结果被截断成 overflow 引用：模型没真正拿到内容，不算读过。
+            # 文件不存在 / 结果被截断成最小占位：模型没真正拿到内容，不算读过。
             return output_text
         key = plan.read_keys[0]
         count = self._record_read(key, title, complete=not _is_partial(payload.get("data")))
@@ -409,6 +413,10 @@ class RepeatReadGuard:
             for index, task_result in enumerate(task_results):
                 if not isinstance(task_result, dict):
                     continue
+                if index < len(plan.source_indices):
+                    # 执行器按过滤后的批次重新编号；把服务端计划保存的原始下标附回结果，
+                    # 供下游用原始工具参数核算正文写入。覆盖结果里的同名字段，不信任调用方输入。
+                    task_result["source_index"] = plan.source_indices[index]
                 task_type = task_result.get("type")
                 planned = plan.tasks[index] if index < len(plan.tasks) else {}
                 params = planned.get("params") if isinstance(planned.get("params"), dict) else {}
@@ -417,7 +425,8 @@ class RepeatReadGuard:
                     # 与直接调用 edit_file 一样：文件读过之后被改了，再读是在看新内容。
                     self._forget_reads(str(params.get("id") or params.get("file_id") or ""))
                     continue
-                if task_result.get("status") != "completed":
+                # partial：continue_on_error 的 edit_file 只生效了一部分，文件也已经改了。
+                if task_result.get("status") not in {"completed", "partial"}:
                     continue
                 result_data = result.get("data") if isinstance(result, dict) else None
                 if task_type == READ_TOOL_NAME and index in plan.read_keys:
@@ -499,7 +508,6 @@ class RepeatReadGuard:
             self.files_read[file_id] = self._titles.get(file_id, title)
         if count >= READ_HINT_AT:
             self.duplicate_reads += 1
-            _increment_metric(READ_DUPLICATE_TOTAL)
         return count
 
     def _record_write(self, file_id: str, title: str) -> None:
@@ -609,20 +617,10 @@ def _blocked_error_text(model_text: str, *, user_message: str, tool_name: str) -
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _increment_metric(name: str) -> None:
-    try:
-        from agent.core.metrics import get_metrics_collector
-
-        get_metrics_collector().increment_counter(name)
-    except Exception:  # pragma: no cover - 指标失败不能影响工具调用
-        pass
-
-
 __all__ = [
     "GUARD_ERROR_TYPES",
     "MAX_BLOCKED_READS_PER_REQUEST",
     "NO_PROGRESS_STOP_REASON",
-    "NO_PROGRESS_STOP_TOTAL",
     "NO_PROGRESS_USER_MESSAGE",
     "READ_BLOCK_AT",
     "REPEATED_READ_ERROR_TYPE",

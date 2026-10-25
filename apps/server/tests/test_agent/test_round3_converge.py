@@ -21,7 +21,7 @@
 from types import SimpleNamespace
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from agent.constants import CONTENT_FILE_TYPES
 from models import ChatSession, File, Project, User
@@ -233,6 +233,38 @@ def test_auto_current_phase_counts_episodes_for_a_screenplay(db_session: Session
         ToolContext.clear_context()
 
 
+@pytest.mark.unit
+def test_auto_current_phase_ignores_chapters_without_body(db_session: Session, converge_user: User):
+    """F-10：第 1–3 章有正文、第 4–20 章只是空标题时，进度不能写成「已写至第20章」。"""
+    from agent.tools.mcp_tools import ToolContext, _suggest_auto_current_phase_from_drafts
+
+    novel = Project(name="空壳章节项目", owner_id=converge_user.id, project_type="novel")
+    drama = Project(name="空壳剧集项目", owner_id=converge_user.id, project_type="screenplay")
+    db_session.add_all([novel, drama])
+    db_session.commit()
+    db_session.add_all(
+        [File(project_id=novel.id, title=f"第{n}章", file_type="draft", content="正文") for n in (1, 2, 3)]
+        + [File(project_id=novel.id, title=f"第{n}章", file_type="draft", content="") for n in range(4, 20)]
+        + [File(project_id=novel.id, title="第20章", file_type="draft", content="  \n ")]
+        + [File(project_id=drama.id, title="第1集", file_type="script", content="正文")]
+        + [File(project_id=drama.id, title="第2集", file_type="script", content="")]
+    )
+    db_session.commit()
+
+    ToolContext.set_context(db_session, converge_user.id, novel.id, "sess-empty-shells")
+    try:
+        assert _suggest_auto_current_phase_from_drafts(novel.id) == "已写至第3章"
+        assert _suggest_auto_current_phase_from_drafts(drama.id) == "已写至第1集"
+        # 只有空壳时不推断进度。
+        novel.current_phase = ""
+        for f in db_session.exec(select(File).where(File.project_id == novel.id)).all():
+            f.content = ""
+        db_session.commit()
+        assert _suggest_auto_current_phase_from_drafts(novel.id) is None
+    finally:
+        ToolContext.clear_context()
+
+
 # ---------------------------------------------------------------------------
 # assembler 同族站点：找"前一章"必须覆盖 script
 # ---------------------------------------------------------------------------
@@ -343,7 +375,6 @@ def test_edit_file_tool_payload_status_degrades_on_failure(monkeypatch):
         "_get_context",
         classmethod(lambda cls: {"project_id": "p1"}),
     )
-    monkeypatch.setattr(mcp_tools, "_record_artifact_ledger", lambda **kwargs: None)
 
     payload = mcp_tools._edit_file_sync({"id": "f1", "edits": [{"op": "replace"}]})
     parsed = json.loads(payload["content"][0]["text"])

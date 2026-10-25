@@ -414,7 +414,7 @@ export interface UseChatStreamingOptions {
   onParallelTaskEnd?: (executionId: string, taskId: string, status: string, result?: unknown, error?: string) => void;
 
   /** Called when all parallel tasks complete */
-  onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number) => void;
+  onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
 
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
@@ -1564,13 +1564,19 @@ export function useChatStreaming(): UseChatStreamingReturn {
           const description =
             parallelTaskDescRef.current.get(taskId) || taskId;
           parallelTaskDescRef.current.delete(taskId);
+          // Only "completed" claims success; servers before the partial status sent
+          // completed/failed only, and any status this client does not know stays neutral.
           const content =
             status === "failed"
               ? t('chat:workflow.parallelTaskFailed', {
                   description,
                   error: error || '',
                 })
-              : t('chat:workflow.parallelTaskCompleted', { description });
+              : status === "partial"
+                ? t('chat:workflow.parallelTaskPartial', { description })
+                : status === "completed"
+                  ? t('chat:workflow.parallelTaskCompleted', { description })
+                  : t('chat:workflow.parallelTaskEnded', { description });
           updateStreamItems((prev) => [
             ...prev,
             {
@@ -1582,13 +1588,22 @@ export function useChatStreaming(): UseChatStreamingReturn {
           ]);
         },
 
-        onParallelEnd: (_executionId: string, total: number, completed: number, failed: number, _durationMs: number) => {
+        onParallelEnd: (
+          _executionId: string,
+          total: number,
+          completed: number,
+          failed: number,
+          _durationMs: number,
+          partial?: number,
+        ) => {
           updateStreamItems((prev) => [
             ...prev,
             {
               type: "thinking_status",
               id: generateUniqueId("parallel-end"),
-              content: t('chat:workflow.parallelEnd', { completed, total, failed }),
+              content: partial
+                ? t('chat:workflow.parallelEndWithPartial', { completed, total, partial, failed })
+                : t('chat:workflow.parallelEnd', { completed, total, failed }),
               timestamp: new Date(),
             },
           ]);

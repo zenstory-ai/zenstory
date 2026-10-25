@@ -13,6 +13,7 @@ import pytest
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.body_writes import BodyWriteTracker, body_words_written
+from agent.openai_agents.repeat_read_guard import READ_BLOCK_AT, RepeatReadGuard
 from utils.text_metrics import count_words
 
 pytestmark = pytest.mark.unit
@@ -79,12 +80,14 @@ def test_partial_edit_counts_only_applied_edits():
     assert words < THRESHOLD
 
 
-def test_parallel_partial_edit_counts_only_applied_edits():
+# 旧执行器把部分生效的子任务记成 completed，新执行器记成 partial：两种都按已生效的部分计。
+@pytest.mark.parametrize("task_status", ["completed", "partial"])
+def test_parallel_partial_edit_counts_only_applied_edits(task_status):
     tracker = BodyWriteTracker()
     parallel_input = {"tasks": [{"type": "edit_file", "params": {"id": "draft-1", "edits": PARTIAL_EDITS}}]}
     parallel_result = {
         "status": "success",
-        "data": {"tasks": [{"type": "edit_file", "status": "completed", "result": _partial_edit_payload()}]},
+        "data": {"tasks": [{"type": "edit_file", "status": task_status, "result": _partial_edit_payload()}]},
     }
     tracker.observe(_use("p1", "parallel_execute", parallel_input), text_length=0)
     tracker.observe(_result("p1", "parallel_execute", parallel_result), text_length=0)
@@ -92,6 +95,55 @@ def test_parallel_partial_edit_counts_only_applied_edits():
     words = body_words_written(tracker.finish(""))
 
     assert words == count_words(SUCCESS_TEXT)
+
+
+def test_parallel_body_words_keep_original_task_after_repeat_read_is_filtered():
+    """守卫删掉前面的重复读取后，成功编辑仍按过滤前的原始任务参数计字。"""
+    guard = RepeatReadGuard()
+    read_args = json.dumps({"id": "draft-1", "response_mode": "full"})
+    read_output = json.dumps(
+        {"status": "success", "data": [{"id": "draft-1", "title": "第一章", "content": "正文"}]},
+        ensure_ascii=False,
+    )
+    for _ in range(READ_BLOCK_AT - 1):
+        read_plan = guard.plan("query_files", read_args)
+        guard.observe("query_files", read_plan, read_output)
+
+    parallel_input = {
+        "tasks": [
+            {"type": "query_files", "params": {"id": "draft-1", "response_mode": "full"}},
+            {"type": "edit_file", "params": {"id": "draft-1", "edits": PARTIAL_EDITS}},
+        ]
+    }
+    plan = guard.plan("parallel_execute", json.dumps(parallel_input, ensure_ascii=False))
+    assert [task["type"] for task in json.loads(plan.arguments)["tasks"]] == ["edit_file"]
+
+    executor_output = json.dumps(
+        {
+            "status": "success",
+            "data": {
+                "tasks": [
+                    {
+                        "type": "edit_file",
+                        "status": "partial",
+                        "result": _partial_edit_payload(),
+                    }
+                ]
+            },
+        },
+        ensure_ascii=False,
+    )
+    guarded_payload = json.loads(guard.observe("parallel_execute", plan, executor_output))
+
+    tracker = BodyWriteTracker()
+    tracker.observe(_use("p-filtered", "parallel_execute", parallel_input), text_length=0)
+    tracker.observe(
+        _result("p-filtered", "parallel_execute", guarded_payload),
+        text_length=0,
+    )
+
+    assert guarded_payload["data"]["tasks"][0]["source_index"] == 1
+    assert body_words_written(tracker.finish("")) == count_words(SUCCESS_TEXT)
 
 
 def _reused_create_events(call_id: str = "create-1") -> list[StreamEvent]:
@@ -193,3 +245,22 @@ def test_already_matching_identical_replace_is_not_counted(applied):
     words = body_words_written(tracker.finish(""))
 
     assert words == (count_words(SUCCESS_TEXT) if applied else 0)
+
+
+def test_edit_words_honour_the_legacy_operations_alias():
+    """edit_file / 并行 edit_file 都接受旧参数名 operations：写进去的字同样要算。"""
+    tracker = BodyWriteTracker()
+    tracker.observe(
+        _use("edit-ops", "edit_file", {"id": "draft-1", "operations": PARTIAL_EDITS, "continue_on_error": True}),
+        text_length=0,
+    )
+    tracker.observe(_result("edit-ops", "edit_file", _partial_edit_payload()), text_length=0)
+    parallel_input = {"tasks": [{"type": "edit_file", "params": {"id": "draft-1", "operations": PARTIAL_EDITS}}]}
+    parallel_result = {
+        "status": "success",
+        "data": {"tasks": [{"type": "edit_file", "status": "partial", "result": _partial_edit_payload()}]},
+    }
+    tracker.observe(_use("p-ops", "parallel_execute", parallel_input), text_length=0)
+    tracker.observe(_result("p-ops", "parallel_execute", parallel_result), text_length=0)
+
+    assert [write.words for write in tracker.finish("")] == [count_words(SUCCESS_TEXT)] * 2

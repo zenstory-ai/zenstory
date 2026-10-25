@@ -127,6 +127,34 @@ def test_query_naming_characters_boosts_their_cards_to_the_front():
     assert set(constraint_ids[:2]) == {"char-林凡", "char-苏瑶"}
 
 
+def test_query_naming_multiword_english_character_keeps_name_boost():
+    named = ContextItem(
+        id="char-elena",
+        type="character",
+        title="Elena Marlowe",
+        content="protagonist",
+        relevance_score=0.7,
+        priority=ContextPriority.CONSTRAINT,
+    )
+    other = ContextItem(
+        id="char-other",
+        type="character",
+        title="Jon Bell",
+        content="supporting character",
+        relevance_score=0.8,
+        priority=ContextPriority.CONSTRAINT,
+    )
+
+    ranked = ContextAssembler()._apply_query_recall_ranking(  # noqa: SLF001
+        [other, named],
+        query="Continue Elena Marlowe's confrontation at the station",
+    )
+
+    assert named.relevance_score == 0.7 + QUERY_NAME_MATCH_BOOST
+    groups = ContextPrioritizer().group_by_priority(ranked)
+    assert groups[ContextPriority.CONSTRAINT][0].id == named.id
+
+
 def test_query_naming_lore_matches_title_without_category_prefix():
     assembler = ContextAssembler()
     lore = _lore("lore-qy", "青云宗", "medium", 300)

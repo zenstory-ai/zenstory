@@ -33,13 +33,13 @@ def editor() -> FileEditor:
 def _insert_after(editor, content, anchor, text, **extra):
     applied: list[dict] = []
     edit = {"op": "insert_after", "anchor": anchor, "text": text, **extra}
-    return editor._apply_insert_after(content, edit, 0, applied, []), applied
+    return editor._apply_insert(content, edit, 0, applied, [], after=True), applied
 
 
 def _insert_before(editor, content, anchor, text, **extra):
     applied: list[dict] = []
     edit = {"op": "insert_before", "anchor": anchor, "text": text, **extra}
-    return editor._apply_insert_before(content, edit, 0, applied, []), applied
+    return editor._apply_insert(content, edit, 0, applied, [], after=False), applied
 
 
 # ------------------------------------------------- 模糊/近似匹配不跨段落分隔 --

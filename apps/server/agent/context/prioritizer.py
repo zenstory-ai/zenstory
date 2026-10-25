@@ -257,25 +257,3 @@ class ContextPrioritizer:
             )
 
         return groups
-
-    def get_budget_allocation(
-        self,
-        max_tokens: int,
-        custom_allocation: dict[ContextPriority, float] | None = None,
-    ) -> dict[ContextPriority, int]:
-        """
-        Get token budget allocation per priority.
-
-        Args:
-            max_tokens: Total token budget
-            custom_allocation: Optional custom percentages
-
-        Returns:
-            Dict mapping priority to token count
-        """
-        allocation = custom_allocation or ContextPriority.get_budget_allocation()
-
-        return {
-            priority: int(max_tokens * pct)
-            for priority, pct in allocation.items()
-        }

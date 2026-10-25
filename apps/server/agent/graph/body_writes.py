@@ -95,6 +95,12 @@ def _ineffective_edit_indices(result_data: dict[str, Any]) -> set[int]:
     return indices
 
 
+def _requested_edits(params: dict[str, Any]) -> Any:
+    """edit_file 的编辑列表；与 mcp_tools / parallel_executor 一样接受旧参数名 operations。"""
+    edits = params.get("edits")
+    return params.get("operations") if edits is None else edits
+
+
 def _edit_words(edits: Any, failed: set[int] | None = None) -> int:
     """这次写进去的字数；failed 里的编辑没写入任何字，不算。"""
     if not isinstance(edits, list):
@@ -179,7 +185,7 @@ class BodyWriteTracker:
                 file_id=str(data.get("id") or tool_input.get("id") or ""),
                 title=str(data.get("title") or ""),
                 file_type=str(data.get("file_type")),
-                words=_edit_words(tool_input.get("edits"), _ineffective_edit_indices(data)),
+                words=_edit_words(_requested_edits(tool_input), _ineffective_edit_indices(data)),
                 file_words=_int_or_none(data.get("new_word_count")),
                 mutation_applied=payload.get("mutation_applied") is True,
             )
@@ -195,9 +201,22 @@ class BodyWriteTracker:
         results = data.get("tasks") if isinstance(data.get("tasks"), list) else []
         last: BodyWrite | None = None
         for index, task in enumerate(results):
-            if not isinstance(task, dict) or task.get("status") != "completed":
+            # partial：并行 edit_file 只生效了一部分，已生效的 edit 照常计入（下面按 failed_edits 扣除）。
+            if not isinstance(task, dict) or task.get("status") not in {"completed", "partial"}:
                 continue
-            plan = planned[index] if index < len(planned) and isinstance(planned[index], dict) else {}
+            source_index = task.get("source_index")
+            planned_index = (
+                source_index
+                if isinstance(source_index, int)
+                and not isinstance(source_index, bool)
+                and 0 <= source_index < len(planned)
+                else index
+            )
+            plan = (
+                planned[planned_index]
+                if planned_index < len(planned) and isinstance(planned[planned_index], dict)
+                else {}
+            )
             params = plan.get("params") if isinstance(plan.get("params"), dict) else {}
             result = task.get("result")
             result_data = result.get("data") if isinstance(result, dict) else None
@@ -210,7 +229,7 @@ class BodyWriteTracker:
                 full_body = True
             elif task_type == "edit_file":
                 file_type = result_data.get("file_type")
-                words = _edit_words(params.get("edits"), _ineffective_edit_indices(result_data))
+                words = _edit_words(_requested_edits(params), _ineffective_edit_indices(result_data))
                 full_body = False
                 file_words = _int_or_none(result_data.get("new_word_count"))
             else:

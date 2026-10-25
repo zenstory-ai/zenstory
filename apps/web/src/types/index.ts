@@ -578,7 +578,7 @@ export interface SSEParallelTaskStartData {
 export interface SSEParallelTaskEndData {
   execution_id: string;
   task_id: string;
-  status: "completed" | "failed";
+  status: "completed" | "partial" | "failed";
   result_preview?: string;
   error?: string;
 }
@@ -588,6 +588,8 @@ export interface SSEParallelEndData {
   total_tasks: number;
   completed: number;
   failed: number;
+  /** Partially applied tasks; absent from servers older than this field. */
+  partial?: number;
   duration_ms: number;
 }
 
@@ -1333,7 +1335,7 @@ export interface ParallelTaskEndEvent {
   type: "parallel_task_end";
   execution_id: string;
   task_id: string;
-  status: "completed" | "failed";
+  status: "completed" | "partial" | "failed";
   result_preview?: string;
   error?: string;
 }
@@ -1344,6 +1346,7 @@ export interface ParallelEndEvent {
   total_tasks: number;
   completed: number;
   failed: number;
+  partial?: number;
   duration_ms: number;
   requested_task_count?: number;
   dropped_count?: number;

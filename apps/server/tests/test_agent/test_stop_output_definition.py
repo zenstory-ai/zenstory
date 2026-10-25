@@ -353,6 +353,23 @@ def test_completed_write_subtask_of_an_interrupted_parallel_batch_is_output(deci
     assert decide(tracker)[1] is False
 
 
+def test_partially_applied_parallel_edit_is_output():
+    """partial 子任务的改动已经落地：与旧执行器把它记成 completed 时一样算产出。"""
+    streamed = _tracker(_task_start("t1", "edit_file"), _task_end("t1", status="partial"))
+    assert streamed.produced_output is True
+    batch = _tracker(
+        _sse(
+            "tool_result",
+            {
+                "tool_name": "parallel_execute",
+                "status": "success",
+                "data": {"tasks": [{"type": "edit_file", "status": "partial"}]},
+            },
+        )
+    )
+    assert batch.produced_output is True
+
+
 def test_parallel_lookups_or_failed_write_subtasks_are_not_output():
     tracker = _tracker(
         _task_start("t1", "query_files"),

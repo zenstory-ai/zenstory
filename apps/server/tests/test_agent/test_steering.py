@@ -16,7 +16,6 @@ from agent.core.steering import (
     SteeringSessionBusyError,
     cleanup_steering_queue_async,
     create_steering_queue_async,
-    get_steering_queue_async,
     get_steering_queue_for_user_async,
     sanitize_steering_content,
 )
@@ -111,7 +110,7 @@ class TestSteeringQueue:
     async def test_queue_creation(self):
         """Test creating a steering queue."""
         queue = SteeringQueue()
-        messages = await queue.peek()
+        messages = await queue.get_pending()
         assert len(messages) == 0
 
     async def test_add_message(self):
@@ -122,20 +121,6 @@ class TestSteeringQueue:
         assert msg.id.startswith("steer-")
         assert msg.content == "Test message"
         assert msg.processed is False
-
-    async def test_peek_messages(self):
-        """Test peeking at messages."""
-        queue = SteeringQueue()
-        await queue.add("Message 1")
-        await queue.add("Message 2")
-
-        messages = await queue.peek()
-        assert len(messages) == 2
-        assert all(not m.processed for m in messages)
-
-        # Peek again - messages should still be unprocessed
-        messages2 = await queue.peek()
-        assert len(messages2) == 2
 
     async def test_get_pending_marks_processed(self):
         """Test that get_pending marks messages as processed."""
@@ -169,29 +154,11 @@ class TestSteeringQueue:
         assert len(second_batch) == 1
         assert second_batch[0].content == "Message 3"
 
-    async def test_clear_queue(self):
-        """Test clearing the queue."""
-        queue = SteeringQueue()
-        await queue.add("Message 1")
-        await queue.add("Message 2")
-
-        await queue.clear()
-
-        messages = await queue.peek()
-        assert len(messages) == 0
-
     async def test_empty_queue_operations(self):
         """Test operations on empty queue."""
         queue = SteeringQueue()
-
-        messages = await queue.peek()
-        assert messages == []
-
         pending = await queue.get_pending()
         assert pending == []
-
-        # Clear empty queue should not error
-        await queue.clear()
 
     async def test_add_with_sanitization(self):
         """Test that add() applies sanitization."""
@@ -233,7 +200,7 @@ class TestSteeringQueueConcurrency:
         messages = await asyncio.gather(*tasks)
 
         assert len(messages) == 10
-        all_messages = await queue.peek()
+        all_messages = await queue.get_pending()
         assert len(all_messages) == 10
 
     async def test_concurrent_add_and_get(self):
@@ -279,66 +246,6 @@ class TestSteeringQueueConcurrency:
 
 
 @pytest.mark.asyncio
-@pytest.mark.unit
-class TestGlobalSteeringQueues:
-    """Test global queue management."""
-
-    async def test_get_steering_queue_async_creates(self):
-        """Test get_steering_queue_async creates new queue."""
-        # Clean up first
-        await cleanup_steering_queue_async("test-session-1")
-
-        queue = await get_steering_queue_async("test-session-1")
-        assert queue is not None
-        assert isinstance(queue, SteeringQueue)
-
-        # Clean up
-        await cleanup_steering_queue_async("test-session-1")
-
-    async def test_get_steering_queue_async_returns_same(self):
-        """Test get_steering_queue_async returns same queue for same session."""
-        await cleanup_steering_queue_async("test-session-2")
-
-        queue1 = await get_steering_queue_async("test-session-2")
-        queue2 = await get_steering_queue_async("test-session-2")
-
-        assert queue1 is queue2
-
-        await cleanup_steering_queue_async("test-session-2")
-
-    async def test_different_sessions_different_queues(self):
-        """Test different sessions get different queues."""
-        await cleanup_steering_queue_async("session-a")
-        await cleanup_steering_queue_async("session-b")
-
-        queue_a = await get_steering_queue_async("session-a")
-        queue_b = await get_steering_queue_async("session-b")
-
-        assert queue_a is not queue_b
-
-        await cleanup_steering_queue_async("session-a")
-        await cleanup_steering_queue_async("session-b")
-
-    async def test_cleanup_removes_queue(self):
-        """Test cleanup removes the queue."""
-        # Create queue
-        await get_steering_queue_async("test-session-3")
-
-        # Cleanup
-        await cleanup_steering_queue_async("test-session-3")
-
-        # Queue should be removed from global manager
-        from agent.core.steering import _queue_manager
-
-        assert "test-session-3" not in _queue_manager._queues
-
-    async def test_cleanup_nonexistent_queue(self):
-        """Test cleanup of nonexistent queue doesn't error."""
-        # Should not raise
-        await cleanup_steering_queue_async("nonexistent-session")
-
-
-@pytest.mark.asyncio
 @pytest.mark.integration
 class TestSteeringIntegration:
     """Integration tests for steering system."""
@@ -348,15 +255,13 @@ class TestSteeringIntegration:
         session_id = "workflow-test"
         await cleanup_steering_queue_async(session_id)
 
-        queue = await get_steering_queue_async(session_id)
+        queue = await create_steering_queue_async(
+            session_id, "workflow-user", run_id="workflow-run"
+        )
 
         # Add steering message
         msg = await queue.add("Focus on the main character")
         assert msg.processed is False
-
-        # Check pending
-        pending = await queue.peek()
-        assert len(pending) == 1
 
         # Get and process
         to_process = await queue.get_pending()
@@ -368,7 +273,7 @@ class TestSteeringIntegration:
         to_process[0].processed_at = datetime.now()
 
         # Verify no more pending
-        remaining = await queue.peek()
+        remaining = await queue.get_pending()
         assert len(remaining) == 0
 
         await cleanup_steering_queue_async(session_id)
@@ -378,14 +283,14 @@ class TestSteeringIntegration:
         await cleanup_steering_queue_async("multi-1")
         await cleanup_steering_queue_async("multi-2")
 
-        queue1 = await get_steering_queue_async("multi-1")
-        queue2 = await get_steering_queue_async("multi-2")
+        queue1 = await create_steering_queue_async("multi-1", "user-1", run_id="run-1")
+        queue2 = await create_steering_queue_async("multi-2", "user-1", run_id="run-2")
 
         await queue1.add("Session 1 message")
         await queue2.add("Session 2 message")
 
-        p1 = await queue1.peek()
-        p2 = await queue2.peek()
+        p1 = await queue1.get_pending()
+        p2 = await queue2.get_pending()
 
         assert len(p1) == 1
         assert len(p2) == 1
@@ -418,7 +323,7 @@ class TestSteeringIntegration:
         """Test owned steering queue can be retrieved by owner."""
         session_id = "owned-session"
         await cleanup_steering_queue_async(session_id)
-        await create_steering_queue_async(session_id, "user-a")
+        await create_steering_queue_async(session_id, "user-a", run_id="run-a")
 
         try:
             queue = await get_steering_queue_for_user_async(session_id, "user-a")
@@ -430,7 +335,7 @@ class TestSteeringIntegration:
         """Test steering queue access is denied for non-owner."""
         session_id = "owned-session-forbidden"
         await cleanup_steering_queue_async(session_id)
-        await create_steering_queue_async(session_id, "owner-user")
+        await create_steering_queue_async(session_id, "owner-user", run_id="run-a")
 
         try:
             with pytest.raises(PermissionError):
@@ -442,11 +347,13 @@ class TestSteeringIntegration:
         """Creating/rebinding an existing queue with another owner should fail."""
         session_id = "owned-session-conflict"
         await cleanup_steering_queue_async(session_id)
-        await create_steering_queue_async(session_id, "owner-user")
+        await create_steering_queue_async(session_id, "owner-user", run_id="run-a")
 
         try:
             with pytest.raises(PermissionError):
-                await create_steering_queue_async(session_id, "intruder-user")
+                await create_steering_queue_async(
+                    session_id, "intruder-user", run_id="run-b"
+                )
         finally:
             await cleanup_steering_queue_async(session_id)
 
@@ -465,41 +372,13 @@ class TestSteeringRunOwnership:
                 session_id,
                 "user-1",
                 run_id="run-a",
-                exclusive_run=True,
             )
             with pytest.raises(SteeringSessionBusyError):
                 await create_steering_queue_async(
                     session_id,
                     "user-1",
                     run_id="run-b",
-                    exclusive_run=True,
                 )
-        finally:
-            await cleanup_steering_queue_async(session_id)
-
-    async def test_first_finishing_run_does_not_delete_other_runs_queue(self):
-        """先结束的 run 只释放自己的持有，另一个 run 的队列必须继续可用。"""
-        session_id = "run-ownership-session"
-        await cleanup_steering_queue_async(session_id)
-
-        try:
-            await create_steering_queue_async(session_id, "user-1", run_id="run-a")
-            await create_steering_queue_async(session_id, "user-1", run_id="run-b")
-
-            queue = await get_steering_queue_for_user_async(session_id, "user-1")
-            await queue.add("run B 还在跑，别删我的消息")
-
-            # run A 先结束：队列仍被 run B 持有，不能删除
-            await cleanup_steering_queue_async(session_id, run_id="run-a")
-
-            surviving = await get_steering_queue_for_user_async(session_id, "user-1")
-            pending = await surviving.peek()
-            assert [m.content for m in pending] == ["run B 还在跑，别删我的消息"]
-
-            # 最后一个持有者退出后才真正删除
-            await cleanup_steering_queue_async(session_id, run_id="run-b")
-            with pytest.raises(KeyError):
-                await get_steering_queue_for_user_async(session_id, "user-1")
         finally:
             await cleanup_steering_queue_async(session_id)
 

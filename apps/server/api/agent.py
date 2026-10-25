@@ -667,6 +667,26 @@ async def stream_request(
             tracker.observe(frame)
             written_files.observe(frame)
 
+        def _saved_output(delivery: dict[str, Any]) -> bool:
+            return written_files.saved_output(
+                delivery,
+                final_word_counts=run_outcome.saved_file_word_counts,
+                any_write_succeeded=tracker.write_succeeded,
+            )
+
+        def _confirmed_file_mutation(
+            delivery: dict[str, Any], *, original: bool = False
+        ) -> bool:
+            # Preserve a mutation already confirmed by StreamAdapter. Late
+            # cancellation saves can additionally prove one through the same
+            # delivery receipt used by stop/disconnect/timeout outcomes. Project
+            # metadata writes are saved output, but are not file mutations.
+            return original or written_files.saved_output(
+                delivery,
+                final_word_counts=run_outcome.saved_file_word_counts,
+                any_write_succeeded=tracker.file_written,
+            )
+
         def _with_delivery(frame: str) -> str:
             nonlocal error_delivery, partial_delivery, completed_delivery
             if deadline_exceeded or not frame.startswith(("event: error\n", "event: done\n")):
@@ -678,6 +698,9 @@ async def stream_request(
                 return frame
             delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
             if event == "done":
+                data["file_mutated"] = _confirmed_file_mutation(
+                    delivery, original=data.get("file_mutated") is True
+                )
                 if delivery.get("unwritten_files"):
                     partial_delivery = delivery
                     return StreamEvent(type=EventType.DONE, data={**data, **delivery}).to_sse()
@@ -803,9 +826,7 @@ async def stream_request(
                     stop_kind=stop_kind,
                     charged=charged,
                     # 作者看到的「已保存」只认确认的保存回执；计费仍按 tracker 的帧口径。
-                    saved_output=written_files.saved_output(
-                        delivery, final_word_counts=receipts, any_write_succeeded=tracker.write_succeeded
-                    ),
+                    saved_output=_saved_output(delivery),
                     removed_files=removed,
                     **delivery,
                 ),
@@ -874,6 +895,7 @@ async def stream_request(
                     session_id=tracker.session_id,
                     stop_reason=USER_STOPPED_REASON,
                     produced_output=tracker.produced_output,
+                    file_mutated=_confirmed_file_mutation(delivery),
                     # 与之后落库的 stop_outcome.written_files 同一份：停止当场的说明
                     # 就能写明保存了哪些文件，不必等刷新。
                     **delivery,

@@ -143,12 +143,6 @@ async def test_author_save_before_locked_delete_is_refused_atomically(
     original_delete = FileToolExecutor.delete_file
     interleaved = False
     author_state: dict[str, object] = {}
-    ledger_calls: list[dict] = []
-    monkeypatch.setattr(
-        mcp_tools,
-        "_record_artifact_ledger",
-        lambda **kwargs: ledger_calls.append(kwargs),
-    )
 
     def delete_after_author_save(executor, *args, **kwargs):
         nonlocal interleaved
@@ -187,7 +181,6 @@ async def test_author_save_before_locked_delete_is_refused_atomically(
         "order": stored.order,
         "updated_at": stored.updated_at,
     } == author_state
-    assert ledger_calls == []
 
 
 async def test_recursive_folder_delete_is_refused_even_when_author_names_folder(db_session, owner_project):
@@ -466,12 +459,6 @@ async def test_same_name_whole_rewrite_is_refused_even_when_explicit(
     _author_saves(db_session, user, episode, AUTHOR_CH3)
     db_session.refresh(episode)
     original_updated_at = episode.updated_at
-    ledger_calls: list[dict] = []
-    monkeypatch.setattr(
-        mcp_tools,
-        "_record_artifact_ledger",
-        lambda **kwargs: ledger_calls.append(kwargs),
-    )
 
     payload = await _run(
         mcp_tools.create_file,
@@ -490,7 +477,6 @@ async def test_same_name_whole_rewrite_is_refused_even_when_explicit(
     assert stored.file_type == "draft"
     assert stored.order == 0
     assert stored.updated_at == original_updated_at
-    assert ledger_calls == []
 
 
 async def test_ordinary_edit_of_author_owned_file_still_works(db_session, owner_project):
@@ -573,3 +559,25 @@ def test_latest_text_owner_detection(db_session, owner_project):
     _author_saves(db_session, user, chapter, AUTHOR_CH3)
     db_session.expire_all()
     assert latest_text_is_authors(db_session, db_session.get(File, chapter.id)) is True
+
+
+async def test_chat_delete_refuses_the_authors_reviewed_reject_save(db_session, owner_project):
+    """作者在审阅里拒掉 AI 修改、存下自己的写法（编辑器发的 ai_edit/AI edit (reviewed)），聊天不能删除它。"""
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project)
+    files_api.update_file(
+        chapter.id,
+        files_api.FileUpdate(
+            content=AUTHOR_CH3, change_type="ai_edit", change_summary="AI edit (reviewed)"
+        ),
+        current_user=user,
+        session=db_session,
+    )
+
+    payload = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": chapter.id}, message="删掉第三章"
+    )
+
+    assert payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).is_deleted is False

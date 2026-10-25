@@ -23,6 +23,7 @@ Status: implemented
   - `planner` / `hook_designer` / `writer` / `quality_reviewer` 换成前端 `chat:workflow.agents.*` 的中文角色名。
   - 流程用语按表替换：阻断问题 → 需要先修正的问题，阻断项 → 需要先修正的地方，需返工 → 需要再改一轮，返工 / 返修 → 再改一轮，阻断 → 需要先修正，交接给 → 交给，交接 → 转交，送审 → 送去检查。
   - 最后整理空括号、重复标点、汉字之间的空格；列表项保留「- 」。
+  - 2026-10-25 补正（审计 F-29）：「」『』“”和同一行内成对的直引号里的片段（作品原文、台词、作者原话）原样保留，不做上面任何删除和替换；可删的内部名字收窄为字母段的蛇形命名（`query_files`、`word_count`）和 `id` / `ids`，作品里的 `【HP】`、`HP=100`、`chapter_3` 不再被删。括号字段、UUID 清理和 `SYSTEM_HANDOFF_REASONS(_EN)` 不变。
 - `author_facing_handoff_reason(reason)`：图自己生成的原因按 `SYSTEM_HANDOFF_REASONS` 替换（「工作流自动交接」→ 空字符串，前端只显示「接下来由X继续」；「自动质量门控」→「正文写好了，检查一遍质量」），其余走 `author_facing_text`。
 
 **接入点（`agent/graph/writing_graph.py`）**

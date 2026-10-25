@@ -176,7 +176,10 @@
     "parallelStartTruncated": "Working on {{count}} tasks at once ({{dropped}} more were over the per-request limit and did not run this time)",
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}: not completed",
+    "parallelTaskPartial": "◐ {{description}}: some changes did not apply",
+    "parallelTaskEnded": "{{description}}: finished",
     "parallelEnd": "Done: {{completed}}/{{total}} completed, {{failed}} failed",
+    "parallelEndWithPartial": "Done: {{completed}}/{{total}} completed, {{partial}} partly applied, {{failed}} failed",
     "steeringReceived": "Got your addition: {{preview}}",
     "userStopped": "Stopped"
   },
@@ -196,6 +199,8 @@
     "generic": "AI action",
     "parallel_summary": "Ran {{total}} tasks: {{completed}} succeeded, {{failed}} failed",
     "parallel_summary_with_skipped": "Ran {{total}} tasks: {{completed}} succeeded, {{skipped}} left unchanged, {{failed}} failed",
+    "parallel_summary_with_partial": "Ran {{total}} tasks: {{completed}} succeeded, {{partial}} partly applied, {{failed}} failed",
+    "parallel_summary_with_partial_and_skipped": "Ran {{total}} tasks: {{completed}} succeeded, {{partial}} partly applied, {{skipped}} left unchanged, {{failed}} failed",
     "parallelTaskLabel": "{{label}}:",
     "processing": "Processing",
     "processing_ellipsis": "Processing…",
@@ -242,6 +247,8 @@
       "clarifyFirst": "Asking before changing anything"
     },
     "taskNotCompleted": "Not completed",
+    "taskPartiallyCompleted": "Some changes did not apply; ask the AI to redo the rest",
+    "taskOutcomeUnknown": "Outcome unknown",
     "status_unchanged": "Project info unchanged"
   },
   "fileType": {

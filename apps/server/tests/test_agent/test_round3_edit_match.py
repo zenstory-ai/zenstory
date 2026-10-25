@@ -135,12 +135,13 @@ def test_insert_after_refuses_instead_of_landing_on_chapter_title(editor):
     applied: list[dict] = []
     warnings: list[str] = []
     with pytest.raises(ValueError, match="找不到插入锚点"):
-        editor._apply_insert_after(
+        editor._apply_insert(
             _BUG21_CONTENT,
             {"op": "insert_after", "anchor": _BUG21_ANCHOR, "text": "\n\n他回望院子。"},
             0,
             applied,
             warnings,
+            after=True,
         )
     assert applied == []
 
@@ -148,12 +149,13 @@ def test_insert_after_refuses_instead_of_landing_on_chapter_title(editor):
 def test_insert_before_refuses_instead_of_landing_on_chapter_title(editor):
     """insert_before 走同一条兜底链路，同样不得被短标题骗到。"""
     with pytest.raises(ValueError, match="找不到插入锚点"):
-        editor._apply_insert_before(
+        editor._apply_insert(
             _BUG21_CONTENT,
             {"op": "insert_before", "anchor": _BUG21_ANCHOR, "text": "X"},
             0,
             [],
             [],
+            after=False,
         )
 
 
@@ -183,8 +185,8 @@ def test_fuzzy_paragraph_reports_confidence_and_fallback(editor):
     anchor = target.replace("推门而出", "排门而出")
     applied: list[dict] = []
 
-    result = editor._apply_insert_after(
-        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, []
+    result = editor._apply_insert(
+        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, [], after=True
     )
 
     assert result == content.replace(target, target + "【新增】")
@@ -204,12 +206,13 @@ def test_fuzzy_paragraph_fallback_rejects_occurrence_beyond_one(editor, op):
     applied: list[dict] = []
 
     with pytest.raises(ValueError, match=r"occurrence out of range \(1\.\.1\)"):
-        getattr(editor, f"_apply_{op}")(
+        editor._apply_insert(
             content,
             {"op": op, "anchor": anchor, "text": "【新增】", "occurrence": 2},
             0,
             applied,
             [],
+            after=op == "insert_after",
         )
     assert applied == []
 
@@ -223,8 +226,8 @@ def test_fuzzy_paragraph_fallback_finds_a_line_in_a_single_newline_file(editor):
     anchor = target.replace("推门而出", "排门而出")
     applied: list[dict] = []
 
-    result = editor._apply_insert_after(
-        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, []
+    result = editor._apply_insert(
+        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, [], after=True
     )
 
     assert result == content.replace(target, target + "【新增】")

@@ -290,6 +290,23 @@ def test_parallel_execute_partial_failure_counts_but_full_success_does_not():
 
 
 @pytest.mark.unit
+def test_partially_applied_parallel_edit_is_not_a_breaker_failure():
+    """与直接调用 edit_file 一致：partial 不算失败（已生效的改动不能被当成同一错误重复熔断）。"""
+    breaker = ToolFailureBreaker()
+    partial_task = {"id": "t1", "type": "edit_file", "status": "partial", "error": "部分修改没有生效"}
+    output = json.dumps(
+        {
+            "status": "success",
+            "data": {"total_tasks": 1, "completed": 0, "partial": 1, "failed": 0, "any_failed": True, "tasks": [partial_task]},
+        },
+        ensure_ascii=False,
+    )
+    for _ in range(3):
+        breaker.observe("parallel_execute", PARALLEL_ARGS, output)
+    assert breaker.total_failures == 0
+
+
+@pytest.mark.unit
 # file_body_pending 是 tools_adapter 前置守卫的同类拒绝：2026-10-25 事故里漏了它，同参数第 3 次即熔断。
 @pytest.mark.parametrize("error_type", ["pending_empty_file_unwritten", "file_body_pending"])
 def test_ordering_rejection_counts_toward_cap_but_never_trips_identical_rule(error_type):
@@ -559,20 +576,17 @@ def _tool_messages(request_body: dict) -> list[str]:
 
 
 @pytest.fixture
-def _reset_metrics_and_model_cache():
-    from agent.core.metrics import reset_metrics_collector
+def _reset_model_cache():
     from agent.openai_agents.model import reset_sdk_model_cache
 
-    reset_metrics_collector()
     reset_sdk_model_cache()
     yield
     reset_sdk_model_cache()
-    reset_metrics_collector()
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkeypatch):
     from agent.core.workflow_events import StreamEventType
     from agent.openai_agents.runner import TOOL_FAILURE_STOP_REASON
@@ -630,7 +644,7 @@ async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkey
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_run_recovers_when_retry_succeeds(monkeypatch):
     from agent.core.workflow_events import StreamEventType
 
@@ -722,7 +736,7 @@ async def test_runner_uses_request_breaker_and_read_only_flag_from_state():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_read_only_request_write_attempt_recovers_with_answer(monkeypatch):
     """只读请求下模型照着提示词/历史调用 create_file：拿到可恢复错误后改为直接回答，
     整个 run 正常结束，没有 ERROR，写工具从未执行。"""
@@ -761,7 +775,7 @@ async def test_sdk_read_only_request_write_attempt_recovers_with_answer(monkeypa
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_reviewer_write_call_is_returned_to_model_not_fatal(monkeypatch):
     """审稿人照着共享历史调 edit_file：工具清单人人相同，调用按角色拒绝，
     错误交还模型，run 以回答正常结束（不存在的工具见下一个测试）。"""
@@ -786,7 +800,7 @@ async def test_reviewer_write_call_is_returned_to_model_not_fatal(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_sdk_unknown_tool_thrash_is_bounded_by_breaker(monkeypatch):
     """模型反复调用不存在的工具：同样受熔断器约束，不会一直烧到 max_turns。"""
     from agent.core.workflow_events import StreamEventType
@@ -855,9 +869,30 @@ def test_repeated_read_only_refusal_trips_as_unavailable_call():
     assert "相同参数" not in trip.user_message()
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("refusal_kind", ["role", "clarify_first"])
+def test_repeated_role_or_clarify_refusal_trips_as_unavailable_call(refusal_kind):
+    """F-26：角色无权限、先澄清时的拒绝同样没有执行，熔断原因与文案同「本轮不可用」。"""
+    from agent.openai_agents.tools_adapter import clarify_first_refusal_text, role_refusal_text
+
+    refusal = (
+        role_refusal_text("edit_file", "quality_reviewer")
+        if refusal_kind == "role"
+        else clarify_first_refusal_text("edit_file")
+    )
+    breaker = ToolFailureBreaker()
+    for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
+        breaker.observe("edit_file", '{"id": "f1"}', refusal)
+
+    trip = breaker.trip
+    assert trip is not None
+    assert trip.reason == TRIP_REASON_TOOL_NOT_FOUND
+    assert "用不了的功能" in trip.user_message()
+
+
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_agent_run_exports_no_traces_even_in_a_fresh_process(monkeypatch):
     """The SDK must never send traces (authors' drafts and messages) to OpenAI's trace backend.
 
@@ -908,7 +943,7 @@ def _tool_call_then(index: int, call_id: str, name: str, args: str, final: str) 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_same_agent_next_run_continues_the_previous_run_append_only(monkeypatch):
     """A continuation run (same agent right after itself) starts from the previous run's full
     input: the request only grows at the end (prompt-cache hit) and files read stay readable."""
@@ -944,7 +979,7 @@ async def test_same_agent_next_run_continues_the_previous_run_append_only(monkey
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-@pytest.mark.usefixtures("_reset_metrics_and_model_cache")
+@pytest.mark.usefixtures("_reset_model_cache")
 async def test_a_different_agent_does_not_continue_the_previous_run(monkeypatch):
     async def fake_query(_args):
         return {"content": [{"type": "text", "text": json.dumps({"status": "success", "data": {"id": "f1"}})}]}

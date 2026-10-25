@@ -11,6 +11,11 @@ changed since the snapshot into <turn_context>, labelled as replacing the snapsh
 copy. Request layout: [system][snapshot][history][turn context with changes + message],
 so [system][snapshot][history up to the previous turn] stays cacheable.
 
+Documents that are in the snapshot but not in this turn (a chapter the focus moved
+away from, last turn's working-set file) are not re-checked: <turn_context> lists them
+as unchecked (their [全文] and focus mark may be stale; query_files before use), and
+their size counts toward the rebuild ratio so dead weight is rebuilt away.
+
 The snapshot is rebuilt when the changes outgrow it, after REBUILD_AFTER_TURNS turns
 or REBUILD_AFTER_S seconds, or when the language/project/format changes. State lives
 in Redis when configured (shared by API workers) and in process memory otherwise;
@@ -32,7 +37,8 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-SNAPSHOT_FORMAT_VERSION = 1
+# 2: state also keeps per-document sizes and labels (for documents that left the turn).
+SNAPSHOT_FORMAT_VERSION = 2
 SNAPSHOT_TTL_S = 6 * 3600
 REBUILD_AFTER_TURNS = 20
 REBUILD_AFTER_S = 2 * 3600
@@ -47,6 +53,11 @@ SNAPSHOT_PREAMBLE = (
     "的「本轮更新的项目资料」里给出新版本，以新版本为准；快照里的文件若已不在当轮文件清单中，说明已被删除。"
 )
 CHANGED_CONTEXT_HEADER = "【本轮更新的项目资料】以下条目替换 <project_snapshot> 里的同名条目（以这里为准）："
+GONE_CONTEXT_HEADER = (
+    "【本轮未核对的快照条目】以下条目在 <project_snapshot> 里，但不在本轮上下文中，本轮没有核对："
+    "快照里的版本可能已过期（[全文] 不再保证是最新内容，「← 当前焦点」标记也已失效）；"
+    "需要时先 query_files(id=…) 读取："
+)
 WORKING_SET_LISTING_HEADER = (
     "以下为上一轮读取/修改过的文件；全文在 <project_snapshot> 或本轮 <turn_context> 的"
     "「本轮更新的项目资料」里（完整，非预览，截至本轮开始），无需再次 query_files："
@@ -149,8 +160,9 @@ def plan_turn_context(
 ) -> TurnContextPlan | None:
     """Split this turn's documents into the session snapshot and this turn's changes.
 
-    context_blocks: keyed blocks from ContextAssembler (header + one per item).
-    working_set_blocks: {"key", "text", "listing"} per working-set file with full text.
+    context_blocks: keyed blocks from ContextAssembler (header + one per item); an
+    optional "label" names the document when it later leaves the turn.
+    working_set_blocks: {"key", "text", "listing", "label"} per working-set file with full text.
     working_set_tail: the rest of the working set section (files already in the
     context, files without full text); always sent per turn.
     Returns None without a session id (nothing to keep the snapshot under).
@@ -160,6 +172,8 @@ def plan_turn_context(
     docs = [*context_blocks, *working_set_blocks]
     listing = [block["listing"] for block in working_set_blocks if block.get("listing")]
     hashes = {doc["key"]: _digest(doc["text"]) for doc in docs}
+    sizes = {doc["key"]: len(doc["text"]) for doc in docs}
+    labels = {doc["key"]: str(doc.get("label") or doc["key"]) for doc in docs}
     key = _snapshot_key(session_id)
 
     state: dict[str, Any] | None = None
@@ -184,11 +198,15 @@ def plan_turn_context(
         reason = "aged"
 
     changed: list[dict[str, str]] = []
+    gone: list[str] = []
     if reason is None:
         snapshot_hashes: dict[str, str] = state.get("hashes") or {}
         changed = [doc for doc in docs if snapshot_hashes.get(doc["key"]) != hashes[doc["key"]]]
-        changed_chars = sum(len(doc["text"]) for doc in changed)
-        if changed_chars > REBUILD_CHANGED_RATIO * max(len(state.get("text") or ""), 1):
+        # In the snapshot but not in this turn: its copy there is unchecked (snapshot order).
+        gone = [key for key in snapshot_hashes if key not in hashes]
+        snapshot_sizes: dict[str, int] = state.get("sizes") or {}
+        stale_chars = sum(len(doc["text"]) for doc in changed) + sum(int(snapshot_sizes.get(key) or 0) for key in gone)
+        if stale_chars > REBUILD_CHANGED_RATIO * max(len(state.get("text") or ""), 1):
             reason = "outgrown"
 
     if reason is not None:
@@ -199,6 +217,8 @@ def plan_turn_context(
             "language": language,
             "text": snapshot_text,
             "hashes": hashes,
+            "sizes": sizes,
+            "labels": labels,
             "turns": 1,
             "created_at": now,
         }, ensure_ascii=False))
@@ -222,7 +242,13 @@ def plan_turn_context(
     _store_set(key, json.dumps(state, ensure_ascii=False))
     changed_context_blocks = [doc["text"] for doc in changed if not doc["key"].startswith("file:")]
     changed_files = [doc["text"] for doc in changed if doc["key"].startswith("file:")]
-    changed_context = "\n\n".join([CHANGED_CONTEXT_HEADER, *changed_context_blocks, *changed_files]) if changed else ""
+    sections: list[str] = []
+    if changed:
+        sections.extend([CHANGED_CONTEXT_HEADER, *changed_context_blocks, *changed_files])
+    if gone:
+        snapshot_labels: dict[str, str] = state.get("labels") or {}
+        sections.append("\n".join([GONE_CONTEXT_HEADER, *(f"- {snapshot_labels.get(key) or key}" for key in gone)]))
+    changed_context = "\n\n".join(sections)
     log_with_context(
         logger,
         20,  # INFO
@@ -230,6 +256,7 @@ def plan_turn_context(
         snapshot_chars=len(state.get("text") or ""),
         changed_documents=len(changed),
         changed_chars=sum(len(doc["text"]) for doc in changed),
+        gone_documents=len(gone),
         turn_in_snapshot=state["turns"],
     )
     return TurnContextPlan(

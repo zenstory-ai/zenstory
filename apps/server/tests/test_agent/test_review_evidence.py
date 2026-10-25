@@ -9,9 +9,10 @@ import pytest
 
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.review_evidence import (
+    MAX_CARD_FACTS,
     MAX_REPETITION_EVIDENCE,
-    find_numeric_fact_pairs,
     find_repetition_evidence,
+    list_character_card_facts,
     quote_author_requirement_sources,
 )
 from tests.test_agent.body_write_events import edit_file_events
@@ -117,49 +118,30 @@ def test_repetition_evidence_is_capped_and_sorted_longest_first():
     assert lengths[0] == 24
 
 
-# ----------------------------------------------------------------- 数字事实
+# ----------------------------------------------------------------- 角色卡事实
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("target_age", ["五岁", "5岁"])
-def test_age_mismatch_against_character_card_and_previous_chapter(target_age):
-    target = ("第三章", _chapter(f"念念今年{target_age}了，正是爱跑的年纪。"))
-    references = [
-        ("第二章", _chapter("那天，念念才四岁。")),
-        ("角色：念念", "年龄：四岁\n性格：怕黑，爱笑"),
+def test_character_card_age_fields_are_listed_as_written():
+    cards = [
+        ("念念", "年龄：四岁\n性格：怕黑，爱笑"),
+        ("阿远", "性格：沉默，三年前离家"),
+        ("老周", "外号：老周头\n年龄: 52"),
+        ("空卡", "   "),
     ]
 
-    pairs = find_numeric_fact_pairs(target, references)
-
-    assert pairs == [
-        f"《第三章》「念念今年{target_age}」↔《第二章》「念念才四岁」",
-        f"《第三章》「念念今年{target_age}」↔《角色：念念》「四岁」",
-    ]
+    assert list_character_card_facts(cards) == ["《角色：念念》年龄：四岁", "《角色：老周》年龄：52"]
 
 
 @pytest.mark.unit
-def test_age_mismatch_within_the_same_file():
-    target = ("第三章", _chapter("孩子五岁，刚上幼儿园。", "她想起孩子四岁那年的冬天。"))
+def test_character_card_facts_are_capped_and_deduplicated():
+    cards = [("念念", "年龄：四岁\n年龄：四岁")] + [(f"角色{i}", f"年龄：{i + 10}") for i in range(10)]
 
-    assert find_numeric_fact_pairs(target, []) == ["《第三章》「孩子五岁」↔《第三章》第 2 段「孩子四岁」"]
+    facts = list_character_card_facts(cards)
 
-
-@pytest.mark.unit
-def test_different_subjects_and_matching_values_are_not_paired():
-    target = ("第三章", _chapter("念念五岁。", "林晚二十八岁。"))
-    references = [
-        ("第二章", _chapter("阿远四岁。", "林晚二十八岁。")),
-        ("角色：阿远", "年龄：四岁"),
-    ]
-
-    assert find_numeric_fact_pairs(target, references) == []
-
-
-@pytest.mark.unit
-def test_approximate_ages_are_ignored():
-    target = ("第三章", _chapter("念念三四岁的样子。"))
-
-    assert find_numeric_fact_pairs(target, [("第二章", "念念五岁。")]) == []
+    assert facts[0] == "《角色：念念》年龄：四岁"
+    assert len(facts) == MAX_CARD_FACTS
+    assert facts.count("《角色：念念》年龄：四岁") == 1
 
 
 # ------------------------------------------------------- 写作图的送审交接点
@@ -285,10 +267,30 @@ async def test_auto_review_handoff_appends_detected_evidence(monkeypatch, db_ses
     assert "[自动检测：需核对]" in message
     block = message.split("[自动检测：需核对]\n", 1)[1]
     assert "- 《第三章》第 2 段与《第二章》第 2 段逐字重复：「窗外的雨下了一整夜，敲着铁皮屋顶」（共 15 字）" in block
-    assert "- 《第三章》「念念五岁」↔《第二章》「念念才四岁」" in block
-    assert "- 《第三章》「念念五岁」↔《角色：念念》「四岁」" in block
+    assert "- 《角色：念念》年龄：四岁" in block
+    assert "↔" not in block
     assert "第四章" not in block
-    assert "auto_checks=repeat:1,facts:2" in _review_packet(events)["evidence"]
+    assert "auto_checks=repeat:1,facts:1" in _review_packet(events)["evidence"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_auto_review_handoff_does_not_guess_numeric_conflicts_from_prose(
+    monkeypatch, db_session, novel_project
+):
+    """正文里「三年前」「五年前」这类时间数字不再被当作同一主语的矛盾送审（误报）。"""
+    monkeypatch.setenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", "true")
+    add = novel_project["add"]
+    add("第二章", _chapter("林晚想起三年前的冬天。"), order=2)
+    target = add("第三章", _chapter("林晚想起五年前的夏天。", "林晚想起三年前的那场雪。"), order=3)
+
+    events, reviewer_messages, _ = await _run_writer_then_reviewer(
+        db_session, novel_project["project"].id, target.id
+    )
+
+    assert len(reviewer_messages) == 1
+    assert "[自动检测：需核对]" not in reviewer_messages[0]
+    assert "auto_checks=repeat:0,facts:0" in _review_packet(events)["evidence"]
 
 
 @pytest.mark.asyncio

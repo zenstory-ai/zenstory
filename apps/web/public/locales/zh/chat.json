@@ -176,7 +176,10 @@
     "parallelStartTruncated": "同时处理 {{count}} 项任务（另有 {{dropped}} 项超出单次上限，这次没有执行）",
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}：没有完成",
+    "parallelTaskPartial": "◐ {{description}}：部分修改没有生效",
+    "parallelTaskEnded": "{{description}}：已结束",
     "parallelEnd": "处理结束：完成 {{completed}}/{{total}} 项，失败 {{failed}} 项",
+    "parallelEndWithPartial": "处理结束：完成 {{completed}}/{{total}} 项，部分完成 {{partial}} 项，失败 {{failed}} 项",
     "steeringReceived": "已收到补充要求：{{preview}}",
     "userStopped": "已停止生成"
   },
@@ -196,6 +199,8 @@
     "generic": "AI 操作",
     "parallel_summary": "同时处理 {{total}} 项任务：成功 {{completed}}，失败 {{failed}}",
     "parallel_summary_with_skipped": "同时处理 {{total}} 项任务：成功 {{completed}}，没动 {{skipped}}，失败 {{failed}}",
+    "parallel_summary_with_partial": "同时处理 {{total}} 项任务：成功 {{completed}}，部分完成 {{partial}}，失败 {{failed}}",
+    "parallel_summary_with_partial_and_skipped": "同时处理 {{total}} 项任务：成功 {{completed}}，部分完成 {{partial}}，没动 {{skipped}}，失败 {{failed}}",
     "parallelTaskLabel": "{{label}}：",
     "processing": "处理中",
     "processing_ellipsis": "处理中…",
@@ -242,6 +247,8 @@
       "clarifyFirst": "先问清楚再改"
     },
     "taskNotCompleted": "没有完成",
+    "taskPartiallyCompleted": "部分修改没有生效，可以让 AI 补上没改成的地方",
+    "taskOutcomeUnknown": "结果未知",
     "status_unchanged": "项目信息没有变化"
   },
   "fileType": {

@@ -10,7 +10,6 @@ import contextlib
 import hashlib
 import json
 import os
-import re
 import time
 from typing import Any
 
@@ -25,7 +24,6 @@ from utils.logger import get_logger, log_with_context
 from ..constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES
 from ..schemas.context import ContextData, ContextItem, ContextPriority
 from ..tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
-from ..utils.aho_corasick import AhoCorasickMatcher, select_longest_non_ambiguous_matches
 from ..utils.token_utils import estimate_text_tokens
 from .budget import TokenBudget, truncate_text_to_tokens
 from .prioritizer import ContextPrioritizer
@@ -65,17 +63,8 @@ PROJECT_STATUS_TOKEN_RATIO = 0.25
 MIN_PROJECT_STATUS_FIELD_TOKENS = 120
 
 
-# 「相关内容详情」段头的读取约定：带 [全文] 标注的条目无需再 query_files。
-# 限定「截至本请求开始」：本轮上下文每个请求只组装一次，本请求内被 agent 改过的
-# 文件，这里的 [全文] 已经是改前版本。
-FULL_TEXT_CONTEXT_NOTICE = (
-    "标注[全文]的条目就是该文件当前完整内容（截至本请求开始；本请求内被修改过的文件除外），"
-    "直接使用，不要再读取。"
-)
-
 # 角色卡 / 设定的名字作为子串出现在用户本轮原话里时的相关度加成。
-# 中文查询没有空格，_extract_query_terms 会把整句当成一个词，
-# 「林凡和苏瑶在山门重逢」永远匹配不到标题「林凡」，所以单独按子串判断。
+# 这是 #270 的召回保护：中文句子通常没有空格，因此直接按卡片名称子串判断。
 QUERY_NAME_MATCH_BOOST = 0.5
 # 名字太短（单字）作为子串极易误命中，不参与加成。
 MIN_QUERY_NAME_CHARS = 2
@@ -264,17 +253,10 @@ class ContextAssembler:
                 inventory_token_budget=inventory_token_budget,
             )
         )
-        # 条目标题行渲染时额外带 " (id=…) [全文]/[已截断：…]"，以及「相关内容详情」
-        # 段头的读取约定：只让真正入选的条目各自承担这部分开销（item_overhead），
-        # 段头开销先预留，否则整块会超出 max_tokens。
-        # 检索片段要等下面预选之后才知道有没有，因此段头开销无条件预留
-        # （没有任何条目时这份预算本来就用不上）。
-        section_overhead = estimate_text_tokens(
-            f"{'=' * 60}\n相关内容详情\n{'=' * 60}\n{FULL_TEXT_CONTEXT_NOTICE}\n"
-        )
-        item_token_budget = max(
-            MIN_ITEM_TOKEN_BUDGET, max_tokens - header_tokens - section_overhead
-        )
+        # 条目标题行渲染时额外带 " (id=…) [全文]/[已截断：…]"：只让真正入选的条目
+        # 各自承担这部分开销（item_overhead）。[全文] 的读取约定在系统提示里
+        # （prompts/base.py），上下文里不再有段头。
+        item_token_budget = max(MIN_ITEM_TOKEN_BUDGET, max_tokens - header_tokens)
 
         # 6.1 预选：先在不含检索片段的条目上跑一遍预算，只把**真正入选**的文件
         # 排除出检索。历史缺陷是把收集到的全部文件 id 都传给 exclude_entity_ids，
@@ -1151,53 +1133,6 @@ class ContextAssembler:
         files = self._batch_get_files(session, picks)
         return [files[file_id] for file_id in picks if file_id in files]
 
-    def _get_files_by_type(
-        self,
-        session: Session,
-        project_id: str,
-        file_type: str,
-        limit: int = 10,
-    ) -> list[ContextItem]:
-        """Get files of a specific type."""
-        from models import File
-
-        # 对于 lore 类型，保持原有逻辑（按 order 排序，后续按 importance 排序）
-        # 对于 character 类型，按最近修改时间排序
-        if file_type == "lore":
-            files = session.exec(
-                select(File).where(
-                    File.project_id == project_id,
-                    File.file_type == file_type,
-                    File.is_deleted.is_(False),
-                ).order_by(File.order.asc(), File.id.asc())
-                .limit(limit)
-            ).all()
-        else:
-            files = session.exec(
-                select(File).where(
-                    File.project_id == project_id,
-                    File.file_type == file_type,
-                    File.is_deleted.is_(False),
-                ).order_by(File.updated_at.desc(), File.id.asc())  # 按最近修改时间排序
-                .limit(limit)
-            ).all()
-
-        items = []
-        for file in files:
-            items.append(self._file_to_context_item(file))
-
-        # Sort lores by importance if applicable
-        if file_type == "lore":
-            importance_order = {"high": 0, "medium": 1, "low": 2}
-            items.sort(
-                key=lambda x: (
-                    importance_order.get(x.metadata.get("importance", "medium"), 3),
-                    str(x.id),
-                )
-            )
-
-        return items
-
     def _get_project_status(
         self,
         session: Session,
@@ -1248,7 +1183,7 @@ class ContextAssembler:
             project_id: Project ID
 
         Returns:
-            Dict with file_type -> list of {id, title, word_count?} mappings
+            Dict with file_type -> list of {id, title, file_type} mappings
         """
         from models import File
 
@@ -1295,8 +1230,6 @@ class ContextAssembler:
             # 的根因，宁可多渲染一节「其他文件」也不能让文件凭空消失。
             bucket = grouped.setdefault(file_type, [])
 
-            word_count = None
-
             # Keep inventory ordering aligned with file-tree/export behavior:
             # nonzero stored order is authoritative; otherwise compatible
             # structured metadata precedes the leading title ordinal.
@@ -1316,7 +1249,6 @@ class ContextAssembler:
                         "id": file_id,
                         "title": title,
                         "file_type": file_type,
-                        "word_count": word_count,
                     },
                 )
             )
@@ -1364,7 +1296,7 @@ class ContextAssembler:
         query: str | None,
     ) -> list[ContextItem]:
         """
-        Boost item relevance when query terms match title/content/tags.
+        Boost explicitly named character and lore cards.
 
         Query为空时保持原行为不变。
         """
@@ -1377,24 +1309,6 @@ class ContextAssembler:
         for item in items:
             if self._query_names_item(item, normalized_query):
                 item.relevance_score = (item.relevance_score or 0.0) + QUERY_NAME_MATCH_BOOST
-
-        query_terms = self._extract_query_terms(normalized_query)
-        if not query_terms:
-            return items
-        query_matcher = AhoCorasickMatcher(query_terms)
-        phrase_matcher = AhoCorasickMatcher([normalized_query]) if normalized_query else AhoCorasickMatcher([])
-        if query_matcher.is_empty and phrase_matcher.is_empty:
-            return items
-
-        for item in items:
-            boost = self._calculate_query_match_boost(
-                item=item,
-                query_matcher=query_matcher,
-                phrase_matcher=phrase_matcher,
-            )
-            if boost <= 0:
-                continue
-            item.relevance_score = (item.relevance_score or 0.0) + boost
 
         return items
 
@@ -1416,109 +1330,6 @@ class ContextAssembler:
             len(name) >= MIN_QUERY_NAME_CHARS and name.lower() in normalized_query
             for name in names
         )
-
-    def _extract_query_terms(self, query: str) -> list[str]:
-        """Extract normalized query terms for match scoring."""
-        matches = re.findall(r"[a-z0-9\u4e00-\u9fff]+", query.lower())
-
-        # Keep stable order while removing duplicates
-        seen: set[str] = set()
-        terms: list[str] = []
-        for term in matches:
-            if term and term not in seen:
-                seen.add(term)
-                terms.append(term)
-        return terms
-
-    def _calculate_query_match_boost(
-        self,
-        item: ContextItem,
-        query_matcher: AhoCorasickMatcher,
-        phrase_matcher: AhoCorasickMatcher,
-    ) -> float:
-        """
-        Calculate explainable boost from title/content/tag matches.
-
-        Score design (capped to avoid over-amplification):
-        - Phrase match in title/content/tags gives stronger boost
-        - Token match gives incremental boost
-        """
-        title = (item.title or "").lower()
-        content = (item.content or "").lower()
-        tags = [tag.lower() for tag in self._extract_item_tags(item)]
-        merged_tags = "\n".join(tags)
-
-        title_term_hits = self._count_relevance_hits(title, query_matcher)
-        content_term_hits = self._count_relevance_hits(content, query_matcher)
-        tag_term_hits = self._count_relevance_hits(merged_tags, query_matcher)
-        title_phrase_hits = self._count_relevance_hits(title, phrase_matcher)
-        content_phrase_hits = self._count_relevance_hits(content, phrase_matcher)
-        tag_phrase_hits = self._count_relevance_hits(merged_tags, phrase_matcher)
-
-        score = 0.0
-
-        # Phrase-level match
-        if title_phrase_hits > 0:
-            score += 0.45
-        if content_phrase_hits > 0:
-            score += 0.20
-        if tag_phrase_hits > 0:
-            score += 0.30
-
-        # Term-level incremental match
-        score += min(0.30, title_term_hits * 0.12)
-        score += min(0.20, content_term_hits * 0.04)
-        score += min(0.20, tag_term_hits * 0.10)
-
-        return min(score, 0.90)
-
-    def _count_relevance_hits(self, text: str, matcher: AhoCorasickMatcher) -> int:
-        """
-        Count unambiguous longest term hits for relevance gating.
-
-        Uses Aho-Corasick for candidate matching, then applies:
-        - ambiguity disable (same overlap group, same max length -> drop)
-        - longest match selection in each overlap group
-        """
-        if not text or matcher.is_empty:
-            return 0
-
-        raw_matches = matcher.find_matches(text)
-        if not raw_matches:
-            return 0
-
-        filtered = select_longest_non_ambiguous_matches(raw_matches)
-        if not filtered:
-            return 0
-
-        return len({match.term for match in filtered})
-
-    def _extract_item_tags(self, item: ContextItem) -> list[str]:
-        """Collect searchable tag-like fields from item metadata."""
-        tags: list[str] = []
-        metadata = item.metadata or {}
-
-        def append_value(value: Any) -> None:
-            if value is None:
-                return
-            if isinstance(value, str):
-                cleaned = value.strip()
-                if cleaned:
-                    tags.append(cleaned)
-                return
-            if isinstance(value, list | tuple | set):
-                for entry in value:
-                    append_value(entry)
-                return
-            cleaned = str(value).strip()
-            if cleaned:
-                tags.append(cleaned)
-
-        # explicit tag fields + commonly used metadata labels
-        for key in ("tags", "tag", "keywords", "category"):
-            append_value(metadata.get(key))
-
-        return tags
 
     def _bound_project_status(
         self,
@@ -1699,9 +1510,6 @@ class ContextAssembler:
             meta.append(f"id={entry['id']}")
         if show_type:
             meta.append(f"类型={entry['file_type']}")
-        if entry.get("word_count"):
-            meta.append(f"{entry['word_count']}字")
-
         suffix = f" ({', '.join(meta)})" if meta else ""
         title = entry.get("title") or "(未命名)"
         return f"  - {title}{suffix}" if layout == "list" else f"{title}{suffix}"
@@ -2146,28 +1954,14 @@ class ContextAssembler:
         for section_items in sections.values():
             section_items.sort(key=lambda x: x.title or "")
 
-        # Only add detailed sections if we have items
-        has_detailed_content = any([
-            sections["outline"],
-            sections["draft"],
-            sections["snippet"],
-            sections["character"],
-            sections["lore"],
-            sections["quote"],
-        ])
-
         blocks: list[dict[str, str]] = [{"key": "header", "text": "\n".join(parts).strip()}]
 
-        def add_block(section: str, item_key: str, start: int) -> None:
+        def add_block(section: str, item: ContextItem, start: int) -> None:
             body = "\n".join(parts[start:]).strip()
-            blocks.append({"key": f"{section}:{item_key}", "text": f"{section}\n{body}"})
-
-        if has_detailed_content:
-            parts.append(separator)
-            parts.append("相关内容详情")
-            parts.append(separator)
-            parts.append(FULL_TEXT_CONTEXT_NOTICE)
-            parts.append("")
+            # label 在条目离开后续轮次的上下文时用来点名（turn_snapshot 的「本轮未核对」列表）。
+            file_id = self._item_file_id(item)
+            label = f"{section}{item.title}" + (f" (id={file_id})" if file_id else "")
+            blocks.append({"key": f"{section}:{item.id or item.title}", "text": f"{section}\n{body}", "label": label})
 
         # Outlines (detailed content)
         if sections["outline"]:
@@ -2179,7 +1973,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【大纲详情】", item.id or item.title, start)
+                add_block("【大纲详情】", item, start)
 
         # Drafts (detailed content)
         if sections["draft"]:
@@ -2191,7 +1985,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【正文详情】", item.id or item.title, start)
+                add_block("【正文详情】", item, start)
 
         # Snippets
         if sections["snippet"]:
@@ -2221,7 +2015,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【参考素材】", item.id or item.title, start)
+                add_block("【参考素材】", item, start)
 
         # Characters
         if sections["character"]:
@@ -2231,7 +2025,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【角色信息】", item.id or item.title, start)
+                add_block("【角色信息】", item, start)
 
         # Lores
         if sections["lore"]:
@@ -2243,7 +2037,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【世界设定】", item.id or item.title, start)
+                add_block("【世界设定】", item, start)
 
         # Quotes (user-selected text)
         if sections["quote"]:
@@ -2254,7 +2048,7 @@ class ContextAssembler:
                 parts.append(f"{item.title}")
                 parts.append(item.content)
                 parts.append("")
-                add_block("【用户引用文本】", item.id or item.title, start)
+                add_block("【用户引用文本】", item, start)
 
         return "\n".join(parts), blocks
 

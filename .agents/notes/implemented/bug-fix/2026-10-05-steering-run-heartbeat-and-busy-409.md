@@ -15,8 +15,8 @@ Status: implemented
 - 2026-10-25 补充（审计 F-28）：`POST /agent/steer` 原先先查 owner、再 RPUSH，两步不原子。本轮最后一次 drain 之后、释放之前到达的引导，接口回 200 queued，随后被释放脚本连同 msgs 一起删除；释放之后的 RPUSH 会重建 msgs（TTL 1 小时），注入同一会话的下一轮。现在：
   - `enqueue_steering_for_user_async` 把 owner 校验、「存在未超时且未封口的 run」与入队放进一个原子单元（Redis Lua `_ENQUEUE_FOR_LIVE_RUN_SCRIPT`；内存后端在 manager 锁内判定）。没有这样的 run 时回 404 `ERR_CHAT_SESSION_NOT_FOUND`，owner 不符仍是 403。从未登记过 run 的占位队列也不再接收引导。
   - `process_stream` 释放前的最后一次 drain（正常路径 finally 里的兜底 drain、取消路径后台补存里的 drain）改用 `drain_and_seal_steering_async`：取出消息的同时把本 run 记入封口集合（Redis `steering:sealed:{session}`，内存 `SteeringQueueEntry.sealed_runs`）。封口不释放独占槽位，新一轮在释放前仍收到 busy 409；释放与僵尸回收会一并清掉封口记录。所以已确认 queued 的引导要么被这次 drain 取走、随本轮历史落库，要么根本不会被确认。正常路径上工作流结束后、保存历史前的那次 drain 也用 `drain_and_seal_steering_async`：从那以后本 run 不会再把引导喂给模型，保存历史期间到达的引导回 404、由前端作为下一条消息发出，而不是回 200「下一步会用上」再变成历史里一条没有回复的用户消息。封口幂等，finally 里的兜底 drain 照旧取出封口前刚入队的消息（回归测试 `test_steer_during_history_save_is_not_acknowledged_as_used`）。
-  - 多持有者遗留路径的交还（`requeue_if_other_active`）不再把已封口的 run 算作「其它活跃 run」，避免把消息交给不会再读它的 run。
   - 前端 `sendSteeringRequest` 抛出带 HTTP 状态的 `ApiError`。ChatPanel 收到 404 时不报错，提示「这一轮已收尾，这句会在它结束后作为新消息发出」，本轮结束后用 `handleSendMessage(…, { keepComposer: true })` 发一次：只发这句话，等待期间作者新打的草稿、暂存的附件和引用都留在输入框，不随它发出也不被清空。发不出去（新对话未就绪、当日额度用完等）就把这句话接到输入框末尾。等待期间作者点了停止，不自动开一轮计额度的新消息，这句同样放回输入框；等待期间切换了作品，这句写回原作品的持久化草稿（`appendDraftForProject`），回到那个作品时还在。其他失败可能已经入队，仍保留输入并报错，不自动重发，所以同一句话不会扣两次额度。旧前端遇到 404 仍是原来的「补充没有发出，请重试」，新前端对旧后端的 404 也能退回发送，两个方向都兼容。
+- 2026-10-25 补充（审计 D-08）：生成入口已经固定使用独占槽，删除不再可达的多持有者兼容层：非独占 create、ownerless 占位与 owner backfill、`requeue_if_other_active`、queue `peek/clear`。`create_steering_queue_async` 现在必须带 `run_id`，claim 本身就是独占语义。`service.process_stream` 的正常保存、取消补存、异常/兜底收尾共用 `_drain_late_steering()`，每条路径都先 `drain_and_seal`、持久化新增引导，再释放槽位。claim/release、周期心跳、TTL 僵尸回收、Redis 到内存回退和 F-28 的原子入队/封口不变。
 
 ## Alternatives considered
 
@@ -36,4 +36,6 @@ Status: implemented
 
 `cd apps/server && venv/bin/pytest tests/test_agent/test_stream_launch_hardening.py tests/test_api/test_round3_agent_api.py tests/test_agent/test_service.py tests/test_agent/test_round3_steering.py -q`：心跳让老持有保持存活、停止心跳超过 TTL 后新 run 可接管、心跳不复活已释放的 run、TTL 与间隔的取值约束、`process_stream` 生成期间周期续期且结束后停止、未带 `session_id` 时解析到的忙会话返回 409 `ERR_SESSION_BUSY` 且额度退回、带 `session_id` 的预检同样返回 `ERR_SESSION_BUSY`。前端 `src/lib/__tests__/agentApi.test.ts` 覆盖 409 被标记为可重试。
 
-F-28：`tests/test_agent/test_steering_live_run_enqueue.py` 在内存后端和真实 redis-server（CI 用 `ZENSTORY_TEST_REDIS_URL`，本机临时起 unix socket 实例）上各跑一遍。用例让 steer 落在最后一次 drain 与释放之间，断言它要么落库、要么不是 200；同时覆盖释放后 404 且不留任何键、封口后 busy 仍成立、已封口的持有者不接收交还。前端 `src/components/__tests__/round3_frontend_chatpanel.test.tsx` 覆盖：404 在本轮结束后只发一次；500 不退回发送；成功送达的引导不会重发；退回发送不带走也不清空输入框里的草稿、附件、引用；等待期间点了停止就放回输入框、不发送；切换作品后写回原作品草稿。
+F-28：`tests/test_agent/test_steering_live_run_enqueue.py` 在内存后端和真实 redis-server（CI 用 `ZENSTORY_TEST_REDIS_URL`，本机临时起 unix socket 实例）上各跑一遍。用例让 steer 落在最后一次 drain 与释放之间，断言它要么落库、要么不是 200；同时覆盖释放后 404 且不留任何键、封口后 busy 仍成立。前端 `src/components/__tests__/round3_frontend_chatpanel.test.tsx` 覆盖：404 在本轮结束后只发一次；500 不退回发送；成功送达的引导不会重发；退回发送不带走也不清空输入框里的草稿、附件、引用；等待期间点了停止就放回输入框、不发送；切换作品后写回原作品草稿。
+
+D-08：内存与 fake Redis 回归覆盖独占 claim/busy、90 秒 TTL reap、heartbeat 不复活已释放 run、live-run enqueue、drain-and-seal、正常/取消/异常收尾的 drain-before-cleanup。旧多持有者与 ownerless 占位测试随对应生产路径删除。

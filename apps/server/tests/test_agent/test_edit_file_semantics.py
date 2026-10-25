@@ -105,12 +105,13 @@ def test_fuzzy_delete_leaves_no_orphan_quote_or_period(editor):
 
 def test_fuzzy_insert_after_lands_after_closing_period(editor):
     """锚点以句号结尾：插入点要越过原文的句号，而不是插在「冷」和「。」之间。"""
-    result = editor._apply_insert_after(
+    result = editor._apply_insert(
         _DIALOGUE,
         {"op": "insert_after", "anchor": '"有事?"他声音很冷。', "text": "他转身就走。"},
         0,
         [],
         [],
+        after=True,
     )
     assert "“有事？”他声音很冷。他转身就走。\n" in result
 
@@ -366,6 +367,45 @@ def test_continue_on_error_keeps_successful_edits_and_tags_failures(
     assert "窗外飘着雪" in _stored_content(version_engine, chapter.id)
 
 
+@pytest.mark.parametrize(
+    "edit",
+    [
+        {"old": "窗外下着雨", "new": "窗外飘着雪"},
+        {"old": "窗外下着雨"},
+        {"anchor": "窗外下着雨", "text": "，风很大", "position": "before"},
+        {"text": "雨停了。", "where": "head"},
+    ],
+)
+def test_edit_without_op_is_a_missing_op_error_and_writes_nothing(
+    db_session, test_user, chapter, version_engine, edit
+):
+    """没写 op 就报缺 op，让模型带上 op 重发；不按 old/anchor/text 或 position 字样猜它想做哪种编辑。"""
+    versions_before = _version_count(version_engine, chapter.id)
+    editor = FileEditor(db_session, user_id=test_user.id)
+    with pytest.raises(EditBatchError) as exc:
+        editor.edit_file(chapter.id, [edit])
+
+    [failed] = exc.value.failed_edits
+    assert "missing op" in failed["error"]
+    assert failed["error_type"] == EDIT_ERROR_INVALID_EDIT
+    assert _stored_content(version_engine, chapter.id) == chapter.content
+    assert _version_count(version_engine, chapter.id) == versions_before
+
+
+@pytest.mark.parametrize(
+    ("edit", "expected"),
+    [
+        ({"op": "after", "anchor": "窗外下着雨，", "text": "风很大，"}, "他点了点头。她点了点头。窗外下着雨，风很大，屋里很安静。"),
+        ({"operation": "insert-before", "anchor": "屋里很安静", "text": "风很大，"}, "他点了点头。她点了点头。窗外下着雨，风很大，屋里很安静。"),
+    ],
+)
+def test_explicit_op_aliases_still_apply(db_session, test_user, chapter, version_engine, edit, expected):
+    editor = FileEditor(db_session, user_id=test_user.id)
+    result = editor.edit_file(chapter.id, [edit])
+    assert result["mutation_applied"] is True
+    assert _stored_content(version_engine, chapter.id) == expected
+
+
 def test_missing_file_raises_file_not_found(db_session, test_user):
     editor = FileEditor(db_session, user_id=test_user.id)
     with pytest.raises(EditFileError) as exc:
@@ -474,12 +514,13 @@ def test_insert_details_report_editor_word_count_next_to_char_length(editor):
     """修改卡片的「字 / 千字」按编辑器的字数口径（汉字 + 英文单词），不是字符长度。"""
     applied: list[dict] = []
     text = "雨停了，她推开门。\n\nHello world"
-    editor._apply_insert_after(
+    editor._apply_insert(
         _DIALOGUE,
         {"op": "insert_after", "anchor": "她没有说话。", "text": text},
         0,
         applied,
         [],
+        after=True,
     )
     detail = applied[0]
     # 7 个汉字 + 2 个英文单词；标点、换行、空格不算。
