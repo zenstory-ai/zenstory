@@ -2399,6 +2399,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       triggerFileTreeRefresh();
       triggerEditorRefresh(target.fileId);
     } catch (err) {
+      // The file changed after this AI edit: the card's version anchor can never match again, so
+      // 「请刷新后重试」 would fail forever. The version guard stays; the history panel restores safely.
+      if (
+        err instanceof ApiError &&
+        err.errorCode === "ERR_RESOURCE_CONFLICT" &&
+        err.details?.reason === "stale_write"
+      ) {
+        toast.error(t('versions:undoStaleWrite'));
+        return;
+      }
       if (
         err instanceof ApiError &&
         err.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
@@ -2634,6 +2644,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 messages={messages}
                 streamRenderItems={streamRenderItems}
                 onIterationAssistAction={handleIterationAssistAction}
+                nextStepsBlocked={aiSendBlocked}
                 streamingMessageId={undefined}
                 onUndo={handleUndo}
                 onOpenFile={currentProjectId && currentProject?.id === currentProjectId ? handleOpenFile : undefined}
@@ -2716,9 +2727,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                           : t('chat:panel.streamErrorTitle')}
                       </p>
                       {!isAiQuotaLimit && (
-                        <p className="text-[hsl(var(--warning-text))] text-sm break-words whitespace-pre-line">{error}</p>
+                        <p className="text-[hsl(var(--warning-text))] text-sm break-words whitespace-pre-line">
+                          {/* Today's messages are used up: 「回复继续」/ retry could not send, the quota card below says when it comes back. */}
+                          {aiSendBlocked ? t('chat:panel.streamErrorQuotaPaused') : error}
+                        </p>
                       )}
-                      {retryable && lastRetryRequestRef.current?.projectId === currentProjectId && (
+                      {retryable && !aiSendBlocked && lastRetryRequestRef.current?.projectId === currentProjectId && (
                         <button
                           type="button"
                           onClick={handleRetry}

@@ -326,6 +326,38 @@ describe('MessageList', () => {
     expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
   })
 
+  it('keeps the pause facts but offers no 继续完成 when today\'s AI messages are used up, live, saved and streaming', () => {
+    const onAction = vi.fn()
+    const timeItem: NonNullable<Message['displayItems']>[number] = { id: 'time', type: 'iteration_exhausted', layer: 'tool_call', limit: 'wall_clock', timestamp: new Date() }
+    const emptyItem: NonNullable<Message['displayItems']>[number] = { id: 'empty', type: 'iteration_exhausted', layer: 'tool_call', unfinishedFiles: ['第一章'], rolledBackFiles: ['第二章'], timestamp: new Date() }
+    const messages = [
+      createMessage({ id: 'm-1', role: 'assistant', content: '', displayItems: [timeItem] }),
+      createMessage({ id: 'm-2', role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'collaboration', maxIterations: 4 }] }),
+    ]
+    const streamRenderItems = [emptyItem]
+    const { rerender } = render(<MessageList
+      messages={messages}
+      streamRenderItems={streamRenderItems}
+      onIterationAssistAction={onAction}
+      nextStepsBlocked
+    />)
+    expect(screen.getByText('workflow.timeLimitSummaryPaused')).toBeInTheDocument()
+    expect(screen.getByText('workflow.stepLimitSummaryPaused')).toBeInTheDocument()
+    expect(screen.getByText('workflow.emptyFileUnresolvedPaused 第一章')).toBeInTheDocument()
+    expect(screen.getByText('workflow.emptyFileRolledBackPaused 第二章')).toBeInTheDocument()
+    expect(screen.queryByText('workflow.timeLimitSummary')).not.toBeInTheDocument()
+    expect(screen.queryByText('workflow.nextStepHint')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'workflow.actionContinue' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'workflow.actionSplit' })).not.toBeInTheDocument()
+
+    // Messages come back (a new Beijing day, or Pro): the same list, only the flag changes.
+    rerender(<MessageList messages={messages} streamRenderItems={streamRenderItems} onIterationAssistAction={onAction} nextStepsBlocked={false} />)
+    expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'workflow.actionContinue' })).toHaveLength(3)
+    fireEvent.click(screen.getAllByRole('button', { name: 'workflow.actionContinue' })[0])
+    expect(onAction).toHaveBeenCalledWith('continue', timeItem)
+  })
+
   it.each([
     { reason: 'error', message: 'Ordered stop error' },
     { reason: 'clarification_needed', question: 'Ordered question', context: 'Ordered context', details: ['Ordered detail'] },

@@ -13,6 +13,7 @@
   "closePreview": "关闭预览",
   "viewContentFailed": "加载该版本失败，请重试",
   "rollbackHistoryNotSaved": "正文已恢复，但本次恢复未能写入版本历史。",
+  "undoStaleWrite": "这个文件在这次修改之后又改过，不能直接撤销，以免覆盖后来的内容。想回到之前的样子，请打开文件，在编辑器下方的「历史版本」里选一个版本恢复。",
   "rollbackConfirm": "恢复到版本 {{version}}？当前正文会先存成一个版本，再换成这个版本的内容。",
   "rollbackConfirmButton": "恢复",
   "rollbackSuccess": "已恢复到该版本",

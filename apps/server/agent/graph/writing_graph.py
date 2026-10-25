@@ -509,6 +509,32 @@ FIRST_ROUND_SUMMARY_CONTEXT = (
 
 WRAP_UP_TEXT = "\n\n这一轮的时间快用完了，先停在这里；回复「继续」我接着做。"
 WRAP_UP_TEXT_EN = "\n\nThis round is almost out of time, so I'm stopping here. Reply \"continue\" and I'll pick it up."
+# 今天的 AI 消息已经用完（本轮已计入）：回复「继续」发不出去，只说停在哪里；恢复时间由前端额度卡给出。
+WRAP_UP_TEXT_NO_MESSAGES_LEFT = "\n\n这一轮的时间快用完了，先停在这里，已经写好的内容都保留了。"
+WRAP_UP_TEXT_NO_MESSAGES_LEFT_EN = "\n\nThis round is almost out of time, so I'm stopping here; everything written so far is kept."
+
+
+def _ai_messages_left_today(user_id: str) -> bool | None:
+    """今天还能不能再发一条 AI 消息（每日条数，本轮已预扣）；读不到返回 None。"""
+    from database import create_session
+    from services.quota_service import quota_service
+
+    try:
+        with create_session() as session:
+            allowed, _used, _limit = quota_service.check_ai_conversation_quota(session, user_id)
+            return allowed
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Quota read for the wrap-up note failed: {type(exc).__name__}")
+        return None
+
+
+async def _wrap_up_text(english: bool) -> str:
+    """收尾说明：确知今天的消息已用完时不叫作者回复「继续」；读不到额度时保持原说明。"""
+    user_id = ToolContext.get_user_id()
+    messages_left = await asyncio.to_thread(_ai_messages_left_today, user_id) if user_id else None
+    if messages_left is False:
+        return WRAP_UP_TEXT_NO_MESSAGES_LEFT_EN if english else WRAP_UP_TEXT_NO_MESSAGES_LEFT
+    return WRAP_UP_TEXT_EN if english else WRAP_UP_TEXT
 FAST_MODE_SUMMARY_CONTEXT = (
     "[系统提醒] 本轮是快速模式，不送审，刚才的交接没有执行，作者在对话里只看到了你那句进度说明。"
     "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：写了哪些文件、各多少字"
@@ -1971,7 +1997,7 @@ async def run_writing_workflow_streaming(
                 )
                 yield StreamEvent(
                     type=StreamEventType.TEXT,
-                    data={"text": WRAP_UP_TEXT_EN if english else WRAP_UP_TEXT},
+                    data={"text": await _wrap_up_text(english)},
                 )
                 terminated_via_break = True
                 break
