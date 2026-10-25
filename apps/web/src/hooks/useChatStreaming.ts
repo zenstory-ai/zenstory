@@ -1131,8 +1131,10 @@ export function useChatStreaming(): UseChatStreamingReturn {
           workflowAgents: string[],
           routingMetadata?: SSERoutingMetadata
         ) => {
+          // The decision ends 「正在理解你的要求…」: a pulsing chip left above the plan reads as still
+          // routing for the whole round (a saved reply drops it too, see dropProgressOnlyItems).
           updateStreamItems((prev) => [
-            ...prev,
+            ...prev.filter((item) => item.type !== "router_thinking"),
             {
               type: "router_decided",
               id: generateUniqueId("router-decided"),

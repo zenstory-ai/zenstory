@@ -222,7 +222,7 @@
   "naturalPolish": "Humanize",
   "naturalPolishWorking": "Humanizing…",
   "naturalPolishTooltip": "Humanize selected text (Ctrl/⌘+Shift+R)",
-  "naturalPolishTooltipFree": "Remove AI tone from the selection — uses 1 of today's AI messages (Ctrl/⌘+Shift+R)",
+  "naturalPolishTooltipFree": "Remove AI tone from the selection — uses 1 of today's AI messages; no change or a failure isn't counted (Ctrl/⌘+Shift+R)",
   "naturalPolishCost": "· 1 msg",
   "naturalPolishNoSelection": "Select text to humanize",
   "naturalPolishFailed": "Humanize didn't work. Please try again.",

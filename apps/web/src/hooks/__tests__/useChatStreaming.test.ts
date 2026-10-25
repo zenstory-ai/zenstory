@@ -856,6 +856,24 @@ describe('useChatStreaming', () => {
         expect(item.workflowPlan).toBe('Write content')
         expect(item.workflowAgents).toEqual(['writer', 'editor'])
       })
+
+      it('removes the pulsing 正在理解你的要求 chip once the plan is decided', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onThinking('正在组装上下文...')
+          callbacks.onRouterThinking('快速模式：正在理解你的要求...')
+          callbacks.onRouterDecided('writer', 'quick', [])
+        })
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+
+        expect(result.current.streamRenderItems.map((item) => item.type)).not.toContain('router_thinking')
+        expect(result.current.streamRenderItems.at(-1)?.type).toBe('router_decided')
+      })
     })
 
     describe('onWorkflowStopped callback', () => {
