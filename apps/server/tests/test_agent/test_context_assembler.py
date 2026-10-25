@@ -916,32 +916,6 @@ class TestContextAssembler:
             # First item should be high importance
             assert lore_items[0]["metadata"]["importance"] == "high"
 
-    def test_get_files_by_type_limit(
-        self,
-        db_session,
-        test_project,
-        create_file,
-    ):
-        """Test that _get_files_by_type respects limit parameter."""
-        # Create 15 character files
-        for i in range(15):
-            create_file(
-                file_type="character",
-                title=f"角色{i}",
-                content=f"角色{i}的描述",
-            )
-
-        assembler = ContextAssembler()
-        items = assembler._get_files_by_type(
-            session=db_session,
-            project_id=test_project.id,
-            file_type="character",
-            limit=10,
-        )
-
-        # Should only return 10 items
-        assert len(items) == 10
-
     def test_assemble_soft_deleted_files_excluded(
         self,
         db_session,

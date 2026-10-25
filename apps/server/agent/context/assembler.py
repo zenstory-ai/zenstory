@@ -1136,53 +1136,6 @@ class ContextAssembler:
         files = self._batch_get_files(session, picks)
         return [files[file_id] for file_id in picks if file_id in files]
 
-    def _get_files_by_type(
-        self,
-        session: Session,
-        project_id: str,
-        file_type: str,
-        limit: int = 10,
-    ) -> list[ContextItem]:
-        """Get files of a specific type."""
-        from models import File
-
-        # 对于 lore 类型，保持原有逻辑（按 order 排序，后续按 importance 排序）
-        # 对于 character 类型，按最近修改时间排序
-        if file_type == "lore":
-            files = session.exec(
-                select(File).where(
-                    File.project_id == project_id,
-                    File.file_type == file_type,
-                    File.is_deleted.is_(False),
-                ).order_by(File.order.asc(), File.id.asc())
-                .limit(limit)
-            ).all()
-        else:
-            files = session.exec(
-                select(File).where(
-                    File.project_id == project_id,
-                    File.file_type == file_type,
-                    File.is_deleted.is_(False),
-                ).order_by(File.updated_at.desc(), File.id.asc())  # 按最近修改时间排序
-                .limit(limit)
-            ).all()
-
-        items = []
-        for file in files:
-            items.append(self._file_to_context_item(file))
-
-        # Sort lores by importance if applicable
-        if file_type == "lore":
-            importance_order = {"high": 0, "medium": 1, "low": 2}
-            items.sort(
-                key=lambda x: (
-                    importance_order.get(x.metadata.get("importance", "medium"), 3),
-                    str(x.id),
-                )
-            )
-
-        return items
-
     def _get_project_status(
         self,
         session: Session,
