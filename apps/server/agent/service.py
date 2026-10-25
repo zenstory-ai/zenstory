@@ -61,6 +61,7 @@ from .core.steering import (
     _RUN_HEARTBEAT_INTERVAL_S,
     cleanup_steering_queue_async,
     create_steering_queue_async,
+    drain_and_seal_steering_async,
     heartbeat_steering_run_async,
     requeue_steering_if_other_active_async,
 )
@@ -794,9 +795,18 @@ class AgentService:
 
         # Steering callback for the agent loop. 定义在 try 之前：取消/失败
         # 路径的兜底 drain 也依赖它，不能等到工作流启动处才可用。
-        async def get_steering_messages():
-            """Get pending steering messages for agent loop."""
-            steering_pending = await steering_queue.get_pending()
+        async def get_steering_messages(*, seal: bool = False):
+            """Get pending steering messages for agent loop.
+
+            seal=True 是本 run 释放队列前的最后一次 drain：取出的同时封口，此后
+            /agent/steer 对本 run 回 404，不会再确认一条没人消费的引导。
+            """
+            if seal:
+                steering_pending = await drain_and_seal_steering_async(
+                    session_id, steering_run_id
+                )
+            else:
+                steering_pending = await steering_queue.get_pending()
             payload = [{"id": m.id, "content": m.content} for m in steering_pending]
             # Record what the run actually consumed so it can be persisted to
             # chat history (otherwise node-boundary steering is lost on the
@@ -1708,7 +1718,7 @@ class AgentService:
 
                     already_consumed = len(consumed_steering)
                     try:
-                        await get_steering_messages()
+                        await get_steering_messages(seal=True)
                     except Exception as exc:
                         log_with_context(
                             logger,
@@ -1810,7 +1820,7 @@ class AgentService:
                     # 的消息），保证已确认 queued 的输入不会凭空消失。
                     already_consumed = len(consumed_steering)
                     try:
-                        await get_steering_messages()
+                        await get_steering_messages(seal=True)
                     except Exception as exc:
                         log_with_context(
                             logger,

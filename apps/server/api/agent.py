@@ -1184,7 +1184,7 @@ async def inject_steering(
     注：steering 消息本身不单独计 AI 对话额度（所属的 /stream 运行已扣过一次），
     但每条注入都会让运行中的 agent 循环多跑若干轮 LLM，所以仍需按用户限流。
     """
-    from agent.core.steering import get_steering_queue_for_user_async
+    from agent.core.steering import enqueue_steering_for_user_async
 
     log_with_context(
         logger,
@@ -1195,8 +1195,19 @@ async def inject_steering(
         message_length=len(body.message),
     )
 
+    # owner 校验、「仍有会消费它的 run」与入队是一个原子操作：本轮已做完最后一次
+    # drain 或已经结束时回 404，前端据此把这句话当作下一条普通消息发送，
+    # 不会出现「回了 queued 却没有任何一轮读到」。
     try:
-        queue = await get_steering_queue_for_user_async(body.session_id, current_user.id)
+        msg = await enqueue_steering_for_user_async(
+            body.session_id, current_user.id, body.message
+        )
+    except ValueError as exc:
+        raise APIException(
+            error_code=ErrorCode.BAD_REQUEST,
+            status_code=400,
+            detail=str(exc),
+        ) from exc
     except KeyError as exc:
         raise APIException(
             error_code=ErrorCode.CHAT_SESSION_NOT_FOUND,
@@ -1208,15 +1219,6 @@ async def inject_steering(
             error_code=ErrorCode.NOT_AUTHORIZED,
             status_code=403,
             detail="Not authorized to steer this session",
-        ) from exc
-
-    try:
-        msg = await queue.add(body.message)
-    except ValueError as exc:
-        raise APIException(
-            error_code=ErrorCode.BAD_REQUEST,
-            status_code=400,
-            detail=str(exc),
         ) from exc
 
     log_with_context(
