@@ -95,6 +95,12 @@ def _ineffective_edit_indices(result_data: dict[str, Any]) -> set[int]:
     return indices
 
 
+def _requested_edits(params: dict[str, Any]) -> Any:
+    """edit_file 的编辑列表；与 mcp_tools / parallel_executor 一样接受旧参数名 operations。"""
+    edits = params.get("edits")
+    return params.get("operations") if edits is None else edits
+
+
 def _edit_words(edits: Any, failed: set[int] | None = None) -> int:
     """这次写进去的字数；failed 里的编辑没写入任何字，不算。"""
     if not isinstance(edits, list):
@@ -179,7 +185,7 @@ class BodyWriteTracker:
                 file_id=str(data.get("id") or tool_input.get("id") or ""),
                 title=str(data.get("title") or ""),
                 file_type=str(data.get("file_type")),
-                words=_edit_words(tool_input.get("edits"), _ineffective_edit_indices(data)),
+                words=_edit_words(_requested_edits(tool_input), _ineffective_edit_indices(data)),
                 file_words=_int_or_none(data.get("new_word_count")),
                 mutation_applied=payload.get("mutation_applied") is True,
             )
@@ -211,7 +217,7 @@ class BodyWriteTracker:
                 full_body = True
             elif task_type == "edit_file":
                 file_type = result_data.get("file_type")
-                words = _edit_words(params.get("edits"), _ineffective_edit_indices(result_data))
+                words = _edit_words(_requested_edits(params), _ineffective_edit_indices(result_data))
                 full_body = False
                 file_words = _int_or_none(result_data.get("new_word_count"))
             else:

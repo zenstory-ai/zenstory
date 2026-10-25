@@ -195,3 +195,22 @@ def test_already_matching_identical_replace_is_not_counted(applied):
     words = body_words_written(tracker.finish(""))
 
     assert words == (count_words(SUCCESS_TEXT) if applied else 0)
+
+
+def test_edit_words_honour_the_legacy_operations_alias():
+    """edit_file / 并行 edit_file 都接受旧参数名 operations：写进去的字同样要算。"""
+    tracker = BodyWriteTracker()
+    tracker.observe(
+        _use("edit-ops", "edit_file", {"id": "draft-1", "operations": PARTIAL_EDITS, "continue_on_error": True}),
+        text_length=0,
+    )
+    tracker.observe(_result("edit-ops", "edit_file", _partial_edit_payload()), text_length=0)
+    parallel_input = {"tasks": [{"type": "edit_file", "params": {"id": "draft-1", "operations": PARTIAL_EDITS}}]}
+    parallel_result = {
+        "status": "success",
+        "data": {"tasks": [{"type": "edit_file", "status": "partial", "result": _partial_edit_payload()}]},
+    }
+    tracker.observe(_use("p-ops", "parallel_execute", parallel_input), text_length=0)
+    tracker.observe(_result("p-ops", "parallel_execute", parallel_result), text_length=0)
+
+    assert [write.words for write in tracker.finish("")] == [count_words(SUCCESS_TEXT)] * 2
