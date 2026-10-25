@@ -92,7 +92,7 @@ agent/
    预扣一次 AI 对话额度；用 `SSEStreamPump` 包住 `AgentService.process_stream`，`StreamBillingTracker` 记账每一帧。
    同文件还有 `/stop`（作者停止）、`/steer`（运行中插话）、`/suggest`、`/health`。新增会触发 LLM 的端点必须同时有
    鉴权 + 项目权限 + 成本上限 + 按用户限流（见该文件模块 docstring）。
-2. `AgentService.process_stream`（`service.py`）：`SessionLoader` 取历史与跨轮工作集，`ContextAssembler` 组装上下文，
+2. `AgentService.process_stream`（`service.py`）：`SessionLoader` 按本轮已解析的会话 id（`chat_session_id`，不是重新挑最新活跃会话）取历史与跨轮工作集，`ContextAssembler` 组装上下文，
    `MessageManager.build_system_prompt` 建只含跨轮、跨角色不变内容的系统提示，`build_turn_context` 建本轮上下文
    （拼进本轮用户消息，见「上下文与跨轮记忆」），`ToolContext.set_context` 设置工具上下文，然后
    `StreamAdapter.process_workflow_events(run_writing_workflow_streaming(...))`，结束时保存历史。

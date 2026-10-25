@@ -232,12 +232,20 @@ class SessionLoader:
 
         return context_data
 
-    def load_chat_session(self, session: Session) -> SessionData:
+    def load_chat_session(
+        self,
+        session: Session,
+        chat_session_id: str | None = None,
+    ) -> SessionData:
         """
         Load chat session and message history.
 
         Args:
             session: Database session
+            chat_session_id: The session this turn already resolved and will save
+                into. When given, that row is loaded by id (it may have become
+                inactive since: another tab can switch sessions in between);
+                without it the newest active session is used.
 
         Returns:
             SessionData with chat session and history
@@ -286,6 +294,26 @@ class SessionLoader:
                 owner_id=project.owner_id,
             )
 
+        if chat_session_id:
+            # 本轮已经解析并要写回这个会话；按 id 读，不再重新挑「最新活跃会话」——
+            # 另一个分页可能在解析与这里之间切换了活跃会话，那样会读到别的会话
+            # 的历史和工作集，存档却写回本会话。
+            chat_session = session.get(ChatSession, chat_session_id)
+            if chat_session is None or (
+                chat_session.project_id != self.project_id
+                or chat_session.user_id != self.user_id
+            ):
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Session load blocked: chat session missing or not owned by user/project",
+                    project_id=self.project_id,
+                    user_id=self.user_id,
+                    chat_session_id=chat_session_id,
+                )
+                return result
+            return self._load_chat_session_rows(session, result, chat_session)
+
         # Load active chat session deterministically (newest first)
         stmt = (
             select(ChatSession)
@@ -329,6 +357,15 @@ class SessionLoader:
         if not chat_session:
             return result
 
+        return self._load_chat_session_rows(session, result, chat_session)
+
+    def _load_chat_session_rows(
+        self,
+        session: Session,
+        result: SessionData,
+        chat_session: Any,
+    ) -> SessionData:
+        """Fill history window and working-set refs for an ownership-checked session."""
         result.chat_session = chat_session
         result.session_id = chat_session.id
 
@@ -677,6 +714,7 @@ class SessionLoader:
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
         max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
+        chat_session_id: str | None = None,
     ) -> SessionData:
         """
         Load session and context using a fresh sync DB session.
@@ -685,7 +723,7 @@ class SessionLoader:
         work does not block the async request event loop.
         """
         with create_session() as read_session:
-            result = self.load_chat_session(read_session)
+            result = self.load_chat_session(read_session, chat_session_id)
             result.context_data = self.assemble_context(
                 read_session,
                 context_assembler,
@@ -1378,6 +1416,7 @@ class SessionLoader:
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
         max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
+        chat_session_id: str | None = None,
     ) -> "SessionData":
         """
         Load chat session, assemble context and build the cross-turn working set.
@@ -1399,6 +1438,7 @@ class SessionLoader:
             attached_library_materials: List of library material references
             text_quotes: List of user-selected text quotes
             max_tokens: Maximum tokens for context
+            chat_session_id: Session already resolved for this turn (see load_chat_session)
 
         Returns:
             SessionData with chat session and assembled context
@@ -1415,11 +1455,12 @@ class SessionLoader:
                 attached_library_materials,
                 text_quotes,
                 max_tokens,
+                chat_session_id,
             )
         else:
             # Keep sqlite/test execution on the caller session so existing test
             # fixtures and in-memory DB behavior remain deterministic.
-            result = self.load_chat_session(session)
+            result = self.load_chat_session(session, chat_session_id)
             result.context_data = self.assemble_context(
                 session,
                 context_assembler,

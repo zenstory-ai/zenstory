@@ -1116,7 +1116,20 @@ class AgentService:
                 attached_library_materials=attached_library_materials,
                 text_quotes=text_quotes,
                 max_tokens=AGENT_CONTEXT_TOKEN_BUDGET,
+                # 按本轮已解析（并将写回）的会话 id 读历史与工作集
+                chat_session_id=session_id if user_id else None,
             )
+            loaded_session_id = getattr(session_data, "session_id", None)
+            if user_id and loaded_session_id and loaded_session_id != session_id:
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Loaded chat session differs from the resolved session",
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    loaded_session_id=loaded_session_id,
+                )
 
             context_data = session_data.context_data
             history_messages = session_data.history_messages

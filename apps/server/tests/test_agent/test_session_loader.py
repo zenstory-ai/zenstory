@@ -399,6 +399,85 @@ class TestSessionLoaderHistoryBudget:
         assert len(active_sessions) == 1
         assert active_sessions[0].id == newer_session.id
 
+    def test_load_chat_session_by_id_reads_that_session_even_if_inactive(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        """按本轮已解析的 id 读：另一个分页刚把它切成非活跃，也不改读最新活跃会话。"""
+        user = session_loader_test_data["user"]
+        project = session_loader_test_data["project"]
+        resolved = session_loader_test_data["chat_session"]
+        resolved.is_active = False
+        db_session.add(resolved)
+        other_tab = ChatSession(
+            user_id=user.id,
+            project_id=project.id,
+            title="Other tab",
+            is_active=True,
+            message_count=0,
+        )
+        db_session.add(other_tab)
+        db_session.commit()
+        db_session.refresh(other_tab)
+        _add_chat_messages(db_session, resolved.id, [{"role": "user", "content": "resolved-user"}])
+        _add_chat_messages(db_session, other_tab.id, [{"role": "user", "content": "other-tab-user"}])
+
+        loader = SessionLoader(project_id=project.id, user_id=user.id)
+        session_data = loader.load_chat_session(db_session, chat_session_id=resolved.id)
+
+        assert session_data.session_id == resolved.id
+        assert [msg["content"] for msg in session_data.history_messages] == ["resolved-user"]
+        # 按 id 读不修改活跃状态
+        db_session.refresh(other_tab)
+        db_session.refresh(resolved)
+        assert other_tab.is_active is True
+        assert resolved.is_active is False
+
+    def test_load_chat_session_by_id_rejects_session_of_other_user_or_project(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        """越权 id：别人的会话、或自己在另一个项目的会话，都不能被读出来。"""
+        user = session_loader_test_data["user"]
+        project = session_loader_test_data["project"]
+
+        suffix = uuid4().hex[:8]
+        stranger = User(
+            email=f"session-loader-stranger-{suffix}@example.com",
+            username=f"session_loader_stranger_{suffix}",
+            hashed_password="hashed",
+            email_verified=True,
+            is_active=True,
+        )
+        db_session.add(stranger)
+        db_session.commit()
+        other_project = Project(name=f"Other {suffix}", owner_id=user.id, project_type="novel")
+        db_session.add(other_project)
+        db_session.commit()
+        foreign_sessions = [
+            ChatSession(user_id=stranger.id, project_id=project.id, title="stranger", is_active=True),
+            ChatSession(user_id=user.id, project_id=other_project.id, title="other project", is_active=True),
+        ]
+        for foreign in foreign_sessions:
+            db_session.add(foreign)
+            db_session.commit()
+            db_session.refresh(foreign)
+            _add_chat_messages(db_session, foreign.id, [{"role": "user", "content": "foreign-secret"}])
+
+        loader = SessionLoader(project_id=project.id, user_id=user.id)
+        for foreign in foreign_sessions:
+            session_data = loader.load_chat_session(db_session, chat_session_id=foreign.id)
+            assert session_data.chat_session is None
+            assert session_data.session_id is None
+            assert session_data.history_messages == []
+            assert session_data.working_set_refs == []
+
+        missing = loader.load_chat_session(db_session, chat_session_id="no-such-session")
+        assert missing.chat_session is None
+        assert missing.history_messages == []
+
     def test_load_chat_session_handles_long_history_over_100_turns(
         self,
         db_session: Session,
