@@ -19,7 +19,7 @@ from sqlmodel import Session, select
 
 # Local
 from config.agent_runtime import AGENT_CONTEXT_TOKEN_BUDGET
-from config.project_notes import render_project_notes
+from config.project_notes import ignored_proposals, render_project_notes
 from utils.logger import get_logger, log_with_context
 
 from ..constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES
@@ -81,13 +81,14 @@ QUERY_NAME_MATCH_BOOST = 0.5
 MIN_QUERY_NAME_CHARS = 2
 
 
-def _render_project_notes(notes: str) -> list[str]:
+def _render_project_notes(notes: str, ignored: list[str] | None = None) -> list[str]:
     """备注按来源分开渲染：作者确认 / 未标来源 / AI 提议（见 config/project_notes）。
 
     AI 提议单独成块并写明不是设定，后续轮次不会把它当成作者定下的事实。标题行是
     split_project_notes 认得的形式：模型把这几块照抄回 update_project 的 notes 时分区不变。
+    ignored：本会话早先提出、作者已忽略的提议，最后单独列一块（只进上下文，不存储）。
     """
-    return render_project_notes(notes)
+    return render_project_notes(notes, ignored=ignored)
 
 
 class ContextAssembler:
@@ -120,6 +121,7 @@ class ContextAssembler:
         max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
         include_characters: bool = True,
         include_lores: bool = True,
+        earlier_proposals: list[str] | None = None,
     ) -> ContextData:
         """
         Assemble context for a project.
@@ -136,6 +138,8 @@ class ContextAssembler:
             max_tokens: Maximum tokens for context
             include_characters: Whether to include characters
             include_lores: Whether to include lore
+            earlier_proposals: 本会话早先 update_project 结果里的 proposals_added（旧 → 新）；
+                其中已不在当前备注任何分区里的条目作为「作者已忽略的 AI 提议」列出
 
         Returns:
             ContextData with formatted context
@@ -186,7 +190,10 @@ class ContextAssembler:
 
         # 0. Get project status info (for AI context awareness)
         project_status = self._get_project_status(session, project_id)
-
+        if project_status and earlier_proposals:
+            ignored = ignored_proposals(project_status.get("notes"), earlier_proposals)
+            if ignored:
+                project_status["ignored_proposals"] = ignored
         # 0.1 Get project file inventory (outlines and drafts list)
         # This helps the agent know what chapters/outlines already exist
         file_inventory = self._get_file_inventory(session, project_id)
@@ -2078,6 +2085,7 @@ class ContextAssembler:
             project_status.get("current_phase"),
             project_status.get("writing_style"),
             project_status.get("notes"),
+            project_status.get("ignored_proposals"),
         ])
 
         if has_project_status:
@@ -2103,8 +2111,10 @@ class ContextAssembler:
                 parts.append(project_status["writing_style"])
                 parts.append("")
 
-            if project_status.get("notes"):
-                parts.extend(_render_project_notes(project_status["notes"]))
+            if project_status.get("notes") or project_status.get("ignored_proposals"):
+                parts.extend(_render_project_notes(
+                    project_status.get("notes") or "", project_status.get("ignored_proposals")
+                ))
         else:
             # Remind AI to collect project info when status is empty
             parts.append(separator)

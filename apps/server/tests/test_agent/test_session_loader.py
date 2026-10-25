@@ -994,3 +994,171 @@ def test_history_window_start_does_not_slide_every_turn():
     assert len(starts) > 20
     moves = sum(1 for previous, current in zip(starts, starts[1:], strict=False) if previous != current)
     assert moves < len(starts) // 2
+
+
+def _update_project_call(
+    proposals_added: list[str] | None,
+    *,
+    status: str = "success",
+    error: str | None = None,
+    proposals_removed: list[str] | None = None,
+) -> dict:
+    result: dict = {"project_id": "p", "updated_fields": ["notes"]}
+    if proposals_added is not None:
+        result["proposals_added"] = proposals_added
+    if proposals_removed is not None:
+        result["proposals_removed"] = proposals_removed
+    return {
+        "id": f"call_up_{uuid4().hex[:6]}",
+        "name": "update_project",
+        "arguments": {"proposals": "；".join(proposals_added or [])},
+        "status": status,
+        "result": result,
+        "error": error,
+    }
+
+
+@pytest.mark.unit
+class TestEarlierProposalsForIgnoredBlock:
+    """作者在卡片上忽略的提议：下一轮从本会话早先的 update_project 结果里找回来，告诉模型别再加。"""
+
+    def test_collects_proposals_added_from_recent_update_project_results(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        chat_session_id = session_loader_test_data["chat_session"].id
+        base = datetime.utcnow() - timedelta(minutes=10)
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="记一下配角",
+            tool_calls=[_update_project_call(["关键配角：沈度", "女主前期隐藏身份"])],
+            at=base,
+        )
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="继续",
+            tool_calls=[
+                _update_project_call(None),  # 没有新增提议的调用
+                _update_project_call(["失败的不算"], status="error"),
+                _query_call("f", "第一章"),
+                _update_project_call(["反派第20章揭露"]),
+            ],
+            at=base + timedelta(minutes=1),
+        )
+
+        loader = SessionLoader(
+            project_id=session_loader_test_data["project"].id,
+            user_id=session_loader_test_data["user"].id,
+        )
+        result = loader.load_chat_session(db_session)
+
+        assert result.earlier_proposals == ["关键配角：沈度", "女主前期隐藏身份", "反派第20章揭露"]
+
+    def test_window_is_bounded_to_recent_assistant_turns(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        from agent.core.session_loader import EARLIER_PROPOSALS_RECENT_TURNS
+
+        chat_session_id = session_loader_test_data["chat_session"].id
+        base = datetime.utcnow() - timedelta(hours=1)
+        for turn in range(EARLIER_PROPOSALS_RECENT_TURNS + 1):
+            _add_turn(
+                db_session,
+                chat_session_id,
+                user_text=f"t{turn}",
+                tool_calls=[_update_project_call([f"第{turn}轮提议"])],
+                at=base + timedelta(minutes=turn),
+            )
+
+        loader = SessionLoader(
+            project_id=session_loader_test_data["project"].id,
+            user_id=session_loader_test_data["user"].id,
+        )
+        earlier = loader.load_chat_session(db_session).earlier_proposals
+
+        assert len(earlier) == EARLIER_PROPOSALS_RECENT_TURNS
+        assert "第0轮提议" not in earlier
+        assert earlier[-1] == f"第{EARLIER_PROPOSALS_RECENT_TURNS}轮提议"
+
+    @pytest.mark.asyncio
+    async def test_ignored_proposal_reaches_the_turn_context(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        from agent.context.assembler import ContextAssembler
+
+        project = session_loader_test_data["project"]
+        project.notes = "【作者确认】\n女主前期隐藏身份"
+        db_session.add(project)
+        db_session.commit()
+        _add_turn(
+            db_session,
+            session_loader_test_data["chat_session"].id,
+            user_text="记一下配角",
+            tool_calls=[_update_project_call(["关键配角：沈度", "女主前期隐藏身份"])],
+            at=datetime.utcnow() - timedelta(minutes=5),
+        )
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        result = await loader.load_session_and_context(db_session, ContextAssembler(), query="继续")
+        context = result.context_data.context
+
+        block = context[context.index("【备注·作者已忽略的 AI 提议】"):]
+        assert "关键配角：沈度" in block
+        assert "女主前期隐藏身份" not in block  # 已被采纳
+
+    def test_partial_update_project_result_counts(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        # 计划板被拒但备注已保存：StreamAdapter 记成 success 并带 error 文案，提议照样算。
+        _add_turn(
+            db_session,
+            session_loader_test_data["chat_session"].id,
+            user_text="记一下",
+            tool_calls=[_update_project_call(["萧昀登基"], error="任务计划板未更新：步骤缺少标题")],
+            at=datetime.utcnow() - timedelta(minutes=5),
+        )
+
+        loader = SessionLoader(
+            project_id=session_loader_test_data["project"].id,
+            user_id=session_loader_test_data["user"].id,
+        )
+        assert loader.load_chat_session(db_session).earlier_proposals == ["萧昀登基"]
+
+    def test_model_replaced_proposal_is_subtracted(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        chat_session_id = session_loader_test_data["chat_session"].id
+        base = datetime.utcnow() - timedelta(minutes=10)
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="记一下配角",
+            tool_calls=[_update_project_call(["沈度是配角"])],
+            at=base,
+        )
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="再准确点",
+            tool_calls=[
+                _update_project_call(["沈度是关键配角，掌司礼监"], proposals_removed=["沈度是配角"])
+            ],
+            at=base + timedelta(minutes=1),
+        )
+
+        loader = SessionLoader(
+            project_id=session_loader_test_data["project"].id,
+            user_id=session_loader_test_data["user"].id,
+        )
+        assert loader.load_chat_session(db_session).earlier_proposals == ["沈度是关键配角，掌司礼监"]

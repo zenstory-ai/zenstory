@@ -1515,7 +1515,7 @@ def test_project_notes_render_ai_proposals_apart_from_author_confirmed():
     assert proposals_at < context.index("反派其实是主角的父亲")
     assert "尚未存为作者约定" in context[proposals_at:]
     assert "本轮按作者要求使用" in context[proposals_at:]
-    assert "长期采用请在 AI 记忆中采纳" in context[proposals_at:]
+    assert "长期采用由作者点按钮采纳" in context[proposals_at:]
 
 
 _ROUND_TRIP_NOTES = (
@@ -1562,3 +1562,103 @@ def test_project_notes_copied_back_with_a_new_quoted_entry_keeps_it_as_proposal(
     assert after.unlabeled == ["主角冷静"]
     assert after.confirmed == ["女主要到第五章才出场"]
     assert after.proposals == ["沧不夺舍", "反派第20章揭露"]
+
+
+_IGNORED_CASE_NOTES = (
+    "主角冷静\n\n"
+    "【作者确认】\n女主要到第五章才出场；沈度是司礼监掌印\n\n"
+    "【AI 提议·待作者确认】\n反派第20章揭露"
+)
+# 本会话里早先 update_project 结果的 proposals_added（旧 → 新）：
+# 「沈度是司礼监掌印」被采纳进作者确认，「反派第20章揭露」仍待确认，其余两条已被作者忽略。
+_EARLIER_PROPOSALS_ADDED = [
+    "关键配角：沈度，条件是萧昀登基后保留司礼监",
+    "沈度是司礼监掌印",
+    "反派第20章揭露",
+    "女主前期隐藏身份",
+]
+
+
+@pytest.mark.unit
+def test_ignored_proposals_are_listed_after_the_notes_but_adopted_and_pending_are_not(
+    db_session, test_project
+):
+    """真实模型回归：作者点了忽略，下一轮模型用 proposals 整体替换时换个说法又加了回来。"""
+    test_project.notes = _IGNORED_CASE_NOTES
+    db_session.commit()
+
+    context = ContextAssembler().assemble(
+        session=db_session,
+        project_id=test_project.id,
+        max_tokens=4000,
+        earlier_proposals=_EARLIER_PROPOSALS_ADDED,
+    ).context
+
+    header = "【备注·作者已忽略的 AI 提议】（作者已点忽略或已从 AI 记忆删掉；不要再提出，也不要换个说法重提）"
+    assert header in context
+    block = context[context.index(header):]
+    assert context.index("【备注·AI 提议·待作者确认】") < context.index(header)
+    assert "关键配角：沈度，条件是萧昀登基后保留司礼监" in block
+    assert "女主前期隐藏身份" in block
+    assert block.index("关键配角") < block.index("女主前期隐藏身份")
+    # 已采纳（在作者确认里）和仍待确认的不列为已忽略
+    assert "沈度是司礼监掌印" not in block
+    assert "反派第20章揭露" not in block
+
+
+@pytest.mark.unit
+def test_no_earlier_proposals_means_no_ignored_block(db_session, test_project):
+    test_project.notes = _IGNORED_CASE_NOTES
+    db_session.commit()
+    assembler = ContextAssembler()
+
+    for earlier in (None, [], ["沈度是司礼监掌印", "反派第20章揭露"]):
+        context = assembler.assemble(
+            session=db_session,
+            project_id=test_project.id,
+            max_tokens=4000,
+            earlier_proposals=earlier,
+        ).context
+        assert "作者已忽略的 AI 提议" not in context
+
+
+@pytest.mark.unit
+def test_ignored_block_shows_even_when_every_note_was_ignored(db_session, test_project):
+    """作者把全部提议都忽略掉、备注变空时，块仍要出现，否则模型会把它们原样加回。"""
+    test_project.notes = ""
+    db_session.commit()
+
+    context = ContextAssembler().assemble(
+        session=db_session,
+        project_id=test_project.id,
+        max_tokens=4000,
+        earlier_proposals=["女主前期隐藏身份"],
+    ).context
+
+    assert "【备注·作者已忽略的 AI 提议】" in context
+    assert "女主前期隐藏身份" in context
+
+
+@pytest.mark.unit
+def test_ignored_proposals_are_deduplicated_capped_and_truncated():
+    from config.project_notes import (
+        IGNORED_PROPOSAL_MAX_CHARS,
+        IGNORED_PROPOSALS_MAX_ENTRIES,
+        ignored_proposals,
+        render_project_notes,
+    )
+
+    many = [f"第{n}条提议" for n in range(IGNORED_PROPOSALS_MAX_ENTRIES + 5)]
+    long_entry = "很长" * IGNORED_PROPOSAL_MAX_CHARS
+    earlier = ["- 女主前期隐藏身份", *many, "女主前期隐藏身份。", long_entry]
+
+    ignored = ignored_proposals("", earlier)
+    assert len(ignored) == IGNORED_PROPOSALS_MAX_ENTRIES
+    # 最近的优先保留，按出现先后排列；条目键相同的只留最近一次
+    assert ignored[-1] == long_entry
+    assert ignored[-2] == "女主前期隐藏身份。"
+    assert "- 女主前期隐藏身份" not in ignored
+
+    rendered = render_project_notes("", ignored=ignored)
+    assert rendered[0].startswith("【备注·作者已忽略的 AI 提议】")
+    assert rendered[-2] == long_entry[:IGNORED_PROPOSAL_MAX_CHARS] + "…"

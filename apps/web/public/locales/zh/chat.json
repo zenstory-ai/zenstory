@@ -424,5 +424,22 @@
       "edit": "我来改改"
     },
     "quota": "今天还能免费发 {{count}} 条"
+  },
+  "proposals": {
+    "adopt": "采纳",
+    "ignore": "忽略",
+    "adoptAll": "全部采纳",
+    "adoptLabel": "采纳：{{entry}}",
+    "ignoreLabel": "忽略：{{entry}}",
+    "conflict": "AI 记忆刚有变化，请再点一次。",
+    "failed": "操作失败，请重试。",
+    "pendingTitle": "AI 提议 · {{count}} 条待确认",
+    "showMore": "展开其余 {{count}} 条",
+    "showLess": "收起",
+    "summary": {
+      "adopted": "已采纳 {{count}} 条",
+      "ignored": "已忽略 {{count}} 条",
+      "handled": "已在 AI 记忆中处理 {{count}} 条"
+    }
   }
 }

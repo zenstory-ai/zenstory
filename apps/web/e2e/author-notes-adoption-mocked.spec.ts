@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { mockResponsiveApi, responsiveProjects, responsiveUser } from './fixtures-responsive';
+import { authorNotesText as shown } from '../src/lib/projectNotes';
 
 for (const { width, language, theme } of [
   { width: 390, language: 'zh', theme: 'light' },
@@ -19,10 +20,7 @@ for (const { width, language, theme } of [
     }, { language, theme, user: responsiveUser });
     let notes = '旧约定\n\n【作者确认】\n原确认\n\n【AI 提议·待作者确认】\n第一组；保留补充\n第二组；保留结尾';
     const originalNotes = notes;
-    // Stored notes keep fixed Chinese section headers; English readers see them translated.
-    const shown = (stored: string) => language === 'zh' ? stored : stored
-      .replace(/^【作者确认】$/gm, '【Confirmed by you】')
-      .replace(/^【AI 提议·待作者确认】$/gm, '【AI suggestions, not confirmed yet】');
+    // Stored notes keep fixed Chinese section headers; the textarea shows only the author's entries.
     const patches: Array<Record<string, unknown>> = [];
     let modelRequests = 0;
     await page.route('**/api/v1/agent/stream', route => { modelRequests++; return route.abort(); });
@@ -41,7 +39,8 @@ for (const { width, language, theme } of [
       await route.fulfill({ json: { ...responsiveProjects[0], summary: 'Existing synopsis', notes } });
     });
     const memory = language === 'zh' ? 'AI 记忆' : 'AI Memory';
-    const adopt = language === 'zh' ? '采纳全部提议' : 'Adopt all proposals';
+    const adopt = language === 'zh' ? '全部采纳' : 'Adopt all';
+    const adoptOne = (entry: string) => language === 'zh' ? `采纳：${entry}` : `Adopt: ${entry}`;
     const save = language === 'zh' ? '保存' : 'Save';
     const viewLatest = language === 'zh' ? '查看最新备注' : 'View latest notes';
     const useLatest = language === 'zh' ? '使用最新备注' : 'Use latest notes';
@@ -52,15 +51,30 @@ for (const { width, language, theme } of [
     const notesInput = dialog.getByRole('textbox', { name: language === 'zh' ? '备注' : 'Notes', exact: true });
     const adoptButton = dialog.getByRole('button', { name: adopt, exact: true });
     await expect(notesInput).toHaveValue(shown(originalNotes));
+    await expect(notesInput).not.toHaveValue(/【/);
+    // Four pending proposals: three rows, the notes field right after them, one behind the disclosure.
+    // The disclosure renames itself when open, so it is addressed by either label.
+    const showMore = dialog.getByRole('button', { name: language === 'zh' ? /^(展开其余 1 条|收起)$/ : /^(Show 1 more|Show less)$/ });
+    await expect(dialog.getByRole('listitem')).toHaveCount(3);
+    await expect(showMore).toHaveAttribute('aria-expanded', 'false');
+    await showMore.click();
+    await expect(dialog.getByRole('listitem')).toHaveCount(4);
+    await expect(showMore).toHaveAttribute('aria-expanded', 'true');
+    await showMore.click();
+    await expect(dialog.getByRole('listitem')).toHaveCount(3);
     await adoptButton.scrollIntoViewIfNeeded();
-    expect((await adoptButton.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    // Compact 32px toolbar action on desktop; 44px touch target below 768px.
+    expect((await adoptButton.boundingBox())!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 32);
     await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-ready.jpg`, type: 'jpeg' });
     await adoptButton.focus();
     await page.keyboard.press('Enter');
     await expect.poll(() => patches.length).toBe(1);
-    expect(patches[0]).toEqual({ expected_notes: originalNotes, notes: '旧约定\n\n【作者确认】\n原确认\n\n第一组；保留补充\n第二组；保留结尾' });
-    await expect(notesInput).toBeFocused();
+    expect(patches[0]).toEqual({ expected_notes: originalNotes, notes: '旧约定\n\n【作者确认】\n原确认\n第一组；保留补充\n第二组；保留结尾' });
+    // The emptied list unmounts; focus lands on the notes label, not in the textarea (which would
+    // open the on-screen keyboard on touch devices).
     await expect(adoptButton).toHaveCount(0);
+    await expect(notesInput).not.toBeFocused();
+    await expect(dialog.locator('label', { hasText: language === 'zh' ? /^备注$/ : /^Notes$/ })).toBeFocused();
     // A separate client changes the server while this editor still owns an older draft base.
     notes += '\n\n【AI 提议·待作者确认】\n另一端新提议';
     await notesInput.fill(shown(patches[0].notes as string) + '\n本地新约定');
@@ -68,7 +82,7 @@ for (const { width, language, theme } of [
     await expect(dialog.getByRole('alert')).toBeVisible();
     await expect(notesInput).toHaveValue(shown(patches[0].notes as string) + '\n本地新约定');
     expect(patches).toHaveLength(2);
-    expect(patches[1].notes, 'the save stores the original section headers').toBe(patches[0].notes + '\n本地新约定');
+    expect(patches[1].notes, 'the save keeps confirmed entries under their header').toBe(patches[0].notes + '\n【未标来源】\n本地新约定');
     await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-conflict.jpg`, type: 'jpeg' });
     await dialog.getByRole('button', { name: viewLatest, exact: true }).click();
     await expect(dialog.getByRole('textbox', { name: language === 'zh' ? '最新备注' : 'Latest notes', exact: true })).toHaveValue(shown(notes));
@@ -77,9 +91,9 @@ for (const { width, language, theme } of [
     await page.screenshot({ path: `${process.env.AUDIT_SHOTS || test.info().outputDir}/notes-${width}-${language}-${theme}-latest.jpg`, type: 'jpeg' });
     await dialog.getByRole('button', { name: useLatest, exact: true }).click();
     await expect(notesInput).toHaveValue(shown(notes));
-    await dialog.getByRole('button', { name: adopt, exact: true }).click();
+    await dialog.getByRole('button', { name: adoptOne('另一端新提议'), exact: true }).click();
     await expect.poll(() => patches.length).toBe(3);
-    await expect(dialog.getByRole('button', { name: adopt, exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: adoptOne('另一端新提议'), exact: true })).toHaveCount(0);
     await expect(notesInput).toHaveValue(shown(notes));
     expect(notes).toContain('另一端新提议');
     expect(notes).not.toContain('本地新约定');

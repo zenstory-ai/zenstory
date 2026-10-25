@@ -9,7 +9,7 @@
     "save": "Save",
     "saving": "Saving…",
     "saveFailed": "Couldn't save. Please try again.",
-    "adoptAllProposals": "Adopt all proposals",
+    "adoptAllProposals": "Adopt all",
     "proposalsAdopted": "Proposals adopted",
     "notesConflict": "Notes changed elsewhere. Your changes have not been saved.",
     "viewLatestNotes": "View latest notes",
@@ -31,6 +31,16 @@
       "writingStyle": "Voice, pacing, prose style, etc.",
       "currentPhase": "Where you are now and what comes next",
       "notes": "Key points, things to watch, open questions, etc."
-    }
+    },
+    "proposalsTitle": "AI proposals · {{count}}",
+    "proposalsHint": "Adopted entries become lasting notes; ignored ones are removed.",
+    "adoptProposal": "Adopt",
+    "ignoreProposal": "Ignore",
+    "adoptProposalLabel": "Adopt: {{entry}}",
+    "ignoreProposalLabel": "Ignore: {{entry}}",
+    "proposalsIgnored": "Proposal ignored",
+    "latestProposalsCount": "AI proposals awaiting confirmation: {{count}}",
+    "showMoreProposals": "Show {{count}} more",
+    "showLessProposals": "Show less"
   }
 }

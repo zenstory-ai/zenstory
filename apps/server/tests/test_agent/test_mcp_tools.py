@@ -2055,6 +2055,46 @@ async def test_update_project_proposals_only_uses_locked_notes_transform(db_sess
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+async def test_update_project_reports_only_newly_added_proposals(db_session):
+    from agent.tools.mcp_tools import ToolContext
+    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
+
+    user, project = _make_user_and_project(db_session, f"notes-added-{uuid4().hex[:5]}")
+    project.notes = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实\n{PROPOSALS_HEADER}\n旧提议"
+    db_session.add(project)
+    db_session.commit()
+    _set_author_round(db_session, user, project, "继续写")
+    try:
+        downgraded = _parse_payload(
+            await update_project({"notes": "作者旧约定\n作者事实\n旧提议\n新推断甲；新推断乙"})
+        )
+        assert downgraded["status"] == "success"
+        assert downgraded["data"]["proposals_added"] == ["新推断甲", "新推断乙"]
+        assert downgraded["data"]["notes_recorded_as_proposals"] == ["新推断甲", "新推断乙"]
+        assert "采纳全部提议" not in downgraded["data"]["notes_note"]
+
+        explicit = _parse_payload(
+            await update_project({"proposals": "旧提议\n新推断甲；新推断乙\n作者事实\n新提议丙"})
+        )
+        assert explicit["status"] == "success"
+        assert explicit["data"]["proposals_added"] == ["新提议丙"]
+        assert "proposals_removed" not in explicit["data"]
+
+        replaced = _parse_payload(await update_project({"proposals": "旧提议；新提议丙"}))
+        assert replaced["status"] == "success"
+        assert "proposals_added" not in replaced["data"]
+        # The model dropped its own pending entries: reported so they are not later shown as
+        # author-ignored.
+        assert replaced["data"]["proposals_removed"] == ["新推断甲", "新推断乙"]
+
+        plain = _parse_payload(await update_project({"current_phase": "第1章"}))
+        assert "proposals_added" not in plain["data"]
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_update_project_notes_over_shared_budget_fails_before_any_write(db_session):
     from agent.tools.mcp_tools import ToolContext
     from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
