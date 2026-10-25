@@ -262,6 +262,25 @@ def test_deadline_after_only_reads_is_refunded_but_after_a_reply_is_charged():
     assert _deadline(replied) == ("run_deadline_exceeded", False)
 
 
+@pytest.mark.parametrize("server_restarting", [False, True])
+def test_deadline_that_fires_after_done_settles_as_completed(server_restarting):
+    """done 帧已经产生之后才到的时限（或发布交接）：这一轮已经正常结束，按完成结算，不退还。"""
+    tracker = _tracker(_sse("done", {}))
+
+    assert tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        deadline_exceeded=True,
+        server_restarting=server_restarting,
+    ) == ("completed", False)
+
+
+def test_deadline_after_a_terminal_error_still_follows_the_deadline_rules():
+    tracker = _tracker(_error())
+
+    assert _deadline(tracker) == ("run_deadline_exceeded", True)
+
+
 def test_english_narration_is_not_prose_but_an_english_answer_is():
     """英文一句过渡旁白有六七十个字母，按字母数会被当成回复；按单词折算后与中文同一口径。"""
     narration = (

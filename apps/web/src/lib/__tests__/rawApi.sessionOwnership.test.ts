@@ -309,6 +309,8 @@ describe.each(['stream', 'suggestions', 'steer', 'export', 'material', 'draft'] 
     route = async r => r.path === '/api/auth/refresh' ? rotation('a', 1) : denied()
     const result = await start(surface)
     if (surface === 'stream') expect(result).toEqual({ ok: false, code: 'HTTP_ERROR', retryable: false })
+    // A steer's HTTP failure keeps its status (a 404 is sent as the next message instead).
+    else if (surface === 'steer') expect(result).toEqual({ ok: false, status: 401 })
     else assertDenied(result, surface)
     expect(records).toHaveLength(3); expect(storage().refresh).toBe(pair('a', 1).refreshToken)
   })

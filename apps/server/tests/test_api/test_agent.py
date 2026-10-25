@@ -778,7 +778,8 @@ async def test_agent_steer_success(client: AsyncClient, db_session: Session):
 
     session_id = "runtime-session-user12"
     await cleanup_steering_queue_async(session_id)
-    await create_steering_queue_async(session_id, user.id)
+    # /steer 只把消息确认给仍在生成的 run：登记一个存活 run。
+    await create_steering_queue_async(session_id, user.id, run_id="live-run", exclusive_run=True)
 
     try:
         response = await client.post(
@@ -857,7 +858,8 @@ async def test_agent_steer_rejects_cross_user_session(client: AsyncClient, db_se
 
     session_id = "runtime-session-owner14"
     await cleanup_steering_queue_async(session_id)
-    await create_steering_queue_async(session_id, owner.id)
+    # /steer 只把消息确认给仍在生成的 run：登记一个存活 run。
+    await create_steering_queue_async(session_id, owner.id, run_id="live-run", exclusive_run=True)
 
     try:
         response = await client.post(
@@ -956,7 +958,8 @@ async def test_agent_steer_rejects_empty_message(client: AsyncClient, db_session
 
     session_id = "runtime-session-user15"
     await cleanup_steering_queue_async(session_id)
-    await create_steering_queue_async(session_id, user.id)
+    # /steer 只把消息确认给仍在生成的 run：登记一个存活 run。
+    await create_steering_queue_async(session_id, user.id, run_id="live-run", exclusive_run=True)
 
     try:
         response = await client.post(

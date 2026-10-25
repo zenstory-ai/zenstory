@@ -305,7 +305,8 @@ async def test_agent_steer_enqueues_message_for_owned_runtime_session(client: As
 
     session_id = "agent-e2e-steer-runtime"
     await cleanup_steering_queue_async(session_id)
-    await create_steering_queue_async(session_id, user.id)
+    # /steer 只把消息确认给仍在生成的 run：登记一个存活 run。
+    await create_steering_queue_async(session_id, user.id, run_id="live-run", exclusive_run=True)
 
     try:
         response = await client.post(

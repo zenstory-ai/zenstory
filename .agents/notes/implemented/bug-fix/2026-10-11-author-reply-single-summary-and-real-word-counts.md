@@ -46,6 +46,8 @@ Status: implemented
 **3. 自动质检门只看本轮写进正文类文件的字数（新模块 `agent/graph/body_writes.py`）**
 
 - `BodyWriteTracker` 跟着 writer run 的 TOOL_USE / TOOL_RESULT 记下成功写进 draft / script 的内容：create_file 之后第一段 `<file>…</file>` 正文；edit_file 的 edits 里 `new` / `text`（delete 不算）；parallel_execute 的 write_chapter（`content`）与 edit_file 子任务。edit_file 部分成功但确实改了文件也算；失败、`all_failed` 不算。字数用 `count_words`。
+- edit_file 部分成功（`continue_on_error`）时，只算生效的编辑：`data.failed_edits` 里列出的 index 对应的 `new` / `text` 不计入；parallel_execute 的 edit_file 子任务用同一过滤。`data.unchanged_edits` 里列出的编辑（old 与 new 相同、原文已是这样，`already_matches`）同样没写入任何字，也不计入，否则一处小改加一条 600 字的原样确认也会多送审一次。原来按 edits 参数全量计，10 字成功加 600 字失败会记成 610 字而多送审一次（2026-10-25 代理审计 F-16 / B-BUG-008）。
+- create_file 命中复用分支、目标文件原本有正文（`reused_existing` 且 `original_content_length` / `content` 非空，与 StreamAdapter `_should_refuse_truncated_overwrite` 同一判断）时，只有以 `</file>` 闭合的 `<file>` 块才计入：没闭合的残稿会被适配器拒存、原文不变，原来却照常记 600 字并送审（F-17 / B-BUG-009）。完整闭合的覆写照常计入；新建空文件的未闭合正文会被补全落库，口径不变。
 - 自动质检门条件从「`len(agent_content) >= 阈值` 且动过写工具 / 出现过 `<file>`」改为「`body_words_written >= 阈值`」。阈值仍是 `AGENT_AUTO_REVIEW_THRESHOLD_CHARS`（500），WRITER_PROMPT 本来就把它写成「超过 500 字」。纠偏轮照旧接续被打断那一轮的记录。
 - 删掉不再使用的 `writer_used_write_tools` / `writer_emitted_file_markers` / `_tool_result_failed`。
 

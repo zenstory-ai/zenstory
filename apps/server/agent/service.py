@@ -28,7 +28,6 @@ from config.agent_runtime import (
     AGENT_CHAT_HISTORY_TOKEN_BUDGET,
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_CONTEXT_TOKEN_BUDGET,
-    AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
 )
 from config.datetime_utils import utcnow
 from database import create_session
@@ -62,6 +61,7 @@ from .core.steering import (
     _RUN_HEARTBEAT_INTERVAL_S,
     cleanup_steering_queue_async,
     create_steering_queue_async,
+    drain_and_seal_steering_async,
     heartbeat_steering_run_async,
     requeue_steering_if_other_active_async,
 )
@@ -80,24 +80,13 @@ from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
 logger = get_logger(__name__)
 
-# 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限到期
-# 也是以取消的方式到达 process_stream（sse_pump 取消后台 task），按已用时长区分。
+# 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限与发布交接
+# 也是以取消的方式到达 process_stream（sse_pump 取消后台 task）：原因由路由层写在
+# RunOutcome 上（stop_kind / deadline_stop_reason），都没有时才是这个。
 PARTIAL_SAVE_CANCELLED_STOP_REASON = "cancelled"
 # 前端「重试 / 重新发送」一条没得到回复的消息时在 metadata 里带上它（见
 # _drop_unanswered_retry_message_sync）。
 RETRY_UNANSWERED_METADATA_KEY = "retry_unanswered"
-PARTIAL_SAVE_DEADLINE_STOP_REASON = "run_deadline_exceeded"
-
-
-def partial_save_stop_reason(elapsed_s: float, deadline_s: float | None) -> str:
-    """取消路径的 stop_reason：已用时长达到墙钟时限就是时限截停，否则是用户停止。
-
-    process_stream 先于 SSE 泵开始计时，所以泵按时限取消时这里的已用时长一定
-    不小于时限；用户在时限前主动停止时一定小于时限。
-    """
-    if deadline_s and deadline_s > 0 and elapsed_s >= deadline_s:
-        return PARTIAL_SAVE_DEADLINE_STOP_REASON
-    return PARTIAL_SAVE_CANCELLED_STOP_REASON
 
 
 def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
@@ -806,9 +795,18 @@ class AgentService:
 
         # Steering callback for the agent loop. 定义在 try 之前：取消/失败
         # 路径的兜底 drain 也依赖它，不能等到工作流启动处才可用。
-        async def get_steering_messages():
-            """Get pending steering messages for agent loop."""
-            steering_pending = await steering_queue.get_pending()
+        async def get_steering_messages(*, seal: bool = False):
+            """Get pending steering messages for agent loop.
+
+            seal=True 是本 run 释放队列前的最后一次 drain：取出的同时封口，此后
+            /agent/steer 对本 run 回 404，不会再确认一条没人消费的引导。
+            """
+            if seal:
+                steering_pending = await drain_and_seal_steering_async(
+                    session_id, steering_run_id
+                )
+            else:
+                steering_pending = await steering_queue.get_pending()
             payload = [{"id": m.id, "content": m.content} for m in steering_pending]
             # Record what the run actually consumed so it can be persisted to
             # chat history (otherwise node-boundary steering is lost on the
@@ -1570,9 +1568,12 @@ class AgentService:
                 # chat session 还有别的 run 正在流式生成，这些消息本该由它消费，
                 # 必须交还回队列，而不是写成本轮历史里一条挂在已结束轮次上的
                 # 用户消息（那样仍在生成的 run 永远收不到这条引导）。
+                # 这里同时封口：本 run 之后不会再把引导喂给模型，保存历史期间再到的引导回 404，
+                # 由前端作为下一条消息发出，而不是回 200「下一步会用上」再挂在已结束的一轮上。
+                # 封口幂等，finally 里那次 drain 照旧兜底取出封口前刚入队的消息。
                 already_consumed_pre_save = len(consumed_steering)
                 try:
-                    await get_steering_messages()
+                    await get_steering_messages(seal=True)
                 except Exception as exc:
                     log_with_context(
                         logger,
@@ -1680,11 +1681,11 @@ class AgentService:
             # done 事件还没发出去时被取消，队列里仍可能有已确认 queued 的
             # steering，跳过后台任务就等于让随后的 cleanup 把它删掉。是否重写
             # 整轮由任务内部按 history_saved 判定。
-            # 在取消到达的这一刻判定（后台补存还要等落库任务和 drain，时长会继续走）。
-            cancel_stop_reason = partial_save_stop_reason(
-                time.monotonic() - run_started_monotonic,
-                AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
-            )
+            # 时限截停的原因由路由层在取消送达之前写入（发布交接把时限提前到几分钟时，
+            # 已用时长远小于墙钟时限，不能按时长推断）。
+            cancel_stop_reason = (
+                run_outcome.deadline_stop_reason if run_outcome is not None else None
+            ) or PARTIAL_SAVE_CANCELLED_STOP_REASON
             if user_id:
 
                 async def _drain_then_save_partial_history() -> None:
@@ -1720,7 +1721,7 @@ class AgentService:
 
                     already_consumed = len(consumed_steering)
                     try:
-                        await get_steering_messages()
+                        await get_steering_messages(seal=True)
                     except Exception as exc:
                         log_with_context(
                             logger,
@@ -1822,7 +1823,7 @@ class AgentService:
                     # 的消息），保证已确认 queued 的输入不会凭空消失。
                     already_consumed = len(consumed_steering)
                     try:
-                        await get_steering_messages()
+                        await get_steering_messages(seal=True)
                     except Exception as exc:
                         log_with_context(
                             logger,

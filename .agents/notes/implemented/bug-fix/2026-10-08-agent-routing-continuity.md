@@ -16,7 +16,7 @@ Status: implemented
 **路由落库**
 
 - `service.py`：从 `ROUTER_DECIDED` 事件取 `initial_agent` / `workflow_plan` / `routing_metadata`，用 `routing_from_router_decided()` 规整成 `{initial_agent, workflow_type, read_only, write_content, scope, last_agent}`；之后每个 `AGENT_SELECTED` 更新 `last_agent`。正常保存与部分保存都把它写进 assistant 消息的 `message_metadata.routing`（`MessageManager.save_messages` / `_save_messages_with_session` / `_serialize_message_metadata` 新增可选参数 `assistant_routing` / `routing`）。
-- 取消路径的部分保存写 stop_reason：`partial_save_stop_reason(elapsed, AGENT_RUN_WALL_CLOCK_TIMEOUT_S)` 在取消到达时判定，已用时长达到墙钟时限为 `run_deadline_exceeded`，否则 `cancelled`。`process_stream` 比 SSE 泵先开始计时，泵按时限取消时这里的时长一定不小于时限。失败路径的补偿保存写入已知的 `assistant_stop_reason`。
+- 取消路径的部分保存写 stop_reason：`partial_save_stop_reason(elapsed, AGENT_RUN_WALL_CLOCK_TIMEOUT_S)` 在取消到达时判定，已用时长达到墙钟时限为 `run_deadline_exceeded`，否则 `cancelled`。`process_stream` 比 SSE 泵先开始计时，泵按时限取消时这里的时长一定不小于时限。失败路径的补偿保存写入已知的 `assistant_stop_reason`。（2026-10-25 起改由路由层交来原因，见 [时限截停的 stop_reason 由路由层交给取消补存](2026-10-25-deadline-stop-reason-from-route.md)。）
 - `core/session_loader.py` 的历史 dict 新增 `routing`（落库路由）、`last_agent`（最后一张带 `lastAgent` 的状态卡）、`clarification_pending`（最后一张状态卡是 `workflow_stopped` + `clarification_needed`）。只供路由读，不进回放文本，token 估算也只看 content。
 
 **「继续」直达（`router.resume_route_after_exhaustion`）**

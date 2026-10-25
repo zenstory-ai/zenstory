@@ -33,6 +33,13 @@ const mockAgentStreamState = vi.hoisted(() => ({
   isStreaming: false,
   sessionId: null as string | null,
 }))
+// ChatPanel is memoized: a test that flips the stream state calls notifyStream() so the
+// mocked hook re-renders it, like the real hook's state update does.
+const streamStore = vi.hoisted(() => ({ version: 0, listeners: new Set<() => void>() }))
+function notifyStream() {
+  streamStore.version += 1
+  streamStore.listeners.forEach((listener) => listener())
+}
 
 const sendSteeringMessageMock = vi.hoisted(() => vi.fn())
 const startStreamMock = vi.hoisted(() => vi.fn())
@@ -41,6 +48,20 @@ const getVersionsMock = vi.hoisted(() => vi.fn())
 const getRecentMessagesMock = vi.hoisted(() => vi.fn(async () => []))
 const triggerFileTreeRefreshMock = vi.hoisted(() => vi.fn())
 const triggerEditorRefreshMock = vi.hoisted(() => vi.fn())
+
+const composerState = vi.hoisted(() => ({
+  projectId: 'project-1',
+  attachedFileIds: [] as string[],
+  quotes: [] as Array<{ text: string; fileId: string; fileTitle: string }>,
+  clearMaterials: vi.fn(),
+  clearQuotes: vi.fn(),
+}))
+const draftMocks = vi.hoisted(() => ({
+  draft: '',
+  saveDraft: vi.fn(),
+  clearDraft: vi.fn(),
+  appendDraftForProject: vi.fn(() => true),
+}))
 
 const capturedMessageInputProps = vi.hoisted(() => ({
   props: null as Record<string, unknown> | null,
@@ -55,7 +76,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
-    currentProjectId: 'project-1',
+    currentProjectId: composerState.projectId,
     selectedItem: null,
     triggerFileTreeRefresh: triggerFileTreeRefreshMock,
     triggerEditorRefresh: triggerEditorRefreshMock,
@@ -74,14 +95,14 @@ vi.mock('../../contexts/MobileLayoutContext', () => ({
 
 vi.mock('../../contexts/MaterialAttachmentContext', () => ({
   useMaterialAttachment: () => ({
-    attachedFileIds: [],
+    attachedFileIds: composerState.attachedFileIds,
     attachedLibraryMaterials: [],
-    clearMaterials: vi.fn(),
+    clearMaterials: composerState.clearMaterials,
   }),
 }))
 
 vi.mock('../../contexts/TextQuoteContext', () => ({
-  useTextQuote: () => ({ quotes: [], clearQuotes: vi.fn() }),
+  useTextQuote: () => ({ quotes: composerState.quotes, clearQuotes: composerState.clearQuotes }),
 }))
 
 const streamCallbacks = {
@@ -138,8 +159,16 @@ vi.mock('../../hooks/useChatStreaming', () => ({
 
 vi.mock('../../hooks/useAgentStream', () => ({
   useAgentStream: () => ({
+    _version: React.useSyncExternalStore(
+      (listener: () => void) => {
+        streamStore.listeners.add(listener)
+        return () => streamStore.listeners.delete(listener)
+      },
+      () => streamStore.version,
+    ),
     state: {},
     startStream: startStreamMock,
+    stop: vi.fn(async () => {}),
     cancel: vi.fn(),
     reset: vi.fn(),
     isStreaming: mockAgentStreamState.isStreaming,
@@ -155,10 +184,11 @@ vi.mock('../../hooks/useAgentStream', () => ({
 
 vi.mock('../../hooks/useDraftPersistence', () => ({
   useDraftPersistence: () => ({
-    draft: '',
-    saveDraft: vi.fn(),
-    clearDraft: vi.fn(),
+    draft: draftMocks.draft,
+    saveDraft: draftMocks.saveDraft,
+    clearDraft: draftMocks.clearDraft,
   }),
+  appendDraftForProject: draftMocks.appendDraftForProject,
 }))
 
 vi.mock('../../lib/chatApi', () => ({
@@ -306,11 +336,11 @@ describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () =
     sendSteeringMessageMock.mockReset()
   })
 
-  it('后端返回 404 时既弹 toast 也向上抛出', async () => {
-    sendSteeringMessageMock.mockRejectedValue(new Error('Request failed: 404'))
+  it('投递失败（非「本轮已收尾」）时既弹 toast 也向上抛出', async () => {
+    sendSteeringMessageMock.mockRejectedValue(new Error('Request failed: 500'))
     const onSteer = await renderAndGetSteer()
 
-    await expect(onSteer('把主角改名为林川')).rejects.toThrow('Request failed: 404')
+    await expect(onSteer('把主角改名为林川')).rejects.toThrow('Request failed: 500')
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith('chat:input.steerFailed')
     expect(vi.mocked(toast.success)).not.toHaveBeenCalled()
   })
@@ -337,6 +367,149 @@ describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () =
     mockAgentStreamState.sessionId = null
     await renderAndGetSteer()
     expect(capturedMessageInputProps.props?.canSteer).toBe(false)
+  })
+})
+
+describe('F-28 /agent/steer 404（本轮已收尾）退回一般发送', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const panel = () => (
+    <QueryClientProvider client={client}>
+      <ChatPanel />
+    </QueryClientProvider>
+  )
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    capturedMessageInputProps.props = null
+    mockAgentStreamState.isStreaming = true
+    mockAgentStreamState.sessionId = 'session-1'
+    sendSteeringMessageMock.mockReset()
+  })
+
+  async function steerThenFinishStream(error: unknown, text: string) {
+    if (error) sendSteeringMessageMock.mockRejectedValue(error)
+    else sendSteeringMessageMock.mockResolvedValue(undefined)
+    const view = rtlRender(panel())
+    await waitFor(() => expect(screen.getByTestId('mock-message-input')).toBeInTheDocument())
+    const onSteer = capturedMessageInputProps.props?.onSteer as (message: string) => Promise<void>
+    const result = onSteer(text).then(() => 'resolved', () => 'rejected')
+    const settled = await result
+    // 本轮还没结束：不能抢在它前面开新一轮。
+    expect(startStreamMock).not.toHaveBeenCalled()
+    mockAgentStreamState.isStreaming = false
+    mockAgentStreamState.sessionId = null
+    view.rerender(panel())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    view.rerender(panel())
+    return settled
+  }
+
+  it('404：输入照常清空，本轮结束后作为下一条普通消息发送一次', async () => {
+    const settled = await steerThenFinishStream(new ApiError(404, 'ERR_CHAT_SESSION_NOT_FOUND'), '结尾别大团圆')
+
+    expect(settled).toBe('resolved')
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith('chat:input.steerSentAsNextMessage')
+    await waitFor(() => expect(startStreamMock).toHaveBeenCalledTimes(1))
+    expect(startStreamMock.mock.lastCall?.[0]).toEqual(expect.objectContaining({ message: '结尾别大团圆' }))
+    expect(sendSteeringMessageMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('其它失败（可能已入队）不退回发送，避免同一句话扣两次额度', async () => {
+    const settled = await steerThenFinishStream(new ApiError(500, 'ERR_INTERNAL_SERVER_ERROR'), '换个视角')
+
+    expect(settled).toBe('rejected')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('chat:input.steerFailed')
+    expect(startStreamMock).not.toHaveBeenCalled()
+  })
+
+  it('已送达的引导不会在本轮结束后再发一次', async () => {
+    const settled = await steerThenFinishStream(null, '补一句')
+
+    expect(settled).toBe('resolved')
+    expect(startStreamMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('F-28 退回发送只发这句话，不动输入框里的其它东西', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const panel = () => (
+    <QueryClientProvider client={client}>
+      <ChatPanel />
+    </QueryClientProvider>
+  )
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    capturedMessageInputProps.props = null
+    mockAgentStreamState.isStreaming = true
+    mockAgentStreamState.sessionId = 'session-1'
+    sendSteeringMessageMock.mockReset()
+    sendSteeringMessageMock.mockRejectedValue(new ApiError(404, 'ERR_CHAT_SESSION_NOT_FOUND'))
+    composerState.projectId = 'project-1'
+    composerState.attachedFileIds = []
+    composerState.quotes = []
+    draftMocks.draft = ''
+    draftMocks.appendDraftForProject.mockReturnValue(true)
+  })
+
+  async function steer404(text: string) {
+    rtlRender(panel())
+    await waitFor(() => expect(screen.getByTestId('mock-message-input')).toBeInTheDocument())
+    const onSteer = capturedMessageInputProps.props?.onSteer as (message: string) => Promise<void>
+    await expect(onSteer(text)).resolves.toBeUndefined()
+  }
+
+  async function finishStream() {
+    mockAgentStreamState.isStreaming = false
+    mockAgentStreamState.sessionId = null
+    await act(async () => notifyStream())
+  }
+
+  it('等待期间新打的字和暂存的附件、引用都留在输入框，不随这句发出', async () => {
+    await steer404('结尾别大团圆')
+    // 本轮还在收尾时，作者接着打了下一句，又附上了文件和引用。
+    draftMocks.draft = '下一章换个视角'
+    composerState.attachedFileIds = ['file-a']
+    composerState.quotes = [{ text: '雨还在下', fileId: 'file-a', fileTitle: '第一章' }]
+    await act(async () => notifyStream())
+
+    await finishStream()
+
+    await waitFor(() => expect(startStreamMock).toHaveBeenCalledTimes(1))
+    const request = startStreamMock.mock.lastCall?.[0] as { message: string; metadata: Record<string, unknown> }
+    expect(request.message).toBe('结尾别大团圆')
+    expect(request.metadata.attached_file_ids).toBeUndefined()
+    expect(request.metadata.text_quotes).toBeUndefined()
+    expect(draftMocks.clearDraft).not.toHaveBeenCalled()
+    expect(draftMocks.saveDraft).not.toHaveBeenCalled()
+  })
+
+  it('作者在等待期间点了停止：不自动开新一轮，这句放回输入框', async () => {
+    draftMocks.draft = '已经打的字'
+    await steer404('结尾别大团圆')
+    const onCancel = capturedMessageInputProps.props?.onCancel as () => void
+    await act(async () => {
+      onCancel()
+    })
+
+    await finishStream()
+
+    await waitFor(() => expect(draftMocks.saveDraft).toHaveBeenCalledWith('已经打的字\n结尾别大团圆'))
+    expect(startStreamMock).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith('chat:input.steerReturnedToInput')
+  })
+
+  it('等待期间切换了作品：这句写回原作品的输入框，不丢', async () => {
+    await steer404('结尾别大团圆')
+    composerState.projectId = 'project-2'
+    await act(async () => notifyStream())
+
+    await finishStream()
+
+    await waitFor(() => expect(draftMocks.appendDraftForProject).toHaveBeenCalledWith('project-1', '结尾别大团圆'))
+    expect(startStreamMock).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
   })
 })
 

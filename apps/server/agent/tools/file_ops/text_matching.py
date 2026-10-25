@@ -10,6 +10,7 @@ These utilities are used by the file editing operations to reliably locate
 text anchors in content even when there are minor differences.
 """
 
+import re
 import time
 import unicodedata
 from difflib import SequenceMatcher
@@ -472,6 +473,8 @@ def find_approximate_match(
 _QUOTE_CHARS = frozenset("\"'“”‘’「」『』«»‹›〝〞〟＂＇")
 _SENTENCE_END_CHARS = frozenset("。.！!？?…｡")
 _PAUSE_CHARS = frozenset("，,、；;：:")
+# 能确定是开引号的字符；直引号分不出开闭，按可闭合处理。
+_OPENING_QUOTE_CHARS = frozenset("“‘「『«‹〝")
 _DASH_CHARS = frozenset("—–-")
 _BRACKET_CHARS = frozenset("（）()【】[]《》〈〉{}〔〕")
 
@@ -533,7 +536,9 @@ def extend_span_over_edge_punct(
 
     ``leading_ref`` 是参照串开头的标点串（从紧贴 span 的那一个往外逐个配对），
     ``trailing_ref`` 是结尾的标点串（同样从内往外）。原文字符与参照字符同类
-    才吞进去，遇到第一个不同类或非标点字符即停，最多吞参照串那么多个字符。
+    才吞进去，遇到第一个不同类或非标点字符即停。唯一的例外在结尾一侧：参照字符
+    是闭引号、原文先是同一行内的句末/停顿标点再接闭引号时（「很好”」对「很好。”」），
+    这串标点和闭引号一起吞进去。
     """
     new_start = start
     ref_index = len(leading_ref) - 1
@@ -547,12 +552,39 @@ def extend_span_over_edge_punct(
     new_end = end
     ref_index = 0
     while ref_index < len(trailing_ref) and new_end < len(content):
+        ref_char = trailing_ref[ref_index]
+        ref_class = _edge_punct_class(ref_char)
         orig_class = _edge_punct_class(content[new_end])
-        if orig_class is None or orig_class != _edge_punct_class(trailing_ref[ref_index]):
-            break
-        new_end += 1
-        ref_index += 1
+        if orig_class is not None and orig_class == ref_class:
+            new_end += 1
+            ref_index += 1
+            continue
+        if ref_class == "quote" and ref_char not in _OPENING_QUOTE_CHARS:
+            # 参照串在这里是闭引号，原文却先有「。」「，」再闭引号（模型漏抄了引号里的
+            # 句末标点）：连同这串标点一起吞到闭引号，否则 new 自带的闭引号会再写一遍。
+            quote_at = _closing_quote_after_inner_punct(content, new_end)
+            if quote_at is not None:
+                new_end = quote_at + 1
+                ref_index += 1
+                continue
+        break
     return new_start, new_end
+
+
+def _closing_quote_after_inner_punct(content: str, pos: int) -> int | None:
+    """``pos`` 起是一串句末/停顿标点、紧跟一个闭引号时，返回该闭引号的下标。
+
+    只跨这两类标点（不跨换行、空白和文字），找到的引号不能是开引号——那是下一句
+    对白的开头，不属于这一处命中。
+    """
+    i = pos
+    while i < len(content) and _edge_punct_class(content[i]) in ("end", "pause"):
+        i += 1
+    if i == pos or i >= len(content):
+        return None
+    if _edge_punct_class(content[i]) != "quote" or content[i] in _OPENING_QUOTE_CHARS:
+        return None
+    return i
 
 
 def build_span_previews(
@@ -580,6 +612,17 @@ def build_span_previews(
         snippet = content[left:right]
         previews.append(snippet)
     return previews
+
+
+# 段落按任意连续换行切分：只用单个换行分段的文件（网文常见）也要逐段比较，
+# 不能整篇当成一段。
+_PARAGRAPH_BREAKS = re.compile(r"\n+")
+# 候选片段的相似度下限：低于它的段落与 old/anchor 无关，列出来只会误导模型。
+_SUGGEST_MIN_SCORE = 0.3
+
+
+def _paragraph_blocks(content: str) -> list[str]:
+    return [b for b in _PARAGRAPH_BREAKS.split(content) if b.strip()]
 
 
 def suggest_similar_lines(
@@ -611,11 +654,11 @@ def suggest_similar_lines(
         return []
 
     # Use paragraphs first (more stable for novels)
-    blocks = [b for b in content.split("\n\n") if b.strip()]
+    blocks = _paragraph_blocks(content)
     candidates: list[tuple[float, str]] = []
 
     for b in blocks:
-        snippet = b.strip().replace("\n", " ")
+        snippet = b.strip()
         if not snippet:
             continue
         norm_b, _ = normalize_for_fuzzy_match(
@@ -629,12 +672,12 @@ def suggest_similar_lines(
         # 否则一个 3 字的章节标题会把真正相关的长段落挤出建议列表。
         score = _block_similarity(norm_pat, norm_b)
 
+        if score < _SUGGEST_MIN_SCORE:
+            continue
         candidates.append((score, snippet[:160] + ("..." if len(snippet) > 160 else "")))
 
     candidates.sort(key=lambda x: x[0], reverse=True)
-    out = [c[1] for c in candidates[: max_items]]
-    # Filter very low similarity
-    return [s for s in out if s]
+    return [c[1] for c in candidates[: max_items]]
 
 
 def find_unique_line_span(
@@ -671,7 +714,7 @@ def find_unique_line_span(
     if not norm_anchor:
         return None
 
-    blocks = [b for b in content.split("\n\n") if b.strip()]
+    blocks = _paragraph_blocks(content)
     if not blocks:
         return None
 

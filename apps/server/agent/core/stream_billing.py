@@ -374,6 +374,10 @@ class StreamBillingTracker:
             # 这一轮已经结束（done / 终止性停止 / error 帧已产生）之后才断开：
             # 不是中断，按结束方式结算。
             client_disconnected = False
+        if deadline_exceeded and self.saw_terminal_event and not self.saw_error_event:
+            # 时限（或发布交接）在 done 等正常终止帧产生之后才到：这一轮已经结束，
+            # 和完成后才断线一样按结束方式结算。
+            deadline_exceeded = False
         if user_stopped or client_disconnected:
             reason = "user_stopped" if user_stopped else "client_disconnected"
             if self.produced_output:

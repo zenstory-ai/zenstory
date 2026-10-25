@@ -1705,6 +1705,55 @@ async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("drain", [True, False])
+async def test_deadline_hands_the_resumable_stop_reason_to_the_cancelled_run(
+    client: AsyncClient, db_session, monkeypatch, drain
+):
+    """时限截停（含发布交接把时限提前到几分钟）：取消送达生成器之前，路由层已经把
+    run_deadline_exceeded 交给 process_stream，残稿补存据此落库，「继续」可以结构化恢复。"""
+    from agent.core import server_drain
+
+    _token, project, user = await _login_with_project(client, db_session)
+    monkeypatch.setattr(server_drain, "_draining_since", None)
+    monkeypatch.setattr(agent_api, "AGENT_DRAIN_STOP_AFTER_S", 0.05)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+    if not drain:
+        monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    seen_at_cancel: list[object] = []
+
+    class _RecordingService(_FakeService):
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                seen_at_cancel.append(getattr(run_outcome, "deadline_stop_reason", None))
+                raise
+            finally:
+                if run_outcome is not None:
+                    run_outcome.resolve_message_id(None)
+
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
+    with (
+        patch("api.agent.get_agent_service", return_value=_RecordingService(None)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True),
+    ):
+        response = await agent_api.stream_request(
+            body=body, session=db_session, current_user=user, accept_language=None, _rate_limit=0
+        )
+        iterator = response.body_iterator
+        received = [await iterator.__anext__()]
+        if drain:
+            server_drain.begin_drain()
+        received.extend([frame async for frame in iterator])
+
+    text = "".join(received)
+    assert ("ERR_AGENT_SERVER_RESTARTING" if drain else "ERR_AGENT_RUN_TIMEOUT") in text
+    assert seen_at_cancel == ["run_deadline_exceeded"]
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("with_body", [True, False])
 async def test_deadline_round_records_an_interrupted_outcome_after_capture_settles(
     client, db_session, monkeypatch, with_body
@@ -1758,3 +1807,350 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
         ]
     else:
         assert "written_files" not in outcome
+
+
+@pytest.mark.integration
+async def test_author_requested_empty_chapter_completes_without_an_incomplete_stamp(client, db_session):
+    """作者只要建「第10章」标题（empty_by_request）：正常 done 不带「未确认保存」，历史也不记 incomplete。"""
+    done, metadata, _file = await _run_completed_round(
+        client, db_session,
+        lambda file: [_sse("tool_result", {"tool_name": "create_file", "status": "success", "data": {
+            "id": file.id, "title": file.title, "content": "", "file_type": "draft",
+            "empty_by_request": True, "updated_at": file.updated_at.isoformat(),
+        }})],
+        routing={"write_content": False, "read_only": False},
+    )
+
+    assert "unwritten_files" not in done
+    assert "written_files" not in done
+    assert metadata == {"stop_reason": "end_turn"}
+
+
+# ------------------------------------------------ 退还后移除空白占位：先等残稿补存落定（F-02）
+
+_UNCLOSED_FENCE_CHAPTER = "```\n<file>" + "林夜推开门，雨声灌进来。" * 40
+
+
+class _CaptureSettlingService:
+    """像 AgentService 的取消路径：真实 StreamAdapter 的 ``<file>`` 捕获还在尾缓冲里（没发出
+    file_content 帧），取消后在后台补存残稿，补存落定后才交回助手消息 id。"""
+
+    def __init__(self, adapter, placeholder, text: str, message_id: str | None):
+        self._adapter = adapter
+        self._placeholder = placeholder
+        self._text = text
+        self._message_id = message_id
+        self.settle_tasks: list[asyncio.Task] = []
+
+    async def process_stream(self, *, run_outcome=None, **_kwargs):
+        try:
+            yield _sse("session_started", {"session_id": "s1"})
+            yield _create_file_result(self._placeholder)
+            async for frame in self._adapter._handle_text_content(self._text):
+                yield _sse(getattr(frame.type, "value", frame.type), frame.data)
+            await asyncio.sleep(30)
+        finally:
+            async def settle() -> None:
+                try:
+                    run_outcome.saved_file_word_counts.update(await self._adapter.settle_aborted_capture())
+                finally:
+                    run_outcome.resolve_message_id(self._message_id)
+
+            self.settle_tasks.append(asyncio.get_running_loop().create_task(settle()))
+
+
+def _gated_capture_adapter(project, user, placeholder, gate: asyncio.Event):
+    """真实 StreamAdapter；残稿补存（abort-save）在 gate 打开前一直挂着。"""
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id, process_file_markers=True))
+    adapter.set_pending_file_write(
+        placeholder.id, "draft", placeholder.title, baseline_updated_at=placeholder.updated_at.isoformat()
+    )
+    save = adapter._save_file_content
+
+    async def gated_save(*args, **kwargs):
+        await gate.wait()
+        return await save(*args, **kwargs)
+
+    adapter._save_file_content = gated_save
+    return adapter
+
+
+@pytest.fixture
+def _adapter_saves_on_test_db(monkeypatch):
+    """StreamAdapter 的同步保存在 SQLite 上走 database.get_session：指到测试库。"""
+    import database
+    from tests.conftest import TestSessionLocal
+
+    def get_session():
+        session = TestSessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setattr(database, "get_session", get_session)
+    monkeypatch.setattr(database, "is_postgres", False)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_adapter_saves_on_test_db")
+@pytest.mark.parametrize("ending", ["disconnect", "stop"])
+@pytest.mark.parametrize("text", ["<file>短正文", _UNCLOSED_FENCE_CHAPTER], ids=["short_tail", "unclosed_fence"])
+async def test_refunded_round_waits_for_the_capture_save_before_removing_its_placeholder(
+    client, db_session, monkeypatch, ending, text
+):
+    """正文还在解析器尾缓冲里（≤32 字，或未闭合围栏到 EOF 才认出的整章）时作者停止 / 断线：
+    没有 file_content 帧，这一轮照规则退还；但残稿补存还在进行，空白占位不能先被移除，
+    否则补存被已删除的文件拒绝，正文丢失。"""
+    from agent.tools.mcp_tools import ToolContext
+    from models import ChatMessage, File
+    from tests.conftest import TestSessionLocal
+
+    # 停止路径当场只等很短的时间：等不到消息 id 也不能当场移除。
+    monkeypatch.setattr(agent_api, "STOP_MESSAGE_ID_WAIT_S", 0.05)
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    ToolContext.set_context(
+        session=None, user_id=user.id, project_id=project.id, session_id="s1",
+        create_session_func=TestSessionLocal, author_message="写第一章", read_snapshots={},
+    )
+    gate = asyncio.Event()
+    service = _CaptureSettlingService(_gated_capture_adapter(project, user, placeholder, gate), placeholder, text, message_id)
+    try:
+        with (
+            patch("api.agent.get_agent_service", return_value=service),
+            patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+            patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        ):
+            response = await _stream(db_session, user, project, None)
+            iterator = response.body_iterator
+            for _ in range(2):
+                await iterator.__anext__()
+            if ending == "stop":
+                await agent_api.stop_stream(
+                    body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                    current_user=user,
+                    _rate_limit=0,
+                )
+                rest = "".join([frame async for frame in iterator])
+                assert "removed_files" not in _frame_data(rest, "quota_refunded")
+            else:
+                await iterator.aclose()
+                await asyncio.gather(*agent_api._detached_refund_tasks)
+            # 退还已落定；给收尾任务足够的机会（旧实现此时已经移除了占位）。
+            for _ in range(20):
+                await asyncio.sleep(0.01)
+            gate.set()
+            await asyncio.gather(*service.settle_tasks)
+            await asyncio.gather(*agent_api._round_outcome_tasks)
+    finally:
+        ToolContext.clear_context()
+
+    refund.assert_called_once()
+    db_session.expire_all()
+    kept = db_session.get(File, placeholder.id)
+    assert kept.is_deleted is False
+    assert kept.content.strip()
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert "removed_files" not in outcome
+    assert [item["id"] for item in outcome["written_files"]] == [placeholder.id]
+    # 保存回执确认了补存：作者看到「已保存」，即使计费口径（没有正文帧）退还了这一轮。
+    assert outcome["saved_output"] is True
+
+
+@pytest.mark.integration
+async def test_disconnect_keeps_placeholders_when_the_capture_never_settles(client, db_session, monkeypatch):
+    """残稿补存一直没落定（等消息 id 超时，结果未知）：宁可留下空章节，也不移除可能还在补存的文件。"""
+    from models import File
+
+    monkeypatch.setattr(agent_api, "ROUND_OUTCOME_MESSAGE_ID_WAIT_S", 0.05)
+    _token, project, user = await _login_with_project(client, db_session)
+    _message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    class _UnsettledService:
+        """取消后既不补存也不交回消息 id。"""
+
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                yield _create_file_result(placeholder)
+                await asyncio.sleep(30)
+            finally:
+                assert run_outcome is not None  # 消息 id 一直不交回
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_UnsettledService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        await iterator.aclose()
+        await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+
+
+@pytest.mark.integration
+async def test_stop_keeps_placeholders_when_the_message_id_arrives_after_the_live_wait(
+    client, db_session, monkeypatch
+):
+    """停止路径当场等不到消息 id（补存结果当时未知）：这一轮照常退还，但空白占位保留，
+    当场的 quota_refunded 与刷新后的 stop_outcome 说的一样——都没有移除文件。不在后台悄悄删掉
+    一个当场没告诉作者的文件。"""
+    from models import ChatMessage, File
+
+    monkeypatch.setattr(agent_api, "STOP_MESSAGE_ID_WAIT_S", 0.05)
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    late: set[asyncio.Task] = set()
+
+    class _LateIdService:
+        """取消后补存要一会儿才落定，晚于停止路径当场的等待才交回消息 id。"""
+
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                yield _create_file_result(placeholder)
+                await asyncio.sleep(30)
+            finally:
+                async def _resolve_late():
+                    await asyncio.sleep(0.2)
+                    run_outcome.resolve_message_id(message_id)
+
+                late.add(asyncio.get_running_loop().create_task(_resolve_late()))
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_LateIdService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*late)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert "removed_files" not in _frame_data(rest, "quota_refunded")
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome["charged"] is False
+    assert "removed_files" not in outcome
+
+
+# ------------------------------------- 停止 / 断线回执：保存没确认就不说「已保存」（F-03）
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("ending", ["stop", "disconnect"])
+@pytest.mark.parametrize("receipts", [{"placeholder": None}, {}], ids=["save_failed_or_timed_out", "no_receipt"])
+async def test_stopped_round_with_an_unconfirmed_body_save_says_so_live_and_after_reload(
+    client, db_session, ending, receipts
+):
+    """正文已流进本轮新建的章节，残稿补存失败 / 超时（回执 None）或没有回执：这一轮照旧计费，
+    但 done 与刷新后的 stop_outcome 都列「未确认保存」，不说「已写入的内容已保存」。"""
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    receipts = {placeholder.id: None} if receipts else {}
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        yield _sse("file_content", {"file_id": placeholder.id, "chunk": _PROSE})
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id, receipts)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(3):
+            await iterator.__anext__()
+        if ending == "stop":
+            await agent_api.stop_stream(
+                body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+                current_user=user,
+                _rate_limit=0,
+            )
+            rest = "".join([frame async for frame in iterator])
+            done = _frame_data(rest, "done")
+            assert done["unwritten_files"] == [{"id": placeholder.id, "title": placeholder.title}]
+            assert "written_files" not in done
+        else:
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_not_called()  # 计费口径不变：流式正文帧算产出
+    db_session.expire_all()
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome == {
+        "reason": "user_stopped" if ending == "stop" else "client_disconnected",
+        "charged": True,
+        "saved_output": False,
+        "unwritten_files": [{"id": placeholder.id, "title": placeholder.title}],
+    }
+
+
+@pytest.mark.integration
+async def test_deadline_after_a_clean_done_records_the_completed_receipt(client, db_session, monkeypatch):
+    """done 已经送达之后时限才到：这一轮按完成计费，落库的终态也必须是完成回执，
+    不能记成「已中断」却又计入额度。"""
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _empty, _filled, _older = _seed_round(db_session, project, user)
+    assistant = db_session.get(ChatMessage, message_id)
+    assistant.message_metadata = json.dumps({"stop_reason": "end_turn"})
+    db_session.add(assistant)
+    db_session.commit()
+    monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+
+    async def frames():
+        yield _sse("router_decided", {"initial_agent": "writer", "routing_metadata": _WRITE_REQUEST})
+        yield _sse("text", {"text": "已更新全部内容。"})
+        yield _sse("done", {"assistant_message_id": message_id})
+        # 收尾清理还没结束就撞上时限
+        await asyncio.sleep(30)
+
+    refund = AsyncMock(return_value=True)
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent._refund_quota", new=refund),
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        if agent_api._round_outcome_tasks:
+            await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert "ERR_AGENT_RUN_TIMEOUT" not in text
+    refund.assert_not_called()
+    done = _frame_data(text, "done")
+    assert done["no_file_changes"] is True
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "end_turn"
+    assert metadata["stop_outcome"]["reason"] == "completed"
+    assert metadata["stop_outcome"]["charged"] is True
+    assert metadata["stop_outcome"]["no_file_changes"] is True

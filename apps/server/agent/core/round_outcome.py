@@ -33,6 +33,8 @@ logger = get_logger(__name__)
 STOP_KIND_USER_STOPPED = "user_stopped"
 STOP_KIND_CLIENT_DISCONNECTED = "client_disconnected"
 STOP_KINDS: frozenset[str] = frozenset({STOP_KIND_USER_STOPPED, STOP_KIND_CLIENT_DISCONNECTED})
+# 时限截停落库的 stop_reason（与 runner 的同名原因一致，在 router.RESUMABLE_STOP_REASONS 里）。
+RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
 # 正常收尾的写入回执（不是停止）：只由真实提交结果生成，见 RoundWrittenFiles.completion_receipt。
 ROUND_KIND_COMPLETED = "completed"
 # 写终态时可以被停止原因覆盖的 stop_reason：没有原因、或本来就是取消类的原因。
@@ -46,6 +48,9 @@ class RunOutcome:
     """路由层与 process_stream 之间共享的这一轮收尾信息（同一事件循环内使用）。"""
 
     stop_kind: str | None = None
+    # 时限截停（墙钟或发布交接提前的时限）：路由层在取消送达 process_stream 之前写入
+    # RUN_DEADLINE_STOP_REASON，残稿补存据此落库可「继续」的 stop_reason。
+    deadline_stop_reason: str | None = None
     # 作者停止时编辑器里还有没存下的字的文件（前端停止前的保存失败或超时，随 /stop 送来）：
     # 这一轮被退还时不当作空白占位文件移除，见 :meth:`removable`。
     keep_file_ids: set[str] = field(default_factory=set)
@@ -55,10 +60,15 @@ class RunOutcome:
     _message_id: asyncio.Future[str | None] | None = field(default=None, repr=False)
 
     def removable(self, candidates: list[dict[str, str]]) -> list[dict[str, str]]:
-        """去掉作者编辑器里还有未保存文字的文件，剩下的才交给 remove_empty_placeholders。"""
-        if not self.keep_file_ids:
+        """去掉不能当空白占位移除的文件，剩下的才交给 remove_empty_placeholders。
+
+        作者编辑器里还有未保存文字的文件不动；这一轮有补存回执的文件也不动（任何回执都算，
+        包括 0 字）：保存失败或超时（回执为 None）时后台线程可能稍后才提交，结果未知就保留。
+        """
+        keep = self.keep_file_ids | set(self.saved_file_word_counts)
+        if not keep:
             return candidates
-        return [item for item in candidates if item.get("id") not in self.keep_file_ids]
+        return [item for item in candidates if item.get("id") not in keep]
 
     def _future(self) -> asyncio.Future[str | None]:
         if self._message_id is None:
@@ -205,6 +215,57 @@ class RoundWrittenFiles:
         return {**({"written_files": written} if written else {}),
                 **({"unwritten_files": unwritten} if unwritten else {})}
 
+    def stopped_delivery(
+        self,
+        *,
+        final_word_counts: dict[str, int | None],
+        removed_ids: set[str] | frozenset[str] = frozenset(),
+    ) -> dict[str, Any]:
+        """停止 / 断线（实时 ``done`` 与落库的 ``stop_outcome`` 同一份）的写入回执。
+
+        与 :meth:`delivery` 同一口径，只少两类空壳：退还时真正移除了的；以及一份都没写成时，
+        这一轮没往里写过正文（没有流式正文、也没有补存）的空壳——刚建好就停下，不算漏写。
+        写过正文却没有确认保存回执的新建文件照样列为未确认保存。
+        """
+        delivery = self.delivery(final_word_counts=final_word_counts)
+        written = delivery.get("written_files")
+        unwritten = [
+            item for item in delivery.get("unwritten_files", [])
+            if item["id"] not in removed_ids
+            and (written or self._body_attempted(item["id"], final_word_counts))
+        ]
+        return {**({"written_files": written} if written else {}),
+                **({"unwritten_files": unwritten} if unwritten else {})}
+
+    def saved_output(
+        self,
+        delivery: dict[str, Any],
+        *,
+        final_word_counts: dict[str, int | None],
+        any_write_succeeded: bool,
+    ) -> bool:
+        """作者看到的「写入的内容已保存」：只由确认的写入推出，不看流式正文帧。
+
+        有确认写入的文件就是 True。列不出文件的写入（并行写章、删除）沿用计费口径
+        ``any_write_succeeded``，但这一轮只要有流式正文没拿到确认保存回执就不这么说。
+        计费仍按 ``StreamBillingTracker.write_succeeded``，与这里无关。
+        """
+        if delivery.get("written_files"):
+            return True
+        return any_write_succeeded and not self._has_unconfirmed_body(final_word_counts)
+
+    def _body_attempted(self, file_id: str, final_word_counts: dict[str, int | None]) -> bool:
+        entry = self._files.get(file_id)
+        return file_id in final_word_counts or bool(entry and entry.body.strip())
+
+    def _has_unconfirmed_body(self, final_word_counts: dict[str, int | None]) -> bool:
+        if any(count is None for count in final_word_counts.values()):
+            return True
+        return any(
+            entry.body.strip() and file_id not in self._tool_writes and not final_word_counts.get(file_id)
+            for file_id, entry in self._files.items()
+        )
+
     def completion_receipt(
         self, *, final_word_counts: dict[str, int | None], any_write_succeeded: bool
     ) -> dict[str, Any]:
@@ -263,7 +324,8 @@ class RoundWrittenFiles:
             if content.strip():
                 self._entry(file_id).body += content
                 self._tool_writes.add(file_id)
-            else:
+            elif data.get("empty_by_request") is not True:
+                # 作者只要建文件（empty_by_request）时空文件本身就是交付物：不算未确认保存。
                 self._created_empty[file_id] = str(data.get("title") or "")
         elif tool_name == "edit_file":
             mutation_applied = data.get("mutation_applied")
@@ -457,6 +519,7 @@ __all__ = [
     "STOP_KIND_CLIENT_DISCONNECTED",
     "STOP_KIND_USER_STOPPED",
     "ROUND_KIND_COMPLETED",
+    "RUN_DEADLINE_STOP_REASON",
     "RoundWrittenFiles",
     "RunOutcome",
     "build_stop_outcome",

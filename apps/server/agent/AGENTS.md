@@ -162,7 +162,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **只给作者一份总结**：writer（非快速模式、非返修、未到审查上限，且开着自动质检门或计划里下一个是 quality_reviewer）写正文类文件、
   可能送审时（create_file 的正文还没写出来；edit_file / write_chapter 累计字数到了送审阈值；或计划送审）图发 `CHAT_HOLD(begin)`，StreamAdapter 扣住之后的对话文字（正文不扣）；真的交给
   quality_reviewer 时在 HANDOFF 前发 `CHAT_HOLD(discard)`，由审稿人（或返修后的 writer）写唯一总结，writer 的有界原话以
-  `[上一角色未展示的回复]` 交给它们（仅最后闭合 file 之后、600字符含截断标记，不含文件正文，不是新授权）；不送审时扣着的文字在下一个 agent / 交接 / 收尾 / 出错事件前或流结束时原样放出
+  `[上一角色未展示的回复]` 交给它们（仅最后闭合 file 之后、600字符含截断标记，不含文件正文，不是新授权）；不送审（含已到收尾时间、审稿人不会再跑）时扣着的文字在下一个 agent / 交接 / 收尾 / 出错事件前或流结束时原样放出
   （run 中途的 STEERING_RECEIVED 不放出）。CHAT_HOLD 不发给前端。[single-summary][n-summary]
   质量门可用且作者要正文时，writer 前的原计划可写角色也按成功正文写入扣留；同一交付的累计正文达到门槛、实际沿计划前缀交接才丢弃，不按问号决定；未展示原话交接下游，
   正文记录接续给 writer。只有规划、失败写入、未执行交接和结构化澄清原样释放。[planned-body-review][n-planned-body]
@@ -223,7 +223,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   [graceful-stop][n-stop]、[abort-flushes-capture][n-flush]、[stop-output-definition][n-output]
 - 墙钟时限由 `SSEStreamPump` 执行：到点先发真实超时终态再等生产者收尾。[platform-deadline][n-deadline]、[deadline-terminal][n-deadline2]
 - 发布交接：SIGTERM 后 `core/server_drain.py` 让所有运行立即按时限收尾提醒，`api/agent.py` 把进行中的泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒），到点以 `ERR_AGENT_SERVER_RESTARTING` 收尾、计费同墙钟超时（`billing_reason=server_restarting`）；lifespan 关闭前等后台退还与终态任务。[deploy-drain][n-drain]
-- 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。[steering-busy-409][n-steer]
+- 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。入队与「存在未封口的存活 run」原子判定；工作流结束后、保存历史前的那次 drain 起就封口（本 run 不再把引导喂给模型），释放前的兜底 drain 再封一次；之后的 steer 回 404，前端改为下一条普通消息发送。[steering-busy-409][n-steer]
 - SSE 事件类型见 `core/events.py` 的 `EventType`。
 
 ## 上下文与跨轮记忆

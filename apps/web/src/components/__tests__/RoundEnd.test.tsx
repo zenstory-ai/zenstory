@@ -45,6 +45,19 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
       '已中断 · 已保存《林舟》120 字 · 未确认保存《周念》 · 本条计入今日 AI 消息',
     ],
     [{ reason: 'user_stopped', charged: false, saved_output: false }, true, '已停止 · 未计入今日 AI 消息'],
+    // A stop / disconnect whose body save was never confirmed (F-03): counted, but never 「已写入的内容已保存」.
+    [
+      { reason: 'user_stopped', charged: true, saved_output: false,
+        unwritten_files: [{ id: 'ch-1', title: '第1章 最后一页' }] },
+      true,
+      '已停止 · 未确认保存《第1章 最后一页》 · 本条计入今日 AI 消息',
+    ],
+    [
+      { reason: 'client_disconnected', charged: true, saved_output: false,
+        unwritten_files: [{ id: 'ch-1', title: '第1章 最后一页' }] },
+      false,
+      '已中断 · 未确认保存《第1章 最后一页》',
+    ],
     // Same wording as the live stop note, so a refresh does not drop "counted".
     [{ reason: 'user_stopped', charged: true, saved_output: true }, true, '已停止 · 已写入的内容已保存 · 本条计入今日 AI 消息'],
     [{ reason: 'user_stopped', charged: true, saved_output: false }, true, '已停止 · 本条计入今日 AI 消息'],

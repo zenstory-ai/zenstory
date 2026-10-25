@@ -31,6 +31,7 @@ from sqlmodel import Session
 from agent.core.events import EventType, StreamEvent, done_event, error_event
 from agent.core.round_outcome import (
     ROUND_KIND_COMPLETED,
+    RUN_DEADLINE_STOP_REASON,
     STOP_KIND_CLIENT_DISCONNECTED,
     STOP_KIND_USER_STOPPED,
     RoundWrittenFiles,
@@ -698,6 +699,9 @@ async def stream_request(
         def _deadline_terminal_frame() -> str | None:
             nonlocal deadline_exceeded
             deadline_exceeded = True
+            # 泵已请求取消、取消还没送达生成器：先交给 process_stream 真实原因，残稿补存
+            # 落库可「继续」的 stop_reason（发布交接提前的时限也一样）。
+            run_outcome.deadline_stop_reason = RUN_DEADLINE_STOP_REASON
             if tracker.delivered_terminal_event:
                 return None
             info = _deadline_error()
@@ -769,22 +773,28 @@ async def stream_request(
             # 停止 / 断线一轮的收尾：断线时等后台退还落定，退还了才移除空白占位文件；
             # 然后把终态写回这一轮的助手消息，刷新、重进项目后作者看得到。
             charged = charged_now
+            remove_placeholders = False
             if pending_refund is not None:
                 refunded = bool(await pending_refund)
                 charged = not refunded
-                if refunded:
-                    removed = await _offload(
-                        remove_empty_placeholders,
-                        body.project_id,
-                        run_outcome.removable(tracker.removable_placeholders()),
-                    )
+                remove_placeholders = refunded
+            # service 补存完残稿（解析器尾缓冲、未闭合围栏里的整章）才交回消息 id：移除空白
+            # 占位前先等它。等不到（超时 / 不会落库）就是补存结果未知，保留占位——宁可留一个
+            # 空章节，也不让补存撞上已删除的文件而丢稿。
             message_id = await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
+            if remove_placeholders and message_id:
+                removed = await _offload(
+                    remove_empty_placeholders,
+                    body.project_id,
+                    run_outcome.removable(tracker.removable_placeholders()),
+                )
             if not message_id:
                 return
+            receipts = run_outcome.saved_file_word_counts
             if delivery is None:
-                delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
-                if not delivery.get("written_files"):
-                    delivery.pop("unwritten_files", None)
+                delivery = written_files.stopped_delivery(
+                    final_word_counts=receipts, removed_ids={item.get("id", "") for item in removed}
+                )
             await _offload(
                 record_round_outcome,
                 message_id,
@@ -792,7 +802,10 @@ async def stream_request(
                 outcome=build_stop_outcome(
                     stop_kind=stop_kind,
                     charged=charged,
-                    saved_output=tracker.write_succeeded,
+                    # 作者看到的「已保存」只认确认的保存回执；计费仍按 tracker 的帧口径。
+                    saved_output=written_files.saved_output(
+                        delivery, final_word_counts=receipts, any_write_succeeded=tracker.write_succeeded
+                    ),
                     removed_files=removed,
                     **delivery,
                 ),
@@ -809,7 +822,7 @@ async def stream_request(
             try:
                 task = asyncio.get_running_loop().create_task(
                     _finalize_stopped_round(
-                        stop_kind, charged_now, pending_refund, list(removed_files), delivery
+                        stop_kind, charged_now, pending_refund, list(removed_files), delivery,
                     )
                 )
             except RuntimeError:
@@ -852,9 +865,7 @@ async def stream_request(
                 tracker.observe_delivery(stop_frame)
                 yield stop_frame
                 assistant_message_id = await run_outcome.wait_message_id(STOP_MESSAGE_ID_WAIT_S)
-                delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
-                if not delivery.get("written_files"):
-                    delivery.pop("unwritten_files", None)
+                delivery = written_files.stopped_delivery(final_word_counts=run_outcome.saved_file_word_counts)
                 if not assistant_message_id:
                     for item in delivery.get("written_files", []):
                         item.pop("words", None)
@@ -872,11 +883,14 @@ async def stream_request(
                 yield done_frame
                 billing_reason, _, refund_applied = await _settle_billing()
                 if refund_applied:
-                    removed_files = await _offload(
-                        remove_empty_placeholders,
-                        body.project_id,
-                        run_outcome.removable(tracker.removable_placeholders()),
-                    )
+                    # 消息 id 已交回说明残稿补存已落定，可以当场移除。当场等不到就是补存结果未知：
+                    # 保留占位，也不留给收尾任务在后台删（作者当场收到的说明不会提到它）。
+                    if assistant_message_id:
+                        removed_files = await _offload(
+                            remove_empty_placeholders,
+                            body.project_id,
+                            run_outcome.removable(tracker.removable_placeholders()),
+                        )
                     yield quota_refunded_frame(billing_reason, removed_files)
             except (asyncio.CancelledError, GeneratorExit):
                 # 收尾途中客户端断开：照断线路径结算（不能再挂起）。
@@ -964,8 +978,13 @@ async def stream_request(
             running = _running_streams.get(run_key)
             if running is not None and running.pump is pump:
                 del _running_streams[run_key]
+            # done 等正常终止帧已经产生之后才到的时限没有截断这一轮（与 tracker.decide 同一口径）：
+            # 按结束方式结算、记终态，不当成截停。
+            deadline_cut = deadline_exceeded and not (
+                tracker.saw_terminal_event and not tracker.saw_error_event
+            )
             settlement_pending = (
-                deadline_exceeded and client_disconnected and not pump.producer_stopped
+                deadline_cut and client_disconnected and not pump.producer_stopped
             )
             if settlement_pending:
                 # The timeout already reached the author. Keep cancellation/lease
@@ -997,7 +1016,7 @@ async def stream_request(
                 _schedule_round_outcome(refund_applied)
             elif error_delivery and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="error", delivery=error_delivery)
-            elif deadline_exceeded and not settlement_pending and knows_stop_contract:
+            elif deadline_cut and not settlement_pending and knows_stop_contract:
                 # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
                 # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
                 _schedule_round_outcome(refund_applied, stop_kind="error")
@@ -1166,7 +1185,7 @@ async def inject_steering(
     注：steering 消息本身不单独计 AI 对话额度（所属的 /stream 运行已扣过一次），
     但每条注入都会让运行中的 agent 循环多跑若干轮 LLM，所以仍需按用户限流。
     """
-    from agent.core.steering import get_steering_queue_for_user_async
+    from agent.core.steering import enqueue_steering_for_user_async
 
     log_with_context(
         logger,
@@ -1177,8 +1196,19 @@ async def inject_steering(
         message_length=len(body.message),
     )
 
+    # owner 校验、「仍有会消费它的 run」与入队是一个原子操作：本轮已做完最后一次
+    # drain 或已经结束时回 404，前端据此把这句话当作下一条普通消息发送，
+    # 不会出现「回了 queued 却没有任何一轮读到」。
     try:
-        queue = await get_steering_queue_for_user_async(body.session_id, current_user.id)
+        msg = await enqueue_steering_for_user_async(
+            body.session_id, current_user.id, body.message
+        )
+    except ValueError as exc:
+        raise APIException(
+            error_code=ErrorCode.BAD_REQUEST,
+            status_code=400,
+            detail=str(exc),
+        ) from exc
     except KeyError as exc:
         raise APIException(
             error_code=ErrorCode.CHAT_SESSION_NOT_FOUND,
@@ -1190,15 +1220,6 @@ async def inject_steering(
             error_code=ErrorCode.NOT_AUTHORIZED,
             status_code=403,
             detail="Not authorized to steer this session",
-        ) from exc
-
-    try:
-        msg = await queue.add(body.message)
-    except ValueError as exc:
-        raise APIException(
-            error_code=ErrorCode.BAD_REQUEST,
-            status_code=400,
-            detail=str(exc),
         ) from exc
 
     log_with_context(

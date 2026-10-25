@@ -220,12 +220,38 @@ class _FakeRedis:
                 self._impl_set(keys[1], "", ex=args[4], nx=True)
                 self._impl_expire(keys[1], args[4])
             return 1
-        if "RPUSH" in script:
-            # 原子 hand-back：回收僵尸 -> 确认还有其它 run + owner -> 批量入队。
-            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
-            n = self._impl_zcard(runs_key)
+        if "LRANGE" in script:
+            # 最后一次 drain 并封口：取空 msgs；本 run 仍在册时记入 sealed。
+            msgs = self._impl_lrange(keys[2], 0, -1)
+            self._impl_delete(keys[2])
             if self._impl_zscore(runs_key, args[0]) is not None:
-                n -= 1
+                self._impl_sadd(keys[3], args[0])
+            return msgs
+        sealed = self.store.get(keys[3], set()) if len(keys) > 3 else set()
+        if "local live" in script:
+            # /agent/steer 入队：回收僵尸 -> owner -> 存在未封口的 run 才 RPUSH。
+            if self._impl_zcard(runs_key) > 0:
+                self._impl_zremrangebyscore(runs_key, "-inf", args[1])
+                if self._impl_zcard(runs_key) == 0:
+                    self._impl_delete(*keys)
+                    return 0
+            owner = self._impl_get(keys[1])
+            if owner is None:
+                return 0
+            if owner and owner != args[0]:
+                return -1
+            if not any(m not in sealed for m in self.store.get(runs_key, {})):
+                return 0
+            if not owner:
+                self._impl_set(keys[1], args[0], ex=args[2])
+            self._impl_rpush(keys[2], args[3])
+            return 1
+        if "RPUSH" in script:
+            # 原子 hand-back：回收僵尸 -> 确认还有其它未封口的 run + owner -> 批量入队。
+            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
+            n = sum(
+                1 for m in self.store.get(runs_key, {}) if m != args[0] and m not in sealed
+            )
             if n <= 0 or self._impl_get(keys[1]) != args[2]:
                 return 0
             self._impl_rpush(keys[2], *args[4:])
@@ -240,18 +266,21 @@ class _FakeRedis:
             if self._impl_zscore(runs_key, args[0]) is not None:
                 n -= 1
             return n
+        if "'ZREM'" in script:
+            # 修复后的释放脚本：ZREM 自己（并移出 sealed）-> 按 score 回收僵尸 ->
+            # ZCARD==0 -> DEL。
+            self._impl_zrem(runs_key, args[0])
+            if len(keys) > 3:
+                self._impl_srem(keys[3], args[0])
+            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
+            if self._impl_zcard(runs_key) == 0:
+                self._impl_delete(*keys)
+                return 1
+            return 0
         if "SREM" in script:
             # 修复前的释放脚本：SREM -> SCARD==0 -> DEL（无僵尸回收）。
             self._impl_srem(runs_key, args[0])
             if self._impl_scard(runs_key) == 0:
-                self._impl_delete(*keys)
-                return 1
-            return 0
-        if "'ZREM'" in script:
-            # 修复后的释放脚本：ZREM 自己 -> 按 score 回收僵尸 -> ZCARD==0 -> DEL。
-            self._impl_zrem(runs_key, args[0])
-            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
-            if self._impl_zcard(runs_key) == 0:
                 self._impl_delete(*keys)
                 return 1
             return 0
