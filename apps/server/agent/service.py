@@ -1363,12 +1363,7 @@ class AgentService:
                 "has_referenced_files": bool(referenced_file_ids),
                 "system_prompt": system_prompt,
                 "context_snapshot": context_snapshot,
-                "context_data": {
-                    "context": context_data.context if context_data.context else "",
-                    "items": context_data.items,
-                },
                 "messages": messages,
-                "tool_calls": [],
                 "run_meter": run_meter,
             }
 
