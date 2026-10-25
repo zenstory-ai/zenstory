@@ -1301,7 +1301,8 @@ class FileCRUD:
         # Apply keyword search
         if query:
             stmt = stmt.where(
-                (File.title.contains(query)) | (File.content.contains(query))  # type: ignore[attr-defined]
+                (File.title.contains(query, autoescape=True))  # type: ignore[attr-defined]
+                | (File.content.contains(query, autoescape=True))  # type: ignore[attr-defined]
             )
 
         # Apply parent filter
