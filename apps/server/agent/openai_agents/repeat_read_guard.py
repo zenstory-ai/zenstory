@@ -12,7 +12,8 @@ writer / 审稿人的上下文里，它们各读一次是正常的，不算重�
 （files_read / files_written / write_succeeded）和被拦下的次数（blocked_reads，
 无进展判定用）仍按整个请求累计。
 
-读取计数的键为 (读工具, 文件 id, 归一化读取模式)：
+读取计数的键为 (读工具, 文件 id, 归一化读取模式)；按范围读取（section / tail_chars /
+start_char + max_chars）时，模式里带上归一化后的范围，不同窗口是不同的读取：
 
 - 直接调用的 query_files（带 id），以及 parallel_execute 里 type=="query_files"
   且 params.id 非空的子任务，记在同一个键上；
@@ -26,7 +27,8 @@ writer / 审稿人的上下文里，它们各读一次是正常的，不算重�
   「无进展」，与熔断器走同一个出口（runner 的 tool_use_behavior）结束本轮。
 
 同时记下本请求里完整读过 / 写过的文件（id + 标题），供 writing_graph 写进下一个
-agent 的交接信息，避免交接后从头再读一遍（只记标题与 id，不带正文）。
+agent 的交接信息，避免交接后从头再读一遍（只记标题与 id，不带正文）。范围读取结果
+content_partial=True 时只读到一段，不算读过全文。
 
 本模块只负责记账与判定；「停下」由 runner 完成，对外事件也由 runner 发出。
 """
@@ -38,6 +40,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent.openai_agents.events import parse_json_object, tool_error_text
+from agent.tools.file_ops.content_range import DEFAULT_RANGE_CHARS, wants_range
 from agent.tools.file_ops.serialization import resolve_query_files_response_mode
 
 READ_TOOL_NAME = "query_files"
@@ -73,6 +76,7 @@ NO_PROGRESS_STOP_TOTAL = "agent.no_progress.stop.total"
 # 计数只在一个 agent run 内累计，所以提示里说的「之前的工具结果」确实在当前上下文里。
 _READ_HINT_TEXT = "该文件全文本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
 _SUMMARY_READ_HINT_TEXT = "该文件摘要本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
+_RANGE_READ_HINT_TEXT = "该文件的这一段内容本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
 
 # 无进展停止时给作者看的说明（ERROR 事件的 error；前端按 ERR_AGENT_NO_PROGRESS 取 i18n）。
 NO_PROGRESS_USER_MESSAGE = (
@@ -93,8 +97,33 @@ def _coerce_bool(value: Any) -> bool:
     return False
 
 
+def _range_part(value: Any) -> str:
+    """范围参数的归一化写法：100 与 "100" 是同一个窗口；非法值原样保留（工具会报错）。"""
+    if isinstance(value, bool):
+        return str(value)
+    try:
+        return str(int(value))
+    except (TypeError, ValueError):
+        return str(value).strip()
+
+
+def _range_mode(params: dict[str, Any]) -> str | None:
+    """按范围读取时的归一化范围（与 content_range 用同一组参数）；不是范围读取时为 None。"""
+    if not wants_range(params):
+        return None
+    section = params.get("section")
+    if section not in (None, ""):
+        return f"section:{str(section).strip()}"
+    tail = params.get("tail_chars")
+    if tail not in (None, ""):
+        return f"tail:{_range_part(tail)}"
+    limit = params.get("max_chars")
+    count = DEFAULT_RANGE_CHARS if limit in (None, "") else limit
+    return f"chars:{_range_part(params.get('start_char'))}+{_range_part(count)}"
+
+
 def _read_mode(params: dict[str, Any]) -> str:
-    """归一化读取模式：full（全文）或 summary:<预览字数>。
+    """归一化读取模式：full（全文）、full:<范围>（按范围读取）或 summary:<预览字数>。
 
     与 query_files 用同一个判定（resolve_query_files_response_mode）：按 id 读取且没给
     response_mode 时默认就是全文，否则 query_files(id=X) 与 query_files(id=X, response_mode="full")
@@ -120,7 +149,20 @@ def _read_key(params: Any) -> ReadKey | None:
     file_id = str(params.get("id") or "").strip()
     if not file_id:
         return None
+    # query_files 的范围读取一律按全文取再切片，response_mode 等参数此时不起作用。
+    range_mode = _range_mode(params)
+    if range_mode is not None:
+        return (READ_TOOL_NAME, file_id, f"full:{range_mode}")
     return (READ_TOOL_NAME, file_id, _read_mode(params))
+
+
+def _is_range_key(key: ReadKey) -> bool:
+    return key[2].startswith("full:")
+
+
+def _is_partial(data: Any) -> bool:
+    """query_files 结果的第一条只是正文的一段（范围读取）。"""
+    return isinstance(data, list) and bool(data) and isinstance(data[0], dict) and data[0].get("content_partial") is True
 
 
 def _load_json(text: str) -> dict[str, Any] | None:
@@ -312,7 +354,7 @@ class RepeatReadGuard:
         return label
 
     def _blocked_message(self, label: str, key: ReadKey) -> str:
-        what = "全文" if key[2] == "full" else "摘要"
+        what = "全文" if key[2] == "full" else ("这一段内容" if _is_range_key(key) else "摘要")
         remaining = max(self.max_blocked_reads - self.blocked_reads, 0)
         tail = (
             f"再有 {remaining} 次重复读取被拦下，本轮将被自动终止。"
@@ -347,7 +389,7 @@ class RepeatReadGuard:
             # 文件不存在 / 结果被截断成 overflow 引用：模型没真正拿到内容，不算读过。
             return output_text
         key = plan.read_keys[0]
-        count = self._record_read(key, title)
+        count = self._record_read(key, title, complete=not _is_partial(payload.get("data")))
         hint = self._hint_for(key, count)
         if hint is None:
             return output_text
@@ -380,7 +422,7 @@ class RepeatReadGuard:
                 result_data = result.get("data") if isinstance(result, dict) else None
                 if task_type == READ_TOOL_NAME and index in plan.read_keys:
                     title = _first_file_title(result_data)
-                    complete = True
+                    complete = not _is_partial(result_data)
                     if title is None:
                         # 子任务结果被截断成预览时拿不到标题：仍算读过（模型看到了预览），
                         # 但不记进「已读取全文」的交接台账。
@@ -452,7 +494,8 @@ class RepeatReadGuard:
         file_id = key[1]
         if title:
             self._titles[file_id] = title
-        if complete and key[2] == "full" and file_id not in self.files_read:
+        is_full = key[2] == "full" or _is_range_key(key)
+        if complete and is_full and file_id not in self.files_read:
             self.files_read[file_id] = self._titles.get(file_id, title)
         if count >= READ_HINT_AT:
             self.duplicate_reads += 1
@@ -471,7 +514,12 @@ class RepeatReadGuard:
         self.files_written[file_id] = self._titles.get(file_id, title)
 
     def _hint_for(self, key: ReadKey, count: int) -> str | None:
-        base = _READ_HINT_TEXT if key[2] == "full" else _SUMMARY_READ_HINT_TEXT
+        if key[2] == "full":
+            base = _READ_HINT_TEXT
+        elif _is_range_key(key):
+            base = _RANGE_READ_HINT_TEXT
+        else:
+            base = _SUMMARY_READ_HINT_TEXT
         if count == READ_HINT_AT:
             return base
         if count >= READ_WARN_AT:

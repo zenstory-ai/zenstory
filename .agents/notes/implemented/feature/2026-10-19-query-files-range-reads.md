@@ -13,6 +13,7 @@ Status: implemented
 - query_files 按 id 读取时可选三种范围（一次只用一种）：`section`（章节/分集标题，读到下一个同级标题为止；「第3章」按章号比较，不会匹配「第13章」或「第3集」，中文数字可用）、`tail_chars`（结尾若干字符）、`start_char` + `max_chars`（默认 6000）。单次范围上限 20000 字符。
 - 结果在原来的行上只替换 content，并给出 `content_range`（起止字符）、`content_length`（全文长度）、`content_partial`、匹配到的 `section` 和一句"范围外没有读到、不要当成全文"的说明；`word_count` 仍是整个文件的字数。标题找不到或多义时返回错误并列出识别到的标题，不猜。
 - 陈旧保护：范围读取在切片前记下读库时的整份正文，作为新的快照来源 `range`，只用于 edit_file 的陈旧检查；它不算"看过全文"，old/anchor 仍只按逐字匹配。读取之后作者又改了文件（任何位置），edit_file 照旧以 stale_content 拒绝。换 agent 时与普通读取一样清空。
+- 重复读取守卫按范围区分：不同窗口是不同的读取，`content_partial=true` 的结果不记成读过全文（2026-10-25，见 [范围读取有自己的重复读取键](../bug-fix/2026-10-25-range-reads-own-repeat-read-key.md)）。
 - 工具说明和工作集里"未附全文"的提示都指向按范围读取；作者要求通篇检查或改动牵涉全文时仍读全文。工作集的选文规则、上下文预算和缓存前缀不变。
 
 ## Alternatives considered

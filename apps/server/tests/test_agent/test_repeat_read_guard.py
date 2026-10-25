@@ -1056,3 +1056,112 @@ def test_parallel_stale_edit_also_lets_the_file_be_read_again():
     guard.observe("parallel_execute", guard.plan("parallel_execute", raw), _parallel_output([stale]))
     reread = json.loads(_guarded_read(guard))
     assert reread["status"] == "success" and "read_hint" not in reread
+
+
+# ------------------------------------------------------- 范围读取（F-11）
+
+
+def _range_read_ok(args: dict, body: str = "甲" * 1000, file_id: str = "f1", title: str = "长篇合集") -> str:
+    from agent.tools.file_ops.content_range import apply_content_range
+
+    row = apply_content_range({"id": file_id, "title": title, "content": body}, args)
+    return json.dumps({"status": "success", "data": [row]}, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_distinct_range_windows_all_execute_and_are_not_recorded_as_full_text():
+    """不同字符窗口是不同的读取：第 4 个新窗口照常执行，第 2、3 个不收到重复提示，也不记成读过全文。"""
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
+
+    executed: list[dict] = []
+
+    async def fake_query(args):
+        executed.append(dict(args))
+        return {"content": [{"type": "text", "text": _range_read_ok(args)}]}
+
+    windows = [{"id": "f1", "start_char": start, "max_chars": 100} for start in (0, 100, 200, 300)]
+    guard = RepeatReadGuard()
+    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
+        tools = {tool.name: tool for tool in build_agent_function_tools("writer", read_guard=guard)}
+        outputs = [
+            json.loads(await tools["query_files"].on_invoke_tool(None, json.dumps(args))) for args in windows
+        ]
+
+    assert executed == windows
+    assert [item["status"] for item in outputs] == ["success"] * 4
+    assert all("read_hint" not in item for item in outputs)
+    assert guard.duplicate_reads == 0 and guard.blocked_reads == 0
+    assert guard.files_read == {}
+    assert "本请求已读取全文" not in guard.handoff_summary()
+
+
+@pytest.mark.unit
+def test_same_range_window_repeats_are_hinted_then_blocked():
+    guard = RepeatReadGuard()
+    window = {"id": "f1", "start_char": 100, "max_chars": 100}
+    # 同一窗口的等价写法（字符串数字）是同一次读取
+    spellings = [window, {"id": "f1", "start_char": "100", "max_chars": "100"}, window]
+    outputs = [json.loads(_guarded_read(guard, json.dumps(args), _range_read_ok(window))) for args in spellings]
+    assert "read_hint" not in outputs[0]
+    assert outputs[1]["repeated_reads"] == 2 and "这一段内容" in outputs[1]["read_hint"]
+    assert "全文" not in outputs[1]["read_hint"]
+    assert outputs[2]["repeated_reads"] == 3
+
+    blocked = json.loads(_guarded_read(guard, json.dumps(window), _range_read_ok(window)))
+    assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
+    assert guard.blocked_reads == 1
+
+
+@pytest.mark.unit
+def test_full_and_tail_reads_do_not_count_against_each_other():
+    guard = RepeatReadGuard()
+    tail = {"id": "f1", "tail_chars": 200}
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard)  # 全文读三次
+    tail_out = json.loads(_guarded_read(guard, json.dumps(tail), _range_read_ok(tail)))
+    assert tail_out["status"] == "success" and "read_hint" not in tail_out
+
+    other = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(other, json.dumps(tail), _range_read_ok(tail))
+    assert other.files_read == {}, "只读了结尾，不算读过全文"
+    full_out = json.loads(_guarded_read(other))
+    assert full_out["status"] == "success" and "read_hint" not in full_out
+    assert other.files_read == {"f1": "第一章"}
+
+
+@pytest.mark.unit
+def test_range_read_covering_the_whole_file_counts_as_full_text():
+    guard = RepeatReadGuard()
+    tail = {"id": "f1", "tail_chars": 5000}
+    out = json.loads(_guarded_read(guard, json.dumps(tail), _range_read_ok(tail)))
+    assert out["data"][0]["content_partial"] is False
+    assert guard.files_read == {"f1": "长篇合集"}
+
+
+@pytest.mark.unit
+def test_parallel_range_subtasks_use_their_own_keys_and_partial_is_not_full_text():
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard)  # 全文读三次：再读全文会被拦
+
+    windows = [{"id": "f1", "section": "第3章"}, {"id": "f1", "tail_chars": 200}]
+    raw = json.dumps(
+        {"tasks": [{"type": "query_files", "params": params} for params in windows]}, ensure_ascii=False
+    )
+    plan = guard.plan("parallel_execute", raw)
+    assert plan.blocked_output is None
+    assert len(json.loads(plan.arguments)["tasks"]) == 2, "范围读取与全文读取不共用计数"
+
+    fresh = RepeatReadGuard()
+    plan = fresh.plan("parallel_execute", json.dumps({"tasks": [{"type": "query_files", "params": windows[1]}]}))
+    tail_row = json.loads(_range_read_ok(windows[1]))["data"]
+    result = {
+        "type": "query_files",
+        "status": "completed",
+        "description": "读结尾",
+        "result": {"status": "success", "data": tail_row},
+    }
+    fresh.observe("parallel_execute", plan, _parallel_output([result]))
+    assert fresh.files_read == {}
