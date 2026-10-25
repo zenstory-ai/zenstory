@@ -195,6 +195,35 @@ async function bootstrapAdminSession(page: Page) {
       return;
     }
 
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/usage/models')) {
+      const source = new URL(request.url()).searchParams.get('source');
+      const distribution = (p50: number | null, p95: number | null, samples: number) => ({ p50, p95, samples });
+      const row = {
+        attempts: 10, success: 4, error: 3, timeout: 1, cancelled: 1, not_recorded: 1, success_rate: 0.5,
+        latency_ms: distribution(5000, 20000, 4), ttft_ms: distribution(850, 4000, 3),
+        decode_tps: { value: 100, samples: 2 },
+        cache_hit_tokens: 0, cache_miss_tokens: 400, output_tokens: 3000, cost_cny: '0.0120',
+      };
+      const routerRow = {
+        ...row, attempts: 1, success: 1, error: 0, timeout: 0, cancelled: 0, not_recorded: 0, success_rate: 1,
+        latency_ms: distribution(900, 900, 1), ttft_ms: distribution(null, null, 0), decode_tps: { value: null, samples: 0 },
+      };
+      // A feature with no calls in the window: no rows, N/A totals.
+      const items = source === 'polish' ? [] : [{ model: 'deepseek-flash', ...row }, { model: 'MiniMax-M3.1-Flash', ...routerRow }];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          window: 'today',
+          ...usagePeriod,
+          source,
+          items,
+          totals: items.length ? { ...row, attempts: 11, success: 5, success_rate: 0.5556 } : { ...row, attempts: 0, success_rate: null },
+        }),
+      });
+      return;
+    }
+
     if (request.method() === 'GET' && /\/api\/admin\/usage\/users\/[^/]+\/daily$/.test(pathname)) {
       await route.fulfill({
         status: 200,
@@ -277,6 +306,32 @@ test('usage page opens a user from a ?user= link', async ({ page }) => {
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('writer@example.com');
+});
+
+test('usage page shows per-model call metrics, filters by feature and explains each metric', async ({ page }) => {
+  await bootstrapAdminSession(page);
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/admin/usage/models')) requests.push(new URL(request.url()).search);
+  });
+
+  await page.goto('/admin/usage');
+  const section = page.locator('section').filter({ has: page.getByRole('heading', { name: /^(按模型|By model)$/ }) });
+  const deepseek = section.getByRole('row').filter({ hasText: 'deepseek-flash' });
+  await expect(deepseek).toContainText('50%');
+  await expect(deepseek).toContainText('4 / 8');
+  await expect(deepseek).toContainText(/100 tokens\/(秒|s)/);
+  // Not streamed: first token and decode speed are N/A, not 0.
+  await expect(section.getByRole('row').filter({ hasText: 'MiniMax-M3.1-Flash' })).toContainText('N/A');
+  await expect(section.getByRole('row').filter({ hasText: /全部模型|All models/ })).toContainText('55.6%');
+
+  await section.getByRole('combobox', { name: /^(功能|Feature)$/ }).selectOption('polish');
+  await expect(section).toContainText(/这段时间没有模型调用|No model calls in this period/);
+  expect(requests.at(-1)).toBe('?window=today&source=polish');
+
+  await section.getByText(/指标怎么算|How these are counted/).click();
+  await expect(section).toContainText(/成功率 = 成功 ÷|Success rate = succeeded ÷/);
+  await expect(section).toContainText(/解码速度 = 输出 tokens 合计|Decode speed = total output tokens/);
 });
 
 test('user detail page links to usage and lists every section', async ({ page }) => {

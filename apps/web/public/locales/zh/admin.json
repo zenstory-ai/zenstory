@@ -740,7 +740,36 @@
     "userDetail": "用户用量",
     "openUser": "查看 {{name}} 的用量",
     "detailRange": "统计天数",
-    "lastDays": "近 {{count}} 天"
+    "lastDays": "近 {{count}} 天",
+    "models": {
+      "title": "按模型",
+      "subtitle": "一行是一次向供应商发出的请求（调用尝试），时间范围与上方一致。",
+      "sourceFilter": "功能",
+      "allSources": "全部功能",
+      "model": "模型",
+      "allModels": "全部模型",
+      "attempts": "调用尝试",
+      "successRate": "成功率",
+      "rateDetail": "{{success}} / {{finished}}",
+      "outcomes": "失败 / 超时 / 取消 / 未记录",
+      "latency": "总耗时 p50 / p95",
+      "ttft": "首 token p50 / p95",
+      "decode": "解码速度",
+      "tokensPerSecond": "{{value}} tokens/秒",
+      "samples": "{{count}} 个样本",
+      "tokens": "输入 / 输出 Tokens",
+      "na": "N/A",
+      "empty": "这段时间没有模型调用",
+      "definitionsTitle": "指标怎么算",
+      "definitions": {
+        "attempts": "调用尝试：主用供应商失败、备用接上时算两次，分属各自模型；OpenAI 客户端内部的自动重连算在同一次里；作者点「重试」是新的一次。模型调用成功不等于这一轮写作完成。",
+        "successRate": "成功率 = 成功 ÷（成功 + 失败 + 超时）。取消（作者停止、断线、本轮时限、建议接口时限）和未记录不进分母，单独列出。",
+        "latency": "总耗时：发出请求到收到完整回复（流式为流结束），只统计成功的尝试；百分位按全部样本取最近秩，「全部模型」行合并样本计算，不平均各模型的数。",
+        "ttft": "首 token：发出请求到第一段生成内容（正文、推理或工具参数）到达；建立连接等不含内容的事件不算。只有流式的写作助手有，意图识别、输入建议、润色是非流式，显示 N/A。",
+        "decode": "解码速度 = 输出 tokens 合计 ÷ 生成阶段时长合计（首 token 到流结束），不是单次速度的平均。输出 tokens 由供应商报告，含推理和工具参数；供应商若不流式返回推理，推理时间会算进首 token，速度偏高。没有返回用量的调用不计入。",
+        "notRecorded": "未记录：本统计上线前的调用和素材拆解不记结果与耗时，只计 tokens 和费用，不当作成功，也不当作 0。失败、取消的尝试通常拿不到用量，tokens 与费用是下限。"
+      }
+    }
   },
   "userDetail": {
     "title": "用户详情",

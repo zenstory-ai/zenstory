@@ -27,6 +27,13 @@ describe("admin usage API", () => {
     expect(api.get).toHaveBeenCalledWith("/api/admin/usage/users?window=yesterday");
   });
 
+  it("requests the per-model metrics for a window, with the feature only when chosen", async () => {
+    await adminApi.getUsageByModel("7d");
+    expect(api.get).toHaveBeenCalledWith("/api/admin/usage/models?window=7d");
+    await adminApi.getUsageByModel("today", "agent");
+    expect(api.get).toHaveBeenLastCalledWith("/api/admin/usage/models?window=today&source=agent");
+  });
+
   it("requests one user's daily usage with an encoded id", async () => {
     await adminApi.getUserDailyUsage("user/1", 30);
     expect(api.get).toHaveBeenCalledWith("/api/admin/usage/users/user%2F1/daily?days=30");
