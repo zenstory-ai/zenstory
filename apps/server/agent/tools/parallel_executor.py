@@ -41,6 +41,8 @@ class SubagentTask:
     error: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    # 在本批（执行器收到的 tasks）里的下标，结果里原样回显。
+    index: int = 0
 
 
 @dataclass
@@ -321,6 +323,21 @@ async def handle_delete_file(params: dict[str, Any]) -> dict[str, Any]:
     })
 
 
+# 结果里回显的子任务参数：只回显目标（文件 id / 标题），不回显正文、edits 这类大字段。
+# 下一轮的面包屑和工作集只按回显的目标记「做过什么」，不再拿模型原始参数去和结果配对。
+_ECHOED_PARAM_KEYS = ("id", "file_id", "title")
+
+
+def _echoed_params(params: Any) -> dict[str, str]:
+    if not isinstance(params, dict):
+        return {}
+    return {
+        key: params[key].strip()
+        for key in _ECHOED_PARAM_KEYS
+        if isinstance(params.get(key), str) and params[key].strip()
+    }
+
+
 # 作用域键：由服务端 ToolContext 决定，子任务参数里的同名键一律丢弃。
 _SCOPE_PARAM_KEYS = frozenset({"project_id", "user_id"})
 
@@ -470,6 +487,7 @@ async def execute_parallel(
             task_type=t["type"],
             description=t.get("description", ""),
             parameters=t.get("params", {}),
+            index=i,
         )
         for i, t in enumerate(limited_tasks)
     ]
@@ -653,6 +671,10 @@ async def execute_parallel(
         "tasks": [
             {
                 "id": t.id,
+                # 回显实际执行的下标和目标：被截掉的任务只在 dropped_tasks 里，
+                # 被读取守卫拦下的读取根本不在本批里。
+                "index": t.index,
+                "params": _echoed_params(t.parameters),
                 "type": t.task_type,
                 "description": t.description,
                 "status": t.status,

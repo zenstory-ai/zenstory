@@ -865,7 +865,12 @@ class TestCrossTurnWorkingSet:
                         ]
                     },
                     "status": "success",
-                    "result": {"tasks": [{"status": "completed"}, {"status": "completed"}]},
+                    "result": {
+                        "tasks": [
+                            {"index": 0, "params": {"id": character.id}, "type": "query_files", "status": "completed"},
+                            {"index": 1, "params": {"id": chapter.id}, "type": "edit_file", "status": "completed"},
+                        ]
+                    },
                 },
             ],
             at=base + timedelta(minutes=2),
@@ -901,6 +906,63 @@ class TestCrossTurnWorkingSet:
         user_content = SessionLoader.attach_working_set_to_user_content("继续", text)
         assert user_content.startswith("<previous_turn_working_set>")
         assert user_content.endswith("【本轮用户消息】\n继续")
+
+    def test_unexecuted_or_unknown_deletes_keep_files_in_the_working_set(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        """parallel_execute 截掉的尾部 delete、没有结果的 delete：文件没删，不能从工作集里拿掉。"""
+        project = session_loader_test_data["project"]
+        chat_session_id = session_loader_test_data["chat_session"].id
+        files = [self._make_file(db_session, project.id, f"草稿{i}", f"草稿{i}正文") for i in range(7)]
+        pending_target = self._make_file(db_session, project.id, "待删设定", "待删设定正文")
+
+        base = datetime.utcnow() - timedelta(minutes=10)
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="读一下这些草稿",
+            tool_calls=[_query_call(file.id, file.title) for file in [*files, pending_target]],
+            at=base,
+        )
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="删掉这些草稿",
+            tool_calls=[
+                {
+                    "id": "c_p",
+                    "name": "parallel_execute",
+                    "arguments": {
+                        "tasks": [{"type": "delete_file", "params": {"id": file.id}} for file in files]
+                    },
+                    "status": "success",
+                    "result": {
+                        "tasks": [
+                            {
+                                "index": i,
+                                "params": {"id": file.id},
+                                "type": "delete_file",
+                                "status": "completed",
+                                "result": {"status": "success", "data": True},
+                            }
+                            for i, file in enumerate(files[:5])
+                        ],
+                        "dropped": 2,
+                    },
+                },
+                {"id": "c_d", "name": "delete_file", "arguments": {"id": pending_target.id}, "status": "pending"},
+            ],
+            at=base + timedelta(minutes=1),
+        )
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        result = loader.load_chat_session(db_session)
+        ref_ids = {ref["file_id"] for ref in result.working_set_refs}
+
+        assert not ref_ids & {file.id for file in files[:5]}
+        assert {files[5].id, files[6].id, pending_target.id} <= ref_ids
 
     def test_working_set_marks_chapters_the_author_edited_after_the_ai(
         self,

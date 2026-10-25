@@ -461,8 +461,8 @@ def test_history_dict_exposes_routing_last_agent_and_clarification():
 
 
 @pytest.mark.unit
-def test_guard_rewritten_parallel_batch_pairs_results_by_type():
-    """守卫拦下第 1 个读取后实际只执行 2 个子任务：不能把后面的结果安到前面的子任务上。"""
+def test_guard_rewritten_parallel_batch_records_only_executed_tasks():
+    """守卫拦下第 1 个读取后实际只执行 2 个子任务：只按结果里回显的目标记面包屑。"""
     from agent.core.session_loader import SessionLoader
 
     tool_call = {
@@ -478,11 +478,20 @@ def test_guard_rewritten_parallel_batch_pairs_results_by_type():
         "result": {
             "tasks": [
                 {
+                    "index": 0,
+                    "params": {"id": "c2"},
                     "type": "query_files",
                     "status": "completed",
                     "result": {"status": "success", "data": [{"id": "c2", "title": "第二章"}]},
                 },
-                {"type": "edit_file", "status": "failed", "error": "找不到原文", "result": None},
+                {
+                    "index": 1,
+                    "params": {"id": "c3"},
+                    "type": "edit_file",
+                    "status": "failed",
+                    "error": "找不到原文",
+                    "result": None,
+                },
             ]
         },
     }
@@ -490,6 +499,108 @@ def test_guard_rewritten_parallel_batch_pairs_results_by_type():
     actions = SessionLoader("p", "u")._extract_parallel_file_actions(tool_call)
 
     assert actions == [{"name": "query_files", "file_id": "c2", "title": "第二章"}]
+
+
+def _deletes_truncated_after_five():
+    tasks = [{"type": "delete_file", "description": f"删第{i}稿", "params": {"id": f"f{i}"}} for i in range(1, 8)]
+    results = [
+        {
+            "index": i - 1,
+            "params": {"id": f"f{i}"},
+            "type": "delete_file",
+            "status": "completed",
+            "result": {"status": "success", "mutation_applied": True, "data": True},
+        }
+        for i in range(1, 6)
+    ]
+    return {
+        "name": "parallel_execute",
+        "status": "success",
+        "arguments": {"tasks": tasks},
+        "result": {
+            "tasks": results,
+            "dropped": 2,
+            "dropped_tasks": [{"index": 5, "type": "delete_file"}, {"index": 6, "type": "delete_file"}],
+            "all_completed": False,
+        },
+    }
+
+
+@pytest.mark.unit
+def test_truncated_tail_tasks_are_not_recorded_as_done():
+    """超过 5 个的尾部任务没有执行：不能出现在「已删除」面包屑里。"""
+    from agent.core.session_loader import SessionLoader
+
+    loader = SessionLoader("p", "u")
+    actions = loader._extract_file_actions([_deletes_truncated_after_five()])
+
+    assert [action["file_id"] for action in actions] == ["f1", "f2", "f3", "f4", "f5"]
+    breadcrumb = loader._build_tool_calls_history_content([_deletes_truncated_after_five()])
+    assert "f6" not in breadcrumb and "f7" not in breadcrumb
+
+
+@pytest.mark.unit
+def test_pending_subtask_results_and_failed_tasks_are_not_recorded():
+    from agent.core.session_loader import SessionLoader
+
+    tool_call = {
+        "name": "parallel_execute",
+        "status": "success",
+        "arguments": {"tasks": [{"type": "edit_file", "params": {"id": "a"}}, {"type": "edit_file", "params": {"id": "b"}}]},
+        "result": {
+            "tasks": [
+                {"index": 0, "params": {"id": "a"}, "type": "edit_file", "status": "pending", "result": None},
+                {"index": 1, "params": {"id": "b"}, "type": "edit_file", "status": "partial", "result": {"data": {"id": "b"}}},
+            ]
+        },
+    }
+
+    actions = SessionLoader("p", "u")._extract_parallel_file_actions(tool_call)
+
+    # partial 的改动已经落地，照常记编辑；pending 没有结果，不记。
+    assert [(action["name"], action["file_id"]) for action in actions] == [("edit_file", "b")]
+
+
+@pytest.mark.unit
+def test_legacy_parallel_result_without_echo_pairs_only_when_every_task_ran():
+    """旧格式结果（没有回显 params）：任务一个不少、类型逐个对上时才按下标配对。"""
+    from agent.core.session_loader import SessionLoader
+
+    loader = SessionLoader("p", "u")
+    tasks = [{"type": "delete_file", "params": {"id": "d1"}}, {"type": "query_files", "params": {"id": "q1"}}]
+    complete = {
+        "name": "parallel_execute",
+        "status": "success",
+        "arguments": {"tasks": tasks},
+        "result": {
+            "tasks": [
+                {"type": "delete_file", "status": "completed", "result": {"data": True}},
+                {"type": "query_files", "status": "completed", "result": {"data": [{"id": "q1", "title": "卷纲"}]}},
+            ]
+        },
+    }
+    assert [(a["name"], a["file_id"]) for a in loader._extract_parallel_file_actions(complete)] == [
+        ("delete_file", "d1"),
+        ("query_files", "q1"),
+    ]
+
+    shortened = {**complete, "result": {"tasks": complete["result"]["tasks"][1:]}}
+    assert loader._extract_parallel_file_actions(shortened) == []
+
+
+@pytest.mark.unit
+def test_pending_top_level_call_is_recorded_as_outcome_unknown():
+    """没有落下结果的工具调用（status=pending）：面包屑写「结果未知」，不写成已完成。"""
+    from agent.core.session_loader import SessionLoader
+
+    loader = SessionLoader("p", "u")
+    breadcrumb = loader._build_tool_calls_history_content(
+        [{"name": "delete_file", "status": "pending", "arguments": {"id": "g1"}}]
+    )
+
+    assert "g1" in breadcrumb
+    assert "已删除文件" not in breadcrumb
+    assert "结果未知" in breadcrumb
 
 
 # ------------------------------------------------------- service：路由落库
