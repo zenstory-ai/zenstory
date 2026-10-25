@@ -20,7 +20,7 @@ Status: implemented
 - **运行摘要**：前置拒绝在已有 `run_meter` 里记一次固定分类 `file_body_pending`（`rolled_back_batches` 不加、不记首个工具开始；工具没执行，正常执行路径的计数入口不变，不重复计）。日志不带参数、标题、正文或异常原文。
 - **删除只放行取消本请求新建的那份待补文件（新决定，收窄 10/21 的放行）**：逾期待补期间 `request_clarification` 照旧放行；`delete_file` 只有参数（与执行路径同一个解析函数）里的 `id` 精确等于某个逾期待补文件、这份文件是本请求新建的（记下了 create_file 结果里的建好版本；复用的已有剧集没有，可能已有正文），且 `recursive` 按 `coerce_bool` 判为假时才执行；别的文件、复用的剧集、递归删除（含父目录）、解析不了或没有 id 一律返回原 `file_body_pending` 拒绝，交回上面的纠偏。只读视图 `_PendingEmptyFileState.overdue_unwritten_files()` 返回精确 `{id, title, created_here}`。不按标题、作者原话或模型解释判断目标。非待补期间的删除不变。
 - **取消闭环**：放行的那次删除确实执行成功（结构化 `status=success` 且 `mutation_applied=true`）时，两侧按同一个删除结果收敛：tools_adapter 清除这份文件的待写守卫条目，StreamAdapter 记下 `delete_file` 调用的目标 id、收到删掉自己正在等正文那份文件的成功结果时收尾这份等待（缓冲按既有语义回到对话）并解除绑定。同一 run 之后的 `<file>` 不会落进已删文件，模型接着建下一个文件也不再被已删文件的守卫拒绝；图在 run 边界的 `_probe_pending_file_body`「已删除」核验保留为兜底。删除失败或没确认删掉时两侧都不动。
-- **锚点反馈**：`EditBatchError` 的失败项含 `anchor_not_found` 时，在错误末尾补一句：本批所有 new 没有保存，不能当作下一次的 old/anchor；按失败项候选的当前原文重建完整批次，没有可靠候选再用 `query_files` 按 id 读取相关段落。匹配阈值、引号/段落/歧义/并发保护和原子批次不变；`continue_on_error` 的部分成功/全失败路径不经过它。
+- **锚点反馈**：`EditBatchError` 的失败项含 `anchor_not_found` 时，在错误末尾补一句：本批所有 new 没有保存，不能当作下一次的 old/anchor；失败项的候选片段是在本批前面几处编辑生效后的中间文本里找的，可能含已回滚的 new，不一定是已保存原文，重建时只用确认是已保存原文的片段，确认不了先用 `query_files` 按 id 读取相关段落（不强制读全文）。候选片段的生成方式不变。匹配阈值、引号/段落/歧义/并发保护和原子批次不变；`continue_on_error` 的部分成功/全失败路径不经过它。
 
 ## Alternatives considered
 
@@ -45,3 +45,4 @@ Status: implemented
 - 独立审查（三路只读）后的回修：复用已有剧集仍可按精确 id 删除（major）、取消后守卫只在边界清除导致被打断的一轮按完成收尾（major），均先写跨层红例再修。
 - 既有用例 `test_resumed_reply_still_refuses_edit_file_before_the_body` 的脚本把“拒绝后写正文”拆到下一次纠偏（断言不变：edit_file 未执行、正文只落一次）。
 - 锚点：回滚的 new 当 old 仍被拒、一处不落库，按当前原文重建的完整批次整批生效；partial 既有用例不变。
+- 独立审查（Codex，REQUEST CHANGES）指出最初那句把候选片段说成「当前原文」不准确：edit 0 在中间文本里生效、edit 1 找不到锚点时，edit 1 的候选带着从未保存的 edit 0 新文。先写回归（在 `8254b2b8` 上失败）：整批回滚、库与版本数不变、候选含未保存新文而已保存正文没有，重读已保存正文后重建的整批生效；随后只改这句说明，匹配与原子性不变。
