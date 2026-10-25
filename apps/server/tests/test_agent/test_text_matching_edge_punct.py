@@ -46,12 +46,13 @@ def test_fuzzy_replace_all_old_missing_period_before_closing_quote(editor):
 
 def test_fuzzy_insert_after_anchor_missing_period_lands_outside_the_quote(editor):
     """锚点漏了「。」：插入点要越过原文的「。”」，不能把旁白插进引语里。"""
-    result = editor._apply_insert_after(
+    result = editor._apply_insert(
         _LINE,
         {"op": "insert_after", "anchor": "林舟点头说：“这个方案很好”", "text": "他笑了笑"},
         0,
         [],
         [],
+        after=True,
     )
     assert result == "林舟点头说：“这个方案很好。”他笑了笑然后走了。"
 

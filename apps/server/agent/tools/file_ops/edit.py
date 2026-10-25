@@ -704,47 +704,15 @@ class FileEditor:
                 if op in ("none", "null", "nil"):
                     op = ""
 
-                # If op is still missing, try safe inference from fields.
+                # op 缺失时不按 old/anchor/text 或 position 字样猜编辑类型：报缺 op，让模型带上 op 重发。
                 if not op:
-                    has_old = isinstance(edit.get("old"), str) and bool(edit.get("old"))
-                    has_new = isinstance(edit.get("new"), str)
-                    has_anchor = isinstance(edit.get("anchor"), str) and bool(edit.get("anchor"))
-                    has_text = isinstance(edit.get("text"), str) and bool(edit.get("text"))
-                    pos_hint = str(edit.get("position") or edit.get("where") or "").lower()
-
-                    inferred = None
-                    if has_old and has_new:
-                        inferred = "replace"
-                    elif has_old and (not has_new) and (not has_anchor) and (not has_text):
-                        inferred = "delete"
-                    elif has_anchor and has_text:
-                        if ("before" in pos_hint) or ("前" in pos_hint):
-                            inferred = "insert_before"
-                        elif ("after" in pos_hint) or ("后" in pos_hint):
-                            inferred = "insert_after"
-                        else:
-                            # Default to insert_after; if multiple matches, later logic will stop safely.
-                            inferred = "insert_after"
-                    elif has_text and (not has_old) and (not has_anchor):
-                        if ("before" in pos_hint) or ("pre" in pos_hint) or ("head" in pos_hint) or ("前" in pos_hint):
-                            inferred = "prepend"
-                        elif ("after" in pos_hint) or ("tail" in pos_hint) or ("后" in pos_hint):
-                            inferred = "append"
-                        else:
-                            # Default to append for novel writing.
-                            inferred = "append"
-
-                    if inferred:
-                        warnings.append(f"Edit {i}: op inferred as {inferred}")
-                        op = inferred
-                    else:
-                        # Ignore completely empty edits (common trailing null/empty item)
-                        if not any(v for v in edit.values() if v not in (None, "", [], {})):
-                            warnings.append(f"Edit {i}: empty edit ignored")
-                            continue
-                        raise ValueError(
-                            f"Edit {i}: missing op. Each edit must include op=replace/insert_after/insert_before/append/prepend/delete"
-                        )
+                    # Ignore completely empty edits (common trailing null/empty item)
+                    if not any(v for v in edit.values() if v not in (None, "", [], {})):
+                        warnings.append(f"Edit {i}: empty edit ignored")
+                        continue
+                    raise ValueError(
+                        f"Edit {i}: missing op. Each edit must include op=replace/insert_after/insert_before/append/prepend/delete"
+                    )
 
                 # Normalize common field aliases
                 if "old" not in edit and isinstance(edit.get("from"), str):
@@ -786,13 +754,10 @@ class FileEditor:
                     content = self._apply_replace(
                         content, edit, i, applied_edits, warnings, quote_style=quote_style
                     )
-                elif op == "insert_after":
-                    content = self._apply_insert_after(
-                        content, edit, i, applied_edits, warnings, quote_style=quote_style
-                    )
-                elif op == "insert_before":
-                    content = self._apply_insert_before(
-                        content, edit, i, applied_edits, warnings, quote_style=quote_style
+                elif op in ("insert_after", "insert_before"):
+                    content = self._apply_insert(
+                        content, edit, i, applied_edits, warnings,
+                        after=op == "insert_after", quote_style=quote_style,
                     )
                 elif op in ("append", "prepend"):
                     notes: list[str] = []
@@ -1258,6 +1223,26 @@ class FileEditor:
             search_from = start + len(sub)
         return start
 
+    @staticmethod
+    def _select_fuzzy_span(
+        content: str,
+        spans: list[tuple[int, int]],
+        occurrence: int | None,
+        edit_index: int,
+        *,
+        ambiguous: Callable[[int, list[str]], str],
+    ) -> tuple[int, int]:
+        """模糊匹配的多处候选里选一处：没给 occurrence 且不唯一就中止并列出带序号的候选。"""
+        if len(spans) != 1 and occurrence is None:
+            raise _ambiguous(ambiguous(len(spans), _numbered_previews(content, spans)))
+        if occurrence is None:
+            return spans[0]
+        if occurrence > len(spans):
+            raise EditFileError(
+                f"Edit {edit_index}: occurrence out of range (1..{len(spans)})"
+            )
+        return spans[occurrence - 1]
+
     def _apply_replace(
         self,
         content: str,
@@ -1501,24 +1486,18 @@ class FileEditor:
                     detail["layout_notes"] = [NOTE_INDENT_FOLLOWS_FILE]
                 applied_edits.append(detail)
             else:
-                if len(spans) != 1 and occurrence is None:
-                    previews = _numbered_previews(content, spans)
-                    raise _ambiguous(
-                        f"Edit {edit_index}: 原文片段匹配到多个位置（{len(spans)}处），"
+                start, end = self._select_fuzzy_span(
+                    content,
+                    spans,
+                    occurrence,
+                    edit_index,
+                    ambiguous=lambda count, previews: (
+                        f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
                         f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                         f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
                         f"（确实要把这几处全部替换时，才使用 replace_all=true）候选片段: {previews}"
-                    )
-
-                idx = 0
-                if occurrence is not None:
-                    if occurrence > len(spans):
-                        raise EditFileError(
-                            f"Edit {edit_index}: occurrence out of range (1..{len(spans)})"
-                        )
-                    idx = occurrence - 1
-
-                start, end = spans[idx]
+                    ),
+                )
                 if ignore_punct_whitespace:
                     start, end = self._extend_fuzzy_span(
                         content, start, end, old_text, replacement=new_text
@@ -1544,7 +1523,7 @@ class FileEditor:
 
         return content
 
-    def _apply_insert_after(
+    def _apply_insert(
         self,
         content: str,
         edit: dict[str, Any],
@@ -1552,9 +1531,12 @@ class FileEditor:
         applied_edits: list[dict[str, Any]],
         warnings: list[str],
         *,
+        after: bool,
         quote_style: str | None = None,
     ) -> str:
-        """Apply an insert_after edit operation."""
+        """Apply an insert_after (after=True) or insert_before edit operation."""
+        op = "insert_after" if after else "insert_before"
+        direction = "after" if after else "before"
         anchor = edit.get("anchor", "")
         text = edit.get("text", "")
 
@@ -1563,7 +1545,27 @@ class FileEditor:
         occurrence = self._parse_occurrence(edit, edit_index)
 
         if not anchor:
-            raise ValueError(f"Edit {edit_index}: 'anchor' field is required for insert_after operation")
+            raise ValueError(f"Edit {edit_index}: 'anchor' field is required for {op} operation")
+
+        def place(pos: int, detail: dict[str, Any], *, exact_anchor: bool = False) -> str:
+            nonlocal text
+            notes: list[str] = []
+            pos, text = self._position_insert(
+                content, pos, text, direction=direction, snap_sentence=True, notes=notes,
+                exact_anchor=exact_anchor,
+            )
+            placed, text = self._place_new_text(content, pos, pos, text, quote_style)
+            applied_edits.append({
+                "op": op,
+                **detail,
+                "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
+                "text_len": len(text),
+                "text_words": count_words(text),
+                "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
+            })
+            if notes:
+                applied_edits[-1]["layout_notes"] = notes
+            return placed
 
         located = locate_exact_or_quote_equivalent(content, anchor)
         if located is not None:
@@ -1573,353 +1575,109 @@ class FileEditor:
                 haystack, needle, occurrence, match_count, edit_index, label="锚点",
                 preview_content=content,
             )
-            pos = start + len(anchor)
-            notes: list[str] = []
-            pos, text = self._position_insert(
-                content, pos, text, direction="after", snap_sentence=True, notes=notes,
-                exact_anchor=True,
-            )
-            content, text = self._place_new_text(content, pos, pos, text, quote_style)
-            applied_edits.append({
-                "op": "insert_after",
-                "match_mode": exact_mode,
-                "match_count": match_count,
-                "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                "text_len": len(text),
-                "text_words": count_words(text),
-                "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-            })
-            if notes:
-                applied_edits[-1]["layout_notes"] = notes
-        else:
-            if match_mode == "exact":
-                raise _not_found(
-                    f"Edit {edit_index}: anchor text not found in content (exact match)"
-                )
+            pos = start + len(anchor) if after else start
+            return place(pos, {"match_mode": exact_mode, "match_count": match_count}, exact_anchor=True)
 
-            fuzzy_stats: dict[str, int] = {}
-            spans = find_fuzzy_spans(
-                content,
-                anchor,
-                ignore_punct_whitespace=ignore_punct_whitespace,
-                stats=fuzzy_stats,
+        if match_mode == "exact":
+            raise _not_found(
+                f"Edit {edit_index}: anchor text not found in content (exact match)"
             )
-            if fuzzy_stats.get("boundary_rejected"):
-                warnings.append(
-                    f"Edit {edit_index}: {fuzzy_stats['boundary_rejected']} 处候选锚点因字符归一化展开边界不对齐被跳过（如罗马数字/合字）"
-                )
-            if not spans:
-                # Secondary fallback: approximate match (handles word errors)
-                approx_match = find_approximate_match(
-                    content,
-                    anchor,
-                    max_error_rate=0.25,
-                    min_pattern_len=8,
-                )
-                if approx_match:
-                    start, end, similarity, matched_text = approx_match
-                    if occurrence is not None and occurrence != 1:
-                        raise ValueError(
-                            f"Edit {edit_index}: 近似匹配只找到 1 处锚点，"
-                            f"occurrence out of range (1..1)"
-                        )
-                    # Insert after the matched text：锚点以句号/引号收尾时，
-                    # 插入点要越过原文对应的标点，不能插在「冷」和「。」之间。
+
+        fuzzy_stats: dict[str, int] = {}
+        spans = find_fuzzy_spans(
+            content,
+            anchor,
+            ignore_punct_whitespace=ignore_punct_whitespace,
+            stats=fuzzy_stats,
+        )
+        if fuzzy_stats.get("boundary_rejected"):
+            warnings.append(
+                f"Edit {edit_index}: {fuzzy_stats['boundary_rejected']} 处候选锚点因字符归一化展开边界不对齐被跳过（如罗马数字/合字）"
+            )
+        if spans:
+            start, end = self._select_fuzzy_span(
+                content,
+                spans,
+                occurrence,
+                edit_index,
+                ambiguous=lambda count, previews: (
+                    f"Edit {edit_index}: 锚点匹配到多个位置（{count}处），"
+                    f"为避免插入到错误位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                    f"指定第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的锚点。"
+                    f"候选片段: {previews}"
+                ),
+            )
+            pos = end if after else start
+            if ignore_punct_whitespace:
+                if after:
                     _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
-                    notes = []
-                    pos, text = self._position_insert(
-                        content, pos, text, direction="after", snap_sentence=True, notes=notes
-                    )
-                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
-                    applied_edits.append({
-                        "op": "insert_after",
-                        "match_mode": "approximate",
-                        "similarity": round(similarity, 3),
-                        "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
-                        "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                        "text_len": len(text),
-                        "text_words": count_words(text),
-                        "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-                    })
-                    if notes:
-                        applied_edits[-1]["layout_notes"] = notes
-                    return content
-
-                # Tertiary fallback: locate a unique best paragraph
-                block_span = find_unique_line_span(
-                    content,
-                    anchor,
-                    ignore_punct_whitespace=ignore_punct_whitespace,
-                )
-                if block_span:
-                    start, end, block_score = block_span
-                    # 段落兜底与近似匹配一样只给出唯一一处：点名第 2 处及以后就是插错位置。
-                    if occurrence is not None and occurrence != 1:
-                        raise ValueError(
-                            f"Edit {edit_index}: 段落兜底只找到 1 处锚点，"
-                            f"occurrence out of range (1..1)"
-                        )
-                    pos = end
-                    notes = []
-                    pos, text = self._position_insert(
-                        content, pos, text, direction="after", snap_sentence=True, notes=notes
-                    )
-                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
-                    # fuzzy_paragraph 是「最像的整段」而不是逐字命中，必须把
-                    # 置信度与兜底性质写进详情，否则模型只看到 match_count=1，
-                    # 会误以为这是确定无疑的唯一匹配而不再复核。
-                    applied_edits.append({
-                        "op": "insert_after",
-                        "match_mode": "fuzzy_paragraph",
-                        "ignore_punct_whitespace": ignore_punct_whitespace,
-                        "match_count": 1,
-                        "confidence": round(block_score, 3),
-                        "fallback": True,
-                        "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                        "text_len": len(text),
-                        "text_words": count_words(text),
-                        "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-                    })
-                    if notes:
-                        applied_edits[-1]["layout_notes"] = notes
-                    return content
-
-                suggestions = suggest_similar_lines(
-                    content,
-                    anchor,
-                    ignore_punct_whitespace=ignore_punct_whitespace,
-                )
-                raise _not_found(
-                    f"Edit {edit_index}: 找不到插入锚点。请从当前文件原文中复制更长且唯一的锚点。候选片段: {suggestions}"
-                )
-
-            if len(spans) != 1 and occurrence is None:
-                previews = _numbered_previews(content, spans)
-                raise _ambiguous(
-                    f"Edit {edit_index}: 锚点匹配到多个位置（{len(spans)}处），"
-                    f"为避免插入到错误位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
-                    f"指定第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的锚点。"
-                    f"候选片段: {previews}"
-                )
-
-            idx = 0
-            if occurrence is not None:
-                if occurrence > len(spans):
-                    raise ValueError(
-                        f"Edit {edit_index}: occurrence out of range (1..{len(spans)})"
-                    )
-                idx = occurrence - 1
-
-            start, end = spans[idx]
-            pos = end
-            if ignore_punct_whitespace:
-                _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
-            notes = []
-            pos, text = self._position_insert(
-                content, pos, text, direction="after", snap_sentence=True, notes=notes
-            )
-            content, text = self._place_new_text(content, pos, pos, text, quote_style)
-            applied_edits.append({
-                "op": "insert_after",
-                "match_mode": "fuzzy",
-                "ignore_punct_whitespace": ignore_punct_whitespace,
-                "match_count": len(spans),
-                "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                "text_len": len(text),
-                "text_words": count_words(text),
-                "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-            })
-            if notes:
-                applied_edits[-1]["layout_notes"] = notes
-
-        return content
-
-    def _apply_insert_before(
-        self,
-        content: str,
-        edit: dict[str, Any],
-        edit_index: int,
-        applied_edits: list[dict[str, Any]],
-        warnings: list[str],
-        *,
-        quote_style: str | None = None,
-    ) -> str:
-        """Apply an insert_before edit operation."""
-        anchor = edit.get("anchor", "")
-        text = edit.get("text", "")
-
-        match_mode = str(edit.get("match_mode") or "auto").strip().lower()
-        ignore_punct_whitespace = self._parse_ignore_punct_whitespace(edit)
-        occurrence = self._parse_occurrence(edit, edit_index)
-
-        if not anchor:
-            raise ValueError(f"Edit {edit_index}: 'anchor' field is required for insert_before operation")
-
-        located = locate_exact_or_quote_equivalent(content, anchor)
-        if located is not None:
-            exact_mode, haystack, needle = located
-            match_count = haystack.count(needle)
-            pos = self._select_exact_occurrence_start(
-                haystack, needle, occurrence, match_count, edit_index, label="锚点",
-                preview_content=content,
-            )
-            notes: list[str] = []
-            pos, text = self._position_insert(
-                content, pos, text, direction="before", snap_sentence=True, notes=notes,
-                exact_anchor=True,
-            )
-            content, text = self._place_new_text(content, pos, pos, text, quote_style)
-            applied_edits.append({
-                "op": "insert_before",
-                "match_mode": exact_mode,
-                "match_count": match_count,
-                "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                "text_len": len(text),
-                "text_words": count_words(text),
-                "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-            })
-            if notes:
-                applied_edits[-1]["layout_notes"] = notes
-        else:
-            if match_mode == "exact":
-                raise _not_found(
-                    f"Edit {edit_index}: anchor text not found in content (exact match)"
-                )
-
-            fuzzy_stats: dict[str, int] = {}
-            spans = find_fuzzy_spans(
-                content,
-                anchor,
-                ignore_punct_whitespace=ignore_punct_whitespace,
-                stats=fuzzy_stats,
-            )
-            if fuzzy_stats.get("boundary_rejected"):
-                warnings.append(
-                    f"Edit {edit_index}: {fuzzy_stats['boundary_rejected']} 处候选锚点因字符归一化展开边界不对齐被跳过（如罗马数字/合字）"
-                )
-            if not spans:
-                # Secondary fallback: approximate match (handles word errors)
-                approx_match = find_approximate_match(
-                    content,
-                    anchor,
-                    max_error_rate=0.25,
-                    min_pattern_len=8,
-                )
-                if approx_match:
-                    start, end, similarity, matched_text = approx_match
-                    if occurrence is not None and occurrence != 1:
-                        raise ValueError(
-                            f"Edit {edit_index}: 近似匹配只找到 1 处锚点，"
-                            f"occurrence out of range (1..1)"
-                        )
-                    # Insert before the matched text：锚点以引号开头时插入点要
-                    # 落在原文开引号之前，不能把新文本插进「“」和正文之间。
+                else:
                     pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
-                    notes = []
-                    pos, text = self._position_insert(
-                        content, pos, text, direction="before", snap_sentence=True, notes=notes
-                    )
-                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
-                    applied_edits.append({
-                        "op": "insert_before",
-                        "match_mode": "approximate",
-                        "similarity": round(similarity, 3),
-                        "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
-                        "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                        "text_len": len(text),
-                        "text_words": count_words(text),
-                        "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-                    })
-                    if notes:
-                        applied_edits[-1]["layout_notes"] = notes
-                    return content
-
-                # Tertiary fallback: locate a unique best paragraph
-                block_span = find_unique_line_span(
-                    content,
-                    anchor,
-                    ignore_punct_whitespace=ignore_punct_whitespace,
-                )
-                if block_span:
-                    start, end, block_score = block_span
-                    # 段落兜底与近似匹配一样只给出唯一一处：点名第 2 处及以后就是插错位置。
-                    if occurrence is not None and occurrence != 1:
-                        raise ValueError(
-                            f"Edit {edit_index}: 段落兜底只找到 1 处锚点，"
-                            f"occurrence out of range (1..1)"
-                        )
-                    pos = start
-                    notes = []
-                    pos, text = self._position_insert(
-                        content, pos, text, direction="before", snap_sentence=True, notes=notes
-                    )
-                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
-                    # 同 insert_after：兜底段落匹配必须自报置信度，不能伪装成确定匹配。
-                    applied_edits.append({
-                        "op": "insert_before",
-                        "match_mode": "fuzzy_paragraph",
-                        "ignore_punct_whitespace": ignore_punct_whitespace,
-                        "match_count": 1,
-                        "confidence": round(block_score, 3),
-                        "fallback": True,
-                        "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                        "text_len": len(text),
-                        "text_words": count_words(text),
-                        "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-                    })
-                    if notes:
-                        applied_edits[-1]["layout_notes"] = notes
-                    return content
-
-                suggestions = suggest_similar_lines(
-                    content,
-                    anchor,
-                    ignore_punct_whitespace=ignore_punct_whitespace,
-                )
-                raise _not_found(
-                    f"Edit {edit_index}: 找不到插入锚点。请从当前文件原文中复制更长且唯一的锚点。候选片段: {suggestions}"
-                )
-
-            if len(spans) != 1 and occurrence is None:
-                previews = _numbered_previews(content, spans)
-                raise _ambiguous(
-                    f"Edit {edit_index}: 锚点匹配到多个位置（{len(spans)}处），"
-                    f"为避免插入到错误位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
-                    f"指定第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的锚点。"
-                    f"候选片段: {previews}"
-                )
-
-            idx = 0
-            if occurrence is not None:
-                if occurrence > len(spans):
-                    raise ValueError(
-                        f"Edit {edit_index}: occurrence out of range (1..{len(spans)})"
-                    )
-                idx = occurrence - 1
-
-            start, end = spans[idx]
-            pos = start
-            if ignore_punct_whitespace:
-                pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
-            notes = []
-            pos, text = self._position_insert(
-                content, pos, text, direction="before", snap_sentence=True, notes=notes
-            )
-            content, text = self._place_new_text(content, pos, pos, text, quote_style)
-            applied_edits.append({
-                "op": "insert_before",
+            return place(pos, {
                 "match_mode": "fuzzy",
                 "ignore_punct_whitespace": ignore_punct_whitespace,
                 "match_count": len(spans),
-                "anchor_preview": anchor[:200] + ("..." if len(anchor) > 200 else ""),
-                "text_len": len(text),
-                "text_words": count_words(text),
-                "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
             })
-            if notes:
-                applied_edits[-1]["layout_notes"] = notes
 
-        return content
+        # Secondary fallback: approximate match (handles word errors)
+        approx_match = find_approximate_match(
+            content,
+            anchor,
+            max_error_rate=0.25,
+            min_pattern_len=8,
+        )
+        if approx_match:
+            start, end, similarity, matched_text = approx_match
+            if occurrence is not None and occurrence != 1:
+                raise ValueError(
+                    f"Edit {edit_index}: 近似匹配只找到 1 处锚点，"
+                    f"occurrence out of range (1..1)"
+                )
+            if after:
+                # 锚点以句号/引号收尾时，插入点要越过原文对应的标点，不能插在「冷」和「。」之间。
+                _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
+            else:
+                # 锚点以引号开头时插入点要落在原文开引号之前，不能把新文本插进「“」和正文之间。
+                pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
+            return place(pos, {
+                "match_mode": "approximate",
+                "similarity": round(similarity, 3),
+                "matched_original": matched_text[:200] + ("..." if len(matched_text) > 200 else ""),
+            })
+
+        # Tertiary fallback: locate a unique best paragraph
+        block_span = find_unique_line_span(
+            content,
+            anchor,
+            ignore_punct_whitespace=ignore_punct_whitespace,
+        )
+        if block_span:
+            start, end, block_score = block_span
+            # 段落兜底与近似匹配一样只给出唯一一处：点名第 2 处及以后就是插错位置。
+            if occurrence is not None and occurrence != 1:
+                raise ValueError(
+                    f"Edit {edit_index}: 段落兜底只找到 1 处锚点，"
+                    f"occurrence out of range (1..1)"
+                )
+            # fuzzy_paragraph 是「最像的整段」而不是逐字命中，必须把
+            # 置信度与兜底性质写进详情，否则模型只看到 match_count=1，
+            # 会误以为这是确定无疑的唯一匹配而不再复核。
+            return place(end if after else start, {
+                "match_mode": "fuzzy_paragraph",
+                "ignore_punct_whitespace": ignore_punct_whitespace,
+                "match_count": 1,
+                "confidence": round(block_score, 3),
+                "fallback": True,
+            })
+
+        suggestions = suggest_similar_lines(
+            content,
+            anchor,
+            ignore_punct_whitespace=ignore_punct_whitespace,
+        )
+        raise _not_found(
+            f"Edit {edit_index}: 找不到插入锚点。请从当前文件原文中复制更长且唯一的锚点。候选片段: {suggestions}"
+        )
 
     def _apply_delete(
         self,
@@ -2002,24 +1760,18 @@ class FileEditor:
                     f"Edit {edit_index}: 找不到要删除的原文片段。请从当前文件原文中复制更长且唯一的原文。候选片段: {suggestions}"
                 )
 
-            if len(spans) != 1 and occurrence is None:
-                previews = _numbered_previews(content, spans)
-                raise _ambiguous(
-                    f"Edit {edit_index}: 删除片段匹配到多个位置（{len(spans)}处），"
+            start, end = self._select_fuzzy_span(
+                content,
+                spans,
+                occurrence,
+                edit_index,
+                ambiguous=lambda count, previews: (
+                    f"Edit {edit_index}: 删除片段匹配到多个位置（{count}处），"
                     f"为避免误删已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                     f"指定要删第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
                     f"候选片段: {previews}"
-                )
-
-            idx = 0
-            if occurrence is not None:
-                if occurrence > len(spans):
-                    raise ValueError(
-                        f"Edit {edit_index}: occurrence out of range (1..{len(spans)})"
-                    )
-                idx = occurrence - 1
-
-            start, end = spans[idx]
+                ),
+            )
             if ignore_punct_whitespace:
                 # 只按 old 自己的边缘标点扩展：删除没有 new 可参照，
                 # old 带了引号/句号就把原文对应的那一个一起删掉，不留孤立的「“。」。
