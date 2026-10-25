@@ -717,6 +717,34 @@ describe('ChatPanel mount smoke', () => {
     }
   })
 
+  it('does not tell the author to reply 继续 when a round times out on the last AI message of the day', async () => {
+    mockQuota.value = { ai_conversations: { used: 3, limit: 3, reset_at: null } }
+    mockAgentStreamState.errorCode = 'ERR_AGENT_RUN_TIMEOUT'
+    mockAgentStreamState.error = '这一轮写得太久，先停下了。回复「继续」就能接着写。'
+    mockAgentStreamState.retryable = true
+    withEarlierTurn()
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('chat-quota-card')).toBeInTheDocument()
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('chat:panel.streamErrorTitle')
+    expect(alert).toHaveTextContent('chat:panel.streamErrorQuotaPaused')
+    expect(alert).not.toHaveTextContent('继续')
+    expect(within(alert).queryByRole('button')).not.toBeInTheDocument()
+    // Pause cards in the list stop offering 继续完成 too.
+    expect(mockMessageList.mock.calls.at(-1)?.[0]).toMatchObject({ nextStepsBlocked: true })
+  })
+
+  it('keeps the 继续 hint on a timed-out round while today still has AI messages', async () => {
+    mockAgentStreamState.errorCode = 'ERR_AGENT_RUN_TIMEOUT'
+    mockAgentStreamState.error = '这一轮写得太久，先停下了。回复「继续」就能接着写。'
+    withEarlierTurn()
+    render(<ChatPanel />)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('回复「继续」就能接着写')
+    expect(screen.queryByTestId('chat-quota-card')).not.toBeInTheDocument()
+    expect(mockMessageList.mock.calls.at(-1)?.[0]).toMatchObject({ nextStepsBlocked: false })
+  })
+
   it('clears the quota error at Beijing midnight so yesterday\'s card does not come back', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
@@ -2701,6 +2729,28 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
     vi.unstubAllGlobals()
+  })
+
+  it('points to the version history when the file changed after the AI edit, instead of 请刷新后重试', async () => {
+    const { ApiError } = await import('../../lib/apiClient')
+    mockRollback.mockRejectedValue(new ApiError(409, 'ERR_RESOURCE_CONFLICT', {
+      reason: 'stale_write', file_id: 'file-1',
+      current_updated_at: '2026-10-08T10:05:00+00:00', base_updated_at: '2026-10-08T10:01:00+00:00',
+    }))
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-10-08T10:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
+    act(() => lastMessageListProps().onUndo?.({ fileId: 'file-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: '2026-10-08T10:01:00Z' }))
+    await screen.findByRole('dialog')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    })
+    expect(toast.error).toHaveBeenCalledWith('versions:undoStaleWrite')
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    // Nothing was undone: the editor keeps the newer text and the card is not marked undone.
+    expect(mockProjectState.triggerEditorRefresh).not.toHaveBeenCalled()
   })
 
   it('does not reload the project list when a round completes, even under a default name', async () => {

@@ -795,12 +795,41 @@ async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
         yield _text(LONG_TEXT)
         yield _handoff("quality_reviewer", "请审查第五章")
 
-    events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
+    with patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True) as quota:
+        events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
 
     assert calls == ["writer"]
+    quota.assert_called_once_with("u")
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
     assert texts.endswith(WRAP_UP_TEXT)
     assert not any(e.type == StreamEventType.ITERATION_EXHAUSTED for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize(("messages_left", "continue_hint"), [(False, False), (None, True)])
+async def test_wrap_up_does_not_say_reply_continue_once_today_is_used_up(messages_left, continue_hint):
+    """最后一条免费消息撞上收尾：回复「继续」发不出去，不再这样说；读不到额度时保持原说明。"""
+    import time
+
+    from agent.core.run_meter import AgentRunMeter
+    from agent.graph.writing_graph import WRAP_UP_TEXT, WRAP_UP_TEXT_NO_MESSAGES_LEFT
+
+    meter = AgentRunMeter(wrap_up_after_s=600)
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        meter.started_at = time.monotonic() - 700
+        for event in _write_done("w1"):
+            yield event
+        yield _text(LONG_TEXT)
+        yield _handoff("quality_reviewer", "请审查第五章")
+
+    with patch("agent.graph.writing_graph._ai_messages_left_today", return_value=messages_left):
+        events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
+
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert texts.endswith(WRAP_UP_TEXT if continue_hint else WRAP_UP_TEXT_NO_MESSAGES_LEFT)
+    assert ("继续" in texts.rsplit(LONG_TEXT, 1)[-1]) is continue_hint
 
 
 @pytest.mark.asyncio
@@ -821,10 +850,11 @@ async def test_english_author_sees_english_status_and_wrap_up():
         yield _text(LONG_TEXT)
         yield _handoff("quality_reviewer", "请审查第五章")
 
-    events = await _run_graph(
-        fake_agent,
-        _state("Write chapter five", generation_mode="fast", run_meter=meter, language="en"),
-    )
+    with patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True):
+        events = await _run_graph(
+            fake_agent,
+            _state("Write chapter five", generation_mode="fast", run_meter=meter, language="en"),
+        )
 
     router_messages = [e.data["message"] for e in events if e.type == StreamEventType.ROUTER_THINKING]
     assert router_messages == ["Fast mode: reading your request..."]

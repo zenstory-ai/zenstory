@@ -18,7 +18,7 @@ from agent.core.metrics import (
 from agent.core.run_meter import AgentRunMeter
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
-from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
+from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker, _parse_error_payload
 from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import FILE_WRITE_TOOL_NAMES, TOOL_FUNCTIONS, get_agent_tools, get_exposed_tools
 from utils.logger import get_logger, log_with_context
@@ -75,6 +75,35 @@ def _parse_tool_arguments(raw_arguments: str, *, tool_name: str) -> tuple[dict[s
     )
 
 
+def _is_partial_result(text: str) -> bool:
+    """status=partial: some edits applied, others failed (edit_file with continue_on_error)."""
+    if '"partial"' not in text:  # cheap pre-check before parsing a possibly long result
+        return False
+    try:
+        payload = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return isinstance(payload, dict) and payload.get("status") == "partial"
+
+
+def _record_business_failure(run_meter: AgentRunMeter, tool_name: str, args: dict[str, Any], text: str) -> None:
+    """Count an executed tool's status=error / partial result in the run summary (never affects the result)."""
+    try:
+        payload = _parse_error_payload(text, tool_name)
+        if payload is not None:
+            edits = args.get("edits")
+            run_meter.record_tool_failure(
+                tool_name,
+                payload.get("error_type"),
+                # Without continue_on_error one failed edit rolls the whole batch back.
+                rolled_back_batch=isinstance(edits, list) and len(edits) > 1 and args.get("continue_on_error") is not True,
+            )
+        elif _is_partial_result(text):
+            run_meter.record_tool_failure(tool_name, "partial", rolled_back_batch=False)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Tool failure count for the run summary failed: {type(exc).__name__}")
+
+
 async def invoke_project_tool(
     tool_name: str,
     raw_arguments: str,
@@ -104,7 +133,10 @@ async def invoke_project_tool(
                 result = tool_func(parsed_args or {})
                 if inspect.isawaitable(result):
                     result = await result
-            return _normalize_tool_result_text(result)
+            text = _normalize_tool_result_text(result)
+            if run_meter is not None:
+                _record_business_failure(run_meter, tool_name, parsed_args or {}, text)
+            return text
         except Exception as exc:
             metrics.increment_counter(TOOL_CALLS_ERRORS)
             log_with_context(

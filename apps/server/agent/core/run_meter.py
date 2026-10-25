@@ -8,6 +8,7 @@ writing_graph 为整条工作流建一个（或沿用 service 传入的），放
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -30,6 +31,19 @@ TimingStage = Literal[
     "agent_quality_reviewer",
 ]
 TimingOutcome = Literal["completed", "error", "interrupted"]
+# 工具业务失败按 error_type 计数：只收程序定义的标识符，种类有上限，其余归 other。
+_ERROR_TYPE_PATTERN = re.compile(r"[a-z0-9_]{1,48}")
+_MAX_ERROR_TYPES_PER_TOOL = 8
+_OTHER_ERROR_TYPE = "other"
+
+
+@dataclass
+class _ToolFailureStats:
+    count: int = 0
+    rolled_back_batches: int = 0
+    error_types: dict[str, int] = field(default_factory=dict)
+
+
 _ROLE_STAGES: dict[str, TimingStage] = {
     "planner": "agent_planner",
     "hook_designer": "agent_hook_designer",
@@ -57,6 +71,7 @@ class AgentRunMeter:
     first_tool_started_ms: float | None = None
     first_body_persisted_ms: float | None = None
     _stage_timings: dict[TimingStage, dict[str, float | int]] = field(default_factory=dict)
+    _tool_failures: dict[str, _ToolFailureStats] = field(default_factory=dict)
 
     @property
     def exhausted(self) -> bool:
@@ -128,6 +143,21 @@ class AgentRunMeter:
         finally:
             self.record_stage(stage, (time.monotonic() - started) * 1000, outcome=outcome)
 
+    def record_tool_failure(self, tool_name: str, error_type: object, *, rolled_back_batch: bool) -> None:
+        """An executed tool returned status=error or partial (business failure; raised errors stay in tool.error_count).
+
+        Counts only: the tool name (registry key), a bounded error_type id, and whether a multi-edit
+        batch was rolled back as a whole (the default without continue_on_error). No arguments,
+        file text or messages.
+        """
+        stats = self._tool_failures.setdefault(tool_name, _ToolFailureStats())
+        stats.count += 1
+        stats.rolled_back_batches += rolled_back_batch
+        key = error_type if isinstance(error_type, str) and _ERROR_TYPE_PATTERN.fullmatch(error_type) else _OTHER_ERROR_TYPE
+        if key not in stats.error_types and len(stats.error_types) >= _MAX_ERROR_TYPES_PER_TOOL:
+            key = _OTHER_ERROR_TYPE
+        stats.error_types[key] = stats.error_types.get(key, 0) + 1
+
     def _offset_ms(self) -> float:
         origin = self.started_at if self.timing_origin is None else self.timing_origin
         return round(max(0.0, time.monotonic() - origin) * 1000, 1)
@@ -148,5 +178,13 @@ class AgentRunMeter:
             "stage_timings": {
                 stage: {key: round(value, 1) if isinstance(value, float) else value for key, value in stats.items()}
                 for stage, stats in self._stage_timings.items()
+            },
+            "tool_failures": {
+                tool: {
+                    "count": stats.count,
+                    "rolled_back_batches": stats.rolled_back_batches,
+                    "error_types": dict(stats.error_types),
+                }
+                for tool, stats in self._tool_failures.items()
             },
         }

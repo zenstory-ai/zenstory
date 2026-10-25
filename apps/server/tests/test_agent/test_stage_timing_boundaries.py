@@ -334,3 +334,58 @@ async def test_file_save_timing_closes_on_cancellation(monkeypatch):
 
     assert meter.stages == ["file_save"]
     assert meter.first_body_marks == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_executed_tool_business_failures_reach_the_run_summary_without_content():
+    """edit_file failures (a whole batch rolled back by default) are counted, not their text."""
+    from agent.core.run_meter import AgentRunMeter
+    from agent.openai_agents.tools_adapter import invoke_project_tool
+
+    meter = AgentRunMeter()
+    results = iter([
+        {"status": "error", "error_type": "old_text_not_found", "error": "private-old-text-must-not-appear"},
+        {"status": "error", "error_type": "stale_content", "error": "private"},
+        {"status": "success", "data": {"new_word_count": 10}},
+        {"status": "error", "error_type": "Not An Identifier!", "error": "private"},
+        {"status": "partial", "data": {"failed_edits": [{"old": "private"}]}},
+        {"status": "error", "error_type": None, "error": "private"},
+    ])
+
+    async def fake_edit(_args):
+        return next(results)
+
+    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"edit_file": fake_edit}, clear=True):
+        batch = json.dumps({"id": "draft-1", "edits": [{"op": "replace", "old": "private-a", "new": "b"}] * 23})
+        single = json.dumps({"id": "draft-1", "edits": [{"op": "replace", "old": "private-a", "new": "b"}]})
+        keep_going = json.dumps({
+            "id": "draft-1", "continue_on_error": True, "edits": [{"op": "replace", "old": "private-a", "new": "b"}] * 3,
+        })
+        for arguments in (batch, single, single, single, keep_going, keep_going):
+            await invoke_project_tool("edit_file", arguments, run_meter=meter)
+
+    report = meter.timing_report()
+    assert report["tool_failures"] == {
+        "edit_file": {
+            "count": 5,
+            # continue_on_error batches are not rolled back as a whole.
+            "rolled_back_batches": 1,
+            "error_types": {"old_text_not_found": 1, "stale_content": 1, "other": 2, "partial": 1},
+        }
+    }
+    # Returned failures are not exceptions: the tool stage error_count stays for raised errors.
+    assert report["stage_timings"]["tool"]["error_count"] == 0
+    assert "private" not in json.dumps(report)
+
+
+@pytest.mark.unit
+def test_tool_failure_error_types_stay_bounded():
+    from agent.core.run_meter import AgentRunMeter
+
+    meter = AgentRunMeter()
+    for index in range(20):
+        meter.record_tool_failure("edit_file", f"type_{index}", rolled_back_batch=False)
+    error_types = meter.timing_report()["tool_failures"]["edit_file"]["error_types"]
+    assert len(error_types) == 9  # eight distinct ids plus "other"
+    assert error_types["other"] == 12
