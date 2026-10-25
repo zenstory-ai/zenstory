@@ -846,7 +846,7 @@ def test_query_files_full_mode_keeps_original_content(executor, test_project, db
     db_session.add(file)
     db_session.commit()
 
-    results = executor._crud.query_files(
+    results = executor.query_files(
         project_id=test_project.id,
         response_mode="full",
     )
@@ -867,7 +867,7 @@ def test_query_files_include_content_backward_compatible(executor, test_project,
     db_session.add(file)
     db_session.commit()
 
-    results = executor._crud.query_files(
+    results = executor.query_files(
         project_id=test_project.id,
         response_mode="summary",
         include_content=True,
@@ -889,7 +889,7 @@ def test_query_files_content_preview_chars(executor, test_project, db_session):
     db_session.add(file)
     db_session.commit()
 
-    results = executor._crud.query_files(
+    results = executor.query_files(
         project_id=test_project.id,
         response_mode="summary",
         content_preview_chars=4,
@@ -1420,3 +1420,18 @@ def test_edit_delete_ambiguous_exact_aborts(executor, test_project, db_session):
 
     db_session.refresh(file)
     assert file.content == "keep DELME keep DELME keep"
+
+
+@pytest.mark.unit
+def test_executor_bases_do_not_shadow_each_other():
+    """FileToolExecutor 由三个基类组合；任何同名属性都会被 MRO 静默遮蔽。"""
+    from agent.tools.file_ops import FileCRUD, FileEditor, FileToolExecutor, ProjectOperations
+
+    def own_names(cls: type) -> set[str]:
+        return {name for name in vars(cls) if not (name.startswith("__") and name.endswith("__"))}
+
+    bases = (FileCRUD, FileEditor, ProjectOperations)
+    assert FileToolExecutor.__bases__ == bases
+    for index, left in enumerate(bases):
+        for right in bases[index + 1 :]:
+            assert own_names(left) & own_names(right) == set(), (left.__name__, right.__name__)
