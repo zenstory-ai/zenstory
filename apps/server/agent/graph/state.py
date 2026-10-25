@@ -87,6 +87,8 @@ class WritingState(TypedDict, total=False):
     project_id: str
     user_id: str
     session_id: str | None
+    # 作者界面语言（service 规范化后的小写值，默认 "zh"）；以 "en" 开头时作者可见文案用英文。
+    language: str
     generation_mode: str | None
     # Structured current-turn facts for semantic routing. Never inferred from
     # labels embedded in user text.

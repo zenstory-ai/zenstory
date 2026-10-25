@@ -699,6 +699,38 @@ async def test_service_passes_real_selected_and_reference_facts_to_router_state(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.parametrize(("language", "expected"), [("en-US", "en-us"), (None, "zh")])
+async def test_service_passes_author_language_to_writing_state(
+    routing_service, routing_service_project, db_session: Session, language, expected
+):
+    """F-14：graph 的英文分支依赖 state["language"]，service 必须把作者界面语言写进去。"""
+    captured: dict = {}
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+
+    async def events():
+        yield _router_decided("writer", "quick")
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    def workflow(state, **_kwargs):
+        captured.update(state)
+        return events()
+
+    with patch("agent.service.run_writing_workflow_streaming", side_effect=workflow):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="Write chapter one",
+            language=language,
+            session=db_session,
+        ):
+            pass
+
+    assert captured["language"] == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
 async def test_routing_round_trips_from_save_to_next_turn_resume(
     routing_service, routing_service_project, db_session: Session
 ):

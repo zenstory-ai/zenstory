@@ -1370,6 +1370,8 @@ class AgentService:
                 "project_id": project_id,
                 "user_id": user_id or "",
                 "session_id": session_id,
+                # 作者界面语言（zh / en…）：graph 的作者可见文案按它选英文或中文。
+                "language": lang,
                 "generation_mode": generation_mode,
                 "has_selected_text": bool(selected_text),
                 "has_referenced_files": bool(referenced_file_ids),
