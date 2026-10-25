@@ -4,8 +4,6 @@ Project operations for agent tools.
 This module provides operations related to project management:
 - update_project_status: Update project status information for AI context
 - execute_update_plan: Save tasks to Redis task board
-
-Extracted from the monolithic file_executor.py for better maintainability.
 """
 
 import json

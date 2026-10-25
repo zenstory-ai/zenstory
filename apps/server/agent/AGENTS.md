@@ -77,7 +77,7 @@ agent/
 │   ├── mcp_tools.py        # 工具实现（MCP_TOOL_HANDLERS）与 ToolContext
 │   ├── registry.py         # schema / handler / agent 工具集的唯一接线处
 │   ├── parallel_executor.py# parallel_execute
-│   ├── file_executor.py / file_ops/ # 文件 CRUD、编辑、项目操作
+│   ├── file_ops/           # 文件 CRUD、编辑、项目操作（FileToolExecutor 组合三者）
 │   ├── author_changes.py   # 作者在 AI 写过之后的净改动
 │   ├── author_edit_guard.py# 作者手改文件的删除 / 整份覆盖保护
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照

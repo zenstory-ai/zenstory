@@ -6,8 +6,6 @@ This module provides Create, Read, Update, Delete operations on the File model:
 - update_file: Update existing file
 - delete_file: Delete a file (with optional recursive deletion)
 - query_files: Query and search files (unified)
-
-Extracted from the monolithic file_executor.py for better maintainability.
 """
 
 import contextlib

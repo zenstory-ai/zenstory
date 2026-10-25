@@ -6,8 +6,6 @@ This module provides precise file editing operations:
 
 Supports fuzzy and approximate text matching for robust editing even when
 the LLM provides slightly different text.
-
-Extracted from the monolithic file_executor.py for better maintainability.
 """
 
 import asyncio
@@ -127,8 +125,7 @@ def edit_error_user_message(error_type: str | None) -> str:
 class EditFileError(ValueError):
     """edit_file 的可恢复错误：str(e) 给模型，error_type / user_message 给界面。
 
-    继承 ValueError，所有按 ValueError 捕获的旧调用方（file_ops.router、测试）
-    行为不变。
+    继承 ValueError：按 ValueError 捕获的调用方（含测试）照常接住。
     """
 
     def __init__(self, message: str, *, error_type: str = EDIT_ERROR_INVALID_EDIT):

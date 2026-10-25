@@ -143,8 +143,7 @@ def _parallel_failure_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
 def _parse_error_payload(output_text: str, tool_name: str = "") -> dict[str, Any] | None:
     """工具输出是否是失败结果；是则返回解析后的 payload。
 
-    项目工具统一以 {"status": "error", "error": ...} 报错（file_ops.router、
-    mcp_tools、tool_error_text）；其余 status（success/handoff/ignored…）都不算失败。
+    项目工具统一以 {"status": "error", "error": ...} 报错（mcp_tools、tool_error_text）；其余 status（success/handoff/ignored…）都不算失败。
     唯一例外是 parallel_execute：子任务失败藏在 success 外壳里（见
     _parallel_failure_payload）。
     """
