@@ -290,6 +290,23 @@ def test_parallel_execute_partial_failure_counts_but_full_success_does_not():
 
 
 @pytest.mark.unit
+def test_partially_applied_parallel_edit_is_not_a_breaker_failure():
+    """与直接调用 edit_file 一致：partial 不算失败（已生效的改动不能被当成同一错误重复熔断）。"""
+    breaker = ToolFailureBreaker()
+    partial_task = {"id": "t1", "type": "edit_file", "status": "partial", "error": "部分修改没有生效"}
+    output = json.dumps(
+        {
+            "status": "success",
+            "data": {"total_tasks": 1, "completed": 0, "partial": 1, "failed": 0, "any_failed": True, "tasks": [partial_task]},
+        },
+        ensure_ascii=False,
+    )
+    for _ in range(3):
+        breaker.observe("parallel_execute", PARALLEL_ARGS, output)
+    assert breaker.total_failures == 0
+
+
+@pytest.mark.unit
 # file_body_pending 是 tools_adapter 前置守卫的同类拒绝：2026-10-25 事故里漏了它，同参数第 3 次即熔断。
 @pytest.mark.parametrize("error_type", ["pending_empty_file_unwritten", "file_body_pending"])
 def test_ordering_rejection_counts_toward_cap_but_never_trips_identical_rule(error_type):

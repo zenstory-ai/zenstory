@@ -195,7 +195,8 @@ class BodyWriteTracker:
         results = data.get("tasks") if isinstance(data.get("tasks"), list) else []
         last: BodyWrite | None = None
         for index, task in enumerate(results):
-            if not isinstance(task, dict) or task.get("status") != "completed":
+            # partial：并行 edit_file 只生效了一部分，已生效的 edit 照常计入（下面按 failed_edits 扣除）。
+            if not isinstance(task, dict) or task.get("status") not in {"completed", "partial"}:
                 continue
             plan = planned[index] if index < len(planned) and isinstance(planned[index], dict) else {}
             params = plan.get("params") if isinstance(plan.get("params"), dict) else {}

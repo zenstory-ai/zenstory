@@ -69,6 +69,8 @@ _SEGMENT_BOUNDARY_EVENTS: frozenset[str] = frozenset(
 _FOLDER_FILE_TYPE = "folder"
 # parallel_execute 中会改动文件的子任务类型。
 PARALLEL_WRITE_TASK_TYPES: frozenset[str] = frozenset({"write_chapter", "edit_file", "delete_file"})
+# 子任务的改动已经落地的状态：partial 是 continue_on_error 的 edit_file 只生效了一部分。
+_APPLIED_PARALLEL_TASK_STATUSES: frozenset[str] = frozenset({"completed", "partial"})
 # update_project 里作者看得见的项目信息：改了这些才算产出。只更新任务板（tasks）或
 # current_phase（进度标记，任务板更新时还会被自动推进）不算。
 PROJECT_INFO_FIELDS: frozenset[str] = frozenset({"summary", "writing_style", "notes"})
@@ -324,7 +326,7 @@ class StreamBillingTracker:
             return any(
                 isinstance(task, dict)
                 and task.get("type") in PARALLEL_WRITE_TASK_TYPES
-                and task.get("status") == "completed"
+                and task.get("status") in _APPLIED_PARALLEL_TASK_STATUSES
                 for task in tasks or []
             )
         return False
@@ -338,7 +340,7 @@ class StreamBillingTracker:
                 self._parallel_task_types[key] = task_type
             return False
         return (
-            payload.get("status") == "completed"
+            payload.get("status") in _APPLIED_PARALLEL_TASK_STATUSES
             and self._parallel_task_types.get(key) in PARALLEL_WRITE_TASK_TYPES
         )
 

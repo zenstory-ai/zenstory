@@ -105,6 +105,9 @@ def _parallel_failure_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
     data.tasks 里，见 parallel_executor），只看顶层 status 会让「全部子任务都撞上
     数据库锁、模型原样重发同一批任务」永远不被计数。这里以 data.any_failed 判失败，
     错误指纹取各失败子任务（类型 + 错误）排序后的拼接，与参数无关的顺序不影响比较。
+
+    只有 status=failed 的子任务算失败：partial（edit_file 部分生效）虽然也让
+    any_failed=True，但与直接调用 edit_file 返回 partial 一样不计数。
     """
     data = payload.get("data")
     if not isinstance(data, dict) or data.get("any_failed") is not True:
@@ -115,6 +118,8 @@ def _parallel_failure_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
         if isinstance(task, dict) and task.get("status") == "failed"
     )
     failed = data.get("failed")
+    if not failed and not task_errors:
+        return None
     total = data.get("total_tasks")
     summary = f"并行子任务失败 {failed}/{total}"
     return {

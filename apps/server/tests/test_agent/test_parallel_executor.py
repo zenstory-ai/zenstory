@@ -895,3 +895,58 @@ class TestParallelReadForwarding:
             assert item["content_truncated"] is True
             assert item["content_length"] == 60_000
             assert len(item["content"]) > 20_000  # a real share, not a 4000-char sliver
+
+
+# ------------------------------------------------- 部分生效的子任务不报成 completed
+
+
+def _parallel_data(result: dict) -> dict:
+    return json.loads(result["content"][0]["text"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_partially_applied_edit_subtask_is_reported_partial_not_completed():
+    """continue_on_error 下内层 edit_file 返回 partial：子任务不能记成 completed。"""
+    from agent.tools.mcp_tools import ToolContext
+
+    partial = _make_result(
+        {
+            "status": "partial",
+            "mutation_applied": True,
+            "data": {
+                "id": "c1",
+                "edits_applied": 1,
+                "failed_edits": [{"index": 1, "error": "anchor not found"}],
+                "partial_success": True,
+            },
+        }
+    )
+    events: list = []
+    ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+    try:
+        with (
+            patch("agent.tools.parallel_executor.handle_edit_file", return_value=partial),
+            patch("agent.core.progress_channel.emit_progress", side_effect=events.append),
+        ):
+            payload = _parallel_data(
+                await execute_parallel([
+                    {"type": "edit_file", "description": "改两处", "params": {"id": "c1", "edits": []}},
+                ])
+            )
+    finally:
+        ToolContext.clear_context()
+
+    data = payload["data"]
+    task = data["tasks"][0]
+    assert task["status"] == "partial"
+    assert task["error"]
+    assert data["all_completed"] is False
+    assert data["any_failed"] is True
+    assert (data["completed"], data["partial"], data["failed"]) == (0, 1, 0)
+    # 部分修改已经落地：mutation_applied 照常聚合。
+    assert payload["mutation_applied"] is True
+    task_end = next(event for event in events if event.type.value == "parallel_task_end")
+    assert task_end.data["status"] == "partial"
+    parallel_end = next(event for event in events if event.type.value == "parallel_end")
+    assert parallel_end.data["partial"] == 1

@@ -79,12 +79,14 @@ def test_partial_edit_counts_only_applied_edits():
     assert words < THRESHOLD
 
 
-def test_parallel_partial_edit_counts_only_applied_edits():
+# 旧执行器把部分生效的子任务记成 completed，新执行器记成 partial：两种都按已生效的部分计。
+@pytest.mark.parametrize("task_status", ["completed", "partial"])
+def test_parallel_partial_edit_counts_only_applied_edits(task_status):
     tracker = BodyWriteTracker()
     parallel_input = {"tasks": [{"type": "edit_file", "params": {"id": "draft-1", "edits": PARTIAL_EDITS}}]}
     parallel_result = {
         "status": "success",
-        "data": {"tasks": [{"type": "edit_file", "status": "completed", "result": _partial_edit_payload()}]},
+        "data": {"tasks": [{"type": "edit_file", "status": task_status, "result": _partial_edit_payload()}]},
     }
     tracker.observe(_use("p1", "parallel_execute", parallel_input), text_length=0)
     tracker.observe(_result("p1", "parallel_execute", parallel_result), text_length=0)

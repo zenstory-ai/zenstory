@@ -231,6 +231,25 @@ def test_parallel_write_subtask_resets_reads_and_is_recorded():
 
 
 @pytest.mark.unit
+def test_partially_applied_parallel_edit_still_resets_reads():
+    """并行 edit_file 只生效了一部分（status=partial）：文件已经改了，之前的读取作废。"""
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard)
+    raw = json.dumps({"tasks": [{"type": "edit_file", "params": {"id": "f1", "edits": []}}]})
+    plan = guard.plan("parallel_execute", raw)
+    guard.observe(
+        "parallel_execute",
+        plan,
+        _parallel_output(
+            [{"type": "edit_file", "status": "partial", "result": {"status": "partial", "data": {"id": "f1"}}}]
+        ),
+    )
+    assert json.loads(_guarded_read(guard))["status"] == "success"
+    assert guard.written_file_ids() == ["f1"]
+
+
+@pytest.mark.unit
 def test_handoff_summary_lists_titles_and_ids_without_content():
     guard = RepeatReadGuard()
     _guarded_read(guard)

@@ -417,7 +417,8 @@ class RepeatReadGuard:
                     # 与直接调用 edit_file 一样：文件读过之后被改了，再读是在看新内容。
                     self._forget_reads(str(params.get("id") or params.get("file_id") or ""))
                     continue
-                if task_result.get("status") != "completed":
+                # partial：continue_on_error 的 edit_file 只生效了一部分，文件也已经改了。
+                if task_result.get("status") not in {"completed", "partial"}:
                     continue
                 result_data = result.get("data") if isinstance(result, dict) else None
                 if task_type == READ_TOOL_NAME and index in plan.read_keys:

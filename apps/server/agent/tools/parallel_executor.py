@@ -18,6 +18,8 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 MAX_PARALLEL_TASKS = 5
+# 子任务的改动（至少一部分）已经落地的状态；partial 只出现在 continue_on_error 的 edit_file 上。
+_APPLIED_TASK_STATUSES = frozenset({"completed", "partial"})
 MAX_CONCURRENCY = 2
 PARALLEL_TASK_TYPES = (
     "write_chapter",
@@ -34,7 +36,7 @@ class SubagentTask:
     task_type: str  # One of PARALLEL_TASK_TYPES
     description: str
     parameters: dict[str, Any]
-    status: str = "pending"  # pending, running, completed, failed
+    status: str = "pending"  # pending, running, completed, partial, failed
     result: Any = None
     error: str | None = None
     started_at: datetime | None = None
@@ -577,6 +579,15 @@ async def execute_parallel(
                     user_message = task.result.get("user_message")
                     if isinstance(user_message, str) and user_message.strip():
                         user_facing_error = user_message.strip()
+                elif isinstance(task.result, dict) and task.result.get("status") == "partial":
+                    # continue_on_error 下 edit_file 只生效了一部分：已生效的改动照常算写入，
+                    # 但子任务不能报成 completed（否则 all_completed=True、界面显示完成）。
+                    task.status = "partial"
+                    task.error = str(
+                        task.result.get("error")
+                        or task.result.get("message")
+                        or "部分修改没有生效，失败项见 result.data.failed_edits"
+                    )
                 else:
                     task.status = "completed"
             except Exception as e:
@@ -601,7 +612,7 @@ async def execute_parallel(
     completed_tasks = await asyncio.gather(*[execute_task(t) for t in subagent_tasks])
     # Aggregate raw completed outcomes before bounding task bodies or the outer payload.
     mutation_applied = any(
-        task.status == "completed"
+        task.status in _APPLIED_TASK_STATUSES
         and isinstance(task.result, dict)
         and task.result.get("mutation_applied") is True
         for task in completed_tasks
@@ -630,12 +641,14 @@ async def execute_parallel(
         "dropped_tasks": dropped_tasks,
         "total_tasks": len(completed_tasks),
         "completed": sum(1 for t in completed_tasks if t.status == "completed"),
+        "partial": sum(1 for t in completed_tasks if t.status == "partial"),
         "failed": sum(1 for t in completed_tasks if t.status == "failed"),
         "all_completed": (
             not dropped_tasks
             and all(t.status == "completed" for t in completed_tasks)
         ),
-        "any_failed": any(t.status == "failed" for t in completed_tasks),
+        # partial 也算「没有全部做成」：模型要针对失败项补做。
+        "any_failed": any(t.status in {"failed", "partial"} for t in completed_tasks),
         "total_duration_ms": duration_ms,
         "tasks": [
             {
@@ -672,6 +685,7 @@ async def execute_parallel(
             total_tasks=result_data["total_tasks"],
             completed=result_data["completed"],
             failed=result_data["failed"],
+            partial=result_data["partial"],
             duration_ms=duration_ms,
             requested_task_count=requested_count,
             dropped_count=len(dropped_tasks),
