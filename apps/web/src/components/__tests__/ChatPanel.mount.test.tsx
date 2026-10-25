@@ -2115,12 +2115,16 @@ describe('ChatPanel mount smoke', () => {
     }] as never)
     render(<ChatPanel />)
 
+    // Wait for the reloaded history itself, not only the suggestion state: under load the chips can
+    // report ready a render before the saved message reaches the list.
+    await waitFor(() => {
+      const lastList = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ statusCards?: Array<Record<string, unknown>> }> }
+      expect(lastList.messages?.[0]?.statusCards?.[0]).toMatchObject({ layer, ...liveFiles })
+    })
     await waitFor(() => expect(lastMessageInputProps().suggestionDisplayState).toBe('ready'))
     expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
     expect(lastMessageInputProps().aiSuggestions).toEqual([])
     expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
-    const lastList = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ statusCards?: Array<Record<string, unknown>> }> }
-    expect(lastList.messages?.[0]?.statusCards?.[0]).toMatchObject({ layer, ...liveFiles })
   })
 
   it('still leads with the offered options after a saved tool-turn stop that names no files', async () => {
