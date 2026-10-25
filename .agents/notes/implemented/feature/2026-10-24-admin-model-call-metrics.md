@@ -20,8 +20,8 @@ Status: implemented
 | 列 | 含义 |
 |---|---|
 | `outcome` VARCHAR(16) NULL | `success` / `error` / `timeout` / `cancelled`；NULL = 未记录（本列之前的行、回填行、素材拆解） |
-| `duration_ms` INT NULL | 发起调用 → 流结束（`response.completed`）/ 非流式响应返回 / 抛错；免费账号含成本守卫（`model_call_guard`）预留与结算的数据库事务；付费账号含 OpenAI 客户端自身的 HTTP 重试（`max_retries`，免费账号的调用守卫设为 0） |
-| `ttft_ms` INT NULL | 只流式：发起调用 → 第一个输出 delta（`output_text` / `reasoning_text` / `reasoning_summary_text` / `refusal` / `function_call_arguments`）。SDK 的 `response.created` 在首个任意 chunk（可能只有 role）就发，不算 |
+| `duration_ms` INT NULL | 发起调用 → 流结束（`response.completed`）/ 非流式响应返回 / 抛错；免费账号含成本守卫（`model_call_guard`）调用前预留、调用后结算的两次数据库事务；付费账号含 OpenAI 客户端自身的 HTTP 重试（`max_retries`，免费账号的调用守卫设为 0） |
+| `ttft_ms` INT NULL | 只流式：发起调用（免费账号同样含成本预留）→ 第一个输出 delta（`output_text` / `reasoning_text` / `reasoning_summary_text` / `refusal` / `function_call_arguments`）。SDK 的 `response.created` 在首个任意 chunk（可能只有 role）就发，不算 |
 
 **记录点**（都不 await 数据库，沿用 `schedule_llm_usage_record`）：
 
@@ -62,7 +62,7 @@ Status: implemented
 ## Verification
 
 - `tests/test_api/test_admin_model_metrics.py`：成功（有/无首 token、无 usage）、失败、超时、取消、历史 NULL、主备切换两次尝试、昨天的行；成功率分子分母、最近秩百分位、解码速度合计比、N/A、合并行不平均；功能筛选、空窗口、非法 source 422、未登录 401、普通用户 403；0 token 行不改变用量摘要、按用户列表与增长指标。
-- `tests/test_agent/test_llm_failover.py`：首 token 取第一个输出 delta 而非 `response.created`、成功计时在 `response.completed` 时刻、`response.completed` 之后被关闭不再写取消行、主备切换失败尝试记在主用模型、流中途出错/读超时/取消写 0 token 行、成本兜底拒绝不写行、非流式逐次尝试与无归属不写。
-- 独立审查（另起 Claude Code 只读会话）初审 REQUEST_CHANGES、无 blocker：成本兜底拒绝被记为 error、流中途读超时被记为 error、耗时起点与说明不符、缺「完成后关闭」测试，以及若干 nit（措辞、三次读取间新模型的 KeyError、流式 + 归属的陷阱、刷新按钮状态、source 枚举重复），均已在本批修正并补测试。`test_llm_usage_service.py`：带计时的 0 token 行写入、无计时照旧跳过、失败分类。`test_stage_timing.py`：hook 写入一次计时。
+- `tests/test_agent/test_llm_failover.py`：首 token 取第一个输出 delta 而非 `response.created`、成功计时在 `response.completed` 时刻、`response.completed` 之后被关闭不再写取消行、主备切换失败尝试记在主用模型、流中途出错/读超时/取消写 0 token 行、成本兜底拒绝不写行、非流式逐次尝试与无归属不写。`test_llm_usage_service.py`：带计时的 0 token 行写入、无计时照旧跳过、失败分类。`test_stage_timing.py`：hook 写入一次计时。
 - 迁移：SQLite 往返（含手工先加一列再升级）；本地临时 PostgreSQL 17 容器 create_all → stamp → downgrade → 插旧行 → upgrade → `alembic check` 无差异 → 再往返；同一库上直接调用 `get_model_metrics` 结果与 SQLite 测试一致。
 - 前端：`UsageCostPage.test.tsx`、`adminUsageApi.test.ts`；`admin-routes-smoke-mocked.spec.ts` 在本地 Chromium 走按模型区块、功能筛选到空数据、展开指标说明。只用合成数据与 mock，未调用付费模型，未接触 staging/生产数据库。
+- 独立审查（另起 Claude Code 只读会话）初审 REQUEST_CHANGES、无 blocker：成本兜底拒绝被记为 error、流中途读超时被记为 error、耗时起点与说明不符、缺「完成后关闭」测试，以及若干 nit（措辞、三次读取间新模型的 KeyError、流式 + 归属的陷阱、刷新按钮状态、source 枚举重复），均已在本批修正并补测试；复核结论 APPROVE，复核提出的三处文案（首 token 起点、两次事务、本段条目）已改。
