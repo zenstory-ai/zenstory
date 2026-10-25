@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlmodel import Session, and_, select
 
 from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
@@ -2637,12 +2637,16 @@ def _extract_phase_chapter_number(phase_text: str | None) -> int | None:
     return None
 
 
+_PHASE_BODY_TRIM_CHARS = " \t\r\n\u3000"
+
+
 def _suggest_auto_current_phase_from_drafts(project_id: str) -> str | None:
     """
     Suggest monotonic chapter phase text from content files.
 
     Rules:
     - Only infer from content-file titles with explicit sequence numbers.
+    - Only count files that have a non-blank body.
     - If existing current_phase has chapter number >= inferred, keep unchanged.
     - If existing current_phase is non-empty but not chapter-like, do not override.
 
@@ -2666,6 +2670,8 @@ def _suggest_auto_current_phase_from_drafts(project_id: str) -> str | None:
                 File.project_id == project_id,
                 File.file_type.in_(CONTENT_FILE_TYPES),
                 File.is_deleted.is_(False),
+                # 只算写了正文的章：空标题壳不能把进度推成「已写至第20章」（F-10）。
+                func.length(func.trim(File.content, _PHASE_BODY_TRIM_CHARS)) > 0,
             )
         )
     ).all()
