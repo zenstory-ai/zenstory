@@ -414,7 +414,6 @@ async def test_first_message_round_does_not_follow_the_writers_own_review_handof
             ),
             patch("agent.graph.writing_graph.get_next_node", return_value="writer"),
             patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
-            patch("agent.tools.mcp_tools._load_recent_artifact_refs_for_handoff", return_value=[]),
         ):
             events = [
                 event

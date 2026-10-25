@@ -375,7 +375,6 @@ def test_edit_file_tool_payload_status_degrades_on_failure(monkeypatch):
         "_get_context",
         classmethod(lambda cls: {"project_id": "p1"}),
     )
-    monkeypatch.setattr(mcp_tools, "_record_artifact_ledger", lambda **kwargs: None)
 
     payload = mcp_tools._edit_file_sync({"id": "f1", "edits": [{"op": "replace"}]})
     parsed = json.loads(payload["content"][0]["text"])

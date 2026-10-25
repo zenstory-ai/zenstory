@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -245,7 +244,7 @@ async def test_update_project_tasks_only_auto_sync_failure_is_non_blocking():
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.parametrize("plan_status", ["ignored", "error"])
-async def test_update_project_propagates_rejected_plan_without_phase_sync_or_success_ledger(
+async def test_update_project_propagates_rejected_plan_without_phase_sync(
     plan_status,
 ):
     mock_executor = MagicMock()
@@ -261,9 +260,7 @@ async def test_update_project_propagates_rejected_plan_without_phase_sync_or_suc
         return_value={"project_id": "proj-1", "session_id": "sess-1"},
     ), patch(
         "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
-    ) as suggest_phase, patch(
-        "agent.tools.mcp_tools._record_artifact_ledger",
-    ) as record_ledger:
+    ) as suggest_phase:
         result = await update_project({"tasks": [{"task": "写第5章", "status": "done"}]})
 
     payload = _parse_payload(result)
@@ -273,7 +270,6 @@ async def test_update_project_propagates_rejected_plan_without_phase_sync_or_suc
     assert payload["data"]["plan"]["status"] == plan_status
     suggest_phase.assert_not_called()
     mock_executor.update_project_status.assert_not_called()
-    record_ledger.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -294,14 +290,13 @@ async def test_update_project_reports_partial_when_fields_update_but_plan_is_rej
     with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
         "agent.tools.mcp_tools.ToolContext._get_context",
         return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools._record_artifact_ledger") as record_ledger:
+    ):
         result = await update_project({"summary": "new", "tasks": []})
 
     payload = _parse_payload(result)
     assert payload["status"] == "partial"
     assert payload["mutation_applied"] is True
     assert payload["data"]["updated_fields"] == ["summary"]
-    record_ledger.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -563,20 +558,6 @@ async def test_handoff_to_agent_rejects_case_insensitive_reviewer_alias():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_handoff_to_agent_keeps_artifact_refs():
-    result = await handoff_to_agent({
-        "target_agent": "writer",
-        "reason": "继续创作",
-        "artifact_refs": ["file-1", "  ", "file-2"],
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["artifact_refs"] == ["file-1", "file-2"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
 async def test_handoff_to_agent_defaults_context_to_reason_when_missing():
     """Context is required downstream; tool should fall back to reason when omitted."""
     result = await handoff_to_agent({
@@ -604,221 +585,6 @@ async def test_handoff_to_agent_generates_context_when_both_reason_and_context_m
     assert payload["status"] == "handoff"
     assert payload["context"]
     assert "quality_reviewer" in payload["context"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_merges_recent_ledger_refs():
-    with patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools._load_recent_artifact_refs_for_handoff",
-        return_value=["file-a", "file-b"],
-    ):
-        result = await handoff_to_agent({
-            "target_agent": "writer",
-            "reason": "继续",
-            "artifact_refs": ["file-b", "file-c"],
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["artifact_refs"] == ["file-b", "file-c", "file-a"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_backfills_overflow_refs_into_context():
-    overflow_ref = "tool_result_overflow:abc123"
-    with patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools._load_recent_artifact_refs_for_handoff",
-        return_value=[overflow_ref],
-    ), patch(
-        "agent.tools.mcp_tools._load_tool_result_overflow_entry",
-        return_value={
-            "overflow_ref": overflow_ref,
-            "tool_name": "query_files",
-            "status": "success",
-            "original_length": 4096,
-            "serialized_payload": '{"status":"success","data":"..."}',
-        },
-    ):
-        result = await handoff_to_agent({
-            "target_agent": "writer",
-            "reason": "继续",
-            "context": "已完成检索",
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["artifact_refs"] == [overflow_ref]
-    assert "[工具外溢引用回填]" in payload["context"]
-    assert overflow_ref in payload["context"]
-    assert payload["overflow_backfill"][0]["overflow_ref"] == overflow_ref
-
-
-@pytest.mark.unit
-def test_load_recent_artifact_refs_for_handoff_filters_out_non_handoff_actions(db_session):
-    from agent.tools import mcp_tools
-    from models import AgentArtifactLedger, ChatSession, Project, User
-
-    suffix = uuid4().hex[:8]
-    user = User(
-        email=f"mcp-tools-{suffix}@example.com",
-        username=f"mcp_tools_{suffix}",
-        hashed_password="hashed",
-        name="MCP Tools Test User",
-        email_verified=True,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    project = Project(
-        name=f"MCP Tools Project {suffix}",
-        owner_id=user.id,
-        project_type="novel",
-    )
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-
-    chat_session = ChatSession(
-        user_id=user.id,
-        project_id=project.id,
-        title="MCP Tools Test Chat",
-        is_active=True,
-        message_count=0,
-    )
-    db_session.add(chat_session)
-    db_session.commit()
-    db_session.refresh(chat_session)
-
-    base_time = datetime.utcnow()
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="create_file",
-            tool_name="create_file",
-            artifact_ref="file-1",
-            created_at=base_time - timedelta(seconds=2),
-        )
-    )
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="unknown_action",
-            tool_name="unknown_tool",
-            artifact_ref=f"unknown:{chat_session.id}",
-            payload=json.dumps({"note": "ignored"}),
-            created_at=base_time,
-        )
-    )
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="edit_file",
-            tool_name="edit_file",
-            artifact_ref="file-2",
-            created_at=base_time - timedelta(seconds=1),
-        )
-    )
-    db_session.commit()
-
-    with patch("agent.tools.mcp_tools._get_ledger_session", return_value=(db_session, False)):
-        refs = mcp_tools._load_recent_artifact_refs_for_handoff(
-            project_id=project.id,
-            session_id=chat_session.id,
-            limit=10,
-        )
-
-    assert refs == ["file-2", "file-1"]
-
-
-@pytest.mark.unit
-def test_load_tool_result_overflow_entry_returns_payload(db_session):
-    from agent.tools import mcp_tools
-    from models import AgentArtifactLedger, ChatSession, Project, User
-
-    suffix = uuid4().hex[:8]
-    user = User(
-        email=f"overflow-ref-{suffix}@example.com",
-        username=f"overflow_ref_{suffix}",
-        hashed_password="hashed",
-        name="Overflow Ref User",
-        email_verified=True,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    project = Project(
-        name=f"Overflow Ref Project {suffix}",
-        owner_id=user.id,
-        project_type="novel",
-    )
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-
-    chat_session = ChatSession(
-        user_id=user.id,
-        project_id=project.id,
-        title="Overflow Ref Chat",
-        is_active=True,
-        message_count=0,
-    )
-    db_session.add(chat_session)
-    db_session.commit()
-    db_session.refresh(chat_session)
-
-    overflow_ref = "tool_result_overflow:test-ref"
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="tool_result_overflow",
-            tool_name="query_files",
-            artifact_ref=overflow_ref,
-            payload=json.dumps(
-                {
-                    "schema_version": 1,
-                    "status": "success",
-                    "tool_name": "query_files",
-                    "original_length": 3210,
-                    "serialized_payload": '{"status":"success","data":"large"}',
-                },
-                ensure_ascii=False,
-            ),
-        )
-    )
-    db_session.commit()
-
-    with patch("agent.tools.mcp_tools._get_ledger_session", return_value=(db_session, False)), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": project.id, "session_id": chat_session.id},
-    ):
-        entry = mcp_tools._load_tool_result_overflow_entry(overflow_ref)
-
-    assert entry is not None
-    assert entry["overflow_ref"] == overflow_ref
-    assert entry["tool_name"] == "query_files"
-    assert entry["status"] == "success"
-    assert entry["original_length"] == 3210
-    assert entry["serialized_payload"] == '{"status":"success","data":"large"}'
 
 
 @pytest.mark.asyncio
@@ -922,35 +688,6 @@ async def test_edit_file_accepts_file_id_alias():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_create_file_records_artifact_ledger_on_success():
-    mock_executor = MagicMock()
-    mock_executor.create_file.return_value = {
-        "id": "f-1",
-        "title": "chapter1",
-        "file_type": "draft",
-    }
-
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools._record_artifact_ledger") as mock_record:
-        result = await create_file({
-            "title": "chapter1",
-            "file_type": "draft",
-            "content": "正文",
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    mock_record.assert_called_once()
-    kwargs = mock_record.call_args.kwargs
-    assert kwargs["action"] == "create_file"
-    assert kwargs["tool_name"] == "create_file"
-    assert kwargs["artifact_refs"] == ["f-1"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
 async def test_tool_result_payload_is_truncated_when_exceeding_limit():
     mock_executor = MagicMock()
     mock_executor.edit_file.return_value = {
@@ -976,84 +713,6 @@ async def test_tool_result_payload_is_truncated_when_exceeding_limit():
     assert payload["max_chars"] == 180
     assert payload["original_length"] > 180
     assert payload["data"]["truncated"] is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_tool_result_payload_persists_overflow_ref_when_ledger_available():
-    mock_executor = MagicMock()
-    mock_executor.edit_file.return_value = {
-        "id": "f-1",
-        "content": "x" * 2000,
-    }
-
-    def _record_side_effect(**_kwargs):
-        return True
-
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS",
-        180,
-    ), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger",
-        side_effect=_record_side_effect,
-    ) as mock_record:
-        result = await edit_file({
-            "id": "f-1",
-            "edits": [{"op": "append", "text": "x"}],
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["truncated"] is True
-    assert payload["overflow_ref"].startswith("tool_result_overflow:")
-
-    overflow_calls = [
-        call.kwargs for call in mock_record.call_args_list if call.kwargs.get("action") == "tool_result_overflow"
-    ]
-    assert len(overflow_calls) == 1
-    overflow_call = overflow_calls[0]
-    assert overflow_call["tool_name"] == "edit_file"
-    assert overflow_call["artifact_refs"] == [payload["overflow_ref"]]
-    assert overflow_call["payload"]["schema_version"] == 1
-    assert overflow_call["payload"]["original_length"] > 180
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_tool_result_payload_drops_overflow_ref_when_ledger_persist_fails():
-    mock_executor = MagicMock()
-    mock_executor.edit_file.return_value = {
-        "id": "f-1",
-        "content": "x" * 2000,
-    }
-
-    def _record_side_effect(**kwargs):
-        if kwargs.get("action") == "tool_result_overflow":
-            return False
-        return True
-
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS",
-        180,
-    ), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger",
-        side_effect=_record_side_effect,
-    ):
-        result = await edit_file({
-            "id": "f-1",
-            "edits": [{"op": "append", "text": "x"}],
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["truncated"] is True
-    assert "overflow_ref" not in payload
 
 
 @pytest.mark.asyncio
@@ -1198,31 +857,6 @@ async def test_offloaded_wrappers_cleanup_owned_session(tool_func, sync_helper, 
     mock_to_thread.assert_called_once()
     mock_sync.assert_called_once_with(args)
     mock_cleanup.assert_called_once()
-
-
-@pytest.mark.unit
-def test_record_artifact_ledger_rolls_back_on_commit_error():
-    from agent.tools import mcp_tools
-
-    mock_session = MagicMock()
-    mock_session.commit.side_effect = RuntimeError("db write failed")
-
-    class DummyLedger:
-        def __init__(self, **_kwargs):
-            pass
-
-    with patch("agent.tools.mcp_tools._get_ledger_session", return_value=(mock_session, False)), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1", "user_id": "user-1"},
-    ), patch("models.AgentArtifactLedger", DummyLedger):
-        mcp_tools._record_artifact_ledger(
-            action="create_file",
-            tool_name="create_file",
-            artifact_refs=["file-1"],
-            payload={"title": "chapter1"},
-        )
-
-    mock_session.rollback.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -1628,9 +1262,7 @@ async def test_oversized_query_result_keeps_every_file_identity_and_truncates_co
     with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
         "agent.tools.mcp_tools.ToolContext._get_context",
         return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 8_000), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger", return_value=True
-    ):
+    ), patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 8_000):
         result = await query_files({"response_mode": "full", "limit": 8})
 
     text = result["content"][0]["text"]
@@ -1638,7 +1270,6 @@ async def test_oversized_query_result_keeps_every_file_identity_and_truncates_co
     payload = json.loads(text)
     assert payload["status"] == "success"
     assert payload["truncated"] is True
-    assert payload["overflow_ref"].startswith("tool_result_overflow:")
     assert 'query_files(id=…, response_mode="full")' in payload["note"]
     assert [item["id"] for item in payload["data"]] == [file["id"] for file in files]
     for item, original in zip(payload["data"], files, strict=True):
@@ -1667,9 +1298,7 @@ async def test_oversized_parallel_payload_keeps_failure_signal():
             ],
         },
     }
-    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 4_000), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger", return_value=False
-    ):
+    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 4_000):
         text = _make_result(payload, tool_name="parallel_execute")["content"][0]["text"]
 
     compact = json.loads(text)
@@ -2198,3 +1827,89 @@ async def test_empty_create_file_only_skips_the_body_turn_when_the_author_wants_
             assert payload["status"] == "success"
             assert payload["data"]["empty_by_request"] is True
             assert "awaiting_body" not in payload["data"]
+
+
+# ---------------------------------------------------------------------------
+# 工具动作不再写 artifact ledger，超限结果不再持久化 / 回填（D-02）：
+# 写工具、超限截断和交接都不应为此另开数据库 session。
+# ---------------------------------------------------------------------------
+
+
+class _SessionFactorySpy:
+    """ToolContext 的 create_session_func：只计数，任何调用都说明有人另开了 session。"""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        raise AssertionError("tool path opened a separate session")
+
+
+@pytest.fixture
+def session_factory_spy():
+    from agent.tools.mcp_tools import ToolContext
+
+    spy = _SessionFactorySpy()
+    ToolContext.set_context(None, "user-1", "proj-1", "sess-1", create_session_func=spy)
+    try:
+        yield spy
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.unit
+def test_oversized_tool_result_is_bounded_without_opening_a_session(session_factory_spy):
+    from agent.tools.mcp_tools import _make_result
+
+    payload = {
+        "status": "success",
+        "data": [{"id": "f-1", "title": "第一章", "content": "字" * 300_000}],
+    }
+    text = _make_result(payload, tool_name="query_files")["content"][0]["text"]
+
+    compact = json.loads(text)
+    assert session_factory_spy.calls == 0
+    assert "overflow_ref" not in compact
+    assert compact["truncated"] is True
+    assert compact["data"][0]["id"] == "f-1"
+    assert compact["data"][0]["content_truncated"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_handoff_to_agent_passes_the_models_context_without_ledger_backfill(session_factory_spy):
+    result = await handoff_to_agent({
+        "target_agent": "writer",
+        "reason": "继续",
+        "context": "已完成检索",
+        "artifact_refs": ["file-1"],
+    })
+
+    payload = _parse_payload(result)
+    assert session_factory_spy.calls == 0
+    assert payload["status"] == "handoff"
+    assert payload["context"] == "已完成检索"
+    assert "overflow_backfill" not in payload
+    assert "artifact_refs" not in payload
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_successful_writes_do_not_open_a_ledger_session(session_factory_spy):
+    mock_executor = MagicMock()
+    mock_executor.create_file.return_value = {"id": "f-1", "title": "第一章", "file_type": "draft", "content": "正文"}
+    mock_executor.delete_file.return_value = True
+    mock_executor.update_project_status.return_value = {
+        "project_id": "proj-1",
+        "updated_fields": ["summary"],
+        "current_status": {"summary": "新"},
+    }
+
+    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor):
+        created = _parse_payload(await create_file({"title": "第一章", "file_type": "draft", "content": "正文"}))
+        deleted = _parse_payload(await delete_file({"id": "f-1"}))
+        updated = _parse_payload(await update_project({"summary": "新"}))
+
+    assert [created["status"], deleted["status"], updated["status"]] == ["success"] * 3
+    assert session_factory_spy.calls == 0

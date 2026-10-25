@@ -1000,7 +1000,6 @@ async def test_handoffs_carry_request_read_and_write_log(monkeypatch):
     review_packet = next(
         e.data["handoff_packet"] for e in handoffs if e.data["target_agent"] == "quality_reviewer"
     )
-    assert review_packet["artifact_refs"] == ["f5"]
     assert review_packet["completed"] == ["已修改《第五章》(id=f5)"]
 
 

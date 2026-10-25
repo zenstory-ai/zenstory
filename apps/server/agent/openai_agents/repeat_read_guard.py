@@ -379,7 +379,7 @@ class RepeatReadGuard:
             return output_text
         title = _first_file_title(payload.get("data"))
         if title is None:
-            # 文件不存在 / 结果被截断成 overflow 引用：模型没真正拿到内容，不算读过。
+            # 文件不存在 / 结果被截断成最小占位：模型没真正拿到内容，不算读过。
             return output_text
         key = plan.read_keys[0]
         count = self._record_read(key, title, complete=not _is_partial(payload.get("data")))

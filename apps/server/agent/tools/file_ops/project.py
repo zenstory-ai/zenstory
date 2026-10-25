@@ -502,9 +502,9 @@ class ProjectOperations:
             self.session.commit()
             self.session.refresh(project)
         else:
-            # Nothing to write, but the FOR UPDATE above must not outlive this call: the tool
-            # records its artifact ledger in a separate session right after, and that insert
-            # waits on this row. Returning with the lock held deadlocked the request (2026-10-20).
+            # Nothing to write, but the FOR UPDATE above must not outlive this call: the request
+            # session can stay open for the rest of the run, and a later write that needs this row
+            # (in 2026-10-20 the tool's artifact ledger insert) would deadlock the request.
             self.session.commit()
 
         result: dict[str, Any] = {

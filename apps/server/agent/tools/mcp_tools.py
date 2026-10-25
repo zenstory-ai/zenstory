@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import desc, func
+from sqlalchemy import func
 from sqlmodel import Session, and_, select
 
 from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
@@ -56,18 +56,6 @@ logger = get_logger(__name__)
 
 DEFAULT_TOOL_RESULT_MAX_CHARS = 200_000
 MIN_TOOL_RESULT_MAX_CHARS = 512
-TOOL_RESULT_OVERFLOW_ACTION = "tool_result_overflow"
-TOOL_RESULT_OVERFLOW_REF_PREFIX = "tool_result_overflow"
-TOOL_RESULT_OVERFLOW_SCHEMA_VERSION = 1
-TOOL_RESULT_OVERFLOW_PREVIEW_CHARS = 180
-TOOL_RESULT_OVERFLOW_BACKFILL_LIMIT = 3
-STANDARD_HANDOFF_ARTIFACT_ACTIONS = (
-    "create_file",
-    "edit_file",
-    "delete_file",
-    "rename_file",
-    "update_project",
-)
 
 PROJECT_STATUS_FIELD_ALIASES: dict[str, str] = {
     "currentPhase": "current_phase",
@@ -160,7 +148,6 @@ def _get_tool_result_max_chars() -> int:
 
 
 TOOL_RESULT_MAX_CHARS = _get_tool_result_max_chars()
-DEFAULT_ARTIFACT_REF_LOOKBACK = 20
 
 # 请求级别的上下文变量
 # Note: Using None as default to avoid mutable default argument (B039)
@@ -1237,9 +1224,12 @@ def _make_error(error: str, *, tool_name: str | None = None) -> dict[str, Any]:
     return _make_mcp_payload({"status": "error", "error": error}, tool_name=tool_name)
 
 
-def _make_mcp_payload(payload: Any, *, tool_name: str | None = None) -> dict[str, Any]:
-    """Create MCP payload with unified size guardrail."""
-    text = _serialize_tool_payload(payload, tool_name=tool_name)
+def _make_mcp_payload(payload: Any, *, tool_name: str | None = None) -> dict[str, Any]:  # noqa: ARG001
+    """Create MCP payload with unified size guardrail.
+
+    ``tool_name`` only labels the call site; the serialized result does not carry it.
+    """
+    text = _serialize_tool_payload(payload)
     return {
         "content": [{
             "type": "text",
@@ -1260,35 +1250,6 @@ def _normalize_payload_status(payload: Any) -> str:
     return status
 
 
-def _normalize_tool_name(tool_name: str | None) -> str:
-    """Normalize tool name for storage metadata."""
-    normalized = str(tool_name or "").strip()
-    return normalized or "unknown_tool"
-
-
-def _persist_tool_result_overflow(
-    *,
-    tool_name: str | None,
-    status: str,
-    serialized_payload: str,
-) -> str | None:
-    """Persist oversized tool payload into artifact ledger and return overflow ref."""
-    overflow_ref = f"{TOOL_RESULT_OVERFLOW_REF_PREFIX}:{uuid4().hex}"
-    stored = _record_artifact_ledger(
-        action=TOOL_RESULT_OVERFLOW_ACTION,
-        tool_name=_normalize_tool_name(tool_name),
-        artifact_refs=[overflow_ref],
-        payload={
-            "schema_version": TOOL_RESULT_OVERFLOW_SCHEMA_VERSION,
-            "status": str(status),
-            "tool_name": _normalize_tool_name(tool_name),
-            "original_length": len(serialized_payload),
-            "serialized_payload": serialized_payload,
-        },
-    )
-    return overflow_ref if stored else None
-
-
 # 截断长字符串时永不改写的键：这些是模型定位文件、判断成败所需的结构化信号。
 _BOUND_PROTECTED_KEYS: frozenset[str] = frozenset({
     "id",
@@ -1305,7 +1266,6 @@ _BOUND_PROTECTED_KEYS: frozenset[str] = frozenset({
     "error_type",
     "description",
     "execution_id",
-    "overflow_ref",
     "note",
     "warning",
     "truncation_note",
@@ -1412,7 +1372,6 @@ def _compact_oversized_payload(
     payload: Any,
     *,
     original_length: int,
-    overflow_ref: str | None,
 ) -> str | None:
     """超限的成功结果：保结构截长文本，而不是把整个 data 换成一个占位符。
 
@@ -1425,8 +1384,6 @@ def _compact_oversized_payload(
     compact["max_chars"] = TOOL_RESULT_MAX_CHARS
     compact["original_length"] = original_length
     compact["note"] = TOOL_RESULT_OVERSIZE_NOTE
-    if overflow_ref:
-        compact["overflow_ref"] = overflow_ref
     for min_keep in (_BOUND_MIN_KEEP_CHARS, 0):
         bounded, _ = bound_payload_strings(compact, TOOL_RESULT_MAX_CHARS, min_keep=min_keep)
         encoded = json.dumps(bounded, ensure_ascii=False)
@@ -1435,7 +1392,7 @@ def _compact_oversized_payload(
     return None
 
 
-def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> str:
+def _serialize_tool_payload(payload: Any) -> str:
     """Serialize tool payload and truncate oversized results safely."""
     serialized = json.dumps(payload, ensure_ascii=False)
     if len(serialized) <= TOOL_RESULT_MAX_CHARS:
@@ -1443,16 +1400,9 @@ def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> st
 
     original_length = len(serialized)
     status = _normalize_payload_status(payload)
-    overflow_ref = _persist_tool_result_overflow(
-        tool_name=tool_name,
-        status=status,
-        serialized_payload=serialized,
-    )
 
     if status != "error":
-        structured = _compact_oversized_payload(
-            payload, original_length=original_length, overflow_ref=overflow_ref
-        )
+        structured = _compact_oversized_payload(payload, original_length=original_length)
         if structured is not None:
             return structured
 
@@ -1465,8 +1415,6 @@ def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> st
     # Commit-owned signal must survive content elision; statuses/previews are not proof.
     if isinstance(payload, dict) and isinstance(payload.get("mutation_applied"), bool):
         truncated_payload["mutation_applied"] = payload["mutation_applied"]
-    if overflow_ref:
-        truncated_payload["overflow_ref"] = overflow_ref
 
     if status == "error":
         error_message = ""
@@ -1507,382 +1455,11 @@ def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> st
     }
     if "mutation_applied" in truncated_payload:
         minimal_payload["mutation_applied"] = truncated_payload["mutation_applied"]
-    if overflow_ref:
-        minimal_payload["overflow_ref"] = overflow_ref
     if status != "error":
         minimal_payload["data"] = {"truncated": True}
     else:
         minimal_payload["error"] = "Tool result truncated"
     return json.dumps(minimal_payload, ensure_ascii=False)
-
-
-def _merge_unique_refs(*groups: list[str]) -> list[str]:
-    """Merge artifact refs while preserving order and removing duplicates."""
-    merged: list[str] = []
-    seen: set[str] = set()
-    for group in groups:
-        for ref in group:
-            normalized = str(ref).strip()
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            merged.append(normalized)
-    return merged
-
-
-def _get_ledger_session() -> tuple[Session, bool]:
-    """
-    Get session for artifact-ledger operations.
-
-    Returns:
-        (session, owns_session)
-    """
-    context = ToolContext._get_context()
-    create_func = context.get("create_session_func")
-    if callable(create_func):
-        return create_func(), True
-    return ToolContext.get_session(), False
-
-
-def _extract_tool_artifact_refs(tool_name: str, args: dict[str, Any], result: Any) -> list[str]:
-    """Extract artifact refs from successful tool outputs."""
-    refs: list[str] = []
-
-    if tool_name in ("create_file", "edit_file", "rename_file") and isinstance(result, dict):
-        file_id = result.get("id")
-        if isinstance(file_id, str):
-            refs.append(file_id)
-    elif tool_name == "delete_file":
-        file_id = args.get("id")
-        if isinstance(file_id, str):
-            refs.append(file_id)
-    elif tool_name == "update_project":
-        context = ToolContext._get_context()
-        project_id = context.get("project_id")
-        if isinstance(project_id, str):
-            refs.append(f"project:{project_id}")
-        session_id = context.get("session_id")
-        if "tasks" in args and isinstance(session_id, str) and session_id.strip():
-            refs.append(f"task_board:{session_id.strip()}")
-
-    return _merge_unique_refs(refs)
-
-
-def _record_artifact_ledger(
-    *,
-    action: str,
-    tool_name: str,
-    artifact_refs: list[str],
-    payload: Any | None = None,
-) -> bool:
-    """
-    Persist artifact refs for later handoff recovery.
-
-    Best effort: failures should never break tool success path.
-    """
-    refs = _merge_unique_refs(artifact_refs)
-    if not refs:
-        return False
-
-    context = ToolContext._get_context()
-    project_id = context.get("project_id")
-    if not isinstance(project_id, str) or not project_id.strip():
-        return False
-
-    try:
-        from models import AgentArtifactLedger
-    except Exception:
-        return False
-
-    try:
-        session, owns_session = _get_ledger_session()
-    except Exception:
-        return False
-
-    session_id = context.get("session_id") if isinstance(context.get("session_id"), str) else None
-    user_id = context.get("user_id") if isinstance(context.get("user_id"), str) else None
-    payload_json: str | None = None
-    if payload is not None:
-        try:
-            payload_json = json.dumps(payload, ensure_ascii=False)
-        except (TypeError, ValueError):
-            payload_json = json.dumps({"raw": str(payload)}, ensure_ascii=False)
-
-    try:
-        for artifact_ref in refs:
-            session.add(
-                AgentArtifactLedger(
-                    project_id=project_id,
-                    session_id=session_id,
-                    user_id=user_id,
-                    action=action,
-                    tool_name=tool_name,
-                    artifact_ref=artifact_ref,
-                    payload=payload_json,
-                )
-            )
-        session.commit()
-        return True
-    except Exception as e:
-        with contextlib.suppress(Exception):
-            session.rollback()
-        logger.warning(
-            "Failed to persist agent artifact ledger entry",
-            extra={
-                "project_id": project_id,
-                "tool_name": tool_name,
-                "action": action,
-                "error": str(e),
-            },
-        )
-        return False
-    finally:
-        if owns_session:
-            with contextlib.suppress(Exception):
-                session.close()
-
-
-def _load_recent_artifact_refs_for_handoff(
-    *,
-    project_id: str | None,
-    session_id: str | None,
-    limit: int = DEFAULT_ARTIFACT_REF_LOOKBACK,
-) -> list[str]:
-    """Load recent artifact refs from ledger for handoff payload enrichment."""
-    if not isinstance(project_id, str) or not project_id.strip():
-        return []
-
-    try:
-        from models import AgentArtifactLedger
-    except Exception:
-        return []
-
-    try:
-        session, owns_session = _get_ledger_session()
-    except Exception:
-        return []
-
-    resolved_limit = max(1, int(limit or DEFAULT_ARTIFACT_REF_LOOKBACK))
-    refs: list[str] = []
-    overflow_refs: list[str] = []
-
-    try:
-        if isinstance(session_id, str) and session_id.strip():
-            scoped_rows = session.exec(
-                select(AgentArtifactLedger.artifact_ref)
-                .where(
-                    and_(
-                        AgentArtifactLedger.project_id == project_id,
-                        AgentArtifactLedger.session_id == session_id.strip(),
-                        AgentArtifactLedger.action.in_(STANDARD_HANDOFF_ARTIFACT_ACTIONS),
-                    )
-                )
-                .order_by(desc(AgentArtifactLedger.created_at))
-                .limit(resolved_limit)
-            ).all()
-            refs = [str(row).strip() for row in scoped_rows if str(row).strip()]
-
-        if not refs:
-            fallback_rows = session.exec(
-                select(AgentArtifactLedger.artifact_ref)
-                .where(
-                    and_(
-                        AgentArtifactLedger.project_id == project_id,
-                        AgentArtifactLedger.action.in_(STANDARD_HANDOFF_ARTIFACT_ACTIONS),
-                    )
-                )
-                .order_by(desc(AgentArtifactLedger.created_at))
-                .limit(resolved_limit)
-            ).all()
-            refs = [str(row).strip() for row in fallback_rows if str(row).strip()]
-
-        overflow_limit = max(1, min(resolved_limit, TOOL_RESULT_OVERFLOW_BACKFILL_LIMIT))
-        if isinstance(session_id, str) and session_id.strip():
-            overflow_scoped_rows = session.exec(
-                select(AgentArtifactLedger.artifact_ref)
-                .where(
-                    and_(
-                        AgentArtifactLedger.project_id == project_id,
-                        AgentArtifactLedger.session_id == session_id.strip(),
-                        AgentArtifactLedger.action == TOOL_RESULT_OVERFLOW_ACTION,
-                    )
-                )
-                .order_by(desc(AgentArtifactLedger.created_at))
-                .limit(overflow_limit)
-            ).all()
-            overflow_refs = [str(row).strip() for row in overflow_scoped_rows if str(row).strip()]
-
-        if not overflow_refs:
-            overflow_fallback_rows = session.exec(
-                select(AgentArtifactLedger.artifact_ref)
-                .where(
-                    and_(
-                        AgentArtifactLedger.project_id == project_id,
-                        AgentArtifactLedger.action == TOOL_RESULT_OVERFLOW_ACTION,
-                    )
-                )
-                .order_by(desc(AgentArtifactLedger.created_at))
-                .limit(overflow_limit)
-            ).all()
-            overflow_refs = [str(row).strip() for row in overflow_fallback_rows if str(row).strip()]
-    except Exception as e:
-        with contextlib.suppress(Exception):
-            session.rollback()
-        logger.warning(
-            "Failed to load artifact refs from ledger",
-            extra={"project_id": project_id, "session_id": session_id, "error": str(e)},
-        )
-        return []
-    finally:
-        if owns_session:
-            with contextlib.suppress(Exception):
-                session.close()
-
-    return _merge_unique_refs(refs, overflow_refs)
-
-
-def _load_tool_result_overflow_entry(overflow_ref: str) -> dict[str, Any] | None:
-    """Load persisted tool-result overflow payload by ref."""
-    normalized_ref = str(overflow_ref).strip()
-    if not normalized_ref.startswith(f"{TOOL_RESULT_OVERFLOW_REF_PREFIX}:"):
-        return None
-
-    context = ToolContext._get_context()
-    project_id = context.get("project_id")
-    if not isinstance(project_id, str) or not project_id.strip():
-        return None
-    project_id = project_id.strip()
-    session_id = context.get("session_id") if isinstance(context.get("session_id"), str) else None
-
-    try:
-        from models import AgentArtifactLedger
-    except Exception:
-        return None
-
-    try:
-        session, owns_session = _get_ledger_session()
-    except Exception:
-        return None
-
-    payload_row: str | None = None
-    try:
-        stmt = (
-            select(AgentArtifactLedger.payload)
-            .where(
-                and_(
-                    AgentArtifactLedger.project_id == project_id,
-                    AgentArtifactLedger.action == TOOL_RESULT_OVERFLOW_ACTION,
-                    AgentArtifactLedger.artifact_ref == normalized_ref,
-                )
-            )
-            .order_by(
-                desc(AgentArtifactLedger.created_at),
-                desc(AgentArtifactLedger.id),
-            )
-            .limit(1)
-        )
-        if isinstance(session_id, str) and session_id.strip():
-            stmt = stmt.where(AgentArtifactLedger.session_id == session_id.strip())
-
-        payload_row = session.exec(stmt).first()
-    except Exception as e:
-        with contextlib.suppress(Exception):
-            session.rollback()
-        logger.warning(
-            "Failed to load tool result overflow entry",
-            extra={
-                "project_id": project_id,
-                "session_id": session_id,
-                "overflow_ref": normalized_ref,
-                "error": str(e),
-            },
-        )
-        return None
-    finally:
-        if owns_session:
-            with contextlib.suppress(Exception):
-                session.close()
-
-    if not isinstance(payload_row, str) or not payload_row.strip():
-        return None
-
-    try:
-        payload = json.loads(payload_row)
-    except (TypeError, json.JSONDecodeError):
-        return None
-
-    if not isinstance(payload, dict):
-        return None
-
-    schema_version = payload.get("schema_version")
-    if schema_version not in (None, TOOL_RESULT_OVERFLOW_SCHEMA_VERSION):
-        return None
-
-    serialized_payload = payload.get("serialized_payload")
-    if not isinstance(serialized_payload, str):
-        return None
-
-    raw_original_length = payload.get("original_length")
-    try:
-        original_length = int(raw_original_length)
-    except (TypeError, ValueError):
-        original_length = len(serialized_payload)
-
-    return {
-        "overflow_ref": normalized_ref,
-        "tool_name": _normalize_tool_name(payload.get("tool_name")),
-        "status": str(payload.get("status") or "success"),
-        "original_length": original_length,
-        "serialized_payload": serialized_payload,
-    }
-
-
-def _build_tool_result_overflow_backfill_entries(
-    artifact_refs: list[str],
-    *,
-    limit: int = TOOL_RESULT_OVERFLOW_BACKFILL_LIMIT,
-) -> list[dict[str, Any]]:
-    """Resolve overflow refs into lightweight backfill entries."""
-    backfills: list[dict[str, Any]] = []
-    if not artifact_refs:
-        return backfills
-
-    for ref in artifact_refs:
-        if len(backfills) >= max(0, int(limit)):
-            break
-        entry = _load_tool_result_overflow_entry(str(ref))
-        if not entry:
-            continue
-        serialized_payload = entry.get("serialized_payload", "")
-        preview = serialized_payload[:TOOL_RESULT_OVERFLOW_PREVIEW_CHARS]
-        if len(serialized_payload) > TOOL_RESULT_OVERFLOW_PREVIEW_CHARS:
-            preview = f"{preview}..."
-        backfills.append({
-            "overflow_ref": entry["overflow_ref"],
-            "tool_name": entry["tool_name"],
-            "status": entry["status"],
-            "original_length": entry["original_length"],
-            "preview": preview,
-        })
-
-    return backfills
-
-
-def _format_tool_result_overflow_backfill_context(backfills: list[dict[str, Any]]) -> str:
-    """Format overflow backfill entries into compact handoff context text."""
-    if not backfills:
-        return ""
-
-    lines = ["[工具外溢引用回填]"]
-    for item in backfills:
-        preview = str(item.get("preview", "")).replace("\n", "\\n")
-        lines.append(
-            "- "
-            f"{item.get('overflow_ref', '')} "
-            f"(tool={item.get('tool_name', '')}, status={item.get('status', '')}, "
-            f"len={item.get('original_length', 0)}): {preview}"
-        )
-    return "\n".join(lines)
 
 
 def _is_folder_file_type(result: dict[str, Any], args: dict[str, Any]) -> bool:
@@ -2132,12 +1709,6 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
                 ToolContext.release_pending_empty_file(reservation)
             reservation = None
 
-        _record_artifact_ledger(
-            action=tool_name,
-            tool_name=tool_name,
-            artifact_refs=_extract_tool_artifact_refs(tool_name, args, result),
-            payload={"title": result.get("title"), "file_type": result.get("file_type")},
-        )
 
         data = _elide_reused_file_content(result)
         if awaiting_body:
@@ -2266,12 +1837,6 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             exact_only=not has_seen,
             report_author_edits=True,
         )
-        _record_artifact_ledger(
-            action=tool_name,
-            tool_name=tool_name,
-            artifact_refs=_extract_tool_artifact_refs(tool_name, args, result),
-            payload={"edits_applied": result.get("edits_applied")},
-        )
         # status 必须按实际结果降级：continue_on_error 下部分/全部 edit 失败时，
         # 恒返回 "success" 会让模型以为改动已经落地、继续往下写，
         # 失败的 edit 只藏在 data.failed_edits 里没人看。
@@ -2388,12 +1953,6 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             recursive=recursive,
             protect_author_content=ToolContext.get_author_scope() is not None,
         )
-        _record_artifact_ledger(
-            action=tool_name,
-            tool_name=tool_name,
-            artifact_refs=_extract_tool_artifact_refs(tool_name, args, result),
-            payload={"recursive": recursive},
-        )
         return _make_result(
             {"status": "success", "mutation_applied": result is True, "data": result},
             tool_name=tool_name,
@@ -2466,12 +2025,6 @@ def _rename_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             # SSE 的 tool_result 只转发 data：计费和前端进度从这里读是否真的改了。
             "mutation_applied": True,
         }
-        _record_artifact_ledger(
-            action=tool_name,
-            tool_name=tool_name,
-            artifact_refs=[file_id],
-            payload={"title": data["title"]},
-        )
         return _make_result(
             {"status": "success", "mutation_applied": True, "data": data},
             tool_name=tool_name,
@@ -2923,16 +2476,6 @@ def _update_project_sync(
                 tool_name=tool_name,
             )
 
-        _record_artifact_ledger(
-            action=tool_name,
-            tool_name=tool_name,
-            artifact_refs=_extract_tool_artifact_refs(tool_name, normalized_args, result),
-            payload={
-                "updated_fields": result.get("updated_fields", []),
-                "has_plan": "plan" in result,
-            },
-        )
-
         return _make_result({"status": "success", "data": result}, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
@@ -2947,10 +2490,6 @@ async def handoff_to_agent(args: dict[str, Any]) -> dict[str, Any]:
     completed = args.get("completed", [])
     todo = args.get("todo", [])
     evidence = args.get("evidence", [])
-    artifact_refs = args.get("artifact_refs", [])
-    tool_context = ToolContext._get_context()
-    project_id = tool_context.get("project_id")
-    session_id = tool_context.get("session_id")
 
     if target_agent not in ("planner", "hook_designer", "writer", "quality_reviewer"):
         return _make_error(f"Invalid target_agent: {target_agent}", tool_name=tool_name)
@@ -2971,14 +2510,6 @@ async def handoff_to_agent(args: dict[str, Any]) -> dict[str, Any]:
     completed_list = completed if isinstance(completed, list) else []
     todo_list = todo if isinstance(todo, list) else []
     evidence_list = evidence if isinstance(evidence, list) else []
-    artifact_ref_list = artifact_refs if isinstance(artifact_refs, list) else []
-    recent_artifact_refs = _load_recent_artifact_refs_for_handoff(
-        project_id=project_id if isinstance(project_id, str) else None,
-        session_id=session_id if isinstance(session_id, str) else None,
-    )
-    merged_artifact_refs = _merge_unique_refs(artifact_ref_list, recent_artifact_refs)
-    overflow_backfills = _build_tool_result_overflow_backfill_entries(merged_artifact_refs)
-    backfill_context = _format_tool_result_overflow_backfill_context(overflow_backfills)
     context_str = str(context).strip()
     if not context_str:
         # Some models omit `context` even though downstream workflow relies on it.
@@ -2989,8 +2520,6 @@ async def handoff_to_agent(args: dict[str, Any]) -> dict[str, Any]:
     if not context_str:
         current_agent = ToolContext.get_current_agent() or "agent"
         context_str = f"Handoff requested: {current_agent} -> {target_agent}"
-    if backfill_context:
-        context_str = f"{context_str}\n\n{backfill_context}" if context_str else backfill_context
 
     # 返回交接信息，由图节点处理
     return _make_result({
@@ -3001,8 +2530,6 @@ async def handoff_to_agent(args: dict[str, Any]) -> dict[str, Any]:
         "completed": [str(item) for item in completed_list if str(item).strip()],
         "todo": [str(item) for item in todo_list if str(item).strip()],
         "evidence": [str(item) for item in evidence_list if str(item).strip()],
-        "artifact_refs": merged_artifact_refs,
-        "overflow_backfill": overflow_backfills,
     }, tool_name=tool_name)
 
 

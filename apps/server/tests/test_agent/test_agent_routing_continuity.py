@@ -131,8 +131,7 @@ async def _writer_calls_handoff_tool(state, target: str = "quality_reviewer"):
         else:
             yield _text("第五章写好了，2100 字。旧稿可以在历史版本里找回。")
 
-    with patch("agent.tools.mcp_tools._load_recent_artifact_refs_for_handoff", return_value=[]):
-        events = await _run_graph(fake_agent, state)
+    events = await _run_graph(fake_agent, state)
     return calls, tool_results, events
 
 

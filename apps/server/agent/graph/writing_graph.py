@@ -3010,7 +3010,6 @@ async def run_writing_workflow_streaming(
                     "completed": planned_guard.completed_items() if planned_guard else [],
                     "todo": planned_todo,
                     "evidence": [f"workflow_plan={workflow_plan}"],
-                    "artifact_refs": planned_guard.written_file_ids() if planned_guard else [],
                 }
 
                 log_with_context(
@@ -3063,7 +3062,6 @@ async def run_writing_workflow_streaming(
                     "completed": review_guard.completed_items() if review_guard else [],
                     "todo": ["执行质量审查并返回问题清单"],
                     "evidence": [],
-                    "artifact_refs": review_guard.written_file_ids() if review_guard else [],
                 }
 
                 pending_handoff_event_data = {

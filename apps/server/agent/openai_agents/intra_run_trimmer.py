@@ -90,7 +90,6 @@ _TRACE_KEYS = frozenset(
         "line_start",
         "artifact_ref",
         "artifact_refs",
-        "overflow_ref",
         "title",
         "file_type",
         "status",

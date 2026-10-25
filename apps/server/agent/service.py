@@ -275,10 +275,10 @@ class AgentService:
         """
         Resolve the `session_id` used by:
         - SSE `session_started` event (frontend steering + continuity)
-        - ToolContext (task board + artifact ledger)
+        - ToolContext (task board)
 
         IMPORTANT: This value must exist in `chat_session.id` because
-        `agent_artifact_ledger.session_id` has a FK to `chat_session.id`.
+        `chat_message.session_id` has a FK to `chat_session.id`.
         """
         from models import ChatSession
         from services.chat_session_service import lock_active_chat_session
@@ -287,7 +287,7 @@ class AgentService:
         normalized_requested = (requested_session_id or "").strip()
 
         # 1) If caller provided a runtime session id, we REQUIRE it to exist in
-        #    `chat_session.id` because agent_artifact_ledger has an FK to it.
+        #    `chat_session.id` because chat_message has an FK to it.
         #    - If it exists and belongs to this user+project, reuse it.
         #    - If it doesn't exist, create it with that exact id (so we can echo
         #      it back in `session_started` for steering continuity).
@@ -448,8 +448,8 @@ class AgentService:
         if chat_session is not None:
             return chat_session.id
 
-        # 3) If no active session exists yet, create one now so tools can safely
-        #    write agent_artifact_ledger rows during streaming.
+        # 3) If no active session exists yet, create one now so the round's
+        #    messages and task board have a persisted session to belong to.
         chat_session = ChatSession(
             user_id=user_id,
             project_id=project_id,
@@ -695,9 +695,9 @@ class AgentService:
             current_file_id=metadata.get("current_file_id") if metadata else None,
         )
 
-        # Resolve chat-session id for continuity + artifact-ledger FK safety.
-        # (Historically this was a standalone runtime UUID; but artifact ledger
-        # requires `session_id` to exist in `chat_session.id`.)
+        # Resolve chat-session id for continuity + FK safety.
+        # (Historically this was a standalone runtime UUID; persisted rows
+        # require `session_id` to exist in `chat_session.id`.)
         requested_session_id = session_id
         if user_id:
             if self._should_offload_session_work(session):

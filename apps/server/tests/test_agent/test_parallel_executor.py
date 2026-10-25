@@ -873,9 +873,7 @@ class TestParallelReadForwarding:
         executor = _executor_returning(files)
         ToolContext.set_context(None, "user1", "proj-1", "sess-1")
         try:
-            with patch.object(ToolContext, "get_executor", return_value=executor), patch(
-                "agent.tools.mcp_tools._record_artifact_ledger", return_value=False
-            ):
+            with patch.object(ToolContext, "get_executor", return_value=executor):
                 result = await execute_parallel([
                     {"type": "query_files", "description": f"读第{index}章", "params": {"id": f"f{index}"}}
                     for index in range(5)

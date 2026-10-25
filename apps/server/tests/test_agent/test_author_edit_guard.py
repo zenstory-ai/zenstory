@@ -143,12 +143,6 @@ async def test_author_save_before_locked_delete_is_refused_atomically(
     original_delete = FileToolExecutor.delete_file
     interleaved = False
     author_state: dict[str, object] = {}
-    ledger_calls: list[dict] = []
-    monkeypatch.setattr(
-        mcp_tools,
-        "_record_artifact_ledger",
-        lambda **kwargs: ledger_calls.append(kwargs),
-    )
 
     def delete_after_author_save(executor, *args, **kwargs):
         nonlocal interleaved
@@ -187,7 +181,6 @@ async def test_author_save_before_locked_delete_is_refused_atomically(
         "order": stored.order,
         "updated_at": stored.updated_at,
     } == author_state
-    assert ledger_calls == []
 
 
 async def test_recursive_folder_delete_is_refused_even_when_author_names_folder(db_session, owner_project):
@@ -466,12 +459,6 @@ async def test_same_name_whole_rewrite_is_refused_even_when_explicit(
     _author_saves(db_session, user, episode, AUTHOR_CH3)
     db_session.refresh(episode)
     original_updated_at = episode.updated_at
-    ledger_calls: list[dict] = []
-    monkeypatch.setattr(
-        mcp_tools,
-        "_record_artifact_ledger",
-        lambda **kwargs: ledger_calls.append(kwargs),
-    )
 
     payload = await _run(
         mcp_tools.create_file,
@@ -490,7 +477,6 @@ async def test_same_name_whole_rewrite_is_refused_even_when_explicit(
     assert stored.file_type == "draft"
     assert stored.order == 0
     assert stored.updated_at == original_updated_at
-    assert ledger_calls == []
 
 
 async def test_ordinary_edit_of_author_owned_file_still_works(db_session, owner_project):
