@@ -1605,6 +1605,33 @@ async def test_update_project_appends_remembered_notes_and_reports_them(db_sessi
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+async def test_read_only_tool_adapter_executes_explicit_notes_update(db_session):
+    """文件只读仍允许作者明确要求的项目资料 handler 真正落库。"""
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, f"notes-readonly-{uuid4().hex[:5]}")
+    unchanged = {field: getattr(project, field) for field in ("name", "summary", "writing_style", "current_phase")}
+    _set_author_round(db_session, user, project, "记住：主角左手有旧伤，阴天会疼")
+    try:
+        tools = {tool.name: tool for tool in build_agent_function_tools("writer", read_only=True)}
+        payload = json.loads(
+            await tools["update_project"].on_invoke_tool(
+                None,
+                json.dumps({"notes": "主角左手有旧伤，阴天会疼"}, ensure_ascii=False),
+            )
+        )
+        assert payload["status"] == "success"
+        assert payload["data"]["notes_added"] == ["主角左手有旧伤，阴天会疼"]
+        assert payload["data"]["updated_fields"] == ["notes"]
+        assert _stored_notes(db_session, project) == "主角左手有旧伤，阴天会疼"
+        assert {field: getattr(project, field) for field in unchanged} == unchanged
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_update_project_notes_over_limit_save_nothing_and_say_so(db_session):
     from agent.tools.mcp_tools import NOTES_FULL_NOTE, ToolContext
 

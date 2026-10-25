@@ -141,7 +141,8 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
     """作者第一条消息的隐藏提示（只进模型输入，不落库、不显示）：先写，再给方向。
 
     免费版每天 3 条：先问两三个问题的一轮照样计 1 条，作者要到第 2、3 条才看到正文。
-    想法模糊时按最常见的理解写一段开头，再给两个可换的方向；作者明确要了别的照做。
+    有创作意图但范围模糊时按最常见的理解写一段开头，再给两个可换的方向；
+    作者明确要了别的照做，单独保存项目资料不附送新文稿。
     """
     screenplay = project_type == "screenplay"
     if force_en:
@@ -155,8 +156,13 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
             f"This is the author's first message in this \"{label}\". "
             "If the author clearly asked for something else (only an outline or settings, only a question, "
             "only a read-through without changes), do exactly that. "
+            "If the sole requested delivery is saving the supplied facts to project memory or another project-information update, "
+            "pass only the project-information fields the author requested to update_project; facts about characters or plot do not authorize new writing. "
+            "Do not issue additional title, summary, style, phase, or task updates unless the author asked for them. "
+            "Do not create an outline, character sheet, setting file, or manuscript for that request. "
             "If the project already has manuscript text, continue from the author's request instead of starting a new opening. "
-            "Otherwise do not ask questions first; deliver in this turn: introduce the protagonist, setting and core "
+            "If the author expresses a creative-writing intent but has not limited the delivery scope, do not ask questions first; "
+            "deliver in this turn: introduce the protagonist, setting and core "
             f"conflict in three to five sentences, then write {delivery}. "
             "If the idea is still vague, write it the most common way; at the end of your reply list two alternative "
             "directions, one sentence each, so the author can pick one or say what to change."
@@ -166,8 +172,12 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
     return (
         f"这是作者在这部「{label}」里发来的第一条消息。"
         "作者明确要了别的（只要大纲或设定、只问问题、只看稿不改等）时，直接按要求做；"
+        "如果唯一交付物是把这次提供的事实记进项目记忆或更新其他项目资料，"
+        "调用 update_project 时只传作者要求的字段，不额外发起改名、摘要、风格、阶段或任务更新；"
+        "资料涉及人物或剧情也不代表作者要求创作，不要创建大纲、人设、设定文件或正文。"
         "作品里已经有正文时，按作者的要求接着做，不要另起一个开头。"
-        "其余情况不要先提问，本轮就交付：先用三五句话交代主角、背景和核心冲突，"
+        "作者有创作意图但没有限定交付范围时，不要先提问，本轮就交付："
+        "先用三五句话交代主角、背景和核心冲突，"
         f"再把{delivery}；"
         "想法还模糊时，按最常见的理解来写，回复末尾再列两个可以换的方向，每个一句话，"
         "让作者挑一个或直接说想怎么改。"

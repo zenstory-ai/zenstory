@@ -137,6 +137,50 @@ async def test_outline_only_structured_route_has_no_writer_handoff():
     assert calls == ["planner"]
 
 
+async def test_metadata_only_writer_stays_in_one_read_only_run():
+    """项目资料由初始 writer 保存；文件只读边界不触发补写或计划交接。"""
+    calls: list[str] = []
+    seen: dict[str, object] = {}
+
+    async def fake_agent(state, agent_type, **_kwargs):
+        calls.append(agent_type)
+        seen["read_only"] = state.get("read_only")
+        seen["scope_directive"] = state.get("scope_directive")
+        yield _tool("update_project")
+        yield StreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={
+                "tool_use_id": "t1",
+                "name": "update_project",
+                "result": {"status": "success", "data": {"notes_added": ["主角左手有旧伤"]}},
+            },
+        )
+        # 即使模型试图继续交给能写文件的角色，结构化只读边界也不执行交接。
+        yield StreamEvent(
+            type=StreamEventType.HANDOFF,
+            data={"target_agent": "planner", "reason": "继续建档", "context": "补一份设定文件"},
+        )
+
+    events = await _run(
+        _route({
+            "agent_type": "writer",
+            "workflow_type": "quick",
+            "write_content": False,
+            "read_only": True,
+            "scope": "只保存作者提供的两条项目资料",
+            "requested_file_types": [],
+        }),
+        fake_agent,
+        message="请保存这两条项目资料",
+    )
+
+    assert calls == ["writer"]
+    assert seen["read_only"] is True
+    assert seen["scope_directive"]
+    assert any(e.type == StreamEventType.TOOL_RESULT for e in events)
+    assert not any(e.type == StreamEventType.HANDOFF for e in events)
+
+
 # ------------------------------------------------------------------ P2-16
 
 

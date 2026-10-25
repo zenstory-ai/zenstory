@@ -339,9 +339,11 @@ def _steering_followup_context(agent_type: str | None, *, read_only: bool = Fals
 
 # 用户明确要求不改文件时注入的范围约束。
 SCOPE_DIRECTIVE_READ_ONLY = (
-    "用户明确要求本轮不修改任何文件（只回答/只分析/只讨论）。"
-    "禁止调用 create_file / edit_file / delete_file，也不要交接给其他 Agent 去改写；"
-    "直接在对话里给出回答或分析即可。"
+    "用户本轮没有授权修改任何写作文件。"
+    "禁止调用 create_file / edit_file / delete_file / rename_file / parallel_execute，"
+    "也不要交接给其他 Agent 去改写；"
+    "作者明确要求保存或更新项目资料时，调用 update_project 只传作者要求的字段，"
+    "不额外发起其他资料更新；没有这项明确要求时，直接在对话里给出回答或分析。"
 )
 # 路由判定用户没要正文（只要大纲/人设/设定/爽点思路）时注入的范围约束。
 SCOPE_DIRECTIVE_NO_CONTENT = (
@@ -597,8 +599,45 @@ def _file_stream_continuation_context(
     written_titles: list[str],
     open_tasks: list[dict[str, Any]],
     user_scope: str,
+    *,
+    english: bool = False,
 ) -> str:
     """文件正文结束时就停止 run 后，同一个 agent 接着那一轮的交接说明。"""
+    if english:
+        saved = ", ".join(f'"{title}"' for title in written_titles if title)
+        lines = [
+            f"{FILE_STREAM_CONTINUATION_MARKER}: the previous response stopped after the file body "
+            "without creating the next file or giving the author a summary, so the author has not "
+            "seen a result in the conversation yet."
+        ]
+        if saved:
+            lines.append(f"Already saved for this request: {saved}. Do not rewrite these files.")
+        if user_scope:
+            lines.append(f"The delivery scope requested by the author for this turn: {user_scope}.")
+        if open_tasks:
+            status_names = {"pending": "not started", "in_progress": "in progress"}
+            task_lines = []
+            for task in open_tasks:
+                line = f"- {task.get('task')} ({status_names.get(str(task.get('status')), '')})"
+                progress = str(task.get("progress") or "").strip()
+                if progress:
+                    line += f": {progress}"
+                task_lines.append(line)
+            lines.append("Tasks still open on the task board:\n" + "\n".join(task_lines))
+        lines.append(
+            "Compare the work with the author's requirements. If any requested files are still "
+            "missing, call create_file for the next one (after the tool returns, begin the next "
+            "response with <file> and write the body). After </file>, create the next file in the "
+            "same response or give the summary. When everything is complete, do not call another "
+            "file-writing tool; tell the author in 1–3 lines exactly which files were written and "
+            "their word counts from the tool results, and state honestly what remains incomplete. "
+            "This is a system continuation instruction, not a new author message, and it must not "
+            "change the response language. Continue to follow the author's original requirements "
+            "for language, length, and format. Report only what was actually delivered, without "
+            "repeating or adding content or directions the author did not request."
+        )
+        return "\n".join(lines)
+
     saved = "、".join(f"《{title}》" for title in written_titles if title)
     lines = [
         f"{FILE_STREAM_CONTINUATION_MARKER}，没有接着建下一个文件，也没有给作者写总结，"
@@ -623,6 +662,9 @@ def _file_stream_continuation_context(
         "写正文），写完 </file> 后在同一次回复里接着建下一个，或者写总结；"
         "全部写完了，就不再调用写文件的工具，直接用 1–3 行告诉作者实际写了哪些文件、各多少字"
         "（按工具返回的字数），没写完的如实说明。"
+        "这是系统续跑说明，不是作者的新消息，不能改变本轮回复语言。"
+        "完成说明继续遵守作者原话对语言、长度和格式的要求，"
+        "报告实际交付，不复述或追加作者未要求的内容或方向。"
     )
     return "\n".join(lines)
 
@@ -2786,7 +2828,10 @@ async def run_writing_workflow_streaming(
                     list(continuation_guard.files_written.values()) if continuation_guard else []
                 )
                 handoff_context = _file_stream_continuation_context(
-                    written_titles, _open_board_tasks(), user_scope
+                    written_titles,
+                    _open_board_tasks(),
+                    user_scope,
+                    english=_author_is_english(state),
                 )
                 if mid_run_steering_seen:
                     handoff_context += "\n" + _steering_followup_context(
