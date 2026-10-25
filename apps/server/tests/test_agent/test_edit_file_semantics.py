@@ -325,7 +325,7 @@ def test_later_failure_candidates_can_hold_an_earlier_rolled_back_edit_so_rebuil
             chapter.id,
             [
                 {"op": "replace", "old": "窗外下着雨", "new": "窗外飘着雪"},
-                {"op": "replace", "old": "窗外飘着雪，远处传来一阵急促的马蹄声和喊叫声", "new": "x"},
+                {"op": "replace", "old": "窗外飘着雪，远处传来马蹄声", "new": "x"},
             ],
         )
 

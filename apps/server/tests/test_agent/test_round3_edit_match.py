@@ -214,6 +214,35 @@ def test_fuzzy_paragraph_fallback_rejects_occurrence_beyond_one(editor, op):
     assert applied == []
 
 
+def test_fuzzy_paragraph_fallback_finds_a_line_in_a_single_newline_file(editor):
+    """F-25：只用单个换行分段的文件，以前整篇被当成一段，段落兜底永远失败。"""
+    filler = "\n".join(_plain_content(200) for _ in range(30))
+    target = "天亮时林风背上行囊推门而出走进濛濛细雨里再没有回头看那座空荡荡的院子"
+    content = filler + "\n" + target + "\n" + "雨一直没有停。"
+    assert len(normalize_for_fuzzy_match(content)[0]) > 5000
+    anchor = target.replace("推门而出", "排门而出")
+    applied: list[dict] = []
+
+    result = editor._apply_insert_after(
+        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, []
+    )
+
+    assert result == content.replace(target, target + "【新增】")
+    assert applied[0]["match_mode"] == "fuzzy_paragraph"
+
+
+def test_suggest_similar_lines_lists_lines_of_a_single_newline_file():
+    """F-25：建议按行给出最像的那一行，而不是把整篇压成一条。"""
+    content = "第一行是开头。\n林风背上行囊推门而出走进濛濛细雨里再没有回头看。\n第三行是结尾。"
+    suggestions = suggest_similar_lines(content, "林风背上行囊排门而出走进细雨里")
+    assert suggestions[0] == "林风背上行囊推门而出走进濛濛细雨里再没有回头看。"
+
+
+def test_suggest_similar_lines_drops_unrelated_paragraphs():
+    """F-25：与 old/anchor 毫不相干的段落不作为候选片段（相似度下限）。"""
+    assert suggest_similar_lines("甲乙丙丁\n\n戊己庚辛", "完全无关的句子内容") == []
+
+
 def test_suggest_similar_lines_does_not_rank_short_title_first():
     """同款包含捷径也污染了建议列表：短标题不得挤到真正相关的段落前面。"""
     suggestions = suggest_similar_lines(_BUG21_CONTENT, _BUG21_ANCHOR, max_items=3)

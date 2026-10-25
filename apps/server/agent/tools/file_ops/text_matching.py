@@ -10,6 +10,7 @@ These utilities are used by the file editing operations to reliably locate
 text anchors in content even when there are minor differences.
 """
 
+import re
 import time
 import unicodedata
 from difflib import SequenceMatcher
@@ -613,6 +614,17 @@ def build_span_previews(
     return previews
 
 
+# 段落按任意连续换行切分：只用单个换行分段的文件（网文常见）也要逐段比较，
+# 不能整篇当成一段。
+_PARAGRAPH_BREAKS = re.compile(r"\n+")
+# 候选片段的相似度下限：低于它的段落与 old/anchor 无关，列出来只会误导模型。
+_SUGGEST_MIN_SCORE = 0.3
+
+
+def _paragraph_blocks(content: str) -> list[str]:
+    return [b for b in _PARAGRAPH_BREAKS.split(content) if b.strip()]
+
+
 def suggest_similar_lines(
     content: str,
     pattern: str,
@@ -642,11 +654,11 @@ def suggest_similar_lines(
         return []
 
     # Use paragraphs first (more stable for novels)
-    blocks = [b for b in content.split("\n\n") if b.strip()]
+    blocks = _paragraph_blocks(content)
     candidates: list[tuple[float, str]] = []
 
     for b in blocks:
-        snippet = b.strip().replace("\n", " ")
+        snippet = b.strip()
         if not snippet:
             continue
         norm_b, _ = normalize_for_fuzzy_match(
@@ -660,12 +672,12 @@ def suggest_similar_lines(
         # 否则一个 3 字的章节标题会把真正相关的长段落挤出建议列表。
         score = _block_similarity(norm_pat, norm_b)
 
+        if score < _SUGGEST_MIN_SCORE:
+            continue
         candidates.append((score, snippet[:160] + ("..." if len(snippet) > 160 else "")))
 
     candidates.sort(key=lambda x: x[0], reverse=True)
-    out = [c[1] for c in candidates[: max_items]]
-    # Filter very low similarity
-    return [s for s in out if s]
+    return [c[1] for c in candidates[: max_items]]
 
 
 def find_unique_line_span(
@@ -702,7 +714,7 @@ def find_unique_line_span(
     if not norm_anchor:
         return None
 
-    blocks = [b for b in content.split("\n\n") if b.strip()]
+    blocks = _paragraph_blocks(content)
     if not blocks:
         return None
 

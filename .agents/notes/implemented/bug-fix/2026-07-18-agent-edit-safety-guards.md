@@ -28,3 +28,7 @@ Status: implemented
 ### 补充（2026-10-25，审计 F-15）
 
 insert_after / insert_before 的第三级兜底（`find_unique_line_span` 的 `fuzzy_paragraph`）以前不看 `occurrence`：长文里锚点有错字、模型点名 occurrence=2 时，照样插到唯一那一段。现在与近似匹配一样，occurrence 不是 1 就报 `occurrence out of range (1..1)`，正文不动。回归 `test_round3_edit_match.py::test_fuzzy_paragraph_fallback_rejects_occurrence_beyond_one`（两个方向，改动前都插入成功）。
+
+### 补充（2026-10-25，审计 F-25）
+
+`find_unique_line_span`（段落兜底）和 `suggest_similar_lines`（失败时的候选片段）以前按 `\n\n` 切段，只用单个换行分段的文件整篇被当成一段：兜底永远失败，候选片段是整篇开头 160 字。现在按任意连续换行切分（`_paragraph_blocks`），两种分段的文件都逐段比较；`\n\n` 分段、段内又有单换行的文件改为逐行比较，跨行的锚点只能靠前面的 exact / 模糊 / 近似匹配。候选片段加相似度下限 0.3（`_SUGGEST_MIN_SCORE`），与 old/anchor 无关的段落不再列出，全部低于下限时候选为空。`test_edit_file_semantics.py` 里一条用例的 old 原本与正文只有约 0.24 的相似度，靠「没有下限」才拿到候选，已改成相似度过下限的 old，用例要验证的「候选片段可能含已回滚的 new」不变。回归在 `test_round3_edit_match.py`（单换行文件的兜底插入与候选、无关段落不列出），改动前都失败。
