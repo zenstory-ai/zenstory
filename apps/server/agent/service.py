@@ -1568,9 +1568,12 @@ class AgentService:
                 # chat session 还有别的 run 正在流式生成，这些消息本该由它消费，
                 # 必须交还回队列，而不是写成本轮历史里一条挂在已结束轮次上的
                 # 用户消息（那样仍在生成的 run 永远收不到这条引导）。
+                # 这里同时封口：本 run 之后不会再把引导喂给模型，保存历史期间再到的引导回 404，
+                # 由前端作为下一条消息发出，而不是回 200「下一步会用上」再挂在已结束的一轮上。
+                # 封口幂等，finally 里那次 drain 照旧兜底取出封口前刚入队的消息。
                 already_consumed_pre_save = len(consumed_steering)
                 try:
-                    await get_steering_messages()
+                    await get_steering_messages(seal=True)
                 except Exception as exc:
                     log_with_context(
                         logger,

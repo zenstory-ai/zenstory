@@ -14,7 +14,7 @@ Status: implemented
 - 前端 `agentApi` 收到 409 `ERR_SESSION_BUSY` 时标记为可重试，ChatPanel 显示 i18n 文案（「上一轮回复仍在生成或收尾中，请稍候片刻再发送，或开启新对话」）和重试按钮。
 - 2026-10-25 补充（审计 F-28）：`POST /agent/steer` 原先先查 owner、再 RPUSH，两步不原子。本轮最后一次 drain 之后、释放之前到达的引导，接口回 200 queued，随后被释放脚本连同 msgs 一起删除；释放之后的 RPUSH 会重建 msgs（TTL 1 小时），注入同一会话的下一轮。现在：
   - `enqueue_steering_for_user_async` 把 owner 校验、「存在未超时且未封口的 run」与入队放进一个原子单元（Redis Lua `_ENQUEUE_FOR_LIVE_RUN_SCRIPT`；内存后端在 manager 锁内判定）。没有这样的 run 时回 404 `ERR_CHAT_SESSION_NOT_FOUND`，owner 不符仍是 403。从未登记过 run 的占位队列也不再接收引导。
-  - `process_stream` 释放前的最后一次 drain（正常路径 finally 里的兜底 drain、取消路径后台补存里的 drain）改用 `drain_and_seal_steering_async`：取出消息的同时把本 run 记入封口集合（Redis `steering:sealed:{session}`，内存 `SteeringQueueEntry.sealed_runs`）。封口不释放独占槽位，新一轮在释放前仍收到 busy 409；释放与僵尸回收会一并清掉封口记录。所以已确认 queued 的引导要么被这次 drain 取走、随本轮历史落库，要么根本不会被确认。
+  - `process_stream` 释放前的最后一次 drain（正常路径 finally 里的兜底 drain、取消路径后台补存里的 drain）改用 `drain_and_seal_steering_async`：取出消息的同时把本 run 记入封口集合（Redis `steering:sealed:{session}`，内存 `SteeringQueueEntry.sealed_runs`）。封口不释放独占槽位，新一轮在释放前仍收到 busy 409；释放与僵尸回收会一并清掉封口记录。所以已确认 queued 的引导要么被这次 drain 取走、随本轮历史落库，要么根本不会被确认。正常路径上工作流结束后、保存历史前的那次 drain 也用 `drain_and_seal_steering_async`：从那以后本 run 不会再把引导喂给模型，保存历史期间到达的引导回 404、由前端作为下一条消息发出，而不是回 200「下一步会用上」再变成历史里一条没有回复的用户消息。封口幂等，finally 里的兜底 drain 照旧取出封口前刚入队的消息（回归测试 `test_steer_during_history_save_is_not_acknowledged_as_used`）。
   - 多持有者遗留路径的交还（`requeue_if_other_active`）不再把已封口的 run 算作「其它活跃 run」，避免把消息交给不会再读它的 run。
   - 前端 `sendSteeringRequest` 抛出带 HTTP 状态的 `ApiError`。ChatPanel 收到 404 时不报错，提示「这一轮已收尾，这句会在它结束后作为新消息发出」，本轮结束后用 `handleSendMessage` 发一次；发不出去（新对话未就绪、当日额度用完等）就把这句话放回输入框。其他失败可能已经入队，仍保留输入并报错，不自动重发，所以同一句话不会扣两次额度。旧前端遇到 404 仍是原来的「补充没有发出，请重试」，新前端对旧后端的 404 也能退回发送，两个方向都兼容。
 

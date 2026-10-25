@@ -259,3 +259,48 @@ async def test_sealed_holder_does_not_receive_handed_back_steering(steering_back
     await st.cleanup_steering_queue_async(session_id, run_id=run_a)
     await st.cleanup_steering_queue_async(session_id, run_id=run_b)
     assert _leftover(backend, client, session_id) == []
+
+
+@pytest.mark.unit
+async def test_steer_during_history_save_is_not_acknowledged_as_used(
+    steering_backend, plain_service, steer_user_with_project, db_session: Session
+):
+    """工作流结束后本轮不再把引导喂给模型：保存历史期间到达的引导不能回 200「下一步会用上」，
+    而是 404，让前端把它当下一条消息发出（本轮历史里也不出现一条没有回复的引导）。"""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import MessageManager
+
+    _backend, _client = steering_backend
+    user, project = steer_user_with_project
+    real_save = MessageManager.save_messages
+    statuses: dict[str, object] = {}
+
+    async def steer_during_save(self, session, session_id, *args, **kwargs):
+        statuses["during_save"] = await _steer(session_id, user)
+        statuses["session"] = session_id
+        return await real_save(self, session, session_id, *args, **kwargs)
+
+    async def mock_stream():
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "雪落下来。"})
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    bind = db_session.get_bind()
+    with (
+        patch("agent.service.run_writing_workflow_streaming", return_value=mock_stream()),
+        patch("agent.service.create_session", side_effect=lambda: Session(bind)),
+        patch.object(MessageManager, "save_messages", steer_during_save),
+    ):
+        async for _event in plain_service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写一段",
+            session=db_session,
+        ):
+            pass
+
+    session_id = statuses["session"]
+    db_session.rollback()
+    db_session.expire_all()
+    rows = db_session.exec(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
+    assert statuses["during_save"] == 404
+    assert not any(r.role == "user" and r.content == LATE_TEXT for r in rows)
