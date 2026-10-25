@@ -152,6 +152,10 @@ async def test_no_hint_once_the_work_has_an_ai_reply(agent_service, db_session, 
     db_session.commit()
     target = earlier
     if not same_session:
+        # 新开对话时旧对话归档（同一作品只有一个 active 会话）。
+        earlier.is_active = False
+        db_session.add(earlier)
+        db_session.commit()
         target = ChatSession(user_id=user.id, project_id=project.id, title="新对话")
         db_session.add(target)
         db_session.commit()

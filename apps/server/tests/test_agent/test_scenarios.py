@@ -11,7 +11,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from agent.context.assembler import ContextAssembler
 from agent.graph.router import WORKFLOW_AGENTS, router_node
@@ -88,6 +88,18 @@ def create_chat_session(db_session: Session, test_project: Project, test_user: U
     """Helper function to create chat sessions."""
 
     def _create(title: str = "Test Chat"):
+        # Like a new chat in the app: the previous active chat of this project is archived first
+        # (uq_chat_session_user_project_active allows one active chat per user+project).
+        for previous in db_session.exec(
+            select(ChatSession).where(
+                ChatSession.user_id == str(test_user.id),
+                ChatSession.project_id == str(test_project.id),
+                ChatSession.is_active.is_(True),
+            )
+        ).all():
+            previous.is_active = False
+            db_session.add(previous)
+        db_session.flush()
         session = ChatSession(
             user_id=str(test_user.id),
             project_id=str(test_project.id),

@@ -1047,9 +1047,11 @@ class TestAgentServiceProcessStream:
 
         async def mock_stream_switching_active_session():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Draft reply"})
+            # Deactivate first, as the app does: one active chat per user+project.
             target_session.is_active = False
-            newer_session.is_active = True
             db_session.add(target_session)
+            db_session.commit()
+            newer_session.is_active = True
             db_session.add(newer_session)
             db_session.commit()
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})

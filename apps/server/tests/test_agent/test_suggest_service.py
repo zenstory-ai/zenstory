@@ -656,7 +656,8 @@ class TestChatHistory:
 
     @pytest.mark.asyncio
     async def test_get_recent_chat_history_prefers_latest_active_and_deactivates_stale(
-        self, suggest_service, test_user_with_project, db_session: Session
+        self, suggest_service, test_user_with_project, db_session: Session,
+        legacy_db_without_active_chat_index,
     ):
         """Should use latest active session and deactivate stale active sessions."""
         user = test_user_with_project["user"]

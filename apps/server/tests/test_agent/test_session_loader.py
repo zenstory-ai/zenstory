@@ -330,6 +330,7 @@ class TestSessionLoaderHistoryBudget:
         db_session: Session,
         session_loader_test_data,
         monkeypatch,
+        legacy_db_without_active_chat_index,
     ):
         """Should deterministically keep latest active session and deactivate stale ones."""
         monkeypatch.setattr("agent.core.session_loader.AGENT_CHAT_HISTORY_TOKEN_BUDGET", 100)

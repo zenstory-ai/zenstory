@@ -190,6 +190,27 @@ def db_session():
 
 
 @pytest.fixture
+def legacy_db_without_active_chat_index(db_session):
+    """A database created before uq_chat_session_user_project_active existed (one user+project
+    can still hold several active chats). The model declares the index, so repair paths for that
+    legacy state are tested by dropping it here; it is restored after the test."""
+    from models import ChatSession
+
+    index = next(
+        index for index in ChatSession.__table__.indexes if index.name == "uq_chat_session_user_project_active"
+    )
+    engine = db_session.get_bind()
+    index.drop(engine, checkfirst=True)
+    try:
+        yield db_session
+    finally:
+        db_session.rollback()
+        with engine.begin() as conn:
+            conn.execute(Custom("UPDATE chat_session SET is_active = false"))
+        index.create(engine, checkfirst=True)
+
+
+@pytest.fixture
 async def client(db_session: Session):
     """
     Create an async HTTP client for testing the FastAPI app.

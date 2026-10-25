@@ -93,7 +93,7 @@ class TestAgentServiceSessionIdResolution:
         assert created.project_id == project.id
         assert created.is_active is True
 
-    def test_deactivates_stale_active_sessions_when_multiple_exist(self, db_session: Session):
+    def test_deactivates_stale_active_sessions_when_multiple_exist(self, db_session: Session, legacy_db_without_active_chat_index):
         user, project = _create_user_and_project(db_session)
 
         old = ChatSession(
@@ -181,15 +181,8 @@ class TestAgentServiceSessionIdResolution:
             f"sqlite:///{tmp_path / 'partial_unique.db'}",
             connect_args={"check_same_thread": False},
         )
+        # 模型声明了 uq_chat_session_user_project_active，create_all 即建出与 prod 相同的索引。
         SQLModel.metadata.create_all(engine)
-        with engine.begin() as conn:
-            # 与 database.py POSTGRES_PERFORMANCE_INDEX_SQL 中的定义保持一致
-            conn.execute(
-                text(
-                    "CREATE UNIQUE INDEX uq_chat_session_user_project_active "
-                    "ON chat_session (user_id, project_id) WHERE is_active = true"
-                )
-            )
 
         with Session(engine) as session:
             candidate = ChatSession(
