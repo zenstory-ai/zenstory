@@ -26,6 +26,7 @@ from config.agent_runtime import (
     AGENT_WORKING_SET_MAX_FILES,
 )
 from database import create_session
+from services.chat_session_service import latest_active_chat_session
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
@@ -332,45 +333,9 @@ class SessionLoader:
                 return result
             return self._load_chat_session_rows(session, result, chat_session)
 
-        # Load active chat session deterministically (newest first)
-        stmt = (
-            select(ChatSession)
-            .where(
-                and_(
-                    ChatSession.project_id == self.project_id,
-                    ChatSession.user_id == self.user_id,
-                    ChatSession.is_active,
-                )
-            )
-            .order_by(
-                desc(ChatSession.updated_at),
-                desc(ChatSession.created_at),
-                desc(ChatSession.id),
-            )
+        chat_session = latest_active_chat_session(
+            session, project_id=self.project_id, user_id=self.user_id
         )
-        active_sessions = session.exec(stmt).all()
-        chat_session = active_sessions[0] if active_sessions else None
-
-        # Repair stale multi-active states defensively.
-        if len(active_sessions) > 1 and chat_session is not None:
-            stale_count = 0
-            for stale in active_sessions[1:]:
-                if stale.is_active:
-                    stale.is_active = False
-                    session.add(stale)
-                    stale_count += 1
-            if stale_count > 0:
-                session.commit()
-                session.refresh(chat_session)
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Session loader detected multiple active chat sessions; stale sessions deactivated",
-                    project_id=self.project_id,
-                    user_id=self.user_id,
-                    kept_session_id=chat_session.id,
-                    stale_count=stale_count,
-                )
 
         if not chat_session:
             return result

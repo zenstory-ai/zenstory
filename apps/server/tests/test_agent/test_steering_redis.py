@@ -5,7 +5,6 @@ is a different process from the one running the SSE stream. With the in-memory
 queue that lookup misses (404 "对话会话不存在"); with Redis both workers share state.
 """
 
-import asyncio
 import threading
 from collections.abc import Callable
 
@@ -231,13 +230,29 @@ class FakeRedis:
         return self._atomic("eval", lambda: self._eval(script, numkeys, *keys_and_args))
 
     def _eval(self, script, numkeys, *keys_and_args):
-        # 模拟 steering 的两个 Lua 脚本，与真实 Redis 一样在单次调用内原子完成：
+        keys = keys_and_args[:numkeys]
+        args = keys_and_args[numkeys:]
+        if "'ZADD'" in script:
+            runs_key, owner_key = keys
+            run_id, owner, cutoff, now, _ttl = args
+            existing_owner = self._get(owner_key)
+            if existing_owner and owner and existing_owner != owner:
+                return -1
+            self._zremrangebyscore(runs_key, "-inf", cutoff)
+            if self._zcard(runs_key) and run_id not in self.store.get(runs_key, {}):
+                return 0
+            self._zadd(runs_key, {run_id: now})
+            if owner:
+                self._set(owner_key, owner)
+            elif existing_owner is None:
+                self._set(owner_key, "")
+            return 1
+
+        # 模拟 steering 的释放/回收 Lua，与真实 Redis 一样在单次调用内原子完成：
         #   释放脚本 _RELEASE_RUN_SCRIPT：ZREM 自己 -> 按 score 回收僵尸 ->
         #                                ZCARD==0 则 DEL 三键
         #   回收脚本 _REAP_STALE_RUNS_SCRIPT：曾有持有者且全部超时 -> DEL 三键
         assert "ZCARD" in script and "ZREMRANGEBYSCORE" in script and "DEL" in script
-        keys = keys_and_args[:numkeys]
-        args = keys_and_args[numkeys:]
         runs_key = keys[0]
         is_release = "'ZREM'" in script
         if is_release:
@@ -279,7 +294,7 @@ async def test_steering_message_crosses_workers(redis_steering):
     st, _fake = redis_steering
 
     # Worker A (the SSE stream) creates the queue.
-    queue_a = await st.create_steering_queue_async("sess-1", "user-1")
+    queue_a = await st.create_steering_queue_async("sess-1", "user-1", run_id="run-a")
     assert isinstance(queue_a, st.RedisSteeringQueue)
 
     # Worker B (a DIFFERENT process serving POST /steer) finds the same session
@@ -309,7 +324,7 @@ async def test_unknown_session_raises_keyerror(redis_steering):
 @pytest.mark.asyncio
 async def test_owner_mismatch_raises_permissionerror(redis_steering):
     st, _fake = redis_steering
-    await st.create_steering_queue_async("sess-2", "owner-user")
+    await st.create_steering_queue_async("sess-2", "owner-user", run_id="run-a")
     with pytest.raises(PermissionError):
         await st.get_steering_queue_for_user_async("sess-2", "attacker-user")
 
@@ -318,7 +333,7 @@ async def test_owner_mismatch_raises_permissionerror(redis_steering):
 @pytest.mark.asyncio
 async def test_cleanup_removes_session(redis_steering):
     st, fake = redis_steering
-    await st.create_steering_queue_async("sess-3", "user-1")
+    await st.create_steering_queue_async("sess-3", "user-1", run_id="run-a")
     q = await st.get_steering_queue_for_user_async("sess-3", "user-1")
     await q.add("msg")
     await st.cleanup_steering_queue_async("sess-3")
@@ -330,31 +345,6 @@ async def test_cleanup_removes_session(redis_steering):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_concurrent_runs_first_cleanup_keeps_other_runs_queue(redis_steering):
-    """同一 chat session 的并发 run 共享 steering 键：先结束的 run 不能删掉
-    另一个仍在流式生成的 run 正在使用的 owner 键与消息列表。"""
-    st, fake = redis_steering
-
-    await st.create_steering_queue_async("sess-shared", "user-1", run_id="run-a")
-    await st.create_steering_queue_async("sess-shared", "user-1", run_id="run-b")
-
-    queue = await st.get_steering_queue_for_user_async("sess-shared", "user-1")
-    await queue.add("run B 的引导消息")
-
-    # run A 先结束：owner/msgs 键必须保留，POST /steer 不能 404
-    await st.cleanup_steering_queue_async("sess-shared", run_id="run-a")
-
-    surviving = await st.get_steering_queue_for_user_async("sess-shared", "user-1")
-    pending = await surviving.peek()
-    assert [m.content for m in pending] == ["run B 的引导消息"]
-
-    # 最后一个持有者退出后所有键才删除
-    await st.cleanup_steering_queue_async("sess-shared", run_id="run-b")
-    assert fake.store == {}
-    with pytest.raises(KeyError):
-        await st.get_steering_queue_for_user_async("sess-shared", "user-1")
-
-
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_cleanup_without_run_id_still_removes_all_keys(redis_steering):
@@ -371,68 +361,6 @@ async def test_cleanup_without_run_id_still_removes_all_keys(redis_steering):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_register_run_is_atomic_against_concurrent_release(redis_steering):
-    """注册与释放并发：run-a 的释放脚本整段插到 run-b 注册中间时，也不能删掉
-    run-b 正在使用的 owner/msgs 键。
-
-    非原子注册（SET owner → SADD runs 两次 round-trip）下，释放脚本会在两者
-    之间看到空的 runs 集合并 DEL 掉三个键，结果 owner 缺失、runs={run-b}：
-    仍在流式生成的 run-b 剩余时间里所有 POST /agent/steer 都会 404，且已排队
-    的 steering 消息直接丢失。
-    """
-    st, fake = redis_steering
-    session_id = "sess-race"
-
-    # run-a 正在流式生成，并且已有一条尚未被消费的 steering 消息。
-    await st.create_steering_queue_async(session_id, "user-1", run_id="run-a")
-    queued = await st.get_steering_queue_for_user_async(session_id, "user-1")
-    await queued.add("保持第一人称")
-
-    release_may_start = threading.Event()
-    release_done = threading.Event()
-
-    def on_atomic(_unit: str) -> None:
-        # run-b 发出第一个原子单元之后，把 run-a 的整段释放插进来：注册若不是
-        # 原子的，插入点正好落在 SET owner 与 SADD runs 之间。
-        if threading.current_thread().name != "run-b" or release_may_start.is_set():
-            return
-        release_may_start.set()
-        assert release_done.wait(timeout=10), "run-a 的释放未完成"
-
-    fake.on_atomic = on_atomic
-
-    def register_run_b() -> None:
-        st._redis_create_sync(session_id, "user-1", "run-b")
-
-    def release_run_a() -> None:
-        assert release_may_start.wait(timeout=10), "run-b 未发出任何命令"
-        st._redis_cleanup_sync(session_id, "run-a")
-        release_done.set()
-
-    threads = [
-        threading.Thread(target=register_run_b, name="run-b"),
-        threading.Thread(target=release_run_a, name="run-a"),
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join(timeout=15)
-    fake.on_atomic = None
-    assert not any(t.is_alive() for t in threads), "注册/释放线程未退出（死锁）"
-
-    # run-b 仍在流式生成：owner 必须还在（否则 /steer 持续 404），
-    # runs 只剩 run-b，已排队的消息不能丢。
-    assert fake.store.get(st._owner_key(session_id)) == "user-1"
-    # runs 现在是 ZSET（member=run_id -> 心跳时间戳），只断言成员集合。
-    assert set(fake.store.get(st._runs_key(session_id), {})) == {"run-b"}
-    surviving = await st.get_steering_queue_for_user_async(session_id, "user-1")
-    assert [m.content for m in await surviving.peek()] == ["保持第一人称"]
-
-    # run-b 结束后才真正删除所有键。
-    await st.cleanup_steering_queue_async(session_id, run_id="run-b")
-    assert fake.store == {}
-
-
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_run_registration_issues_single_atomic_unit(redis_steering):
@@ -442,12 +370,7 @@ async def test_run_registration_issues_single_atomic_unit(redis_steering):
 
     fake.atomic_units.clear()
     await st.create_steering_queue_async("sess-atomic", "user-1", run_id="run-a")
-    assert fake.atomic_units == ["exec"]
-
-    # 不带 run_id 的注册同样只有一个原子单元。
-    fake.atomic_units.clear()
-    await st.create_steering_queue_async("sess-atomic-2", "user-1")
-    assert fake.atomic_units == ["exec"]
+    assert fake.atomic_units == ["eval"]
 
 
 @pytest.mark.unit
@@ -471,54 +394,6 @@ async def test_register_after_full_release_rebuilds_consistent_state(redis_steer
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_steering_queue_async_does_not_downgrade_owner(redis_steering):
-    """不带 owner 的 get_steering_queue_async 只能在键缺失时占位，绝不能把
-    已绑定的真实 owner 覆盖成空串——否则 owner 校验会被整体绕过。"""
-    st, fake = redis_steering
-    session_id = "sess-owner-guard"
-
-    await st.create_steering_queue_async(session_id, "owner-user", run_id="run-a")
-    await st.get_steering_queue_async(session_id)
-
-    assert fake.store.get(st._owner_key(session_id)) == "owner-user"
-    with pytest.raises(PermissionError):
-        await st.get_steering_queue_for_user_async(session_id, "attacker-user")
-
-    # 键缺失时仍然占位创建（保持旧行为）。
-    await st.get_steering_queue_async("sess-fresh")
-    assert fake.store.get(st._owner_key("sess-fresh")) == ""
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_memory_path_concurrent_create_and_cleanup_keeps_queue(monkeypatch):
-    """内存回退路径：注册与释放共用同一把 asyncio.Lock，先结束的 run 不会
-    删掉另一个 run 仍在使用的队列。"""
-    import agent.core.steering as st
-
-    monkeypatch.delenv("REDIS_URL", raising=False)
-    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
-    monkeypatch.setattr(st, "_redis_is_healthy", False)
-
-    # 两种调度顺序都要成立：注册先拿到锁 / 释放先拿到锁。
-    for label, register_first in (("register-first", True), ("release-first", False)):
-        session_id = f"sess-mem-race-{label}"
-        await st.cleanup_steering_queue_async(session_id)
-        await st.create_steering_queue_async(session_id, "user-1", run_id="run-a")
-
-        register = st.create_steering_queue_async(session_id, "user-1", run_id="run-b")
-        release = st.cleanup_steering_queue_async(session_id, run_id="run-a")
-        await asyncio.gather(*((register, release) if register_first else (release, register)))
-
-        surviving = await st.get_steering_queue_for_user_async(session_id, "user-1")
-        await surviving.add("run-b 的引导消息")
-        assert [m.content for m in await surviving.peek()] == ["run-b 的引导消息"]
-
-        await st.cleanup_steering_queue_async(session_id, run_id="run-b")
-        with pytest.raises(KeyError):
-            await st.get_steering_queue_for_user_async(session_id, "user-1")
-
-
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_falls_back_to_memory_without_redis_url(monkeypatch):
@@ -529,7 +404,7 @@ async def test_falls_back_to_memory_without_redis_url(monkeypatch):
     monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
     monkeypatch.setattr(st, "_redis_is_healthy", False)
 
-    queue = await st.create_steering_queue_async("sess-mem", "user-1")
+    queue = await st.create_steering_queue_async("sess-mem", "user-1", run_id="run-a")
     assert isinstance(queue, st.SteeringQueue)  # in-memory, not RedisSteeringQueue
     await queue.add("hi")
     same = await st.get_steering_queue_for_user_async("sess-mem", "user-1")

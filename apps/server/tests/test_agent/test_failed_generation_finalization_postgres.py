@@ -23,6 +23,7 @@ from agent import service as service_module
 from agent.core.session_loader import WORKING_SET_USER_MESSAGE_LABEL
 from agent.core.steering import (
     SteeringSessionBusyError,
+    create_steering_queue_async,
     get_steering_queue_for_user_async,
     has_active_runs_async,
 )
@@ -614,13 +615,12 @@ def test_finalization_failure_is_best_effort_and_releases(pg_engine, actors, mon
         trace.write()
 
 
-def test_late_steering_is_handed_back_to_real_legacy_holder(pg_engine, actors, monkeypatch):
-    from agent.core.steering import cleanup_steering_queue_async, create_steering_queue_async
-
-    trace = Trace("legacy-handback")
+def test_late_steering_stays_with_exclusive_holder(pg_engine, actors, monkeypatch):
+    trace = Trace("exclusive-late-steering")
     held, release = threading.Event(), threading.Event()
     once = False
-    legacy_id = uuid.uuid4().hex
+    competing_run_id = uuid.uuid4().hex
+    late_text = "Steering stays with the exclusive holder"
 
     def before_sql(connection, cursor, statement, parameters, context, executemany):
         nonlocal once
@@ -628,34 +628,38 @@ def test_late_steering_is_handed_back_to_real_legacy_holder(pg_engine, actors, m
         if "_save_messages_sync" in names and not once and statement.startswith("INSERT INTO chat_message"):
             once = True
             held.set()
-            assert release.wait(30), "fixture: legacy control primary release"
+            assert release.wait(30), "fixture: exclusive holder release"
 
     async def workflow(state, **kwargs):
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Legacy control output"})
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Exclusive holder output"})
 
     monkeypatch.setattr(service_module, "run_writing_workflow_streaming", workflow)
     event.listen(pg_engine, "before_cursor_execute", before_sql)
 
     async def scenario():
-        a = asyncio.create_task(consume(AgentService(), pg_engine, actors, "Legacy handback", trace))
+        a = asyncio.create_task(consume(AgentService(), pg_engine, actors, "Exclusive holder", trace))
         try:
             assert await asyncio.to_thread(held.wait, 20), "fixture: legacy primary not reached"
-            queue = await create_steering_queue_async(actors[2], actors[0], run_id=legacy_id)
-            await queue.add("Steering belongs to still-active legacy holder")
+            with pytest.raises(SteeringSessionBusyError):
+                await create_steering_queue_async(
+                    actors[2], actors[0], run_id=competing_run_id
+                )
+            queue = await get_steering_queue_for_user_async(actors[2], actors[0])
+            await queue.add(late_text)
             release.set()
             await a
-            pending = await queue.get_pending()
-            assert [message.content for message in pending] == ["Steering belongs to still-active legacy holder"]
-            assert await has_active_runs_async(actors[2])
             count, rows = history(pg_engine, actors[2])
-            assert count == len(rows) == 4
-            assert all(r["content"] != "Steering belongs to still-active legacy holder" for r in rows)
-            trace.record("legacy_observation", pending=[m.content for m in pending], counter=count,
-                         messages=rows, legacy_active=True)
+            assert count == len(rows) == 5
+            assert sum(r["content"] == late_text for r in rows) == 1
+            trace.record(
+                "exclusive_observation",
+                competing_run_busy=True,
+                counter=count,
+                messages=rows,
+            )
         finally:
             release.set()
             await asyncio.gather(a, return_exceptions=True)
-            await cleanup_steering_queue_async(actors[2], run_id=legacy_id)
         assert not await has_active_runs_async(actors[2])
         assert not await owner_present(actors[2], actors[0])
         assert not any(t.get_coro().__name__ == "_run_heartbeat_loop" and not t.done()

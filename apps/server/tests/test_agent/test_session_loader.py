@@ -325,14 +325,14 @@ class TestSessionLoaderHistoryBudget:
             "details": ["主角姓名", "时代背景"],
         }
 
-    def test_load_chat_session_prefers_latest_active_and_deactivates_stale(
+    def test_load_chat_session_selects_latest_without_mutating_legacy_sessions(
         self,
         db_session: Session,
         session_loader_test_data,
         monkeypatch,
         legacy_db_without_active_chat_index,
     ):
-        """Should deterministically keep latest active session and deactivate stale ones."""
+        """A legacy database is read deterministically without performing repairs."""
         monkeypatch.setattr("agent.core.session_loader.AGENT_CHAT_HISTORY_TOKEN_BUDGET", 100)
         user = session_loader_test_data["user"]
         project = session_loader_test_data["project"]
@@ -397,8 +397,7 @@ class TestSessionLoaderHistoryBudget:
             )
         ).all()
         active_sessions = [row for row in refreshed if row.is_active]
-        assert len(active_sessions) == 1
-        assert active_sessions[0].id == newer_session.id
+        assert {row.id for row in active_sessions} == {original_session.id, older_session.id, newer_session.id}
 
     def test_load_chat_session_by_id_reads_that_session_even_if_inactive(
         self,

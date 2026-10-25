@@ -221,7 +221,7 @@ async def test_enqueue_requires_an_unsealed_live_run(steering_backend):
         await st.enqueue_steering_for_user_async(session_id, "owner", "无人消费")
     assert _leftover(backend, client, session_id) == []
 
-    await st.create_steering_queue_async(session_id, "owner", run_id=run_id, exclusive_run=True)
+    await st.create_steering_queue_async(session_id, "owner", run_id=run_id)
     with pytest.raises(PermissionError):
         await st.enqueue_steering_for_user_async(session_id, "intruder", "越权")
     msg = await st.enqueue_steering_for_user_async(session_id, "owner", "第一条")
@@ -237,27 +237,6 @@ async def test_enqueue_requires_an_unsealed_live_run(steering_backend):
     await st.cleanup_steering_queue_async(session_id, run_id=run_id)
     with pytest.raises(KeyError):
         await st.enqueue_steering_for_user_async(session_id, "owner", "释放之后")
-    assert _leftover(backend, client, session_id) == []
-
-
-@pytest.mark.unit
-async def test_sealed_holder_does_not_receive_handed_back_steering(steering_backend):
-    """多持有者遗留路径：已封口的 run 不再算「其它存活 run」，交还时不把消息塞给它。"""
-    import agent.core.steering as st
-
-    backend, client = steering_backend
-    session_id = f"steer-live-{uuid4().hex}"
-    run_a, run_b = uuid4().hex, uuid4().hex
-    await st.create_steering_queue_async(session_id, "owner", run_id=run_a)
-    await st.create_steering_queue_async(session_id, "owner", run_id=run_b)
-
-    await st.drain_and_seal_steering_async(session_id, run_b)
-    assert await st.requeue_steering_if_other_active_async(
-        session_id, run_a, "owner", ["交还"]
-    ) is False
-
-    await st.cleanup_steering_queue_async(session_id, run_id=run_a)
-    await st.cleanup_steering_queue_async(session_id, run_id=run_b)
     assert _leftover(backend, client, session_id) == []
 
 

@@ -77,7 +77,16 @@ async def test_all_active_chat_creators_serialize_without_losing_history(monkeyp
         with Session(engine) as session:
             if kind in {"agent", "requested", "requested-new"}:
                 return AgentService(context_assembler=MagicMock())._resolve_or_create_chat_session_id(session, project_id=project_id, user_id=user_id, requested_session_id=requested_id if kind != "agent" else None)
-            return MessageManager(project_id=project_id, user_id=user_id)._save_messages_with_session(session, old_id if kind == "explicit-message" else None, "Owned user " + uuid4().hex, "Owned assistant")
+            # Production resolves the target before persisting this round. Exercise
+            # that complete path rather than the removed implicit-save creator.
+            chat_id = old_id if kind == "explicit-message" else AgentService(
+                context_assembler=MagicMock()
+            )._resolve_or_create_chat_session_id(
+                session, project_id=project_id, user_id=user_id, requested_session_id=None
+            )
+            return MessageManager(project_id=project_id, user_id=user_id)._save_messages_with_session(
+                session, chat_id, "Owned user " + uuid4().hex, "Owned assistant"
+            )
 
     async def invoke(client, kind):
         if kind in {"new", "get"}:

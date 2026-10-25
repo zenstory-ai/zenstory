@@ -13,8 +13,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import desc
-from sqlmodel import Session, and_, select
+from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
 from database import create_session
@@ -95,7 +94,7 @@ class MessageManager:
     async def save_messages(
         self,
         session: Session,
-        session_id: str | None,
+        session_id: str,
         user_message: str,
         assistant_message: str,
         tool_calls: list | None = None,
@@ -113,7 +112,7 @@ class MessageManager:
 
         Args:
             session: Database session
-            session_id: Exact chat session to persist into when available
+            session_id: Exact resolved chat session to persist into
             user_message: User's message content
             assistant_message: Assistant's response content
             tool_calls: List of tool calls made during the response
@@ -172,7 +171,7 @@ class MessageManager:
 
     def _save_messages_sync(
         self,
-        session_id: str | None,
+        session_id: str,
         user_message: str,
         assistant_message: str,
         tool_calls: list | None = None,
@@ -206,7 +205,7 @@ class MessageManager:
     def _save_messages_with_session(
         self,
         session: Session,
-        session_id: str | None,
+        session_id: str,
         user_message: str,
         assistant_message: str,
         tool_calls: list | None = None,
@@ -229,6 +228,8 @@ class MessageManager:
 
         if not self.user_id:
             return None
+        if not session_id:
+            raise ValueError("session_id is required for chat history")
 
         try:
             # Check if project is not deleted
@@ -245,76 +246,16 @@ class MessageManager:
                 )
                 return None
 
-            chat_session: ChatSession | None = None
-            if session_id:
-                chat_session = session.get(ChatSession, session_id)
-                if chat_session is None:
-                    raise ValueError(f"Chat session not found: {session_id}")
-                if (
-                    chat_session.project_id != self.project_id
-                    or chat_session.user_id != self.user_id
-                ):
-                    raise ValueError(
-                        f"Chat session does not belong to project/user: {session_id}"
-                    )
-            else:
-                from services.chat_session_service import lock_active_chat_session
-
-                lock_active_chat_session(session, user_id=self.user_id, project_id=self.project_id)
-                stmt = (
-                    select(ChatSession)
-                    .where(
-                        and_(
-                            ChatSession.project_id == self.project_id,
-                            ChatSession.user_id == self.user_id,
-                            ChatSession.is_active,
-                        )
-                    )
-                    .order_by(
-                        desc(ChatSession.updated_at),
-                        desc(ChatSession.created_at),
-                        desc(ChatSession.id),
-                    )
+            chat_session = session.get(ChatSession, session_id)
+            if chat_session is None:
+                raise ValueError(f"Chat session not found: {session_id}")
+            if (
+                chat_session.project_id != self.project_id
+                or chat_session.user_id != self.user_id
+            ):
+                raise ValueError(
+                    f"Chat session does not belong to project/user: {session_id}"
                 )
-                active_sessions = session.exec(stmt).all()
-                chat_session = active_sessions[0] if active_sessions else None
-
-                if len(active_sessions) > 1 and chat_session is not None:
-                    stale_count = 0
-                    for stale in active_sessions[1:]:
-                        if stale.is_active:
-                            stale.is_active = False
-                            session.add(stale)
-                            stale_count += 1
-                    if stale_count > 0:
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Multiple active chat sessions detected; stale sessions deactivated",
-                            project_id=self.project_id,
-                            user_id=self.user_id,
-                            kept_session_id=chat_session.id,
-                            stale_count=stale_count,
-                        )
-
-                if not chat_session:
-                    log_with_context(
-                        logger,
-                        20,  # INFO
-                        "Creating new chat session",
-                        project_id=self.project_id,
-                        user_id=self.user_id,
-                    )
-                    chat_session = ChatSession(
-                        user_id=self.user_id,
-                        project_id=self.project_id,
-                        title="AI 助手对话",
-                        is_active=True,
-                        message_count=0,
-                    )
-                    session.add(chat_session)
-                    session.commit()
-                    session.refresh(chat_session)
 
             # Save user message
             # 用户消息的时间是作者发出它的时间（回合开始），不是这一轮落库的时间。
@@ -754,7 +695,7 @@ class MessageManager:
         return []
 
     def _build_task_board_section(
-        self, session_id: str | None, force_en: bool
+        self, session_id: str, force_en: bool
     ) -> list[str]:
         """Build task board section for system prompt."""
         parts: list[str] = []

@@ -93,7 +93,7 @@ class TestAgentServiceSessionIdResolution:
         assert created.project_id == project.id
         assert created.is_active is True
 
-    def test_deactivates_stale_active_sessions_when_multiple_exist(self, db_session: Session, legacy_db_without_active_chat_index):
+    def test_selects_latest_without_mutating_legacy_active_sessions(self, db_session: Session, legacy_db_without_active_chat_index):
         user, project = _create_user_and_project(db_session)
 
         old = ChatSession(
@@ -132,7 +132,7 @@ class TestAgentServiceSessionIdResolution:
         db_session.refresh(old)
         db_session.refresh(new)
         assert new.is_active is True
-        assert old.is_active is False
+        assert old.is_active is True
 
     def test_ignores_requested_session_id_from_other_user_project(self, db_session: Session):
         user1, project1 = _create_user_and_project(db_session)

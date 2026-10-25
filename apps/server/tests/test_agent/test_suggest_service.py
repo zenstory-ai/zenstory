@@ -655,11 +655,11 @@ class TestChatHistory:
         assert suggest_service.llm.acomplete.called
 
     @pytest.mark.asyncio
-    async def test_get_recent_chat_history_prefers_latest_active_and_deactivates_stale(
+    async def test_get_recent_chat_history_selects_latest_without_mutating_legacy_sessions(
         self, suggest_service, test_user_with_project, db_session: Session,
         legacy_db_without_active_chat_index,
     ):
-        """Should use latest active session and deactivate stale active sessions."""
+        """A legacy database remains read-only when suggestions load its latest history."""
         user = test_user_with_project["user"]
         project = test_user_with_project["project"]
 
@@ -706,7 +706,7 @@ class TestChatHistory:
             )
         ).all()
         active_ids = [row.id for row in sessions if row.is_active]
-        assert active_ids == [latest_session.id]
+        assert set(active_ids) == {stale_session.id, latest_session.id}
 
 
 # =============================================================================

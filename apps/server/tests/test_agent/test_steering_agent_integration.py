@@ -9,7 +9,7 @@ import pytest
 from agent.core.steering import (
     SteeringQueue,
     cleanup_steering_queue_async,
-    get_steering_queue_async,
+    create_steering_queue_async,
 )
 
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
@@ -23,7 +23,9 @@ class TestSteeringAgentLoopIntegration:
     async def test_steering_callback_returns_messages(self):
         """Test that steering callback correctly returns pending messages."""
         session_id = "test-integration-session"
-        queue = await get_steering_queue_async(session_id)
+        queue = await create_steering_queue_async(
+            session_id, "integration-user", run_id="integration-run"
+        )
 
         try:
             # Add a steering message
@@ -59,29 +61,6 @@ class TestSteeringAgentLoopIntegration:
         # Second get_pending should return empty (already processed)
         pending2 = await queue.get_pending()
         assert len(pending2) == 0
-
-    @pytest.mark.asyncio
-    async def test_peek_does_not_mark_processed(self):
-        """Test that peek does not mark messages as processed."""
-        queue = SteeringQueue()
-
-        await queue.add("Message 1")
-
-        # Peek should return message without marking
-        pending1 = await queue.peek()
-        assert len(pending1) == 1
-
-        # Peek again should still return message
-        pending2 = await queue.peek()
-        assert len(pending2) == 1
-
-        # get_pending should now return and mark
-        pending3 = await queue.get_pending()
-        assert len(pending3) == 1
-
-        # After get_pending, peek should be empty
-        pending4 = await queue.peek()
-        assert len(pending4) == 0
 
     @pytest.mark.asyncio
     async def test_message_added_during_processing(self):
@@ -127,15 +106,19 @@ class TestSteeringQueueLifecycle:
         session_id = "lifecycle-test"
 
         # Create queue
-        queue = await get_steering_queue_async(session_id)
+        queue = await create_steering_queue_async(
+            session_id, "lifecycle-user", run_id="run-a"
+        )
         await queue.add("Test message")
 
         # Cleanup
         await cleanup_steering_queue_async(session_id)
 
-        # Get again should create new queue
-        queue2 = await get_steering_queue_async(session_id)
-        pending = await queue2.peek()
+        # A new exclusive claim creates a fresh queue.
+        queue2 = await create_steering_queue_async(
+            session_id, "lifecycle-user", run_id="run-b"
+        )
+        pending = await queue2.get_pending()
         assert len(pending) == 0  # New queue should be empty
 
         await cleanup_steering_queue_async(session_id)
@@ -147,13 +130,17 @@ class TestSteeringQueueLifecycle:
 
         # Add different messages to each session
         for sid in sessions:
-            queue = await get_steering_queue_async(sid)
+            queue = await create_steering_queue_async(
+                sid, "multi-user", run_id=f"run-{sid}"
+            )
             await queue.add(f"Message for {sid}")
 
         # Verify each session has its own message
         for sid in sessions:
-            queue = await get_steering_queue_async(sid)
-            pending = await queue.peek()
+            from agent.core.steering import get_steering_queue_for_user_async
+
+            queue = await get_steering_queue_for_user_async(sid, "multi-user")
+            pending = await queue.get_pending()
             assert len(pending) == 1
             assert sid in pending[0].content
             await cleanup_steering_queue_async(sid)

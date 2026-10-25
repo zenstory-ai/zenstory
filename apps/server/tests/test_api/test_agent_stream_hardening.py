@@ -1272,7 +1272,7 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
     has_body = mode in {"save_later", "save_fails"}
 
     async def frames():
-        await steering.create_steering_queue_async(chat_id, user.id, run_id=lease_id, exclusive_run=True)
+        await steering.create_steering_queue_async(chat_id, user.id, run_id=lease_id)
         try:
             yield _sse("session_started", {"session_id": chat_id})
             if has_body:
@@ -1322,7 +1322,7 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
             assert not consumer.done()
             assert await steering.has_active_runs_async(chat_id)
             with pytest.raises(steering.SteeringSessionBusyError):
-                await steering.create_steering_queue_async(chat_id, user.id, run_id="next", exclusive_run=True)
+                await steering.create_steering_queue_async(chat_id, user.id, run_id="next")
             refund_call.assert_not_called()
             assert db_session.get(File, placeholder.id).content == ""
             first = "".join(captured)
