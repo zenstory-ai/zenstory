@@ -10,7 +10,6 @@ import contextlib
 import hashlib
 import json
 import os
-import re
 import time
 from typing import Any
 
@@ -25,7 +24,6 @@ from utils.logger import get_logger, log_with_context
 from ..constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES
 from ..schemas.context import ContextData, ContextItem, ContextPriority
 from ..tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
-from ..utils.aho_corasick import AhoCorasickMatcher, select_longest_non_ambiguous_matches
 from ..utils.token_utils import estimate_text_tokens
 from .budget import TokenBudget, truncate_text_to_tokens
 from .prioritizer import ContextPrioritizer
@@ -66,8 +64,7 @@ MIN_PROJECT_STATUS_FIELD_TOKENS = 120
 
 
 # 角色卡 / 设定的名字作为子串出现在用户本轮原话里时的相关度加成。
-# 中文查询没有空格，_extract_query_terms 会把整句当成一个词，
-# 「林凡和苏瑶在山门重逢」永远匹配不到标题「林凡」，所以单独按子串判断。
+# 这是 #270 的召回保护：中文句子通常没有空格，因此直接按卡片名称子串判断。
 QUERY_NAME_MATCH_BOOST = 0.5
 # 名字太短（单字）作为子串极易误命中，不参与加成。
 MIN_QUERY_NAME_CHARS = 2
@@ -1186,7 +1183,7 @@ class ContextAssembler:
             project_id: Project ID
 
         Returns:
-            Dict with file_type -> list of {id, title, word_count?} mappings
+            Dict with file_type -> list of {id, title, file_type} mappings
         """
         from models import File
 
@@ -1233,8 +1230,6 @@ class ContextAssembler:
             # 的根因，宁可多渲染一节「其他文件」也不能让文件凭空消失。
             bucket = grouped.setdefault(file_type, [])
 
-            word_count = None
-
             # Keep inventory ordering aligned with file-tree/export behavior:
             # nonzero stored order is authoritative; otherwise compatible
             # structured metadata precedes the leading title ordinal.
@@ -1254,7 +1249,6 @@ class ContextAssembler:
                         "id": file_id,
                         "title": title,
                         "file_type": file_type,
-                        "word_count": word_count,
                     },
                 )
             )
@@ -1302,7 +1296,7 @@ class ContextAssembler:
         query: str | None,
     ) -> list[ContextItem]:
         """
-        Boost item relevance when query terms match title/content/tags.
+        Boost explicitly named character and lore cards.
 
         Query为空时保持原行为不变。
         """
@@ -1315,24 +1309,6 @@ class ContextAssembler:
         for item in items:
             if self._query_names_item(item, normalized_query):
                 item.relevance_score = (item.relevance_score or 0.0) + QUERY_NAME_MATCH_BOOST
-
-        query_terms = self._extract_query_terms(normalized_query)
-        if not query_terms:
-            return items
-        query_matcher = AhoCorasickMatcher(query_terms)
-        phrase_matcher = AhoCorasickMatcher([normalized_query]) if normalized_query else AhoCorasickMatcher([])
-        if query_matcher.is_empty and phrase_matcher.is_empty:
-            return items
-
-        for item in items:
-            boost = self._calculate_query_match_boost(
-                item=item,
-                query_matcher=query_matcher,
-                phrase_matcher=phrase_matcher,
-            )
-            if boost <= 0:
-                continue
-            item.relevance_score = (item.relevance_score or 0.0) + boost
 
         return items
 
@@ -1354,109 +1330,6 @@ class ContextAssembler:
             len(name) >= MIN_QUERY_NAME_CHARS and name.lower() in normalized_query
             for name in names
         )
-
-    def _extract_query_terms(self, query: str) -> list[str]:
-        """Extract normalized query terms for match scoring."""
-        matches = re.findall(r"[a-z0-9\u4e00-\u9fff]+", query.lower())
-
-        # Keep stable order while removing duplicates
-        seen: set[str] = set()
-        terms: list[str] = []
-        for term in matches:
-            if term and term not in seen:
-                seen.add(term)
-                terms.append(term)
-        return terms
-
-    def _calculate_query_match_boost(
-        self,
-        item: ContextItem,
-        query_matcher: AhoCorasickMatcher,
-        phrase_matcher: AhoCorasickMatcher,
-    ) -> float:
-        """
-        Calculate explainable boost from title/content/tag matches.
-
-        Score design (capped to avoid over-amplification):
-        - Phrase match in title/content/tags gives stronger boost
-        - Token match gives incremental boost
-        """
-        title = (item.title or "").lower()
-        content = (item.content or "").lower()
-        tags = [tag.lower() for tag in self._extract_item_tags(item)]
-        merged_tags = "\n".join(tags)
-
-        title_term_hits = self._count_relevance_hits(title, query_matcher)
-        content_term_hits = self._count_relevance_hits(content, query_matcher)
-        tag_term_hits = self._count_relevance_hits(merged_tags, query_matcher)
-        title_phrase_hits = self._count_relevance_hits(title, phrase_matcher)
-        content_phrase_hits = self._count_relevance_hits(content, phrase_matcher)
-        tag_phrase_hits = self._count_relevance_hits(merged_tags, phrase_matcher)
-
-        score = 0.0
-
-        # Phrase-level match
-        if title_phrase_hits > 0:
-            score += 0.45
-        if content_phrase_hits > 0:
-            score += 0.20
-        if tag_phrase_hits > 0:
-            score += 0.30
-
-        # Term-level incremental match
-        score += min(0.30, title_term_hits * 0.12)
-        score += min(0.20, content_term_hits * 0.04)
-        score += min(0.20, tag_term_hits * 0.10)
-
-        return min(score, 0.90)
-
-    def _count_relevance_hits(self, text: str, matcher: AhoCorasickMatcher) -> int:
-        """
-        Count unambiguous longest term hits for relevance gating.
-
-        Uses Aho-Corasick for candidate matching, then applies:
-        - ambiguity disable (same overlap group, same max length -> drop)
-        - longest match selection in each overlap group
-        """
-        if not text or matcher.is_empty:
-            return 0
-
-        raw_matches = matcher.find_matches(text)
-        if not raw_matches:
-            return 0
-
-        filtered = select_longest_non_ambiguous_matches(raw_matches)
-        if not filtered:
-            return 0
-
-        return len({match.term for match in filtered})
-
-    def _extract_item_tags(self, item: ContextItem) -> list[str]:
-        """Collect searchable tag-like fields from item metadata."""
-        tags: list[str] = []
-        metadata = item.metadata or {}
-
-        def append_value(value: Any) -> None:
-            if value is None:
-                return
-            if isinstance(value, str):
-                cleaned = value.strip()
-                if cleaned:
-                    tags.append(cleaned)
-                return
-            if isinstance(value, list | tuple | set):
-                for entry in value:
-                    append_value(entry)
-                return
-            cleaned = str(value).strip()
-            if cleaned:
-                tags.append(cleaned)
-
-        # explicit tag fields + commonly used metadata labels
-        for key in ("tags", "tag", "keywords", "category"):
-            append_value(metadata.get(key))
-
-        return tags
 
     def _bound_project_status(
         self,
@@ -1637,9 +1510,6 @@ class ContextAssembler:
             meta.append(f"id={entry['id']}")
         if show_type:
             meta.append(f"类型={entry['file_type']}")
-        if entry.get("word_count"):
-            meta.append(f"{entry['word_count']}字")
-
         suffix = f" ({', '.join(meta)})" if meta else ""
         title = entry.get("title") or "(未命名)"
         return f"  - {title}{suffix}" if layout == "list" else f"{title}{suffix}"

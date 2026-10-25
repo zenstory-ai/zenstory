@@ -295,7 +295,7 @@ def test_prioritize_sorts_by_priority_then_relevance_then_type():
     assert [item.title for item in result] == ["outline", "character", "snippet", "lore"]
 
 
-def test_group_by_priority_and_budget_allocation():
+def test_group_by_priority():
     prioritizer = ContextPrioritizer()
     items = [
         _item(item_type="snippet", title="high-snippet", relevance_score=0.9),
@@ -304,15 +304,6 @@ def test_group_by_priority_and_budget_allocation():
     ]
 
     groups = prioritizer.group_by_priority(items)
-    allocation = prioritizer.get_budget_allocation(
-        1000,
-        {ContextPriority.CRITICAL: 0.1, ContextPriority.CONSTRAINT: 0.2},
-    )
-
     assert [item.title for item in groups[ContextPriority.RELEVANT]] == ["high-snippet"]
     assert [item.title for item in groups[ContextPriority.INSPIRATION]] == ["low-snippet"]
     assert [item.title for item in groups[ContextPriority.CONSTRAINT]] == ["hero"]
-    assert allocation == {
-        ContextPriority.CRITICAL: 100,
-        ContextPriority.CONSTRAINT: 200,
-    }

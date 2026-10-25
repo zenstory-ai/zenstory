@@ -100,98 +100,6 @@ class TestTokenBudget:
         inspiration_budget = budget.get_budget(ContextPriority.INSPIRATION)
         assert inspiration_budget == 100  # 10% of 1000
 
-    def test_get_remaining_initial(self):
-        """Test getting remaining budget initially."""
-        budget = TokenBudget(max_tokens=1000)
-
-        critical_remaining = budget.get_remaining(ContextPriority.CRITICAL)
-        assert critical_remaining == 300  # Full budget available
-
-        constraint_remaining = budget.get_remaining(ContextPriority.CONSTRAINT)
-        assert constraint_remaining == 350
-
-    def test_get_remaining_after_allocation(self):
-        """Test getting remaining budget after allocation."""
-        budget = TokenBudget(max_tokens=1000)
-
-        # Allocate some tokens
-        success = budget.allocate(ContextPriority.CRITICAL, 100)
-        assert success is True
-
-        remaining = budget.get_remaining(ContextPriority.CRITICAL)
-        assert remaining == 200  # 300 - 100
-
-    def test_get_total_remaining(self):
-        """Test getting total remaining budget."""
-        budget = TokenBudget(max_tokens=1000)
-
-        # Initially all tokens available
-        assert budget.get_total_remaining() == 1000
-
-        # Allocate some tokens
-        budget.allocate(ContextPriority.CRITICAL, 100)
-        budget.allocate(ContextPriority.CONSTRAINT, 150)
-
-        assert budget.get_total_remaining() == 750  # 1000 - 100 - 150
-
-    def test_allocate_success(self):
-        """Test successful token allocation."""
-        budget = TokenBudget(max_tokens=1000)
-
-        success = budget.allocate(ContextPriority.CRITICAL, 200)
-        assert success is True
-        assert budget.used[ContextPriority.CRITICAL] == 200
-
-    def test_allocate_exceeds_budget(self):
-        """Test allocation that exceeds budget."""
-        budget = TokenBudget(max_tokens=1000)
-
-        # Try to allocate more than available
-        success = budget.allocate(ContextPriority.CRITICAL, 400)  # Budget is 300
-        assert success is False
-        assert budget.used[ContextPriority.CRITICAL] == 0  # No allocation
-
-    def test_allocate_exact_budget(self):
-        """Test allocation of exact budget amount."""
-        budget = TokenBudget(max_tokens=1000)
-
-        success = budget.allocate(ContextPriority.CRITICAL, 300)  # Exact budget
-        assert success is True
-        assert budget.used[ContextPriority.CRITICAL] == 300
-
-    def test_can_fit_true(self):
-        """Test can_fit when item fits."""
-        budget = TokenBudget(max_tokens=1000)
-
-        item = ContextItem(
-            id="1",
-            type="outline",
-            title="Test",
-            content="Content",
-        )
-        budget.estimate_item_tokens(item)
-
-        can_fit = budget.can_fit(item, ContextPriority.CRITICAL)
-        assert can_fit is True  # Small item should fit
-
-    def test_can_fit_false(self):
-        """Test can_fit when item doesn't fit."""
-        budget = TokenBudget(max_tokens=1000)
-
-        # Use up most of the budget
-        budget.allocate(ContextPriority.CRITICAL, 290)
-
-        # Create a large item
-        large_item = ContextItem(
-            id="1",
-            type="outline",
-            title="Large Title",
-            content="x" * 500,  # ~125 tokens
-        )
-
-        can_fit = budget.can_fit(large_item, ContextPriority.CRITICAL)
-        assert can_fit is False
-
     def test_select_items_within_budget(self):
         """Test selecting items within budget."""
         # 低重要度设定在 INSPIRATION 档（10%），预算要足够它整条放下。
@@ -371,28 +279,6 @@ class TestTokenBudget:
 
         assert truncated is not None
         assert truncated.content.endswith(TRUNCATION_SUFFIX)
-
-    def test_get_usage_report(self):
-        """Test getting budget usage report."""
-        budget = TokenBudget(max_tokens=1000)
-
-        # Allocate some tokens
-        budget.allocate(ContextPriority.CRITICAL, 200)
-        budget.allocate(ContextPriority.CONSTRAINT, 150)
-        budget.allocate(ContextPriority.RELEVANT, 100)
-
-        report = budget.get_usage_report()
-
-        assert report["max_tokens"] == 1000
-        assert report["used_tokens"] == 450  # 200 + 150 + 100
-        assert report["remaining_tokens"] == 550  # 1000 - 450
-        assert "by_priority" in report
-
-        # Check priority breakdown
-        by_priority = report["by_priority"]
-        assert by_priority["critical"]["budget"] == 300
-        assert by_priority["critical"]["used"] == 200
-        assert by_priority["critical"]["remaining"] == 100
 
     def test_chars_per_token_constant(self):
         """Test CHARS_PER_TOKEN constant."""

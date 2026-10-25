@@ -6,7 +6,6 @@ to fit within prompt limits.
 """
 
 from collections.abc import Callable
-from typing import Any
 
 from agent.utils.token_utils import _chars_per_token_for, estimate_text_tokens
 
@@ -228,62 +227,6 @@ class TokenBudget:
         """
         pct = self.allocation.get(priority, 0.1)
         return int(self.max_tokens * pct)
-
-    def get_remaining(self, priority: ContextPriority) -> int:
-        """
-        Get remaining budget for a priority.
-
-        Args:
-            priority: Priority level
-
-        Returns:
-            Remaining tokens
-        """
-        return self.get_budget(priority) - self.used.get(priority, 0)
-
-    def get_total_remaining(self) -> int:
-        """Get total remaining budget across all priorities."""
-        return self.max_tokens - sum(self.used.values())
-
-    def allocate(
-        self,
-        priority: ContextPriority,
-        tokens: int,
-    ) -> bool:
-        """
-        Allocate tokens from a priority budget.
-
-        Args:
-            priority: Priority level
-            tokens: Tokens to allocate
-
-        Returns:
-            True if allocation succeeded
-        """
-        remaining = self.get_remaining(priority)
-        if tokens <= remaining:
-            self.used[priority] = self.used.get(priority, 0) + tokens
-            return True
-        return False
-
-    def can_fit(
-        self,
-        item: ContextItem,
-        priority: ContextPriority | None = None,
-    ) -> bool:
-        """
-        Check if an item can fit in the budget.
-
-        Args:
-            item: Context item
-            priority: Priority level (uses item's priority if not specified)
-
-        Returns:
-            True if item fits
-        """
-        priority = priority or item.priority
-        tokens = self.estimate_item_tokens(item)
-        return tokens <= self.get_remaining(priority)
 
     def select_items(
         self,
@@ -532,24 +475,3 @@ class TokenBudget:
                 "original_chars": original_chars,
             },
         )
-
-    def get_usage_report(self) -> dict[str, Any]:
-        """
-        Get a report of budget usage.
-
-        Returns:
-            Dict with usage statistics
-        """
-        return {
-            "max_tokens": self.max_tokens,
-            "used_tokens": sum(self.used.values()),
-            "remaining_tokens": self.get_total_remaining(),
-            "by_priority": {
-                p.value: {
-                    "budget": self.get_budget(p),
-                    "used": self.used.get(p, 0),
-                    "remaining": self.get_remaining(p),
-                }
-                for p in ContextPriority
-            },
-        }

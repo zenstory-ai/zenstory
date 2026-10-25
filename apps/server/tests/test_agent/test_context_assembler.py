@@ -1060,51 +1060,6 @@ class TestContextAssembler:
 
         assert sibling_ids == sorted([sibling_a.id, sibling_b.id])
 
-    def test_query_match_boost_reorders_attached_items(
-        self,
-        db_session,
-        test_project,
-        create_file,
-    ):
-        """Query hit should boost matched item ranking."""
-        non_match = create_file(
-            file_type="draft",
-            title="普通章节",
-            content="日常描写",
-        )
-        matched = create_file(
-            file_type="draft",
-            title="魔法学院入学",
-            content="主角进入学院",
-        )
-
-        assembler = ContextAssembler()
-        base_result = assembler.assemble(
-            session=db_session,
-            project_id=test_project.id,
-            attached_file_ids=[non_match.id, matched.id],
-            max_tokens=2000,
-            include_characters=False,
-            include_lores=False,
-        )
-        query_result = assembler.assemble(
-            session=db_session,
-            project_id=test_project.id,
-            query="魔法学院",
-            attached_file_ids=[non_match.id, matched.id],
-            max_tokens=2000,
-            include_characters=False,
-            include_lores=False,
-        )
-
-        base_ids = [item["id"] for item in base_result.items]
-        query_ids = [item["id"] for item in query_result.items]
-
-        # Baseline keeps original attached order
-        assert base_ids[0] == non_match.id
-        # Query ranking boosts matched item to the front
-        assert query_ids[0] == matched.id
-
     def test_empty_query_keeps_original_ranking(
         self,
         db_session,
@@ -1147,95 +1102,6 @@ class TestContextAssembler:
         blank_query_ids = [item["id"] for item in blank_query_result.items]
 
         assert none_query_ids == blank_query_ids
-
-    def test_query_match_boost_supports_tag_hits(self):
-        """Tag matches should contribute to query boost."""
-        assembler = ContextAssembler()
-
-        plain_item = ContextItem(
-            id="plain",
-            type="snippet",
-            title="普通参考",
-            content="无关键词",
-            relevance_score=0.5,
-            priority=ContextPriority.RELEVANT,
-            metadata={},
-        )
-        tag_item = ContextItem(
-            id="tagged",
-            type="snippet",
-            title="普通参考",
-            content="无关键词",
-            relevance_score=0.5,
-            priority=ContextPriority.RELEVANT,
-            metadata={"tags": ["魔法体系"]},
-        )
-
-        ranked = assembler._apply_query_recall_ranking(
-            [plain_item, tag_item],
-            query="魔法",
-        )
-
-        assert ranked[1].relevance_score is not None
-        assert ranked[0].relevance_score is not None
-        assert ranked[1].relevance_score > ranked[0].relevance_score
-
-    def test_query_recall_ranking_disables_ambiguous_overlap_ties(self):
-        """Equal-length overlapping matches should be treated as ambiguous and dropped."""
-        assembler = ContextAssembler()
-
-        ambiguous_overlap_item = ContextItem(
-            id="ambiguous-overlap",
-            type="snippet",
-            title="玄武道秘卷",
-            content="",
-            relevance_score=0.5,
-            priority=ContextPriority.RELEVANT,
-            metadata={},
-        )
-
-        ranked = assembler._apply_query_recall_ranking(  # noqa: SLF001
-            [ambiguous_overlap_item],
-            query="玄武 武道",
-        )
-
-        assert ranked[0].relevance_score == pytest.approx(0.5)
-
-    def test_query_recall_ranking_uses_longest_match_without_overlap_double_count(self):
-        """Overlapping tokens should not provide extra boost over longest match."""
-        assembler = ContextAssembler()
-
-        long_only_item = ContextItem(
-            id="long-only",
-            type="snippet",
-            title="青云城巡防简报",
-            content="",
-            relevance_score=0.5,
-            priority=ContextPriority.RELEVANT,
-            metadata={},
-        )
-        overlap_item = ContextItem(
-            id="overlap",
-            type="snippet",
-            title="青云城巡防简报",
-            content="",
-            relevance_score=0.5,
-            priority=ContextPriority.RELEVANT,
-            metadata={},
-        )
-
-        long_only_ranked = assembler._apply_query_recall_ranking(  # noqa: SLF001
-            [long_only_item],
-            query="青云城 线索",
-        )
-        overlap_ranked = assembler._apply_query_recall_ranking(  # noqa: SLF001
-            [overlap_item],
-            query="青云城 青云 线索",
-        )
-
-        assert long_only_ranked[0].relevance_score is not None
-        assert overlap_ranked[0].relevance_score is not None
-        assert overlap_ranked[0].relevance_score == pytest.approx(long_only_ranked[0].relevance_score)
 
     def test_assemble_includes_hybrid_retrieved_snippets(
         self,
@@ -1454,19 +1320,6 @@ class TestContextPrioritizer:
         assert len(groups[ContextPriority.CRITICAL]) == 1
         assert len(groups[ContextPriority.CONSTRAINT]) == 1
         assert len(groups[ContextPriority.INSPIRATION]) == 1
-
-    def test_get_budget_allocation(self):
-        """Test budget allocation calculation."""
-        from agent.context.prioritizer import ContextPrioritizer
-
-        prioritizer = ContextPrioritizer()
-        allocation = prioritizer.get_budget_allocation(max_tokens=1000)
-
-        # Should allocate tokens to all priorities
-        assert sum(allocation.values()) == 1000
-        # CRITICAL and CONSTRAINT should get more than INSPIRATION
-        assert allocation[ContextPriority.CRITICAL] >= allocation[ContextPriority.INSPIRATION]
-        assert allocation[ContextPriority.CONSTRAINT] >= allocation[ContextPriority.INSPIRATION]
 
 
 @pytest.mark.unit

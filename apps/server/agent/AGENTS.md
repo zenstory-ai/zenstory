@@ -82,7 +82,7 @@ agent/
 │   ├── author_edit_guard.py# 作者手改文件的删除 / 整份覆盖保护
 │   ├── task_progress.py    # 任务板编号范围与实际文件对照
 │   └── permissions.py
-└── utils/                  # aho_corasick、token_utils、world_model_visibility
+└── utils/                  # token_utils、world_model_visibility
 ```
 
 ## 请求与流
