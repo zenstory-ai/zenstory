@@ -7,8 +7,15 @@ import { subscribeProjectStatusUpdated } from "../lib/projectStatusEvents";
 import type { Project, PatchProjectRequest } from "../types";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
+import { ProposalRows } from "./ProposalRows";
 import { ApiError } from "../lib/apiClient";
-import { adoptAllProjectProposals, displayProjectNotes, storedProjectNotes } from "../lib/projectNotes";
+import {
+  adoptProjectProposals,
+  authorNotesText,
+  ignoreProjectProposals,
+  pendingProposalEntries,
+  withAuthorNotes,
+} from "../lib/projectNotes";
 import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
 import { inspirationsConfig } from "../config/inspirations";
@@ -24,7 +31,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   onClose,
   projectId,
 }) => {
-  const { t, i18n } = useTranslation('project', { keyPrefix: 'statusDialog' });
+  const { t } = useTranslation('project', { keyPrefix: 'statusDialog' });
   const navigate = useNavigate();
   const fieldId = useId();
   const [loading, setLoading] = useState(true);
@@ -211,7 +218,11 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     notesInputRef.current?.focus();
   };
 
-  const handleSave = async (options?: { notes: string; expectedNotes?: string; adopting?: boolean }) => {
+  // `notes` is what is PATCHed; `localNotes` (proposal actions) is the form state to keep, so an
+  // unsaved author draft stays local and unsaved while the action itself is saved.
+  const handleSave = async (options?: {
+    notes: string; localNotes?: string; expectedNotes?: string; proposalAction?: 'adopted' | 'ignored';
+  }) => {
     const owner = ownerRef.current;
     if (!owner || owner.projectId !== projectId || project?.id !== projectId || activeSaveRef.current ||
       (notesConflict && options?.expectedNotes === undefined)) return;
@@ -239,8 +250,10 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
         patch.expected_notes = options?.expectedNotes ?? notesBaseRef.current;
       }
       if (notesOnly) {
-        setNotes(nextNotes);
-        notesInputRef.current?.focus();
+        setNotes(options.localNotes ?? nextNotes);
+        // Proposal rows keep focus in their list (ProposalRows); moving it into the textarea
+        // would open the on-screen keyboard after every tap.
+        if (!options.proposalAction) notesInputRef.current?.focus();
       }
 
       const updated = await projectApi.patch(projectId, patch);
@@ -251,7 +264,10 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
       if (patch.notes !== undefined) notesBaseRef.current = updated.notes || "";
       setNotesConflict(false);
       setLatestNotes(null);
-      if (notesOnly) toast.success(t(options.adopting ? 'proposalsAdopted' : 'notesSaved'));
+      if (notesOnly) {
+        toast.success(t(options.proposalAction === 'adopted' ? 'proposalsAdopted'
+          : options.proposalAction === 'ignored' ? 'proposalsIgnored' : 'notesSaved'));
+      }
       else onClose();
     } catch (err) {
       if (ownsSave()) {
@@ -298,7 +314,28 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   const originalWritingStyle = project?.writing_style || "";
   const originalCurrentPhase = project?.current_phase || "";
   const originalNotes = project?.notes || "";
-  const adoptedNotes = adoptAllProjectProposals(notes);
+  const pendingProposals = pendingProposalEntries(notes);
+  const proposalActionsDisabled = saving || notesConflict;
+  const proposalFocusRef = useRef(false);
+  const notesLabelRef = useRef<HTMLLabelElement>(null);
+  useEffect(() => {
+    if (!proposalFocusRef.current || saving) return;
+    proposalFocusRef.current = false;
+    // The list unmounted with its last entry: keep focus near it, not in the textarea.
+    if (pendingProposals.length === 0) notesLabelRef.current?.focus();
+  }, [saving, pendingProposals.length]);
+  const actOnProposals = (entries: string[], action: 'adopted' | 'ignored') => {
+    const apply = (text: string) =>
+      action === 'adopted' ? adoptProjectProposals(text, entries) : ignoreProjectProposals(text, entries);
+    // Save the action on the saved baseline only; the same action applied to the form state keeps
+    // any unsaved textarea draft on screen (and still dirty) without saving it.
+    const base = notesBaseRef.current;
+    const saved = apply(base);
+    const local = apply(notes);
+    if (saved === null || local === null) return;
+    proposalFocusRef.current = true;
+    void handleSave({ notes: saved, localNotes: local, proposalAction: action });
+  };
 
   const hasChanges =
     summary.trim() !== originalSummary ||
@@ -419,23 +456,46 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label htmlFor={`${fieldId}-notes`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
-                {t('notes')}
-              </label>
-              {adoptedNotes !== null && (
-                <Button variant="secondary" size="touch" disabled={saving || notesConflict}
-                  onClick={() => void handleSave({ notes: adoptedNotes, adopting: true })}>
-                  {t('adoptAllProposals')}
-                </Button>
-              )}
-            </div>
+            <label ref={notesLabelRef} tabIndex={-1} htmlFor={`${fieldId}-notes`}
+              className="block text-sm font-medium text-[hsl(var(--text-primary))] focus:outline-none">
+              {t('notes')}
+            </label>
+            {pendingProposals.length > 0 && (
+              <section aria-labelledby={`${fieldId}-proposals`}
+                className="space-y-2 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 id={`${fieldId}-proposals`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
+                      {t('proposalsTitle', { count: pendingProposals.length })}
+                    </h3>
+                    <p className="text-xs text-[hsl(var(--text-secondary))]">{t('proposalsHint')}</p>
+                  </div>
+                  {pendingProposals.length > 1 && (
+                    <button type="button" disabled={proposalActionsDisabled}
+                      onClick={() => actOnProposals(pendingProposals, 'adopted')}
+                      className="inline-flex min-h-[44px] shrink-0 items-center rounded-md px-2.5 text-xs font-medium text-[hsl(var(--accent-primary))] transition-colors hover:bg-[hsl(var(--accent-primary)/0.1)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]">
+                      {t('adoptAllProposals')}
+                    </button>
+                  )}
+                </div>
+                <ProposalRows entries={pendingProposals} disabled={proposalActionsDisabled}
+                  onAct={(entry, action) => actOnProposals([entry], action)}
+                  labels={{
+                    adopt: t('adoptProposal'),
+                    ignore: t('ignoreProposal'),
+                    adoptLabel: entry => t('adoptProposalLabel', { entry }),
+                    ignoreLabel: entry => t('ignoreProposalLabel', { entry }),
+                    showMore: count => t('showMoreProposals', { count }),
+                    showLess: t('showLessProposals'),
+                  }} />
+              </section>
+            )}
             <textarea
               id={`${fieldId}-notes`}
               ref={notesInputRef}
-              value={displayProjectNotes(notes, i18n?.language)}
+              value={authorNotesText(notes)}
               onChange={(e) => {
-                const nextNotes = storedProjectNotes(e.target.value, i18n?.language);
+                const nextNotes = withAuthorNotes(notes, e.target.value, notesBaseRef.current);
                 setNotes(nextNotes);
                 if (nextNotes.trim() === (projectRef.current?.notes || "").trim()) {
                   notesBaseRef.current = projectRef.current?.notes || "";
@@ -454,8 +514,13 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                     onClick={() => void viewLatestNotes()}>{t('viewLatestNotes')}</Button>
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
-                  <textarea id={`${fieldId}-latest-notes`} value={displayProjectNotes(latestNotes, i18n?.language)} readOnly rows={3}
+                  <textarea id={`${fieldId}-latest-notes`} value={authorNotesText(latestNotes)} readOnly rows={3}
                     className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] resize-y" />
+                  {pendingProposalEntries(latestNotes).length > 0 && (
+                    <p className="text-xs text-[hsl(var(--text-secondary))]">
+                      {t('latestProposalsCount', { count: pendingProposalEntries(latestNotes).length })}
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>
                     <Button variant="secondary" size="touch" disabled={saving}

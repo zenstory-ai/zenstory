@@ -5,7 +5,9 @@ import pytest
 from config.project_notes import (
     CONFIRMED_HEADER,
     PROPOSALS_HEADER,
+    ignored_proposals,
     merge_project_notes,
+    net_earlier_proposals,
     render_project_notes,
     split_project_notes,
 )
@@ -28,6 +30,16 @@ def test_split_recognizes_storage_and_rendered_headers():
     rendered = "\n".join(render_project_notes(text))
     assert split_project_notes(rendered) == sections
 
+
+
+@pytest.mark.unit
+def test_zero_width_escaped_header_lines_stay_author_text():
+    # The web author textarea stores a typed header-shaped line behind U+200B (projectNotes.ts).
+    text = f"旧条目\n\u200b【AI 提议】\n女主姓林\n\u200b{CONFIRMED_HEADER}\n\n{PROPOSALS_HEADER}\n北境封印"
+    sections = split_project_notes(text)
+    assert sections.unlabeled == ["旧条目", "\u200b【AI 提议】", "女主姓林", f"\u200b{CONFIRMED_HEADER}"]
+    assert sections.confirmed == []
+    assert sections.proposals == ["北境封印"]
 
 @pytest.mark.unit
 def test_agent_notes_cannot_remove_or_rewrite_existing_authoritative_entries():
@@ -178,3 +190,124 @@ def test_direct_human_path_keeps_whole_field_editing_behavior():
         author_messages=None,
     )
     assert cleared.text == ""
+
+
+@pytest.mark.unit
+def test_proposals_added_lists_only_new_entries_from_notes_downgrade():
+    existing = f"旧约定\n{CONFIRMED_HEADER}\n作者确认项\n{PROPOSALS_HEADER}\n旧提议；旧提议二"
+    merged = merge_project_notes(
+        existing,
+        notes="旧约定\n作者确认项\n旧提议二\n新推断甲；新推断乙",
+        proposals=None,
+        author_quotes=None,
+        author_messages=["继续写"],
+    )
+    assert merged.proposals_added == ["新推断甲", "新推断乙"]
+    stored_entries = [
+        part.strip()
+        for line in split_project_notes(merged.text).proposals
+        for part in line.replace(";", "；").split("；")
+        if part.strip()
+    ]
+    assert all(entry in stored_entries for entry in merged.proposals_added)
+
+
+@pytest.mark.unit
+def test_proposals_added_lists_only_new_entries_from_explicit_proposals():
+    existing = f"旧约定\n{CONFIRMED_HEADER}\n作者确认项\n{PROPOSALS_HEADER}\n旧提议"
+    merged = merge_project_notes(
+        existing,
+        notes=None,
+        proposals="旧提议\n作者确认项\n新提议甲; 新提议乙\n新提议甲",
+        author_quotes=None,
+        author_messages=["继续写"],
+    )
+    assert split_project_notes(merged.text).proposals == ["旧提议", "新提议甲;新提议乙"]
+    assert merged.proposals_added == ["新提议甲", "新提议乙"]
+
+    unchanged = merge_project_notes(
+        merged.text,
+        notes=None,
+        proposals="旧提议\n新提议甲；新提议乙",
+        author_quotes=None,
+        author_messages=["继续写"],
+    )
+    assert unchanged.proposals_added == []
+
+    cleared = merge_project_notes(
+        merged.text, notes=None, proposals="", author_quotes=None, author_messages=["继续写"]
+    )
+    assert cleared.proposals_added == []
+
+
+@pytest.mark.unit
+def test_proposals_added_on_direct_path_reports_new_proposal_entries():
+    existing = f"旧约定\n{PROPOSALS_HEADER}\n旧提议"
+    merged = merge_project_notes(
+        existing,
+        notes=None,
+        proposals="旧提议；新提议",
+        author_quotes=None,
+        author_messages=None,
+    )
+    assert merged.proposals_added == ["新提议"]
+
+
+@pytest.mark.unit
+def test_copied_rendered_notes_with_ignored_block_do_not_resurrect_ignored_entries():
+    notes = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实\n{PROPOSALS_HEADER}\n北境封印"
+    rendered = "\n".join(render_project_notes(notes, ignored=["萧昀登基", "沈度是配角"]))
+    assert "萧昀登基" in rendered
+
+    sections = split_project_notes(rendered)
+    assert sections.proposals == ["北境封印"]
+    assert all("萧昀" not in line and "忽略" not in line for line in sections.unlabeled)
+
+    merged = merge_project_notes(
+        notes, notes=rendered, proposals=None, author_quotes=None, author_messages=[]
+    )
+    assert merged.proposals_added == []
+    assert split_project_notes(merged.text) == split_project_notes(notes)
+
+
+@pytest.mark.unit
+def test_merge_reports_proposals_the_model_replaced_or_cleared():
+    existing = f"{CONFIRMED_HEADER}\n作者事实\n{PROPOSALS_HEADER}\n沈度是配角；北境封印"
+    replaced = merge_project_notes(
+        existing,
+        notes=None,
+        proposals="沈度是关键配角，掌司礼监；北境封印",
+        author_quotes=None,
+        author_messages=["继续"],
+    )
+    assert replaced.proposals_added == ["沈度是关键配角，掌司礼监"]
+    assert replaced.proposals_removed == ["沈度是配角"]
+
+    cleared = merge_project_notes(
+        existing, notes=None, proposals="", author_quotes=None, author_messages=["继续"]
+    )
+    assert cleared.proposals_removed == ["沈度是配角", "北境封印"]
+
+    appended = merge_project_notes(
+        existing, notes="新推断", proposals=None, author_quotes=None, author_messages=["继续"]
+    )
+    assert appended.proposals_removed == []
+
+
+@pytest.mark.unit
+def test_model_replaced_proposal_is_not_reported_as_author_ignored():
+    # Turn 1 proposes, turn 2 the model refines its own pending proposal; no author action.
+    notes = f"{PROPOSALS_HEADER}\n沈度是关键配角，掌司礼监"
+    earlier = net_earlier_proposals([
+        (["沈度是配角"], []),
+        (["沈度是关键配角，掌司礼监"], ["沈度是配角"]),
+    ])
+    assert earlier == ["沈度是关键配角，掌司礼监"]
+    assert ignored_proposals(notes, earlier) == []
+
+    # The model cleared its proposal: not an author ignore either.
+    assert net_earlier_proposals([(["萧昀登基"], []), ([], ["萧昀登基"])]) == []
+
+    # Re-added after a model clear, then the author ignored it: reported.
+    earlier = net_earlier_proposals([(["萧昀登基"], []), ([], ["萧昀登基"]), (["萧昀登基"], [])])
+    assert ignored_proposals("", earlier) == ["萧昀登基"]

@@ -48,6 +48,7 @@ import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
 import { UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
+import { ProjectProposalActions } from './ProjectProposalActions';
 
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
@@ -373,6 +374,23 @@ const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
  * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
  * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
  */
+/**
+ * Proposals an update_project call added (exact stored text), with the project to act on. The
+ * server sets `proposals_added` only when notes were saved, also on a partial (plan rejected) result.
+ */
+const readProposalsAdded = (
+  data: Record<string, unknown> | undefined,
+): { projectId: string; entries: string[] } | null => {
+  const projectId = typeof data?.project_id === 'string' ? data.project_id.trim() : '';
+  const entries = Array.isArray(data?.proposals_added)
+    ? [...new Set(data.proposals_added
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter(Boolean))]
+    : [];
+  return projectId && entries.length > 0 ? { projectId, entries } : null;
+};
+
 const resolveToolFailure = (
   result: Record<string, unknown> | undefined,
   t: (key: string, options?: Record<string, unknown>) => string,
@@ -660,7 +678,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const { label } = getToolDisplayInfo(toolName, t);
       const { kind, message: userMessage } = resolveToolFailure(result, t);
       const intentionalSkip = INTENTIONAL_SKIP_KINDS.has(kind);
+      const partialProposals = toolName === 'update_project'
+        ? readProposalsAdded((result?.data || result) as Record<string, unknown> | undefined)
+        : null;
       return (
+        <div>
         <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
             {intentionalSkip ? (
@@ -675,6 +697,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">
             {userMessage}
           </p>
+        </div>
+          {/* update_project with a rejected task board still saved its notes (partial result). */}
+          {partialProposals && !isPending && !interrupted && (
+            <ProjectProposalActions projectId={partialProposals.projectId} entries={partialProposals.entries} />
+          )}
         </div>
       );
     }
@@ -840,8 +867,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const updatedLabels = updatedFields
         .map((f) => fieldLabels[f] || f)
         .join(t('common:separator'));
+      const proposals = readProposalsAdded(data);
       
       return (
+        <div>
         <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
@@ -854,6 +883,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               </span>
             )}
           </div>
+        </div>
+          {proposals && !isPending && !interrupted && (
+            <ProjectProposalActions projectId={proposals.projectId} entries={proposals.entries} />
+          )}
         </div>
       );
     }

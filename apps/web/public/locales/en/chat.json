@@ -424,5 +424,22 @@
       "edit": "Let me tweak it"
     },
     "quota": "{{count}} free messages left today"
+  },
+  "proposals": {
+    "adopt": "Adopt",
+    "ignore": "Ignore",
+    "adoptAll": "Adopt all",
+    "adoptLabel": "Adopt: {{entry}}",
+    "ignoreLabel": "Ignore: {{entry}}",
+    "conflict": "AI memory just changed. Please try again.",
+    "failed": "Couldn't apply. Please try again.",
+    "pendingTitle": "AI proposals · {{count}} pending",
+    "showMore": "Show {{count}} more",
+    "showLess": "Show less",
+    "summary": {
+      "adopted": "{{count}} adopted",
+      "ignored": "{{count}} ignored",
+      "handled": "{{count}} already handled in AI memory"
+    }
   }
 }

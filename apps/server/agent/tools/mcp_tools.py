@@ -2808,6 +2808,8 @@ def _update_project_sync(
 
         # 备注按来源分区：应用内模型新增或改写的 notes 一律记成 AI 提议；已有作者事实保留。
         downgraded_notes: list[str] = []
+        proposals_added: list[str] = []
+        proposals_removed: list[str] = []
         notes_transform: Callable[[str | None], str] | None = None
         merged_notes: ProjectNotesMerge | None = None
         if normalized_args.get("notes") is not None or normalized_args.get("proposals") is not None:
@@ -2861,6 +2863,8 @@ def _update_project_sync(
             )
             if merged_notes is not None:
                 downgraded_notes = merged_notes.downgraded
+                proposals_added = merged_notes.proposals_added
+                proposals_removed = merged_notes.proposals_removed
                 if downgraded_notes:
                     log_with_context(
                         logger,
@@ -2874,6 +2878,14 @@ def _update_project_sync(
             result["project_id"] = status_result.get("project_id")
             result["updated_fields"] = status_result.get("updated_fields", [])
             result["current_status"] = status_result.get("current_status", {})
+            if proposals_added:
+                # Exact stored entry text (also on a partial plan rejection: notes were saved); the
+                # chat card adopts/drops each via the human expected_notes PATCH.
+                result["proposals_added"] = proposals_added
+            if proposals_removed:
+                # Pending proposals this model call replaced/cleared itself; the session loader
+                # subtracts them so they are not later reported as author-ignored.
+                result["proposals_removed"] = proposals_removed
             for key in (
                 "project_name_updated",
                 "project_name",
@@ -2985,7 +2997,8 @@ def _update_project_sync(
             result["notes_note"] = (
                 "这些是应用内 AI 新增或改写的条目，"
                 "已记在备注的「AI 提议·待作者确认」里，不算作者定下的设定：" + "；".join(downgraded_notes)
-                + "。长期采用可在 AI 记忆中点击「采纳全部提议」；本轮写作仍按作者要求执行。"
+                + "。作者可用本条结果下方或 AI 记忆里的按钮逐条采纳或忽略；"
+                "不用请作者回复确认；本轮写作仍按作者要求执行。"
             )
 
         return _make_result({"status": "success", "data": result}, tool_name=tool_name)

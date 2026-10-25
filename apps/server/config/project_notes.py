@@ -17,13 +17,23 @@ UNLABELED_HEADER = "【未标来源】"
 
 CONFIRMED_EXPLANATION = "作者确认过的约定；应用内 AI 不能修改或删除"
 UNLABELED_EXPLANATION = "作者在记忆面板保存或历史遗留的约定；应用内 AI 不能修改或删除"
-PROPOSALS_EXPLANATION = "尚未存为作者约定；本轮按作者要求使用，长期采用请在 AI 记忆中采纳"
+PROPOSALS_EXPLANATION = "尚未存为作者约定；本轮按作者要求使用，长期采用由作者点按钮采纳"
+# Context-only block (never stored): proposals this chat session added earlier that the author has
+# since ignored/deleted.  Derived from earlier update_project ``proposals_added`` results.
+IGNORED_PROPOSALS_HEADER = "【备注·作者已忽略的 AI 提议】"
+IGNORED_PROPOSALS_EXPLANATION = "作者已点忽略或已从 AI 记忆删掉；不要再提出，也不要换个说法重提"
+IGNORED_PROPOSALS_MAX_ENTRIES = 20
+IGNORED_PROPOSAL_MAX_CHARS = 80
 
 _HEADER_PREFIX = r"^\s*【\s*(?:备注\s*[·・]\s*)?"
 _HEADER_SUFFIX = r"\s*】\s*(?:[（(].*[)）])?\s*$"
 _CONFIRMED_HEADER_RE = re.compile(_HEADER_PREFIX + r"作者(?:已)?确认" + _HEADER_SUFFIX)
 _PROPOSALS_HEADER_RE = re.compile(_HEADER_PREFIX + r"AI\s*提议[^】]*" + _HEADER_SUFFIX, re.I)
 _UNLABELED_HEADER_RE = re.compile(_HEADER_PREFIX + r"未标来源" + _HEADER_SUFFIX)
+# The context-only ignored block (render_project_notes(ignored=...)).  Recognized so a model that
+# copies the rendered notes back into update_project(notes=...) does not turn the block's header,
+# explanation or entries into pending proposals: everything under it is discarded.
+_IGNORED_HEADER_RE = re.compile(_HEADER_PREFIX + r"作者已忽略的\s*AI\s*提议" + _HEADER_SUFFIX, re.I)
 _ENTRY_SPLIT_RE = re.compile(r"[；;]")
 _BULLET_RE = re.compile(r"^\s*(?:[-*•·]+|\d+[.、)）]|[（(]\d+[)）])\s*")
 _SELF_LABEL_RE = re.compile(
@@ -50,12 +60,23 @@ class ProjectNotesMerge:
     text: str
     downgraded: list[str] = field(default_factory=list)
     confirmed_added: list[str] = field(default_factory=list)
+    # Proposal entries present after the merge but not before, in stored order and stored text, so
+    # a human client can adopt or drop each one by exact trimmed equality.
+    proposals_added: list[str] = field(default_factory=list)
+    # Proposal entries present before the merge but not after (the model replaced or cleared its
+    # own pending proposals).  Lets the ignored-proposal block tell model-side removals apart from
+    # the author's ignore/delete.
+    proposals_removed: list[str] = field(default_factory=list)
 
 
 def split_project_notes(notes: str | None) -> ProjectNotesSections:
     sections = ProjectNotesSections()
+    discarded: list[str] = []
     current = sections.unlabeled
     for raw_line in (notes or "").splitlines():
+        if _IGNORED_HEADER_RE.match(raw_line):
+            current = discarded
+            continue
         if _CONFIRMED_HEADER_RE.match(raw_line):
             current = sections.confirmed
             continue
@@ -82,7 +103,7 @@ def compose_project_notes(sections: ProjectNotesSections) -> str:
     return "\n\n".join(blocks)
 
 
-def render_project_notes(notes: str | None) -> list[str]:
+def render_project_notes(notes: str | None, *, ignored: list[str] | None = None) -> list[str]:
     sections = split_project_notes(notes)
     lines: list[str] = []
     for header, explanation, entries in (
@@ -94,6 +115,14 @@ def render_project_notes(notes: str | None) -> list[str]:
             lines.append(f"{header.replace('【', '【备注·', 1)}（{explanation}）")
             lines.extend(entries)
             lines.append("")
+    if ignored:
+        lines.append(f"{IGNORED_PROPOSALS_HEADER}（{IGNORED_PROPOSALS_EXPLANATION}）")
+        lines.extend(
+            entry if len(entry) <= IGNORED_PROPOSAL_MAX_CHARS
+            else entry[:IGNORED_PROPOSAL_MAX_CHARS] + "…"
+            for entry in ignored
+        )
+        lines.append("")
     return lines
 
 
@@ -132,6 +161,48 @@ def _keys_of(lines: list[str]) -> set[str]:
     return {_entry_key(entry) for line in lines for entry in _split_line(line)[1]}
 
 
+def net_earlier_proposals(changes: list[tuple[list[str], list[str]]]) -> list[str]:
+    """Fold chronological ``(proposals_added, proposals_removed)`` pairs of earlier update_project
+    results into the entries the model added and did not itself later remove (oldest first).
+
+    A model call that replaced or cleared its own pending proposal is not an author action, so the
+    replaced entry must not be reported as author-ignored.  A later re-add counts again.
+    """
+    entries: dict[str, str] = {}
+    for added, removed in changes:
+        for entry in removed:
+            entries.pop(_entry_key(entry), None)
+        for entry in added:
+            key = _entry_key(entry)
+            if key:
+                entries.pop(key, None)
+                entries[key] = entry
+    return list(entries.values())
+
+
+def ignored_proposals(notes: str | None, earlier_added: list[str] | None) -> list[str]:
+    """Earlier-added proposal entries whose key is now in no section of ``notes``.
+
+    ``earlier_added`` is the chronological ``proposals_added`` of this session's earlier
+    update_project results.  An entry still pending, or moved into an author section (adopted or
+    kept by the author's own edit), is not ignored.  Newest entries win the cap; output keeps
+    chronological order, one entry per key.
+    """
+    sections = split_project_notes(notes)
+    present = _keys_of(sections.unlabeled) | _keys_of(sections.confirmed) | _keys_of(sections.proposals)
+    seen: set[str] = set()
+    newest_first: list[str] = []
+    for entry in reversed(earlier_added or []):
+        key = _entry_key(entry)
+        if not key or key in present or key in seen:
+            continue
+        seen.add(key)
+        newest_first.append(entry.strip())
+        if len(newest_first) >= IGNORED_PROPOSALS_MAX_ENTRIES:
+            break
+    return list(reversed(newest_first))
+
+
 def _flatten_unique(lines: list[str], *, excluded: set[str] | None = None) -> list[str]:
     excluded = excluded or set()
     seen: set[str] = set()
@@ -148,6 +219,31 @@ def _flatten_unique(lines: list[str], *, excluded: set[str] | None = None) -> li
         if kept:
             result.append(separator.join(kept))
     return result
+
+
+def _new_proposal_entries(previous: list[str], merged: list[str]) -> list[str]:
+    previous_keys = _keys_of(previous)
+    added: list[str] = []
+    for line in merged:
+        for entry in _split_line(line)[1]:
+            key = _entry_key(entry)
+            if key not in previous_keys:
+                previous_keys.add(key)
+                added.append(entry)
+    return added
+
+
+def _removed_proposal_entries(previous: list[str], merged: list[str]) -> list[str]:
+    merged_keys = _keys_of(merged)
+    removed: list[str] = []
+    seen: set[str] = set()
+    for line in previous:
+        for entry in _split_line(line)[1]:
+            key = _entry_key(entry)
+            if key and key not in merged_keys and key not in seen:
+                seen.add(key)
+                removed.append(entry)
+    return removed
 
 
 def merge_project_notes(
@@ -185,7 +281,11 @@ def merge_project_notes(
         else:
             given = split_project_notes(proposals)
             result.proposals = _flatten_unique([*given.unlabeled, *given.confirmed, *given.proposals])
-        return ProjectNotesMerge(text=compose_project_notes(result))
+        return ProjectNotesMerge(
+            text=compose_project_notes(result),
+            proposals_added=_new_proposal_entries(current.proposals, result.proposals),
+            proposals_removed=_removed_proposal_entries(current.proposals, result.proposals),
+        )
 
     authoritative_keys = _keys_of(current.unlabeled) | _keys_of(current.confirmed)
     incoming_note_lines: list[str] = []
@@ -217,4 +317,9 @@ def merge_project_notes(
         for entry in _split_line(line)[1]
         if _entry_key(entry) not in current_proposal_keys
     ]
-    return ProjectNotesMerge(text=compose_project_notes(result), downgraded=downgraded)
+    return ProjectNotesMerge(
+        text=compose_project_notes(result),
+        downgraded=downgraded,
+        proposals_added=_new_proposal_entries(current.proposals, result.proposals),
+        proposals_removed=_removed_proposal_entries(current.proposals, result.proposals),
+    )
