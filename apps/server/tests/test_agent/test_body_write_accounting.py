@@ -156,3 +156,40 @@ def test_new_file_with_unclosed_block_is_still_counted():
     words = body_words_written(tracker.finish(f"<file>{PROSE}"))
 
     assert words == count_words(PROSE)
+
+
+UNCHANGED_TEXT = "同" * 600
+
+
+def _edit_payload_with_unchanged(*, applied: bool) -> dict:
+    return {
+        "status": "success",
+        "mutation_applied": applied,
+        "data": {
+            "id": "draft-1",
+            "title": "第一章",
+            "file_type": "draft",
+            "mutation_applied": applied,
+            "edits_applied": 1 if applied else 0,
+            "new_word_count": 110,
+            "details": [{"index": 0, "op": "append"}] if applied else [],
+            "failed_edits": [],
+            "unchanged_edits": [{"index": 1 if applied else 0, "op": "replace", "reason": "already_matches"}],
+            "partial_success": False,
+            "all_failed": False,
+        },
+    }
+
+
+@pytest.mark.parametrize("applied", [True, False])
+def test_already_matching_identical_replace_is_not_counted(applied):
+    """old 与 new 相同、原文已是这样的编辑没有写入任何字（unchanged_edits），不能让质检门多送审。"""
+    identical = {"op": "replace", "old": UNCHANGED_TEXT, "new": UNCHANGED_TEXT}
+    edits = [{"op": "append", "text": SUCCESS_TEXT}, identical] if applied else [identical]
+    tracker = BodyWriteTracker()
+    tracker.observe(_use("edit-u", "edit_file", {"id": "draft-1", "edits": edits}), text_length=0)
+    tracker.observe(_result("edit-u", "edit_file", _edit_payload_with_unchanged(applied=applied)), text_length=0)
+
+    words = body_words_written(tracker.finish(""))
+
+    assert words == (count_words(SUCCESS_TEXT) if applied else 0)

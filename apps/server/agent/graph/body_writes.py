@@ -79,20 +79,24 @@ def _write_applied(payload: dict[str, Any]) -> bool:
     return status == "partial" and payload.get("mutation_applied") is True
 
 
-def _failed_edit_indices(result_data: dict[str, Any]) -> set[int]:
-    """edit_file 部分成功时没生效的那几处编辑（failed_edits 的 0-based index）。"""
-    failed = result_data.get("failed_edits")
-    if not isinstance(failed, list):
-        return set()
-    return {
-        item["index"]
-        for item in failed
-        if isinstance(item, dict) and isinstance(item.get("index"), int) and not isinstance(item.get("index"), bool)
-    }
+def _ineffective_edit_indices(result_data: dict[str, Any]) -> set[int]:
+    """edit_file 里没写入任何字的编辑（0-based index）：failed_edits 没生效，
+    unchanged_edits 是 old 与 new 相同、原文已是这样的确认。"""
+    indices: set[int] = set()
+    for key in ("failed_edits", "unchanged_edits"):
+        items = result_data.get(key)
+        if not isinstance(items, list):
+            continue
+        indices.update(
+            item["index"]
+            for item in items
+            if isinstance(item, dict) and isinstance(item.get("index"), int) and not isinstance(item.get("index"), bool)
+        )
+    return indices
 
 
 def _edit_words(edits: Any, failed: set[int] | None = None) -> int:
-    """这次写进去的字数；failed 里的编辑没生效，不算。"""
+    """这次写进去的字数；failed 里的编辑没写入任何字，不算。"""
     if not isinstance(edits, list):
         return 0
     total = 0
@@ -175,7 +179,7 @@ class BodyWriteTracker:
                 file_id=str(data.get("id") or tool_input.get("id") or ""),
                 title=str(data.get("title") or ""),
                 file_type=str(data.get("file_type")),
-                words=_edit_words(tool_input.get("edits"), _failed_edit_indices(data)),
+                words=_edit_words(tool_input.get("edits"), _ineffective_edit_indices(data)),
                 file_words=_int_or_none(data.get("new_word_count")),
                 mutation_applied=payload.get("mutation_applied") is True,
             )
@@ -206,7 +210,7 @@ class BodyWriteTracker:
                 full_body = True
             elif task_type == "edit_file":
                 file_type = result_data.get("file_type")
-                words = _edit_words(params.get("edits"), _failed_edit_indices(result_data))
+                words = _edit_words(params.get("edits"), _ineffective_edit_indices(result_data))
                 full_body = False
                 file_words = _int_or_none(result_data.get("new_word_count"))
             else:
