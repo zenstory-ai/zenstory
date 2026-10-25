@@ -13,6 +13,7 @@
   "closePreview": "Close preview",
   "viewContentFailed": "Could not load this version. Please try again.",
   "rollbackHistoryNotSaved": "The content was restored, but this restore was not added to version history.",
+  "undoStaleWrite": "This file changed after that edit, so it can’t be undone directly without overwriting the newer text. To go back, open the file and restore a version from \"Versions\" below the editor.",
   "rollbackConfirm": "Restore version {{version}}? Your current text is saved as a version first, then replaced.",
   "rollbackConfirmButton": "Restore",
   "rollbackSuccess": "Version restored",

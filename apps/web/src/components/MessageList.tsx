@@ -175,6 +175,8 @@ interface MessageListProps {
    * Items are rendered in server-sent order.
    */
   streamRenderItems?: StreamRenderItem[];
+  /** Today's AI messages are used up: pause cards keep their facts but offer no 继续完成 / next-step buttons. */
+  nextStepsBlocked?: boolean;
   /** Callback invoked when user chooses a guided action after iteration exhaustion */
   onIterationAssistAction?: (
     action: 'continue' | 'split' | 'manual',
@@ -289,28 +291,92 @@ const contextItemTitle = (item: AgentContextItem) => {
 function iterationExhaustedText(
   t: TFunction,
   card: { layer?: IterationExhaustedLayer; limit?: string; unfinishedFiles?: string[]; rolledBackFiles?: string[] },
+  nextStepsBlocked: boolean,
 ): { title: string; lines: string[] } {
+  // Used-up day: the same facts without 「点继续完成」 (the quota card says when sending comes back).
+  const paused = nextStepsBlocked ? 'Paused' : '';
   if (exhaustionLeftFilesUnfinished(card)) {
     const joiner = t('panel.removedFilesJoiner', { ns: 'chat' });
     const lines = [
       card.unfinishedFiles?.length
-        ? t('workflow.emptyFileUnresolved', { ns: 'chat', titles: card.unfinishedFiles.join(joiner) })
+        ? t(`workflow.emptyFileUnresolved${paused}`, { ns: 'chat', titles: card.unfinishedFiles.join(joiner) })
         : null,
       card.rolledBackFiles?.length
-        ? t('workflow.emptyFileRolledBack', { ns: 'chat', titles: card.rolledBackFiles.join(joiner) })
+        ? t(`workflow.emptyFileRolledBack${paused}`, { ns: 'chat', titles: card.rolledBackFiles.join(joiner) })
         : null,
     ].filter((line): line is string => Boolean(line));
     return {
       title: t('workflow.emptyFileUnfinished', { ns: 'chat' }),
-      lines: lines.length > 0 ? lines : [t('workflow.emptyFileUnfinishedSummary', { ns: 'chat' })],
+      lines: lines.length > 0 ? lines : [t(`workflow.emptyFileUnfinishedSummary${paused}`, { ns: 'chat' })],
     };
   }
   const summary = card.limit === 'wall_clock'
-    ? t('workflow.timeLimitSummary', { ns: 'chat' })
-    : card.layer === 'collaboration'
-      ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
-      : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
+    ? t(`workflow.timeLimitSummary${paused}`, { ns: 'chat' })
+    : nextStepsBlocked
+      ? t('workflow.stepLimitSummaryPaused', { ns: 'chat' })
+      : card.layer === 'collaboration'
+        ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
+        : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
   return { title: t('workflow.iterationExhausted', { ns: 'chat' }), lines: [summary] };
+}
+
+type IterationExhaustedCardData = Parameters<NonNullable<MessageListProps['onIterationAssistAction']>>[1]
+  & Parameters<typeof iterationExhaustedText>[1];
+
+/** A paused round (not a failure): neutral style; the next-step buttons only while a message can be sent. */
+function IterationExhaustedCard({ card, onIterationAssistAction, nextStepsBlocked }: {
+  card: IterationExhaustedCardData;
+  onIterationAssistAction?: MessageListProps['onIterationAssistAction'];
+  nextStepsBlocked: boolean;
+}) {
+  const { t } = useTranslation(['chat']);
+  const { isMobile } = useMobileLayout();
+  const exhausted = iterationExhaustedText(t, card, nextStepsBlocked);
+  return (
+    <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
+      <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
+          {exhausted.title}
+        </span>
+        {exhausted.lines.map((line) => (
+          <span key={line} className="text-xs text-[hsl(var(--text-primary))] break-words">
+            {line}
+          </span>
+        ))}
+        {!nextStepsBlocked && (
+          <>
+            <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
+              {t('workflow.nextStepHint', { ns: 'chat' })}
+            </span>
+            <div className={`mt-1 flex flex-wrap ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+              <button
+                type="button"
+                className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
+                onClick={() => onIterationAssistAction?.('continue', card)}
+              >
+                {t('workflow.actionContinue', { ns: 'chat' })}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
+                onClick={() => onIterationAssistAction?.('split', card)}
+              >
+                {t('workflow.actionSplit', { ns: 'chat' })}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                onClick={() => onIterationAssistAction?.('manual', card)}
+              >
+                {t('workflow.actionManual', { ns: 'chat' })}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const CONTROL_FLOW_TOOL_NAMES = new Set(['handoff_to_agent', 'request_clarification']);
@@ -419,8 +485,9 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
 /**
  * Props passed to each message Row component.
  */
-function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistAction, isStreaming = false, chatMessageId }: {
+function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistAction, nextStepsBlocked = false, isStreaming = false, chatMessageId }: {
   items: StreamRenderItem[];
+  nextStepsBlocked?: boolean;
   onUndo?: MessageListProps['onUndo'];
   /** The saved assistant message these items belong to (absent while streaming). */
   chatMessageId?: string;
@@ -533,49 +600,9 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
       );
     } else if (item.type === 'iteration_exhausted') {
       // 7. iteration_exhausted - 这一轮的步数/协作轮数用完，或有文件没写成正文：暂停，用中性样式。
-      const exhausted = iterationExhaustedText(t, item);
-
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
-          <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-            <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
-                {exhausted.title}
-              </span>
-              {exhausted.lines.map((line) => (
-                <span key={line} className="text-xs text-[hsl(var(--text-primary))] break-words">
-                  {line}
-                </span>
-              ))}
-              <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                {t('workflow.nextStepHint', { ns: 'chat' })}
-              </span>
-              <div className={`mt-1 flex flex-wrap ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                <button
-                  type="button"
-                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
-                  onClick={() => onIterationAssistAction?.('continue', item)}
-                >
-                  {t('workflow.actionContinue', { ns: 'chat' })}
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
-                  onClick={() => onIterationAssistAction?.('split', item)}
-                >
-                  {t('workflow.actionSplit', { ns: 'chat' })}
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
-                  onClick={() => onIterationAssistAction?.('manual', item)}
-                >
-                  {t('workflow.actionManual', { ns: 'chat' })}
-                </button>
-              </div>
-            </div>
-          </div>
+          <IterationExhaustedCard card={item} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} />
         </div>
       );
     } else if (item.type === 'router_thinking' && item.content) {
@@ -715,6 +742,7 @@ interface RowDataProps {
   showDailyCount?: boolean;
   /** Callback invoked when user chooses a guided action after iteration exhaustion */
   onIterationAssistAction?: MessageListProps["onIterationAssistAction"];
+  nextStepsBlocked?: boolean;
   /** Real-time thinking content from streaming */
   streamingThinkingContent?: string;
   /** Whether agent is actively thinking */
@@ -744,6 +772,7 @@ const Row = React.memo(function Row({
   isFeedbackPending,
   showDailyCount = true,
   onIterationAssistAction,
+  nextStepsBlocked = false,
   streamingThinkingContent,
   isThinking,
 }: RowDataProps): React.ReactElement {
@@ -815,7 +844,7 @@ const Row = React.memo(function Row({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
-          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
+          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
         ) : <>
         {/* Thinking content - show streaming if active, otherwise show historical segments */}
         {message.role === 'assistant' && (
@@ -1072,49 +1101,9 @@ const Row = React.memo(function Row({
 
               if (card.type === 'iteration_exhausted') {
                 // 暂停（不是失败）：中性样式。
-                const exhausted = iterationExhaustedText(t, card);
-
                 return (
                   <div key={`status-${idx}`} className="max-w-full">
-                    <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-                      <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
-                          {exhausted.title}
-                        </span>
-                        {exhausted.lines.map((line) => (
-                          <span key={line} className="text-xs text-[hsl(var(--text-primary))] break-words">
-                            {line}
-                          </span>
-                        ))}
-                        <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                          {t('workflow.nextStepHint', { ns: 'chat' })}
-                        </span>
-                        <div className={`mt-1 flex flex-wrap ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                          <button
-                            type="button"
-                            className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
-                            onClick={() => onIterationAssistAction?.('continue', card)}
-                          >
-                            {t('workflow.actionContinue', { ns: 'chat' })}
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--warning)/0.4)] text-[hsl(var(--warning-text))] hover:bg-[hsl(var(--warning)/0.1)] transition-colors"
-                            onClick={() => onIterationAssistAction?.('split', card)}
-                          >
-                            {t('workflow.actionSplit', { ns: 'chat' })}
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--text-secondary)/0.4)] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
-                            onClick={() => onIterationAssistAction?.('manual', card)}
-                          >
-                            {t('workflow.actionManual', { ns: 'chat' })}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <IterationExhaustedCard card={card} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} />
                   </div>
                 );
               }
@@ -1184,6 +1173,7 @@ export const MessageList = React.memo(
   isThinking,
   streamRenderItems,
   onIterationAssistAction,
+  nextStepsBlocked,
   scrollContainerRef: externalScrollContainerRef,
 }, ref) => {
   const { isMobile } = useMobileLayout();
@@ -1307,6 +1297,7 @@ export const MessageList = React.memo(
           isFeedbackPending={feedbackPendingMessageId === message.id}
           showDailyCount={showDailyCount}
           onIterationAssistAction={onIterationAssistAction}
+          nextStepsBlocked={nextStepsBlocked}
           streamingThinkingContent={message.id === streamingMessageId ? streamingThinkingContent : undefined}
           isThinking={message.id === streamingMessageId ? isThinking : undefined}
         />
@@ -1326,7 +1317,7 @@ export const MessageList = React.memo(
 
           {/* Stream items */}
           <div className="flex-1 min-w-0 overflow-hidden">
-            <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} isStreaming={true} />
+            <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
 
             {/* Timestamp - 只在非 streaming 状态时显示 */}
             {!streamingMessageId && streamRenderItems && streamRenderItems.length > 0 && (
@@ -1352,6 +1343,7 @@ export const MessageList = React.memo(
   if (prevProps.onIterationAssistAction !== nextProps.onIterationAssistAction) return false;
   if (prevProps.feedbackPendingMessageId !== nextProps.feedbackPendingMessageId) return false;
   if (prevProps.showDailyCount !== nextProps.showDailyCount) return false;
+  if (prevProps.nextStepsBlocked !== nextProps.nextStepsBlocked) return false;
   if (prevProps.streamingThinkingContent !== nextProps.streamingThinkingContent) return false;
   if (prevProps.isThinking !== nextProps.isThinking) return false;
   if (prevProps.messages !== nextProps.messages) return false;
