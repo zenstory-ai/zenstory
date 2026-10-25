@@ -17,7 +17,7 @@ from agent.tools.file_ops.edit import FileEditor
 from api import agent_api, files, versions
 from config.datetime_utils import normalize_datetime_to_utc
 from main import app
-from models import ChatMessage, File, FileVersion, Project, User
+from models import ChatMessage, ChatSession, File, FileVersion, Project, User
 from models.agent_api_key import AgentApiKey
 from services.features.file_version_service import FileVersionService, get_file_version_service
 from services.features.snapshot_service import VersionService
@@ -283,9 +283,12 @@ async def test_edit_descriptor_survives_actual_mcp_sse_and_chat_persistence(db_s
     streamed = [item async for item in StreamAdapter()._process_workflow_event(event)]
     tool_result = next(item for item in streamed if item.type.value == "tool_result")
     assert tool_result.data["data"]["undo"] == result["undo"]
+    chat = ChatSession(project_id=project.id, user_id=user.id)
+    db_session.add(chat)
+    db_session.commit()
     manager = MessageManager(project.id, user.id)
     message_id = manager._save_messages_with_session(
-        db_session, session_id=None, user_message="Edit", assistant_message="Edited",
+        db_session, session_id=chat.id, user_message="Edit", assistant_message="Edited",
         tool_calls=[{"id": "undo-edit", "name": "edit_file", "arguments": {"id": file.id}, "status": tool_result.data["status"], "result": tool_result.data["data"]}],
     )
     saved = db_session.get(ChatMessage, message_id)
