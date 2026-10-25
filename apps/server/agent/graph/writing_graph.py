@@ -16,6 +16,7 @@ from typing import Any
 from agent.constants import CONTENT_FILE_TYPES
 from agent.core.author_facing_text import (
     AgentTextShaper,
+    author_facing_agent_name,
     author_facing_handoff_reason,
     author_facing_text,
     text_contains_cjk,
@@ -679,6 +680,29 @@ def _author_is_english(state: WritingState) -> bool:
     """作者界面语言是不是英文（service 按 Accept-Language 写入 state["language"]）；
     决定状态条、交接原因和追加说明这些作者看得到的固定文案用哪种语言。"""
     return str(state.get("language") or "").strip().lower().startswith("en")
+
+
+def _workflow_stopped_message(kind: str, agent_type: object, *, english: bool) -> str:
+    """作者看得到的 workflow_stopped 提示：跟随界面语言，角色用作者可见的名字。
+
+    kind：self_handoff（模型把任务交给自己）、planned_self_handoff（计划里下一步还是自己）、
+    read_only_blocked（只读请求拦下了交给能改文件的角色；agent_type 是被拦下的目标角色）。
+    """
+    name = author_facing_agent_name(agent_type, english)
+    if kind == "read_only_blocked":
+        if english:
+            return (
+                f"You asked for answers only this turn, so nothing was passed to the {name} to edit. "
+                "Tell me what to change when you want edits."
+            )
+        return f"你要求本轮只回答、不改文件，所以没有转给{name}去修改。需要改动时，直接告诉我改哪里即可。"
+    if kind == "planned_self_handoff":
+        if english:
+            return f"The plan passed the task from the {name} back to itself, so the run stopped here."
+        return f"按计划{name}要把任务转给自己，这一轮先停在这里。"
+    if english:
+        return f"The {name} tried to pass the task to itself; that step was skipped."
+    return f"{name}试图把任务转给自己，这一步没有执行。"
 
 
 def _guard_from_state(state: WritingState) -> RepeatReadGuard | None:
@@ -2331,9 +2355,8 @@ async def run_writing_workflow_streaming(
                             data={
                                 "reason": "invalid_handoff",
                                 "agent_type": current_agent_type,
-                                "message": (
-                                    f"无效交接：{current_agent_type} 不能交接给自己。"
-                                    "请直接完成当前任务或交接给其他 Agent。"
+                                "message": _workflow_stopped_message(
+                                    "self_handoff", current_agent_type, english=english
                                 ),
                                 "target_agent": next_agent,
                             },
@@ -2847,9 +2870,8 @@ async def run_writing_workflow_streaming(
                         data={
                             "reason": READ_ONLY_HANDOFF_BLOCKED_REASON,
                             "agent_type": current_agent_type,
-                            "message": (
-                                f"你要求本轮只回答、不改文件，已跳过交接给 {next_agent} 去修改。"
-                                "需要改动时，直接告诉我改哪里即可。"
+                            "message": _workflow_stopped_message(
+                                "read_only_blocked", next_agent, english=english
                             ),
                             "target_agent": next_agent,
                         },
@@ -3028,8 +3050,8 @@ async def run_writing_workflow_streaming(
                         data={
                             "reason": "invalid_handoff",
                             "agent_type": current_agent_type,
-                            "message": (
-                                f"无效自动交接：{current_agent_type} 不能交接给自己。"
+                            "message": _workflow_stopped_message(
+                                "planned_self_handoff", current_agent_type, english=english
                             ),
                             "target_agent": next_planned,
                         },

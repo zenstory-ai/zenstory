@@ -38,6 +38,24 @@ _AGENT_NAMES_EN: dict[str, str] = {
     "hook_designer": "Hook designer",
 }
 
+# 系统自己写的提示（不是改写模型的句子）里用的完整英文角色名，和前端 en 的
+# chat:workflow.agents.* 一致。
+_AGENT_DISPLAY_NAMES_EN: dict[str, str] = {
+    "quality_reviewer": "Reviewer",
+    "hook_designer": "Hook designer",
+    "planner": "Outline planner",
+    "writer": "Writer",
+}
+
+
+def author_facing_agent_name(agent_type: object, english: bool = False) -> str:
+    """角色 id 的作者可见名字；不认识的 id 不外露，用通用说法。"""
+    key = str(agent_type or "").strip().lower()
+    if english:
+        return _AGENT_DISPLAY_NAMES_EN.get(key, "The assistant")
+    return _AGENT_NAMES.get(key, "写作助手")
+
+
 _ASCII_WORD_EDGE_BEFORE = r"(?<![A-Za-z0-9_])"
 _ASCII_WORD_EDGE_AFTER = r"(?![A-Za-z0-9_])"
 

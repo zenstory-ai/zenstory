@@ -819,11 +819,11 @@ class MessageManager:
         file_info = []
 
         if "current_file_id" in metadata:
-            file_info.append(f"- 文件 ID: {metadata['current_file_id']}")
+            file_info.append(f"- {'File ID' if force_en else '文件 ID'}: {metadata['current_file_id']}")
         if "current_file_type" in metadata:
-            file_info.append(f"- 类型: {metadata['current_file_type']}")
+            file_info.append(f"- {'Type' if force_en else '类型'}: {metadata['current_file_type']}")
         if "current_file_title" in metadata:
-            file_info.append(f"- 标题: {metadata['current_file_title']}")
+            file_info.append(f"- {'Title' if force_en else '标题'}: {metadata['current_file_title']}")
 
         if file_info:
             parts.extend(
