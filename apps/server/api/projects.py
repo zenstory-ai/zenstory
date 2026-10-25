@@ -11,6 +11,7 @@ from services.auth import get_current_active_user
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
+from config.project_notes import without_legacy_proposals
 from config.project_status import (
     PROJECT_STATUS_MAX_LENGTHS,
     PROJECT_TITLE_AUTHOR_TOOL,
@@ -351,8 +352,11 @@ def patch_project(
         expected_notes_provided = "expected_notes" in update_data
         expected_notes = update_data.pop("expected_notes", None)
         # Compare before normalizing or mutating any field. Empty and NULL both
-        # mean no notes, while all other draft-origin text is compared verbatim.
-        if "notes" in update_data and expected_notes_provided and (expected_notes or "") != (project.notes or ""):
+        # mean no notes, while all other draft-origin text is compared verbatim. Clients
+        # never see a legacy AI-proposal block, so it is left out of both sides.
+        if "notes" in update_data and expected_notes_provided and (
+            without_legacy_proposals(expected_notes) or ""
+        ) != (without_legacy_proposals(project.notes) or ""):
             raise APIException(
                 error_code=ErrorCode.RESOURCE_CONFLICT,
                 status_code=409,
@@ -376,6 +380,9 @@ def patch_project(
 
         for field_name, field_value in normalized_status.items():
             update_data[field_name] = field_value
+        if "notes" in normalized_status:
+            # A legacy AI-proposal block is never written back, even by an old client.
+            update_data["notes"] = without_legacy_proposals(normalized_status["notes"])
 
         for key, value in update_data.items():
             setattr(project, key, value)

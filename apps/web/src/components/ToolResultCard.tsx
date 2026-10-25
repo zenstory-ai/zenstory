@@ -17,7 +17,7 @@
  * - Internationalization support via react-i18next
  */
 
-import React, { useCallback, useContext } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../lib/i18n';
 import {
@@ -48,7 +48,7 @@ import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
 import { UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
-import { ProjectProposalActions } from './ProjectProposalActions';
+import { RememberedNotes } from './RememberedNotes';
 
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
@@ -371,19 +371,16 @@ const classifyToolFailure = (errorType: string | undefined): ToolFailureKind => 
 const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
 
 /**
- * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
- * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
+ * Notes entries an update_project call appended because the author asked the AI to remember them
+ * (`notes_added`, exact stored text), with the project to undo them in. The server sets it only
+ * when the notes were written, also on a partial (task board rejected) result.
  */
-/**
- * Proposals an update_project call added (exact stored text), with the project to act on. The
- * server sets `proposals_added` only when notes were saved, also on a partial (plan rejected) result.
- */
-const readProposalsAdded = (
+const readNotesAdded = (
   data: Record<string, unknown> | undefined,
 ): { projectId: string; entries: string[] } | null => {
   const projectId = typeof data?.project_id === 'string' ? data.project_id.trim() : '';
-  const entries = Array.isArray(data?.proposals_added)
-    ? [...new Set(data.proposals_added
+  const entries = Array.isArray(data?.notes_added)
+    ? [...new Set(data.notes_added
       .filter((entry): entry is string => typeof entry === 'string')
       .map((entry) => entry.trim())
       .filter(Boolean))]
@@ -391,6 +388,10 @@ const readProposalsAdded = (
   return projectId && entries.length > 0 ? { projectId, entries } : null;
 };
 
+/**
+ * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
+ * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
+ */
 const resolveToolFailure = (
   result: Record<string, unknown> | undefined,
   t: (key: string, options?: Record<string, unknown>) => string,
@@ -595,6 +596,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 }) => {
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
+  const [notesUndone, setNotesUndone] = useState(false);
+  const handleNotesUndone = useCallback(() => setNotesUndone(true), []);
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleUndo = useCallback((target: FileEditUndoTarget) => {
@@ -678,8 +681,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const { label } = getToolDisplayInfo(toolName, t);
       const { kind, message: userMessage } = resolveToolFailure(result, t);
       const intentionalSkip = INTENTIONAL_SKIP_KINDS.has(kind);
-      const partialProposals = toolName === 'update_project'
-        ? readProposalsAdded((result?.data || result) as Record<string, unknown> | undefined)
+      // update_project with a rejected task board still saved its notes (partial result).
+      const partialNotes = toolName === 'update_project'
+        ? readNotesAdded((result?.data || result) as Record<string, unknown> | undefined)
         : null;
       return (
         <div>
@@ -698,9 +702,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             {userMessage}
           </p>
         </div>
-          {/* update_project with a rejected task board still saved its notes (partial result). */}
-          {partialProposals && !isPending && !interrupted && (
-            <ProjectProposalActions projectId={partialProposals.projectId} entries={partialProposals.entries} />
+          {partialNotes && !isPending && !interrupted && (
+            <RememberedNotes projectId={partialNotes.projectId} entries={partialNotes.entries} />
           )}
         </div>
       );
@@ -864,18 +867,43 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         notes: t('chat:project.field.notes'),
       };
 
-      const updatedLabels = updatedFields
+      const notesAdded = readNotesAdded(data);
+      // After the author undid the remembered notes, the header no longer claims them as updated.
+      const shownFields = notesUndone ? updatedFields.filter((f) => f !== 'notes') : updatedFields;
+      const updatedLabels = shownFields
         .map((f) => fieldLabels[f] || f)
         .join(t('common:separator'));
-      const proposals = readProposalsAdded(data);
-      
+      const otherChanges = data.project_name_updated === true
+        || projectStatus?.project_name_updated === true
+        || (data.plan !== undefined && data.plan !== null);
+      const changed = updatedFields.length > 0 || otherChanges || notesAdded !== null;
+      const stillChanged = shownFields.length > 0 || otherChanges || (notesAdded !== null && !notesUndone);
+
+      // Nothing visible changed (e.g. notes copied back unchanged): no green success.
+      if (!changed) {
+        return (
+          <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+              <span className="text-sm text-[hsl(var(--text-secondary))]">
+                {typeof data.notes_note === 'string' ? t('chat:notesAdded.full') : t('chat:tool.status_unchanged')}
+              </span>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div>
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
+        <div className={stillChanged
+          ? 'bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2'
+          : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2'}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))]">
-              {t('chat:tool.status_updated')}
+            {stillChanged
+              ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
+              : <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />}
+            <span className={stillChanged ? 'text-sm text-[hsl(var(--success-text))]' : 'text-sm text-[hsl(var(--text-secondary))]'}>
+              {stillChanged ? t('chat:tool.status_updated') : t('chat:tool.status_unchanged')}
             </span>
             {updatedLabels && (
               <span className="text-xs text-[hsl(var(--text-secondary))]">
@@ -883,9 +911,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               </span>
             )}
           </div>
+          {typeof data.notes_note === 'string' && (
+            <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">{t('chat:notesAdded.full')}</p>
+          )}
         </div>
-          {proposals && !isPending && !interrupted && (
-            <ProjectProposalActions projectId={proposals.projectId} entries={proposals.entries} />
+          {notesAdded && !isPending && !interrupted && (
+            <RememberedNotes projectId={notesAdded.projectId} entries={notesAdded.entries} onUndone={handleNotesUndone} />
           )}
         </div>
       );

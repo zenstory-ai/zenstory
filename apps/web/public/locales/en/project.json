@@ -9,8 +9,6 @@
     "save": "Save",
     "saving": "Saving…",
     "saveFailed": "Couldn't save. Please try again.",
-    "adoptAllProposals": "Adopt all",
-    "proposalsAdopted": "Proposals adopted",
     "notesConflict": "Notes changed elsewhere. Your changes have not been saved.",
     "viewLatestNotes": "View latest notes",
     "latestNotes": "Latest notes",
@@ -25,22 +23,12 @@
     "shareSuccessApproved": "Inspiration published to library",
     "shareFailed": "Couldn't submit. Please try again.",
     "cancel": "Cancel",
-    "infoBanner": "AI refers to this when writing for you and may update it during chats.",
+    "infoBanner": "AI refers to this when writing for you. In chats it may update the summary, writing style and current phase; when you ask it to remember something, it adds that to notes, and you can undo it in the chat.",
     "placeholders": {
       "summary": "Genre, world, protagonist and other core details",
       "writingStyle": "Voice, pacing, prose style, etc.",
       "currentPhase": "Where you are now and what comes next",
       "notes": "Key points, things to watch, open questions, etc."
-    },
-    "proposalsTitle": "AI proposals · {{count}}",
-    "proposalsHint": "Adopted entries become lasting notes; ignored ones are removed.",
-    "adoptProposal": "Adopt",
-    "ignoreProposal": "Ignore",
-    "adoptProposalLabel": "Adopt: {{entry}}",
-    "ignoreProposalLabel": "Ignore: {{entry}}",
-    "proposalsIgnored": "Proposal ignored",
-    "latestProposalsCount": "AI proposals awaiting confirmation: {{count}}",
-    "showMoreProposals": "Show {{count}} more",
-    "showLessProposals": "Show less"
+    }
   }
 }

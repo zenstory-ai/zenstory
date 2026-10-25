@@ -35,7 +35,7 @@
   过渡旁白和中文一样到不了）。工具调用前那句「我先看一遍全书大纲。」这类过渡旁白不算。
 
 墙钟时限到期时，只改了项目信息（简介 / 文风 / 备注）不算产出：作者要的东西还没写出来，
-记忆里的一条提议不值一条额度（``file_written`` 与 ``prose_output`` 才算）。
+记忆里改一句简介不值一条额度（``file_written`` 与 ``prose_output`` 才算）。
 
 退还真正落库（``_refund_quota`` 返回 True）之后，api/agent.py 在终止帧之后再补发
 一帧 ``quota_refunded``（见 :func:`quota_refunded_frame`），前端据此告诉作者「这一轮

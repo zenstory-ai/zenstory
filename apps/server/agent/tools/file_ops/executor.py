@@ -282,7 +282,7 @@ class FileToolExecutor:
         notes: str | None = None,
         title: str | None = None,
         author_requested: bool = False,
-        notes_transform: Callable[[str | None], str] | None = None,
+        notes_transform: Callable[[str | None], str | None] | None = None,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -296,7 +296,8 @@ class FileToolExecutor:
             title: Work title; renames the project while it still carries a
                 default name or the name AI auto-naming gave it
             author_requested: Legacy parameter, ignored; model claims never grant authority.
-            notes_transform: Internal locked merge callback; never populated from model args.
+            notes_transform: Internal locked merge callback (None = leave notes unchanged); never
+                populated from model args.
 
         Returns:
             Updated project status fields

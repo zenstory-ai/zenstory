@@ -48,12 +48,7 @@ from agent.tools.file_ops.serialization import (
     serialize_file,
 )
 from agent.tools.permissions import NotFoundError
-from config.project_notes import (
-    ProjectNotesMerge,
-    merge_project_notes,
-    split_project_notes,
-)
-from config.project_status import PROJECT_STATUS_MAX_LENGTHS
+from config.project_notes import merge_project_notes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
 
@@ -2723,69 +2718,7 @@ async def update_project(
     return _update_project_sync(args, written_artifact_ids)
 
 
-class ProjectNotesBudgetError(ValueError):
-    """A locked notes merge exceeded the shared persisted notes budget."""
-
-    def __init__(self, payload: dict[str, Any]) -> None:
-        self.payload = payload
-        super().__init__(str(payload.get("error") or "notes over budget"))
-
-
-def _merge_notes_by_source(
-    existing_notes: str | None,
-    normalized_args: dict[str, Any],
-    *,
-    author_messages: list[str] | None,
-) -> ProjectNotesMerge:
-    """把 update_project 的 notes / proposals 合进现有备注，按来源分区（见 config/project_notes）。
-
-    应用内对话只能管理 AI 提议；作者确认和未标来源条目由合并器原样保留。
-    没有作者消息的非对话调用保留原来的直接编辑语义。
-    """
-    notes_arg = normalized_args.get("notes")
-    proposals_arg = normalized_args.get("proposals")
-    merged = merge_project_notes(
-        existing_notes,
-        notes=notes_arg if isinstance(notes_arg, str) else None,
-        proposals=proposals_arg if isinstance(proposals_arg, str) else None,
-        author_quotes=None,
-        author_messages=author_messages,
-    )
-    return merged
-
-
-def _notes_over_budget_error(merged: ProjectNotesMerge) -> dict[str, Any] | None:
-    """notes 和 AI 提议块存在同一个备注字段里，共用一个长度上限。
-
-    合并后超出时在写入任何字段之前返回，说清两块各占多少，让模型精简后整次重发；
-    不偷偷丢掉旧提议（那是作者看得到的内容），也不只写一部分字段。
-    """
-    limit = PROJECT_STATUS_MAX_LENGTHS["notes"]
-    total = len(merged.text.strip())
-    if total <= limit:
-        return None
-    sections = split_project_notes(merged.text)
-    notes_chars = sum(len(line) for line in [*sections.unlabeled, *sections.confirmed])
-    proposals_chars = sum(len(line) for line in sections.proposals)
-    downgraded_part = (
-        f"（其中 {len(merged.downgraded)} 条是这次模型新增、记成提议的）"
-        if merged.downgraded
-        else ""
-    )
-    return {
-        "status": "error",
-        "error_type": "notes_over_budget",
-        "error": (
-            f"备注没有保存：notes 和 AI 提议块存在同一个备注字段里，合计上限 {limit} 字；"
-            f"这次合并后约定部分约 {notes_chars} 字、AI 提议块约 {proposals_chars} 字"
-            f"{downgraded_part}，加上分区标题共 {total} 字。"
-            "这次调用的其他字段（title、summary、tasks 等）也都没有写入。"
-            "请精简 AI 提议；作者约定需由作者在 AI 记忆中编辑保存。"
-        ),
-        "notes_chars": notes_chars,
-        "proposals_chars": proposals_chars,
-        "limit": limit,
-    }
+NOTES_FULL_NOTE = "备注已接近 4000 字上限，这次没有记入；请作者在 AI 记忆里精简后再记。"
 
 
 def _update_project_sync(
@@ -2806,30 +2739,26 @@ def _update_project_sync(
         normalized_args = _normalize_update_project_args(args)
         result = {}
 
-        # 备注按来源分区：应用内模型新增或改写的 notes 一律记成 AI 提议；已有作者事实保留。
-        downgraded_notes: list[str] = []
-        proposals_added: list[str] = []
-        proposals_removed: list[str] = []
-        notes_transform: Callable[[str | None], str] | None = None
-        merged_notes: ProjectNotesMerge | None = None
-        if normalized_args.get("notes") is not None or normalized_args.get("proposals") is not None:
-            author_messages = (
-                ToolContext.get_author_messages()
-                if isinstance(ToolContext._get_context().get("author_message"), str)
-                else None
-            )
+        # 应用内对话的 notes 只追加：已有作者内容逐字节保留，新条目作为普通备注追加，
+        # 结果的 notes_added 列出存下的原文，结果卡据此提供撤销（见 config/project_notes）。
+        notes_added: list[str] = []
+        notes_over_limit = False
+        notes_transform: Callable[[str | None], str | None] | None = None
+        notes_arg = normalized_args.get("notes")
+        if isinstance(notes_arg, str):
+            from_chat = isinstance(ToolContext._get_context().get("author_message"), str)
 
-            def transform_notes(existing_notes: str | None) -> str:
-                nonlocal merged_notes
-                merged_notes = _merge_notes_by_source(
-                    existing_notes,
-                    normalized_args,
-                    author_messages=author_messages,
-                )
-                over_budget = _notes_over_budget_error(merged_notes)
-                if over_budget is not None:
-                    raise ProjectNotesBudgetError(over_budget)
-                return merged_notes.text
+            def transform_notes(existing_notes: str | None) -> str | None:
+                nonlocal notes_added, notes_over_limit
+                merged = merge_project_notes(existing_notes, notes_arg, from_chat=from_chat)
+                notes_added = merged.added
+                notes_over_limit = merged.over_limit
+                # Unchanged notes are not written, so they do not count as an updated field (no
+                # billable output).  A chat call that appends nothing does not write either, even
+                # to drop a legacy proposal block: every read already hides it.
+                if from_chat and not merged.added:
+                    return None
+                return None if merged.text == (existing_notes or "") else merged.text
 
             notes_transform = transform_notes
 
@@ -2861,31 +2790,25 @@ def _update_project_sync(
             status_result = executor.update_project_status(
                 **status_kwargs,
             )
-            if merged_notes is not None:
-                downgraded_notes = merged_notes.downgraded
-                proposals_added = merged_notes.proposals_added
-                proposals_removed = merged_notes.proposals_removed
-                if downgraded_notes:
-                    log_with_context(
-                        logger,
-                        20,
-                        "update_project model notes recorded as AI proposals",
-                        project_id=project_id,
-                        downgraded_count=len(downgraded_notes),
-                    )
+            if notes_added or notes_over_limit:
+                log_with_context(
+                    logger,
+                    20,
+                    "update_project appended chat notes entries",
+                    project_id=project_id,
+                    added_count=len(notes_added),
+                    over_limit=notes_over_limit,
+                )
             result["project_status"] = status_result
             # Backward compatibility: keep common fields at top level for older clients.
             result["project_id"] = status_result.get("project_id")
             result["updated_fields"] = status_result.get("updated_fields", [])
             result["current_status"] = status_result.get("current_status", {})
-            if proposals_added:
-                # Exact stored entry text (also on a partial plan rejection: notes were saved); the
-                # chat card adopts/drops each via the human expected_notes PATCH.
-                result["proposals_added"] = proposals_added
-            if proposals_removed:
-                # Pending proposals this model call replaced/cleared itself; the session loader
-                # subtracts them so they are not later reported as author-ignored.
-                result["proposals_removed"] = proposals_removed
+            # Also on a partial plan rejection: the other fields were still saved.
+            if notes_added and "notes" in result["updated_fields"]:
+                result["notes_added"] = notes_added
+            if notes_over_limit:
+                result["notes_note"] = NOTES_FULL_NOTE
             for key in (
                 "project_name_updated",
                 "project_name",
@@ -2992,18 +2915,7 @@ def _update_project_sync(
             },
         )
 
-        if downgraded_notes:
-            result["notes_recorded_as_proposals"] = downgraded_notes
-            result["notes_note"] = (
-                "这些是应用内 AI 新增或改写的条目，"
-                "已记在备注的「AI 提议·待作者确认」里，不算作者定下的设定：" + "；".join(downgraded_notes)
-                + "。作者可用本条结果下方或 AI 记忆里的按钮逐条采纳或忽略；"
-                "不用请作者回复确认；本轮写作仍按作者要求执行。"
-            )
-
         return _make_result({"status": "success", "data": result}, tool_name=tool_name)
-    except ProjectNotesBudgetError as e:
-        return _make_mcp_payload(e.payload, tool_name=tool_name)
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
 

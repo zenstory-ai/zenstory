@@ -25,6 +25,7 @@ from agent.tools.task_progress import (
     validate_task_artifact_fields,
 )
 from config.datetime_utils import utcnow
+from config.project_notes import without_legacy_proposals
 from config.project_status import (
     PROJECT_TITLE_AUTHOR_TOOL,
     PROJECT_TITLE_LEDGER_ACTION,
@@ -415,7 +416,7 @@ class ProjectOperations:
         title: str | None = None,
         author_requested: bool = False,
         *,
-        notes_transform: Callable[[str | None], str] | None = None,
+        notes_transform: Callable[[str | None], str | None] | None = None,
     ) -> dict[str, Any]:
         """Update metadata using fresh locked state, including any source-aware note merge."""
         from services.project_service import project_metadata_write_lock
@@ -436,7 +437,7 @@ class ProjectOperations:
         title: str | None = None,
         author_requested: bool = False,
         *,
-        notes_transform: Callable[[str | None], str] | None = None,
+        notes_transform: Callable[[str | None], str | None] | None = None,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -515,7 +516,7 @@ class ProjectOperations:
                 "summary": project.summary,
                 "current_phase": project.current_phase,
                 "writing_style": project.writing_style,
-                "notes": project.notes,
+                "notes": without_legacy_proposals(project.notes),
             },
         }
         result.update(title_result)

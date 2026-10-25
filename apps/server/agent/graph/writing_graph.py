@@ -82,6 +82,7 @@ from config.agent_runtime import (
     AGENT_ROUTER_STRATEGY,
     AGENT_TOOL_CALL_MAX_ITERATIONS,
 )
+from config.project_notes import without_legacy_proposals
 from core.error_codes import ErrorCode
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -1125,7 +1126,7 @@ def _collect_author_requirement_sources() -> list[tuple[str, str]]:
                     for label, value in (
                         ("项目简介", project.summary),
                         ("项目写作风格", project.writing_style),
-                        ("项目备注", project.notes),
+                        ("项目备注", without_legacy_proposals(project.notes)),
                     ):
                         if isinstance(value, str) and value.strip():
                             sources.append((label, value))

@@ -11,10 +11,13 @@ Defines all SQLModel entities for the application:
 
 from datetime import datetime
 
+from pydantic import field_serializer
 from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
 
+from config.project_notes import without_legacy_proposals
 from config.project_status import PROJECT_STATUS_MAX_LENGTHS
+
 from .utils import generate_uuid
 
 # Project type constants
@@ -80,6 +83,11 @@ class Project(SQLModel, table=True):
         max_length=PROJECT_STATUS_MAX_LENGTHS["notes"],
         description="Notes for AI assistant",
     )
+
+    @field_serializer("notes")
+    def _serialize_notes(self, notes: str | None) -> str | None:
+        # Every API view of the project shows notes without a legacy AI-proposal block.
+        return without_legacy_proposals(notes)
 
 
 class AgentArtifactLedger(SQLModel, table=True):
