@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorNotesText, withAuthorNotes, withoutNoteEntries } from '../projectNotes';
+import { authorNotesText, withAuthorNotes } from '../projectNotes';
 
 const author = '旧约定\n第二条\n\n【作者确认】\n原确认';
 // Notes saved before the AI-proposal removal: the author's part, a blank line, the legacy block.
@@ -64,42 +64,5 @@ describe('author notes without section headers', () => {
       expect(typed).not.toBe(saved);
       expect(withAuthorNotes(typed, authorNotesText(saved), saved)).toBe(saved);
     }
-  });
-});
-
-describe('undoing entries the chat AI appended', () => {
-  const stored = '旧约定\n\n【作者确认】\n原确认\n【未标来源】\n女主要到第五章才出场\n主角左手有旧伤，阴天会疼';
-
-  it('removes exactly the appended lines and the header they needed', () => {
-    expect(withoutNoteEntries(stored, ['女主要到第五章才出场', '主角左手有旧伤，阴天会疼'])).toEqual({
-      text: '旧约定\n\n【作者确认】\n原确认',
-      removed: ['女主要到第五章才出场', '主角左手有旧伤，阴天会疼'],
-      missing: [],
-    });
-    expect(withoutNoteEntries('甲\n乙', ['乙'])).toEqual({ text: '甲', removed: ['乙'], missing: [] });
-  });
-
-  it('keeps an edited entry and the header that still has entries', () => {
-    const edited = stored.replace('主角左手有旧伤，阴天会疼', '主角左手有旧伤，雨天会疼');
-    expect(withoutNoteEntries(edited, ['女主要到第五章才出场', '主角左手有旧伤，阴天会疼'])).toEqual({
-      text: '旧约定\n\n【作者确认】\n原确认\n【未标来源】\n主角左手有旧伤，雨天会疼',
-      removed: ['女主要到第五章才出场'],
-      missing: ['主角左手有旧伤，阴天会疼'],
-    });
-  });
-
-  it('removes the last copy only, never a header or a confirmed line by a different text', () => {
-    expect(withoutNoteEntries('乙\n甲\n乙', ['乙']).text).toBe('乙\n甲');
-    expect(withoutNoteEntries(stored, ['【作者确认】', '原确认 ']).removed).toEqual(['原确认 ']);
-    expect(withoutNoteEntries(stored, ['不存在'])).toEqual({ text: stored, removed: [], missing: ['不存在'] });
-  });
-
-  it('keeps every other author byte: unrelated empty headers, trailing whitespace, line endings', () => {
-    // An empty 【未标来源】 header the AI did not introduce stays, and so does the author's tail.
-    const unrelated = '【未标来源】\n【作者确认】\n原确认\n【未标来源】\n新条目\n作者的尾巴  \n\n';
-    expect(withoutNoteEntries(unrelated, ['新条目']).text)
-      .toBe('【未标来源】\n【作者确认】\n原确认\n【未标来源】\n作者的尾巴  \n\n');
-    expect(withoutNoteEntries('甲\r\n乙\n丙', ['乙']).text).toBe('甲\r\n丙');
-    expect(withoutNoteEntries('甲\r\n乙\n丙', ['丙']).text).toBe('甲\r\n乙');
   });
 });

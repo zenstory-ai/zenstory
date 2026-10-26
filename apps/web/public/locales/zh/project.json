@@ -5,17 +5,19 @@
     "projectSummary": "项目简介",
     "writingStyle": "写作风格",
     "currentPhase": "当前阶段",
-    "notes": "备注",
+    "notes": "写作约定",
+    "notesDescription": "角色事实、情节安排和必须遵守的创作边界，一行一条",
     "save": "保存",
     "saving": "保存中…",
     "saveFailed": "保存失败，请重试",
-    "notesConflict": "备注已在别处更新，你的修改尚未保存。",
-    "viewLatestNotes": "查看最新备注",
-    "latestNotes": "最新备注",
-    "latestNotesFailed": "无法载入最新备注，请重试。",
-    "useLatestNotes": "使用最新备注",
-    "saveMyNotes": "保存我的版本",
-    "notesSaved": "已保存备注",
+    "notesConflictTitle": "写作约定已在另一处更新",
+    "notesConflict": "你的修改尚未保存。查看最新版本后再选择。",
+    "viewLatestNotes": "查看最新版本",
+    "latestNotes": "最新保存版本",
+    "latestNotesFailed": "无法载入最新版本，请重试。",
+    "useLatestNotes": "使用最新版本",
+    "saveMyNotes": "覆盖并保存我的版本",
+    "notesSaved": "已保存写作约定",
     "shareAsInspiration": "投稿到灵感库",
     "sharingInspiration": "投稿中…",
     "viewInspirationLibrary": "查看灵感库",
@@ -23,12 +25,12 @@
     "shareSuccessApproved": "灵感已发布到灵感库",
     "shareFailed": "投稿失败，请重试",
     "cancel": "取消",
-    "infoBanner": "AI 写作时会参考这里的内容。对话中 AI 可能更新简介、写作风格和当前阶段；你明确让 AI 记住的话会追加到备注，可在对话里撤销。",
+    "infoBanner": "AI 会在写作时参考这些信息，并可能更新项目简介、写作风格和当前阶段。只有你明确要求它记住时，内容才会加入写作约定。",
     "placeholders": {
       "summary": "小说类型、世界观、主角设定等核心信息",
       "writingStyle": "语言风格、叙事节奏、文字特点等",
       "currentPhase": "写到哪里了，接下来要完成什么",
-      "notes": "写作要点、注意事项、待解决的问题等"
+      "notes": "例如：女主第五章出场；不使用系统设定"
     }
   }
 }

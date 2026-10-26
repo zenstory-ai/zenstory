@@ -370,6 +370,8 @@ def _build_scope_directive(
     if routing_metadata.get("clarify_first") is True:
         return SCOPE_DIRECTIVE_CLARIFY_FIRST
     parts: list[str] = []
+    if routing_metadata.get("notes_append_allowed") is False:
+        parts.append("本轮不追加写作约定；不要重做历史对话中的记住请求。其他交付按本轮要求执行。")
     if routing_metadata.get("read_only") is True:
         parts.append(SCOPE_DIRECTIVE_READ_ONLY)
     elif routing_metadata.get("write_content") is False:
@@ -1940,6 +1942,7 @@ async def run_writing_workflow_streaming(
                         "workflow_type": "quick",
                         "reason": "router_off",
                         "confidence": 0.0,
+                        "notes_append_allowed": False,
                     },
                 }
             else:
@@ -1956,6 +1959,10 @@ async def run_writing_workflow_streaming(
                 workflow_agents.pop(0)
             workflow_plan = router_result.get("workflow_plan", "quick")
             routing_metadata = router_result.get("routing_metadata", {})
+            ToolContext.set_notes_append_allowed(
+                routing_metadata.get("notes_append_allowed") is True
+                and routing_metadata.get("clarify_first") is not True
+            )
             followup_resolved = router_result.get("followup_resolved") is True
             # 路由自己那次 LLM 调用的用量：随事件下发，由 stream_adapter 汇入
             # 整轮 usage 累加器，否则这部分 token 永远不进任何统计。

@@ -359,7 +359,7 @@
       "summary": "摘要",
       "current_phase": "当前阶段",
       "writing_style": "写作风格",
-      "notes": "备注"
+      "notes": "写作约定"
     }
   },
   "fileEdit": {
@@ -436,15 +436,8 @@
     "quota": "今天还能免费发 {{count}} 条"
   },
   "notesAdded": {
-    "title": "已记入 AI 记忆",
-    "undo": "撤销",
-    "undone": "已撤销",
-    "alreadyGone": "这些内容已不在 AI 记忆中，无需撤销",
-    "partlyChanged": "有 {{count}} 条已被你改过或删掉，保留原样",
-    "partlyChanged_one": "有 {{count}} 条已被你改过或删掉，保留原样",
-    "partlyChanged_other": "有 {{count}} 条已被你改过或删掉，保留原样",
-    "conflict": "AI 记忆刚被修改，撤销没有完成，请再试一次",
-    "failed": "撤销失败，请稍后重试",
-    "full": "备注已接近 4000 字上限，这次没有记入 AI 记忆"
+    "title": "已加入写作约定",
+    "open": "查看并编辑",
+    "full": "写作约定已接近 4000 字上限，这次未记入"
   }
 }

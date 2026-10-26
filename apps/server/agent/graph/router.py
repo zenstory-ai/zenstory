@@ -101,6 +101,7 @@ class RouterDecision(BaseModel):
     requested_file_types: list[ArtifactFileType] = Field(default_factory=list, max_length=7)
     turn_disposition: TurnDisposition | None = None
     clarify_first: StrictBool | None = None
+    notes_append_allowed: StrictBool = False
 
     @field_validator("requested_file_types")
     @classmethod
@@ -534,6 +535,7 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         "requested_file_types": payload.get("requested_file_types", []),
         "turn_disposition": turn_disposition,
         "clarify_first": payload.get("clarify_first"),
+        "notes_append_allowed": payload.get("notes_append_allowed", False),
     }
 
 
@@ -847,6 +849,8 @@ def _resolve_turn_decision(
         requested_file_types=fields["requested_file_types"],
         turn_disposition=disposition,
         clarify_first=decision.clarify_first,
+        # Notes permission belongs to this request, never the interrupted task.
+        notes_append_allowed=decision.notes_append_allowed,
     )
     metadata: dict[str, Any] = {
         "scope_constraints": constraints,

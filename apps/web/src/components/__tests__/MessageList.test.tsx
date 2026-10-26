@@ -573,6 +573,37 @@ describe('MessageList', () => {
     },
   )
 
+  it.each(['toolResults', 'displayItems', 'streamRenderItems'] as const)(
+    'opens Writing Conventions from a remembered-note receipt through %s', field => {
+      const firstOpen = vi.fn()
+      const tool = {
+        id: 'remember-notes',
+        tool_name: 'update_project',
+        arguments: {},
+        status: 'success' as const,
+        result: {
+          status: 'success',
+          data: { updated_fields: ['notes'], notes_added: ['女主要到第五章才出场'] },
+        },
+      }
+      const items = [{ id: 'remember-items', type: 'tool_calls' as const, toolCalls: [tool], timestamp: new Date() }]
+      const message = createMessage({ role: 'assistant', content: '' })
+      const props = field === 'streamRenderItems'
+        ? { messages: [], streamRenderItems: items }
+        : { messages: [{ ...message, [field]: field === 'displayItems' ? items : [tool] }] }
+      const { rerender } = render(<MessageList {...props} onOpenAIMemory={firstOpen} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'chat:notesAdded.open' }))
+      expect(firstOpen).toHaveBeenCalledTimes(1)
+
+      const latestOpen = vi.fn()
+      rerender(<MessageList {...props} onOpenAIMemory={latestOpen} />)
+      fireEvent.click(screen.getByRole('button', { name: 'chat:notesAdded.open' }))
+      expect(latestOpen).toHaveBeenCalledTimes(1)
+      expect(firstOpen).toHaveBeenCalledTimes(1)
+    },
+  )
+
   it('renders pending tool calls', () => {
     const messages = [
       createMessage({

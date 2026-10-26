@@ -858,6 +858,13 @@ class ToolContext:
         return current_agent if isinstance(current_agent, str) and current_agent else None
 
     @classmethod
+    def set_notes_append_allowed(cls, allowed: bool) -> None:
+        """Set only from the current validated router decision before agent tools run."""
+        context = cls._get_context()
+        if context:
+            _tool_context_var.set({**context, "notes_append_allowed": allowed is True})
+
+    @classmethod
     def set_review_handoff_refusal(cls, message: str | None) -> None:
         """这一轮不送审时（快速模式 / 作品第一条消息）writer 交给审稿人会收到的拒绝说明；None 表示照常送审。"""
         context = cls._get_context()
@@ -2289,7 +2296,7 @@ async def update_project(
     return _update_project_sync(args, written_artifact_ids)
 
 
-NOTES_FULL_NOTE = "备注已接近 4000 字上限，这次没有记入；请作者在 AI 记忆里精简后再记。"
+NOTES_FULL_NOTE = "写作约定已接近 4000 字上限，这次没有记入；请作者在 AI 记忆里精简后再记。"
 
 
 def _update_project_sync(
@@ -2309,16 +2316,27 @@ def _update_project_sync(
     try:
         normalized_args = _normalize_update_project_args(args)
         result = {}
+        from_chat = isinstance(ToolContext._get_context().get("author_message"), str)
+        if (
+            "notes" in normalized_args
+            and from_chat
+            and (
+                ToolContext._get_context().get("notes_append_allowed") is not True
+                # Consumed steering is shared across SDK task/context snapshots.
+                # Only subsequent tool calls narrow; completed writes are not undone.
+                or bool(ToolContext._get_context().get("author_steering"))
+            )
+        ):
+            normalized_args.pop("notes")
+            result["notes_skipped_reason"] = "本轮未获追加许可或已有新的作者插话；不要重做历史记住请求。"
 
         # 应用内对话的 notes 只追加：已有作者内容逐字节保留，新条目作为普通备注追加，
-        # 结果的 notes_added 列出存下的原文，结果卡据此提供撤销（见 config/project_notes）。
+        # 结果的 notes_added 列出存下的原文，结果卡可打开统一编辑面板。
         notes_added: list[str] = []
         notes_over_limit = False
         notes_transform: Callable[[str | None], str | None] | None = None
         notes_arg = normalized_args.get("notes")
         if isinstance(notes_arg, str):
-            from_chat = isinstance(ToolContext._get_context().get("author_message"), str)
-
             def transform_notes(existing_notes: str | None) -> str | None:
                 nonlocal notes_added, notes_over_limit
                 merged = merge_project_notes(existing_notes, notes_arg, from_chat=from_chat)

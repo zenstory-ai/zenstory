@@ -1372,3 +1372,11 @@ def test_project_notes_copied_back_from_context_change_nothing():
     merged = merge_project_notes(_LEGACY_NOTES, rendered, from_chat=True)
     assert merged.added == []
     assert merged.text == "主角冷静\n\n【作者确认】\n女主要到第五章才出场"
+
+
+@pytest.mark.parametrize('status', [{}, {'summary': '故事简介', 'notes': ''}])
+def test_empty_notes_are_explicit_current_context(status):
+    context = ContextAssembler()._format_context([], None, status)
+    assert '【当前写作约定】' in context
+    assert '（空）' in context
+    assert '历史对话' in context

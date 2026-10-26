@@ -4,7 +4,7 @@ import { mockResponsiveApi, responsiveProjects, responsiveUser } from './fixture
 for (const { width, language, theme } of [
   { width: 390, language: 'zh', theme: 'light' },
   { width: 768, language: 'en', theme: 'dark' },
-  { width: 1440, language: 'en', theme: 'light' },
+  { width: 1440, language: 'en', theme: 'dark' },
 ]) {
   test(`author notes hide legacy AI proposals and recover a stale save at ${width} ${language} ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -40,8 +40,8 @@ for (const { width, language, theme } of [
     });
     const memory = language === 'zh' ? 'AI 记忆' : 'AI Memory';
     const save = language === 'zh' ? '保存' : 'Save';
-    const viewLatest = language === 'zh' ? '查看最新备注' : 'View latest notes';
-    const saveMine = language === 'zh' ? '保存我的版本' : 'Save my version';
+    const viewLatest = language === 'zh' ? '查看最新版本' : 'View latest version';
+    const saveMine = language === 'zh' ? '覆盖并保存我的版本' : 'Overwrite and save my version';
     const shots = process.env.AUDIT_SHOTS || test.info().outputDir;
     const openMemory = async () => {
       if (width < 768) await page.locator('#chat-tab').click();
@@ -50,7 +50,7 @@ for (const { width, language, theme } of [
     await page.goto('/project/responsive-project-0');
     await openMemory();
     const dialog = page.getByRole('dialog', { name: memory });
-    const notesInput = dialog.getByRole('textbox', { name: language === 'zh' ? '备注' : 'Notes', exact: true });
+    const notesInput = dialog.getByRole('textbox', { name: language === 'zh' ? '写作约定' : 'Writing Conventions', exact: true });
     await expect(notesInput).toHaveValue('旧约定\n\n原确认');
     await expect(dialog.getByText(/提议|proposal/i)).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: /采纳|忽略|Adopt|Ignore/ })).toHaveCount(0);
@@ -75,9 +75,10 @@ for (const { width, language, theme } of [
     expect(patches).toHaveLength(2);
     await page.screenshot({ path: `${shots}/notes-${width}-${language}-${theme}-conflict.jpg`, type: 'jpeg' });
     await dialog.getByRole('button', { name: viewLatest, exact: true }).click();
-    await expect(dialog.getByRole('textbox', { name: language === 'zh' ? '最新备注' : 'Latest notes', exact: true }))
+    await expect(dialog.getByRole('textbox', { name: language === 'zh' ? '最新保存版本' : 'Latest saved version', exact: true }))
       .toHaveValue('旧约定\n\n原确认\n另一端新约定');
-    await page.screenshot({ path: `${shots}/notes-${width}-${language}-${theme}-latest.jpg`, type: 'jpeg' });
+    await dialog.getByRole('button', { name: saveMine, exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ animations: 'disabled', path: `${shots}/notes-${width}-${language}-${theme}-latest.jpg`, type: 'jpeg' });
     await dialog.getByRole('button', { name: saveMine, exact: true }).click();
     await expect.poll(() => patches.length).toBe(3);
     expect(patches[2].expected_notes).toBe('旧约定\n\n【作者确认】\n原确认\n【未标来源】\n另一端新约定');
