@@ -596,7 +596,7 @@ _AGENT_TYPES: tuple[str, ...] = ("planner", "hook_designer", "writer", "quality_
 
 RESUMABLE_STOP_REASONS: frozenset[str] = frozenset(
     {"max_turns_exceeded", "no_progress", "model_call_budget_exhausted",
-     "run_deadline_exceeded", "output_truncated"}
+     "run_deadline_exceeded", "output_truncated", "repetition_loop"}
 )
 MAX_SCOPE_CONSTRAINTS = 8
 MAX_SCOPE_CONSTRAINTS_JSON_CHARS = 2048

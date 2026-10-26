@@ -124,6 +124,12 @@ _LONE_FILE_START_LINE_PATTERN = re.compile(r"[ \t]*<\s*file\s*>[ \t]*", re.IGNOR
 # 同一回复里的 create_file 确认正文属于它时落进那个文件，否则照旧作为对话放出。
 PREBODY_FILE_ID = "reply-prebody"
 
+# 模型陷入循环、把一大段原样一遍遍重写（生产 10-26：一段约五千字的正文连续重复九遍，
+# 直到单轮时限才停）：最近这么多字符按同一间隔连续出现第三遍，就算循环。正常稿件
+# 最多把一段原样写两遍（对照、引用）；只有空白或少数几个字反复的片段不算（例如分隔线）。
+REPEAT_WINDOW_CHARS = 800
+_REPEAT_MIN_DISTINCT_CHARS = 30
+
 # 悬置（ambiguous）标记候选的等待上限：一个 </file> 候选因反引号/围栏未闭合被
 # 挂起后，若其后又累积了这么多字符仍无法判定，就按真实结束标记处理。没有这个
 # 上限时，一个永远等不到闭合围栏的候选会把其后的全部叙述扣在缓冲里，直到流
@@ -516,6 +522,29 @@ class StreamProcessor:
         if self.state != StreamState.IDLE:
             return ""
         return self._release_line_hold()
+
+    def trim_repeated_tail(self) -> bool:
+        """正在写的正文末尾在前文里原样出现过（模型在循环）：截到重复开始之前。返回是否截了。"""
+        if self.state != StreamState.WRITING:
+            return False
+        body = self.content_buffer + self.temp_buffer
+        cut = find_repetition_start(body)
+        if cut is None:
+            return False
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Trimming a repeated passage from the end of a streamed file body",
+            project_id=self.project_id,
+            user_id=self.user_id,
+            file_id=self.file_id,
+            content_length=len(body),
+            kept_length=cut,
+        )
+        self.content_buffer = body[:cut]
+        self.history_buffer = self.content_buffer
+        self.temp_buffer = ""
+        return True
 
     def _begin_prebody(self, rest: str) -> None:
         """独占一行的 <file> 开始一段待认领的正文：之后的文字进 WRITING 缓冲。"""
@@ -1099,3 +1128,27 @@ def extract_reply_prebody(text: str) -> str | None:
     ):
         return result.final_content
     return None
+
+
+def find_repetition_start(text: str, window: int = REPEAT_WINDOW_CHARS) -> int | None:
+    """text 末尾 window 个字符按同一间隔在前文里又原样出现了两遍（连续第三遍）时，返回重复开始的位置；否则 None。
+
+    末尾这段上一次出现的位置与它现在的位置之差就是一遍的长度；从末尾这段往前，逐字
+    与前一遍对照，一直相同的部分也属于重复，第一处不同（或文本开头）之后就是重复的起点。
+    """
+    if len(text) < window * 2:
+        return None
+    tail = text[-window:]
+    if len(set(tail) - set(" \t\r\n")) < _REPEAT_MIN_DISTINCT_CHARS:
+        return None
+    start = len(text) - window
+    previous = text.rfind(tail, 0, start - 1 + window)
+    if previous < 0:
+        return None
+    period = start - previous
+    # 只出现两遍可能是正常写法（「修改前 / 修改后」对照、引用原文）：同一段再往前一遍也一样才算循环
+    if previous < period or text[previous - period:previous - period + window] != tail:
+        return None
+    while start > period and text[start - 1] == text[start - 1 - period]:
+        start -= 1
+    return start

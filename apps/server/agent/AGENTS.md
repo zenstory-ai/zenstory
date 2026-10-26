@@ -176,6 +176,8 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **作品第一条消息不送审**：`state["first_message_project_label"]` 非空的一轮关掉自动质检门，writer 自己调用 `handoff_to_agent(quality_reviewer)` 时工具直接拒绝（`ToolContext.review_handoff_refusal`，文案 `FIRST_ROUND_REVIEW_REFUSAL`；快速模式同理用 `FAST_MODE_REVIEW_REFUSAL`），writer 在同一次 run 里给作者写总结并带上「[要告诉作者]」的话，图里不再丢弃交接或补跑。作者读到的是 writer 自己的交付说明，不是返修记录；路由显式安排的审稿照常。[first-turn-skips-review][n-first-review]
 - **StreamProcessor 丢掉 IDLE 下独占一行的标记**：没有进行中的捕获时，独占一行（不在 ``` 围栏里）的 `<file>` / `</file>` 不进对话，
   行内提到、反引号包着的照常保留。[single-summary][n-summary]
+- **大段原样重复时截停**：runner 每多 256 个回复字符检查一次本次调用的回复（`find_repetition_start`：末尾 800 字在前文原样出现过），
+  命中即取消 run，以 MESSAGE_END(`repetition_loop`) + ERROR(`ERR_AGENT_REPETITION_LOOP`) 结束；StreamAdapter 把正在写的正文截到重复开始之前再落库。[repetition][n-repetition]
 - **先写正文、再 create_file 时正文归新文件**：没有在等正文的文件时，独占一行的 `<file>` 开头的闭合块先扣着（`PREBODY_FILE_ID`）；
   on_llm_end 用同一判定（`extract_reply_prebody`）记下，同一回复里第一个建空文件的 create_file 认领它（结果 `body_in_reply`），
   StreamAdapter 按 `</file>` 收尾的路径存进这个文件；没被认领的在下一个边界作为对话放出。[prebody][n-prebody]
@@ -338,6 +340,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-narration]: ../../../.agents/notes/implemented/bug-fix/2026-10-09-agent-text-no-english-narration-or-glue.md
 [n-summary]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-author-reply-single-summary-and-real-word-counts.md
 [n-prebody]: ../../../.agents/notes/implemented/bug-fix/2026-10-26-file-body-before-create-binds-to-it.md
+[n-repetition]: ../../../.agents/notes/implemented/bug-fix/2026-10-26-repeated-passage-stops-the-run.md
 [n-planned-body]: ../../../.agents/notes/implemented/bug-fix/2026-10-14-planned-planner-body-review-and-summary.md
 [n-length]: ../../../.agents/notes/implemented/feature/2026-10-14-writer-delivery-author-requirements.md
 [n-thinking]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-thinking-loop-contradictory-inputs.md

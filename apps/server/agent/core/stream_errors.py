@@ -155,6 +155,15 @@ _DEFAULT_FLAGS: dict[str, tuple[bool, bool]] = {
 }
 
 
+REPETITION_LOOP_STOP_REASON = "repetition_loop"
+
+
+def repetition_loop_error() -> StreamErrorInfo:
+    """模型把一大段原样再写一遍、被截停：不给重试按钮（重发原请求只会从头再来），回复「继续」接着写。
+    stream_billing 按失控停止结算（reason=repetition_loop）：本轮没有写入成功就退还。"""
+    return StreamErrorInfo(ErrorCode.AGENT_REPETITION_LOOP, False, True)
+
+
 def tool_failure_error() -> StreamErrorInfo:
     return StreamErrorInfo(ErrorCode.AGENT_TOOL_FAILURE_LIMIT, False, False)
 

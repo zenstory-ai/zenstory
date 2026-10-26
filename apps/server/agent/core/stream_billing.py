@@ -12,7 +12,7 @@
    不算中断。
 2. 请求级墙钟时限到期：本轮已有实质产出、或结束时模型正在给作者写回复
    （``ended_on_reply``）则计费，否则退还。
-3. 失控停止（重复读取无进展 error 帧 reason=no_progress、请求级模型调用预算
+3. 失控停止（重复读取无进展 error 帧 reason=no_progress、大段原样重复 reason=repetition_loop、请求级模型调用预算
    ERR_AGENT_MODEL_CALL_LIMIT、单 agent 工具调用轮数耗尽 iteration_exhausted
    layer=tool_call）且本轮没有任何写入成功：退还（runaway_no_progress）。
    模型自己原地打转、什么也没改，用户不该为此付一次额度；只看「有没有写入」，
@@ -76,7 +76,7 @@ _APPLIED_PARALLEL_TASK_STATUSES: frozenset[str] = frozenset({"completed", "parti
 PROJECT_INFO_FIELDS: frozenset[str] = frozenset({"summary", "writing_style", "notes"})
 
 # 失控停止的信号：error 帧的 reason / code，iteration_exhausted 帧的 layer。
-RUNAWAY_ERROR_REASONS: frozenset[str] = frozenset({"no_progress"})
+RUNAWAY_ERROR_REASONS: frozenset[str] = frozenset({"no_progress", "repetition_loop"})
 RUNAWAY_ERROR_CODES: frozenset[str] = frozenset({ErrorCode.AGENT_MODEL_CALL_LIMIT})
 RUNAWAY_ITERATION_LAYERS: frozenset[str] = frozenset({"tool_call"})
 RUNAWAY_BILLING_REASON = "runaway_no_progress"

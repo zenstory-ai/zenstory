@@ -41,7 +41,7 @@ from .core.events import (
     tool_result_event,
 )
 from .core.run_meter import AgentRunMeter
-from .core.stream_errors import error_message_for, stream_error_from_event_data
+from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
 from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
 from .core.workflow_events import (
     CHAT_HOLD_BEGIN,
@@ -548,6 +548,9 @@ class StreamAdapter:
             # it is the signal the workflow loop uses to detect an unwritten file
             # and re-run the writer to complete it (see writing_graph). It is
             # cleared on a successful <file> completion or at full stream end.
+            if data.get("stop_reason") == REPETITION_LOOP_STOP_REASON:
+                # 模型在循环里被截停：正在写的正文只保留重复开始之前的部分
+                self._stream_processor.trim_repeated_tail()
             if self.config.process_file_markers and self._stream_processor.is_active:
                 boundary_result = self._stream_processor.finalize_on_stream_end()
                 async for sse_event in self._emit_stream_result(boundary_result):
