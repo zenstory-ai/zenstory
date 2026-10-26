@@ -11,7 +11,7 @@ import re
 from contextlib import suppress
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator
 
 from agent.core import llm_failover
 from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception
@@ -109,25 +109,6 @@ class RouterDecision(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("requested_file_types must be unique")
         return value
-
-    @model_validator(mode="after")
-    def _write_request_is_not_read_only(self) -> "RouterDecision":
-        """「不改文件」和「本轮要写正文」同时为真时不按只读执行。
-
-        生产 10-26：作者明确要求「一并扩到2000字先」，路由给出 read_only=true 与
-        write_content=true，writer 只能把扩写稿贴进对话。要写正文本身就是要改文件，
-        这一对判断里只读那一半不成立；其余限制（scope、requested_file_types）照旧。
-        """
-        if self.read_only and self.write_content is True:
-            log_with_context(
-                logger,
-                30,  # WARNING
-                "Router marked a write request read-only; not treating it as read-only",
-                agent_type=self.agent_type,
-                workflow_type=self.workflow_type,
-            )
-            self.read_only = False
-        return self
 
 
 def plan_workflow_agents(decision: RouterDecision) -> list[str]:
@@ -545,14 +526,29 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
     if turn_disposition not in {"resume_interrupted_task", "answer_pending_clarification"}:
         scope = scope[:MAX_SCOPE_CHARS]
 
+    write_content = _coerce_optional_bool(payload.get("write_content"))
+    # 保留既有可选字段和明确等价布尔值；外部显式未知值已在 parser 拒绝。
+    read_only = _coerce_optional_bool(payload.get("read_only")) is True
+    if read_only and write_content is True:
+        # 路由这一轮自己同时判了「不改文件」和「要写正文」（生产 10-26：「一并扩到2000字先」）：
+        # 要写正文就要改文件，只读那一半不成立。只纠正这一轮的回答；接续时从上一轮继承来的
+        # write_content 不能抵消作者这一轮新加的「别改文件」（见 _resolve_turn_decision）。
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Router marked a write request read-only; not treating it as read-only",
+            agent_type=agent_type,
+            workflow_type=workflow_type,
+        )
+        read_only = False
+
     return {
         "agent_type": agent_type,
         "workflow_type": workflow_type,
         "reason": reason,
         "confidence": confidence,
-        "write_content": _coerce_optional_bool(payload.get("write_content")),
-        # 保留既有可选字段和明确等价布尔值；外部显式未知值已在 parser 拒绝。
-        "read_only": _coerce_optional_bool(payload.get("read_only")) is True,
+        "write_content": write_content,
+        "read_only": read_only,
         "scope": scope,
         "requested_file_types": payload.get("requested_file_types", []),
         "turn_disposition": turn_disposition,

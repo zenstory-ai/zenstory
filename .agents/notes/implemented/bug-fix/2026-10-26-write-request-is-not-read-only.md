@@ -12,9 +12,11 @@ Status: implemented
 
 ## Decision
 
-`RouterDecision` 校验时，`read_only=true` 且 `write_content=true` 改为 `read_only=false`，并记 WARNING `Router marked a write request read-only; not treating it as read-only`。`write_content`、`scope`、`requested_file_types` 等其余判断不变。所有消费方（图的只读拦截、写工具拒绝、计划交接裁剪、系统指令里的范围约束）都读 `routing_metadata`，由同一个决策对象生成，因此一致生效；接续上一轮（resume / 补问作答）合成的决策同样经过这次校验。
+解析路由这一轮的输出时（`_normalize_router_payload`），`read_only=true` 且 `write_content=true` 改为 `read_only=false`，并记 WARNING `Router marked a write request read-only; not treating it as read-only`；`write_content`、`scope`、`requested_file_types` 等其余判断不变。所有消费方（图的只读拦截、写工具拒绝、计划交接裁剪、系统指令里的范围约束）都读 `routing_metadata`，因此一致生效。
 
-回归：`tests/test_agent/test_router_compatibility.py` 重放生产那次路由输出（quick / standard 两种），确认落库路由不是只读、`write_content` 保持为真、standard 仍计划交给 writer。原 `test_read_only_clears_every_planned_agent` 用的正是这对矛盾组合，改为只设 `read_only=true`，它要验证的「只读清空计划交接」不变。
+只纠正路由这一轮自己的回答，不放在 `RouterDecision` 的通用校验里：接续上一轮（resume / 补问作答）时，`write_content` 会从上一轮继承（上一轮为真、这一轮没给时仍为真），`read_only` 取两者之一为真。作者在补问里新说「先别改文件」时，继承来的 `write_content=true` 不能抵消这条新限制——接续只能收窄权限。初版放在通用校验里，独立审查用这个场景复现了回退，改到解析处。
+
+回归：`tests/test_agent/test_router_compatibility.py` 重放生产那次路由输出（quick / standard 两种），确认落库路由不是只读、`write_content` 保持为真、standard 仍计划交给 writer；另有补问作答新加「别改文件」（这一轮 `write_content` 未给或为假）时仍为只读的回归。原 `test_read_only_clears_every_planned_agent` 用的正是这对矛盾组合，改为只设 `read_only=true`，它要验证的「只读清空计划交接」不变。
 
 ## Alternatives considered
 
