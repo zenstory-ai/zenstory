@@ -71,22 +71,26 @@ class UsageMeteringMixin:
         model = served if isinstance(served, str) and served else self._model
         usage = getattr(response, "usage", None)
         schedule_llm_usage_record(self._attribution, model=model, usage=usage, timing=timing)
-        take_thinking = getattr(sdk_model, "take_thinking_before_answer", None)
-        thinking = take_thinking() if callable(take_thinking) else None
-        if thinking is not None:
-            from agent.openai_agents.model import log_thinking_before_answer
+        # Observation only: an exception in on_llm_end would fail the whole SDK run.
+        try:
+            take_thinking = getattr(sdk_model, "take_thinking_before_answer", None)
+            thinking = take_thinking() if callable(take_thinking) else None
+            if thinking is not None:
+                from agent.openai_agents.model import log_thinking_before_answer
 
-            reasoning_tokens = getattr(getattr(usage, "output_tokens_details", None), "reasoning_tokens", None)
-            output_tokens = getattr(usage, "output_tokens", None)
-            log_thinking_before_answer(
-                model,
-                outcome="completed",
-                thinking_chars=thinking[0],
-                first_answer_ms=thinking[1],
-                duration_ms=getattr(timing, "duration_ms", None),
-                reasoning_tokens=reasoning_tokens if isinstance(reasoning_tokens, int) else None,
-                output_tokens=output_tokens if isinstance(output_tokens, int) else None,
-            )
+                reasoning_tokens = getattr(getattr(usage, "output_tokens_details", None), "reasoning_tokens", None)
+                output_tokens = getattr(usage, "output_tokens", None)
+                log_thinking_before_answer(
+                    model,
+                    outcome="completed",
+                    thinking_chars=thinking[0],
+                    first_answer_ms=thinking[1],
+                    duration_ms=getattr(timing, "duration_ms", None),
+                    reasoning_tokens=reasoning_tokens if isinstance(reasoning_tokens, int) else None,
+                    output_tokens=output_tokens if isinstance(output_tokens, int) else None,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Thinking observation after model call failed: {exc}")
 
 
 def _response_message_text(response: Any) -> str:
