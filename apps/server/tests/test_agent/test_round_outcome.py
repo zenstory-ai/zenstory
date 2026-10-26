@@ -397,6 +397,44 @@ def test_partial_delivery_does_not_invent_work_for_old_or_deleted_files():
     assert files.delivery(final_word_counts={"deleted": 5}) == {}
 
 
+def test_empty_file_correction_remains_known_incomplete_after_all_placeholders_roll_back():
+    """撤回空占位只改变文件清单，不能抹掉请求已经明确未完成的事实。"""
+    files = RoundWrittenFiles()
+    files.observe(_created("temporary", "未写成的章节"))
+    files.observe(_frame("iteration_exhausted", {
+        "layer": "empty_file_correction",
+        "unfinished_files": [],
+        "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+    }))
+
+    assert files.delivery(final_word_counts={}) == {}
+    assert files.known_incomplete is True
+
+
+@pytest.mark.parametrize("layer", ["tool_call", "collaboration"])
+def test_terminal_run_iteration_limits_mark_delivery_incomplete(layer):
+    files = RoundWrittenFiles()
+    files.observe(_frame("iteration_exhausted", {"layer": layer, "limit": "wall_clock"}))
+
+    assert files.known_incomplete is True
+
+
+def test_later_agent_selection_clears_a_pending_run_iteration_limit():
+    files = RoundWrittenFiles()
+    files.observe(_frame("iteration_exhausted", {"layer": "tool_call", "limit": "max_turns"}))
+    files.observe(_frame("agent_selected", {"agent_type": "quality_reviewer"}))
+
+    assert files.known_incomplete is False
+
+
+def test_later_agent_selection_does_not_clear_empty_file_incomplete_fact():
+    files = RoundWrittenFiles()
+    files.observe(_frame("iteration_exhausted", {"layer": "empty_file_correction"}))
+    files.observe(_frame("agent_selected", {"agent_type": "writer"}))
+
+    assert files.known_incomplete is True
+
+
 def test_partial_delivery_keeps_placeholder_when_delete_did_not_apply():
     files = RoundWrittenFiles()
     files.observe(_created("empty", "周念"))

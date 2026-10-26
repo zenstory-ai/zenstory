@@ -189,6 +189,7 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
  */
 const roundEndedUnfinished = (message: Message): boolean =>
   message.stopOutcome?.reason === "error"
+  || message.stopOutcome?.reason === "incomplete"
   || Boolean(message.statusCards?.some((card) => card.type === "iteration_exhausted" && exhaustionLeftFilesUnfinished(card)))
   || Boolean(message.displayItems?.some((item) => item.type === "iteration_exhausted" && exhaustionLeftFilesUnfinished(item)));
 
@@ -1140,7 +1141,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // leaves no bubble: the error card / stop note below says what happened.
     // The finished bubble keeps what the round did, not 「正在组装上下文… / 正在思考… / 正在规划工作流…」.
     const finishedItems = dropProgressOnlyItems(displayItems);
-    const hasSubstance = Boolean(accumulatedContent.trim() || statusCards.length > 0 || toolResults?.length)
+    const hasSubstance = Boolean(accumulatedContent.trim() || statusCards.length > 0 || toolResults?.length || completionMeta?.deliveryOutcome)
       || (endedEarly ? hasSubstantiveDisplayItems(displayItems) : finishedItems.length > 0);
     if (hasSubstance) {
       const aiMessage: Message = {
@@ -1213,7 +1214,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // error note / card and manual input are the next step: no reply options, no /suggest, and
     // no chips cached from an earlier round.
     const endedInError = completionMeta?.partial === true && roundProgressRef.current.endedInError;
-    const endedUnfinished = endedInError || roundProgressRef.current.endedIncomplete;
+    const endedUnfinished = endedInError
+      || completionMeta?.deliveryOutcome?.reason === 'error'
+      || completionMeta?.deliveryOutcome?.reason === 'incomplete'
+      || roundProgressRef.current.endedIncomplete;
     if (nothingWritten || endedUnfinished) {
       suggestionRequestSeqRef.current += 1;  // a request still in flight from before writes nothing
       if (endedUnfinished && currentProjectId) clearSuggestionCache(currentProjectId);
@@ -1525,14 +1529,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         : quotaRefund.kind === 'stopped'
           ? t('chat:panel.stoppedNothingWritten', { defaultValue: '已停止，这一轮还没有写出内容。' })
           : null,
-      quotaRefund.removedFiles.length > 0
-        ? t('chat:panel.removedEmptyFiles', {
-          defaultValue: '这一轮新建的空白文件《{{titles}}》已移除。',
-          titles: quotaRefund.removedFiles
-            .map((file) => file.title)
-            .join(t('chat:panel.removedFilesJoiner', { defaultValue: '》《' })),
-        })
-        : null,
     ].filter(Boolean).join('').trim() || null
     : null;
   // Stopped before anything was written: offer to send the same round again (same skills,

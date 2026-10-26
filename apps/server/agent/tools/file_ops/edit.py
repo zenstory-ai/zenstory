@@ -253,6 +253,28 @@ def _preview(text: str) -> str:
     return text[:200] + ("..." if len(text) > 200 else "")
 
 
+def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
+    if stats.get("workload_skipped"):
+        reason = "近似扫描因工作量保护未执行。"
+    elif stats.get("deadline_exceeded"):
+        reason = "近似扫描因截止时间到达而未完成。"
+    else:
+        reason = "精确、引号等价、模糊和近似匹配都没有找到唯一位置。"
+    return f"{reason}请从当前文件原文中复制较短、逐字、唯一的{label}，必要时按段拆成多条 edit。"
+
+
+def _batch_anchor_invalidated(original: str, staged: str, edit: dict[str, Any]) -> bool:
+    op = str(edit.get("op") or "")
+    field = "anchor" if op in ("insert_after", "insert_before") else "old"
+    target = edit.get(field)
+    if not isinstance(target, str) or not target or original == staged:
+        return False
+    return (
+        locate_exact_or_quote_equivalent(original, target) is not None
+        and locate_exact_or_quote_equivalent(staged, target) is None
+    )
+
+
 def _paragraph_break_error(edit_index: int, label: str) -> EditFileError:
     return _not_found(
         f"Edit {edit_index}: {label}在原文里对应的那段跨过了段落分隔（原文这里有换行），"
@@ -795,14 +817,30 @@ class FileEditor:
                 error_text = str(e)
                 if not error_text.startswith(f"Edit {i}"):
                     error_text = f"Edit {i}: {error_text}"
+                error_type = _classify_edit_exception(e)
+                batch_anchor_invalidated = (
+                    error_type == EDIT_ERROR_ANCHOR_NOT_FOUND
+                    and bool(applied_edits)
+                    and isinstance(edit, dict)
+                    and _batch_anchor_invalidated(old_content, content, edit)
+                )
+                if batch_anchor_invalidated:
+                    error_text += (
+                        "（前面的 edit 已改掉此项基于批次开始原文的 old/anchor。"
+                        "请基于前一项后的文本重新定位，或拆成单独调用并先读取当前正文；"
+                        "不要忽略前项后强行匹配。）"
+                    )
                 if exact_only and failed_op in ("replace", "delete", "insert_after", "insert_before"):
                     error_text += "（本请求还没读过这个文件，只按逐字匹配：先用 query_files 按 id 读一次，再照现在的正文改）"
-                failed_edits.append({
+                failed_edit = {
                     "index": i,
                     "error": error_text,
-                    "error_type": _classify_edit_exception(e),
+                    "error_type": error_type,
                     "op": failed_op,
-                })
+                }
+                if batch_anchor_invalidated:
+                    failed_edit["batch_anchor_invalidated"] = True
+                failed_edits.append(failed_edit)
                 if continue_on_error:
                     warnings.append(f"Edit {i}: failed and skipped ({e})")
                 # continue_on_error=false 时也继续检查后面的编辑（只在内存里），
@@ -1430,7 +1468,9 @@ class FileEditor:
                     ignore_punct_whitespace=ignore_punct_whitespace,
                 )
                 raise _not_found(
-                    f"Edit {edit_index}: 找不到要替换的原文片段。请从当前文件原文中复制更长且唯一的原文。候选片段: {suggestions}"
+                    f"Edit {edit_index}: 找不到要替换的原文片段。"
+                    f"{_approximate_not_found_advice(approx_stats, label='原文片段')}"
+                    f"候选片段: {suggestions}"
                 )
 
             if replace_all:
@@ -1620,11 +1660,13 @@ class FileEditor:
             })
 
         # Secondary fallback: approximate match (handles word errors)
+        approx_stats: dict[str, int] = {}
         approx_match = find_approximate_match(
             content,
             anchor,
             max_error_rate=0.25,
             min_pattern_len=8,
+            stats=approx_stats,
         )
         if approx_match:
             start, end, similarity, matched_text = approx_match
@@ -1676,7 +1718,9 @@ class FileEditor:
             ignore_punct_whitespace=ignore_punct_whitespace,
         )
         raise _not_found(
-            f"Edit {edit_index}: 找不到插入锚点。请从当前文件原文中复制更长且唯一的锚点。候选片段: {suggestions}"
+            f"Edit {edit_index}: 找不到插入锚点。"
+            f"{_approximate_not_found_advice(approx_stats, label='锚点')}"
+            f"候选片段: {suggestions}"
         )
 
     def _apply_delete(

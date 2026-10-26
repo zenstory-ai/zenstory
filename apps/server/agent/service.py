@@ -1319,6 +1319,7 @@ class AgentService:
                 # 流开头已为显式选择的技能发过 skill_matched，load_skill 它们时不再重复发
                 matched_skill_ids=[selected["id"] for selected in selected_skills],
                 run_meter=run_meter,
+                language=lang,
             )
             usage_source["adapter"] = stream_adapter
 

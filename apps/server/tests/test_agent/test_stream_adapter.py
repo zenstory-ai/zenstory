@@ -32,6 +32,47 @@ from agent.stream_adapter import (
 )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("boundary", [StreamEventType.AGENT_SELECTED, StreamEventType.MESSAGE_START])
+async def test_new_agent_run_error_does_not_inherit_previous_stop_reason(boundary):
+    adapter = StreamAdapter()
+
+    async def workflow():
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={
+            "stop_reason": "end_turn", "usage": {"input_tokens": 10, "output_tokens": 5},
+        })
+        yield WorkflowStreamEvent(type=boundary, data={"agent_type": "writer", "iteration": 2})
+        yield WorkflowStreamEvent(type=StreamEventType.ERROR, data={"error": "synthetic upstream failure"})
+
+    events = [event async for event in adapter.process_workflow_events(workflow())]
+    metadata = adapter.get_last_message_metadata()
+    assert metadata["stop_reason"] is None
+    assert metadata["usage"]["input_tokens"] == 10
+    assert metadata["usage"]["output_tokens"] == 5
+    assert sum(event.type == EventType.ERROR for event in events) == 1
+    assert not any(event.type == EventType.DONE for event in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason", ["tool_failure_circuit_open", "no_progress"])
+async def test_same_run_structured_stop_survives_following_error(reason):
+    adapter = StreamAdapter()
+
+    async def workflow():
+        yield WorkflowStreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_START)
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={
+            "stop_reason": reason, "usage": {"input_tokens": 7, "output_tokens": 3},
+        })
+        yield WorkflowStreamEvent(type=StreamEventType.ERROR, data={"reason": reason})
+
+    events = [event async for event in adapter.process_workflow_events(workflow())]
+    assert adapter.get_last_message_metadata()["stop_reason"] == reason
+    assert adapter.get_last_message_metadata()["usage"]["input_tokens"] == 7
+    assert sum(event.type == EventType.ERROR for event in events) == 1
+    assert not any(event.type == EventType.DONE for event in events)
+
+
 @pytest.fixture
 def adapter_config():
     """Create test adapter configuration."""

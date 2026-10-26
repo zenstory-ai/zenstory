@@ -662,10 +662,15 @@ async def stream_request(
         error_delivery: dict[str, Any] = {}
         partial_delivery: dict[str, Any] = {}
         completed_delivery: dict[str, Any] = {}
+        known_incomplete = False
+        source_done = False
 
         def _observe_frame(frame: Any) -> None:
+            nonlocal source_done
             tracker.observe(frame)
             written_files.observe(frame)
+            if isinstance(frame, str) and frame.startswith("event: done\n"):
+                source_done = True
 
         def _saved_output(delivery: dict[str, Any]) -> bool:
             return written_files.saved_output(
@@ -688,7 +693,7 @@ async def stream_request(
             )
 
         def _with_delivery(frame: str) -> str:
-            nonlocal error_delivery, partial_delivery, completed_delivery
+            nonlocal error_delivery, partial_delivery, completed_delivery, known_incomplete
             if deadline_exceeded or not frame.startswith(("event: error\n", "event: done\n")):
                 return frame
             event, data = _parse_sse(frame)
@@ -701,9 +706,22 @@ async def stream_request(
                 data["file_mutated"] = _confirmed_file_mutation(
                     delivery, original=data.get("file_mutated") is True
                 )
-                if delivery.get("unwritten_files"):
+                known_incomplete = (
+                    known_incomplete
+                    or written_files.known_incomplete
+                    or bool(delivery.get("unwritten_files"))
+                )
+                if known_incomplete:
                     partial_delivery = delivery
-                    return StreamEvent(type=EventType.DONE, data={**data, **delivery}).to_sse()
+                    return StreamEvent(
+                        type=EventType.DONE,
+                        data={
+                            **data,
+                            **delivery,
+                            "delivery_incomplete": True,
+                            "saved_output": _saved_output(delivery),
+                        },
+                    ).to_sse()
                 # 正常收尾也带写入回执：作者对照它核对回复里说的「已修改」。
                 receipt = written_files.completion_receipt(
                     final_word_counts=run_outcome.saved_file_word_counts,
@@ -1000,6 +1018,20 @@ async def stream_request(
             running = _running_streams.get(run_key)
             if running is not None and running.pump is pump:
                 del _running_streams[run_key]
+            # SSEStreamPump 在入队前观察源帧；客户端可能在 done 已产生、但尚未出队时断开。
+            # 用源端正常终态重新核对请求级未完成事实和最新保存回执，不能依赖消费端
+            # _with_delivery 是否运行过。停止 / 错误 / 时限分支仍在下方优先处理。
+            if source_done:
+                source_delivery = written_files.delivery(
+                    final_word_counts=run_outcome.saved_file_word_counts
+                )
+                source_known_incomplete = (
+                    written_files.known_incomplete
+                    or bool(source_delivery.get("unwritten_files"))
+                )
+                if source_known_incomplete:
+                    known_incomplete = True
+                    partial_delivery = source_delivery
             # done 等正常终止帧已经产生之后才到的时限没有截断这一轮（与 tracker.decide 同一口径）：
             # 按结束方式结算、记终态，不当成截停。
             deadline_cut = deadline_exceeded and not (
@@ -1042,7 +1074,7 @@ async def stream_request(
                 # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
                 # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
                 _schedule_round_outcome(refund_applied, stop_kind="error")
-            elif partial_delivery and knows_stop_contract:
+            elif known_incomplete and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="incomplete", delivery=partial_delivery)
             elif completed_delivery and knows_stop_contract:
                 _schedule_round_outcome(
