@@ -52,3 +52,7 @@ Status: implemented
 ## Verification
 
 `cd apps/server && venv/bin/python -m pytest tests/test_agent/test_edit_file_semantics.py tests/test_agent/test_round3_edit_match.py tests/test_agent/test_file_ops_regressions.py tests/test_agent/test_mcp_tools.py -q --no-cov`。基线 830e551 上用同样输入复现过：替换得到「““有事？”他声音冷得像冰。。」，删除留下「“。」，replace 只给 text 时台词被删除。
+
+### 补充（2026-10-25）
+
+结尾一侧加了一条例外：参照字符是闭引号、原文是同一行内的「。」「，」等再接闭引号时，这串标点连同闭引号一起并入。见 [2026-10-25-fuzzy-edit-closing-quote-and-identical-replace](2026-10-25-fuzzy-edit-closing-quote-and-identical-replace.md)。

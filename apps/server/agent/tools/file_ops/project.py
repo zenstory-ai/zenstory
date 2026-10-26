@@ -4,8 +4,6 @@ Project operations for agent tools.
 This module provides operations related to project management:
 - update_project_status: Update project status information for AI context
 - execute_update_plan: Save tasks to Redis task board
-
-Extracted from the monolithic file_executor.py for better maintainability.
 """
 
 import json
@@ -25,6 +23,7 @@ from agent.tools.task_progress import (
     validate_task_artifact_fields,
 )
 from config.datetime_utils import utcnow
+from config.project_notes import without_legacy_proposals
 from config.project_status import (
     PROJECT_TITLE_AUTHOR_TOOL,
     PROJECT_TITLE_LEDGER_ACTION,
@@ -415,7 +414,7 @@ class ProjectOperations:
         title: str | None = None,
         author_requested: bool = False,
         *,
-        notes_transform: Callable[[str | None], str] | None = None,
+        notes_transform: Callable[[str | None], str | None] | None = None,
     ) -> dict[str, Any]:
         """Update metadata using fresh locked state, including any source-aware note merge."""
         from services.project_service import project_metadata_write_lock
@@ -436,7 +435,7 @@ class ProjectOperations:
         title: str | None = None,
         author_requested: bool = False,
         *,
-        notes_transform: Callable[[str | None], str] | None = None,
+        notes_transform: Callable[[str | None], str | None] | None = None,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -503,9 +502,9 @@ class ProjectOperations:
             self.session.commit()
             self.session.refresh(project)
         else:
-            # Nothing to write, but the FOR UPDATE above must not outlive this call: the tool
-            # records its artifact ledger in a separate session right after, and that insert
-            # waits on this row. Returning with the lock held deadlocked the request (2026-10-20).
+            # Nothing to write, but the FOR UPDATE above must not outlive this call: the request
+            # session can stay open for the rest of the run, and a later write that needs this row
+            # (in 2026-10-20 the tool's artifact ledger insert) would deadlock the request.
             self.session.commit()
 
         result: dict[str, Any] = {
@@ -515,7 +514,7 @@ class ProjectOperations:
                 "summary": project.summary,
                 "current_phase": project.current_phase,
                 "writing_style": project.writing_style,
-                "notes": project.notes,
+                "notes": without_legacy_proposals(project.notes),
             },
         }
         result.update(title_result)

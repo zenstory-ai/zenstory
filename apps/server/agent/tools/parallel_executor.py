@@ -18,6 +18,8 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 MAX_PARALLEL_TASKS = 5
+# 子任务的改动（至少一部分）已经落地的状态；partial 只出现在 continue_on_error 的 edit_file 上。
+_APPLIED_TASK_STATUSES = frozenset({"completed", "partial"})
 MAX_CONCURRENCY = 2
 PARALLEL_TASK_TYPES = (
     "write_chapter",
@@ -34,11 +36,13 @@ class SubagentTask:
     task_type: str  # One of PARALLEL_TASK_TYPES
     description: str
     parameters: dict[str, Any]
-    status: str = "pending"  # pending, running, completed, failed
+    status: str = "pending"  # pending, running, completed, partial, failed
     result: Any = None
     error: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    # 在本批（执行器收到的 tasks）里的下标，结果里原样回显。
+    index: int = 0
 
 
 @dataclass
@@ -319,6 +323,21 @@ async def handle_delete_file(params: dict[str, Any]) -> dict[str, Any]:
     })
 
 
+# 结果里回显的子任务参数：只回显目标（文件 id / 标题），不回显正文、edits 这类大字段。
+# 下一轮的面包屑和工作集只按回显的目标记「做过什么」，不再拿模型原始参数去和结果配对。
+_ECHOED_PARAM_KEYS = ("id", "file_id", "title")
+
+
+def _echoed_params(params: Any) -> dict[str, str]:
+    if not isinstance(params, dict):
+        return {}
+    return {
+        key: params[key].strip()
+        for key in _ECHOED_PARAM_KEYS
+        if isinstance(params.get(key), str) and params[key].strip()
+    }
+
+
 # 作用域键：由服务端 ToolContext 决定，子任务参数里的同名键一律丢弃。
 _SCOPE_PARAM_KEYS = frozenset({"project_id", "user_id"})
 
@@ -349,8 +368,8 @@ async def handle_query_files(params: dict[str, Any]) -> dict[str, Any]:
         return _make_error("project_id not set")
 
     try:
-        # 原样转发子任务参数（response_mode / content_preview_chars / include_content /
-        # metadata_filter 等），与独立调用 query_files 完全同义；只有项目作用域由
+        # 原样转发子任务参数（response_mode / content_preview_chars / include_content
+        # 等），与独立调用 query_files 完全同义；只有项目作用域由
         # 服务端上下文决定，不信任模型传入的 project_id/user_id。以前这里只挑了几个
         # 键转发，response_mode="full" 被丢掉，模型拿到预览后又去重读。
         forwarded = _scoped_task_params(params)
@@ -468,6 +487,7 @@ async def execute_parallel(
             task_type=t["type"],
             description=t.get("description", ""),
             parameters=t.get("params", {}),
+            index=i,
         )
         for i, t in enumerate(limited_tasks)
     ]
@@ -577,6 +597,15 @@ async def execute_parallel(
                     user_message = task.result.get("user_message")
                     if isinstance(user_message, str) and user_message.strip():
                         user_facing_error = user_message.strip()
+                elif isinstance(task.result, dict) and task.result.get("status") == "partial":
+                    # continue_on_error 下 edit_file 只生效了一部分：已生效的改动照常算写入，
+                    # 但子任务不能报成 completed（否则 all_completed=True、界面显示完成）。
+                    task.status = "partial"
+                    task.error = str(
+                        task.result.get("error")
+                        or task.result.get("message")
+                        or "部分修改没有生效，失败项见 result.data.failed_edits"
+                    )
                 else:
                     task.status = "completed"
             except Exception as e:
@@ -601,7 +630,7 @@ async def execute_parallel(
     completed_tasks = await asyncio.gather(*[execute_task(t) for t in subagent_tasks])
     # Aggregate raw completed outcomes before bounding task bodies or the outer payload.
     mutation_applied = any(
-        task.status == "completed"
+        task.status in _APPLIED_TASK_STATUSES
         and isinstance(task.result, dict)
         and task.result.get("mutation_applied") is True
         for task in completed_tasks
@@ -630,16 +659,22 @@ async def execute_parallel(
         "dropped_tasks": dropped_tasks,
         "total_tasks": len(completed_tasks),
         "completed": sum(1 for t in completed_tasks if t.status == "completed"),
+        "partial": sum(1 for t in completed_tasks if t.status == "partial"),
         "failed": sum(1 for t in completed_tasks if t.status == "failed"),
         "all_completed": (
             not dropped_tasks
             and all(t.status == "completed" for t in completed_tasks)
         ),
-        "any_failed": any(t.status == "failed" for t in completed_tasks),
+        # partial 也算「没有全部做成」：模型要针对失败项补做。
+        "any_failed": any(t.status in {"failed", "partial"} for t in completed_tasks),
         "total_duration_ms": duration_ms,
         "tasks": [
             {
                 "id": t.id,
+                # 回显实际执行的下标和目标：被截掉的任务只在 dropped_tasks 里，
+                # 被读取守卫拦下的读取根本不在本批里。
+                "index": t.index,
+                "params": _echoed_params(t.parameters),
                 "type": t.task_type,
                 "description": t.description,
                 "status": t.status,
@@ -672,6 +707,7 @@ async def execute_parallel(
             total_tasks=result_data["total_tasks"],
             completed=result_data["completed"],
             failed=result_data["failed"],
+            partial=result_data["partial"],
             duration_ms=duration_ms,
             requested_task_count=requested_count,
             dropped_count=len(dropped_tasks),
@@ -689,7 +725,7 @@ async def execute_parallel(
     # and per-task status+error, which both the LLM and the UI card read.
     #
     # Route through the shared MCP payload builder so the aggregate is subject to
-    # the same TOOL_RESULT_MAX_CHARS guardrail (+ overflow_ref) as every other
+    # the same TOOL_RESULT_MAX_CHARS guardrail as every other
     # tool — the concatenated per-task results can otherwise be arbitrarily large.
     from agent.tools.mcp_tools import _make_result as _mcp_make_result
 

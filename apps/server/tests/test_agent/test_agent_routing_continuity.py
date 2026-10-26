@@ -97,27 +97,6 @@ async def _run_graph(fake_agent, state, *, router=None, auto_review_threshold=10
 # ---------------------------------------------------------- 审稿闸门（F9）
 
 
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_fast_mode_drops_writer_handoff_to_reviewer():
-    calls: list[str] = []
-
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append(agent_type)
-        for event in _write_done("w1"):
-            yield event
-        yield _text(LONG_TEXT)
-        for event in _handoff_call("quality_reviewer", "请审查第五章\n[要告诉作者]\n无"):
-            yield event
-
-    events = await _run_graph(fake_agent, _state("写第五章", generation_mode="fast"))
-
-    # The writer already wrote its summary: no rerun, nothing appended.
-    assert calls == ["writer"]
-    assert not any(e.type == StreamEventType.HANDOFF for e in events)
-    assert not any(e.type == StreamEventType.TEXT and "无" == e.data.get("text", "").strip() for e in events)
-
-
 def _handoff_call(target: str, context: str) -> list[StreamEvent]:
     """A real handoff: the handoff_to_agent tool call, then the graph's HANDOFF event."""
     return [
@@ -126,48 +105,66 @@ def _handoff_call(target: str, context: str) -> list[StreamEvent]:
     ]
 
 
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_fast_mode_progress_only_handoff_gets_a_summary_with_the_author_notes():
-    calls: list[tuple[str, str]] = []
+async def _writer_calls_handoff_tool(state, target: str = "quality_reviewer"):
+    """The writer calls the real handoff_to_agent tool; like the runner, only a `handoff` result
+    becomes a HANDOFF event, and a refusal goes back to the same run as a tool result."""
+    from agent.tools import mcp_tools
 
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append((agent_type, str(state.get("user_message") or "")))
-        if len(calls) == 1:
-            for event in _write_done("w1"):
-                yield event
-            yield _text("第五章扩写好了，我再通读核对一遍。")
-            for event in _handoff_call(
-                "quality_reviewer", "请审查第五章\n[要告诉作者]\n旧稿可以在历史版本里找回\n[审查重点]\n节奏"
-            ):
-                yield event
-        else:
-            yield _text("第五章写好了，2100 字。")
+    calls: list[str] = []
+    tool_results: list[dict] = []
 
-    events = await _run_graph(fake_agent, _state("把第五章扩写一下", generation_mode="fast"))
-
-    assert [agent for agent, _ in calls] == ["writer", "writer"]
-    summary_context = calls[1][1]
-    assert "快速模式" in summary_context
-    assert "旧稿可以在历史版本里找回" in summary_context
-    assert "节奏" not in summary_context  # only the author-facing part is relayed
-    assert not any(e.type == StreamEventType.HANDOFF for e in events)
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_fast_mode_dropped_handoff_after_a_summary_still_relays_author_notes():
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
+    async def fake_agent(_state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type != "writer" or calls.count("writer") > 1:
+            yield _text("审完了。[TASK_COMPLETE]")
+            return
         for event in _write_done("w1"):
             yield event
-        yield _text(LONG_TEXT)
-        for event in _handoff_call("quality_reviewer", "请审查\n[要告诉作者]\n旧稿可以在历史版本里找回"):
-            yield event
+        yield _text("第五章扩写好了，我再通读核对一遍。")
+        raw = await mcp_tools.handoff_to_agent(
+            {"target_agent": target, "context": "请审查第五章\n[要告诉作者]\n旧稿可以在历史版本里找回"}
+        )
+        result = json.loads(raw["content"][0]["text"])
+        tool_results.append(result)
+        if result.get("status") == "handoff":
+            yield _handoff(target, result["context"])
+        else:
+            yield _text("第五章写好了，2100 字。旧稿可以在历史版本里找回。")
 
-    events = await _run_graph(fake_agent, _state("重写第五章", generation_mode="fast"))
+    events = await _run_graph(fake_agent, state)
+    return calls, tool_results, events
 
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_fast_mode_handoff_tool_refuses_review_and_the_writer_summarizes_in_the_same_run():
+    calls, tool_results, events = await _writer_calls_handoff_tool(
+        _state("把第五章扩写一下", generation_mode="fast")
+    )
+
+    assert calls == ["writer"]
+    assert tool_results[0]["status"] == "error"
+    refusal = tool_results[0]["error"]
+    assert "快速模式" in refusal and "[要告诉作者]" in refusal
+    assert not any(e.type == StreamEventType.HANDOFF for e in events)
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert texts.endswith("旧稿可以在历史版本里找回")
+    assert texts.endswith("第五章写好了，2100 字。旧稿可以在历史版本里找回。")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("state_extra", "target", "expected_agents"),
+    [
+        ({"generation_mode": "quality"}, "quality_reviewer", ["writer", "quality_reviewer"]),
+        ({"generation_mode": "fast"}, "planner", ["writer", "planner"]),
+    ],
+)
+async def test_handoff_tool_keeps_other_handoffs(state_extra, target, expected_agents):
+    calls, tool_results, _ = await _writer_calls_handoff_tool(_state("写第五章", **state_extra), target)
+
+    assert tool_results[0]["status"] == "handoff"
+    assert calls == expected_agents
 
 
 @pytest.mark.asyncio
@@ -461,8 +458,8 @@ def test_history_dict_exposes_routing_last_agent_and_clarification():
 
 
 @pytest.mark.unit
-def test_guard_rewritten_parallel_batch_pairs_results_by_type():
-    """守卫拦下第 1 个读取后实际只执行 2 个子任务：不能把后面的结果安到前面的子任务上。"""
+def test_guard_rewritten_parallel_batch_records_only_executed_tasks():
+    """守卫拦下第 1 个读取后实际只执行 2 个子任务：只按结果里回显的目标记面包屑。"""
     from agent.core.session_loader import SessionLoader
 
     tool_call = {
@@ -478,11 +475,20 @@ def test_guard_rewritten_parallel_batch_pairs_results_by_type():
         "result": {
             "tasks": [
                 {
+                    "index": 0,
+                    "params": {"id": "c2"},
                     "type": "query_files",
                     "status": "completed",
                     "result": {"status": "success", "data": [{"id": "c2", "title": "第二章"}]},
                 },
-                {"type": "edit_file", "status": "failed", "error": "找不到原文", "result": None},
+                {
+                    "index": 1,
+                    "params": {"id": "c3"},
+                    "type": "edit_file",
+                    "status": "failed",
+                    "error": "找不到原文",
+                    "result": None,
+                },
             ]
         },
     }
@@ -492,16 +498,109 @@ def test_guard_rewritten_parallel_batch_pairs_results_by_type():
     assert actions == [{"name": "query_files", "file_id": "c2", "title": "第二章"}]
 
 
-# ------------------------------------------------------- service：路由落库
+def _deletes_truncated_after_five():
+    tasks = [{"type": "delete_file", "description": f"删第{i}稿", "params": {"id": f"f{i}"}} for i in range(1, 8)]
+    results = [
+        {
+            "index": i - 1,
+            "params": {"id": f"f{i}"},
+            "type": "delete_file",
+            "status": "completed",
+            "result": {"status": "success", "mutation_applied": True, "data": True},
+        }
+        for i in range(1, 6)
+    ]
+    return {
+        "name": "parallel_execute",
+        "status": "success",
+        "arguments": {"tasks": tasks},
+        "result": {
+            "tasks": results,
+            "dropped": 2,
+            "dropped_tasks": [{"index": 5, "type": "delete_file"}, {"index": 6, "type": "delete_file"}],
+            "all_completed": False,
+        },
+    }
 
 
 @pytest.mark.unit
-def test_partial_save_stop_reason_distinguishes_deadline_from_user_stop():
-    from agent.service import partial_save_stop_reason
+def test_truncated_tail_tasks_are_not_recorded_as_done():
+    """超过 5 个的尾部任务没有执行：不能出现在「已删除」面包屑里。"""
+    from agent.core.session_loader import SessionLoader
 
-    assert partial_save_stop_reason(1200.5, 1200) == "run_deadline_exceeded"
-    assert partial_save_stop_reason(30.0, 1200) == "cancelled"
-    assert partial_save_stop_reason(5000.0, 0) == "cancelled"
+    loader = SessionLoader("p", "u")
+    actions = loader._extract_file_actions([_deletes_truncated_after_five()])
+
+    assert [action["file_id"] for action in actions] == ["f1", "f2", "f3", "f4", "f5"]
+    breadcrumb = loader._build_tool_calls_history_content([_deletes_truncated_after_five()])
+    assert "f6" not in breadcrumb and "f7" not in breadcrumb
+
+
+@pytest.mark.unit
+def test_pending_subtask_results_and_failed_tasks_are_not_recorded():
+    from agent.core.session_loader import SessionLoader
+
+    tool_call = {
+        "name": "parallel_execute",
+        "status": "success",
+        "arguments": {"tasks": [{"type": "edit_file", "params": {"id": "a"}}, {"type": "edit_file", "params": {"id": "b"}}]},
+        "result": {
+            "tasks": [
+                {"index": 0, "params": {"id": "a"}, "type": "edit_file", "status": "pending", "result": None},
+                {"index": 1, "params": {"id": "b"}, "type": "edit_file", "status": "partial", "result": {"data": {"id": "b"}}},
+            ]
+        },
+    }
+
+    actions = SessionLoader("p", "u")._extract_parallel_file_actions(tool_call)
+
+    # partial 的改动已经落地，照常记编辑；pending 没有结果，不记。
+    assert [(action["name"], action["file_id"]) for action in actions] == [("edit_file", "b")]
+
+
+@pytest.mark.unit
+def test_legacy_parallel_result_without_echo_pairs_only_when_every_task_ran():
+    """旧格式结果（没有回显 params）：任务一个不少、类型逐个对上时才按下标配对。"""
+    from agent.core.session_loader import SessionLoader
+
+    loader = SessionLoader("p", "u")
+    tasks = [{"type": "delete_file", "params": {"id": "d1"}}, {"type": "query_files", "params": {"id": "q1"}}]
+    complete = {
+        "name": "parallel_execute",
+        "status": "success",
+        "arguments": {"tasks": tasks},
+        "result": {
+            "tasks": [
+                {"type": "delete_file", "status": "completed", "result": {"data": True}},
+                {"type": "query_files", "status": "completed", "result": {"data": [{"id": "q1", "title": "卷纲"}]}},
+            ]
+        },
+    }
+    assert [(a["name"], a["file_id"]) for a in loader._extract_parallel_file_actions(complete)] == [
+        ("delete_file", "d1"),
+        ("query_files", "q1"),
+    ]
+
+    shortened = {**complete, "result": {"tasks": complete["result"]["tasks"][1:]}}
+    assert loader._extract_parallel_file_actions(shortened) == []
+
+
+@pytest.mark.unit
+def test_pending_top_level_call_is_recorded_as_outcome_unknown():
+    """没有落下结果的工具调用（status=pending）：面包屑写「结果未知」，不写成已完成。"""
+    from agent.core.session_loader import SessionLoader
+
+    loader = SessionLoader("p", "u")
+    breadcrumb = loader._build_tool_calls_history_content(
+        [{"name": "delete_file", "status": "pending", "arguments": {"id": "g1"}}]
+    )
+
+    assert "g1" in breadcrumb
+    assert "已删除文件" not in breadcrumb
+    assert "结果未知" in breadcrumb
+
+
+# ------------------------------------------------------- service：路由落库
 
 
 @pytest.fixture
@@ -593,6 +692,38 @@ async def test_service_passes_real_selected_and_reference_facts_to_router_state(
 
     assert captured["has_selected_text"] is True
     assert captured["has_referenced_files"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.parametrize(("language", "expected"), [("en-US", "en-us"), (None, "zh")])
+async def test_service_passes_author_language_to_writing_state(
+    routing_service, routing_service_project, db_session: Session, language, expected
+):
+    """F-14：graph 的英文分支依赖 state["language"]，service 必须把作者界面语言写进去。"""
+    captured: dict = {}
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+
+    async def events():
+        yield _router_decided("writer", "quick")
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    def workflow(state, **_kwargs):
+        captured.update(state)
+        return events()
+
+    with patch("agent.service.run_writing_workflow_streaming", side_effect=workflow):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="Write chapter one",
+            language=language,
+            session=db_session,
+        ):
+            pass
+
+    assert captured["language"] == expected
 
 
 @pytest.mark.asyncio
@@ -723,12 +854,14 @@ async def test_reviewer_reached_by_handoff_is_not_saved_as_the_task_owner(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("writing_prompt_configs")
-@pytest.mark.parametrize(
-    ("timeout_s", "expected"), [(1200, "cancelled"), (0.000001, "run_deadline_exceeded")]
-)
+@pytest.mark.parametrize("deadline", [False, True])
 async def test_cancelled_partial_save_persists_stop_reason_and_routing(
-    routing_service, routing_service_project, db_session: Session, timeout_s, expected
+    routing_service, routing_service_project, db_session: Session, deadline
 ):
+    """取消补存的 stop_reason 由路由层交来的原因决定，不按已用时长推断：发布交接把时限提前到
+    几分钟时，这一轮也记成可「继续」的时限截停；之后记「已中断」终态也不会覆盖它。"""
+    from agent.core.round_outcome import RunOutcome, record_round_outcome
+    from agent.graph.router import RESUMABLE_STOP_REASONS
     from models import ChatMessage
 
     project = routing_service_project["project"]
@@ -742,23 +875,29 @@ async def test_cancelled_partial_save_persists_stop_reason_and_routing(
         started.set()
         await asyncio.sleep(3600)
 
+    run_outcome = RunOutcome()
+
     async def consume():
         async for _ in routing_service.process_stream(
             project_id=str(project.id),
             user_id=str(user.id),
             message="写第六章",
             session=db_session,
+            run_outcome=run_outcome,
         ):
             pass
 
     with (
         patch("agent.service.run_writing_workflow_streaming", return_value=slow_workflow()),
         patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
-        patch("agent.service.AGENT_RUN_WALL_CLOCK_TIMEOUT_S", timeout_s),
+        patch("database.create_session", side_effect=lambda: Session(db_session.get_bind())),
     ):
         task = asyncio.create_task(consume())
         await started.wait()
         await asyncio.sleep(0)
+        if deadline:
+            # 路由层的时限分支（sse_pump 的 on_deadline）在取消送达之前同步记下原因。
+            run_outcome.deadline_stop_reason = "run_deadline_exceeded"
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -770,10 +909,16 @@ async def test_cancelled_partial_save_persists_stop_reason_and_routing(
             if saved is not None:
                 break
 
-    assert saved is not None
-    metadata = json.loads(saved.message_metadata)
-    assert metadata["stop_reason"] == expected
-    assert metadata["routing"]["last_agent"] == "writer"
+        assert saved is not None
+        metadata = json.loads(saved.message_metadata)
+        assert metadata["stop_reason"] == ("run_deadline_exceeded" if deadline else "cancelled")
+        assert metadata["routing"]["last_agent"] == "writer"
+        if deadline:
+            # 时限截停的一轮随后记「已中断」终态（api/agent.py 的 stop_kind="error"）。
+            assert record_round_outcome(saved.id, stop_kind="error", outcome={"reason": "error"})
+            db_session.expire_all()
+            final = json.loads(db_session.get(ChatMessage, saved.id).message_metadata)
+            assert final["stop_reason"] in RESUMABLE_STOP_REASONS
 
 
 @pytest.mark.asyncio
@@ -803,6 +948,48 @@ async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
     assert texts.endswith(WRAP_UP_TEXT)
     assert not any(e.type == StreamEventType.ITERATION_EXHAUSTED for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("trigger", ["wall_clock", "server_drain"])
+async def test_wrap_up_keeps_the_writer_summary_when_review_will_not_run(trigger, monkeypatch):
+    """writer 交给审稿人时已到收尾时间（墙钟或发布交接）：审稿不会再跑，不丢 writer 的总结、
+    不发悬空的 HANDOFF；交接里【要告诉作者】的话照实转述，最后是收尾说明。"""
+    import time
+
+    from agent.core import server_drain
+    from agent.core.run_meter import AgentRunMeter
+    from agent.core.workflow_events import CHAT_HOLD_BEGIN, CHAT_HOLD_DISCARD
+    from agent.graph.writing_graph import WRAP_UP_TEXT
+
+    monkeypatch.setattr(server_drain, "_draining_since", None)
+    calls: list[str] = []
+    meter = AgentRunMeter(wrap_up_after_s=600)
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        for event in _write_done("w1"):
+            yield event
+        yield _text(LONG_TEXT)
+        if trigger == "wall_clock":
+            meter.started_at = time.monotonic() - 700
+        else:
+            monkeypatch.setattr(server_drain, "_draining_since", time.monotonic())
+        for event in _handoff_call("quality_reviewer", "请审查第五章\n[要告诉作者]\n旧稿可以在历史版本里找回"):
+            yield event
+
+    with patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True):
+        events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
+
+    assert calls == ["writer"]
+    holds = [e.data.get("action") for e in events if e.type == StreamEventType.CHAT_HOLD]
+    assert CHAT_HOLD_BEGIN in holds
+    assert CHAT_HOLD_DISCARD not in holds
+    assert not any(e.type == StreamEventType.HANDOFF for e in events)
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert LONG_TEXT in texts
+    assert texts.endswith(f"\n\n旧稿可以在历史版本里找回{WRAP_UP_TEXT}")
 
 
 @pytest.mark.asyncio

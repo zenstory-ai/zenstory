@@ -25,7 +25,7 @@ See [file types](file-types.md) and [Materials](../user-guide/materials.md).
 | Material attachment | Reference items explicitly attached for this turn |
 | Context | Messages, files, and references used for the task, within a length budget |
 | Skill | A reusable writing method and reference resources |
-| AI Memory | Short project summary, style, progress, and notes |
+| AI Memory | Short project summary, writing style, current phase, and Writing Conventions |
 | Tool operation | An AI action such as reading, creating, or editing a file |
 | Streaming | Replies and progress appear during generation |
 

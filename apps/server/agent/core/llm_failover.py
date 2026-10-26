@@ -328,15 +328,16 @@ def ordered_providers(session_id: str | None = None, *, thinking_enabled: bool =
     values = _with_store(lambda store: store.get_many(keys))
     open_slots = {slot for slot, value in zip((primary.slot, backup.slot), values[:2], strict=True) if value}
     pinned = values[2] if session_id else None
-    first, second = (backup, primary) if pinned == backup.slot else (primary, backup)
+    first, second = primary, backup
+    if not thinking_enabled and not first.kind.can_disable_thinking and second.kind.can_disable_thinking:
+        # Short no-reasoning calls (suggestions, polish) prefer a provider that can
+        # turn reasoning off. Only a preference: a pin or an open circuit still wins.
+        first, second = second, first
+    if pinned in (primary.slot, backup.slot) and pinned != first.slot:
+        first, second = second, first
     if first.slot in open_slots and second.slot not in open_slots:
         first, second = second, first
-    ordered = [first, second]
-    if not thinking_enabled:
-        # Short no-reasoning calls (suggestions, polish) go to a provider that
-        # can turn reasoning off; the other one stays as the fallback.
-        ordered.sort(key=lambda p: not p.kind.can_disable_thinking)
-    return ordered
+    return [first, second]
 
 
 def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> None:

@@ -262,6 +262,7 @@ type MockMessageInputProps = {
 }
 
 const mockMessageList = vi.fn((_props: unknown) => <div data-testid="mock-message-list" />)
+const mockProjectStatusDialog = vi.hoisted(() => vi.fn())
 const mockMessageInput = vi.fn((props: MockMessageInputProps) => (
   <div data-testid="mock-message-input">
     <button
@@ -298,7 +299,14 @@ vi.mock('../ToolResultCard', () => ({
 }))
 
 vi.mock('../ProjectStatusDialog', () => ({
-  ProjectStatusDialog: () => null,
+  ProjectStatusDialog: (props: { initialSection?: string; onClose: () => void }) => {
+    mockProjectStatusDialog(props)
+    return (
+      <div data-testid="mock-project-status-dialog" data-initial-section={props.initialSection ?? ''}>
+        <button type="button" onClick={props.onClose}>close-memory</button>
+      </div>
+    )
+  },
 }))
 
 vi.mock('../subscription/QuotaBadge', () => ({
@@ -437,6 +445,27 @@ describe('ChatPanel mount smoke', () => {
     render(<ChatPanel />)
     await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
     expect((mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: unknown }).onOpenFile).toBeUndefined()
+  })
+
+  it('opens Writing Conventions when a remembered-note card asks to edit memory', async () => {
+    withEarlierTurn()
+    render(<ChatPanel />)
+    await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
+
+    const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenAIMemory?: () => void }
+    act(() => props.onOpenAIMemory?.())
+
+    expect(screen.getByTestId('mock-project-status-dialog')).toHaveAttribute('data-initial-section', 'writing-agreements')
+    expect(mockProjectStatusDialog.mock.calls.at(-1)?.[0]).toMatchObject({ initialSection: 'writing-agreements' })
+  })
+
+  it('opens AI Memory from the header without forcing a field section', async () => {
+    render(<ChatPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat:panel.aiMemory' }))
+
+    expect(screen.getByTestId('mock-project-status-dialog')).toHaveAttribute('data-initial-section', '')
+    expect(mockProjectStatusDialog.mock.calls.at(-1)?.[0]).toMatchObject({ initialSection: undefined })
   })
 
   it('mounts without runtime initialization errors', async () => {

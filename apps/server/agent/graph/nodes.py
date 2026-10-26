@@ -100,7 +100,7 @@ def build_agent_directive(state: WritingState, agent_type: str) -> str:
 
 
     # 快速模式（前端「更快出结果」）：WRITER_PROMPT 的送审规则在这一轮不适用。
-    # writing_graph 也会丢弃 writer → quality_reviewer 的交接，这里先让模型知道，
+    # handoff_to_agent 也会拒绝 writer → quality_reviewer 的交接，这里先让模型知道，
     # 免得它白白调用一次 handoff_to_agent。
     if (
         str(state.get("generation_mode") or "").strip().lower() == "fast"

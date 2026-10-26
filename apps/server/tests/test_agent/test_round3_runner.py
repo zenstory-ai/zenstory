@@ -21,15 +21,12 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _reset_metrics_and_model_cache():
-    from agent.core.metrics import reset_metrics_collector
+def _reset_model_cache():
     from agent.openai_agents.model import reset_sdk_model_cache
 
-    reset_metrics_collector()
     reset_sdk_model_cache()
     yield
     reset_sdk_model_cache()
-    reset_metrics_collector()
 
 
 # ---------------------------------------------------------------------------

@@ -48,7 +48,7 @@ import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
 import { UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
-import { ProjectProposalActions } from './ProjectProposalActions';
+import { RememberedNotes } from './RememberedNotes';
 
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
@@ -153,6 +153,9 @@ interface ToolResultCardProps {
 
   /** Open the exact file from a successful create/update result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
+
+  /** Open the current project's AI Memory editor at Writing Conventions. */
+  onOpenAIMemory?: () => void;
 
   /**
    * Callback to apply the response content.
@@ -371,26 +374,27 @@ const classifyToolFailure = (errorType: string | undefined): ToolFailureKind => 
 const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
 
 /**
- * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
- * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
+ * Notes entries an update_project call appended because the author asked the AI to remember them
+ * (`notes_added`, exact stored text). The server sets it only when the notes were written,
+ * including on a partial (task board rejected) result. Older history need not carry project_id
+ * because editing opens the current project's single AI Memory dialog.
  */
-/**
- * Proposals an update_project call added (exact stored text), with the project to act on. The
- * server sets `proposals_added` only when notes were saved, also on a partial (plan rejected) result.
- */
-const readProposalsAdded = (
+const readNotesAdded = (
   data: Record<string, unknown> | undefined,
-): { projectId: string; entries: string[] } | null => {
-  const projectId = typeof data?.project_id === 'string' ? data.project_id.trim() : '';
-  const entries = Array.isArray(data?.proposals_added)
-    ? [...new Set(data.proposals_added
+): string[] | null => {
+  const entries = Array.isArray(data?.notes_added)
+    ? [...new Set(data.notes_added
       .filter((entry): entry is string => typeof entry === 'string')
       .map((entry) => entry.trim())
       .filter(Boolean))]
     : [];
-  return projectId && entries.length > 0 ? { projectId, entries } : null;
+  return entries.length > 0 ? entries : null;
 };
 
+/**
+ * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
+ * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
+ */
 const resolveToolFailure = (
   result: Record<string, unknown> | undefined,
   t: (key: string, options?: Record<string, unknown>) => string,
@@ -588,6 +592,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   toolUseId,
   chatMessageId,
   onOpenFile,
+  onOpenAIMemory,
   onApply,
   onRetry,
   onCopy,
@@ -678,8 +683,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const { label } = getToolDisplayInfo(toolName, t);
       const { kind, message: userMessage } = resolveToolFailure(result, t);
       const intentionalSkip = INTENTIONAL_SKIP_KINDS.has(kind);
-      const partialProposals = toolName === 'update_project'
-        ? readProposalsAdded((result?.data || result) as Record<string, unknown> | undefined)
+      // update_project with a rejected task board still saved its notes (partial result).
+      const partialNotes = toolName === 'update_project'
+        ? readNotesAdded((result?.data || result) as Record<string, unknown> | undefined)
         : null;
       return (
         <div>
@@ -698,9 +704,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             {userMessage}
           </p>
         </div>
-          {/* update_project with a rejected task board still saved its notes (partial result). */}
-          {partialProposals && !isPending && !interrupted && (
-            <ProjectProposalActions projectId={partialProposals.projectId} entries={partialProposals.entries} />
+          {partialNotes && !isPending && !interrupted && (
+            <RememberedNotes entries={partialNotes} onOpen={onOpenAIMemory} />
           )}
         </div>
       );
@@ -864,28 +869,47 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         notes: t('chat:project.field.notes'),
       };
 
-      const updatedLabels = updatedFields
+      const notesAdded = readNotesAdded(data);
+      // notes_added has its own receipt below, so do not repeat it in the generic field list.
+      const shownFields = notesAdded ? updatedFields.filter((f) => f !== 'notes') : updatedFields;
+      const updatedLabels = shownFields
         .map((f) => fieldLabels[f] || f)
         .join(t('common:separator'));
-      const proposals = readProposalsAdded(data);
-      
-      return (
-        <div>
-        <div className="bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))]">
-              {t('chat:tool.status_updated')}
-            </span>
-            {updatedLabels && (
-              <span className="text-xs text-[hsl(var(--text-secondary))]">
-                ({updatedLabels})
+      const otherChanges = data.project_name_updated === true
+        || projectStatus?.project_name_updated === true
+        || (data.plan !== undefined && data.plan !== null);
+      const changed = updatedFields.length > 0 || otherChanges || notesAdded !== null;
+
+      // Nothing visible changed (e.g. notes copied back unchanged): no green success.
+      if (!changed) {
+        return (
+          <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+              <span className="text-sm text-[hsl(var(--text-secondary))]">
+                {typeof data.notes_note === 'string' ? t('chat:notesAdded.full') : t('chat:tool.status_unchanged')}
               </span>
-            )}
+            </div>
           </div>
-        </div>
-          {proposals && !isPending && !interrupted && (
-            <ProjectProposalActions projectId={proposals.projectId} entries={proposals.entries} />
+        );
+      }
+
+      return (
+        <div className="rounded-lg border border-[hsl(var(--result-border))] bg-[hsl(var(--result-bg))] px-3 py-2">
+          {(shownFields.length > 0 || otherChanges) && (
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[hsl(var(--success-text))]" />
+              <span className="text-sm text-[hsl(var(--success-text))]">{t('chat:tool.status_updated')}</span>
+              {updatedLabels && <span className="text-xs text-[hsl(var(--text-secondary))]">({updatedLabels})</span>}
+            </div>
+          )}
+          {typeof data.notes_note === 'string' && (
+            <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">{t('chat:notesAdded.full')}</p>
+          )}
+          {notesAdded && !isPending && !interrupted && (
+            <div className={shownFields.length > 0 || otherChanges ? 'mt-2 border-t border-[hsl(var(--result-border))]' : ''}>
+              <RememberedNotes entries={notesAdded} onOpen={onOpenAIMemory} embedded showIcon={!(shownFields.length > 0 || otherChanges)} />
+            </div>
           )}
         </div>
       );
@@ -1129,6 +1153,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       const failed =
         (data.failed as number) ??
         tasks.filter((task) => task.status === 'failed').length;
+      // partial: a continue_on_error edit applied only some of its edits (older payloads lack the total).
+      const partial =
+        typeof data.partial === 'number'
+          ? data.partial
+          : tasks.filter((task) => task.status === 'partial').length;
       const taskResultOf = (task: Record<string, unknown>) =>
         task.result && typeof task.result === 'object'
           ? (task.result as Record<string, unknown>)
@@ -1140,7 +1169,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       // 标题里的「失败」数不含有意没动的子任务（它们在下面逐条说明）。
       const skippedCount = tasks.filter(isIntentionalSkip).length;
       const shownFailed = Math.max(0, failed - skippedCount);
-      const anyFailed = shownFailed > 0;
+      const anyFailed = shownFailed > 0 || partial > 0;
       const accentClass = anyFailed
         ? 'text-[hsl(var(--warning-text))]'
         : 'text-[hsl(var(--success-text))]';
@@ -1156,15 +1185,22 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           <div className="flex items-center gap-2">
             <Layers className={`w-4 h-4 ${accentClass}`} />
             <span className={`text-sm ${accentClass}`}>
-              {skippedCount > 0
-                ? t('chat:tool.parallel_summary_with_skipped', { total, completed, skipped: skippedCount, failed: shownFailed })
-                : t('chat:tool.parallel_summary', { total, completed, failed })}
+              {partial > 0
+                ? skippedCount > 0
+                  ? t('chat:tool.parallel_summary_with_partial_and_skipped', { total, completed, partial, skipped: skippedCount, failed: shownFailed })
+                  : t('chat:tool.parallel_summary_with_partial', { total, completed, partial, failed })
+                : skippedCount > 0
+                  ? t('chat:tool.parallel_summary_with_skipped', { total, completed, skipped: skippedCount, failed: shownFailed })
+                  : t('chat:tool.parallel_summary', { total, completed, failed })}
             </span>
           </div>
           {tasks.length > 0 && (
             <div className="mt-2 space-y-1">
               {tasks.map((task, index) => {
                 const isFailed = task.status === 'failed';
+                const isPartial = task.status === 'partial';
+                // Statuses this client does not know are neither success nor failure.
+                const isUnknown = !isFailed && !isPartial && task.status !== 'completed';
                 const taskResult = taskResultOf(task);
                 const skipped = isIntentionalSkip(task);
                 // Localized task kind; unknown internal types are hidden, never shown raw.
@@ -1183,6 +1219,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
                     ) : isFailed ? (
                       <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
+                    ) : isPartial ? (
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--warning-text))]" />
+                    ) : isUnknown ? (
+                      <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
                     ) : (
                       <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--success-text))]" />
                     )}
@@ -1202,6 +1242,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       ) : isFailed ? (
                         <div className="text-[hsl(var(--text-secondary))] break-words">
                           {(isChineseUi() ? readUserFacingText(taskResult?.user_message) : null) ?? t('chat:tool.taskNotCompleted')}
+                        </div>
+                      ) : isPartial ? (
+                        <div className="text-[hsl(var(--text-secondary))] break-words">
+                          {t('chat:tool.taskPartiallyCompleted')}
+                        </div>
+                      ) : isUnknown ? (
+                        <div className="text-[hsl(var(--text-secondary))] break-words">
+                          {t('chat:tool.taskOutcomeUnknown')}
                         </div>
                       ) : touchedAuthorEdits(taskResult) ? (
                         <div className="text-[hsl(var(--text-secondary))] break-words">

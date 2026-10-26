@@ -5,12 +5,14 @@
 被送去审稿（I03，10-10 / 10-11 生产仍有 5 次）。这里改为只看写进正文类文件的内容：
 
 - create_file 建的是 draft / script：算紧随其后的 ``<file>…</file>`` 正文（writer 的
-  TEXT 里能看到同一段正文，与 StreamAdapter 落库的是同一份）；
+  TEXT 里能看到同一段正文，与 StreamAdapter 落库的是同一份）；复用已有正文的文件时，
+  没有 ``</file>`` 结尾的正文会被 StreamAdapter 拒存，不算；
 - edit_file 改的是 draft / script：算这次写进去的文字（edits 里 ``new`` / ``text``）；
 - parallel_execute 的 write_chapter / edit_file 子任务同理。
 
 字数用 `count_words`，与编辑器一致。只认成功的写入（edit_file 部分成功且确实改了文件
-也算）；大纲、设定、角色、素材、文档都不算。
+也算，但失败的那几处编辑——``failed_edits`` 里的 index——不算）；大纲、设定、角色、素材、
+文档都不算。
 """
 
 from __future__ import annotations
@@ -20,11 +22,13 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent.constants import CONTENT_FILE_TYPES
+from agent.constants import CONTENT_FILE_TYPES, coerce_bool
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from utils.text_metrics import count_words
 
-_FILE_BLOCK_RE = re.compile(r"<\s*file\b[^>]*>(.*?)(?:<\s*/\s*file\s*>|$)", re.IGNORECASE | re.DOTALL)
+_FILE_BLOCK_RE = re.compile(
+    r"<\s*file\b[^>]*>(.*?)(?:(?P<close><\s*/\s*file\s*>)|$)", re.IGNORECASE | re.DOTALL
+)
 _EDIT_TEXT_KEYS = ("new", "text")
 
 
@@ -40,6 +44,9 @@ class BodyWrite:
     full_body: bool = False
     # create_file：正文在之后的 <file> 块里，记下当时 writer 文字的长度，run 结束时再取。
     text_offset: int | None = None
+    # create_file 复用了已有正文的文件：StreamAdapter 不拿没收到 </file> 的残稿整体覆盖原文
+    # （_should_refuse_truncated_overwrite），所以只有闭合的 <file> 块才算写进去了。
+    requires_closed_block: bool = False
     # edit_file：工具返回的改后全文字数（new_word_count）；没返回时为 None。
     file_words: int | None = None
     # Diagnostic fact only: legacy success/word-count quality gating is unchanged.
@@ -72,12 +79,35 @@ def _write_applied(payload: dict[str, Any]) -> bool:
     return status == "partial" and payload.get("mutation_applied") is True
 
 
-def _edit_words(edits: Any) -> int:
+def _ineffective_edit_indices(result_data: dict[str, Any]) -> set[int]:
+    """edit_file 里没写入任何字的编辑（0-based index）：failed_edits 没生效，
+    unchanged_edits 是 old 与 new 相同、原文已是这样的确认。"""
+    indices: set[int] = set()
+    for key in ("failed_edits", "unchanged_edits"):
+        items = result_data.get(key)
+        if not isinstance(items, list):
+            continue
+        indices.update(
+            item["index"]
+            for item in items
+            if isinstance(item, dict) and isinstance(item.get("index"), int) and not isinstance(item.get("index"), bool)
+        )
+    return indices
+
+
+def _requested_edits(params: dict[str, Any]) -> Any:
+    """edit_file 的编辑列表；与 mcp_tools / parallel_executor 一样接受旧参数名 operations。"""
+    edits = params.get("edits")
+    return params.get("operations") if edits is None else edits
+
+
+def _edit_words(edits: Any, failed: set[int] | None = None) -> int:
+    """这次写进去的字数；failed 里的编辑没写入任何字，不算。"""
     if not isinstance(edits, list):
         return 0
     total = 0
-    for edit in edits:
-        if not isinstance(edit, dict) or edit.get("op") == "delete":
+    for index, edit in enumerate(edits):
+        if not isinstance(edit, dict) or edit.get("op") == "delete" or (failed and index in failed):
             continue
         for key in _EDIT_TEXT_KEYS:
             value = edit.get(key)
@@ -85,6 +115,18 @@ def _edit_words(edits: Any) -> int:
                 total += count_words(value)
                 break
     return total
+
+
+def _reuses_existing_body(data: dict[str, Any]) -> bool:
+    """create_file 命中复用分支、且目标文件原本有正文（与 StreamAdapter 的覆盖保护同一判断）。"""
+    if not coerce_bool(data.get("reused_existing")):
+        return False
+    content = data.get("content")
+    try:
+        original = int(data.get("original_content_length"))
+    except (TypeError, ValueError):
+        original = 0
+    return max(original, len(content) if isinstance(content, str) else 0) > 0
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -136,13 +178,14 @@ class BodyWriteTracker:
                 file_type=str(created_type),
                 full_body=True,
                 text_offset=text_length,
+                requires_closed_block=_reuses_existing_body(data),
             )
         elif name == "edit_file" and _is_body_type(data.get("file_type")):
             recorded = BodyWrite(
                 file_id=str(data.get("id") or tool_input.get("id") or ""),
                 title=str(data.get("title") or ""),
                 file_type=str(data.get("file_type")),
-                words=_edit_words(tool_input.get("edits")),
+                words=_edit_words(_requested_edits(tool_input), _ineffective_edit_indices(data)),
                 file_words=_int_or_none(data.get("new_word_count")),
                 mutation_applied=payload.get("mutation_applied") is True,
             )
@@ -158,9 +201,22 @@ class BodyWriteTracker:
         results = data.get("tasks") if isinstance(data.get("tasks"), list) else []
         last: BodyWrite | None = None
         for index, task in enumerate(results):
-            if not isinstance(task, dict) or task.get("status") != "completed":
+            # partial：并行 edit_file 只生效了一部分，已生效的 edit 照常计入（下面按 failed_edits 扣除）。
+            if not isinstance(task, dict) or task.get("status") not in {"completed", "partial"}:
                 continue
-            plan = planned[index] if index < len(planned) and isinstance(planned[index], dict) else {}
+            source_index = task.get("source_index")
+            planned_index = (
+                source_index
+                if isinstance(source_index, int)
+                and not isinstance(source_index, bool)
+                and 0 <= source_index < len(planned)
+                else index
+            )
+            plan = (
+                planned[planned_index]
+                if planned_index < len(planned) and isinstance(planned[planned_index], dict)
+                else {}
+            )
             params = plan.get("params") if isinstance(plan.get("params"), dict) else {}
             result = task.get("result")
             result_data = result.get("data") if isinstance(result, dict) else None
@@ -173,7 +229,7 @@ class BodyWriteTracker:
                 full_body = True
             elif task_type == "edit_file":
                 file_type = result_data.get("file_type")
-                words = _edit_words(params.get("edits"))
+                words = _edit_words(_requested_edits(params), _ineffective_edit_indices(result_data))
                 full_body = False
                 file_words = _int_or_none(result_data.get("new_word_count"))
             else:
@@ -201,7 +257,8 @@ class BodyWriteTracker:
             later = [offset for offset in offsets if offset > write.text_offset]
             segment = agent_text[write.text_offset : min(later) if later else len(agent_text)]
             match = _FILE_BLOCK_RE.search(segment)
-            write.words = count_words(match.group(1)) if match else 0
+            saved = match is not None and (match.group("close") is not None or not write.requires_closed_block)
+            write.words = count_words(match.group(1)) if saved else 0
             write.text_offset = None
         return list(self.writes)
 

@@ -390,7 +390,8 @@ class TestConcurrentChatSessions:
                 user_id=user.id,
                 project_id=project.id,
                 title=f"Session {i}",
-                is_active=True,
+                # One active chat per user+project (uq_chat_session_user_project_active); the rest are archived.
+                is_active=i == 0,
                 message_count=0,
             )
             db_session.add(session)
@@ -465,11 +466,12 @@ class TestConcurrentChatSessions:
             from tests.conftest import TestSessionLocal
             async_session = TestSessionLocal()
             try:
+                # Archived chats: only one may be active per user+project (uq_chat_session_user_project_active).
                 session = ChatSession(
                     user_id=user.id,
                     project_id=project.id,
                     title=title,
-                    is_active=True,
+                    is_active=False,
                     message_count=0,
                 )
                 async_session.add(session)

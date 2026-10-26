@@ -145,30 +145,21 @@ class SteeringQueue:
                 )
             return pending
 
-    async def peek(self) -> list[SteeringMessage]:
-        """Peek at pending messages without marking processed."""
-        async with self._lock:
-            return [m for m in self._messages if not m.processed]
-
-    async def clear(self) -> None:
-        """Clear all messages."""
-        async with self._lock:
-            self._messages.clear()
-            log_with_context(logger, 20, "Steering queue cleared")
-
-
 @dataclass
 class SteeringQueueEntry:
     """Metadata wrapper for a steering queue session."""
 
     queue: SteeringQueue
     owner_user_id: str | None = None
-    # 同一 chat session 的并发 stream run 共享同一个队列，但生命周期以 run
-    # 为单位：cleanup 只在最后一个持有 run 释放后才真正删除队列，避免先结
-    # 束的 run 删掉另一个仍在流式生成的 run 正在使用的队列。
+    # 每个 chat session 正常只有一个生成 run。这里仍以 run_id 记录持有，
+    # 因为进程暂停超过 TTL 后新 run 可以接管；旧进程恢复后释放自己时不得
+    # 删除新 run 的队列。
     # run_id -> 最近一次心跳的 unix 时间戳；与 Redis 后端的 runs ZSET 同构，
     # 超过 _RUN_HEARTBEAT_TTL_S 未心跳的持有者按僵尸回收。
     active_runs: dict[str, float] = field(default_factory=dict)
+    # 已做完最后一次 drain（drain_and_seal）的 run：仍占着独占槽位直到释放，
+    # 但不会再消费引导，/agent/steer 不能再把消息确认给它。
+    sealed_runs: set[str] = field(default_factory=set)
 
 
 class SteeringQueueManager:
@@ -193,6 +184,7 @@ class SteeringQueueManager:
         stale = [rid for rid, ts in entry.active_runs.items() if ts <= cutoff]
         for rid in stale:
             del entry.active_runs[rid]
+            entry.sealed_runs.discard(rid)
         if stale:
             log_with_context(
                 logger,
@@ -220,20 +212,16 @@ class SteeringQueueManager:
         for rid in entry.active_runs:
             entry.active_runs[rid] = now
 
-    async def get_queue(
+    async def claim_queue(
         self,
         session_id: str,
-        owner_user_id: str | None = None,
-        create_if_missing: bool = True,
-        run_id: str | None = None,
-        exclusive_run: bool = False,
+        owner_user_id: str | None,
+        run_id: str,
     ) -> SteeringQueue:
-        """Get or create steering queue for a session."""
+        """Atomically claim the session's sole generation slot."""
         async with self._lock:
             entry = self._queues.get(session_id)
             if entry is None:
-                if not create_if_missing:
-                    raise KeyError(session_id)
                 queue = SteeringQueue()
                 # 轮询驱动的心跳：见 SteeringQueue.on_poll。
                 queue.on_poll = lambda sid=session_id: self._touch_runs(sid)
@@ -267,29 +255,13 @@ class SteeringQueueManager:
                     f"Steering session {session_id} does not belong to user {owner_user_id}"
                 )
 
-            # Backfill legacy ownerless sessions when an owner is first known.
-            if entry.owner_user_id is None and owner_user_id is not None:
-                entry.owner_user_id = owner_user_id
-                log_with_context(
-                    logger,
-                    20,
-                    "Steering queue owner bound",
-                    session_id=session_id,
-                    owner_user_id=owner_user_id,
+            # 注册前先回收僵尸持有者，避免崩溃残留把队列永久钉住。
+            self._reap_stale_runs(session_id, entry)
+            if any(active_run_id != run_id for active_run_id in entry.active_runs):
+                raise SteeringSessionBusyError(
+                    f"Steering session {session_id} already has an active run"
                 )
-
-            if run_id:
-                # 注册前先回收僵尸持有者，避免崩溃残留把队列永久钉住
-                # （与 _redis_create_sync 的 ZREMRANGEBYSCORE 同语义）。
-                self._reap_stale_runs(session_id, entry)
-                if exclusive_run and any(
-                    active_run_id != run_id
-                    for active_run_id in entry.active_runs
-                ):
-                    raise SteeringSessionBusyError(
-                        f"Steering session {session_id} already has an active run"
-                    )
-                entry.active_runs[run_id] = time.time()
+            entry.active_runs[run_id] = time.time()
 
             return entry.queue
 
@@ -299,32 +271,54 @@ class SteeringQueueManager:
             entry = self._queues.get(session_id)
             if entry is None:
                 raise KeyError(session_id)
-            # 查询路径同样回收僵尸：若该 session 曾经有持有者、而全部都是僵尸，
+            # 查询路径同样回收僵尸：若该 session 的持有者已经超时，
             # 说明没有任何 run 会来消费这条引导消息，必须按「会话不存在」处理
             # （POST /agent/steer -> 404），否则消息会滞留到下一次无关的 run 被
-            # 当作用户输入注入。从未登记过持有者的队列（get_steering_queue_async
-            # 建的占位队列）保持旧语义，不做删除。
+            # 当作用户输入注入。
+            self._reap_stale_runs(session_id, entry)
+            if not entry.active_runs:
+                del self._queues[session_id]
+                raise KeyError(session_id)
+            if entry.owner_user_id != user_id:
+                raise PermissionError(
+                    f"Steering session {session_id} does not belong to user {user_id}"
+                )
+            return entry.queue
+
+    async def enqueue_for_user(
+        self, session_id: str, user_id: str, content: str
+    ) -> SteeringMessage:
+        """入队与「仍有未封口的存活 run」在 manager 锁内一起判定。
+
+        KeyError：没有会消费它的 run（从未登记、已释放、只剩僵尸或都已封口）；
+        PermissionError：session 属于别人。
+        """
+        async with self._lock:
+            entry = self._queues.get(session_id)
+            if entry is None:
+                raise KeyError(session_id)
             if entry.active_runs:
                 self._reap_stale_runs(session_id, entry)
                 if not entry.active_runs:
                     del self._queues[session_id]
                     raise KeyError(session_id)
-            if entry.owner_user_id is not None and entry.owner_user_id != user_id:
+            if entry.owner_user_id != user_id:
                 raise PermissionError(
                     f"Steering session {session_id} does not belong to user {user_id}"
                 )
-            # Backfill ownerless entry to first authenticated owner.
-            if entry.owner_user_id is None:
-                entry.owner_user_id = user_id
-                log_with_context(
-                    logger,
-                    20,
-                    "Steering queue owner bound from authorized access",
-                    session_id=session_id,
-                    owner_user_id=user_id,
-                )
-            return entry.queue
+            if not any(rid not in entry.sealed_runs for rid in entry.active_runs):
+                raise KeyError(session_id)
+            return await entry.queue.add(content)
 
+    async def drain_and_seal(self, session_id: str, run_id: str) -> list[SteeringMessage]:
+        """本 run 最后一次取出引导，同时封口：此后的 enqueue 不再确认给它。"""
+        async with self._lock:
+            entry = self._queues.get(session_id)
+            if entry is None:
+                return []
+            if run_id in entry.active_runs:
+                entry.sealed_runs.add(run_id)
+            return await entry.queue.get_pending()
 
     async def heartbeat_run(self, session_id: str, run_id: str) -> None:
         """续期单个持有者的心跳；已释放（不在册）的 run 不会被加回去。"""
@@ -342,34 +336,6 @@ class SteeringQueueManager:
             self._reap_stale_runs(session_id, entry)
             return bool(entry.active_runs)
 
-    async def requeue_if_other_active(
-        self,
-        session_id: str,
-        run_id: str,
-        owner_user_id: str,
-        contents: list[str],
-    ) -> bool:
-        """Atomically requeue messages while another run still owns the session.
-
-        The manager lock intentionally remains held through ``queue.add``.  Without
-        that lifetime guard, the final concurrent run can delete the manager entry
-        after the holder check but before the append, leaving messages on a detached
-        ``SteeringQueue`` object that can never be looked up again.
-        """
-        if not contents:
-            return False
-
-        async with self._lock:
-            entry = self._queues.get(session_id)
-            if entry is None or entry.owner_user_id != owner_user_id:
-                return False
-            self._reap_stale_runs(session_id, entry)
-            if not any(rid != run_id for rid in entry.active_runs):
-                return False
-            for content in contents:
-                await entry.queue.add(content)
-            return True
-
     async def cleanup(self, session_id: str, run_id: str | None = None) -> None:
         """Release a run's hold on the queue; delete only when no runs remain.
 
@@ -381,6 +347,7 @@ class SteeringQueueManager:
                 return
             if run_id is not None:
                 entry.active_runs.pop(run_id, None)
+                entry.sealed_runs.discard(run_id)
                 # 释放时回收僵尸：崩溃残留的持有者不得让「最后一个 run 退出」
                 # 这个判定永远为假（与 _RELEASE_RUN_SCRIPT 同语义）。
                 self._reap_stale_runs(session_id, entry)
@@ -434,6 +401,11 @@ def _msgs_key(session_id: str) -> str:
 
 def _runs_key(session_id: str) -> str:
     return f"steering:runs:{session_id}"
+
+
+def _sealed_key(session_id: str) -> str:
+    # 已做完最后一次 drain 的 run_id 集合（见 drain_and_seal_steering_async）。
+    return f"steering:sealed:{session_id}"
 
 
 def _redis_available_sync() -> bool:
@@ -558,20 +530,6 @@ class RedisSteeringQueue:
         results = pipe.execute()
         return list(results[0] or [])
 
-    async def peek(self) -> list[SteeringMessage]:
-        raws = await asyncio.to_thread(self._peek_sync)
-        return [m for m in (self._deserialize(raw) for raw in raws) if m is not None]
-
-    def _peek_sync(self) -> list[str]:
-        from services.infra.redis_client import get_redis_client
-
-        return list(get_redis_client().lrange(_msgs_key(self.session_id), 0, -1) or [])
-
-    async def clear(self) -> None:
-        from services.infra.redis_client import get_redis_client
-
-        await asyncio.to_thread(lambda: get_redis_client().delete(_msgs_key(self.session_id)))
-
     @staticmethod
     def _deserialize(raw: str) -> SteeringMessage | None:
         try:
@@ -588,48 +546,6 @@ class RedisSteeringQueue:
             processed=True,
             processed_at=datetime.now(),
         )
-
-
-def _redis_create_sync(
-    session_id: str,
-    owner_user_id: str | None,
-    run_id: str | None = None,
-) -> None:
-    from services.infra.redis_client import get_redis_client
-
-    # 注册必须和释放（_RELEASE_RUN_SCRIPT）互相原子：若拆成 SET owner 与
-    # SADD runs 两次 round-trip，另一个 worker 上并发结束的 run 会整段插在
-    # 中间执行释放（SREM → SCARD==0 → DEL owner/msgs/runs），结果本 run 注册
-    # 完成后 runs={本 run} 而 owner 已被删——本 run 剩余时间里所有
-    # POST /agent/steer 都 404（_add_sync/_pop_all_sync 只 EXPIRE，不会重建
-    # owner 键），并且已排队未消费的 steering 消息随 msgs 键一起丢失。
-    # MULTI/EXEC 让释放脚本只能看到「注册前」或「注册后」两种状态。
-    client = get_redis_client()
-    now = time.time()
-    pipe = client.pipeline(transaction=True)
-    if run_id:
-        # 记录持有队列的 run：同一 session 的并发 run 共享 owner/msgs 键，
-        # cleanup 只在最后一个 run 释放时才真正删除（见 _RELEASE_RUN_SCRIPT）。
-        # 先写 runs 再写 owner：即使将来被拆回多条命令，也不会留下
-        # 「owner 已写、runs 未写」这个最坏顺序。
-        # runs 是 ZSET（member=run_id, score=最近一次心跳的 unix 时间），先按
-        # score 清掉僵尸成员再登记自己：崩溃残留的持有者不能把新 run 结束后的
-        # 队列删除挡下来。
-        pipe.zremrangebyscore(_runs_key(session_id), "-inf", now - _RUN_HEARTBEAT_TTL_S)
-        pipe.zadd(_runs_key(session_id), {run_id: now})
-        pipe.expire(_runs_key(session_id), _STEERING_TTL_S)
-    if owner_user_id:
-        # The session owner starts the stream they own (session_id is their
-        # chat_session.id), so binding the owner here is authoritative.
-        pipe.set(_owner_key(session_id), owner_user_id, ex=_STEERING_TTL_S)
-    else:
-        # 调用方不知道 owner 时（get_steering_queue_async）只在键缺失时占位：
-        # nx=True 保证不会把已绑定的真实 owner 降级成空串，否则
-        # get_steering_queue_for_user_async 会跳过 owner 校验并把队列
-        # backfill 给任意请求者。
-        pipe.set(_owner_key(session_id), "", ex=_STEERING_TTL_S, nx=True)
-        pipe.expire(_owner_key(session_id), _STEERING_TTL_S)
-    pipe.execute()
 
 
 _CLAIM_EXCLUSIVE_RUN_SCRIPT: Final[str] = """
@@ -699,24 +615,18 @@ def _redis_get_owner_sync(session_id: str) -> str | None:
     return get_redis_client().get(_owner_key(session_id))
 
 
-def _redis_backfill_owner_sync(session_id: str, user_id: str) -> None:
-    from services.infra.redis_client import get_redis_client
-
-    # xx=True: only set when the key still exists (don't resurrect a cleaned session).
-    get_redis_client().set(_owner_key(session_id), user_id, ex=_STEERING_TTL_S, xx=True)
-
-
-# Lua 脚本保证「移除本 run 的持有 → 回收僵尸持有者 → 判断是否还有其它 run →
-# 删除」在 Redis 端原子执行：非原子的 ZREM/ZCARD/DEL 序列之间，另一个 worker
-# 上的并发 run 可能刚完成注册，会把它正在使用的队列误删。
+# Lua 脚本保证「移除本 run 的持有 → 回收僵尸持有者 → 判断是否已有接管 run →
+# 删除」在 Redis 端原子执行：旧进程停顿超过 TTL 后，新 run 可能已经接管；
+# 旧 run 恢复并释放时不得把新 run 正在使用的队列误删。
 # ARGV[2] 是心跳截止时间：score 不晚于它的成员一定来自被 SIGKILL / 部署重启 /
 # OOM 杀掉的 worker（活着的 run 每次轮询都会续期），必须先清掉，否则 ZCARD
 # 永远大于 0，owner/msgs/runs 三键永不回收。
 _RELEASE_RUN_SCRIPT: Final[str] = """
 redis.call('ZREM', KEYS[1], ARGV[1])
+redis.call('SREM', KEYS[4], ARGV[1])
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
 if redis.call('ZCARD', KEYS[1]) == 0 then
-    redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
+    redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
     return 1
 end
 return 0
@@ -725,27 +635,20 @@ return 0
 # 查询路径上的僵尸回收：曾经有持有者、但全部超时未心跳，说明没有任何 run 会来
 # 消费新的引导消息——此时必须连同 owner/msgs 一起删除，让 POST /agent/steer
 # 如实 404，而不是 200 queued 之后把这条消息滞留给下一次无关的 run。
-# 从未登记过持有者的 session（get_steering_queue_async 建的占位）ZCARD 恒为 0，
-# 提前返回以保持旧语义。
 _REAP_STALE_RUNS_SCRIPT: Final[str] = """
 if redis.call('ZCARD', KEYS[1]) == 0 then
     return 0
 end
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
 if redis.call('ZCARD', KEYS[1]) == 0 then
-    redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
+    redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
     return 1
 end
 return 0
 """
 
 
-# 「除了我自己以外还有几个活跃持有者」——与内存后端的 requeue_if_other_active
-# 同语义。必须整段原子：拆成 ZREMRANGEBYSCORE / ZCARD / ZSCORE 三次 round-trip
-# 时，另一个 worker 上的并发 run 可能正好插在中间完成注册或释放，判定结果既
-# 可能凭空多出一个持有者（消息被交还给已经不存在的 run，滞留到 TTL），也可能
-# 少算一个（消息被结束中的 run 吞进本轮历史）。
-# 与回收脚本不同，这里不删除 owner/msgs 键：调用它时本 run 通常仍持有队列。
+# 查询是否仍有存活持有者。预检传入一个不会存在的 run_id，得到总数是否大于零。
 _COUNT_OTHER_ACTIVE_RUNS_SCRIPT: Final[str] = """
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
 local n = redis.call('ZCARD', KEYS[1])
@@ -754,35 +657,6 @@ if redis.call('ZSCORE', KEYS[1], ARGV[1]) then
 end
 return n
 """
-
-# 把「确认还有其它活跃 run」与「消息重新入队」放在同一个 Redis 原子单元里。
-# 若拆成 COUNT / GET owner / RPUSH 三次 round-trip，最后一个并发 run 可以在
-# GET 与 RPUSH 之间释放并删除 owner/msgs/runs；随后 RPUSH 会只复活 msgs，留下
-# 无 owner、无消费者的孤儿列表，而 service 又会把这些消息从本轮历史中移除。
-#
-# KEYS: runs, owner, msgs
-# ARGV: current_run_id, heartbeat_cutoff, owner_user_id, ttl, payload...
-_REQUEUE_IF_OTHER_ACTIVE_SCRIPT: Final[str] = """
-redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
-local n = redis.call('ZCARD', KEYS[1])
-if redis.call('ZSCORE', KEYS[1], ARGV[1]) then
-    n = n - 1
-end
-if n <= 0 then
-    return 0
-end
-local owner = redis.call('GET', KEYS[2])
-if not owner or owner ~= ARGV[3] then
-    return 0
-end
-for i = 5, #ARGV do
-    redis.call('RPUSH', KEYS[3], ARGV[i])
-end
-redis.call('EXPIRE', KEYS[3], ARGV[4])
-redis.call('EXPIRE', KEYS[2], ARGV[4])
-return 1
-"""
-
 
 def _redis_has_other_active_runs_sync(session_id: str, run_id: str) -> bool:
     from services.infra.redis_client import get_redis_client
@@ -800,58 +674,17 @@ def _redis_has_other_active_runs_sync(session_id: str, run_id: str) -> bool:
         return False
 
 
-def _redis_requeue_if_other_active_sync(
-    session_id: str,
-    run_id: str,
-    owner_user_id: str,
-    contents: list[str],
-) -> bool:
-    """Atomically append ``contents`` only while another run is still active."""
-    from services.infra.redis_client import get_redis_client
-
-    payloads: list[str] = []
-    for content in contents:
-        sanitized = sanitize_steering_content(content)
-        message = SteeringMessage(
-            id=f"steer-{datetime.now().timestamp()}",
-            content=sanitized,
-            created_at=datetime.now(),
-        )
-        payloads.append(
-            json.dumps(
-                {
-                    "id": message.id,
-                    "content": message.content,
-                    "created_at": message.created_at.isoformat(),
-                }
-            )
-        )
-
-    accepted = get_redis_client().eval(
-        _REQUEUE_IF_OTHER_ACTIVE_SCRIPT,
-        3,
-        _runs_key(session_id),
-        _owner_key(session_id),
-        _msgs_key(session_id),
-        run_id,
-        time.time() - _RUN_HEARTBEAT_TTL_S,
-        owner_user_id,
-        _STEERING_TTL_S,
-        *payloads,
-    )
-    return bool(accepted)
-
-
 def _redis_reap_stale_runs_sync(session_id: str) -> bool:
     """回收该 session 的僵尸持有者；返回 True 表示整个 session 已被删除。"""
     from services.infra.redis_client import get_redis_client
 
     reaped = get_redis_client().eval(
         _REAP_STALE_RUNS_SCRIPT,
-        3,
+        4,
         _runs_key(session_id),
         _owner_key(session_id),
         _msgs_key(session_id),
+        _sealed_key(session_id),
         time.time() - _RUN_HEARTBEAT_TTL_S,
     )
     if reaped:
@@ -864,20 +697,144 @@ def _redis_reap_stale_runs_sync(session_id: str) -> bool:
     return bool(reaped)
 
 
+# /agent/steer 的入队：owner 校验、存活判定与 RPUSH 同在一个原子单元。拆开时，
+# 本轮最后一次 drain 之后、释放之前的 RPUSH 会被释放脚本 DEL（接口却回了 200），
+# 释放之后的 RPUSH 会重建 msgs、注入同一 session 的下一轮。
+# 「存活」= 未超时、且没有做完最后一次 drain（不在 sealed 集合）的 run。
+# 返回 1 已入队；0 没有会消费它的 run（404）；-1 owner 不符（403）。
+#
+# KEYS: runs, owner, msgs, sealed
+# ARGV: user_id, heartbeat_cutoff, ttl, payload
+_ENQUEUE_FOR_LIVE_RUN_SCRIPT: Final[str] = """
+if redis.call('ZCARD', KEYS[1]) > 0 then
+    redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
+    if redis.call('ZCARD', KEYS[1]) == 0 then
+        redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
+        return 0
+    end
+end
+local owner = redis.call('GET', KEYS[2])
+if not owner then
+    return 0
+end
+if owner ~= ARGV[1] then
+    return -1
+end
+local live = false
+for _, run in ipairs(redis.call('ZRANGE', KEYS[1], 0, -1)) do
+    if redis.call('SISMEMBER', KEYS[4], run) == 0 then
+        live = true
+        break
+    end
+end
+if not live then
+    return 0
+end
+redis.call('RPUSH', KEYS[3], ARGV[4])
+redis.call('EXPIRE', KEYS[3], ARGV[3])
+redis.call('EXPIRE', KEYS[2], ARGV[3])
+return 1
+"""
+
+# 本 run 最后一次取出引导并封口，与上面的入队脚本互斥：入队要么落在封口前
+# （被这次 drain 取走、随本轮历史落库），要么落在封口后（404）。
+#
+# KEYS: runs, owner, msgs, sealed
+# ARGV: run_id, ttl
+_DRAIN_AND_SEAL_SCRIPT: Final[str] = """
+local msgs = redis.call('LRANGE', KEYS[3], 0, -1)
+redis.call('DEL', KEYS[3])
+if redis.call('ZSCORE', KEYS[1], ARGV[1]) then
+    redis.call('SADD', KEYS[4], ARGV[1])
+    redis.call('EXPIRE', KEYS[4], ARGV[2])
+end
+redis.call('EXPIRE', KEYS[2], ARGV[2])
+return msgs
+"""
+
+
+def _steering_payload(content: str) -> tuple[SteeringMessage, str]:
+    sanitized = sanitize_steering_content(content)
+    message = SteeringMessage(
+        id=f"steer-{datetime.now().timestamp()}",
+        content=sanitized,
+        created_at=datetime.now(),
+    )
+    payload = json.dumps(
+        {
+            "id": message.id,
+            "content": message.content,
+            "created_at": message.created_at.isoformat(),
+        }
+    )
+    return message, payload
+
+
+def _redis_enqueue_for_user_sync(
+    session_id: str, user_id: str, content: str
+) -> SteeringMessage:
+    from services.infra.redis_client import get_redis_client
+
+    message, payload = _steering_payload(content)
+    result = int(
+        get_redis_client().eval(
+            _ENQUEUE_FOR_LIVE_RUN_SCRIPT,
+            4,
+            _runs_key(session_id),
+            _owner_key(session_id),
+            _msgs_key(session_id),
+            _sealed_key(session_id),
+            user_id,
+            time.time() - _RUN_HEARTBEAT_TTL_S,
+            _STEERING_TTL_S,
+            payload,
+        )
+    )
+    if result == -1:
+        raise PermissionError(
+            f"Steering session {session_id} does not belong to user {user_id}"
+        )
+    if result != 1:
+        raise KeyError(session_id)
+    return message
+
+
+def _redis_drain_and_seal_sync(session_id: str, run_id: str) -> list[str]:
+    from services.infra.redis_client import get_redis_client
+
+    raws = get_redis_client().eval(
+        _DRAIN_AND_SEAL_SCRIPT,
+        4,
+        _runs_key(session_id),
+        _owner_key(session_id),
+        _msgs_key(session_id),
+        _sealed_key(session_id),
+        run_id,
+        _STEERING_TTL_S,
+    )
+    return list(raws or [])
+
+
 def _redis_cleanup_sync(session_id: str, run_id: str | None = None) -> None:
     from services.infra.redis_client import get_redis_client
 
     client = get_redis_client()
     if not run_id:
         # 旧语义：无条件删除（测试/运维路径）。
-        client.delete(_owner_key(session_id), _msgs_key(session_id), _runs_key(session_id))
+        client.delete(
+            _owner_key(session_id),
+            _msgs_key(session_id),
+            _runs_key(session_id),
+            _sealed_key(session_id),
+        )
         return
     client.eval(
         _RELEASE_RUN_SCRIPT,
-        3,
+        4,
         _runs_key(session_id),
         _owner_key(session_id),
         _msgs_key(session_id),
+        _sealed_key(session_id),
         run_id,
         time.time() - _RUN_HEARTBEAT_TTL_S,
     )
@@ -887,50 +844,24 @@ def _redis_cleanup_sync(session_id: str, run_id: str | None = None) -> None:
 _queue_manager = SteeringQueueManager()
 
 
-async def get_steering_queue_async(session_id: str) -> Any:
-    """Get or create steering queue for a session (async version).
-
-    不绑定 owner：仅在 owner 键缺失时占位，已绑定的 owner 保持不变。生产入口
-    请用 create_steering_queue_async（写入真实 owner）或
-    get_steering_queue_for_user_async（校验 owner）。
-    """
-    if await _redis_available():
-        await asyncio.to_thread(_redis_create_sync, session_id, None)
-        return RedisSteeringQueue(session_id)
-    return await _queue_manager.get_queue(session_id)
-
-
 async def create_steering_queue_async(
     session_id: str,
     owner_user_id: str | None,
-    run_id: str | None = None,
-    *,
-    exclusive_run: bool = False,
+    run_id: str,
 ) -> Any:
-    """Create/get queue and bind ownership when available.
-
-    ``exclusive_run`` is used by chat generation: one chat session may have
-    only one active writer so history order and message_count remain coherent.
-    Legacy queue callers keep the multi-holder behavior by default.
-    """
+    """Claim the session's sole generation slot and return its queue."""
     if await _redis_available():
-        if exclusive_run and run_id:
-            await asyncio.to_thread(
-                _redis_claim_exclusive_run_sync,
-                session_id,
-                owner_user_id,
-                run_id,
-            )
-        else:
-            await asyncio.to_thread(
-                _redis_create_sync, session_id, owner_user_id, run_id
-            )
+        await asyncio.to_thread(
+            _redis_claim_exclusive_run_sync,
+            session_id,
+            owner_user_id,
+            run_id,
+        )
         return RedisSteeringQueue(session_id, run_id=run_id)
-    return await _queue_manager.get_queue(
+    return await _queue_manager.claim_queue(
         session_id,
         owner_user_id=owner_user_id,
         run_id=run_id,
-        exclusive_run=exclusive_run,
     )
 
 
@@ -943,14 +874,48 @@ async def get_steering_queue_for_user_async(session_id: str, user_id: str) -> An
         owner = await asyncio.to_thread(_redis_get_owner_sync, session_id)
         if owner is None:
             raise KeyError(session_id)
-        if owner and owner != user_id:
+        if owner != user_id:
             raise PermissionError(
                 f"Steering session {session_id} does not belong to user {user_id}"
             )
-        if not owner:
-            await asyncio.to_thread(_redis_backfill_owner_sync, session_id, user_id)
         return RedisSteeringQueue(session_id)
     return await _queue_manager.get_queue_for_user(session_id, user_id)
+
+
+async def enqueue_steering_for_user_async(
+    session_id: str, user_id: str, content: str
+) -> SteeringMessage:
+    """POST /agent/steer：只在仍有会消费它的 run 时入队（原子判定）。
+
+    ValueError：内容为空；KeyError：没有会消费它的 run；PermissionError：不是 owner。
+    """
+    if await _redis_available():
+        message = await asyncio.to_thread(
+            _redis_enqueue_for_user_sync, session_id, user_id, content
+        )
+        log_with_context(
+            logger, 20, "Steering message added (redis)",
+            session_id=session_id, message_id=message.id,
+        )
+        return message
+    return await _queue_manager.enqueue_for_user(
+        session_id, user_id, sanitize_steering_content(content)
+    )
+
+
+async def drain_and_seal_steering_async(session_id: str, run_id: str) -> list[SteeringMessage]:
+    """本 run 收尾前最后一次取出引导，同时封口。
+
+    封口后 /agent/steer 对该 run 一律 404（前端退回一般发送），所以已确认
+    queued 的引导要么在这里被取走随本轮落库，要么根本不会被确认。封口不释放
+    独占槽位：新一轮仍按 busy 处理，直到 cleanup_steering_queue_async 释放。
+    """
+    if await _redis_available():
+        raws = await asyncio.to_thread(_redis_drain_and_seal_sync, session_id, run_id)
+        return [
+            m for m in (RedisSteeringQueue._deserialize(raw) for raw in raws) if m is not None
+        ]
+    return await _queue_manager.drain_and_seal(session_id, run_id)
 
 
 async def heartbeat_steering_run_async(session_id: str, run_id: str) -> None:
@@ -972,48 +937,6 @@ async def has_active_runs_async(session_id: str) -> bool:
             "__active-run-preflight__",
         )
     return await _queue_manager.has_active_runs(session_id)
-
-
-async def requeue_steering_if_other_active_async(
-    session_id: str,
-    run_id: str,
-    owner_user_id: str,
-    contents: list[str],
-) -> bool:
-    """Requeue messages iff another active run can consume them.
-
-    The holder decision and append are one atomic lifetime operation on both
-    backends. ``False`` tells the caller to retain the messages in this run's
-    history instead of discarding them.
-    """
-    if not contents or not run_id or not owner_user_id:
-        return False
-    if await _redis_available():
-        accepted = await asyncio.to_thread(
-            _redis_requeue_if_other_active_sync,
-            session_id,
-            run_id,
-            owner_user_id,
-            contents,
-        )
-    else:
-        accepted = await _queue_manager.requeue_if_other_active(
-            session_id,
-            run_id,
-            owner_user_id,
-            contents,
-        )
-
-    if accepted:
-        log_with_context(
-            logger,
-            20,  # INFO
-            "Steering messages handed back to concurrent run",
-            session_id=session_id,
-            run_id=run_id,
-            count=len(contents),
-        )
-    return accepted
 
 
 async def cleanup_steering_queue_async(session_id: str, run_id: str | None = None) -> None:

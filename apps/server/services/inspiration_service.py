@@ -15,6 +15,7 @@ from sqlalchemy.orm import InstrumentedAttribute, defer
 from sqlmodel import Session, col, func, or_, select
 
 from config.datetime_utils import utcnow
+from config.project_notes import without_legacy_proposals
 from models.entities import Project, User
 from models.file_model import File
 from models.inspiration import Inspiration
@@ -67,7 +68,7 @@ def create_inspiration_from_project(
         "project_summary": project.summary,
         "project_current_phase": project.current_phase,
         "project_writing_style": project.writing_style,
-        "project_notes": project.notes,
+        "project_notes": without_legacy_proposals(project.notes),
         "files": [],
     }
 
@@ -147,7 +148,7 @@ def copy_inspiration_to_project(
         summary=snapshot.get("project_summary"),
         current_phase=snapshot.get("project_current_phase"),
         writing_style=snapshot.get("project_writing_style"),
-        notes=snapshot.get("project_notes"),
+        notes=without_legacy_proposals(snapshot.get("project_notes")),
     )
     session.add(project)
     from services.first_work_service import consume_for_author_project

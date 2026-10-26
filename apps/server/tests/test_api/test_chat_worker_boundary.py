@@ -144,17 +144,14 @@ async def _exercise(tmp_path, monkeypatch, record_property, operation, *, foreig
 
 def test_dedicated_new_chat_helper_commits_archival_and_preserves_old_history(tmp_path, monkeypatch):
     """Exercise the same owning helper against an actual isolated partial index."""
-    from sqlalchemy import text
-
     import api.chat as chat_api
 
     path = tmp_path / "new-chat-helper.db"
     engine = create_engine(f"sqlite:///{path}")
     user_id, project_id, old_id, message_id = [uuid4().hex for _ in range(4)]
     try:
+        # The model declares uq_chat_session_user_project_active, so create_all builds the partial index.
         SQLModel.metadata.create_all(engine, tables=[User.__table__, Project.__table__, ChatSession.__table__, ChatMessage.__table__])
-        with engine.begin() as connection:
-            connection.execute(text("CREATE UNIQUE INDEX uq_chat_session_user_project_active ON chat_session(user_id, project_id) WHERE is_active = true"))
         with Session(engine) as seed:
             seed.add(User(id=user_id, username="helper-" + user_id, email=user_id + "@example.test", hashed_password="synthetic", is_active=True))
             seed.add(Project(id=project_id, owner_id=user_id, name="Owned helper proof"))

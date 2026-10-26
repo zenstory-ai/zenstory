@@ -12,10 +12,11 @@ import os
 from typing import Any
 
 from sqlalchemy import desc
-from sqlmodel import Session, and_, select
+from sqlmodel import Session, select
 
 from database import create_session
 from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST
+from services.chat_session_service import latest_active_chat_session
 from services.usage.llm_usage_service import LLMUsageAttribution
 from utils.logger import get_logger, log_with_context
 
@@ -330,7 +331,7 @@ class SuggestService:
         Returns:
             List of message dicts with role and content
         """
-        from models import ChatMessage, ChatSession, Project
+        from models import ChatMessage, Project
 
         # Validate project
         project = session.get(Project, project_id)
@@ -349,49 +350,11 @@ class SuggestService:
             )
             return []
 
-        # Find active session deterministically (newest first).
-        session_stmt = (
-            select(ChatSession)
-            .where(
-                and_(
-                    ChatSession.project_id == project_id,
-                    ChatSession.is_active,
-                )
-            )
-            .order_by(
-                desc(ChatSession.updated_at),
-                desc(ChatSession.created_at),
-                desc(ChatSession.id),
-            )
+        chat_session = latest_active_chat_session(
+            session, project_id=project_id, user_id=user_id
         )
-        if user_id:
-            session_stmt = session_stmt.where(ChatSession.user_id == user_id)
-
-        active_sessions = session.exec(session_stmt).all()
-        chat_session = active_sessions[0] if active_sessions else None
-
         if not chat_session:
             return []
-
-        # Repair stale multi-active states defensively.
-        if len(active_sessions) > 1:
-            stale_count = 0
-            for stale in active_sessions[1:]:
-                if stale.is_active:
-                    stale.is_active = False
-                    session.add(stale)
-                    stale_count += 1
-            if stale_count > 0:
-                session.commit()
-                log_with_context(
-                    logger,
-                    logging.WARNING,
-                    "Suggest service detected multiple active chat sessions; stale sessions deactivated",
-                    project_id=project_id,
-                    user_id=user_id,
-                    kept_session_id=chat_session.id,
-                    stale_count=stale_count,
-                )
 
         # Get recent messages
         stmt = (

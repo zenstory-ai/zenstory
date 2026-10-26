@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from services.auth import get_current_active_user
 from sqlalchemy import delete, desc
 from sqlalchemy.orm import load_only
-from sqlmodel import Session, and_, func, select
+from sqlmodel import Session, func, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -23,7 +23,7 @@ from core.error_handler import APIException
 from database import create_session, get_session
 from models import ChatMessage, ChatSession, Project, User
 from services.chat_feedback_service import chat_feedback_service
-from services.chat_session_service import lock_active_chat_session
+from services.chat_session_service import latest_active_chat_session, lock_active_chat_session
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access_sync
 
@@ -94,22 +94,8 @@ def _list_active_sessions(
     project_id: str,
     user_id: str,
 ) -> list[ChatSession]:
-    stmt = (
-        select(ChatSession)
-        .where(
-            and_(
-                ChatSession.project_id == project_id,
-                ChatSession.user_id == user_id,
-                ChatSession.is_active,
-            )
-        )
-        .order_by(
-            desc(ChatSession.updated_at),
-            desc(ChatSession.created_at),
-            desc(ChatSession.id),
-        )
-    )
-    return session.exec(stmt).all()
+    active = latest_active_chat_session(session, project_id=project_id, user_id=user_id)
+    return [active] if active is not None else []
 
 
 def _create_new_session_sync(
@@ -204,25 +190,6 @@ def get_or_create_session(
         session.commit()
         session.refresh(chat_session)
     else:
-        if len(active_sessions) > 1:
-            stale_count = 0
-            for stale in active_sessions[1:]:
-                if stale.is_active:
-                    stale.is_active = False
-                    session.add(stale)
-                    stale_count += 1
-            if stale_count > 0:
-                session.commit()
-            log_with_context(
-                logger,
-                30,  # WARNING
-                "Multiple active chat sessions detected; stale sessions deactivated",
-                project_id=project_id,
-                user_id=user_id,
-                kept_session_id=chat_session.id,
-                stale_count=stale_count,
-            )
-
         log_with_context(
             logger,
             20,  # INFO

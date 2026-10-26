@@ -135,12 +135,13 @@ def test_insert_after_refuses_instead_of_landing_on_chapter_title(editor):
     applied: list[dict] = []
     warnings: list[str] = []
     with pytest.raises(ValueError, match="找不到插入锚点"):
-        editor._apply_insert_after(
+        editor._apply_insert(
             _BUG21_CONTENT,
             {"op": "insert_after", "anchor": _BUG21_ANCHOR, "text": "\n\n他回望院子。"},
             0,
             applied,
             warnings,
+            after=True,
         )
     assert applied == []
 
@@ -148,12 +149,13 @@ def test_insert_after_refuses_instead_of_landing_on_chapter_title(editor):
 def test_insert_before_refuses_instead_of_landing_on_chapter_title(editor):
     """insert_before 走同一条兜底链路，同样不得被短标题骗到。"""
     with pytest.raises(ValueError, match="找不到插入锚点"):
-        editor._apply_insert_before(
+        editor._apply_insert(
             _BUG21_CONTENT,
             {"op": "insert_before", "anchor": _BUG21_ANCHOR, "text": "X"},
             0,
             [],
             [],
+            after=False,
         )
 
 
@@ -183,8 +185,8 @@ def test_fuzzy_paragraph_reports_confidence_and_fallback(editor):
     anchor = target.replace("推门而出", "排门而出")
     applied: list[dict] = []
 
-    result = editor._apply_insert_after(
-        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, []
+    result = editor._apply_insert(
+        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, [], after=True
     )
 
     assert result == content.replace(target, target + "【新增】")
@@ -193,6 +195,55 @@ def test_fuzzy_paragraph_reports_confidence_and_fallback(editor):
     assert detail["match_mode"] == "fuzzy_paragraph"
     assert detail["fallback"] is True
     assert 0.9 <= detail["confidence"] < 1.0
+
+
+@pytest.mark.parametrize("op", ["insert_after", "insert_before"])
+def test_fuzzy_paragraph_fallback_rejects_occurrence_beyond_one(editor, op):
+    """F-15：段落兜底只会找到唯一一段。模型点名第 2 处说明它以为文中有多处，
+    此时插到这唯一一段就是插错位置，必须和近似匹配一样报越界、正文不动。"""
+    content, target = _long_content_forcing_paragraph_fallback()
+    anchor = target.replace("推门而出", "排门而出")
+    applied: list[dict] = []
+
+    with pytest.raises(ValueError, match=r"occurrence out of range \(1\.\.1\)"):
+        editor._apply_insert(
+            content,
+            {"op": op, "anchor": anchor, "text": "【新增】", "occurrence": 2},
+            0,
+            applied,
+            [],
+            after=op == "insert_after",
+        )
+    assert applied == []
+
+
+def test_fuzzy_paragraph_fallback_finds_a_line_in_a_single_newline_file(editor):
+    """F-25：只用单个换行分段的文件，以前整篇被当成一段，段落兜底永远失败。"""
+    filler = "\n".join(_plain_content(200) for _ in range(30))
+    target = "天亮时林风背上行囊推门而出走进濛濛细雨里再没有回头看那座空荡荡的院子"
+    content = filler + "\n" + target + "\n" + "雨一直没有停。"
+    assert len(normalize_for_fuzzy_match(content)[0]) > 5000
+    anchor = target.replace("推门而出", "排门而出")
+    applied: list[dict] = []
+
+    result = editor._apply_insert(
+        content, {"op": "insert_after", "anchor": anchor, "text": "【新增】"}, 0, applied, [], after=True
+    )
+
+    assert result == content.replace(target, target + "【新增】")
+    assert applied[0]["match_mode"] == "fuzzy_paragraph"
+
+
+def test_suggest_similar_lines_lists_lines_of_a_single_newline_file():
+    """F-25：建议按行给出最像的那一行，而不是把整篇压成一条。"""
+    content = "第一行是开头。\n林风背上行囊推门而出走进濛濛细雨里再没有回头看。\n第三行是结尾。"
+    suggestions = suggest_similar_lines(content, "林风背上行囊排门而出走进细雨里")
+    assert suggestions[0] == "林风背上行囊推门而出走进濛濛细雨里再没有回头看。"
+
+
+def test_suggest_similar_lines_drops_unrelated_paragraphs():
+    """F-25：与 old/anchor 毫不相干的段落不作为候选片段（相似度下限）。"""
+    assert suggest_similar_lines("甲乙丙丁\n\n戊己庚辛", "完全无关的句子内容") == []
 
 
 def test_suggest_similar_lines_does_not_rank_short_title_first():

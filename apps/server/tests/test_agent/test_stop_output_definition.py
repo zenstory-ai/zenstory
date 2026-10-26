@@ -262,6 +262,25 @@ def test_deadline_after_only_reads_is_refunded_but_after_a_reply_is_charged():
     assert _deadline(replied) == ("run_deadline_exceeded", False)
 
 
+@pytest.mark.parametrize("server_restarting", [False, True])
+def test_deadline_that_fires_after_done_settles_as_completed(server_restarting):
+    """done 帧已经产生之后才到的时限（或发布交接）：这一轮已经正常结束，按完成结算，不退还。"""
+    tracker = _tracker(_sse("done", {}))
+
+    assert tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        deadline_exceeded=True,
+        server_restarting=server_restarting,
+    ) == ("completed", False)
+
+
+def test_deadline_after_a_terminal_error_still_follows_the_deadline_rules():
+    tracker = _tracker(_error())
+
+    assert _deadline(tracker) == ("run_deadline_exceeded", True)
+
+
 def test_english_narration_is_not_prose_but_an_english_answer_is():
     """英文一句过渡旁白有六七十个字母，按字母数会被当成回复；按单词折算后与中文同一口径。"""
     narration = (
@@ -332,6 +351,23 @@ def test_completed_write_subtask_of_an_interrupted_parallel_batch_is_output(deci
     assert tracker.produced_output is True
     assert tracker.write_succeeded is True
     assert decide(tracker)[1] is False
+
+
+def test_partially_applied_parallel_edit_is_output():
+    """partial 子任务的改动已经落地：与旧执行器把它记成 completed 时一样算产出。"""
+    streamed = _tracker(_task_start("t1", "edit_file"), _task_end("t1", status="partial"))
+    assert streamed.produced_output is True
+    batch = _tracker(
+        _sse(
+            "tool_result",
+            {
+                "tool_name": "parallel_execute",
+                "status": "success",
+                "data": {"tasks": [{"type": "edit_file", "status": "partial"}]},
+            },
+        )
+    )
+    assert batch.produced_output is True
 
 
 def test_parallel_lookups_or_failed_write_subtasks_are_not_output():

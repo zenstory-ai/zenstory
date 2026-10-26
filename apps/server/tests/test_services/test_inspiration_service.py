@@ -276,6 +276,24 @@ class TestCopyInspirationToProject:
         assert project.owner_id == test_user.id
         assert project.project_type == test_inspiration.project_type
 
+    def test_copy_drops_legacy_proposal_block_from_old_snapshot(
+        self, db_session: Session, test_inspiration, test_user
+    ):
+        """Snapshots taken before the proposal removal may still carry the legacy block."""
+        snapshot = json.loads(test_inspiration.snapshot_data)
+        snapshot["project_notes"] = "作者约定\n\n【AI 提议·待作者确认】\n旧提议"
+        test_inspiration.snapshot_data = json.dumps(snapshot, ensure_ascii=False)
+        db_session.add(test_inspiration)
+        db_session.commit()
+
+        project = copy_inspiration_to_project(
+            session=db_session,
+            inspiration=test_inspiration,
+            user=test_user,
+        )
+
+        assert project.notes == "作者约定"
+
     def test_copy_inspiration_with_custom_name(self, db_session: Session, test_inspiration, test_user):
         """Test copying inspiration with custom project name."""
         custom_name = "My Custom Project"

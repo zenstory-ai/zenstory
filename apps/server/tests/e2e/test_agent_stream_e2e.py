@@ -294,7 +294,7 @@ async def test_agent_steer_enqueues_message_for_owned_runtime_session(client: As
     from agent.core.steering import (
         cleanup_steering_queue_async,
         create_steering_queue_async,
-        get_steering_queue_async,
+        get_steering_queue_for_user_async,
     )
 
     user, token, _ = await _create_user_login_project(
@@ -305,7 +305,8 @@ async def test_agent_steer_enqueues_message_for_owned_runtime_session(client: As
 
     session_id = "agent-e2e-steer-runtime"
     await cleanup_steering_queue_async(session_id)
-    await create_steering_queue_async(session_id, user.id)
+    # /steer 只把消息确认给仍在生成的 run：登记一个存活 run。
+    await create_steering_queue_async(session_id, user.id, run_id="live-run")
 
     try:
         response = await client.post(
@@ -318,7 +319,7 @@ async def test_agent_steer_enqueues_message_for_owned_runtime_session(client: As
         body = response.json()
         assert body["queued"] is True
 
-        queue = await get_steering_queue_async(session_id)
+        queue = await get_steering_queue_for_user_async(session_id, str(user.id))
         pending = await queue.get_pending()
         assert len(pending) == 1
         assert pending[0].content == "Focus on chapter two pacing"

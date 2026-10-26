@@ -325,13 +325,14 @@ class TestSessionLoaderHistoryBudget:
             "details": ["主角姓名", "时代背景"],
         }
 
-    def test_load_chat_session_prefers_latest_active_and_deactivates_stale(
+    def test_load_chat_session_selects_latest_without_mutating_legacy_sessions(
         self,
         db_session: Session,
         session_loader_test_data,
         monkeypatch,
+        legacy_db_without_active_chat_index,
     ):
-        """Should deterministically keep latest active session and deactivate stale ones."""
+        """A legacy database is read deterministically without performing repairs."""
         monkeypatch.setattr("agent.core.session_loader.AGENT_CHAT_HISTORY_TOKEN_BUDGET", 100)
         user = session_loader_test_data["user"]
         project = session_loader_test_data["project"]
@@ -396,8 +397,86 @@ class TestSessionLoaderHistoryBudget:
             )
         ).all()
         active_sessions = [row for row in refreshed if row.is_active]
-        assert len(active_sessions) == 1
-        assert active_sessions[0].id == newer_session.id
+        assert {row.id for row in active_sessions} == {original_session.id, older_session.id, newer_session.id}
+
+    def test_load_chat_session_by_id_reads_that_session_even_if_inactive(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        """按本轮已解析的 id 读：另一个分页刚把它切成非活跃，也不改读最新活跃会话。"""
+        user = session_loader_test_data["user"]
+        project = session_loader_test_data["project"]
+        resolved = session_loader_test_data["chat_session"]
+        resolved.is_active = False
+        db_session.add(resolved)
+        other_tab = ChatSession(
+            user_id=user.id,
+            project_id=project.id,
+            title="Other tab",
+            is_active=True,
+            message_count=0,
+        )
+        db_session.add(other_tab)
+        db_session.commit()
+        db_session.refresh(other_tab)
+        _add_chat_messages(db_session, resolved.id, [{"role": "user", "content": "resolved-user"}])
+        _add_chat_messages(db_session, other_tab.id, [{"role": "user", "content": "other-tab-user"}])
+
+        loader = SessionLoader(project_id=project.id, user_id=user.id)
+        session_data = loader.load_chat_session(db_session, chat_session_id=resolved.id)
+
+        assert session_data.session_id == resolved.id
+        assert [msg["content"] for msg in session_data.history_messages] == ["resolved-user"]
+        # 按 id 读不修改活跃状态
+        db_session.refresh(other_tab)
+        db_session.refresh(resolved)
+        assert other_tab.is_active is True
+        assert resolved.is_active is False
+
+    def test_load_chat_session_by_id_rejects_session_of_other_user_or_project(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        """越权 id：别人的会话、或自己在另一个项目的会话，都不能被读出来。"""
+        user = session_loader_test_data["user"]
+        project = session_loader_test_data["project"]
+
+        suffix = uuid4().hex[:8]
+        stranger = User(
+            email=f"session-loader-stranger-{suffix}@example.com",
+            username=f"session_loader_stranger_{suffix}",
+            hashed_password="hashed",
+            email_verified=True,
+            is_active=True,
+        )
+        db_session.add(stranger)
+        db_session.commit()
+        other_project = Project(name=f"Other {suffix}", owner_id=user.id, project_type="novel")
+        db_session.add(other_project)
+        db_session.commit()
+        foreign_sessions = [
+            ChatSession(user_id=stranger.id, project_id=project.id, title="stranger", is_active=True),
+            ChatSession(user_id=user.id, project_id=other_project.id, title="other project", is_active=True),
+        ]
+        for foreign in foreign_sessions:
+            db_session.add(foreign)
+            db_session.commit()
+            db_session.refresh(foreign)
+            _add_chat_messages(db_session, foreign.id, [{"role": "user", "content": "foreign-secret"}])
+
+        loader = SessionLoader(project_id=project.id, user_id=user.id)
+        for foreign in foreign_sessions:
+            session_data = loader.load_chat_session(db_session, chat_session_id=foreign.id)
+            assert session_data.chat_session is None
+            assert session_data.session_id is None
+            assert session_data.history_messages == []
+            assert session_data.working_set_refs == []
+
+        missing = loader.load_chat_session(db_session, chat_session_id="no-such-session")
+        assert missing.chat_session is None
+        assert missing.history_messages == []
 
     def test_load_chat_session_handles_long_history_over_100_turns(
         self,
@@ -786,7 +865,12 @@ class TestCrossTurnWorkingSet:
                         ]
                     },
                     "status": "success",
-                    "result": {"tasks": [{"status": "completed"}, {"status": "completed"}]},
+                    "result": {
+                        "tasks": [
+                            {"index": 0, "params": {"id": character.id}, "type": "query_files", "status": "completed"},
+                            {"index": 1, "params": {"id": chapter.id}, "type": "edit_file", "status": "completed"},
+                        ]
+                    },
                 },
             ],
             at=base + timedelta(minutes=2),
@@ -822,6 +906,63 @@ class TestCrossTurnWorkingSet:
         user_content = SessionLoader.attach_working_set_to_user_content("继续", text)
         assert user_content.startswith("<previous_turn_working_set>")
         assert user_content.endswith("【本轮用户消息】\n继续")
+
+    def test_unexecuted_or_unknown_deletes_keep_files_in_the_working_set(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        """parallel_execute 截掉的尾部 delete、没有结果的 delete：文件没删，不能从工作集里拿掉。"""
+        project = session_loader_test_data["project"]
+        chat_session_id = session_loader_test_data["chat_session"].id
+        files = [self._make_file(db_session, project.id, f"草稿{i}", f"草稿{i}正文") for i in range(7)]
+        pending_target = self._make_file(db_session, project.id, "待删设定", "待删设定正文")
+
+        base = datetime.utcnow() - timedelta(minutes=10)
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="读一下这些草稿",
+            tool_calls=[_query_call(file.id, file.title) for file in [*files, pending_target]],
+            at=base,
+        )
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="删掉这些草稿",
+            tool_calls=[
+                {
+                    "id": "c_p",
+                    "name": "parallel_execute",
+                    "arguments": {
+                        "tasks": [{"type": "delete_file", "params": {"id": file.id}} for file in files]
+                    },
+                    "status": "success",
+                    "result": {
+                        "tasks": [
+                            {
+                                "index": i,
+                                "params": {"id": file.id},
+                                "type": "delete_file",
+                                "status": "completed",
+                                "result": {"status": "success", "data": True},
+                            }
+                            for i, file in enumerate(files[:5])
+                        ],
+                        "dropped": 2,
+                    },
+                },
+                {"id": "c_d", "name": "delete_file", "arguments": {"id": pending_target.id}, "status": "pending"},
+            ],
+            at=base + timedelta(minutes=1),
+        )
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        result = loader.load_chat_session(db_session)
+        ref_ids = {ref["file_id"] for ref in result.working_set_refs}
+
+        assert not ref_ids & {file.id for file in files[:5]}
+        assert {files[5].id, files[6].id, pending_target.id} <= ref_ids
 
     def test_working_set_marks_chapters_the_author_edited_after_the_ai(
         self,
@@ -996,169 +1137,48 @@ def test_history_window_start_does_not_slide_every_turn():
     assert moves < len(starts) // 2
 
 
-def _update_project_call(
-    proposals_added: list[str] | None,
-    *,
-    status: str = "success",
-    error: str | None = None,
-    proposals_removed: list[str] | None = None,
-) -> dict:
-    result: dict = {"project_id": "p", "updated_fields": ["notes"]}
-    if proposals_added is not None:
-        result["proposals_added"] = proposals_added
-    if proposals_removed is not None:
-        result["proposals_removed"] = proposals_removed
-    return {
-        "id": f"call_up_{uuid4().hex[:6]}",
-        "name": "update_project",
-        "arguments": {"proposals": "；".join(proposals_added or [])},
-        "status": status,
-        "result": result,
-        "error": error,
-    }
-
-
 @pytest.mark.unit
-class TestEarlierProposalsForIgnoredBlock:
-    """作者在卡片上忽略的提议：下一轮从本会话早先的 update_project 结果里找回来，告诉模型别再加。"""
+@pytest.mark.asyncio
+async def test_history_with_removed_proposal_tool_results_still_loads(
+    db_session: Session,
+    session_loader_test_data,
+):
+    """Chats from before the AI-proposal removal keep update_project results with proposal fields."""
+    from agent.context.assembler import ContextAssembler
 
-    def test_collects_proposals_added_from_recent_update_project_results(
-        self,
-        db_session: Session,
-        session_loader_test_data,
-    ):
-        chat_session_id = session_loader_test_data["chat_session"].id
-        base = datetime.utcnow() - timedelta(minutes=10)
-        _add_turn(
-            db_session,
-            chat_session_id,
-            user_text="记一下配角",
-            tool_calls=[_update_project_call(["关键配角：沈度", "女主前期隐藏身份"])],
-            at=base,
-        )
-        _add_turn(
-            db_session,
-            chat_session_id,
-            user_text="继续",
-            tool_calls=[
-                _update_project_call(None),  # 没有新增提议的调用
-                _update_project_call(["失败的不算"], status="error"),
-                _query_call("f", "第一章"),
-                _update_project_call(["反派第20章揭露"]),
-            ],
-            at=base + timedelta(minutes=1),
-        )
+    project = session_loader_test_data["project"]
+    project.notes = "【作者确认】\n女主前期隐藏身份\n\n【AI 提议·待作者确认】\n关键配角：沈度"
+    db_session.add(project)
+    db_session.commit()
+    old_result = {
+        "status": "success",
+        "data": {
+            "project_id": project.id,
+            "updated_fields": ["notes"],
+            "proposals_added": ["关键配角：沈度"],
+            "proposals_removed": ["沈度是配角"],
+            "notes_recorded_as_proposals": ["关键配角：沈度"],
+            "notes_note": "已记在备注的「AI 提议·待作者确认」里",
+        },
+    }
+    _add_turn(
+        db_session,
+        session_loader_test_data["chat_session"].id,
+        user_text="记一下配角",
+        tool_calls=[{
+            "id": "call_up_old",
+            "name": "update_project",
+            "arguments": {"proposals": "关键配角：沈度"},
+            "status": "success",
+            "result": old_result,
+        }],
+        at=datetime.utcnow() - timedelta(minutes=5),
+    )
 
-        loader = SessionLoader(
-            project_id=session_loader_test_data["project"].id,
-            user_id=session_loader_test_data["user"].id,
-        )
-        result = loader.load_chat_session(db_session)
+    loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+    result = await loader.load_session_and_context(db_session, ContextAssembler(), query="继续")
 
-        assert result.earlier_proposals == ["关键配角：沈度", "女主前期隐藏身份", "反派第20章揭露"]
-
-    def test_window_is_bounded_to_recent_assistant_turns(
-        self,
-        db_session: Session,
-        session_loader_test_data,
-    ):
-        from agent.core.session_loader import EARLIER_PROPOSALS_RECENT_TURNS
-
-        chat_session_id = session_loader_test_data["chat_session"].id
-        base = datetime.utcnow() - timedelta(hours=1)
-        for turn in range(EARLIER_PROPOSALS_RECENT_TURNS + 1):
-            _add_turn(
-                db_session,
-                chat_session_id,
-                user_text=f"t{turn}",
-                tool_calls=[_update_project_call([f"第{turn}轮提议"])],
-                at=base + timedelta(minutes=turn),
-            )
-
-        loader = SessionLoader(
-            project_id=session_loader_test_data["project"].id,
-            user_id=session_loader_test_data["user"].id,
-        )
-        earlier = loader.load_chat_session(db_session).earlier_proposals
-
-        assert len(earlier) == EARLIER_PROPOSALS_RECENT_TURNS
-        assert "第0轮提议" not in earlier
-        assert earlier[-1] == f"第{EARLIER_PROPOSALS_RECENT_TURNS}轮提议"
-
-    @pytest.mark.asyncio
-    async def test_ignored_proposal_reaches_the_turn_context(
-        self,
-        db_session: Session,
-        session_loader_test_data,
-    ):
-        from agent.context.assembler import ContextAssembler
-
-        project = session_loader_test_data["project"]
-        project.notes = "【作者确认】\n女主前期隐藏身份"
-        db_session.add(project)
-        db_session.commit()
-        _add_turn(
-            db_session,
-            session_loader_test_data["chat_session"].id,
-            user_text="记一下配角",
-            tool_calls=[_update_project_call(["关键配角：沈度", "女主前期隐藏身份"])],
-            at=datetime.utcnow() - timedelta(minutes=5),
-        )
-
-        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
-        result = await loader.load_session_and_context(db_session, ContextAssembler(), query="继续")
-        context = result.context_data.context
-
-        block = context[context.index("【备注·作者已忽略的 AI 提议】"):]
-        assert "关键配角：沈度" in block
-        assert "女主前期隐藏身份" not in block  # 已被采纳
-
-    def test_partial_update_project_result_counts(
-        self,
-        db_session: Session,
-        session_loader_test_data,
-    ):
-        # 计划板被拒但备注已保存：StreamAdapter 记成 success 并带 error 文案，提议照样算。
-        _add_turn(
-            db_session,
-            session_loader_test_data["chat_session"].id,
-            user_text="记一下",
-            tool_calls=[_update_project_call(["萧昀登基"], error="任务计划板未更新：步骤缺少标题")],
-            at=datetime.utcnow() - timedelta(minutes=5),
-        )
-
-        loader = SessionLoader(
-            project_id=session_loader_test_data["project"].id,
-            user_id=session_loader_test_data["user"].id,
-        )
-        assert loader.load_chat_session(db_session).earlier_proposals == ["萧昀登基"]
-
-    def test_model_replaced_proposal_is_subtracted(
-        self,
-        db_session: Session,
-        session_loader_test_data,
-    ):
-        chat_session_id = session_loader_test_data["chat_session"].id
-        base = datetime.utcnow() - timedelta(minutes=10)
-        _add_turn(
-            db_session,
-            chat_session_id,
-            user_text="记一下配角",
-            tool_calls=[_update_project_call(["沈度是配角"])],
-            at=base,
-        )
-        _add_turn(
-            db_session,
-            chat_session_id,
-            user_text="再准确点",
-            tool_calls=[
-                _update_project_call(["沈度是关键配角，掌司礼监"], proposals_removed=["沈度是配角"])
-            ],
-            at=base + timedelta(minutes=1),
-        )
-
-        loader = SessionLoader(
-            project_id=session_loader_test_data["project"].id,
-            user_id=session_loader_test_data["user"].id,
-        )
-        assert loader.load_chat_session(db_session).earlier_proposals == ["沈度是关键配角，掌司礼监"]
+    assert any(message.get("role") == "user" and "记一下配角" in str(message.get("content")) for message in result.history_messages)
+    context = result.context_data.context
+    assert "女主前期隐藏身份" in context
+    assert "作者已忽略" not in context and "【备注·AI 提议" not in context

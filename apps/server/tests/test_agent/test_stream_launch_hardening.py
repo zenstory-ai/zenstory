@@ -481,18 +481,18 @@ async def test_memory_heartbeat_keeps_run_alive_and_zombie_expires(monkeypatch):
     session_id = "sess-heartbeat-ttl"
     await st.cleanup_steering_queue_async(session_id)
     try:
-        await st.create_steering_queue_async(session_id, "u1", run_id="run-live", exclusive_run=True)
+        await st.create_steering_queue_async(session_id, "u1", run_id="run-live")
         entry = st._queue_manager._queues[session_id]
 
         # 心跳把持有续到当前时间：即便注册时间已经很老，也不会被判为僵尸。
         entry.active_runs["run-live"] -= st._RUN_HEARTBEAT_TTL_S + 30
         await st.heartbeat_steering_run_async(session_id, "run-live")
         with pytest.raises(st.SteeringSessionBusyError):
-            await st.create_steering_queue_async(session_id, "u1", run_id="run-next", exclusive_run=True)
+            await st.create_steering_queue_async(session_id, "u1", run_id="run-next")
 
         # 进程被杀、心跳停止：超过 TTL（90 秒级，而不是 1 小时）后新 run 可以接管。
         entry.active_runs["run-live"] -= st._RUN_HEARTBEAT_TTL_S + 1
-        await st.create_steering_queue_async(session_id, "u1", run_id="run-next", exclusive_run=True)
+        await st.create_steering_queue_async(session_id, "u1", run_id="run-next")
     finally:
         await st.cleanup_steering_queue_async(session_id)
 
@@ -511,7 +511,7 @@ async def test_heartbeat_does_not_resurrect_released_run(monkeypatch):
     monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
     monkeypatch.setattr(st, "_redis_is_healthy", False)
     session_id = "sess-heartbeat-released"
-    await st.create_steering_queue_async(session_id, "u1", run_id="run-a", exclusive_run=True)
+    await st.create_steering_queue_async(session_id, "u1", run_id="run-a")
     await st.cleanup_steering_queue_async(session_id, run_id="run-a")
 
     await st.heartbeat_steering_run_async(session_id, "run-a")

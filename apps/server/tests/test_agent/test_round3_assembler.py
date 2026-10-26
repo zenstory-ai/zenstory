@@ -303,8 +303,6 @@ class TestInventoryHeaderBudget:
         self, db_session, owner, make_project, make_file
     ):
         """生产事故回归：条目只给标题 + 结尾裸 "..."，模型分不清是否全文，反复重读。"""
-        from agent.context.assembler import FULL_TEXT_CONTEXT_NOTICE
-
         project = make_project()
         focus = make_file(
             project, "第9章", "draft", content="他抬起头。\n\n远处有光。" * 600, order=9
@@ -321,7 +319,10 @@ class TestInventoryHeaderBudget:
         )
 
         lines = result.context.splitlines()
-        assert FULL_TEXT_CONTEXT_NOTICE in lines
+        # 模型只经快照路径看到上下文（按 blocks）：整段 context 里不能有 blocks 之外、永远送不到模型的行
+        # （原先的「相关内容详情」段头与 [全文] 读取约定就是这样，规则在系统提示里）。
+        block_lines = {line for block in result.blocks for line in block["text"].splitlines()}
+        assert [line for line in lines if line.strip() and line not in block_lines] == []
 
         focus_item = next(item for item in result.items if item["id"] == focus.id)
         assert focus_item["metadata"]["truncated"] is True

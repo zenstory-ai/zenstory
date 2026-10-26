@@ -29,9 +29,7 @@ from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.state import WritingState
 from agent.openai_agents.events import (
     build_handoff_packet,
-    extract_artifact_refs,
     mcp_text_result,
-    merge_unique_strings,
     normalize_str_list,
     parse_json_object,
     tool_error_text,
@@ -39,7 +37,6 @@ from agent.openai_agents.events import (
 from agent.openai_agents.model import build_failover_chat_model
 from agent.openai_agents.repeat_read_guard import (
     NO_PROGRESS_STOP_REASON,
-    NO_PROGRESS_STOP_TOTAL,
     RepeatReadGuard,
 )
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker, _parse_error_payload
@@ -341,7 +338,7 @@ def extract_text_from_message_content(content: Any) -> str:
         # tool calls/results as plain prose would inject raw tool JSON (file ids, arguments)
         # into the next agent as if the *user* had said it, degrading instruction-following.
         # Cross-agent continuity is instead carried by the structured handoff packet
-        # (context / completed / artifact_refs) and the refreshed file inventory, which also
+        # (context / completed / todo / evidence) and the refreshed file inventory, which also
         # avoids any orphaned-tool_call_id risk from replaying partial structured tool turns.
         # thinking/reasoning blocks are likewise omitted (persisted for UI/history only).
 
@@ -830,10 +827,8 @@ async def run_openai_agents_streaming_agent(
     assistant_text_parts: list[str] = []
     thinking_text_parts: list[str] = []
     tool_uses: list[dict[str, Any]] = []
-    tool_inputs_by_call_id: dict[str, dict[str, Any]] = {}
     tool_names_by_call_id: dict[str, str] = {}
     mid_run_steering: list[str] = []
-    artifact_refs_accumulated: list[str] = []
     handoff_event_data: dict[str, Any] | None = None
     clarification_event_data: dict[str, Any] | None = None
     # 控制流工具已生效：本 run 不应再有新的模型轮次（见 _is_new_model_turn_event）。
@@ -870,17 +865,6 @@ async def run_openai_agents_streaming_agent(
     run_started_at = time.monotonic()
     # 这次 run 正常结束时它完整的 SDK 输入（原输入 + 模型输出与工具结果），供同一 agent 的下一轮接着用。
     completed_items: list[Any] | None = None
-
-    # Read-only co-call instrumentation (item 1.4).
-    # Approximation: within a single assistant turn, the SDK emits all tool_called events
-    # first, then tool_output events (even with max_function_tool_concurrency=1, which
-    # serialises *execution* but not the event ordering for calls batched in one response).
-    # We track per-turn how many read-only tool calls appear before the first tool_output
-    # of that turn; when ≥2 are observed we record a co-call event.  A new "turn" begins
-    # after every tool_output (the model produced a fresh response with new tool requests).
-    _READONLY_TOOLS: frozenset[str] = frozenset({"query_files"})
-    _turn_readonly_pending: int = 0   # read-only calls seen since last tool_output
-    _turn_has_output: bool = False    # whether the current turn has received any tool_output
 
     if run_meter.exhausted:
         # 上一个 agent run 已经把预算用完（例如最后一次调用恰好以交接结束）：
@@ -1068,7 +1052,6 @@ async def run_openai_agents_streaming_agent(
                     tool_name, call_id, tool_input = _tool_call_payload(item)
                     if call_id:
                         tool_names_by_call_id[call_id] = tool_name
-                        tool_inputs_by_call_id[call_id] = tool_input
                     tool_uses.append(
                         {
                             "id": call_id,
@@ -1077,16 +1060,6 @@ async def run_openai_agents_streaming_agent(
                             "result": None,
                         }
                     )
-                    # Read-only co-call tracking: count read-only calls before outputs arrive.
-                    # A tool_called arriving after a turn's outputs starts a NEW turn, so
-                    # reset the per-turn tracking here (not in the tool_output block) — that
-                    # keeps the turn guard set for the whole turn and avoids counting every
-                    # tool_output as a separate turn.
-                    if _turn_has_output:
-                        _turn_has_output = False
-                        _turn_readonly_pending = 0
-                    if tool_name in _READONLY_TOOLS:
-                        _turn_readonly_pending += 1
                     yield StreamEvent(
                         type=StreamEventType.TOOL_USE,
                         data={
@@ -1097,35 +1070,14 @@ async def run_openai_agents_streaming_agent(
                         },
                     )
                 elif event_name == "tool_output":
-                    # First tool_output of this turn: flush the pending read-only count.
-                    # The guard stays set for the rest of the turn; the next tool_called
-                    # batch resets it. This counts each turn exactly once (the previous
-                    # in-block reset made it count every tool_output as a turn).
-                    if not _turn_has_output:
-                        _turn_has_output = True
-                        from agent.core.metrics import (
-                            TOOL_READONLY_COCALL_TOTAL,
-                            TOOL_READONLY_TURNS_TOTAL,
-                            get_metrics_collector,
-                        )
-                        _mc = get_metrics_collector()
-                        _mc.increment_counter(TOOL_READONLY_TURNS_TOTAL)
-                        if _turn_readonly_pending >= 2:
-                            _mc.increment_counter(TOOL_READONLY_COCALL_TOTAL)
                     call_id, result_text = _tool_output_payload(item)
                     tool_name = tool_names_by_call_id.get(call_id, "")
-                    tool_input = tool_inputs_by_call_id.get(call_id, {})
                     if tool_uses:
                         for tool_use in reversed(tool_uses):
                             if tool_use.get("id") == call_id:
                                 tool_use["result"] = result_text
                                 break
                     result_payload = mcp_text_result(result_text)
-
-                    artifact_refs_accumulated = merge_unique_strings(
-                        artifact_refs_accumulated,
-                        extract_artifact_refs(tool_name, result_text, tool_input=tool_input),
-                    )
 
                     yield StreamEvent(
                         type=StreamEventType.TOOL_RESULT,
@@ -1146,22 +1098,19 @@ async def run_openai_agents_streaming_agent(
                         #
                         # The SDK's built-in handoff mechanism passes a plain text string from
                         # one agent to the next.  ZenStory's handoff carries a structured packet
-                        # (completed/todo/evidence/artifact_refs) assembled here from the live
+                        # (completed/todo/evidence) assembled here from the live
                         # tool result, plus pre-handoff narration that has already been streamed
                         # as TEXT events.  The SDK's text-passing handoff cannot express this
                         # structured context, and rebuilding it inside the SDK's callback would
                         # require duplicating the packet-assembly and event-streaming logic that
-                        # lives in build_handoff_packet / extract_artifact_refs.
+                        # lives in build_handoff_packet.
                         #
                         # 「停下」由 Agent(tool_use_behavior=_stop_run_on_control_flow_tool)
                         # 在 SDK turn 内同步完成，run-loop 不会再发起下一次模型调用。
                         # 这里的 cancel(mode="after_turn") 只是第二道保险（万一 SDK 侧的
                         # 截断未生效，至少不让它跨过下一个 turn 边界）；历史上仅靠它是
                         # 不够的——cancel 标志异步落地，模型早已跑完并执行了额外的工具。
-                        packet = build_handoff_packet(
-                            result_data,
-                            artifact_refs=artifact_refs_accumulated,
-                        )
+                        packet = build_handoff_packet(result_data)
                         handoff_event_data = {
                             "target_agent": packet["target_agent"],
                             "reason": packet["reason"],
@@ -1246,9 +1195,6 @@ async def run_openai_agents_streaming_agent(
             # 重复读取无进展：与熔断同一个收尾——先让 usage 入账，再以 ERROR 结束整条
             # 工作流（不再交接/送审）。本请求没有任何写入成功时 refundable=True，
             # stream_billing 据 reason=no_progress 退还额度（billing_reason=runaway_no_progress）。
-            from agent.core.metrics import get_metrics_collector
-
-            get_metrics_collector().increment_counter(NO_PROGRESS_STOP_TOTAL)
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -1438,9 +1384,6 @@ async def run_openai_agents_streaming_agent(
             )
             yield StreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data=exhausted_data)
         elif clarification_event_data is not None:
-            from agent.core.metrics import AGENT_CLARIFICATION_TOTAL, get_metrics_collector
-
-            get_metrics_collector().increment_counter(AGENT_CLARIFICATION_TOTAL)
             yield StreamEvent(type=StreamEventType.WORKFLOW_STOPPED, data=clarification_event_data)
         elif handoff_event_data is not None:
             yield StreamEvent(type=StreamEventType.HANDOFF, data=handoff_event_data)

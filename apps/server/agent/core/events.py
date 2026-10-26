@@ -706,7 +706,7 @@ class ParallelTaskEndEventData(BaseModel):
     """Data for parallel_task_end events."""
     execution_id: str = Field(..., description="ID of the parent parallel execution")
     task_id: str = Field(..., description="Unique ID for this task")
-    status: str = Field(..., description="Task status: 'completed' or 'failed'")
+    status: str = Field(..., description="Task status: 'completed', 'partial' or 'failed'")
     result_preview: str | None = Field(default=None, description="Preview of the result (first 100 chars)")
     error: str | None = Field(default=None, description="Error message if failed")
 
@@ -717,6 +717,7 @@ class ParallelEndEventData(BaseModel):
     total_tasks: int = Field(..., description="Total number of tasks")
     completed: int = Field(..., description="Number of completed tasks")
     failed: int = Field(..., description="Number of failed tasks")
+    partial: int = Field(default=0, description="Number of partially applied tasks")
     duration_ms: int = Field(..., description="Total execution duration in milliseconds")
     # 与 ParallelStartEventData 同义：让 UI 在收尾时也能说明"还有 N 个未执行"，
     # 不必缓存 start 事件的字段。
@@ -838,6 +839,7 @@ def parallel_end_event(
     duration_ms: int,
     requested_task_count: int | None = None,
     dropped_count: int = 0,
+    partial: int = 0,
 ) -> StreamEvent:
     """Create a parallel_end event when parallel execution completes."""
     return StreamEvent(
@@ -847,6 +849,7 @@ def parallel_end_event(
             total_tasks=total_tasks,
             completed=completed,
             failed=failed,
+            partial=partial,
             duration_ms=duration_ms,
             requested_task_count=(
                 total_tasks if requested_task_count is None else requested_task_count

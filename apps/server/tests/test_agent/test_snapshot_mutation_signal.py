@@ -108,7 +108,6 @@ async def test_direct_tool_envelopes_keep_explicit_mutation(monkeypatch, tool_na
     getattr(executor, tool_name).return_value = True if tool_name == "delete_file" else result
     monkeypatch.setattr(mcp_tools.ToolContext, "get_executor", lambda: executor)
     monkeypatch.setattr(mcp_tools.ToolContext, "_get_context", lambda: {"project_id": "project"})
-    monkeypatch.setattr(mcp_tools, "_record_artifact_ledger", lambda **_kw: False)
     payload = _payload(await getattr(mcp_tools, tool_name)({"id": "file", "title": "Title", "content": "Body", "edits": []}))
     assert payload["mutation_applied"] is changed
 
@@ -123,7 +122,6 @@ async def test_delete_failure_does_not_report_mutation(db_session, mutation_proj
 @pytest.mark.parametrize("changed", [True, False])
 def test_large_result_retains_compact_mutation_signal(monkeypatch, changed):
     monkeypatch.setattr(mcp_tools, "TOOL_RESULT_MAX_CHARS", 512)
-    monkeypatch.setattr(mcp_tools, "_persist_tool_result_overflow", lambda **_kw: None)
     payload = _payload(mcp_tools._make_result({"status": "success", "mutation_applied": changed, "data": {"content": "x" * 5000}}))
     assert payload["truncated"] is True
     assert payload["mutation_applied"] is changed
@@ -142,7 +140,6 @@ async def test_parallel_aggregates_before_task_and_outer_truncation(monkeypatch,
 
     monkeypatch.setattr(parallel_executor, "handle_query_files", handler)
     monkeypatch.setattr(mcp_tools, "TOOL_RESULT_MAX_CHARS", 512)
-    monkeypatch.setattr(mcp_tools, "_persist_tool_result_overflow", lambda **_kw: None)
     payload = _payload(await parallel_executor.execute_parallel([
         {"type": "query_files", "description": "large" * 200, "params": {"index": i}} for i in range(len(results))
     ]))
@@ -299,7 +296,6 @@ async def test_closed_reused_file_stream_flips_false_tool_flag_after_commit(db_s
 @pytest.mark.asyncio
 async def test_oversized_partial_committed_edit_keeps_done_signal(monkeypatch):
     monkeypatch.setattr(mcp_tools, "TOOL_RESULT_MAX_CHARS", 512)
-    monkeypatch.setattr(mcp_tools, "_persist_tool_result_overflow", lambda **_kw: None)
     result = mcp_tools._make_result({"status": "partial", "mutation_applied": True, "data": {"content": "x" * 5000}}, tool_name="edit_file")
     assert _payload(result)["status"] == "partial"
     assert _payload(result)["truncated"] is True

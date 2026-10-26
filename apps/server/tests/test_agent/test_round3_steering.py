@@ -1,5 +1,4 @@
 """Round-3 回归：steering 队列的僵尸 run 回收（缺陷 #23）。
-
 背景：`run_id` 是 process_stream 生成的进程内 UUID，唯一的释放路径是它的
 finally。worker 被 SIGKILL / 部署重启 / OOM 杀掉时那段 finally 永远不会执行，
 持有记录就永久留在 runs 集合里；此后该 session 的每次释放都因「还有其它持有
@@ -220,12 +219,38 @@ class _FakeRedis:
                 self._impl_set(keys[1], "", ex=args[4], nx=True)
                 self._impl_expire(keys[1], args[4])
             return 1
-        if "RPUSH" in script:
-            # 原子 hand-back：回收僵尸 -> 确认还有其它 run + owner -> 批量入队。
-            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
-            n = self._impl_zcard(runs_key)
+        if "LRANGE" in script:
+            # 最后一次 drain 并封口：取空 msgs；本 run 仍在册时记入 sealed。
+            msgs = self._impl_lrange(keys[2], 0, -1)
+            self._impl_delete(keys[2])
             if self._impl_zscore(runs_key, args[0]) is not None:
-                n -= 1
+                self._impl_sadd(keys[3], args[0])
+            return msgs
+        sealed = self.store.get(keys[3], set()) if len(keys) > 3 else set()
+        if "local live" in script:
+            # /agent/steer 入队：回收僵尸 -> owner -> 存在未封口的 run 才 RPUSH。
+            if self._impl_zcard(runs_key) > 0:
+                self._impl_zremrangebyscore(runs_key, "-inf", args[1])
+                if self._impl_zcard(runs_key) == 0:
+                    self._impl_delete(*keys)
+                    return 0
+            owner = self._impl_get(keys[1])
+            if owner is None:
+                return 0
+            if owner and owner != args[0]:
+                return -1
+            if not any(m not in sealed for m in self.store.get(runs_key, {})):
+                return 0
+            if not owner:
+                self._impl_set(keys[1], args[0], ex=args[2])
+            self._impl_rpush(keys[2], args[3])
+            return 1
+        if "RPUSH" in script:
+            # 原子 hand-back：回收僵尸 -> 确认还有其它未封口的 run + owner -> 批量入队。
+            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
+            n = sum(
+                1 for m in self.store.get(runs_key, {}) if m != args[0] and m not in sealed
+            )
             if n <= 0 or self._impl_get(keys[1]) != args[2]:
                 return 0
             self._impl_rpush(keys[2], *args[4:])
@@ -240,18 +265,21 @@ class _FakeRedis:
             if self._impl_zscore(runs_key, args[0]) is not None:
                 n -= 1
             return n
+        if "'ZREM'" in script:
+            # 修复后的释放脚本：ZREM 自己（并移出 sealed）-> 按 score 回收僵尸 ->
+            # ZCARD==0 -> DEL。
+            self._impl_zrem(runs_key, args[0])
+            if len(keys) > 3:
+                self._impl_srem(keys[3], args[0])
+            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
+            if self._impl_zcard(runs_key) == 0:
+                self._impl_delete(*keys)
+                return 1
+            return 0
         if "SREM" in script:
             # 修复前的释放脚本：SREM -> SCARD==0 -> DEL（无僵尸回收）。
             self._impl_srem(runs_key, args[0])
             if self._impl_scard(runs_key) == 0:
-                self._impl_delete(*keys)
-                return 1
-            return 0
-        if "'ZREM'" in script:
-            # 修复后的释放脚本：ZREM 自己 -> 按 score 回收僵尸 -> ZCARD==0 -> DEL。
-            self._impl_zrem(runs_key, args[0])
-            self._impl_zremrangebyscore(runs_key, "-inf", args[1])
-            if self._impl_zcard(runs_key) == 0:
                 self._impl_delete(*keys)
                 return 1
             return 0
@@ -319,14 +347,12 @@ async def test_redis_exclusive_generation_claim_rejects_second_run(redis_steerin
         session_id,
         "user-1",
         run_id="run-a",
-        exclusive_run=True,
     )
     with pytest.raises(st.SteeringSessionBusyError):
         await st.create_steering_queue_async(
             session_id,
             "user-1",
             run_id="run-b",
-            exclusive_run=True,
         )
 
 
@@ -350,25 +376,6 @@ async def test_stale_run_registered_before_does_not_block_release(redis_steering
     await st.cleanup_steering_queue_async(session_id, run_id="run-a")
 
     # 没有任何 run 在跑：三个键必须全部回收，POST /agent/steer 必须 404。
-    assert fake.store == {}
-    with pytest.raises(KeyError):
-        await st.get_steering_queue_for_user_async(session_id, "user-1")
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_stale_run_registered_during_is_reaped_by_release(redis_steering):
-    """并发 run 中途崩溃时，最后一个活着的 run 释放要顺带回收它。"""
-    st, fake = redis_steering
-    session_id = "sess-zombie-during"
-
-    await st.create_steering_queue_async(session_id, "user-1", run_id="run-a")
-    await st.create_steering_queue_async(session_id, "user-1", run_id="run-killed")
-    # run-killed 所在的 worker 被杀掉：它的心跳从此停在一天前。
-    fake.age_runs(st._runs_key(session_id), _ONE_DAY, member="run-killed")
-
-    await st.cleanup_steering_queue_async(session_id, run_id="run-a")
-
     assert fake.store == {}
     with pytest.raises(KeyError):
         await st.get_steering_queue_for_user_async(session_id, "user-1")
@@ -426,32 +433,10 @@ async def test_polling_run_heartbeat_keeps_its_own_hold_alive(redis_steering):
     fake.age_runs(st._runs_key(session_id), _ONE_DAY)
     await queue.get_pending()
 
-    # 并发 run 结束触发回收：run-a 的心跳是新的，必须存活。
-    await st.create_steering_queue_async(session_id, "user-1", run_id="run-b")
-    await st.cleanup_steering_queue_async(session_id, run_id="run-b")
-
+    assert await st.has_active_runs_async(session_id) is True
     surviving = await st.get_steering_queue_for_user_async(session_id, "user-1")
     await surviving.add("run-a 还在跑")
     assert [m.content for m in await queue.get_pending()] == ["run-a 还在跑"]
-
-    await st.cleanup_steering_queue_async(session_id, run_id="run-a")
-    assert fake.store == {}
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_heartbeat_is_per_member_not_per_key(redis_steering):
-    """心跳必须是成员级的：活着的 run 轮询不能替别的僵尸续命。"""
-    st, fake = redis_steering
-    session_id = "sess-heartbeat-scope"
-
-    queue_a = await st.create_steering_queue_async(session_id, "user-1", run_id="run-a")
-    await st.create_steering_queue_async(session_id, "user-1", run_id="run-killed")
-    fake.age_runs(st._runs_key(session_id), _ONE_DAY, member="run-killed")
-
-    # run-a 反复轮询（旧实现在这里无条件 EXPIRE 整个 runs 键，僵尸永不消失）。
-    for _ in range(3):
-        await queue_a.get_pending()
 
     await st.cleanup_steering_queue_async(session_id, run_id="run-a")
     assert fake.store == {}
@@ -471,19 +456,6 @@ async def test_heartbeat_does_not_resurrect_released_run(redis_steering):
     # 释放之后的兜底 drain（service.py 的 finally 里确实会发生）。
     assert await queue_a.get_pending() == []
     assert fake.store == {}
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_placeholder_session_without_runs_keeps_legacy_semantics(redis_steering):
-    """从未登记过持有者的占位 session 不受回收影响（旧语义保持不变）。"""
-    st, fake = redis_steering
-
-    await st.get_steering_queue_async("sess-placeholder")
-    queue = await st.get_steering_queue_for_user_async("sess-placeholder", "user-1")
-    await queue.add("占位队列照常可用")
-    assert [m.content for m in await queue.peek()] == ["占位队列照常可用"]
-    assert fake.store.get(st._owner_key("sess-placeholder")) == "user-1"
 
 
 # ---------------------------------------------------------------------------
@@ -539,28 +511,10 @@ async def test_memory_polling_keeps_live_run_alive(memory_steering):
     _age_memory_runs(st._queue_manager._queues[session_id], _ONE_DAY)
     await queue.get_pending()
 
-    await st.create_steering_queue_async(session_id, "user-1", run_id="run-b")
-    await st.cleanup_steering_queue_async(session_id, run_id="run-b")
-
+    assert await st.has_active_runs_async(session_id) is True
     surviving = await st.get_steering_queue_for_user_async(session_id, "user-1")
     await surviving.add("run-a 还在跑")
     assert [m.content for m in await queue.get_pending()] == ["run-a 还在跑"]
 
     await st.cleanup_steering_queue_async(session_id, run_id="run-a")
     assert session_id not in st._queue_manager._queues
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_memory_placeholder_session_without_runs_survives(memory_steering):
-    """内存后端：没有登记过持有者的占位队列不被查询路径删除。"""
-    st = memory_steering
-    session_id = "sess-mem-placeholder"
-    await st.cleanup_steering_queue_async(session_id)
-
-    await st.get_steering_queue_async(session_id)
-    queue = await st.get_steering_queue_for_user_async(session_id, "user-1")
-    await queue.add("占位队列照常可用")
-    assert [m.content for m in await queue.peek()] == ["占位队列照常可用"]
-
-    await st.cleanup_steering_queue_async(session_id)

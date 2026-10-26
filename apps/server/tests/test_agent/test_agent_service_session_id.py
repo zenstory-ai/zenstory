@@ -93,7 +93,7 @@ class TestAgentServiceSessionIdResolution:
         assert created.project_id == project.id
         assert created.is_active is True
 
-    def test_deactivates_stale_active_sessions_when_multiple_exist(self, db_session: Session):
+    def test_selects_latest_without_mutating_legacy_active_sessions(self, db_session: Session, legacy_db_without_active_chat_index):
         user, project = _create_user_and_project(db_session)
 
         old = ChatSession(
@@ -132,7 +132,7 @@ class TestAgentServiceSessionIdResolution:
         db_session.refresh(old)
         db_session.refresh(new)
         assert new.is_active is True
-        assert old.is_active is False
+        assert old.is_active is True
 
     def test_ignores_requested_session_id_from_other_user_project(self, db_session: Session):
         user1, project1 = _create_user_and_project(db_session)
@@ -181,15 +181,8 @@ class TestAgentServiceSessionIdResolution:
             f"sqlite:///{tmp_path / 'partial_unique.db'}",
             connect_args={"check_same_thread": False},
         )
+        # 模型声明了 uq_chat_session_user_project_active，create_all 即建出与 prod 相同的索引。
         SQLModel.metadata.create_all(engine)
-        with engine.begin() as conn:
-            # 与 database.py POSTGRES_PERFORMANCE_INDEX_SQL 中的定义保持一致
-            conn.execute(
-                text(
-                    "CREATE UNIQUE INDEX uq_chat_session_user_project_active "
-                    "ON chat_session (user_id, project_id) WHERE is_active = true"
-                )
-            )
 
         with Session(engine) as session:
             candidate = ChatSession(
@@ -486,3 +479,166 @@ class TestProcessStreamReleasesSqliteWriteLock:
 
         assert tool_write_errors == []
         assert any("event: done" in event for event in events)
+
+
+@pytest.mark.integration
+class TestProcessStreamLoadsResolvedSession:
+    """两个分页对同一项目的不同会话几乎同时发送：每一轮只读写自己解析出的会话。
+
+    时序（确定性）：A 解析出会话 A 后停在领 generation slot 处；B 解析出会话 B
+    （把 A 置为非活跃）并完整跑完；再放行 A。A 这一轮的历史、跨轮工作集和存档
+    都必须属于会话 A，而不是此刻「最新的活跃会话」B。
+    """
+
+    @pytest.fixture
+    def sqlite_file_db(self, tmp_path):
+        db_path = tmp_path / "agent_two_tabs.db"
+        engine = _file_sqlite_engine(db_path)
+        SQLModel.metadata.create_all(engine)
+        yield engine
+        engine.dispose()
+
+    async def test_interleaved_tabs_keep_their_own_session(self, sqlite_file_db):
+        import asyncio
+        import json
+        from unittest.mock import patch
+
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+        from agent.schemas.context import ContextData
+        from models import ChatMessage, File
+
+        engine = sqlite_file_db
+        base = utcnow() - timedelta(hours=1)
+        with Session(engine) as seed:
+            user, project = _create_user_and_project(seed)
+            user_id, project_id = user.id, project.id
+            file_ids: dict[str, str] = {}
+            for tab in ("A", "B"):
+                file = File(
+                    project_id=project_id,
+                    title=f"{tab}卷纲",
+                    content=f"{tab}卷纲正文",
+                    file_type="outline",
+                )
+                seed.add(file)
+                seed.commit()
+                seed.refresh(file)
+                file_ids[tab] = file.id
+            for index, tab in enumerate(("A", "B")):
+                seed.add(
+                    ChatSession(
+                        id=f"session-{tab}",
+                        user_id=user_id,
+                        project_id=project_id,
+                        title=tab,
+                        # 起始时 A 是活跃会话；B 是作者在另一个分页打开的旧会话
+                        is_active=tab == "A",
+                        message_count=2,
+                        created_at=base + timedelta(minutes=index),
+                        updated_at=base + timedelta(minutes=index),
+                    )
+                )
+                seed.add(
+                    ChatMessage(
+                        session_id=f"session-{tab}",
+                        role="user",
+                        content=f"{tab}会话的旧问题",
+                        created_at=base + timedelta(minutes=index),
+                    )
+                )
+                seed.add(
+                    ChatMessage(
+                        session_id=f"session-{tab}",
+                        role="assistant",
+                        content=f"{tab}会话的旧回答",
+                        tool_calls=json.dumps(
+                            [
+                                {
+                                    "id": f"call_{tab}",
+                                    "name": "query_files",
+                                    "arguments": {"id": file_ids[tab]},
+                                    "status": "success",
+                                    "result": [{"id": file_ids[tab], "title": f"{tab}卷纲"}],
+                                    "error": None,
+                                }
+                            ],
+                            ensure_ascii=False,
+                        ),
+                        created_at=base + timedelta(minutes=index, seconds=1),
+                    )
+                )
+            seed.commit()
+
+        assembler = MagicMock()
+        assembler.assemble.return_value = ContextData(items=[], context="", token_estimate=0)
+        service = AgentService(context_assembler=assembler)
+
+        seen_messages: dict[str, str] = {}
+
+        async def fake_workflow(state, *_args, **_kwargs):
+            seen_messages[state["session_id"]] = json.dumps(state["messages"], ensure_ascii=False)
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好的"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        from agent import service as service_module
+
+        real_claim = service_module.create_steering_queue_async
+        a_resolved = asyncio.Event()
+        release_a = asyncio.Event()
+
+        async def claim_with_pause(session_id, *args, **kwargs):
+            if session_id == "session-A":
+                a_resolved.set()
+                await release_a.wait()
+            return await real_claim(session_id, *args, **kwargs)
+
+        async def run_tab(tab: str) -> list[str]:
+            events: list[str] = []
+            with Session(engine) as request_session:
+                async for event in service.process_stream(
+                    project_id=project_id,
+                    user_id=user_id,
+                    message=f"{tab}分页的新消息",
+                    session=request_session,
+                    session_id=f"session-{tab}",
+                ):
+                    events.append(event)
+            return events
+
+        with (
+            patch("agent.service.run_writing_workflow_streaming", side_effect=fake_workflow),
+            patch("agent.service.create_steering_queue_async", side_effect=claim_with_pause),
+            patch("agent.service.create_session", side_effect=lambda: Session(engine)),
+        ):
+            tab_a = asyncio.create_task(run_tab("A"))
+            await asyncio.wait_for(a_resolved.wait(), timeout=5)
+            events_b = await asyncio.wait_for(run_tab("B"), timeout=10)
+            release_a.set()
+            events_a = await asyncio.wait_for(tab_a, timeout=10)
+
+        assert any("event: done" in event for event in events_a)
+        assert any("event: done" in event for event in events_b)
+
+        # 历史与跨轮工作集各自绑定自己的会话
+        a_seen = seen_messages["session-A"]
+        assert "A会话的旧回答" in a_seen
+        assert f"《A卷纲》 (id={file_ids['A']})" in a_seen
+        assert "B会话" not in a_seen
+        assert file_ids["B"] not in a_seen
+        b_seen = seen_messages["session-B"]
+        assert "B会话的旧回答" in b_seen
+        assert f"《B卷纲》 (id={file_ids['B']})" in b_seen
+        assert "A会话" not in b_seen
+        assert file_ids["A"] not in b_seen
+
+        # 存档写回各自的会话
+        with Session(engine) as verify:
+            for tab, other in (("A", "B"), ("B", "A")):
+                saved = [
+                    row.content
+                    for row in verify.exec(
+                        select(ChatMessage).where(ChatMessage.session_id == f"session-{tab}")
+                    ).all()
+                ]
+                assert f"{tab}分页的新消息" in saved
+                assert f"{other}分页的新消息" not in saved

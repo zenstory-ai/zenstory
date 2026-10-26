@@ -474,3 +474,25 @@ async def test_exact_duplicate_constraints_are_removed_without_semantic_comparis
         "不要续写",
         "只写第三章，不要续写",
     ]
+
+
+@pytest.mark.parametrize("allowed", [True, False])
+@pytest.mark.parametrize("disposition", ["new_or_changed_request", "resume_interrupted_task", "answer_pending_clarification"])
+async def test_notes_permission_is_current_turn_only(allowed, disposition):
+    previous = {"content": "上轮停下", "stop_reason": "no_progress", "clarification_pending": True,
+                "routing": {"initial_agent": "writer", "last_agent": "writer", "workflow_type": "quick",
+                            "notes_append_allowed": not allowed}}
+    response = _response({"agent_type": "writer", "workflow_type": "quick",
+                          "turn_disposition": disposition, "notes_append_allowed": allowed})
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
+        result = await router_node(_state("本轮请求", previous))
+    assert result["routing_metadata"]["notes_append_allowed"] is allowed
+
+
+@pytest.mark.parametrize("invalid", ["true", "false", 1, None, [], {}])
+async def test_notes_permission_rejects_non_boolean(invalid):
+    response = _response({"agent_type": "writer", "workflow_type": "quick", "notes_append_allowed": invalid})
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
+        with pytest.raises(RouterFailure) as caught:
+            await router_node({"user_message": "本轮请求"})
+    assert caught.value.usage == response["usage"]

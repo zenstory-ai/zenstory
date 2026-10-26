@@ -531,18 +531,59 @@ def test_a_read_taken_before_an_own_write_does_not_override_it():
         mcp_tools.ToolContext.clear_context()
 
 
-def test_protection_of_deletes_keeps_the_old_reviewed_save_rule(db_session, owner_project):
-    """删除 / 整份覆盖的保护口径不变：最新版本是 ai_edit（含审阅后保存）就不算作者的正文。"""
+def _save_version(session, file, content, *, change_type, change_source, summary=None):
+    FileVersionService().create_version(
+        session, file.id, content, change_type=change_type, change_source=change_source,
+        change_summary=summary, skip_quota=True,
+    )
+    current = session.get(File, file.id)
+    current.content = content
+    session.add(current)
+    session.commit()
+    return current
+
+
+def test_reviewed_save_right_after_an_ai_write_is_protected_from_delete(db_session, owner_project):
+    """作者在审阅里拒掉 AI 修改后存下的版本（紧跟 AI 写入的 user/ai_edit/AI edit (reviewed)）是作者的正文。"""
+    from agent.tools.author_edit_guard import latest_text_is_authors
+
+    _, project = owner_project
+    chapter = _chapter(db_session, project)  # v1: AI 写的
+    current = _save_version(
+        db_session, chapter, CHAPTER + "x", change_type="ai_edit", change_source="user",
+        summary="AI edit (reviewed)",
+    )
+    assert latest_text_is_authors(db_session, current) is True
+
+
+def test_reviewed_save_not_following_an_ai_write_stays_unprotected(db_session, owner_project):
+    """不紧跟 AI 写入的「AI edit (reviewed)」是旧版前端把去AI味审阅也记成了它，仍算 AI 的润色。"""
     from agent.tools.author_edit_guard import latest_text_is_authors
 
     _, project = owner_project
     chapter = _chapter(db_session, project)
-    FileVersionService().create_version(
-        db_session, chapter.id, CHAPTER + "x", change_type="ai_edit", change_source="user",
-        change_summary="AI edit (reviewed)", skip_quota=True,
+    _save_version(db_session, chapter, CHAPTER + "a", change_type="edit", change_source="user")
+    current = _save_version(
+        db_session, chapter, CHAPTER + "b", change_type="ai_edit", change_source="user",
+        summary="AI edit (reviewed)",
     )
-    current = db_session.get(File, chapter.id)
-    current.content = CHAPTER + "x"
-    db_session.add(current)
-    db_session.commit()
+    assert latest_text_is_authors(db_session, current) is False
+
+
+@pytest.mark.parametrize(
+    ("change_source", "summary"),
+    [("user", "AI polish (reviewed)"), ("ai", "AI edit (reviewed)"), ("user", "AI edit")],
+)
+def test_other_ai_edit_versions_after_an_ai_write_stay_unprotected(
+    db_session, owner_project, change_source, summary
+):
+    """去AI味审阅、source=ai、外部 Agent API 的 ai_edit 仍按 AI 写的算，删除与复用不受保护。"""
+    from agent.tools.author_edit_guard import latest_text_is_authors
+
+    _, project = owner_project
+    chapter = _chapter(db_session, project)
+    current = _save_version(
+        db_session, chapter, CHAPTER + "x", change_type="ai_edit", change_source=change_source,
+        summary=summary,
+    )
     assert latest_text_is_authors(db_session, current) is False

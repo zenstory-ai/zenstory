@@ -11,7 +11,8 @@ import pytest
 from agent.core.steering import (
     SteeringQueue,
     cleanup_steering_queue_async,
-    get_steering_queue_async,
+    create_steering_queue_async,
+    get_steering_queue_for_user_async,
 )
 
 
@@ -78,7 +79,9 @@ class TestConcurrentAccess:
         session_ids = [f"session-{i}" for i in range(5)]
 
         async def add_to_session(session_id: str):
-            queue = await get_steering_queue_async(session_id)
+            queue = await create_steering_queue_async(
+                session_id, "concurrency-user", run_id=f"run-{session_id}"
+            )
             await queue.add(f"Message for {session_id}")
             return session_id
 
@@ -86,8 +89,8 @@ class TestConcurrentAccess:
 
         # Verify each session has exactly one message
         for sid in session_ids:
-            queue = await get_steering_queue_async(sid)
-            pending = await queue.peek()
+            queue = await get_steering_queue_for_user_async(sid, "concurrency-user")
+            pending = await queue.get_pending()
             assert len(pending) == 1, f"Session {sid} should have 1 message"
             await cleanup_steering_queue_async(sid)
 
@@ -103,7 +106,9 @@ class TestQueueManagerConcurrency:
         session_id = "concurrent-test-session"
 
         async def get_queue():
-            return await _queue_manager.get_queue(session_id)
+            return await _queue_manager.claim_queue(
+                session_id, "concurrency-user", "same-run"
+            )
 
         queues = await asyncio.gather(*[get_queue() for _ in range(10)])
 
@@ -111,7 +116,7 @@ class TestQueueManagerConcurrency:
         first_id = id(queues[0])
         assert all(id(q) == first_id for q in queues), "Should return same queue instance"
 
-        await _queue_manager.cleanup(session_id)
+        await _queue_manager.cleanup(session_id, run_id="same-run")
 
     async def test_concurrent_cleanup(self):
         """Concurrent cleanup should not raise errors."""
@@ -120,7 +125,7 @@ class TestQueueManagerConcurrency:
         session_id = "cleanup-test-session"
 
         # Create queue
-        await _queue_manager.get_queue(session_id)
+        await _queue_manager.claim_queue(session_id, "concurrency-user", "run-a")
 
         # Concurrent cleanup should not raise
         await asyncio.gather(*[

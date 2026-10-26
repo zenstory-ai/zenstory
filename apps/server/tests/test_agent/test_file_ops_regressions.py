@@ -435,3 +435,15 @@ def test_query_files_offset_applies_to_merged_types(db_session, test_user, mixed
         mixed_type_files.id, file_types=["character", "lore"], limit=2, offset=2
     )
     assert [r["title"] for r in page] == ["角色1", "设定1"]
+
+
+def test_query_files_keyword_treats_like_wildcards_literally(db_session, test_user, test_project):
+    """F-24：关键字里的 `_` / `%` 是字面字符，不能当 LIKE 通配符。"""
+    _create_file(db_session, test_project.id, "a_b 线索", "正文")
+    _create_file(db_session, test_project.id, "axb 线索", "正文")
+    _create_file(db_session, test_project.id, "折扣", "打了 50% 的折")
+    _create_file(db_session, test_project.id, "比例", "大约 500 人")
+    crud = FileCRUD(db_session, user_id=test_user.id)
+
+    assert [r["title"] for r in crud.query_files(test_project.id, query="a_b")] == ["a_b 线索"]
+    assert [r["title"] for r in crud.query_files(test_project.id, query="50%")] == ["折扣"]

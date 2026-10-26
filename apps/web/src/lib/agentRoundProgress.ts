@@ -113,6 +113,10 @@ export function isWriteToolResult(
 
   const tasks = Array.isArray(payload?.tasks) ? (payload.tasks as Array<Record<string, unknown>>) : [];
   return tasks.some(
-    (task) => task?.status === 'completed' && typeof task.type === 'string' && PARALLEL_WRITE_TASKS.has(task.type),
+    // partial: a continue_on_error edit_file applied some of its edits, so the file did change.
+    (task) =>
+      (task?.status === 'completed' || task?.status === 'partial') &&
+      typeof task.type === 'string' &&
+      PARALLEL_WRITE_TASKS.has(task.type),
   );
 }

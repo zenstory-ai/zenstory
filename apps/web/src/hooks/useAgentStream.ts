@@ -45,7 +45,7 @@ interface ParallelTask {
   id: string;
   type: string;
   description: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "completed" | "partial" | "failed";
   resultPreview?: string;
   error?: string;
 }
@@ -232,7 +232,7 @@ export interface UseAgentStreamOptions {
   /** Called when a parallel task completes */
   onParallelTaskEnd?: (executionId: string, taskId: string, status: string, result?: unknown, error?: string) => void;
   /** Called when all parallel tasks complete */
-  onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number) => void;
+  onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
   /** Called after the terminal frame when the backend actually refunded this round */
@@ -1268,7 +1268,7 @@ export function useAgentStream(
             if (parallelStateRef.current) {
               const task = parallelStateRef.current.tasks.get(task_id);
               if (task) {
-                task.status = status as "completed" | "failed";
+                task.status = status as ParallelTask["status"];
                 task.resultPreview = result_preview;
                 task.error = error;
               }
@@ -1276,9 +1276,9 @@ export function useAgentStream(
             onParallelTaskEnd?.(execution_id, task_id, status, result_preview, error);
           },
 
-          onParallelEnd: (execution_id, total_tasks, completed, failed, duration_ms) => {
+          onParallelEnd: (execution_id, total_tasks, completed, failed, duration_ms, partial) => {
             if (isStaleEvent()) return;
-            onParallelEnd?.(execution_id, total_tasks, completed, failed, duration_ms);
+            onParallelEnd?.(execution_id, total_tasks, completed, failed, duration_ms, partial);
             parallelStateRef.current = null;
           },
 

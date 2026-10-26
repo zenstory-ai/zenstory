@@ -90,7 +90,6 @@ _TRACE_KEYS = frozenset(
         "line_start",
         "artifact_ref",
         "artifact_refs",
-        "overflow_ref",
         "title",
         "file_type",
         "status",
@@ -162,7 +161,6 @@ class IntraRunToolOutputTrimmer:
 
         if chars_before <= self.max_input_chars:
             # 常态路径：不改写任何历史，保住 DeepSeek 前缀缓存，也不让模型「忘掉」读过的文件。
-            self._record_metrics(0, 0, chars_before, chars_before)
             return model_data
 
         # 需要折叠掉的量按台阶量化：台阶 = max - target。输入在同一台阶内增长时，
@@ -192,7 +190,6 @@ class IntraRunToolOutputTrimmer:
             chars_saved += saved
 
         chars_after = chars_before - chars_saved
-        self._record_metrics(trimmed_count, chars_saved, chars_before, chars_after)
         if trimmed_count:
             logger.info(
                 "IntraRunToolOutputTrimmer over budget: compacted %d payload(s), saved ~%d chars (%d -> %d, max %d)",
@@ -441,22 +438,3 @@ class IntraRunToolOutputTrimmer:
             return len(json.dumps(items, ensure_ascii=False, default=str))
         except (TypeError, ValueError):
             return sum(len(str(item)) for item in items)
-
-    def _record_metrics(self, trimmed_count: int, chars_saved: int, chars_before: int, chars_after: int) -> None:
-        try:
-            from agent.core.metrics import (
-                MODEL_INPUT_FILTER_CHARS_AFTER,
-                MODEL_INPUT_FILTER_CHARS_BEFORE,
-                TOOL_OUTPUT_TRIMMED_CHARS,
-                TOOL_OUTPUT_TRIMMED_TOTAL,
-                get_metrics_collector,
-            )
-
-            mc = get_metrics_collector()
-            mc.observe_histogram(MODEL_INPUT_FILTER_CHARS_BEFORE, chars_before)
-            mc.observe_histogram(MODEL_INPUT_FILTER_CHARS_AFTER, chars_after)
-            if trimmed_count:
-                mc.increment_counter(TOOL_OUTPUT_TRIMMED_TOTAL, trimmed_count)
-                mc.increment_counter(TOOL_OUTPUT_TRIMMED_CHARS, chars_saved)
-        except Exception:  # metrics are best-effort; never break a model call
-            logger.debug("Failed to record tool-output-trim metrics", exc_info=True)

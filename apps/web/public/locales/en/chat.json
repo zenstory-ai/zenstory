@@ -63,6 +63,8 @@
     "steerButton": "Add request",
     "steerHint": "AI is generating — what you add applies at its next step",
     "steerSent": "Added — the AI will use it at the next step",
+    "steerSentAsNextMessage": "This reply is wrapping up — your note will go out as the next message",
+    "steerReturnedToInput": "Your note wasn't sent — it's back in the input box",
     "steerFailed": "Couldn't send. Please try again.",
     "mode": {
       "label": "Mode",
@@ -174,7 +176,10 @@
     "parallelStartTruncated": "Working on {{count}} tasks at once ({{dropped}} more were over the per-request limit and did not run this time)",
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}: not completed",
+    "parallelTaskPartial": "◐ {{description}}: some changes did not apply",
+    "parallelTaskEnded": "{{description}}: finished",
     "parallelEnd": "Done: {{completed}}/{{total}} completed, {{failed}} failed",
+    "parallelEndWithPartial": "Done: {{completed}}/{{total}} completed, {{partial}} partly applied, {{failed}} failed",
     "steeringReceived": "Got your addition: {{preview}}",
     "userStopped": "Stopped"
   },
@@ -194,6 +199,8 @@
     "generic": "AI action",
     "parallel_summary": "Ran {{total}} tasks: {{completed}} succeeded, {{failed}} failed",
     "parallel_summary_with_skipped": "Ran {{total}} tasks: {{completed}} succeeded, {{skipped}} left unchanged, {{failed}} failed",
+    "parallel_summary_with_partial": "Ran {{total}} tasks: {{completed}} succeeded, {{partial}} partly applied, {{failed}} failed",
+    "parallel_summary_with_partial_and_skipped": "Ran {{total}} tasks: {{completed}} succeeded, {{partial}} partly applied, {{skipped}} left unchanged, {{failed}} failed",
     "parallelTaskLabel": "{{label}}:",
     "processing": "Processing",
     "processing_ellipsis": "Processing…",
@@ -239,7 +246,10 @@
       "authorChanged": "File just changed, left as is",
       "clarifyFirst": "Asking before changing anything"
     },
-    "taskNotCompleted": "Not completed"
+    "taskNotCompleted": "Not completed",
+    "taskPartiallyCompleted": "Some changes did not apply; ask the AI to redo the rest",
+    "taskOutcomeUnknown": "Outcome unknown",
+    "status_unchanged": "Project info unchanged"
   },
   "fileType": {
     "outline": "Outline",
@@ -349,7 +359,7 @@
       "summary": "Summary",
       "current_phase": "Current Phase",
       "writing_style": "Writing Style",
-      "notes": "Notes"
+      "notes": "Writing Conventions"
     }
   },
   "fileEdit": {
@@ -425,21 +435,9 @@
     },
     "quota": "{{count}} free messages left today"
   },
-  "proposals": {
-    "adopt": "Adopt",
-    "ignore": "Ignore",
-    "adoptAll": "Adopt all",
-    "adoptLabel": "Adopt: {{entry}}",
-    "ignoreLabel": "Ignore: {{entry}}",
-    "conflict": "AI memory just changed. Please try again.",
-    "failed": "Couldn't apply. Please try again.",
-    "pendingTitle": "AI proposals · {{count}} pending",
-    "showMore": "Show {{count}} more",
-    "showLess": "Show less",
-    "summary": {
-      "adopted": "{{count}} adopted",
-      "ignored": "{{count}} ignored",
-      "handled": "{{count}} already handled in AI memory"
-    }
+  "notesAdded": {
+    "title": "Added to Writing Conventions",
+    "open": "View and edit",
+    "full": "Writing Conventions are near the 4,000-character limit, so this was not saved"
   }
 }

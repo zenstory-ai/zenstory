@@ -270,7 +270,6 @@ async def test_stream_rejects_concurrent_run_for_same_chat_session(client: Async
         session_id,
         user.id,
         run_id="already-running",
-        exclusive_run=True,
     )
     try:
         response = await client.post(
@@ -312,7 +311,6 @@ async def test_stream_busy_resolved_session_returns_409_and_refunds(client: Asyn
         chat_session.id,
         user.id,
         run_id="still-finalizing",
-        exclusive_run=True,
     )
     try:
         response = await client.post(

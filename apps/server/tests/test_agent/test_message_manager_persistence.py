@@ -116,3 +116,13 @@ def test_commit_failure_rolls_back_without_returning_assistant_id(
     db_session.expire_all()
     assert not db_session.exec(select(ChatMessage).where(ChatMessage.session_id == chat_id)).all()
     assert db_session.get(ChatSession, chat_id).message_count == 0
+
+
+def test_save_requires_the_resolved_session_id(db_session: Session, saved_chat: tuple[str, str, str]) -> None:
+    """An unresolved round must not silently write into the currently active chat."""
+    user_id, project_id, chat_id = saved_chat
+    manager = MessageManager(project_id=project_id, user_id=user_id)
+    with pytest.raises(ValueError, match="session_id is required"):
+        manager._save_messages_with_session(db_session, None, "作者原话", "不能串进其他会话")
+    assert not db_session.exec(select(ChatMessage).where(ChatMessage.session_id == chat_id)).all()
+    assert db_session.get(ChatSession, chat_id).message_count == 0

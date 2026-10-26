@@ -26,6 +26,7 @@ from config.agent_runtime import (
     AGENT_WORKING_SET_MAX_FILES,
 )
 from database import create_session
+from services.chat_session_service import latest_active_chat_session
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
@@ -33,8 +34,6 @@ logger = get_logger(__name__)
 
 # 跨轮工作集取最近几条 assistant 回复里的文件读写记录
 WORKING_SET_RECENT_TURNS = 2
-# 「作者已忽略的 AI 提议」从最近几条 assistant 回复的 update_project 结果（proposals_added）里找
-EARLIER_PROPOSALS_RECENT_TURNS = 20
 
 WORKING_SET_HEADER = (
     "以下为上一轮读取/修改过的文件当前全文（完整，非预览，截至本轮开始）；"
@@ -61,7 +60,25 @@ _BREADCRUMB_VERBS_EN = {
     "rename_file": "Renamed file",
     "query_files": "Read file",
 }
+# 没有落下结果的工具调用（回合中途断开）：做没做成不知道。
+_BREADCRUMB_UNKNOWN_ZH = {
+    "create_file": "创建文件（结果未知）",
+    "edit_file": "编辑文件（结果未知）",
+    "delete_file": "删除文件（结果未知）",
+    "rename_file": "改名文件（结果未知）",
+    "query_files": "读取文件（结果未知）",
+}
+_BREADCRUMB_UNKNOWN_EN = {
+    "create_file": "Create file (outcome unknown)",
+    "edit_file": "Edit file (outcome unknown)",
+    "delete_file": "Delete file (outcome unknown)",
+    "rename_file": "Rename file (outcome unknown)",
+    "query_files": "Read file (outcome unknown)",
+}
 _FAILED_TOOL_STATUSES = {"error", "failed", "failure"}
+_PENDING_TOOL_STATUS = "pending"
+# parallel_execute 子任务里改动（至少一部分）已经落地的状态。
+_APPLIED_PARALLEL_TASK_STATUSES = {"completed", "partial"}
 
 _HISTORY_INITIAL_PAGE_SIZE = 20
 
@@ -108,8 +125,6 @@ class SessionData:
     context_data: Any | None = None
     # 最近两轮 assistant 读/写过的文件（新 → 旧，已去重），每项 {file_id, title, action}
     working_set_refs: list[dict[str, Any]] = field(default_factory=list)
-    # 最近 EARLIER_PROPOSALS_RECENT_TURNS 条 assistant 回复里 update_project 新增的提议原文（旧 → 新）
-    earlier_proposals: list[str] = field(default_factory=list)
     # 按当前库内容渲染的跨轮工作集纯文本块；没有可注入内容时为空串
     working_set_context: str = ""
     # The same working set split for the context snapshot (agent/context/turn_snapshot.py):
@@ -158,7 +173,6 @@ class SessionLoader:
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
         max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
-        earlier_proposals: list[str] | None = None,
     ):
         """
         Assemble context using the context assembler.
@@ -172,7 +186,6 @@ class SessionLoader:
             attached_library_materials: List of library material references
             text_quotes: List of user-selected text quotes
             max_tokens: Maximum tokens for context
-            earlier_proposals: Proposal entries earlier update_project calls added in this session
 
         Returns:
             Assembled context data
@@ -215,7 +228,6 @@ class SessionLoader:
             max_tokens=max_tokens,
             include_characters=True,
             include_lores=True,
-            earlier_proposals=earlier_proposals,
         )
 
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
@@ -239,12 +251,20 @@ class SessionLoader:
 
         return context_data
 
-    def load_chat_session(self, session: Session) -> SessionData:
+    def load_chat_session(
+        self,
+        session: Session,
+        chat_session_id: str | None = None,
+    ) -> SessionData:
         """
         Load chat session and message history.
 
         Args:
             session: Database session
+            chat_session_id: The session this turn already resolved and will save
+                into. When given, that row is loaded by id (it may have become
+                inactive since: another tab can switch sessions in between);
+                without it the newest active session is used.
 
         Returns:
             SessionData with chat session and history
@@ -293,49 +313,42 @@ class SessionLoader:
                 owner_id=project.owner_id,
             )
 
-        # Load active chat session deterministically (newest first)
-        stmt = (
-            select(ChatSession)
-            .where(
-                and_(
-                    ChatSession.project_id == self.project_id,
-                    ChatSession.user_id == self.user_id,
-                    ChatSession.is_active,
-                )
-            )
-            .order_by(
-                desc(ChatSession.updated_at),
-                desc(ChatSession.created_at),
-                desc(ChatSession.id),
-            )
-        )
-        active_sessions = session.exec(stmt).all()
-        chat_session = active_sessions[0] if active_sessions else None
-
-        # Repair stale multi-active states defensively.
-        if len(active_sessions) > 1 and chat_session is not None:
-            stale_count = 0
-            for stale in active_sessions[1:]:
-                if stale.is_active:
-                    stale.is_active = False
-                    session.add(stale)
-                    stale_count += 1
-            if stale_count > 0:
-                session.commit()
-                session.refresh(chat_session)
+        if chat_session_id:
+            # 本轮已经解析并要写回这个会话；按 id 读，不再重新挑「最新活跃会话」——
+            # 另一个分页可能在解析与这里之间切换了活跃会话，那样会读到别的会话
+            # 的历史和工作集，存档却写回本会话。
+            chat_session = session.get(ChatSession, chat_session_id)
+            if chat_session is None or (
+                chat_session.project_id != self.project_id
+                or chat_session.user_id != self.user_id
+            ):
                 log_with_context(
                     logger,
                     30,  # WARNING
-                    "Session loader detected multiple active chat sessions; stale sessions deactivated",
+                    "Session load blocked: chat session missing or not owned by user/project",
                     project_id=self.project_id,
                     user_id=self.user_id,
-                    kept_session_id=chat_session.id,
-                    stale_count=stale_count,
+                    chat_session_id=chat_session_id,
                 )
+                return result
+            return self._load_chat_session_rows(session, result, chat_session)
+
+        chat_session = latest_active_chat_session(
+            session, project_id=self.project_id, user_id=self.user_id
+        )
 
         if not chat_session:
             return result
 
+        return self._load_chat_session_rows(session, result, chat_session)
+
+    def _load_chat_session_rows(
+        self,
+        session: Session,
+        result: SessionData,
+        chat_session: Any,
+    ) -> SessionData:
+        """Fill history window and working-set refs for an ownership-checked session."""
         result.chat_session = chat_session
         result.session_id = chat_session.id
 
@@ -367,10 +380,6 @@ class SessionLoader:
 
         # 跨轮工作集只在上面的项目归属校验通过后才收集
         result.working_set_refs = self._load_recent_working_set_refs(
-            session=session,
-            chat_session_id=chat_session.id,
-        )
-        result.earlier_proposals = self._load_recent_proposals_added(
             session=session,
             chat_session_id=chat_session.id,
         )
@@ -415,9 +424,9 @@ class SessionLoader:
         deleted: set[str] = set()
         for row in rows:  # 新 → 旧
             actions = self._extract_file_actions(getattr(row, "tool_calls", None))
-            # 同一轮里先找删除：被删掉的文件不再进工作集
+            # 同一轮里先找删除：被删掉的文件不再进工作集（结果未知的删除不算）
             for action in actions:
-                if action["name"] == "delete_file" and action["file_id"]:
+                if action["name"] == "delete_file" and action["file_id"] and not action.get("outcome_unknown"):
                     deleted.add(action["file_id"])
             for action in actions:
                 file_id = action["file_id"]
@@ -434,61 +443,6 @@ class SessionLoader:
                     }
                 )
         return refs
-
-    def _load_recent_proposals_added(
-        self,
-        *,
-        session: Session,
-        chat_session_id: str,
-    ) -> list[str]:
-        """最近 EARLIER_PROPOSALS_RECENT_TURNS 条 assistant 回复里未失败的 update_project 结果的
-        proposals_added（存储原文，旧 → 新），减去之后模型自己 proposals_removed 掉的。
-        与当前备注比对后，已不在任何分区的就是作者忽略的。"""
-        from models import ChatMessage
-
-        rows = session.exec(
-            select(ChatMessage)
-            .where(
-                and_(
-                    ChatMessage.session_id == chat_session_id,
-                    ChatMessage.role == "assistant",
-                    ChatMessage.tool_calls.is_not(None),
-                )
-            )
-            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
-            .limit(EARLIER_PROPOSALS_RECENT_TURNS)
-        ).all()
-
-        from config.project_notes import net_earlier_proposals
-
-        def _entries(value: Any) -> list[str]:
-            if not isinstance(value, list):
-                return []
-            return [entry for entry in value if isinstance(entry, str) and entry.strip()]
-
-        changes: list[tuple[list[str], list[str]]] = []
-        for row in reversed(rows):  # 旧 → 新
-            tool_calls = self._parse_json_value(getattr(row, "tool_calls", None))
-            for tc in tool_calls if isinstance(tool_calls, list) else []:
-                if not isinstance(tc, dict) or tc.get("name") != "update_project":
-                    continue
-                # 只跳过失败的调用。partial（计划板被拒但备注已保存）在流里记成 success 并带 error 文案，
-                # 它的 proposals_added 是真写进备注的，卡片上也能点忽略，必须算进来。
-                status = str(tc.get("status") or "").strip().lower()
-                if status in _FAILED_TOOL_STATUSES:
-                    continue
-                result = self._parse_json_value(tc.get("result"))
-                if not isinstance(result, dict):
-                    continue
-                if str(result.get("status") or "").strip().lower() in _FAILED_TOOL_STATUSES:
-                    continue
-                data = result.get("data") if isinstance(result.get("data"), dict) else {}
-                added = _entries(result.get("proposals_added", data.get("proposals_added")))
-                removed = _entries(result.get("proposals_removed", data.get("proposals_removed")))
-                if added or removed:
-                    changes.append((added, removed))
-        # 模型自己用 proposals= 改写/清掉的旧提议不是作者忽略的，先减掉
-        return net_earlier_proposals(changes)
 
     def attach_author_edits(self, session: Session, result: SessionData) -> None:
         """上下文和工作集里的文件：算作者在 AI 写过之后亲手改了什么（<author_edits>）；
@@ -691,6 +645,7 @@ class SessionLoader:
                     "key": f"file:{file.id}",
                     "text": f"### 《{title}》 (id={file.id}) [全文，{count_words(content)} 字]\n{content}".rstrip(),
                     "listing": f"- {label}（{action}，{count_words(content)} 字）",
+                    "label": f"《{title}》 (id={file.id})",
                 })
                 if rendered_full_contents is not None:
                     rendered_full_contents[str(file.id)] = content
@@ -743,6 +698,7 @@ class SessionLoader:
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
         max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
+        chat_session_id: str | None = None,
     ) -> SessionData:
         """
         Load session and context using a fresh sync DB session.
@@ -751,7 +707,7 @@ class SessionLoader:
         work does not block the async request event loop.
         """
         with create_session() as read_session:
-            result = self.load_chat_session(read_session)
+            result = self.load_chat_session(read_session, chat_session_id)
             result.context_data = self.assemble_context(
                 read_session,
                 context_assembler,
@@ -761,7 +717,6 @@ class SessionLoader:
                 attached_library_materials,
                 text_quotes,
                 max_tokens,
-                earlier_proposals=result.earlier_proposals,
             )
             self.attach_author_edits(read_session, result)
             self.attach_working_set(read_session, result)
@@ -1088,10 +1043,10 @@ class SessionLoader:
         """把持久化的 tool_calls 归一成文件动作列表（按调用顺序）。
 
         每项 {name, file_id, title}，name ∈ create_file/edit_file/delete_file/query_files。
-        - 失败的调用一律忽略；
+        - 失败的调用一律忽略；没有落下结果（status=pending）的调用另带
+          outcome_unknown=True，面包屑写「结果未知」，删除也不当真；
         - query_files 只认按 id 精确读取（关键词搜索只是预览，不算读过全文）；
-        - parallel_execute 展开其中的 query_files / edit_file / delete_file /
-          write_chapter 子任务（write_chapter 视为创建）。
+        - parallel_execute 只展开实际执行完的子任务（见 _extract_parallel_file_actions）。
         """
         tool_calls = self._parse_json_value(tool_calls_raw)
         if not isinstance(tool_calls, list):
@@ -1107,12 +1062,14 @@ class SessionLoader:
             if status in _FAILED_TOOL_STATUSES or tc.get("error"):
                 continue
 
+            unknown = {"outcome_unknown": True} if status == _PENDING_TOOL_STATUS else {}
             if name in {"create_file", "edit_file", "delete_file", "rename_file"}:
                 actions.append(
                     {
                         "name": name,
                         "file_id": self._extract_breadcrumb_file_id(tc),
                         "title": self._extract_breadcrumb_title(tc),
+                        **unknown,
                     }
                 )
                 continue
@@ -1126,6 +1083,7 @@ class SessionLoader:
                             "name": "query_files",
                             "file_id": file_id,
                             "title": self._find_title_for_id(tc.get("result"), file_id),
+                            **unknown,
                         }
                     )
                 continue
@@ -1136,47 +1094,49 @@ class SessionLoader:
         return actions
 
     def _extract_parallel_file_actions(self, tc: dict[str, Any]) -> list[dict[str, Any]]:
-        """展开 parallel_execute 里与文件相关的子任务。"""
-        args = self._parse_json_value(tc.get("arguments"))
-        tasks = args.get("tasks") if isinstance(args, dict) else None
-        if not isinstance(tasks, list):
-            return []
+        """展开 parallel_execute 里实际执行完的、与文件相关的子任务。
 
+        只看结果里的 tasks：超过单次上限被截掉的任务只在 dropped_tasks 里，被读取
+        守卫拦下的读取根本没进执行器，两者都不在 tasks 里；失败、没有结果的子任务
+        也不记。目标文件取执行器回显的 params（id / 标题）。
+
+        旧结果没有回显 params：只有任务一个不少、类型逐个对上时才按下标去落库的
+        原始参数里取目标；对不上就只用子任务结果里自带的 id。
+        """
         result = self._parse_json_value(tc.get("result"))
         task_results = result.get("tasks") if isinstance(result, dict) else None
         if not isinstance(task_results, list):
-            task_results = []
+            return []
+
+        legacy_params: list[Any] = []
+        if not any(isinstance(item, dict) and "params" in item for item in task_results):
+            args = self._parse_json_value(tc.get("arguments"))
+            requested = args.get("tasks") if isinstance(args, dict) else None
+            if (
+                isinstance(requested, list)
+                and len(requested) == len(task_results)
+                and all(
+                    isinstance(task, dict)
+                    and isinstance(item, dict)
+                    and str(task.get("type") or "").strip() == str(item.get("type") or "").strip()
+                    for task, item in zip(requested, task_results, strict=True)
+                )
+            ):
+                legacy_params = [self._parse_json_value(task.get("params")) for task in requested]
 
         actions: list[dict[str, Any]] = []
-        # 落库的 arguments 是模型发出的原始子任务；读取守卫会把被拦下的
-        # query_files 子任务从实际执行的列表里剔除，result.tasks 因此比 arguments
-        # 短，按下标配对会把后面子任务的结果（标题、失败状态）安到前一个子任务上。
-        # 用游标顺序配对：类型一致才配对；还有被剔除的名额时，结果里找不到该文件
-        # id 的 query_files 视为被拦下。配不上的子任务按「没有结果」处理。
-        dropped_reads = max(0, len(tasks) - len(task_results))
-        cursor = 0
-        for task in tasks:
-            if not isinstance(task, dict):
+        for position, task_result in enumerate(task_results):
+            if not isinstance(task_result, dict):
                 continue
-            task_type = str(task.get("type") or "").strip()
-            params = self._parse_json_value(task.get("params"))
+            task_status = str(task_result.get("status") or "").strip().lower()
+            if task_status not in _APPLIED_PARALLEL_TASK_STATUSES:
+                continue
+            task_type = str(task_result.get("type") or "").strip()
+            params = task_result.get("params") if "params" in task_result else (
+                legacy_params[position] if legacy_params else None
+            )
             params = params if isinstance(params, dict) else {}
-
-            candidate = task_results[cursor] if cursor < len(task_results) else None
-            read_id = str(params.get("id") or "").strip() if task_type == "query_files" else ""
-            if dropped_reads and read_id and not self._result_mentions_id(candidate, read_id):
-                # 被守卫拦下、没有执行的重复读取：不记面包屑（之前的读取已经记过）。
-                dropped_reads -= 1
-                continue
-            task_result: dict[str, Any] | None = None
-            if isinstance(candidate, dict) and str(candidate.get("type") or "").strip() == task_type:
-                task_result = candidate
-                cursor += 1
-            if isinstance(task_result, dict):
-                task_status = str(task_result.get("status") or "").strip().lower()
-                if task_status in _FAILED_TOOL_STATUSES or task_result.get("error"):
-                    continue
-            task_payload = task_result.get("result") if isinstance(task_result, dict) else None
+            task_payload = task_result.get("result")
 
             if task_type == "query_files":
                 file_id = str(params.get("id") or "").strip()
@@ -1205,17 +1165,6 @@ class SessionLoader:
                     actions.append({"name": "create_file", "file_id": file_id, "title": title})
         return actions
 
-    @staticmethod
-    def _result_mentions_id(task_result: Any, file_id: str) -> bool:
-        """parallel 子任务结果里是否出现了这个文件 id（结果被截断时也能在预览里找到）。"""
-        if not isinstance(task_result, dict) or not file_id:
-            return False
-        try:
-            serialized = json.dumps(task_result.get("result"), ensure_ascii=False, default=str)
-        except (TypeError, ValueError):
-            return False
-        return file_id in serialized
-
     def _build_tool_calls_history_content(self, tool_calls_raw: Any) -> str:
         """
         Synthesize a compact text breadcrumb from persisted ChatMessage.tool_calls.
@@ -1232,7 +1181,11 @@ class SessionLoader:
         seen: set[str] = set()
         for action in self._extract_file_actions(tool_calls_raw):
             line = self._format_breadcrumb_line(
-                action["name"], action["title"], action["file_id"], force_en=force_en
+                action["name"],
+                action["title"],
+                action["file_id"],
+                force_en=force_en,
+                outcome_unknown=bool(action.get("outcome_unknown")),
             )
             if line and line not in seen:
                 seen.add(line)
@@ -1285,12 +1238,16 @@ class SessionLoader:
         file_id: str | None,
         *,
         force_en: bool,
+        outcome_unknown: bool = False,
     ) -> str:
         """Format a single compact breadcrumb line for a file operation."""
         title_part = f"《{title}》" if title else ("(untitled)" if force_en else "（未命名）")
         id_part = f" (id={file_id})" if file_id else ""
 
-        verbs = _BREADCRUMB_VERBS_EN if force_en else _BREADCRUMB_VERBS_ZH
+        if outcome_unknown:
+            verbs = _BREADCRUMB_UNKNOWN_EN if force_en else _BREADCRUMB_UNKNOWN_ZH
+        else:
+            verbs = _BREADCRUMB_VERBS_EN if force_en else _BREADCRUMB_VERBS_ZH
         verb = verbs.get(name)
         if not verb:
             return ""
@@ -1445,6 +1402,7 @@ class SessionLoader:
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
         max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
+        chat_session_id: str | None = None,
     ) -> "SessionData":
         """
         Load chat session, assemble context and build the cross-turn working set.
@@ -1466,6 +1424,7 @@ class SessionLoader:
             attached_library_materials: List of library material references
             text_quotes: List of user-selected text quotes
             max_tokens: Maximum tokens for context
+            chat_session_id: Session already resolved for this turn (see load_chat_session)
 
         Returns:
             SessionData with chat session and assembled context
@@ -1482,11 +1441,12 @@ class SessionLoader:
                 attached_library_materials,
                 text_quotes,
                 max_tokens,
+                chat_session_id,
             )
         else:
             # Keep sqlite/test execution on the caller session so existing test
             # fixtures and in-memory DB behavior remain deterministic.
-            result = self.load_chat_session(session)
+            result = self.load_chat_session(session, chat_session_id)
             result.context_data = self.assemble_context(
                 session,
                 context_assembler,
@@ -1496,7 +1456,6 @@ class SessionLoader:
                 attached_library_materials,
                 text_quotes,
                 max_tokens,
-                earlier_proposals=result.earlier_proposals,
             )
             self.attach_author_edits(session, result)
             self.attach_working_set(session, result)

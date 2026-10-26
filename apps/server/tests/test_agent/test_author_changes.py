@@ -536,7 +536,7 @@ async def test_two_edits_of_the_same_file_in_one_request_both_apply(db_session, 
             "match_mode": "auto",
         },
         {"op": "Replace", "old": "门外站着一个穿白衣的老人，手里提着灯。", "new": "门外空无一人。"},
-        {"old": "门外站着一个穿白衣的老人，手里提着灯。", "new": "门外空无一人。"},
+        {"operation": "replace", "old": "门外站着一个穿白衣的老人，手里提着灯。", "new": "门外空无一人。"},
     ],
 )
 async def test_unread_files_match_verbatim_whatever_the_edit_says(db_session, owner_project, edit):

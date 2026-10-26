@@ -275,6 +275,14 @@ async def test_wait_message_id_does_not_swallow_cancellation():
     assert await outcome.wait_message_id(1.0) == "m2"
 
 
+def test_removable_keeps_files_whose_capture_save_was_attempted():
+    """补存过正文的文件不当空白占位移除：失败 / 超时（回执 None）时后台线程可能稍后才提交。"""
+    outcome = RunOutcome(keep_file_ids={"typed"}, saved_file_word_counts={"timed_out": None, "saved": 12})
+    candidates = [{"id": fid, "title": fid} for fid in ("blank", "typed", "timed_out", "saved")]
+
+    assert outcome.removable(candidates) == [{"id": "blank", "title": "blank"}]
+
+
 # ---------------------------------------------------------------------- RoundWrittenFiles
 
 
@@ -330,6 +338,53 @@ def test_partial_delivery_uses_save_receipts_not_create_shells_or_stream_end():
     # never an error, and a fully written round has no unfinished-file warning.
     files.observe(_frame("file_content", {"file_id": "empty", "chunk": "周念关上门。"}))
     assert "unwritten_files" not in files.delivery(final_word_counts={"filled": 5, "empty": 5})
+
+
+def test_file_the_author_asked_to_keep_empty_is_neither_written_nor_unwritten():
+    """作者只要建标题（create_file empty_by_request=true）：空文件本身就是交付物，不算「未确认保存」，
+    也不算写进了正文；同一轮里普通的空壳照旧列为未确认保存。"""
+    files = RoundWrittenFiles()
+    files.observe(_frame("router_decided", {"routing_metadata": {"write_content": False}}))
+    files.observe(_created("ch-10", "第10章", empty_by_request=True))
+
+    assert files.delivery(final_word_counts={}) == {}
+    assert files.completion_receipt(final_word_counts={}, any_write_succeeded=False) == {}
+
+    files.observe(_created("ch-11", "第11章"))
+    assert files.delivery(final_word_counts={}) == {"unwritten_files": [{"id": "ch-11", "title": "第11章"}]}
+
+
+def test_stopped_delivery_keeps_unconfirmed_bodies_and_drops_untouched_or_removed_shells():
+    files = RoundWrittenFiles()
+    files.observe(_created("blank", "刚建好"))
+    files.observe(_created("tail", "尾缓冲"))  # 正文只在补存里，没有正文帧
+    files.observe(_created("streamed", "流式"))
+    files.observe(_frame("file_content", {"file_id": "streamed", "chunk": "林舟推开门。"}))
+
+    delivery = files.stopped_delivery(final_word_counts={"tail": None})
+    assert delivery == {"unwritten_files": [{"id": "tail", "title": "尾缓冲"}, {"id": "streamed", "title": "流式"}]}
+    assert files.saved_output(delivery, final_word_counts={"tail": None}, any_write_succeeded=True) is False
+
+    # 有确认写入时照旧列出没写成的空壳，退还时真正移除了的除外。
+    receipts = {"tail": None, "streamed": 5}
+    delivery = files.stopped_delivery(final_word_counts=receipts, removed_ids={"blank"})
+    assert delivery == {
+        "written_files": [{"id": "streamed", "title": "流式", "words": 5}],
+        "unwritten_files": [{"id": "tail", "title": "尾缓冲"}],
+    }
+    assert files.saved_output(delivery, final_word_counts=receipts, any_write_succeeded=True) is True
+
+
+def test_saved_output_does_not_claim_an_unconfirmed_stream_into_an_existing_file():
+    """流进已有文件的正文没有保存回执：没有可列的文件，也不能说「已写入的内容已保存」；
+    只有列不出文件的写入（并行写章、删除）时沿用计费口径。"""
+    files = RoundWrittenFiles()
+    files.observe(_frame("file_created", {"file_id": "old", "title": "第3章"}))
+    files.observe(_frame("file_content", {"file_id": "old", "chunk": "雨还在下。"}))
+    assert files.saved_output({}, final_word_counts={}, any_write_succeeded=True) is False
+    assert files.saved_output({}, final_word_counts={"old": None}, any_write_succeeded=True) is False
+    assert RoundWrittenFiles().saved_output({}, final_word_counts={}, any_write_succeeded=True) is True
+    assert RoundWrittenFiles().saved_output({}, final_word_counts={}, any_write_succeeded=False) is False
 
 
 def test_partial_delivery_does_not_invent_work_for_old_or_deleted_files():

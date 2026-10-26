@@ -9,15 +9,6 @@ from unittest.mock import patch
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _reset_global_metrics():
-    from agent.core.metrics import reset_metrics_collector
-
-    reset_metrics_collector()
-    yield
-    reset_metrics_collector()
-
-
 @pytest.mark.unit
 class TestEvaluationSignals:
     """Tests for heuristic evaluator and marker fallback behavior."""

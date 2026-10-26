@@ -28,7 +28,7 @@ CREATE_FILE_TOOL: dict[str, Any] = {
         "properties": {
             "title": {
                 "type": "string",
-                "description": "文件标题/名称，最多 255 字；正文必须放入 content，不要放在标题中",
+                "description": "文件标题/名称，最多 255 字；不要把正文放在标题中，工具返回后用 <file> 流式输出正文",
                 "maxLength": 255
             },
             "file_type": {
@@ -227,10 +227,6 @@ QUERY_FILES_TOOL: dict[str, Any] = {
                 "type": "string",
                 "description": "父文件ID过滤"
             },
-            "metadata_filter": {
-                "type": "object",
-                "description": "元数据字段过滤"
-            },
             "limit": {
                 "type": "integer",
                 "description": "最大返回数量（默认 50；不按 id 且 response_mode=full 时默认 10）",
@@ -291,10 +287,12 @@ QUERY_FILES_TOOL: dict[str, Any] = {
 UPDATE_PROJECT_TOOL: dict[str, Any] = {
     "name": "update_project",
     "description": (
-        "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格、备注）和任务列表。"
+        "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格）和任务列表。"
         "同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending。"
         "summary/current_phase/writing_style 传值即整体替换；新增内容时先合并现有内容。"
-        "notes 中已有作者确认和未标来源条目由系统保留；新增或改写内容只进入 AI 提议。"
+        "notes 只在作者明确让你记住时传，只追加作者原话（已有写作约定由系统保留，不能删改）；"
+        "结果的 notes_added 是实际记下的条目，没有它不要说已记住；作者要删改已有写作约定时不记删改指令，只可记作者给的新说法，并请作者在 AI 记忆里删改旧条目。"
+        "summary 只描述作品，不标「已确认」，不写你自己选定或建议的内容；writing_style 只写作者提过的要求；建议写在回复里。"
         "新的非文件完成任务须明确 task_kind=conversation；文件任务必须有对应类型的实际产物证据。"
         "进度和已完成文件引用由系统维护，不要提交或推断这些字段。"
         "给作品定了名字时传 title：项目还叫默认名（如「我的小说」）或之前由 AI 起的名字时会改名，"
@@ -314,7 +312,7 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             },
             "summary": {
                 "type": "string",
-                "description": "项目摘要/背景介绍（整体替换；先合并现有内容）",
+                "description": "项目摘要/背景介绍（整体替换；先合并现有内容；不写你自己选定或建议的内容）",
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["summary"],
             },
             "current_phase": {
@@ -324,30 +322,14 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
             },
             "writing_style": {
                 "type": "string",
-                "description": "写作风格指南（整体替换；先合并现有内容）",
+                "description": "作者提过的写作风格要求（整体替换；先合并现有内容；不写你自己定的规则）",
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["writing_style"],
             },
             "notes": {
                 "type": "string",
                 "description": (
-                    "需要长期记住的内容。Agent 新增或改写的条目只记录为 AI 提议，不表示作者确认。"
-                    "作者确认和未标来源的已有内容由系统保留，不能由你删除或改写；"
-                    "作者用按钮采纳提议或在 AI 记忆中编辑约定；对话回复不改变来源。"
-                    "notes 和 proposals 存在同一个备注字段里，合计不超过 4000 字"
-                ),
-                "maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"],
-            },
-            "proposals": {
-                "type": "string",
-                "description": (
-                    "作者尚未采纳的设定和建议（备注里的「AI 提议·待作者确认」一块，整体替换；"
-                    "不传则保留原有提议，传空串清空）。每条只写一件事，用「；」或换行分隔，"
-                    "不加「待作者确认」「已定」之类的前缀或自标。作者用本次结果下方和 AI 记忆里的按钮逐条采纳或忽略，"
-                    "不要请作者回复「确认」或复述条目，也不要让作者去 AI 记忆确认。"
-                    "以当前备注的提议区为准追加；已不在提议区的旧条目已被作者处理，不要再加回，"
-                    "「作者已忽略的 AI 提议」里的条目也不要换个说法重提。"
-                    "它们之后会作为未确认的提议提供给你，不会当成设定；本轮可按作者要求使用。"
-                    "和 notes 共用备注字段的 4000 字"
+                    "作者明确让你记住的内容，用作者原话，一条一件事（「；」或换行分隔），"
+                    "不加推断、补充、前缀或括号；只传新条目，系统追加到写作约定末尾，已有条目原样保留"
                 ),
                 "maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"],
             },

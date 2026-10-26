@@ -46,6 +46,8 @@ Status: implemented
 **3. 自动质检门只看本轮写进正文类文件的字数（新模块 `agent/graph/body_writes.py`）**
 
 - `BodyWriteTracker` 跟着 writer run 的 TOOL_USE / TOOL_RESULT 记下成功写进 draft / script 的内容：create_file 之后第一段 `<file>…</file>` 正文；edit_file 的 edits 里 `new` / `text`（delete 不算）；parallel_execute 的 write_chapter（`content`）与 edit_file 子任务。edit_file 部分成功但确实改了文件也算；失败、`all_failed` 不算。字数用 `count_words`。
+- edit_file 部分成功（`continue_on_error`）时，只算生效的编辑：`data.failed_edits` 里列出的 index 对应的 `new` / `text` 不计入；parallel_execute 的 edit_file 子任务用同一过滤。`data.unchanged_edits` 里列出的编辑（old 与 new 相同、原文已是这样，`already_matches`）同样没写入任何字，也不计入，否则一处小改加一条 600 字的原样确认也会多送审一次。原来按 edits 参数全量计，10 字成功加 600 字失败会记成 610 字而多送审一次（2026-10-25 代理审计 F-16 / B-BUG-008）。
+- create_file 命中复用分支、目标文件原本有正文（`reused_existing` 且 `original_content_length` / `content` 非空，与 StreamAdapter `_should_refuse_truncated_overwrite` 同一判断）时，只有以 `</file>` 闭合的 `<file>` 块才计入：没闭合的残稿会被适配器拒存、原文不变，原来却照常记 600 字并送审（F-17 / B-BUG-009）。完整闭合的覆写照常计入；新建空文件的未闭合正文会被补全落库，口径不变。
 - 自动质检门条件从「`len(agent_content) >= 阈值` 且动过写工具 / 出现过 `<file>`」改为「`body_words_written >= 阈值`」。阈值仍是 `AGENT_AUTO_REVIEW_THRESHOLD_CHARS`（500），WRITER_PROMPT 本来就把它写成「超过 500 字」。纠偏轮照旧接续被打断那一轮的记录。
 - 删掉不再使用的 `writer_used_write_tools` / `writer_emitted_file_markers` / `_tool_result_failed`。
 
@@ -69,6 +71,7 @@ Status: implemented
 - 审稿人写作者看到的总结时，只写在当前正文里核对过的改动，没做或只做了一部分的照实说，不照搬交接（场景 C 把只做了一半的五条建议说成「按那五条改完了」）。交接里的「[要告诉作者]」原样转告。writer 送审时把作者必须知道的话（整篇原地重写后旧稿在历史版本里能找回、要问作者的问题）写进 context 的「[要告诉作者]」（场景 J 的这句被审稿人漏掉了）。只改提示词：handoff 已有的 `completed` 不渲染给下一个 agent，`todo / evidence` 是「待办 / 依据」，`[内容创作者要问作者的问题]` 只在图判定 writer 以提问收尾时才从它的文字里取；`context` 原样交给审稿人，带一个固定段名就够，不加新字段。
 - `<file>` 独占一行，紧跟的那个换行（`\n` 或 `\r\n`）不算正文（`StreamProcessor._drop_marker_line_break`，换行落在下一个 chunk 也认）。场景 A 项目里每个流式写入的文件都以空行开头。只去这一个：多出来的空行、正文开头的缩进照留。
 - 自动推的进度剧本项目写「已写至第N集」，读进度也认「集」（`mcp_tools._suggest_auto_current_phase_from_drafts`）。短篇也按章写，不变。
+- （2026-10-25 补，审计 F-10）自动推进度只算有正文的章 / 集：标题建好、正文为空或只有空白的空壳不算，否则第 1–3 章写完、第 4–20 章只建了标题会被记成「已写至第20章」，单调保护又让错值一直留着。单位、单调不回退、非章节阶段不覆写都不变。
 
 ## Alternatives considered
 

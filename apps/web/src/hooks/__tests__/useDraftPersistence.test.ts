@@ -11,7 +11,7 @@ vi.mock('../../lib/logger', () => ({
   },
 }))
 
-import { useDraftPersistence } from '../useDraftPersistence'
+import { appendDraftForProject, useDraftPersistence } from '../useDraftPersistence'
 
 const STORAGE_KEY = 'zenstory_chat_drafts'
 
@@ -110,4 +110,16 @@ describe('useDraftPersistence', () => {
     } finally { write.mockRestore() }
   })
 
+
+  it('appends a line to another project\'s stored draft without touching other projects', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ projectA: { default: '已有的字' }, projectB: { default: 'B' } }))
+
+    expect(appendDraftForProject('projectA', '补一句')).toBe(true)
+    expect(appendDraftForProject('projectC', '新作品')).toBe(true)
+
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    expect(stored.projectA.default).toBe('已有的字\n补一句')
+    expect(stored.projectB.default).toBe('B')
+    expect(stored.projectC.default).toBe('新作品')
+  })
 })

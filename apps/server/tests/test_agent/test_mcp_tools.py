@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -245,7 +244,7 @@ async def test_update_project_tasks_only_auto_sync_failure_is_non_blocking():
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.parametrize("plan_status", ["ignored", "error"])
-async def test_update_project_propagates_rejected_plan_without_phase_sync_or_success_ledger(
+async def test_update_project_propagates_rejected_plan_without_phase_sync(
     plan_status,
 ):
     mock_executor = MagicMock()
@@ -261,9 +260,7 @@ async def test_update_project_propagates_rejected_plan_without_phase_sync_or_suc
         return_value={"project_id": "proj-1", "session_id": "sess-1"},
     ), patch(
         "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
-    ) as suggest_phase, patch(
-        "agent.tools.mcp_tools._record_artifact_ledger",
-    ) as record_ledger:
+    ) as suggest_phase:
         result = await update_project({"tasks": [{"task": "写第5章", "status": "done"}]})
 
     payload = _parse_payload(result)
@@ -273,7 +270,6 @@ async def test_update_project_propagates_rejected_plan_without_phase_sync_or_suc
     assert payload["data"]["plan"]["status"] == plan_status
     suggest_phase.assert_not_called()
     mock_executor.update_project_status.assert_not_called()
-    record_ledger.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -294,14 +290,13 @@ async def test_update_project_reports_partial_when_fields_update_but_plan_is_rej
     with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
         "agent.tools.mcp_tools.ToolContext._get_context",
         return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools._record_artifact_ledger") as record_ledger:
+    ):
         result = await update_project({"summary": "new", "tasks": []})
 
     payload = _parse_payload(result)
     assert payload["status"] == "partial"
     assert payload["mutation_applied"] is True
     assert payload["data"]["updated_fields"] == ["summary"]
-    record_ledger.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -563,20 +558,6 @@ async def test_handoff_to_agent_rejects_case_insensitive_reviewer_alias():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_handoff_to_agent_keeps_artifact_refs():
-    result = await handoff_to_agent({
-        "target_agent": "writer",
-        "reason": "继续创作",
-        "artifact_refs": ["file-1", "  ", "file-2"],
-    })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["artifact_refs"] == ["file-1", "file-2"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
 async def test_handoff_to_agent_defaults_context_to_reason_when_missing():
     """Context is required downstream; tool should fall back to reason when omitted."""
     result = await handoff_to_agent({
@@ -604,221 +585,6 @@ async def test_handoff_to_agent_generates_context_when_both_reason_and_context_m
     assert payload["status"] == "handoff"
     assert payload["context"]
     assert "quality_reviewer" in payload["context"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_merges_recent_ledger_refs():
-    with patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools._load_recent_artifact_refs_for_handoff",
-        return_value=["file-a", "file-b"],
-    ):
-        result = await handoff_to_agent({
-            "target_agent": "writer",
-            "reason": "继续",
-            "artifact_refs": ["file-b", "file-c"],
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["artifact_refs"] == ["file-b", "file-c", "file-a"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_handoff_to_agent_backfills_overflow_refs_into_context():
-    overflow_ref = "tool_result_overflow:abc123"
-    with patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools._load_recent_artifact_refs_for_handoff",
-        return_value=[overflow_ref],
-    ), patch(
-        "agent.tools.mcp_tools._load_tool_result_overflow_entry",
-        return_value={
-            "overflow_ref": overflow_ref,
-            "tool_name": "query_files",
-            "status": "success",
-            "original_length": 4096,
-            "serialized_payload": '{"status":"success","data":"..."}',
-        },
-    ):
-        result = await handoff_to_agent({
-            "target_agent": "writer",
-            "reason": "继续",
-            "context": "已完成检索",
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "handoff"
-    assert payload["artifact_refs"] == [overflow_ref]
-    assert "[工具外溢引用回填]" in payload["context"]
-    assert overflow_ref in payload["context"]
-    assert payload["overflow_backfill"][0]["overflow_ref"] == overflow_ref
-
-
-@pytest.mark.unit
-def test_load_recent_artifact_refs_for_handoff_filters_out_non_handoff_actions(db_session):
-    from agent.tools import mcp_tools
-    from models import AgentArtifactLedger, ChatSession, Project, User
-
-    suffix = uuid4().hex[:8]
-    user = User(
-        email=f"mcp-tools-{suffix}@example.com",
-        username=f"mcp_tools_{suffix}",
-        hashed_password="hashed",
-        name="MCP Tools Test User",
-        email_verified=True,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    project = Project(
-        name=f"MCP Tools Project {suffix}",
-        owner_id=user.id,
-        project_type="novel",
-    )
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-
-    chat_session = ChatSession(
-        user_id=user.id,
-        project_id=project.id,
-        title="MCP Tools Test Chat",
-        is_active=True,
-        message_count=0,
-    )
-    db_session.add(chat_session)
-    db_session.commit()
-    db_session.refresh(chat_session)
-
-    base_time = datetime.utcnow()
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="create_file",
-            tool_name="create_file",
-            artifact_ref="file-1",
-            created_at=base_time - timedelta(seconds=2),
-        )
-    )
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="unknown_action",
-            tool_name="unknown_tool",
-            artifact_ref=f"unknown:{chat_session.id}",
-            payload=json.dumps({"note": "ignored"}),
-            created_at=base_time,
-        )
-    )
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="edit_file",
-            tool_name="edit_file",
-            artifact_ref="file-2",
-            created_at=base_time - timedelta(seconds=1),
-        )
-    )
-    db_session.commit()
-
-    with patch("agent.tools.mcp_tools._get_ledger_session", return_value=(db_session, False)):
-        refs = mcp_tools._load_recent_artifact_refs_for_handoff(
-            project_id=project.id,
-            session_id=chat_session.id,
-            limit=10,
-        )
-
-    assert refs == ["file-2", "file-1"]
-
-
-@pytest.mark.unit
-def test_load_tool_result_overflow_entry_returns_payload(db_session):
-    from agent.tools import mcp_tools
-    from models import AgentArtifactLedger, ChatSession, Project, User
-
-    suffix = uuid4().hex[:8]
-    user = User(
-        email=f"overflow-ref-{suffix}@example.com",
-        username=f"overflow_ref_{suffix}",
-        hashed_password="hashed",
-        name="Overflow Ref User",
-        email_verified=True,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    project = Project(
-        name=f"Overflow Ref Project {suffix}",
-        owner_id=user.id,
-        project_type="novel",
-    )
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-
-    chat_session = ChatSession(
-        user_id=user.id,
-        project_id=project.id,
-        title="Overflow Ref Chat",
-        is_active=True,
-        message_count=0,
-    )
-    db_session.add(chat_session)
-    db_session.commit()
-    db_session.refresh(chat_session)
-
-    overflow_ref = "tool_result_overflow:test-ref"
-    db_session.add(
-        AgentArtifactLedger(
-            project_id=project.id,
-            session_id=chat_session.id,
-            user_id=user.id,
-            action="tool_result_overflow",
-            tool_name="query_files",
-            artifact_ref=overflow_ref,
-            payload=json.dumps(
-                {
-                    "schema_version": 1,
-                    "status": "success",
-                    "tool_name": "query_files",
-                    "original_length": 3210,
-                    "serialized_payload": '{"status":"success","data":"large"}',
-                },
-                ensure_ascii=False,
-            ),
-        )
-    )
-    db_session.commit()
-
-    with patch("agent.tools.mcp_tools._get_ledger_session", return_value=(db_session, False)), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": project.id, "session_id": chat_session.id},
-    ):
-        entry = mcp_tools._load_tool_result_overflow_entry(overflow_ref)
-
-    assert entry is not None
-    assert entry["overflow_ref"] == overflow_ref
-    assert entry["tool_name"] == "query_files"
-    assert entry["status"] == "success"
-    assert entry["original_length"] == 3210
-    assert entry["serialized_payload"] == '{"status":"success","data":"large"}'
 
 
 @pytest.mark.asyncio
@@ -869,6 +635,30 @@ async def test_edit_file_forwards_continue_on_error():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+@pytest.mark.parametrize("error_name", ["ForbiddenError", "UnauthorizedError"])
+async def test_edit_file_reports_access_refusal_as_permission_denied(error_name):
+    """F-27：权限拒绝发生在写入之前，要报 permission_denied 且明确一处都没改，
+    不能落进「可能已套用」的通用分支。"""
+    from agent.tools import permissions
+
+    mock_executor = MagicMock()
+    mock_executor.edit_file.side_effect = getattr(permissions, error_name)("Access denied")
+
+    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
+        "agent.tools.mcp_tools.ToolContext._get_context",
+        return_value={"project_id": "proj-1"},
+    ):
+        result = await edit_file({"id": "f-1", "edits": [{"op": "append", "text": "x"}]})
+
+    payload = _parse_payload(result)
+    assert payload["status"] == "error"
+    assert payload["error_type"] == "permission_denied"
+    assert payload["edits_applied"] == 0
+    assert payload["mutation_applied"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_edit_file_accepts_file_id_alias():
     """Backward compatibility: accept file_id as an alias for id."""
     mock_executor = MagicMock()
@@ -898,35 +688,6 @@ async def test_edit_file_accepts_file_id_alias():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_create_file_records_artifact_ledger_on_success():
-    mock_executor = MagicMock()
-    mock_executor.create_file.return_value = {
-        "id": "f-1",
-        "title": "chapter1",
-        "file_type": "draft",
-    }
-
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools._record_artifact_ledger") as mock_record:
-        result = await create_file({
-            "title": "chapter1",
-            "file_type": "draft",
-            "content": "正文",
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    mock_record.assert_called_once()
-    kwargs = mock_record.call_args.kwargs
-    assert kwargs["action"] == "create_file"
-    assert kwargs["tool_name"] == "create_file"
-    assert kwargs["artifact_refs"] == ["f-1"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
 async def test_tool_result_payload_is_truncated_when_exceeding_limit():
     mock_executor = MagicMock()
     mock_executor.edit_file.return_value = {
@@ -952,84 +713,6 @@ async def test_tool_result_payload_is_truncated_when_exceeding_limit():
     assert payload["max_chars"] == 180
     assert payload["original_length"] > 180
     assert payload["data"]["truncated"] is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_tool_result_payload_persists_overflow_ref_when_ledger_available():
-    mock_executor = MagicMock()
-    mock_executor.edit_file.return_value = {
-        "id": "f-1",
-        "content": "x" * 2000,
-    }
-
-    def _record_side_effect(**_kwargs):
-        return True
-
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS",
-        180,
-    ), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger",
-        side_effect=_record_side_effect,
-    ) as mock_record:
-        result = await edit_file({
-            "id": "f-1",
-            "edits": [{"op": "append", "text": "x"}],
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["truncated"] is True
-    assert payload["overflow_ref"].startswith("tool_result_overflow:")
-
-    overflow_calls = [
-        call.kwargs for call in mock_record.call_args_list if call.kwargs.get("action") == "tool_result_overflow"
-    ]
-    assert len(overflow_calls) == 1
-    overflow_call = overflow_calls[0]
-    assert overflow_call["tool_name"] == "edit_file"
-    assert overflow_call["artifact_refs"] == [payload["overflow_ref"]]
-    assert overflow_call["payload"]["schema_version"] == 1
-    assert overflow_call["payload"]["original_length"] > 180
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_tool_result_payload_drops_overflow_ref_when_ledger_persist_fails():
-    mock_executor = MagicMock()
-    mock_executor.edit_file.return_value = {
-        "id": "f-1",
-        "content": "x" * 2000,
-    }
-
-    def _record_side_effect(**kwargs):
-        if kwargs.get("action") == "tool_result_overflow":
-            return False
-        return True
-
-    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch(
-        "agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS",
-        180,
-    ), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger",
-        side_effect=_record_side_effect,
-    ):
-        result = await edit_file({
-            "id": "f-1",
-            "edits": [{"op": "append", "text": "x"}],
-        })
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["truncated"] is True
-    assert "overflow_ref" not in payload
 
 
 @pytest.mark.asyncio
@@ -1082,7 +765,6 @@ async def test_query_files_forwards_new_wrapper_params():
         file_type=None,
         file_types=None,
         parent_id=None,
-        metadata_filter=None,
         limit=50,
         offset=0,
         response_mode="summary",
@@ -1175,31 +857,6 @@ async def test_offloaded_wrappers_cleanup_owned_session(tool_func, sync_helper, 
     mock_to_thread.assert_called_once()
     mock_sync.assert_called_once_with(args)
     mock_cleanup.assert_called_once()
-
-
-@pytest.mark.unit
-def test_record_artifact_ledger_rolls_back_on_commit_error():
-    from agent.tools import mcp_tools
-
-    mock_session = MagicMock()
-    mock_session.commit.side_effect = RuntimeError("db write failed")
-
-    class DummyLedger:
-        def __init__(self, **_kwargs):
-            pass
-
-    with patch("agent.tools.mcp_tools._get_ledger_session", return_value=(mock_session, False)), patch(
-        "agent.tools.mcp_tools.ToolContext._get_context",
-        return_value={"project_id": "proj-1", "session_id": "sess-1", "user_id": "user-1"},
-    ), patch("models.AgentArtifactLedger", DummyLedger):
-        mcp_tools._record_artifact_ledger(
-            action="create_file",
-            tool_name="create_file",
-            artifact_refs=["file-1"],
-            payload={"title": "chapter1"},
-        )
-
-    mock_session.rollback.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -1605,9 +1262,7 @@ async def test_oversized_query_result_keeps_every_file_identity_and_truncates_co
     with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
         "agent.tools.mcp_tools.ToolContext._get_context",
         return_value={"project_id": "proj-1", "session_id": "sess-1"},
-    ), patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 8_000), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger", return_value=True
-    ):
+    ), patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 8_000):
         result = await query_files({"response_mode": "full", "limit": 8})
 
     text = result["content"][0]["text"]
@@ -1615,7 +1270,6 @@ async def test_oversized_query_result_keeps_every_file_identity_and_truncates_co
     payload = json.loads(text)
     assert payload["status"] == "success"
     assert payload["truncated"] is True
-    assert payload["overflow_ref"].startswith("tool_result_overflow:")
     assert 'query_files(id=…, response_mode="full")' in payload["note"]
     assert [item["id"] for item in payload["data"]] == [file["id"] for file in files]
     for item, original in zip(payload["data"], files, strict=True):
@@ -1644,9 +1298,7 @@ async def test_oversized_parallel_payload_keeps_failure_signal():
             ],
         },
     }
-    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 4_000), patch(
-        "agent.tools.mcp_tools._record_artifact_ledger", return_value=False
-    ):
+    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 4_000):
         text = _make_result(payload, tool_name="parallel_execute")["content"][0]["text"]
 
     compact = json.loads(text)
@@ -1894,7 +1546,7 @@ async def test_repeat_create_file_while_another_create_is_in_flight_still_reject
         ToolContext.clear_context()
 
 
-def _set_author_round(db_session, user, project, message: str) -> None:
+def _set_author_round(db_session, user, project, message: str, *, notes_append_allowed: bool = False) -> None:
     from agent.tools.mcp_tools import ToolContext
 
     ToolContext.set_context(
@@ -1904,6 +1556,7 @@ def _set_author_round(db_session, user, project, message: str) -> None:
         session_id=f"sess-notes-{uuid4().hex[:6]}",
         author_message=message,
     )
+    ToolContext.set_notes_append_allowed(notes_append_allowed)
 
 
 def _stored_notes(db_session, project) -> str:
@@ -1915,46 +1568,179 @@ def _stored_notes(db_session, project) -> str:
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_update_project_records_all_new_model_notes_as_proposals(db_session):
+async def test_update_project_appends_remembered_notes_and_reports_them(db_session):
+    """Explicit remember: new entries are appended as author notes; author text stays byte-for-byte."""
     from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import split_project_notes
+    from config.project_notes import CONFIRMED_HEADER, UNLABELED_HEADER
 
-    user, project = _make_user_and_project(db_session, "notes-proposals")
-    _set_author_round(db_session, user, project, "记住，主角不会游泳。")
+    user, project = _make_user_and_project(db_session, f"notes-add-{uuid4().hex[:5]}")
+    existing = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实"
+    project.notes = existing
+    db_session.add(project)
+    db_session.commit()
+    _set_author_round(db_session, user, project, "记住：女主要到第五章才出场；主角左手有旧伤，阴天会疼", notes_append_allowed=True)
     try:
         payload = _parse_payload(
-            await update_project(
-                {"notes": "主角不会游泳", "author_quotes": ["主角不会游泳"]}
-            )
+            await update_project({
+                "summary": "新摘要",
+                "notes": "作者事实\n女主要到第五章才出场；主角左手有旧伤，阴天会疼",
+            })
         )
         assert payload["status"] == "success"
-        sections = split_project_notes(_stored_notes(db_session, project))
-        assert sections.confirmed == []
-        assert sections.proposals == ["主角不会游泳"]
+        data = payload["data"]
+        assert data["notes_added"] == ["女主要到第五章才出场", "主角左手有旧伤，阴天会疼"]
+        assert "notes_not_saved" not in data and "notes_note" not in data
+        assert data["updated_fields"] == ["summary", "notes"]
+        stored = _stored_notes(db_session, project)
+        assert stored == f"{existing}\n{UNLABELED_HEADER}\n女主要到第五章才出场\n主角左手有旧伤，阴天会疼"
+        assert data["current_status"]["notes"] == stored
+
+        # Copying the notes back (or passing nothing new) writes nothing: no fake output.
+        copied = _parse_payload(await update_project({"notes": "女主要到第五章才出场"}))
+        assert "notes_added" not in copied["data"]
+        assert copied["data"]["updated_fields"] == []
+        assert _stored_notes(db_session, project) == stored
     finally:
         ToolContext.clear_context()
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_update_project_preserves_existing_authoritative_notes_when_model_omits_or_rewrites(db_session):
+async def test_read_only_tool_adapter_executes_explicit_notes_update(db_session):
+    """文件只读仍允许作者明确要求的项目资料 handler 真正落库。"""
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
     from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, split_project_notes
 
-    user, project = _make_user_and_project(db_session, "notes-preserve")
-    project.notes = f"旧约定\n{CONFIRMED_HEADER}\n主角不会游泳"
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "主角会游泳吗？")
+    user, project = _make_user_and_project(db_session, f"notes-readonly-{uuid4().hex[:5]}")
+    unchanged = {field: getattr(project, field) for field in ("name", "summary", "writing_style", "current_phase")}
+    _set_author_round(db_session, user, project, "记住：主角左手有旧伤，阴天会疼", notes_append_allowed=True)
     try:
-        payload = _parse_payload(await update_project({"notes": "主角会游泳"}))
+        tools = {tool.name: tool for tool in build_agent_function_tools("writer", read_only=True)}
+        payload = json.loads(
+            await tools["update_project"].on_invoke_tool(
+                None,
+                json.dumps({"notes": "主角左手有旧伤，阴天会疼"}, ensure_ascii=False),
+            )
+        )
         assert payload["status"] == "success"
-        sections = split_project_notes(_stored_notes(db_session, project))
-        assert sections.unlabeled == ["旧约定"]
-        assert sections.confirmed == ["主角不会游泳"]
-        assert sections.proposals == ["主角会游泳"]
+        assert payload["data"]["notes_added"] == ["主角左手有旧伤，阴天会疼"]
+        assert payload["data"]["updated_fields"] == ["notes"]
+        assert _stored_notes(db_session, project) == "主角左手有旧伤，阴天会疼"
+        assert {field: getattr(project, field) for field in unchanged} == unchanged
     finally:
         ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_update_project_notes_over_limit_save_nothing_and_say_so(db_session):
+    from agent.tools.mcp_tools import NOTES_FULL_NOTE, ToolContext
+
+    user, project = _make_user_and_project(db_session, f"notes-full-{uuid4().hex[:5]}")
+    existing = "甲" * 3997
+    project.notes = existing
+    db_session.add(project)
+    db_session.commit()
+    _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
+    try:
+        payload = _parse_payload(await update_project({"summary": "新摘要", "notes": "主角怕水"}))
+    finally:
+        ToolContext.clear_context()
+
+    assert payload["status"] == "success"
+    assert "notes_added" not in payload["data"]
+    assert payload["data"]["notes_note"] == NOTES_FULL_NOTE
+    assert payload["data"]["updated_fields"] == ["summary"]
+    assert _stored_notes(db_session, project) == existing
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_update_project_partial_plan_rejection_still_reports_added_notes(db_session, monkeypatch):
+    from agent.tools.file_ops import FileToolExecutor
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, f"notes-partial-{uuid4().hex[:5]}")
+    monkeypatch.setattr(
+        FileToolExecutor,
+        "execute_update_plan",
+        lambda self, **kwargs: {"status": "error", "error": "任务计划板未更新"},
+    )
+    _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
+    try:
+        payload = _parse_payload(
+            await update_project({"summary": "新摘要", "notes": "主角怕水", "tasks": []})
+        )
+    finally:
+        ToolContext.clear_context()
+
+    assert payload["status"] == "partial"
+    assert payload["data"]["notes_added"] == ["主角怕水"]
+    assert payload["data"]["updated_fields"] == ["summary", "notes"]
+    assert _stored_notes(db_session, project) == "主角怕水"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_update_project_preserves_existing_authoritative_notes_when_model_omits_or_rewrites(db_session):
+    from agent.tools.mcp_tools import ToolContext
+    from config.project_notes import CONFIRMED_HEADER
+
+    user, project = _make_user_and_project(db_session, "notes-preserve")
+    existing = f"旧约定\n{CONFIRMED_HEADER}\n主角不会游泳"
+    project.notes = existing
+    db_session.add(project)
+    db_session.commit()
+    _set_author_round(db_session, user, project, "记住：主角会游泳", notes_append_allowed=True)
+    try:
+        for notes in ("", "主角不会游泳", f"{CONFIRMED_HEADER}\n旧约定"):
+            payload = _parse_payload(await update_project({"notes": notes}))
+            assert payload["status"] == "success"
+            assert "notes_added" not in payload["data"]
+            assert _stored_notes(db_session, project) == existing
+        # A rewrite cannot replace the author's entry; it is only appended after it.
+        payload = _parse_payload(await update_project({"notes": "主角会游泳"}))
+        assert payload["data"]["notes_added"] == ["主角会游泳"]
+        assert _stored_notes(db_session, project).startswith(existing + "\n")
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_update_project_removes_legacy_proposal_block_on_write(db_session):
+    from agent.tools.mcp_tools import ToolContext
+    from config.project_notes import CONFIRMED_HEADER
+
+    user, project = _make_user_and_project(db_session, f"notes-legacy-{uuid4().hex[:5]}")
+    author_part = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实"
+    legacy_stored = f"{author_part}\n\n【AI 提议·待作者确认】\n沈度是关键配角；北境封印"
+    project.notes = legacy_stored
+    db_session.add(project)
+    db_session.commit()
+    _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
+    try:
+        status_only = _parse_payload(await update_project({"current_phase": "第1章"}))
+        assert status_only["data"]["current_status"]["notes"] == author_part
+
+        # The model copies the notes back with the legacy block: nothing is added or written
+        # (no billable output just for a cleanup that reads already apply).
+        copied = _parse_payload(
+            await update_project({"notes": "作者旧约定\n作者事实\n\n【AI 提议·待作者确认】\n沈度是关键配角；北境封印"})
+        )
+        assert "notes_added" not in copied["data"]
+        assert copied["data"]["updated_fields"] == []
+        assert copied["data"]["current_status"]["notes"] == author_part
+        assert _stored_notes(db_session, project) == legacy_stored
+
+        # The next real append writes the author part, the new entry, and no legacy block.
+        payload = _parse_payload(await update_project({"notes": "主角怕水"}))
+    finally:
+        ToolContext.clear_context()
+
+    assert payload["status"] == "success"
+    assert payload["data"]["notes_added"] == ["主角怕水"]
+    assert _stored_notes(db_session, project) == f"{author_part}\n【未标来源】\n主角怕水"
 
 
 @pytest.mark.asyncio
@@ -1969,7 +1755,7 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
     from agent.tools.file_ops import FileToolExecutor
     from agent.tools.mcp_tools import ToolContext
     from api.projects import PatchProjectRequest, patch_project
-    from config.project_notes import CONFIRMED_HEADER, split_project_notes
+    from config.project_notes import CONFIRMED_HEADER
 
     user, project = _make_user_and_project(db_session, "notes-race")
     project.notes = f"{CONFIRMED_HEADER}\n旧事实"
@@ -1993,132 +1779,17 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
         return original_update(executor, *args, **kwargs)
 
     monkeypatch.setattr(FileToolExecutor, "update_project_status", update_after_author_patch)
-    _set_author_round(db_session, user, project, "继续写")
+    _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
     try:
-        payload = _parse_payload(await update_project({"notes": "模型新增推断"}))
+        payload = _parse_payload(await update_project({"notes": "旧事实\n模型新增推断"}))
     finally:
         ToolContext.clear_context()
 
     assert payload["status"] == "success"
-    sections = split_project_notes(_stored_notes(db_session, project))
-    assert sections.confirmed == ["旧事实", "作者刚确认"]
-    assert sections.proposals == ["模型新增推断"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_numbered_reply_never_promotes_proposal(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import PROPOSALS_HEADER, split_project_notes
-
-    entries = ["主角不会游泳", "魂灯点一次少活一年"]
-    user, project = _make_user_and_project(db_session, f"notes-no-promote-{uuid4().hex[:5]}")
-    project.notes = PROPOSALS_HEADER + "\n" + "\n".join(entries)
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "确认以上全部提议")
-    try:
-        payload = _parse_payload(
-            await update_project(
-                {"notes": "\n".join(entries), "author_quotes": ["确认以上全部提议"]}
-            )
-        )
-        assert payload["status"] == "success"
-        sections = split_project_notes(_stored_notes(db_session, project))
-        assert sections.confirmed == []
-        assert sections.proposals == entries
-    finally:
-        ToolContext.clear_context()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_proposals_only_uses_locked_notes_transform(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER, split_project_notes
-
-    user, project = _make_user_and_project(db_session, "notes-proposals-only")
-    project.notes = f"{CONFIRMED_HEADER}\n作者事实\n{PROPOSALS_HEADER}\n旧提议"
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "清空 AI 提议")
-    try:
-        payload = _parse_payload(await update_project({"proposals": ""}))
-    finally:
-        ToolContext.clear_context()
-
-    assert payload["status"] == "success"
-    sections = split_project_notes(_stored_notes(db_session, project))
-    assert sections.confirmed == ["作者事实"]
-    assert sections.proposals == []
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_reports_only_newly_added_proposals(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
-
-    user, project = _make_user_and_project(db_session, f"notes-added-{uuid4().hex[:5]}")
-    project.notes = f"作者旧约定\n{CONFIRMED_HEADER}\n作者事实\n{PROPOSALS_HEADER}\n旧提议"
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "继续写")
-    try:
-        downgraded = _parse_payload(
-            await update_project({"notes": "作者旧约定\n作者事实\n旧提议\n新推断甲；新推断乙"})
-        )
-        assert downgraded["status"] == "success"
-        assert downgraded["data"]["proposals_added"] == ["新推断甲", "新推断乙"]
-        assert downgraded["data"]["notes_recorded_as_proposals"] == ["新推断甲", "新推断乙"]
-        assert "采纳全部提议" not in downgraded["data"]["notes_note"]
-
-        explicit = _parse_payload(
-            await update_project({"proposals": "旧提议\n新推断甲；新推断乙\n作者事实\n新提议丙"})
-        )
-        assert explicit["status"] == "success"
-        assert explicit["data"]["proposals_added"] == ["新提议丙"]
-        assert "proposals_removed" not in explicit["data"]
-
-        replaced = _parse_payload(await update_project({"proposals": "旧提议；新提议丙"}))
-        assert replaced["status"] == "success"
-        assert "proposals_added" not in replaced["data"]
-        # The model dropped its own pending entries: reported so they are not later shown as
-        # author-ignored.
-        assert replaced["data"]["proposals_removed"] == ["新推断甲", "新推断乙"]
-
-        plain = _parse_payload(await update_project({"current_phase": "第1章"}))
-        assert "proposals_added" not in plain["data"]
-    finally:
-        ToolContext.clear_context()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_notes_over_shared_budget_fails_before_any_write(db_session):
-    from agent.tools.mcp_tools import ToolContext
-    from config.project_notes import CONFIRMED_HEADER, PROPOSALS_HEADER
-
-    user, project = _make_user_and_project(db_session, "notes-budget")
-    kept_rules = "约" * 3200
-    existing = f"{CONFIRMED_HEADER}\n{kept_rules}\n{PROPOSALS_HEADER}\n" + "提" * 1000
-    project.notes = existing
-    project.summary = "旧摘要"
-    db_session.add(project)
-    db_session.commit()
-    _set_author_round(db_session, user, project, "继续写")
-    try:
-        payload = _parse_payload(await update_project({"summary": "新摘要", "notes": "新增推断"}))
-        assert payload["status"] == "error"
-        assert payload["error_type"] == "notes_over_budget"
-        db_session.expire_all()
-        from models import Project
-
-        stored = db_session.get(Project, project.id)
-        assert stored.notes == existing
-        assert stored.summary == "旧摘要"
-    finally:
-        ToolContext.clear_context()
+    assert payload["data"]["notes_added"] == ["模型新增推断"]
+    assert _stored_notes(db_session, project) == (
+        f"{CONFIRMED_HEADER}\n旧事实\n作者刚确认\n【未标来源】\n模型新增推断"
+    )
 
 
 @pytest.mark.asyncio
@@ -2184,3 +1855,212 @@ async def test_empty_create_file_only_skips_the_body_turn_when_the_author_wants_
             assert payload["status"] == "success"
             assert payload["data"]["empty_by_request"] is True
             assert "awaiting_body" not in payload["data"]
+
+
+# ---------------------------------------------------------------------------
+# 工具动作不再写 artifact ledger，超限结果不再持久化 / 回填（D-02）：
+# 写工具、超限截断和交接都不应为此另开数据库 session。
+# ---------------------------------------------------------------------------
+
+
+class _SessionFactorySpy:
+    """ToolContext 的 create_session_func：只计数，任何调用都说明有人另开了 session。"""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        raise AssertionError("tool path opened a separate session")
+
+
+@pytest.fixture
+def session_factory_spy():
+    from agent.tools.mcp_tools import ToolContext
+
+    spy = _SessionFactorySpy()
+    ToolContext.set_context(None, "user-1", "proj-1", "sess-1", create_session_func=spy)
+    try:
+        yield spy
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.unit
+def test_oversized_tool_result_is_bounded_without_opening_a_session(session_factory_spy):
+    from agent.tools.mcp_tools import _make_result
+
+    payload = {
+        "status": "success",
+        "data": [{"id": "f-1", "title": "第一章", "content": "字" * 300_000}],
+    }
+    text = _make_result(payload, tool_name="query_files")["content"][0]["text"]
+
+    compact = json.loads(text)
+    assert session_factory_spy.calls == 0
+    assert "overflow_ref" not in compact
+    assert compact["truncated"] is True
+    assert compact["data"][0]["id"] == "f-1"
+    assert compact["data"][0]["content_truncated"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_handoff_to_agent_passes_the_models_context_without_ledger_backfill(session_factory_spy):
+    result = await handoff_to_agent({
+        "target_agent": "writer",
+        "reason": "继续",
+        "context": "已完成检索",
+        "artifact_refs": ["file-1"],
+    })
+
+    payload = _parse_payload(result)
+    assert session_factory_spy.calls == 0
+    assert payload["status"] == "handoff"
+    assert payload["context"] == "已完成检索"
+    assert "overflow_backfill" not in payload
+    assert "artifact_refs" not in payload
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_successful_writes_do_not_open_a_ledger_session(session_factory_spy):
+    mock_executor = MagicMock()
+    mock_executor.create_file.return_value = {"id": "f-1", "title": "第一章", "file_type": "draft", "content": "正文"}
+    mock_executor.delete_file.return_value = True
+    mock_executor.update_project_status.return_value = {
+        "project_id": "proj-1",
+        "updated_fields": ["summary"],
+        "current_status": {"summary": "新"},
+    }
+
+    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor):
+        created = _parse_payload(await create_file({"title": "第一章", "file_type": "draft", "content": "正文"}))
+        deleted = _parse_payload(await delete_file({"id": "f-1"}))
+        updated = _parse_payload(await update_project({"summary": "新"}))
+
+    assert [created["status"], deleted["status"], updated["status"]] == ["success"] * 3
+    assert session_factory_spy.calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("author_edit", ["", "主角左手已经痊愈"])
+async def test_deleted_or_edited_notes_are_not_replayed_on_ordinary_writing(db_session, author_edit):
+    """Reproduce memory -> manual PATCH -> ordinary writing in the same chat."""
+    from agent.tools.mcp_tools import ToolContext
+    from api.projects import PatchProjectRequest, patch_project
+
+    user, project = _make_user_and_project(db_session, f"notes-revival-{uuid4().hex[:5]}")
+    old = "主角左手有旧伤，阴天会疼"
+    _set_author_round(db_session, user, project, f"记住：{old}", notes_append_allowed=True)
+    # A successful current router decision, not words in author_message, grants this append.
+    ToolContext.set_notes_append_allowed(True)
+    try:
+        remembered = _parse_payload(await update_project({"notes": old}))
+        assert remembered["data"]["notes_added"] == [old]
+        patch_project(project.id, PatchProjectRequest(notes=author_edit, expected_notes=old),
+                      current_user=user, session=db_session)
+        # Keep the same chat id but start a fresh request. The model replays its old tool args.
+        session_id = ToolContext.get_session_id()
+        ToolContext.set_context(db_session, user.id, project.id, session_id,
+                                author_message="写第一章开头，不更新项目资料")
+        replay = _parse_payload(await update_project({"notes": old, "summary": "本轮正常简介"}))
+        assert _stored_notes(db_session, project) == author_edit
+        assert "notes_added" not in replay["data"]
+        assert "notes_note" not in replay["data"]
+        assert replay["data"]["notes_skipped_reason"]
+        assert replay["data"]["updated_fields"] == ["summary"]
+        assert db_session.get(type(project), project.id).summary == "本轮正常简介"
+        # A new explicit request may remember the same fact again after deletion or editing.
+        ToolContext.set_context(db_session, user.id, project.id, session_id, author_message=f"再记住：{old}")
+        ToolContext.set_notes_append_allowed(True)
+        remembered_again = _parse_payload(await update_project({"notes": old}))
+        assert remembered_again["data"]["notes_added"] == [old]
+        assert old in _stored_notes(db_session, project)
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize('router_allowed,router_off', [(True, False), (False, False), (False, True)])
+async def test_workflow_propagates_current_notes_permission_without_blocking_writing(
+    db_session, router_allowed, router_off, monkeypatch
+):
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from sqlmodel import Session
+
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.graph.writing_graph import run_writing_workflow_streaming
+    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.parallel_executor import execute_parallel
+
+    user, project = _make_user_and_project(db_session, f'notes-graph-{uuid4().hex[:5]}')
+    engine = db_session.get_bind()
+    ToolContext.set_context(None, user.id, project.id, 'same-chat',
+                            create_session_func=lambda: Session(engine), author_message='本轮要求')
+    router = AsyncMock(return_value={
+        'current_agent': 'writer', 'workflow_plan': 'quick', 'workflow_agents': [],
+        'routing_metadata': {'notes_append_allowed': router_allowed, 'write_content': True},
+    })
+    results = []
+
+    async def run_agent(*_args, **_kwargs):
+        # The SDK executes tool calls in their own asyncio tasks, then offloads DB work.
+        results.extend(await asyncio.gather(update_project({'notes': '主角怕水', 'summary': '正常简介'})))
+        written = await execute_parallel([{'id': 'body', 'type': 'write_chapter',
+            'description': '保存本轮正文', 'params': {'title': '第一章', 'content': '河水漫过石阶。他停住脚步，终于还是伸手接住了那封信。'}}])
+        results.append(written)
+        yield StreamEvent(type=StreamEventType.TEXT, data={'text': '本轮写作完成。'})
+
+    monkeypatch.setenv('AGENT_ROUTER_STRATEGY', 'off' if router_off else 'llm')
+    monkeypatch.setenv('AGENT_ENABLE_GRAPH_AUTO_REVIEW', 'false')
+    try:
+        with patch('agent.graph.writing_graph.router_node', router), patch(
+            'agent.graph.writing_graph.run_streaming_agent', new=run_agent
+        ):
+            async for _ in run_writing_workflow_streaming({'user_message': '本轮要求', 'messages': [],
+                                                          'system_prompt': ''}, max_iterations=1):
+                pass
+        payload = _parse_payload(results[0])['data']
+        assert ('notes_added' in payload) is router_allowed
+        assert _stored_notes(db_session, project) == ('主角怕水' if router_allowed else '')
+        assert db_session.get(type(project), project.id).summary == '正常简介'
+        assert _parse_payload(results[1])['data']['completed'] == 1
+        router.assert_not_awaited() if router_off else router.assert_awaited_once()
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_consumed_steering_revokes_notes_in_existing_task_snapshot(db_session):
+    import asyncio
+
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, f'notes-steer-{uuid4().hex[:5]}')
+    consumed = []
+    ToolContext.set_context(db_session, user.id, project.id, 'same-chat',
+                            author_message='记住：主角怕水', author_steering=consumed)
+    ToolContext.set_notes_append_allowed(True)
+    ready = asyncio.Event()
+
+    async def later_call():
+        await ready.wait()
+        return _parse_payload(await update_project({'notes': '主角怕水'}))
+
+    try:
+        # This task has already copied the context; the consumed list is shared.
+        pending = asyncio.create_task(later_call())
+        consumed.append('先停下，我改一下要求')
+        ready.set()
+        payload = await pending
+        assert payload['data']['notes_skipped_reason']
+        assert 'notes_added' not in payload['data'] and 'notes_note' not in payload['data']
+        assert _stored_notes(db_session, project) == ''
+    finally:
+        ToolContext.clear_context()

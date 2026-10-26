@@ -31,7 +31,7 @@ import type {
   SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
 } from "../types";
-import { api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { ApiError, api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
@@ -341,7 +341,7 @@ export function streamAgentRequest(
     ) => void;
     onParallelTaskStart?: (executionId: string, taskId: string, taskType: string, description: string) => void;
     onParallelTaskEnd?: (executionId: string, taskId: string, status: string, resultPreview?: string, error?: string) => void;
-    onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number) => void;
+    onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number, partial?: number) => void;
     onSteeringReceived?: (messageId: string, preview: string) => void;
     onDone?: (data: StreamDoneData) => void;
     onError?: (message: string, code?: string, retryable?: boolean) => void;
@@ -815,8 +815,16 @@ export function streamAgentRequest(
                 completed: number;
                 failed: number;
                 duration_ms: number;
+                partial?: number;
               };
-              callbacks.onParallelEnd?.(data.execution_id, data.total_tasks, data.completed, data.failed, data.duration_ms);
+              callbacks.onParallelEnd?.(
+                data.execution_id,
+                data.total_tasks,
+                data.completed,
+                data.failed,
+                data.duration_ms,
+                typeof data.partial === "number" ? data.partial : 0,
+              );
               break;
             }
             case "steering_received": {
@@ -1104,7 +1112,9 @@ export async function sendSteeringRequest(
         .json()
         .catch(() => ({ detail: `HTTP ${response.status}` }));
       const errorMessage = resolveApiErrorMessage(error, `HTTP ${response.status}`);
-      throw new Error(toUserErrorMessage(errorMessage));
+      // Keep the status: 404 means no run will read this follow-up (the round has
+      // already wrapped up), so the caller sends it as the next message instead.
+      throw new ApiError(response.status, errorMessage);
     }
 
     return response.json();

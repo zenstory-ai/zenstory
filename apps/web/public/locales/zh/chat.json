@@ -63,6 +63,8 @@
     "steerButton": "补充要求",
     "steerHint": "AI 正在生成，补充的要求会在它的下一步生效",
     "steerSent": "已补充，AI 下一步会参考",
+    "steerSentAsNextMessage": "这一轮已收尾，这句会在它结束后作为新消息发出",
+    "steerReturnedToInput": "这句补充没有发出，已放回输入框",
     "steerFailed": "补充没有发出，请重试",
     "mode": {
       "label": "生成模式",
@@ -174,7 +176,10 @@
     "parallelStartTruncated": "同时处理 {{count}} 项任务（另有 {{dropped}} 项超出单次上限，这次没有执行）",
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}：没有完成",
+    "parallelTaskPartial": "◐ {{description}}：部分修改没有生效",
+    "parallelTaskEnded": "{{description}}：已结束",
     "parallelEnd": "处理结束：完成 {{completed}}/{{total}} 项，失败 {{failed}} 项",
+    "parallelEndWithPartial": "处理结束：完成 {{completed}}/{{total}} 项，部分完成 {{partial}} 项，失败 {{failed}} 项",
     "steeringReceived": "已收到补充要求：{{preview}}",
     "userStopped": "已停止生成"
   },
@@ -194,6 +199,8 @@
     "generic": "AI 操作",
     "parallel_summary": "同时处理 {{total}} 项任务：成功 {{completed}}，失败 {{failed}}",
     "parallel_summary_with_skipped": "同时处理 {{total}} 项任务：成功 {{completed}}，没动 {{skipped}}，失败 {{failed}}",
+    "parallel_summary_with_partial": "同时处理 {{total}} 项任务：成功 {{completed}}，部分完成 {{partial}}，失败 {{failed}}",
+    "parallel_summary_with_partial_and_skipped": "同时处理 {{total}} 项任务：成功 {{completed}}，部分完成 {{partial}}，没动 {{skipped}}，失败 {{failed}}",
     "parallelTaskLabel": "{{label}}：",
     "processing": "处理中",
     "processing_ellipsis": "处理中…",
@@ -239,7 +246,10 @@
       "authorChanged": "文件刚被改过，这一步没改",
       "clarifyFirst": "先问清楚再改"
     },
-    "taskNotCompleted": "没有完成"
+    "taskNotCompleted": "没有完成",
+    "taskPartiallyCompleted": "部分修改没有生效，可以让 AI 补上没改成的地方",
+    "taskOutcomeUnknown": "结果未知",
+    "status_unchanged": "项目信息没有变化"
   },
   "fileType": {
     "outline": "大纲",
@@ -349,7 +359,7 @@
       "summary": "摘要",
       "current_phase": "当前阶段",
       "writing_style": "写作风格",
-      "notes": "备注"
+      "notes": "写作约定"
     }
   },
   "fileEdit": {
@@ -425,21 +435,9 @@
     },
     "quota": "今天还能免费发 {{count}} 条"
   },
-  "proposals": {
-    "adopt": "采纳",
-    "ignore": "忽略",
-    "adoptAll": "全部采纳",
-    "adoptLabel": "采纳：{{entry}}",
-    "ignoreLabel": "忽略：{{entry}}",
-    "conflict": "AI 记忆刚有变化，请再点一次。",
-    "failed": "操作失败，请重试。",
-    "pendingTitle": "AI 提议 · {{count}} 条待确认",
-    "showMore": "展开其余 {{count}} 条",
-    "showLess": "收起",
-    "summary": {
-      "adopted": "已采纳 {{count}} 条",
-      "ignored": "已忽略 {{count}} 条",
-      "handled": "已在 AI 记忆中处理 {{count}} 条"
-    }
+  "notesAdded": {
+    "title": "已加入写作约定",
+    "open": "查看并编辑",
+    "full": "写作约定已接近 4000 字上限，这次未记入"
   }
 }

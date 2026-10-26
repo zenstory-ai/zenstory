@@ -406,7 +406,7 @@ def test_paging_type_keyword_and_zero_controls(store):
     assert payload == store.expected([])
 
 
-def test_scope_missing_deleted_and_metadata_after_paging(store):
+def test_scope_missing_and_deleted(store):
     for target in [store.deleted, store.foreign, "not-present"]:
         payload, observation = store.call({"id": target})
         assert payload == store.expected([])
@@ -415,20 +415,6 @@ def test_scope_missing_deleted_and_metadata_after_paging(store):
     assert payload["status"] == "error"
     assert not observation["file_loads"]
     assert len(observation["sql"]) == 1  # real project permission denied before File query
-    first_page = store.rows[:6]
-    expected = [
-        row
-        for row in first_page
-        if row["file_metadata"] not in (None, "{") and json.loads(row["file_metadata"])["tag"].lower() == "keep"
-    ]
-    payload, observation = store.call({"limit": 6, "metadata_filter": {"tag": "KEEP"}})
-    assert payload == store.expected(expected)
-    assert 0 < len(expected) < 6
-    assert len(observation["file_loads"]) == 6  # paging precedes Python metadata filtering
-    for row in store.rows:
-        if row["file_metadata"] in (None, "{"):
-            payload, _ = store.call({"id": row["id"], "metadata_filter": {"tag": "keep"}})
-            assert payload == store.expected([])
 
 
 @pytest.mark.parametrize("store", [0], indirect=True)

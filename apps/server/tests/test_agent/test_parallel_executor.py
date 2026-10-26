@@ -858,7 +858,8 @@ class TestParallelReadForwarding:
         assert kwargs["response_mode"] == "full"
         assert kwargs["content_preview_chars"] == 50
         assert kwargs["include_content"] is True
-        assert kwargs["metadata_filter"] == {"tag": "keep"}
+        # metadata_filter 已从 query_files 删除：模型照旧传来也只是被忽略。
+        assert "metadata_filter" not in kwargs
         task = json.loads(result["content"][0]["text"])["data"]["tasks"][0]
         assert task["status"] == "completed"
         assert task["result"]["data"][0]["content"] == "正文"
@@ -872,9 +873,7 @@ class TestParallelReadForwarding:
         executor = _executor_returning(files)
         ToolContext.set_context(None, "user1", "proj-1", "sess-1")
         try:
-            with patch.object(ToolContext, "get_executor", return_value=executor), patch(
-                "agent.tools.mcp_tools._record_artifact_ledger", return_value=False
-            ):
+            with patch.object(ToolContext, "get_executor", return_value=executor):
                 result = await execute_parallel([
                     {"type": "query_files", "description": f"读第{index}章", "params": {"id": f"f{index}"}}
                     for index in range(5)
@@ -895,3 +894,117 @@ class TestParallelReadForwarding:
             assert item["content_truncated"] is True
             assert item["content_length"] == 60_000
             assert len(item["content"]) > 20_000  # a real share, not a 4000-char sliver
+
+
+# ------------------------------------------------- 结果只报告实际执行了什么（F-09 / F-20）
+
+
+def _parallel_data(result: dict) -> dict:
+    return json.loads(result["content"][0]["text"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_result_tasks_echo_executed_index_and_target_params():
+    """每个子任务结果回显它在本批里的下标和目标（id / 标题），不回显正文或 edits。"""
+    from agent.tools.mcp_tools import ToolContext
+
+    tasks = [
+        {"type": "delete_file", "description": f"删第{index}稿", "params": {"id": f"f{index}"}}
+        for index in range(MAX_PARALLEL_TASKS + 2)
+    ]
+    tasks[1] = {
+        "type": "edit_file",
+        "description": "改第一章",
+        "params": {"file_id": "c1", "edits": [{"op": "append", "text": "长" * 500}]},
+    }
+    deleted = _make_result({"status": "success", "mutation_applied": True, "data": True})
+    edited = _make_result({"status": "success", "mutation_applied": True, "data": {"id": "c1"}})
+    ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+    try:
+        with (
+            patch("agent.tools.parallel_executor.handle_delete_file", return_value=deleted),
+            patch("agent.tools.parallel_executor.handle_edit_file", return_value=edited),
+        ):
+            payload = _parallel_data(await execute_parallel(tasks))
+    finally:
+        ToolContext.clear_context()
+
+    data = payload["data"]
+    assert [task["index"] for task in data["tasks"]] == list(range(MAX_PARALLEL_TASKS))
+    assert data["tasks"][0]["params"] == {"id": "f0"}
+    assert data["tasks"][1]["params"] == {"file_id": "c1"}
+    assert [item["index"] for item in data["dropped_tasks"]] == [MAX_PARALLEL_TASKS, MAX_PARALLEL_TASKS + 1]
+    assert "长" * 500 not in json.dumps(data, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_write_chapter_echo_keeps_title_but_not_content():
+    from agent.tools.mcp_tools import ToolContext
+
+    created = _make_result({"status": "success", "mutation_applied": True, "data": {"id": "c9"}})
+    ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+    try:
+        with patch("agent.tools.parallel_executor.handle_write_chapter", return_value=created):
+            payload = _parallel_data(
+                await execute_parallel([
+                    {
+                        "type": "write_chapter",
+                        "description": "写第九章",
+                        "params": {"title": "第九章", "parent_id": "draft-folder", "content": "正" * 300},
+                    }
+                ])
+            )
+    finally:
+        ToolContext.clear_context()
+
+    assert payload["data"]["tasks"][0]["params"] == {"title": "第九章"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_partially_applied_edit_subtask_is_reported_partial_not_completed():
+    """continue_on_error 下内层 edit_file 返回 partial：子任务不能记成 completed。"""
+    from agent.tools.mcp_tools import ToolContext
+
+    partial = _make_result(
+        {
+            "status": "partial",
+            "mutation_applied": True,
+            "data": {
+                "id": "c1",
+                "edits_applied": 1,
+                "failed_edits": [{"index": 1, "error": "anchor not found"}],
+                "partial_success": True,
+            },
+        }
+    )
+    events: list = []
+    ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+    try:
+        with (
+            patch("agent.tools.parallel_executor.handle_edit_file", return_value=partial),
+            patch("agent.core.progress_channel.emit_progress", side_effect=events.append),
+        ):
+            payload = _parallel_data(
+                await execute_parallel([
+                    {"type": "edit_file", "description": "改两处", "params": {"id": "c1", "edits": []}},
+                ])
+            )
+    finally:
+        ToolContext.clear_context()
+
+    data = payload["data"]
+    task = data["tasks"][0]
+    assert task["status"] == "partial"
+    assert task["error"]
+    assert data["all_completed"] is False
+    assert data["any_failed"] is True
+    assert (data["completed"], data["partial"], data["failed"]) == (0, 1, 0)
+    # 部分修改已经落地：mutation_applied 照常聚合。
+    assert payload["mutation_applied"] is True
+    task_end = next(event for event in events if event.type.value == "parallel_task_end")
+    assert task_end.data["status"] == "partial"
+    parallel_end = next(event for event in events if event.type.value == "parallel_end")
+    assert parallel_end.data["partial"] == 1

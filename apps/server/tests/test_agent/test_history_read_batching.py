@@ -39,9 +39,12 @@ def history_engine(tmp_path):
             session.flush()
             session.add(Project(id="history-project", name="History", owner_id="history-user"))
             session.flush()
+            # 同一作品只能有一个 active 会话（uq_chat_session_user_project_active）：另一个是已归档的旧对话。
             session.add_all([
-                ChatSession(id=chat_id, user_id="history-user", project_id="history-project")
-                for chat_id in ("history-chat", "another-chat")
+                ChatSession(id="history-chat", user_id="history-user", project_id="history-project"),
+                ChatSession(
+                    id="another-chat", user_id="history-user", project_id="history-project", is_active=False
+                ),
             ])
             session.commit()
         yield engine

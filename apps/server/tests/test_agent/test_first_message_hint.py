@@ -152,6 +152,10 @@ async def test_no_hint_once_the_work_has_an_ai_reply(agent_service, db_session, 
     db_session.commit()
     target = earlier
     if not same_session:
+        # 新开对话时旧对话归档（同一作品只有一个 active 会话）。
+        earlier.is_active = False
+        db_session.add(earlier)
+        db_session.commit()
         target = ChatSession(user_id=user.id, project_id=project.id, title="新对话")
         db_session.add(target)
         db_session.commit()
@@ -347,64 +351,52 @@ async def test_first_message_round_ends_with_the_writers_own_summary(first_messa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("first_message_label", "prose_before_handoff", "turn", "expected_agents"),
+    ("first_message_label", "expected_status", "expected_agents"),
     [
-        # The writer hands its fresh opening to the reviewer without a word to the author (as the
-        # reply protocol asks before a handoff): it summarizes itself instead, no review.
-        ("长篇小说", "", "handoff_only", ["writer", "writer"]),
-        # It already told the author what it wrote: just drop the review.
-        ("长篇小说", "写好了第一章开头，约 800 字。", "handoff_only", ["writer"]),
-        # Same, with another tool called in the same turn before the handoff.
-        ("长篇小说", "写好了第一章开头，约 800 字。", "with_update_project", ["writer"]),
-        # The author sent a message mid-run: the steering follow-up round handles it, not a
-        # summary-only rerun that would ignore it.
-        ("长篇小说", "", "with_steering", ["writer", "writer"]),
+        # The writer hands its fresh opening to the reviewer: the tool refuses and the same run
+        # writes the author's summary instead, no review and no extra run.
+        ("长篇小说", "error", ["writer"]),
         # Later rounds keep the writer's own handoff to review.
-        ("", "", "handoff_only", ["writer", "quality_reviewer"]),
+        ("", "handoff", ["writer", "quality_reviewer"]),
     ],
 )
 async def test_first_message_round_does_not_follow_the_writers_own_review_handoff(
-    first_message_label, prose_before_handoff, turn, expected_agents
+    first_message_label, expected_status, expected_agents
 ):
     """2026-10-20 production sample: with the auto-review gate off, the writer still called
     handoff_to_agent(quality_reviewer); a rework would have left the author a fix log."""
+    import json
     from unittest.mock import AsyncMock
 
     from agent.core.workflow_events import StreamEvent, StreamEventType
     from agent.graph.writing_graph import run_writing_workflow_streaming
+    from agent.tools import mcp_tools
     from agent.tools.mcp_tools import ToolContext
     from tests.test_agent.body_write_events import edit_file_events
 
-    calls: list[tuple[str, str]] = []
+    calls: list[str] = []
+    tool_results: list[dict] = []
 
-    async def fake_agent(state, agent_type, *_args, **_kwargs):
-        calls.append((agent_type, str(state.get("user_message") or "")))
-        writer_runs = sum(1 for agent, _ in calls if agent == "writer")
-        if agent_type == "writer" and writer_runs == 1:
-            yield StreamEvent(type=StreamEventType.MESSAGE_START, data={})
-            for event in edit_file_events("e1", "灯芯烧得只剩一指长。" * 80):
-                yield event
-            if turn == "with_steering":
-                yield StreamEvent(type=StreamEventType.STEERING_RECEIVED, data={"message": "主角改成女的"})
-            if prose_before_handoff:
-                yield StreamEvent(type=StreamEventType.TEXT, data={"text": prose_before_handoff})
-            if turn == "with_update_project":
-                yield StreamEvent(
-                    type=StreamEventType.TOOL_USE,
-                    data={"id": "u1", "name": "update_project", "status": "complete", "input": {}},
-                )
-            yield StreamEvent(
-                type=StreamEventType.TOOL_USE,
-                data={"id": "h1", "name": "handoff_to_agent", "status": "complete", "input": {}},
-            )
+    async def fake_agent(_state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type != "writer":
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "审完了。[TASK_COMPLETE]"})
+            return
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={})
+        for event in edit_file_events("e1", "灯芯烧得只剩一指长。" * 80):
+            yield event
+        raw = await mcp_tools.handoff_to_agent(
+            {"target_agent": "quality_reviewer", "context": "两份内容已写完，需通读核对"}
+        )
+        result = json.loads(raw["content"][0]["text"])
+        tool_results.append(result)
+        if result.get("status") == "handoff":
             yield StreamEvent(
                 type=StreamEventType.HANDOFF,
-                data={"target_agent": "quality_reviewer", "reason": "送审", "context": "两份内容已写完，需通读核对"},
+                data={"target_agent": "quality_reviewer", "reason": "送审", "context": result["context"]},
             )
-        elif agent_type == "writer":
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写好了第一章《九十三天》。"})
         else:
-            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "审完了。[TASK_COMPLETE]"})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "写好了第一章《九十三天》。"})
 
     state = {
         "user_message": IDEA,
@@ -432,18 +424,11 @@ async def test_first_message_round_does_not_follow_the_writers_own_review_handof
     finally:
         ToolContext.clear_context()
 
-    assert [agent for agent, _ in calls] == expected_agents
+    assert calls == expected_agents
+    assert tool_results[0]["status"] == expected_status
     if not first_message_label:
         return
+    assert "第一条消息" in tool_results[0]["error"]
     assert not [e for e in events if e.type == StreamEventType.HANDOFF]
     text = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
-    if turn == "with_steering":
-        # The second run follows the author's new message, not the summary-only instruction.
-        assert "不送审" not in calls[1][1]
-        assert "新的引导消息" in calls[1][1]
-    elif len(calls) == 2:
-        # The second writer run is told to write only the author's summary.
-        assert "不送审" in calls[1][1]
-        assert "写好了第一章《九十三天》。" in text
-    else:
-        assert prose_before_handoff in text
+    assert "写好了第一章《九十三天》。" in text

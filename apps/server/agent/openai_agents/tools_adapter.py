@@ -9,16 +9,16 @@ from collections.abc import Callable
 from contextlib import nullcontext
 from typing import Any
 
-from agent.core.metrics import (
-    TOOL_CALLS_DURATION_MS,
-    TOOL_CALLS_ERRORS,
-    TOOL_CALLS_TOTAL,
-    get_metrics_collector,
-)
 from agent.core.run_meter import AgentRunMeter
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
-from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker, _parse_error_payload
+from agent.openai_agents.tool_failure_breaker import (
+    CLARIFY_FIRST_ERROR_TYPE,
+    READ_ONLY_REQUEST_ERROR_TYPE,
+    ROLE_NOT_PERMITTED_ERROR_TYPE,
+    ToolFailureBreaker,
+    _parse_error_payload,
+)
 from agent.tools.mcp_tools import ToolContext
 from agent.tools.registry import FILE_WRITE_TOOL_NAMES, TOOL_FUNCTIONS, get_agent_tools, get_exposed_tools
 from utils.logger import get_logger, log_with_context
@@ -111,58 +111,56 @@ async def invoke_project_tool(
     run_meter: AgentRunMeter | None = None,
 ) -> str:
     """Invoke a project tool from an SDK FunctionTool callback."""
-    metrics = get_metrics_collector()
-    metrics.increment_counter(TOOL_CALLS_TOTAL)
+    parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
+    if parse_error_text is not None:
+        return parse_error_text
 
-    with metrics.time_histogram(TOOL_CALLS_DURATION_MS):
-        parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
-        if parse_error_text is not None:
-            metrics.increment_counter(TOOL_CALLS_ERRORS)
-            return parse_error_text
+    tool_func = TOOL_FUNCTIONS.get(tool_name)
+    if tool_func is None:
+        return tool_error_text(f"Unknown tool: {tool_name}", tool_name=tool_name)
 
-        tool_func = TOOL_FUNCTIONS.get(tool_name)
-        if tool_func is None:
-            metrics.increment_counter(TOOL_CALLS_ERRORS)
-            return tool_error_text(f"Unknown tool: {tool_name}", tool_name=tool_name)
-
-        try:
-            if run_meter is not None:
-                run_meter.mark_first_tool_started()
-            timing = run_meter.measure_stage("tool") if run_meter is not None else nullcontext()
-            with timing:
-                result = tool_func(parsed_args or {})
-                if inspect.isawaitable(result):
-                    result = await result
-            text = _normalize_tool_result_text(result)
-            if run_meter is not None:
-                _record_business_failure(run_meter, tool_name, parsed_args or {}, text)
-            return text
-        except Exception as exc:
-            metrics.increment_counter(TOOL_CALLS_ERRORS)
-            log_with_context(
-                logger,
-                40,  # ERROR
-                "OpenAI Agents tool execution error",
-                tool_name=tool_name,
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
-            return tool_error_text(str(exc), tool_name=tool_name)
+    try:
+        if run_meter is not None:
+            run_meter.mark_first_tool_started()
+        timing = run_meter.measure_stage("tool") if run_meter is not None else nullcontext()
+        with timing:
+            result = tool_func(parsed_args or {})
+            if inspect.isawaitable(result):
+                result = await result
+        text = _normalize_tool_result_text(result)
+        if run_meter is not None:
+            _record_business_failure(run_meter, tool_name, parsed_args or {}, text)
+        return text
+    except Exception as exc:
+        log_with_context(
+            logger,
+            40,  # ERROR
+            "OpenAI Agents tool execution error",
+            tool_name=tool_name,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        return tool_error_text(str(exc), tool_name=tool_name)
 
 
 _WRITE_TOOLS_TEXT = "create_file / edit_file / delete_file / rename_file / parallel_execute"
 
 # 写文件工具本轮为什么不可用：写进这次运行的系统指令（最后一条消息）。不改工具描述：
 # 工具清单在请求里排在对话前面，按轮次变化会让整段前缀缓存失效。
-READ_ONLY_TOOLS_NOTE = f"本轮作者要求只回答、不修改文件：{_WRITE_TOOLS_TEXT} 调用会被拒绝，直接在对话里回答。"
+READ_ONLY_TOOLS_NOTE = (
+    f"本轮没有修改写作文件的授权：{_WRITE_TOOLS_TEXT} 调用会被拒绝。"
+    "作者明确要求保存或更新项目资料时，调用 update_project 只传作者要求的字段；"
+    "没有这项明确要求时，直接在对话里回答。"
+)
 
 
 def read_only_refusal_text(tool_name: str) -> str:
     """只读请求下写文件工具的拒绝结果：可恢复错误，交还模型改为直接回答。"""
     return tool_error_text(
-        "用户本轮明确要求不修改任何文件（只回答/只分析），该写操作未执行。"
-        "不要重试任何写文件工具，请直接在对话里给出回答或分析。",
-        error_type="read_only_request",
+        "用户本轮没有授权修改写作文件，该写操作未执行。不要重试任何写文件工具。"
+        "作者明确要求保存或更新项目资料时，调用 update_project 只传作者要求的字段；"
+        "没有这项明确要求时，请直接在对话里给出回答或分析。",
+        error_type=READ_ONLY_REQUEST_ERROR_TYPE,
         tool_name=tool_name,
     )
 
@@ -180,7 +178,7 @@ def role_refusal_text(tool_name: str, agent_type: str) -> str:
     """角色没有这个工具的权限：可恢复错误。"""
     return tool_error_text(
         f"{agent_type} 角色不能调用 {tool_name}，该操作未执行。不要重试；需要改文件时交给有写权限的角色。",
-        error_type="tool_not_permitted_for_role",
+        error_type=ROLE_NOT_PERMITTED_ERROR_TYPE,
         tool_name=tool_name,
     )
 
@@ -243,7 +241,7 @@ def clarify_first_refusal_text(tool_name: str) -> str:
         "作者这次的要求没说改哪部分、想达到什么效果，本轮先不改文件，该写操作未执行。"
         "不要重试任何写文件工具：用一句话问作者想改哪部分、想要什么效果，"
         "给 2–3 个具体选项让作者直接回复。",
-        error_type="clarify_first",
+        error_type=CLARIFY_FIRST_ERROR_TYPE,
         tool_name=tool_name,
     )
 

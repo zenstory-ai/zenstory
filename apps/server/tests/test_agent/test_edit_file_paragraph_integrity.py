@@ -33,13 +33,13 @@ def editor() -> FileEditor:
 def _insert_after(editor, content, anchor, text, **extra):
     applied: list[dict] = []
     edit = {"op": "insert_after", "anchor": anchor, "text": text, **extra}
-    return editor._apply_insert_after(content, edit, 0, applied, []), applied
+    return editor._apply_insert(content, edit, 0, applied, [], after=True), applied
 
 
 def _insert_before(editor, content, anchor, text, **extra):
     applied: list[dict] = []
     edit = {"op": "insert_before", "anchor": anchor, "text": text, **extra}
-    return editor._apply_insert_before(content, edit, 0, applied, []), applied
+    return editor._apply_insert(content, edit, 0, applied, [], after=False), applied
 
 
 # ------------------------------------------------- 模糊/近似匹配不跨段落分隔 --
@@ -514,6 +514,40 @@ def test_identical_replace_does_not_roll_back_the_rest_of_the_batch(db_session, 
     assert [item["index"] for item in result["unchanged_edits"]] == [1]
     db_session.expire_all()
     assert "一共十八册" in db_session.get(File, chapter.id).content
+
+
+def test_identical_replace_never_takes_the_fuzzy_path(db_session, owner_project):
+    """F-01：old 与 new 相同但漏抄了原文的逗号和句号。原来走模糊命中，把原文的「，」「。」
+    删掉还报成功；现在不做近似改动，原文逐字找不到就如实报找不到，正文一字不动。"""
+    user, project = owner_project
+    original = "　　林舟点头说：“这个方案很好，真的。”然后走了。"
+    chapter = _add_file(db_session, project, original)
+
+    with pytest.raises(EditBatchError) as exc:
+        FileEditor(db_session, user.id).edit_file(
+            chapter.id, [{"op": "replace", "old": "这个方案很好真的”", "new": "这个方案很好真的”"}]
+        )
+
+    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == original
+
+
+@pytest.mark.parametrize("new_key", ["text", "content", "new_text", "replacement"])
+def test_identical_replace_under_a_new_alias_never_takes_the_fuzzy_path(db_session, owner_project, new_key):
+    """F-01 补漏：模型把替换文本写在 new 的别名键下，old 与它相同时同样不能走模糊命中删标点。"""
+    user, project = owner_project
+    original = "　　林舟点头说：“这个方案很好，真的。”然后走了。"
+    chapter = _add_file(db_session, project, original)
+
+    with pytest.raises(EditBatchError) as exc:
+        FileEditor(db_session, user.id).edit_file(
+            chapter.id, [{"op": "replace", "old": "这个方案很好真的”", new_key: "这个方案很好真的”"}]
+        )
+
+    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == original
 
 
 def test_corner_to_curly_conversion_is_applied_not_normalized_back(db_session, owner_project):

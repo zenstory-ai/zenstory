@@ -11,10 +11,13 @@ Defines all SQLModel entities for the application:
 
 from datetime import datetime
 
-from sqlalchemy import Index
+from pydantic import field_serializer
+from sqlalchemy import Index, text
 from sqlmodel import Field, SQLModel
 
+from config.project_notes import without_legacy_proposals
 from config.project_status import PROJECT_STATUS_MAX_LENGTHS
+
 from .utils import generate_uuid
 
 # Project type constants
@@ -81,6 +84,11 @@ class Project(SQLModel, table=True):
         description="Notes for AI assistant",
     )
 
+    @field_serializer("notes")
+    def _serialize_notes(self, notes: str | None) -> str | None:
+        # Every API view of the project shows notes without a legacy AI-proposal block.
+        return without_legacy_proposals(notes)
+
 
 class AgentArtifactLedger(SQLModel, table=True):
     """
@@ -144,6 +152,18 @@ class ChatSession(SQLModel, table=True):
     """
 
     __tablename__ = "chat_session"
+    # 每个 user+project 最多一个 active 会话。与迁移 20260307_230000 建的索引同名同定义，
+    # create_all 建的库（测试、新库）因此与 prod 一致；已有库由迁移建，不需要新迁移。
+    __table_args__ = (
+        Index(
+            "uq_chat_session_user_project_active",
+            "user_id",
+            "project_id",
+            unique=True,
+            postgresql_where=text("is_active = true"),
+            sqlite_where=text("is_active = 1"),
+        ),
+    )
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)

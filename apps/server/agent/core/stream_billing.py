@@ -35,7 +35,7 @@
   过渡旁白和中文一样到不了）。工具调用前那句「我先看一遍全书大纲。」这类过渡旁白不算。
 
 墙钟时限到期时，只改了项目信息（简介 / 文风 / 备注）不算产出：作者要的东西还没写出来，
-记忆里的一条提议不值一条额度（``file_written`` 与 ``prose_output`` 才算）。
+记忆里改一句简介不值一条额度（``file_written`` 与 ``prose_output`` 才算）。
 
 退还真正落库（``_refund_quota`` 返回 True）之后，api/agent.py 在终止帧之后再补发
 一帧 ``quota_refunded``（见 :func:`quota_refunded_frame`），前端据此告诉作者「这一轮
@@ -69,6 +69,8 @@ _SEGMENT_BOUNDARY_EVENTS: frozenset[str] = frozenset(
 _FOLDER_FILE_TYPE = "folder"
 # parallel_execute 中会改动文件的子任务类型。
 PARALLEL_WRITE_TASK_TYPES: frozenset[str] = frozenset({"write_chapter", "edit_file", "delete_file"})
+# 子任务的改动已经落地的状态：partial 是 continue_on_error 的 edit_file 只生效了一部分。
+_APPLIED_PARALLEL_TASK_STATUSES: frozenset[str] = frozenset({"completed", "partial"})
 # update_project 里作者看得见的项目信息：改了这些才算产出。只更新任务板（tasks）或
 # current_phase（进度标记，任务板更新时还会被自动推进）不算。
 PROJECT_INFO_FIELDS: frozenset[str] = frozenset({"summary", "writing_style", "notes"})
@@ -324,7 +326,7 @@ class StreamBillingTracker:
             return any(
                 isinstance(task, dict)
                 and task.get("type") in PARALLEL_WRITE_TASK_TYPES
-                and task.get("status") == "completed"
+                and task.get("status") in _APPLIED_PARALLEL_TASK_STATUSES
                 for task in tasks or []
             )
         return False
@@ -338,7 +340,7 @@ class StreamBillingTracker:
                 self._parallel_task_types[key] = task_type
             return False
         return (
-            payload.get("status") == "completed"
+            payload.get("status") in _APPLIED_PARALLEL_TASK_STATUSES
             and self._parallel_task_types.get(key) in PARALLEL_WRITE_TASK_TYPES
         )
 
@@ -374,6 +376,10 @@ class StreamBillingTracker:
             # 这一轮已经结束（done / 终止性停止 / error 帧已产生）之后才断开：
             # 不是中断，按结束方式结算。
             client_disconnected = False
+        if deadline_exceeded and self.saw_terminal_event and not self.saw_error_event:
+            # 时限（或发布交接）在 done 等正常终止帧产生之后才到：这一轮已经结束，
+            # 和完成后才断线一样按结束方式结算。
+            deadline_exceeded = False
         if user_stopped or client_disconnected:
             reason = "user_stopped" if user_stopped else "client_disconnected"
             if self.produced_output:
