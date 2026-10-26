@@ -20,11 +20,14 @@ from agent.core.progress_channel import reset_progress_emitter, set_progress_emi
 from agent.core.run_meter import AgentRunMeter, TimingOutcome
 from agent.core.stream_errors import (
     MODEL_CALL_LIMIT_ERROR_TYPE,
+    REPETITION_LOOP_STOP_REASON,
     classify_stream_exception,
     log_stream_exception,
     model_call_limit_error,
     output_truncated_error,
+    repetition_loop_error,
 )
+from agent.core.stream_processor import find_repetition_start
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.state import WritingState
 from agent.openai_agents.events import (
@@ -96,6 +99,8 @@ MAX_TURNS_STOP_REASON = "max_turns_exceeded"
 RUN_DEADLINE_STOP_REASON = "run_deadline_exceeded"
 # 重复读取守卫判定无进展、结束本轮时的 stop_reason（与 ERROR 事件 data.reason 相同）。
 NO_PROGRESS_STOP = NO_PROGRESS_STOP_REASON
+# 多少新字符检查一次重复（find_repetition_start 每次扫描整次调用的回复）。
+_REPETITION_CHECK_EVERY_CHARS = 256
 # 最后一次模型响应只有思考、没有正文和工具调用就撞上输出上限（max_tokens）时
 # MESSAGE_END 的 stop_reason。
 OUTPUT_TRUNCATED_STOP_REASON = "output_truncated"
@@ -855,6 +860,11 @@ async def run_openai_agents_streaming_agent(
     if continued is None:
         read_guard.begin_agent_run()
     no_progress_stopped = False
+    # 模型在一次调用里把一大段原样再写一遍（循环）：立即停下这次 run（见 find_repetition_start）。
+    repetition_stopped = False
+    call_text: list[str] = []
+    call_text_length = 0
+    repetition_checked_at = 0
     max_turns_exhausted = False
     turn_filter: _ModelCallCountingFilter | None = None
     # 请求级模型调用预算（writing_graph 建一个跨 agent run 共享；单独调用 runner
@@ -1009,6 +1019,7 @@ async def run_openai_agents_streaming_agent(
                 sdk_event = payload
                 if (
                     control_flow_stopped or failure_stopped or budget_stopped or no_progress_stopped
+                    or repetition_stopped
                 ) and _is_new_model_turn_event(sdk_event):
                     # 兜底护栏：正常情况下 tool_use_behavior 已经让 run-loop 在控制流
                     # 工具返回的那一刻结束，走不到这里。一旦走到（工具改名、SDK 行为
@@ -1028,11 +1039,28 @@ async def run_openai_agents_streaming_agent(
                 if event_type == "raw_response_event":
                     raw = getattr(sdk_event, "data", None)
                     raw_type = _raw_event_type(raw)
+                    if raw_type == "response.created":
+                        call_text, call_text_length, repetition_checked_at = [], 0, 0
                     if raw_type == "response.output_text.delta":
                         text = _raw_event_delta(raw)
                         if text:
                             assistant_text_parts.append(text)
                             yield StreamEvent(type=StreamEventType.TEXT, data={"text": text})
+                            call_text.append(text)
+                            call_text_length += len(text)
+                            if call_text_length - repetition_checked_at >= _REPETITION_CHECK_EVERY_CHARS:
+                                repetition_checked_at = call_text_length
+                                if find_repetition_start("".join(call_text)) is not None:
+                                    log_with_context(
+                                        logger,
+                                        30,  # WARNING
+                                        "Model output repeats a long passage; stopping agent run",
+                                        agent_type=agent_type,
+                                        call_text_length=call_text_length,
+                                    )
+                                    repetition_stopped = True
+                                    _safe_cancel(result, "immediate")
+                                    break
                     elif raw_type in {
                         "response.reasoning_text.delta",
                         "response.reasoning_summary_text.delta",
@@ -1158,6 +1186,25 @@ async def run_openai_agents_streaming_agent(
         except MaxTurnsExceeded:
             # 轮数耗尽的对外事件放到熔断/无进展判定之后统一发出（见下方）。
             max_turns_exhausted = True
+
+        if repetition_stopped:
+            # 与无进展停止同一个收尾：先让 usage 入账，再以 ERROR 结束整条工作流。StreamAdapter 收到
+            # stop_reason=repetition_loop 时把正在写的正文截到重复开始之前再落库；stream_billing 按
+            # 失控停止结算（本轮没有写入成功就退还），回复「继续」从这里接着做（RESUMABLE_STOP_REASONS）。
+            yield StreamEvent(
+                type=StreamEventType.MESSAGE_END,
+                data={
+                    "stop_reason": REPETITION_LOOP_STOP_REASON,
+                    "usage": _usage_dict_from_result(result),
+                },
+            )
+            yield StreamEvent(
+                type=StreamEventType.ERROR,
+                data=repetition_loop_error().as_event_data(
+                    reason=REPETITION_LOOP_STOP_REASON, agent_type=agent_type
+                ),
+            )
+            return
 
         failure_trip = failure_breaker.trip
         if failure_trip is not None:

@@ -59,6 +59,7 @@ LLM_CIRCUIT_OPEN_S = _env_int("LLM_CIRCUIT_OPEN_S", 120)
 THINKING_HEADROOM_TOKENS = 2048
 
 _ACCOUNT_FAILURE_STATUSES = frozenset({401, 402, 403, 404})
+_REQUEST_REJECTION_STATUSES = frozenset({400, 413, 422})
 _DOCUMENTED_JSON_OBJECT_MODELS = frozenset({("deepseek", "deepseek-flash")})
 
 # Official contracts, checked 2026-10-25. HTTP and MiniMax business codes are
@@ -316,6 +317,26 @@ def _failures_key(slot: str) -> str:
     return f"llm:circuit_failures:{slot}"
 
 
+def is_in_stream_error(exc: BaseException) -> bool:
+    """An error event inside an HTTP 200 stream (``openai.APIError`` without a status).
+
+    MiniMax reports "unknown error ... (1000)" and "Internal server error. Please retry"
+    this way, but possibly also content rejections; nothing in the event reliably tells
+    them apart. Such a call may be answered by the other provider and the session pinned
+    there, but it never counts towards the provider's circuit: one author's content must
+    not switch every author to the backup.
+    """
+    try:
+        import openai
+    except ImportError:  # pragma: no cover - openai is a hard dependency
+        return False
+    return (
+        isinstance(exc, openai.APIError)
+        and not isinstance(exc, openai.APIConnectionError)
+        and _status_code_of(exc) is None
+    )
+
+
 def ordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
     """Providers in the order this call should try them."""
     providers = llm_providers.configured_providers()
@@ -389,12 +410,42 @@ async def arecord_failure(provider: ModelProvider, session_id: str | None, exc: 
         await asyncio.to_thread(record_failure, provider, session_id, exc)
 
 
+def pin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
+    """Pin the session to the slot other than ``provider`` without counting a circuit failure."""
+    providers = llm_providers.configured_providers()
+    if len(providers) == 1 or not session_id:
+        return
+    other = next(p for p in providers if p.slot != provider.slot)
+    _with_store(lambda store: store.set(_pin_key(session_id), other.slot, LLM_SESSION_PIN_TTL_S))
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "LLM session pinned to the other provider after an in-stream error",
+        slot=provider.slot,
+        provider=provider.name,
+        model=provider.model,
+        session_pinned_to=other.slot,
+    )
+
+
+async def apin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
+    if session_id and len(llm_providers.configured_providers()) > 1:
+        await asyncio.to_thread(pin_session_to_other, provider, session_id)
+
+
 async def arecord_success(provider: ModelProvider, session_id: str | None, ordered: list[ModelProvider]) -> None:
     if session_id and len(ordered) > 1 and provider.slot != ordered[0].slot:
         await asyncio.to_thread(record_success, provider, session_id, ordered)
 
 
-def log_failover(failed: ModelProvider, next_provider: ModelProvider, *, call_site: str) -> None:
+def log_failover(
+    failed: ModelProvider,
+    next_provider: ModelProvider,
+    *,
+    call_site: str,
+    after_reasoning: bool = False,
+    reason: str = "unavailable",
+) -> None:
     log_with_context(
         logger,
         30,  # WARNING
@@ -405,6 +456,8 @@ def log_failover(failed: ModelProvider, next_provider: ModelProvider, *, call_si
         to_slot=next_provider.slot,
         to_provider=next_provider.name,
         to_model=next_provider.model,
+        after_reasoning=after_reasoning,
+        reason=reason,
     )
 
 
@@ -472,9 +525,15 @@ async def acreate_chat_completion(
     thinking_enabled: bool = True,
     reasoning_effort: str | None = None,
     usage_attribution: LLMUsageAttribution | None = None,
+    fail_over_on_rejection: bool = False,
     **kwargs: Any,
 ) -> tuple[Any, ModelProvider]:
     """``chat.completions.create`` on the first available provider.
+
+    With ``fail_over_on_rejection`` a request the provider rejects (400/413/422) is
+    also sent to the other provider, without counting against the rejecting one or
+    pinning the session: for side-effect-free calls such as routing, where one
+    provider refusing a request should not stop the author's turn.
 
     ``kwargs`` are the request without ``model``. Returns the response and the
     provider that served it. Streaming responses fail over only when opening
@@ -485,6 +544,7 @@ async def acreate_chat_completion(
     if kwargs.get("stream"):
         usage_attribution = None
     ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
+    rejected = False
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)
         attempt_started = time.monotonic()
@@ -499,6 +559,14 @@ async def acreate_chat_completion(
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
             log_provider_failure(provider, exc, call_site=call_site)
             if not is_provider_unavailable(exc):
+                if (
+                    fail_over_on_rejection
+                    and _status_code_of(exc) in _REQUEST_REJECTION_STATUSES
+                    and index + 1 < len(ordered)
+                ):
+                    log_failover(provider, ordered[index + 1], call_site=call_site, reason="request_rejected")
+                    rejected = True
+                    continue
                 raise
             await arecord_failure(provider, session_id, exc)
             if index + 1 >= len(ordered):
@@ -506,7 +574,9 @@ async def acreate_chat_completion(
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
-        await arecord_success(provider, session_id, ordered)
+        if not rejected:
+            # A rejected request says nothing about the provider: the session keeps its order.
+            await arecord_success(provider, session_id, ordered)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 
