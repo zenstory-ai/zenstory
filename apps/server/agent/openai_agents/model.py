@@ -25,9 +25,12 @@ from typing import TYPE_CHECKING, Any
 
 from agent.core import llm_failover, llm_providers
 from agent.core.llm_providers import ModelProvider
+from utils.logger import get_logger, log_with_context
 
 if TYPE_CHECKING:
     from services.usage.llm_usage_service import CallTiming, LLMUsageAttribution
+
+logger = get_logger(__name__)
 
 # (slot, base_url, api_key, model) -> (client, SDK model built on it)
 _models: dict[tuple[str, str, str, str], tuple[Any, Any]] = {}
@@ -43,6 +46,10 @@ _FIRST_OUTPUT_EVENT_TYPES = frozenset({
     "response.function_call_arguments.delta",
 })
 _COMPLETED_EVENT_TYPE = "response.completed"
+_REASONING_DELTA_EVENT_TYPES = frozenset({
+    "response.reasoning_text.delta",
+    "response.reasoning_summary_text.delta",
+})
 # Output the runner acts on (reply text, file bodies, tool calls). A call that failed
 # before any of these produced nothing that the backup's answer would repeat.
 _ANSWER_OUTPUT_EVENT_TYPES = frozenset({
@@ -126,10 +133,18 @@ class FailoverChatModel:
         self.served_model: str | None = None
         # Timing of the latest successful call, taken once by the usage hook.
         self._call_timing: CallTiming | None = None
+        # The latest successful call's thinking before its first answer output
+        # (reasoning characters, milliseconds or None when it never answered), taken
+        # once by the usage hook and logged with that call's reasoning tokens.
+        self._thinking_before_answer: tuple[int, int | None] | None = None
 
     def take_call_timing(self) -> CallTiming | None:
         timing, self._call_timing = self._call_timing, None
         return timing
+
+    def take_thinking_before_answer(self) -> tuple[int, int | None] | None:
+        thinking, self._thinking_before_answer = self._thinking_before_answer, None
+        return thinking
 
     def _succeeded(self, started: float, ttft_ms: int | None = None) -> None:
         from models.llm_usage import CALL_OUTCOME_SUCCESS
@@ -206,6 +221,7 @@ class FailoverChatModel:
     ) -> AsyncIterator[Any]:
         ordered = await llm_failover.aordered_providers(self._session_id)
         self._call_timing = None
+        self._thinking_before_answer = None
         for index, provider in enumerate(ordered):
             # Events before the first output or completion (``response.created``,
             # ``output_item.added``) are held back: until output reaches the runner,
@@ -215,6 +231,9 @@ class FailoverChatModel:
             answered = False
             attempt_started = time.monotonic()
             ttft_ms: int | None = None
+            # Observation only: how long the call thought before its first answer output.
+            thinking_chars = 0
+            first_answer_ms: int | None = None
             completed = False
             try:
                 async for event in _sdk_model_for(provider).stream_response(
@@ -232,11 +251,19 @@ class FailoverChatModel:
 
                         ttft_ms = elapsed_ms(attempt_started)
                     if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
+                        if not answered:
+                            from services.usage.llm_usage_service import elapsed_ms
+
+                            first_answer_ms = elapsed_ms(attempt_started)
                         answered = True
+                    elif event_type in _REASONING_DELTA_EVENT_TYPES and not answered:
+                        delta = getattr(event, "delta", None)
+                        thinking_chars += len(delta) if isinstance(delta, str) else 0
                     if event_type == _COMPLETED_EVENT_TYPE:
                         # Timed when the provider finished, before the SDK consumes the event.
                         completed = True
                         self._succeeded(attempt_started, ttft_ms)
+                        self._thinking_before_answer = (thinking_chars, first_answer_ms)
                     if not started:
                         if ttft_ms is None and not completed:
                             preamble.append(event)
@@ -256,6 +283,10 @@ class FailoverChatModel:
                     self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
                     llm_failover.log_provider_failure(
                         provider, exc, call_site="agent", phase="stream" if started else "stream_start"
+                    )
+                    log_thinking_before_answer(
+                        provider.model, outcome="failed", thinking_chars=thinking_chars,
+                        first_answer_ms=first_answer_ms, started=attempt_started,
                     )
                 if llm_failover.is_provider_unavailable(exc):
                     # Pins the session to the other provider even mid-stream, so the
@@ -281,8 +312,41 @@ class FailoverChatModel:
                     yield held
             if not completed:
                 self._succeeded(attempt_started, ttft_ms)
+                self._thinking_before_answer = (thinking_chars, first_answer_ms)
             await llm_failover.arecord_success(provider, self._session_id, ordered)
             return
+
+
+def log_thinking_before_answer(
+    model: str,
+    *,
+    outcome: str,
+    thinking_chars: int,
+    first_answer_ms: int | None,
+    started: float | None = None,
+    duration_ms: int | None = None,
+    reasoning_tokens: int | None = None,
+    output_tokens: int | None = None,
+) -> None:
+    """One line per streamed agent model call: how much it thought before answering (numbers only).
+
+    Observation for a future "thought too long without answering" cut-off; nothing reads it.
+    ``first_answer_ms`` is None when the call produced no text, refusal or tool arguments.
+    """
+    from services.usage.llm_usage_service import elapsed_ms
+
+    log_with_context(
+        logger,
+        20,  # INFO
+        "LLM call thinking before answer",
+        model=model,
+        outcome=outcome,
+        thinking_chars_before_answer=thinking_chars,
+        first_answer_ms=first_answer_ms,
+        duration_ms=duration_ms if duration_ms is not None else (elapsed_ms(started) if started is not None else None),
+        reasoning_tokens=reasoning_tokens,
+        output_tokens=output_tokens,
+    )
 
 
 _failover_classes: dict[Any, type] = {}

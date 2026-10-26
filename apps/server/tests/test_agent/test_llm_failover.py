@@ -958,3 +958,64 @@ async def test_in_stream_errors_never_open_the_circuit_for_other_authors(chunk_e
 
     assert llm_failover.ordered_providers("author-a")[0].name == "deepseek"  # that session moved
     assert llm_failover.ordered_providers("someone-else")[0].name == "minimax"  # nobody else did
+
+
+# --------------------------------------------------------------- 2026-10-26 thinking observation
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_each_call_records_how_much_it_thought_before_answering(chunk_endpoints, caplog):
+    """Observation for a future cut-off: reasoning characters and time before the first answer output."""
+    scripts, _calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("先想"), _reasoning_chunk("再想想"),
+                           _chunk(content="答"), _reasoning_chunk("答完又想"), _chunk(finish_reason="stop")], None)
+    model = sdk_model.build_failover_chat_model("observe")
+
+    await _drain_real(model)
+
+    chars, first_answer_ms = model.take_thinking_before_answer()
+    assert chars == len("先想再想想")  # reasoning after the answer started is not counted
+    assert isinstance(first_answer_ms, int)
+    assert model.take_thinking_before_answer() is None  # taken once, by the usage hook
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_call_that_failed_while_thinking_is_logged_with_what_it_thought(chunk_endpoints, caplog):
+    scripts, _calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想了很久")], _read_timeout())
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+
+    with caplog.at_level("INFO"):
+        await _drain_real(sdk_model.build_failover_chat_model("observe-fail"))
+
+    lines = [r.custom_fields for r in caplog.records if r.getMessage() == "LLM call thinking before answer"]
+    assert lines and lines[0]["outcome"] == "failed"
+    assert lines[0]["thinking_chars_before_answer"] == len("想了很久")
+    assert lines[0]["first_answer_ms"] is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_usage_hook_logs_reasoning_tokens_with_the_thinking_observation(caplog):
+    from agent.openai_agents.usage_hooks import build_agent_run_hooks
+
+    class _Model:
+        served_model = "MiniMax-M3.1-Flash"
+
+        def take_call_timing(self):
+            return SimpleNamespace(duration_ms=4200, outcome="success", ttft_ms=900)
+
+        def take_thinking_before_answer(self):
+            return (1234, 3100)
+
+    usage = SimpleNamespace(output_tokens=900, output_tokens_details=SimpleNamespace(reasoning_tokens=700),
+                            input_tokens=10, input_tokens_details=None, total_tokens=910)
+    hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
+    with caplog.at_level("INFO"):
+        await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=usage, output=[]))
+
+    line = next(r.custom_fields for r in caplog.records if r.getMessage() == "LLM call thinking before answer")
+    assert (line["outcome"], line["thinking_chars_before_answer"], line["first_answer_ms"]) == ("completed", 1234, 3100)
+    assert (line["reasoning_tokens"], line["output_tokens"], line["duration_ms"]) == (700, 900, 4200)
