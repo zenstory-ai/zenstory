@@ -1546,7 +1546,7 @@ async def test_repeat_create_file_while_another_create_is_in_flight_still_reject
         ToolContext.clear_context()
 
 
-def _set_author_round(db_session, user, project, message: str) -> None:
+def _set_author_round(db_session, user, project, message: str, *, notes_append_allowed: bool = False) -> None:
     from agent.tools.mcp_tools import ToolContext
 
     ToolContext.set_context(
@@ -1556,6 +1556,7 @@ def _set_author_round(db_session, user, project, message: str) -> None:
         session_id=f"sess-notes-{uuid4().hex[:6]}",
         author_message=message,
     )
+    ToolContext.set_notes_append_allowed(notes_append_allowed)
 
 
 def _stored_notes(db_session, project) -> str:
@@ -1577,7 +1578,7 @@ async def test_update_project_appends_remembered_notes_and_reports_them(db_sessi
     project.notes = existing
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "记住：女主要到第五章才出场；主角左手有旧伤，阴天会疼")
+    _set_author_round(db_session, user, project, "记住：女主要到第五章才出场；主角左手有旧伤，阴天会疼", notes_append_allowed=True)
     try:
         payload = _parse_payload(
             await update_project({
@@ -1612,7 +1613,7 @@ async def test_read_only_tool_adapter_executes_explicit_notes_update(db_session)
 
     user, project = _make_user_and_project(db_session, f"notes-readonly-{uuid4().hex[:5]}")
     unchanged = {field: getattr(project, field) for field in ("name", "summary", "writing_style", "current_phase")}
-    _set_author_round(db_session, user, project, "记住：主角左手有旧伤，阴天会疼")
+    _set_author_round(db_session, user, project, "记住：主角左手有旧伤，阴天会疼", notes_append_allowed=True)
     try:
         tools = {tool.name: tool for tool in build_agent_function_tools("writer", read_only=True)}
         payload = json.loads(
@@ -1640,7 +1641,7 @@ async def test_update_project_notes_over_limit_save_nothing_and_say_so(db_sessio
     project.notes = existing
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "记住：主角怕水")
+    _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
     try:
         payload = _parse_payload(await update_project({"summary": "新摘要", "notes": "主角怕水"}))
     finally:
@@ -1665,7 +1666,7 @@ async def test_update_project_partial_plan_rejection_still_reports_added_notes(d
         "execute_update_plan",
         lambda self, **kwargs: {"status": "error", "error": "任务计划板未更新"},
     )
-    _set_author_round(db_session, user, project, "记住：主角怕水")
+    _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
     try:
         payload = _parse_payload(
             await update_project({"summary": "新摘要", "notes": "主角怕水", "tasks": []})
@@ -1690,7 +1691,7 @@ async def test_update_project_preserves_existing_authoritative_notes_when_model_
     project.notes = existing
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "主角会游泳吗？")
+    _set_author_round(db_session, user, project, "记住：主角会游泳", notes_append_allowed=True)
     try:
         for notes in ("", "主角不会游泳", f"{CONFIRMED_HEADER}\n旧约定"):
             payload = _parse_payload(await update_project({"notes": notes}))
@@ -1717,7 +1718,7 @@ async def test_update_project_removes_legacy_proposal_block_on_write(db_session)
     project.notes = legacy_stored
     db_session.add(project)
     db_session.commit()
-    _set_author_round(db_session, user, project, "继续写")
+    _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
     try:
         status_only = _parse_payload(await update_project({"current_phase": "第1章"}))
         assert status_only["data"]["current_status"]["notes"] == author_part
@@ -1778,7 +1779,7 @@ async def test_update_project_merges_notes_against_author_patch_committed_after_
         return original_update(executor, *args, **kwargs)
 
     monkeypatch.setattr(FileToolExecutor, "update_project_status", update_after_author_patch)
-    _set_author_round(db_session, user, project, "继续写")
+    _set_author_round(db_session, user, project, "记住本轮的新约定", notes_append_allowed=True)
     try:
         payload = _parse_payload(await update_project({"notes": "旧事实\n模型新增推断"}))
     finally:
@@ -1940,3 +1941,126 @@ async def test_successful_writes_do_not_open_a_ledger_session(session_factory_sp
 
     assert [created["status"], deleted["status"], updated["status"]] == ["success"] * 3
     assert session_factory_spy.calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("author_edit", ["", "主角左手已经痊愈"])
+async def test_deleted_or_edited_notes_are_not_replayed_on_ordinary_writing(db_session, author_edit):
+    """Reproduce memory -> manual PATCH -> ordinary writing in the same chat."""
+    from agent.tools.mcp_tools import ToolContext
+    from api.projects import PatchProjectRequest, patch_project
+
+    user, project = _make_user_and_project(db_session, f"notes-revival-{uuid4().hex[:5]}")
+    old = "主角左手有旧伤，阴天会疼"
+    _set_author_round(db_session, user, project, f"记住：{old}", notes_append_allowed=True)
+    # A successful current router decision, not words in author_message, grants this append.
+    ToolContext.set_notes_append_allowed(True)
+    try:
+        remembered = _parse_payload(await update_project({"notes": old}))
+        assert remembered["data"]["notes_added"] == [old]
+        patch_project(project.id, PatchProjectRequest(notes=author_edit, expected_notes=old),
+                      current_user=user, session=db_session)
+        # Keep the same chat id but start a fresh request. The model replays its old tool args.
+        session_id = ToolContext.get_session_id()
+        ToolContext.set_context(db_session, user.id, project.id, session_id,
+                                author_message="写第一章开头，不更新项目资料")
+        replay = _parse_payload(await update_project({"notes": old, "summary": "本轮正常简介"}))
+        assert _stored_notes(db_session, project) == author_edit
+        assert "notes_added" not in replay["data"]
+        assert "notes_note" not in replay["data"]
+        assert replay["data"]["notes_skipped_reason"]
+        assert replay["data"]["updated_fields"] == ["summary"]
+        assert db_session.get(type(project), project.id).summary == "本轮正常简介"
+        # A new explicit request may remember the same fact again after deletion or editing.
+        ToolContext.set_context(db_session, user.id, project.id, session_id, author_message=f"再记住：{old}")
+        ToolContext.set_notes_append_allowed(True)
+        remembered_again = _parse_payload(await update_project({"notes": old}))
+        assert remembered_again["data"]["notes_added"] == [old]
+        assert old in _stored_notes(db_session, project)
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize('router_allowed,router_off', [(True, False), (False, False), (False, True)])
+async def test_workflow_propagates_current_notes_permission_without_blocking_writing(
+    db_session, router_allowed, router_off, monkeypatch
+):
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from sqlmodel import Session
+
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.graph.writing_graph import run_writing_workflow_streaming
+    from agent.tools.mcp_tools import ToolContext
+    from agent.tools.parallel_executor import execute_parallel
+
+    user, project = _make_user_and_project(db_session, f'notes-graph-{uuid4().hex[:5]}')
+    engine = db_session.get_bind()
+    ToolContext.set_context(None, user.id, project.id, 'same-chat',
+                            create_session_func=lambda: Session(engine), author_message='本轮要求')
+    router = AsyncMock(return_value={
+        'current_agent': 'writer', 'workflow_plan': 'quick', 'workflow_agents': [],
+        'routing_metadata': {'notes_append_allowed': router_allowed, 'write_content': True},
+    })
+    results = []
+
+    async def run_agent(*_args, **_kwargs):
+        # The SDK executes tool calls in their own asyncio tasks, then offloads DB work.
+        results.extend(await asyncio.gather(update_project({'notes': '主角怕水', 'summary': '正常简介'})))
+        written = await execute_parallel([{'id': 'body', 'type': 'write_chapter',
+            'description': '保存本轮正文', 'params': {'title': '第一章', 'content': '河水漫过石阶。他停住脚步，终于还是伸手接住了那封信。'}}])
+        results.append(written)
+        yield StreamEvent(type=StreamEventType.TEXT, data={'text': '本轮写作完成。'})
+
+    monkeypatch.setenv('AGENT_ROUTER_STRATEGY', 'off' if router_off else 'llm')
+    monkeypatch.setenv('AGENT_ENABLE_GRAPH_AUTO_REVIEW', 'false')
+    try:
+        with patch('agent.graph.writing_graph.router_node', router), patch(
+            'agent.graph.writing_graph.run_streaming_agent', new=run_agent
+        ):
+            async for _ in run_writing_workflow_streaming({'user_message': '本轮要求', 'messages': [],
+                                                          'system_prompt': ''}, max_iterations=1):
+                pass
+        payload = _parse_payload(results[0])['data']
+        assert ('notes_added' in payload) is router_allowed
+        assert _stored_notes(db_session, project) == ('主角怕水' if router_allowed else '')
+        assert db_session.get(type(project), project.id).summary == '正常简介'
+        assert _parse_payload(results[1])['data']['completed'] == 1
+        router.assert_not_awaited() if router_off else router.assert_awaited_once()
+    finally:
+        ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_consumed_steering_revokes_notes_in_existing_task_snapshot(db_session):
+    import asyncio
+
+    from agent.tools.mcp_tools import ToolContext
+
+    user, project = _make_user_and_project(db_session, f'notes-steer-{uuid4().hex[:5]}')
+    consumed = []
+    ToolContext.set_context(db_session, user.id, project.id, 'same-chat',
+                            author_message='记住：主角怕水', author_steering=consumed)
+    ToolContext.set_notes_append_allowed(True)
+    ready = asyncio.Event()
+
+    async def later_call():
+        await ready.wait()
+        return _parse_payload(await update_project({'notes': '主角怕水'}))
+
+    try:
+        # This task has already copied the context; the consumed list is shared.
+        pending = asyncio.create_task(later_call())
+        consumed.append('先停下，我改一下要求')
+        ready.set()
+        payload = await pending
+        assert payload['data']['notes_skipped_reason']
+        assert 'notes_added' not in payload['data'] and 'notes_note' not in payload['data']
+        assert _stored_notes(db_session, project) == ''
+    finally:
+        ToolContext.clear_context()

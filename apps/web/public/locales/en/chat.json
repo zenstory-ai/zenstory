@@ -359,7 +359,7 @@
       "summary": "Summary",
       "current_phase": "Current Phase",
       "writing_style": "Writing Style",
-      "notes": "Notes"
+      "notes": "Writing Conventions"
     }
   },
   "fileEdit": {
@@ -436,15 +436,8 @@
     "quota": "{{count}} free messages left today"
   },
   "notesAdded": {
-    "title": "Saved to AI Memory",
-    "undo": "Undo",
-    "undone": "Undone",
-    "alreadyGone": "These notes are no longer in AI Memory; nothing to undo",
-    "partlyChanged": "{{count}} notes you edited or removed were left as is",
-    "partlyChanged_one": "{{count}} note you edited or removed was left as is",
-    "partlyChanged_other": "{{count}} notes you edited or removed were left as is",
-    "conflict": "AI Memory just changed and the undo did not finish. Try again.",
-    "failed": "Undo failed. Please try again later.",
-    "full": "Notes are near the 4,000-character limit, so nothing was saved to AI Memory"
+    "title": "Added to Writing Conventions",
+    "open": "View and edit",
+    "full": "Writing Conventions are near the 4,000-character limit, so this was not saved"
   }
 }

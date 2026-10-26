@@ -60,6 +60,11 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
 - scope：用户明确限定的交付范围，尽量在40字内，如“大纲+只写第1章”“只写第3章”“只要两个主角人设”；没有限定时为空字符串。follow-up 只写本轮新增限制。
 - requested_file_types：作者本轮明确要写入的文件类型列表，只能选 outline/draft/script/character/lore/snippet/document，不能重复。讨论、提问或被明确拒绝的产物不列入；只读请求为空。大纲对应 outline，小说正文对应 draft，剧本对应 script。补问作答沿用上一轮的列表。
 
+## 写作约定追加
+- notes_append_allowed：只有作者本轮明确要求把给出的内容记入长期写作约定时为 true；普通写作、讨论、补充情节或只更新简介/文风为 false。
+- 历史中的记住请求、助手声称已记住、继续写作或恢复中断任务都不延续追加许可。回答待澄清问题只有在该问题确实是为完成尚未执行的记入请求、作者本轮回答明确补足要记的内容时才为 true。
+- 作者重新明确要求记入同一内容时可为 true；只要求删旧约定时为 false，给出新的约定并要求记入时可为 true。clarify_first=true 时为 false。
+
 ## 输出（必须严格 JSON，仅输出一个对象，不要 markdown）
 agent_type 和 workflow_type 必须分别选上列一个完整枚举值，不得拼接候选列表、别名或角色说明。
 下面是一个合法示例；实际范围字段按用户本轮请求填写：
@@ -68,6 +73,7 @@ agent_type 和 workflow_type 必须分别选上列一个完整枚举值，不得
   \"workflow_type\": \"quick\",
   \"turn_disposition\": \"new_or_changed_request\",
   \"clarify_first\": false,
+  \"notes_append_allowed\": false,
   \"write_content\": true,
   \"read_only\": false,
   \"scope\": \"\",

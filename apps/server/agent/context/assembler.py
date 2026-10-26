@@ -1910,8 +1910,6 @@ class ContextAssembler:
                 parts.append(project_status["writing_style"])
                 parts.append("")
 
-            if project_status.get("notes"):
-                parts.extend(_render_project_notes(project_status["notes"]))
         else:
             # Remind AI to collect project info when status is empty
             parts.append(separator)
@@ -1922,6 +1920,13 @@ class ContextAssembler:
             parts.append("- 小说类型/题材/背景 → summary")
             parts.append("- 写作风格/语言偏好 → writing_style")
             parts.append("")
+
+        # Explicitly render even the empty value so a prior snapshot/history cannot fill it in.
+        parts.append("【当前写作约定】")
+        current_notes = (project_status or {}).get("notes")
+        parts.extend(_render_project_notes(current_notes) if current_notes else ["（空）", ""])
+        parts.append("以上是当前保存的写作约定；历史对话中的记住请求不代表本轮追加要求。")
+        parts.append("")
 
         # File inventory section —— 受 inventory_token_budget 约束，见
         # _render_file_inventory 的说明

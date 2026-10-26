@@ -160,6 +160,8 @@ interface MessageListProps {
   onUndo?: (target: FileEditUndoTarget) => void;
   /** Open a successful file result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
+  /** Open AI Memory at the Writing Conventions field. */
+  onOpenAIMemory?: () => void;
   /** Callback invoked when user submits thumbs up/down feedback for assistant message */
   onSubmitFeedback?: (message: Message, vote: MessageFeedbackVote) => void | Promise<void>;
   /** Message ID currently submitting feedback */
@@ -485,13 +487,14 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
 /**
  * Props passed to each message Row component.
  */
-function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistAction, nextStepsBlocked = false, isStreaming = false, chatMessageId }: {
+function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIterationAssistAction, nextStepsBlocked = false, isStreaming = false, chatMessageId }: {
   items: StreamRenderItem[];
   nextStepsBlocked?: boolean;
   onUndo?: MessageListProps['onUndo'];
   /** The saved assistant message these items belong to (absent while streaming). */
   chatMessageId?: string;
   onOpenFile?: MessageListProps['onOpenFile'];
+  onOpenAIMemory?: MessageListProps['onOpenAIMemory'];
   onIterationAssistAction?: MessageListProps['onIterationAssistAction'];
   isStreaming?: boolean;
 }) {
@@ -554,6 +557,7 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onIterationAssistActio
               toolUseId={toolCall.id}
               chatMessageId={chatMessageId}
               onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
+              onOpenAIMemory={onOpenAIMemory}
             />
           ))}
         </div>
@@ -735,6 +739,8 @@ interface RowDataProps {
   onUndo?: (target: FileEditUndoTarget) => void;
   /** Open a successful file result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
+  /** Open AI Memory at the Writing Conventions field. */
+  onOpenAIMemory?: () => void;
   /** Callback to submit message feedback */
   onSubmitFeedback?: (message: Message, vote: MessageFeedbackVote) => void | Promise<void>;
   isFeedbackPending: boolean;
@@ -768,6 +774,7 @@ const Row = React.memo(function Row({
   formatTime,
   onUndo,
   onOpenFile,
+  onOpenAIMemory,
   onSubmitFeedback,
   isFeedbackPending,
   showDailyCount = true,
@@ -844,7 +851,7 @@ const Row = React.memo(function Row({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
-          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
+          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
         ) : <>
         {/* Thinking content - show streaming if active, otherwise show historical segments */}
         {message.role === 'assistant' && (
@@ -989,6 +996,7 @@ const Row = React.memo(function Row({
                 toolUseId={toolCall.id}
                 chatMessageId={message.backendMessageId}
                 onOpenFile={toolCall.status === 'success' && toolCall.result ? onOpenFile : undefined}
+                onOpenAIMemory={onOpenAIMemory}
               />
             ))}
           </div>
@@ -1008,6 +1016,7 @@ const Row = React.memo(function Row({
                 toolUseId={result.id}
                 chatMessageId={message.backendMessageId}
                 onOpenFile={result.status === 'success' ? onOpenFile : undefined}
+                onOpenAIMemory={onOpenAIMemory}
               />
             ))}
           </div>
@@ -1166,6 +1175,7 @@ export const MessageList = React.memo(
   streamingMessageId,
   onUndo,
   onOpenFile,
+  onOpenAIMemory,
   onSubmitFeedback,
   feedbackPendingMessageId,
   showDailyCount,
@@ -1293,6 +1303,7 @@ export const MessageList = React.memo(
           formatTime={formatTime}
           onUndo={onUndo}
           onOpenFile={onOpenFile}
+          onOpenAIMemory={onOpenAIMemory}
           onSubmitFeedback={onSubmitFeedback}
           isFeedbackPending={feedbackPendingMessageId === message.id}
           showDailyCount={showDailyCount}
@@ -1317,7 +1328,7 @@ export const MessageList = React.memo(
 
           {/* Stream items */}
           <div className="flex-1 min-w-0 overflow-hidden">
-            <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onOpenFile={onOpenFile} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
+            <OrderedMessageItems items={safeStreamRenderItems} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={true} />
 
             {/* Timestamp - 只在非 streaming 状态时显示 */}
             {!streamingMessageId && streamRenderItems && streamRenderItems.length > 0 && (
@@ -1337,6 +1348,7 @@ export const MessageList = React.memo(
   if (prevProps.streamingMessageId !== nextProps.streamingMessageId) return false;
   if (prevProps.onUndo !== nextProps.onUndo) return false;
   if (prevProps.onOpenFile !== nextProps.onOpenFile) return false;
+  if (prevProps.onOpenAIMemory !== nextProps.onOpenAIMemory) return false;
   if (prevProps.onSubmitFeedback !== nextProps.onSubmitFeedback) return false;
   // The iteration-exhausted action buttons call this; omitting it here let the
   // buttons keep invoking a stale closure after the parent re-created it.

@@ -33,7 +33,7 @@ const placeholders = {
   summary: 'Genre, world, protagonist and other core details',
   style: 'Voice, pacing, prose style, etc.',
   phase: 'Where you are now and what comes next',
-  notes: 'Key points, things to watch, open questions, etc.',
+  notes: 'For example: The heroine appears in chapter five; no game system',
 }
 type Request = { projectId: string; method: string; body: Record<string, unknown> | null; promise: Promise<Response>; resolve: (response: Response) => void }
 let requests: Request[]
@@ -197,13 +197,13 @@ for (const strict of [false, true]) {
       const olderRead = reads('A').at(-1)!
       await click(user, screen.getByRole('button', { name: 'Save' }))
       await finish(writes(), { error: { code: 'ERR_RESOURCE_CONFLICT', message: 'changed' } }, 409)
-      await click(user, screen.getByRole('button', { name: 'View latest notes' }))
+      await click(user, screen.getByRole('button', { name: 'View latest version' }))
       const latest = '【作者确认】\n新的远端约定'
       await finish([reads('A').at(-1)!], { ...project('A'), notes: latest })
-      await click(user, screen.getByRole('button', { name: 'Save my version' }))
+      await click(user, screen.getByRole('button', { name: 'Overwrite and save my version' }))
       expect(writes()[1].body).toEqual({ notes: 'my notes', expected_notes: latest })
       await finish([writes()[1]], { ...project('A'), notes: 'my notes' })
-      expect(toasts.at(-1)).toMatchObject({ type: 'success', message: 'Notes saved' })
+      expect(toasts.at(-1)).toMatchObject({ type: 'success', message: 'Writing Conventions saved' })
       await finish([olderRead], project('A'))
       expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('my notes')
       change('notes', 'my notes\n本地新约定')
@@ -218,10 +218,10 @@ for (const strict of [false, true]) {
       const olderRead = reads('A').at(-1)!
       await click(user, screen.getByRole('button', { name: 'Save' }))
       await finish(writes(), { error: { code: 'ERR_RESOURCE_CONFLICT', message: 'changed' } }, 409)
-      await click(user, screen.getByRole('button', { name: 'View latest notes' }))
+      await click(user, screen.getByRole('button', { name: 'View latest version' }))
       const latest = '【作者确认】\n新的远端约定'
       await finish([reads('A').at(-1)!], { ...project('A'), notes: latest })
-      await click(user, screen.getByRole('button', { name: 'Use latest notes' }))
+      await click(user, screen.getByRole('button', { name: 'Use latest version' }))
       expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(latest))
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
       await finish([olderRead], project('A'))
@@ -244,38 +244,39 @@ for (const strict of [false, true]) {
       await finish(writes(), { error: { code: 'ERR_RESOURCE_CONFLICT', message: 'notes changed' } }, 409)
       expect(state()).toMatchObject({ open: true, closeCount: 0 })
       expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(mine))
-      expect(screen.getByRole('alert')).toHaveTextContent('Notes changed elsewhere. Your changes have not been saved.')
-      expect(screen.queryByRole('button', { name: 'Save my version' })).not.toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent('Writing Conventions changed elsewhere')
+      expect(screen.getByRole('alert')).toHaveTextContent('Your changes have not been saved. Review the latest version before choosing.')
+      expect(screen.queryByRole('button', { name: 'Overwrite and save my version' })).not.toBeInTheDocument()
       const beforePreview = reads('A').length
-      await click(user, screen.getByRole('button', { name: 'View latest notes' }))
+      await click(user, screen.getByRole('button', { name: 'View latest version' }))
       await finish([reads('A').at(-1)!], { detail: 'Read unavailable' }, 503)
       expect(reads('A')).toHaveLength(beforePreview + 1)
       expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(mine))
-      expect(screen.queryByRole('button', { name: 'Save my version' })).not.toBeInTheDocument()
-      await click(user, screen.getByRole('button', { name: 'View latest notes' }))
+      expect(screen.queryByRole('button', { name: 'Overwrite and save my version' })).not.toBeInTheDocument()
+      await click(user, screen.getByRole('button', { name: 'View latest version' }))
       // An older server may still return a legacy proposal block: it is not shown.
       const latest = '【作者确认】\n另一端确认\n\n【AI 提议·待作者确认】\n新提议'
       await finish([reads('A').at(-1)!], { ...project('A', 'latest'), notes: latest })
-      expect(screen.getByLabelText('Latest notes')).toHaveAttribute('readonly')
-      expect(screen.getByLabelText('Latest notes')).toHaveValue('另一端确认')
+      expect(screen.getByLabelText('Latest saved version')).toHaveAttribute('readonly')
+      expect(screen.getByLabelText('Latest saved version')).toHaveValue('另一端确认')
       expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(mine))
       expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('keep local summary')
       expect(writes()).toHaveLength(1) // Viewing or retrying a GET never replays the PATCH.
       if (choice === 'use-latest') {
-        await click(user, screen.getByRole('button', { name: 'Use latest notes' }))
+        await click(user, screen.getByRole('button', { name: 'Use latest version' }))
         expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue('另一端确认')
         expect(writes()).toHaveLength(1)
         change('notes', '另一端确认\n补一句')
         await click(user, screen.getByRole('button', { name: 'Save' }))
         expect(writes()[1].body).toMatchObject({ notes: '【作者确认】\n另一端确认\n【未标来源】\n补一句', expected_notes: latest })
       } else {
-        await click(user, screen.getByRole('button', { name: 'Save my version' }))
+        await click(user, screen.getByRole('button', { name: 'Overwrite and save my version' }))
         expect(writes()[1].body).toEqual({ notes: mine, expected_notes: latest })
         await finish([writes()[1]], choice === 'save-mine' ? { ...project('A'), notes: mine } : { detail: 'Changed again' }, choice === 'save-mine' ? 200 : 409)
         expect(screen.getByPlaceholderText(placeholders.notes)).toHaveValue(shownNotes(mine))
         expect(screen.getByPlaceholderText(placeholders.summary)).toHaveValue('keep local summary')
-        expect(screen.queryByRole('textbox', { name: 'Latest notes' })).not.toBeInTheDocument()
-        expect(screen.queryAllByRole('button', { name: 'View latest notes' })).toHaveLength(choice === 'save-mine' ? 0 : 1)
+        expect(screen.queryByRole('textbox', { name: 'Latest saved version' })).not.toBeInTheDocument()
+        expect(screen.queryAllByRole('button', { name: 'View latest version' })).toHaveLength(choice === 'save-mine' ? 0 : 1)
       }
       expect(writes()).toHaveLength(2)
     })

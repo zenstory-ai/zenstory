@@ -17,12 +17,14 @@ interface ProjectStatusDialogProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
+  initialSection?: 'writing-agreements';
 }
 
 export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   isOpen,
   onClose,
   projectId,
+  initialSection,
 }) => {
   const { t } = useTranslation('project', { keyPrefix: 'statusDialog' });
   const navigate = useNavigate();
@@ -42,6 +44,8 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   const [latestNotesFailed, setLatestNotesFailed] = useState(false);
   const notesBaseRef = useRef("");
   const notesInputRef = useRef<HTMLTextAreaElement>(null);
+  const notesSectionRef = useRef<HTMLDivElement>(null);
+  const focusedInitialSectionRef = useRef(false);
   const latestNotesReadRef = useRef<object | null>(null);
 
   const projectRef = useRef<Project | null>(null);
@@ -72,6 +76,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     setLoadingLatestNotes(false);
     setLatestNotesFailed(false);
     latestNotesReadRef.current = null;
+    focusedInitialSectionRef.current = false;
     setSaving(false);
     setLoading(Boolean(owner));
 
@@ -164,6 +169,15 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     if (!isOpen || !projectId) return;
     void loadProject({ showLoading: true, preserveDirty: false });
   }, [isOpen, projectId, loadProject]);
+
+  useEffect(() => {
+    if (!isOpen || loading || !project || initialSection !== 'writing-agreements' || focusedInitialSectionRef.current) return;
+    focusedInitialSectionRef.current = true;
+    const input = notesInputRef.current;
+    notesSectionRef.current?.scrollIntoView({ block: 'start' });
+    input?.focus({ preventScroll: true });
+    if (input) input.setSelectionRange(input.value.length, input.value.length);
+  }, [initialSection, isOpen, loading, project]);
 
   // Sync updates from chat tool results while dialog is open.
   useEffect(() => {
@@ -417,13 +431,18 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div ref={notesSectionRef} className="space-y-1.5 border-t border-[hsl(var(--border-color))] pt-4">
             <label htmlFor={`${fieldId}-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">
               {t('notes')}
             </label>
+            <p id={`${fieldId}-notes-description`} className="text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
+              {t('notesDescription')}
+            </p>
             <textarea
               id={`${fieldId}-notes`}
               ref={notesInputRef}
+              data-modal-autofocus={initialSection === 'writing-agreements' ? '' : undefined}
+              aria-describedby={`${fieldId}-notes-description`}
               value={authorNotesText(notes)}
               onChange={(e) => {
                 const nextNotes = withAuthorNotes(notes, e.target.value, notesBaseRef.current);
@@ -434,11 +453,14 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               }}
               placeholder={t('placeholders.notes')}
               rows={3}
-              className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
+              className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-base md:text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
             />
             {notesConflict && (
               <div className="space-y-2">
-                <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{t('notesConflict')}</p>
+                <div role="alert" className="text-sm text-[hsl(var(--error-text))]">
+                  <p className="font-medium">{t('notesConflictTitle')}</p>
+                  <p>{t('notesConflict')}</p>
+                </div>
                 {latestNotes === null ? <>
                   {latestNotesFailed && <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{t('latestNotesFailed')}</p>}
                   <Button variant="secondary" size="touch" isLoading={loadingLatestNotes}
@@ -446,10 +468,10 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
                   <textarea id={`${fieldId}-latest-notes`} value={authorNotesText(latestNotes)} readOnly rows={3}
-                    className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-sm text-[hsl(var(--text-primary))] resize-y" />
+                    className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-base md:text-sm text-[hsl(var(--text-primary))] resize-y" />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>
-                    <Button variant="secondary" size="touch" disabled={saving}
+                    <Button size="touch" disabled={saving}
                       onClick={() => void handleSave({ notes, expectedNotes: latestNotes })}>{t('saveMyNotes')}</Button>
                   </div>
                 </>}

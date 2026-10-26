@@ -11,9 +11,9 @@ Open **AI Memory** at the top of project chat, edit, and save. Cancel does not s
 | Project Summary | Genre, central situation, viewpoint | 4,000 characters |
 | Writing Style | Expression preferences and approaches to avoid | 1,000 characters |
 | Current Phase | What is saved and the next task | 1,000 characters |
-| Notes | Easily confused facts, open decisions, relevant filenames | 4,000 characters |
+| Writing Conventions | Character facts, plot commitments, prohibitions, and lasting creative boundaries | 4,000 characters |
 
-You do not need to fill the limits. Put important constraints first and detailed background in files. The AI can update the summary, writing style, and current phase; check stored results after important decisions. Notes are yours: when you explicitly say "remember ..." in chat, the AI appends your words to notes, and the result card in the chat lists what it saved with an **Undo** button. Otherwise the AI does not write notes and keeps its suggestions in its replies. The AI cannot edit or delete existing notes; change them yourself in AI Memory.
+You do not need to fill the limits. Put important constraints first and detailed background in files. The AI can update the summary, writing style, and current phase; check stored results after important decisions. Writing Conventions are yours: when you explicitly say "remember ..." in chat, the AI appends the content to Writing Conventions. The result card lists what it saved and opens the same field for review and editing. Otherwise the AI does not write Writing Conventions and keeps its suggestions in its replies. The AI can only append; edit or delete existing content yourself in AI Memory.
 
 ## Separate decisions and progress
 
@@ -23,7 +23,7 @@ Separate author knowledge, character knowledge, and events already written. Afte
 Summary: Realist mystery in Lin He's limited viewpoint.
 Style: Advance through questions and observable actions.
 Current Phase: Scene 1 saved; the bag remains at the desk. Scene 2 is unwritten.
-Notes: Lin does not know why the description is wrong. Shen's relationship
+Writing Conventions: Lin does not know why the description is wrong. Shen's relationship
 with the owner and the final recipient remain undecided.
 Evidence: Lin He, Shen Min, Three-scene outline, Scene 1 — The claim.
 ```

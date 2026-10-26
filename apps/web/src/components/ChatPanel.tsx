@@ -596,6 +596,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const contextItemsRef = useRef<AgentContextItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showAIMemory, setShowAIMemory] = useState(false);
+  const [aiMemoryInitialSection, setAIMemoryInitialSection] = useState<'writing-agreements' | undefined>();
+  const openAIMemory = useCallback((initialSection?: 'writing-agreements') => {
+    setAIMemoryInitialSection(initialSection);
+    setShowAIMemory(true);
+  }, []);
+  const openWritingAgreements = useCallback(() => openAIMemory('writing-agreements'), [openAIMemory]);
   const [generationMode, setGenerationMode] = useState<GenerationMode>(DEFAULT_GENERATION_MODE);
   const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
   const draftRef = useRef(draft);
@@ -2630,9 +2636,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         <div className={`flex shrink-0 items-center ${isMobile ? 'gap-1' : 'gap-2'}`} data-testid="chat-panel-header-actions">
           <QuotaBadge compact />
           <button
-            onClick={() => setShowAIMemory(true)}
+            onClick={() => openAIMemory()}
             className={`flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'p-2 min-h-[44px] min-w-[44px]' : 'p-1.5 min-h-0 min-w-0'}`}
             title={t('chat:panel.aiMemory')}
+            aria-label={t('chat:panel.aiMemory')}
           >
             <Database size={isMobile ? 18 : 16} />
           </button>
@@ -2694,6 +2701,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 streamingMessageId={undefined}
                 onUndo={handleUndo}
                 onOpenFile={currentProjectId && currentProject?.id === currentProjectId ? handleOpenFile : undefined}
+                onOpenAIMemory={currentProjectId ? openWritingAgreements : undefined}
                 onSubmitFeedback={handleSubmitFeedback}
                 feedbackPendingMessageId={feedbackPendingMessageId}
                 showDailyCount={showDailyCount}
@@ -3063,6 +3071,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           isOpen={showAIMemory}
           onClose={() => setShowAIMemory(false)}
           projectId={currentProjectId}
+          initialSection={aiMemoryInitialSection}
         />
       )}
     </div>

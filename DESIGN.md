@@ -67,6 +67,16 @@ This section governs `app.zenstory.ai` only; it does not change the organization
 - **Verification:** regression tests precede behavioral changes; run targeted component/page tests, TypeScript/lint, and keyboard/mobile browser checks. DOM semantics alone do not establish physical focus behavior or visual quality.
 - **Open question:** email-change re-verification policy is not established by existing product contracts; preserve it rather than silently introducing a new access policy.
 
+### AI Memory and Writing Conventions
+
+The fourth AI Memory field is author-facing **写作约定 / Writing Conventions** while its internal API and storage name remains `notes`. It holds character facts, plot commitments, prohibitions and other long-lived creative boundaries, distinct from the project summary, prose style and current writing phase. The visible field has a one-line description and example placeholder; AI Memory guidance says that an AI addition requires an explicit request to remember it.
+
+An `update_project.notes_added` chat result is a durable read-only receipt. It shows the exact saved entries in source order and one secondary **查看并编辑 / View and edit** action; historical cards render the same current behavior. The receipt never deletes project data. A notes-only result is one card without a redundant generic status. A result that also changes summary, style or phase uses one shared result surface: generic fields first, a fine divider, then the Writing Conventions receipt. The existing file-edit undo remains separate and unchanged.
+
+The receipt action opens the existing `ProjectStatusDialog` at Writing Conventions. After project data loads, the dialog scrolls its own body to that field, focuses the textarea and places the caret at the end; closing, cancelling, saving or Escape returns focus to the invoking button through the shared Modal behavior. The header AI Memory button has an accessible name and keeps the ordinary top-of-dialog entry. No second editor, route or settings surface is introduced.
+
+The dialog keeps summary → writing style → current phase → Writing Conventions, shared save/cancel actions and the guarded `expected_notes` write. A conflict keeps the author's draft visible, identifies that Writing Conventions changed elsewhere, and lets the author load the latest saved version, adopt it without a write, or overwrite using that reviewed version as the new baseline. Failed saves and reads leave the draft and editor open. On phones, these actions have at least 44px targets and the Writing Conventions textarea uses at least 16px text; cards and long English labels wrap within 390px. Visible labels remain associated with textareas, conflicts use alert semantics, and the existing light/dark tokens, focus ring, reduced-motion behavior and independent modal scrolling apply.
+
 ## React workbench buttons and type
 Applies to the dashboard pages, settings dialog and dashboard dialogs. Evidence: `components/ui/Button.tsx`, `IconButton.tsx`, `components/dashboard/*`, `index.css` (`.ui-sans-headings`, status text tokens).
 

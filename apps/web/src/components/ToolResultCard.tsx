@@ -17,7 +17,7 @@
  * - Internationalization support via react-i18next
  */
 
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../lib/i18n';
 import {
@@ -153,6 +153,9 @@ interface ToolResultCardProps {
 
   /** Open the exact file from a successful create/update result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
+
+  /** Open the current project's AI Memory editor at Writing Conventions. */
+  onOpenAIMemory?: () => void;
 
   /**
    * Callback to apply the response content.
@@ -372,20 +375,20 @@ const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
 
 /**
  * Notes entries an update_project call appended because the author asked the AI to remember them
- * (`notes_added`, exact stored text), with the project to undo them in. The server sets it only
- * when the notes were written, also on a partial (task board rejected) result.
+ * (`notes_added`, exact stored text). The server sets it only when the notes were written,
+ * including on a partial (task board rejected) result. Older history need not carry project_id
+ * because editing opens the current project's single AI Memory dialog.
  */
 const readNotesAdded = (
   data: Record<string, unknown> | undefined,
-): { projectId: string; entries: string[] } | null => {
-  const projectId = typeof data?.project_id === 'string' ? data.project_id.trim() : '';
+): string[] | null => {
   const entries = Array.isArray(data?.notes_added)
     ? [...new Set(data.notes_added
       .filter((entry): entry is string => typeof entry === 'string')
       .map((entry) => entry.trim())
       .filter(Boolean))]
     : [];
-  return projectId && entries.length > 0 ? { projectId, entries } : null;
+  return entries.length > 0 ? entries : null;
 };
 
 /**
@@ -589,6 +592,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   toolUseId,
   chatMessageId,
   onOpenFile,
+  onOpenAIMemory,
   onApply,
   onRetry,
   onCopy,
@@ -596,8 +600,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 }) => {
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
-  const [notesUndone, setNotesUndone] = useState(false);
-  const handleNotesUndone = useCallback(() => setNotesUndone(true), []);
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleUndo = useCallback((target: FileEditUndoTarget) => {
@@ -703,7 +705,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           </p>
         </div>
           {partialNotes && !isPending && !interrupted && (
-            <RememberedNotes projectId={partialNotes.projectId} entries={partialNotes.entries} />
+            <RememberedNotes entries={partialNotes} onOpen={onOpenAIMemory} />
           )}
         </div>
       );
@@ -868,8 +870,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       };
 
       const notesAdded = readNotesAdded(data);
-      // After the author undid the remembered notes, the header no longer claims them as updated.
-      const shownFields = notesUndone ? updatedFields.filter((f) => f !== 'notes') : updatedFields;
+      // notes_added has its own receipt below, so do not repeat it in the generic field list.
+      const shownFields = notesAdded ? updatedFields.filter((f) => f !== 'notes') : updatedFields;
       const updatedLabels = shownFields
         .map((f) => fieldLabels[f] || f)
         .join(t('common:separator'));
@@ -877,7 +879,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         || projectStatus?.project_name_updated === true
         || (data.plan !== undefined && data.plan !== null);
       const changed = updatedFields.length > 0 || otherChanges || notesAdded !== null;
-      const stillChanged = shownFields.length > 0 || otherChanges || (notesAdded !== null && !notesUndone);
 
       // Nothing visible changed (e.g. notes copied back unchanged): no green success.
       if (!changed) {
@@ -894,29 +895,21 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       }
 
       return (
-        <div>
-        <div className={stillChanged
-          ? 'bg-[hsl(var(--result-bg))] border border-[hsl(var(--result-border))] rounded-lg px-3 py-2'
-          : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2'}>
-          <div className="flex items-center gap-2">
-            {stillChanged
-              ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success-text))]" />
-              : <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />}
-            <span className={stillChanged ? 'text-sm text-[hsl(var(--success-text))]' : 'text-sm text-[hsl(var(--text-secondary))]'}>
-              {stillChanged ? t('chat:tool.status_updated') : t('chat:tool.status_unchanged')}
-            </span>
-            {updatedLabels && (
-              <span className="text-xs text-[hsl(var(--text-secondary))]">
-                ({updatedLabels})
-              </span>
-            )}
-          </div>
+        <div className="rounded-lg border border-[hsl(var(--result-border))] bg-[hsl(var(--result-bg))] px-3 py-2">
+          {(shownFields.length > 0 || otherChanges) && (
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[hsl(var(--success-text))]" />
+              <span className="text-sm text-[hsl(var(--success-text))]">{t('chat:tool.status_updated')}</span>
+              {updatedLabels && <span className="text-xs text-[hsl(var(--text-secondary))]">({updatedLabels})</span>}
+            </div>
+          )}
           {typeof data.notes_note === 'string' && (
             <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">{t('chat:notesAdded.full')}</p>
           )}
-        </div>
           {notesAdded && !isPending && !interrupted && (
-            <RememberedNotes projectId={notesAdded.projectId} entries={notesAdded.entries} onUndone={handleNotesUndone} />
+            <div className={shownFields.length > 0 || otherChanges ? 'mt-2 border-t border-[hsl(var(--result-border))]' : ''}>
+              <RememberedNotes entries={notesAdded} onOpen={onOpenAIMemory} embedded showIcon={!(shownFields.length > 0 || otherChanges)} />
+            </div>
           )}
         </div>
       );
