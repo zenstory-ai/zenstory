@@ -77,6 +77,28 @@ logger = get_logger(__name__)
 _SQLITE_PROTECTED_RECURSIVE_LOCK_ATTEMPTS = 4
 
 
+
+def _invalid_parent_message(
+    parent_id: str, project_id: str, root_folders: dict[str, dict[str, Any]]
+) -> str:
+    """parent_id 不是本项目里的文件夹时给模型的说明：错在哪、本项目有哪些根目录可用。
+
+    不替模型改成某个目录：放在哪个目录由模型按文件类型决定，重新调用即可。
+    """
+    reason = (
+        "这是项目 id，不是文件夹 id"
+        if parent_id == project_id
+        else "本项目里没有这个文件夹，或它已被删除"
+    )
+    folders = "、".join(
+        f"{cfg.get('title') or folder_id}（{folder_id}）" for folder_id, cfg in root_folders.items()
+    )
+    hint = f"本项目的根目录有：{folders}。" if folders else ""
+    return (
+        f"parent_id「{parent_id}」不能用：{reason}。parent_id 要填文件夹的 id。{hint}"
+        "按要建的文件类型选对应的目录（章节正文放正文目录），用正确的 parent_id 重新调用 create_file。"
+    )
+
 class ConcurrentFileWriteError(RuntimeError):
     """The file changed after a full-body write captured its baseline."""
 
@@ -393,7 +415,7 @@ class FileCRUD:
                         else:
                             log_with_context(
                                 logger,
-                                40,  # ERROR
+                                30,  # WARNING: the model gets the folder ids and retries
                                 "Parent file validation failed (fallback target missing)",
                                 project_id=project_id,
                                 user_id=self.user_id,
@@ -401,12 +423,12 @@ class FileCRUD:
                                 fallback_parent_id=fallback_parent_id,
                             )
                             raise ValueError(
-                                f"Parent file {parent_id} not found in project {project_id}"
+                                _invalid_parent_message(parent_id, project_id, expected_root_folders)
                             )
                     else:
                         log_with_context(
                             logger,
-                            40,  # ERROR
+                            30,  # WARNING: the model gets the folder ids and retries
                             "Parent file validation failed",
                             project_id=project_id,
                             user_id=self.user_id,
@@ -414,7 +436,7 @@ class FileCRUD:
                             file_type=file_type,
                         )
                         raise ValueError(
-                            f"Parent file {parent_id} not found in project {project_id}"
+                            _invalid_parent_message(parent_id, project_id, expected_root_folders)
                         )
 
         # 父节点必须是 folder（与 REST 层同一不变量，见 validate_parent_assignment）。

@@ -205,7 +205,7 @@ def test_create_file_with_metadata(executor, test_project):
 
 def test_create_file_invalid_parent(executor, test_project):
     """测试使用无效的 parent_id"""
-    with pytest.raises(ValueError, match="Parent file.*not found"):
+    with pytest.raises(ValueError, match="parent_id「non-existent-id」不能用"):
         executor.create_file(
             project_id=test_project.id,
             title="Orphan File",
