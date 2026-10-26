@@ -105,6 +105,8 @@ class StreamAdapterConfig:
     matched_skill_ids: tuple[str, ...] = ()
     # Request-level fixed-stage timing; optional for tests and non-request callers.
     run_meter: AgentRunMeter | None = None
+    # UI language supplied by the request, not inferred from generated prose.
+    language: str = "zh"
 
 
 @dataclass
@@ -453,6 +455,11 @@ class StreamAdapter:
             # 下一个 agent、交接、收尾 / 出错：被扣着的对话文字没被图丢掉，就按原顺序放出。
             for sse_event in self._release_held_chat():
                 yield sse_event
+
+        if event_type in (StreamEventType.AGENT_SELECTED, StreamEventType.MESSAGE_START):
+            # A later run can fail without MESSAGE_END. Its stop reason must not
+            # inherit the previous run's success; request usage remains cumulative.
+            self._last_message_stop_reason = None
 
         if event_type == StreamEventType.TEXT:
             # Text content
@@ -1310,8 +1317,8 @@ class StreamAdapter:
         # 覆盖保护：这次完成来自"没等到 </file> 的自动补全"，而目标文件本来
         # 就有正文（create_file 幂等复用命中的已完成分集）。补全出来的正文很
         # 可能只写了个开头，_save_file_content 又是整体替换，写下去等于用残稿
-        # 抹掉整集。此处拒绝落库、保留原文，并把情况说给用户和模型听，交由
-        # writing_graph 的补写纠偏走 edit_file 继续。
+        # 抹掉整集。此处拒绝落库、保留原文。诊断留在日志，作者只看保存事实；
+        # 模型侧既有 create_file 结果与 writing_graph 纠偏协议不变。
         if self._should_refuse_truncated_overwrite(result):
             pending = self._pending_file_write
             original_length = pending.original_content_length if pending else 0
@@ -1325,11 +1332,10 @@ class StreamAdapter:
                 original_content_length=original_length,
                 streamed_length=len(result.final_content),
             )
-            warning_text = (
-                f"\n\n[系统提醒] 《{title or result.file_id}》的流式写入没有收到结尾的 "
-                f"</file>，本次只收到 {len(result.final_content)} 个字符，而该文件已有 "
-                f"{original_length} 个字符的正文。为避免覆盖已完成的内容，本次内容未保存，"
-                "原文保持不变。请用 edit_file 继续补写，或重新完整输出并以 </file> 结尾。"
+            warning_text = "\n\n" + (
+                "This rewrite was not saved. The original text is unchanged."
+                if self.config.language.lower().startswith("en")
+                else "本次改写未保存，原文保持不变。"
             )
             if not self._content_started:
                 yield content_start_event()
@@ -1710,6 +1716,7 @@ def create_stream_adapter(
     process_file_markers: bool = True,
     matched_skill_ids: Iterable[str] | None = None,
     run_meter: AgentRunMeter | None = None,
+    language: str = "zh",
 ) -> StreamAdapter:
     """
     Factory function to create a StreamAdapter.
@@ -1720,6 +1727,7 @@ def create_stream_adapter(
         process_file_markers: Whether to process <file> markers
         matched_skill_ids: Skills already announced via skill_matched (explicitly selected)
         run_meter: Optional request-level timing recorder
+        language: Request UI language for author-facing save notices
 
     Returns:
         Configured StreamAdapter instance
@@ -1730,6 +1738,7 @@ def create_stream_adapter(
         process_file_markers=process_file_markers,
         matched_skill_ids=tuple(str(item) for item in (matched_skill_ids or []) if item),
         run_meter=run_meter,
+        language=language,
     )
     return StreamAdapter(config)
 

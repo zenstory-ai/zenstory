@@ -662,6 +662,7 @@ async def stream_request(
         error_delivery: dict[str, Any] = {}
         partial_delivery: dict[str, Any] = {}
         completed_delivery: dict[str, Any] = {}
+        known_incomplete = False
 
         def _observe_frame(frame: Any) -> None:
             tracker.observe(frame)
@@ -688,7 +689,7 @@ async def stream_request(
             )
 
         def _with_delivery(frame: str) -> str:
-            nonlocal error_delivery, partial_delivery, completed_delivery
+            nonlocal error_delivery, partial_delivery, completed_delivery, known_incomplete
             if deadline_exceeded or not frame.startswith(("event: error\n", "event: done\n")):
                 return frame
             event, data = _parse_sse(frame)
@@ -701,9 +702,22 @@ async def stream_request(
                 data["file_mutated"] = _confirmed_file_mutation(
                     delivery, original=data.get("file_mutated") is True
                 )
-                if delivery.get("unwritten_files"):
+                known_incomplete = (
+                    known_incomplete
+                    or written_files.known_incomplete
+                    or bool(delivery.get("unwritten_files"))
+                )
+                if known_incomplete:
                     partial_delivery = delivery
-                    return StreamEvent(type=EventType.DONE, data={**data, **delivery}).to_sse()
+                    return StreamEvent(
+                        type=EventType.DONE,
+                        data={
+                            **data,
+                            **delivery,
+                            "delivery_incomplete": True,
+                            "saved_output": _saved_output(delivery),
+                        },
+                    ).to_sse()
                 # 正常收尾也带写入回执：作者对照它核对回复里说的「已修改」。
                 receipt = written_files.completion_receipt(
                     final_word_counts=run_outcome.saved_file_word_counts,
@@ -1042,7 +1056,7 @@ async def stream_request(
                 # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
                 # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
                 _schedule_round_outcome(refund_applied, stop_kind="error")
-            elif partial_delivery and knows_stop_contract:
+            elif known_incomplete and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="incomplete", delivery=partial_delivery)
             elif completed_delivery and knows_stop_contract:
                 _schedule_round_outcome(

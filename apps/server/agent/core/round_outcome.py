@@ -141,6 +141,9 @@ class RoundWrittenFiles:
     # 路由判定作者本轮要求写正文（write_content=true 且不是只读）：没有任何写入时，
     # 正常收尾也要明说「没有改动文件」，模型自由回复里的「已修改」不能代替这条事实。
     requested_body_write: bool = False
+    # 请求级明确未完成事实：即使未写成的临时空文件随后被安全撤回，也不能把这一轮记成 completed。
+    # 只由结构化 empty_file_correction 事件设置，不从模型文字、耗时或任务范围猜测。
+    known_incomplete: bool = False
 
     def observe(self, frame: Any) -> None:
         if not isinstance(frame, str) or not frame.startswith("event:"):
@@ -163,6 +166,8 @@ class RoundWrittenFiles:
                 routing.get("write_content") is True and routing.get("read_only") is not True
             )
         elif event_type == "iteration_exhausted":
+            if payload.get("layer") == "empty_file_correction":
+                self.known_incomplete = True
             # 空文件补不成时图已撤销的空文件：它们不再存在，不列为「未确认保存」。
             for item in payload.get("rolled_back_files") or []:
                 if isinstance(item, dict) and isinstance(item.get("id"), str):

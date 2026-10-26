@@ -1675,6 +1675,97 @@ async def test_partial_delivery_is_identical_live_and_after_history_reload(clien
     assert outcome["unwritten_files"] == error["unwritten_files"]
     assert outcome["saved_output"] is True
     assert outcome["charged"] is True
+    if terminal == "done":
+        assert error["delivery_incomplete"] is True
+        assert error["saved_output"] is True
+
+
+@pytest.mark.integration
+async def test_rolled_back_empty_file_still_records_incomplete_without_a_delivery_list(client, db_session):
+    done, metadata, _file = await _run_completed_round(
+        client,
+        db_session,
+        lambda _file: [
+            _sse("tool_result", {
+                "tool_name": "create_file", "status": "success",
+                "data": {"id": "temporary", "title": "未写成的章节", "content": "", "file_type": "draft"},
+            }),
+            _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert done["saved_output"] is False
+    assert "written_files" not in done
+    assert "unwritten_files" not in done
+    assert "no_file_changes" not in done
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["saved_output"] is False
+    assert "written_files" not in metadata["stop_outcome"]
+    assert "unwritten_files" not in metadata["stop_outcome"]
+
+
+@pytest.mark.integration
+async def test_edit_plus_rolled_back_placeholder_is_incomplete_with_saved_output(client, db_session):
+    done, metadata, file = await _run_completed_round(
+        client,
+        db_session,
+        lambda file: [
+            _edit_result(file, mutation_applied=True, edits_applied=1),
+            _sse("tool_result", {
+                "tool_name": "create_file", "status": "success",
+                "data": {"id": "temporary", "title": "未写成的章节", "content": "", "file_type": "draft"},
+            }),
+            _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert done["saved_output"] is True
+    assert done["written_files"] == [{"id": file.id, "title": file.title}]
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["saved_output"] is True
+    assert metadata["stop_outcome"]["written_files"] == done["written_files"]
+
+
+@pytest.mark.integration
+async def test_unlistable_write_plus_rollback_keeps_saved_output_live_and_in_history(client, db_session):
+    done, metadata, _file = await _run_completed_round(
+        client,
+        db_session,
+        lambda _file: [
+            _sse("tool_result", {
+                "tool_name": "parallel_execute",
+                "status": "success",
+                "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+            }),
+            _sse("tool_result", {
+                "tool_name": "create_file", "status": "success",
+                "data": {"id": "temporary", "title": "未写成的章节", "content": "", "file_type": "draft"},
+            }),
+            _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert done["saved_output"] is True
+    assert "written_files" not in done
+    assert "unwritten_files" not in done
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["saved_output"] is True
+    assert "written_files" not in metadata["stop_outcome"]
 
 
 async def _run_completed_round(client, db_session, frames_after_route, *, routing):
@@ -1771,6 +1862,8 @@ async def test_rounds_that_did_not_ask_for_body_writes_get_no_receipt(client, db
     )
 
     assert "no_file_changes" not in done
+    assert "delivery_incomplete" not in done
+    assert "saved_output" not in done
     assert "stop_outcome" not in metadata
 
 
@@ -1953,6 +2046,8 @@ async def test_author_requested_empty_chapter_completes_without_an_incomplete_st
 
     assert "unwritten_files" not in done
     assert "written_files" not in done
+    assert "delivery_incomplete" not in done
+    assert "saved_output" not in done
     assert metadata == {"stop_reason": "end_turn"}
 
 

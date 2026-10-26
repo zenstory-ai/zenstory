@@ -397,6 +397,27 @@ def test_partial_delivery_does_not_invent_work_for_old_or_deleted_files():
     assert files.delivery(final_word_counts={"deleted": 5}) == {}
 
 
+def test_empty_file_correction_remains_known_incomplete_after_all_placeholders_roll_back():
+    """撤回空占位只改变文件清单，不能抹掉请求已经明确未完成的事实。"""
+    files = RoundWrittenFiles()
+    files.observe(_created("temporary", "未写成的章节"))
+    files.observe(_frame("iteration_exhausted", {
+        "layer": "empty_file_correction",
+        "unfinished_files": [],
+        "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+    }))
+
+    assert files.delivery(final_word_counts={}) == {}
+    assert files.known_incomplete is True
+
+
+def test_other_iteration_limits_do_not_mark_delivery_incomplete():
+    files = RoundWrittenFiles()
+    files.observe(_frame("iteration_exhausted", {"layer": "tool_call"}))
+
+    assert files.known_incomplete is False
+
+
 def test_partial_delivery_keeps_placeholder_when_delete_did_not_apply():
     files = RoundWrittenFiles()
     files.observe(_created("empty", "周念"))
