@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CirclePause } from 'lucide-react';
 import { formatRoundDelivery, type RoundStopOutcome } from '../lib/chatRoundEnd';
@@ -9,14 +10,17 @@ import { formatRoundDelivery, type RoundStopOutcome } from '../lib/chatRoundEnd'
  * When the server named the files this round wrote, the note says which ones instead of only
  * 「已写入的内容已保存」: 「已中断 · 已保存《第2章》3,120 字 · 本条计入今日 AI 消息」.
  */
-export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOutcome; showDailyCount: boolean }) {
+export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOutcome; showDailyCount: boolean }): ReactElement {
   const { t, i18n } = useTranslation(['chat']);
   if (outcome.reason === 'incomplete' && !outcome.unwrittenFiles?.length) {
-    const text = outcome.savedOutput
-      ? t('chat:panel.roundIncompleteSaved', { defaultValue: '已保存本轮完成的修改，可以继续写后续内容。' })
-      : outcome.noFileChanges
-        ? t('chat:panel.roundIncompleteNoChanges', { defaultValue: '本轮尚未写入新内容，可以继续完成。' })
-        : t('chat:panel.roundIncomplete', { defaultValue: '本轮尚未完成，可以继续。' });
+    let text: string;
+    if (outcome.savedOutput) {
+      text = t('chat:panel.roundIncompleteSaved', { defaultValue: '已保存本轮完成的修改，可以继续写后续内容。' });
+    } else if (outcome.noFileChanges) {
+      text = t('chat:panel.roundIncompleteNoChanges', { defaultValue: '本轮尚未写入新内容，可以继续完成。' });
+    } else {
+      text = t('chat:panel.roundIncomplete', { defaultValue: '本轮尚未完成，可以继续。' });
+    }
     return (
       <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]" data-testid="round-end-note">
         <span>{text}</span>

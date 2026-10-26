@@ -35,8 +35,6 @@
     "resend": "重新发送",
     "roundInterrupted": "已中断",
     "roundNotCounted": "未计入今日 AI 消息",
-    "roundRemovedFiles": "空白的《{{titles}}》已移除",
-    "removedEmptyFiles": "这一轮新建的空白文件《{{titles}}》已移除。",
     "removedFilesJoiner": "》《",
     "unanswered": "这条消息没有收到回复。",
     "roundSavedFiles": "已保存{{files}}",
@@ -132,10 +130,7 @@
     "tokenEstimate": "约 {{value}} token"
   },
   "workflow": {
-    "iteration": "第 {{step}} 步",
-    "remaining": "（还能做 {{n}} 步）",
     "iterationExhausted": "这一轮先做到这里",
-    "lowTurnWarning": "快到这一轮的上限了，AI 会先把最重要的部分做完。",
     "collaborationExhaustedSummary": "这一轮先做到这里。点「继续完成」就能接着做。",
     "toolCallExhaustedSummary": "这一轮先做到这里。点「继续完成」就能接着做。",
     "timeLimitSummary": "这一轮先做到这里。点「继续完成」就能接着做。",
@@ -157,8 +152,6 @@
       "split": "请把剩余任务拆成 2-3 个小步骤，并先完成第 1 步。",
       "manual": "先别改文件，告诉我接下来怎么改，我自己动手。"
     },
-    "workflowLabel": "创作计划",
-    "singleMode": "直接回答",
     "waitingForReply": "等你回复",
     "needsConfirmation": "AI 需要你确认后才能继续",
     "taskCompleted": "任务已完成",
