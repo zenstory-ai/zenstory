@@ -1623,7 +1623,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     };
 
     return renderWithUpgradeModal(
-      <>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="max-h-[45%] min-w-0 shrink-0 overflow-y-auto">
         {draftRecovery?.snapshot.fileId === file.id && (
           <div
             role={draftRecovery.kind === "conflict" && !draftRecovery.applied ? "alert" : "status"}
@@ -1694,8 +1695,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
             </div>
           </div>
         )}
-        <SimpleEditor {...editorProps} />
-      </>
+        </div>
+        <div className="min-h-0 flex-1">
+          <SimpleEditor {...editorProps} />
+        </div>
+      </div>
     );
   }
 

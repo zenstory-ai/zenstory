@@ -325,6 +325,78 @@ test('ordinary reload within autosave debounce restores the latest local draft',
   f.observations = { ordinaryReloadRecoveredBeforeDebounce: true, unloadPutCount: puts(f).length, serverUnchanged: true };
 });
 
+for (const viewport of [
+  { name: 'phone', width: 390, height: 844 },
+  { name: 'desktop', width: 1440, height: 900 },
+] as const) {
+  test(`recovery notice keeps the editor footer reachable on ${viewport.name}`, async ({ page }, info) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const f = await fixture(page, Array.from({ length: 40 }, (_, index) => `Server paragraph ${index + 1}`).join('\n\n'));
+    const recoveredContent = Array.from({ length: 40 }, (_, index) => `Recovered paragraph ${index + 1}`).join('\n\n');
+    const recoveryKey = [
+      'zenstory:editor-draft-recovery:v1',
+      responsiveUser.id,
+      projectA,
+      'A',
+    ].map((part, index) => index === 0 ? part : encodeURIComponent(part)).join(':');
+    await page.addInitScript(({ key, snapshot }) => {
+      localStorage.setItem(key, JSON.stringify(snapshot));
+    }, {
+      key: recoveryKey,
+      snapshot: {
+        schema: 1,
+        userId: responsiveUser.id,
+        projectId: projectA,
+        fileId: 'A',
+        title: 'Recovered chapter title',
+        content: recoveredContent,
+        baseUpdatedAt: 'older-server-token',
+        capturedAt: '2026-10-07T08:00:00.000Z',
+        reason: 'chunk-reload',
+      },
+    });
+
+    await openA(page);
+    await page.getByText('Compare versions', { exact: true }).click();
+
+    const panel = page.locator('[data-testid="editor-panel"], #editor-panel');
+    const editorScroll = panel.locator('[data-editor-scroll-container="true"]');
+    const footer = panel.getByRole('button', { name: 'Save', exact: true }).locator('xpath=../..');
+    await expect(editorScroll).toBeVisible();
+    await expect(footer).toBeVisible();
+    const geometry = await Promise.all([panel.boundingBox(), editorScroll.boundingBox(), footer.boundingBox()]);
+    expect(geometry.every(Boolean), 'all editor layout boxes are measurable').toBe(true);
+    const [panelBox, scrollBox, footerBox] = geometry as NonNullable<(typeof geometry)[number]>[];
+    expect(scrollBox.height, 'the manuscript keeps an internal scrolling viewport').toBeGreaterThan(80);
+    expect(footerBox.y + footerBox.height, 'the Save/Versions footer stays inside the editor panel').toBeLessThanOrEqual(panelBox.y + panelBox.height + 1);
+    await page.screenshot({ path: info.outputPath(`recovery-notice-${viewport.name}.png`), animations: 'disabled' });
+
+    await page.getByRole('button', { name: 'Restore local draft', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'was restored' })).toBeVisible();
+    await expect(footer).toBeInViewport({ ratio: 1 });
+    const appliedHitTarget = await footer.getByRole('button', { name: 'Save', exact: true }).evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return hit === button || button.contains(hit);
+    });
+    expect(appliedHitTarget, 'the restored-draft Save button is unobscured').toBe(true);
+
+    await footer.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect.poll(() => puts(f).length).toBe(1);
+    expect(puts(f)[0].body).toMatchObject({
+      title: 'Recovered chapter title',
+      content: recoveredContent,
+      base_updated_at: token0,
+    });
+    await expect(page.getByText('Compare versions', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'was restored' })).toHaveCount(0);
+    const [plainPanelBox, plainScrollBox, plainFooterBox] = await Promise.all([panel.boundingBox(), editorScroll.boundingBox(), footer.boundingBox()]);
+    expect(plainPanelBox && plainScrollBox && plainFooterBox, 'the ordinary editor layout remains measurable').toBeTruthy();
+    expect(plainScrollBox!.height, 'the ordinary manuscript keeps an internal scrolling viewport').toBeGreaterThan(80);
+    expect(plainFooterBox!.y + plainFooterBox!.height, 'the ordinary footer stays inside the editor panel').toBeLessThanOrEqual(plainPanelBox!.y + plainPanelBox!.height + 1);
+  });
+}
+
 test('file history restore confirmation opens above the history modal and completes the restore', async ({ page }) => {
   const f = await fixture(page);
   await openA(page);
