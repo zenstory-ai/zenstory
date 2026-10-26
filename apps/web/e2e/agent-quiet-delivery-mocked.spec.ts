@@ -12,6 +12,8 @@ type VisualCase = {
 
 type QuietCase = VisualCase & {
   savedOutput: boolean;
+  layer?: 'tool_call' | 'collaboration';
+  limit?: 'wall_clock';
 };
 
 const PROJECT_ID = 'responsive-project-0';
@@ -25,6 +27,8 @@ const quietCases: QuietCase[] = [
   { width: 1440, language: 'en', theme: 'dark', savedOutput: true },
   { width: 390, language: 'en', theme: 'dark', savedOutput: false },
   { width: 1440, language: 'zh', theme: 'light', savedOutput: false },
+  { width: 390, language: 'zh', theme: 'dark', savedOutput: true, layer: 'tool_call', limit: 'wall_clock' },
+  { width: 1440, language: 'en', theme: 'light', savedOutput: true, layer: 'collaboration' },
 ];
 
 const riskCases: VisualCase[] = [
@@ -105,22 +109,27 @@ async function assertNoInternalDeliveryText(page: Page) {
 }
 
 for (const visual of quietCases) {
-  const state = visual.savedOutput ? 'saved unnamed output' : 'all placeholders removed';
+  const state = visual.layer ?? (visual.savedOutput ? 'saved unnamed output' : 'all placeholders removed');
   test(`${state} is canonical live and after reload at ${visual.width}px ${visual.language} ${visual.theme}`, async ({ page }) => {
     await prepareMockedApp(page, visual);
     const tool = progressTool(visual.language);
+    const layer = visual.layer ?? 'empty_file_correction';
+    const removedFiles = visual.layer ? [] : [placeholderTitle];
+    const rolledBackFiles = removedFiles.map(title => ({ id: 'placeholder-1', title }));
+    const writtenFiles = visual.layer ? [{ id: 'draft-6', title: tool.title }] : [];
     let finished = false;
     let streamRequests = 0;
     let suggestRequests = 0;
 
     const statusCard = {
       type: 'iteration_exhausted',
-      layer: 'empty_file_correction',
+      layer,
+      limit: visual.limit,
       iterationsUsed: 11,
       maxIterations: 12,
       reason: internalReason,
       lastAgent: 'writer',
-      rolledBackFiles: [placeholderTitle],
+      rolledBackFiles: removedFiles,
     };
     const history = {
       id: `quiet-${visual.language}-${visual.savedOutput ? 'saved' : 'empty'}`,
@@ -130,17 +139,19 @@ for (const visual of quietCases) {
       created_at: '2026-10-26T12:00:00Z',
       tool_calls: JSON.stringify([tool.history]),
       metadata: JSON.stringify({
+        stop_reason: visual.limit === 'wall_clock' ? 'run_deadline_exceeded' : undefined,
         display_events: [
           ...displayEvents(),
           {
             type: 'iteration_exhausted',
             data: {
-              layer: 'empty_file_correction',
+              layer,
+              limit: visual.limit,
               iterations_used: 11,
               max_iterations: 12,
               reason: internalReason,
               last_agent: 'writer',
-              rolled_back_files: [{ id: 'placeholder-1', title: placeholderTitle }],
+              rolled_back_files: rolledBackFiles,
             },
           },
         ],
@@ -150,8 +161,8 @@ for (const visual of quietCases) {
           charged: true,
           saved_output: visual.savedOutput,
           no_file_changes: !visual.savedOutput,
-          written_files: [],
-          removed_files: [placeholderTitle],
+          written_files: writtenFiles,
+          removed_files: removedFiles,
         },
       }),
     };
@@ -172,9 +183,9 @@ for (const visual of quietCases) {
           ['tool_result', { tool_use_id: tool.history.id, tool_name: tool.history.name, status: 'success', data: tool.history.result }],
           ['router_decided', displayEvents()[1].data],
           ['iteration_exhausted', {
-            layer: 'empty_file_correction', iterations_used: 11, max_iterations: 12,
+            layer, limit: visual.limit, iterations_used: 11, max_iterations: 12,
             reason: internalReason, last_agent: 'writer',
-            rolled_back_files: [{ id: 'placeholder-1', title: placeholderTitle }],
+            rolled_back_files: rolledBackFiles,
           }],
           ['done', {
             assistant_message_id: history.id,
@@ -182,7 +193,7 @@ for (const visual of quietCases) {
             delivery_incomplete: true,
             saved_output: visual.savedOutput,
             no_file_changes: !visual.savedOutput,
-            written_files: [],
+            written_files: writtenFiles,
             unwritten_files: [],
           }],
         ]),

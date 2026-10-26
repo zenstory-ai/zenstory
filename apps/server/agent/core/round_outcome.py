@@ -97,7 +97,15 @@ class RunOutcome:
 
 # RoundWrittenFiles 关心的帧；其余帧（content、thinking、心跳……）不解析 JSON。
 _WRITTEN_FILE_EVENTS: frozenset[str] = frozenset(
-    {"tool_call", "tool_result", "file_created", "file_content", "router_decided", "iteration_exhausted"}
+    {
+        "tool_call",
+        "tool_result",
+        "file_created",
+        "file_content",
+        "router_decided",
+        "agent_selected",
+        "iteration_exhausted",
+    }
 )
 _FOLDER_FILE_TYPE = "folder"
 
@@ -141,9 +149,17 @@ class RoundWrittenFiles:
     # 路由判定作者本轮要求写正文（write_content=true 且不是只读）：没有任何写入时，
     # 正常收尾也要明说「没有改动文件」，模型自由回复里的「已修改」不能代替这条事实。
     requested_body_write: bool = False
-    # 请求级明确未完成事实：即使未写成的临时空文件随后被安全撤回，也不能把这一轮记成 completed。
-    # 只由结构化 empty_file_correction 事件设置，不从模型文字、耗时或任务范围猜测。
-    known_incomplete: bool = False
+    # 空文件纠正失败是请求级粘性事实：临时空文件随后被安全撤回、或图又选择其他角色，
+    # 都不能把这一轮记成 completed。
+    _empty_file_incomplete: bool = False
+    # 单次 agent run / 整个协作图的结构化耗尽事实。图若随后合法选择下一个 agent，说明
+    # 该耗尽已被编排层接住；否则直到终态都应如实记为 incomplete。
+    _pending_run_exhaustion: bool = False
+
+    @property
+    def known_incomplete(self) -> bool:
+        """只合并结构化终止事实，不从模型回复、运行时长或任务内容猜完成度。"""
+        return self._empty_file_incomplete or self._pending_run_exhaustion
 
     def observe(self, frame: Any) -> None:
         if not isinstance(frame, str) or not frame.startswith("event:"):
@@ -165,9 +181,14 @@ class RoundWrittenFiles:
             self.requested_body_write = (
                 routing.get("write_content") is True and routing.get("read_only") is not True
             )
+        elif event_type == "agent_selected":
+            self._pending_run_exhaustion = False
         elif event_type == "iteration_exhausted":
-            if payload.get("layer") == "empty_file_correction":
-                self.known_incomplete = True
+            layer = payload.get("layer")
+            if layer == "empty_file_correction":
+                self._empty_file_incomplete = True
+            elif layer in {"tool_call", "collaboration"}:
+                self._pending_run_exhaustion = True
             # 空文件补不成时图已撤销的空文件：它们不再存在，不列为「未确认保存」。
             for item in payload.get("rolled_back_files") or []:
                 if isinstance(item, dict) and isinstance(item.get("id"), str):
