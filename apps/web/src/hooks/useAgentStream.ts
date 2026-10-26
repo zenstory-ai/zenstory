@@ -548,7 +548,6 @@ export function useAgentStream(
     contentRef.current = "";
     sessionIdRef.current = null;
     activeStreamSessionIdRef.current = null;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset on project switch
     setSessionId(null);
     parallelStateRef.current = null;
     setState((prev) => ({
@@ -1371,14 +1370,19 @@ export function useAgentStream(
                 } else {
                   const unwrittenFiles = parseWrittenFiles(data.unwritten_files);
                   const writtenFiles = parseWrittenFiles(data.written_files);
-                  if (unwrittenFiles.length > 0) {
+                  const savedOutput = typeof data.saved_output === 'boolean'
+                    ? data.saved_output
+                    : writtenFiles.length > 0;
+                  if (data.delivery_incomplete === true || unwrittenFiles.length > 0) {
                     completionMeta.deliveryOutcome = { reason: 'incomplete', charged: true,
-                      savedOutput: writtenFiles.length > 0, removedFiles: [], writtenFiles, unwrittenFiles };
+                      savedOutput, removedFiles: [], writtenFiles,
+                      ...(data.no_file_changes === true ? { noFileChanges: true } : {}),
+                      ...(unwrittenFiles.length > 0 ? { unwrittenFiles } : {}) };
                   } else if (writtenFiles.length > 0 || data.no_file_changes === true) {
                     // The write receipt of a normally completed round (#267): only what the
                     // server confirmed, never what the reply text says it did.
                     completionMeta.deliveryOutcome = { reason: 'completed', charged: true,
-                      savedOutput: writtenFiles.length > 0, removedFiles: [], writtenFiles,
+                      savedOutput, removedFiles: [], writtenFiles,
                       ...(data.no_file_changes === true ? { noFileChanges: true } : {}) };
                   }
                 }

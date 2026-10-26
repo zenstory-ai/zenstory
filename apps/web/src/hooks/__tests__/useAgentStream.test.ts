@@ -898,6 +898,29 @@ describe('useAgentStream', () => {
       }))
     })
 
+    it.each([
+      [{ delivery_incomplete: true, saved_output: true }, { reason: 'incomplete', savedOutput: true, writtenFiles: [] }],
+      [{ delivery_incomplete: true, saved_output: false }, { reason: 'incomplete', savedOutput: false, writtenFiles: [] }],
+      [
+        { delivery_incomplete: true, saved_output: false, no_file_changes: true },
+        { reason: 'incomplete', savedOutput: false, writtenFiles: [], noFileChanges: true },
+      ],
+      [
+        { delivery_incomplete: true, saved_output: true, written_files: [{ id: 'ch-1', title: '雨夜' }] },
+        { reason: 'incomplete', savedOutput: true, writtenFiles: [{ title: '雨夜', words: null }] },
+      ],
+    ])('uses the server completion receipt %j without inferring save state from named files', (receipt, outcome) => {
+      const onComplete = vi.fn()
+      const hook = renderHook(() => useAgentStream('test-project-id', { onComplete }))
+      const controller = createMockStreamController()
+      act(() => hook.result.current.startStream({ message: 'test' }))
+      act(() => controller.getCallbacks()?.onDone?.({ assistant_message_id: 'assistant-incomplete', ...receipt }))
+
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+        deliveryOutcome: { charged: true, removedFiles: [], ...outcome },
+      }))
+    })
+
     it('leaves writtenFiles out when an older server sends a stopped done without them', async () => {
       vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
       const onComplete = vi.fn()

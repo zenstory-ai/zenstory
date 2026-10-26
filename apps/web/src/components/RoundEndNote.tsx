@@ -11,6 +11,18 @@ import { formatRoundDelivery, type RoundStopOutcome } from '../lib/chatRoundEnd'
  */
 export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOutcome; showDailyCount: boolean }) {
   const { t, i18n } = useTranslation(['chat']);
+  if (outcome.reason === 'incomplete' && !outcome.unwrittenFiles?.length) {
+    const text = outcome.savedOutput
+      ? t('chat:panel.roundIncompleteSaved', { defaultValue: '已保存本轮完成的修改，可以继续写后续内容。' })
+      : outcome.noFileChanges
+        ? t('chat:panel.roundIncompleteNoChanges', { defaultValue: '本轮尚未写入新内容，可以继续完成。' })
+        : t('chat:panel.roundIncomplete', { defaultValue: '本轮尚未完成，可以继续。' });
+    return (
+      <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]" data-testid="round-end-note">
+        <span>{text}</span>
+      </div>
+    );
+  }
   const savedText = outcome.writtenFiles.length > 0 || outcome.unwrittenFiles?.length
     ? formatRoundDelivery(t, outcome.writtenFiles, outcome.unwrittenFiles ?? [], i18n?.language)
     : t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' });
@@ -29,12 +41,6 @@ export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOu
       || (outcome.reason === 'completed' && outcome.writtenFiles.length > 0) ? savedText : null,
     outcome.charged && dailyCount
       ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
-      : null,
-    outcome.removedFiles.length > 0
-      ? t('chat:panel.roundRemovedFiles', {
-        defaultValue: '空白的《{{titles}}》已移除',
-        titles: outcome.removedFiles.join(t('chat:panel.removedFilesJoiner', { defaultValue: '》《' })),
-      })
       : null,
   ].filter(Boolean);
 

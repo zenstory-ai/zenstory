@@ -879,16 +879,16 @@ describe('ChatPanel mount smoke', () => {
     await waitFor(() => expect(userBubbles()).toHaveLength(2))
   })
 
-  it('says which blank files the refunded stop removed and refreshes the file tree', async () => {
+  it('quietly cleans up blank files after a refunded stop and refreshes the file tree', async () => {
     render(<ChatPanel />)
     await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
     await act(async () => { await lastMessageInputProps().onSend('写第一章', []) })
 
     act(() => roundOptions().onQuotaRefunded('stopped', [{ id: 'ch-1', title: '第1章 最后一页' }]))
 
-    expect(await screen.findByTestId('chat-quota-refund-note')).toHaveTextContent(
-      '已停止，这一轮还没有写出内容，不计入今日 AI 消息。这一轮新建的空白文件《第1章 最后一页》已移除。',
-    )
+    const note = await screen.findByTestId('chat-quota-refund-note')
+    expect(note).toHaveTextContent('已停止，这一轮还没有写出内容，不计入今日 AI 消息。')
+    expect(note).not.toHaveTextContent('第1章 最后一页')
     expect(mockProjectState.triggerFileTreeRefresh).toHaveBeenCalled()
   })
 
@@ -1607,7 +1607,8 @@ describe('ChatPanel mount smoke', () => {
 
       refund('stopped', [{ id: 'ch-1', title: '第1章' }])
       const note = await screen.findByTestId('chat-quota-refund-note')
-      expect(note).toHaveTextContent('已停止，这一轮还没有写出内容。这一轮新建的空白文件《第1章》已移除。')
+      expect(note).toHaveTextContent('已停止，这一轮还没有写出内容。')
+      expect(note).not.toHaveTextContent('第1章')
       expect(note).not.toHaveTextContent('今日 AI 消息')
 
       refund('no_progress')
@@ -2166,6 +2167,48 @@ describe('ChatPanel mount smoke', () => {
     render(<ChatPanel />)
 
     await waitFor(() => expect(lastMessageInputProps().aiSuggestions).toEqual(['主角改成女性', '开头先写一场宫宴', '按设定写第二章正文']))
+  })
+
+  it('shows no follow-up chips for an incomplete receipt even when there is no legacy card', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      withEarlierTurn()
+      render(<ChatPanel />)
+      await waitFor(() => expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      localStorage.setItem('zenstory_suggestions_cache_project-1', JSON.stringify({ suggestions: ['旧建议'], updatedAt: Date.now() }))
+
+      await act(async () => {
+        await roundOptions().onComplete([], null, { deliveryOutcome: {
+          reason: 'incomplete', charged: true, savedOutput: true, removedFiles: [], writtenFiles: [],
+        } })
+        vi.advanceTimersByTime(20_000)
+      })
+
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+      expect(lastMessageInputProps().aiSuggestions).toEqual([])
+      expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
+    } finally { vi.useRealTimers() }
+  })
+
+  it('does not restore cached suggestions for incomplete receipt-only history', async () => {
+    localStorage.setItem('zenstory_suggestions_cache_project-1', JSON.stringify({ suggestions: ['旧建议'], updatedAt: Date.now() }))
+    vi.mocked(fetchSuggestions).mockClear()
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'msg-incomplete', session_id: 'session-1', role: 'assistant', content: '', tool_calls: null,
+      created_at: '2026-10-05T10:00:00Z', metadata: JSON.stringify({
+        stop_outcome: { reason: 'incomplete', charged: true, saved_output: true, written_files: [] },
+      }),
+    }] as never)
+
+    render(<ChatPanel />)
+    await waitFor(() => {
+      const props = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ stopOutcome?: { reason?: string } }> }
+      expect(props.messages?.[0]?.stopOutcome?.reason).toBe('incomplete')
+    })
+    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+    expect(lastMessageInputProps().aiSuggestions).toEqual([])
+    expect(localStorage.getItem('zenstory_suggestions_cache_project-1')).toBeNull()
   })
 
   describe('a /suggest response that arrives after the round moved on', () => {

@@ -570,36 +570,17 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
         </div>
       );
     } else if (item.type === 'agent_selected' && agentLabel(item.agentType, item.agentName)) {
-      // 6. agent_selected - Agent 选择提示
-      // 只显示第几步：带上分母（「步骤 2/12」）会让作者以为这一轮没做完。
-      const hasIteration = item.iteration !== undefined;
-      const isLowTurns = item.remaining !== undefined && item.remaining <= 2;
-
+      // Keep the useful task-role activity label, not internal iteration budgets.
       return (
         <div key={item.id} className="mb-2">
           <div className={`inline-flex items-center rounded-lg ${
             isMobile ? 'gap-1 px-2 py-0.5' : 'gap-1.5 px-2.5 py-1'
-          } ${
-            isLowTurns
-              ? 'bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)]'
-              : 'bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)]'
-          }`}>
-            <Bot size={12} className={isLowTurns ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--accent-primary))]'} />
-            <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--accent-primary))]'} ${isMobile ? 'truncate max-w-[120px]' : ''}`}>
+          } bg-[hsl(var(--accent-primary)/0.1)] border border-[hsl(var(--accent-primary)/0.2)]`}>
+            <Bot size={12} className="text-[hsl(var(--accent-primary))]" />
+            <span className={`text-xs text-[hsl(var(--accent-primary))] ${isMobile ? 'truncate max-w-[120px]' : ''}`}>
               {agentLabel(item.agentType, item.agentName)}
             </span>
-            {hasIteration && (
-              <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning-text))]' : 'text-[hsl(var(--text-secondary))]'}`}>
-                · {t('workflow.iteration', { ns: 'chat', step: item.iteration })}
-                {isLowTurns && t('workflow.remaining', { ns: 'chat', n: item.remaining })}
-              </span>
-            )}
           </div>
-          {isLowTurns && (
-            <div className={`${isMobile ? 'mt-1 ml-1' : 'mt-1 ml-1.5'} text-[11px] text-[hsl(var(--warning-text))]`}>
-              {t('workflow.lowTurnWarning', { ns: 'chat' })}
-            </div>
-          )}
         </div>
       );
     } else if (item.type === 'iteration_exhausted') {
@@ -622,21 +603,8 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
         </div>
       );
     } else if (item.type === 'router_decided') {
-      // router_decided - Router 决策完成
-      const plannedAgents = [item.initialAgent, ...(item.workflowAgents ?? [])];
-      const workflowSteps = plannedAgents
-        .map((agent) => getAgentDisplayName(agent, translate))
-        .filter((name, index, names): name is string => Boolean(name) && names.indexOf(name) === index);
-      return (
-        <div key={item.id} className="mb-2">
-          <div className={`inline-flex items-center rounded-lg bg-[hsl(var(--success)/0.1)] border border-[hsl(var(--success)/0.2)] ${isMobile ? 'gap-1 px-2 py-0.5' : 'gap-1.5 px-2.5 py-1'}`}>
-            <Bot size={12} className="text-[hsl(var(--success-text))]" />
-            <span className="text-xs text-[hsl(var(--success-text))]">
-              {t('workflow.workflowLabel', { ns: 'chat' })}: {workflowSteps.length > 0 ? workflowSteps.join(' → ') : t('workflow.singleMode', { ns: 'chat' })}
-            </span>
-          </div>
-        </div>
-      );
+      // Routing topology stays in the raw timeline for diagnostics/history restoration.
+      return null;
     } else if (item.type === 'workflow_stopped') {
       // workflow_stopped - 工作流因需要澄清而停止
       const workflowQuestion =
@@ -798,7 +766,14 @@ const Row = React.memo(function Row({
   const displayContent =
     message.role === 'assistant' ? stripThinkTags(message.content) : message.content;
   const hasDisplayContent = Boolean(displayContent && displayContent.trim());
-  const hasDisplayItems = message.role === 'assistant' && Boolean(message.displayItems?.length);
+  const quietIncompleteCard = message.stopOutcome?.reason === 'incomplete'
+    ? message.displayItems?.find((item) => item.type === 'iteration_exhausted' && item.layer === 'empty_file_correction')
+      ?? message.statusCards?.find((card) => card.type === 'iteration_exhausted' && card.layer === 'empty_file_correction')
+    : undefined;
+  const orderedDisplayItems = quietIncompleteCard
+    ? message.displayItems?.filter((item) => item !== quietIncompleteCard)
+    : message.displayItems;
+  const hasDisplayItems = message.role === 'assistant' && Boolean(orderedDisplayItems?.length);
   const toolCalls = visibleToolCalls(message.toolCalls);
   const toolResults = visibleToolCalls(message.toolResults);
   const shouldShowFeedbackActions =
@@ -851,7 +826,7 @@ const Row = React.memo(function Row({
       {/* Content */}
       <div className="flex-1 min-w-0 overflow-hidden">
         {hasDisplayItems ? (
-          <OrderedMessageItems items={message.displayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
+          <OrderedMessageItems items={orderedDisplayItems!} onUndo={onUndo} onOpenFile={onOpenFile} onOpenAIMemory={onOpenAIMemory} onIterationAssistAction={onIterationAssistAction} nextStepsBlocked={nextStepsBlocked} isStreaming={isStreaming} chatMessageId={message.backendMessageId} />
         ) : <>
         {/* Thinking content - show streaming if active, otherwise show historical segments */}
         {message.role === 'assistant' && (
@@ -909,7 +884,20 @@ const Row = React.memo(function Row({
         </>}
 
         {message.role === 'assistant' && message.stopOutcome && (
-          <RoundEndNote outcome={message.stopOutcome} showDailyCount={showDailyCount} />
+          <>
+            <RoundEndNote outcome={message.stopOutcome} showDailyCount={showDailyCount} />
+            {quietIncompleteCard && !nextStepsBlocked && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center min-h-11 md:min-h-7 px-3 text-xs rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
+                  onClick={() => onIterationAssistAction?.('continue', quietIncompleteCard)}
+                >
+                  {t('workflow.actionContinue', { ns: 'chat' })}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {showReadWritten && (
@@ -1109,6 +1097,7 @@ const Row = React.memo(function Row({
               }
 
               if (card.type === 'iteration_exhausted') {
+                if (message.stopOutcome?.reason === 'incomplete' && card.layer === 'empty_file_correction') return null;
                 // 暂停（不是失败）：中性样式。
                 return (
                   <div key={`status-${idx}`} className="max-w-full">
