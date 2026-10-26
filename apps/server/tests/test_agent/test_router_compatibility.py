@@ -77,3 +77,18 @@ def test_clarification_with_malformed_task_owner_fails_closed():
             agent_type="planner", workflow_type="standard",
             turn_disposition="answer_pending_clarification",
         ))
+
+
+@pytest.mark.parametrize("workflow,planned", [("quick", []), ("standard", ["writer"])])
+async def test_read_only_that_contradicts_a_write_request_does_not_block_writing(workflow, planned):
+    """Production (2026-10-26 10:19): 「一并扩到2000字先」 was routed read_only=true together with
+    write_content=true, and the writer pasted the expanded chapter into the chat instead of saving it.
+    A decision that both forbids file changes and asks for prose is not a read-only request."""
+    payload = {"agent_type": "writer", "workflow_type": workflow, "read_only": True, "write_content": True,
+               "scope": "第一章保持现有情节扩至2000字以上", "requested_file_types": []}
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=_response(json.dumps(payload)))):
+        result = await router_node({"user_message": "一并扩到2000字先"})
+    metadata = result["routing_metadata"]
+    assert metadata["read_only"] is False
+    assert metadata["write_content"] is True
+    assert result["workflow_agents"] == planned

@@ -11,7 +11,7 @@ import re
 from contextlib import suppress
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator
+from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator, model_validator
 
 from agent.core import llm_failover
 from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception
@@ -109,6 +109,25 @@ class RouterDecision(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("requested_file_types must be unique")
         return value
+
+    @model_validator(mode="after")
+    def _write_request_is_not_read_only(self) -> "RouterDecision":
+        """「不改文件」和「本轮要写正文」同时为真时不按只读执行。
+
+        生产 10-26：作者明确要求「一并扩到2000字先」，路由给出 read_only=true 与
+        write_content=true，writer 只能把扩写稿贴进对话。要写正文本身就是要改文件，
+        这一对判断里只读那一半不成立；其余限制（scope、requested_file_types）照旧。
+        """
+        if self.read_only and self.write_content is True:
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Router marked a write request read-only; not treating it as read-only",
+                agent_type=self.agent_type,
+                workflow_type=self.workflow_type,
+            )
+            self.read_only = False
+        return self
 
 
 def plan_workflow_agents(decision: RouterDecision) -> list[str]:
