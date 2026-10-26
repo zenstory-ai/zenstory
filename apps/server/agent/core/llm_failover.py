@@ -61,6 +61,110 @@ THINKING_HEADROOM_TOKENS = 2048
 _ACCOUNT_FAILURE_STATUSES = frozenset({401, 402, 403, 404})
 _DOCUMENTED_JSON_OBJECT_MODELS = frozenset({("deepseek", "deepseek-flash")})
 
+# Official contracts, checked 2026-10-25. HTTP and MiniMax business codes are
+# different namespaces; no reason is inferred from exception/response prose.
+# https://api-docs.deepseek.com/quick_start/error_codes/
+# https://platform.minimax.io/docs/api-reference/errorcode
+_DEEPSEEK_FAILURE_REASONS = {
+    400: "invalid_format", 401: "authentication_failed", 402: "insufficient_balance",
+    422: "invalid_parameters", 429: "rate_limited", 500: "server_error", 503: "server_overloaded",
+}
+_MINIMAX_FAILURE_REASONS = {
+    1000: "unknown", 1001: "timeout", 1002: "rate_limited", 1004: "authentication_failed",
+    1008: "insufficient_balance", 1024: "server_error", 1026: "input_rejected", 1027: "output_rejected",
+    1033: "server_error", 1039: "token_limit", 1041: "connection_limit", 1042: "invalid_characters",
+    1046: "identity_policy_rejected", 2013: "invalid_parameters", 2014: "empty_input", 2022: "model_unavailable",
+    2045: "rate_growth_limit", 2046: "token_growth_limit", 2047: "connection_growth_limit",
+    2049: "authentication_failed", 2053: "insufficient_balance", 2056: "usage_limit",
+    2057: "subscription_key_required", 2061: "model_access_denied", 2062: "subscription_rate_limit",
+    2064: "server_overloaded", 2066: "timeout", 2067: "usage_limit", 2068: "model_access_denied",
+    2069: "model_unavailable",
+}
+_FAILURE_CALL_SITES = frozenset({"agent", "router", "suggest", "polish", "material", "llm_client"})
+_FAILURE_PARAMETER_FIELDS = frozenset({
+    "model", "messages", "max_tokens", "max_completion_tokens", "temperature", "top_p",
+    "tools", "tool_choice", "response_format", "stream", "stream_options", "thinking", "reasoning_effort",
+})
+
+
+def log_provider_failure(
+    provider: ModelProvider,
+    exc: BaseException,
+    *,
+    call_site: str,
+    phase: str = "request",
+) -> None:
+    """One safe diagnostic per failed attempt, including request errors such as 422.
+
+    Inspect only structured codes, never message/status_msg, body text, headers or
+    exception repr. Cancellation and our own pre-transport refusal are not failures
+    of the provider. This does not control retry, failover, billing or UI behavior.
+    """
+    import httpx
+    import httpx2
+    import openai
+
+    from core.error_handler import APIException
+
+    if isinstance(exc, APIException | asyncio.CancelledError | GeneratorExit):
+        return
+    # SDK exceptions store these as instance data. Do not invoke arbitrary
+    # exception properties while diagnosing an error (or replace that error).
+    fields = vars(exc)
+    status = fields.get("status_code")
+    status = status if type(status) is int and 100 <= status <= 599 else None
+    if isinstance(exc, TimeoutError | httpx.TimeoutException | httpx2.TimeoutException | openai.APITimeoutError):
+        category = "timeout"
+    elif isinstance(exc, ConnectionError | httpx.TransportError | httpx2.TransportError | openai.APIConnectionError):
+        category = "connection_error"
+    elif isinstance(exc, openai.APIResponseValidationError):
+        category = "response_validation"
+    elif status == 429:
+        category = "rate_limited"
+    elif status is not None and status >= 500:
+        category = "server_error"
+    elif status in {400, 413, 422}:
+        category = "request_rejected"
+    elif status in {401, 403}:
+        category = "access_denied"
+    elif status == 402:
+        category = "payment_required"
+    else:
+        category = "http_error" if status is not None else "unknown"
+
+    reason = "unknown"
+    provider_code = None
+    body = fields.get("body") if isinstance(exc, openai.APIError) else None
+    base_resp = body.get("base_resp") if isinstance(body, dict) else None
+    if provider.name == "deepseek":
+        reason = _DEEPSEEK_FAILURE_REASONS.get(status, "unknown")
+    elif provider.name == "minimax":
+        code = base_resp.get("status_code") if isinstance(base_resp, dict) else None
+        if type(code) is int and code in _MINIMAX_FAILURE_REASONS:
+            provider_code = code
+            reason = _MINIMAX_FAILURE_REASONS[code]
+    param = fields.get("param") if isinstance(exc, openai.APIError) else None
+    log_with_context(
+        logger,
+        30,  # WARNING: a failed attempt may still be served by the existing backup.
+        "LLM provider attempt failed",
+        exc_info=False,
+        provider=provider.name,
+        model=provider.model,
+        slot=provider.slot,
+        call_site=call_site if call_site in _FAILURE_CALL_SITES else "other",
+        phase=phase if phase in {"request", "stream_start", "stream"} else "other",
+        status_code=status,
+        failure_category=category,
+        provider_error_format=(
+            "base_resp" if isinstance(base_resp, dict) else "object" if isinstance(body, dict)
+            else "missing" if body is None else "non_object"
+        ),
+        provider_reason=reason,
+        provider_error_code=provider_code,
+        failed_field=param if isinstance(param, str) and param in _FAILURE_PARAMETER_FIELDS else None,
+    )
+
 
 class JSONResponseFormatUnavailableError(RuntimeError):
     """No configured sync provider has the required documented JSON mode."""
@@ -393,6 +497,7 @@ async def acreate_chat_completion(
             raise
         except Exception as exc:
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
+            log_provider_failure(provider, exc, call_site=call_site)
             if not is_provider_unavailable(exc):
                 raise
             await arecord_failure(provider, session_id, exc)
@@ -431,6 +536,7 @@ def create_chat_completion(
                 **_call_kwargs(provider, kwargs, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort)
             )
         except Exception as exc:
+            log_provider_failure(provider, exc, call_site=call_site)
             if not is_provider_unavailable(exc):
                 raise
             record_failure(provider, session_id, exc)

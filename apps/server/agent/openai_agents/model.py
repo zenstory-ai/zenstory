@@ -178,6 +178,7 @@ class FailoverChatModel:
                 raise
             except Exception as exc:
                 self._record_failed_attempt(provider, attempt_started, exc)
+                llm_failover.log_provider_failure(provider, exc, call_site="agent")
                 if not llm_failover.is_provider_unavailable(exc):
                     raise
                 await llm_failover.arecord_failure(provider, self._session_id, exc)
@@ -241,6 +242,9 @@ class FailoverChatModel:
             except Exception as exc:
                 if not completed:
                     self._record_failed_attempt(provider, attempt_started, exc, ttft_ms)
+                    llm_failover.log_provider_failure(
+                        provider, exc, call_site="agent", phase="stream" if started else "stream_start"
+                    )
                 if not llm_failover.is_provider_unavailable(exc):
                     raise
                 # Pins the session to the other provider even mid-stream, so the
