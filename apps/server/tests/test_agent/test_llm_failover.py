@@ -590,7 +590,7 @@ async def test_a_read_timeout_in_the_middle_of_a_stream_is_a_timeout(sdk_models,
 
     # The OpenAI client wraps timeouts only while sending; mid-stream it surfaces httpx's own error.
     sdk_models["minimax"] = _StreamingModel(
-        [_event("response.reasoning_text.delta")], error=httpx.ReadTimeout("read timed out")
+        [_event("response.output_text.delta")], error=httpx.ReadTimeout("read timed out")
     )
     with pytest.raises(httpx.ReadTimeout):
         await _drain(sdk_model.build_failover_chat_model("slow", usage_attribution=LLMUsageAttribution(user_id="u", source="agent")))
@@ -870,3 +870,91 @@ async def test_diagnostics_do_not_execute_exception_properties_or_change_failove
         assert endpoints["deepseek"].calls == []
     record, = _diagnostics(caplog)
     _assert_private_failure(record)
+
+
+# --------------------------------------------------------------- 2026-10-26 smoother failover
+
+
+def _reasoning_chunk(text: str):
+    chunk = _chunk()
+    chunk.choices[0].delta.reasoning_content = text
+    return chunk
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_call_that_streamed_only_reasoning_is_served_by_the_backup(chunk_endpoints, caplog):
+    """Production (2026-10-25/26): MiniMax thought for 3-9 minutes, then timed out or sent an error,
+    and the whole turn failed; nothing but reasoning had streamed, so the backup can answer the call."""
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("先想想第一章")], _read_timeout())
+    scripts["deepseek"] = ([_chunk(role="assistant"), _chunk(content="答"), _chunk(finish_reason="stop")], None)
+    model = sdk_model.build_failover_chat_model("reasoning-only")
+
+    with caplog.at_level("WARNING"):
+        events = await _drain_real(model)
+
+    types = [event.type for event in events]
+    assert "response.reasoning_summary_text.delta" in types  # the reasoning already shown stays
+    assert types[-1] == "response.completed"
+    assert events[-1].response.output[-1].content[0].text == "答"
+    assert calls == {"minimax": 1, "deepseek": 1}
+    assert model.served_model == "deepseek-flash"
+    failover = [r for r in caplog.records if r.getMessage() == "LLM call failing over to the other provider"]
+    assert failover and failover[0].custom_fields["after_reasoning"] is True
+    # The author's next call in this chat goes to the backup as well.
+    _, provider = await _call("reasoning-only")
+    assert provider.name == "deepseek"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_an_error_event_inside_the_stream_is_answered_by_the_backup(chunk_endpoints):
+    """MiniMax reports some failures as an error event in an HTTP 200 stream ("unknown error ... (1000)")."""
+    scripts, calls = chunk_endpoints
+    in_band = openai.APIError(
+        "unknown error", request=httpx.Request("POST", "https://llm.test"), body={"message": "unknown error"}
+    )
+    assert llm_failover.is_in_stream_error(in_band)
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], in_band)
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+
+    events = await _drain_real(sdk_model.build_failover_chat_model("in-band"))
+
+    assert events[-1].type == "response.completed"
+    assert calls == {"minimax": 1, "deepseek": 1}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [400, 413, 422])
+async def test_routing_tries_the_other_provider_when_one_rejects_the_request(endpoints, status):
+    """Production (2026-10-25 12:55): MiniMax answered six routing calls in two minutes with 422 and the
+    author's turns stopped before any agent ran. Routing has no side effects, so the backup gets a try,
+    without the rejection counting against the primary."""
+    endpoints["minimax"].script = [_status_error(openai.UnprocessableEntityError if status == 422 else
+                                                 openai.BadRequestError, status)]
+
+    _, provider = await _call("routing", fail_over_on_rejection=True)
+
+    assert provider.name == "deepseek"
+    _, next_call = await _call("routing")
+    assert next_call.name == "minimax"  # the session is not pinned to the backup for a rejection
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_in_stream_errors_never_open_the_circuit_for_other_authors(chunk_endpoints, monkeypatch):
+    """An in-stream error may be about one author's content (e.g. a moderation rejection): it moves that
+    session to the backup but must not count towards the primary's circuit."""
+    monkeypatch.setattr(llm_failover, "LLM_CIRCUIT_FAILURE_THRESHOLD", 1)
+    scripts, _calls = chunk_endpoints
+    in_band = openai.APIError("rejected", request=httpx.Request("POST", "https://llm.test"), body={"message": "x"})
+    assert not llm_failover.is_provider_unavailable(in_band)
+    for session in ("author-a", "author-b", "author-c"):
+        scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], in_band)
+        scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+        await _drain_real(sdk_model.build_failover_chat_model(session))
+
+    assert llm_failover.ordered_providers("author-a")[0].name == "deepseek"  # that session moved
+    assert llm_failover.ordered_providers("someone-else")[0].name == "minimax"  # nobody else did

@@ -42,7 +42,7 @@ agent/
 │   ├── message_manager.py  # 系统提示与本轮上下文构建、历史保存、作者语言判断
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
 │   ├── llm_providers.py    # 主 / 备供应商配置与 OpenAI 兼容客户端
-│   ├── llm_failover.py     # 主备切换：会话固定、熔断、只在没有输出时换供应商
+│   ├── llm_failover.py     # 主备切换：会话固定、熔断、还没出正文/工具参数时换供应商
 │   └── llm_client.py       # 输入建议 / 润色的单次调用
 ├── graph/                  # 多 agent 工作流（自研编排，非 LangGraph）
 │   ├── writing_graph.py    # run_writing_workflow_streaming：路由、agent 循环、交接、自动质检

@@ -2,10 +2,12 @@
 
 Each agent run gets a ``FailoverChatModel``. Every model call of the run asks
 ``agent/core/llm_failover.py`` which provider to use (the chat session's pinned
-slot, else the primary) and moves to the other provider only when the call
-fails before streaming any output. Lifecycle events such as ``response.created``
-are held back until the first output, so a provider that stalls after them still
-fails over. Providers and models are configured in
+slot, else the primary) and moves to the other provider when the call fails
+before streaming anything the author or the run can use: lifecycle events such
+as ``response.created`` are held back until the first output, and a provider that
+fails after streaming only reasoning is replaced too (the reasoning already shown
+stays; the backup's call adds its own). Once text, a refusal or tool arguments
+have streamed the error propagates. Providers and models are configured in
 ``agent/core/llm_providers.py``.
 
 Each provider attempt is timed for the admin model metrics: the usage hook
@@ -41,6 +43,13 @@ _FIRST_OUTPUT_EVENT_TYPES = frozenset({
     "response.function_call_arguments.delta",
 })
 _COMPLETED_EVENT_TYPE = "response.completed"
+# Output the runner acts on (reply text, file bodies, tool calls). A call that failed
+# before any of these produced nothing that the backup's answer would repeat.
+_ANSWER_OUTPUT_EVENT_TYPES = frozenset({
+    "response.output_text.delta",
+    "response.refusal.delta",
+    "response.function_call_arguments.delta",
+})
 
 
 def _replay_reasoning_content(_context: Any) -> bool:
@@ -203,6 +212,7 @@ class FailoverChatModel:
             # this attempt can still be dropped and the call served by the other provider.
             preamble: list[Any] = []
             started = False
+            answered = False
             attempt_started = time.monotonic()
             ttft_ms: int | None = None
             completed = False
@@ -221,6 +231,8 @@ class FailoverChatModel:
                         from services.usage.llm_usage_service import elapsed_ms
 
                         ttft_ms = elapsed_ms(attempt_started)
+                    if event_type in _ANSWER_OUTPUT_EVENT_TYPES and getattr(event, "delta", None) != "":
+                        answered = True
                     if event_type == _COMPLETED_EVENT_TYPE:
                         # Timed when the provider finished, before the SDK consumes the event.
                         completed = True
@@ -245,14 +257,23 @@ class FailoverChatModel:
                     llm_failover.log_provider_failure(
                         provider, exc, call_site="agent", phase="stream" if started else "stream_start"
                     )
-                if not llm_failover.is_provider_unavailable(exc):
+                if llm_failover.is_provider_unavailable(exc):
+                    # Pins the session to the other provider even mid-stream, so the
+                    # author's retry goes there, and counts towards the provider's circuit.
+                    await llm_failover.arecord_failure(provider, self._session_id, exc)
+                elif llm_failover.is_in_stream_error(exc):
+                    # Possibly about this request's content: this session moves to the
+                    # other provider, other authors stay where they are (no circuit count).
+                    await llm_failover.apin_session_to_other(provider, self._session_id)
+                else:
                     raise
-                # Pins the session to the other provider even mid-stream, so the
-                # author's retry goes there; only a call with no output fails over now.
-                await llm_failover.arecord_failure(provider, self._session_id, exc)
-                if started or index + 1 >= len(ordered):
+                # A call that streamed only reasoning fails over now (nothing it produced
+                # would be repeated); after answer output the error propagates.
+                if answered or completed or index + 1 >= len(ordered):
                     raise
-                llm_failover.log_failover(provider, ordered[index + 1], call_site="agent")
+                llm_failover.log_failover(
+                    provider, ordered[index + 1], call_site="agent", after_reasoning=started
+                )
                 continue
             if not started:
                 self._served(provider)

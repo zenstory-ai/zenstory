@@ -295,6 +295,9 @@ async def _route_with_chat_model(user_message: str) -> dict[str, Any]:
             # Every attempt is written to the ledger in the background: routing sits in front of
             # every writing turn and must not add a database round trip before the first token.
             usage_attribution=_router_usage_attribution(),
+            # 路由没有副作用：一边拒收这次请求（生产 10-25 MiniMax 连续 422）时让另一边试，
+            # 不让作者这一轮在动笔前就停下。
+            fail_over_on_rejection=True,
             messages=[
                 {"role": "system", "content": ROUTER_PROMPT},
                 {"role": "user", "content": user_message},
