@@ -303,6 +303,23 @@ describe('MessageList', () => {
     expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
   })
 
+  it('defers only empty-file cleanup while streaming and restores recovery if the terminal is an error', () => {
+    const card = { id: 'delayed-cleanup', type: 'iteration_exhausted' as const,
+      layer: 'empty_file_correction' as const, rolledBackFiles: ['临时占位'], timestamp: new Date() }
+    const view = render(<MessageList messages={[]} streamRenderItems={[card]} />)
+    expect(screen.queryByText('workflow.emptyFileUnfinished')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'workflow.actionContinue' })).not.toBeInTheDocument()
+
+    view.rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [card],
+      stopOutcome: { reason: 'error', charged: true, savedOutput: false, removedFiles: [], writtenFiles: [] },
+    })]} />)
+    expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'workflow.actionContinue' })).toBeInTheDocument()
+
+    view.rerender(<MessageList messages={[]} streamRenderItems={[{ ...card, layer: 'tool_call' }]} />)
+    expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
+  })
+
   it('uses the round note as the sole terminal UI for empty-file cleanup while keeping continue reachable', () => {
     const onAction = vi.fn()
     const card = { type: 'iteration_exhausted' as const, layer: 'empty_file_correction' as const,

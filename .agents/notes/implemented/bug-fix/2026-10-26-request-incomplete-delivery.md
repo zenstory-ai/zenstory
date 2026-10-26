@@ -12,6 +12,7 @@ Status: implemented
 
 - `RoundWrittenFiles` 独立保留请求级 `known_incomplete`。它只由结构化的 `iteration_exhausted(layer=empty_file_correction)` 设置；撤回空占位只更新文件清单，不清除此事实。
 - API 另存独立 `known_incomplete` 布尔。正常 `done` 若出现上述事实，或实际交付清单明确含 `unwritten_files`，就按既有 `incomplete` 终态落库；即使交付字典为空也照常记录。
+- `SSEStreamPump` 在源帧入队前观察请求事实。若 `done` 已由 producer 产生、但客户端在该帧出队前断开，API 在 `finally` 仍按源端 `done` 重新计算 delivery，并以源端结构化事实记录 `incomplete`；不能把“消费端尚未调用 `_with_delivery`”当作 completed 证据。
 - 未完成的实时 `done` 增加可选 `delivery_incomplete: true`，并使用既有 `_saved_output(delivery)` 口径增加 `saved_output`。可列名写入、不可列名写入和未确认正文保存仍使用原来的真实执行/保存依据。
 - 作者停止、普通错误和墙钟时限的优先级不变；计费、退还、`file_mutated`、保存回执与版本并发规则不变。正常完成、只读请求和作者明确要求的合法空文件不增加这两个字段。
 
@@ -25,6 +26,7 @@ Status: implemented
 ## Consequences
 
 - 全部临时空占位撤回后，实时与刷新仍一致显示本轮未完成，不再生成矛盾的 completed 回执。
+- `done` 已产生但尚未送达时断线，也会留下同一份 incomplete 历史终态；不会另发终止帧或重复退款。
 - 本轮已有 edit、并行写章或删除等确认写入时，实时和历史都能保留 `saved_output=true`；没有确认保存时不会声称已保存。
 - 旧客户端会忽略新增可选字段；旧历史仍读取既有 `stop_outcome.reason` 与 `saved_output`。
 - `known_incomplete` 是请求内存事实，不新增表、迁移、模型调用或状态系统。

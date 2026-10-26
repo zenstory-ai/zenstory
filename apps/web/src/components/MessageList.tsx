@@ -584,6 +584,10 @@ function OrderedMessageItems({ items, onUndo, onOpenFile, onOpenAIMemory, onIter
         </div>
       );
     } else if (item.type === 'iteration_exhausted') {
+      // History is saved asynchronously before done. Keep this exact internal
+      // card in raw state, but wait for the canonical footer while streaming.
+      // If the stream fails, the retained card still offers recovery afterward.
+      if (isStreaming && item.layer === 'empty_file_correction') return null;
       // 7. iteration_exhausted - 这一轮的步数/协作轮数用完，或有文件没写成正文：暂停，用中性样式。
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>

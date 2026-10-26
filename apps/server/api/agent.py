@@ -663,10 +663,14 @@ async def stream_request(
         partial_delivery: dict[str, Any] = {}
         completed_delivery: dict[str, Any] = {}
         known_incomplete = False
+        source_done = False
 
         def _observe_frame(frame: Any) -> None:
+            nonlocal source_done
             tracker.observe(frame)
             written_files.observe(frame)
+            if isinstance(frame, str) and frame.startswith("event: done\n"):
+                source_done = True
 
         def _saved_output(delivery: dict[str, Any]) -> bool:
             return written_files.saved_output(
@@ -1014,6 +1018,20 @@ async def stream_request(
             running = _running_streams.get(run_key)
             if running is not None and running.pump is pump:
                 del _running_streams[run_key]
+            # SSEStreamPump 在入队前观察源帧；客户端可能在 done 已产生、但尚未出队时断开。
+            # 用源端正常终态重新核对请求级未完成事实和最新保存回执，不能依赖消费端
+            # _with_delivery 是否运行过。停止 / 错误 / 时限分支仍在下方优先处理。
+            if source_done:
+                source_delivery = written_files.delivery(
+                    final_word_counts=run_outcome.saved_file_word_counts
+                )
+                source_known_incomplete = (
+                    written_files.known_incomplete
+                    or bool(source_delivery.get("unwritten_files"))
+                )
+                if source_known_incomplete:
+                    known_incomplete = True
+                    partial_delivery = source_delivery
             # done 等正常终止帧已经产生之后才到的时限没有截断这一轮（与 tracker.decide 同一口径）：
             # 按结束方式结算、记终态，不当成截停。
             deadline_cut = deadline_exceeded and not (

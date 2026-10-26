@@ -1270,6 +1270,72 @@ async def test_disconnect_after_done_settles_as_completed_without_an_interrupted
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("source_fact", ["rolled_back", "unwritten"])
+async def test_undelivered_done_still_persists_source_observed_incomplete_round(
+    client: AsyncClient, db_session, source_fact
+):
+    """producer 已观察到未完成事实和 done、但消费端尚未取到它们就断开：
+    正常终态仍须按 incomplete 落库，不能因 delivery={} 退化成 completed 或 interrupted。
+    """
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    message = db_session.get(ChatMessage, message_id)
+    message.message_metadata = json.dumps({"stop_reason": "end_turn"})
+    db_session.add(message)
+    db_session.commit()
+    done_queued = asyncio.Event()
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "source-terminal"})
+        if source_fact == "rolled_back":
+            # A successful write that cannot name its target still counts as saved output.
+            yield _sse("tool_result", {
+                "tool_name": "parallel_execute",
+                "status": "success",
+                "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+            })
+        yield _create_file_result(placeholder)
+        if source_fact == "rolled_back":
+            yield _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": placeholder.id, "title": placeholder.title}],
+            })
+        yield _sse("done", {"assistant_message_id": message_id})
+        # Reaching the next iteration proves SSEStreamPump called on_item and queued done.
+        done_queued.set()
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        delivered = [await anext(iterator)]
+        await asyncio.wait_for(done_queued.wait(), 0.2)
+        await iterator.aclose()
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert "".join(delivered).count("event: done") == 0
+    assert "".join(delivered).count("event: error") == 0
+    refund.assert_not_called()
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "end_turn"
+    expected_outcome = {
+        "reason": "incomplete",
+        "charged": True,
+        "saved_output": source_fact == "rolled_back",
+    }
+    if source_fact == "unwritten":
+        expected_outcome["unwritten_files"] = [{"id": placeholder.id, "title": placeholder.title}]
+    assert metadata["stop_outcome"] == expected_outcome
+
+
+@pytest.mark.integration
 async def test_stop_refund_survives_the_request_being_cancelled_while_it_is_queued(
     client: AsyncClient, db_session
 ):

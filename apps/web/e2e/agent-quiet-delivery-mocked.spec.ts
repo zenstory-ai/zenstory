@@ -232,6 +232,59 @@ for (const visual of quietCases) {
   });
 }
 
+for (const terminal of ['done', 'error'] as const) {
+  test(`empty-file internals stay hidden while the terminal is delayed, then recover on ${terminal}`, async ({ page }) => {
+    await prepareMockedApp(page, { width: 390, language: 'zh', theme: 'dark' });
+    const tool = progressTool('zh');
+    const early = sse([
+      ['tool_call', { tool_use_id: tool.history.id, tool_name: tool.history.name, arguments: tool.history.arguments }],
+      ['tool_result', { tool_use_id: tool.history.id, tool_name: tool.history.name, status: 'success', data: tool.history.result }],
+      ['iteration_exhausted', { layer: 'empty_file_correction', iterations_used: 11, max_iterations: 12,
+        reason: internalReason, rolled_back_files: [{ id: 'placeholder-1', title: placeholderTitle }] }],
+    ]);
+    const ending = terminal === 'done'
+      ? sse([['done', { delivery_incomplete: true, saved_output: true, written_files: [], unwritten_files: [] }]])
+      : sse([['error', { code: 'ERR_AGENT_FILE_SAVE_FAILED', retryable: true,
+        unwritten_files: [{ id: 'draft-risk', title: '仍待确认的正文' }] }]]);
+    // route.fulfill buffers its whole body. A gated browser stream exposes the
+    // actual pre-terminal interval instead of asserting only the final screen.
+    await page.addInitScript(({ early, ending }) => {
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.href;
+        if (!url.split('?')[0].endsWith('/api/v1/agent/stream')) return originalFetch(input, init);
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({ start(controller) {
+          controller.enqueue(encoder.encode(early));
+          (window as unknown as { releaseQuietTerminal: () => void }).releaseQuietTerminal = () => {
+            controller.enqueue(encoder.encode(ending));
+            controller.close();
+          };
+        } });
+        return new Response(stream, { headers: { 'content-type': 'text/event-stream' } });
+      };
+    }, { early, ending });
+    await page.goto(`/project/${PROJECT_ID}`);
+    await openChat(page, 390);
+    await page.getByTestId('chat-input').fill('继续处理当前章节');
+    await page.getByTestId('send-button').click();
+    await expect(page.getByText(tool.title, { exact: true })).toBeVisible();
+    await assertNoInternalDeliveryText(page);
+    await expect(page.getByTestId('round-end-note')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '继续完成', exact: true })).toHaveCount(0);
+
+    await page.evaluate(() => (window as unknown as { releaseQuietTerminal: () => void }).releaseQuietTerminal());
+    if (terminal === 'done') {
+      await expect(page.getByTestId('round-end-note')).toHaveText('已保存本轮完成的修改，可以继续写后续内容。');
+      await assertNoInternalDeliveryText(page);
+    } else {
+      await expect(page.locator('[data-testid="chat-panel"], #chat-panel')).toContainText('AI 生成的内容没能保存到文件，请重试');
+      await expect(page.locator('[data-testid="chat-panel"], #chat-panel')).toContainText('未确认保存《仍待确认的正文》');
+    }
+    await expect(page.getByRole('button', { name: '继续完成', exact: true })).toHaveCount(1);
+  });
+}
+
 for (const visual of riskCases) {
   test(`real save failure stays visible live and after reload at ${visual.width}px ${visual.language} ${visual.theme}`, async ({ page }) => {
     await prepareMockedApp(page, visual);
