@@ -98,7 +98,8 @@ updates to that branch. Apply ref and tag protection before adding other writers
 The checked-in `Promote Production` workflow is the branch-promotion control;
 it is not a second deployment producer. A `prod-v*` tag must resolve to the immutable triggering event commit
 reachable from `main` and have successful exact-commit `CI / ci-summary` and
-`E2E Tests / e2e-summary` main-push runs. The workflow then requires the
+`E2E Tests / e2e-summary` main-push runs (or the explicit exact-source recovery
+described below). The workflow then requires the
 existing `release-production` baseline to be an ancestor of that commit,
 rereads the baseline, and requests a non-forced fast-forward update. It exits
 after the ref update so Railway **Wait for CI** does not depend on a workflow
@@ -110,6 +111,23 @@ repair a diverged branch: either state is a failed promotion that needs an
 operator to reconcile history. The workflow uses only the scoped built-in
 `GITHUB_TOKEN`; it does not need Vercel or Railway deployment credentials.
 
+Main push remains the preferred evidence path. If an exact SHA has **no push
+run instance** for a required workflow, an operator may dispatch that existing
+workflow on `main` with `expected_source_sha` set to the immutable target SHA.
+The source guard rejects a moved branch or another ref. CI forces all four
+scopes; E2E requires `default` or `full`, with all eight Chromium shards (and
+all eight Firefox shards when present). Promotion validates the authenticated
+source-guard job step, successful summary, check suite, workflow, SHA and run
+attempt, and records the actual `workflow_dispatch` event. It never calls this
+push evidence. Any existing failed, cancelled, pending or ambiguous push run
+blocks this fallback; resolve or rerun that push instead. Missing source-guard
+evidence, partial shard sets and smoke/release/nightly subsets cannot qualify.
+
+```sh
+gh workflow run ci.yml --ref main -f expected_source_sha=<exact-main-sha>
+gh workflow run e2e.yml --ref main -f expected_source_sha=<exact-main-sha> -f suite=default
+```
+
 The web routing contract sends `/api/*` on `geo-preview.zenstory.ai`,
 `app-preview.zenstory.ai`, and Vercel preview hosts to the preview API origin.
 All other hosts keep the production API fallback. Replace the checked-in
@@ -120,9 +138,15 @@ This repository contract does not prove that either provider has switched its
 production branch or isolated every staging resource. Until authenticated
 provider readback confirms those settings, continue to report
 `PROVIDER_GATE_NOT_VERIFIED` and treat production as using its previously
-verified configuration. If provider path filtering skips a deployment because
-the promoted commit has no relevant files, retain the existing deployment SHA;
-do not force a deployment or claim the promoted SHA is live.
+verified configuration. Compare provider watch paths over the **actual deployed
+SHA to target SHA**, not just the last CI-only commit. If that cumulative tree
+is unchanged, retain the existing deployment SHA and record that fact. If an
+undeployed relevant change was skipped, use the existing bound provider Git
+integration's deploy-latest-commit/targeted Git-reference action after verifying
+its repository, environment, branch and immutable source. Do not redeploy an old
+artifact, upload local files, create another project/producer, change the source
+branch, or alter mounts/drain parameters to manufacture a deployment. Read back
+the new deployment source before claiming the target is live.
 
 `zenstory Online Smoke` is a manual, read-only, source-bound receipt workflow.
 It requires a 40-character deployed source SHA and the exact successful main CI
