@@ -65,7 +65,7 @@ test("promotion selects one exact successful main-push workflow run", () => {
     workflowPath: ".github/workflows/e2e.yml",
     sourceSha,
     runs: [{ ...expected, conclusion: "failure" }],
-  }), /found 0/);
+  }), /main push did not succeed/);
 });
 
 test("release ref reread closes a changed-baseline update", () => {
@@ -81,4 +81,28 @@ test("promotion binds the tag to the immutable triggering event commit", () => {
   assert.doesNotThrow(() => validateTagEventSource(sourceSha, sourceSha));
   assert.throws(() => validateTagEventSource(oldSha, sourceSha), /tag moved/);
   assert.throws(() => validatePromotionInputs({ repository: "zenstory-ai/zenstory", tagName: "prod-v1", releaseBranch: "release-production", expectedSourceSha: "bad" }), /event source SHA/);
+});
+
+test("promotion may select an explicitly manual recovery but prefers a real successful push", () => {
+  const manual = { id: 19, head_sha: sourceSha, head_branch: "main", event: "workflow_dispatch", status: "completed", conclusion: "success", path: ".github/workflows/ci.yml" };
+  const push = { ...manual, id: 20, event: "push" };
+  const options = { workflowPath: ".github/workflows/ci.yml", sourceSha };
+  assert.equal(selectExactSuccessfulRun({ ...options, runs: [manual] }), manual);
+  assert.equal(selectExactSuccessfulRun({ ...options, runs: [manual, push] }), push);
+  assert.throws(() => selectExactSuccessfulRun({ ...options, runs: [manual, { ...manual, id: 21 }] }), /found 2/);
+  assert.throws(() => selectExactSuccessfulRun({ ...options, runs: [push, { ...push, id: 22 }, manual] }), /found 2/);
+  assert.throws(() => selectExactSuccessfulRun({ ...options, runs: [{ ...manual, event: "pull_request" }] }), /found 0/);
+});
+
+
+test("manual recovery cannot hide an existing failed, cancelled, or pending push", () => {
+  const base = { head_sha: sourceSha, head_branch: "main", path: ".github/workflows/ci.yml" };
+  const manual = { ...base, id: 30, event: "workflow_dispatch", status: "completed", conclusion: "success" };
+  for (const patch of [
+    { status: "completed", conclusion: "failure" },
+    { status: "completed", conclusion: "cancelled" },
+    { status: "queued", conclusion: null },
+    { status: "in_progress", conclusion: null },
+  ]) assert.throws(() => selectExactSuccessfulRun({ workflowPath: base.path, sourceSha,
+    runs: [manual, { ...base, id: 31, event: "push", ...patch }] }), /push|succeed|pending/);
 });

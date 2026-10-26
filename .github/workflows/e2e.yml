@@ -7,6 +7,10 @@ on:
     - cron: '0 2 * * *'  # 2 AM UTC daily (nightly)
   workflow_dispatch:
     inputs:
+      expected_source_sha:
+        description: 'Optional exact main SHA for full release recovery proof'
+        required: false
+        type: string
       suite:
         description: 'Test suite to run'
         required: true
@@ -24,7 +28,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Preserve terminal evidence for main, including a concurrent recovery run.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   detect-changes:
@@ -36,6 +41,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        ref: ${{ github.sha }}
+
+    - name: Validate exact-source release recovery
+      if: github.event_name == 'workflow_dispatch' && inputs.expected_source_sha != ''
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        E2E_SUITE: ${{ inputs.suite }}
+      run: node scripts/ci/check-workflow-results.mjs recovery-source
 
     - name: Detect changed paths for push runs
       if: github.event_name == 'push'
