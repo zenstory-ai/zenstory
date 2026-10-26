@@ -1218,6 +1218,12 @@ class StreamAdapter:
             if result.auto_completed:
                 events += self._conversation_events(result.final_content)
             elif result.final_content.strip():
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Holding a <file> body written before its create_file",
+                    content_length=len(result.final_content),
+                )
                 self._held_reply.append(("body", result.final_content))
         after = result.conversation_content_after_file
         # </file> 那一行的换行也是标记的一部分（与以前整行丢掉一致）

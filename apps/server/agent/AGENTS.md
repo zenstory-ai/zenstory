@@ -181,7 +181,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **先写正文、再 create_file 时正文归新文件**：没有在等正文的文件时，独占一行的 `<file>` 开头的闭合块先扣着（`PREBODY_FILE_ID`）；
   on_llm_end 用同一判定（`extract_reply_prebody`）记下，同一回复里第一个建空文件的 create_file 认领它（结果 `body_in_reply`），
   StreamAdapter 按 `</file>` 收尾的路径存进这个文件；没被认领的在下一个边界作为对话放出。[prebody][n-prebody]
-- **只读请求不改文件**：router `read_only=true` 时不交接给有写权限的 agent（显式 handoff 也拦），提示卡
+- **只读请求不改文件**：router `read_only=true` 时不交接给有写权限的 agent（显式 handoff 也拦）；路由这一轮自己同时判了 `write_content=true` 的不算只读（解析时改为 `read_only=false`；接续时继承来的 `write_content` 不抵消新的只读，[write-not-read-only][n-write-not-ro]），提示卡
   `WORKFLOW_STOPPED(reason="read_only_handoff_blocked")` 推迟到终止事件之前或作为图的最后一个事件发出，`apps/server/api/agent.py` 按
   `core/events.NON_TERMINAL_WORKFLOW_STOPPED_REASONS` 不把它当终止帧（之后若异常仍补发兜底 error 帧并退款）；交接给 quality_reviewer
   这类只读 agent 照常；`tools_adapter` 对 `registry.FILE_WRITE_TOOL_NAMES` 一律以 `error_type="read_only_request"` 拒绝（工具仍在清单里，
@@ -340,6 +340,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-narration]: ../../../.agents/notes/implemented/bug-fix/2026-10-09-agent-text-no-english-narration-or-glue.md
 [n-summary]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-author-reply-single-summary-and-real-word-counts.md
 [n-prebody]: ../../../.agents/notes/implemented/bug-fix/2026-10-26-file-body-before-create-binds-to-it.md
+[n-write-not-ro]: ../../../.agents/notes/implemented/bug-fix/2026-10-26-write-request-is-not-read-only.md
 [n-repetition]: ../../../.agents/notes/implemented/bug-fix/2026-10-26-repeated-passage-stops-the-run.md
 [n-planned-body]: ../../../.agents/notes/implemented/bug-fix/2026-10-14-planned-planner-body-review-and-summary.md
 [n-length]: ../../../.agents/notes/implemented/feature/2026-10-14-writer-delivery-author-requirements.md
