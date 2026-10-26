@@ -547,14 +547,11 @@ class StreamProcessor:
         return True
 
     def _begin_prebody(self, rest: str) -> None:
-        """独占一行的 <file> 开始一段待认领的正文：之后的文字进 WRITING 缓冲。"""
-        log_with_context(
-            logger,
-            20,  # INFO
-            "Capturing a <file> body written before its create_file",
-            project_id=self.project_id,
-            user_id=self.user_id,
-        )
+        """独占一行的 <file> 开始一段待认领的正文：之后的文字进 WRITING 缓冲。
+
+        不在这里记日志：on_llm_end 用同一个处理器预检每条回复（extract_reply_prebody），
+        正常两次回复协议的正文也会经过这里；真正扣住正文时由 StreamAdapter 记。
+        """
         self.reset()
         self.state = StreamState.WRITING
         self.file_id = PREBODY_FILE_ID
