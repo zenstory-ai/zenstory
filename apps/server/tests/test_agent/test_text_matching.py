@@ -39,14 +39,18 @@ def test_large_content_is_guarded_and_fast():
     big = "这是一个测试段落，用于验证性能守卫是否生效。" * 500
     assert len(big) > MAX_APPROX_CONTENT_LEN
     start = time.time()
+    stats: dict[str, int] = {}
     result = find_approximate_match(
         big,
         "一个并不存在于文中的很长很长的锚点句子写在这里现在结束",
         max_error_rate=0.25,
         min_pattern_len=8,
+        stats=stats,
     )
     elapsed = time.time() - start
     assert result is None
+    assert stats["workload_skipped"] == 1
+    assert stats["deadline_exceeded"] == 0
     # The guard should return effectively immediately (generously bounded).
     assert elapsed < 1.0
 
@@ -54,6 +58,22 @@ def test_large_content_is_guarded_and_fast():
 def test_short_pattern_is_ignored():
     """Patterns below min_pattern_len are not matched approximately."""
     assert find_approximate_match("some content here", "abc", min_pattern_len=8) is None
+
+
+def test_completed_no_match_is_distinct_from_guard_or_deadline():
+    stats: dict[str, int] = {}
+
+    result = find_approximate_match(
+        "甲乙丙丁戊己庚辛壬癸",
+        "完全不同而且没有命中的片段",
+        max_error_rate=0.25,
+        min_pattern_len=8,
+        stats=stats,
+    )
+
+    assert result is None
+    assert stats["workload_skipped"] == 0
+    assert stats["deadline_exceeded"] == 0
 
 
 def test_near_tie_through_quick_ratio_gate_is_rejected():
