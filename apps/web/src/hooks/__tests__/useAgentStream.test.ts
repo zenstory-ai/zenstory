@@ -909,6 +909,12 @@ describe('useAgentStream', () => {
         { delivery_incomplete: true, saved_output: true, written_files: [{ id: 'ch-1', title: '雨夜' }] },
         { reason: 'incomplete', savedOutput: true, writtenFiles: [{ title: '雨夜', words: null }] },
       ],
+      [
+        { delivery_incomplete: true, saved_output: false,
+          unwritten_files: [{ id: 'ch-2', title: '未完成章' }] },
+        { reason: 'incomplete', savedOutput: false, writtenFiles: [],
+          unwrittenFiles: [{ title: '未完成章', words: null }] },
+      ],
     ])('uses the server completion receipt %j without inferring save state from named files', (receipt, outcome) => {
       const onComplete = vi.fn()
       const hook = renderHook(() => useAgentStream('test-project-id', { onComplete }))

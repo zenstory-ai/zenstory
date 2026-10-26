@@ -76,6 +76,26 @@ def test_completed_no_match_is_distinct_from_guard_or_deadline():
     assert stats["deadline_exceeded"] == 0
 
 
+def test_deadline_before_next_window_size_reports_incomplete_scan(monkeypatch):
+    clock = iter((100.0, float("inf")))
+    monkeypatch.setattr(
+        "agent.tools.file_ops.text_matching.time.monotonic",
+        lambda: next(clock),
+    )
+    stats: dict[str, int] = {}
+
+    result = find_approximate_match(
+        "甲乙丙丁戊己庚辛壬癸",
+        "甲乙丙丁戊己庚辛",
+        max_error_rate=0.25,
+        min_pattern_len=8,
+        stats=stats,
+    )
+
+    assert result is None
+    assert stats["deadline_exceeded"] == 1
+
+
 def test_near_tie_through_quick_ratio_gate_is_rejected():
     """A near-tie runner-up must not be hidden by the perf gate.
 

@@ -28,6 +28,7 @@ from agent.tools.file_ops.edit import (
     EditBatchError,
     EditFileError,
     FileEditor,
+    _batch_anchor_invalidated,
 )
 from agent.tools.mcp_tools import edit_file
 from models import File, Project, User
@@ -378,6 +379,19 @@ def test_later_original_anchor_invalidated_by_prior_edit_gets_rebase_hint(
     assert "拆成单独调用" in failed["error"]
     assert _stored_content(version_engine, chapter.id) == chapter.content
     assert _version_count(version_engine, chapter.id) == versions_before
+
+
+@pytest.mark.parametrize(
+    ("original", "staged", "edit"),
+    [
+        ("正文没有变化", "正文没有变化", {"op": "replace", "old": "正文", "new": "改写"}),
+        ("原始正文", "已经改写", {"op": "replace", "old": "从未存在", "new": "改写"}),
+    ],
+)
+def test_batch_anchor_diagnosis_requires_changed_text_and_an_original_anchor(
+    original, staged, edit
+):
+    assert _batch_anchor_invalidated(original, staged, edit) is False
 
 
 def test_legal_chained_edit_using_prior_new_text_still_applies(

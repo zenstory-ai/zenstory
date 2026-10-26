@@ -337,6 +337,27 @@ describe('MessageList', () => {
     expect(onAction).toHaveBeenCalledWith('continue', card)
   })
 
+  it('hides a canonical incomplete display card while keeping exactly one continue action', () => {
+    const onAction = vi.fn()
+    const card = { id: 'canonical-empty', type: 'iteration_exhausted' as const,
+      layer: 'empty_file_correction' as const, unfinishedFiles: ['仍存在的文件'],
+      rolledBackFiles: ['已撤销的临时文件'], timestamp: new Date() }
+    render(<MessageList messages={[createMessage({
+      role: 'assistant', content: '', displayItems: [card], stopOutcome: {
+        reason: 'incomplete', charged: true, savedOutput: true,
+        removedFiles: ['已撤销的临时文件'], writtenFiles: [],
+      },
+    })]} onIterationAssistAction={onAction} />)
+
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('panel.roundIncompleteSaved')
+    expect(screen.queryByText('workflow.emptyFileUnfinished')).not.toBeInTheDocument()
+    expect(screen.queryByText(/仍存在的文件|已撤销的临时文件/)).not.toBeInTheDocument()
+    const continueButtons = screen.getAllByRole('button', { name: 'workflow.actionContinue' })
+    expect(continueButtons).toHaveLength(1)
+    fireEvent.click(continueButtons[0])
+    expect(onAction).toHaveBeenCalledWith('continue', card)
+  })
+
   it('keeps the big-task summary on a tool-turn stop that names no files', () => {
     render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'tool_call', rolledBackFiles: [], unfinishedFiles: [] }] })]} />)
     expect(screen.getByText('workflow.iterationExhausted')).toBeInTheDocument()
