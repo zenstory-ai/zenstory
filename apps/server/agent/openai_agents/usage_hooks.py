@@ -19,7 +19,7 @@ import types
 from typing import Any
 
 from agent.core.run_meter import AgentRunMeter, TimingOutcome
-from agent.core.stream_processor import StreamProcessor
+from agent.core.stream_processor import StreamProcessor, extract_reply_prebody
 from agent.tools.mcp_tools import ToolContext
 from models.llm_usage import LLM_USAGE_SOURCE_AGENT
 from services.usage.llm_usage_service import LLMUsageAttribution, schedule_llm_usage_record
@@ -112,6 +112,11 @@ class PendingBodyStreamedMixin:
     就会被上一集尚未落库的条目误拒（"创建文件失败"，模型随后把已保存的正文原样
     重写进对话）。这里在工具执行前标记，守卫即可放行；本条回复里没有闭合
     <file> 块的真实违规（例如连发两个 create_file）照旧被拒。
+
+    没有还在等正文的文件时，回复里独占一行的 <file> 开头的正文是模型先写正文、
+    再 create_file 建它（备用模型常这样连写）：记下来，由同一回复里建空文件的
+    create_file 认领，StreamAdapter 把正文落进那个新文件，而不是放进对话、再让下一段
+    正文落进这个空文件（逐章错位一章）。
     """
 
     async def on_llm_end(self, context: Any, agent: Any, response: Any) -> None:
@@ -121,9 +126,11 @@ class PendingBodyStreamedMixin:
         finally:
             # on_llm_end 抛出的异常会让整个 SDK run 失败；检查只是放行优化，失败只记日志
             try:
-                if ToolContext.has_pending_empty_file() and _reply_has_closed_file_block(
-                    _response_message_text(response)
-                ):
+                text = _response_message_text(response)
+                # 没有还在等正文的文件，却先写出了一段 <file> 正文：留给同一回复里的 create_file 认领。
+                # 有这样的文件时 offer 不记下，正文按两次回复协议属于它。
+                offered = extract_reply_prebody(text) is not None and ToolContext.offer_reply_prebody()
+                if not offered and ToolContext.has_pending_empty_file() and _reply_has_closed_file_block(text):
                     ToolContext.mark_latest_pending_body_streamed()
             except Exception as exc:  # noqa: BLE001
                 logger.warning(f"Pending file body check after model call failed: {exc}")

@@ -42,7 +42,7 @@ from .core.events import (
 )
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import error_message_for, stream_error_from_event_data
-from .core.stream_processor import StreamProcessor, StreamResult, StreamState
+from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
 from .core.workflow_events import (
     CHAT_HOLD_BEGIN,
     CHAT_HOLD_DISCARD,
@@ -150,7 +150,14 @@ class StreamAdapter:
         self._stream_processor = StreamProcessor(
             project_id=self.config.project_id,
             user_id=self.config.user_id,
+            prebody_capture=True,
         )
+        # 没有待写文件时先写出、还没认领的 <file> 正文，以及它之后的对话文字（按出现顺序，
+        # ("body" | "chat", 文字)）：同一回复里的 create_file 结果确认 body_in_reply 时第一段正文
+        # 落进那个文件，其余在下一个边界按原顺序作为对话放出。
+        self._held_reply: list[tuple[str, str]] = []
+        # 扣着正文的这条回复已经到了工具结果阶段（之后再来的文字属于下一条回复）
+        self._held_reply_tools_done = False
 
         # Pending file write (set when create_file tool returns empty file)
         self._pending_file_write: PendingFileWrite | None = None
@@ -190,6 +197,8 @@ class StreamAdapter:
     def reset(self) -> None:
         """Reset adapter state for new conversation turn."""
         self._stream_processor.reset()
+        self._held_reply = []
+        self._held_reply_tools_done = False
         self._abort_capture = None
         self._saved_file_word_counts.clear()
         self._pending_file_write = None
@@ -384,6 +393,8 @@ class StreamAdapter:
             final_result = self._stream_processor.finalize_on_stream_end()
             async for sse_event in self._emit_stream_result(final_result):
                 yield sse_event
+        for sse_event in self._release_held_reply():
+            yield sse_event
 
         # An abandoned <file> write (create_file emitted an empty file but the model never
         # streamed its <file>...</file> content) leaves both the adapter tracker and the
@@ -448,6 +459,10 @@ class StreamAdapter:
             if not self._content_started:
                 yield content_start_event()
                 self._content_started = True
+            if self._held_reply_tools_done:
+                # 新的一条回复开始了：上一条回复里没被认领的正文按原顺序放出
+                for sse_event in self._release_held_reply():
+                    yield sse_event
             async for sse_event in self._handle_text_content(data.get("text", "")):
                 yield sse_event
 
@@ -537,6 +552,8 @@ class StreamAdapter:
                 boundary_result = self._stream_processor.finalize_on_stream_end()
                 async for sse_event in self._emit_stream_result(boundary_result):
                     yield sse_event
+            for sse_event in self._release_held_reply():
+                yield sse_event
                 # NOTE: deliberately keep self._pending_file_write and the
                 # ToolContext pending-empty-file guard set. The StreamProcessor is
                 # now reset (no further cross-agent capture), but the guard remains
@@ -549,7 +566,7 @@ class StreamAdapter:
             # LLM 中途出错时 runner 不发 MESSAGE_END，进行中的 <file> 捕获不会在
             # agent 边界收尾：先把已串流的正文按截断补全落库（沿用覆盖保护），
             # 再以 error 帧结束，避免只留下空文件。
-            async for sse_event in self._flush_active_capture():
+            async for sse_event in self._flush_capture_and_held_reply():
                 yield sse_event
             already_failed = self._fatal_stream_error
             self._fatal_stream_error = True
@@ -692,6 +709,13 @@ class StreamAdapter:
             if failure_hints:
                 emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 
+            async for sse_event in self._end_reply_text():
+                yield sse_event
+            if self._held_reply:
+                # 待认领的正文等同一回复里的 create_file（前面可能还有别的工具调用）；
+                # 下一条回复的文字一来就不会再有人认领了（见 TEXT 分支）
+                self._held_reply_tools_done = True
+
             # Emit tool_result event
             yield tool_result_event(
                 tool_name=tool_name,
@@ -730,6 +754,8 @@ class StreamAdapter:
                     title = file_data.get("title", "")
                     if file_id:
                         yield file_created_event(file_id, file_type, title)
+                async for event in self._bind_reply_prebody(result_data):
+                    yield event
 
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
             # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」。
@@ -1016,6 +1042,9 @@ class StreamAdapter:
             return None
         if not (result.file_complete and result.file_id and result.final_content.strip()):
             return None
+        if result.file_id == PREBODY_FILE_ID:
+            # 还没有文件认领的正文，没有可落库的目标
+            return None
         if self._should_refuse_truncated_overwrite(result):
             log_with_context(
                 logger,
@@ -1072,6 +1101,13 @@ class StreamAdapter:
     def get_saved_file_word_counts(self) -> dict[str, int | None]:
         """保存回执；收到结束标记或正文 chunk 本身不代表落库成功。"""
         return dict(self._saved_file_word_counts)
+
+    async def _flush_capture_and_held_reply(self) -> AsyncIterator[SSEEvent]:
+        """出错收尾：进行中的捕获照常收尾，没被认领的正文作为对话放出（都在 error 帧之前）。"""
+        async for sse_event in self._flush_active_capture():
+            yield sse_event
+        for sse_event in self._release_held_reply():
+            yield sse_event
 
     async def _flush_active_capture(self) -> AsyncIterator[SSEEvent]:
         """收尾仍在进行中的流式捕获，并发出对应的 SSE 事件。
@@ -1140,6 +1176,10 @@ class StreamAdapter:
     def _conversation_events(self, text: str) -> list[SSEEvent]:
         if not text:
             return []
+        if self._held_reply:
+            # 扣着待认领正文时，之后的对话文字跟在它后面，放出时保持原顺序
+            self._held_reply.append(("chat", text))
+            return []
         if self._chat_hold_active:
             self._held_chat.append(text)
             return []
@@ -1147,6 +1187,10 @@ class StreamAdapter:
 
     async def _emit_stream_result(self, result: StreamResult) -> AsyncIterator[SSEEvent]:
         """Emit SSE events mapped from StreamProcessor result."""
+        if result.file_id == PREBODY_FILE_ID:
+            for sse_event in self._hold_prebody_result(result):
+                yield sse_event
+            return
         # Emit conversation content
         for sse_event in self._conversation_events(result.conversation_content):
             yield sse_event
@@ -1162,6 +1206,94 @@ class StreamAdapter:
 
         # Emit any post-file conversation content after file completion.
         for sse_event in self._conversation_events(result.conversation_content_after_file):
+            yield sse_event
+
+    def _hold_prebody_result(self, result: StreamResult) -> list[SSEEvent]:
+        """待认领正文的处理结果：闭合且非空的正文先扣住，未闭合的照旧作为对话放出。"""
+        events = self._conversation_events(result.conversation_content)
+        if result.file_complete:
+            if result.auto_completed:
+                events += self._conversation_events(result.final_content)
+            elif result.final_content.strip():
+                self._held_reply.append(("body", result.final_content))
+        after = result.conversation_content_after_file
+        # </file> 那一行的换行也是标记的一部分（与以前整行丢掉一致）
+        if result.file_complete and not result.auto_completed:
+            after = after.removeprefix("\r\n") if after.startswith("\r\n") else after.removeprefix("\n")
+        events += self._conversation_events(after)
+        return events
+
+    def _release_held_reply(self) -> list[SSEEvent]:
+        """没被 create_file 认领的正文和它之后扣着的对话文字按原顺序放出（正文与以前一样进对话）。"""
+        held = self._held_reply
+        self._held_reply = []
+        self._held_reply_tools_done = False
+        events: list[SSEEvent] = []
+        for _kind, text in held:
+            events += self._conversation_events(text)
+        return events
+
+    async def _end_reply_text(self) -> AsyncIterator[SSEEvent]:
+        """工具结果到达：这条回复的文字结束了。没闭合的待认领正文作为对话收尾，下一条回复从行首开始。"""
+        if not self.config.process_file_markers:
+            return
+        processor = self._stream_processor
+        if processor.file_id == PREBODY_FILE_ID and processor.state != StreamState.IDLE:
+            async for sse_event in self._flush_active_capture():
+                yield sse_event
+        for sse_event in self._conversation_events(processor.begin_reply_text()):
+            yield sse_event
+
+    async def _bind_reply_prebody(self, result_data: Any) -> AsyncIterator[SSEEvent]:
+        """create_file 确认本条回复里先写出的正文就是它的（body_in_reply）：落进这个文件。
+
+        正文走与 </file> 收尾相同的落库路径（覆盖保护、保存回执、清除待写守卫）。
+        工具没确认或这边没有扣着的正文时什么也不做：文件照旧等下一次回复的 <file>，
+        扣着的正文在下一个边界作为对话放出。
+        """
+        file_data = result_data if isinstance(result_data, dict) else {}
+        pending = self._pending_file_write
+        claimed = (
+            coerce_bool(file_data.get("body_in_reply"))
+            and pending is not None
+            and pending.file_id == file_data.get("id")
+        )
+        first_body = next((i for i, (kind, _text) in enumerate(self._held_reply) if kind == "body"), None)
+        if not claimed or pending is None or first_body is None:
+            if claimed and pending is not None:
+                # 工具认为正文已在本条回复里，这边却没扣到（两边判定不一致）：不让下一条回复的
+                # <file> 落进这个文件（那会再错位一章）。文件保持空白，由图的边界核验补写或回滚。
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "create_file claimed a reply body the adapter did not hold; not capturing into it",
+                    file_id=pending.file_id,
+                    title=pending.title,
+                )
+                self._stream_processor.reset()
+            # 没认领：扣着的正文继续等同一回复里后面的 create_file，下一条回复开始或边界时放出
+            return
+        _kind, body = self._held_reply.pop(first_body)
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Binding a <file> body written before create_file to the new file",
+            file_id=pending.file_id,
+            title=pending.title,
+            content_length=len(body),
+        )
+        self._stream_processor.reset()
+        async for sse_event in self._emit_stream_result(
+            StreamResult(
+                file_content=body,
+                file_id=pending.file_id,
+                file_complete=True,
+                content_length=len(body),
+                final_content=body,
+            )
+        ):
+            yield sse_event
+        for sse_event in self._release_held_reply():
             yield sse_event
 
     async def _complete_file_write(self, result: StreamResult) -> AsyncIterator[SSEEvent]:

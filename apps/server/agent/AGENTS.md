@@ -176,6 +176,9 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - **作品第一条消息不送审**：`state["first_message_project_label"]` 非空的一轮关掉自动质检门，writer 自己调用 `handoff_to_agent(quality_reviewer)` 时工具直接拒绝（`ToolContext.review_handoff_refusal`，文案 `FIRST_ROUND_REVIEW_REFUSAL`；快速模式同理用 `FAST_MODE_REVIEW_REFUSAL`），writer 在同一次 run 里给作者写总结并带上「[要告诉作者]」的话，图里不再丢弃交接或补跑。作者读到的是 writer 自己的交付说明，不是返修记录；路由显式安排的审稿照常。[first-turn-skips-review][n-first-review]
 - **StreamProcessor 丢掉 IDLE 下独占一行的标记**：没有进行中的捕获时，独占一行（不在 ``` 围栏里）的 `<file>` / `</file>` 不进对话，
   行内提到、反引号包着的照常保留。[single-summary][n-summary]
+- **先写正文、再 create_file 时正文归新文件**：没有在等正文的文件时，独占一行的 `<file>` 开头的闭合块先扣着（`PREBODY_FILE_ID`）；
+  on_llm_end 用同一判定（`extract_reply_prebody`）记下，同一回复里第一个建空文件的 create_file 认领它（结果 `body_in_reply`），
+  StreamAdapter 按 `</file>` 收尾的路径存进这个文件；没被认领的在下一个边界作为对话放出。[prebody][n-prebody]
 - **只读请求不改文件**：router `read_only=true` 时不交接给有写权限的 agent（显式 handoff 也拦），提示卡
   `WORKFLOW_STOPPED(reason="read_only_handoff_blocked")` 推迟到终止事件之前或作为图的最后一个事件发出，`apps/server/api/agent.py` 按
   `core/events.NON_TERMINAL_WORKFLOW_STOPPED_REASONS` 不把它当终止帧（之后若异常仍补发兜底 error 帧并退款）；交接给 quality_reviewer
@@ -334,6 +337,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-offer]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-author-edit-guard-reads-the-ais-offer.md
 [n-narration]: ../../../.agents/notes/implemented/bug-fix/2026-10-09-agent-text-no-english-narration-or-glue.md
 [n-summary]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-author-reply-single-summary-and-real-word-counts.md
+[n-prebody]: ../../../.agents/notes/implemented/bug-fix/2026-10-26-file-body-before-create-binds-to-it.md
 [n-planned-body]: ../../../.agents/notes/implemented/bug-fix/2026-10-14-planned-planner-body-review-and-summary.md
 [n-length]: ../../../.agents/notes/implemented/feature/2026-10-14-writer-delivery-author-requirements.md
 [n-thinking]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-thinking-loop-contradictory-inputs.md

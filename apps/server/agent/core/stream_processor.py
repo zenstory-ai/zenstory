@@ -116,6 +116,13 @@ _EMPTY_FILE_PAIR_PATTERN = re.compile(r"<\s*file\s*>\s*<\s*/\s*file\s*>", re.IGN
 # 包着的、``` 围栏里的都原样保留。
 _LONE_FILE_TAG_LINE_PATTERN = re.compile(r"[ \t]*<\s*/?\s*file\s*>[ \t]*", re.IGNORECASE)
 _LONE_FILE_TAG_PREFIXES: tuple[str, ...] = ("<file>", "</file>")
+_LONE_FILE_START_LINE_PATTERN = re.compile(r"[ \t]*<\s*file\s*>[ \t]*", re.IGNORECASE)
+
+# 没有待写文件时，模型有时在同一条回复里先写正文、再调用 create_file 建这个文件
+# （生产 10-26：备用模型连写十五章，正文全部晚一章落库）。开启 prebody_capture 的
+# 处理器把这种独占一行的 <file> 开头的块按这个占位 id 捕获，交给调用方决定：
+# 同一回复里的 create_file 确认正文属于它时落进那个文件，否则照旧作为对话放出。
+PREBODY_FILE_ID = "reply-prebody"
 
 # 悬置（ambiguous）标记候选的等待上限：一个 </file> 候选因反引号/围栏未闭合被
 # 挂起后，若其后又累积了这么多字符仍无法判定，就按真实结束标记处理。没有这个
@@ -270,6 +277,10 @@ class StreamProcessor:
     after_close: bool = False
     idle_hold: str = ""
 
+    # IDLE 下独占一行的 <file> 开始一段待认领的正文（PREBODY_FILE_ID），而不是丢掉标记、
+    # 把正文放进对话。只由 StreamAdapter 和 extract_reply_prebody 开启；reset() 不改它。
+    prebody_capture: bool = False
+
     # IDLE 对话里逐行识别独占一行的 <file> / </file>（见 _LONE_FILE_TAG_LINE_PATTERN）：
     # 当前行到目前为止的文字还可能是这样一个标签时先扣在 idle_line_hold；
     # idle_at_line_start 表示下一个字符位于行首；idle_line_head 记当前行开头的
@@ -356,7 +367,13 @@ class StreamProcessor:
             # Not in file writing mode - return as conversation
             if self.after_close:
                 content = self._filter_after_close(content)
-            return StreamResult(conversation_content=self._filter_lone_tag_lines(content))
+            conversation = self._filter_lone_tag_lines(content)
+            if self.state == StreamState.WRITING:
+                # 这一段里出现了待认领正文的 <file> 行，之后的文字已放进 temp_buffer
+                result = self._scan_writing_buffer(at_eof=False)
+                result.conversation_content = conversation + result.conversation_content
+                return result
+            return StreamResult(conversation_content=conversation)
 
         if self.state == StreamState.WAITING_START:
             return self._process_waiting_start(content)
@@ -445,10 +462,19 @@ class StreamProcessor:
         if not text:
             return ""
         out: list[str] = []
-        for piece in re.split(r"(\n)", text):
+        pieces = re.split(r"(\n)", text)
+        for index, piece in enumerate(pieces):
             if piece == "\n":
                 held = self.idle_line_hold
                 self.idle_line_hold = ""
+                if (
+                    self.prebody_capture
+                    and self.idle_at_line_start
+                    and self._is_lone_tag_line(held)
+                    and _LONE_FILE_START_LINE_PATTERN.fullmatch(held) is not None
+                ):
+                    self._begin_prebody("".join(pieces[index + 1:]))
+                    return "".join(out)
                 if self.idle_at_line_start and self._is_lone_tag_line(held):
                     log_with_context(
                         logger,
@@ -481,6 +507,30 @@ class StreamProcessor:
             self.idle_line_hold = ""
         return "".join(out)
 
+    def begin_reply_text(self) -> str:
+        """下一次模型回复的文字从行首开始（工具结果之后）。返回因此判定完、要交还对话的文字。
+
+        与 extract_reply_prebody 对单条回复的判定保持一致：上一条回复末尾没有换行时，
+        这一条开头独占一行的 <file> 仍算独占一行。
+        """
+        if self.state != StreamState.IDLE:
+            return ""
+        return self._release_line_hold()
+
+    def _begin_prebody(self, rest: str) -> None:
+        """独占一行的 <file> 开始一段待认领的正文：之后的文字进 WRITING 缓冲。"""
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Capturing a <file> body written before its create_file",
+            project_id=self.project_id,
+            user_id=self.user_id,
+        )
+        self.reset()
+        self.state = StreamState.WRITING
+        self.file_id = PREBODY_FILE_ID
+        self.temp_buffer = rest
+
     def _release_line_hold(self) -> str:
         """流/agent 结束、新捕获开始前：扣着的行首判定完交还，并清掉逐行状态。"""
         held = self.idle_line_hold
@@ -499,7 +549,12 @@ class StreamProcessor:
 
     def _release_idle_holds(self) -> str:
         """交还 IDLE 下所有暂扣的文字（空标签对前缀、行首标签前缀）。"""
-        return self._filter_lone_tag_lines(self._release_after_close()) + self._release_line_hold()
+        # 流/agent 收尾时不再开始新的待认领正文：扣着的文字按原样判定后交还
+        prebody_capture, self.prebody_capture = self.prebody_capture, False
+        try:
+            return self._filter_lone_tag_lines(self._release_after_close()) + self._release_line_hold()
+        finally:
+            self.prebody_capture = prebody_capture
 
     def _process_waiting_start(self, content: str) -> StreamResult:
         """Process content while waiting for <file> marker."""
@@ -1024,3 +1079,23 @@ class StreamProcessor:
     def get_history_buffer(self) -> str:
         """Get the content buffer for LLM history."""
         return self.history_buffer
+
+
+def extract_reply_prebody(text: str) -> str | None:
+    """一条完整回复里、没有待写文件时先写出的那段 <file> 正文（闭合且非空），没有为 None。
+
+    与 StreamAdapter 同一套判定（开启 prebody_capture 的 StreamProcessor）；只认真实的
+    </file> 收尾，未闭合的块不算。
+    """
+    if not text:
+        return None
+    processor = StreamProcessor(prebody_capture=True)
+    result = processor.process_content(text)
+    if (
+        result.file_complete
+        and result.file_id == PREBODY_FILE_ID
+        and not result.auto_completed
+        and result.final_content.strip()
+    ):
+        return result.final_content
+    return None
