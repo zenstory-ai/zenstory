@@ -271,7 +271,7 @@ _RENEWAL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
         },
         "zh": {
             "subject": "你的 ZenStory Pro 将在{date}到期",
-            "body": "你的 ZenStory Pro 将在{date}到期。到期后账号回到免费版，每天可以发 3 条 AI 消息；已有的作品和文件都会保留，照常可以打开和编辑。",
+            "body": "你的 ZenStory Pro 将在{date}到期。到期后账号回到免费版，每天可以发 3 条 AI 消息，已有的作品和文件都会保留，照常可以打开和编辑。",
             "renewal": "到期前续费，新的 30 天从{date}接着算。",
             "action": "续费 Pro",
         },
@@ -285,7 +285,7 @@ _RENEWAL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
         },
         "zh": {
             "subject": "你的 ZenStory Pro 已到期",
-            "body": "你的 ZenStory Pro 已在{date}到期，账号现在是免费版，每天可以发 3 条 AI 消息；作品和文件都还在，照常可以打开和编辑。",
+            "body": "你的 ZenStory Pro 已在{date}到期。账号现在是免费版，每天可以发 3 条 AI 消息，作品和文件都还在，照常可以打开和编辑。",
             "renewal": "重新开通后，Pro 从付款当天起算 30 天。",
             "action": "重新开通 Pro",
         },
@@ -295,12 +295,10 @@ _RENEWAL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
 _RENEWAL_SHARED: dict[str, dict[str, str]] = {
     "en": {
         "greeting": "Hi there,",
-        "feedback": "If something isn't working well for you, just reply to this email and tell us.",
         "reason": "You're receiving this email because your ZenStory account has Pro.",
     },
     "zh": {
         "greeting": "你好，",
-        "feedback": "用着有不顺手的地方，直接回复这封邮件告诉我们就好。",
         "reason": "你收到这封邮件，是因为你的 ZenStory 账号开通了 Pro。",
     },
 }
@@ -354,11 +352,10 @@ def send_renewal_reminder_email(
                         <tr><td style="padding-bottom:16px;"><p {paragraph}>{escape(content['body'].format(date=shown_date))}</p></td></tr>
                         <tr><td style="padding-bottom:32px;"><p {paragraph}>{escape(content['renewal'].format(date=shown_date))}</p></td></tr>
                         <tr>
-                            <td style="padding-bottom:32px;">
+                            <td style="padding-bottom:40px;">
                                 <a href="{escape(renew_url)}" style="display:inline-block;background-color:#1a1a1a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 24px;border-radius:8px;">{escape(content['action'])}</a>
                             </td>
                         </tr>
-                        <tr><td style="padding-bottom:40px;"><p style="margin:0;font-size:14px;color:#999999;line-height:1.6;">{escape(shared['feedback'])}</p></td></tr>
                         <tr><td style="padding-bottom:24px;"><div style="height:1px;background-color:#eeeeee;"></div></td></tr>
                         <tr>
                             <td>
