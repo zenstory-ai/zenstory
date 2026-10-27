@@ -295,12 +295,10 @@ _RENEWAL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
 _RENEWAL_SHARED: dict[str, dict[str, str]] = {
     "en": {
         "greeting": "Hi there,",
-        "feedback": "If something isn't working well for you, just reply to this email and tell us.",
         "reason": "You're receiving this email because your ZenStory account has Pro.",
     },
     "zh": {
         "greeting": "你好，",
-        "feedback": "用着有不顺手的地方，直接回复这封邮件告诉我们就好。",
         "reason": "你收到这封邮件，是因为你的 ZenStory 账号开通了 Pro。",
     },
 }
@@ -354,11 +352,10 @@ def send_renewal_reminder_email(
                         <tr><td style="padding-bottom:16px;"><p {paragraph}>{escape(content['body'].format(date=shown_date))}</p></td></tr>
                         <tr><td style="padding-bottom:32px;"><p {paragraph}>{escape(content['renewal'].format(date=shown_date))}</p></td></tr>
                         <tr>
-                            <td style="padding-bottom:32px;">
+                            <td style="padding-bottom:40px;">
                                 <a href="{escape(renew_url)}" style="display:inline-block;background-color:#1a1a1a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 24px;border-radius:8px;">{escape(content['action'])}</a>
                             </td>
                         </tr>
-                        <tr><td style="padding-bottom:40px;"><p style="margin:0;font-size:14px;color:#999999;line-height:1.6;">{escape(shared['feedback'])}</p></td></tr>
                         <tr><td style="padding-bottom:24px;"><div style="height:1px;background-color:#eeeeee;"></div></td></tr>
                         <tr>
                             <td>

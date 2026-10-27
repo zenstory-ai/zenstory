@@ -17,7 +17,7 @@ Pro 是一次性付款，不会自动续费。到期前只有站内横幅提醒�
 
 - **谁收到**：Pro 有效（到期后一天也包括已到期、但还没被标记的行）、至少有一笔已支付订单、邮箱已验证、账号可用、不是管理员。兑换码或后台开通的 Pro、被撤销（cancelled）的 Pro 不发。
 - **什么时候发**：按北京日期计算，到期前 3 天一封，到期后第 1 天一封，每个计费周期每阶段最多一封。提前续费会推后到期日，之后的提醒自然就不再发。
-- **内容**：只写订阅本身的事实——到期日、回到免费版后每天 3 条 AI 消息、作品和文件保留并可照常打开编辑、续费如何计时，以及一个带 `source=renewal_email` 的续费按钮，并说明回复邮件就能反馈。不写作品名、字数或任何作者写下的内容。中英文按 `user_preference.ui_language` 选择，默认中文。回复地址为 `RENEWAL_REPLY_TO_EMAIL`（默认 support@zenstory.ai）。日志只记 user_id，不记邮箱。
+- **内容**：只写订阅本身的事实——到期日、回到免费版后每天 3 条 AI 消息、作品和文件保留并可照常打开编辑、续费如何计时，以及一个带 `source=renewal_email` 的续费按钮。车主审阅后去掉了「回复邮件反馈」那句，邮件只讲续费；作者直接回信仍会发到回复地址。不写作品名、字数或任何作者写下的内容。中英文按 `user_preference.ui_language` 选择，默认中文。回复地址为 `RENEWAL_REPLY_TO_EMAIL`（默认 support@zenstory.ai）。日志只记 user_id，不记邮箱。
 - **防重复**：发送前先在 `subscription_history` 写一条 `action=renewal_reminder` 的记录（`end_date` 为到期时间，`event_metadata.stage` 为阶段），写入时锁住该用户的订阅行。发送结果写回 `event_metadata.delivered`；失败不重试，宁可漏发也不重复发。作者的订阅历史接口不返回这类记录；后台按 action 白名单统计，不受影响。不需要迁移。
 - **触发**：GitHub Actions 定时任务在北京时间 10:00 和 14:00 调用 `POST /api/v1/subscription/internal/renewal-reminders`。14:00 那次只补发 10:00 没发出去的。接口用 `X-Internal-Token` 与 `RENEWAL_REMINDER_TOKEN` 做常量时间比较；没配置 token 时接口关闭。响应只含各阶段的计数。手动运行默认是 staging 的 dry run，只计数不发送。
 - 接口是同步函数，由 FastAPI 放到线程池里执行：行锁等待和 Resend 调用都不会阻塞正在推送 AI 回复的事件循环。
