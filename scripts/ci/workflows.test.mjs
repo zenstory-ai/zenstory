@@ -12,6 +12,7 @@ test("changed workflows and composite actions pin every external action to a ful
     ".github/workflows/e2e.yml",
     ".github/workflows/cli-release.yml",
     ".github/workflows/promote-production.yml",
+    ".github/workflows/renewal-reminders.yml",
     ".github/workflows/zenstory-online-smoke.yml",
     ".github/actions/setup-backend/action.yml",
     ".github/actions/setup-frontend/action.yml",

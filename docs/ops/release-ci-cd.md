@@ -171,6 +171,26 @@ Do not substitute arbitrary URLs, credentials, a moving `main` reference, or a
 "latest successful" run. Record the resulting run ID/attempt and retain the
 downloaded receipt alongside the provider deployment IDs and source readback.
 
+## Renewal reminder emails
+
+`Renewal reminders` (`.github/workflows/renewal-reminders.yml`) calls
+`POST /api/v1/subscription/internal/renewal-reminders` with an `X-Internal-Token`
+header at 10:00 and 14:00 Beijing time against production. The API sends each
+reminder once per Pro period, so the 14:00 run only picks up a missed 10:00 run.
+The endpoint is closed until the API has `RENEWAL_REMINDER_TOKEN`; the workflow
+reads the same value from the `RENEWAL_REMINDER_TOKEN_PRODUCTION` or
+`RENEWAL_REMINDER_TOKEN_STAGING` repository secret and needs `FRONTEND_URL` on
+the API for the renewal link. Manual runs default to a staging dry run, which
+returns due counts without sending:
+
+```sh
+gh workflow run renewal-reminders.yml --ref main -f target=staging -f dry_run=true
+```
+
+Rotate a token by updating the Railway variable and the matching secret
+together. Staging has its own database, so a staging run cannot email
+production authors.
+
 ## Staging ingestion test windows
 
 Hosted staging Prefect Server/Worker may be stopped outside explicitly opened
