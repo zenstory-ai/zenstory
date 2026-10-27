@@ -2,10 +2,12 @@
 Subscription API - User-facing subscription endpoints.
 """
 
+import os
+import secrets
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import Session, func, select
 
@@ -35,6 +37,10 @@ from services.subscription.defaults import (
     resolve_plan_feature,
 )
 from services.subscription.redemption_service import redemption_service
+from services.subscription.renewal_reminder_service import (
+    RENEWAL_REMINDER_ACTION,
+    send_due_renewal_reminders,
+)
 from services.subscription.subscription_service import subscription_service
 
 router = APIRouter(prefix="/api/v1/subscription", tags=["subscription"])
@@ -512,7 +518,10 @@ def get_history(
     """Get subscription history."""
     history = session.exec(
         select(SubscriptionHistory)
-        .where(SubscriptionHistory.user_id == current_user.id)
+        .where(
+            SubscriptionHistory.user_id == current_user.id,
+            SubscriptionHistory.action != RENEWAL_REMINDER_ACTION,
+        )
         .order_by(SubscriptionHistory.created_at.desc())
         .limit(limit)
     ).all()
@@ -577,3 +586,35 @@ def track_upgrade_funnel_event(
         ) from exc
 
     return UpgradeFunnelEventResponse(success=True)
+
+
+@router.post("/internal/renewal-reminders", include_in_schema=False)
+def run_renewal_reminders(
+    dry_run: bool = Query(False),
+    internal_token: str | None = Header(default=None, alias="X-Internal-Token"),
+    session: Session = Depends(get_session),
+):
+    """Send today's Pro renewal reminders; called by a scheduled GitHub Actions job.
+
+    Disabled unless ``RENEWAL_REMINDER_TOKEN`` is set. The response carries
+    counts only, never who was emailed.
+    """
+    expected_token = os.getenv("RENEWAL_REMINDER_TOKEN", "")
+    if not expected_token or not internal_token or not secrets.compare_digest(internal_token, expected_token):
+        raise APIException(
+            error_code=ErrorCode.AUTH_UNAUTHORIZED,
+            status_code=401,
+            message="Invalid internal token",
+        )
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    if not frontend_url:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="FRONTEND_URL is not configured",
+        )
+
+    result = send_due_renewal_reminders(session, frontend_url=frontend_url, dry_run=dry_run)
+    return {
+        "dry_run": result.dry_run,
+        "stages": {stage: vars(stage_result) for stage, stage_result in result.stages.items()},
+    }
