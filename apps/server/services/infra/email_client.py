@@ -271,7 +271,7 @@ _RENEWAL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
         },
         "zh": {
             "subject": "你的 ZenStory Pro 将在{date}到期",
-            "body": "你的 ZenStory Pro 将在{date}到期。到期后账号回到免费版，每天可以发 3 条 AI 消息；已有的作品和文件都会保留，照常可以打开和编辑。",
+            "body": "你的 ZenStory Pro 将在{date}到期。到期后账号回到免费版，每天可以发 3 条 AI 消息，已有的作品和文件都会保留，照常可以打开和编辑。",
             "renewal": "到期前续费，新的 30 天从{date}接着算。",
             "action": "续费 Pro",
         },
@@ -285,7 +285,7 @@ _RENEWAL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
         },
         "zh": {
             "subject": "你的 ZenStory Pro 已到期",
-            "body": "你的 ZenStory Pro 已在{date}到期，账号现在是免费版，每天可以发 3 条 AI 消息；作品和文件都还在，照常可以打开和编辑。",
+            "body": "你的 ZenStory Pro 已在{date}到期。账号现在是免费版，每天可以发 3 条 AI 消息，作品和文件都还在，照常可以打开和编辑。",
             "renewal": "重新开通后，Pro 从付款当天起算 30 天。",
             "action": "重新开通 Pro",
         },
