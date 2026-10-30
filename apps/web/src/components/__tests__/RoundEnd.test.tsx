@@ -69,12 +69,12 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
     [
       { reason: 'user_stopped', charged: false, saved_output: false, removed_files: ['第1章 最后一页'] },
       true,
-      '已停止 · 未计入今日 AI 消息 · 空白的《第1章 最后一页》已移除',
+      '已停止 · 未计入今日 AI 消息',
     ],
     [
       { reason: 'user_stopped', charged: false, saved_output: false, removed_files: ['第1章', '第2章'] },
       false,
-      '已停止 · 空白的《第1章》《第2章》已移除',
+      '已停止',
     ],
     // The files this round wrote (U088: chapter 2 written, the reply only its opening line).
     [
@@ -110,6 +110,10 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
       '已保存《第1章》2,100 字、《第2章》（部分修改未生效）',
     ],
     [{ reason: 'completed', charged: true, saved_output: false, no_file_changes: true }, true, '本轮没有改动文件'],
+    [{ reason: 'incomplete', charged: true, saved_output: true }, true, '已保存本轮完成的修改，可以继续写后续内容。'],
+    [{ reason: 'incomplete', charged: true, saved_output: false }, true, '本轮尚未完成，可以继续。'],
+    [{ reason: 'incomplete', charged: true, saved_output: false, no_file_changes: true }, true, '本轮尚未写入新内容，可以继续完成。'],
+    [{ reason: 'incomplete', charged: true, saved_output: false, removed_files: ['临时空文件'] }, true, '本轮尚未完成，可以继续。'],
   ])('%j (daily count shown: %s) reads 「%s」', (raw, showDailyCount, text) => {
     render(<RoundEndNote outcome={outcome(raw)} showDailyCount={showDailyCount} />)
     expect(screen.getByTestId('round-end-note')).toHaveTextContent(new RegExp(`^${text}$`))

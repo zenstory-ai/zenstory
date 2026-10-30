@@ -1270,6 +1270,79 @@ async def test_disconnect_after_done_settles_as_completed_without_an_interrupted
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("source_fact", ["rolled_back", "unwritten", "tool_call_exhausted"])
+async def test_undelivered_done_still_persists_source_observed_incomplete_round(
+    client: AsyncClient, db_session, source_fact
+):
+    """producer 已观察到未完成事实和 done、但消费端尚未取到它们就断开：
+    正常终态仍须按 incomplete 落库，不能因 delivery={} 退化成 completed 或 interrupted。
+    """
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    message = db_session.get(ChatMessage, message_id)
+    message.message_metadata = json.dumps({"stop_reason": "end_turn"})
+    db_session.add(message)
+    db_session.commit()
+    done_queued = asyncio.Event()
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "source-terminal"})
+        if source_fact in {"rolled_back", "tool_call_exhausted"}:
+            # A successful write that cannot name its target still counts as saved output.
+            yield _sse("tool_result", {
+                "tool_name": "parallel_execute",
+                "status": "success",
+                "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+            })
+        if source_fact != "tool_call_exhausted":
+            yield _create_file_result(placeholder)
+        if source_fact == "rolled_back":
+            yield _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": placeholder.id, "title": placeholder.title}],
+            })
+        elif source_fact == "tool_call_exhausted":
+            yield _sse("iteration_exhausted", {
+                "layer": "tool_call", "limit": "wall_clock",
+                "iterations_used": 12, "max_iterations": 60,
+                "reason": "run reached its wall-clock wrap-up boundary",
+            })
+        yield _sse("done", {"assistant_message_id": message_id})
+        # Reaching the next iteration proves SSEStreamPump called on_item and queued done.
+        done_queued.set()
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        delivered = [await anext(iterator)]
+        await asyncio.wait_for(done_queued.wait(), 0.2)
+        await iterator.aclose()
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert "".join(delivered).count("event: done") == 0
+    assert "".join(delivered).count("event: error") == 0
+    refund.assert_not_called()
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "end_turn"
+    expected_outcome = {
+        "reason": "incomplete",
+        "charged": True,
+        "saved_output": source_fact in {"rolled_back", "tool_call_exhausted"},
+    }
+    if source_fact == "unwritten":
+        expected_outcome["unwritten_files"] = [{"id": placeholder.id, "title": placeholder.title}]
+    assert metadata["stop_outcome"] == expected_outcome
+
+
+@pytest.mark.integration
 async def test_stop_refund_survives_the_request_being_cancelled_while_it_is_queued(
     client: AsyncClient, db_session
 ):
@@ -1675,16 +1748,140 @@ async def test_partial_delivery_is_identical_live_and_after_history_reload(clien
     assert outcome["unwritten_files"] == error["unwritten_files"]
     assert outcome["saved_output"] is True
     assert outcome["charged"] is True
+    if terminal == "done":
+        assert error["delivery_incomplete"] is True
+        assert error["saved_output"] is True
 
 
-async def _run_completed_round(client, db_session, frames_after_route, *, routing):
+@pytest.mark.integration
+async def test_rolled_back_empty_file_still_records_incomplete_without_a_delivery_list(client, db_session):
+    done, metadata, _file = await _run_completed_round(
+        client,
+        db_session,
+        lambda _file: [
+            _sse("tool_result", {
+                "tool_name": "create_file", "status": "success",
+                "data": {"id": "temporary", "title": "未写成的章节", "content": "", "file_type": "draft"},
+            }),
+            _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert done["saved_output"] is False
+    assert "written_files" not in done
+    assert "unwritten_files" not in done
+    assert "no_file_changes" not in done
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["saved_output"] is False
+    assert "written_files" not in metadata["stop_outcome"]
+    assert "unwritten_files" not in metadata["stop_outcome"]
+
+
+@pytest.mark.integration
+async def test_edit_plus_rolled_back_placeholder_is_incomplete_with_saved_output(client, db_session):
+    done, metadata, file = await _run_completed_round(
+        client,
+        db_session,
+        lambda file: [
+            _edit_result(file, mutation_applied=True, edits_applied=1),
+            _sse("tool_result", {
+                "tool_name": "create_file", "status": "success",
+                "data": {"id": "temporary", "title": "未写成的章节", "content": "", "file_type": "draft"},
+            }),
+            _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert done["saved_output"] is True
+    assert done["written_files"] == [{"id": file.id, "title": file.title}]
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["saved_output"] is True
+    assert metadata["stop_outcome"]["written_files"] == done["written_files"]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("layer", ["tool_call", "collaboration"])
+async def test_edit_then_terminal_iteration_exhaustion_is_incomplete_with_saved_output(
+    client, db_session, layer
+):
+    done, metadata, file = await _run_completed_round(
+        client,
+        db_session,
+        lambda file: [
+            _edit_result(file, mutation_applied=True, edits_applied=1),
+            _sse("iteration_exhausted", {
+                "layer": layer,
+                "limit": "wall_clock",
+                "iterations_used": 12,
+                "max_iterations": 60,
+                "reason": "run reached its wall-clock wrap-up boundary",
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+        stop_reason="run_deadline_exceeded",
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert done["saved_output"] is True
+    assert done["written_files"] == [{"id": file.id, "title": file.title}]
+    assert metadata["stop_reason"] == "run_deadline_exceeded"
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["saved_output"] is True
+    assert metadata["stop_outcome"]["written_files"] == done["written_files"]
+
+
+@pytest.mark.integration
+async def test_unlistable_write_plus_rollback_keeps_saved_output_live_and_in_history(client, db_session):
+    done, metadata, _file = await _run_completed_round(
+        client,
+        db_session,
+        lambda _file: [
+            _sse("tool_result", {
+                "tool_name": "parallel_execute",
+                "status": "success",
+                "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+            }),
+            _sse("tool_result", {
+                "tool_name": "create_file", "status": "success",
+                "data": {"id": "temporary", "title": "未写成的章节", "content": "", "file_type": "draft"},
+            }),
+            _sse("iteration_exhausted", {
+                "layer": "empty_file_correction",
+                "rolled_back_files": [{"id": "temporary", "title": "未写成的章节"}],
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert done["saved_output"] is True
+    assert "written_files" not in done
+    assert "unwritten_files" not in done
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["saved_output"] is True
+    assert "written_files" not in metadata["stop_outcome"]
+
+
+async def _run_completed_round(
+    client, db_session, frames_after_route, *, routing, stop_reason="end_turn"
+):
     """A normally completed round (#267): the done frame and the persisted outcome."""
     from models import ChatMessage
 
     _token, project, user = await _login_with_project(client, db_session)
     message_id, _empty, filled, _older = _seed_round(db_session, project, user)
     assistant = db_session.get(ChatMessage, message_id)
-    assistant.message_metadata = json.dumps({"stop_reason": "end_turn"})
+    assistant.message_metadata = json.dumps({"stop_reason": stop_reason})
     db_session.add(assistant)
     db_session.commit()
 
@@ -1771,6 +1968,8 @@ async def test_rounds_that_did_not_ask_for_body_writes_get_no_receipt(client, db
     )
 
     assert "no_file_changes" not in done
+    assert "delivery_incomplete" not in done
+    assert "saved_output" not in done
     assert "stop_outcome" not in metadata
 
 
@@ -1953,6 +2152,8 @@ async def test_author_requested_empty_chapter_completes_without_an_incomplete_st
 
     assert "unwritten_files" not in done
     assert "written_files" not in done
+    assert "delivery_incomplete" not in done
+    assert "saved_output" not in done
     assert metadata == {"stop_reason": "end_turn"}
 
 

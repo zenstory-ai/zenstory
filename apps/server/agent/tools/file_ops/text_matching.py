@@ -310,8 +310,10 @@ def find_approximate_match(
         min_pattern_len: Minimum normalized pattern length to search
         keep_line_breaks: 同 find_fuzzy_spans。近似窗口没有逐字对齐，所以按数量
             约束：窗口内部跨过的原文换行不能多于 pattern 自己的换行。
-        stats: 收到 "paragraph_rejected"（因跨段被丢弃的达标窗口数）。跨段窗口里
-            最好的一个不比段内最好的差时返回 None：段内窗口只是跨段那处的一部分。
+        stats: 收到 "paragraph_rejected"（因跨段被丢弃的达标窗口数）、
+            "workload_skipped"（静态工作量保护跳过扫描）和 "deadline_exceeded"
+            （扫描超时且未完成）。跨段窗口里最好的一个不比段内最好的差时返回 None：
+            段内窗口只是跨段那处的一部分。
 
     Returns:
         A tuple of (start, end, similarity, matched_text) if a good match is found,
@@ -319,6 +321,8 @@ def find_approximate_match(
     """
     if stats is not None:
         stats["paragraph_rejected"] = 0
+        stats["workload_skipped"] = 0
+        stats["deadline_exceeded"] = 0
     # Normalize both for comparison
     norm_content, map_content = normalize_for_fuzzy_match(content)
     norm_pattern, map_pattern = normalize_for_fuzzy_match(pattern)
@@ -343,6 +347,8 @@ def find_approximate_match(
         len(norm_content) > MAX_APPROX_CONTENT_LEN
         or window_count * len(norm_content) * pattern_len > MAX_APPROX_WORK
     ):
+        if stats is not None:
+            stats["workload_skipped"] = 1
         return None
 
     # 静态估算之外再加一道 wall-clock 硬超时（见 MAX_APPROX_SECONDS）。
@@ -384,11 +390,15 @@ def find_approximate_match(
         if time.monotonic() > deadline:
             # 扫描不完整就无法判定歧义（可能漏掉真正的最佳窗口或它的竞争者），
             # 因此超时一律放弃匹配，绝不返回「半程最佳」。
+            if stats is not None:
+                stats["deadline_exceeded"] = 1
             return None
         for i in range(len(norm_content) - window_size + 1):
             # 单个 window_size 的内层循环本身也可能很长（通过预过滤的窗口还要跑
             # 一次 O(N×P) 的 ratio()），所以内层每 64 个窗口也检查一次超时。
             if (i & 0x3F) == 0 and time.monotonic() > deadline:
+                if stats is not None:
+                    stats["deadline_exceeded"] = 1
                 return None
             window = norm_content[i:i + window_size]
 

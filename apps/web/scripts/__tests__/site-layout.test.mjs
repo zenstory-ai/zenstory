@@ -63,6 +63,22 @@ test('missing Vite assets bypass the SPA fallback while app deep links still mat
   for (const host of ['zenstory.ai', 'geo-preview.zenstory.ai']) assert.equal(matchesHost(host), false)
 })
 
+test('only content-addressed URLs get a year-long immutable cache', () => {
+  // Host conditions are treated as matching, so a host-scoped immutable rule still fails the entry checks.
+  const cacheControl = (path, query = {}) => vercelConfig.headers
+    .filter(rule => new RegExp(`^${rule.source.replace(/:\w+\(/g, '(')}$`).test(path))
+    .filter(rule => (rule.has ?? []).every(condition => condition.type !== 'query' || condition.key in query))
+    .flatMap(rule => rule.headers.filter(header => header.key.toLowerCase() === 'cache-control').map(header => header.value))
+    .join(', ')
+
+  for (const path of ['/assets/index-DHri9pxn.js', '/assets/index-BIH8wqnx.css']) assert.match(cacheControl(path), /immutable/, path)
+  assert.match(cacheControl('/locales/zh/common.json', { v: 'abc123' }), /immutable/)
+  for (const path of ['/', '/index.html', '/_app/index.html', '/_app/home.html', '/org-home/index.html', '/oh-story/novel-opening', '/assets-archive',
+    '/version.json', '/locales/zh/common.json', '/org/org.css', '/brand/zenstory-ai-mark.svg', '/favicon.svg', '/sitemap.xml', '/robots.txt']) {
+    assert.doesNotMatch(cacheControl(path), /immutable/, `${path} can change in place and must stay revalidatable`)
+  }
+})
+
 test('post-build output cannot shadow host rewrites; sitemap uses canonical routes only', () => {
   const dir = mkdtempSync(join(tmpdir(), 'site-layout-'))
   try {

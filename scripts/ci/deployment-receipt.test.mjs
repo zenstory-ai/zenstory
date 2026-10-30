@@ -32,6 +32,7 @@ const input = {
 test("deployment receipt binds a successful ci-summary to an exact main source and attempt", () => {
   assert.deepEqual(validateDeploymentCiProof(input), {
     schemaVersion: 1,
+    event: "push",
     repository: "zenstory-ai/zenstory",
     sourceSha,
     workflowId: 7,
@@ -73,6 +74,7 @@ test("E2E receipt binds the exact source to the e2e-summary workflow contract", 
   };
   assert.deepEqual(validateDeploymentE2eProof(e2e), {
     schemaVersion: 1,
+    event: "push",
     repository: "zenstory-ai/zenstory",
     sourceSha,
     workflowId: 9,
@@ -94,4 +96,39 @@ test("readiness proof validates suite identity and closes a same-run attempt rac
     assert.throws(() => validateDeploymentCiProof({...input, checkSuite: {...input.checkSuite, ...patch}}), /suite/);
   }
   assert.throws(() => validateRunStability(input.run, {...input.run, run_attempt: 3, status: "in_progress", conclusion: null}), /rerun|changed/);
+});
+
+const recoveryStep = { name: "Validate exact-source release recovery", status: "completed", conclusion: "success" };
+const recoveryDetector = { name: "detect-changes", status: "completed", conclusion: "success", steps: [recoveryStep] };
+
+test("pinned manual CI recovery is a distinct authenticated proof, never a synthetic push", () => {
+  const manual = { ...input, run: { ...input.run, event: "workflow_dispatch" }, jobs: [...input.jobs, recoveryDetector] };
+  const proof = validateDeploymentCiProof(manual);
+  assert.equal(proof.event, "workflow_dispatch");
+  assert.ok(proof.requiredJobs.includes("detect-changes"));
+  for (const detector of [
+    { ...recoveryDetector, steps: [] },
+    { ...recoveryDetector, steps: [{ ...recoveryStep, conclusion: "skipped" }] },
+    { ...recoveryDetector, steps: [{ ...recoveryStep, conclusion: "failure" }] },
+    { ...recoveryDetector, steps: [recoveryStep, recoveryStep] },
+  ]) assert.throws(() => validateDeploymentCiProof({ ...manual, jobs: [...input.jobs, detector] }), /source|recovery/i);
+  assert.throws(() => validateDeploymentCiProof({ ...manual, jobs: input.jobs }), /detect-changes|recovery/i);
+  assert.throws(() => validateDeploymentCiProof({ ...manual, run: { ...manual.run, head_branch: "feature" } }), /main/);
+});
+
+test("manual E2E recovery requires every Chromium shard, not a green smoke subset", () => {
+  const e2e = { ...input,
+    workflow: { id: 9, path: ".github/workflows/e2e.yml" },
+    run: { ...input.run, workflow_id: 9, path: ".github/workflows/e2e.yml", event: "workflow_dispatch" },
+    jobs: [recoveryDetector, { name: "e2e-summary", status: "completed", conclusion: "success" },
+      ...Array.from({ length: 8 }, (_, index) => ({ name: `e2e-test (chromium, ${index + 1}/8)`, status: "completed", conclusion: "success" }))],
+  };
+  assert.equal(validateDeploymentE2eProof(e2e).event, "workflow_dispatch");
+  assert.throws(() => validateDeploymentE2eProof({ ...e2e, jobs: e2e.jobs.slice(0, -1) }), /shard|chromium/i);
+  assert.throws(() => validateDeploymentE2eProof({ ...e2e, jobs: e2e.jobs.map(job => job.name.endsWith("8/8)") ? { ...job, conclusion: "skipped" } : job) }), /shard|succeed|chromium/i);
+  for (const name of ["e2e-test (chromium, 1/8)", "e2e-test (chromium, 1/1)", "e2e-test (webkit, 1/8)", "e2e-test (firefox, 1/8)"]) {
+    assert.throws(() => validateDeploymentE2eProof({ ...e2e, jobs: [...e2e.jobs, { name, status: "completed", conclusion: "success" }] }), /shard|shape/i);
+  }
+  const firefox = Array.from({ length: 8 }, (_, index) => ({ name: `e2e-test (firefox, ${index + 1}/8)`, status: "completed", conclusion: "success" }));
+  assert.equal(validateDeploymentE2eProof({ ...e2e, jobs: [...e2e.jobs, ...firefox] }).requiredJobs.length, 18);
 });

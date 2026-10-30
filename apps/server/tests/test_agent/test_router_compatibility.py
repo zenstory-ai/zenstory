@@ -77,3 +77,36 @@ def test_clarification_with_malformed_task_owner_fails_closed():
             agent_type="planner", workflow_type="standard",
             turn_disposition="answer_pending_clarification",
         ))
+
+
+@pytest.mark.parametrize("workflow,planned", [("quick", []), ("standard", ["writer"])])
+async def test_read_only_that_contradicts_a_write_request_does_not_block_writing(workflow, planned):
+    """Production (2026-10-26 10:19): 「一并扩到2000字先」 was routed read_only=true together with
+    write_content=true, and the writer pasted the expanded chapter into the chat instead of saving it.
+    A decision that both forbids file changes and asks for prose is not a read-only request."""
+    payload = {"agent_type": "writer", "workflow_type": workflow, "read_only": True, "write_content": True,
+               "scope": "第一章保持现有情节扩至2000字以上", "requested_file_types": []}
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=_response(json.dumps(payload)))):
+        result = await router_node({"user_message": "一并扩到2000字先"})
+    metadata = result["routing_metadata"]
+    assert metadata["read_only"] is False
+    assert metadata["write_content"] is True
+    assert result["workflow_agents"] == planned
+
+
+@pytest.mark.parametrize("current_write_content", [None, False])
+def test_a_follow_up_that_newly_forbids_file_changes_stays_read_only(current_write_content):
+    """The correction applies to the router's own answer only. A follow-up that adds 「先别改文件」 to a
+    writing task inherits write_content=true; that inherited value must not cancel the new restriction."""
+    from agent.graph.router import _resolve_turn_decision
+
+    previous = {"role": "assistant", "clarification_pending": True,
+                "routing": {"initial_agent": "writer", "workflow_type": "quick", "write_content": True,
+                            "read_only": False, "scope": "", "requested_file_types": []}}
+    payload = {"agent_type": "writer", "workflow_type": "quick", "read_only": True,
+               "turn_disposition": "answer_pending_clarification"}
+    if current_write_content is not None:
+        payload["write_content"] = current_write_content
+    decision = _parse_router_response(_response(json.dumps(payload)))
+    resolved, _metadata = _resolve_turn_decision({"messages": [previous]}, decision)
+    assert resolved.read_only is True

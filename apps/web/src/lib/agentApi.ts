@@ -156,6 +156,10 @@ export interface StreamDoneData {
   produced_output?: boolean;
   written_files?: { id?: string; title?: string; words?: number; partial?: boolean }[];
   unwritten_files?: { id?: string; title?: string }[];
+  /** Server-confirmed request-level delivery remained incomplete. */
+  delivery_incomplete?: boolean;
+  /** Server-confirmed successful saved output, including writes that cannot be named. */
+  saved_output?: boolean;
   /** Completed round: the author asked for body text and no file was written. */
   no_file_changes?: boolean;
 }

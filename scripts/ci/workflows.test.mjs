@@ -12,6 +12,7 @@ test("changed workflows and composite actions pin every external action to a ful
     ".github/workflows/e2e.yml",
     ".github/workflows/cli-release.yml",
     ".github/workflows/promote-production.yml",
+    ".github/workflows/renewal-reminders.yml",
     ".github/workflows/zenstory-online-smoke.yml",
     ".github/actions/setup-backend/action.yml",
     ".github/actions/setup-frontend/action.yml",
@@ -219,4 +220,29 @@ test("canonical E2E account fixtures use email domains accepted by admin EmailSt
     const source = await readFile(file, "utf8");
     assert.doesNotMatch(source, /@zenstory\.(?:local|test)\b/, `${file}: invalid seeded email identity`);
   }
+});
+
+test("manual recovery uses immutable source guards, full scopes, and unfiltered push evidence", async () => {
+  const ci = await readFile(".github/workflows/ci.yml", "utf8");
+  const e2e = await readFile(".github/workflows/e2e.yml", "utf8");
+  for (const source of [ci, e2e]) {
+    assert.match(source, /expected_source_sha:/);
+    assert.match(source, /name: Validate exact-source release recovery/);
+    assert.match(source, /EXPECTED_SOURCE_SHA: \$\{\{ inputs\.expected_source_sha \}\}/);
+    assert.match(source, /node scripts\/ci\/check-workflow-results\.mjs recovery-source/);
+    assert.match(source, /ref: \$\{\{ github\.sha \}\}/);
+  }
+  assert.match(ci, /expected_source_sha:[\s\S]*?required: true/);
+  assert.match(ci, /if: github\.event_name != 'workflow_dispatch'/);
+  assert.match(ci, /node scripts\/ci\/check-workflow-results\.mjs scope/);
+  for (const scope of ["backend", "frontend", "cli", "ci"]) {
+    assert.ok(ci.includes(scope + ": ${{ steps.scope.outputs." + scope + " }}"));
+  }
+  assert.match(e2e, /if: github\.event_name == 'workflow_dispatch' && inputs\.expected_source_sha != ''/);
+  assert.match(e2e, /E2E_SUITE: \$\{\{ inputs\.suite \}\}/);
+  assert.match(e2e, /cancel-in-progress: \$\{\{ github\.ref != 'refs\/heads\/main' \}\}/);
+  const promotion = await readFile("scripts/ci/promote-production.mjs", "utf8");
+  const query = promotion.match(/new URLSearchParams\(\{([\s\S]*?)\}\)/)[1];
+  assert.match(query, /head_sha: sourceSha/);
+  assert.doesNotMatch(query, /\b(?:event|status):/);
 });

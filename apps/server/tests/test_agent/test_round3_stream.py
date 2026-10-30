@@ -120,10 +120,31 @@ async def test_reused_episode_is_not_overwritten_by_truncated_prose():
 
     # 关键断言：绝不整体覆盖
     adapter._save_file_content.assert_not_awaited()
-    # 仍然要收尾流式 UI，并把原因说清楚（用户与模型都要看到）
+    # 收尾 UI 并如实说明未保存，不把模型协议与诊断数字当作作者正文。
     assert EventType.FILE_CONTENT_END in [e.type for e in events]
     assert "未保存" in _chat(events)
-    assert "8000" in _chat(events)
+    assert "原文保持不变" in _chat(events)
+    for internal in ("8000", "</file>", "edit_file", "f-ep3", "系统提醒"):
+        assert internal not in _chat(events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("language,expected", [
+    ("zh", "本次改写未保存，原文保持不变。"),
+    ("en-US", "This rewrite was not saved. The original text is unchanged."),
+])
+async def test_truncated_overwrite_notice_is_localized_without_protocol_details(language, expected):
+    adapter = StreamAdapter(StreamAdapterConfig(language=language))
+    adapter._save_file_content = AsyncMock(return_value=True)
+    events = await _drive(adapter, [
+        _create_file_result("private-file-id", content="original" * 1000,
+                            title="", reused_existing=True, original_content_length=8000),
+        _text_event("<file>A partial replacement"),
+        _message_end(stop_reason="end_turn"),
+    ])
+    adapter._save_file_content.assert_not_awaited()
+    assert _chat(events).strip() == expected
+    assert EventType.FILE_CONTENT_END in [event.type for event in events]
 
 
 @pytest.mark.asyncio
@@ -823,9 +844,10 @@ async def test_reused_episode_body_survives_truncated_stream(
         f"数据丢失：8000 字的分集被截断残稿覆盖成 {len(stored.content or '')} 字"
     )
     assert stored.content == _E2E_OLD_BODY
-    # 用户与模型都要收到"为什么没保存"的说明，否则只是静默吞掉这次写入
+    # 作者知道本次没有保存；内部协议与保护诊断不进入聊天正文。
     chat = _chat(sse_events)
-    assert "系统提醒" in chat and "</file>" in chat
+    assert "本次改写未保存，原文保持不变。" in chat
+    assert "</file>" not in chat and "edit_file" not in chat
 
 
 @pytest.mark.asyncio
@@ -890,9 +912,9 @@ async def test_truncated_overwrite_guard_covers_agent_boundary_path(
     assert stored.content == _E2E_OLD_BODY
 
     chat_chunks = _texts(sse_events, EventType.CONTENT, "text")
-    warning_index = _first_index(chat_chunks, "系统提醒")
+    warning_index = _first_index(chat_chunks, "本次改写未保存")
     boundary_index = _first_index(chat_chunks, "接下来我继续")
-    assert warning_index >= 0, "没有把本次未保存的原因说给用户和模型听"
+    assert warning_index >= 0, "没有向作者说明本次改写未保存"
     assert boundary_index >= 0, "第二个 agent 的叙述被文件捕获吞掉了：边界没有收尾"
     assert warning_index < boundary_index, "收尾没有发生在 agent 边界上，而是被拖到了流结束"
 

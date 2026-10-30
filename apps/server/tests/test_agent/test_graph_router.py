@@ -285,7 +285,7 @@ class TestRouterUserScope:
     def test_read_only_clears_every_planned_agent(self, workflow_type):
         from agent.graph.router import plan_workflow_agents
 
-        decision = self._decision(workflow_type=workflow_type, write_content=True, read_only=True)
+        decision = self._decision(workflow_type=workflow_type, read_only=True)
         assert plan_workflow_agents(decision) == []
 
     @pytest.mark.parametrize(

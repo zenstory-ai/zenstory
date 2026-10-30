@@ -115,6 +115,10 @@ i18n
     backend: {
       /** Path pattern for translation JSON files */
       loadPath: '/locales/{{lng}}/{{ns}}.json',
+      /** Build-time hash of public/locales (vite.config.ts); versioned URLs are cached for good by the CDN */
+      ...(import.meta.env.VITE_LOCALES_VERSION
+        ? { queryStringParams: { v: import.meta.env.VITE_LOCALES_VERSION } }
+        : {}),
     },
 
     /** Language detection configuration */

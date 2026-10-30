@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as controls from "./check-workflow-results.mjs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -157,4 +158,26 @@ test("push E2E permits skip only when every validated scope is false", () => {
     }),
     /e2e-test was required but finished as failure/,
   );
+});
+
+test("manual release recovery binds the event to the immutable main SHA and a full E2E lane", () => {
+  const input = { eventName: "workflow_dispatch", ref: "refs/heads/main", sourceSha: "a".repeat(40), expectedSourceSha: "a".repeat(40) };
+  assert.doesNotThrow(() => controls.validateRecoverySource(input));
+  assert.doesNotThrow(() => controls.validateRecoverySource({ ...input, suite: "default" }));
+  assert.doesNotThrow(() => controls.validateRecoverySource({ ...input, suite: "full" }));
+  for (const patch of [
+    { eventName: "push" }, { ref: "refs/heads/develop" }, { ref: "refs/tags/main" },
+    { expectedSourceSha: "" }, { expectedSourceSha: "a" }, { expectedSourceSha: "b".repeat(40) },
+    { sourceSha: "main" }, { suite: "smoke" }, { suite: "release" }, { suite: "nightly" },
+  ]) assert.throws(() => controls.validateRecoverySource({ ...input, ...patch }), /recovery|source|main|suite/i);
+});
+
+test("manual CI recovery forces all scopes without trusting empty or false diff outputs", () => {
+  for (const value of ["", "false", "true"]) {
+    assert.deepEqual(controls.resolveCiScope({ eventName: "workflow_dispatch", filters: { backend: value, frontend: value, cli: value, ci: value } }),
+      { backend: true, frontend: true, cli: true, ci: true });
+  }
+  assert.deepEqual(controls.resolveCiScope({ eventName: "push", filters: { backend: "true", frontend: "false", cli: "false", ci: "false" } }),
+    { backend: true, frontend: false, cli: false, ci: false });
+  assert.throws(() => controls.resolveCiScope({ eventName: "push", filters: { backend: "", frontend: "false", cli: "false", ci: "false" } }), /true or false/);
 });

@@ -201,6 +201,7 @@ class _PendingEmptyFileState:
 
     __slots__ = (
         "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
+        "_prebody_reply", "_waiting_at_reply_start",
     )
 
     def __init__(self) -> None:
@@ -217,6 +218,12 @@ class _PendingEmptyFileState:
         self._created_in: dict[str, int] = {}
         # create_file 结果里的版本（updated_at）：补不成时只回滚这之后没被任何写入动过的空文件。
         self._versions: dict[str, str] = {}
+        # 没有待写文件时，这次回复先写出了一段闭合的 <file> 正文（第几次回复）：
+        # 同一回复里第一个建空文件的 create_file 认领它（见 offer_reply_prebody）。
+        self._prebody_reply: int | None = None
+        # 这次回复开始时有没有还在等正文的文件。不能在回复结束时再看：StreamAdapter 边收边存，
+        # 回复里写完 </file> 就会落库并清掉那个文件的条目，往往早于 on_llm_end。
+        self._waiting_at_reply_start = False
 
     # ---- 只读视图 ----------------------------------------------------------
     def has_pending(self) -> bool:
@@ -244,6 +251,7 @@ class _PendingEmptyFileState:
         """一次新的模型调用开始。"""
         with self._lock:
             self._reply_seq += 1
+            self._waiting_at_reply_start = any(file_id not in self._streamed for file_id in self._entries)
 
     def overdue_unwritten_files(self) -> list[dict[str, str]]:
         """上一次（或更早的）回复建好、这次回复还没写出正文的文件：精确 {id, title}（按置位先后）。
@@ -264,6 +272,26 @@ class _PendingEmptyFileState:
             self._set_version(file_id, version)
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
+
+    def offer_reply_prebody(self) -> bool:
+        """本次回复先写出了正文：回复开始时没有在等正文的文件就记下，返回是否记下。
+
+        有这样的文件时，这段正文按两次回复协议属于它（mark_latest_body_streamed），不归下一个新文件；
+        即使 StreamAdapter 已经把它存好、清掉了条目也一样。
+        """
+        with self._lock:
+            if self._waiting_at_reply_start or any(file_id not in self._streamed for file_id in self._entries):
+                return False
+            self._prebody_reply = self._reply_seq
+            return True
+
+    def take_reply_prebody(self) -> bool:
+        """本次回复先写出的正文还没被认领：认领它（只认领一次）。"""
+        with self._lock:
+            if self._prebody_reply is None or self._prebody_reply != self._reply_seq:
+                return False
+            self._prebody_reply = None
+            return True
 
     def mark_body_streamed(self, file_id: str) -> None:
         """记录该待写文件的正文已以闭合 <file> 块完整出现在模型回复里。"""
@@ -306,6 +334,8 @@ class _PendingEmptyFileState:
             self._reservations.clear()
             self._streamed.clear()
             self._versions.clear()
+            self._prebody_reply = None
+            self._waiting_at_reply_start = False
 
     def version(self, file_id: str) -> str | None:
         """这个待写文件建好时的版本；不是待写条目或没有记下时为 None。"""
@@ -1014,6 +1044,25 @@ class ToolContext:
         return state.overdue_unwritten_files() if state is not None else []
 
     @classmethod
+    def mark_pending_body_streamed(cls, file_id: str) -> None:
+        """这个待写文件的正文已完整出现在本条模型回复里（条目留着，等 adapter 落库后清除）。"""
+        state = cls._get_pending_empty_file_state()
+        if state is not None:
+            state.mark_body_streamed(file_id)
+
+    @classmethod
+    def offer_reply_prebody(cls) -> bool:
+        """本条回复在没有待写文件时先写出了闭合的 <file> 正文（on_llm_end 调用）。见 _PendingEmptyFileState。"""
+        state = cls._get_pending_empty_file_state()
+        return state.offer_reply_prebody() if state is not None else False
+
+    @classmethod
+    def take_reply_prebody(cls) -> bool:
+        """同一回复里建空文件的 create_file 认领先写出的那段正文；未建请求上下文时为 False。"""
+        state = cls._get_pending_empty_file_state()
+        return state.take_reply_prebody() if state is not None else False
+
+    @classmethod
     def mark_latest_pending_body_streamed(cls) -> None:
         """最近一个待写文件的正文已以闭合 <file> 块完整出现在本条模型回复里。
 
@@ -1702,6 +1751,7 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # 给它置标记后无人清除（标记跨子任务可见），会硬阻断本轮后续所有建档，
         # 并让 writing_graph 的纠偏分支把章节正文追加到文件夹节点上。
         awaiting_body = False
+        body_in_reply = False
         if reservation is not None:
             file_id = result.get("id", "")
             if file_id and not _is_folder_file_type(result, args):
@@ -1712,13 +1762,27 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
                     reservation, file_id, title, created_version if isinstance(created_version, str) else None
                 )
                 awaiting_body = True
+                # 本条回复在建它之前已写出正文：正文属于这个新文件，由 StreamAdapter 落库；
+                # 守卫视同正文已写出，下一次回复不再要求先写它。复用的既有文件不认领。
+                if result.get("reused_existing") is not True and ToolContext.take_reply_prebody():
+                    ToolContext.mark_pending_body_streamed(file_id)
+                    body_in_reply = True
             else:
                 ToolContext.release_pending_empty_file(reservation)
             reservation = None
 
 
         data = _elide_reused_file_content(result)
-        if awaiting_body:
+        if body_in_reply:
+            data = {
+                **data,
+                "body_in_reply": True,
+                "next_step": (
+                    f"「{title}」的正文就是这条回复里 create_file 之前写的那段 <file> 正文，已存进这个文件，"
+                    "不要再写一遍。"
+                ),
+            }
+        elif awaiting_body:
             data = _awaiting_body_data(data, title)
             if empty_requested:
                 data["next_step"] = "作者这一轮要正文，empty 不生效。" + data["next_step"]

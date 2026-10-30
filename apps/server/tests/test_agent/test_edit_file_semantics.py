@@ -28,6 +28,7 @@ from agent.tools.file_ops.edit import (
     EditBatchError,
     EditFileError,
     FileEditor,
+    _batch_anchor_invalidated,
 )
 from agent.tools.mcp_tools import edit_file
 from models import File, Project, User
@@ -350,6 +351,66 @@ def test_later_failure_candidates_can_hold_an_earlier_rolled_back_edit_so_rebuil
     assert _stored_content(version_engine, chapter.id) == "他点了点头。她点了点头。窗外飘着雪，屋里静悄悄的。"
 
 
+def test_later_original_anchor_invalidated_by_prior_edit_gets_rebase_hint(
+    db_session, test_user, chapter, version_engine
+):
+    versions_before = _version_count(version_engine, chapter.id)
+    editor = FileEditor(db_session, user_id=test_user.id)
+
+    with pytest.raises(EditBatchError) as exc:
+        editor.edit_file(
+            chapter.id,
+            [
+                {"op": "replace", "old": "窗外下着雨", "new": "窗外飘着雪"},
+                {
+                    "op": "replace",
+                    "old": "窗外下着雨，屋里很安静",
+                    "new": "窗外飘着大雪，屋里静悄悄的",
+                    "match_mode": "exact",
+                },
+            ],
+        )
+
+    [failed] = exc.value.failed_edits
+    assert failed["index"] == 1
+    assert failed["batch_anchor_invalidated"] is True
+    assert "前面的 edit 已改掉" in failed["error"]
+    assert "基于前一项后的文本重新定位" in failed["error"]
+    assert "拆成单独调用" in failed["error"]
+    assert _stored_content(version_engine, chapter.id) == chapter.content
+    assert _version_count(version_engine, chapter.id) == versions_before
+
+
+@pytest.mark.parametrize(
+    ("original", "staged", "edit"),
+    [
+        ("正文没有变化", "正文没有变化", {"op": "replace", "old": "正文", "new": "改写"}),
+        ("原始正文", "已经改写", {"op": "replace", "old": "从未存在", "new": "改写"}),
+    ],
+)
+def test_batch_anchor_diagnosis_requires_changed_text_and_an_original_anchor(
+    original, staged, edit
+):
+    assert _batch_anchor_invalidated(original, staged, edit) is False
+
+
+def test_legal_chained_edit_using_prior_new_text_still_applies(
+    db_session, test_user, chapter, version_engine
+):
+    editor = FileEditor(db_session, user_id=test_user.id)
+
+    result = editor.edit_file(
+        chapter.id,
+        [
+            {"op": "replace", "old": "窗外下着雨", "new": "窗外飘着雪"},
+            {"op": "replace", "old": "窗外飘着雪", "new": "窗外飘着大雪"},
+        ],
+    )
+
+    assert result["mutation_applied"] is True
+    assert _stored_content(version_engine, chapter.id) == "他点了点头。她点了点头。窗外飘着大雪，屋里很安静。"
+
+
 def test_continue_on_error_keeps_successful_edits_and_tags_failures(
     db_session, test_user, chapter, version_engine
 ):
@@ -370,8 +431,8 @@ def test_continue_on_error_keeps_successful_edits_and_tags_failures(
 @pytest.mark.parametrize(
     "edit",
     [
-        {"old": "窗外下着雨", "new": "窗外飘着雪"},
         {"old": "窗外下着雨"},
+        {"old": "窗外下着雨", "new": "窗外飘着雪", "text": "，风很大"},
         {"anchor": "窗外下着雨", "text": "，风很大", "position": "before"},
         {"text": "雨停了。", "where": "head"},
     ],
@@ -379,7 +440,7 @@ def test_continue_on_error_keeps_successful_edits_and_tags_failures(
 def test_edit_without_op_is_a_missing_op_error_and_writes_nothing(
     db_session, test_user, chapter, version_engine, edit
 ):
-    """没写 op 就报缺 op，让模型带上 op 重发；不按 old/anchor/text 或 position 字样猜它想做哪种编辑。"""
+    """没写 op、字段形状又不止一种可能时报缺 op，让模型带上 op 重发；不按 position 字样猜它想做哪种编辑。"""
     versions_before = _version_count(version_engine, chapter.id)
     editor = FileEditor(db_session, user_id=test_user.id)
     with pytest.raises(EditBatchError) as exc:
@@ -390,6 +451,38 @@ def test_edit_without_op_is_a_missing_op_error_and_writes_nothing(
     assert failed["error_type"] == EDIT_ERROR_INVALID_EDIT
     assert _stored_content(version_engine, chapter.id) == chapter.content
     assert _version_count(version_engine, chapter.id) == versions_before
+
+
+def test_old_and_new_without_op_apply_as_replace(db_session, test_user, chapter, version_engine):
+    """线上 MiniMax 常把 replace 写成只有 old + new；这种形状只可能是 replace，照改并告警，不让整批回滚。"""
+    editor = FileEditor(db_session, user_id=test_user.id)
+    result = editor.edit_file(
+        chapter.id,
+        [{"op": "replace", "old": "他点了点头。", "new": "他摇了摇头。"}, {"old": "窗外下着雨", "new": "窗外飘着雪"}],
+    )
+    assert result["mutation_applied"] is True
+    assert _stored_content(version_engine, chapter.id) == "他摇了摇头。她点了点头。窗外飘着雪，屋里很安静。"
+    assert any("Edit 1: op omitted" in w for w in result["warnings"])
+
+
+def test_multiple_missing_ops_report_each_failed_edit_index(
+    db_session, test_user, chapter, version_engine
+):
+    editor = FileEditor(db_session, user_id=test_user.id)
+
+    with pytest.raises(EditBatchError) as exc:
+        editor.edit_file(
+            chapter.id,
+            [
+                {"old": "窗外下着雨"},
+                {"anchor": "屋里很安静", "text": "风停了。"},
+            ],
+        )
+
+    assert [item["index"] for item in exc.value.failed_edits] == [0, 1]
+    assert all("missing op" in item["error"] for item in exc.value.failed_edits)
+    assert "失败项 edits[0、1]" in str(exc.value)
+    assert _stored_content(version_engine, chapter.id) == chapter.content
 
 
 @pytest.mark.parametrize(

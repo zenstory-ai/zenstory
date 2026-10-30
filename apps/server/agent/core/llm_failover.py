@@ -59,7 +59,112 @@ LLM_CIRCUIT_OPEN_S = _env_int("LLM_CIRCUIT_OPEN_S", 120)
 THINKING_HEADROOM_TOKENS = 2048
 
 _ACCOUNT_FAILURE_STATUSES = frozenset({401, 402, 403, 404})
+_REQUEST_REJECTION_STATUSES = frozenset({400, 413, 422})
 _DOCUMENTED_JSON_OBJECT_MODELS = frozenset({("deepseek", "deepseek-flash")})
+
+# Official contracts, checked 2026-10-25. HTTP and MiniMax business codes are
+# different namespaces; no reason is inferred from exception/response prose.
+# https://api-docs.deepseek.com/quick_start/error_codes/
+# https://platform.minimax.io/docs/api-reference/errorcode
+_DEEPSEEK_FAILURE_REASONS = {
+    400: "invalid_format", 401: "authentication_failed", 402: "insufficient_balance",
+    422: "invalid_parameters", 429: "rate_limited", 500: "server_error", 503: "server_overloaded",
+}
+_MINIMAX_FAILURE_REASONS = {
+    1000: "unknown", 1001: "timeout", 1002: "rate_limited", 1004: "authentication_failed",
+    1008: "insufficient_balance", 1024: "server_error", 1026: "input_rejected", 1027: "output_rejected",
+    1033: "server_error", 1039: "token_limit", 1041: "connection_limit", 1042: "invalid_characters",
+    1046: "identity_policy_rejected", 2013: "invalid_parameters", 2014: "empty_input", 2022: "model_unavailable",
+    2045: "rate_growth_limit", 2046: "token_growth_limit", 2047: "connection_growth_limit",
+    2049: "authentication_failed", 2053: "insufficient_balance", 2056: "usage_limit",
+    2057: "subscription_key_required", 2061: "model_access_denied", 2062: "subscription_rate_limit",
+    2064: "server_overloaded", 2066: "timeout", 2067: "usage_limit", 2068: "model_access_denied",
+    2069: "model_unavailable",
+}
+_FAILURE_CALL_SITES = frozenset({"agent", "router", "suggest", "polish", "material", "llm_client"})
+_FAILURE_PARAMETER_FIELDS = frozenset({
+    "model", "messages", "max_tokens", "max_completion_tokens", "temperature", "top_p",
+    "tools", "tool_choice", "response_format", "stream", "stream_options", "thinking", "reasoning_effort",
+})
+
+
+def log_provider_failure(
+    provider: ModelProvider,
+    exc: BaseException,
+    *,
+    call_site: str,
+    phase: str = "request",
+) -> None:
+    """One safe diagnostic per failed attempt, including request errors such as 422.
+
+    Inspect only structured codes, never message/status_msg, body text, headers or
+    exception repr. Cancellation and our own pre-transport refusal are not failures
+    of the provider. This does not control retry, failover, billing or UI behavior.
+    """
+    import httpx
+    import httpx2
+    import openai
+
+    from core.error_handler import APIException
+
+    if isinstance(exc, APIException | asyncio.CancelledError | GeneratorExit):
+        return
+    # SDK exceptions store these as instance data. Do not invoke arbitrary
+    # exception properties while diagnosing an error (or replace that error).
+    fields = vars(exc)
+    status = fields.get("status_code")
+    status = status if type(status) is int and 100 <= status <= 599 else None
+    if isinstance(exc, TimeoutError | httpx.TimeoutException | httpx2.TimeoutException | openai.APITimeoutError):
+        category = "timeout"
+    elif isinstance(exc, ConnectionError | httpx.TransportError | httpx2.TransportError | openai.APIConnectionError):
+        category = "connection_error"
+    elif isinstance(exc, openai.APIResponseValidationError):
+        category = "response_validation"
+    elif status == 429:
+        category = "rate_limited"
+    elif status is not None and status >= 500:
+        category = "server_error"
+    elif status in {400, 413, 422}:
+        category = "request_rejected"
+    elif status in {401, 403}:
+        category = "access_denied"
+    elif status == 402:
+        category = "payment_required"
+    else:
+        category = "http_error" if status is not None else "unknown"
+
+    reason = "unknown"
+    provider_code = None
+    body = fields.get("body") if isinstance(exc, openai.APIError) else None
+    base_resp = body.get("base_resp") if isinstance(body, dict) else None
+    if provider.name == "deepseek":
+        reason = _DEEPSEEK_FAILURE_REASONS.get(status, "unknown")
+    elif provider.name == "minimax":
+        code = base_resp.get("status_code") if isinstance(base_resp, dict) else None
+        if type(code) is int and code in _MINIMAX_FAILURE_REASONS:
+            provider_code = code
+            reason = _MINIMAX_FAILURE_REASONS[code]
+    param = fields.get("param") if isinstance(exc, openai.APIError) else None
+    log_with_context(
+        logger,
+        30,  # WARNING: a failed attempt may still be served by the existing backup.
+        "LLM provider attempt failed",
+        exc_info=False,
+        provider=provider.name,
+        model=provider.model,
+        slot=provider.slot,
+        call_site=call_site if call_site in _FAILURE_CALL_SITES else "other",
+        phase=phase if phase in {"request", "stream_start", "stream"} else "other",
+        status_code=status,
+        failure_category=category,
+        provider_error_format=(
+            "base_resp" if isinstance(base_resp, dict) else "object" if isinstance(body, dict)
+            else "missing" if body is None else "non_object"
+        ),
+        provider_reason=reason,
+        provider_error_code=provider_code,
+        failed_field=param if isinstance(param, str) and param in _FAILURE_PARAMETER_FIELDS else None,
+    )
 
 
 class JSONResponseFormatUnavailableError(RuntimeError):
@@ -212,6 +317,26 @@ def _failures_key(slot: str) -> str:
     return f"llm:circuit_failures:{slot}"
 
 
+def is_in_stream_error(exc: BaseException) -> bool:
+    """An error event inside an HTTP 200 stream (``openai.APIError`` without a status).
+
+    MiniMax reports "unknown error ... (1000)" and "Internal server error. Please retry"
+    this way, but possibly also content rejections; nothing in the event reliably tells
+    them apart. Such a call may be answered by the other provider and the session pinned
+    there, but it never counts towards the provider's circuit: one author's content must
+    not switch every author to the backup.
+    """
+    try:
+        import openai
+    except ImportError:  # pragma: no cover - openai is a hard dependency
+        return False
+    return (
+        isinstance(exc, openai.APIError)
+        and not isinstance(exc, openai.APIConnectionError)
+        and _status_code_of(exc) is None
+    )
+
+
 def ordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
     """Providers in the order this call should try them."""
     providers = llm_providers.configured_providers()
@@ -285,12 +410,42 @@ async def arecord_failure(provider: ModelProvider, session_id: str | None, exc: 
         await asyncio.to_thread(record_failure, provider, session_id, exc)
 
 
+def pin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
+    """Pin the session to the slot other than ``provider`` without counting a circuit failure."""
+    providers = llm_providers.configured_providers()
+    if len(providers) == 1 or not session_id:
+        return
+    other = next(p for p in providers if p.slot != provider.slot)
+    _with_store(lambda store: store.set(_pin_key(session_id), other.slot, LLM_SESSION_PIN_TTL_S))
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "LLM session pinned to the other provider after an in-stream error",
+        slot=provider.slot,
+        provider=provider.name,
+        model=provider.model,
+        session_pinned_to=other.slot,
+    )
+
+
+async def apin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
+    if session_id and len(llm_providers.configured_providers()) > 1:
+        await asyncio.to_thread(pin_session_to_other, provider, session_id)
+
+
 async def arecord_success(provider: ModelProvider, session_id: str | None, ordered: list[ModelProvider]) -> None:
     if session_id and len(ordered) > 1 and provider.slot != ordered[0].slot:
         await asyncio.to_thread(record_success, provider, session_id, ordered)
 
 
-def log_failover(failed: ModelProvider, next_provider: ModelProvider, *, call_site: str) -> None:
+def log_failover(
+    failed: ModelProvider,
+    next_provider: ModelProvider,
+    *,
+    call_site: str,
+    after_reasoning: bool = False,
+    reason: str = "unavailable",
+) -> None:
     log_with_context(
         logger,
         30,  # WARNING
@@ -301,6 +456,21 @@ def log_failover(failed: ModelProvider, next_provider: ModelProvider, *, call_si
         to_slot=next_provider.slot,
         to_provider=next_provider.name,
         to_model=next_provider.model,
+        after_reasoning=after_reasoning,
+        reason=reason,
+    )
+
+
+def log_failover_skipped(failed: ModelProvider, next_provider: ModelProvider, *, call_site: str) -> None:
+    """The other provider would reject this input, so the call ends with the original error."""
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "LLM failover skipped: the other provider would reject this input",
+        call_site=call_site,
+        from_provider=failed.name,
+        to_provider=next_provider.name,
+        reason="missing_tool_turn_reasoning",
     )
 
 
@@ -368,9 +538,15 @@ async def acreate_chat_completion(
     thinking_enabled: bool = True,
     reasoning_effort: str | None = None,
     usage_attribution: LLMUsageAttribution | None = None,
+    fail_over_on_rejection: bool = False,
     **kwargs: Any,
 ) -> tuple[Any, ModelProvider]:
     """``chat.completions.create`` on the first available provider.
+
+    With ``fail_over_on_rejection`` a request the provider rejects (400/413/422) is
+    also sent to the other provider, without counting against the rejecting one or
+    pinning the session: for side-effect-free calls such as routing, where one
+    provider refusing a request should not stop the author's turn.
 
     ``kwargs`` are the request without ``model``. Returns the response and the
     provider that served it. Streaming responses fail over only when opening
@@ -381,6 +557,7 @@ async def acreate_chat_completion(
     if kwargs.get("stream"):
         usage_attribution = None
     ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
+    rejected = False
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)
         attempt_started = time.monotonic()
@@ -393,7 +570,16 @@ async def acreate_chat_completion(
             raise
         except Exception as exc:
             _meter_attempt(usage_attribution, provider, attempt_started, exc=exc)
+            log_provider_failure(provider, exc, call_site=call_site)
             if not is_provider_unavailable(exc):
+                if (
+                    fail_over_on_rejection
+                    and _status_code_of(exc) in _REQUEST_REJECTION_STATUSES
+                    and index + 1 < len(ordered)
+                ):
+                    log_failover(provider, ordered[index + 1], call_site=call_site, reason="request_rejected")
+                    rejected = True
+                    continue
                 raise
             await arecord_failure(provider, session_id, exc)
             if index + 1 >= len(ordered):
@@ -401,7 +587,9 @@ async def acreate_chat_completion(
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
-        await arecord_success(provider, session_id, ordered)
+        if not rejected:
+            # A rejected request says nothing about the provider: the session keeps its order.
+            await arecord_success(provider, session_id, ordered)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 
@@ -431,6 +619,7 @@ def create_chat_completion(
                 **_call_kwargs(provider, kwargs, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort)
             )
         except Exception as exc:
+            log_provider_failure(provider, exc, call_site=call_site)
             if not is_provider_unavailable(exc):
                 raise
             record_failure(provider, session_id, exc)
