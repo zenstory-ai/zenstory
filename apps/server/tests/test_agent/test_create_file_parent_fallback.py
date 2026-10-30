@@ -73,7 +73,7 @@ def test_create_file_falls_back_to_script_folder_for_screenplay(db_session: Sess
 def test_create_file_does_not_fallback_for_non_draft_types(db_session: Session, test_user: User, screenplay_project: Project):
     crud = FileCRUD(db_session, user_id=test_user.id)
 
-    with pytest.raises(ValueError, match="Parent file"):
+    with pytest.raises(ValueError, match="parent_id"):
         crud.create_file(
             project_id=screenplay_project.id,
             title="分集大纲 1",
@@ -124,10 +124,28 @@ def test_create_file_still_raises_for_unknown_parent_id(db_session: Session, tes
 
     crud = FileCRUD(db_session, user_id=test_user.id)
 
-    with pytest.raises(ValueError, match="Parent file"):
+    with pytest.raises(ValueError, match="parent_id"):
         crud.create_file(
             project_id=project.id,
             title="第1章",
             file_type="draft",
             parent_id=f"{project.id}-unknown-folder",
         )
+
+
+@pytest.mark.unit
+def test_project_id_as_parent_tells_the_agent_which_folder_ids_exist(db_session: Session, test_user: User):
+    """Production (2026-10-25/26): the writer passed the project id as parent_id three times and was told
+    only "Parent file <project id> not found in project <project id>"."""
+    project = Project(name="Novel", owner_id=test_user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    crud = FileCRUD(db_session, user_id=test_user.id)
+
+    with pytest.raises(ValueError) as refused:
+        crud.create_file(project_id=project.id, title="第一章", file_type="draft", parent_id=project.id)
+
+    message = str(refused.value)
+    assert "项目 id" in message
+    assert f"正文（{project.id}-draft-folder）" in message
+    assert db_session.query(File).filter(File.project_id == project.id, File.title == "第一章").count() == 0

@@ -3,8 +3,6 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MessageList, type Message, type MessageListRef } from '../MessageList'
 import { useEffect, useRef } from 'react'
 import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext'
-import zhChat from '../../../public/locales/zh/chat.json'
-import enChat from '../../../public/locales/en/chat.json'
 
 vi.mock('../LazyMarkdown', () => {
   const SyncMarkdown = ({
@@ -181,30 +179,26 @@ describe('MessageList', () => {
     expect(screen.queryByRole('button', { name: 'feedback.like' })).not.toBeInTheDocument()
   })
 
-  it('shows only the step number for an agent step, never the step budget', () => {
+  it('shows only the task role for an agent step, never internal step or budget details', () => {
     const displayItems: NonNullable<Message['displayItems']> = [
       { id: 'agent-step', type: 'agent_selected', agentName: 'Step writer', iteration: 2, maxIterations: 12, remaining: 10, timestamp: new Date() },
     ]
     const { container } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
 
-    expect(container.textContent).toContain('workflow.iteration 2')
+    expect(container.textContent).toContain('Step writer')
+    expect(container.textContent).not.toContain('workflow.iteration')
     expect(container.textContent).not.toContain('/12')
   })
 
-  it('step chip reads as plain words for authors (第 N 步, not 步骤 N)', () => {
+  it('does not expose remaining internal turns', () => {
     const displayItems: NonNullable<Message['displayItems']> = [
       { id: 'agent-step', type: 'agent_selected', agentType: 'quality_reviewer', iteration: 3, maxIterations: 4, remaining: 1, timestamp: new Date() },
     ]
     const { container } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
 
-    // The step number and the steps left are passed into the sentence, not glued after a bare label.
-    expect(container.textContent).toContain('workflow.iteration 3')
-    expect(container.textContent).toContain('workflow.remaining 1')
-    const fill = (template: string, values: Record<string, number>) =>
-      template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(values[name]))
-    expect(fill(zhChat.workflow.iteration, { step: 3 }) + fill(zhChat.workflow.remaining, { n: 1 })).toBe('第 3 步（还能做 1 步）')
-    expect(fill(enChat.workflow.iteration, { step: 3 }) + fill(enChat.workflow.remaining, { n: 1 })).toBe('step 3 (1 more left)')
-    expect(zhChat.workflow.iteration + zhChat.workflow.remaining).not.toContain('步骤')
+    expect(container.textContent).not.toContain('workflow.iteration')
+    expect(container.textContent).not.toContain('workflow.remaining')
+    expect(container.textContent).not.toContain('workflow.lowTurnWarning')
   })
 
   it('hides Chinese control markers in assistant replies', () => {
@@ -261,7 +255,7 @@ describe('MessageList', () => {
     expect(container.querySelectorAll('.animate-pulse')).toHaveLength(0)
   })
 
-  it('replays router, low-turn and completion controls without moving the intervening text', () => {
+  it('replays useful task activity without internal topology or budgets', () => {
     const timestamp = new Date()
     const displayItems: NonNullable<Message['displayItems']> = [
       { id: 'router-start', type: 'router_thinking', content: 'Choosing ordered agent', timestamp },
@@ -272,8 +266,9 @@ describe('MessageList', () => {
       { id: 'hidden', type: 'content', content: '<think>Not visible</think>', timestamp },
     ]
     render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
-    for (const marker of ['Choosing ordered agent', 'Ordered writer', 'Ordered control reply', 'workflow.taskCompleted', 'workflow.lowTurnWarning']) expect(screen.getByText(marker)).toBeInTheDocument()
-    expect(screen.getByText(/chat:workflow\.agents\.planner → chat:workflow\.agents\.writer/)).toBeInTheDocument()
+    for (const marker of ['Choosing ordered agent', 'Ordered writer', 'Ordered control reply', 'workflow.taskCompleted']) expect(screen.getByText(marker)).toBeInTheDocument()
+    expect(screen.queryByText('workflow.lowTurnWarning')).not.toBeInTheDocument()
+    expect(screen.queryByText(/chat:workflow\.agents\.planner → chat:workflow\.agents\.writer/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Plan then write/)).not.toBeInTheDocument()
     expect(screen.queryByText(/planner → writer/)).not.toBeInTheDocument()
     expect(screen.queryByText('Not visible')).not.toBeInTheDocument()
@@ -306,6 +301,61 @@ describe('MessageList', () => {
     expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
     expect(screen.getByText('workflow.emptyFileRolledBack 第二章')).toBeInTheDocument()
     expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
+  })
+
+  it('defers only empty-file cleanup while streaming and restores recovery if the terminal is an error', () => {
+    const card = { id: 'delayed-cleanup', type: 'iteration_exhausted' as const,
+      layer: 'empty_file_correction' as const, rolledBackFiles: ['临时占位'], timestamp: new Date() }
+    const view = render(<MessageList messages={[]} streamRenderItems={[card]} />)
+    expect(screen.queryByText('workflow.emptyFileUnfinished')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'workflow.actionContinue' })).not.toBeInTheDocument()
+
+    view.rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [card],
+      stopOutcome: { reason: 'error', charged: true, savedOutput: false, removedFiles: [], writtenFiles: [] },
+    })]} />)
+    expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'workflow.actionContinue' })).toBeInTheDocument()
+
+    view.rerender(<MessageList messages={[]} streamRenderItems={[{ ...card, layer: 'tool_call' }]} />)
+    expect(screen.getByText('workflow.emptyFileUnfinished')).toBeInTheDocument()
+  })
+
+  it('uses the round note as the sole terminal UI for empty-file cleanup while keeping continue reachable', () => {
+    const onAction = vi.fn()
+    const card = { type: 'iteration_exhausted' as const, layer: 'empty_file_correction' as const,
+      unfinishedFiles: ['仍存在的文件'], rolledBackFiles: ['已撤销的临时文件'] }
+    render(<MessageList messages={[createMessage({
+      role: 'assistant', content: '', statusCards: [card], stopOutcome: {
+        reason: 'incomplete', charged: true, savedOutput: true, removedFiles: ['已撤销的临时文件'], writtenFiles: [],
+      },
+    })]} onIterationAssistAction={onAction} />)
+
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('panel.roundIncompleteSaved')
+    expect(screen.queryByText('workflow.emptyFileUnfinished')).not.toBeInTheDocument()
+    expect(screen.queryByText(/仍存在的文件|已撤销的临时文件/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'workflow.actionContinue' }))
+    expect(onAction).toHaveBeenCalledWith('continue', card)
+  })
+
+  it('hides a canonical incomplete display card while keeping exactly one continue action', () => {
+    const onAction = vi.fn()
+    const card = { id: 'canonical-empty', type: 'iteration_exhausted' as const,
+      layer: 'empty_file_correction' as const, unfinishedFiles: ['仍存在的文件'],
+      rolledBackFiles: ['已撤销的临时文件'], timestamp: new Date() }
+    render(<MessageList messages={[createMessage({
+      role: 'assistant', content: '', displayItems: [card], stopOutcome: {
+        reason: 'incomplete', charged: true, savedOutput: true,
+        removedFiles: ['已撤销的临时文件'], writtenFiles: [],
+      },
+    })]} onIterationAssistAction={onAction} />)
+
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('panel.roundIncompleteSaved')
+    expect(screen.queryByText('workflow.emptyFileUnfinished')).not.toBeInTheDocument()
+    expect(screen.queryByText(/仍存在的文件|已撤销的临时文件/)).not.toBeInTheDocument()
+    const continueButtons = screen.getAllByRole('button', { name: 'workflow.actionContinue' })
+    expect(continueButtons).toHaveLength(1)
+    fireEvent.click(continueButtons[0])
+    expect(onAction).toHaveBeenCalledWith('continue', card)
   })
 
   it('keeps the big-task summary on a tool-turn stop that names no files', () => {
@@ -399,21 +449,19 @@ describe('MessageList', () => {
     expect(screen.getByText('Agent label reply')).toBeInTheDocument()
   })
 
-  it('names the workflow by deduplicated role names, or as single mode when no planned agent is recognized', () => {
+  it('does not expose router topology or internal agent identifiers', () => {
     const timestamp = new Date()
     const { unmount } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [
       { id: 'router-multi', type: 'router_decided', initialAgent: 'planner', workflowAgents: ['planner', 'hook_designer', 'writer'], timestamp },
     ] })]} />)
-    expect(screen.getByText(
-      'workflow.workflowLabel: chat:workflow.agents.planner → chat:workflow.agents.hook_designer → chat:workflow.agents.writer',
-    )).toBeInTheDocument()
-    expect(screen.queryByText(/workflow\.singleMode/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/workflow\.workflowLabel/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/planner|hook_designer|writer/)).not.toBeInTheDocument()
     unmount()
 
     render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [
       { id: 'router-single', type: 'router_decided', initialAgent: 'custom_router_target', timestamp },
     ] })]} />)
-    expect(screen.getByText('workflow.workflowLabel: workflow.singleMode')).toBeInTheDocument()
+    expect(screen.queryByText(/workflow\.workflowLabel|workflow\.singleMode/)).not.toBeInTheDocument()
     expect(screen.queryByText(/custom_router_target/)).not.toBeInTheDocument()
   })
 

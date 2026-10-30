@@ -4,6 +4,8 @@ Status: implemented
 
 关联：推翻 `openai_agents/model.py` 原注释里「只支持一个供应商、回滚靠 git revert」的取舍；模型名由来见 [deepseek-flash 升级](../feature/2026-10-02-deepseek-flash-model.md)。
 
+后续：第 2、3 条已调整（只出了思考就失败的调用当场切换、流内错误算供应商失败、路由被拒试另一边），见 [2026-10-26 调整](2026-10-26-failover-after-reasoning-and-in-stream-errors.md)。
+
 ## Problem
 
 写作 Agent、路由、输入建议、润色和素材拆解只接了一个供应商，地址、Key、模型名写死。这个供应商宕机、限流或 Key 失效时，所有 AI 功能一起停，只能改代码重新部署。

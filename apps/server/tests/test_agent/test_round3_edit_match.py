@@ -18,6 +18,7 @@ import pytest
 
 from agent.tools.file_ops.edit import (
     EVENT_LOOP_LOCK_WAIT_SECONDS,
+    EditFileError,
     FileEditor,
     FileWriteBusyError,
     acquire_file_write_lock,
@@ -97,12 +98,15 @@ def test_approx_wall_clock_deadline_stops_a_long_scan(monkeypatch):
     pattern = _mutated_pattern(content, 2000, 200)
 
     started = time.monotonic()
+    stats: dict[str, int] = {}
     result = find_approximate_match(
-        content, pattern, max_error_rate=0.25, min_pattern_len=8
+        content, pattern, max_error_rate=0.25, min_pattern_len=8, stats=stats
     )
     elapsed = time.monotonic() - started
 
     assert result is None
+    assert stats["workload_skipped"] == 0
+    assert stats["deadline_exceeded"] == 1
     assert elapsed < 1.0, f"超时未生效，耗时 {elapsed:.2f}s"
 
 
@@ -115,6 +119,50 @@ def test_approx_guard_does_not_over_block_normal_edits():
     )
     assert match is not None
     assert match[2] >= 0.75
+
+
+def test_replace_workload_skip_requests_shorter_exact_unique_snippet(editor):
+    content = "甲" * 5001
+    with pytest.raises(EditFileError) as exc:
+        editor._apply_replace(
+            content,
+            {
+                "op": "replace",
+                "old": "乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥",
+                "new": "替换文本",
+            },
+            0,
+            [],
+            [],
+        )
+
+    message = str(exc.value)
+    assert "近似扫描因工作量保护未执行" in message
+    assert "较短、逐字、唯一" in message
+    assert "更长" not in message
+
+
+def test_replace_deadline_requests_shorter_exact_unique_snippet(editor, monkeypatch):
+    def time_out(*_args, stats=None, **_kwargs):
+        assert stats is not None
+        stats.update(paragraph_rejected=0, workload_skipped=0, deadline_exceeded=1)
+        return None
+
+    monkeypatch.setattr("agent.tools.file_ops.edit.find_approximate_match", time_out)
+
+    with pytest.raises(EditFileError) as exc:
+        editor._apply_replace(
+            "当前正文里没有目标片段。",
+            {"op": "replace", "old": "一个逐字并不存在的目标片段", "new": "替换文本"},
+            0,
+            [],
+            [],
+        )
+
+    message = str(exc.value)
+    assert "近似扫描因截止时间到达而未完成" in message
+    assert "较短、逐字、唯一" in message
+    assert "更长" not in message
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +429,17 @@ def test_edit_file_schema_declares_occurrence_and_match_options():
     assert EDIT_FILE_TOOL["input_schema"]["properties"]["continue_on_error"]["type"] == "boolean"
     # occurrence 是首选出路，描述里必须点名它优先于 replace_all
     assert "occurrence" in item_props["replace_all"]["description"]
+
+
+def test_edit_file_schema_shows_explicit_op_and_full_batch_retry():
+    edits_schema = EDIT_FILE_TOOL["input_schema"]["properties"]["edits"]
+    description = edits_schema["description"]
+    continue_description = EDIT_FILE_TOOL["input_schema"]["properties"]["continue_on_error"]["description"]
+
+    assert '"op": "replace"' in description
+    assert '"old"' in description and '"new"' in description
+    assert "failed_edits" in continue_description
+    assert "完整 edits 列表" in continue_description
 
 
 # ---------------------------------------------------------------------------

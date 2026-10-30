@@ -29,14 +29,21 @@ export function validateAncestorComparison(comparison, baseSha, headLabel) {
 
 export function selectExactSuccessfulRun({ workflowPath, sourceSha, runs }) {
   invariant(Array.isArray(runs), `unexpected ${workflowPath} runs response`);
-  const matches = runs.filter((run) =>
+  const exact = runs.filter((run) =>
     run?.head_sha === sourceSha &&
     run?.head_branch === "main" &&
-    run?.event === "push" &&
-    run?.status === "completed" &&
-    run?.conclusion === "success" &&
     String(run?.path ?? "").replace(/^\//, "").split("@", 1)[0] === workflowPath,
   );
+  const pushes = exact.filter(run => run.event === "push");
+  if (pushes.length > 0) {
+    invariant(pushes.length === 1, `expected one exact ${workflowPath} push run; found ${pushes.length}`);
+    invariant(pushes[0].status === "completed" && pushes[0].conclusion === "success",
+      `${workflowPath} main push did not succeed; recovery cannot mask its state`);
+    return pushes[0];
+  }
+  // Recovery is a distinct event, admitted only when no push instance exists.
+  // workflowProof still verifies its authenticated source guard and full graph.
+  const matches = exact.filter(run => run.event === "workflow_dispatch" && run.status === "completed" && run.conclusion === "success");
   invariant(matches.length === 1, `expected one exact successful ${workflowPath} run; found ${matches.length}`);
   return matches[0];
 }
@@ -69,8 +76,6 @@ async function workflowProof(base, repository, sourceSha, workflowFile, validato
   const workflow = await githubJson(`${base}/actions/workflows/${workflowFile}`, token);
   const params = new URLSearchParams({
     branch: "main",
-    event: "push",
-    status: "completed",
     head_sha: sourceSha,
     per_page: "100",
   });

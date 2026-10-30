@@ -1,8 +1,10 @@
 """
-Email service using Resend API for sending verification codes.
+Email service using Resend API for verification codes and Pro renewal reminders.
 """
 import asyncio
 import os
+from datetime import date
+from html import escape
 
 import resend
 from email_validator import validate_email
@@ -251,3 +253,146 @@ async def send_verification_email(
         ):
             raise InvalidRecipientError("Recipient address was rejected") from e
         return False
+
+
+RENEWAL_STAGE_BEFORE_EXPIRY = "before_expiry"
+RENEWAL_STAGE_AFTER_EXPIRY = "after_expiry"
+RENEWAL_REPLY_TO = os.getenv("RENEWAL_REPLY_TO_EMAIL", "support@zenstory.ai")
+
+# Only subscription facts go into these emails: never project names, word
+# counts or anything else the author wrote.
+_RENEWAL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
+    RENEWAL_STAGE_BEFORE_EXPIRY: {
+        "en": {
+            "subject": "Your ZenStory Pro ends on {date}",
+            "body": "Your ZenStory Pro ends on {date}. Your account then moves to the Free plan with 3 AI messages a day, and all your projects and files stay ready to open and edit.",
+            "renewal": "If you renew before then, the new 30 days start on {date}.",
+            "action": "Renew Pro",
+        },
+        "zh": {
+            "subject": "你的 ZenStory Pro 将在{date}到期",
+            "body": "你的 ZenStory Pro 将在{date}到期。到期后账号回到免费版，每天可以发 3 条 AI 消息，已有的作品和文件都会保留，照常可以打开和编辑。",
+            "renewal": "到期前续费，新的 30 天从{date}接着算。",
+            "action": "续费 Pro",
+        },
+    },
+    RENEWAL_STAGE_AFTER_EXPIRY: {
+        "en": {
+            "subject": "Your ZenStory Pro has ended",
+            "body": "Your ZenStory Pro ended on {date}. Your account is now on the Free plan with 3 AI messages a day, and all your projects and files are still there to open and edit.",
+            "renewal": "If you renew, Pro runs for 30 days from the day you pay.",
+            "action": "Renew Pro",
+        },
+        "zh": {
+            "subject": "你的 ZenStory Pro 已到期",
+            "body": "你的 ZenStory Pro 已在{date}到期。账号现在是免费版，每天可以发 3 条 AI 消息，作品和文件都还在，照常可以打开和编辑。",
+            "renewal": "重新开通后，Pro 从付款当天起算 30 天。",
+            "action": "重新开通 Pro",
+        },
+    },
+}
+
+_RENEWAL_SHARED: dict[str, dict[str, str]] = {
+    "en": {
+        "greeting": "Hi there,",
+        "reason": "You're receiving this email because your ZenStory account has Pro.",
+    },
+    "zh": {
+        "greeting": "你好，",
+        "reason": "你收到这封邮件，是因为你的 ZenStory 账号开通了 Pro。",
+    },
+}
+
+
+def _format_renewal_date(value: date, language: str) -> str:
+    if language == "en":
+        return f"{value.strftime('%B')} {value.day}"
+    return f"{value.month}月{value.day}日"
+
+
+def send_renewal_reminder_email(
+    *,
+    email: str,
+    stage: str,
+    expires_on: date,
+    renew_url: str,
+    language: str,
+    user_id: str,
+) -> bool:
+    """Send a Pro renewal reminder. Returns True when Resend accepted it.
+
+    Logs carry the user id only, never the address.
+    """
+    if not RESEND_API_KEY:
+        log_with_context(logger, 30, "Resend API key not configured", user_id=user_id)
+        return False
+
+    language = "en" if language == "en" else "zh"
+    content = _RENEWAL_CONTENT[stage][language]
+    shared = _RENEWAL_SHARED[language]
+    shown_date = _format_renewal_date(expires_on, language)
+    subject = content["subject"].format(date=shown_date)
+    paragraph = 'style="margin:0;font-size:15px;color:#444444;line-height:1.7;"'
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="{'en' if language == 'en' else 'zh-CN'}">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{escape(subject)}</title>
+    </head>
+    <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#ffffff;color:#1a1a1a;line-height:1.6;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#ffffff;">
+            <tr>
+                <td style="padding:48px 24px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:480px;margin:0 auto;">
+                        <tr><td style="padding-bottom:40px;"><span style="font-size:20px;font-weight:600;color:#1a1a1a;letter-spacing:-0.3px;">ZenStory</span></td></tr>
+                        <tr><td style="padding-bottom:24px;"><p style="margin:0;font-size:15px;color:#1a1a1a;">{escape(shared['greeting'])}</p></td></tr>
+                        <tr><td style="padding-bottom:16px;"><p {paragraph}>{escape(content['body'].format(date=shown_date))}</p></td></tr>
+                        <tr><td style="padding-bottom:32px;"><p {paragraph}>{escape(content['renewal'].format(date=shown_date))}</p></td></tr>
+                        <tr>
+                            <td style="padding-bottom:40px;">
+                                <a href="{escape(renew_url)}" style="display:inline-block;background-color:#1a1a1a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 24px;border-radius:8px;">{escape(content['action'])}</a>
+                            </td>
+                        </tr>
+                        <tr><td style="padding-bottom:24px;"><div style="height:1px;background-color:#eeeeee;"></div></td></tr>
+                        <tr>
+                            <td>
+                                <p style="margin:0 0 8px 0;font-size:13px;color:#999999;">© 2026 ZenStory · zenstory.ai</p>
+                                <p style="margin:0;font-size:12px;color:#cccccc;">{escape(shared['reason'])}</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+    params = {
+        "from": f"ZenStory <{RESEND_FROM_EMAIL}>",
+        "to": [validate_email(email, check_deliverability=False).ascii_email or email],
+        "reply_to": RENEWAL_REPLY_TO,
+        "subject": subject,
+        "html": html_content,
+    }
+    try:
+        r = resend.Emails.send(params)  # type: ignore[arg-type]
+    except Exception as e:
+        log_with_context(
+            logger,
+            40,  # ERROR
+            "Error sending renewal reminder email",
+            user_id=user_id,
+            stage=stage,
+            error_type=type(e).__name__,
+        )
+        return False
+
+    if r.get("id"):
+        log_with_context(logger, 20, "Renewal reminder email sent", user_id=user_id, stage=stage)
+        return True
+    log_with_context(logger, 40, "Renewal reminder email was not accepted", user_id=user_id, stage=stage)
+    return False

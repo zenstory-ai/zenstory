@@ -261,7 +261,8 @@ async def test_elided_content_still_blocks_truncated_overwrite(
 
     # 拒绝写入必须让用户看得见，否则是静默丢内容
     surfaced = _collect_sse_text(sse_events)
-    assert "系统提醒" in surfaced and "</file>" in surfaced
+    assert "本次改写未保存，原文保持不变。" in surfaced
+    assert "</file>" not in surfaced and "edit_file" not in surfaced
 
 
 @pytest.mark.asyncio

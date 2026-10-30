@@ -486,11 +486,13 @@ async def _run_against_local_model(
     agent_type: str = "writer",
     followups: list[dict] | None = None,
     run_starts: list[int] | None = None,
+    client_may_disconnect: bool = False,
 ):
     """script(request_index) -> 该次模型调用要返回的 chunk 列表。
 
     followups：同一个 state 上接着跑的 run，每项 {"agent_type": ..., "state": {...}}；
-    run_starts：传入时记下每个 run 第一次请求的下标。
+    run_starts：传入时记下每个 run 第一次请求的下标；
+    client_may_disconnect：run 会在流中途断开（截停），服务端写入时断开不算错误。
     """
     from agent.openai_agents.model import reset_sdk_model_cache
     from agent.openai_agents.runner import run_openai_agents_streaming_agent
@@ -520,6 +522,9 @@ async def _run_against_local_model(
                     self.wfile.flush()
                 self.wfile.write(b"data: [DONE]\n\n")
                 self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError) as exc:
+                if not client_may_disconnect:  # pragma: no cover - surfaced via assertion
+                    server_errors.append(f"{type(exc).__name__}: {exc}")
             except Exception as exc:  # pragma: no cover - surfaced via assertion
                 server_errors.append(f"{type(exc).__name__}: {exc}")
                 self.send_response(500)

@@ -295,6 +295,9 @@ async def _route_with_chat_model(user_message: str) -> dict[str, Any]:
             # Every attempt is written to the ledger in the background: routing sits in front of
             # every writing turn and must not add a database round trip before the first token.
             usage_attribution=_router_usage_attribution(),
+            # 路由没有副作用：一边拒收这次请求（生产 10-25 MiniMax 连续 422）时让另一边试，
+            # 不让作者这一轮在动笔前就停下。
+            fail_over_on_rejection=True,
             messages=[
                 {"role": "system", "content": ROUTER_PROMPT},
                 {"role": "user", "content": user_message},
@@ -523,14 +526,29 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
     if turn_disposition not in {"resume_interrupted_task", "answer_pending_clarification"}:
         scope = scope[:MAX_SCOPE_CHARS]
 
+    write_content = _coerce_optional_bool(payload.get("write_content"))
+    # 保留既有可选字段和明确等价布尔值；外部显式未知值已在 parser 拒绝。
+    read_only = _coerce_optional_bool(payload.get("read_only")) is True
+    if read_only and write_content is True:
+        # 路由这一轮自己同时判了「不改文件」和「要写正文」（生产 10-26：「一并扩到2000字先」）：
+        # 要写正文就要改文件，只读那一半不成立。只纠正这一轮的回答；接续时从上一轮继承来的
+        # write_content 不能抵消作者这一轮新加的「别改文件」（见 _resolve_turn_decision）。
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Router marked a write request read-only; not treating it as read-only",
+            agent_type=agent_type,
+            workflow_type=workflow_type,
+        )
+        read_only = False
+
     return {
         "agent_type": agent_type,
         "workflow_type": workflow_type,
         "reason": reason,
         "confidence": confidence,
-        "write_content": _coerce_optional_bool(payload.get("write_content")),
-        # 保留既有可选字段和明确等价布尔值；外部显式未知值已在 parser 拒绝。
-        "read_only": _coerce_optional_bool(payload.get("read_only")) is True,
+        "write_content": write_content,
+        "read_only": read_only,
         "scope": scope,
         "requested_file_types": payload.get("requested_file_types", []),
         "turn_disposition": turn_disposition,
@@ -593,7 +611,7 @@ _AGENT_TYPES: tuple[str, ...] = ("planner", "hook_designer", "writer", "quality_
 
 RESUMABLE_STOP_REASONS: frozenset[str] = frozenset(
     {"max_turns_exceeded", "no_progress", "model_call_budget_exhausted",
-     "run_deadline_exceeded", "output_truncated"}
+     "run_deadline_exceeded", "output_truncated", "repetition_loop"}
 )
 MAX_SCOPE_CONSTRAINTS = 8
 MAX_SCOPE_CONSTRAINTS_JSON_CHARS = 2048

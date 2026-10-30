@@ -686,6 +686,39 @@
           "value": "0"
         }
       ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/locales/(.*)",
+      "has": [
+        {
+          "type": "query",
+          "key": "v"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?:brand|org)/.*|favicon\\.svg)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, stale-while-revalidate=86400"
+        }
+      ]
     }
   ],
   "rewrites": [

@@ -590,7 +590,7 @@ async def test_a_read_timeout_in_the_middle_of_a_stream_is_a_timeout(sdk_models,
 
     # The OpenAI client wraps timeouts only while sending; mid-stream it surfaces httpx's own error.
     sdk_models["minimax"] = _StreamingModel(
-        [_event("response.reasoning_text.delta")], error=httpx.ReadTimeout("read timed out")
+        [_event("response.output_text.delta")], error=httpx.ReadTimeout("read timed out")
     )
     with pytest.raises(httpx.ReadTimeout):
         await _drain(sdk_model.build_failover_chat_model("slow", usage_attribution=LLMUsageAttribution(user_id="u", source="agent")))
@@ -870,3 +870,276 @@ async def test_diagnostics_do_not_execute_exception_properties_or_change_failove
         assert endpoints["deepseek"].calls == []
     record, = _diagnostics(caplog)
     _assert_private_failure(record)
+
+
+# --------------------------------------------------------------- 2026-10-26 smoother failover
+
+
+def _reasoning_chunk(text: str):
+    chunk = _chunk()
+    chunk.choices[0].delta.reasoning_content = text
+    return chunk
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_call_that_streamed_only_reasoning_is_served_by_the_backup(chunk_endpoints, caplog):
+    """Production (2026-10-25/26): MiniMax thought for 3-9 minutes, then timed out or sent an error,
+    and the whole turn failed; nothing but reasoning had streamed, so the backup can answer the call."""
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("先想想第一章")], _read_timeout())
+    scripts["deepseek"] = ([_chunk(role="assistant"), _chunk(content="答"), _chunk(finish_reason="stop")], None)
+    model = sdk_model.build_failover_chat_model("reasoning-only")
+
+    with caplog.at_level("WARNING"):
+        events = await _drain_real(model)
+
+    types = [event.type for event in events]
+    assert "response.reasoning_summary_text.delta" in types  # the reasoning already shown stays
+    assert types[-1] == "response.completed"
+    assert events[-1].response.output[-1].content[0].text == "答"
+    assert calls == {"minimax": 1, "deepseek": 1}
+    assert model.served_model == "deepseek-flash"
+    failover = [r for r in caplog.records if r.getMessage() == "LLM call failing over to the other provider"]
+    assert failover and failover[0].custom_fields["after_reasoning"] is True
+    # The author's next call in this chat goes to the backup as well.
+    _, provider = await _call("reasoning-only")
+    assert provider.name == "deepseek"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_an_error_event_inside_the_stream_is_answered_by_the_backup(chunk_endpoints):
+    """MiniMax reports some failures as an error event in an HTTP 200 stream ("unknown error ... (1000)")."""
+    scripts, calls = chunk_endpoints
+    in_band = openai.APIError(
+        "unknown error", request=httpx.Request("POST", "https://llm.test"), body={"message": "unknown error"}
+    )
+    assert llm_failover.is_in_stream_error(in_band)
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], in_band)
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+
+    events = await _drain_real(sdk_model.build_failover_chat_model("in-band"))
+
+    assert events[-1].type == "response.completed"
+    assert calls == {"minimax": 1, "deepseek": 1}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [400, 413, 422])
+async def test_routing_tries_the_other_provider_when_one_rejects_the_request(endpoints, status):
+    """Production (2026-10-25 12:55): MiniMax answered six routing calls in two minutes with 422 and the
+    author's turns stopped before any agent ran. Routing has no side effects, so the backup gets a try,
+    without the rejection counting against the primary."""
+    endpoints["minimax"].script = [_status_error(openai.UnprocessableEntityError if status == 422 else
+                                                 openai.BadRequestError, status)]
+
+    _, provider = await _call("routing", fail_over_on_rejection=True)
+
+    assert provider.name == "deepseek"
+    _, next_call = await _call("routing")
+    assert next_call.name == "minimax"  # the session is not pinned to the backup for a rejection
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_in_stream_errors_never_open_the_circuit_for_other_authors(chunk_endpoints, monkeypatch):
+    """An in-stream error may be about one author's content (e.g. a moderation rejection): it moves that
+    session to the backup but must not count towards the primary's circuit."""
+    monkeypatch.setattr(llm_failover, "LLM_CIRCUIT_FAILURE_THRESHOLD", 1)
+    scripts, _calls = chunk_endpoints
+    in_band = openai.APIError("rejected", request=httpx.Request("POST", "https://llm.test"), body={"message": "x"})
+    assert not llm_failover.is_provider_unavailable(in_band)
+    for session in ("author-a", "author-b", "author-c"):
+        scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], in_band)
+        scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+        await _drain_real(sdk_model.build_failover_chat_model(session))
+
+    assert llm_failover.ordered_providers("author-a")[0].name == "deepseek"  # that session moved
+    assert llm_failover.ordered_providers("someone-else")[0].name == "minimax"  # nobody else did
+
+
+# --------------------------------------------------------------- 2026-10-26 thinking observation
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_each_call_records_how_much_it_thought_before_answering(chunk_endpoints, caplog):
+    """Observation for a future cut-off: reasoning characters and time before the first answer output."""
+    scripts, _calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("先想"), _reasoning_chunk("再想想"),
+                           _chunk(content="答"), _reasoning_chunk("答完又想"), _chunk(finish_reason="stop")], None)
+    model = sdk_model.build_failover_chat_model("observe")
+
+    await _drain_real(model)
+
+    chars, first_answer_ms = model.take_thinking_before_answer()
+    assert chars == len("先想再想想")  # reasoning after the answer started is not counted
+    assert isinstance(first_answer_ms, int)
+    assert model.take_thinking_before_answer() is None  # taken once, by the usage hook
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_call_that_failed_while_thinking_is_logged_with_what_it_thought(chunk_endpoints, caplog):
+    scripts, _calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想了很久")], _read_timeout())
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+
+    with caplog.at_level("INFO"):
+        await _drain_real(sdk_model.build_failover_chat_model("observe-fail"))
+
+    lines = [r.custom_fields for r in caplog.records if r.getMessage() == "LLM call thinking before answer"]
+    assert lines and lines[0]["outcome"] == "failed"
+    assert lines[0]["thinking_chars_before_answer"] == len("想了很久")
+    assert lines[0]["first_answer_ms"] is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_usage_hook_logs_reasoning_tokens_with_the_thinking_observation(caplog):
+    from agent.openai_agents.usage_hooks import build_agent_run_hooks
+
+    class _Model:
+        served_model = "MiniMax-M3.1-Flash"
+
+        def take_call_timing(self):
+            return SimpleNamespace(duration_ms=4200, outcome="success", ttft_ms=900)
+
+        def take_thinking_before_answer(self):
+            return (1234, 3100)
+
+    usage = SimpleNamespace(output_tokens=900, output_tokens_details=SimpleNamespace(reasoning_tokens=700),
+                            input_tokens=10, input_tokens_details=None, total_tokens=910)
+    hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
+    with caplog.at_level("INFO"):
+        await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=usage, output=[]))
+
+    line = next(r.custom_fields for r in caplog.records if r.getMessage() == "LLM call thinking before answer")
+    assert (line["outcome"], line["thinking_chars_before_answer"], line["first_answer_ms"]) == ("completed", 1234, 3100)
+    assert (line["reasoning_tokens"], line["output_tokens"], line["duration_ms"]) == (700, 900, 4200)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_broken_thinking_observation_never_fails_the_run():
+    from agent.openai_agents.usage_hooks import build_agent_run_hooks
+
+    class _Model:
+        served_model = "MiniMax-M3.1-Flash"
+
+        def take_call_timing(self):
+            return None
+
+        def take_thinking_before_answer(self):
+            raise RuntimeError("observation broke")
+
+    hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
+    await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=None, output=[]))
+
+
+# ------------------------------------------------- 2026-10-29 backup would reject the replayed input
+
+
+def _tool_turn(call_id: str, *, reasoning: str | None) -> list[dict]:
+    items: list[dict] = []
+    if reasoning is not None:
+        items.append({"type": "reasoning", "id": f"r-{call_id}", "summary": [{"type": "summary_text", "text": reasoning}]})
+    items.append({"type": "function_call", "call_id": call_id, "name": "query_files", "arguments": "{}"})
+    items.append({"type": "function_call_output", "call_id": call_id, "output": "[]"})
+    return items
+
+
+async def _drain_input(model, run_input) -> list[object]:
+    from agents import ModelSettings
+    from agents.models.interface import ModelTracing
+
+    return [
+        event
+        async for event in model.stream_response("sys", run_input, ModelSettings(), [], None, [], ModelTracing.DISABLED)
+    ]
+
+
+def _in_band_error():
+    return openai.APIError("unknown error", request=httpx.Request("POST", "https://llm.test"), body={"message": "x"})
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_no_failover_when_the_backup_would_reject_a_tool_turn_without_reasoning(chunk_endpoints, caplog):
+    """Production (2026-10-27..29): MiniMax answered a tool call without thinking, later failed mid-stream,
+    and DeepSeek rejected the failover with HTTP 400 ("reasoning_content ... must be passed back"). The call
+    now ends with MiniMax's own retryable error; the author's retry goes to the backup."""
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], _in_band_error())
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+    run_input = [{"role": "user", "content": "写第三章"}, *_tool_turn("c1", reasoning=None)]
+
+    with caplog.at_level("WARNING"), pytest.raises(openai.APIError):
+        await _drain_input(sdk_model.build_failover_chat_model("gap"), run_input)
+
+    assert calls == {"minimax": 1, "deepseek": 0}
+    assert [r for r in caplog.records if r.getMessage().startswith("LLM failover skipped")]
+    assert llm_failover.ordered_providers("gap")[0].name == "deepseek"  # the retry goes to the backup
+    assert llm_failover.ordered_providers("someone-else")[0].name == "minimax"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "run_input",
+    [
+        # Every tool turn in this run carries its reasoning.
+        [{"role": "user", "content": "写第三章"}, *_tool_turn("c1", reasoning="先查文件")],
+        # The thinking-free tool turn came before the latest user message (an earlier run).
+        [{"role": "user", "content": "上一轮"}, *_tool_turn("c0", reasoning=None), {"role": "user", "content": "写第三章"}],
+    ],
+)
+async def test_failover_still_happens_when_the_backup_accepts_the_input(chunk_endpoints, run_input):
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], _in_band_error())
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+
+    events = await _drain_input(sdk_model.build_failover_chat_model("no-gap"), run_input)
+
+    assert events[-1].type == "response.completed"
+    assert calls == {"minimax": 1, "deepseek": 1}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_single_shot_agent_calls_skip_a_failover_the_backup_would_reject(sdk_models):
+    calls = {"minimax": 0, "deepseek": 0}
+
+    def answer(name, outcome):
+        async def get_response(*_args, **_kwargs):
+            calls[name] += 1
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+
+        return SimpleNamespace(get_response=get_response)
+
+    sdk_models["minimax"] = answer("minimax", _status_error(openai.InternalServerError, 503))
+    sdk_models["deepseek"] = answer("deepseek", "ok")
+    run_input = [{"role": "user", "content": "写第三章"}, *_tool_turn("c1", reasoning=None)]
+
+    with pytest.raises(openai.InternalServerError):
+        await sdk_model.build_failover_chat_model("gap-single").get_response("s", run_input, SimpleNamespace(reasoning=None))
+    assert calls == {"minimax": 1, "deepseek": 0}
+
+
+@pytest.mark.unit
+def test_an_input_the_sdk_cannot_convert_keeps_the_existing_failover(monkeypatch):
+    from agents.models.chatcmpl_converter import Converter
+
+    def broken(*_args, **_kwargs):
+        raise ValueError("unsupported item")
+
+    monkeypatch.setattr(Converter, "items_to_messages", broken)
+    deepseek = llm_providers.ModelProvider(
+        slot="backup", kind=llm_providers.DEEPSEEK, model="deepseek-flash", api_key="synthetic",
+        base_url="https://llm.test", reasoning_effort=None,
+    )
+    assert sdk_model._rejects_missing_tool_turn_reasoning(deepseek, [{"type": "unknown"}]) is False

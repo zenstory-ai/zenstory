@@ -8,7 +8,7 @@
  */
 
 export const APP_VERSION_URL = "/version.json";
-const CHECK_INTERVAL_MS = 10 * 60_000;
+const CHECK_INTERVAL_MS = 30 * 60_000;
 const MIN_CHECK_GAP_MS = 60_000;
 
 export interface AppUpdateState {

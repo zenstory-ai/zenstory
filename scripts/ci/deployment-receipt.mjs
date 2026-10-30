@@ -6,6 +6,7 @@ export { validateRunStability };
 
 const shaPattern = /^[a-f0-9]{40}$/;
 const githubActionsAppId = 15368;
+const recoverySourceStep = "Validate exact-source release recovery";
 
 export function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -35,7 +36,8 @@ export function validateDeploymentWorkflowProof({
   invariant(Number(run?.workflow_id) === Number(workflow.id), "CI workflow ID mismatch");
   invariant(normalizeWorkflowPath(run?.path) === workflowPath, `${label} run path mismatch`);
   invariant(run?.head_sha === sourceSha, "CI run source SHA mismatch");
-  invariant(run?.head_branch === "main" && run?.event === "push", "CI proof must be a main push run");
+  invariant(run?.head_branch === "main", "CI proof must use main");
+  invariant(run?.event === "push" || run?.event === "workflow_dispatch", "CI proof must be a main push run or exact-source recovery");
   invariant(run?.status === "completed" && run?.conclusion === "success", "CI run did not succeed");
   invariant(Number(checkSuite?.app?.id) === githubActionsAppId, "CI check suite is not GitHub Actions");
   invariant(Number(checkSuite?.id) === Number(run.check_suite_id), "CI check suite ID mismatch");
@@ -48,8 +50,34 @@ export function validateDeploymentWorkflowProof({
     summaries[0].status === "completed" && summaries[0].conclusion === "success",
     `${summaryJob} did not succeed: ${summaries[0].status}/${summaries[0].conclusion}`,
   );
+  const requiredJobs = [summaryJob];
+  if (run.event === "workflow_dispatch") {
+    const detectors = jobs.filter(job => job.name === "detect-changes");
+    invariant(detectors.length === 1 && detectors[0].status === "completed" && detectors[0].conclusion === "success",
+      "recovery requires one successful detect-changes job");
+    const guards = (detectors[0].steps ?? []).filter(step => step.name === recoverySourceStep);
+    invariant(guards.length === 1 && guards[0].status === "completed" && guards[0].conclusion === "success",
+      "recovery source guard was missing, ambiguous, or did not succeed");
+    requiredJobs.unshift("detect-changes");
+    if (summaryJob === "e2e-summary") {
+      const shards = jobs.filter(job => job.name.startsWith("e2e-test"));
+      const browsers = new Map();
+      for (const job of shards) {
+        const match = /^e2e-test \((chromium|firefox), ([1-8])\/8\)$/.exec(job.name);
+        invariant(match && job.status === "completed" && job.conclusion === "success", "recovery E2E shard has an unknown shape or did not succeed");
+        const indices = browsers.get(match[1]) ?? new Set();
+        invariant(!indices.has(match[2]), "duplicate recovery E2E shard");
+        indices.add(match[2]);
+        browsers.set(match[1], indices);
+        requiredJobs.push(job.name);
+      }
+      invariant(browsers.get("chromium")?.size === 8, "recovery requires all eight Chromium shards");
+      invariant(!browsers.has("firefox") || browsers.get("firefox").size === 8, "recovery Firefox shard set is incomplete");
+    }
+  }
   return {
     schemaVersion: 1,
+    event: run.event,
     repository,
     sourceSha,
     workflowId: Number(workflow.id),
@@ -58,7 +86,7 @@ export function validateDeploymentWorkflowProof({
     runAttempt: Number(run.run_attempt),
     checkSuiteId: Number(run.check_suite_id),
     checkSuiteAppId: githubActionsAppId,
-    requiredJobs: [summaryJob],
+    requiredJobs,
   };
 }
 

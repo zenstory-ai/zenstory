@@ -1,0 +1,63 @@
+name: Renewal reminders
+
+# Sends Pro renewal reminder emails (3 days before and 1 day after expiry).
+# The schedule runs against production at 10:00 Beijing time, with a 14:00 run
+# that only picks up anything the first run missed: the API sends each
+# reminder once. Manual runs default to a staging dry run.
+on:
+  schedule:
+  - cron: '0 2 * * *'
+  - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "API environment"
+        required: true
+        default: staging
+        type: choice
+        options:
+        - staging
+        - production
+      dry_run:
+        description: "Only count due reminders, send nothing"
+        required: true
+        default: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: renewal-reminders-${{ inputs.target || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  send:
+    name: Send due renewal reminders
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+    - name: Call the reminder endpoint
+      env:
+        TARGET: ${{ inputs.target || 'production' }}
+        DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        PRODUCTION_TOKEN: ${{ secrets.RENEWAL_REMINDER_TOKEN_PRODUCTION }}
+        STAGING_TOKEN: ${{ secrets.RENEWAL_REMINDER_TOKEN_STAGING }}
+      run: |
+        set -euo pipefail
+        if [ "$TARGET" = "production" ]; then
+          api="https://api.zenstory.ai"
+          token="$PRODUCTION_TOKEN"
+        else
+          api="https://staging-api-staging-a289.up.railway.app"
+          token="$STAGING_TOKEN"
+        fi
+        if [ -z "$token" ]; then
+          echo "::error::No reminder token secret is configured for $TARGET"
+          exit 1
+        fi
+        # The response holds counts only.
+        curl --fail-with-body --silent --show-error --max-time 240 \
+          -X POST \
+          -H "X-Internal-Token: $token" \
+          "$api/api/v1/subscription/internal/renewal-reminders?dry_run=$DRY_RUN"
+        echo

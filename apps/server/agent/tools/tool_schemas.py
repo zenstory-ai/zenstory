@@ -74,13 +74,16 @@ EDIT_FILE_TOOL: dict[str, Any] = {
             },
             "edits": {
                 "type": "array",
-                "description": "编辑操作列表",
+                "description": (
+                    "编辑操作列表。每一项都必须显式填写 op，不会根据其他字段猜测操作。"
+                    '最小示例：[{"op": "replace", "old": "当前原文", "new": "替换文本"}]。'
+                ),
                 "items": {
                     "type": "object",
                     "properties": {
                         "op": {
                             "type": "string",
-                            "description": "操作类型",
+                            "description": "必填的操作类型；缺失时该项会在 failed_edits 中按 0-based index 明确列出，不会自动补全",
                             "enum": ["replace", "insert_after", "insert_before", "append", "prepend", "delete"]
                         },
                         "old": {
