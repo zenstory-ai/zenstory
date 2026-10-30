@@ -7,7 +7,7 @@ for (const { width, language, theme } of [
   { width: 1440, language: 'en', theme: 'dark' },
 ]) {
   test(`author notes hide legacy AI proposals and recover a stale save at ${width} ${language} ${theme}`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 1000 });
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
     await mockResponsiveApi(page);
     await page.addInitScript(({ language, theme, user }) => {
       localStorage.setItem('zenstory-language', language);
@@ -70,7 +70,9 @@ for (const { width, language, theme } of [
     await notesInput.fill('旧约定\n\n原确认\n本地新约定\n再补一条');
     notes = '旧约定\n\n【作者确认】\n原确认\n【未标来源】\n另一端新约定';
     await dialog.getByRole('button', { name: save, exact: true }).click();
-    await expect(dialog.getByRole('alert')).toBeVisible();
+    await expect(dialog.getByRole('alert')).toBeInViewport({ ratio: 1 });
+    await expect(dialog.getByRole('button', { name: viewLatest, exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(dialog.getByRole('button', { name: viewLatest, exact: true })).toBeFocused();
     await expect(notesInput).toHaveValue('旧约定\n\n原确认\n本地新约定\n再补一条');
     expect(patches).toHaveLength(2);
     await page.screenshot({ path: `${shots}/notes-${width}-${language}-${theme}-conflict.jpg`, type: 'jpeg' });

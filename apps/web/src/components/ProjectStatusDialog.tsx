@@ -45,6 +45,8 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   const notesBaseRef = useRef("");
   const notesInputRef = useRef<HTMLTextAreaElement>(null);
   const notesSectionRef = useRef<HTMLDivElement>(null);
+  const notesConflictRef = useRef<HTMLDivElement>(null);
+  const viewLatestNotesRef = useRef<HTMLButtonElement>(null);
   const focusedInitialSectionRef = useRef(false);
   const latestNotesReadRef = useRef<object | null>(null);
 
@@ -178,6 +180,12 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     input?.focus({ preventScroll: true });
     if (input) input.setSelectionRange(input.value.length, input.value.length);
   }, [initialSection, isOpen, loading, project]);
+
+  useEffect(() => {
+    if (!notesConflict) return;
+    notesConflictRef.current?.scrollIntoView({ block: 'nearest' });
+    viewLatestNotesRef.current?.focus({ preventScroll: true });
+  }, [notesConflict]);
 
   // Sync updates from chat tool results while dialog is open.
   useEffect(() => {
@@ -456,14 +464,14 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-base md:text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
             />
             {notesConflict && (
-              <div className="space-y-2">
+              <div ref={notesConflictRef} className="space-y-2">
                 <div role="alert" className="text-sm text-[hsl(var(--error-text))]">
                   <p className="font-medium">{t('notesConflictTitle')}</p>
                   <p>{t('notesConflict')}</p>
                 </div>
                 {latestNotes === null ? <>
                   {latestNotesFailed && <p role="alert" className="text-sm text-[hsl(var(--error-text))]">{t('latestNotesFailed')}</p>}
-                  <Button variant="secondary" size="touch" isLoading={loadingLatestNotes}
+                  <Button ref={viewLatestNotesRef} variant="secondary" size="touch" isLoading={loadingLatestNotes}
                     onClick={() => void viewLatestNotes()}>{t('viewLatestNotes')}</Button>
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
