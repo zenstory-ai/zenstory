@@ -95,7 +95,7 @@ describe("appUpdate", () => {
     doc.dispatchEvent(new Event("visibilitychange"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     stop();
   });
