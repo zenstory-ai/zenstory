@@ -23,3 +23,5 @@
 - `edit.py` 少约 200 行；插入相关的修复只改一处，两个方向不会再分叉。
 - 漏写 op 的调用不再生效，模型会收到 `missing op` 错误并重发；以前被猜对的那部分调用要多一轮。
 - 直接调用 `_apply_insert_after/_before` 的测试改为 `_apply_insert(after=...)`；`test_author_changes` 里依赖「无 op 被猜成 replace」的参数改用 `operation` 别名，未读文件只逐字匹配这一点继续覆盖。
+
+部分反转：只有 old + new、没写 op 的编辑现在按 replace 执行，见 [2026-10-29](../bug-fix/2026-10-29-edit-old-new-without-op-is-replace.md)。
