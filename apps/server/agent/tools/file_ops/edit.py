@@ -726,15 +726,25 @@ class FileEditor:
                 if op in ("none", "null", "nil"):
                     op = ""
 
-                # op 缺失时不按 old/anchor/text 或 position 字样猜编辑类型：报缺 op，让模型带上 op 重发。
+                # op 缺失时不按 position 等字样猜编辑类型。只有 old + new、没有 anchor / text 这一种字段
+                # 形状只可能是 replace，照 replace 执行并留告警；其余缺 op 的组合报缺 op，让模型带上 op 重发。
                 if not op:
                     # Ignore completely empty edits (common trailing null/empty item)
                     if not any(v for v in edit.values() if v not in (None, "", [], {})):
                         warnings.append(f"Edit {i}: empty edit ignored")
                         continue
-                    raise ValueError(
-                        f"Edit {i}: missing op. Each edit must include op=replace/insert_after/insert_before/append/prepend/delete"
-                    )
+                    if (
+                        isinstance(edit.get("old"), str)
+                        and isinstance(edit.get("new"), str)
+                        and "anchor" not in edit
+                        and "text" not in edit
+                    ):
+                        op = "replace"
+                        warnings.append(f"Edit {i}: op omitted; old+new applied as op=replace")
+                    else:
+                        raise ValueError(
+                            f"Edit {i}: missing op. Each edit must include op=replace/insert_after/insert_before/append/prepend/delete"
+                        )
 
                 # Normalize common field aliases
                 if "old" not in edit and isinstance(edit.get("from"), str):
