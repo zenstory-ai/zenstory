@@ -34,3 +34,5 @@ Status: implemented
 - 收益：路由不再因为一边拒收请求而让作者的整轮停在动笔前。
 - 代价：失败那次调用的思考 token 已由主用计费，备用重新思考一次；思考面板里会有两段思考，前一段停在半路。
 - 代价：流内错误如果其实是请求本身的问题，会多试一次备用，这个会话 30 分钟内都用备用。
+
+后续：备用供应商会因缺 reasoning_content 拒收时不再切换，见 [2026-10-29](../bug-fix/2026-10-29-no-failover-when-backup-rejects-missing-reasoning.md)。

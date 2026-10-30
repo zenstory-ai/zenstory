@@ -461,6 +461,19 @@ def log_failover(
     )
 
 
+def log_failover_skipped(failed: ModelProvider, next_provider: ModelProvider, *, call_site: str) -> None:
+    """The other provider would reject this input, so the call ends with the original error."""
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "LLM failover skipped: the other provider would reject this input",
+        call_site=call_site,
+        from_provider=failed.name,
+        to_provider=next_provider.name,
+        reason="missing_tool_turn_reasoning",
+    )
+
+
 def _call_kwargs(
     provider: ModelProvider,
     kwargs: dict[str, Any],
