@@ -1037,3 +1037,71 @@ async def test_a_broken_thinking_observation_never_fails_the_run():
 
     hooks = build_agent_run_hooks("MiniMax-M3.1-Flash")
     await hooks.on_llm_end(None, SimpleNamespace(model=_Model()), SimpleNamespace(usage=None, output=[]))
+
+
+# ------------------------------------------------- 2026-10-29 backup would reject the replayed input
+
+
+def _tool_turn(call_id: str, *, reasoning: str | None) -> list[dict]:
+    items: list[dict] = []
+    if reasoning is not None:
+        items.append({"type": "reasoning", "id": f"r-{call_id}", "summary": [{"type": "summary_text", "text": reasoning}]})
+    items.append({"type": "function_call", "call_id": call_id, "name": "query_files", "arguments": "{}"})
+    items.append({"type": "function_call_output", "call_id": call_id, "output": "[]"})
+    return items
+
+
+async def _drain_input(model, run_input) -> list[object]:
+    from agents import ModelSettings
+    from agents.models.interface import ModelTracing
+
+    return [
+        event
+        async for event in model.stream_response("sys", run_input, ModelSettings(), [], None, [], ModelTracing.DISABLED)
+    ]
+
+
+def _in_band_error():
+    return openai.APIError("unknown error", request=httpx.Request("POST", "https://llm.test"), body={"message": "x"})
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_no_failover_when_the_backup_would_reject_a_tool_turn_without_reasoning(chunk_endpoints, caplog):
+    """Production (2026-10-27..29): MiniMax answered a tool call without thinking, later failed mid-stream,
+    and DeepSeek rejected the failover with HTTP 400 ("reasoning_content ... must be passed back"). The call
+    now ends with MiniMax's own retryable error; the author's retry goes to the backup."""
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], _in_band_error())
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+    run_input = [{"role": "user", "content": "写第三章"}, *_tool_turn("c1", reasoning=None)]
+
+    with caplog.at_level("WARNING"), pytest.raises(openai.APIError):
+        await _drain_input(sdk_model.build_failover_chat_model("gap"), run_input)
+
+    assert calls == {"minimax": 1, "deepseek": 0}
+    assert [r for r in caplog.records if r.getMessage().startswith("LLM failover skipped")]
+    assert llm_failover.ordered_providers("gap")[0].name == "deepseek"  # the retry goes to the backup
+    assert llm_failover.ordered_providers("someone-else")[0].name == "minimax"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "run_input",
+    [
+        # Every tool turn in this run carries its reasoning.
+        [{"role": "user", "content": "写第三章"}, *_tool_turn("c1", reasoning="先查文件")],
+        # The thinking-free tool turn came before the latest user message (an earlier run).
+        [{"role": "user", "content": "上一轮"}, *_tool_turn("c0", reasoning=None), {"role": "user", "content": "写第三章"}],
+    ],
+)
+async def test_failover_still_happens_when_the_backup_accepts_the_input(chunk_endpoints, run_input):
+    scripts, calls = chunk_endpoints
+    scripts["minimax"] = ([_chunk(role="assistant"), _reasoning_chunk("想")], _in_band_error())
+    scripts["deepseek"] = ([_chunk(content="答"), _chunk(finish_reason="stop")], None)
+
+    events = await _drain_input(sdk_model.build_failover_chat_model("no-gap"), run_input)
+
+    assert events[-1].type == "response.completed"
+    assert calls == {"minimax": 1, "deepseek": 1}

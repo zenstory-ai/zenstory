@@ -69,6 +69,31 @@ def _replay_reasoning_content(_context: Any) -> bool:
     return True
 
 
+def _rejects_missing_tool_turn_reasoning(provider: ModelProvider, input: Any) -> bool:
+    """Whether ``provider`` would reject this run input with HTTP 400 for missing reasoning.
+
+    The SDK replays a tool-call turn's reasoning only when it is non-empty, so a call the
+    other provider answered without thinking leaves an assistant tool-call message without
+    ``reasoning_content``. Checked on the messages the SDK would send; a conversion error
+    reports no gap and keeps the existing failover.
+    """
+    if not provider.kind.requires_tool_turn_reasoning or isinstance(input, str):
+        return False
+    try:
+        from agents.models.chatcmpl_converter import Converter
+
+        messages = Converter.items_to_messages(
+            input, model=provider.model, should_replay_reasoning_content=_replay_reasoning_content
+        )
+    except Exception:
+        return False
+    last_user = max((i for i, m in enumerate(messages) if m.get("role") == "user"), default=-1)
+    return any(
+        m.get("role") == "assistant" and m.get("tool_calls") and not m.get("reasoning_content")
+        for m in messages[last_user + 1:]
+    )
+
+
 def _sdk_model_for(provider: ModelProvider) -> Any:
     """The SDK Chat Completions model for a provider on the current loop's client.
 
@@ -208,6 +233,9 @@ class FailoverChatModel:
                 await llm_failover.arecord_failure(provider, self._session_id, exc)
                 if index + 1 >= len(ordered):
                     raise
+                if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
+                    llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
+                    raise
                 llm_failover.log_failover(provider, ordered[index + 1], call_site="agent")
                 continue
             self._succeeded(attempt_started)
@@ -301,6 +329,11 @@ class FailoverChatModel:
                 # A call that streamed only reasoning fails over now (nothing it produced
                 # would be repeated); after answer output the error propagates.
                 if answered or completed or index + 1 >= len(ordered):
+                    raise
+                # The backup would answer this input with HTTP 400: end with the original error
+                # (retryable; the session pin above sends the author's retry to the backup).
+                if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
+                    llm_failover.log_failover_skipped(provider, ordered[index + 1], call_site="agent")
                     raise
                 llm_failover.log_failover(
                     provider, ordered[index + 1], call_site="agent", after_reasoning=started

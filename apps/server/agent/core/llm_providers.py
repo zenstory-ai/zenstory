@@ -77,6 +77,9 @@ class ProviderKind:
     # MiniMax M3.1-Flash always reasons and answers that field with HTTP 400.
     can_disable_thinking: bool
     reasoning_efforts: frozenset[str]
+    # DeepSeek in thinking mode answers HTTP 400 when an assistant tool-call message after the
+    # last user message has no ``reasoning_content``; MiniMax accepts such a message.
+    requires_tool_turn_reasoning: bool = False
     # Env var naming the effort sent when the caller names none (None: send nothing).
     reasoning_effort_env: str | None = None
     default_reasoning_effort: str | None = None
@@ -97,6 +100,7 @@ DEEPSEEK = ProviderKind(
     default_model="deepseek-flash",
     can_disable_thinking=True,
     reasoning_efforts=frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"}),
+    requires_tool_turn_reasoning=True,
 )
 
 MINIMAX = ProviderKind(
