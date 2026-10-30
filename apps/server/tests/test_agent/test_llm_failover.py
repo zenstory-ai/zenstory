@@ -1105,3 +1105,41 @@ async def test_failover_still_happens_when_the_backup_accepts_the_input(chunk_en
 
     assert events[-1].type == "response.completed"
     assert calls == {"minimax": 1, "deepseek": 1}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_single_shot_agent_calls_skip_a_failover_the_backup_would_reject(sdk_models):
+    calls = {"minimax": 0, "deepseek": 0}
+
+    def answer(name, outcome):
+        async def get_response(*_args, **_kwargs):
+            calls[name] += 1
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+
+        return SimpleNamespace(get_response=get_response)
+
+    sdk_models["minimax"] = answer("minimax", _status_error(openai.InternalServerError, 503))
+    sdk_models["deepseek"] = answer("deepseek", "ok")
+    run_input = [{"role": "user", "content": "写第三章"}, *_tool_turn("c1", reasoning=None)]
+
+    with pytest.raises(openai.InternalServerError):
+        await sdk_model.build_failover_chat_model("gap-single").get_response("s", run_input, SimpleNamespace(reasoning=None))
+    assert calls == {"minimax": 1, "deepseek": 0}
+
+
+@pytest.mark.unit
+def test_an_input_the_sdk_cannot_convert_keeps_the_existing_failover(monkeypatch):
+    from agents.models.chatcmpl_converter import Converter
+
+    def broken(*_args, **_kwargs):
+        raise ValueError("unsupported item")
+
+    monkeypatch.setattr(Converter, "items_to_messages", broken)
+    deepseek = llm_providers.ModelProvider(
+        slot="backup", kind=llm_providers.DEEPSEEK, model="deepseek-flash", api_key="synthetic",
+        base_url="https://llm.test", reasoning_effort=None,
+    )
+    assert sdk_model._rejects_missing_tool_turn_reasoning(deepseek, [{"type": "unknown"}]) is False
