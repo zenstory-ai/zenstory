@@ -65,6 +65,13 @@ export const vercelConfig = {
     {source:'/:path(.*)',has:host(previews),headers:[{key:'X-Robots-Tag',value:'noindex'}]},
     {source:prefixPattern(contract.appPrefixes.filter(p=>p!=='pricing')),headers:[{key:'X-Robots-Tag',value:'noindex, nofollow'}]},
     {source:'/:path(api(?:/.*)?)',headers:[{key:'Cache-Control',value:'private, no-store'},{key:'x-vercel-enable-rewrite-caching',value:'0'}]},
+    // Browsers otherwise revalidate every file on every load, and each revalidation is a billed CDN request.
+    // Vite names /assets files by content hash and the app requests translations with a build hash (?v=),
+    // so those URLs never change content. Entry HTML keeps Vercel's default revalidation.
+    {source:'/assets/(.*)',headers:[{key:'Cache-Control',value:'public, max-age=31536000, immutable'}]},
+    {source:'/locales/(.*)',has:[{type:'query',key:'v'}],headers:[{key:'Cache-Control',value:'public, max-age=31536000, immutable'}]},
+    // Unhashed shared files may change in place: fresh for an hour, then refreshed in the background.
+    {source:'/:path((?:brand|org)/.*|favicon\\.svg)',headers:[{key:'Cache-Control',value:'public, max-age=3600, stale-while-revalidate=86400'}]},
   ],
   rewrites:[
     rewrite('/1e4acbc11fe3407a8a641d69a13af696.txt','/api/indexnow-key'),
