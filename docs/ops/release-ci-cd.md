@@ -314,13 +314,13 @@ readiness.
 
 ## Effect on active users
 
-The production API volume (`server-volume`, checked 2026-10-12) is still mounted at
-`/app/chroma_data`. Feedback screenshots are written there through
-`FEEDBACK_UPLOAD_DIR=/app/chroma_data/feedback`, and the volume also holds material
-originals. Staging's `staging-api-volume` is mounted at `/app/uploads`. Volume
+The production API mounts no volume (checked 2026-10-30; the 2026-10-12 `server-volume`
+at `/app/chroma_data` is gone). Uploads, material originals and feedback screenshots go
+to private object storage (`UPLOAD_STORAGE_BACKEND=s3`). Staging's API storage was not
+rechecked here. Volume
 attachments live in the Railway service settings: removing the old `chroma-data`
 entry from `railway.toml` does not detach anything (the name never matched).
-Preserve both volumes, their mount paths and all original bytes.
+Preserve the remaining volumes (databases, Redis), their mount paths and all original bytes.
 Railway cannot overlap deployments sharing a volume, so readiness does not prove
 uninterrupted API availability. The existing process cannot guarantee uninterrupted sessions while a
 volume-bound deployment switches.
@@ -344,8 +344,8 @@ improvement. Main continues to be the staging source and `release-production`
 the explicitly authorized production source, with provider Git integrations as
 the only deployment producers.
 
-Any future volume-free release first needs verified, reversible object migration
-for every material/screenshot reference, with legacy originals preserved. Preserve production data and volumes unless a separately authorized migration
+Any further object migration needs verified, reversible copies for every
+material/screenshot reference, with legacy originals preserved. Preserve production data and volumes unless a separately authorized migration
 has verified every consumer. Railway's checked-in
 TOML does not prove active cloud configuration; read back start command,
 readiness, drain window and source SHA from the provider.
