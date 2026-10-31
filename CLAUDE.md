@@ -6,6 +6,8 @@ AGENTS.md (imported above) is the shared project contract for working-tree safet
 
 For Agent semantic decisions, follow [the shared rule](AGENTS.md#agent-semantic-decisions): do not use keywords, phrase/substring matching, regex, or length/punctuation heuristics to infer intent, continuation, consent, scope, authority, or completion. Use validated structured decisions and actual state/evidence. Bounded protocol parsing and content/concurrency protection remain required; this rule does not authorize removing existing guards.
 
+This repository is open source. Keep site operations out of anything committed or published: decision notes, code comments, tests, commit messages, PR descriptions and release notes. That includes account actions (bans, refunds, data exports), content-safety cases, production user data, session/run/user IDs, quotes from real conversations, and internal audit reports. Describe the engineering problem and decision in neutral terms; keep operational records outside Git.
+
 Additional sources of truth:
 
 - [DESIGN.md](DESIGN.md): UI and product design decisions.
