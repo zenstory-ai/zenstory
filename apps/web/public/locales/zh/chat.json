@@ -57,8 +57,7 @@
     "newSessionFailed": "没能创建新对话，请重试",
     "sessionRecoveryFailed": "对话暂时没能加载，请重试。",
     "readWrittenFiles": "看正文",
-    "openWrittenFile": "打开《{{title}}》",
-    "writtenFileMissing": "这个文件已经不在了，可能已被删除。"
+    "openWrittenFile": "打开《{{title}}》"
   },
   "input": {
     "placeholder": "想写什么，直接说",

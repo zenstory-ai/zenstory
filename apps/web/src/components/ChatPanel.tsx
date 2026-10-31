@@ -706,19 +706,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       return;
     }
     // A saved round receipt names files without their type (or a later rename): read it, so the
-    // selection (and the next message's current-file context) carries the real one. A file deleted
-    // since gets a notice instead of an editor load error; any other failed lookup still opens it.
+    // selection (and the next message's current-file context) carries the real one. A failed lookup
+    // (deleted, inaccessible, offline) still opens it, so the editor shows its usual load error.
     void fileApi.get(fileId).then(
       (file) => open(file.file_type, file.title || title),
-      (err: unknown) => {
-        if (err instanceof ApiError && err.status === 404) {
-          if (currentProjectIdRef.current === currentProjectId) toast.error(t("chat:panel.writtenFileMissing"));
-          return;
-        }
-        open("draft", title);
-      },
+      () => open("draft", title),
     );
-  }, [currentProjectId, currentProject, setSelectedItem, isMobile, switchToEditor, t]);
+  }, [currentProjectId, currentProject, setSelectedItem, isMobile, switchToEditor]);
 
   // "Write chapter 1" once a framework exists but no prose yet; refreshed on open, after each round
   // and after an editor save while the card can show.

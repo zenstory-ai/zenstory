@@ -446,16 +446,19 @@ describe('ChatPanel mount smoke', () => {
     await waitFor(() => expect(mockProjectState.setSelectedItem).toHaveBeenCalledWith({ id: 'ch-1', type: 'draft', title: '第一章 雨夜' }))
   })
 
-  it('tells the author a deleted receipt file is gone instead of selecting it', async () => {
+  it.each([
+    [404, 'ERR_NOT_FOUND'],
+    [403, 'ERR_FORBIDDEN'],
+  ])('still opens a receipt file whose lookup fails with %i so the editor shows its own load error', async (status, code) => {
     const { ApiError } = await import('../../lib/apiClient')
-    mockGetFile.mockRejectedValueOnce(new ApiError(404, 'ERR_NOT_FOUND'))
+    mockGetFile.mockRejectedValueOnce(new ApiError(status, code))
     mockAgentStreamState.isStreaming = true
     render(<ChatPanel />)
     await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
     const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: (id: string, fileType: string, title: string) => void }
     act(() => props.onOpenFile?.('ch-gone', '', '第一章'))
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat:panel.writtenFileMissing'))
-    expect(mockProjectState.setSelectedItem).not.toHaveBeenCalled()
+    await waitFor(() => expect(mockProjectState.setSelectedItem).toHaveBeenCalledWith({ id: 'ch-gone', type: 'draft', title: '第一章' }))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('does not take the selection back when the author picks another file during the lookup', async () => {
