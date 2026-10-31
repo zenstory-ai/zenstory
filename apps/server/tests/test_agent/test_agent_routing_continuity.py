@@ -792,6 +792,73 @@ async def test_routing_round_trips_from_save_to_next_turn_resume(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("writing_prompt_configs")
+async def test_graph_wrap_up_card_saves_a_resumable_stop_and_continue_returns_to_the_writer(
+    routing_service, routing_service_project, db_session: Session
+):
+    """图层收尾（每个 run 都是 end_turn）：时限暂停卡让这一轮落 run_deadline_exceeded，状态卡带
+    last_agent，下一轮「继续」按卡片回到返修的 writer，而不是最后说话的审稿人。"""
+    from agent.core.session_loader import SessionLoader
+    from agent.graph.router import RouterDecision, _resolve_turn_decision
+
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+
+    async def workflow():
+        yield _router_decided("writer", "quick", write_content=True, scope="")
+        yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
+        yield _text("第五章写好了。")
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+        yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "quality_reviewer"})
+        yield _text("第三段节奏拖沓，需要压缩。")
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+        yield StreamEvent(
+            type=StreamEventType.ITERATION_EXHAUSTED,
+            data={
+                "layer": "collaboration",
+                "iterations_used": 2,
+                "max_iterations": 12,
+                "reason": "这一轮的时间快用完了。",
+                "last_agent": "writer",
+                "limit": "wall_clock",
+            },
+        )
+
+    with patch("agent.service.run_writing_workflow_streaming", return_value=workflow()):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="写第五章",
+            session=db_session,
+        ):
+            pass
+
+    saved = _latest_assistant(db_session, str(project.id))
+    metadata = json.loads(saved.message_metadata)
+    assert metadata["stop_reason"] == "run_deadline_exceeded"
+    assert metadata["status_cards"][0]["lastAgent"] == "writer"
+    assert metadata["status_cards"][0]["limit"] == "wall_clock"
+    assert metadata["routing"]["last_agent"] == "quality_reviewer"
+
+    history = SessionLoader(str(project.id), str(user.id)).load_chat_session(db_session).history_messages
+    state = {
+        "user_message": "继续",
+        "router_message": "继续",
+        "messages": history + [{"role": "user", "content": "继续"}],
+    }
+    resumed, _metadata = _resolve_turn_decision(
+        state,
+        RouterDecision(
+            agent_type="quality_reviewer",
+            workflow_type="review_only",
+            turn_disposition="resume_interrupted_task",
+        ),
+    )
+    assert resumed.agent_type == "writer"
+    assert resumed.write_content is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
 async def test_reviewer_reached_by_handoff_is_not_saved_as_the_task_owner(
     routing_service, routing_service_project, db_session: Session
 ):
@@ -927,7 +994,7 @@ async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
     import time
 
     from agent.core.run_meter import AgentRunMeter
-    from agent.graph.writing_graph import WRAP_UP_TEXT
+    from agent.graph.writing_graph import WRAP_UP_TEXT, WRAP_UP_TEXT_REVIEW_SKIPPED
 
     calls: list[str] = []
     meter = AgentRunMeter(wrap_up_after_s=600)
@@ -944,10 +1011,52 @@ async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
         events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
 
     assert calls == ["writer"]
-    quota.assert_called_once_with("u")
+    quota.assert_not_called()
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert texts.endswith(WRAP_UP_TEXT)
-    assert not any(e.type == StreamEventType.ITERATION_EXHAUSTED for e in events)
+    # 停在 writer 交给审稿人之前：正文已经交付，只是质量检查没跑。不发可续做的暂停卡——
+    # 否则「继续」会续进一个没有质量检查任务包的审稿回合，作者拿到一份审稿报告而不是接着写；
+    # 收尾说明也只说正文写好了、质检没来得及做，不叫作者回复「继续」。
+    assert texts.endswith(WRAP_UP_TEXT_REVIEW_SKIPPED)
+    assert WRAP_UP_TEXT not in texts
+    assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_wrap_up_after_review_resumes_the_writer_with_the_review_notes():
+    """审稿已跑、要求返修时到了收尾时间：返修 writer 不再开跑，审稿要点照实写给作者（随回复落库，
+    下一轮「继续」的 writer 看得到），暂停卡的 last_agent 是 writer。"""
+    import time
+
+    from agent.core.run_meter import AgentRunMeter
+
+    calls: list[str] = []
+    meter = AgentRunMeter(wrap_up_after_s=600)
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "writer":
+            for event in _write_done("w1"):
+                yield event
+            yield _text(LONG_TEXT)
+            return
+        meter.started_at = time.monotonic() - 700  # 审稿这一程把请求带过了收尾时刻
+        yield _text("第三段节奏拖沓。")
+        yield _handoff("writer", "第三段节奏拖沓，需要压缩", todo=["把第三段压到两百字以内"])
+
+    with patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True):
+        events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
+
+    assert calls == ["writer", "quality_reviewer"]
+    handoff_targets = [e.data["target_agent"] for e in events if e.type == StreamEventType.HANDOFF]
+    assert handoff_targets == ["quality_reviewer"], "返修不会再跑，不发悬空的交接"
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert "第三段节奏拖沓，需要压缩" in texts
+    assert "把第三段压到两百字以内" in texts
+    exhausted = [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert len(exhausted) == 1
+    assert exhausted[0].data["last_agent"] == "writer"
+    assert exhausted[0].data["limit"] == "wall_clock"
 
 
 @pytest.mark.asyncio
@@ -961,7 +1070,7 @@ async def test_wrap_up_keeps_the_writer_summary_when_review_will_not_run(trigger
     from agent.core import server_drain
     from agent.core.run_meter import AgentRunMeter
     from agent.core.workflow_events import CHAT_HOLD_BEGIN, CHAT_HOLD_DISCARD
-    from agent.graph.writing_graph import WRAP_UP_TEXT
+    from agent.graph.writing_graph import WRAP_UP_TEXT_REVIEW_SKIPPED
 
     monkeypatch.setattr(server_drain, "_draining_since", None)
     calls: list[str] = []
@@ -989,7 +1098,7 @@ async def test_wrap_up_keeps_the_writer_summary_when_review_will_not_run(trigger
     assert not any(e.type == StreamEventType.HANDOFF for e in events)
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
     assert LONG_TEXT in texts
-    assert texts.endswith(f"\n\n旧稿可以在历史版本里找回{WRAP_UP_TEXT}")
+    assert texts.endswith(f"\n\n旧稿可以在历史版本里找回{WRAP_UP_TEXT_REVIEW_SKIPPED}")
 
 
 @pytest.mark.asyncio
@@ -1005,11 +1114,14 @@ async def test_wrap_up_does_not_say_reply_continue_once_today_is_used_up(message
     meter = AgentRunMeter(wrap_up_after_s=600)
 
     async def fake_agent(state, agent_type, *_args, **_kwargs):
+        if agent_type == "writer":
+            for event in _write_done("w1"):
+                yield event
+            yield _text(LONG_TEXT)
+            return
         meter.started_at = time.monotonic() - 700
-        for event in _write_done("w1"):
-            yield event
-        yield _text(LONG_TEXT)
-        yield _handoff("quality_reviewer", "请审查第五章")
+        yield _text("第三段节奏拖沓。")
+        yield _handoff("writer", "第三段节奏拖沓，需要压缩")
 
     with patch("agent.graph.writing_graph._ai_messages_left_today", return_value=messages_left):
         events = await _run_graph(fake_agent, _state("写第五章", generation_mode="quality", run_meter=meter))
@@ -1026,7 +1138,7 @@ async def test_english_author_sees_english_status_and_wrap_up():
     import time
 
     from agent.core.run_meter import AgentRunMeter
-    from agent.graph.writing_graph import WRAP_UP_TEXT_EN
+    from agent.graph.writing_graph import WRAP_UP_TEXT_REVIEW_SKIPPED_EN
 
     meter = AgentRunMeter(wrap_up_after_s=600)
 
@@ -1046,4 +1158,4 @@ async def test_english_author_sees_english_status_and_wrap_up():
     router_messages = [e.data["message"] for e in events if e.type == StreamEventType.ROUTER_THINKING]
     assert router_messages == ["Fast mode: reading your request..."]
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert texts.endswith(WRAP_UP_TEXT_EN)
+    assert texts.endswith(WRAP_UP_TEXT_REVIEW_SKIPPED_EN)

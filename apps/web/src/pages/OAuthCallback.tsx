@@ -10,7 +10,7 @@ import { AUTH_CALLBACK_PATH, takeAuthCallbackParams } from "../lib/authCallbackP
 import { logger } from "../lib/logger";
 import { captureException } from "../lib/analytics";
 import { toUserErrorMessage } from "../lib/errorHandler";
-import { consumeOAuthPlanIntent } from "../lib/authFlow";
+import { consumeOAuthPlanIntent, planIntentBillingPath } from "../lib/authFlow";
 import { getAccessToken } from "../lib/apiClient";
 
 // Failures whose raw message (provider codes such as access_denied, internal
@@ -136,7 +136,7 @@ export default function OAuthCallback() {
         }
 
         if (planIntent && planIntent !== 'free') {
-          navigate(`/dashboard/billing?plan=${encodeURIComponent(planIntent)}`, { replace: true });
+          navigate(planIntentBillingPath(planIntent), { replace: true });
           return;
         }
 

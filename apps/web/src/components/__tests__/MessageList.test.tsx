@@ -337,6 +337,21 @@ describe('MessageList', () => {
     expect(onAction).toHaveBeenCalledWith('continue', card)
   })
 
+  it.each([false, true])('still says a quiet empty-file round is unfinished when it also saved files (messages used up: %s)', nextStepsBlocked => {
+    const card = { type: 'iteration_exhausted' as const, layer: 'empty_file_correction' as const, rolledBackFiles: ['第二章'] }
+    render(<MessageList messages={[createMessage({
+      role: 'assistant', content: '', statusCards: [card], stopOutcome: {
+        reason: 'incomplete', charged: true, savedOutput: true, removedFiles: [],
+        writtenFiles: [{ title: '第一章', words: 3000 }],
+      },
+    })]} onIterationAssistAction={vi.fn()} nextStepsBlocked={nextStepsBlocked} />)
+
+    const note = screen.getByTestId('round-end-note')
+    expect(note).toHaveTextContent('panel.roundSavedFiles')
+    expect(note).toHaveTextContent(nextStepsBlocked ? 'panel.roundUnfinishedItem' : 'panel.roundUnfinishedContinueItem')
+    expect(screen.queryAllByRole('button', { name: 'workflow.actionContinue' })).toHaveLength(nextStepsBlocked ? 0 : 1)
+  })
+
   it('hides a canonical incomplete display card while keeping exactly one continue action', () => {
     const onAction = vi.fn()
     const card = { id: 'canonical-empty', type: 'iteration_exhausted' as const,
@@ -374,6 +389,35 @@ describe('MessageList', () => {
 
     render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'tool_call', limit: 'wall_clock' }] })]} />)
     expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
+  })
+
+  it('shows the request-level time pause (graph wrap-up or hard timeout) with 继续完成, live and after reload, next to the saved-files receipt', () => {
+    const onAction = vi.fn()
+    const outcome = {
+      reason: 'incomplete' as const, charged: true, savedOutput: true, removedFiles: [],
+      writtenFiles: [{ title: '第3章', words: 3120 }],
+    }
+    const item: NonNullable<Message['displayItems']>[number] = {
+      id: 'wrap', type: 'iteration_exhausted', layer: 'collaboration', limit: 'wall_clock', lastAgent: 'writer', timestamp: new Date(),
+    }
+    const { unmount } = render(<MessageList
+      messages={[createMessage({ role: 'assistant', content: '第3章写好了。', displayItems: [item], stopOutcome: outcome })]}
+      onIterationAssistAction={onAction}
+    />)
+    expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
+    expect(screen.queryByText('workflow.collaborationExhaustedSummary')).not.toBeInTheDocument()
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('panel.roundSavedFiles')
+    fireEvent.click(screen.getByRole('button', { name: 'workflow.actionContinue' }))
+    expect(onAction).toHaveBeenCalledWith('continue', item)
+    unmount()
+
+    const card = { type: 'iteration_exhausted' as const, layer: 'collaboration' as const, limit: 'wall_clock', lastAgent: 'writer' }
+    render(<MessageList
+      messages={[createMessage({ role: 'assistant', content: '', statusCards: [card], stopOutcome: outcome })]}
+      onIterationAssistAction={onAction}
+    />)
+    expect(screen.getByText('workflow.timeLimitSummary')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'workflow.actionContinue' })).toHaveLength(1)
   })
 
   it('keeps the pause facts but offers no 继续完成 when today\'s AI messages are used up, live, saved and streaming', () => {
@@ -707,6 +751,53 @@ describe('MessageList', () => {
 
     rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', toolCalls: [handoff, clarify], toolResults: [handoff] })]} />)
     expect(container.textContent).not.toMatch(/chat:tool\./)
+  })
+
+  it('shows a dropped round that saved files as a delivery receipt the author can open', () => {
+    const onOpenFile = vi.fn()
+    const outcome = {
+      reason: 'client_disconnected' as const, charged: true, savedOutput: true, removedFiles: [],
+      writtenFiles: [{ id: 'ch-1', title: '第一章 雨夜', words: 1273 }, { title: '没有 id 的文件', words: 10 }],
+    }
+    const { rerender } = render(<MessageList
+      messages={[createMessage({ role: 'assistant', content: '', stopOutcome: outcome })]}
+      onOpenFile={onOpenFile}
+    />)
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('panel.roundSavedFiles')
+    const open = screen.getByRole('button', { name: 'panel.openWrittenFile' })
+    fireEvent.click(open)
+    expect(onOpenFile).toHaveBeenCalledWith('ch-1', '', '第一章 雨夜')
+    expect(screen.getAllByRole('button', { name: 'panel.openWrittenFile' })).toHaveLength(1)
+
+    // Nothing confirmed saved, another ending, or no way to open: no receipt buttons.
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', stopOutcome: { ...outcome, savedOutput: false } })]} onOpenFile={onOpenFile} />)
+    expect(screen.queryByRole('button', { name: 'panel.openWrittenFile' })).not.toBeInTheDocument()
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', stopOutcome: { ...outcome, reason: 'user_stopped' as const } })]} onOpenFile={onOpenFile} />)
+    expect(screen.queryByRole('button', { name: 'panel.openWrittenFile' })).not.toBeInTheDocument()
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', stopOutcome: outcome })]} />)
+    expect(screen.queryByRole('button', { name: 'panel.openWrittenFile' })).not.toBeInTheDocument()
+  })
+
+  it('does not draw the server\'s write-order refusal as a failed step, live or saved', () => {
+    const timestamp = new Date()
+    const refused = {
+      id: 'tool-refused', tool_name: 'edit_file', arguments: { id: 'ch-1' }, status: 'error' as const,
+      result: { status: 'error', error_type: 'file_body_pending', error: 'internal instruction for the model' },
+      error: 'internal instruction for the model',
+    }
+    const created = {
+      id: 'tool-created', tool_name: 'create_file', arguments: { title: '第一章' }, status: 'success' as const,
+      result: { data: { id: 'ch-1', title: '第一章', file_type: 'draft', content: '', awaiting_body: true } },
+    }
+    const displayItems = [{ id: 'tools', type: 'tool_calls' as const, toolCalls: [created, refused], timestamp }]
+    const { container, rerender } = render(<MessageList messages={[]} streamRenderItems={displayItems} />)
+    expect(container.textContent).not.toMatch(/chat:tool\.failed/)
+    expect(container.textContent).not.toMatch(/internal instruction/)
+    expect(container.textContent).toMatch(/第一章/)
+
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', toolCalls: [created, refused], toolResults: [created, refused] })]} />)
+    expect(container.textContent).not.toMatch(/chat:tool\.failed/)
+    expect(container.textContent).toMatch(/第一章/)
   })
 
   it('labels citations by the real file type and shows the quoted file name', () => {

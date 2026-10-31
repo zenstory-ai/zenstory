@@ -7,6 +7,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const mockFirstWork = vi.hoisted(() => ({ get: vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'test-user' } }) }))
+const mockReportActivationEvent = vi.hoisted(() => vi.fn())
+vi.mock('../../lib/activationEvents', () => ({ reportActivationEvent: mockReportActivationEvent }))
 vi.mock('../../lib/firstWorkApi', async (importOriginal) => ({ ...await importOriginal<typeof import('../../lib/firstWorkApi')>(), firstWorkApi: mockFirstWork }))
 const inactiveFirstWork = { status: 'ineligible', project_id: null, file_id: null, available: false, static_guidance: false, opened_at: null, first_manual_write_at: null, first_ai_requested_at: null }
 
@@ -31,12 +33,14 @@ const mockProjectState = vi.hoisted(() => ({
   triggerFileTreeRefresh: vi.fn(),
   triggerEditorRefresh: vi.fn(),
   setSelectedItem: vi.fn(),
+  fileTreeVersion: 0,
 }))
 
 const mockStartStream = vi.hoisted(() => vi.fn())
 const mockScrollToBottom = vi.hoisted(() => vi.fn())
 const mockRollback = vi.hoisted(() => vi.fn())
 const mockGetProgress = vi.hoisted(() => vi.fn(async () => [] as unknown[]))
+const mockGetFile = vi.hoisted(() => vi.fn())
 
 let testQueryClient: QueryClient
 const render = (ui: React.ReactElement) => {
@@ -95,6 +99,7 @@ vi.mock('../../contexts/ProjectContext', () => ({
     refreshProjects: mockProjectState.refreshProjects,
     refreshProject: mockProjectState.refreshProject,
     selectedItem: mockProjectState.selectedItem,
+    fileTreeVersion: mockProjectState.fileTreeVersion,
     triggerFileTreeRefresh: mockProjectState.triggerFileTreeRefresh,
     triggerEditorRefresh: mockProjectState.triggerEditorRefresh,
     setSelectedItem: mockProjectState.setSelectedItem,
@@ -245,6 +250,7 @@ vi.mock('../../lib/api', () => ({
   fileVersionApi: { rollback: mockRollback },
   versionApi: {},
   projectApi: { getProgress: mockGetProgress },
+  fileApi: { get: mockGetFile },
 }))
 
 type MockMessageInputProps = {
@@ -313,6 +319,12 @@ vi.mock('../subscription/QuotaBadge', () => ({
   QuotaBadge: ({ compact }: { compact?: boolean }) => (
     <div data-testid="mock-quota-badge" data-compact={String(Boolean(compact))} />
   ),
+}))
+
+const mockTrackEvent = vi.hoisted(() => vi.fn())
+vi.mock('../../lib/analytics', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../lib/analytics')>(),
+  trackEvent: mockTrackEvent,
 }))
 
 vi.mock('../../lib/toast', () => ({
@@ -406,6 +418,59 @@ describe('ChatPanel mount smoke', () => {
       expect(mockDraft.draft).toBe('Keep my chat draft')
       expect(mockScrollToBottom).toHaveBeenCalledTimes(previousScrolls)
     } finally { mockLayout.isMobile = false }
+  })
+
+  it('opens a receipt file whose type the receipt does not carry by the file\'s own type', async () => {
+    mockGetFile.mockResolvedValueOnce({ id: 'ep-1', title: '第1集', file_type: 'script' })
+    mockAgentStreamState.isStreaming = true
+    render(<ChatPanel />)
+    await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
+    const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: (id: string, fileType: string, title: string) => void }
+    act(() => props.onOpenFile?.('ep-1', '', '第1集'))
+    await waitFor(() => expect(mockProjectState.setSelectedItem).toHaveBeenCalledWith({ id: 'ep-1', type: 'script', title: '第1集' }))
+    expect(mockGetFile).toHaveBeenCalledWith('ep-1')
+
+    // The lookup fails for another reason (offline): still open it the ordinary way.
+    mockGetFile.mockRejectedValueOnce(new Error('offline'))
+    act(() => props.onOpenFile?.('ch-1', '', '第一章'))
+    await waitFor(() => expect(mockProjectState.setSelectedItem).toHaveBeenCalledWith({ id: 'ch-1', type: 'draft', title: '第一章' }))
+  })
+
+  it('opens a renamed receipt file under its current title', async () => {
+    mockGetFile.mockResolvedValueOnce({ id: 'ch-1', title: '第一章 雨夜', file_type: 'draft' })
+    mockAgentStreamState.isStreaming = true
+    render(<ChatPanel />)
+    await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
+    const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: (id: string, fileType: string, title: string) => void }
+    act(() => props.onOpenFile?.('ch-1', '', '第一章'))
+    await waitFor(() => expect(mockProjectState.setSelectedItem).toHaveBeenCalledWith({ id: 'ch-1', type: 'draft', title: '第一章 雨夜' }))
+  })
+
+  it('tells the author a deleted receipt file is gone instead of selecting it', async () => {
+    const { ApiError } = await import('../../lib/apiClient')
+    mockGetFile.mockRejectedValueOnce(new ApiError(404, 'ERR_NOT_FOUND'))
+    mockAgentStreamState.isStreaming = true
+    render(<ChatPanel />)
+    await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
+    const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: (id: string, fileType: string, title: string) => void }
+    act(() => props.onOpenFile?.('ch-gone', '', '第一章'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat:panel.writtenFileMissing'))
+    expect(mockProjectState.setSelectedItem).not.toHaveBeenCalled()
+  })
+
+  it('does not take the selection back when the author picks another file during the lookup', async () => {
+    let resolveFile: (file: { id: string; title: string; file_type: string }) => void = () => {}
+    mockGetFile.mockReturnValueOnce(new Promise((resolve) => { resolveFile = resolve }))
+    mockAgentStreamState.isStreaming = true
+    const { rerender } = render(<ChatPanel />)
+    await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
+    const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: (id: string, fileType: string, title: string) => void }
+    act(() => props.onOpenFile?.('ch-1', '', '第一章'))
+
+    mockProjectState.selectedItem = { id: 'other', type: 'draft', title: '别的文件' }
+    rerender(<QueryClientProvider client={testQueryClient}><ChatPanel /></QueryClientProvider>)
+    await act(async () => { resolveFile({ id: 'ch-1', title: '第一章', file_type: 'draft' }) })
+    expect(mockProjectState.setSelectedItem).not.toHaveBeenCalled()
   })
 
   it('keeps the existing selection object when opening the same file', async () => {
@@ -657,6 +722,31 @@ describe('ChatPanel mount smoke', () => {
     })
   })
 
+  it('names the file getting its text in the waiting line, through a refused step and the correction rerun', async () => {
+    mockAgentStreamState.isStreaming = true
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    const options = capturedUseAgentStream.options as {
+      onStart?: () => void;
+      onToolResult?: (toolName: string, status: string, result?: Record<string, unknown>, error?: string) => void;
+      onFileContent?: (fileId: string, chunk: string) => void;
+      onFileContentEnd?: (fileId: string) => void;
+    }
+    act(() => {
+      options.onStart?.()
+      options.onToolResult?.('create_file', 'success', { data: { id: 'ch-1', title: '第一章', file_type: 'draft', content: '', awaiting_body: true } })
+      options.onToolResult?.('edit_file', 'error', { status: 'error', error_type: 'file_body_pending' }, 'internal')
+      options.onFileContentEnd?.('ch-1')
+    })
+    await waitFor(() => expect(screen.getByTestId('stream-activity-line')).toHaveTextContent('chat:activity.writingBody'), { timeout: 2500 })
+
+    act(() => {
+      options.onFileContent?.('ch-1', '林舟推开门。')
+    })
+    await waitFor(() => expect(screen.getByTestId('stream-activity-line')).toHaveTextContent('chat:activity.writingBodyWords'), { timeout: 2500 })
+    expect(streamCallbacks.onFileContentEnd).toHaveBeenCalledWith('ch-1')
+  })
+
   it('keeps the time-limit reason on a live pause card and its saved status card', async () => {
     render(<ChatPanel />)
     await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
@@ -791,6 +881,30 @@ describe('ChatPanel mount smoke', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('reports a send held back by the used-up day, and a send the server refused for it', async () => {
+    mockQuota.value = { ai_conversations: { used: 3, limit: 3, reset_at: null } }
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageInputProps().onBlockedSend).toBeTypeOf('function'))
+    expect(mockReportActivationEvent).not.toHaveBeenCalled()
+
+    await act(async () => { await lastMessageInputProps().onSend('按大纲写第一章正文', []) })
+    expect(mockStartStream).not.toHaveBeenCalled()
+    expect(mockReportActivationEvent).toHaveBeenLastCalledWith('test-user', {
+      event_name: 'ai_send_blocked_quota',
+      surface: 'chat',
+      project_id: 'project-1',
+      server_refused: false,
+      is_mobile: false,
+    })
+
+    const options = capturedUseAgentStream.options as { onError: (message: string, code?: string, retryable?: boolean) => void }
+    act(() => { options.onError('quota exceeded', 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED', false) })
+    expect(mockReportActivationEvent).toHaveBeenLastCalledWith('test-user', expect.objectContaining({
+      event_name: 'ai_send_blocked_quota',
+      server_refused: true,
+    }))
   })
 
   it('opens quota upgrade modal when quota error code is returned', async () => {
@@ -1293,6 +1407,8 @@ describe('ChatPanel mount smoke', () => {
   })
 
   it('asks for no progress on save while the framework is not ready and no offer is showing', async () => {
+    // An earlier turn: no starter card either (the example card re-reads the progress on save).
+    withEarlierTurn()
     mockGetProgress.mockResolvedValue([
       { project_id: 'project-1', written_units: 0, word_count: 0, framework_ready: false },
     ])
@@ -1329,6 +1445,7 @@ describe('ChatPanel mount smoke', () => {
   })
 
   it('asks for no progress on save after the author said 先不用 to the chapter-1 offer', async () => {
+    withEarlierTurn()
     mockGetProgress.mockResolvedValue(frameworkReady)
     render(<ChatPanel />)
     await screen.findByTestId('next-step-card')
@@ -2853,10 +2970,9 @@ describe('ChatPanel new-author flow', () => {
     expect(mockProjectState.refreshProject).toHaveBeenCalledWith('project-1')
     expect(mockProjectState.refreshProjects).not.toHaveBeenCalled()
   })
-  it('waits for first-work status and suppresses every automatic suggestion and inspiration send for static work', async () => {
+  it('waits for first-work status and suppresses every automatic suggestion for static work', async () => {
     let resolve!: (value: typeof inactiveFirstWork) => void
     mockFirstWork.get.mockReturnValue(new Promise(yes => { resolve = yes }))
-    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({ content: 'stale first-work idea', timestamp: Date.now() }))
     render(<ChatPanel />)
     await waitFor(() => expect(getRecentMessages).toHaveBeenCalled())
     expect(fetchSuggestions).not.toHaveBeenCalled()
@@ -2866,6 +2982,30 @@ describe('ChatPanel new-author flow', () => {
     expect(fetchSuggestions).not.toHaveBeenCalled()
     expect(mockStartStream).not.toHaveBeenCalled()
     expect(screen.getByTestId('mock-message-input')).toBeInTheDocument()
+  })
+
+  it('sends the idea the author typed on the dashboard for the first work once, as its first message', async () => {
+    mockFirstWork.get.mockResolvedValue({ ...inactiveFirstWork, status: 'created', project_id: 'project-1', file_id: 'first-file', available: true, static_guidance: true })
+    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({ content: '灯塔守夜人捡到一封寄给未来的信', timestamp: Date.now() }))
+    render(<ChatPanel />)
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1), { timeout: 2000 })
+    const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    expect(request.message).toBe('灯塔守夜人捡到一封寄给未来的信')
+    expect(request.metadata.entry).toBe('dashboard_idea')
+    expect(localStorage.getItem('zenstory_inspiration_project-1')).toBeNull()
+    expect(fetchSuggestions).not.toHaveBeenCalled()
+    await new Promise(resolve => setTimeout(resolve, 650))
+    expect(mockStartStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('never sends an expired idea in the first work', async () => {
+    mockFirstWork.get.mockResolvedValue({ ...inactiveFirstWork, status: 'created', project_id: 'project-1', file_id: 'first-file', available: true, static_guidance: true })
+    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({ content: 'an idea from long ago', timestamp: Date.now() - 6 * 60 * 1000 }))
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageInputProps().disabled).toBe(false))
+    await new Promise(resolve => setTimeout(resolve, 650))
+    expect(mockStartStream).not.toHaveBeenCalled()
+    expect(localStorage.getItem('zenstory_inspiration_project-1')).toBeNull()
   })
 
   it('keeps suggestions disabled if the original first manuscript was deleted', async () => {
@@ -2885,10 +3025,20 @@ describe('ChatPanel new-author flow', () => {
     expect(mockStartStream).not.toHaveBeenCalled()
   })
 
-  it('waits for accepted AI evidence and never sends a stale dashboard idea from the default work', async () => {
+  it('still sends a fresh dashboard idea when first-work status cannot be read', async () => {
+    mockFirstWork.get.mockRejectedValue(new Error('status unavailable'))
+    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({ content: '灯塔守夜人捡到一封寄给未来的信', timestamp: Date.now() }))
+    render(<ChatPanel />)
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1), { timeout: 2000 })
+    const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    expect(request.message).toBe('灯塔守夜人捡到一封寄给未来的信')
+    expect(request.metadata.entry).toBe('dashboard_idea')
+    expect(localStorage.getItem('zenstory_inspiration_project-1')).toBeNull()
+  })
+
+  it('waits for accepted AI evidence before ending static guidance', async () => {
     const state = { ...inactiveFirstWork, status: 'created', project_id: 'project-1', file_id: 'first-file', available: true, static_guidance: true }
     mockFirstWork.get.mockResolvedValue(state)
-    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({ content: 'stale accidental idea', timestamp: Date.now() }))
     render(<ChatPanel />)
     await waitFor(() => expect(lastMessageInputProps().disabled).toBe(false))
     await act(async () => { await lastMessageInputProps().onSend('My explicit request', []) })
@@ -2928,6 +3078,124 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
     mockDraft.draft = ''
     mockDraft.saveDraft.mockReturnValue(true)
+    mockProjectState.fileTreeVersion = 0
+    mockGetProgress.mockReset().mockResolvedValue([])
+  })
+
+  const withProse = () => [{ project_id: 'project-1', written_units: 3, word_count: 9000, framework_ready: false }]
+
+  it('offers manuscript requests when the work already has prose, and sends one exactly as shown', async () => {
+    mockGetProgress.mockResolvedValue(withProse())
+    render(<ChatPanel />)
+
+    const cards = await screen.findByTestId('starter-cards')
+    expect(cards).toHaveAttribute('data-variant', 'manuscript')
+    expect(screen.queryByTestId('starter-send')).not.toBeInTheDocument()
+    expect(fetchSuggestions).not.toHaveBeenCalled()
+    expect(mockStartStream).not.toHaveBeenCalled()
+
+    const review = screen.getByTestId('starter-manuscript-review')
+    fireEvent.click(review)
+
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
+    expect(sent().message).toBe(review.textContent)
+    expect(sent().metadata.entry).toBe('starter_manuscript')
+  })
+
+  it('waits for the progress before choosing the cards, so the example never flashes for a manuscript', async () => {
+    let resolveProgress: (value: unknown[]) => void = () => {}
+    mockGetProgress.mockImplementation(() => new Promise((resolve) => { resolveProgress = resolve }) as never)
+    render(<ChatPanel />)
+
+    expect(await screen.findByTestId('starter-pending')).toBeInTheDocument()
+    expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
+
+    await act(async () => { resolveProgress(withProse()) })
+    expect(await screen.findByTestId('starter-cards')).toHaveAttribute('data-variant', 'manuscript')
+  })
+
+  it('falls back to the example when the progress cannot be read', async () => {
+    mockGetProgress.mockRejectedValue(new Error('offline'))
+    render(<ChatPanel />)
+
+    expect(await screen.findByTestId('starter-cards')).toHaveAttribute('data-variant', 'example')
+  })
+
+  it('switches to the manuscript requests after the author imports chapters in the open chat', async () => {
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('starter-cards')).toHaveAttribute('data-variant', 'example')
+    const callsBeforeImport = mockGetProgress.mock.calls.length
+
+    mockGetProgress.mockResolvedValue(withProse())
+    // The editor's import bumps the tree version. (The mocked project hook is not a context, so a
+    // quota update stands in for the re-render the real provider would cause.)
+    mockProjectState.fileTreeVersion = 1
+    act(() => {
+      testQueryClient.setQueryData(['subscription-quota', 'test-user'], { ai_conversations: { used: 1, limit: 3, reset_at: null } })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('starter-cards')).toHaveAttribute('data-variant', 'manuscript'))
+    expect(mockGetProgress.mock.calls.length).toBe(callsBeforeImport + 1)
+    expect(mockStartStream).not.toHaveBeenCalled()
+  })
+
+  it('switches to the manuscript requests once the author saves prose typed under the example', async () => {
+    render(<ChatPanel />)
+    expect(await screen.findByTestId('starter-cards')).toHaveAttribute('data-variant', 'example')
+    const callsBeforeSave = mockGetProgress.mock.calls.length
+
+    mockGetProgress.mockResolvedValue(withProse())
+    await act(async () => { notifyEditorContentSaved('project-1') })
+
+    await waitFor(() => expect(screen.getByTestId('starter-cards')).toHaveAttribute('data-variant', 'manuscript'))
+    expect(mockGetProgress.mock.calls.length).toBe(callsBeforeSave + 1)
+
+    // The manuscript requests already show: further autosaves ask for nothing more.
+    await act(async () => { notifyEditorContentSaved('project-1') })
+    await act(async () => {})
+    expect(mockGetProgress.mock.calls.length).toBe(callsBeforeSave + 1)
+    expect(mockStartStream).not.toHaveBeenCalled()
+  })
+
+  it('shows the example after a short wait when the progress hangs, and still follows a late answer', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let resolveProgress: (value: unknown[]) => void = () => {}
+      mockGetProgress.mockImplementation(() => new Promise((resolve) => { resolveProgress = resolve }) as never)
+      render(<ChatPanel />)
+      expect(await screen.findByTestId('starter-pending')).toBeInTheDocument()
+
+      await act(async () => { vi.advanceTimersByTime(1600) })
+      expect(screen.getByTestId('starter-cards')).toHaveAttribute('data-variant', 'example')
+      expect(screen.queryByTestId('starter-pending')).not.toBeInTheDocument()
+
+      await act(async () => { resolveProgress(withProse()) })
+      await waitFor(() => expect(screen.getByTestId('starter-cards')).toHaveAttribute('data-variant', 'manuscript'))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports which cards were seen and which manuscript request was sent', async () => {
+    mockGetProgress.mockResolvedValue(withProse())
+    render(<ChatPanel />)
+    await screen.findByTestId('starter-cards')
+    await waitFor(() => expect(screen.getByTestId('starter-quota').textContent).toContain('今天还能免费发 1 条'))
+
+    expect(mockTrackEvent).toHaveBeenCalledWith('starter_viewed', expect.objectContaining({ project_id: 'project-1', variant: 'manuscript' }))
+    fireEvent.click(screen.getByTestId('starter-manuscript-review'))
+    expect(mockTrackEvent).toHaveBeenCalledWith('starter_sent', { project_id: 'project-1', variant: 'manuscript', kind: 'review' })
+  })
+
+  it("leaves the quota card to explain for a work with prose when today's messages are used up", async () => {
+    mockQuota.value = { ai_conversations: { used: 3, limit: 3, reset_at: null } }
+    mockGetProgress.mockResolvedValue(withProse())
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(mockGetProgress).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.queryByTestId('starter-cards')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('starter-pending')).not.toBeInTheDocument()
   })
 
   it('shows the cards instead of requesting suggestions, and sends the example exactly as shown', async () => {

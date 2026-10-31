@@ -31,6 +31,7 @@ import { useMobileLayout } from '../contexts/MobileLayoutContext';
 import { RoundEndNote } from './RoundEndNote';
 import { exhaustionLeftFilesUnfinished, type RoundStopOutcome } from '../lib/chatRoundEnd';
 import { isClarificationStop as isClarificationStopItem } from '../lib/nextStep';
+import { isInternalOrderingRefusal } from '../lib/agentRoundProgress';
 
 /** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
 function UserStoppedNote() {
@@ -383,8 +384,13 @@ function IterationExhaustedCard({ card, onIterationAssistAction, nextStepsBlocke
 
 const CONTROL_FLOW_TOOL_NAMES = new Set(['handoff_to_agent', 'request_clarification']);
 
+/**
+ * The cards the author sees: no control-flow calls, and no write-order refusals (the server sent the
+ * model back to write a created file's text first; nothing about the author's work failed).
+ */
 const visibleToolCalls = (calls: ToolCall[] | undefined): ToolCall[] =>
-  (calls ?? []).filter((call) => !CONTROL_FLOW_TOOL_NAMES.has(call.tool_name));
+  (calls ?? []).filter((call) => !CONTROL_FLOW_TOOL_NAMES.has(call.tool_name)
+    && !(call.status === 'error' && isInternalOrderingRefusal(call.result as Record<string, unknown> | undefined)));
 
 /**
  * Props for the ContextItemsView component.
@@ -774,6 +780,16 @@ const Row = React.memo(function Row({
     ? message.displayItems?.find((item) => item.type === 'iteration_exhausted' && item.layer === 'empty_file_correction')
       ?? message.statusCards?.find((card) => card.type === 'iteration_exhausted' && card.layer === 'empty_file_correction')
     : undefined;
+  // A round that dropped (the author left or lost the connection) after files were saved: the chat may
+  // show little or nothing of it, so the receipt offers the saved files directly (at most three).
+  const deliveredFiles = message.role === 'assistant'
+    && message.stopOutcome?.reason === 'client_disconnected'
+    && message.stopOutcome.savedOutput
+    && onOpenFile
+    ? message.stopOutcome.writtenFiles
+      .filter((file): file is typeof file & { id: string } => Boolean(file.id))
+      .slice(0, 3)
+    : [];
   const orderedDisplayItems = quietIncompleteCard
     ? message.displayItems?.filter((item) => item !== quietIncompleteCard)
     : message.displayItems;
@@ -889,7 +905,7 @@ const Row = React.memo(function Row({
 
         {message.role === 'assistant' && message.stopOutcome && (
           <>
-            <RoundEndNote outcome={message.stopOutcome} showDailyCount={showDailyCount} />
+            <RoundEndNote outcome={message.stopOutcome} showDailyCount={showDailyCount} nextStepsBlocked={nextStepsBlocked} />
             {quietIncompleteCard && !nextStepsBlocked && (
               <div className="mt-2">
                 <button
@@ -899,6 +915,20 @@ const Row = React.memo(function Row({
                 >
                   {t('workflow.actionContinue', { ns: 'chat' })}
                 </button>
+              </div>
+            )}
+            {deliveredFiles.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5" data-testid="round-delivery-receipt">
+                {deliveredFiles.map((file) => (
+                  <button
+                    key={file.id}
+                    type="button"
+                    className="inline-flex items-center min-h-11 md:min-h-7 max-w-full px-3 text-xs text-left break-words rounded border border-[hsl(var(--accent-primary)/0.4)] text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.1)] transition-colors"
+                    onClick={() => onOpenFile?.(file.id, '', file.title)}
+                  >
+                    {t('panel.openWrittenFile', { ns: 'chat', title: file.title })}
+                  </button>
+                ))}
               </div>
             )}
           </>

@@ -49,6 +49,17 @@ describe('persisted chat display sequence', () => {
     expect(items[0]).toMatchObject({ type: 'iteration_exhausted', layer: 'empty_file_correction', unfinishedFiles: ['第一章'], rolledBackFiles: ['第二章'] });
   });
 
+  it('replays the time pause the server appends after the reply (graph wrap-up or hard timeout after writes)', () => {
+    const events = [
+      { type: 'content', content: '第3章写好了。' },
+      { type: 'iteration_exhausted', data: { layer: 'collaboration', iterations_used: 2, max_iterations: 12, reason: 'internal',
+        last_agent: 'writer', limit: 'wall_clock' } },
+    ];
+    const items = parseChatDisplayEvents(JSON.stringify({ display_events: events }), [], timestamp, t)!;
+    expect(items.map(item => item.type)).toEqual(['content', 'iteration_exhausted']);
+    expect(items[1]).toMatchObject({ layer: 'collaboration', limit: 'wall_clock', lastAgent: 'writer' });
+  });
+
   it('maps reasoning, routing, exhaustion and completion using the same fields as live callbacks', () => {
     const events = [
       { type: 'thinking_content', content: 'Reasoning' },

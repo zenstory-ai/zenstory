@@ -21,7 +21,7 @@ from agent.core.author_facing_text import (
     author_facing_text,
     text_contains_cjk,
 )
-from agent.core.events import READ_ONLY_HANDOFF_BLOCKED_REASON
+from agent.core.events import READ_ONLY_HANDOFF_BLOCKED_REASON, WALL_CLOCK_LIMIT
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import (
@@ -386,7 +386,7 @@ def _build_scope_directive(
     scope = str(routing_metadata.get("scope") or "").strip()
     if scope:
         parts.append(
-            f"用户要求的交付范围：{scope}。只交付这个范围内的内容，"
+            f"本轮交付范围：{scope}。只交付这个范围内的内容，"
             "不要额外续写后续章节或创建范围外的文件；范围内的工作完成后即结束。"
         )
     # Exact representation deduplication only; the primary scope is already above.
@@ -528,6 +528,25 @@ WRAP_UP_TEXT_EN = "\n\nThis round is almost out of time, so I'm stopping here. R
 # 今天的 AI 消息已经用完（本轮已计入）：回复「继续」发不出去，只说停在哪里；恢复时间由前端额度卡给出。
 WRAP_UP_TEXT_NO_MESSAGES_LEFT = "\n\n这一轮的时间快用完了，先停在这里，已经写好的内容都保留了。"
 WRAP_UP_TEXT_NO_MESSAGES_LEFT_EN = "\n\nThis round is almost out of time, so I'm stopping here; everything written so far is kept."
+# 停在 writer 交给审稿人之前：正文已经交付，只是质量检查没跑；这一轮不给可续做的暂停卡，也不叫作者回复「继续」。
+WRAP_UP_TEXT_REVIEW_SKIPPED = "\n\n正文已经写好了；这一轮时间不够，没来得及做质量检查。"
+WRAP_UP_TEXT_REVIEW_SKIPPED_EN = "\n\nThe text is written; there wasn't time for the quality check this round."
+
+
+# 图层收尾的暂停卡（与 runner 时限收尾同一张卡：limit=wall_clock，前端给「继续完成」按钮）。
+# reason 进历史里的状态卡摘要，供下一轮的模型和路由看；作者看到的卡片文案由前端 i18n 给出。
+WRAP_UP_CARD_REASON = "这一轮的时间快用完了，没有再开始下一步。任务可能还没做完，回复「继续」就能接着做。"
+WRAP_UP_CARD_REASON_EN = (
+    "This round is almost out of time, so the next step was not started. "
+    "The task may not be finished; reply \"continue\" to pick it up."
+)
+
+
+def _wrap_up_review_notes_text(notes: str, english: bool) -> str:
+    """审稿人要求返修、返修 writer 因收尾不再开跑时写给作者的审稿要点（随回复落库，下一轮「继续」看得到）。"""
+    if english:
+        return f"\n\nThe reviewer's revision notes (not applied yet in this round):\n{notes}"
+    return f"\n\n审稿人的修改意见（这一轮还没来得及改）：\n{notes}"
 
 
 def _ai_messages_left_today(user_id: str) -> bool | None:
@@ -554,7 +573,9 @@ async def _wrap_up_text(english: bool) -> str:
 FAST_MODE_REVIEW_REFUSAL = (
     "本轮是快速模式，不送审，交接没有执行。"
     "不要再调用任何工具，也不要重写文件，直接给作者写这一轮的总结：写了哪些文件、各多少字"
-    "（按工具返回的字数），简要说内容；不要说已经通读核对、送审或审稿。"
+    "（按工具返回的字数），简要说内容；交接前对照前一章和角色卡自查时发现并改正了矛盾的，用一句话说改了哪处，"
+    "没发现或没自查就不提；不要说已经通读核对、送审或审稿，也不提生成模式。"
+    "作者在这条消息里要求了审稿时，在总结最后用一句中性的话说明这轮没有安排审稿，需要的话再发一句「审一下」。"
     + _REVIEW_REFUSAL_SUMMARY_RULES
 )
 AUTHOR_NOTES_MARKER = "[要告诉作者]"
@@ -2082,10 +2103,32 @@ async def run_writing_workflow_streaming(
                     elapsed_s=round(run_meter.elapsed_s(), 1),
                     iterations=iteration,
                 )
-                yield StreamEvent(
-                    type=StreamEventType.TEXT,
-                    data={"text": await _wrap_up_text(english)},
-                )
+                review_skipped = previous_agent == "writer" and current_agent_type == "quality_reviewer"
+                if review_skipped:
+                    wrap_up_text = WRAP_UP_TEXT_REVIEW_SKIPPED_EN if english else WRAP_UP_TEXT_REVIEW_SKIPPED
+                else:
+                    wrap_up_text = await _wrap_up_text(english)
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": wrap_up_text})
+                if (notice := _take_read_only_notice()) is not None:
+                    yield notice
+                # 与 runner 的时限收尾同一张暂停卡：前端给「继续完成」按钮，StreamAdapter 据 limit
+                # 把这一轮记成 run_deadline_exceeded（router 的可续做原因）。last_agent 是下一个本该
+                # 运行的角色，「继续」从它接着做（审稿后待返修时是 writer）。collaboration 层不属于
+                # 失控停止，计费仍按正常结束判定。
+                # 停在 writer 交给审稿人之前时不发：正文已经交付，只是质量检查没跑；续进审稿人的
+                # 回合没有质量检查任务包，「继续」会换来一份审稿报告而不是接着写（和改动前一样正常结束）。
+                if not review_skipped:
+                    yield StreamEvent(
+                        type=StreamEventType.ITERATION_EXHAUSTED,
+                        data={
+                            "layer": "collaboration",
+                            "iterations_used": iteration,
+                            "max_iterations": max_iterations,
+                            "reason": WRAP_UP_CARD_REASON_EN if english else WRAP_UP_CARD_REASON,
+                            "last_agent": current_agent_type,
+                            "limit": WALL_CLOCK_LIMIT,
+                        },
+                    )
                 terminated_via_break = True
                 break
             iteration += 1
@@ -3060,8 +3103,8 @@ async def run_writing_workflow_streaming(
                 if user_scope:
                     # 计划交接没有 agent 写的交接说明，必须把用户的范围带过去，
                     # 否则下游 writer 只看到「自动交接」，会按大纲把整本书往下写。
-                    handoff_context += f"。用户要求的交付范围：{user_scope}，只完成该范围内的内容"
-                    planned_todo.append(f"按用户要求的范围完成：{user_scope}")
+                    handoff_context += f"。本轮交付范围：{user_scope}，只完成该范围内的内容"
+                    planned_todo.append(f"按本轮交付范围完成：{user_scope}")
                 # 不重做、不扩大交付（P2-16：首轮规划师已经交付了大纲和前三集剧本，
                 # 计划交接后 writer 又给三集追加了作者没要的「拍摄执行版」）。
                 handoff_context += f"。{PLANNED_HANDOFF_SCOPE_NOTE}"
@@ -3360,6 +3403,22 @@ async def run_writing_workflow_streaming(
                 and (author_notes := _author_notes_from_handoff(handoff_context))
             ):
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"\n\n{author_notes}"})
+            # 审稿人要求返修、返修 writer 不会再跑：审稿要点只在交接包里（工具结果不跨轮回放），
+            # 和达到审查上限时一样写给作者，随回复落库；下一轮「继续」回到 writer 时看得到。
+            if (
+                wrap_up_stops_next_agent
+                and current_agent_type == "quality_reviewer"
+                and _agent_can_write_files(pending_next_agent)
+                and (
+                    review_notes := author_facing_text(
+                        _review_notes_from_packet(handoff_packet, handoff_context), english
+                    )
+                )
+            ):
+                yield StreamEvent(
+                    type=StreamEventType.TEXT,
+                    data={"text": _wrap_up_review_notes_text(review_notes, english)},
+                )
 
             if (
                 planned_body_delivery

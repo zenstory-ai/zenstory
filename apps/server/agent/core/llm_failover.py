@@ -539,6 +539,7 @@ async def acreate_chat_completion(
     reasoning_effort: str | None = None,
     usage_attribution: LLMUsageAttribution | None = None,
     fail_over_on_rejection: bool = False,
+    attempt_sink: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> tuple[Any, ModelProvider]:
     """``chat.completions.create`` on the first available provider.
@@ -553,6 +554,8 @@ async def acreate_chat_completion(
     the stream fails. With ``usage_attribution`` every attempt (failed,
     cancelled or answered) is written to the usage ledger; streaming requests
     are not metered here (their usage and end arrive after this returns).
+    ``attempt_sink``, when given, holds the ``"provider"`` and ``"model"`` of the
+    latest attempt, so a caller can attribute a call that raised.
     """
     if kwargs.get("stream"):
         usage_attribution = None
@@ -560,6 +563,9 @@ async def acreate_chat_completion(
     rejected = False
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)
+        if attempt_sink is not None:
+            attempt_sink["provider"] = provider.name
+            attempt_sink["model"] = provider.model
         attempt_started = time.monotonic()
         try:
             response = await client.chat.completions.create(

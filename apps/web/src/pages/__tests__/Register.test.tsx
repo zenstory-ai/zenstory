@@ -109,6 +109,7 @@ const referralFlag = vi.hoisted(() => ({ enabled: true }));
 vi.mock("../../config/referral", () => ({ referralConfig: referralFlag }));
 
 import Register from "../Register";
+import { ApiError } from "../../lib/apiClient";
 
 describe("Register", () => {
   beforeEach(() => {
@@ -602,5 +603,48 @@ describe("Register", () => {
     expect(mockToastError).toHaveBeenCalledWith("auth:errors.invalidEmail");
     expect(screen.getByText("auth:errors.invalidEmail")).toBeInTheDocument();
     expect(mockGetRegistrationPolicy).not.toHaveBeenCalledWith(expect.objectContaining({ email: "not-an-email" }));
+  });
+  it("gives an existing email both a sign-in and a verification exit", async () => {
+    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });
+    mockRegister.mockRejectedValueOnce(new ApiError(400, 'ERR_AUTH_EMAIL_EXISTS'));
+    const user = userEvent.setup();
+    renderWithRoute('/register?plan=pro');
+    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
+    fillRegistrationFields();
+    await acceptTerms(user);
+    await user.click(screen.getByRole('button', { name: 'auth:register.submit' }));
+    expect(await screen.findByText('auth:register.emailExistsHint')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'auth:register.emailExistsLogin' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/login?plan=pro', { state: { identifier: 'test@example.com' } });
+    await user.click(screen.getByRole('button', { name: 'auth:register.emailExistsVerify' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/verify-email?plan=pro', { state: { email: 'test@example.com' } });
+  });
+
+  it("drops the existing-email exits once the author edits the address", async () => {
+    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });
+    mockRegister.mockRejectedValueOnce(new ApiError(400, 'ERR_AUTH_EMAIL_EXISTS'));
+    const user = userEvent.setup();
+    renderWithRoute('/register');
+    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
+    fillRegistrationFields();
+    await acceptTerms(user);
+    await user.click(screen.getByRole('button', { name: 'auth:register.submit' }));
+    await screen.findByRole('button', { name: 'auth:register.emailExistsVerify' });
+    fireEvent.change(screen.getByLabelText('auth:register.emailLabel'), { target: { value: 'other@example.com' } });
+    expect(screen.queryByRole('button', { name: 'auth:register.emailExistsVerify' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'auth:register.emailExistsLogin' })).not.toBeInTheDocument();
+  });
+
+  it("does not offer existing-email exits for other failures", async () => {
+    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 });
+    mockRegister.mockRejectedValueOnce(new ApiError(503, 'ERR_AUTH_RESEND_FAILED'));
+    const user = userEvent.setup();
+    renderWithRoute('/register');
+    await waitFor(() => expect(inviteToggle()).toBeInTheDocument());
+    fillRegistrationFields();
+    await acceptTerms(user);
+    await user.click(screen.getByRole('button', { name: 'auth:register.submit' }));
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: 'auth:register.emailExistsVerify' })).not.toBeInTheDocument();
   });
 });

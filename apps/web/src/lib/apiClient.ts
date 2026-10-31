@@ -505,6 +505,17 @@ export class ApiError extends Error {
 }
 
 /**
+ * The object form of a failed response's `error_detail` (e.g. a 409's
+ * current_content, the address to verify, the seconds to wait), or undefined.
+ */
+export function errorDetailObject(errorData: unknown): Record<string, unknown> | undefined {
+  const rawDetail = (errorData as Record<string, unknown> | null)?.error_detail;
+  return rawDetail && typeof rawDetail === 'object' && !Array.isArray(rawDetail)
+    ? (rawDetail as Record<string, unknown>)
+    : undefined;
+}
+
+/**
  * Build an ApiError from a failed response's parsed JSON body (or null when
  * the body could not be parsed).
  */
@@ -513,10 +524,7 @@ export function apiErrorFromPayload(status: number, errorData: unknown): ApiErro
   const rawDetail = (errorData as Record<string, unknown> | null)?.error_detail;
   // 保留结构化的 error_detail：409 冲突等场景需要里面的 current_content /
   // current_updated_at 才能正确恢复，压成一句文案就没法用了
-  const details =
-    rawDetail && typeof rawDetail === 'object' && !Array.isArray(rawDetail)
-      ? (rawDetail as Record<string, unknown>)
-      : undefined;
+  const details = errorDetailObject(errorData);
   const detailText = typeof rawDetail === 'string' ? rawDetail : undefined;
   return new ApiError(status, errorMessage, details, detailText);
 }

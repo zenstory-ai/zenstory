@@ -496,3 +496,331 @@ async def test_notes_permission_rejects_non_boolean(invalid):
         with pytest.raises(RouterFailure) as caught:
             await router_node({"user_message": "本轮请求"})
     assert caught.value.usage == response["usage"]
+
+
+def _read_only_proposal_card(**routing_overrides) -> dict:
+    """合成样例：只读回合核对后用补问卡提出具体修改方案，问作者要不要改。"""
+    routing = {
+        "initial_agent": "writer",
+        "last_agent": "writer",
+        "owner_agent": "writer",
+        "workflow_type": "quick",
+        "read_only": True,
+        "write_content": False,
+        "scope": "只核对第5集的时间线",
+        "requested_file_types": [],
+    }
+    routing.update(routing_overrides)
+    return {
+        "content": "第5集有两处日期和第3集对不上，改法如下。",
+        "clarification_pending": True,
+        "pending_clarification": {
+            "question": "第5集这两处日期现在改吗？",
+            "details": ["闪回标头：春天改成冬天", "台词里的日期跟着改"],
+        },
+        "routing": routing,
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_accepting_a_read_only_rounds_proposal_lifts_read_only():
+    """只读回合提出改法，作者接受并要求执行时，本轮按方案那一步可写。"""
+    model_decision = {
+        "agent_type": "writer",
+        "workflow_type": "quick",
+        "turn_disposition": "answer_pending_clarification",
+        "accepts_previous_proposal": True,
+        "read_only": False,
+        "write_content": True,
+        "scope": "按上轮方案改第5集两处日期",
+        "requested_file_types": ["script"],
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node(_state("就照你说的那样改吧", _read_only_proposal_card()))
+
+    metadata = result["routing_metadata"]
+    assert result["current_agent"] == "writer"
+    assert metadata["read_only"] is False
+    assert metadata["write_content"] is True
+    # 只读回合的范围已经交付，不再限制本轮；本轮范围来自被接受的方案。
+    assert metadata["scope"] == "按上轮方案改第5集两处日期"
+    assert metadata["scope_constraints"] == ["按上轮方案改第5集两处日期"]
+    assert metadata["requested_file_types"] == ["script"]
+    assert metadata["turn_disposition"] == "answer_pending_clarification"
+    assert metadata["accepts_previous_proposal"] is True
+    assert result["followup_resolved"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_accepted_proposal_routes_away_from_a_read_only_reviewer():
+    """只读审稿后问要不要改：接受方案时由路由选的可写角色接手，不回到没有写工具的审稿人。"""
+    previous = _read_only_proposal_card(
+        initial_agent="quality_reviewer",
+        last_agent="quality_reviewer",
+        owner_agent="quality_reviewer",
+        workflow_type="review_only",
+    )
+    model_decision = {
+        "agent_type": "writer",
+        "workflow_type": "quick",
+        "turn_disposition": "answer_pending_clarification",
+        "accepts_previous_proposal": True,
+        "read_only": False,
+        "write_content": True,
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node(_state("都按建议处理", previous))
+
+    assert result["current_agent"] == "writer"
+    assert result["workflow_plan"] == "quick"
+    assert result["routing_metadata"]["read_only"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("write_content", [False, True])
+async def test_new_do_not_change_request_keeps_read_only_even_when_accepting(write_content):
+    """作者接受思路但本轮又说先别动文件：仍然只读。
+
+    本轮 read_only=true 时不算接受方案，上一轮继承来的只读照常保留；即使「不改文件又要写正文」
+    的单轮纠正把本轮回答的 read_only 改回 false，继承的只读也不会因此解除。"""
+    model_decision = {
+        "agent_type": "writer",
+        "workflow_type": "quick",
+        "turn_disposition": "answer_pending_clarification",
+        "accepts_previous_proposal": True,
+        "read_only": True,
+        "write_content": write_content,
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node(_state("思路可以，但先别动文件", _read_only_proposal_card()))
+
+    metadata = result["routing_metadata"]
+    assert result["workflow_agents"] == []
+    assert metadata["read_only"] is True
+    assert metadata["write_content"] is False
+    assert metadata["scope"] == "只核对第5集的时间线"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_answer_without_accepting_a_proposal_still_inherits_read_only():
+    """纠错或补充说明（没有接受方案去执行）沿用只读，不因本轮 read_only=false 放宽。"""
+    model_decision = {
+        "agent_type": "writer",
+        "workflow_type": "quick",
+        "turn_disposition": "answer_pending_clarification",
+        "accepts_previous_proposal": False,
+        "read_only": False,
+        "write_content": True,
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node(_state("你理解错了，我说的是第3集不是第5集", _read_only_proposal_card()))
+
+    metadata = result["routing_metadata"]
+    assert result["workflow_agents"] == []
+    assert metadata["read_only"] is True
+    assert metadata["write_content"] is False
+    assert metadata["scope"] == "只核对第5集的时间线"
+    assert result["followup_resolved"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_accepting_does_not_widen_a_writable_rounds_inherited_scope():
+    """上一轮本来就可写：接受字段不改变正常的补问继承（不扩大旧范围、不提升旧限制）。"""
+    previous = _read_only_proposal_card(read_only=False, write_content=False, scope="只改大纲")
+    model_decision = {
+        "agent_type": "writer",
+        "workflow_type": "quick",
+        "turn_disposition": "answer_pending_clarification",
+        "accepts_previous_proposal": True,
+        "read_only": False,
+        "write_content": True,
+        "scope": "顺便写第6集",
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node(_state("可以，就这么改", previous))
+
+    metadata = result["routing_metadata"]
+    assert metadata["read_only"] is False
+    assert metadata["write_content"] is False
+    assert metadata["scope"] == "只改大纲"
+    assert metadata["scope_constraints"] == ["只改大纲", "顺便写第6集"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_accepting_cannot_lift_read_only_when_resuming_an_interrupted_task():
+    """截停续接不是接受新方案：只读审查被截停后“继续”仍然只读。"""
+    previous = {
+        "content": "审到第20章时停下了。",
+        "stop_reason": "max_turns_exceeded",
+        "routing": {
+            "initial_agent": "quality_reviewer",
+            "last_agent": "quality_reviewer",
+            "owner_agent": "quality_reviewer",
+            "workflow_type": "review_only",
+            "read_only": True,
+            "write_content": False,
+            "scope": "只检查前30章",
+        },
+    }
+    model_decision = {
+        "agent_type": "writer",
+        "workflow_type": "quick",
+        "turn_disposition": "resume_interrupted_task",
+        "accepts_previous_proposal": True,
+        "read_only": False,
+        "write_content": True,
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node(_state("接着来", previous))
+
+    assert result["current_agent"] == "quality_reviewer"
+    assert result["routing_metadata"]["read_only"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("invalid", ["true", 1, [], {}])
+async def test_accepts_previous_proposal_rejects_non_boolean(invalid):
+    response = _response({"agent_type": "writer", "workflow_type": "quick",
+                          "accepts_previous_proposal": invalid})
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=response)):
+        with pytest.raises(RouterFailure) as caught:
+            await router_node({"user_message": "本轮请求"})
+    assert caught.value.usage == response["usage"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_passthrough_guard_planner_no_body_decision_schedules_no_writer():
+    """透传护栏（只贴材料型）：路由模型给出 planner + 禁写正文 + 只读时，服务端不额外安排 writer。
+
+    决策是 mock 的，这条只证明服务端照单执行；“只贴材料先问”这条提示词规则本身没有自动化覆盖，
+    要靠合规样本的真实路由评测。
+    """
+    model_decision = {
+        "agent_type": "planner",
+        "workflow_type": "standard",
+        "turn_disposition": "new_or_changed_request",
+        "read_only": True,
+        "write_content": False,
+        "scope": "先问作者要用这些材料做什么",
+        "requested_file_types": [],
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node({"user_message": "故事简介\n边陲少年在遗迹里融合了一块魔晶……"})
+
+    assert result["current_agent"] == "planner"
+    assert result["workflow_agents"] == []
+    assert result["routing_metadata"]["write_content"] is False
+
+
+@pytest.mark.unit
+def test_router_input_shows_the_previous_ask_first_material_scope():
+    """只贴材料先问的一轮用补问卡问了怎么用：路由器输入里能看到上一轮的“先问”范围，
+    模型才分得出作者这次说出要做什么是新的交付物，而不是接着上一轮的只读。"""
+    from agent.graph.router import build_router_user_message
+
+    previous = {
+        "content": "读完了这份简介。",
+        "clarification_pending": True,
+        "pending_clarification": {
+            "question": "想用这份简介做什么？",
+            "details": ["按它写第一章", "先整理成大纲"],
+        },
+        "routing": {
+            "initial_agent": "planner",
+            "last_agent": "planner",
+            "owner_agent": "planner",
+            "workflow_type": "standard",
+            "read_only": True,
+            "write_content": False,
+            "scope": "先问作者要用这些材料做什么",
+            "requested_file_types": [],
+        },
+    }
+    state = _state("按它写第一章", previous)
+    assert "先问作者要用这些材料做什么" in build_router_user_message(state)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_passthrough_guard_read_only_hook_focus_schedules_no_writer():
+    """透传护栏（只读后纠错型）：路由模型给出只读的 hook_focus 时，服务端不计划交给 writer。
+
+    决策是 mock 的；“纠错沿用只读”和 hook_designer 只在明确要正文时交接这两条提示词规则
+    没有自动化覆盖，要靠合规样本的真实路由评测。
+    """
+    previous = {
+        "content": "按你给的三条线索，凶手更可能是管家。",
+        "routing": {
+            "initial_agent": "hook_designer",
+            "last_agent": "hook_designer",
+            "workflow_type": "hook_focus",
+            "read_only": True,
+            "write_content": False,
+        },
+    }
+    model_decision = {
+        "agent_type": "hook_designer",
+        "workflow_type": "hook_focus",
+        "turn_disposition": "new_or_changed_request",
+        "read_only": True,
+        "write_content": False,
+    }
+
+    with patch(
+        "agent.graph.router._route_with_chat_model",
+        AsyncMock(return_value=_response(model_decision)),
+    ):
+        result = await router_node(_state("你理解错了，我说的是另一个配角", previous))
+
+    assert result["workflow_agents"] == []
+    assert result["routing_metadata"]["read_only"] is True
+
+
+def test_router_prompt_example_requests_every_semantic_decision_field():
+    """提示词里的 JSON 示例必须是合法决策，并向模型要到解析器会读的语义字段。"""
+    from agent.graph.router import _parse_router_response
+    from agent.prompts.subagents import ROUTER_PROMPT
+
+    example = ROUTER_PROMPT.split("下面是一个合法示例；实际范围字段按用户本轮请求填写：\n", 1)[1]
+    example = example.split("\n}\n", 1)[0] + "\n}"
+    payload = json.loads(example)
+    decision = _parse_router_response(_response(payload))
+
+    assert "accepts_previous_proposal" in payload
+    assert decision.accepts_previous_proposal is False

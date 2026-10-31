@@ -607,9 +607,10 @@
     "words_other": "{{words}} words"
   },
   "firstWork": {
-    "title": "My First Work",
-    "description": "Your writing space is ready. Start a first paragraph or paste an existing draft.",
-    "open": "Start writing",
+    "title": "Your first work is ready",
+    "description": "Write one line of an idea below and the AI writes the opening in this work, or open it to write or paste your own draft.",
+    "descriptionOpen": "Open it to have the AI write the opening, or write or paste your own draft.",
+    "open": "Open it",
     "preparing": "Preparing your writing space…",
     "failed": "Your writing space is not ready yet. Retry, or create a project from your own idea."
   },

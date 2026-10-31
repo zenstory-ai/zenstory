@@ -65,7 +65,23 @@ async def test_acomplete_disables_thinking_via_extra_body(dummy_provider):
     # deepseek-flash 默认推理且 reasoning token 计入 max_tokens；关闭时必须显式下发。
     assert call.get("extra_body") == {"thinking": {"type": "disabled"}}
     assert call["model"] == "deepseek-flash"
-    assert sink == {"model": "deepseek-flash"}
+    # 去AI味的失败日志要带上供应商和 finish_reason（是否被截断），sink 一并带回。
+    assert sink == {"model": "deepseek-flash", "provider": "deepseek", "finish_reason": None}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_acomplete_failure_leaves_the_last_attempted_provider_in_the_sink(dummy_provider):
+    dummy_provider([RuntimeError("provider exploded")])
+    sink: dict[str, str] = {}
+
+    with pytest.raises(RuntimeError):
+        await LLMClient().acomplete(
+            [{"role": "user", "content": "hi"}], thinking_enabled=False, served_model_sink=sink
+        )
+
+    # 调用失败时失败日志也要能说出是哪个供应商；没有响应，所以没有 finish_reason。
+    assert sink == {"model": "deepseek-flash", "provider": "deepseek"}
 
 
 @pytest.mark.unit

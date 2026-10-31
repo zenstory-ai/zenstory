@@ -41,6 +41,7 @@ from .core.events import (
     context_event,
     done_event,
     error_event,
+    iteration_exhausted_status_card,
     session_started_event,
     skill_matched_event,
     thinking_event,
@@ -119,14 +120,18 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
 
 
 # 作者在一部作品里发出的第一条消息带 metadata.entry：工作台想法（dashboard_idea）、聊天空态
-# 起手卡的示例（starter_example）、空会话里手打的第一条（first_message）。前端发的是作者原话；
+# 起手卡的示例（starter_example）、已有作者正文时起手卡的读稿请求（starter_manuscript）、空会话里
+# 手打的第一条（first_message）。前端发的是作者原话；
 # 服务端只在发给模型的本轮内容里附一句隐藏提示，落库仍是原话。作品的任何会话里已经有 AI 回复时
 # 不附：老作品里新开的对话、第一条之后才到的旧标记都不是第一条。
 # 见 feature/2026-10-19-first-turn-writes-before-asking.md。
 DASHBOARD_IDEA_ENTRY = "dashboard_idea"
 STARTER_EXAMPLE_ENTRY = "starter_example"
+STARTER_MANUSCRIPT_ENTRY = "starter_manuscript"
 FIRST_MESSAGE_ENTRY = "first_message"
-FIRST_MESSAGE_ENTRIES = frozenset({DASHBOARD_IDEA_ENTRY, STARTER_EXAMPLE_ENTRY, FIRST_MESSAGE_ENTRY})
+FIRST_MESSAGE_ENTRIES = frozenset(
+    {DASHBOARD_IDEA_ENTRY, STARTER_EXAMPLE_ENTRY, STARTER_MANUSCRIPT_ENTRY, FIRST_MESSAGE_ENTRY}
+)
 
 _PROJECT_TYPE_LABELS_ZH = {"novel": "长篇小说", "short": "短篇小说", "screenplay": "短剧剧本"}
 _PROJECT_TYPE_LABELS_EN = {"novel": "Novel", "short": "Short Story", "screenplay": "Short Drama Script"}
@@ -137,25 +142,46 @@ def first_message_project_label(project_type: str | None) -> str:
     return _PROJECT_TYPE_LABELS_ZH.get(project_type or "", "作品")
 
 
+# 首轮默认交付：按项目类型给一个完整单元，不写死字数。篇幅只是内部参考，不复述给作者。
+# 见 feature/2026-10-31-first-turn-complete-unit.md（取代 10-19 note 里的「约 800 字开头」）。
+_FIRST_DELIVERY_EN = {
+    "novel": (
+        "a complete first chapter into the manuscript, at the chapter length usual for the genre "
+        "(web-serial chapters commonly run 1,500–3,000 words)"
+    ),
+    "short": (
+        "a complete opening section, from the first line through the first turning point, into a single "
+        "manuscript file; at the end of your reply say you can continue to the end of the story in that same file"
+    ),
+    "screenplay": (
+        "the complete episode 1 script into the script, at the episode length usual for this kind of short drama"
+    ),
+}
+_FIRST_DELIVERY_ZH = {
+    "novel": "完整的第一章写进正文，篇幅按这类题材常见的章长（中文网文一般 2000–3000 字）",
+    "short": "从开篇写到第一个转折的完整开篇段落写进同一个正文文件，回复末尾告诉作者可以在这个文件里接着写完全篇",
+    "screenplay": "完整的第 1 集剧本写进剧本，篇幅按这类短剧常见的单集长度",
+}
+
+
 def first_message_hint(project_type: str | None, force_en: bool) -> str:
     """作者第一条消息的隐藏提示（只进模型输入，不落库、不显示）：先写，再给方向。
 
     免费版每天 3 条：先问两三个问题的一轮照样计 1 条，作者要到第 2、3 条才看到正文。
-    有创作意图但范围模糊时按最常见的理解写一段开头，再给两个可换的方向；
-    作者明确要了别的照做，单独保存项目资料不附送新文稿。
+    有创作意图但范围模糊时按最常见的理解交付一个完整单元（长篇第一章、短篇开篇到第一个转折、
+    短剧第 1 集），再给两个可换的方向；作者明确要了别的照做，单独保存项目资料不附送新文稿。
     """
-    screenplay = project_type == "screenplay"
+    unit_type = project_type if project_type in _FIRST_DELIVERY_ZH else "novel"
     if force_en:
         label = _PROJECT_TYPE_LABELS_EN.get(project_type or "", "project")
-        delivery = (
-            "the episode 1 script (about 500 words) into the script"
-            if screenplay
-            else "an opening of about 500 words into the manuscript"
-        )
+        delivery = _FIRST_DELIVERY_EN[unit_type]
         return (
             f"This is the author's first message in this \"{label}\". "
             "If the author clearly asked for something else (only an outline or settings, only a question, "
             "only a read-through without changes), do exactly that. "
+            "If the author only pasted material such as a synopsis, outline, settings or chapter list without saying what to do with it, "
+            "read it and ask one short question about what they want done with it (for example, write chapter one from it or first organize it into an outline); "
+            "do not write manuscript text this turn. "
             "If the sole requested delivery is saving the supplied facts to project memory or another project-information update, "
             "pass only the project-information fields the author requested to update_project; facts about characters or plot do not authorize new writing. "
             "Do not issue additional title, summary, style, phase, or task updates unless the author asked for them. "
@@ -164,21 +190,30 @@ def first_message_hint(project_type: str | None, force_en: bool) -> str:
             "If the author expresses a creative-writing intent but has not limited the delivery scope, do not ask questions first; "
             "deliver in this turn: introduce the protagonist, setting and core "
             f"conflict in three to five sentences, then write {delivery}. "
+            "That length is only your internal reference: do not quote a word count to the author, "
+            "do not present it as the author's request, and do not cut content to hit a number; "
+            "write the unit through to a complete ending. "
+            "If the author gave a length or scope (including \"no more than N words\" or a total length for a short story), "
+            "follow the author's words. "
             "If the idea is still vague, write it the most common way; at the end of your reply list two alternative "
             "directions, one sentence each, so the author can pick one or say what to change."
         )
     label = _PROJECT_TYPE_LABELS_ZH.get(project_type or "", "作品")
-    delivery = "第 1 集剧本（约 800 字）写进剧本" if screenplay else "约 800 字的开头写进正文"
+    delivery = _FIRST_DELIVERY_ZH[unit_type]
     return (
         f"这是作者在这部「{label}」里发来的第一条消息。"
         "作者明确要了别的（只要大纲或设定、只问问题、只看稿不改等）时，直接按要求做；"
+        "作者只贴了故事简介、梗概、设定或章节列表等材料、没说要用它做什么时，"
+        "先读懂材料，用一句话问作者想怎么用（比如按它写第一章，还是先整理成大纲），本轮不写正文；"
         "如果唯一交付物是把这次提供的事实记进项目记忆或更新其他项目资料，"
         "调用 update_project 时只传作者要求的字段，不额外发起改名、摘要、风格、阶段或任务更新；"
         "资料涉及人物或剧情也不代表作者要求创作，不要创建大纲、人设、设定文件或正文。"
         "作品里已经有正文时，按作者的要求接着做，不要另起一个开头。"
         "作者有创作意图但没有限定交付范围时，不要先提问，本轮就交付："
         "先用三五句话交代主角、背景和核心冲突，"
-        f"再把{delivery}；"
+        f"再把{delivery}。"
+        "这个篇幅只是你内部的参考：不向作者提具体字数，不说成是作者的要求，也不为凑字数删减内容，把这一部分写完整。"
+        "作者给了字数或范围（包括「不超过N字」、短篇给出全篇字数）时一律按作者原话。"
         "想法还模糊时，按最常见的理解来写，回复末尾再列两个可以换的方向，每个一句话，"
         "让作者挑一个或直接说想怎么改。"
     )
@@ -1459,26 +1494,7 @@ class AgentService:
                             }
                         )
                     elif event_type == "iteration_exhausted":
-                        assistant_status_cards.append(
-                            {
-                                "type": "iteration_exhausted",
-                                "layer": event.data.get("layer"),
-                                "iterationsUsed": event.data.get("iterations_used"),
-                                "maxIterations": event.data.get("max_iterations"),
-                                "reason": event.data.get("reason"),
-                                "lastAgent": event.data.get("last_agent"),
-                                "limit": event.data.get("limit"),
-                                # 空文件补不成：未写完 / 已撤销的文件（id 与标题），刷新后照样说清楚。
-                                **{
-                                    card_key: event.data[event_key]
-                                    for event_key, card_key in (
-                                        ("unfinished_files", "unfinishedFiles"),
-                                        ("rolled_back_files", "rolledBackFiles"),
-                                    )
-                                    if isinstance(event.data.get(event_key), list)
-                                },
-                            }
-                        )
+                        assistant_status_cards.append(iteration_exhausted_status_card(event.data))
                     elif event_type == "error":
                         had_stream_error = True
 

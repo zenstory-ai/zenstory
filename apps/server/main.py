@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from api.activation import router as activation_router
 from api.admin import router as admin_router
 from api.announcements import router as announcements_router
 from api.agent import router as agent_router
@@ -193,6 +194,7 @@ app.include_router(admin_router)
 app.include_router(announcements_router)
 app.include_router(referral_router)
 app.include_router(persona_router)
+app.include_router(activation_router)
 app.include_router(workspace_onboarding_router)
 app.include_router(subscription_router)
 app.include_router(payments_router)

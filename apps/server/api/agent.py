@@ -28,7 +28,14 @@ from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
-from agent.core.events import EventType, StreamEvent, done_event, error_event
+from agent.core.events import (
+    WALL_CLOCK_LIMIT,
+    EventType,
+    StreamEvent,
+    done_event,
+    error_event,
+    iteration_exhausted_event,
+)
 from agent.core.round_outcome import (
     ROUND_KIND_COMPLETED,
     RUN_DEADLINE_STOP_REASON,
@@ -52,6 +59,7 @@ from agent.core.stream_errors import (
 )
 from agent.service import get_agent_service
 from config.agent_runtime import (
+    AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_DRAIN_STOP_AFTER_S,
     AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
     AGENT_SSE_HEARTBEAT_INTERVAL_S,
@@ -105,6 +113,13 @@ USER_STOPPED_MESSAGE = "已停止生成。"
 # 停止路径上，done 帧最多等这么久拿这一轮助手消息的 id（取消后部分历史在后台落库，
 # 通常几百毫秒内完成）；等不到就不带 id，前端不会把这一轮错配到别的消息上。
 STOP_MESSAGE_ID_WAIT_S = 3.0
+# 墙钟硬超时、本轮已经写进文件时的暂停卡（与图层 / runner 时限收尾同一张卡，前端给「继续完成」按钮）。
+# reason 进历史状态卡摘要供下一轮的模型与路由看；作者看到的文案由前端 i18n 给出。
+DEADLINE_PAUSE_REASON = "这一轮的时间用完了，已经写进文件的内容都保存了。任务可能还没做完，回复「继续」就能接着做。"
+DEADLINE_PAUSE_REASON_EN = (
+    "This round ran out of time; everything already written to files is saved. "
+    "The task may not be finished; reply \"continue\" to pick it up."
+)
 # 停止 / 断线的结果写回助手消息前，后台任务等这一轮助手消息落库的上限。
 ROUND_OUTCOME_MESSAGE_ID_WAIT_S = 30.0
 
@@ -664,13 +679,36 @@ async def stream_request(
         completed_delivery: dict[str, Any] = {}
         known_incomplete = False
         source_done = False
+        # 最近一次选中的 agent 与已开始的 agent run 数：墙钟硬超时的暂停卡据此写 last_agent。
+        last_selected_agent: str | None = None
+        agent_runs_started = 0
+        # 墙钟硬超时时本轮已经写进文件：按「未完成」收尾（暂停卡 + done，不是通用超时错误卡）。
+        deadline_paused = False
+        # 这一轮已经流出过墙钟暂停卡（图层 / runner 的时限收尾）：硬超时不再补第二张。
+        wall_clock_card_seen = False
+        # 硬超时补发的暂停卡事件数据；已经流出过墙钟暂停卡时为 None（历史里不再追加）。
+        deadline_pause_card: dict[str, Any] | None = None
+        # 随暂停卡一起发出的 done：它由时限本身产生，不交给计费记账（计费仍按墙钟超时判定）。
+        deadline_pause_done: str | None = None
 
         def _observe_frame(frame: Any) -> None:
-            nonlocal source_done
+            nonlocal source_done, last_selected_agent, agent_runs_started, wall_clock_card_seen
+            if deadline_pause_done is not None and frame is deadline_pause_done:
+                return
             tracker.observe(frame)
             written_files.observe(frame)
             if isinstance(frame, str) and frame.startswith("event: done\n"):
                 source_done = True
+            elif isinstance(frame, str) and frame.startswith("event: agent_selected\n"):
+                _, selected = _parse_sse(frame)
+                agent_type = selected.get("agent_type") if isinstance(selected, dict) else None
+                if isinstance(agent_type, str) and agent_type:
+                    last_selected_agent = agent_type
+                    agent_runs_started += 1
+            elif isinstance(frame, str) and frame.startswith("event: iteration_exhausted\n"):
+                _, card_data = _parse_sse(frame)
+                if isinstance(card_data, dict) and card_data.get("limit") == WALL_CLOCK_LIMIT:
+                    wall_clock_card_seen = True
 
         def _saved_output(delivery: dict[str, Any]) -> bool:
             return written_files.saved_output(
@@ -737,14 +775,51 @@ async def stream_request(
         def _deadline_error():
             return server_restarting_error() if pump.deadline_moved_up else run_timeout_error()
 
-        def _deadline_terminal_frame() -> str | None:
-            nonlocal deadline_exceeded
+        def _deadline_terminal_frame() -> str | list[str] | None:
+            nonlocal deadline_exceeded, deadline_paused, deadline_pause_card, deadline_pause_done
             deadline_exceeded = True
             # 泵已请求取消、取消还没送达生成器：先交给 process_stream 真实原因，残稿补存
             # 落库可「继续」的 stop_reason（发布交接提前的时限也一样）。
             run_outcome.deadline_stop_reason = RUN_DEADLINE_STOP_REASON
             if tracker.delivered_terminal_event:
                 return None
+            if not pump.deadline_moved_up and tracker.file_written:
+                # 墙钟时限、本轮已经写进文件：不是失败，是没做完。发与时限收尾同一张暂停卡，紧跟 done，
+                # 都在等收尾之前（收尾可能越过平台断连）。done 只列已确认写入的文件：残稿补存还没落定，
+                # 不在这里把它们说成未保存；刷新后的 stop_outcome 按最终保存回执列出。
+                # 计费照旧按墙钟超时判定：暂停卡不是终止帧，这条 done 也不交给计费记账。
+                # 图层 / runner 的时限收尾已经流出过暂停卡（卡发出后、done 之前撞上硬超时）时只补 done，
+                # 不再发第二张卡，历史里也不追加。消费方按 limit=wall_clock 认这张卡，layer 沿用图层收尾的
+                # collaboration（计费不把它当失控停止），iterations 是本轮已开始的 agent run 数。
+                deadline_paused = True
+                frames: list[str] = []
+                if not wall_clock_card_seen:
+                    english = lang == "en"
+                    card = iteration_exhausted_event(
+                        layer="collaboration",
+                        iterations_used=agent_runs_started,
+                        max_iterations=AGENT_COLLABORATION_MAX_ITERATIONS,
+                        reason=DEADLINE_PAUSE_REASON_EN if english else DEADLINE_PAUSE_REASON,
+                        last_agent=last_selected_agent,
+                        limit=WALL_CLOCK_LIMIT,
+                    )
+                    deadline_pause_card = dict(card.data)
+                    frames.append(card.to_sse())
+                delivery = written_files.delivery(final_word_counts=run_outcome.saved_file_word_counts)
+                delivery.pop("unwritten_files", None)
+                deadline_pause_done = StreamEvent(
+                    type=EventType.DONE,
+                    data={
+                        **done_event(
+                            session_id=tracker.session_id,
+                            file_mutated=_confirmed_file_mutation(delivery),
+                            **delivery,
+                        ).data,
+                        "delivery_incomplete": True,
+                        "saved_output": _saved_output(delivery),
+                    },
+                ).to_sse()
+                return [*frames, deadline_pause_done]
             info = _deadline_error()
             return error_event(
                 info.message, code=info.code, retryable=info.retryable, refundable=info.refundable
@@ -767,7 +842,8 @@ async def stream_request(
             nonlocal settlement, refund_scheduled, refund_task
             if settlement is None:
                 billing_reason, should_refund = tracker.decide(
-                    client_disconnected=client_disconnected,
+                    # 暂停卡和 done 已经送到之后的断开（例如点「继续完成」中止旧连接）不是中断：按时限结算。
+                    client_disconnected=client_disconnected and not deadline_paused,
                     unexpected_exception=unexpected_exception,
                     deadline_exceeded=deadline_exceeded,
                     user_stopped=user_stopped,
@@ -810,6 +886,7 @@ async def stream_request(
             pending_refund: asyncio.Task[bool] | None,
             removed: list[dict[str, str]],
             delivery: dict[str, Any] | None = None,
+            pause_card: dict[str, Any] | None = None,
         ) -> None:
             # 停止 / 断线一轮的收尾：断线时等后台退还落定，退还了才移除空白占位文件；
             # 然后把终态写回这一轮的助手消息，刷新、重进项目后作者看得到。
@@ -848,10 +925,12 @@ async def stream_request(
                     removed_files=removed,
                     **delivery,
                 ),
+                pause_card=pause_card,
             )
 
         def _schedule_round_outcome(refund_applied: bool, *, stop_kind: str | None = None,
-                                    delivery: dict[str, Any] | None = None) -> None:
+                                    delivery: dict[str, Any] | None = None,
+                                    pause_card: dict[str, Any] | None = None) -> None:
             # 不能挂起（断线路径在 GeneratorExit 里调用）：只排后台任务。
             stop_kind = stop_kind or (STOP_KIND_USER_STOPPED if user_stopped else STOP_KIND_CLIENT_DISCONNECTED)
             charged_now = not refund_applied
@@ -862,6 +941,7 @@ async def stream_request(
                 task = asyncio.get_running_loop().create_task(
                     _finalize_stopped_round(
                         stop_kind, charged_now, pending_refund, list(removed_files), delivery,
+                        pause_card,
                     )
                 )
             except RuntimeError:
@@ -944,7 +1024,8 @@ async def stream_request(
             user_stopped = pump.stop_requested and not deadline_exceeded
             if user_stopped:
                 run_outcome.stop_kind = STOP_KIND_USER_STOPPED
-            elif not tracker.saw_terminal_event and knows_stop_contract:
+            elif not (tracker.saw_terminal_event or deadline_paused) and knows_stop_contract:
+                # 暂停卡和 done 已经送到：残稿补存保留可「继续」的时限原因，不记成断线。
                 run_outcome.stop_kind = STOP_KIND_CLIENT_DISCONNECTED
             pump.cancel()
             raise
@@ -961,6 +1042,7 @@ async def stream_request(
                 project_id=body.project_id,
                 agent_run_id=agent_run_id,
                 timeout_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
+                paused_with_saved_output=deadline_paused,
             )
             if not tracker.delivered_terminal_event:
                 frame = error_event(
@@ -1051,6 +1133,11 @@ async def stream_request(
                         agent_run_id=agent_run_id, billing_reason=reason,
                         charged=not should, refunded=applied, refund_scheduled=refund_scheduled,
                     )
+                    if deadline_paused and knows_stop_contract:
+                        # 暂停卡已经送到、收尾中才断开：同样记「未完成」并把暂停卡补进历史。
+                        _schedule_round_outcome(
+                            applied, stop_kind="incomplete", pause_card=deadline_pause_card
+                        )
 
                 task = asyncio.create_task(_settle_after_deadline_cleanup())
                 _detached_refund_tasks.add(task)
@@ -1065,7 +1152,10 @@ async def stream_request(
             # 终止帧（done 等）之后才断开的一轮已经正常结束：不写「已中断」终态。
             # 旧前端（不带停止约定头）断线：照旧只补存部分历史，不写终态、不移除文件。
             if user_stopped or (
-                client_disconnected and not tracker.saw_terminal_event and knows_stop_contract
+                client_disconnected
+                and not tracker.saw_terminal_event
+                and not deadline_paused
+                and knows_stop_contract
             ):
                 _schedule_round_outcome(refund_applied)
             elif error_delivery and knows_stop_contract:
@@ -1073,7 +1163,13 @@ async def stream_request(
             elif deadline_cut and not settlement_pending and knows_stop_contract:
                 # 时限截停（含审稿后返修被打断）：超时终态已先发出，这里等残稿补存交回消息 id 后
                 # 再按保存回执记「已中断」，刷新后不会像正常结束一样。stop_reason 保留原值，「继续」照常恢复。
-                _schedule_round_outcome(refund_applied, stop_kind="error")
+                # 已经写进文件、发的是暂停卡时记「未完成」，并把暂停卡补进历史（刷新后同一张卡与继续按钮）。
+                if deadline_paused:
+                    _schedule_round_outcome(
+                        refund_applied, stop_kind="incomplete", pause_card=deadline_pause_card
+                    )
+                else:
+                    _schedule_round_outcome(refund_applied, stop_kind="error")
             elif known_incomplete and knows_stop_contract:
                 _schedule_round_outcome(refund_applied, stop_kind="incomplete", delivery=partial_delivery)
             elif completed_delivery and knows_stop_contract:

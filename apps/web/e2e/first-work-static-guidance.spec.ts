@@ -3,13 +3,14 @@ import { mockResponsiveApp, responsiveProjects } from './fixtures-responsive';
 
 async function firstWorkFixture(page: Page, language: 'zh' | 'en', options: { deleted?: boolean; deletedFile?: boolean; alreadyCreated?: boolean; failInitialize?: boolean } = {}) {
   await mockResponsiveApp(page, null, 'free', language);
-  const project = { ...responsiveProjects[0], name: language === 'zh' ? '我的首部作品' : 'My First Work' };
+  const project = { ...responsiveProjects[0], name: language === 'zh' ? '我的小说' : 'My Novel' };
   let initialized = options.alreadyCreated ?? false;
   let failInitialize = options.failInitialize;
   let content = '';
   let openedAt: string | null = null;
   const calls: { path: string; method: string; body: unknown }[] = [];
   const state = () => ({ status: initialized ? 'created' : 'pending', project_id: initialized ? project.id : null,
+    project_type: initialized && !options.deleted ? project.project_type : null,
     file_id: initialized ? 'draft-0' : null, available: initialized && !options.deleted && !options.deletedFile, static_guidance: initialized && !options.deleted,
     opened_at: openedAt, first_manual_write_at: content ? '2026-10-14T10:00:00Z' : null, first_ai_requested_at: null });
   const file = () => ({ id: 'draft-0', project_id: project.id, title: language === 'zh' ? '第一章' : 'Chapter 1', content,
@@ -24,7 +25,8 @@ async function firstWorkFixture(page: Page, language: 'zh' | 'en', options: { de
     if (path === '/api/v1/workspace/first-work') {
       if (method === 'POST') {
         expect(request.headers()['accept-language']).toBe(language);
-        expect(body.preferred_type).toBe('novel');
+        // No type preference on this device: the server chooses from the onboarding persona.
+        expect(body.preferred_type).toBeNull();
         if (failInitialize) { failInitialize = false; return json({ detail: 'Temporary failure' }, 503); }
         initialized = true;
       }
@@ -59,7 +61,7 @@ for (const width of [390, 768, 1440]) {
       await expect(page.locator('html')).toHaveClass(new RegExp(theme));
       const entry = page.getByTestId('first-work-entry');
       await expect(entry).toBeVisible();
-      const open = entry.getByRole('button', { name: language === 'zh' ? '开始写作' : 'Start writing' });
+      const open = entry.getByRole('button', { name: language === 'zh' ? '打开作品' : 'Open it' });
       expect(fixture.calls.filter(call => call.path.endsWith('/first-work/open'))).toHaveLength(0);
       await page.screenshot({ path: test.info().outputPath('dashboard.png') });
       await open.click();
@@ -70,7 +72,7 @@ for (const width of [390, 768, 1440]) {
       const actions = await page.getByTestId('chat-panel-header-actions').boundingBox();
       expect(heading!.x + heading!.width).toBeLessThanOrEqual(actions!.x);
       const paste = guidance.getByRole('button', { name: language === 'zh' ? '自己写' : 'Write on my own' });
-      const ai = guidance.getByRole('button', { name: language === 'zh' ? '与 AI 创作' : 'Write with AI' });
+      const ai = guidance.getByRole('button', { name: language === 'zh' ? '让 AI 帮你写开头' : 'Let AI write the opening' });
       for (const button of [paste, ai]) {
         const box = (await button.boundingBox())!;
         expect(box.width).toBeGreaterThan(44); expect(box.height).toBeGreaterThanOrEqual(44);
@@ -105,7 +107,7 @@ for (const width of [390, 768, 1440]) {
       await page.goto('/dashboard');
       await expect(page.getByTestId('dashboard-inspiration-input')).toBeVisible();
       await expect(entry).toHaveCount(0);
-      await expect(page.getByRole('heading', { name: language === 'zh' ? '我的首部作品' : 'My First Work', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: language === 'zh' ? '我的小说' : 'My Novel', exact: true })).toBeVisible();
       await page.screenshot({ path: test.info().outputPath('dashboard-after-writing.png') });
       expect(fixture.calls.filter(call => call.path === '/api/v1/workspace/first-work' && call.method === 'POST')).toHaveLength(1);
       expect(aiCalls(fixture.calls)).toHaveLength(0); expect(errors).toEqual([]);

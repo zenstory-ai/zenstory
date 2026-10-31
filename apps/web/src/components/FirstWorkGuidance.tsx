@@ -41,8 +41,9 @@ function Guidance({ userId, projectId, fileId, focusEditor }: WorkFile & { focus
   return <div data-testid="first-work-guidance" className="mb-5 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
     <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">{t('firstWork.hint')}</p>
     <div className="mt-3 flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap">
+      {/* AI first, as in the empty editor: the chat's starter cards are one press from a first chapter. */}
+      <Button size="touch" className="max-w-full whitespace-normal! text-left" variant="primary" data-testid="first-work-ask-ai" onClick={isMobile ? switchToChat : focusChatInput}>{t('firstWork.ai')}</Button>
       <Button size="touch" className="max-w-full whitespace-normal! text-left" variant="secondary" onClick={focusEditor}>{t('firstWork.paste')}</Button>
-      <Button size="touch" className="max-w-full whitespace-normal! text-left" variant="secondary" onClick={isMobile ? switchToChat : focusChatInput}>{t('firstWork.ai')}</Button>
     </div>
   </div>;
 }

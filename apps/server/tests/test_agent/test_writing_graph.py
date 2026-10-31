@@ -1448,7 +1448,7 @@ class TestWritingGraphUserScope:
         handoff = next(e for e in events if e.type == StreamEventType.HANDOFF)
         assert handoff.data["target_agent"] == "writer"
         assert "大纲+只写第1章" in handoff.data["context"]
-        assert handoff.data["handoff_packet"]["todo"] == ["按用户要求的范围完成：大纲+只写第1章"]
+        assert handoff.data["handoff_packet"]["todo"] == ["按本轮交付范围完成：大纲+只写第1章"]
         assert "大纲+只写第1章" in captured["writer"]
 
     @pytest.mark.asyncio

@@ -24,6 +24,7 @@ import {
   lastSignedInUser,
   normalizePlanIntent,
   ownedReturnTarget,
+  planIntentBillingPath,
   rememberSignedInUser,
   type LoginAttempt,
 } from "./lib/authFlow";
@@ -252,7 +253,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
       }
       const planIntent = normalizePlanIntent(searchParams.get('plan'));
       return planIntent && planIntent !== 'free'
-        ? <Navigate to={`/dashboard/billing?plan=${encodeURIComponent(planIntent)}`} state={continuationState} replace />
+        ? <Navigate to={planIntentBillingPath(planIntent)} state={continuationState} replace />
         : <Navigate to="/dashboard" state={continuationState} replace />;
     }
   }

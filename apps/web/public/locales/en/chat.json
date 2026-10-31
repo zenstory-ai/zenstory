@@ -46,12 +46,19 @@
     "roundIncompleteSaved": "This round's completed changes were saved. You can continue with the remaining work.",
     "roundIncompleteNoChanges": "Nothing new was written in this round. You can continue the work.",
     "roundIncomplete": "This round is not finished yet. You can continue.",
+    "roundUnfinishedItem": "This round is not finished",
+    "roundUnfinishedContinueItem": "This round is not finished; you can continue",
+    "roundIncompleteSavedPaused": "This round's completed changes were saved.",
+    "roundIncompleteNoChangesPaused": "Nothing new was written in this round.",
+    "roundIncompletePaused": "This round is not finished yet.",
     "roundSavedFilesJoiner": ", ",
     "roundSavedFilesMore": "{{files}} and {{rest}} more",
     "creatingSession": "Creating new chat",
     "newSessionFailed": "Couldn't create a new chat. Please try again.",
     "sessionRecoveryFailed": "Couldn't load this chat. Please try again.",
-    "readWrittenFiles": "Read it"
+    "readWrittenFiles": "Read it",
+    "openWrittenFile": "Open “{{title}}”",
+    "writtenFileMissing": "This file no longer exists. It may have been deleted."
   },
   "input": {
     "placeholder": "Tell the AI what to write",
@@ -365,7 +372,11 @@
   "activity": {
     "elapsed": "AI is working · {{seconds}}s",
     "longWaitHint": "Long passages can take a few minutes.",
-    "longWaitHintMobile": "Long passages can take a few minutes. Keep this page open."
+    "longWaitHintMobile": "Long passages can take a few minutes. Keep this page open.",
+    "writingBody": "Writing the text of “{{title}}”…",
+    "writingBodyWords_one": "Writing the text of “{{title}}” · {{words}} word so far",
+    "writingBodyWords_other": "Writing the text of “{{title}}” · {{words}} words so far",
+    "seconds": "{{seconds}}s"
   },
   "leaveWhileGenerating": {
     "title": "The AI is still writing",
@@ -428,6 +439,25 @@
       "screenplay": "Vertical short drama: a diner waitress learns the quiet regular she serves every morning is the billionaire who ruined her family.",
       "use": "Write this",
       "edit": "Let me tweak it"
+    },
+    "manuscript": {
+      "title": "I see you already have a manuscript.",
+      "body": "What should I do first? Tap one to send it.",
+      "review": {
+        "novel": "Read my manuscript through and tell me the three things most worth fixing in the opening. Don't change the text yet.",
+        "short": "Read my manuscript through and tell me the three things most worth fixing in the opening. Don't change the text yet.",
+        "screenplay": "Read my script through and tell me the three things most worth fixing in the opening. Don't change the text yet."
+      },
+      "characters": {
+        "novel": "Put together a character list from what I've written so far.",
+        "short": "Put together a character list from what I've written so far.",
+        "screenplay": "Put together a character list from the script so far."
+      },
+      "continue": {
+        "novel": "Write the next chapter in the style I'm using now.",
+        "short": "Keep writing from where I stopped, in the same style.",
+        "screenplay": "Write the next episode in the style I'm using now."
+      }
     },
     "quota": "{{count}} free messages left today"
   },

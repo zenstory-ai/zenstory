@@ -1,4 +1,4 @@
-import { act, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import type { RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useState } from 'react';
@@ -615,6 +615,117 @@ describe('SimpleEditor', () => {
     await waitFor(() => {
       expect(toastErrorSpy).toHaveBeenCalledWith('ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED');
     });
+  });
+
+  const polishFailure = (errorCode: string, quotaRefunded: boolean) =>
+    Object.assign(new Error('translated headline'), {
+      status: 502,
+      errorCode,
+      details: { retryable: true, quota_refunded: quotaRefunded, failure_category: 'missing_anchor' },
+    });
+
+  it('a retryable 去AI味 failure says nothing changed and the AI message came back, and retries the same selection by hand', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    const naturalPolishMock = vi.mocked(naturalPolishApi.naturalPolish);
+    naturalPolishMock.mockRejectedValueOnce(polishFailure('ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', true));
+    naturalPolishMock.mockResolvedValueOnce({ text: 'Howdy', unchanged: false });
+    const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    const onEnterDiffReview = vi.fn();
+    const textarea = renderPolishableEditor(onEnterDiffReview);
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+
+    const notice = await screen.findByTestId('natural-polish-retry');
+    expect(notice).toHaveAttribute('role', 'alert');
+    expect(notice).toHaveTextContent('editor:naturalPolishUnusableRefunded');
+    expect(toastErrorSpy).not.toHaveBeenCalled();
+    expect(onEnterDiffReview).not.toHaveBeenCalled();
+    // 只调用了一次：失败后不自动重试。
+    expect(naturalPolishMock).toHaveBeenCalledTimes(1);
+
+    // 作者点了别处、选区没了；「再试一次」仍按失败时的选区重试。
+    textarea.setSelectionRange(11, 11);
+    fireEvent.select(textarea);
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishRetry' }));
+
+    await waitFor(() => expect(onEnterDiffReview).toHaveBeenCalledWith('file-1', 'Hello world', 'Howdy world'));
+    expect(naturalPolishMock).toHaveBeenCalledTimes(2);
+    expect(naturalPolishMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ selectedText: 'Hello' }),
+      expect.anything(),
+    );
+    expect(screen.queryByTestId('natural-polish-retry')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', false, 'editor:naturalPolishUnusable'],
+    ['ERR_NATURAL_POLISH_PROVIDER_FAILED', true, 'editor:naturalPolishProviderFailedRefunded'],
+    ['ERR_NATURAL_POLISH_PROVIDER_FAILED', false, 'editor:naturalPolishProviderFailed'],
+  ])('%s with quota_refunded=%s shows %s and can be dismissed', async (code, refunded, key) => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    vi.mocked(naturalPolishApi.naturalPolish).mockRejectedValueOnce(polishFailure(code, refunded));
+    renderPolishableEditor();
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+
+    const notice = await screen.findByTestId('natural-polish-retry');
+    expect(notice).toHaveTextContent(key);
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishDismiss' }));
+    expect(screen.queryByTestId('natural-polish-retry')).not.toBeInTheDocument();
+    expect(naturalPolishApi.naturalPolish).toHaveBeenCalledTimes(1);
+  });
+
+  it('the retry button shows free users that retrying uses another AI message, like the main button', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    vi.mocked(naturalPolishApi.naturalPolish).mockRejectedValueOnce(
+      polishFailure('ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', true),
+    );
+    testQueryClient.setQueryData(['subscription-quota', 'test-user'], quotaPayload(3));
+    renderPolishableEditor();
+
+    fireEvent.click(screen.getByRole('button', { name: /^editor:naturalPolish\b/ }));
+
+    const notice = await screen.findByTestId('natural-polish-retry');
+    const retry = within(notice).getByRole('button', { name: /editor:naturalPolishRetry/ });
+    expect(retry).toHaveTextContent('editor:naturalPolishCost');
+    expect(retry).toHaveAttribute('title', 'editor:naturalPolishTooltipFree');
+  });
+
+  it('retrying after the text changed uses the current selection instead of the stale range', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    const naturalPolishMock = vi.mocked(naturalPolishApi.naturalPolish);
+    naturalPolishMock.mockRejectedValueOnce(polishFailure('ERR_NATURAL_POLISH_OUTPUT_UNUSABLE', true));
+    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
+    const Harness = () => {
+      const [content, setContent] = useState('Hello world');
+      return (
+        <SimpleEditor
+          projectId="project-1"
+          fileId="file-1"
+          fileType="draft"
+          title="File 1"
+          content={content}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+        />
+      );
+    };
+    render(<Harness />);
+    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
+    selectText(textarea);
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolish' }));
+    await screen.findByTestId('natural-polish-retry');
+
+    fireEvent.change(textarea, { target: { value: 'Hi there world' } });
+    expect(textarea.value).toBe('Hi there world');
+    textarea.setSelectionRange(0, 0);
+    fireEvent.select(textarea);
+    fireEvent.click(screen.getByRole('button', { name: 'editor:naturalPolishRetry' }));
+
+    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
+    expect(naturalPolishMock).toHaveBeenCalledTimes(1);
   });
 
   const renderPolishableEditor = (onEnterDiffReview = vi.fn(), content = "Hello world") => {

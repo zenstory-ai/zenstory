@@ -173,25 +173,96 @@ describe("VerifyEmail", () => {
     });
   });
 
-  it("shows guard UI when email is missing", async () => {
+  it("asks for the address and offers to send a code when the page has no email", async () => {
     renderPage("");
 
-    await waitFor(() => {
-      expect(screen.getByText("auth:errors.missingVerificationEmail")).toBeInTheDocument();
-    });
-
+    expect(screen.getByLabelText("auth:verifyEmail.emailLabel")).toBeVisible();
+    expect(screen.getByRole("button", { name: "auth:verifyEmail.sendCode" })).toBeVisible();
     expect(screen.getByRole("button", { name: "auth:verifyEmail.goToRegister" })).toBeInTheDocument();
-    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // Only the address field, no code digits yet.
+    expect(screen.queryAllByRole("textbox")).toHaveLength(1);
+    expect(mockCheckVerification).not.toHaveBeenCalled();
     expect(mockVerifyEmail).not.toHaveBeenCalled();
     expect(mockResendVerification).not.toHaveBeenCalled();
   });
 
+  it("sends a code to the typed address and continues to code entry with plan intent", async () => {
+    mockResendVerification.mockResolvedValueOnce(undefined);
+    renderPage("", "pro");
+    fireEvent.change(screen.getByLabelText("auth:verifyEmail.emailLabel"), { target: { value: " pending@example.com " } });
+    fireEvent.click(screen.getByRole("button", { name: "auth:verifyEmail.sendCode" }));
+    await waitFor(() => expect(mockResendVerification).toHaveBeenCalledWith("pending@example.com"));
+    expect(mockNavigate).toHaveBeenCalledWith("/verify-email?plan=pro", {
+      replace: true, state: { email: "pending@example.com", verificationSent: true },
+    });
+  });
+
+  it("continues to code entry when a code was already sent moments ago", async () => {
+    mockResendVerification.mockRejectedValueOnce(
+      new ApiError(429, "ERR_AUTH_VERIFICATION_COOLDOWN", { retry_after_seconds: 40 }),
+    );
+    renderPage("");
+    fireEvent.change(screen.getByLabelText("auth:verifyEmail.emailLabel"), { target: { value: "pending@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "auth:verifyEmail.sendCode" }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/verify-email", {
+      replace: true, state: { email: "pending@example.com", verificationSent: true },
+    }));
+  });
+
+  it("keeps the typed address and explains a failed send", async () => {
+    mockResendVerification.mockRejectedValueOnce(new ApiError(400, "ERR_AUTH_RESEND_FAILED"));
+    renderPage("");
+    const field = screen.getByLabelText("auth:verifyEmail.emailLabel");
+    fireEvent.change(field, { target: { value: "pending@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "auth:verifyEmail.sendCode" }));
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(field).toHaveValue("pending@example.com");
+    expect(field).toBeEnabled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed address without calling the server", () => {
+    renderPage("");
+    fireEvent.change(screen.getByLabelText("auth:verifyEmail.emailLabel"), { target: { value: "not-an-email" } });
+    fireEvent.click(screen.getByRole("button", { name: "auth:verifyEmail.sendCode" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("auth:errors.invalidEmail");
+    expect(mockResendVerification).not.toHaveBeenCalled();
+  });
+
+  it("says how long to wait and where to look when a resend is still cooling down", async () => {
+    mockCheckVerification.mockResolvedValue({
+      email_verified: false, resend_cooldown_seconds: 0, verification_code_ttl_seconds: 0,
+    });
+    mockResendVerification.mockRejectedValueOnce(
+      new ApiError(429, "ERR_AUTH_VERIFICATION_COOLDOWN", { retry_after_seconds: 40 }),
+    );
+    renderPage("user@example.com");
+    fireEvent.click(await screen.findByRole("button", { name: "auth:verifyEmail.resendButton" }));
+    // Guidance, not a failure: a neutral status line, while the button carries the live countdown.
+    expect(await screen.findByRole("status")).toHaveTextContent("auth:verifyEmail.resendCooldownHint");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "auth:verifyEmail.resendButtonWithCount" })).toBeDisabled();
+  });
+
+  it("tells the author where else the code may have landed", async () => {
+    renderPage("user@example.com");
+    expect(screen.getByText("auth:verifyEmail.notReceivedHint")).toBeVisible();
+  });
+
+  it("does not send the author to look for a code that was never sent", async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/verify-email", state: { email: "user@example.com", verificationSent: false } }]}>
+        <VerifyEmail email="user@example.com" />
+      </MemoryRouter>
+    );
+    expect(screen.getByText("auth:verifyEmail.deliveryPending")).toBeVisible();
+    expect(screen.queryByText("auth:verifyEmail.notReceivedHint")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockCheckVerification).toHaveBeenCalledWith("user@example.com"));
+  });
+
   it("keeps paid plan query when navigating from missing-email guard actions", async () => {
     renderPage("", "pro");
-
-    await waitFor(() => {
-      expect(screen.getByText("auth:errors.missingVerificationEmail")).toBeInTheDocument();
-    });
 
     fireEvent.click(screen.getByRole("button", { name: "auth:verifyEmail.goToRegister" }));
     expect(mockNavigate).toHaveBeenCalledWith("/register?plan=pro");
@@ -213,10 +284,6 @@ describe("VerifyEmail", () => {
 
   it("keeps plan intent when navigating from missing-email guard actions", async () => {
     renderPage("", "pro");
-
-    await waitFor(() => {
-      expect(screen.getByText("auth:errors.missingVerificationEmail")).toBeInTheDocument();
-    });
 
     fireEvent.click(screen.getByRole("button", { name: "auth:verifyEmail.goToRegister" }));
     fireEvent.click(screen.getByRole("button", { name: "auth:verifyEmail.backToLogin" }));
@@ -255,7 +322,7 @@ describe("VerifyEmail", () => {
     });
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/dashboard/billing?plan=pro");
+      expect(mockNavigate).toHaveBeenCalledWith("/dashboard/billing?plan=pro&source=auth_plan_intent");
     }, { timeout: 3000 });
   });
 

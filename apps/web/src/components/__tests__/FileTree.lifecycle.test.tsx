@@ -48,7 +48,11 @@ function answerDeleteDialog(confirm = true) {
   fireEvent.click(within(dialog).getByRole('button', { name: confirm ? 'common:delete' : 'common:cancel' }));
 }
 function mountTree(mobile: boolean, strict = false, fileTreeVersion = 0) {
-  let project = { currentProjectId: 'project-1' as string | null, fileTreeVersion, selectedItem: null as SelectedItem | null, setSelectedItem: mocks.select };
+  let project = {
+    currentProjectId: 'project-1' as string | null, fileTreeVersion, selectedItem: null as SelectedItem | null, setSelectedItem: mocks.select,
+    // Like the provider: bumping the shared version makes the tree reload itself.
+    triggerFileTreeRefresh: () => update({ fileTreeVersion: project.fileTreeVersion + 1 }),
+  };
   const content = () => {
     const tree = <ProjectFixture.Provider value={project}><FileSearchProvider>
       {mobile ? <MobileFileTree /> : <FileTreePane />}
@@ -56,10 +60,8 @@ function mountTree(mobile: boolean, strict = false, fileTreeVersion = 0) {
     return strict ? <StrictMode>{tree}</StrictMode> : tree;
   };
   const view = render(content());
-  return {
-    ...view,
-    update(next: Partial<typeof project>) { project = { ...project, ...next }; view.rerender(content()); },
-  };
+  function update(next: Partial<typeof project>) { project = { ...project, ...next }; view.rerender(content()); }
+  return { ...view, update };
 }
 
 beforeEach(() => {

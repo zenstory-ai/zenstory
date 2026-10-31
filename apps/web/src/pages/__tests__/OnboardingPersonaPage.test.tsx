@@ -62,6 +62,11 @@ vi.mock("../../lib/onboardingPersonaApi", () => ({
   },
 }));
 
+const mockReportActivationEvent = vi.fn();
+vi.mock("../../lib/activationEvents", () => ({
+  reportActivationEvent: (...args: unknown[]) => mockReportActivationEvent(...args),
+}));
+
 vi.mock("../../lib/toast", () => ({
   toast: { error: (...args: unknown[]) => mockToastError(...args) },
 }));
@@ -147,6 +152,7 @@ describe("OnboardingPersonaPage", () => {
       expect(mockNavigate).toHaveBeenCalledWith("/dashboard/projects", { replace: true });
     });
     expect(getPreferredProjectType(mockUser?.id)).toBe("short");
+    expect(mockReportActivationEvent).toHaveBeenCalledWith("user-onboarding-1", { event_name: "persona_submitted", skipped: false });
     expect(queryClient.getQueryData(["persona-onboarding", "user-onboarding-1"])).toMatchObject({
       required: false,
       profile: { selected_personas: ["short_story"] },
@@ -231,6 +237,7 @@ describe("OnboardingPersonaPage", () => {
     });
     expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
     expect(getPreferredProjectType(mockUser?.id)).toBeNull();
+    expect(mockReportActivationEvent).toHaveBeenCalledWith("user-onboarding-1", { event_name: "persona_submitted", skipped: true });
   });
 
   it("preserves source search/hash when navigating back", async () => {
@@ -261,6 +268,7 @@ describe("OnboardingPersonaPage", () => {
 
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
     expect(mockSavePersonaOnboardingData).not.toHaveBeenCalled();
+    expect(mockReportActivationEvent).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(getPreferredProjectType(mockUser?.id)).toBeNull();
     await waitFor(() => expect(typeButton("novel")).toBeEnabled());

@@ -49,8 +49,10 @@ class LLMClient:
                              token headroom. True sends the provider's default.
             usage_attribution: Who to bill; when given, the call's tokens are
                              written to the usage ledger.
-            served_model_sink: Optional dict; ``"model"`` is set to the model
-                             that served the call.
+            served_model_sink: Optional dict; ``"model"``, ``"provider"`` and
+                             ``"finish_reason"`` are set from the call that served it.
+                             When the call raises, ``"model"`` and ``"provider"``
+                             name the last provider attempted.
 
         Returns:
             Generated text
@@ -74,6 +76,7 @@ class LLMClient:
                     call_site=getattr(usage_attribution, "source", None) or "llm_client",
                     usage_attribution=usage_attribution,
                     thinking_enabled=thinking_enabled,
+                    attempt_sink=served_model_sink,
                     messages=messages,
                     temperature=temperature if temperature is not None else self.DEFAULT_TEMPERATURE,
                     top_p=top_p if top_p is not None else self.DEFAULT_TOP_P,
@@ -97,6 +100,8 @@ class LLMClient:
         duration_ms = int((utcnow() - start_time).total_seconds() * 1000)
         if served_model_sink is not None:
             served_model_sink["model"] = provider.model
+            served_model_sink["provider"] = provider.name
+            served_model_sink["finish_reason"] = getattr(response.choices[0], "finish_reason", None)
 
         usage = response.usage
         log_with_context(

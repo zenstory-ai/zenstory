@@ -623,14 +623,17 @@ def _create_file_result(file) -> str:
     )
 
 
-async def _stream(db_session, user, project, service, *, client_stop_contract: str | None = "1"):
+async def _stream(
+    db_session, user, project, service, *, client_stop_contract: str | None = "1",
+    accept_language: str | None = None,
+):
     # 默认是认识停止约定的新前端（带 X-Client-Stop-Contract: 1）。
     body = agent_api.AgentRequest(project_id=str(project.id), message="写第一章")
     return await agent_api.stream_request(
         body=body,
         session=db_session,
         current_user=user,
-        accept_language=None,
+        accept_language=accept_language,
         client_stop_contract=client_stop_contract,
         _rate_limit=0,
     )
@@ -1495,7 +1498,7 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
     async def consume(response):
         async for frame in response.body_iterator:
             captured.append(frame)
-            if _frame_data(frame, "error"):
+            if _frame_data(frame, "error") or _frame_data(frame, "done"):
                 terminal.set()
 
     async def refund(*_args, **_kwargs):
@@ -1529,10 +1532,19 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
             refund_call.assert_not_called()
             assert db_session.get(File, placeholder.id).content == ""
             first = "".join(captured)
-            assert _frame_data(first, "error")["code"] == "ERR_AGENT_RUN_TIMEOUT"
-            assert _frame_data(first, "done") is None
             assert _frame_data(first, "quota_refunded") is None
-            assert "saved_output" not in first
+            if has_body:
+                # 已经写进文件：暂停卡加 done 同样赶在收尾之前；残稿补存还没落定，不声称已保存。
+                assert _frame_data(first, "error") is None
+                assert _frame_data(first, "iteration_exhausted")["limit"] == "wall_clock"
+                done = _frame_data(first, "done")
+                assert done["delivery_incomplete"] is True
+                assert done["saved_output"] is False
+                assert "written_files" not in done and "unwritten_files" not in done
+            else:
+                assert _frame_data(first, "error")["code"] == "ERR_AGENT_RUN_TIMEOUT"
+                assert _frame_data(first, "done") is None
+                assert "saved_output" not in first
             if mode == "disconnect":
                 consumer.cancel()
                 with pytest.raises(asyncio.CancelledError):
@@ -1550,8 +1562,9 @@ async def test_deadline_terminal_precedes_edge_even_when_cleanup_is_pending(clie
             await steering.cleanup_steering_queue_async(chat_id, run_id=lease_id)
 
         text = "".join(captured)
-        assert text.count("event: error") == 1
-        assert _frame_data(text, "done") is None
+        terminals = text.count("event: error") + text.count("event: done")
+        assert terminals == 1
+        assert ("event: done" in text) is has_body
         if has_body:
             refund_call.assert_not_called()
             assert db_session.get(File, placeholder.id).content == (_PROSE if mode == "save_later" else "")
@@ -2087,9 +2100,11 @@ async def test_deadline_hands_the_resumable_stop_reason_to_the_cancelled_run(
 async def test_deadline_round_records_an_interrupted_outcome_after_capture_settles(
     client, db_session, monkeypatch, with_body
 ):
-    """时限截停的一轮（含审稿后返修被打断）：残稿补存落定后记 stop_outcome（已中断），刷新后不像正常结束。
+    """时限截停的一轮（含审稿后返修被打断）：残稿补存落定后记 stop_outcome，刷新后不像正常结束。
 
-    stop_reason 保留 run_deadline_exceeded，「继续」照常可恢复；字数只认保存回执。
+    已经写进文件时不发通用错误卡：发与图层收尾同一张时限暂停卡（继续完成按钮、last_agent）和 done，
+    残稿补存落定后 stop_outcome 列出已保存的文件，历史里同样留下暂停卡；什么都没写成时保持超时错误卡。
+    stop_reason 保留 run_deadline_exceeded，「继续」照常可恢复；字数只认保存回执；计费判定不变。
     """
     from models import ChatMessage
     from utils.text_metrics import count_words
@@ -2097,7 +2112,10 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
     _token, project, user = await _login_with_project(client, db_session)
     message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
     assistant = db_session.get(ChatMessage, message_id)
-    assistant.message_metadata = json.dumps({"stop_reason": "run_deadline_exceeded"})
+    assistant.message_metadata = json.dumps({
+        "stop_reason": "run_deadline_exceeded",
+        "display_events": [{"type": "content", "content": "写到一半"}],
+    })
     db_session.add(assistant)
     db_session.commit()
     monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
@@ -2105,6 +2123,7 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
 
     async def frames():
         yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("agent_selected", {"agent_type": "writer", "agent_name": "写作"})
         if with_body:
             yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
             yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
@@ -2116,26 +2135,268 @@ async def test_deadline_round_records_an_interrupted_outcome_after_capture_settl
     with (
         patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id, receipts)),
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        patch("api.agent.log_with_context", wraps=agent_api.log_with_context) as log_spy,
+    ):
+        response = await _stream(db_session, user, project, None)
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "run_deadline_exceeded"
+    outcome = metadata["stop_outcome"]
+    assert outcome["charged"] is with_body
+    assert refund.called is not with_body
+    # 计费判定不因暂停卡改变：仍按墙钟超时结算。
+    assert _billing_log(log_spy)["billing_reason"] == "run_deadline_exceeded"
+    if with_body:
+        assert "ERR_AGENT_RUN_TIMEOUT" not in text
+        assert _frame_data(text, "error") is None
+        card = _frame_data(text, "iteration_exhausted")
+        assert card["limit"] == "wall_clock"
+        assert card["layer"] == "collaboration"
+        assert card["last_agent"] == "writer"
+        done = _frame_data(text, "done")
+        assert done["delivery_incomplete"] is True
+        # done 在收尾之前发出：流式正文的保存回执还没到，不在这里声称已保存，也不说成未保存。
+        assert done["saved_output"] is False
+        assert "written_files" not in done and "unwritten_files" not in done
+        assert text.index("event: iteration_exhausted") < text.index("event: done")
+        assert outcome["reason"] == "incomplete"
+        assert outcome["written_files"] == [
+            {"id": filled.id, "title": filled.title, "words": count_words(_PROSE)}
+        ]
+        # 刷新后同一张暂停卡：有展示时间线时追加在末尾，状态卡带 lastAgent 供「继续」路由。
+        assert metadata["display_events"][-1]["type"] == "iteration_exhausted"
+        assert metadata["display_events"][-1]["data"]["limit"] == "wall_clock"
+        assert metadata["status_cards"][-1]["type"] == "iteration_exhausted"
+        assert metadata["status_cards"][-1]["lastAgent"] == "writer"
+        assert metadata["status_cards"][-1]["limit"] == "wall_clock"
+    else:
+        assert "ERR_AGENT_RUN_TIMEOUT" in text
+        assert _frame_data(text, "iteration_exhausted") is None
+        assert _frame_data(text, "done") is None and _frame_data(text, "workflow_complete") is None
+        assert outcome["reason"] == "error"
+        assert "written_files" not in outcome
+        assert "status_cards" not in metadata
+        assert [event["type"] for event in metadata["display_events"]] == ["content"]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("card_already_streamed", [False, True])
+async def test_deadline_pause_follows_the_interface_language_and_never_doubles_the_card(
+    client, db_session, monkeypatch, card_already_streamed
+):
+    """墙钟硬超时的暂停卡：reason 跟随界面语言（它会回放进下一轮模型历史）；
+    图层收尾的暂停卡已经流出、done 之前撞上硬超时时，只补 done，不发第二张卡，历史里也不追加。"""
+    from models import ChatMessage
+    from utils.text_metrics import count_words
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
+    assistant = db_session.get(ChatMessage, message_id)
+    graph_card = {
+        "layer": "collaboration", "iterations_used": 2, "max_iterations": 12,
+        "reason": "This round is almost out of time.", "last_agent": "writer", "limit": "wall_clock",
+    }
+    saved_cards = (
+        [{"type": "iteration_exhausted", "layer": "collaboration", "limit": "wall_clock", "lastAgent": "writer"}]
+        if card_already_streamed else []
+    )
+    assistant.message_metadata = json.dumps({
+        "stop_reason": "run_deadline_exceeded",
+        "display_events": [{"type": "content", "content": "Half written"}],
+        **({"status_cards": saved_cards} if saved_cards else {}),
+    })
+    db_session.add(assistant)
+    db_session.commit()
+    monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("agent_selected", {"agent_type": "writer", "agent_name": "Writer"})
+        yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
+        yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
+        if card_already_streamed:
+            yield _sse("iteration_exhausted", graph_card)
+        await asyncio.sleep(30)
+
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, {filled.id: count_words(_PROSE)}),
+        ),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True),
+    ):
+        response = await _stream(db_session, user, project, None, accept_language="en-US,en;q=0.9")
+        text = "".join([frame async for frame in response.body_iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert _frame_data(text, "error") is None
+    assert text.count("event: iteration_exhausted") == 1
+    assert text.count("event: done") == 1
+    assert _frame_data(text, "done")["delivery_incomplete"] is True
+    card = _frame_data(text, "iteration_exhausted")
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    pause_cards = [c for c in metadata.get("status_cards", []) if c.get("type") == "iteration_exhausted"]
+    assert len(pause_cards) == 1
+    assert [e["type"] for e in metadata["display_events"]].count("iteration_exhausted") == (
+        0 if card_already_streamed else 1
+    )
+    if card_already_streamed:
+        assert card == graph_card
+    else:
+        assert card["reason"] == agent_api.DEADLINE_PAUSE_REASON_EN
+        assert not any("\u4e00" <= ch <= "\u9fff" for ch in card["reason"])
+        assert pause_cards[0]["reason"] == agent_api.DEADLINE_PAUSE_REASON_EN
+
+
+@pytest.mark.integration
+async def test_disconnect_during_deadline_pause_cleanup_keeps_the_resumable_pause(
+    client, db_session, monkeypatch
+):
+    """暂停卡和 done 已经送到、收尾还在进行时前端断开（例如点了「继续完成」中止旧连接）：
+    这一轮仍按时限暂停记账，不记成断线；补存的 stop_reason 保留可继续的 run_deadline_exceeded，
+    历史里留下暂停卡，结算原因仍是墙钟超时。"""
+    from models import ChatMessage
+    from utils.text_metrics import count_words
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
+    assistant = db_session.get(ChatMessage, message_id)
+    assistant.message_metadata = json.dumps({
+        "stop_reason": "", "display_events": [{"type": "content", "content": "写到一半"}],
+    })
+    db_session.add(assistant)
+    db_session.commit()
+    monkeypatch.setattr(agent_api, "AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+    gate = asyncio.Event()
+    settled = asyncio.Event()
+
+    class _CleanupHeldService:
+        async def process_stream(self, *, run_outcome=None, **_kwargs):
+            try:
+                yield _sse("session_started", {"session_id": "s1"})
+                yield _sse("agent_selected", {"agent_type": "writer", "agent_name": "写作"})
+                yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
+                yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
+                await asyncio.sleep(30)
+            finally:
+                # 收尾越过前端断开：像真实服务一样按 stop_kind 优先、否则时限原因补存部分历史。
+                await gate.wait()
+                stop_reason = run_outcome.stop_kind or run_outcome.deadline_stop_reason
+                message = db_session.get(ChatMessage, message_id)
+                metadata = json.loads(message.message_metadata)
+                metadata["stop_reason"] = stop_reason
+                message.message_metadata = json.dumps(metadata, ensure_ascii=False)
+                db_session.add(message)
+                db_session.commit()
+                run_outcome.saved_file_word_counts = {filled.id: count_words(_PROSE)}
+                run_outcome.resolve_message_id(message_id)
+
+    billing_logs = []
+    original_log = agent_api.log_with_context
+
+    def capture_log(logger, level, message, **fields):
+        if message in {"Agent stream billing evaluated", "Agent deadline billing settled after disconnect"}:
+            billing_logs.append((message, fields))
+            if message == "Agent deadline billing settled after disconnect":
+                settled.set()
+        return original_log(logger, level, message, **fields)
+
+    captured = []
+    got_done = asyncio.Event()
+
+    async def consume(response):
+        async for frame in response.body_iterator:
+            captured.append(frame)
+            if frame.startswith("event: done"):
+                got_done.set()
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_CleanupHeldService()),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        patch("api.agent.log_with_context", new=capture_log),
+    ):
+        response = await _stream(db_session, user, project, None)
+        consumer = asyncio.create_task(consume(response))
+        try:
+            await asyncio.wait_for(got_done.wait(), timeout=2)
+            consumer.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await consumer
+            await asyncio.sleep(0.05)
+        finally:
+            gate.set()
+        await asyncio.wait_for(settled.wait(), timeout=2)
+        for _ in range(20):
+            if agent_api._round_outcome_tasks:
+                break
+            await asyncio.sleep(0.01)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert _frame_data("".join(captured), "iteration_exhausted")["limit"] == "wall_clock"
+    refund.assert_not_called()
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "run_deadline_exceeded"
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["charged"] is True
+    assert metadata["stop_outcome"]["written_files"] == [
+        {"id": filled.id, "title": filled.title, "words": count_words(_PROSE)}
+    ]
+    pause_cards = [c for c in metadata.get("status_cards", []) if c.get("type") == "iteration_exhausted"]
+    assert len(pause_cards) == 1
+    assert pause_cards[0]["limit"] == "wall_clock"
+    assert pause_cards[0]["lastAgent"] == "writer"
+    assert all(fields["billing_reason"] == "run_deadline_exceeded" for _, fields in billing_logs)
+
+
+@pytest.mark.integration
+async def test_server_drain_deadline_keeps_the_restarting_error_even_after_writes(
+    client, db_session, monkeypatch
+):
+    """发布交接提前的时限仍是「服务重启」错误卡：暂停卡只用于墙钟时限。"""
+    from models import ChatMessage
+    from utils.text_metrics import count_words
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, filled, _older = _seed_round(db_session, project, user)
+    monkeypatch.setattr(agent_api, "AGENT_SSE_HEARTBEAT_INTERVAL_S", 0.05)
+    monkeypatch.setattr(agent_api, "AGENT_DRAIN_STOP_AFTER_S", 0.2)
+    monkeypatch.setattr(agent_api, "is_draining", lambda: True)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("agent_selected", {"agent_type": "writer"})
+        yield _sse("file_created", {"file_id": filled.id, "title": filled.title})
+        yield _sse("file_content", {"file_id": filled.id, "chunk": _PROSE})
+        await asyncio.sleep(30)
+
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=_FakeService(frames, message_id, {filled.id: count_words(_PROSE)}),
+        ),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True),
     ):
         response = await _stream(db_session, user, project, None)
         text = "".join([frame async for frame in response.body_iterator])
         await asyncio.gather(*agent_api._round_outcome_tasks)
 
-    assert "ERR_AGENT_RUN_TIMEOUT" in text
-    assert _frame_data(text, "done") is None and _frame_data(text, "workflow_complete") is None
+    assert "ERR_AGENT_SERVER_RESTARTING" in text
+    assert _frame_data(text, "iteration_exhausted") is None
     db_session.expire_all()
     metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
-    assert metadata["stop_reason"] == "run_deadline_exceeded"
-    outcome = metadata["stop_outcome"]
-    assert outcome["reason"] == "error"
-    assert outcome["charged"] is with_body
-    if with_body:
-        assert outcome["written_files"] == [
-            {"id": filled.id, "title": filled.title, "words": count_words(_PROSE)}
-        ]
-    else:
-        assert "written_files" not in outcome
+    assert metadata["stop_outcome"]["reason"] == "error"
 
 
 @pytest.mark.integration

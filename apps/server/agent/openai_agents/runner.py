@@ -11,6 +11,7 @@ import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from agent.core.events import WALL_CLOCK_LIMIT
 from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.output_truncation import (
     OUTPUT_TRUNCATED_HISTORY,
@@ -18,6 +19,7 @@ from agent.core.output_truncation import (
 )
 from agent.core.progress_channel import reset_progress_emitter, set_progress_emitter
 from agent.core.run_meter import AgentRunMeter, TimingOutcome
+from agent.core.server_drain import is_draining
 from agent.core.stream_errors import (
     MODEL_CALL_LIMIT_ERROR_TYPE,
     REPETITION_LOOP_STOP_REASON,
@@ -116,7 +118,7 @@ SOFT_LANDING_TURNS = 3
 # 收尾提醒由哪个上限触发（_ModelCallCountingFilter.landing_limit）。
 LANDING_LIMIT_MAX_TURNS = "max_turns"
 LANDING_LIMIT_MODEL_CALL_BUDGET = "model_call_budget"
-LANDING_LIMIT_WALL_CLOCK = "wall_clock"
+LANDING_LIMIT_WALL_CLOCK = WALL_CLOCK_LIMIT
 SOFT_LANDING_PROMPT = (
     "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
     "请立即停止调用任何工具（包括 query_files / parallel_execute）。"
@@ -1370,10 +1372,24 @@ async def run_openai_agents_streaming_agent(
             else MAX_TURNS_STOP_REASON
         )
         if turns_exhausted:
+            # 三种收尾分开记：「tool-call turn cap」里多数是时限收尾，混在一起看不出真正撞上
+            # max_turns 的有多少。时限收尾带已用时长和是否在为发布交接收尾。
+            if time_landed:
+                exhausted_log = "Agent run soft-landed near the wall-clock limit"
+                limit_fields: dict[str, Any] = {
+                    "elapsed_s": round(run_meter.elapsed_s(), 1),
+                    "server_draining": is_draining(),
+                }
+            elif budget_landed:
+                exhausted_log = "Agent run soft-landed at the request model-call budget"
+                limit_fields = {}
+            else:
+                exhausted_log = "Agent run reached the tool-call turn cap"
+                limit_fields = {}
             log_with_context(
                 logger,
                 30,  # WARNING
-                "Agent run reached the tool-call turn cap",
+                exhausted_log,
                 agent_type=agent_type,
                 model_turns=model_turns,
                 max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
@@ -1384,6 +1400,7 @@ async def run_openai_agents_streaming_agent(
                 max_model_calls=run_meter.max_model_calls,
                 duplicate_reads=read_guard.duplicate_reads,
                 blocked_reads=read_guard.blocked_reads,
+                **limit_fields,
             )
             if time_landed:
                 exhausted_data: dict[str, Any] = {

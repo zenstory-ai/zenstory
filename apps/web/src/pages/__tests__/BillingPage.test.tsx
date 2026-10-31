@@ -5,6 +5,7 @@ import BillingPage from '../BillingPage'
 
 const trackUpgradeClick = vi.fn()
 const trackUpgradeConversion = vi.fn()
+const trackUpgradeExpose = vi.fn()
 const trackEvent = vi.fn()
 const refetchStatus = vi.fn()
 const refetchCatalog = vi.fn()
@@ -196,6 +197,7 @@ vi.mock('../../config/upgradeExperience', () => ({
 vi.mock('../../lib/upgradeAnalytics', () => ({
   trackUpgradeClick: (...args: unknown[]) => trackUpgradeClick(...args),
   trackUpgradeConversion: (...args: unknown[]) => trackUpgradeConversion(...args),
+  trackUpgradeExpose: (...args: unknown[]) => trackUpgradeExpose(...args),
 }))
 
 vi.mock('../../lib/analytics', () => ({
@@ -458,6 +460,47 @@ describe('BillingPage', () => {
     expect(screen.getByText('Payment modal')).toBeInTheDocument()
     expect(screen.getByText('Payment modal')).toHaveAttribute('data-source', 'billing_header_upgrade')
     expect(assignSpy).not.toHaveBeenCalled()
+  })
+
+  it('records the sign-up plan link landing in checkout once, under its own source', () => {
+    currentSearch = 'plan=pro&source=auth_plan_intent'
+    render(<StrictMode><BillingPage /></StrictMode>)
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-source', 'auth_plan_intent')
+    expect(trackUpgradeConversion).toHaveBeenCalledWith('auth_plan_intent', 'billing')
+    expect(trackUpgradeExpose).toHaveBeenCalledTimes(1)
+    expect(trackUpgradeExpose).toHaveBeenCalledWith('auth_plan_intent', 'modal', { entry: 'plan_intent', dialog: 'payment' })
+  })
+
+  it.each([
+    ['the renewal reminder link', 'plan=pro'],
+    ['a Pro sign-in', 'plan=pro&source=auth_plan_intent'],
+  ])('keeps a Pro author landing from %s a renewal and records no plan-link exposure', (_name, search) => {
+    currentSearch = search
+    statusResponse = {
+      ...statusResponse,
+      data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
+    }
+    render(<BillingPage />)
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-source', 'billing_header_renew')
+    expect(trackUpgradeExpose).not.toHaveBeenCalled()
+  })
+
+  it('records the sign-up plan link landing only once the plan is known to be free', () => {
+    currentSearch = 'plan=pro&source=auth_plan_intent'
+    const freeStatus = statusResponse
+    statusResponse = { ...statusResponse, data: undefined, isLoading: true }
+    const { rerender } = render(<BillingPage />)
+    expect(trackUpgradeExpose).not.toHaveBeenCalled()
+
+    statusResponse = freeStatus
+    rerender(<BillingPage />)
+    expect(trackUpgradeExpose).toHaveBeenCalledTimes(1)
+    expect(trackUpgradeExpose).toHaveBeenCalledWith('auth_plan_intent', 'modal', { entry: 'plan_intent', dialog: 'payment' })
+  })
+
+  it('records no plan-link landing when billing is opened without a plan', () => {
+    render(<BillingPage />)
+    expect(trackUpgradeExpose).not.toHaveBeenCalled()
   })
 
   it('does not open activation for an unrelated plan', () => {

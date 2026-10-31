@@ -1,3 +1,5 @@
+import { countWords } from './documentChunker';
+
 const PARALLEL_WRITE_TASKS = new Set(['write_chapter', 'edit_file', 'delete_file']);
 /** update_project fields an author can see; a task-board or current_phase update alone is not output. */
 const PROJECT_INFO_FIELDS = new Set(['summary', 'writing_style', 'notes']);
@@ -119,4 +121,90 @@ export function isWriteToolResult(
       typeof task.type === 'string' &&
       PARALLEL_WRITE_TASKS.has(task.type),
   );
+}
+
+/**
+ * Refusals the server's write-order guard returns before running a tool: a created file has to get
+ * its text first (`file_body_pending`, `pending_empty_file_unwritten`). They steer the model and say
+ * nothing was wrong with the author's work, so the chat does not draw them as failed steps.
+ */
+const INTERNAL_ORDERING_ERROR_TYPES = new Set(['file_body_pending', 'pending_empty_file_unwritten']);
+
+export function isInternalOrderingRefusal(result: Record<string, unknown> | undefined): boolean {
+  const nested = result?.data && typeof result.data === 'object' ? (result.data as Record<string, unknown>) : undefined;
+  const errorType = result?.error_type ?? nested?.error_type;
+  return typeof errorType === 'string' && INTERNAL_ORDERING_ERROR_TYPES.has(errorType);
+}
+
+/** The file whose text is being written right now, for the chat's waiting line. */
+export interface BodyWriteSnapshot {
+  title: string;
+  /** Editor word count of the text streamed so far (0 until it starts). */
+  words: number;
+}
+
+/**
+ * Follows the round's existing events to say which file is getting its text: a `create_file` that
+ * left an empty file (`awaiting_body`) waits for its `<file>` text; `file_content` chunks are counted
+ * the way the editor counts words. An end without any text (the run stopped first, an empty-file
+ * correction follows) keeps the wait, so the rerun shows the same stage.
+ */
+export interface BodyWriteProgress {
+  toolCall(toolName: string, args?: Record<string, unknown>): void;
+  toolResult(toolName: string, status: string, result?: Record<string, unknown>): void;
+  fileCreated(fileId: string, title: string): void;
+  chunk(fileId: string, chunk: string): void;
+  end(fileId: string): void;
+  snapshot(): BodyWriteSnapshot | null;
+  reset(): void;
+}
+
+export function createBodyWriteProgress(): BodyWriteProgress {
+  const titles = new Map<string, string>();
+  let current: { fileId: string; title: string; text: string } | null = null;
+  // delete_file returns only `true`, so the deleted id comes from the call's arguments.
+  const pendingDeletes = new Set<string>();
+  return {
+    toolCall(toolName, args) {
+      if (toolName === 'delete_file' && typeof args?.id === 'string' && args.id) pendingDeletes.add(args.id);
+    },
+    toolResult(toolName, status, result) {
+      if (toolName === 'delete_file') {
+        // Deleting the waiting file is the allowed way out of an overdue empty file: stop naming it.
+        if (status === 'success' && current && pendingDeletes.has(current.fileId)) current = null;
+        if (status === 'success' || pendingDeletes.size <= 1) pendingDeletes.clear();
+        return;
+      }
+      if (toolName !== 'create_file' || status !== 'success') return;
+      const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
+      const id = typeof payload?.id === 'string' ? payload.id : '';
+      const title = typeof payload?.title === 'string' ? payload.title : '';
+      if (!id || payload?.file_type === 'folder') return;
+      if (title) titles.set(id, title);
+      if (payload?.awaiting_body === true) current = { fileId: id, title, text: '' };
+    },
+    fileCreated(fileId, title) {
+      if (fileId && title) titles.set(fileId, title);
+    },
+    chunk(fileId, chunk) {
+      if (!fileId) return;
+      if (current?.fileId !== fileId) {
+        if (!chunk.trim()) return;
+        current = { fileId, title: titles.get(fileId) ?? '', text: '' };
+      }
+      current.text += chunk;
+    },
+    end(fileId) {
+      if (current?.fileId === fileId && current.text.trim()) current = null;
+    },
+    snapshot() {
+      if (!current || !current.title) return null;
+      return { title: current.title, words: countWords(current.text) };
+    },
+    reset() {
+      titles.clear();
+      pendingDeletes.clear();
+      current = null;
+    },
+  };
 }

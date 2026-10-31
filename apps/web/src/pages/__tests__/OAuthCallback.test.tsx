@@ -179,7 +179,7 @@ describe("OAuthCallback", () => {
     render(<MemoryRouter><OAuthCallback /></MemoryRouter>);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith(
-      "/dashboard/billing?plan=pro", { replace: true },
+      "/dashboard/billing?plan=pro&source=auth_plan_intent", { replace: true },
     ));
     expect(sessionStorage.getItem("oauth_plan_intent")).toBeNull();
   });

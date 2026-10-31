@@ -37,6 +37,8 @@ export interface RoundStopOutcome {
 }
 
 export interface RoundWrittenFile {
+  /** The file id, kept from the saved stop outcome so a receipt can open the file (absent live). */
+  id?: string;
   title: string;
   words: number | null;
   /** Only some of the edits in one edit_file call landed (`partial: true`). */
@@ -46,14 +48,16 @@ export interface RoundWrittenFile {
 /**
  * Reads `written_files` ([{id, title, words?}]) as the server sends it: in
  * `stop_outcome.written_files` after a refresh, and in the stopped round's `done` frame live.
+ * `withIds` keeps each file's id (the saved outcome's receipt opens the files it names).
  */
-export function parseWrittenFiles(raw: unknown): RoundWrittenFile[] {
+export function parseWrittenFiles(raw: unknown, { withIds = false }: { withIds?: boolean } = {}): RoundWrittenFile[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((item) => {
     if (!item || typeof item !== 'object') return [];
-    const { title, words, partial } = item as { title?: unknown; words?: unknown; partial?: unknown };
+    const { id, title, words, partial } = item as { id?: unknown; title?: unknown; words?: unknown; partial?: unknown };
     if (typeof title !== 'string' || !title) return [];
     return [{
+      ...(withIds && typeof id === 'string' && id ? { id } : {}),
       title,
       words: typeof words === 'number' && Number.isFinite(words) ? words : null,
       ...(partial === true ? { partial: true } : {}),
@@ -117,7 +121,7 @@ export function parseRoundStopOutcome(metadata: unknown): RoundStopOutcome | nul
     removedFiles: Array.isArray(raw.removed_files)
       ? raw.removed_files.filter((title): title is string => typeof title === 'string' && Boolean(title))
       : [],
-    writtenFiles: parseWrittenFiles(raw.written_files),
+    writtenFiles: parseWrittenFiles(raw.written_files, { withIds: true }),
     ...(unwrittenFiles.length ? { unwrittenFiles } : {}),
     ...(raw.no_file_changes === true ? { noFileChanges: true } : {}),
   };

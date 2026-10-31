@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -652,11 +652,24 @@ async def test_sdk_run_soft_lands_before_the_wall_clock_limit(monkeypatch):
     def script(index: int) -> list[dict]:
         return _text_chunks("已完成：第五章前半。剩余：后半章。")
 
+    from agent.openai_agents import runner as runner_module
+
+    logged = MagicMock(wraps=runner_module.log_with_context)
+    monkeypatch.setattr(runner_module, "log_with_context", logged)
     events, requests, _state = await _run_against_local_model(
         monkeypatch, script, _unused_edit, state_extra={"run_meter": meter}
     )
 
     assert len(requests) == 1
+    # 时限收尾单独一条告警（带已用时长），不和工具调用轮数上限混在一起统计。
+    messages = [c.args[2] for c in logged.call_args_list if len(c.args) > 2]
+    assert "Agent run soft-landed near the wall-clock limit" in messages
+    assert "Agent run reached the tool-call turn cap" not in messages
+    landing_log = next(
+        c for c in logged.call_args_list
+        if len(c.args) > 2 and c.args[2] == "Agent run soft-landed near the wall-clock limit"
+    )
+    assert landing_log.kwargs["elapsed_s"] >= 700
     reminder = [m for m in requests[0]["messages"] if m.get("role") == "user"][-1]
     assert "时间快用完了" in str(reminder.get("content"))
     assert "</file>" in str(reminder.get("content")), "an open <file> body is finished first"

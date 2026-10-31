@@ -7,9 +7,9 @@ import { projectApi } from "../lib/api";
 import { authConfig, hasOAuthProviders } from "../config/auth";
 import { PublicHeader } from "../components/PublicHeader";
 import { LoadingSpinner } from "../components/LoadingSpinner";
-import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, ownedReturnTarget, type LoginAttempt } from "../lib/authFlow";
+import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, ownedReturnTarget, planIntentBillingPath, type LoginAttempt } from "../lib/authFlow";
 import { handleSsoRedirect } from '../lib/ssoRedirect';
-import { resolveOwnedAuthSession } from '../lib/apiClient';
+import { ApiError, resolveOwnedAuthSession } from '../lib/apiClient';
 
 // SVG icons for OAuth providers
 const GoogleIcon = () => (
@@ -40,13 +40,19 @@ const AppleIcon = () => (
 );
 
 export const Login: React.FC = () => {
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { login, googleLogin, appleLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // Registration hands over the address it found already registered.
+  const [identifier, setIdentifier] = useState(() => {
+    const handed = (location.state as { identifier?: unknown } | null)?.identifier;
+    return typeof handed === "string" ? handed : "";
+  });
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  // Set when the password was right but the email still needs verifying.
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { login, googleLogin, appleLogin } = useAuth();
   const { t } = useTranslation(['auth', 'common', 'privacy', 'home']);
   const [searchParams] = useSearchParams();
   const planIntent = normalizePlanIntent(searchParams.get('plan'));
@@ -57,12 +63,16 @@ export const Login: React.FC = () => {
   const selectedPlanLabel = planIntent
     ? t(`auth:plans.${planIntent}`, planIntent.toUpperCase())
     : '';
+  const verifyEmailLink = planIntent
+    ? `/verify-email?plan=${encodeURIComponent(planIntent)}`
+    : "/verify-email";
   const trimmedIdentifier = identifier.trim();
   const canSubmit = trimmedIdentifier.length > 0 && password.length > 0 && !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setUnverifiedEmail(null);
 
     if (!canSubmit) {
       setError(t("auth:errors.missingCredentials", "请输入账号和密码"));
@@ -125,7 +135,7 @@ export const Login: React.FC = () => {
       }
 
       if (hasPaidPlanIntent && planIntent) {
-        navigate(`/dashboard/billing?plan=${encodeURIComponent(planIntent)}`);
+        navigate(planIntentBillingPath(planIntent));
         return;
       }
 
@@ -174,6 +184,14 @@ export const Login: React.FC = () => {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       const error = err as { message?: string };
       setError(error.message || t('auth:errors.invalidCredentials'));
+      if (err instanceof ApiError && err.errorCode === 'ERR_AUTH_EMAIL_NOT_VERIFIED') {
+        const named = err.details?.email;
+        setUnverifiedEmail(
+          typeof named === 'string' && named.trim()
+            ? named.trim()
+            : trimmedIdentifier.includes('@') ? trimmedIdentifier : '',
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -218,6 +236,15 @@ export const Login: React.FC = () => {
               className="bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded-xl p-4 mb-6"
             >
               <p className="text-[hsl(var(--error-text))] text-sm">{error}</p>
+              {unverifiedEmail !== null && (
+                <button
+                  type="button"
+                  onClick={() => navigate(verifyEmailLink, { state: { email: unverifiedEmail } })}
+                  className="btn-primary mt-3 min-h-11 w-full"
+                >
+                  {t('auth:login.goVerify')}
+                </button>
+              )}
             </div>
           )}
           {hasPaidPlanIntent && (
@@ -287,6 +314,7 @@ export const Login: React.FC = () => {
                 onChange={(e) => {
                   setIdentifier(e.target.value);
                   if (error) setError("");
+                  setUnverifiedEmail(null);
                 }}
                 className="input"
                 placeholder={t('auth:login.usernamePlaceholder')}
@@ -326,6 +354,7 @@ export const Login: React.FC = () => {
                 onChange={(e) => {
                   setPassword(e.target.value);
                   if (error) setError("");
+                  setUnverifiedEmail(null);
                 }}
                 className="input"
                 placeholder={t('auth:login.passwordPlaceholder')}

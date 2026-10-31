@@ -656,6 +656,8 @@ class TestContextAssembler:
         assert "勇者的冒险故事" in result.context
         assert "大纲阶段" in result.context
         assert "轻松幽默" in result.context
+        # 旧数据里可能有 AI 自己写入的风格：标签说明以作者原话为准。
+        assert "【写作风格】（只记作者要求或确认的文风；与作者原话不一致时以作者原话为准）" in result.context
         assert "保持角色性格一致" in result.context
 
     def test_assemble_empty_project_status(

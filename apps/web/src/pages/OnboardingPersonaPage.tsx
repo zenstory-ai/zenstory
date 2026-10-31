@@ -17,6 +17,7 @@ import {
   type PersonaExperienceLevel,
 } from "../lib/onboardingPersona";
 import { onboardingPersonaApi, personaOnboardingQueryKey } from "../lib/onboardingPersonaApi";
+import { reportActivationEvent } from "../lib/activationEvents";
 
 const MAX_PERSONA_SELECTION = 3;
 const EXPERIENCE_LEVELS: PersonaExperienceLevel[] = ["beginner", "intermediate", "advanced"];
@@ -197,6 +198,8 @@ export default function OnboardingPersonaPage() {
       });
       queryClient.setQueryData(personaQueryKey, result);
       trackEvent("persona_submitted", { skipped: profile.skipped, project_type: choice?.type });
+      // New-user funnel (server side, once per account): the persona screen was answered or skipped.
+      void reportActivationEvent(user.id, { event_name: "persona_submitted", skipped: profile.skipped });
       navigate(nextPath, { replace: true });
     } catch {
       if (mountedRef.current) {

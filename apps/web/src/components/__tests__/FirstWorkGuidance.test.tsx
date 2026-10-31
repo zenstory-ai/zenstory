@@ -65,7 +65,7 @@ beforeEach(() => {
 });
 
 describe('first-work static guidance', () => {
-  for (const [language, paste, ai] of [['zh', '自己写', '与 AI 创作'], ['en', 'Write on my own', 'Write with AI']]) {
+  for (const [language, paste, ai] of [['zh', '自己写', '让 AI 帮你写开头'], ['en', 'Write on my own', 'Let AI write the opening']]) {
     it(`${language}: opens the chosen side without altering or sending drafts; manual writing works at exhausted quota`, async () => {
       await mount(language);
       fireEvent.click(await screen.findByRole('button', { name: paste }));
@@ -90,10 +90,20 @@ describe('first-work static guidance', () => {
 
   it('focuses the chat input on desktop without altering or sending the draft', async () => {
     await mount('zh', {}, false);
-    fireEvent.click(await screen.findByRole('button', { name: '与 AI 创作' }));
+    fireEvent.click(await screen.findByRole('button', { name: '让 AI 帮你写开头' }));
     const chat = screen.getByPlaceholderText(zhChat.input.placeholder);
     await waitFor(() => expect(chat).toHaveFocus());
     expect(chat).toHaveValue('Existing chat draft'); expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('leads with the AI action, as the empty editor does, and keeps writing by hand beside it', async () => {
+    await mount('zh', {}, false);
+    const guidance = await screen.findByTestId('first-work-guidance');
+    const [first, second] = Array.from(guidance.querySelectorAll('button'));
+    expect(first).toHaveTextContent('让 AI 帮你写开头');
+    expect(first.className).toContain('bg-[hsl(var(--primary))]');
+    expect(second).toHaveTextContent('自己写');
+    expect(second.className).not.toContain('bg-[hsl(var(--primary))]');
   });
 
   it('records a real open even when manual content already exists, without showing an empty hint', async () => {

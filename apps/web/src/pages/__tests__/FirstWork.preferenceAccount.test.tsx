@@ -19,6 +19,8 @@ import i18n from '../../lib/i18n';
 import { getPreferredProjectType, setPreferredProjectType } from '../../lib/preferredProjectType';
 import OnboardingPersonaPage from '../OnboardingPersonaPage';
 
+// New-user screen milestones are analytics, outside this flow's request contract.
+vi.mock('../../lib/activationEvents', () => ({ reportActivationEvent: vi.fn(async () => {}) }));
 vi.mock('../../lib/analytics', () => ({ identifyUser: vi.fn(), resetAnalytics: vi.fn(),
   trackEvent: vi.fn(), captureException: vi.fn() }));
 

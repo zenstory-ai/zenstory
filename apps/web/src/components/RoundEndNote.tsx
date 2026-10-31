@@ -10,11 +10,26 @@ import { formatRoundDelivery, type RoundStopOutcome } from '../lib/chatRoundEnd'
  * When the server named the files this round wrote, the note says which ones instead of only
  * 「已写入的内容已保存」: 「已中断 · 已保存《第2章》3,120 字 · 本条计入今日 AI 消息」.
  */
-export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOutcome; showDailyCount: boolean }): ReactElement {
+export function RoundEndNote({ outcome, showDailyCount, nextStepsBlocked = false }: {
+  outcome: RoundStopOutcome;
+  showDailyCount: boolean;
+  /** Today's AI messages are used up: the same facts without 「可以继续」 (the quota card says when sending comes back). */
+  nextStepsBlocked?: boolean;
+}): ReactElement {
   const { t, i18n } = useTranslation(['chat']);
-  if (outcome.reason === 'incomplete' && !outcome.unwrittenFiles?.length) {
+  // An unfinished round that confirmed saving the files it named (a time pause, a hard timeout after
+  // writes) lists them below like any other round: the receipt stands even when the reply's summary is
+  // short. Without a confirmed save it keeps the plain "unfinished" line rather than an empty note.
+  const listsSavedFiles = outcome.savedOutput && outcome.writtenFiles.length > 0;
+  if (outcome.reason === 'incomplete' && !outcome.unwrittenFiles?.length && !listsSavedFiles) {
     let text: string;
-    if (outcome.savedOutput) {
+    if (nextStepsBlocked) {
+      text = outcome.savedOutput
+        ? t('chat:panel.roundIncompleteSavedPaused', { defaultValue: '已保存本轮完成的修改。' })
+        : outcome.noFileChanges
+          ? t('chat:panel.roundIncompleteNoChangesPaused', { defaultValue: '本轮尚未写入新内容。' })
+          : t('chat:panel.roundIncompletePaused', { defaultValue: '本轮尚未完成。' });
+    } else if (outcome.savedOutput) {
       text = t('chat:panel.roundIncompleteSaved', { defaultValue: '已保存本轮完成的修改，可以继续写后续内容。' });
     } else if (outcome.noFileChanges) {
       text = t('chat:panel.roundIncompleteNoChanges', { defaultValue: '本轮尚未写入新内容，可以继续完成。' });
@@ -42,7 +57,15 @@ export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOu
       ? t('chat:panel.roundNotCounted', { defaultValue: '未计入今日 AI 消息' })
       : null,
     (outcome.charged && outcome.savedOutput) || outcome.unwrittenFiles?.length
-      || (outcome.reason === 'completed' && outcome.writtenFiles.length > 0) ? savedText : null,
+      || (outcome.reason === 'completed' && outcome.writtenFiles.length > 0)
+      || (outcome.reason === 'incomplete' && listsSavedFiles) ? savedText : null,
+    // The file receipt replaces the plain unfinished line, so keep saying the round is unfinished:
+    // an empty-file correction card is hidden and, with today's messages used up, has no continue button.
+    outcome.reason === 'incomplete' && listsSavedFiles && !outcome.unwrittenFiles?.length
+      ? nextStepsBlocked
+        ? t('chat:panel.roundUnfinishedItem', { defaultValue: '本轮尚未完成' })
+        : t('chat:panel.roundUnfinishedContinueItem', { defaultValue: '本轮尚未完成，可以继续' })
+      : null,
     outcome.charged && dailyCount
       ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
       : null,

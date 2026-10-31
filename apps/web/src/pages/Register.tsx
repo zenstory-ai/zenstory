@@ -11,6 +11,7 @@ import { InviteCodeInput } from "../components/referral/InviteCodeInput";
 import { authApi } from "../lib/api";
 import { translateError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
+import { ApiError } from "../lib/apiClient";
 import { normalizePlanIntent, type PlanIntent } from "../lib/authFlow";
 import { Eye, EyeOff } from "lucide-react";
 import { EmailSuggestionInput } from "../components/EmailSuggestionInput";
@@ -64,6 +65,9 @@ export const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState("");
+  // The address the server reported as already registered. The same answer
+  // covers verified and unverified accounts, so both exits are offered.
+  const [existingEmail, setExistingEmail] = useState<string | null>(null);
   const [inviteCodeOptional, setInviteCodeOptional] = useState(authConfig.inviteCodeOptional);
   const { register, googleLogin, appleLogin } = useAuth();
   const navigate = useNavigate();
@@ -130,6 +134,9 @@ export const Register: React.FC = () => {
   const loginLink = selectedPlan
     ? `/login?plan=${encodeURIComponent(selectedPlan)}`
     : "/login";
+  const verifyEmailLink = selectedPlan
+    ? `/verify-email?plan=${encodeURIComponent(selectedPlan)}`
+    : "/verify-email";
   const trimmedEmail = email.trim();
   const trimmedInviteCode = inviteCode.trim();
   // With referral off, an optional invite code is neither shown nor sent; a
@@ -257,6 +264,7 @@ export const Register: React.FC = () => {
     if (formError) {
       setFormError("");
     }
+    setExistingEmail(null);
   };
 
   if (!authConfig.registrationEnabled) {
@@ -268,6 +276,7 @@ export const Register: React.FC = () => {
     // The button already shows the in-flight / success state for these two.
     if (submitInFlightRef.current || success) return;
     setFormError("");
+    setExistingEmail(null);
 
     if (!isEmailValid) {
       rejectSubmit(t('auth:errors.invalidEmail'), 'email');
@@ -325,6 +334,9 @@ export const Register: React.FC = () => {
       // Use generic error message to avoid exposing internal errors
       const message = error.message || t('auth:register.failed');
       setFormError(message);
+      if (err instanceof ApiError && err.errorCode === 'ERR_AUTH_EMAIL_EXISTS') {
+        setExistingEmail(trimmedEmail);
+      }
       toast.error(message);
     } finally {
       submitInFlightRef.current = false;
@@ -385,6 +397,27 @@ export const Register: React.FC = () => {
               className="bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] rounded-xl p-4 mb-6"
             >
               <p className="text-[hsl(var(--error-text))] text-sm">{formError}</p>
+              {existingEmail !== null && (
+                <>
+                  <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">{t('auth:register.emailExistsHint')}</p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(loginLink, { state: { identifier: existingEmail } })}
+                      className="btn-primary min-h-11"
+                    >
+                      {t('auth:register.emailExistsLogin')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(verifyEmailLink, { state: { email: existingEmail } })}
+                      className="btn-ghost min-h-11 rounded-xl border border-[hsl(var(--border-color))]"
+                    >
+                      {t('auth:register.emailExistsVerify')}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

@@ -6,6 +6,8 @@ import { FileTreePane } from '../FileTreePane';
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
+  refreshTree: vi.fn(),
+  uploadDraft: vi.fn(),
   switchToEditor: vi.fn(),
   clearSearch: vi.fn(),
   getTree: vi.fn(),
@@ -25,7 +27,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('../../../contexts/ProjectContext', () => ({
-  useProject: () => ({ currentProjectId: mocks.projectId, selectedItem: mocks.selectedItem, setSelectedItem: mocks.select, fileTreeVersion: mocks.fileTreeVersion }),
+  useProject: () => ({ currentProjectId: mocks.projectId, selectedItem: mocks.selectedItem, setSelectedItem: mocks.select, fileTreeVersion: mocks.fileTreeVersion, triggerFileTreeRefresh: mocks.refreshTree }),
 }));
 vi.mock('../../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => ({ isMobile: mocks.isMobile, switchToEditor: mocks.switchToEditor }),
@@ -35,7 +37,7 @@ vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
   useMaterialAttachment: () => ({ addMaterial: mocks.addMaterial, removeMaterial: vi.fn(), isMaterialAttached: () => false, isAtLimit: mocks.isAtLimit }),
 }));
 vi.mock('../../../lib/api', () => ({
-  fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile },
+  fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile, uploadDraft: mocks.uploadDraft },
 }));
 vi.mock('../../../lib/toast', () => ({ toast: { error: mocks.toastError, success: vi.fn(), info: mocks.toastInfo } }));
 vi.mock('../../../lib/logger', () => ({ logger: { error: mocks.loggerError } }));
@@ -473,6 +475,38 @@ describe('FileTreePane draft import on phones', () => {
     render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
     const button = await screen.findByTestId('file-tree-upload-draft');
     expect(button.parentElement).toHaveClass(visibility);
+  });
+});
+
+describe('FileTreePane draft import', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+    mocks.getTree.mockResolvedValue({ tree: [{ id: 'drafts', title: '正文', file_type: 'folder', children: [] }] });
+  });
+
+  const pick = async () => {
+    const { container } = render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    await screen.findByTestId('file-tree-upload-draft');
+    const input = container.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    const file = new File(['第一章 开端\n正文'], 'book.txt', { type: 'text/plain' });
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+  };
+
+  it('refreshes the shared file tree after importing chapters, so the rest of the workbench follows', async () => {
+    mocks.uploadDraft.mockResolvedValue({ files: [{ id: 'draft-1', title: '第一章 开端', file_type: 'draft' }], total: 1, errors: [] });
+    await pick();
+
+    await waitFor(() => expect(mocks.refreshTree).toHaveBeenCalledTimes(1));
+    expect(mocks.uploadDraft).toHaveBeenCalledWith('project-1', expect.any(File));
+  });
+
+  it('asks for no refresh when the import failed outright', async () => {
+    mocks.uploadDraft.mockRejectedValue(new Error('offline'));
+    await pick();
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled());
+    expect(mocks.refreshTree).not.toHaveBeenCalled();
   });
 });
 

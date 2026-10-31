@@ -37,6 +37,7 @@ import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { claimAutoUpgradePrompt } from "../lib/upgradeTriggerStrategy";
 import { captureException, trackEvent } from "../lib/analytics";
+import { rearmAiFileOpened, reportActivationEvent } from "../lib/activationEvents";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import {
   BEFORE_CHUNK_RELOAD_EVENT,
@@ -244,6 +245,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const currentReviewRef = useRef(diffReviewState);
   selectedIdRef.current = selectedItem?.id;
   currentReviewRef.current = diffReviewState;
+  // Read by loadData for the new-user funnel without making it reload when these change.
+  const openContextRef = useRef({ isMobile, streamingFileId });
+  openContextRef.current = { isMobile, streamingFileId };
+  // The open file was selected by the AI's <file> stream (desktop auto-open), not by the author.
+  const autoOpenedFileIdRef = useRef<string | null>(null);
   useEffect(() => {
     activeProjectIdRef.current = currentProjectId;
     setIsCreating(null);
@@ -400,6 +406,22 @@ const EditorComponent: React.FC<EditorProps> = () => {
       if (generation !== loadGenerationRef.current) return;
       clearFileRemoved(currentProjectId, data.id);
       setFile(data);
+      // New-user funnel: the author opened a file, or the AI finished writing the file the author
+      // had open. The server counts it only when the file has an AI-written version, once per
+      // account; failures are silent. An open made by the AI's own stream does not count, so the
+      // author's own open of that file is still recorded later.
+      const isNewOpen = !followServer && currentFile?.id !== data.id;
+      if (isNewOpen) {
+        autoOpenedFileIdRef.current = openContextRef.current.streamingFileId === data.id ? data.id : null;
+      }
+      if ((isNewOpen || followServer) && autoOpenedFileIdRef.current !== data.id) {
+        void reportActivationEvent(currentUserId, {
+          event_name: "ai_file_opened",
+          file_id: data.id,
+          is_mobile: openContextRef.current.isMobile,
+          while_ai_writing: followServer,
+        });
+      }
       hasLoadedRef.current = true;
       setServerSyncIssue((prev) => (prev?.fileId === data.id ? null : prev));
       const serverContent = data.content || "";
@@ -489,6 +511,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
   useEffect(() => {
     const prevId = prevStreamingFileIdRef.current;
     prevStreamingFileIdRef.current = streamingFileId;
+    // The AI finished writing prevId: check it again for the new-user funnel when it is opened.
+    if (prevId && prevId !== streamingFileId) rearmAiFileOpened(currentUserId, prevId);
     
     // If streaming just ended for the current file, reload to get final content
     if (prevId && prevId === file?.id && prevId === selectedItem?.id && streamingFileId === null) {
@@ -498,7 +522,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [streamingFileId, file?.id, selectedItem?.id, loadData]);
+  }, [streamingFileId, file?.id, selectedItem?.id, loadData, currentUserId]);
 
   /**
    * Show a newer server copy and make it the editor's clean baseline. A title
@@ -804,6 +828,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setServerSyncIssue({ fileId, retrying: true });
     void syncOpenFileFromServer();
   }, [syncOpenFileFromServer]);
+
+  // A file the AI (or an undo) wrote may now have an AI version: check it again when opened.
+  useEffect(() => {
+    if (lastEditedFileId && editorRefreshVersion > 0) rearmAiFileOpened(currentUserId, lastEditedFileId);
+  }, [editorRefreshVersion, lastEditedFileId, currentUserId]);
 
   // Re-read the open file when the AI (or an undo) wrote it
   useEffect(() => {

@@ -23,6 +23,8 @@ import { getPersonaOnboardingData, savePersonaOnboardingData } from '../../lib/o
 import { personaOnboardingQueryKey, type PersonaOnboardingProfile, type PersonaOnboardingUpsertRequest } from '../../lib/onboardingPersonaApi';
 import OnboardingPersonaPage from '../OnboardingPersonaPage';
 
+// The new-user screen milestone is analytics, outside this page's request contract.
+vi.mock('../../lib/activationEvents', () => ({ reportActivationEvent: vi.fn(async () => {}) }));
 vi.mock('../../lib/analytics', () => ({ identifyUser: vi.fn(), resetAnalytics: vi.fn(),
   trackEvent: vi.fn(), captureException: vi.fn() }));
 

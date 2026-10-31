@@ -11,6 +11,7 @@ from agent.service import (
     DASHBOARD_IDEA_ENTRY,
     FIRST_MESSAGE_ENTRY,
     STARTER_EXAMPLE_ENTRY,
+    STARTER_MANUSCRIPT_ENTRY,
     first_message_hint,
 )
 from models import ChatMessage, ChatSession, Project, User
@@ -126,7 +127,7 @@ async def test_without_entry_model_input_is_unchanged(agent_service, db_session,
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("entry", [STARTER_EXAMPLE_ENTRY, FIRST_MESSAGE_ENTRY])
+@pytest.mark.parametrize("entry", [STARTER_EXAMPLE_ENTRY, STARTER_MANUSCRIPT_ENTRY, FIRST_MESSAGE_ENTRY])
 async def test_starter_and_typed_first_message_get_the_same_hint(
     agent_service, db_session, short_project, entry
 ):
@@ -207,13 +208,11 @@ def test_hint_writes_before_asking(force_en):
         assert "do not ask questions first" in hint
         assert "two alternative directions" in hint
         assert "ask two or three key questions" not in hint
-        # 英文作者的篇幅按单词给，不出现汉字口径（否则模型要在 800 汉字与作者的词数之间来回权衡）。
-        assert "about 500 words" in hint
+        # 英文作者的篇幅按单词给，不出现汉字口径。
         for project_type in ("novel", "short", "screenplay"):
             assert "Chinese characters" not in first_message_hint(project_type, force_en=True)
     else:
         assert "不要先提问" in hint
-        assert "约 800 字的开头写进正文" in hint
         assert "两个可以换的方向" in hint
         assert "先问两三个关键问题" not in hint
     assert "第 1 集剧本" in first_message_hint("screenplay", force_en=False)
@@ -432,3 +431,46 @@ async def test_first_message_round_does_not_follow_the_writers_own_review_handof
     assert not [e for e in events if e.type == StreamEventType.HANDOFF]
     text = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
     assert "写好了第一章《九十三天》。" in text
+
+
+@pytest.mark.parametrize("force_en", [False, True])
+@pytest.mark.parametrize("project_type", ["novel", "short", "screenplay", None])
+def test_default_delivery_is_a_complete_unit_without_a_quoted_number(project_type, force_en):
+    """默认交付按项目类型给一个完整单元；不再写死「约800字 / 约500词」，内部篇幅不复述给作者。"""
+    hint = first_message_hint(project_type, force_en=force_en)
+    for stale in ("800", "500 words", "about 500", "约 800"):
+        assert stale not in hint
+    if force_en:
+        assert "do not quote a word count to the author" in hint
+        assert "do not present it as the author's request" in hint
+        assert "do not cut content" in hint
+        assert "follow the author's words" in hint
+        assert "no more than N words" in hint
+    else:
+        assert "不向作者提具体字数" in hint
+        assert "不说成是作者的要求" in hint
+        assert "不为凑字数删减内容" in hint
+        assert "一律按作者原话" in hint
+        assert "不超过N字" in hint
+
+
+@pytest.mark.parametrize("force_en", [False, True])
+def test_default_delivery_unit_follows_the_project_type(force_en):
+    novel = first_message_hint("novel", force_en=force_en)
+    short = first_message_hint("short", force_en=force_en)
+    screenplay = first_message_hint("screenplay", force_en=force_en)
+    if force_en:
+        assert "complete first chapter" in novel
+        assert "first turning point" in short
+        assert "single manuscript file" in short
+        assert "continue to the end" in short
+        assert "complete episode 1 script" in screenplay
+    else:
+        assert "完整的第一章" in novel
+        assert "2000–3000 字" in novel
+        assert "第一个转折" in short
+        assert "同一个正文文件" in short
+        assert "接着写完" in short
+        assert "完整的第 1 集剧本" in screenplay
+    # 短篇首轮只交付开篇：一轮写不完整篇。
+    assert "完整的第一章" not in short and "complete first chapter" not in short

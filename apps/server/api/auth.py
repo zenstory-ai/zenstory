@@ -828,9 +828,12 @@ async def login(
             email=user.email,
             client_ip=get_client_ip(http_request),
         )
+        # The password is proven here, so naming the address lets a username
+        # login continue to the verification page.
         raise APIException(
             error_code=ErrorCode.AUTH_EMAIL_NOT_VERIFIED,
-            status_code=status.HTTP_403_FORBIDDEN
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"email": user.email},
         )
 
     # Generate tokens (refresh token is one-time-use with rotation metadata)

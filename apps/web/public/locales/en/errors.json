@@ -1,5 +1,7 @@
 {
   "ERR_INTERNAL_SERVER_ERROR": "Something went wrong. Please try again later.",
+  "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE": "This Humanize result couldn't be matched back to the selected text, so nothing was changed. Try again, or select less text",
+  "ERR_NATURAL_POLISH_PROVIDER_FAILED": "The AI service didn't respond this time, so nothing was changed. Please try again shortly",
   "ERR_VALIDATION_ERROR": "Some information is invalid. Check it and try again.",
   "ERR_DATABASE_ERROR": "Something went wrong. Please try again later.",
   "ERR_SERVICE_UNAVAILABLE": "Service temporarily unavailable. Please try again later.",
@@ -19,7 +21,8 @@
   "ERR_AUTH_INVALID_VERIFICATION_CODE": "The verification code is incorrect or has expired. Check it and try again; if it has expired, request a new one.",
   "ERR_AUTH_INVITE_CODE_REQUIRED": "Invite code is required",
   "ERR_AUTH_REGISTRATION_FAILED": "Registration failed. Please try again later.",
-  "ERR_AUTH_RESEND_FAILED": "Couldn’t send the verification code. Please try again later.",
+  "ERR_AUTH_RESEND_FAILED": "The verification code wasn’t sent. Please try again shortly; if it keeps failing, check that the email address is correct.",
+  "ERR_AUTH_VERIFICATION_COOLDOWN": "A code was just sent. Please wait a moment before resending, and check your spam or promotions folder.",
   "ERR_AUTH_EMAIL_UNDELIVERABLE": "We cannot send a code to this email. Check and correct the address.",
   "ERR_AUTH_RATE_LIMIT_EXCEEDED": "Too many attempts. Please try again later.",
   "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "That code is wrong or has expired. Check it or send a new one.",

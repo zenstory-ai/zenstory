@@ -178,6 +178,9 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
+const { reportActivationEvent, rearmAiFileOpened } = vi.hoisted(() => ({ reportActivationEvent: vi.fn(), rearmAiFileOpened: vi.fn() }))
+vi.mock('../../lib/activationEvents', () => ({ reportActivationEvent, rearmAiFileOpened }))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: editorTranslator.current,
@@ -510,6 +513,64 @@ describe('Editor', () => {
     // The component renders: {t('editor:placeholder.folderSelected')}{selectedItem.title}
     // Which translates to "Folder selected: My Folder" (concatenated text)
     expect(screen.getByText(/folder.*selected.*my folder/i)).toBeInTheDocument()
+  })
+
+  it('reports an opened file for the new-user funnel with the layout and whether the AI is writing it', async () => {
+    viewport.isMobile = true
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+    render(<Editor />)
+
+    await waitFor(() => expect(reportActivationEvent).toHaveBeenCalledWith('user-1', {
+      event_name: 'ai_file_opened',
+      file_id: 'file-1',
+      is_mobile: true,
+      while_ai_writing: false,
+    }))
+    expect(reportActivationEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the open file again once the AI has finished writing into it', async () => {
+    viewport.isMobile = true
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+    expect(reportActivationEvent).toHaveBeenCalledTimes(1)
+
+    mockProjectContext = { ...mockProjectContext, streamingFileId: 'file-1' }
+    rerender(<UnmemoizedEditor />)
+    mockProjectContext = { ...mockProjectContext, streamingFileId: null }
+    rerender(<UnmemoizedEditor />)
+
+    expect(rearmAiFileOpened).toHaveBeenCalledWith('user-1', 'file-1')
+    await waitFor(() => expect(reportActivationEvent).toHaveBeenCalledTimes(2))
+    expect(reportActivationEvent).toHaveBeenLastCalledWith('user-1', {
+      event_name: 'ai_file_opened',
+      file_id: 'file-1',
+      is_mobile: true,
+      while_ai_writing: true,
+    })
+  })
+
+  it('does not count a file the AI stream opened by itself, even after the stream ends', async () => {
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      streamingFileId: 'file-1',
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledWith('file-1'))
+
+    mockProjectContext = { ...mockProjectContext, streamingFileId: null }
+    rerender(<UnmemoizedEditor />)
+    await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledTimes(2))
+
+    expect(rearmAiFileOpened).toHaveBeenCalledWith('user-1', 'file-1')
+    expect(reportActivationEvent).not.toHaveBeenCalled()
   })
 
   it('renders loading state while fetching file', () => {
