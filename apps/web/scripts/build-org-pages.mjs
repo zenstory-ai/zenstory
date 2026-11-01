@@ -31,7 +31,7 @@ import { join, resolve } from 'node:path'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import { SITE, appHref, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, HOME_FONTS } from './site-shell.mjs'
+import { SITE, appHref, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, HOME_FONTS, homeLanguageScript } from './site-shell.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
@@ -313,8 +313,8 @@ const navSection = (route) => {
 }
 
 /** A complete document for the English route `route` in the current language. */
-const page = ({ route, title, description, ogType = 'article', ld, body, alternates = alternatesOf(route), switchLinks = alternates, pageId, fonts }) =>
-  shellPage({ lang: LANG, route: L(route), alternates, switchLinks, section: navSection(route), title, description, ogType, ld, body: localizeBody(body), pageId, fonts })
+const page = ({ route, title, description, ogType = 'article', ld, body, alternates = alternatesOf(route), switchLinks = alternates, pageId, fonts, head }) =>
+  shellPage({ lang: LANG, route: L(route), alternates, switchLinks, section: navSection(route), title, description, ogType, ld, body: localizeBody(body), pageId, fonts, head })
 
 const roster = (current) => `
 <section class="roster band-cream" aria-labelledby="roster-h">
@@ -421,11 +421,8 @@ for (const item of showcases) {
   }
 }
 const showcaseImage = (item, eager = false) => `<img src="${esc(item.image.file)}" width="${item.image.width}" height="${item.image.height}" alt="${esc(pick(item.image.alt))}" loading="${eager ? 'eager' : 'lazy'}" decoding="async"${eager ? ' fetchpriority="high"' : ''}>`
-/** Media shape decides the case's place in the grid: the first case is the feature, a vertical video gets a phone-shaped stage. */
-const caseShape = (item, index) => (index === 0 ? ' is-feature' : item.video && item.video.height > item.video.width ? ' is-tall' : '')
-/** Showcase cards in content order (content/showcases.json is the homepage curation). */
 /** The hero already shows the case with a verified chain; the showcase carries the others. */
-const showcaseCards = () => showcases.filter((item) => !item.chain).map((item, index) => {
+const showcaseCards = () => showcases.filter((item) => !item.chain).map((item) => {
   const owner = projects.find((p) => p.slug === item.owner)
   const tall = item.video && item.video.height > item.video.width
   // Native controls stay in the HTML (no-JS playback); playerScript swaps them for one play button until the first play.
@@ -438,10 +435,9 @@ const showcaseCards = () => showcases.filter((item) => !item.chain).map((item, i
     `<a href="${esc(item.source)}">${t('README source', 'README 来源')}</a>`,
     item.transcript_source ? `<a href="${esc(item.transcript_source)}">${t('Caption transcript', '字幕稿')}</a>` : '',
   ].filter(Boolean)
-  return `<article class="case-card${caseShape(item, index)}" aria-labelledby="case-${esc(item.slug)}">
+  return `<article class="case-card${tall ? ' is-tall' : ''}" aria-labelledby="case-${esc(item.slug)}">
     <figure class="case-media"><div class="media-frame"${tall ? ` style="--poster:url('${esc(item.video.poster)}')"` : ''}>${media}</div><figcaption><span class="case-kind">${esc(pick(item.kind))}</span><span class="case-owner">${esc(owner.name.en)}</span></figcaption></figure>
     <div class="case-copy"><h3 id="case-${esc(item.slug)}">${esc(pick(item.title))}</h3><p>${esc(pick(item.description))}</p>
-    <dl class="case-io"><div><dt>${starGlyph}${t('Input', '输入')}</dt><dd>${esc(pick(item.input))}</dd></div><div><dt>${starGlyph}${t('Output', '产物')}</dt><dd>${esc(pick(item.output))}</dd></div></dl>
     <p class="case-actions"><a class="case-method" href="${esc(item.method)}">${t('Follow the method', '看创作方法')}${arrowGlyph}</a></p><p class="case-provenance">${links.join('<span aria-hidden="true"> · </span>')}</p></div>
   </article>`
 }).join('')
@@ -514,8 +510,6 @@ const toolCards = (list) => list.map((p) => {
   const setup = p.install && p.entry ? `${setupLink(p)} · ` : ''
   return `<article class="tool-choice" id="tool-${p.slug}"><span class="eyebrow">${toolName(p)}</span><h3><a href="/${p.slug}">${t(esc(en), esc(zh))}${arrowGlyph}</a></h3><span class="tool-role">${esc(pick(homeReading.tools[p.slug]))}</span><p class="tool-links">${setup}<a href="${esc(p.github)}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a></p></article>`
 }).join('')
-/** A Chinese heading in phrases: each phrase stays on one line (see `.ph`). */
-const phrases = (...parts) => parts.map((part) => `<span class="ph">${part}</span>`).join('')
 /**
  * Progressive enhancement for the showcase players: with JavaScript, a video shows one play button
  * instead of the native control bar until it starts; the click starts playback (never autoplay) and
@@ -581,9 +575,8 @@ const homePage = () => {
   </div>
   <section class="band stage-band" aria-labelledby="examples-h"><div class="wrap">
     <header class="section-head">
-      <p class="eyebrow">${starGlyph}<span>${t('Made with our tools', '用这些工具，做出的作品')}</span></p>
-      ${heading(2, 'More ways to tell a story', phrases('让想法落在纸上，', '也发生在画面里'), 'examples-h')}
-      <p class="section-lede">${t('Writing, short drama, narrated edits and playable worlds. Independent projects, with the methods behind each one.', '写作、短剧、视频解说、互动世界。不同的真实项目，各有可以跟着做的方法。')}</p>
+      ${heading(2, 'See the tools in action', '先看看创作效果', 'examples-h')}
+      <p class="section-lede">${t('Four independent demos, with tutorials and source files to follow.', '四个实际案例，都有对应的教程和源码。')}</p>
     </header>
     <p class="swipe-hint" aria-hidden="true">${((n) => t(`Swipe to see all ${n} demos`, `左右滑动，查看全部 ${n} 个演示`))(showcases.filter((item) => !item.chain).length)}<span class="arrow">→</span></p>
     <div class="showcase-controls" hidden>
@@ -592,21 +585,16 @@ const homePage = () => {
       <button type="button" data-next aria-label="${t('Next demo', '下一个演示')}" aria-controls="showcase-list"><span aria-hidden="true">→</span></button>
     </div>
     <div class="showcase-grid" id="showcase-list">${showcaseCards()}</div>
-    <p class="more stage-next"><a href="#start-h">${t('Pick a path for what you have', '看看从哪里开始')}<span class="arrow" aria-hidden="true">↓</span></a></p>
   </div></section>
   <section class="band explore-band" aria-labelledby="start-h"><div class="wrap">
-    <header class="split-head">
-      <p class="eyebrow">${starGlyph}<span>${t('Creative paths', '创作路径')}</span></p>
-      ${heading(2, 'Start with what you have', phrases('你手上有什么，', '就从哪里开始'), 'start-h')}
-      <p class="section-lede">${t('Pick one and follow the steps.', '选一条，照步骤做。')}</p>
+    <header class="section-head">
+      ${heading(2, 'Start with what you have', '从你手头的素材开始', 'start-h')}
     </header>
     <div class="learning-paths home-paths">${paths.map(([number, en, zh, desc, descZh, slugs, labels, tools]) => `<article class="learning-path"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${homeReadingLinks(slugs, labels, number === '02')}${pathTools(tools)}${workbenchStart(tools)}</article>`).join('')}</div>
   </div></section>
   <section class="band tools-band" aria-labelledby="choose-h"><div class="wrap">
     <header class="section-head">
-      <p class="eyebrow">${starGlyph}<span>${t('Tools and where to use them', '工具与使用环境')}</span></p>
-      ${heading(2, 'Choose by what you want to make', phrases('按你想做的作品，', '选择工具'), 'choose-h')}
-      <p class="section-lede">${t('Each row leads to its install and entry command.', '每一行都直达安装与入口命令。')}</p>
+      ${heading(2, 'Choose your creative tools', '选择创作工具', 'choose-h')}
     </header>
     <h3 class="tool-group-title">${t('Creative tools', '创作工具')}<span class="count">${creative.length}</span></h3>
     <div class="tool-grid">${toolCards(creative)}</div>
@@ -617,8 +605,7 @@ const homePage = () => {
   </div></section>
   <section class="band library-band" aria-labelledby="guides-h"><div class="wrap library">
     <div class="library-intro">
-      <p class="eyebrow">${starGlyph}<span>${t('Knowledge library', '知识体系')}</span></p>
-      ${heading(2, 'From first steps to fixes, layer by layer', phrases('从上手到排错，', '按层次找到方法'), 'guides-h')}
+      ${heading(2, 'Tutorials & reference', '教程与参考资料', 'guides-h')}
       <form class="library-search" action="${L('/guides')}" method="get" role="search"><label for="home-search">${t('Search the library', '搜索知识库')}</label><span class="library-search-row"><input id="home-search" name="q" type="search" placeholder="${t('e.g. storyboard, CapCut draft', '例如：去AI味、分镜、剪映草稿')}"><button type="submit">${t('Search', '搜索')}</button></span></form>
       <p class="more"><a href="/guides">${t('Browse the complete library', '浏览完整知识库')}${arrowGlyph}</a></p>
     </div>
@@ -626,16 +613,15 @@ const homePage = () => {
   </div></section>
   <section class="band closing" aria-labelledby="model-h"><div class="wrap">
     <header class="section-head">
-      <p class="eyebrow">${starGlyph}<span>${t('How the projects connect', '项目关系')}</span></p>
-      ${heading(2, 'One story. Different ways to build.', phrases('围绕故事，', '把创作连接起来'), 'model-h')}
+      ${heading(2, 'From writing to adaptation', '从写作到改编', 'model-h')}
     </header>
     <p class="connection-note">${t('A novel can become a short drama or a game; a recap starts from existing footage.', '一部小说可以改成短剧或游戏；解说视频则从现成的视频素材开始。')}</p>
-    <details class="connection-details"><summary>${t('See how the projects connect', '查看项目之间的关系')}<span aria-hidden="true">+</span></summary><div class="home-system"><figure>${pipelineSvg()}</figure></div></details>
+    <div class="home-system"><figure>${pipelineSvg()}</figure></div>
     <p class="actions"><a class="btn" href="${appHref(LANG, '/register', 'org_home_closing')}">${t('Open ZenStory Workbench', '打开 ZenStory 工作台')}${extGlyph}</a><a class="btn ghost" href="#choose-h">${t('Install a skill pack in your agent', '在 Agent 中安装 skill 包')}<span class="arrow" aria-hidden="true">↑</span></a></p>
   </div></section>
 </article>
 ${playerScript}${carouselScript}`
-  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'home', fonts: HOME_FONTS }))
+  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'home', fonts: HOME_FONTS, head: LANG === 'en' ? homeLanguageScript : '' }))
 }
 
 // ---------- project pages ----------

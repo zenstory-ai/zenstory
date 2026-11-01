@@ -3,16 +3,16 @@
     "slug": "writing-desk",
     "owner": "oh-story",
     "title": {
-      "en": "Keep the manuscript, not just the chat",
-      "zh": "留下书稿，不只是一段对话"
+      "en": "Write web fiction with AI",
+      "zh": "用 AI 写网文"
     },
     "kind": {
-      "en": "42-second product demo",
-      "zh": "42 秒产品演示"
+      "en": "42-second writing demo",
+      "zh": "42 秒写作演示"
     },
     "description": {
-      "en": "Oh Story product demo: outline, prose and revision all work on project files.",
-      "zh": "Oh Story 产品演示：大纲、正文与改稿都围绕项目文件进行。"
+      "en": "Start with an idea or an existing draft. Plan the outline, write chapters and revise the manuscript in your project files.",
+      "zh": "从点子或已有书稿开始，列大纲、写章节、改稿，内容都保存在小说项目里。"
     },
     "input": {
       "en": "An idea or an existing draft",
@@ -43,16 +43,16 @@
     "slug": "drama-workflow",
     "owner": "drama-skills",
     "title": {
-      "en": "A novel becomes a short-drama scene",
-      "zh": "从小说，走到一段短剧成片"
+      "en": "Adapt a novel into a short drama",
+      "zh": "把小说改成短剧"
     },
     "kind": {
       "en": "68-second vertical short-drama sample",
       "zh": "68 秒竖屏短剧样片"
     },
     "description": {
-      "en": "Episode one of “Let You Manage the Account”: 20 generated shots, assembled with subtitles, a system panel and sound effects.",
-      "zh": "《让你管账号》第 1 集开头：20 镜逐镜生成，再叠加字幕、系统面板与音效。"
+      "en": "The opening of episode one of “Let You Manage the Account”: 20 generated shots, assembled with subtitles, a system panel and sound effects.",
+      "zh": "《让你管账号》第一集开头：根据小说片段制作 20 个镜头，再加入字幕、系统面板和音效。"
     },
     "input": {
       "en": "A novel excerpt",
@@ -83,16 +83,16 @@
     "slug": "recap-workflow",
     "owner": "video-recap",
     "title": {
-      "en": "Footage becomes a 59-second narrated edit",
-      "zh": "把视频素材，剪成 59 秒解说"
+      "en": "Make a narrated video recap",
+      "zh": "把视频剪成解说"
     },
     "kind": {
       "en": "59-second finished video recap",
       "zh": "59 秒解说成片"
     },
     "description": {
-      "en": "“This Second Burns”: short-drama footage selected, edited, scripted, voiced and mixed.",
-      "zh": "《这一秒过火》：从短剧素材选段，剪辑、写稿、配音、混音成片。"
+      "en": "Make a finished recap from footage you have permission to use, with narration, mixed audio and visual finishing. The demo is “This Second Burns.”",
+      "zh": "把有权使用的视频素材剪成解说，配旁白、做混音和画面包装。这里展示《这一秒过火》的成片。"
     },
     "input": {
       "en": "Video footage you can use",
@@ -245,16 +245,16 @@
     "slug": "plateau",
     "owner": "novel-to-game",
     "title": {
-      "en": "Step into The Lost World",
-      "zh": "走进《失落的世界》"
+      "en": "Turn a novel into a 3D game prototype",
+      "zh": "把小说改成 3D 游戏原型"
     },
     "kind": {
       "en": "15-second gameplay capture · desktop WebGL2",
       "zh": "15 秒实机预览 · 桌面 WebGL2"
     },
     "description": {
-      "en": "A first-person field-photography prototype adapted from The Lost World, playable in a desktop browser.",
-      "zh": "根据《失落的世界》改编的第一人称野外摄影原型，可在桌面浏览器试玩。"
+      "en": "A first-person photography prototype adapted from The Lost World, playable in a desktop browser.",
+      "zh": "根据《失落的世界》制作的第一人称摄影原型，可在桌面浏览器试玩。"
     },
     "input": {
       "en": "A source novel",

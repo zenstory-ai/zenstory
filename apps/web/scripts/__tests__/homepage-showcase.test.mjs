@@ -129,6 +129,29 @@ test('homepage generator emits English and Chinese entry documents', () => {
   for (const config of Object.values(languages)) assert.ok(existsSync(join(out, config.file)), config.file)
 })
 
+test('browser language selection is opt-in only on the English home, before the body', () => {
+  const marker = '<script data-home-language>'
+  assert.ok(pages.en.includes(marker), 'English root entry needs language selection')
+  assert.ok(pages.en.indexOf(marker) < pages.en.indexOf('<body'), 'choose a language before rendering the page content')
+  assert.ok(!pages.zh.includes(marker), 'an explicit Chinese URL must keep its language')
+  for (const route of ['projects', 'zh/projects', 'guides', 'oh-story']) {
+    const html = readFileSync(join(out, route, 'index.html'), 'utf8')
+    assert.ok(!html.includes(marker), route)
+    assert.doesNotMatch(html, /href="\/\?lang=en"[^>]*hreflang="en"/, `${route}: only the root language entry needs an explicit English hint`)
+  }
+  for (const html of Object.values(pages)) {
+    assert.match(html, /href="\/\?lang=en"[^>]*hreflang="en"/, 'the English home link must work even when cookies cannot be saved')
+  }
+})
+
+test('the project relationship diagram is directly readable without a disclosure', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const relationships = section(html, 'model-h')
+    assert.match(relationships, /<svg\b/)
+    assert.doesNotMatch(relationships, /<details\b|<summary\b/, `${lang}: the overview must not require another click`)
+  }
+})
+
 test('homepage corpus contains exactly five cases, four CDN videos, and four creative owners; the hero case is not repeated below', () => {
   assert.equal(showcases.length, 5)
   assert.equal(showcases.filter((item) => item.video).length, 4)
@@ -224,11 +247,10 @@ test('hero caption stays short: one case line and one playable action, with sour
   }
 })
 
-test('homepage next steps land where they say: case → path → tool row → install', () => {
+test('homepage starting points link to their tool rows and installation steps', () => {
   const projects = JSON.parse(readFileSync(new URL('../../content/projects.json', import.meta.url), 'utf8'))
   for (const [lang, html] of Object.entries(pages)) {
     const prefix = lang === 'zh' ? '/zh' : ''
-    assert.ok(anchors(section(html, 'examples-h')).some(({ href }) => href === '#start-h'), `${lang}: after the cases, point to the material paths`)
     const choose = section(html, 'choose-h')
     const rows = elementsWithClass(choose, 'tool-choice', 'article')
     const rowIds = rows.map((row) => attribute(row.match(/<article\b[^>]*>/i)[0], 'id'))

@@ -5,7 +5,7 @@
       "An idea",
       "只有一个想法",
       "Build the premise, outline and first chapter.",
-      "从故事前提、大纲到第一章。",
+      "先确定故事设定，再列大纲、写第一章。",
       [
         "agent-skills-for-writers",
         "novel-outline-template",
@@ -14,15 +14,15 @@
       [
         {
           "en": "Pick your first writing skill",
-          "zh": "了解写作 skill，选好入口"
+          "zh": "先选好写作工具"
         },
         {
           "en": "Build the premise and outline",
-          "zh": "建立故事前提与大纲"
+          "zh": "规划故事，列出大纲"
         },
         {
           "en": "Draft and check the opening",
-          "zh": "写出开篇并检查"
+          "zh": "写第一章，再检查开篇"
         }
       ],
       [
@@ -64,7 +64,7 @@
       "Video footage",
       "已经有视频",
       "From footage to a finished recap.",
-      "从素材到一条完整的解说。",
+      "把已有视频素材做成一条完整解说。",
       [
         "video-to-narration",
         "original-audio-and-narration",
@@ -73,11 +73,11 @@
       [
         {
           "en": "Build a grounded narrated recap",
-          "zh": "做出有依据的解说成片"
+          "zh": "选取素材，制作解说"
         },
         {
           "en": "Refine original sound and narration",
-          "zh": "细化原声与旁白分配"
+          "zh": "安排原声和旁白"
         },
         {
           "en": "Optional: finish in a CapCut draft",

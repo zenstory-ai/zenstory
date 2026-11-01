@@ -105,9 +105,22 @@ export const HOME_FONTS = FONTS
  */
 export const langChoiceScript = `<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('.lang-switch a[hreflang]');if(!a)return;document.cookie='zs_lang='+(a.getAttribute('hreflang')==='en'?'en':'zh')+';path=/;max-age=31536000;samesite=lax'+(location.protocol==='https:'?';secure':'')})</script>`
 
+/** Root-entry enhancement only. Static language URLs and pages never depend on this script. */
+export const homeLanguageScript = `<script data-home-language>(function(){
+if(location.pathname!=='/')return;
+var saved=document.cookie.match(/(?:^|;\\s*)zs_lang=(en|zh)(?:;|$)/),choice=saved?saved[1]:null;
+if(!choice&&new URLSearchParams(location.search).get('lang')==='en')choice='en';
+if(!choice){
+  var languages=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language];
+  choice='en';
+  for(var i=0;i<languages.length;i++){var language=languages[i].toLowerCase().split('-')[0];if(language==='zh'||language==='en'){choice=language;break}}
+}
+if(choice==='zh')location.replace('/zh'+location.search+location.hash);
+})()</script>`
+
 /** Header language switch: two links, the current language marked. */
 export const langSwitch = (lang, links) => `<div class="lang-switch" role="group" aria-label="${t(lang, 'Language', '语言')}">
-      <a href="${esc(links.en)}" lang="en" hreflang="en"${lang === 'en' ? ' aria-current="true"' : ''}>EN</a>
+      <a href="${esc(links.en === '/' ? '/?lang=en' : links.en)}" lang="en" hreflang="en"${lang === 'en' ? ' aria-current="true"' : ''}>EN</a>
       <a href="${esc(links.zh)}" lang="zh-CN" hreflang="zh-CN"${lang === 'zh' ? ' aria-current="true"' : ''}>中文</a>
     </div>`
 
