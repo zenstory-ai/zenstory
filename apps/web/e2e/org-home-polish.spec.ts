@@ -85,11 +85,25 @@ test('English home remains readable without JavaScript and keeps native video co
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
-  // Provenance is now linked directly from existing labels; no script or extra disclosure is required.
-  for (const selector of ['.leaf-title', '.world-label a', '.stage-case a']) {
+  // Provenance is linked directly from the artwork and existing labels; no script or extra disclosure is required.
+  for (const selector of ['.leaf-title', 'a.tile-media', '.stage-case a']) {
     await expect(page.locator(selector)).toBeVisible();
     await expect(page.locator(selector)).toHaveAttribute('href', /github\.com\/zenstory-ai\/novel-to-game\/(?:blob|tree)\/[a-f0-9]{40}\//);
   }
+  // The crop is the link itself, not an inner anchor whose keyboard ring can be clipped.
+  const artwork = page.locator('a.tile-media');
+  await artwork.focus();
+  await expect(artwork).toBeFocused();
+  const ring = await artwork.evaluate(el => {
+    const style = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    return { visible: el.matches(':focus-visible'), outline: parseFloat(style.outlineWidth), offset: parseFloat(style.outlineOffset), box: { left: box.left, right: box.right } };
+  });
+  expect(ring.visible).toBe(true);
+  expect(ring.outline).toBeGreaterThanOrEqual(2);
+  expect(ring.offset).toBeGreaterThanOrEqual(2);
+  expect(ring.box.left - ring.offset - ring.outline).toBeGreaterThanOrEqual(0);
+  expect(ring.box.right + ring.offset + ring.outline).toBeLessThanOrEqual(390);
   // The remaining reference disclosures keep native keyboard behavior.
   const level = page.locator('.knowledge-level').first();
   await expect(level.locator('a').first()).toBeHidden();

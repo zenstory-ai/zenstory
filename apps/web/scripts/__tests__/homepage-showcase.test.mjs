@@ -231,7 +231,9 @@ test('hero sources are attached to existing labels, not a separate directory', (
     assert.ok(textOf(caption).length <= (lang === 'en' ? 90 : 40), `${lang}: keep one case line and one playable action`)
     assert.ok(hero.includes(`href="${chainCase.chain.source.url}" title="${chainCase.chain.source.note[lang]}"`))
     const art = anchors(hero).find(({ href }) => href === chainCase.chain.scene.source)
-    assert.match(art.text, lang === 'zh' ? /游戏场景原画/ : /In-game environment art/)
+    assert.match(art.tag, /class="tile-media"/, `${lang}: link the artwork itself to the pinned original`)
+    assert.ok(art.tag.includes(`src="${chainCase.chain.scene.file}"`))
+    assert.match(textOf(caption), lang === 'zh' ? /原画/ : /art/i, `${lang}: the existing caption must identify art rather than live gameplay`)
     assert.doesNotMatch(hero, /Antigravity|OpenClaw|Reasonix|MIT/)
   }
 })
@@ -251,6 +253,18 @@ test('homepage tool rows link to their real project installation steps', () => {
       const landing = readFileSync(join(out, `${prefix}/${slug}`.replace(/^\//, ''), 'index.html'), 'utf8')
       assert.ok(landing.includes('id="start-h"') && landing.includes(project.install.split(' ').slice(0, 4).join(' ')), `${lang}: ${slug}#start-h must show the install command`)
     }
+  }
+})
+
+test('tool selection keeps six project titles without redundant group headings', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const choose = section(html, 'choose-h')
+    const creative = elementsWithClass(choose, 'tool-grid')[0]
+    const environments = elementsWithClass(choose, 'environment-grid')[0]
+    assert.equal(elementsWithClass(creative, 'tool-choice', 'article').length, 4)
+    assert.equal(elementsWithClass(environments, 'tool-choice', 'article').length, 2)
+    assert.equal((choose.match(/<h3\b/g) ?? []).length, 6, `${lang}: only the six project names need subheadings`)
+    assert.equal(elementsWithClass(choose, 'count').length, 0, `${lang}: no decorative group totals`)
   }
 })
 
@@ -291,7 +305,7 @@ test('hero connects a visible original passage to an honestly labelled game deta
     const figure = hero.slice(hero.indexOf('<figure class="stage">'), hero.indexOf('</figure>'))
     assert.ok(textOf(figure).includes(item.chain.source.excerpt.split('。')[0]), `${lang}: the original must be visible beside the outcome, not only in a closed disclosure`)
     assert.match(figure, /<blockquote\b[^>]*lang="zh-Hant"/)
-    assert.match(figure, lang === 'zh' ? /游戏场景原画/ : /In-game environment art/)
+    assert.match(textOf(figure), lang === 'zh' ? /原画/ : /art/i)
     assert.ok(figure.includes(`src="${item.chain.scene.file}"`), `${lang}: use the project’s actual environment art, not a synthetic brand image`)
     assert.doesNotMatch(figure, /story-game-battle\.jpg|wukong\.webp/, `${lang}: no raw battle HUD or floating character in the hero`)
     assert.ok(anchors(hero).some(({ href }) => href === item.chain.scene.source), `${lang}: cropped presentation must retain its full original source`)

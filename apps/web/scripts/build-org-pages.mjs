@@ -432,7 +432,7 @@ const showcaseCards = () => showcases.filter((item) => !item.chain).map((item) =
   const links = [
     item.video ? `<a href="${esc(item.video.url)}">${t('Watch directly', '直接观看视频')}${extGlyph}</a>` : '',
     item.demo ? `<a href="${esc(item.demo)}">${t('Play the prototype', '试玩原型')}${extGlyph}</a>` : '',
-    `<a href="${esc(item.source)}">${t('README source', 'README 来源')}</a>`,
+    `<a href="${esc(item.source)}">${t('Source', '源码')}</a>`,
     item.transcript_source ? `<a href="${esc(item.transcript_source)}">${t('Caption transcript', '字幕稿')}</a>` : '',
   ].filter(Boolean)
   return `<article class="case-card${tall ? ' is-tall' : ''}" aria-labelledby="case-${esc(item.slug)}">
@@ -451,9 +451,9 @@ const heroStage = () => {
   return `<figure class="stage">
         <div class="stage-canvas">
           <div class="source-leaf"><a class="leaf-title" href="${esc(source.url)}" title="${esc(pick(source.note))}">${t('Journey to the West', '西游记')}</a><blockquote lang="zh-Hant"><p class="source-full">${esc(source.excerpt.split('。')[0])}。</p><p class="source-short">${esc(source.excerpt.split('，').slice(1).join('，').split('。')[0])}。</p></blockquote><span class="leaf-chapter">${t('Chapter 59', '第五十九回')}</span></div>
-          <div class="world-window"><div class="tile-media">${chainImage(scene, { eager: true })}</div><p class="world-label"><a href="${esc(scene.source)}">${t('In-game environment art', '游戏场景原画')}</a></p></div>
+          <a class="tile-media" href="${esc(scene.source)}">${chainImage(scene, { eager: true })}</a>
         </div>
-        <figcaption><span class="stage-case"><a href="${esc(example)}" title="${t('Case source files', '案例源码')}">${t('<cite>Journey to the West</cite> → a playable prototype', '《西游记》原著 → 可玩游戏原型')}</a></span><a class="tile-play" href="${esc(item.demo)}">${t('Step into the prototype', '走进游戏原型')}${extGlyph}</a></figcaption>
+        <figcaption><span class="stage-case"><a href="${esc(example)}" title="${t('Case source files', '案例源码')}">${t('<cite>Journey to the West</cite> · game art', '《西游记》游戏原画')}</a></span><a class="tile-play" href="${esc(item.demo)}">${t('Step into the prototype', '走进游戏原型')}${extGlyph}</a></figcaption>
       </figure>`
 }
 /** A knowledge-level entry `workflow:<id>` links the complete workflow in /guides. */
@@ -559,12 +559,9 @@ const homePage = () => {
     <header class="section-head">
       ${heading(2, 'Choose your creative tools', '选择创作工具', 'choose-h')}
     </header>
-    <h3 class="tool-group-title">${t('Creative tools', '创作工具')}<span class="count">${creative.length}</span></h3>
     <div class="tool-grid">${toolCards(creative)}</div>
-    <h3 class="tool-group-title">${t('Where to work', '在哪里使用')}<span class="count">${environments.length}</span></h3>
-    <p class="tool-group-note">${t('The four packs install into an agent you already use, such as Claude Code or Codex. Or work in one of these:', '四套 skill 装进你已在用的 Agent（如 Claude Code、Codex）；也可以用下面两种方式：')}</p>
     <div class="environment-grid">${toolCards(environments)}</div>
-    <p class="more"><a href="/compare/writing-workflows">${t('Compare writing environments', '比较写作环境')}${arrowGlyph}</a><a href="/projects">${t(`All ${projects.length} projects`, `全部 ${projects.length} 个项目`)}${arrowGlyph}</a></p>
+    <p class="more"><a href="/compare/writing-workflows">${t('Compare writing environments', '比较写作环境')}${arrowGlyph}</a><a href="/projects">${t('All projects', '全部项目')}${arrowGlyph}</a></p>
   </div></section>
   <section class="band library-band" aria-labelledby="guides-h"><div class="wrap library">
     <div class="library-intro">
