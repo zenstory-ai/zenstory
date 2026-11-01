@@ -348,17 +348,27 @@ const taskChoices = [
 const projectChips = (p) => [
   p.stars ? proof(`${starGlyph}${num(p.stars)} GitHub ${t('stars', 'star')}`) : '',
   p.skills ? proof(t(`${p.skills} skills`, `${p.skills} 个 skill`)) : '',
+  p.stars ? `<span class="asof star-snapshot">${t('Stars as of', 'Star 数据截至')} ${org.proof.as_of}</span>` : '',
 ].filter(Boolean)
 
-/** One card component shared by the home page and /projects: task, name, one sentence, two facts, two links. The install command lives on the project page. */
-const projectCard = (p) => `
-      <article class="project-card">
-        <p class="eyebrow">${esc(pick(p.format))}</p>
-        <h3><a href="/${p.slug}">${toolName(p)}</a></h3>
-        ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
-        <p class="card-meta">${[p.skills ? t(`${p.skills} skills`, `${p.skills} 个 skill`) : '', p.stars ? `${starGlyph}${num(p.stars)} ${t('stars', 'star')}<span class="sr-only"> GitHub</span>` : ''].filter(Boolean).join('<span class="sep" aria-hidden="true"> · </span>')}</p>
-        <p class="card-actions">${p.install && p.entry ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}${arrowGlyph}</a>` : ''}<a href="${p.github}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${appHref(LANG, '/login', 'org_projects')}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
+/** One editorial catalog row on /projects. The install command itself lives on the project page. */
+const projectCard = (p) => {
+  const [en, zh] = p.slug === 'workbench'
+    ? ['Write novels and scripts in your browser', '在浏览器里写小说和短剧']
+    : taskChoices.find(([, , slug]) => slug === p.slug)
+  return `
+      <article class="project-entry">
+        <div class="project-entry-main">
+          <p class="project-purpose">${t(en, zh)}</p>
+          <h3><a href="/${p.slug}">${toolName(p)}</a></h3>
+          ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
+        </div>
+        <div class="project-entry-side">
+          <p class="project-facts">${[p.skills ? t(`${p.skills} skills`, `${p.skills} 个 skill`) : '', p.stars ? `${num(p.stars)} GitHub ${t('stars', 'star')}` : ''].filter(Boolean).map((fact) => `<span>${fact}</span>`).join('')}</p>
+          <p class="project-actions">${p.install && p.entry ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}${arrowGlyph}</a>` : ''}<a href="${p.github}">${t('Source', '源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${appHref(LANG, '/login', 'org_projects')}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
+        </div>
       </article>`
+}
 
 /** Relationship diagram (closing band): idea → novel → short drama / game, and footage → video recap, labelled with the tools. */
 const pipelineSvg = () => {
@@ -953,13 +963,13 @@ const taskIndex = () => `<ul class="task-index">${topics.filter((topic) => topic
 /** /guides reads in the homepage's four knowledge layers, in order: get started → whole workflows → techniques by task → revise and look up. */
 const GUIDE_LAYERS = [
   ['get-started', 'Get started', '入门'],
-  ['learning-paths', 'Complete workflows', '完整创作路径'],
-  ['browse-topics', 'Go deeper by task', '按任务深入'],
-  ['revise-and-look-up', 'Revise and look up', '改稿与查询'],
+  ['learning-paths', 'Complete workflows', '完整工作流'],
+  ['browse-topics', 'Techniques & templates', '技法与模板'],
+  ['revise-and-look-up', 'Revision & reference', '排错与参考'],
 ]
 const layerHead = (index, lede) => {
   const [id, en, zh] = GUIDE_LAYERS[index]
-  return `<p class="layer-step">${String(index + 1).padStart(2, '0')} / ${String(GUIDE_LAYERS.length).padStart(2, '0')}</p><h2 id="${id}">${t(en, zh)}</h2><p class="section-lede">${lede}</p>`
+  return `<h2 id="${id}">${t(en, zh)}</h2><p class="section-lede">${lede}</p>`
 }
 const topicBySlug = (slug) => topics.find((topic) => topic.slug === slug)
 /** Three guides of a task for a /guides layer, skipping any the workflows on the same page already list. */
@@ -982,9 +992,8 @@ const guidesIndex = () => {
   const body = `
 <article class="guides-index">
   <header class="page-hero"><div class="wrap">
-    <p class="eyebrow">${t('Writing and adaptation', '写作与改编')}</p>
-    <h1>${t('What are you working on?', '你正在写什么、做什么？')}</h1>
-    <p class="lede">${t('Go from a first draft to revision one layer at a time. Every method comes from a file in our open-source skills, with a template, an original example and the source link.', '从第一稿到改稿，一层层往下走。每篇方法都来自开源 skill 里的具体文件，附模板、原创示例和来源链接。')}</p>
+    <h1>${t('Writing & adaptation guides', '创作指南')}</h1>
+    <p class="lede">${t('Practical methods for novels, drama, games and video, with examples, templates and open-source references.', '小说、短剧、游戏与视频的实用方法，附示例、模板和开源出处。')}</p>
     <form class="guide-search" data-guide-search hidden role="search">
       <label for="guide-query">${t('Search all guides', '搜索全部指南')}</label>
       <div class="guide-search-controls"><input type="search" id="guide-query" name="q" placeholder="${t('Try dialogue, outline, subtitles…','试试：大纲、对白、字幕……')}" autocomplete="off"><button type="reset">${t('Clear','清空')}</button></div>
@@ -1024,7 +1033,7 @@ const guidesIndex = () => {
     </section>
   </div>
 </article>`
-  write(route,page({route,title,description,ogType:'website',ld,body}))
+  write(route,page({route,title,description,ogType:'website',ld,body,pageId:'guides'}))
 }
 
 /**
@@ -1164,15 +1173,15 @@ const projectsIndex = () => {
 <article class="projects-index">
   <header class="page-hero">
     <div class="wrap">
-      <p class="eyebrow">${t('Six open-source projects · MIT', '六个开源项目 · MIT')}</p>
       <h1>${t('From one idea to novels, short dramas, games and video.', esc(org.tagline.zh))}</h1>
     </div>
   </header>
 
   <section class="band" aria-labelledby="catalog-h">
     <div class="wrap">
-    ${heading(2, 'Start with what you want to make', '从目标开始', 'catalog-h')}
-    <div class="project-grid">${projects.map(projectCard).join('')}
+    ${heading(2, 'Choose by creative goal', '按创作目标选择', 'catalog-h')}
+    <p class="star-snapshot">${t('Stars as of', 'Star 数据截至')} ${org.proof.as_of}</p>
+    <div class="project-catalog">${projects.map(projectCard).join('')}
     </div>
     <p class="more">${comparisons.map((comparison) => `<a href="/compare/${comparison.slug}">${t('Not sure where to write? Compare the three writing environments', '不知道在哪写？看看三种写作环境怎么选')}${arrowGlyph}</a>`).join('')}</p>
     </div>
@@ -1181,18 +1190,18 @@ const projectsIndex = () => {
   <section class="band band-cream" aria-labelledby="model-h">
     <div class="wrap">
     ${heading(2, 'How they fit together', '怎么搭配着用', 'model-h')}
-    <div class="model">${pair(steps(org.model.en), steps(org.model.zh), 'cols')}</div>
+    <dl class="project-relations">${org.model[LANG].map(([label, description]) => `<div><dt>${rich(label)}</dt><dd>${rich(description)}</dd></div>`).join('')}</dl>
     </div>
   </section>
 
   <section class="band" aria-labelledby="hosts-h">
     <div class="wrap">
     ${heading(2, 'Runs inside the agents you already use', '在你已经使用的 Agent 里运行', 'hosts-h')}
-    <ul class="host-grid">${org.proof.harnesses.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>
+    <ul class="project-hosts">${org.proof.harnesses.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>
     </div>
   </section>
 </article>`
-  write(route, page({ route, title, description, ogType: 'website', ld, body }))
+  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'projects' }))
 }
 
 // ---------- glossary ----------

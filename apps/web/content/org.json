@@ -45,8 +45,8 @@
     ]
   },
   "proof": {
-    "stars_total": 11388,
-    "as_of": "2026-09-29",
+    "stars_total": 14136,
+    "as_of": "2026-11-01",
     "license": "MIT",
     "harnesses": [
       "Claude Code",
