@@ -464,7 +464,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               className="w-full px-3 py-2 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] rounded-lg text-base md:text-sm text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] resize-y"
             />
             {notesConflict && (
-              <div ref={notesConflictRef} className="space-y-2">
+              <div ref={notesConflictRef} className="space-y-2 scroll-mb-3">
                 <div role="alert" className="text-sm text-[hsl(var(--error-text))]">
                   <p className="font-medium">{t('notesConflictTitle')}</p>
                   <p>{t('notesConflict')}</p>

@@ -83,7 +83,8 @@ describe("SkillReviewPage", () => {
     });
 
     await waitFor(() => expect(adminApi.getPendingSkills).toHaveBeenLastCalledWith("rejected"));
-    expect(screen.getByText(/Reviewer/)).toBeInTheDocument();
+    // The call resolves before the list re-renders, so wait for the rows.
+    expect(await screen.findByText(/Reviewer/)).toBeInTheDocument();
     expect(screen.getByText(/Needs work/)).toBeInTheDocument();
   });
 
