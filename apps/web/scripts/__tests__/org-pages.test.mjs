@@ -211,7 +211,7 @@ test('guide examples keep literal markup, line breaks and indentation as escaped
   writeFileSync(join(root, 'content/guides.json'), JSON.stringify(fixtureGuides))
   writeFileSync(join(root, 'content/articles.json'), '[]')
   // Paths and layers cite the real article library; the tool notes do not.
-  writeFileSync(join(root, 'content/home-reading.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(root, 'content/home-reading.json'), 'utf8')), paths: [], levels: [] }))
+  writeFileSync(join(root, 'content/home-reading.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(root, 'content/home-reading.json'), 'utf8')), levels: [] }))
   const out = join(root, 'output')
   const result = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), out], { encoding: 'utf8' })
   assert.equal(result.status, 0, result.stderr)
@@ -257,7 +257,7 @@ test('guide identities reject unknown owners, unsafe paths and duplicate routes 
   const valid = JSON.parse(readFileSync(join(root, 'content/guides.json'), 'utf8'))
   writeFileSync(join(root, 'content/articles.json'), '[]')
   // Paths and layers cite the real article library; the tool notes do not.
-  writeFileSync(join(root, 'content/home-reading.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(root, 'content/home-reading.json'), 'utf8')), paths: [], levels: [] }))
+  writeFileSync(join(root, 'content/home-reading.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(root, 'content/home-reading.json'), 'utf8')), levels: [] }))
   for (const invalid of [[{ ...valid[0], owner: 'unknown' }], [{ ...valid[0], slug: '../escape' }], [valid[0], valid[0]]]) {
     writeFileSync(join(root, 'content/guides.json'), JSON.stringify(invalid))
     const out = join(root, 'output')
@@ -421,12 +421,12 @@ test('organization generator writes every route in both languages, an apex homep
     assert.match(homepage, lang === 'en' ? /<p class="lede">[^<]*footage[^<]*recap/ : /<p class="lede">[^<]*视频素材[^<]*解说/)
     // App links open the app in the page's language, name the slot that sent the visitor, and skip the
     // app's own landing page: "open the app" signs in, the workbench action starts a signup.
-    assert.match(homepage, new RegExp(`href="https://app\\.zenstory\\.ai/register\\?lang=${lang}&amp;source=org_home_closing">(?:Open ZenStory Workbench|打开 ZenStory 工作台)`))
+    assert.match(homepage, new RegExp(`href="https://app\\.zenstory\\.ai/register\\?lang=${lang}&amp;source=org_home_tools">`))
     assert.match(homepage, new RegExp(`<a class="nav-app" href="https://app\\.zenstory\\.ai/login\\?lang=${lang}&amp;source=org_header">`))
     assert.doesNotMatch(homepage, /href="https:\/\/app\.zenstory\.ai\/?"/)
     assert.match(homepage, lang === 'en' ? /Choose your creative tools/i : /选择创作工具/)
     assert.match(homepage, lang === 'en' ? /Source on GitHub/ : /GitHub 源码/)
-    // Six tool rows, each addressable so a creative path can point at the tool it starts with.
+    // Six tool rows retain their addressable project identities.
     assert.deepEqual(matches(homepage, /<article class="tool-choice" id="tool-([a-z-]+)">/g).map((m) => m[1]), projects.map((p) => p.slug))
     const siteNav = matches(homepage, /<nav aria-label="(?:Site|站点)">([\s\S]*?)<\/nav>/g)[0][1]
     // The language switch stores the choice for the home redirect; the page itself needs no script to show its language.

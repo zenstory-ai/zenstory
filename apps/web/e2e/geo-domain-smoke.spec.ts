@@ -216,7 +216,7 @@ test.describe('organization site', () => {
 
     // 10-03 首页改版后 h1 是口号，品牌名在 <title>。
     await expect(page).toHaveTitle(/^ZenStory AI — /)
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Write stories')
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(/page|stor(?:y|ies)/i)
     await expect(page.locator('article.home .lede').first()).toContainText(/novels with AI|story|open-source/i)
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await expect(page.locator('link[rel="alternate"][hreflang="zh-CN"]')).toHaveAttribute('href', `${CANONICAL_SITE}/zh`)
@@ -230,7 +230,7 @@ test.describe('organization site', () => {
     expect(homeLinks).toEqual(expect.arrayContaining(PROJECT_SLUGS.map((slug) => `/${slug}`)))
     // App links skip the app's own landing page and carry the page language and the sending slot.
     await expect(page.locator(`header a.nav-app[href="${CANONICAL_APP}/login?lang=en&source=org_header"]`)).toBeVisible()
-    await expect(page.locator(`article.home a[href="${CANONICAL_APP}/register?lang=en&source=org_home_closing"]`)).toHaveCount(1)
+    await expect(page.locator(`article.home a[href="${CANONICAL_APP}/register?lang=en&source=org_home_tools"]`)).toHaveCount(1)
 
     await context.close()
   })
@@ -242,16 +242,16 @@ test.describe('organization site', () => {
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
     await expect(page).toHaveTitle(/^ZenStory AI — /)
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('写下故事，')
-    await expect(page.locator('article.home .lede').first()).toContainText(/用 AI 写小说|故事|创作/)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('故事')
+    await expect(page.locator('article.home .lede').first()).toContainText(/小说|故事|创作/)
     await expect(page.locator('article.home .lede').first()).not.toContainText(/open-source tools/)
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${CANONICAL_SITE}/zh`)
     await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute('href', `${CANONICAL_SITE}/`)
-    await expect(page.locator('header .lang-switch a[hreflang="en"]')).toHaveAttribute('href', '/')
+    await expect(page.locator('header .lang-switch a[hreflang="en"]')).toHaveAttribute('href', '/?lang=en')
     const homeLinks = await page.locator('article.home a[href]').evaluateAll((links) => links.map((link) => link.getAttribute('href')))
     expect(homeLinks).toEqual(expect.arrayContaining(PROJECT_SLUGS.map((slug) => `/zh/${slug}`)))
     await expect(page.locator(`header a.nav-app[href="${CANONICAL_APP}/login?lang=zh&source=org_header"]`)).toBeVisible()
-    await expect(page.locator(`article.home a[href="${CANONICAL_APP}/register?lang=zh&source=org_home_closing"]`)).toHaveCount(1)
+    await expect(page.locator(`article.home a[href="${CANONICAL_APP}/register?lang=zh&source=org_home_tools"]`)).toHaveCount(1)
     await context.close()
   })
 
@@ -261,14 +261,14 @@ test.describe('organization site', () => {
       const page = await context.newPage()
       await page.goto(`${SITE}${path}`, { waitUntil: 'networkidle' })
       await page.locator('article.home .hero-cta a.btn').click()
-      await expect(page).toHaveURL(/#start-h$/)
+      await expect(page).toHaveURL(/#choose-h$/)
 
       const box = await page.evaluate(() => ({
         header: document.querySelector('header.top')!.getBoundingClientRect().bottom,
-        heading: document.getElementById('start-h')!.getBoundingClientRect().top,
+        heading: document.getElementById('choose-h')!.getBoundingClientRect().top,
       }))
       expect(box.header, `${path}: header wraps past two rows`).toBeLessThanOrEqual(96)
-      expect(box.heading, `${path}: the path heading lands under the sticky header`).toBeGreaterThanOrEqual(box.header)
+      expect(box.heading, `${path}: the tool heading lands under the sticky header`).toBeGreaterThanOrEqual(box.header)
       await context.close()
     }
   })

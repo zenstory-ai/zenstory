@@ -61,10 +61,10 @@ test('mobile carousel tracks button navigation, native scrolling and its ends', 
   expect(Math.abs((await third.boundingBox())!.x - ((await grid.boundingBox())!.x + gutter))).toBeLessThan(2);
 });
 
-test('expanded case evidence and learning references keep accessible heading order', async ({ page }) => {
+test('relationships and expanded learning references keep accessible heading order', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/zh/');
-  await page.locator('.stage-evidence summary').click();
+  await expect(page.locator('.stage-evidence, .home-paths')).toHaveCount(0);
   for (const summary of await page.locator('.knowledge-level summary').all()) await summary.click();
   const audit = await new AxeBuilder({ page }).analyze();
   expect(audit.violations.filter(v => v.id === 'heading-order' || ['critical', 'serious'].includes(v.impact ?? '')).map(v => v.id)).toEqual([]);
@@ -85,14 +85,12 @@ test('English home remains readable without JavaScript and keeps native video co
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
-  // Native disclosures are operable even with no scripts: sources and learning links stay usable.
-  const evidence = page.locator('.stage-evidence');
-  await evidence.locator('summary').focus();
-  await page.keyboard.press('Enter');
-  await expect(evidence).toHaveAttribute('open', '');
-  await expect(evidence.locator('blockquote')).toBeVisible();
-  await page.keyboard.press('Space');
-  await expect(evidence).not.toHaveAttribute('open');
+  // Provenance is now linked directly from existing labels; no script or extra disclosure is required.
+  for (const selector of ['.leaf-title', '.world-label a', '.stage-case a']) {
+    await expect(page.locator(selector)).toBeVisible();
+    await expect(page.locator(selector)).toHaveAttribute('href', /github\.com\/zenstory-ai\/novel-to-game\/(?:blob|tree)\/[a-f0-9]{40}\//);
+  }
+  // The remaining reference disclosures keep native keyboard behavior.
   const level = page.locator('.knowledge-level').first();
   await expect(level.locator('a').first()).toBeHidden();
   await level.locator('summary').focus();
