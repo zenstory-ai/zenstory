@@ -1,15 +1,23 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
+import { Window } from 'happy-dom'
 import * as shell from '../site-shell.mjs'
 
+// Parse the owned fixture as inert HTML; this is not an HTML sanitizer.
+const window = new Window()
+const template = window.document.createElement('template')
+template.innerHTML = shell.homeLanguageScript
+const source = template.content.querySelector('script[data-home-language]')?.textContent
+assert.equal(typeof source, 'string', 'the root entry needs an executable language selector')
+window.close()
+
 const visit = ({ languages, language = 'en-US', cookie = '', pathname = '/', search = '', hash = '' } = {}) => {
-  assert.equal(typeof shell.homeLanguageScript, 'string', 'the root entry needs an executable language selector')
   const redirects = []
   const writes = []
   const document = {}
   Object.defineProperty(document, 'cookie', { get: () => cookie, set: value => writes.push(value) })
-  runInNewContext(shell.homeLanguageScript.match(/<script\b[^>]*>([\s\S]*)<\/script>/)[1], {
+  runInNewContext(source, {
     document,
     navigator: { languages, language },
     URLSearchParams,

@@ -72,3 +72,7 @@ Status: implemented locally for owner review; no push, merge or deployment.
 - ESLint、token、i18n、TypeScript、完整构建、node --check、git diff --check 全部通过。仅原有三条 unused eslint-disable warning；独立代码审查最终 APPROVE。未新增依赖、吞错、凭据或 App/云规则变更。
 - 构建输出与本地预览的两首页 HTML、CSS 字节一致。最终截图、写作案例局部、手机关系图、响应式与 GEO 证据：`/tmp/zenstory-home-details-evidence/`。
 - 预览入口：`http://127.0.0.1:6183/`（自动选择）、`/zh/`（中文）、`/?lang=en`（明确英文）。没有推送、合并、部署或生产验证。
+
+### Release validation follow-up
+
+PR #338 的 CodeQL 指出语言 VM 测试用大小写敏感正则提取 `<script>`。该输入是本站受控 fixture，不是产品的 HTML sanitizer；测试改用已安装的 happy-dom 在 inert template 中解析，再执行提取的源码。5 项语言行为回归继续通过，无新增依赖、不改线上脚本或语言策略；不关闭扫描或绕过告警。
