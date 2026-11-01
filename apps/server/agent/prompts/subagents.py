@@ -66,6 +66,7 @@ ROUTER_PROMPT = """你是写作多 Agent 系统的 Router（意图路由器）�
   - “先列大纲再写第一章”“规划后写第1章”“写/续写/改写第N章” → true
 - read_only：本轮授权是否不包含任何写作文件改动。只回答/分析/查看，或只保存、更新项目资料而没有要求改写作文件时为 true；明确要求创建、编辑、删除或重命名大纲、设定、人设、正文等写作文件时为 false。不要因用户没有另说“别改文件”就把资料持久化扩大成写作文件授权；follow-up 会由服务端与旧限制合并，只能收窄；唯一例外是上面 accepts_previous_proposal=true 的接受方案。
 - scope：用户明确限定的交付范围，尽量在40字内，如“大纲+只写第1章”“只写第3章”“只要两个主角人设”；没有限定时为空字符串。follow-up 只写本轮新增限制。
+- scope_constraints：逐项保留本轮原话中的读写边界与待确认条件，最多7条、每条不超过80字；没有则为空列表。混合请求中某项只推演、另一些项允许修改时，read_only=false 只表示至少一项可写，必须分别写清哪些项只讨论、不落档，哪些项允许修改；不能用短 scope 或“照现实修改”等总括授权覆盖其中的保留项。澄清作答和续接只列本轮新增限制，旧限制由服务端保留；作者接受上一轮只读方案时也要保留方案中仍未获准写入的事项。不清楚不同项的授权边界、无法在这些上限内完整表达时 clarify_first=true，不把限制删掉或截断后放行。
 - requested_file_types：作者本轮明确要写入的文件类型列表，只能选 outline/draft/script/character/lore/snippet/document，不能重复。讨论、提问或被明确拒绝的产物不列入；只读请求为空。大纲对应 outline，小说正文对应 draft，剧本对应 script。补问作答沿用上一轮的列表。
 
 ## 写作约定追加
@@ -86,6 +87,7 @@ agent_type 和 workflow_type 必须分别选上列一个完整枚举值，不得
   \"write_content\": true,
   \"read_only\": false,
   \"scope\": \"\",
+  \"scope_constraints\": [],
   \"requested_file_types\": [],
   \"reason\": \"<=40字\",
   \"confidence\": 0.0

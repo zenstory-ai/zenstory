@@ -1155,8 +1155,10 @@ async def test_model_call_budget_terminal_keeps_priority_over_the_pending_correc
 
 async def test_request_failure_cap_still_stops_before_any_correction(workspace):
     """前置拒绝仍计入请求累计 10 次上限：到了上限就按熔断终止，不为纠偏放宽总预算。"""
+    # edit_file 的无效 ID 已在第三次按恢复失败族停止；这里用彼此不同的改名失败，
+    # 单独锁住“九次普通失败 + 一次待写前置拒绝”的请求累计兜底。
     misses = Reply(tools=tuple(
-        ("edit_file", {"id": f"missing-{index}", "edits": [{"op": "append", "text": "x"}]}) for index in range(9)
+        ("rename_file", {"id": f"missing-{index}", "title": "新标题"}) for index in range(9)
     ))
     model = ScriptedModel(runs=[[misses, CREATE, Reply(tools=(NEXT_CREATE,))], [WRITE_BODY]])
 

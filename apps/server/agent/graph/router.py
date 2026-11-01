@@ -89,6 +89,7 @@ class RouterDecision(BaseModel):
     - read_only: 用户明确要求不改文件（只回答/只分析/只看看）。为 True 时
       不安排任何计划交接，图也不会交接给有写权限的 agent。
     - scope: 用户明确限定的交付范围（如“只写第1章”），没有则为空。
+    - scope_constraints: 本轮逐项限制，只收窄交付；不授予整轮字段以外的写权限。
     - accepts_previous_proposal: 回答上一轮只读回合的补问卡时，作者是否接受了那一轮
       提出的具体方案并要求执行。只在可信旧状态为只读的补问作答里生效（见
       _resolve_turn_decision），不授予其他权限。
@@ -101,11 +102,19 @@ class RouterDecision(BaseModel):
     write_content: bool | None = None
     read_only: bool = False
     scope: str = ""
+    scope_constraints: list[str] = Field(default_factory=list)
     requested_file_types: list[ArtifactFileType] = Field(default_factory=list, max_length=7)
     turn_disposition: TurnDisposition | None = None
     clarify_first: StrictBool | None = None
     accepts_previous_proposal: StrictBool | None = None
     notes_append_allowed: StrictBool = False
+
+    @field_validator("scope_constraints", mode="before")
+    @classmethod
+    def _item_scope_constraints(cls, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            raise ValueError("scope_constraints must be a list")
+        return _validate_scope_constraints(value, field="scope_constraints")
 
     @field_validator("requested_file_types")
     @classmethod
@@ -560,6 +569,7 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         "write_content": write_content,
         "read_only": read_only,
         "scope": scope,
+        "scope_constraints": payload.get("scope_constraints", []),
         "requested_file_types": payload.get("requested_file_types", []),
         "turn_disposition": turn_disposition,
         "clarify_first": payload.get("clarify_first"),
@@ -729,12 +739,13 @@ def _inherited_scope_fields(routing: dict[str, Any]) -> dict[str, Any]:
 
 
 def _accumulate_scope_constraints(
-    old_scope: str, existing: list[str], current_scope: str
+    old_scope: str, existing: list[str], current_scope: str,
+    current_constraints: list[str] | None = None,
 ) -> list[str]:
     if len(current_scope) > MAX_SCOPE_CHARS:
         raise RouterFailure("schema", failed_fields=("scope",))
     accumulated: list[str] = []
-    for item in (old_scope, *existing, current_scope):
+    for item in (old_scope, *existing, current_scope, *(current_constraints or [])):
         normalized = item.strip()
         if normalized and normalized not in accumulated:
             accumulated.append(normalized)
@@ -804,11 +815,11 @@ def _resolve_turn_decision(
 ) -> tuple[RouterDecision, dict[str, Any]]:
     """Apply semantic disposition to trusted previous state without text heuristics."""
     disposition = decision.turn_disposition
+    current_constraints = _accumulate_scope_constraints(
+        "", [], decision.scope, decision.scope_constraints
+    )
     if disposition not in {"resume_interrupted_task", "answer_pending_clarification"}:
-        constraints = _validate_scope_constraints(
-            [decision.scope] if decision.scope else [], field="scope_constraints"
-        )
-        return decision, {"scope_constraints": constraints}
+        return decision, {"scope_constraints": current_constraints}
 
     previous = _last_assistant_message(list(state.get("messages") or []))
     if previous is None:
@@ -816,10 +827,7 @@ def _resolve_turn_decision(
             logger, 20, "Router follow-up disposition has no matching state",
             turn_disposition=disposition, followup_resolution="state_mismatch",
         )
-        constraints = _validate_scope_constraints(
-            [decision.scope] if decision.scope else [], field="scope_constraints"
-        )
-        return decision, {"scope_constraints": constraints}
+        return decision, {"scope_constraints": current_constraints}
 
     routing = _previous_routing(previous)
     stop_reason = previous.get("stop_reason")
@@ -835,10 +843,7 @@ def _resolve_turn_decision(
             logger, 20, "Router follow-up disposition has no matching state",
             turn_disposition=disposition, followup_resolution="state_mismatch",
         )
-        constraints = _validate_scope_constraints(
-            [decision.scope] if decision.scope else [], field="scope_constraints"
-        )
-        return decision, {"scope_constraints": constraints}
+        return decision, {"scope_constraints": current_constraints}
 
     fields = _inherited_scope_fields(routing)
     if agent_type is None:
@@ -857,12 +862,9 @@ def _resolve_turn_decision(
             logger, 20, "Router follow-up accepts a read-only round's proposal",
             turn_disposition=disposition, followup_resolution="accepted_read_only_proposal",
         )
-        constraints = _validate_scope_constraints(
-            [decision.scope] if decision.scope else [], field="scope_constraints"
-        )
-        return decision, {"scope_constraints": constraints}
+        return decision, {"scope_constraints": current_constraints}
     constraints = _accumulate_scope_constraints(
-        fields["scope"], fields["scope_constraints"], decision.scope
+        fields["scope"], fields["scope_constraints"], decision.scope, decision.scope_constraints
     )
     read_only = fields["read_only"] or decision.read_only
     write_content = _compose_followup_write_content(
@@ -893,6 +895,7 @@ def _resolve_turn_decision(
         write_content=write_content,
         read_only=read_only,
         scope=fields["scope"],
+        scope_constraints=constraints,
         requested_file_types=fields["requested_file_types"],
         turn_disposition=disposition,
         clarify_first=decision.clarify_first,

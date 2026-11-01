@@ -144,7 +144,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `service.first_message_hint`（不落库）。作者没限定范围时按作品类型交付一个完整单元（长篇第一章、短篇写到第一个转折的开篇、
   短剧第 1 集），scope 不写字数，内部篇幅不复述给作者。[first-turn-writes][n-first-turn]、[first-turn-complete-unit][n-first-unit]
 - 输出：`current_agent`、`workflow_plan`、`workflow_agents`（已裁剪）、`routing_metadata`（`RouterDecision` 全量，含
-  `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`requested_file_types`，以及可选严格 `turn_disposition` / `clarify_first`）。缺新字段按普通成功路由、不继承；显式非法技术失败并保留真实 usage。普通旧格式 scope 保留80字符兼容；真实继承不截断旧限制或新收窄，服务端 `scope_constraints` 最多8项、每项80字符、JSON2048字符，完整跨轮持久化；超限在工具前失败。requested types 沿用旧列表，不扩张并集。
+  `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`scope_constraints`、`requested_file_types`，以及可选严格 `turn_disposition` / `clarify_first`）。缺新字段按普通成功路由、不继承；显式非法技术失败并保留真实 usage。普通旧格式 scope 保留80字符兼容；真实继承不截断旧限制或新收窄，`scope_constraints` 最多8项（含短 scope）、每项80字符、JSON2048字符，完整跨轮持久化；超限在工具前失败。混合读写请求由路由逐项输出限制，首轮和续接都保留；整轮可写不代表每项都可落档，限制本身不新增权限，也不是内容级硬 ACL。[mixed-request-scope][n-mixed-scope] requested types 沿用旧列表，不扩张并集。
 - 决策记录：[semantic-routing-and-evidence](../../../.agents/notes/implemented/bug-fix/2026-10-24-agent-semantic-routing-and-evidence.md)、[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
 
 ### 用户范围与交接规则
@@ -355,6 +355,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-length]: ../../../.agents/notes/implemented/feature/2026-10-14-writer-delivery-author-requirements.md
 [n-thinking]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-thinking-loop-contradictory-inputs.md
 [n-breaker]: ../../../.agents/notes/implemented/bug-fix/2026-10-03-agent-tool-failure-circuit-breaker.md
+[n-mixed-scope]: ../../../.agents/notes/implemented/bug-fix/2026-11-01-agent-mixed-request-item-scope.md
 [n-review]: ../../../.agents/notes/implemented/bug-fix/2026-10-08-agent-review-gating-and-handoff-details.md
 [n-continue]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-file-stream-continuation-and-truthful-completion.md
 [n-repeat]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-repeat-create-of-pending-empty-file.md

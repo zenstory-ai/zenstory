@@ -17,6 +17,7 @@ from agent.openai_agents.tool_failure_breaker import (
     MAX_IDENTICAL_TOOL_FAILURES,
     MAX_TOOL_FAILURES_PER_REQUEST,
     TRIP_REASON_IDENTICAL,
+    TRIP_REASON_RECOVERY,
     TRIP_REASON_TOOL_NOT_FOUND,
     TRIP_REASON_TOTAL,
     ToolFailureBreaker,
@@ -29,8 +30,8 @@ def _error(message: str, **extra) -> str:
     return json.dumps({"status": "error", "error": message, **extra}, ensure_ascii=False)
 
 
-def _ok() -> str:
-    return json.dumps({"status": "success", "data": {"id": "file-1"}})
+def _ok(file_id: str = "file-1") -> str:
+    return json.dumps({"status": "success", "data": {"id": file_id}})
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +146,114 @@ def test_changing_arguments_is_normal_recovery_not_identical_failure():
 
 
 @pytest.mark.unit
+def test_changed_invalid_file_ids_trip_recovery_family_before_total_cap():
+    """错抄一个字符后枚举相似 UUID，不应绕过同参数熔断直到累计十次。"""
+    breaker = ToolFailureBreaker()
+    bad_ids = (
+        "57de18cc-007b-4f2c-8b4f-d22393fbe2c4",
+        "57de18cc-007b-4f2c-8b4e-d22393fbe2c4",
+        "57de18cc-007b-4f2c-8b4f-d22393fbe2c5",
+    )
+
+    first = breaker.observe(
+        "edit_file",
+        json.dumps({"id": bad_ids[0], "edits": [{"op": "append", "text": "甲"}]}),
+        _error("文件不存在或已删除", error_type="file_not_found"),
+    )
+    assert "retry_hint" not in json.loads(first)
+
+    second = breaker.observe(
+        "edit_file",
+        json.dumps({"id": bad_ids[1], "edits": [{"op": "append", "text": "甲"}]}),
+        _error("文件不存在或已删除", error_type="file_not_found"),
+    )
+    hinted = json.loads(second)
+    assert "不要猜测、枚举或改写相似 id" in hinted["retry_hint"]
+    assert "不能把失败解释成权限问题" in hinted["retry_hint"]
+    assert not breaker.is_open
+
+    breaker.observe(
+        "edit_file",
+        json.dumps({"id": bad_ids[2], "edits": [{"op": "append", "text": "甲"}]}),
+        _error("文件不存在或已删除", error_type="file_not_found"),
+    )
+    assert breaker.is_open
+    assert breaker.trip.reason == TRIP_REASON_RECOVERY
+    assert breaker.trip.failures == 3
+    assert breaker.total_failures == 3 < MAX_TOOL_FAILURES_PER_REQUEST
+
+
+@pytest.mark.unit
+def test_accurate_id_read_then_successful_edit_resets_invalid_file_id_recovery_family():
+    breaker = ToolFailureBreaker()
+    breaker.observe(
+        "edit_file",
+        json.dumps({"id": "bad-1", "edits": [{"op": "append", "text": "甲"}]}),
+        _error("文件不存在或已删除", error_type="file_not_found"),
+    )
+    breaker.observe("query_files", json.dumps({"id": "real-file"}), _ok("real-file"))
+
+    breaker.observe(
+        "edit_file",
+        json.dumps({"id": "real-file", "edits": [{"op": "append", "text": "甲"}]}),
+        _ok("real-file"),
+    )
+    for bad_id in ("bad-3", "bad-4"):
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": bad_id, "edits": [{"op": "append", "text": "甲"}]}),
+            _error("文件不存在或已删除", error_type="file_not_found"),
+        )
+
+    assert not breaker.is_open
+
+
+@pytest.mark.unit
+def test_changed_missing_anchors_for_same_file_trip_recovery_family():
+    breaker = ToolFailureBreaker()
+    for attempt in range(3):
+        output = breaker.observe(
+            "edit_file",
+            json.dumps(
+                {
+                    "id": "file-1",
+                    "edits": [{"op": "replace", "old": f"不存在的片段{attempt}", "new": "新文"}],
+                },
+                ensure_ascii=False,
+            ),
+            _error("找不到要替换的原文片段", error_type="anchor_not_found"),
+        )
+        if attempt == 1:
+            assert "按准确 id 重读当前段落" in json.loads(output)["retry_hint"]
+            assert "不要放宽匹配或整篇覆盖" in json.loads(output)["retry_hint"]
+
+    assert breaker.is_open
+    assert breaker.trip.reason == TRIP_REASON_RECOVERY
+
+
+@pytest.mark.unit
+def test_anchor_recovery_family_is_scoped_to_file_and_success_resets_it():
+    breaker = ToolFailureBreaker()
+    for file_id in ("file-1", "file-2"):
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": file_id, "edits": [{"op": "replace", "old": "旧", "new": "新"}]}),
+            _error("找不到片段", error_type="anchor_not_found"),
+        )
+    assert not breaker.is_open
+
+    args = json.dumps({"id": "file-1", "edits": [{"op": "replace", "old": "另一处", "new": "新"}]})
+    breaker.observe("edit_file", args, _ok())
+    for suffix in ("甲", "乙"):
+        breaker.observe(
+            "edit_file",
+            json.dumps({"id": "file-1", "edits": [{"op": "replace", "old": suffix, "new": "新"}]}),
+            _error("找不到片段", error_type="anchor_not_found"),
+        )
+    assert not breaker.is_open
+
+
+@pytest.mark.unit
 def test_total_failure_cap_is_backstop_for_non_identical_thrash():
     breaker = ToolFailureBreaker()
     for idx in range(MAX_TOOL_FAILURES_PER_REQUEST - 1):
@@ -159,6 +268,23 @@ def test_total_failure_cap_is_backstop_for_non_identical_thrash():
     assert trip.tool_name == "create_file"
     assert "这一轮先停下了" in trip.user_message()
     assert "create_file" not in trip.user_message()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("tool_name", ["rename_file", "delete_file"])
+def test_changed_missing_ids_for_other_file_tools_still_hit_total_failure_cap(tool_name):
+    """本批只提前收敛 edit_file；其他文件工具仍不能绕过请求级十次兜底。"""
+    breaker = ToolFailureBreaker()
+    for idx in range(MAX_TOOL_FAILURES_PER_REQUEST):
+        breaker.observe(
+            tool_name,
+            json.dumps({"id": f"missing-{idx}", "new_name": f"name-{idx}"}),
+            _error("文件不存在或已删除", error_type="file_not_found"),
+        )
+
+    assert breaker.is_open
+    assert breaker.trip.reason == TRIP_REASON_TOTAL
+    assert breaker.trip.failures == MAX_TOOL_FAILURES_PER_REQUEST
 
 
 @pytest.mark.unit
@@ -645,6 +771,57 @@ async def test_sdk_run_stops_after_identical_failures_and_ends_with_error(monkey
     assistant_turn = state["messages"][-2]
     tool_uses = [block for block in assistant_turn["content"] if block["type"] == "tool_use"]
     assert len(tool_uses) == MAX_IDENTICAL_TOOL_FAILURES
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("_reset_model_cache")
+async def test_sdk_run_stops_changed_invalid_ids_with_non_refundable_recovery_error(monkeypatch):
+    from agent.core.stream_billing import StreamBillingTracker
+    from agent.core.workflow_events import StreamEventType
+    from agent.openai_agents.runner import TOOL_FAILURE_STOP_REASON
+
+    bad_ids = ("bad-8b4f", "bad-8b4e", "bad-8b5f")
+    attempts: list[dict] = []
+
+    async def missing_edit(args):
+        attempts.append(args)
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _error("文件不存在或已删除", error_type="file_not_found"),
+                }
+            ]
+        }
+
+    def script(index: int) -> list[dict]:
+        arguments = json.dumps(
+            {"id": bad_ids[index], "edits": [{"op": "append", "text": "甲"}]},
+            ensure_ascii=False,
+        )
+        return _tool_call_chunks(f"call-{index}", "edit_file", arguments)
+
+    events, requests, _state = await _run_against_local_model(monkeypatch, script, missing_edit)
+
+    assert [attempt["id"] for attempt in attempts] == list(bad_ids)
+    assert len(requests) == MAX_IDENTICAL_TOOL_FAILURES
+    assert "不要猜测、枚举或改写相似 id" in _tool_messages(requests[2])[-1]
+    assert events[-2].type == StreamEventType.MESSAGE_END
+    assert events[-2].data["stop_reason"] == TOOL_FAILURE_STOP_REASON
+    assert events[-1].type == StreamEventType.ERROR
+
+    error = events[-1].data
+    assert error["reason"] == TRIP_REASON_RECOVERY
+    assert error["retryable"] is False
+    assert error["refundable"] is False
+
+    tracker = StreamBillingTracker()
+    tracker.observe(f"event: error\ndata: {json.dumps(error, ensure_ascii=False)}\n\n")
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
+        "non_refundable_error",
+        False,
+    )
 
 
 @pytest.mark.asyncio

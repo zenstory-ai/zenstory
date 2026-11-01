@@ -393,8 +393,14 @@ def _build_scope_directive(
     constraints = [item for item in routing_metadata.get("scope_constraints") or [] if item != scope]
     if constraints:
         parts.append(
-            "续接任务的累计范围限制（每项同时有效，不因续接而扩大；不能满足时先暂停）：\n"
+            "本轮逐项与续接累计范围限制（每项同时有效，不因续接或交接而扩大）：\n"
             + "\n".join(f"- {constraint}" for constraint in constraints)
+        )
+        parts.append(
+            "整轮可写只表示至少一项允许修改，不代表其余事项也可落档。"
+            "只讨论、只推演或待作者确认的事项仅在回复里分析；"
+            "不能借其他获准修改的事项，将未确认结论写进正文、大纲、人设、设定、项目资料、写作约定或任务板。"
+            "逐项限制无法同时满足时先澄清，不自行扩大授权。"
         )
     return "\n".join(parts)
 
