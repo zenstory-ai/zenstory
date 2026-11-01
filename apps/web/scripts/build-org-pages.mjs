@@ -447,46 +447,26 @@ const showcaseCards = () => showcases.filter((item) => !item.chain).map((item, i
 }).join('')
 
 const chainImage = (asset, { eager = false, cls = '' } = {}) => `<img${cls ? ` class="${cls}"` : ''} src="${esc(asset.file)}" width="${asset.width}" height="${asset.height}" alt="${esc(pick(asset.alt))}" loading="${eager ? 'eager' : 'lazy'}" decoding="async"${eager ? ' fetchpriority="high"' : ''}>`
-/** A small label attached to one object on the stage: the mark's star, the step and where it comes from. */
-const objLabel = (step, name, meta = '') => `<p class="obj-label">${starGlyph}<span class="obj-step">${step}</span><span class="obj-name">${name}</span>${meta ? `<span class="obj-meta">${meta}</span>` : ''}</p>`
-/**
- * Hero stage: one verified case as one scene. The playable prototype (browser QA capture) is the
- * protagonist, with the game's own Sun Wukong stepping out of it; the source chapter lies beside it
- * on manuscript paper and a slip from the Novel to Game source bible is pinned across the seam.
- * A dashed story thread runs from the chapter to the level. Every piece links to the owner
- * repository at a pinned commit; the other cases follow in the showcase.
- */
+/** One real outcome leads; the complete, pinned adaptation evidence stays directly below it. */
 const heroStage = () => {
   const item = showcases.find((s) => s.chain)
   assert.ok(item, 'Homepage hero needs one showcase with a verified chain')
-  const { source, rule, result, figure, example } = item.chain
+  const { source, rule, result, example } = item.chain
   const owner = projects.find((p) => p.slug === item.owner)
-  const host = esc(new URL(item.demo).host)
   return `<figure class="stage">
         <div class="stage-canvas">
-          <svg class="stage-thread" viewBox="0 0 1200 545" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M298 156C362 108 434 120 495 194"/></svg>
-          <div class="stage-obj obj-source">
-            ${objLabel('01', t('Source', '原著'), `<a href="${esc(source.url)}" title="${esc(pick(source.note))}">${esc(source.file)}</a>`)}
-            <div class="manuscript" lang="zh-Hant"><p class="ms-heading">${esc(source.heading)}</p><p class="ms-text">${esc(source.excerpt)}</p></div>
-          </div>
-          <div class="stage-obj obj-result">
-            ${objLabel('03', esc(pick(item.kind)))}
-            <div class="tile-media"><div class="tile-bar"><span class="tile-dots" aria-hidden="true"><span></span><span></span><span></span></span><span class="tile-url">${host}</span><a class="tile-play" href="${esc(item.demo)}">${t('Play in your browser', '在浏览器里试玩')}${extGlyph}</a></div>${chainImage(result, { eager: true })}</div>
-            ${chainImage(figure, { eager: true, cls: 'act-figure' })}
-          </div>
-          <div class="stage-obj obj-rule">
-            <div class="doc-card">
-              ${objLabel('02', esc(owner.name.en))}
-              <p class="doc-file"><a href="${esc(rule.url)}">${esc(rule.file)}</a></p>
-              <p class="doc-rule">${t(`“${esc(rule.name.en)}”`, `「${esc(rule.name.zh)}」`)}</p>
-              <dl class="doc-rows"><div><dt>${t('Source', '原作')}</dt><dd>${esc(pick(rule.fact))}</dd></div><div><dt>${t('Design', '改编')}</dt><dd>${esc(pick(rule.design))}</dd></div></dl>
-              ${rule.translated ? `<p class="doc-note">${t('Translated from the Chinese source bible.', '摘自原著设定集。')}</p>` : ''}
-            </div>
-          </div>
-          <span class="thread-star" aria-hidden="true">${starGlyph}</span>
+          <div class="stage-topline"><span>${t('Novel → playable world', '小说 → 可玩的世界')}</span><a class="tile-play" href="${esc(item.demo)}">${t('Play in your browser', '在浏览器里试玩')}${extGlyph}</a></div>
+          <div class="tile-media">${chainImage(result, { eager: true })}</div>
         </div>
         <figcaption><span class="stage-case">${t('<cite>Journey to the West</cite> → a playable game', '《西游记》→ 可玩游戏')}</span><a class="stage-method" href="/${item.owner}#start-h" aria-label="${t(`Start adapting: set up ${esc(owner.name.en)}`, `开始改编：安装 ${esc(owner.name.en)}`)}">${t('Start adapting', '开始改编')}${arrowGlyph}</a><a href="${esc(example)}">${t('Case files', '案例源码')}${extGlyph}</a><a href="#examples-h">${t('More demos', '更多演示')}<span class="arrow" aria-hidden="true">↓</span></a></figcaption>
-      </figure>`
+      </figure>
+      <details class="stage-evidence">
+        <summary>${t('From the original text to the game: explore the adaptation', '从原著到游戏，查看改编依据')}<span aria-hidden="true">+</span></summary>
+        <div class="evidence-grid">
+          <div><p class="eyebrow">${t('The original', '原著片段')}</p><blockquote lang="zh-Hant"><p>${esc(source.heading)}</p><p>${esc(source.excerpt)}</p></blockquote><p><a href="${esc(source.url)}" title="${esc(pick(source.note))}">${esc(source.file)}${extGlyph}</a></p></div>
+          <div><p class="eyebrow">${esc(owner.name.en)}</p><p class="evidence-rule">${esc(pick(rule.name))}</p><dl><div><dt>${t('Source', '原作')}</dt><dd>${esc(pick(rule.fact))}</dd></div><div><dt>${t('Design', '改编')}</dt><dd>${esc(pick(rule.design))}</dd></div></dl><p><a href="${esc(rule.url)}">${esc(rule.file)}${extGlyph}</a> · <a href="${esc(result.source)}">${t('QA screenshot source', '实机截图来源')}${extGlyph}</a></p>${rule.translated ? `<p class="evidence-note">${t('Translated from the Chinese source bible.', '摘自原著设定集。')}</p>` : ''}</div>
+        </div>
+      </details>`
 }
 /** A knowledge-level entry `workflow:<id>` links that /guides workflow instead of repeating articles the paths already link. */
 const workflowLink = (ref) => {
@@ -505,17 +485,11 @@ const homeReadingLinks = (slugs, labels, branching = false) => {
   const items = homeReadingItems(slugs)
   // An adaptation branch names the tool it needs (the article's owner), so "choose one" reads as one more tool, not two.
   const tool = (item) => toolName(projects.find((p) => p.slug === item.owner))
-  // …and shows that tool's first showcase result (the same local poster or screenshot the showcase uses), so the choice is between outcomes.
-  const branchMedia = (item) => {
-    const shown = showcases.find((s) => s.owner === item.owner)
-    const media = shown?.image ?? (shown?.video && { file: shown.video.poster, width: shown.video.width, height: shown.video.height })
-    return media ? `<span class="branch-media"><img src="${esc(media.file)}" width="${media.width}" height="${media.height}" alt="" loading="lazy" decoding="async"></span>` : ''
-  }
   const links = items.map((item, i) => {
     if (!labels) return `<li>${guideLink(item)}</li>`
     const label = esc(pick(labels[i]))
     return branching && i > 0
-      ? `<li><a href="/${item.owner}/${item.slug}" aria-label="${label} · ${tool(item)}: ${esc(pick(item.title))}">${branchMedia(item)}<span class="branch-label">${label}</span><span class="branch-meta"><span class="branch-tool">${tool(item)}</span>${arrowGlyph}</span></a></li>`
+      ? `<li><a href="/${item.owner}/${item.slug}" aria-label="${label} · ${tool(item)}: ${esc(pick(item.title))}"><span class="branch-label">${label}</span><span class="branch-meta"><span class="branch-tool">${tool(item)}</span>${arrowGlyph}</span></a></li>`
       : `<li><a href="/${item.owner}/${item.slug}" aria-label="${label}: ${esc(pick(item.title))}">${label}${arrowGlyph}</a></li>`
   })
   return branching ? `<ol>${links[0]}</ol><p class="path-branch-label">${t('To adapt it, choose one:', '需要改编时，任选一条：')}</p><ul class="path-branches">${links.slice(1).join('')}</ul>` : `<ol>${links.join('')}</ol>`
@@ -591,7 +565,8 @@ const homePage = () => {
 <article class="home">
   <div class="hero">
     <div class="wrap hero-head">
-      <h1>${t('Write stories.<br> Make them real.', '写下故事，<br>做出作品')}</h1>
+      <p class="hero-kicker">${t('An open-source story studio', '开源故事创作工具')}</p>
+      <h1>${t('Stories take <br><em>more than one form.</em>', '故事，<br><em>不只一种形态</em>')}</h1>
       <p class="lede">${t('Write novels with AI, adapt them into drama or games, or turn footage into a narrated recap.', '用 AI 写小说，再改成短剧或可玩的游戏；已有视频素材，也能做成解说。')}</p>
       <div class="hero-cta">
         <p class="actions home-actions"><a class="btn" href="#start-h">${t('Start with what you have', '选一条创作路径')}<span class="arrow" aria-hidden="true">↓</span></a></p>
@@ -644,7 +619,7 @@ const homePage = () => {
       <form class="library-search" action="${L('/guides')}" method="get" role="search"><label for="home-search">${t('Search the library', '搜索知识库')}</label><span class="library-search-row"><input id="home-search" name="q" type="search" placeholder="${t('e.g. storyboard, CapCut draft', '例如：去AI味、分镜、剪映草稿')}"><button type="submit">${t('Search', '搜索')}</button></span></form>
       <p class="more"><a href="/guides">${t('Browse the complete library', '浏览完整知识库')}${arrowGlyph}</a></p>
     </div>
-    <div class="knowledge-grid">${levels.map(([en, zh, desc, descZh, slugs, more, label]) => `<article class="knowledge-level"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${slugs.every((slug) => slug.startsWith('workflow:')) ? `<ol>${slugs.map(workflowLink).join('')}</ol>` : homeReadingLinks(slugs)}<a class="topic-more" href="${more}">${esc(pick(label))}${arrowGlyph}</a></article>`).join('')}</div>
+    <div class="knowledge-grid">${levels.map(([en, zh, desc, descZh, slugs, more, label]) => `<details class="knowledge-level"><summary><h3><span>${t(en, zh)}</span><span class="knowledge-description">${t(desc, descZh)}</span><span class="disclosure-icon" aria-hidden="true">+</span></h3></summary><div class="knowledge-content">${slugs.every((slug) => slug.startsWith('workflow:')) ? `<ol>${slugs.map(workflowLink).join('')}</ol>` : homeReadingLinks(slugs)}<a class="topic-more" href="${more}">${esc(pick(label))}${arrowGlyph}</a></div></details>`).join('')}</div>
   </div></section>
   <section class="band closing" aria-labelledby="model-h"><div class="wrap">
     <header class="section-head">

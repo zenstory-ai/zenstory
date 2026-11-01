@@ -281,6 +281,26 @@ test('homepage hero shows a real outcome image instead of only describing result
   }
 })
 
+test('hero provenance and knowledge references use native disclosures without losing static sources', () => {
+  const chain = showcases.find((item) => item.chain).chain
+  for (const [lang, html] of Object.entries(pages)) {
+    const evidence = elementsWithClass(html, 'stage-evidence', 'details')[0]
+    assert.ok(evidence, `${lang}: case evidence needs a native disclosure`)
+    assert.match(evidence, /<summary>[\s\S]*?<\/summary>/)
+    assert.ok(anchors(evidence).some(({ href }) => href === chain.source.url))
+    assert.ok(anchors(evidence).some(({ href }) => href === chain.rule.url))
+    assert.ok(textOf(evidence).includes(chain.source.excerpt), `${lang}: original excerpt must remain readable`)
+    const levels = elementsWithClass(section(html, 'guides-h'), 'knowledge-level', 'details')
+    assert.equal(levels.length, 4, `${lang}: keep all four reference layers in native disclosures`)
+    for (const level of levels) {
+      assert.match(level, /^<details\b[^>]*>/)
+      assert.doesNotMatch(level.match(/^<details\b[^>]*>/)[0], /\bopen(?:[\s=>])/)
+      assert.match(level, /<summary>[\s\S]*?<h3\b/)
+      assert.ok(anchors(level).length > 0, `${lang}: disclosure must retain crawlable method links`)
+    }
+  }
+})
+
 test('homepage showcases at least three real cases with readable evidence and reproducible methods', () => {
   for (const [lang, html] of Object.entries(pages)) {
     const examples = section(html, 'examples-h')
@@ -407,10 +427,6 @@ test('manuscript path keeps continuation ordered and presents drama or game as a
     for (const route of [`${prefix}/drama-skills/novel-to-short-drama`, `${prefix}/novel-to-game/quick-start`]) {
       assert.ok(!orderedLists[0].includes(`href="${route}"`), `${lang}: adaptation route must not appear as a sequential step`)
       assert.ok(branchLists[0].includes(`href="${route}"`), `${lang}: adaptation route must appear as an alternative`)
-    }
-    // Each alternative shows its tool's real result, the same local media the showcase uses.
-    for (const branch of branchLists[0].match(/<li\b[\s\S]*?<\/li>/gi)) {
-      assert.match(branch, /<img src="\/org\/demos\/[a-z0-9-]+\.jpg"[^>]* alt="" loading="lazy"/, `${lang}: adaptation branch needs its showcase media`)
     }
     for (const path of [paths[0], paths[2]]) {
       assert.equal((path.match(/<ol\b[^>]*>[\s\S]*?<\/ol>/gi) ?? []).length, 1, `${lang}: sequential path needs one ordered list`)

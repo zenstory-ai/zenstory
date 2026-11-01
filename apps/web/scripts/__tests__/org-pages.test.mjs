@@ -412,7 +412,7 @@ test('organization generator writes every route in both languages, an apex homep
   for (const [lang, file] of [['en', 'org-home'], ['zh', 'zh']]) {
     const homepage = readOutput(outDir, file)
     assertHead(homepage, lang, '/')
-    assert.match(homepage, /<h1>[^<]+<br>[^<]+<\/h1>/)
+    assert.match(homepage, /<h1>[^<]+<br><em>[^<]+<\/em><\/h1>/)
     assert.match(homepage, lang === 'en' ? /Write novels with AI/ : /用 AI 写小说，再改成/)
     assert.match(homepage, /<p class="lede">[^<]*(?:novels|drama|故事|创作|小说)/i)
     // A novel adapts into drama or a game; a recap starts from footage, not from a novel.
