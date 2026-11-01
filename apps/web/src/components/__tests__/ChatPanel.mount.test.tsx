@@ -355,6 +355,8 @@ describe('ChatPanel mount smoke', () => {
     vi.clearAllMocks()
     sessionStorage.clear()
     mockFirstWork.get.mockReset().mockResolvedValue(inactiveFirstWork)
+    // clearAllMocks keeps queued *Once values, so a lookup left over from one test cannot leak into the next.
+    mockGetFile.mockReset()
     capturedUseAgentStream.options = null
     mockStreamSnapshot.items = []
     mockAgentStreamState.isStreaming = false
@@ -469,6 +471,8 @@ describe('ChatPanel mount smoke', () => {
     await waitFor(() => expect(mockMessageList).toHaveBeenCalled())
     const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: (id: string, fileType: string, title: string) => void }
     act(() => props.onOpenFile?.('ch-1', '', '第一章'))
+    expect(mockGetFile).toHaveBeenCalledWith('ch-1')
+    expect(mockProjectState.setSelectedItem).not.toHaveBeenCalled()
 
     mockProjectState.selectedItem = { id: 'other', type: 'draft', title: '别的文件' }
     rerender(<QueryClientProvider client={testQueryClient}><ChatPanel /></QueryClientProvider>)
