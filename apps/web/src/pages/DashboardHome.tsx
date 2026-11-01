@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "../lib/logger";
 import { Book, FileText, Clapperboard, Sparkles } from "../components/icons";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -28,11 +29,14 @@ import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
 import { parseUTCDate } from "../lib/dateUtils";
 import { UpgradePromptModal } from "../components/subscription/UpgradePromptModal";
 import { IdeaQuotaWallModal } from "../components/subscription/IdeaQuotaWallModal";
+import { reportActivationEvent } from "../lib/activationEvents";
 import { useAiMessageQuota } from "../hooks/useAiMessageQuota";
 import { readHeldDashboardIdea, useHeldDashboardIdea } from "../hooks/useHeldDashboardIdea";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { inspirationsConfig } from "../config/inspirations";
 import { FirstWorkEntry } from "../components/dashboard/FirstWorkEntry";
+import { untouchedFirstWork, useFirstWork } from "../hooks/useFirstWork";
+import { firstWorkQueryKey, type FirstWorkState } from "../lib/firstWorkApi";
 import { useDashboardProjectType } from "../hooks/useDashboardProjectType";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
@@ -85,6 +89,11 @@ export default function DashboardHome() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+  // New-user funnel: the account reached the home page. The helper sends it once per account
+  // (a later layout change does not resend) and stays silent on failure.
+  useEffect(() => {
+    void reportActivationEvent(userId, { event_name: "dashboard_viewed", is_mobile: isMobile });
+  }, [userId, isMobile]);
   // An idea held back while today's AI messages were used up comes back after a reload.
   const [inspiration, setInspiration] = useState(() => readHeldDashboardIdea(user?.id));
   const inspirationTooLong = inspiration.length > MAX_AGENT_MESSAGE_CHARS;
@@ -93,7 +102,18 @@ export default function DashboardHome() {
   const [showIdeaQuotaModal, setShowIdeaQuotaModal] = useState(false);
   // The landing page type card (or a short-story / screenwriter onboarding answer)
   // decides which tab a new author starts on.
-  const { activeTab, setActiveTab, rememberCreatedType } = useDashboardProjectType(projects);
+  // While the auto-created first work is untouched and of the selected type, 「开始创作」 opens
+  // it (with the idea, if any) rather than leaving it behind as a second, empty work.
+  const queryClient = useQueryClient();
+  const firstWork = useFirstWork(userId);
+  const untouched = untouchedFirstWork(firstWork.data);
+  // The server's type for the first work decides, so a click right after initialization (before
+  // the project list has refreshed) still opens it; older servers omit it and the list decides.
+  const untouchedType = untouched
+    ? untouched.projectType ?? projects.find((project) => project.id === untouched.projectId)?.project_type ?? null
+    : null;
+  const { activeTab, hasChoice, setActiveTab, rememberCreatedType } = useDashboardProjectType(projects, untouchedType);
+  const startInFirstWork = untouched && untouchedType === activeTab ? untouched : null;
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
   const [deletingProject, setDeletingProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -189,6 +209,12 @@ export default function DashboardHome() {
     try {
       await contextDeleteProject(projectId);
       setPendingDeleteProjectId(null);
+      if (firstWork.data?.project_id === projectId) {
+        // A deleted first work must not keep 「开始创作」 pointing at it; the server state follows.
+        queryClient.setQueryData<FirstWorkState>(firstWorkQueryKey(userId), (state) =>
+          state ? { ...state, available: false } : state);
+        void queryClient.invalidateQueries({ queryKey: firstWorkQueryKey(userId) });
+      }
     } catch (error) {
       setPendingDeleteProjectId(null);
       if (!(error instanceof ApiError && error.status === 401)) {
@@ -346,12 +372,36 @@ export default function DashboardHome() {
     }
   };
 
+  /** ChatPanel sends this as the work's first message when it opens (see lib/pendingInspiration). */
+  const storeInspiration = (projectId: string, content: string) => {
+    localStorage.setItem(
+      `zenstory_inspiration_${projectId}`,
+      JSON.stringify({ content, projectType: activeTab, timestamp: Date.now() })
+    );
+  };
+
   const handleQuickCreate = async () => {
     if (isQuickCreating || inspirationTooLong) return;
 
     const insp = inspiration.trim();
     if (insp && aiMessageQuota.exhausted) {
+      void reportActivationEvent(userId, { event_name: "ai_send_blocked_quota", surface: "dashboard", is_mobile: isMobile });
       setShowIdeaQuotaModal(true);
+      return;
+    }
+
+    if (startInFirstWork) {
+      const { projectId, fileId } = startInFirstWork;
+      try {
+        if (insp) storeInspiration(projectId, insp);
+        else if (isMobile) requestChatOnOpen(projectId);
+      } catch (error) {
+        // Storage full or blocked: keep the idea in the box rather than open without it.
+        toast.error(handleApiError(error));
+        return;
+      }
+      setInspiration("");
+      navigate(`/project/${projectId}?file=${encodeURIComponent(fileId)}`);
       return;
     }
 
@@ -373,16 +423,7 @@ export default function DashboardHome() {
       if (!insp && isMobile) requestChatOnOpen(projectId);
 
       // Store inspiration to localStorage for ChatPanel auto-send (if provided)
-      if (insp) {
-        localStorage.setItem(
-          `zenstory_inspiration_${projectId}`,
-          JSON.stringify({
-            content: insp,
-            projectType: activeTab,
-            timestamp: Date.now(),
-          })
-        );
-      }
+      if (insp) storeInspiration(projectId, insp);
 
       rememberCreatedType(activeTab);
 
@@ -420,7 +461,9 @@ export default function DashboardHome() {
         action={<QuotaBadge />}
       />
 
-      <FirstWorkEntry key={userId} userId={userId} preferredType={activeTab} onCreated={refreshProjects} />
+      {/* No stored or picked type on this device: the server chooses from the onboarding persona. */}
+      <FirstWorkEntry key={userId} userId={userId} preferredType={hasChoice ? activeTab : null}
+        ideaGoesHere={Boolean(startInFirstWork)} onCreated={refreshProjects} />
 
       {/* One surface owns the idea, its format and the creation action. */}
       <div className="dashboard-composer mb-10" data-testid="dashboard-composer">

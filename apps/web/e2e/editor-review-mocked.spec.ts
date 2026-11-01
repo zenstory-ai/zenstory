@@ -107,6 +107,7 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
     }
     if (method === 'POST' && url.pathname.endsWith('/agent/suggest')) return fulfill({ suggestions: [] });
     if (method === 'POST' && url.pathname.endsWith('/stats/record')) return fulfill({ success: true });
+    if (method === 'POST' && url.pathname === '/api/v1/activation/events') return fulfill({ recorded: true });
     if (method === 'POST' && url.pathname === '/api/v1/editor/natural-polish') return fulfill({ text: 'A polished local story.' });
     if (method === 'GET' && url.pathname === '/api/v1/projects') return fulfill(responsiveProjects);
     if (method === 'GET' && url.pathname === '/api/v1/project-templates') return fulfill({});

@@ -38,20 +38,22 @@ def count(session, model):
     return session.exec(select(func.count()).select_from(model)).one()
 
 
-@pytest.mark.parametrize("preferred,personas,expected,kind,folder", [
-    (None, "[]", "novel", "draft", "draft-folder"),
-    ("short", "[]", "short", "draft", "draft-folder"),
-    ("screenplay", "[]", "screenplay", "script", "script-folder"),
-    ("invalid", '["screenwriter"]', "screenplay", "script", "script-folder"),
+@pytest.mark.parametrize("preferred,personas,expected,kind,folder,name", [
+    (None, "[]", "novel", "draft", "draft-folder", "My Novel"),
+    ("short", "[]", "short", "draft", "draft-folder", "My Short Story"),
+    ("screenplay", "[]", "screenplay", "script", "script-folder", "My Drama"),
+    ("invalid", '["screenwriter"]', "screenplay", "script", "script-folder", "My Drama"),
 ])
-def test_new_verified_user_gets_one_empty_writing_file(db_session, preferred, personas, expected, kind, folder):
+def test_new_verified_user_gets_one_empty_writing_file(db_session, preferred, personas, expected, kind, folder, name):
     user = seed(db_session, personas=personas)
     before = count(db_session, UsageQuota)
     result = service().initialize_first_work(db_session, user.id, preferred_type=preferred, lang="en")
     assert result.status == "created" and result.static_guidance is True
     project = db_session.get(Project, result.project_id)
     file = db_session.get(File, result.file_id)
-    assert project.name == "My First Work" and project.project_type == expected
+    # Named like every other new work of its type, so the project list shows what it is.
+    assert project.name == name and project.project_type == expected
+    assert result.project_type == expected
     assert file.content == "" and file.file_type == kind and file.parent_id == f"{project.id}-{folder}"
     assert file.get_metadata()["creation_source"] == "first_work"
     assert count(db_session, Project) == 1
@@ -61,6 +63,17 @@ def test_new_verified_user_gets_one_empty_writing_file(db_session, preferred, pe
     progress = get_projects_progress(db_session, user.id)[0]
     assert (progress.written_units, progress.word_count, progress.framework_ready) == (0, 0, False)
     assert service().initialize_first_work(db_session, user.id, lang="zh") == result
+
+
+@pytest.mark.parametrize("personas,name", [
+    ("[]", "我的小说"),
+    ('["short_story"]', "我的短篇"),
+    ('["screenwriter"]', "我的短剧"),
+])
+def test_first_work_name_follows_the_chosen_type_in_chinese(db_session, personas, name):
+    user = seed(db_session, personas=personas)
+    result = service().initialize_first_work(db_session, user.id, lang="zh")
+    assert db_session.get(Project, result.project_id).name == name
 
 
 @pytest.mark.parametrize("eligible,verified,profile,status", [
@@ -104,6 +117,7 @@ def test_deleted_first_work_is_never_recreated(db_session, hard_delete):
     repeated = service().initialize_first_work(db_session, user.id)
     assert repeated.project_id == first.project_id and repeated.file_id == first.file_id
     assert repeated.static_guidance is False
+    assert repeated.project_type is None
     assert count(db_session, Project) == (0 if hard_delete else 1)
 
 

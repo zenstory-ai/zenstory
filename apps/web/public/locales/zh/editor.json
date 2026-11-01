@@ -226,6 +226,12 @@
   "naturalPolishCost": "· 用 1 条",
   "naturalPolishNoSelection": "先选中文字再去AI味",
   "naturalPolishFailed": "去AI味没有成功，请重试",
+  "naturalPolishUnusableRefunded": "这次去AI味的结果没法准确对回选中的文字，原文没有改动，这条 AI 消息的额度已退回。可以直接再试，或缩小选区后再试。",
+  "naturalPolishUnusable": "这次去AI味的结果没法准确对回选中的文字，原文没有改动。可以直接再试，或缩小选区后再试。",
+  "naturalPolishProviderFailedRefunded": "AI 服务这次没有响应，原文没有改动，这条 AI 消息的额度已退回。可以直接再试。",
+  "naturalPolishProviderFailed": "AI 服务这次没有响应，原文没有改动。可以直接再试。",
+  "naturalPolishRetry": "再试一次",
+  "naturalPolishDismiss": "关闭提示",
   "naturalPolishEmpty": "这次没有生成结果，请重试",
   "naturalPolishNoChange": "这段没找到明显的 AI 腔，这次不计入今日 AI 消息",
   "naturalPolishMissingContext": "请先打开一个文件再去AI味",
@@ -350,9 +356,9 @@
   "showLess": "收起",
   "showMore": "更多选项",
   "firstWork": {
-    "hint": "写下第一段，或粘贴已有稿件。",
+    "hint": "说一句点子，AI 先帮你写开头；也可以自己写，或粘贴已有稿件。",
     "paste": "自己写",
-    "ai": "与 AI 创作"
+    "ai": "让 AI 帮你写开头"
   },
   "emptyStateImportDrafts": "有现成的稿子？导入进来（txt / md）"
 }

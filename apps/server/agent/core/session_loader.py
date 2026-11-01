@@ -76,6 +76,12 @@ _BREADCRUMB_UNKNOWN_EN = {
     "query_files": "Read file (outcome unknown)",
 }
 _FAILED_TOOL_STATUSES = {"error", "failed", "failure"}
+
+# 补问卡文本上限：路由器的 pending_clarification 和有正文轮次追加进回放的补问卡共用，
+# 两边看到同样的问题与选项。只有状态卡、没有正文的轮次仍回放完整卡片。
+_CLARIFICATION_TEXT_MAX_CHARS = 400
+_CLARIFICATION_DETAIL_MAX_CHARS = 160
+_CLARIFICATION_MAX_DETAILS = 8
 _PENDING_TOOL_STATUS = "pending"
 # parallel_execute 子任务里改动（至少一部分）已经落地的状态。
 _APPLIED_PARALLEL_TASK_STATUSES = {"completed", "partial"}
@@ -894,14 +900,19 @@ class SessionLoader:
                 if isinstance(status_cards, list):
                     msg_data.update(self._status_card_routing_hints(status_cards))
                     synthesized_content = self._build_status_cards_history_content(status_cards)
-                    # 路由器要看上一轮的状态卡（澄清卡的问题等）；正文非空时摘要不进回放，
-                    # 单独放一份给 router.build_router_user_message。
+                    # 路由器另有一份状态卡摘要（router.build_router_user_message）。
                     if synthesized_content:
                         msg_data["status_card_text"] = synthesized_content
                     if synthesized_content and not self._extract_content_text(
                         msg_data.get("content")
                     ).strip():
                         self._append_text_to_content(msg_data, synthesized_content)
+                    else:
+                        # 有正文时其他状态卡摘要是噪音，但补问卡的问题和选项不一定写在
+                        # 正文里：不放进回放，作者回复选其中一项时模型看不到选项内容。
+                        clarification = self._clarification_cards_history_content(status_cards)
+                        if clarification:
+                            self._append_text_to_content(msg_data, clarification)
 
         # Include reasoning_content for assistant messages
         # The workflow message format keeps thinking inside the content array, not top-level
@@ -1277,14 +1288,14 @@ class SessionLoader:
                 ).strip()
                 context = str(last_card.get("context") or "").strip()
                 if question:
-                    pending["question"] = question[:400]
+                    pending["question"] = question[:_CLARIFICATION_TEXT_MAX_CHARS]
                 if context:
-                    pending["context"] = context[:400]
+                    pending["context"] = context[:_CLARIFICATION_TEXT_MAX_CHARS]
                 details = last_card.get("details")
                 if isinstance(details, list):
                     normalized_details = [
-                        str(detail).strip()[:160]
-                        for detail in details[:8]
+                        str(detail).strip()[:_CLARIFICATION_DETAIL_MAX_CHARS]
+                        for detail in details[:_CLARIFICATION_MAX_DETAILS]
                         if detail is not None and str(detail).strip()
                     ]
                     if normalized_details:
@@ -1292,6 +1303,45 @@ class SessionLoader:
                 if pending:
                     hints["pending_clarification"] = pending
         return hints
+
+    @staticmethod
+    def _workflow_stopped_card_summary(card: dict[str, Any], *, bounded: bool = False) -> str:
+        """停止卡的回放文本。bounded=True 时按路由器 pending_clarification 的同一上限截断。"""
+        parts = ["[workflow_stopped]"]
+        reason = str(card.get("reason") or "").strip()
+        question = str(card.get("question") or card.get("message") or "").strip()
+        context = str(card.get("context") or "").strip()
+        details = card.get("details")
+        text_max = _CLARIFICATION_TEXT_MAX_CHARS if bounded else None
+        detail_max = _CLARIFICATION_DETAIL_MAX_CHARS if bounded else None
+
+        if reason:
+            parts.append(f"reason: {reason}")
+        if question:
+            parts.append(f"question: {question[:text_max]}")
+        if context:
+            parts.append(f"context: {context[:text_max]}")
+        if isinstance(details, list):
+            if bounded:
+                details = details[:_CLARIFICATION_MAX_DETAILS]
+            normalized_details = [
+                str(detail).strip()[:detail_max]
+                for detail in details
+                if detail is not None and str(detail).strip()
+            ]
+            if normalized_details:
+                parts.append("details: " + "; ".join(normalized_details))
+        return "\n".join(parts)
+
+    def _clarification_cards_history_content(self, status_cards: list[Any]) -> str:
+        """只取补问卡（clarification_needed）的有上限回放文本，供正文非空的轮次追加。"""
+        return "\n\n".join(
+            self._workflow_stopped_card_summary(card, bounded=True)
+            for card in status_cards
+            if isinstance(card, dict)
+            and str(card.get("type") or "").strip() == "workflow_stopped"
+            and str(card.get("reason") or "").strip() == "clarification_needed"
+        )
 
     def _build_status_cards_history_content(
         self,
@@ -1306,28 +1356,7 @@ class SessionLoader:
 
             card_type = str(card.get("type") or "").strip()
             if card_type == "workflow_stopped":
-                parts = ["[workflow_stopped]"]
-                reason = str(card.get("reason") or "").strip()
-                question = str(card.get("question") or card.get("message") or "").strip()
-                context = str(card.get("context") or "").strip()
-                details = card.get("details")
-
-                if reason:
-                    parts.append(f"reason: {reason}")
-                if question:
-                    parts.append(f"question: {question}")
-                if context:
-                    parts.append(f"context: {context}")
-                if isinstance(details, list):
-                    normalized_details = [
-                        str(detail).strip()
-                        for detail in details
-                        if detail is not None and str(detail).strip()
-                    ]
-                    if normalized_details:
-                        parts.append("details: " + "; ".join(normalized_details))
-
-                summaries.append("\n".join(parts))
+                summaries.append(self._workflow_stopped_card_summary(card))
                 continue
 
             if card_type == "iteration_exhausted":

@@ -30,13 +30,16 @@ function latestProjectType(projects: readonly Project[]): ProjectType | null {
  *    persona, or the type of its last created project).
  * 2. Otherwise the type of the author's most recently active project, so a
  *    screenwriter signing in on a new device does not land on 长篇小说.
- * 3. Otherwise 长篇小说.
+ * 3. Otherwise `fallbackType` (the type the server gave the auto-created first
+ *    work, which follows the onboarding persona even on a device that never saw it).
+ * 4. Otherwise 长篇小说. `hasChoice` is false in this case only, so a caller can
+ *    leave the type to the server instead of sending a guess.
  *
  * Once the author picks a tab, that choice wins for the rest of the visit.
  * `rememberCreatedType` keeps the type of a project that was just created as
  * the next default instead of clearing it.
  */
-export function useDashboardProjectType(projects: readonly Project[]) {
+export function useDashboardProjectType(projects: readonly Project[], fallbackType: ProjectType | null = null) {
   const { user } = useAuth();
   const userId = user?.id;
   const [choice, setChoice] = useState<{ type: ProjectType; source: Source }>(() => {
@@ -45,7 +48,9 @@ export function useDashboardProjectType(projects: readonly Project[]) {
   });
   const recentType = useMemo(() => latestProjectType(projects), [projects]);
 
-  const activeTab: ProjectType = choice.source === "default" && recentType ? recentType : choice.type;
+  const derived = choice.source === "default" ? recentType ?? (isPreferableProjectType(fallbackType) ? fallbackType : null) : null;
+  const activeTab: ProjectType = derived ?? choice.type;
+  const hasChoice = choice.source !== "default" || derived !== null;
 
   const setActiveTab = useCallback((type: ProjectType) => {
     setChoice({ type, source: "user" });
@@ -55,5 +60,5 @@ export function useDashboardProjectType(projects: readonly Project[]) {
     setPreferredProjectType(type, userId);
   }, [userId]);
 
-  return { activeTab, setActiveTab, rememberCreatedType };
+  return { activeTab, hasChoice, setActiveTab, rememberCreatedType };
 }

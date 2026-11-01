@@ -25,6 +25,8 @@ import OnboardingPersonaPage from '../OnboardingPersonaPage';
 import { toast } from '../../lib/toast';
 vi.mock('../../lib/toast', () => ({ toast: { error: vi.fn() } }));
 
+// The new-user screen milestone is analytics, outside this page's request contract.
+vi.mock('../../lib/activationEvents', () => ({ reportActivationEvent: vi.fn(async () => {}) }));
 vi.mock('../../lib/analytics', () => ({ identifyUser: vi.fn(), resetAnalytics: vi.fn(),
   trackEvent: vi.fn(), captureException: vi.fn() }));
 

@@ -13,6 +13,7 @@ Prompt ownership is server-side only so every client uses the same prompt source
 
 import difflib
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -54,16 +55,25 @@ DEFAULT_NATURAL_POLISH_PROMPT_ZH = """
 - 按行修改：原文的一行就是一个段落（剧本里就是一行）。可以在同一行内重组句子，但不能合并两行、拆成几行或搬动不同原行的内容。
 - 引号一个都不换：原文是半角直引号 "" 就保持半角直引号，原文是弯引号 “” 就保持弯引号，原文是「」就保持「」；不要给没有引号的地方加引号。
 - 本次检查提示只是定位线索，不是见词必改或必须减少排比项数的命令。提示为空也要完成三层检查。没有具体阅读问题就不改，不为制造差异更换标点、同义词或删改有效文字；用原文的语言输出。
+- 内容红线：改写只调整表达，不新增涉及未成年人的性内容、露骨色情、敏感政治、暴恐与违法犯罪或侵害真实人物的内容。
 
 输出前回读整个选区，核对事实、选择、因果、情绪承接、空间方向和悬念；确认没有新套式或新增的剧情依据。若信息齐全却仍逐项播报，或对白仍像提纲，继续重组。没有可依据的修改时，接受无改动。
 
 输出格式（必须严格遵守）：
 - 每改一行，输出两行：第一行以「原：」开头，后面照抄原文这一整行，一字不差；第二行以「改：」开头，后面写改好的这一整行。只有整行没有需要保留的内容和作用时，才让「改：」后面留空，表示删掉这一行。
-- 每组之间空一行。没改的行不要输出。
+- 每组之间空一行，按原文从前到后的顺序列出。没改的行不要输出。
+- 「原：」「改：」直接写在行首：前面不加编号、符号或加粗，不用代码块包裹，「原：」后面照抄时不额外加引号。
 - 要改的行如果在选区里出现不止一次（例如重复的短台词），「原：」后面连同它的前一行或后一行逐行照抄（中间的空行也照抄），「改：」后面按同样的行数逐行写出，没改的那行原样写。
 - 如果一处都不需要改，只输出：无改动
 - 不要输出任何解释、说明、标题、编号或其他文字，不要把「无改动」与修改对混用，不要调用工具。
 - 格式不完整或多出任何文字都会让本次请求失败；不要退回整段正文作为兜底。
+
+格式示例（只示意格式，与本次选区无关）：
+原：　　她推门。屋里没开灯。她摸到桌边。
+改：　　进屋后，她摸黑走到桌边。
+
+原：他心中一震，半晌没有说话。
+改：他半晌没有说话。
 """.strip()
 
 SCRIPT_NATURAL_POLISH_RULES_ZH = """
@@ -103,16 +113,25 @@ Hard requirements:
 - Edit line by line: each original line is one paragraph (or one script line). You may reorganize sentences within it, but never merge lines, split a line, or move content between original lines.
 - Do not change a single quotation mark: straight quotes stay straight, curly quotes stay curly; do not add quotes where there are none.
 - Checks appended to this prompt are location clues, not orders to remove every matching phrase or reduce every triplet. Complete all three layers even when no checks are appended. Leave writing without a concrete reading problem unchanged; do not change punctuation, swap synonyms, or cut effective words merely to create a difference. Write in the original's language.
+- Content red lines: revise expression only. Do not add, expand, or dwell on explicit sexual content, pornography, sexualized depictions of minors, glorification of violence, terrorism or extremism, politically subversive or inflammatory content, or anything else illegal.
 
 Before output, reread the whole selection for facts, choices, causation, emotional continuity, spatial orientation, and suspense. Check that you added no new formula or story premise. If the facts are complete but the prose still reports items one by one, or dialogue reads like an outline, reorganize it. Accept no change when no supported revision is needed.
 
 Output format (follow it exactly):
 - For each line you change, output two lines: the first starts with "OLD:" followed by that entire original line copied character for character; the second starts with "NEW:" followed by the entire revised line. Leave "NEW:" empty only when the whole line has no content or function that needs preserving; that deletes the line.
-- Put a blank line between pairs. Do not output unchanged lines.
+- Put a blank line between pairs and list them in the order the lines appear. Do not output unchanged lines.
+- Start each line with the bare "OLD:" or "NEW:" marker: no numbering, bullets, bold, or code fences, and no extra quotation marks around the copied line.
 - If a line you change appears more than once in the selection (such as a repeated short reply), copy it together with the line before or after it, line by line (blank lines in between included), after "OLD:", and write the same number of lines after "NEW:", repeating the unchanged line as is.
 - If nothing needs changing, output only: NO CHANGES
 - Output nothing else: no explanations, notes, headings or numbering. Never mix "NO CHANGES" with edit pairs. Do not call tools.
 - An incomplete pair or any extra text makes the request fail; never fall back to returning the full rewritten passage.
+
+Format example (format only; unrelated to this selection):
+OLD:She opened the door. The room was dark. She felt her way to the table.
+NEW:After entering, she felt her way through the dark to the table.
+
+OLD:His heart lurched, and he said nothing for a long time.
+NEW:He said nothing for a long time.
 """.strip()
 
 SCRIPT_NATURAL_POLISH_RULES_EN = """
@@ -157,8 +176,25 @@ def is_noop_rewrite(original: str, rewritten: str) -> bool:
 # 行级改动协议：解析「原：/改：」并套回原文
 # ---------------------------------------------------------------------------
 
-_EDIT_OLD_RE = re.compile(r"^(原：|OLD:)(.*)$")
-_EDIT_NEW_RE = re.compile(r"^(改：|NEW:)(.*)$")
+# 标记行的写法按协议结构放宽：行首可以带列表符号或编号、标记可以加粗，冒号全角半角都行，
+# 中文标记接受几种常见叫法（原文/原句、改为/修改后……），英文标记不分大小写。
+# 只认「标记 + 冒号」这个结构，不看正文说了什么。
+_MARKER_DECORATION = r"[ \t]*(?:[-*+>•][ \t]*|\d{1,3}[.、)）][ \t]*)?(?:\*\*|__)?"
+_MARKER_TAIL = r"(?:\*\*|__)?[ \t]*[:：](?:\*\*|__)?(?P<payload>.*)$"
+_OLD_LABELS_ZH = ("原文", "原句", "原")
+_NEW_LABELS_ZH = ("修改后", "改写", "改为", "改后", "修改", "改文", "改")
+_EDIT_OLD_RE = re.compile(
+    rf"^{_MARKER_DECORATION}(?P<label>原文|原句|原|(?i:old|original)){_MARKER_TAIL}"
+)
+_EDIT_NEW_RE = re.compile(
+    rf"^{_MARKER_DECORATION}(?P<label>修改后|改写|改为|改后|修改|改文|改|(?i:new|revised)){_MARKER_TAIL}"
+)
+_CODE_FENCE_RE = re.compile(r"^[ \t]*(?:```|~~~)[\w+-]*[ \t]*$")
+# 「无改动」后面可以跟句号或一句说明；只要整个回复里没有任何标记行，就是无改动。
+_NO_CHANGE_RE = re.compile(r"^[ \t*]*(?:无改动|无需改动|没有改动|不需要改动|无修改|(?i:no changes?))(?:[\W_].*)?$")
+# 回复里不属于任何行对的说明文字（开头的「以下是修改」、结尾的总结）只有和选区几乎不共享
+# 内容时才丢弃；共享内容的多半是模型拆出来的正文，不能丢，按协议错误处理。
+_COMMENTARY_MAX_SHARE = 0.5
 _DELETE_PLACEHOLDERS = {"（删除）", "(删除)", "删除", "（删去）", "[delete]", "(delete)", "[deleted]"}
 
 _SCRIPT_HEADING_RE = re.compile(r"^(?:【[^】]*】|第\s*[0-9一二三四五六七八九十百]+\s*[集场幕]|人物\s*[:：]|Characters?\s*:|Episode\s+\d+)", re.IGNORECASE)
@@ -222,9 +258,16 @@ class NaturalPolishFailure(RuntimeError):
         *,
         stage: NaturalPolishFailureStage,
         category: NaturalPolishFailureCategory,
+        model: str | None = None,
+        provider: str | None = None,
+        finish_reason: str | None = None,
     ) -> None:
         self.stage = stage
         self.category = category
+        # 供应商和模型名是配置值，不含正文，可以进日志，用来区分哪家模型的输出格式不稳。
+        self.model = model
+        self.provider = provider
+        self.finish_reason = finish_reason
         super().__init__(f"natural polish failed at {stage}: {category}")
 
 
@@ -234,34 +277,57 @@ class _NaturalPolishContentProtectionError(RuntimeError):
 
 def _marker_payload(match: "re.Match[str]") -> str:
     """Return marker payload while accepting the prompt's optional one ASCII space."""
-    payload = match.group(2)
+    payload = match.group("payload")
     return payload[1:] if payload.startswith(" ") else payload
 
 
-def _block_lines(first_payload: str, continuation: list[str]) -> str:
-    """Join one marker block; trailing blank lines are pair separators, not content."""
-    block = [first_payload, *continuation]
+def _marker_family(match: "re.Match[str]") -> str:
+    label = match.group("label")
+    return "zh" if label in _OLD_LABELS_ZH or label in _NEW_LABELS_ZH else "en"
+
+
+def _trim_trailing_blank(lines: list[str]) -> list[str]:
+    """Trailing blank lines are pair separators, not content."""
+    block = list(lines)
     while len(block) > 1 and not block[-1].strip():
         block.pop()
-    return "\n".join(block)
+    return block
 
 
-def parse_line_edits(output: str) -> list[LineEdit]:
-    """Parse a complete ``原：/改：`` or ``OLD:/NEW:`` response.
+def _is_commentary(lines: list[str], original: str | None) -> bool:
+    """Lines outside every pair that share almost nothing with the selection.
 
-    The model output is an internal wire format, not prose. Partial pairs, aliases,
-    mixed marker dialects and any explanatory text are rejected rather than being
-    written into the author's document or downgraded to a no-op.
-
-    Blank lines between an old and a new marker are accepted: when the selection
-    separates paragraphs with blank lines, the model mirrors that layout inside a
-    pair. A block may also span several original lines (the model copies context to
-    make a repeated short line unique); its revision must then have the same number
-    of lines, so text appended after a revision still fails as extra output.
+    Without the selection there is nothing to compare against, so nothing counts as
+    commentary and the reply stays a protocol error.
     """
+    if original is None:
+        return False
+    key = _compare_key("".join(line for line in lines if line.strip()))
+    if not key:
+        return True
+    return _shared_chars(key, _compare_key(original)) < _COMMENTARY_MAX_SHARE * len(key)
+
+
+def _fit_blank_layout(old_lines: list[str], new_lines: list[str]) -> list[str] | None:
+    """Lay a revision onto the original block's blank lines when only blank lines differ."""
+    old_content = [line for line in old_lines if line.strip()]
+    new_content = [line for line in new_lines if line.strip()]
+    if len(old_content) != len(new_content):
+        return None
+    filled = iter(new_content)
+    return [next(filled) if line.strip() else "" for line in old_lines]
+
+
+def _parse_line_edits(
+    output: str, original: str | None, *, truncated: bool = False
+) -> tuple[list[LineEdit], list[str]]:
+    """Parse the reply; returns the edits and the fixed names of the deviations tolerated.
+
+    ``truncated`` says the provider stopped at the token limit, so a last ``原：``
+    block may end anywhere; otherwise only a bare last ``原：`` counts as cut off.
+    """
+    tolerated: list[str] = []
     stripped = output.strip()
-    if stripped in {"无改动", "NO CHANGES"}:
-        return []
     if not stripped:
         raise NaturalPolishProtocolError(
             "empty natural polish response",
@@ -269,56 +335,141 @@ def parse_line_edits(output: str) -> list[LineEdit]:
         )
 
     lines = stripped.splitlines()
-    # (kind, marker, first payload, continuation lines, first line number)
+    original_has_fence = original is not None and any(
+        _CODE_FENCE_RE.fullmatch(line) for line in original.split("\n")
+    )
+    if not original_has_fence and any(_CODE_FENCE_RE.fullmatch(line) for line in lines):
+        lines = [line for line in lines if not _CODE_FENCE_RE.fullmatch(line)]
+        tolerated.append("code_fence")
+
+    matches = [(_EDIT_OLD_RE.fullmatch(line), _EDIT_NEW_RE.fullmatch(line)) for line in lines]
+    if not any(old or new for old, new in matches):
+        first = next((line for line in lines if line.strip()), "")
+        if _NO_CHANGE_RE.fullmatch(first):
+            if len([line for line in lines if line.strip()]) > 1 or first.strip() not in {"无改动", "NO CHANGES"}:
+                tolerated.append("no_change_wording")
+            return [], tolerated
+        raise NaturalPolishProtocolError("expected OLD marker at line 1")
+
+    # (kind, family, first payload, continuation lines, first line number)
     blocks: list[tuple[str, str, str, list[str], int]] = []
-    for number, line in enumerate(lines, start=1):
-        old_match = _EDIT_OLD_RE.fullmatch(line)
-        new_match = _EDIT_NEW_RE.fullmatch(line) if old_match is None else None
+    preamble: list[str] = []
+    for number, (line, (old_match, new_match)) in enumerate(zip(lines, matches, strict=True), start=1):
         if old_match is not None:
-            blocks.append(("old", old_match.group(1), _marker_payload(old_match), [], number))
+            blocks.append(("old", _marker_family(old_match), _marker_payload(old_match), [], number))
         elif new_match is not None:
-            blocks.append(("new", new_match.group(1), _marker_payload(new_match), [], number))
+            blocks.append(("new", _marker_family(new_match), _marker_payload(new_match), [], number))
         elif not blocks:
-            raise NaturalPolishProtocolError(f"expected OLD marker at line {number}")
+            preamble.append(line)
         else:
             blocks[-1][3].append(line)
 
+    if any(line.strip() for line in preamble):
+        # 「无改动」写在修改对前面也只是一句前言：照样要过说明检查，修改对照常逐条核对套用。
+        if not _is_commentary(preamble, original):
+            raise NaturalPolishProtocolError("expected OLD marker at line 1")
+        tolerated.append("preamble")
+
     edits: list[LineEdit] = []
-    dialect: str | None = None
+    family: str | None = None
     for position in range(0, len(blocks), 2):
-        kind, old_marker, old_first, old_rest, old_line = blocks[position]
+        kind, old_family, old_first, old_rest, old_line = blocks[position]
         if kind != "old":
             raise NaturalPolishProtocolError(f"expected OLD marker at line {old_line}")
-        if not old_first:
-            raise NaturalPolishProtocolError(
-                f"empty OLD anchor at line {old_line}",
-                category="missing_anchor",
-            )
         if position + 1 >= len(blocks):
+            if edits and (truncated or not any(line.strip() for line in old_rest)):
+                # 回复在最后一组的「原：」之后就断了：前面完整的行对照常套用，
+                # 最后这一行保持原文。后面还跟着别的文字时是格式错误，不是截断。
+                tolerated.append("truncated_tail")
+                break
             if any(line.strip() for line in old_rest):
                 raise NaturalPolishProtocolError(f"expected NEW marker after line {old_line}")
             raise NaturalPolishProtocolError(
                 "incomplete natural polish edit pair",
                 category="truncated_output",
             )
-        new_kind, new_marker, new_first, new_rest, new_line = blocks[position + 1]
+        new_kind, new_family, new_first, new_rest, new_line = blocks[position + 1]
         if new_kind != "new":
             raise NaturalPolishProtocolError(f"expected NEW marker at line {new_line}")
-        if (
-            (old_marker == "原：") != (new_marker == "改：")
-            or (dialect is not None and old_marker != dialect)
-        ):
+        if old_family != new_family or (family is not None and old_family != family):
             raise NaturalPolishProtocolError(f"mixed edit marker dialect at line {new_line}")
-        dialect = old_marker
+        family = old_family
 
-        old = _block_lines(old_first, old_rest)
-        new = _block_lines(new_first, new_rest)
-        if old.count("\n") != new.count("\n"):
-            raise NaturalPolishProtocolError(f"unexpected text near line {new_line}")
-        edits.append(LineEdit(old=old, new=new))
+        old_lines = _trim_trailing_blank([old_first, *old_rest])
+        new_lines = _trim_trailing_blank([new_first, *new_rest])
+        if not old_first.strip() and len(old_lines) > 1:
+            # 标记单独占一行、照抄的原文写在下一行：两边都这样写时按下一行读。
+            old_body = _drop_leading_blank(old_lines[1:])
+            old_gap = len(old_lines) - 1 - len(old_body)
+            old_lines = _trim_trailing_blank(old_body)
+            if not new_first.strip() and len(new_lines) > 1:
+                new_body = _drop_leading_blank(new_lines[1:])
+                extra_gap = len(new_lines) - 1 - len(new_body) > old_gap
+                if not (extra_gap and _is_commentary(new_body, original)):
+                    new_lines = _trim_trailing_blank(new_body)
+                # 否则空的「改：」后面先空了行（「原：」那边没有）、空行之后又是说明：
+                # 这一行是删掉，说明留给下面的尾随说明检查，不当成改写。
+            tolerated.append("marker_own_line")
+        if not old_lines[0].strip():
+            raise NaturalPolishProtocolError(
+                f"empty OLD anchor at line {old_line}",
+                category="missing_anchor",
+            )
 
+        if len(new_lines) > len(old_lines):
+            head, tail = new_lines[: len(old_lines)], new_lines[len(old_lines):]
+            if not tail[0].strip() and _is_commentary(tail, original):
+                new_lines = head
+                tolerated.append("trailing_commentary")
+        if len(new_lines) != len(old_lines):
+            # 只有多行块才按原文的空行重新排布；单行的「原：」必须对一行「改：」，
+            # 否则「改：」后面跟的可能是别的文字，不能当成改写。
+            fitted = _fit_blank_layout(old_lines, new_lines) if len(old_lines) > 1 else None
+            if fitted is None:
+                raise NaturalPolishProtocolError(f"unexpected text near line {new_line}")
+            new_lines = fitted
+            tolerated.append("blank_lines")
+        edits.append(LineEdit(old="\n".join(old_lines), new="\n".join(new_lines)))
+
+    if truncated and edits and "truncated_tail" not in tolerated:
+        # 供应商在 token 上限处截断：最后一组的「改：」可能停在半句，这一行保持原文。
+        edits.pop()
+        tolerated.append("truncated_tail")
+        if not edits:
+            raise NaturalPolishProtocolError(
+                "incomplete natural polish edit pair",
+                category="truncated_output",
+            )
     if not edits:
         raise NaturalPolishProtocolError("natural polish response contains no edit pairs")
+    return edits, tolerated
+
+
+def _drop_leading_blank(lines: list[str]) -> list[str]:
+    index = 0
+    while index < len(lines) - 1 and not lines[index].strip():
+        index += 1
+    return lines[index:]
+
+
+def parse_line_edits(output: str, original: str | None = None) -> list[LineEdit]:
+    """Parse a ``原：/改：`` or ``OLD:/NEW:`` response.
+
+    The model output is an internal wire format, not prose; nothing outside a pair is
+    ever written into the author's document. Deviations are tolerated only where the
+    protocol structure makes the intent unambiguous:
+
+    - blank lines between markers, marker decorations (bullets, numbering, bold),
+      alias labels, full-width colons, code fences, a marker on its own line;
+    - a leading or trailing note that shares almost nothing with ``original``
+      (needs ``original``; without it such text stays a protocol error);
+    - a reply cut off right after its last ``原：`` keeps the complete pairs before it.
+
+    A block may span several original lines (the model copies context to make a
+    repeated short line unique); its revision must have the same number of non-blank
+    lines, so merged or split lines and text glued onto a revision still fail.
+    """
+    edits, _ = _parse_line_edits(output, original)
     return edits
 
 
@@ -396,16 +547,284 @@ def _guard_line(original_line: str, proposed: str, *, is_script: bool, full_orig
     return _leading_ws(original_line) + content + _trailing_ws(original_line)
 
 
-def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | None = None) -> tuple[str, int]:
+# 锚点规范化：去掉空白，统一引号、全角半角（NFKC）、各种破折号，连续的「-」「.」并成一个，
+# 英文不分大小写。每个规范化字符都记着它在原串里的位置，子串替换按位置切回原串。
+_DASH_TRANSLATION = str.maketrans(dict.fromkeys("—–―─－‐‑−", "-"))
+_WRAPPING_QUOTES = {'"': '"', "“": "”", "「": "」", "『": "』", "‘": "’", "'": "'", "`": "`"}
+# 模型抄「原：」时改了几个字：只有和某一原行高度相似、且明显比第二像的行更像时才认这一行。
+_FUZZY_MIN_KEY_CHARS = 8
+_FUZZY_MIN_RATIO = 0.85
+_FUZZY_MIN_MARGIN = 0.1
+
+
+def _anchor_map(text: str) -> tuple[str, list[int], list[int]]:
+    """Normalized anchor key of ``text`` and, per key character, the first and last
+    index in ``text`` it stands for (a collapsed「-」「.」run spans several)."""
+    chars: list[str] = []
+    starts: list[int] = []
+    ends: list[int] = []
+    for index, char in enumerate(text):
+        if char.isspace():
+            continue
+        normalized = unicodedata.normalize("NFKC", char.translate(_QUOTE_TRANSLATION))
+        for piece in normalized.translate(_DASH_TRANSLATION).casefold():
+            if piece.isspace():
+                continue
+            if piece in "-." and chars and chars[-1] == piece:
+                ends[-1] = index
+                continue
+            chars.append(piece)
+            starts.append(index)
+            ends.append(index)
+    return "".join(chars), starts, ends
+
+
+def _anchor_key(text: str) -> str:
+    return _anchor_map(text)[0]
+
+
+def _is_latin_word_char(char: str) -> bool:
+    # 和锚点规范化同一口径：全角拉丁字母、数字也算。
+    normalized = unicodedata.normalize("NFKC", char)
+    return len(normalized) == 1 and normalized.isascii() and normalized.isalnum()
+
+
+def _latin_word_breaks(text: str, starts: list[int], ends: list[int]) -> set[int]:
+    """Key positions where whitespace in ``text`` separates two Latin word characters."""
+    return {
+        k
+        for k in range(1, len(starts))
+        if starts[k] - ends[k - 1] > 1
+        and _is_latin_word_char(text[ends[k - 1]])
+        and _is_latin_word_char(text[starts[k]])
+    }
+
+
+def _anchor_breaks(anchor: str) -> frozenset[int]:
+    _key, starts, ends = _anchor_map(anchor)
+    return frozenset(_latin_word_breaks(anchor, starts, ends))
+
+
+def _anchor_spans(text: str, needle: str, needle_breaks: frozenset[int]) -> list[tuple[int, int]]:
+    """Source spans in ``text`` whose anchor key is ``needle``.
+
+    The key ignores whitespace; a Latin word boundary must still sit where the anchor
+    has one, so "therapist" does not match "the rapist".
+    """
+    key, starts, ends = _anchor_map(text)
+    breaks = _latin_word_breaks(text, starts, ends)
+    spans: list[tuple[int, int]] = []
+    found = key.find(needle) if needle else -1
+    while found != -1:
+        inside = {k - found for k in breaks if found < k < found + len(needle)}
+        if inside == needle_breaks:
+            spans.append((starts[found], ends[found + len(needle) - 1] + 1))
+            # 与 str.count 同样不重叠地数（「哈哈」在「哈哈哈」里只算一处）。
+            found = key.find(needle, found + len(needle))
+        else:
+            # 词边界对不上的候选不占位置：和它重叠的下一处仍可能是真的。
+            found = key.find(needle, found + 1)
+    return spans
+
+
+def _unwrap(text: str) -> str | None:
+    """``text`` without one pair of quotes or backticks around the whole of it."""
+    if len(text) >= 3 and _WRAPPING_QUOTES.get(text[0]) == text[-1]:
+        return text[1:-1].strip()
+    return None
+
+
+@dataclass
+class _Resolution:
+    """Where one edit lands in the original before ambiguities are settled."""
+
+    kind: Literal["skip", "lines", "substring"]
+    old_block: list[str]
+    new_block: list[str]
+    candidates: list[int]
+    needle: str = ""
+    needle_breaks: frozenset[int] = frozenset()
+
+
+def _line_candidates(lines: list[str], keys: list[str], old_line: str) -> list[int]:
+    exact = [i for i, line in enumerate(lines) if line.strip() == old_line]
+    if exact:
+        return exact
+    key = _anchor_key(old_line)
+    return [i for i, line_key in enumerate(keys) if key and line_key == key]
+
+
+def _fuzzy_candidates(keys: list[str], old_key: str) -> list[int]:
+    if len(old_key) < _FUZZY_MIN_KEY_CHARS:
+        return []
+    scored = sorted(
+        (
+            (difflib.SequenceMatcher(None, old_key, key, autojunk=False).ratio(), i)
+            for i, key in enumerate(keys)
+            if key
+        ),
+        reverse=True,
+    )
+    if not scored or scored[0][0] < _FUZZY_MIN_RATIO:
+        return []
+    if len(scored) > 1 and scored[1][0] > scored[0][0] - _FUZZY_MIN_MARGIN:
+        return []
+    return [scored[0][1]]
+
+
+def _resolve_edit(
+    edit: LineEdit,
+    lines: list[str],
+    keys: list[str],
+    tolerated: list[str],
+) -> _Resolution:
+    old_block = edit.old.split("\n")
+    new_block = edit.new.split("\n")
+    if [line.strip() for line in old_block] == [line.strip() for line in new_block]:
+        # 模型把没改的行也列了出来（常见于重复的短台词）：什么都不用做，
+        # 也不必为一个不会改动任何字的锚点判多义。
+        return _Resolution("skip", old_block, new_block, [])
+
+    if len(old_block) > 1:
+        # 多行块：模型连同上下文一起抄，用来唯一定位重复的短行。整块必须逐行对上
+        # 原文里连续的几行，再逐行套用；不做子串或近似匹配。
+        span = len(old_block)
+        starts = range(len(lines) - span + 1)
+        matching = [
+            i for i in starts if all(lines[i + k].strip() == old_block[k].strip() for k in range(span))
+        ]
+        if not matching:
+            block_keys = [_anchor_key(line) for line in old_block]
+            matching = [i for i in starts if keys[i:i + span] == block_keys]
+        if not matching:
+            raise NaturalPolishProtocolError("unmatched OLD anchor", category="missing_anchor")
+        return _Resolution("lines", old_block, new_block, matching)
+
+    old_line = edit.old.strip()
+    if not _anchor_key(old_line):
+        raise NaturalPolishProtocolError("empty normalized OLD anchor", category="missing_anchor")
+    new_line = edit.new
+    variants = [(old_line, new_line)]
+    inner = _unwrap(old_line)
+    if inner:
+        # 模型给照抄的原句加了一层引号：原文里没有这层引号时按去掉引号的句子定位。
+        new_inner = _unwrap(new_line.strip())
+        same_wrap = new_inner is not None and new_line.strip()[0] == old_line[0]
+        variants.append((inner, new_inner if same_wrap else new_line))
+
+    for variant_index, (anchor, revision) in enumerate(variants):
+        # Marker parsing may consume one boundary space; indentation is not identity.
+        # Internal whitespace and quote styles still distinguish complete lines first.
+        # Count all original lines so a previous edit cannot resolve a genuine ambiguity.
+        matching = _line_candidates(lines, keys, anchor)
+        if matching:
+            if variant_index:
+                tolerated.append("unwrapped_anchor")
+            elif any(line.strip() != anchor for line in (lines[i] for i in matching)):
+                tolerated.append("normalized_anchor")
+            return _Resolution("lines", [anchor], [revision], matching)
+
+        # 模型只抄了一句而不是整行：在包含这句话的行里做子串替换。
+        needle = _anchor_key(anchor)
+        needle_breaks = _anchor_breaks(anchor)
+        containing = [
+            i for i, key in enumerate(keys)
+            if needle in key and _anchor_spans(lines[i], needle, needle_breaks)
+        ]
+        if containing:
+            if variant_index:
+                tolerated.append("unwrapped_anchor")
+            return _Resolution(
+                "substring", [anchor], [revision], containing, needle=needle, needle_breaks=needle_breaks
+            )
+
+    fuzzy = _fuzzy_candidates(keys, _anchor_key(old_line))
+    if fuzzy:
+        tolerated.append("fuzzy_anchor")
+        return _Resolution("lines", [old_line], [new_line], fuzzy)
+    raise NaturalPolishProtocolError("unmatched OLD anchor", category="missing_anchor")
+
+
+def _settle_ambiguities(resolutions: list[_Resolution], keys: list[str], tolerated: list[str]) -> None:
+    """Pick one candidate for every edit, using the document order of the listed pairs.
+
+    The prompt asks for pairs in document order. When the uniquely anchored pairs do
+    follow that order, an ambiguous pair must land between its neighbours; a run of k
+    pairs with the same anchor over k remaining copies takes them in order. Anything
+    still open stays ambiguous and the request fails.
+    """
+    unique = [
+        (position, resolution.candidates[0])
+        for position, resolution in enumerate(resolutions)
+        if resolution.kind != "skip" and len(resolution.candidates) == 1
+    ]
+    ordered = all(earlier[1] <= later[1] for earlier, later in zip(unique, unique[1:], strict=False))
+    claimed = {
+        index for position, index in unique if resolutions[position].kind == "lines"
+    }
+
+    def substring_ambiguous_in_line(resolution: _Resolution) -> bool:
+        return resolution.kind == "substring" and keys[resolution.candidates[0]].count(resolution.needle) > 1
+
+    last = -1
+    for position, resolution in enumerate(resolutions):
+        if resolution.kind == "skip":
+            continue
+        if len(resolution.candidates) == 1:
+            if substring_ambiguous_in_line(resolution):
+                raise NaturalPolishProtocolError("ambiguous OLD anchor", category="ambiguous_anchor")
+            last = max(last, resolution.candidates[0])
+            continue
+        if not ordered:
+            raise NaturalPolishProtocolError("ambiguous OLD anchor", category="ambiguous_anchor")
+        upper = next(
+            (index for later, index in unique if later > position),
+            len(keys),
+        )
+        is_lines = resolution.kind == "lines"
+        window = [
+            index
+            for index in resolution.candidates
+            if (last < index < upper if is_lines else last <= index <= upper)
+            and not (is_lines and index in claimed)
+        ]
+        same_after = 0
+        for later in resolutions[position + 1:]:
+            if later.kind == "skip":
+                continue
+            if len(later.candidates) == 1:
+                break
+            if later.candidates == resolution.candidates and later.old_block == resolution.old_block:
+                same_after += 1
+        if not window or len(window) != 1 + same_after:
+            raise NaturalPolishProtocolError("ambiguous OLD anchor", category="ambiguous_anchor")
+        resolution.candidates = [window[0]]
+        if substring_ambiguous_in_line(resolution):
+            raise NaturalPolishProtocolError("ambiguous OLD anchor", category="ambiguous_anchor")
+        if is_lines:
+            claimed.add(window[0])
+        last = window[0]
+        tolerated.append("order_disambiguated")
+
+
+def apply_line_edits(
+    original: str,
+    edits: list[LineEdit],
+    *,
+    file_type: str | None = None,
+    tolerated: list[str] | None = None,
+) -> tuple[str, int]:
     """Apply「原：/改：」pairs to the original; unmentioned lines stay byte-identical.
 
-    Returns ``(text, 0)`` for the existing helper contract. Invalid or ambiguous
-    anchors now raise ``NaturalPolishProtocolError`` instead of being dropped.
+    Returns ``(text, 0)`` for the existing helper contract. Unmatched or still
+    ambiguous anchors raise ``NaturalPolishProtocolError``; nothing is guessed.
+    ``tolerated`` collects the fixed names of the anchor deviations accepted.
     """
+    notes: list[str] = tolerated if tolerated is not None else []
     is_script = file_type == FILE_TYPE_SCRIPT
     lines = original.split("\n")
     current: list[str | object] = list(lines)
-    keys = [normalize_for_noop_comparison(line) for line in lines]
+    keys = [_anchor_key(line) for line in lines]
     replaced: set[int] = set()
     restored = 0
     seen_substring_anchors: set[str] = set()
@@ -425,100 +844,48 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
             raise _NaturalPolishContentProtectionError from error
         restored += count
 
-    for edit in edits:
-        old_block = edit.old.split("\n")
-        new_block = edit.new.split("\n")
-        if [line.strip() for line in old_block] == [line.strip() for line in new_block]:
-            # 模型把没改的行也列了出来（常见于重复的短台词）：什么都不用做，
-            # 也不必为一个不会改动任何字的锚点判多义。
+    resolutions = [_resolve_edit(edit, lines, keys, notes) for edit in edits]
+    _settle_ambiguities(resolutions, keys, notes)
+
+    for resolution in resolutions:
+        if resolution.kind == "skip":
             continue
-        if len(old_block) > 1:
-            # 多行块：模型连同上下文一起抄，用来唯一定位重复的短行。整块必须逐行对上
-            # 原文里唯一一段连续的行，再逐行套用；不做子串匹配。
-            span = len(old_block)
-            starts = range(len(lines) - span + 1)
-            matching_starts = [
-                i for i in starts
-                if all(lines[i + k].strip() == old_block[k].strip() for k in range(span))
-            ]
-            if not matching_starts:
-                block_keys = [normalize_for_noop_comparison(line) for line in old_block]
-                matching_starts = [
-                    i for i in starts if keys[i:i + span] == block_keys
-                ]
-            if len(matching_starts) != 1:
-                raise NaturalPolishProtocolError(
-                    "ambiguous OLD anchor" if matching_starts else "unmatched OLD anchor",
-                    category="ambiguous_anchor" if matching_starts else "missing_anchor",
-                )
-            for k in range(span):
-                if old_block[k].strip() == new_block[k].strip():
+        start = resolution.candidates[0]
+        if resolution.kind == "lines":
+            for k, (old_line, new_line) in enumerate(zip(resolution.old_block, resolution.new_block, strict=True)):
+                if len(resolution.old_block) > 1 and old_line.strip() == new_line.strip():
                     continue
-                index = matching_starts[0] + k
+                index = start + k
                 if not lines[index].strip():
                     # 空行写进文字等于新增段落，协议不允许拆行或搬动内容。
                     raise NaturalPolishProtocolError(
                         "revision adds text to a blank line",
                         category="anchor_apply_failed",
                     )
-                replace_line(index, new_block[k])
+                replace_line(index, new_line)
             continue
 
-        old_line = edit.old.strip()
-        old_key = normalize_for_noop_comparison(old_line)
-        if not old_key:
-            raise NaturalPolishProtocolError(
-                "empty normalized OLD anchor",
-                category="missing_anchor",
-            )
-        # Marker parsing may consume one boundary space; indentation is not identity.
-        # Internal whitespace and quote styles still distinguish complete lines.
-        # Count all original lines so a previous edit cannot resolve a genuine ambiguity.
-        matching_lines = [i for i, line in enumerate(lines) if line.strip() == old_line]
-        if not matching_lines:
-            matching_lines = [i for i, key in enumerate(keys) if key == old_key]
-        if len(matching_lines) > 1:
-            raise NaturalPolishProtocolError(
-                "ambiguous OLD anchor",
-                category="ambiguous_anchor",
-            )
-        if matching_lines:
-            replace_line(matching_lines[0], edit.new)
-            continue
-
-        if old_key in seen_substring_anchors:
+        if resolution.needle in seen_substring_anchors:
             raise NaturalPolishProtocolError(
                 "duplicate OLD anchor",
                 category="duplicate_anchor",
             )
-        seen_substring_anchors.add(old_key)
-
-        # 模型只抄了一句而不是整行：在唯一包含这句话的行里做子串替换。
-        # 引号映射是一字符换一字符，按映射后的位置切原串不会错位，
-        # 所以模型抄的时候顺手换了引号也能对上。
-        needle = edit.old.strip().translate(_QUOTE_TRANSLATION)
-        candidates: list[tuple[int, int]] = []
-        for i, line in enumerate(current):
-            if not isinstance(line, str) or not needle:
-                continue
-            normalized_line = line.translate(_QUOTE_TRANSLATION)
-            occurrences = normalized_line.count(needle)
-            candidates.extend((i, occurrence) for occurrence in range(occurrences))
-        if len(candidates) != 1:
-            reason = "unmatched" if not candidates else "ambiguous"
+        seen_substring_anchors.add(resolution.needle)
+        working = current[start]
+        if not isinstance(working, str):
+            raise NaturalPolishProtocolError("unmatched OLD anchor", category="missing_anchor")
+        spans = _anchor_spans(working, resolution.needle, resolution.needle_breaks)
+        if len(spans) != 1:
             raise NaturalPolishProtocolError(
-                f"{reason} OLD anchor",
-                category="missing_anchor" if reason == "unmatched" else "ambiguous_anchor",
+                "ambiguous OLD anchor" if spans else "unmatched OLD anchor",
+                category="ambiguous_anchor" if spans else "missing_anchor",
             )
-        index = candidates[0][0]
-        working = current[index]
-        assert isinstance(working, str)
-        position = working.translate(_QUOTE_TRANSLATION).find(needle)
-        proposed = working[:position] + edit.new.strip() + working[position + len(needle):]
-        guarded = _guard_line(lines[index], proposed, is_script=is_script, full_original=original)
+        begin, finish = spans[0]
+        proposed = working[:begin] + resolution.new_block[0].strip() + working[finish:]
+        guarded = _guard_line(lines[start], proposed, is_script=is_script, full_original=original)
         # 和原行（不是这一行已经改过的版本）比，同一行先后几处改动合起来删掉的句子也能找回。
         try:
-            current[index], count = _keep_protected_sentences(lines[index], guarded)
+            current[start], count = _keep_protected_sentences(lines[start], guarded)
         except Exception as error:
             raise _NaturalPolishContentProtectionError from error
         restored += count
@@ -989,6 +1356,15 @@ class NaturalPolishService:
             {"role": "user", "content": selected_text},
         ]
 
+        def failure(stage: NaturalPolishFailureStage, category: NaturalPolishFailureCategory) -> NaturalPolishFailure:
+            return NaturalPolishFailure(
+                stage=stage,
+                category=category,
+                model=served.get("model"),
+                provider=served.get("provider"),
+                finish_reason=served.get("finish_reason"),
+            )
+
         try:
             raw_output = await llm_client.acomplete(
                 messages=messages,
@@ -1004,45 +1380,42 @@ class NaturalPolishService:
         except APIException:
             raise
         except Exception as error:
-            raise NaturalPolishFailure(
-                stage="model_call",
-                category="model_call_failed",
-            ) from error
+            # 调用失败时 sink 里是最后尝试的供应商和模型。
+            raise failure("model_call", "model_call_failed") from error
 
+        tolerated: list[str] = []
         try:
-            edits = parse_line_edits(raw_output)
+            edits, tolerated = _parse_line_edits(
+                raw_output, selected_text, truncated=served.get("finish_reason") == "length"
+            )
         except NaturalPolishProtocolError as error:
             aligned = aligned_passage_edits(selected_text, raw_output)
             if aligned is None:
-                raise NaturalPolishFailure(
-                    stage="protocol_parse",
-                    category=error.category,
-                ) from error
-            log_with_context(
-                logger,
-                20,  # INFO; fixed fields only
-                "Natural polish read a line-aligned reply without edit markers",
-                protocol_category=error.category,
-            )
+                raise failure("protocol_parse", error.category) from error
+            tolerated = ["aligned_passage"]
             edits = aligned
 
         try:
-            polished_text, _ = apply_line_edits(selected_text, edits, file_type=file_type)
+            polished_text, _ = apply_line_edits(
+                selected_text, edits, file_type=file_type, tolerated=tolerated
+            )
         except NaturalPolishProtocolError as error:
-            raise NaturalPolishFailure(
-                stage="anchor_apply",
-                category=error.category,
-            ) from error
+            raise failure("anchor_apply", error.category) from error
         except _NaturalPolishContentProtectionError as error:
-            raise NaturalPolishFailure(
-                stage="content_protection",
-                category="content_protection_failed",
-            ) from error
+            raise failure("content_protection", "content_protection_failed") from error
         except Exception as error:
-            raise NaturalPolishFailure(
-                stage="anchor_apply",
-                category="anchor_apply_failed",
-            ) from error
+            raise failure("anchor_apply", "anchor_apply_failed") from error
+
+        if tolerated:
+            log_with_context(
+                logger,
+                20,  # INFO; fixed fields only, no selection or model text
+                "Natural polish accepted a reply with format deviations",
+                tolerated=sorted(set(tolerated)),
+                model=served.get("model"),
+                provider=served.get("provider"),
+                finish_reason=served.get("finish_reason"),
+            )
 
         return NaturalPolishResult(
             polished_text=polished_text,

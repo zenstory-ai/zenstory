@@ -183,7 +183,7 @@ describe.each([false, true])('VerifyEmail lifetime strict=%s', strict => {
     expect(screen.getByText('auth:verifyEmail.successTitle')).toBeInTheDocument();
     await tick(1500);
     expect(mocks.navigate).toHaveBeenCalledOnce();
-    expect(mocks.navigate).toHaveBeenCalledWith('/dashboard/billing?plan=pro');
+    expect(mocks.navigate).toHaveBeenCalledWith('/dashboard/billing?plan=pro&source=auth_plan_intent');
   });
 
   it('preserves resend fallback and permits a later verification', async () => {

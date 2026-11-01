@@ -85,7 +85,7 @@ async def test_natural_polish_calls_llm_with_single_round_settings():
         "rewritten prose",
         "原：原文",
         "原：原文\n改：改文\n解释：这样更自然",
-        "原文：原文\n改写：改文",
+        "旧：原文\n新：改文",
         "OLD:original\nNEW:revision\ntrailing junk",
     ],
 )
@@ -123,7 +123,7 @@ async def test_natural_polish_rejects_an_ambiguous_duplicate_old_anchor():
 @pytest.mark.parametrize(
     ("model_output", "selected_text", "stage", "category"),
     [
-        ("原文：原文\n改写：改文", "原文", "protocol_parse", "invalid_marker"),
+        ("旧：原文\n新：改文", "原文", "protocol_parse", "invalid_marker"),
         ("原：原文", "原文", "protocol_parse", "truncated_output"),
         ("原：不存在\n改：改文", "原文", "anchor_apply", "missing_anchor"),
         ("原：重复\n改：改文", "重复\n重复", "anchor_apply", "ambiguous_anchor"),
@@ -171,6 +171,19 @@ async def test_natural_polish_classifies_model_and_content_protection_failures()
         "model_call",
         "model_call_failed",
     )
+
+    async def failing_call(**kwargs):
+        # 调用失败前 sink 里已经记下最后尝试的供应商。
+        kwargs["served_model_sink"].update(model="deepseek-flash", provider="deepseek")
+        raise RuntimeError("private provider detail")
+
+    llm_client.acomplete = AsyncMock(side_effect=failing_call)
+    with (
+        patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client),
+        pytest.raises(NaturalPolishFailure) as attributed_failure,
+    ):
+        await service.natural_polish(selected_text="原文", language="zh")
+    assert (attributed_failure.value.provider, attributed_failure.value.model) == ("deepseek", "deepseek-flash")
 
     llm_client.acomplete = AsyncMock(return_value="原：原文\n改：改文")
     with (
@@ -653,3 +666,372 @@ def test_an_untouched_rewrite_before_the_merge_is_kept():
 
     # The first sentence was only trimmed, not merged: the model's version stays.
     assert text.startswith("客厅的钟滴答滴答地走着。")
+
+
+# ---------------------------------------------------------------------------
+# 失败分型 invalid_marker、missing_anchor、ambiguous_anchor。下面的回复全是合成样例，覆盖每一类里按协议结构可以确定意图的偏差。
+# ---------------------------------------------------------------------------
+
+_TWO_PARAGRAPHS = "　　她推门。屋里没开灯。她摸到桌边。\n\n　　他心中一震，半晌没有说话。"
+_TWO_PARAGRAPHS_POLISHED = "　　进屋后，她摸黑走到桌边。\n\n　　他半晌没有说话。"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "reply",
+    [
+        # 整个回复包在代码块里。
+        "```\n原：她推门。屋里没开灯。她摸到桌边。\n改：进屋后，她摸黑走到桌边。\n\n"
+        "原：他心中一震，半晌没有说话。\n改：他半晌没有说话。\n```",
+        # 标记加粗、带编号或列表符号。
+        "**原：**她推门。屋里没开灯。她摸到桌边。\n**改：**进屋后，她摸黑走到桌边。\n\n"
+        "1. 原：他心中一震，半晌没有说话。\n2. 改：他半晌没有说话。",
+        "- 原：她推门。屋里没开灯。她摸到桌边。\n- 改：进屋后，她摸黑走到桌边。\n\n"
+        "- 原：他心中一震，半晌没有说话。\n- 改：他半晌没有说话。",
+        # 半角冒号、常见别名。
+        "原:她推门。屋里没开灯。她摸到桌边。\n改:进屋后，她摸黑走到桌边。\n\n"
+        "原文：他心中一震，半晌没有说话。\n修改后：他半晌没有说话。",
+        # 开头一句说明、结尾一段总结（和选区几乎不共享内容）。
+        "以下是需要修改的地方：\n\n原：她推门。屋里没开灯。她摸到桌边。\n改：进屋后，她摸黑走到桌边。\n\n"
+        "原：他心中一震，半晌没有说话。\n改：他半晌没有说话。\n\n以上调整让节奏更连贯，其余保持不变。",
+        # 标记单独占一行，照抄的原文写在下一行。
+        "原：\n她推门。屋里没开灯。她摸到桌边。\n改：\n进屋后，她摸黑走到桌边。\n\n"
+        "原：\n他心中一震，半晌没有说话。\n改：\n他半晌没有说话。",
+    ],
+    ids=["code-fence", "bold-numbered", "bullets", "half-width-alias", "notes-around", "marker-own-line"],
+)
+def test_invalid_marker_shapes_with_clear_pairs_now_apply(reply: str):
+    edits = parse_line_edits(reply, _TWO_PARAGRAPHS)
+
+    text, _ = apply_line_edits(_TWO_PARAGRAPHS, edits)
+
+    assert text == _TWO_PARAGRAPHS_POLISHED
+
+
+@pytest.mark.unit
+def test_english_markers_ignore_case_and_full_width_colons():
+    original = "She opened the door. The room was dark.\n\nHis heart lurched. He said nothing."
+    reply = "old：She opened the door. The room was dark.\nnew：She opened the door to a dark room."
+
+    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+
+    assert text == "She opened the door to a dark room.\n\nHis heart lurched. He said nothing."
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("reply", ["无改动。", "无改动（这段已经很自然）", "No changes.", "NO CHANGE"])
+def test_no_change_wording_variants_without_any_marker_mean_no_change(reply: str):
+    assert parse_line_edits(reply, _TWO_PARAGRAPHS) == []
+
+
+@pytest.mark.unit
+def test_reply_cut_off_after_its_last_old_marker_keeps_the_complete_pairs():
+    reply = "原：她推门。屋里没开灯。她摸到桌边。\n改：进屋后，她摸黑走到桌边。\n\n原：他心中一震，半晌没有说话。"
+
+    text, _ = apply_line_edits(_TWO_PARAGRAPHS, parse_line_edits(reply, _TWO_PARAGRAPHS))
+
+    assert text == "　　进屋后，她摸黑走到桌边。\n\n　　他心中一震，半晌没有说话。"
+
+
+@pytest.mark.unit
+def test_trailing_old_followed_by_prose_is_a_protocol_error_not_truncation():
+    # 最后的「原：」后面还有别的文字：回复没有断，是格式错了，不能悄悄套用前面的几组。
+    reply = "原：她推门。屋里没开灯。她摸到桌边。\n改：进屋后，她摸黑走到桌边。\n\n原：他心中一震，半晌没有说话。\n我觉得这句也可以改"
+
+    with pytest.raises(NaturalPolishProtocolError, match="expected NEW marker") as caught:
+        parse_line_edits(reply, _TWO_PARAGRAPHS)
+    assert caught.value.category == "invalid_marker"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_reply_cut_off_by_the_token_limit_keeps_complete_pairs_even_mid_block():
+    # 供应商报告 finish_reason=length 时，最后一组「原：」停在多行照抄的中途也算截断。
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+
+    async def acomplete(**kwargs):
+        kwargs["served_model_sink"].update(model="deepseek-flash", provider="deepseek", finish_reason="length")
+        return "原：她推门。屋里没开灯。她摸到桌边。\n改：进屋后，她摸黑走到桌边。\n\n原：\n他心中一震，"
+
+    llm_client.acomplete = AsyncMock(side_effect=acomplete)
+    with patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client):
+        result = await service.natural_polish(selected_text=_TWO_PARAGRAPHS, language="zh")
+
+    assert result.polished_text == "　　进屋后，她摸黑走到桌边。\n\n　　他心中一震，半晌没有说话。"
+
+
+@pytest.mark.unit
+def test_no_change_line_does_not_excuse_a_lead_in_that_copies_the_selection():
+    # 「无改动」开头的前言同样要过说明检查：后面大段照抄原文时不当说明丢掉。
+    reply = "无改动\n她推门。屋里没开灯。她摸到桌边。\n原：他心中一震，半晌没有说话。\n改：他半晌没有说话。"
+
+    with pytest.raises(NaturalPolishProtocolError, match="expected OLD marker"):
+        parse_line_edits(reply, _TWO_PARAGRAPHS)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "reply",
+    [
+        # 说明紧贴在改写后面、没有空行隔开：分不清哪部分是改写。
+        "原：他心中一震，半晌没有说话。\n改：他半晌没有说话。\n（删去了套话）",
+        # 空行后面跟的是正文内容（模型把一段拆成了两段），不是说明：不能丢，也不能套用。
+        "原：他心中一震，半晌没有说话。\n改：他半晌没有说话。\n\n她推门。屋里没开灯。她摸到桌边。",
+        # 说明里大段引用了选区原文，也不当说明丢掉。
+        "以下修改针对「她推门。屋里没开灯。她摸到桌边。」\n原：他心中一震，半晌没有说话。\n改：他半晌没有说话。",
+        # 单行「原：」后的「改：」单独占一行而「原：」没有：分不清是删除还是改写。
+        "原：他心中一震，半晌没有说话。\n改：\n他半晌没有说话。",
+    ],
+    ids=["glued-note", "split-paragraph", "quoting-note", "unpaired-own-line"],
+)
+def test_replies_whose_intent_is_unclear_still_fail(reply: str):
+    with pytest.raises(NaturalPolishProtocolError):
+        parse_line_edits(reply, _TWO_PARAGRAPHS)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("original", "reply", "expected"),
+    [
+        # 模型把全角逗号、冒号抄成了半角。
+        ("他说：好，我去。\n\n窗外下着雨。", "原：他说:好,我去。\n改：他说：好。", "他说：好。\n\n窗外下着雨。"),
+        # 省略号和破折号写法不同。
+        ("她等了很久……没有人来——一个都没有。\n\n窗外下着雨。", "原：她等了很久...没有人来—一个都没有。\n改：她等了很久，一个人都没来。",
+         "她等了很久，一个人都没来。\n\n窗外下着雨。"),
+        # 给照抄的整行加了一层引号。
+        ("他推开门，屋里没开灯。\n\n窗外下着雨。", "原：「他推开门，屋里没开灯。」\n改：「他推开门，屋里一片黑。」",
+         "他推开门，屋里一片黑。\n\n窗外下着雨。"),
+        # 只抄了一句，且半角化了标点：在唯一包含它的行里做子串替换，句外文字逐字不动。
+        ("　　雨停了。他心中一震，回过头。她没动。", "原：他心中一震,回过头。\n改：他回过头。", "　　雨停了。他回过头。她没动。"),
+        # 长句里抄错了一个字（模型顺手改了字再抄）：唯一高度相似的行。
+        ("　　那天傍晚，母亲站在院门口，一直望着通往镇上的那条土路。\n\n窗外下着雨。",
+         "原：那天傍晚，母亲站在院门口，一直望着通向镇上的那条土路。\n改：那天傍晚，母亲站在院门口望着去镇上的土路。",
+         "　　那天傍晚，母亲站在院门口望着去镇上的土路。\n\n窗外下着雨。"),
+    ],
+    ids=["half-width-punctuation", "ellipsis-dash", "wrapped-quotes", "substring-width", "fuzzy-one-char"],
+)
+def test_missing_anchor_shapes_now_find_their_line(original: str, reply: str, expected: str):
+    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+
+    assert text == expected
+
+
+@pytest.mark.unit
+def test_fuzzy_anchor_refuses_when_two_lines_are_equally_close():
+    original = (
+        "那天傍晚，母亲站在院门口，一直望着通往镇上的那条土路。\n"
+        "那天傍晚，父亲站在院门口，一直望着通往镇上的那条土路。"
+    )
+    reply = "原：那天傍晚，站在院门口，一直望着通往镇上的那条土路。\n改：那天傍晚，有人站在院门口。"
+
+    with pytest.raises(NaturalPolishProtocolError, match="unmatched OLD anchor"):
+        apply_line_edits(original, parse_line_edits(reply, original))
+
+
+_REPEATED = "“好。”\n他转身离开。\n“好。”\n她点了点头，心头一紧。"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("reply", "expected"),
+    [
+        # 重复行排在一个唯一锚点之前：只能是前一处。
+        ("原：“好。”\n改：“行。”\n\n原：他转身离开。\n改：他转身走了。", "“行。”\n他转身走了。\n“好。”\n她点了点头，心头一紧。"),
+        # 重复行排在唯一锚点之后、另一个唯一锚点之前：只能是后一处。
+        ("原：他转身离开。\n改：他转身走了。\n\n原：“好。”\n改：“行。”\n\n原：她点了点头，心头一紧。\n改：她点了点头。",
+         "“好。”\n他转身走了。\n“行。”\n她点了点头。"),
+        # 两组同样的锚点对两处重复行：按顺序各改一处。
+        ("原：“好。”\n改：“行。”\n\n原：“好。”\n改：“嗯。”", "“行。”\n他转身离开。\n“嗯。”\n她点了点头，心头一紧。"),
+    ],
+    ids=["before-unique", "between-unique", "k-pairs-k-copies"],
+)
+def test_ambiguous_anchor_is_settled_by_the_listed_order(reply: str, expected: str):
+    text, _ = apply_line_edits(_REPEATED, parse_line_edits(reply, _REPEATED))
+
+    assert text == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "reply",
+    [
+        # 只有一组、没有任何位置线索。
+        "原：“好。”\n改：“行。”",
+        # 唯一锚点本身就没按原文顺序列出：顺序不可信，不拿它消歧。
+        "原：她点了点头，心头一紧。\n改：她点了点头。\n\n原：他转身离开。\n改：他转身走了。\n\n原：“好。”\n改：“行。”",
+    ],
+    ids=["no-context", "out-of-order"],
+)
+def test_ambiguous_anchor_without_trustworthy_order_still_fails(reply: str):
+    with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
+        apply_line_edits(_REPEATED, parse_line_edits(reply, _REPEATED))
+
+
+@pytest.mark.unit
+def test_tolerated_reply_leaves_unmentioned_lines_byte_identical_and_drops_notes():
+    original = "　　第一段，原样。\t\n\n　　他心中一震，半晌没有说话。\n\n  第三段  \n"
+    reply = "```text\n以下是修改：\n**原：**他心中一震，半晌没有说话。\n**改：**他半晌没有说话。\n\n说明：去掉了套话。\n```"
+
+    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+
+    assert text == "　　第一段，原样。\t\n\n　　他半晌没有说话。\n\n  第三段  \n"
+    assert "说明" not in text and "以下" not in text
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_failure_and_tolerated_logs_carry_provider_and_model_only(caplog: pytest.LogCaptureFixture):
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    replies = iter(["原：完全不存在的一句话，和选区毫无关系。\n改：别的", "```\n原：他心中一震，半晌没有说话。\n改：他半晌没有说话。\n```"])
+
+    async def acomplete(**kwargs):
+        kwargs["served_model_sink"].update(model="deepseek-flash", provider="deepseek", finish_reason="stop")
+        return next(replies)
+
+    llm_client.acomplete = AsyncMock(side_effect=acomplete)
+    with patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client):
+        with pytest.raises(NaturalPolishFailure) as caught:
+            await service.natural_polish(selected_text=_TWO_PARAGRAPHS, language="zh")
+        with caplog.at_level("INFO", logger="services.features.natural_polish_service"):
+            result = await service.natural_polish(selected_text=_TWO_PARAGRAPHS, language="zh")
+
+    assert (caught.value.stage, caught.value.category) == ("anchor_apply", "missing_anchor")
+    assert (caught.value.model, caught.value.provider, caught.value.finish_reason) == ("deepseek-flash", "deepseek", "stop")
+    assert result.polished_text == "　　她推门。屋里没开灯。她摸到桌边。\n\n　　他半晌没有说话。"
+    record = next(r for r in caplog.records if r.getMessage() == "Natural polish accepted a reply with format deviations")
+    assert record.custom_fields["tolerated"] == ["code_fence"]
+    assert record.custom_fields["provider"] == "deepseek"
+    assert "心中一震" not in repr(record.custom_fields)
+
+
+@pytest.mark.unit
+def test_prompts_are_static_prefixes_with_paired_rules():
+    for prompt in (DEFAULT_NATURAL_POLISH_PROMPT_ZH, DEFAULT_NATURAL_POLISH_PROMPT_EN):
+        assert "{" not in prompt  # static prefix: nothing per request is formatted in
+    # 中英文是成对版本：规则条数一致，改一边漏改另一边时这里会发现。
+    zh_rules = DEFAULT_NATURAL_POLISH_PROMPT_ZH.count("\n- ")
+    en_rules = DEFAULT_NATURAL_POLISH_PROMPT_EN.count("\n- ")
+    assert zh_rules == en_rules > 0
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("original", "reply", "expected"),
+    [
+        ("他刚要开口——门开了。她回头。", "原：他刚要开口——\n改：他正要说话——", "他正要说话——门开了。她回头。"),
+        ("他走了……她没回头，雨一直下着。", "原：他走了……\n改：他离开了……", "他离开了……她没回头，雨一直下着。"),
+        ("He left... she did not turn back.", "OLD:He left...\nNEW:He walked away...", "He walked away... she did not turn back."),
+    ],
+    ids=["dash-run", "ellipsis-run", "dot-run"],
+)
+def test_partial_anchor_ending_in_a_dash_or_ellipsis_run_replaces_the_whole_run(original, reply, expected):
+    # 锚点规范化把一串「—」「…」「.」并成一个字符：句内替换要切到整串的末尾，不留下多出来的标点。
+    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+
+    assert text == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "原：\n他心中一震。\n改：\n\n（这一句是套话，删去）",
+        "原：\n他心中一震。\n\n改：\n\n\n说明：此句为套话，已删除。",
+    ],
+    ids=["note-after-blank", "note-after-blank-lines"],
+)
+def test_own_line_empty_new_followed_by_a_note_deletes_the_line_and_drops_the_note(reply):
+    # 「改：」单独一行又是空的：这是删掉这一行。空行后面的说明不能当成改写写进选区。
+    original = "他心中一震。\n她转身离开了房间。"
+    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+
+    assert "套话" not in text
+    assert "他心中一震" not in text
+    assert "她转身离开了房间。" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_token_limit_drops_a_last_pair_whose_revision_was_cut_off():
+    # finish_reason=length 时最后一组「改：」可能停在半句：这一组不套用，前面完整的照常套用。
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    selected = "她推门进去，屋里没开灯。\n她摸到桌边，坐了很久。她才想起要给母亲打电话，电话那头一直没人接。"
+
+    async def acomplete(**kwargs):
+        kwargs["served_model_sink"].update(model="deepseek-flash", provider="deepseek", finish_reason="length")
+        return (
+            "原：她推门进去，屋里没开灯。\n改：她推门进去，屋里很黑。\n\n"
+            "原：她摸到桌边，坐了很久。她才想起要给母亲打电话，电话那头一直没人接。\n"
+            "改：她在桌边坐了很久，才想起给母亲打电"
+        )
+
+    llm_client.acomplete = AsyncMock(side_effect=acomplete)
+    with patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client):
+        result = await service.natural_polish(selected_text=selected, language="zh")
+
+    assert result.polished_text == (
+        "她推门进去，屋里很黑。\n她摸到桌边，坐了很久。她才想起要给母亲打电话，电话那头一直没人接。"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_token_limit_with_only_one_cut_off_pair_fails_as_truncated_output():
+    service = NaturalPolishService()
+    llm_client = MagicMock()
+    selected = "她摸到桌边，坐了很久。她才想起要给母亲打电话，电话那头一直没人接。"
+
+    async def acomplete(**kwargs):
+        kwargs["served_model_sink"].update(model="deepseek-flash", provider="deepseek", finish_reason="length")
+        return f"原：{selected}\n改：她在桌边坐了很久，才想起给母亲打电"
+
+    llm_client.acomplete = AsyncMock(side_effect=acomplete)
+    with patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client):
+        with pytest.raises(NaturalPolishFailure) as caught:
+            await service.natural_polish(selected_text=selected, language="zh")
+
+    assert caught.value.category == "truncated_output"
+
+
+@pytest.mark.unit
+def test_english_partial_anchor_does_not_match_across_word_boundaries():
+    # 英文锚点不分空白时 "therapist" 会对上 "the rapist"：词边界不同的不算同一处。
+    original = "Intro line here.\nI saw the rapist leave the room quietly.\nEnd."
+
+    with pytest.raises(NaturalPolishProtocolError) as caught:
+        apply_line_edits(original, parse_line_edits("OLD:therapist\nNEW:doctor", original))
+    assert caught.value.category == "missing_anchor"
+
+    text, _ = apply_line_edits(original, parse_line_edits("OLD:the  Rapist\nNEW:the man", original))
+    assert text == "Intro line here.\nI saw the man leave the room quietly.\nEnd."
+
+
+@pytest.mark.unit
+def test_own_line_empty_new_followed_by_blank_line_then_a_rewrite_applies_the_rewrite():
+    # 「改：」单独一行，空一行之后才是改写：空行后面是改写不是说明，照常套用。
+    original = "他推开门，走进了那个昏暗的房间。"
+    reply = "原：\n他推开门，走进了那个昏暗的房间。\n改：\n\n他推开门，走进昏暗的房间。"
+
+    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+
+    assert text == "他推开门，走进昏暗的房间。"
+
+
+@pytest.mark.unit
+def test_partial_anchor_rejected_at_a_word_boundary_keeps_searching_inside_it():
+    # "ha haha" 里第一个候选跨了词边界被拒；后面的 "haha" 和它重叠，仍要找到。
+    original = "Intro.\nha haha end\nOutro."
+    text, _ = apply_line_edits(original, parse_line_edits("OLD:haha\nNEW:hoho", original))
+    assert text == "Intro.\nha hoho end\nOutro."
+
+
+@pytest.mark.unit
+def test_partial_anchor_with_two_overlapping_word_matches_stays_ambiguous():
+    original = "Intro.\nha hahaha end\nOutro."
+
+    with pytest.raises(NaturalPolishProtocolError) as caught:
+        apply_line_edits(original, parse_line_edits("OLD:haha\nNEW:hoho", original))
+    assert caught.value.category == "ambiguous_anchor"

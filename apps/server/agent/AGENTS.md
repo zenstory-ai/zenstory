@@ -111,7 +111,7 @@ agent/
 预算（`apps/server/config/agent_runtime.py`，均可用同名环境变量覆盖）：`AGENT_COLLABORATION_MAX_ITERATIONS`（12，agent 轮数）、
 `AGENT_TOOL_CALL_MAX_ITERATIONS`（60，单次 run 的 SDK max_turns，最后 `runner.SOFT_LANDING_TURNS` 轮提示收尾）、
 `AGENT_RUN_MAX_MODEL_CALLS`（120，请求级）、`AGENT_RUN_WALL_CLOCK_TIMEOUT_S`（780，须早于 Railway 900 秒断连）、
-`AGENT_RUN_WRAP_UP_AFTER_S`（默认时限减 180 秒：之后每次模型调用都提醒收尾、图不再开新的 agent run）、
+`AGENT_RUN_WRAP_UP_AFTER_S`（默认时限减 180 秒：之后每次模型调用都提醒收尾、图不再开新的 agent run；两种收尾和已有写入的墙钟硬超时都发 `limit=wall_clock` 暂停卡，这一轮记 `run_deadline_exceeded`，「继续」回到卡上的 `last_agent`，见 [pause-card][n-pause-card]）、
 `AGENT_SSE_HEARTBEAT_INTERVAL_S`（15）、`AGENT_AUTO_REVIEW_THRESHOLD_CHARS`（500）。见 [runtime-budget-and-heartbeat][n-budget]、
 [no-progress-guard-and-soft-cap][n-noprogress]、[platform-deadline-and-terminal-guard][n-deadline]、[wall-clock-wrap-up][n-wrap-up]。
 
@@ -136,16 +136,22 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - 输入：用户本轮原话；有上一条 assistant 消息时，user 消息为 `[上一轮助手结尾]`（最后 600 字 + 状态卡摘要）+
   `[上一轮路由]`（落库 routing 的一行 JSON）+ `[用户本轮原话]`（`build_router_user_message`，系统提示不变）。另附可信停止/待澄清状态、结构化问题和本轮真实选区/引用存在标记；不从正文标签猜这些事实。
   ROUTER_PROMPT 区分补问作答、中断续接和确认提议的下一步（按那一步路由，不沿用
-  read_only=true / write_content=false / 已交付的 scope）。
+  read_only=true / write_content=false / 已交付的 scope）。只读回合用补问卡提出方案、作者接受并要求执行时，路由给
+  `accepts_previous_proposal=true`，服务端只在可信旧状态只读、补问作答且本轮未新增只读时按本轮路由执行；纠错/补充说明沿用只读。
+  只贴材料没给指令时（新作品第一条消息也一样，`first_message_hint` 同步）走 planner、只读、先问一句要做什么。[n-accept-proposal]
   作者在这部作品里的第一条消息（`service.FIRST_MESSAGE_ENTRIES`，会话里还没有 AI 回复）时 user 消息为
   `[新作品的第一条消息]`（作品类型）+ `[用户本轮原话]`，ROUTER_PROMPT 按「先写再给方向」判断交付范围；模型输入另附
-  `service.first_message_hint`（不落库）。[first-turn-writes][n-first-turn]
+  `service.first_message_hint`（不落库）。作者没限定范围时按作品类型交付一个完整单元（长篇第一章、短篇写到第一个转折的开篇、
+  短剧第 1 集），scope 不写字数，内部篇幅不复述给作者。[first-turn-writes][n-first-turn]、[first-turn-complete-unit][n-first-unit]
 - 输出：`current_agent`、`workflow_plan`、`workflow_agents`（已裁剪）、`routing_metadata`（`RouterDecision` 全量，含
   `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`requested_file_types`，以及可选严格 `turn_disposition` / `clarify_first`）。缺新字段按普通成功路由、不继承；显式非法技术失败并保留真实 usage。普通旧格式 scope 保留80字符兼容；真实继承不截断旧限制或新收窄，服务端 `scope_constraints` 最多8项、每项80字符、JSON2048字符，完整跨轮持久化；超限在工具前失败。requested types 沿用旧列表，不扩张并集。
 - 决策记录：[semantic-routing-and-evidence](../../../.agents/notes/implemented/bug-fix/2026-10-24-agent-semantic-routing-and-evidence.md)、[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
 
 ### 用户范围与交接规则
 
+- **内容红线不受范围约束覆盖**：`prompts/base.CONTENT_RED_LINES` 放在系统提示固定前缀（身份规则之后），所有角色共用；
+  [最高优先级] 范围约束也不能越过它；`ROUTER_PROMPT` 有同样的红线一节：整个交付物都越线才判只读，只有一部分越线时照常路由，
+  scope 加“越线部分改为合规写法”，其余部分照常写完。
 - **等作者回答使用结构化事件**：需要回答才能继续时调用 `request_clarification`，普通问号和条件句不控制计划交接；跨轮延续只认落库的 `clarification_pending`，不从回复标点猜等待状态。参见 [typed-boundaries][n-typed-boundaries]。
 - **计划交接不扩大交付**：交接说明固定追加 `author_scope.PLANNED_HANDOFF_SCOPE_NOTE`（已完成的不重做、不改刚交付的文件、
   不追加作者没要的产出）。[vague-and-plan-files][n-vague]
@@ -239,6 +245,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   入选的条目；角色 / 设定名作为子串出现在查询里时加分。
 - 预算：上下文 `AGENT_CONTEXT_TOKEN_BUDGET`（32000）、历史窗口 `AGENT_CHAT_HISTORY_TOKEN_BUDGET`（32000），与系统提示、工作集共用
   `context/budget.DEFAULT_PROMPT_TOKEN_LEDGER_CEILING`（160000）台账，台账只收缩历史。
+- 前一章（`relation="previous"` 的正文条目）标题下多一行 `PREVIOUS_CHAPTER_NOTE`：前一章用于承接情节；文风以作者的 writing_style、样文和作者自己写或改过的章节为准（模型不知道前一章是谁写的，说明不以此为条件）。[prose-craft][n-prose-craft]
 - 渲染：条目标题行为 `标题 (id=…) [全文]` 或 `[已截断：显示 x/y 字；全文用 query_files(id="…")]`（检索片段标 `[检索片段，非全文…]`）；
   标注 [全文] 的条目就是该文件截至本请求开始的完整内容（本请求内被修改过的文件除外）。`MessageManager` 只对原始上下文 strip + 兜底封顶；已在原始上下文完整出现的条目，
   world_model 里只列标题 + id。
@@ -289,6 +296,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - 真实失败稿用于回归和正确反例，不把样例人物、账目、物件或情节关键词写成提示词/Agent 的特判。先定位通用的范围、输入、执行证据或权限缺口；提示策略变更须验证跨题材效果与误改，不能只证明已知样例修好了。
 - `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议。
 - `prompts/subagents.py`：`ROUTER_PROMPT`、`PLANNER_PROMPT`、`HOOK_DESIGNER_PROMPT`、`WRITER_PROMPT`、`QUALITY_REVIEWER_PROMPT`。
+  `WRITER_PROMPT` 的「行文」节（节奏、句式、对白、元说明、指代、交代、一致、起名）与 `QUALITY_REVIEWER_PROMPT` 审查方法第 5 条成对维护；快速模式的写后自查只写在 `FAST_MODE_DIRECTIVE` / `FAST_MODE_REVIEW_REFUSAL`，不进固定前缀。[prose-craft][n-prose-craft]
 - `prompts/suggestions.py`：建议生成。
 - 项目写作配置只存数据库（`prompts/__init__.py`）；项目类型的默认模板在 `apps/server/config/project_templates.py`。
 
@@ -330,6 +338,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-deadline2]: ../../../.agents/notes/implemented/bug-fix/2026-10-14-deadline-terminal-before-cancellation-cleanup.md
 [n-router-ctx]: ../../../.agents/notes/implemented/bug-fix/2026-10-08-agent-router-previous-turn-context.md
 [n-routing]: ../../../.agents/notes/implemented/bug-fix/2026-10-08-agent-routing-continuity.md
+[n-accept-proposal]: ../../../.agents/notes/implemented/bug-fix/2026-10-31-accepting-read-only-proposal-lifts-read-only.md
 [n-owner]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-routing-inherits-the-task-owner.md
 [n-scope]: ../../../.agents/notes/implemented/bug-fix/2026-10-03-agent-handoff-respects-user-scope.md
 [n-planner-q]: ../../../.agents/notes/implemented/bug-fix/2026-10-09-planner-question-keeps-requested-prose.md
@@ -367,13 +376,16 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-range]: ../../../.agents/notes/implemented/feature/2026-10-19-query-files-range-reads.md
 [n-first-turn]: ../../../.agents/notes/implemented/feature/2026-10-19-first-turn-writes-before-asking.md
 [n-first-review]: ../../../.agents/notes/implemented/feature/2026-10-20-first-turn-skips-auto-review.md
+[n-first-unit]: ../../../.agents/notes/implemented/feature/2026-10-31-first-turn-complete-unit.md
 [n-fast-default]: ../../../.agents/notes/implemented/feature/2026-10-20-fast-mode-default-keeps-router.md
 [n-cache-layout]: ../../../.agents/notes/implemented/bug-fix/2026-10-20-agent-cache-stable-prompt-layout.md
 [n-snapshot]: ../../../.agents/notes/implemented/architecture/2026-10-21-context-snapshot-and-cache-stable-tools.md
 [n-body-turn]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-fast-mode-summary-and-file-body-turn.md
+[n-prose-craft]: ../../../.agents/notes/implemented/bug-fix/2026-10-31-prose-craft-and-continuity-self-check.md
 [n-resume]: ../../../.agents/notes/implemented/bug-fix/2026-10-24-empty-file-correction-resumes-capture.md
 [n-pending-refusal]: ../../../.agents/notes/implemented/bug-fix/2026-10-25-pending-body-refusal-returns-to-correction.md
 [n-wrap-up]: ../../../.agents/notes/implemented/bug-fix/2026-10-21-wall-clock-wrap-up.md
+[n-pause-card]: ../../../.agents/notes/implemented/bug-fix/2026-10-31-wall-clock-pause-card-and-receipt.md
 [n-continued-run]: ../../../.agents/notes/implemented/architecture/2026-10-21-same-agent-runs-continue-the-previous-input.md
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md
 [n-drain]: ../../../.agents/notes/implemented/architecture/2026-10-21-deploy-drain-ends-running-generations.md

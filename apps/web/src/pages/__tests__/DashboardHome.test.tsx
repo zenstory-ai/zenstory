@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -81,8 +81,8 @@ const mockT = (
     'projects.empty': '还没有任何项目',
     'projects.emptyHint': '在上方输入灵感，点击「开始创作」创建你的第一个项目',
     'common.createButton': '开始创作',
-    'firstWork.title': '我的首部作品',
-    'firstWork.open': '开始写作',
+    'firstWork.title': '你的第一部作品已备好',
+    'firstWork.open': '打开作品',
     'common:retry': '重试',
     'projectType.novel.name': '长篇小说',
     'inspiration.novelDesc': 'AI 将根据你的灵感，帮你构思故事框架、设定世界观和人物角色',
@@ -116,6 +116,11 @@ vi.mock('react-i18next', () => ({
       },
     },
   }),
+}))
+
+const mockReportActivationEvent = vi.fn()
+vi.mock('../../lib/activationEvents', () => ({
+  reportActivationEvent: (...args: unknown[]) => mockReportActivationEvent(...args),
 }))
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -176,6 +181,7 @@ vi.mock('../../components/subscription/QuotaBadge', () => ({
 import DashboardHome from '../DashboardHome'
 import { projectApi } from '../../lib/api'
 import { subscriptionApi } from '../../lib/subscriptionApi'
+import { toast } from '../../lib/toast'
 import type { QuotaResponse } from '../../types/subscription'
 import {
   PREFERRED_PROJECT_TYPE_STORAGE_KEY,
@@ -230,6 +236,13 @@ describe('DashboardHome featured inspirations section', () => {
       ai_conversations: { used, limit, reset_at: '2026-10-09T16:00:00Z' },
     }) as unknown as QuotaResponse
 
+  it('reports that the account reached the home page, with the layout only', () => {
+    mockIsMobile = true
+    renderDashboardHome()
+    expect(mockReportActivationEvent).toHaveBeenCalledWith(defaultMockUser.id, { event_name: 'dashboard_viewed', is_mobile: true })
+    expect(mockReportActivationEvent).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ event_name: 'ai_send_blocked_quota' }))
+  })
+
   it('does not create a project when Enter confirms an IME composition', async () => {
     renderDashboardHome()
     const input = screen.getByTestId('dashboard-inspiration-input')
@@ -253,6 +266,11 @@ describe('DashboardHome featured inspirations section', () => {
 
     expect(await screen.findByTestId('upgrade-modal')).toHaveTextContent('今天的免费 AI 消息用完了')
     expect(mockCreateProject).not.toHaveBeenCalled()
+    expect(mockReportActivationEvent).toHaveBeenCalledWith(defaultMockUser.id, {
+      event_name: 'ai_send_blocked_quota',
+      surface: 'dashboard',
+      is_mobile: false,
+    })
     expect(mockNavigate).not.toHaveBeenCalled()
     expect(input).toHaveValue('写一个关于灯塔守夜人的短故事')
 
@@ -809,7 +827,7 @@ describe('first work entry', () => {
     mockFirstWork.get.mockResolvedValue(firstWorkState('pending'))
     mockFirstWork.initialize.mockResolvedValue({ ...firstWorkState('created'), project_id: 'first-project', file_id: 'first-script', available: true, static_guidance: true })
     renderDashboardHome()
-    const open = await screen.findByRole('button', { name: '开始写作' })
+    const open = await screen.findByRole('button', { name: '打开作品' })
     expect(mockFirstWork.initialize).toHaveBeenCalledTimes(1)
     expect(mockFirstWork.initialize).toHaveBeenCalledWith('screenplay', 'zh-CN')
     expect(mockCreateProject).not.toHaveBeenCalled()
@@ -817,12 +835,25 @@ describe('first work entry', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-script')
   })
 
+  it('leaves the type to the server (onboarding persona) when this device has no type preference', async () => {
+    mockFirstWork.get.mockResolvedValue(firstWorkState('pending'))
+    mockFirstWork.initialize.mockResolvedValue({ ...firstWorkState('created'), project_id: 'first-project', project_type: 'screenplay', file_id: 'first-script', available: true, static_guidance: true })
+    renderDashboardHome()
+    await screen.findByRole('button', { name: '打开作品' })
+    expect(mockFirstWork.initialize).toHaveBeenCalledWith(null, 'zh-CN')
+    // The tab follows the type the server chose, so 「开始创作」 opens that work.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'projectType.screenplay.name' })).toHaveAttribute('aria-pressed', 'true'))
+    fireEvent.click(screen.getByTestId('create-project-button'))
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-script'))
+    expect(mockCreateProject).not.toHaveBeenCalled()
+  })
+
   it('does not recreate deleted first work or initialize an existing author', async () => {
     mockFirstWork.get.mockResolvedValue({ ...firstWorkState('created'), project_id: 'gone', file_id: 'gone-file' })
     renderDashboardHome()
     await waitFor(() => expect(mockFirstWork.get).toHaveBeenCalled())
     expect(mockFirstWork.initialize).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: '开始写作' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '打开作品' })).not.toBeInTheDocument()
   })
 
   it('reports initialization failure and retries only when requested, preserving the idea path', async () => {
@@ -833,7 +864,152 @@ describe('first work entry', () => {
     expect(mockFirstWork.initialize).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('dashboard-inspiration-input')).toBeEnabled()
     fireEvent.click(retry)
-    await screen.findByRole('button', { name: '开始写作' })
+    await screen.findByRole('button', { name: '打开作品' })
     expect(mockFirstWork.initialize).toHaveBeenCalledTimes(2)
+  })
+
+  describe('「开始创作」 while the first work is still untouched', () => {
+    const fresh = { ...firstWorkState('created'), project_id: 'first-project', project_type: 'novel', file_id: 'first-file', available: true, static_guidance: true }
+    beforeEach(() => {
+      mockIsMobile = false
+      mockCreateProject.mockResolvedValue({ id: 'project-created' })
+      mockFirstWork.get.mockResolvedValue(fresh)
+      mockProjects = [{ id: 'first-project', name: '我的小说', project_type: 'novel' }]
+      setPreferredProjectType('novel', defaultMockUser.id)
+    })
+    const start = async (idea = '') => {
+      renderDashboardHome()
+      await screen.findByRole('button', { name: '打开作品' })
+      if (idea) fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: idea } })
+      fireEvent.click(screen.getByTestId('create-project-button'))
+    }
+
+    it('opens the first work instead of creating a second empty one', async () => {
+      await start()
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-file'))
+      expect(mockCreateProject).not.toHaveBeenCalled()
+      expect(localStorage.getItem('zenstory_inspiration_first-project')).toBeNull()
+    })
+
+    it('hands a typed idea to the first work, where it is sent as the first message', async () => {
+      await start('灯塔守夜人捡到一封寄给未来的信')
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-file'))
+      expect(mockCreateProject).not.toHaveBeenCalled()
+      expect(JSON.parse(localStorage.getItem('zenstory_inspiration_first-project')!).content).toBe('灯塔守夜人捡到一封寄给未来的信')
+      expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('')
+    })
+
+    it('opens it on the AI tab on phones when there is no idea, like any new work', async () => {
+      mockIsMobile = true
+      await start()
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-file'))
+      expect(localStorage.getItem('zenstory_open_chat_first-project')).not.toBeNull()
+    })
+
+    it('opens it even before the project list has refreshed after initialization', async () => {
+      mockProjects = []
+      await start('灯塔守夜人捡到一封寄给未来的信')
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-file'))
+      expect(mockCreateProject).not.toHaveBeenCalled()
+    })
+
+    it('creates a new work with the idea once the first work is deleted from the dashboard', async () => {
+      mockDeleteProject.mockImplementation(async () => {
+        mockProjects = []
+        mockFirstWork.get.mockResolvedValue({ ...fresh, available: false, project_type: null })
+      })
+      renderDashboardHome()
+      await screen.findByRole('button', { name: '打开作品' })
+      fireEvent.click(screen.getByTitle('projects.deleteProject'))
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:delete' }))
+      await waitFor(() => expect(mockDeleteProject).toHaveBeenCalledWith('first-project'))
+      await waitFor(() => expect(screen.queryByRole('button', { name: '打开作品' })).not.toBeInTheDocument())
+
+      fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: '灯塔守夜人' } })
+      fireEvent.click(screen.getByTestId('create-project-button'))
+      await waitFor(() => expect(mockCreateProject).toHaveBeenCalled())
+      expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining('/project/first-project'))
+      expect(localStorage.getItem('zenstory_inspiration_first-project')).toBeNull()
+    })
+
+    it('falls back to the project list when the server does not report the type', async () => {
+      mockFirstWork.get.mockResolvedValue({ ...fresh, project_type: undefined })
+      await start()
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-file'))
+      expect(mockCreateProject).not.toHaveBeenCalled()
+    })
+
+    it('promises the idea goes into the first work only while 「开始创作」 opens it', async () => {
+      renderDashboardHome()
+      await screen.findByRole('button', { name: '打开作品' })
+      const entry = screen.getByTestId('first-work-entry')
+      expect(entry).toHaveTextContent('firstWork.description')
+      expect(entry).not.toHaveTextContent('firstWork.descriptionOpen')
+      fireEvent.click(screen.getByRole('button', { name: 'projectType.short.name' }))
+      expect(screen.getByTestId('first-work-entry')).toHaveTextContent('firstWork.descriptionOpen')
+    })
+
+    it('keeps the idea and explains when it cannot be stored, without opening the first work', async () => {
+      const toastError = vi.spyOn(toast, 'error').mockImplementation(() => '')
+      const setItem = vi.mocked(localStorage.setItem).getMockImplementation()!
+      vi.mocked(localStorage.setItem).mockImplementation((key: string, value: string) => {
+        if (key.startsWith('zenstory_inspiration_')) throw new DOMException('full', 'QuotaExceededError')
+        setItem(key, value)
+      })
+      try {
+        await start('灯塔守夜人捡到一封寄给未来的信')
+        await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))
+        expect(mockNavigate).not.toHaveBeenCalled()
+        expect(mockCreateProject).not.toHaveBeenCalled()
+        expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人捡到一封寄给未来的信')
+      } finally {
+        vi.mocked(localStorage.setItem).mockImplementation(setItem)
+        toastError.mockRestore()
+      }
+    })
+
+    it('shows the quota prompt first when today\'s AI messages are used up, keeping the idea', async () => {
+      vi.mocked(subscriptionApi.getQuota).mockResolvedValue({ ai_conversations: { used: 3, limit: 3, reset_at: '2026-10-31T16:00:00Z' } } as QuotaResponse)
+      renderDashboardHome()
+      await screen.findByRole('button', { name: '打开作品' })
+      await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+      await act(async () => { await Promise.resolve() })
+      fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: '灯塔守夜人' } })
+      fireEvent.click(screen.getByTestId('create-project-button'))
+      expect(await screen.findByTestId('upgrade-modal')).toBeInTheDocument()
+      expect(mockNavigate).not.toHaveBeenCalled()
+      expect(localStorage.getItem('zenstory_inspiration_first-project')).toBeNull()
+      expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
+    })
+
+    it('does not ask phones for the AI tab when an idea is sent, since the chat opens to send it', async () => {
+      mockIsMobile = true
+      await start('灯塔守夜人')
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/first-project?file=first-file'))
+      expect(localStorage.getItem('zenstory_open_chat_first-project')).toBeNull()
+      expect(localStorage.getItem('zenstory_inspiration_first-project')).not.toBeNull()
+    })
+
+    it('still creates a new work for another type, after writing has started, or without an untouched first work', async () => {
+      for (const [state, type] of [
+        [fresh, 'screenplay'],
+        [{ ...fresh, first_ai_requested_at: '2026-10-31T01:00:00Z', static_guidance: false }, 'novel'],
+        [{ ...fresh, first_manual_write_at: '2026-10-31T01:00:00Z' }, 'novel'],
+        [{ ...fresh, available: false }, 'novel'],
+        [firstWorkState(), 'novel'],
+      ] as const) {
+        mockCreateProject.mockClear(); mockNavigate.mockClear()
+        mockFirstWork.get.mockResolvedValue(state)
+        setPreferredProjectType(type, defaultMockUser.id)
+        const view = renderDashboardHome()
+        await waitFor(() => expect(mockFirstWork.get).toHaveBeenCalled())
+        await act(async () => { await Promise.resolve() })
+        fireEvent.click(screen.getByTestId('create-project-button'))
+        await waitFor(() => expect(mockCreateProject).toHaveBeenCalledTimes(1))
+        expect(mockCreateProject.mock.calls[0][2]).toBe(type)
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+        view.unmount()
+      }
+    })
   })
 })

@@ -21,6 +21,15 @@ ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED = "first_ai_action_accepted"
 ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT = "first_ai_message_sent"
 # 作者第一次有一轮 AI 回复正常结束并计费（stream_billing 的 completed）。
 ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED = "first_ai_reply_succeeded"
+# 首屏停留点（feature/2026-10-31-new-user-screen-activation-events.md）。以下四个由前端
+# 经 POST /activation/events 上报，metadata 只放枚举与布尔值。
+# 画像页保存成功（提交或跳过，metadata.skipped）。
+ACTIVATION_EVENT_PERSONA_SUBMITTED = "persona_submitted"
+ACTIVATION_EVENT_DASHBOARD_VIEWED = "dashboard_viewed"
+# 作者第一次在编辑器打开一份有 AI 版本的文件；服务端核实文件归属与 AI 版本。
+ACTIVATION_EVENT_AI_FILE_OPENED = "ai_file_opened"
+# 今日 AI 消息用完后仍尝试发送、被拦下。
+ACTIVATION_EVENT_AI_SEND_BLOCKED_QUOTA = "ai_send_blocked_quota"
 
 ACTIVATION_EVENT_NAMES = {
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
@@ -29,6 +38,18 @@ ACTIVATION_EVENT_NAMES = {
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
     ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
+    ACTIVATION_EVENT_PERSONA_SUBMITTED,
+    ACTIVATION_EVENT_DASHBOARD_VIEWED,
+    ACTIVATION_EVENT_AI_FILE_OPENED,
+    ACTIVATION_EVENT_AI_SEND_BLOCKED_QUOTA,
+}
+
+# 前端可以上报的事件；其余里程碑只由服务端在事实发生处记录。
+CLIENT_REPORTED_ACTIVATION_EVENTS = {
+    ACTIVATION_EVENT_PERSONA_SUBMITTED,
+    ACTIVATION_EVENT_DASHBOARD_VIEWED,
+    ACTIVATION_EVENT_AI_FILE_OPENED,
+    ACTIVATION_EVENT_AI_SEND_BLOCKED_QUOTA,
 }
 
 

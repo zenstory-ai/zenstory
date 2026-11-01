@@ -22,12 +22,13 @@ import {
 } from "../lib/subscriptionEntitlements";
 import type { QuotaResponse, SubscriptionCatalogTier } from "../types/subscription";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
-import { trackUpgradeClick, trackUpgradeConversion } from "../lib/upgradeAnalytics";
+import { trackUpgradeClick, trackUpgradeConversion, trackUpgradeExpose } from "../lib/upgradeAnalytics";
 import { trackEvent } from "../lib/analytics";
 import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import type { PaymentCycle } from "../types/payment";
 import { parsePaymentCycleIntent } from "../lib/paymentCycleIntent";
+import { AUTH_PLAN_INTENT_SOURCE } from "../lib/authFlow";
 
 type UsageKey =
   | "ai_conversations"
@@ -228,8 +229,20 @@ export default function BillingPage() {
   // never claim "renew" for someone who may be on the free plan.
   const isUpgradableTier = status?.tier === "free";
   const isPaidTier = Boolean(status?.tier) && !isUpgradableTier;
-  // A paid author's header button renews; keep it apart from upgrades in attribution.
-  const checkoutSource = isPaidTier && !attributionSource ? RENEW_SOURCE : effectiveUpgradeSource;
+  // A paid author's checkout renews; keep it apart from upgrades in attribution. A paid author
+  // who signs in through a Pro link is renewing too, not taking the sign-up upgrade path.
+  const isAuthPlanIntent = attributionSource === AUTH_PLAN_INTENT_SOURCE;
+  const checkoutSource = isPaidTier && (!attributionSource || isAuthPlanIntent) ? RENEW_SOURCE : effectiveUpgradeSource;
+  // Sign-in or sign-up with a Pro intent opens a dialog by itself: record that landing once, for
+  // a free account only, so the path can be compared with the header button. Other `?plan=pro`
+  // links (renewal reminder, pricing while signed in) record no modal exposure.
+  const trackedPlanIntentModalRef = useRef(false);
+  const planIntentModal = isProPlanIntentReady ? (showCheckoutButton ? "payment" : isCheckoutKnownOff ? "redeem" : null) : null;
+  useEffect(() => {
+    if (!isAuthPlanIntent || !isUpgradableTier || !planIntentModal || trackedPlanIntentModalRef.current) return;
+    trackedPlanIntentModalRef.current = true;
+    trackUpgradeExpose(AUTH_PLAN_INTENT_SOURCE, "modal", { entry: "plan_intent", dialog: planIntentModal });
+  }, [isAuthPlanIntent, isUpgradableTier, planIntentModal]);
   const statusLine = status ? getSubscriptionStatusLine(status, t) : null;
   // Checkout availability stays factual; the footer offers support contacts only.
   const subtitle = isUpgradableTier

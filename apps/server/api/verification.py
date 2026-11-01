@@ -227,6 +227,17 @@ async def resend_verification(
             "email": normalized_email
         }
 
+    # Unknown and verified addresses already returned the masked success above;
+    # a pending account learns how long to wait instead of a generic failure.
+    remaining_cooldown = await asyncio.to_thread(get_remaining_cooldown, normalized_email)
+    if remaining_cooldown > 0:
+        raise APIException(
+            error_code=ErrorCode.AUTH_VERIFICATION_COOLDOWN,
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(remaining_cooldown)},
+            detail={"retry_after_seconds": remaining_cooldown},
+        )
+
     # Send verification code
     language = request.language or "zh"
     try:

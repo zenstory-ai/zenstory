@@ -14,6 +14,7 @@ from models.material_models import IngestionJob, Novel
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
 from services.material.ingestion_jobs_service import IngestionJobsService
+from tests.quota_periods import current_month_start
 
 
 @pytest.fixture(autouse=True)
@@ -174,7 +175,7 @@ async def test_retry_material_job_consumes_quota_for_regular_failed_jobs(client:
         period_end=now + timedelta(days=30),
         ai_conversations_used=0,
         material_decompositions_used=4,
-        monthly_period_start=now - timedelta(days=1),
+        monthly_period_start=current_month_start(now),
         monthly_period_end=now + timedelta(days=30),
         last_reset_at=now,
     )
@@ -268,7 +269,7 @@ async def test_retry_material_job_does_not_consume_quota_when_dispatch_fails(
         period_end=now + timedelta(days=30),
         ai_conversations_used=0,
         material_decompositions_used=4,
-        monthly_period_start=now - timedelta(days=1),
+        monthly_period_start=current_month_start(now),
         monthly_period_end=now + timedelta(days=30),
         last_reset_at=now,
     )
@@ -387,7 +388,7 @@ async def test_retry_after_refunded_dispatch_failure_is_charged(
         period_end=now + timedelta(days=30),
         ai_conversations_used=0,
         material_decompositions_used=5,
-        monthly_period_start=now - timedelta(days=1),
+        monthly_period_start=current_month_start(now),
         monthly_period_end=now + timedelta(days=30),
         last_reset_at=now,
     )
@@ -463,7 +464,7 @@ async def test_retry_material_job_rejects_when_quota_cannot_be_consumed(
         period_end=now + timedelta(days=30),
         ai_conversations_used=0,
         material_decompositions_used=5,
-        monthly_period_start=now - timedelta(days=1),
+        monthly_period_start=current_month_start(now),
         monthly_period_end=now + timedelta(days=30),
         last_reset_at=now,
     )

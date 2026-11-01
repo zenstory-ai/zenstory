@@ -6,7 +6,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { PublicHeader } from "../components/PublicHeader";
 import { authConfig } from "../config/auth";
 import { authApi } from "../lib/api";
-import type { PlanIntent } from "../lib/authFlow";
+import { ApiError } from "../lib/apiClient";
+import { planIntentBillingPath, type PlanIntent } from "../lib/authFlow";
 
 interface VerifyEmailProps {
   email: string;
@@ -47,6 +48,8 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Neutral guidance (e.g. a code was just sent), kept out of the error alert.
+  const [notice, setNotice] = useState("");
   const [success, setSuccess] = useState(false);
   const [deliveryPending, setDeliveryPending] = useState(
     (location.state as { verificationSent?: boolean } | null)?.verificationSent === false,
@@ -54,6 +57,8 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
   const [correctingEmail, setCorrectingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [registrationPassword, setRegistrationPassword] = useState('');
+  // Address typed on a page opened without one (e.g. a bookmarked link).
+  const [addressInput, setAddressInput] = useState('');
 
   useEffect(() => {
     if (correctingEmail) {
@@ -109,6 +114,8 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
       const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
       return () => clearTimeout(timer);
     }
+    // The wait is over, so "wait before resending" no longer applies.
+    setNotice("");
   }, [cooldown]);
 
   useEffect(() => {
@@ -123,14 +130,6 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
       inputRefs.current[0]?.focus();
     }
   }, [hasEmail]);
-
-  useEffect(() => {
-    if (!hasEmail) {
-      setError(t('auth:errors.missingVerificationEmail'));
-      return;
-    }
-    setError((prev) => (prev === t('auth:errors.missingVerificationEmail') ? "" : prev));
-  }, [hasEmail, t]);
 
   useEffect(() => {
     const lifetime = pageLifetimeRef.current;
@@ -229,6 +228,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
     if (!operation) return;
     cancelAutomaticSubmit();
     setError("");
+    setNotice("");
 
     try {
       await verifyEmail(normalizedEmail, verificationCode);
@@ -241,7 +241,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
       setTimeout(() => {
         if (lifetime !== pageLifetimeRef.current) return;
         if (shouldGoToBilling && planIntent) {
-          navigate(`/dashboard/billing?plan=${encodeURIComponent(planIntent)}`);
+          navigate(planIntentBillingPath(planIntent));
           return;
         }
         navigate("/dashboard");
@@ -275,6 +275,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
     if (!operation) return;
     cancelAutomaticSubmit();
     setError("");
+    setNotice("");
 
     try {
       await resendVerification(normalizedEmail);
@@ -292,6 +293,46 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
       }
     } catch (err: unknown) {
       if (!ownsOperation(operation)) return;
+      if (err instanceof ApiError && err.errorCode === 'ERR_AUTH_VERIFICATION_COOLDOWN') {
+        const seconds = toNonNegativeInt(err.details?.retry_after_seconds, 60);
+        setCooldown(seconds);
+        setNotice(t('auth:verifyEmail.resendCooldownHint'));
+        return;
+      }
+      const error = err as { message?: string };
+      setError(error.message || t('auth:errors.resendFailed'));
+    } finally {
+      if (ownsOperation(operation)) {
+        activeOperationRef.current = null;
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleSendToAddress = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const address = addressInput.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
+      setError(t('auth:errors.invalidEmail'));
+      return;
+    }
+    const operation = beginOperation();
+    if (!operation) return;
+    setError('');
+    const continueToCode = () => {
+      const path = planIntent ? `/verify-email?plan=${encodeURIComponent(planIntent)}` : '/verify-email';
+      navigate(path, { replace: true, state: { email: address, verificationSent: true } });
+    };
+    try {
+      await resendVerification(address);
+      if (ownsOperation(operation)) continueToCode();
+    } catch (err: unknown) {
+      if (!ownsOperation(operation)) return;
+      // A code went out moments ago; the author can enter it right away.
+      if (err instanceof ApiError && err.errorCode === 'ERR_AUTH_VERIFICATION_COOLDOWN') {
+        continueToCode();
+        return;
+      }
       const error = err as { message?: string };
       setError(error.message || t('auth:errors.resendFailed'));
     } finally {
@@ -371,6 +412,10 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
               </div>
             )}
 
+            {notice && !error && !success && !correctingEmail && (
+              <p role="status" className="mb-6 text-center text-sm text-[hsl(var(--text-secondary))] break-words">{notice}</p>
+            )}
+
             {!success && hasEmail && correctingEmail && (
               <form onSubmit={handleCorrectEmail} aria-busy={loading} className="space-y-4">
                 <div>
@@ -440,6 +485,12 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
                   )}
                 </button>
 
+                {!deliveryPending && (
+                  <p className="mt-4 text-center text-xs text-[hsl(var(--text-secondary))]">
+                    {t('auth:verifyEmail.notReceivedHint')}
+                  </p>
+                )}
+
                 <div className="mt-6 text-center">
                   <button ref={correctionTriggerRef} type="button" disabled={loading} onClick={() => { cancelAutomaticSubmit(); setCorrectingEmail(true); setError(''); }}
                     className="min-h-11 rounded-lg px-3 text-sm text-[hsl(var(--text-primary))]">
@@ -458,11 +509,23 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
             {!success && !hasEmail && (
               <div className="space-y-3">
+                <form onSubmit={handleSendToAddress} aria-busy={loading} className="space-y-3" noValidate>
+                  <div>
+                    <label htmlFor="verification-address" className="mb-2 block text-sm font-medium">{t('auth:verifyEmail.emailLabel')}</label>
+                    <input id="verification-address" type="email" inputMode="email" autoComplete="email" autoFocus required disabled={loading}
+                      value={addressInput} onChange={event => { setAddressInput(event.target.value); if (error) setError(''); }}
+                      aria-describedby={error ? "verification-error" : undefined}
+                      className="input min-h-11" />
+                  </div>
+                  <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+                    {loading ? t('auth:verifyEmail.sendingCode') : t('auth:verifyEmail.sendCode')}
+                  </button>
+                </form>
                 {authConfig.registrationEnabled && (
                   <button
                     type="button"
                     onClick={() => navigate(registerLink)}
-                    className="btn-primary w-full py-3"
+                    className="btn-ghost w-full py-3 rounded-xl font-medium border border-[hsl(var(--border-color))]"
                   >
                     {t('auth:verifyEmail.goToRegister')}
                   </button>

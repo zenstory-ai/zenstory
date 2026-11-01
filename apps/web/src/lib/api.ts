@@ -31,7 +31,7 @@ import type {
   VersionComparison,
   VersionContentResponse,
 } from "../types";
-import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, ApiError, apiErrorFromPayload, errorDetailObject, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
 import { getLocale } from "./i18n-helpers";
 import { parseContentDispositionFilename } from "./contentDisposition";
@@ -190,6 +190,7 @@ export const authApi = {
       throw new ApiError(
         response.status,
         resolveApiErrorMessage(error, 'ERR_AUTH_INVALID_CREDENTIALS'),
+        errorDetailObject(error),
       );
     }
     return response.json();
@@ -253,7 +254,8 @@ export const authApi = {
    *
    * @param email - The email address to resend verification to
    * @returns Promise resolving to success status
-   * @throws {ApiError} ERR_AUTH_RESEND_FAILED if resend fails (rate limiting, etc.)
+   * @throws {ApiError} ERR_AUTH_VERIFICATION_COOLDOWN (details.retry_after_seconds) while a code was just sent,
+   *   ERR_AUTH_RESEND_FAILED if delivery fails
    */
   resendVerification: async (email: string) => {
     const response = await fetch(`${getApiBase()}/api/auth/resend-verification`, {
@@ -266,6 +268,7 @@ export const authApi = {
       throw new ApiError(
         response.status,
         resolveApiErrorMessage(error, 'ERR_AUTH_RESEND_FAILED'),
+        errorDetailObject(error),
       );
     }
     return response.json();

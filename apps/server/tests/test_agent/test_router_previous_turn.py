@@ -163,7 +163,7 @@ async def test_long_previous_reply_is_bounded_to_its_tail():
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_clarification_card_question_reaches_router_even_with_prose():
-    """正文非空时状态卡摘要不进回放，路由器仍要看到澄清卡上的问题和选项。"""
+    """正文非空时补问卡也进回放；路由器从结构化状态看问题，不把回放里的卡片文本当作助手结尾。"""
     from agent.core.session_loader import SessionLoader
 
     row = SimpleNamespace(
@@ -188,8 +188,9 @@ async def test_clarification_card_question_reaches_router_even_with_prose():
     )
     previous = SessionLoader("p", "u")._format_chat_message_for_history(row)
     previous.pop("role")
-    # 正文非空：合成的状态卡文本没有拼进回放内容
-    assert "[workflow_stopped]" not in previous["content"]
+    # 正文非空：补问卡的问题仍追加进回放，模型能看到自己问过什么
+    assert previous["content"].startswith("开书前确认两点。")
+    assert "开篇选哪种？A 外卖途中觉醒 B 被开除后觉醒" in previous["content"]
 
     _, messages = await _route(_state("B，主角叫陈默，金手指是能看见别人的寿命，写到第一章结束", previous))
 
@@ -202,6 +203,7 @@ async def test_clarification_card_question_reaches_router_even_with_prose():
         "开篇选哪种？A 外卖途中觉醒 B 被开除后觉醒"
     )
     assert content.startswith("[上一轮助手结尾]\n开书前确认两点。\n")
+    assert "[workflow_stopped]" not in content.split("[上一轮结构化状态]", 1)[0]
     routing = json.loads(content.split("\n[上一轮路由]\n")[1].split("\n[本轮上下文事实]\n")[0])
     assert routing["last_agent"] == "planner"
 
@@ -261,7 +263,10 @@ async def test_first_message_in_a_work_names_the_project_type():
     assert built == "[新作品的第一条消息]\n作品类型：长篇小说\n[用户本轮原话]\n想写个重生复仇的都市文"
     for header in re.findall(r"^\[[^\]\n]+\]$", built, flags=re.MULTILINE):
         assert header in ROUTER_PROMPT
-    assert "简要设定+开头约800字" in ROUTER_PROMPT
+    for scope in ("简要设定+完整第一章", "简要设定+完整开篇（写到第一个转折）", "简要设定+完整第1集剧本"):
+        assert scope in ROUTER_PROMPT
+    assert "约800字" not in ROUTER_PROMPT and "约500词" not in ROUTER_PROMPT
+    assert "不超过N字" in ROUTER_PROMPT
 
     selected_first = {**state, "has_selected_text": True, "has_referenced_files": False}
     assert "[本轮上下文事实]\n" in build_router_user_message(selected_first)

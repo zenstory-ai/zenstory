@@ -191,11 +191,25 @@ async def natural_polish(
             stage=exc.stage,
             failure_category=exc.category,
             refund_succeeded=refunded,
+            model=exc.model,
+            provider=exc.provider,
+            finish_reason=exc.finish_reason,
         )
+        # 模型回复对不回选区、或模型服务没响应，都是上游的一次性结果，不是服务端故障：
+        # 返回 502 和稳定的错误码，告诉前端可以由作者手动再试、额度是否已退回。
+        # 服务端不自动重试付费调用。
         raise APIException(
-            error_code=ErrorCode.INTERNAL_SERVER_ERROR,
-            status_code=500,
-            detail="Natural polish failed.",
+            error_code=(
+                ErrorCode.NATURAL_POLISH_PROVIDER_FAILED
+                if exc.stage == "model_call"
+                else ErrorCode.NATURAL_POLISH_OUTPUT_UNUSABLE
+            ),
+            status_code=502,
+            detail={
+                "retryable": True,
+                "quota_refunded": refunded,
+                "failure_category": exc.category,
+            },
         ) from exc
     except Exception as exc:
         refunded = _refund_ai_conversation(

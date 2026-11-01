@@ -170,7 +170,7 @@ class TestScopeDirectiveInjection:
             "user_message": "只写第1章",
             "messages": [],
             "system_prompt": "base prompt",
-            "scope_directive": "用户要求的交付范围：只写第1章。",
+            "scope_directive": "本轮交付范围：只写第1章。",
         }
         with patch("agent.graph.nodes.run_openai_agents_streaming_agent", new=fake_openai_runner):
             _ = [event async for event in run_streaming_agent(state=state, agent_type="writer")]
@@ -178,7 +178,7 @@ class TestScopeDirectiveInjection:
         assert captured["system_prompt"] == "base prompt"
         directive = captured["agent_directive"]
         assert "## 本轮用户范围约束 [最高优先级]" in directive
-        assert directive.rstrip().endswith("用户要求的交付范围：只写第1章。")
+        assert directive.rstrip().endswith("本轮交付范围：只写第1章。")
 
     @pytest.mark.asyncio
     async def test_no_scope_directive_leaves_it_out(self):

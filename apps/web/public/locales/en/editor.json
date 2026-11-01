@@ -226,6 +226,12 @@
   "naturalPolishCost": "· 1 msg",
   "naturalPolishNoSelection": "Select text to humanize",
   "naturalPolishFailed": "Humanize didn't work. Please try again.",
+  "naturalPolishUnusableRefunded": "This Humanize result couldn't be matched back to the selected text, so nothing was changed and this AI message was given back. Try again, or select less text.",
+  "naturalPolishUnusable": "This Humanize result couldn't be matched back to the selected text, so nothing was changed. Try again, or select less text.",
+  "naturalPolishProviderFailedRefunded": "The AI service didn't respond this time, so nothing was changed and this AI message was given back. You can try again.",
+  "naturalPolishProviderFailed": "The AI service didn't respond this time, so nothing was changed. You can try again.",
+  "naturalPolishRetry": "Try again",
+  "naturalPolishDismiss": "Dismiss",
   "naturalPolishEmpty": "Nothing came back this time. Please try again.",
   "naturalPolishNoChange": "No obvious AI tone found here — this doesn't count toward today's AI messages",
   "naturalPolishMissingContext": "Open a file first, then humanize",
@@ -350,9 +356,9 @@
   "showLess": "Show less",
   "showMore": "More options",
   "firstWork": {
-    "hint": "Write your first paragraph, or paste an existing draft.",
+    "hint": "Give the AI one line of an idea and it writes the opening, or write or paste your own draft.",
     "paste": "Write on my own",
-    "ai": "Write with AI"
+    "ai": "Let AI write the opening"
   },
   "emptyStateImportDrafts": "Have a draft already? Import it (txt / md)"
 }

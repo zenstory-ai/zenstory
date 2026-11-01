@@ -1182,3 +1182,122 @@ async def test_history_with_removed_proposal_tool_results_still_loads(
     context = result.context_data.context
     assert "女主前期隐藏身份" in context
     assert "作者已忽略" not in context and "【备注·AI 提议" not in context
+
+
+class TestClarificationCardReplay:
+    """补问卡的问题和选项要进模型回放：作者回复选其中一项时模型得看得到选项。"""
+
+    @staticmethod
+    def _row(content: str, card: dict, reasoning: str | None = None):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            id="m1",
+            role="assistant",
+            content=content,
+            message_metadata=json.dumps({"status_cards": [card]}),
+            reasoning_content=reasoning,
+            tool_calls=None,
+        )
+
+    @staticmethod
+    def _text(content) -> str:
+        if isinstance(content, list):
+            return "\n".join(
+                block.get("text", "") for block in content if block.get("type") == "text"
+            )
+        return str(content)
+
+    def test_card_options_are_replayed_even_when_the_turn_has_prose(self):
+        card = {
+            "type": "workflow_stopped",
+            "reason": "clarification_needed",
+            "question": "第5集这两处日期现在改吗？",
+            "details": ["闪回标头：春天改成冬天", "台词里的日期跟着改"],
+            "lastAgent": "writer",
+        }
+        message = SessionLoader("p", "u")._format_chat_message_for_history(
+            self._row("核对完了，第5集有两处对不上。", card)
+        )
+
+        text = self._text(message["content"])
+        assert text.startswith("核对完了，第5集有两处对不上。")
+        assert "第5集这两处日期现在改吗？" in text
+        assert "闪回标头：春天改成冬天" in text
+        assert "台词里的日期跟着改" in text
+
+    def test_card_options_survive_reasoning_content_blocks(self):
+        card = {
+            "type": "workflow_stopped",
+            "reason": "clarification_needed",
+            "question": "开篇用哪种？",
+            "details": ["雨夜追车", "葬礼重逢"],
+        }
+        message = SessionLoader("p", "u")._format_chat_message_for_history(
+            self._row("先确认开篇。", card, reasoning="想一想")
+        )
+
+        assert "葬礼重逢" in self._text(message["content"])
+
+    def test_replayed_card_text_is_bounded(self):
+        card = {
+            "type": "workflow_stopped",
+            "reason": "clarification_needed",
+            "question": "问" * 5000,
+            "context": "背" * 5000,
+            "details": [f"选项{i}" + "长" * 2000 for i in range(20)],
+        }
+        message = SessionLoader("p", "u")._format_chat_message_for_history(
+            self._row("请选一个方向。", card)
+        )
+
+        text = self._text(message["content"])
+        assert "选项0" in text
+        assert "选项7" in text
+        assert "选项8" not in text
+        assert len(text) < 5000
+
+    def test_prose_turn_without_clarification_card_replays_prose_only(self):
+        card = {
+            "type": "iteration_exhausted",
+            "layer": "tool_call",
+            "reason": "这一轮的时间快用完了",
+            "lastAgent": "writer",
+        }
+        message = SessionLoader("p", "u")._format_chat_message_for_history(
+            self._row("第3章写到一半。", card)
+        )
+
+        assert self._text(message["content"]) == "第3章写到一半。"
+
+    @staticmethod
+    def _long_card() -> dict:
+        return {
+            "type": "workflow_stopped",
+            "reason": "clarification_needed",
+            "question": "问" * 1000,
+            "details": [f"选项{i}" + "长" * 500 for i in range(10)],
+        }
+
+    def test_prose_turn_replays_the_same_option_text_the_router_sees(self):
+        """有正文时追加的补问卡与路由器的 pending_clarification 用同一上限，选项文本一致。"""
+        card = self._long_card()
+        message = SessionLoader("p", "u")._format_chat_message_for_history(
+            self._row("请选一个方向。", card)
+        )
+
+        text = self._text(message["content"])
+        pending = message["pending_clarification"]
+        assert f"question: {pending['question']}\n" in text
+        assert "details: " + "; ".join(pending["details"]) in text
+        assert "问" * (len(pending["question"]) + 1) not in text
+
+    def test_card_only_turn_keeps_the_full_card_text(self):
+        """没有正文的轮次只有卡片可看：回放与 status_card_text 仍是完整文本，不截断。"""
+        card = self._long_card()
+        message = SessionLoader("p", "u")._format_chat_message_for_history(self._row("", card))
+
+        text = self._text(message["content"])
+        assert "问" * 1000 in text
+        assert "选项9" + "长" * 500 in text
+        assert message["status_card_text"] == text.strip()

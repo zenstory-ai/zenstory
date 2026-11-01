@@ -13,6 +13,7 @@ const analyticsMocks = vi.hoisted(() => ({
 // Mock apiClient - must use factory function to avoid hoisting issues
 vi.mock('../apiClient', async importOriginal => ({
   resolveOwnedAuthSession: (await importOriginal<typeof import('../apiClient')>()).resolveOwnedAuthSession,
+  errorDetailObject: (await importOriginal<typeof import('../apiClient')>()).errorDetailObject,
   api: {
     get: vi.fn(),
     post: vi.fn(),
@@ -25,10 +26,12 @@ vi.mock('../apiClient', async importOriginal => ({
   tryRefreshToken: vi.fn(),
   ApiError: class ApiError extends Error {
     status: number
-    constructor(status: number, message: string) {
+    details?: Record<string, unknown>
+    constructor(status: number, message: string, details?: Record<string, unknown>) {
       super(message)
       this.status = status
       this.name = 'ApiError'
+      this.details = details
     }
   },
   apiErrorFromPayload: vi.fn((status: number, payload: unknown) => {
@@ -151,6 +154,42 @@ describe('api', () => {
         await expect(
           authApi.login('testuser', 'wrongpassword')
         ).rejects.toThrow('Invalid credentials')
+      })
+
+      it('keeps the address to verify from an unverified-email answer', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 403,
+          json: async () => ({
+            detail: 'ERR_AUTH_EMAIL_NOT_VERIFIED',
+            error_code: 'ERR_AUTH_EMAIL_NOT_VERIFIED',
+            error_detail: { email: 'pending@example.com' },
+          }),
+        })
+
+        const failure = await authApi.login('pending_writer', 'password123').catch((error: unknown) => error)
+        expect(failure).toBeInstanceOf(ApiError)
+        expect((failure as ApiError).message).toBe('ERR_AUTH_EMAIL_NOT_VERIFIED')
+        expect((failure as ApiError).details).toEqual({ email: 'pending@example.com' })
+      })
+    })
+
+    describe('resendVerification', () => {
+      it('keeps the seconds to wait from a cooldown answer', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 429,
+          json: async () => ({
+            detail: 'ERR_AUTH_VERIFICATION_COOLDOWN',
+            error_code: 'ERR_AUTH_VERIFICATION_COOLDOWN',
+            error_detail: { retry_after_seconds: 42 },
+          }),
+        })
+
+        const failure = await authApi.resendVerification('pending@example.com').catch((error: unknown) => error)
+        expect(failure).toBeInstanceOf(ApiError)
+        expect((failure as ApiError).message).toBe('ERR_AUTH_VERIFICATION_COOLDOWN')
+        expect((failure as ApiError).details).toEqual({ retry_after_seconds: 42 })
       })
     })
 

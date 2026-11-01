@@ -93,7 +93,7 @@ async def test_shared_scope_still_reaches_every_agent():
     )
 
     for agent_type in ("planner", "writer", "quality_reviewer"):
-        assert "用户要求的交付范围：大纲+第1章" in seen[agent_type]
+        assert "本轮交付范围：大纲+第1章" in seen[agent_type]
     assert SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING in seen["planner"]
     assert SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING not in seen["writer"]
 

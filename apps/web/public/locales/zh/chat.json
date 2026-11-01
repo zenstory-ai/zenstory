@@ -46,12 +46,18 @@
     "roundIncompleteSaved": "已保存本轮完成的修改，可以继续写后续内容。",
     "roundIncompleteNoChanges": "本轮尚未写入新内容，可以继续完成。",
     "roundIncomplete": "本轮尚未完成，可以继续。",
+    "roundUnfinishedItem": "本轮尚未完成",
+    "roundUnfinishedContinueItem": "本轮尚未完成，可以继续",
+    "roundIncompleteSavedPaused": "已保存本轮完成的修改。",
+    "roundIncompleteNoChangesPaused": "本轮尚未写入新内容。",
+    "roundIncompletePaused": "本轮尚未完成。",
     "roundSavedFilesJoiner": "、",
     "roundSavedFilesMore": "{{files}}等 {{total}} 个文件",
     "creatingSession": "正在创建新对话",
     "newSessionFailed": "没能创建新对话，请重试",
     "sessionRecoveryFailed": "对话暂时没能加载，请重试。",
-    "readWrittenFiles": "看正文"
+    "readWrittenFiles": "看正文",
+    "openWrittenFile": "打开《{{title}}》"
   },
   "input": {
     "placeholder": "想写什么，直接说",
@@ -365,7 +371,11 @@
   "activity": {
     "elapsed": "AI 正在处理 · {{seconds}} 秒",
     "longWaitHint": "写长内容可能要几分钟，请稍等。",
-    "longWaitHintMobile": "写长内容可能要几分钟，请保持页面打开。"
+    "longWaitHintMobile": "写长内容可能要几分钟，请保持页面打开。",
+    "writingBody": "正在写入《{{title}}》正文…",
+    "writingBodyWords_one": "正在写入《{{title}}》正文 · 已写 {{words}} 字",
+    "writingBodyWords_other": "正在写入《{{title}}》正文 · 已写 {{words}} 字",
+    "seconds": "{{seconds}} 秒"
   },
   "leaveWhileGenerating": {
     "title": "AI 还在写",
@@ -428,6 +438,25 @@
       "screenplay": "竖屏短剧：神医弟子下山完婚，被未婚妻当众撕了婚书，转身娶了她的姐姐。",
       "use": "就写这个",
       "edit": "我来改改"
+    },
+    "manuscript": {
+      "title": "看到你已经有稿子了。",
+      "body": "想先让我做哪件事？点一下就发给我。",
+      "review": {
+        "novel": "先通读我的稿子，告诉我开头最需要改的三处问题，先不改原文。",
+        "short": "先通读我的稿子，告诉我开头最需要改的三处问题，先不改原文。",
+        "screenplay": "先通读我的剧本，告诉我开头最需要改的三处问题，先不改原文。"
+      },
+      "characters": {
+        "novel": "根据现有正文帮我理一份人物表。",
+        "short": "根据现有正文帮我理一份人物表。",
+        "screenplay": "根据现有剧本帮我理一份人物表。"
+      },
+      "continue": {
+        "novel": "照现在的风格续写下一章。",
+        "short": "照现在的风格接着往下写。",
+        "screenplay": "照现在的风格续写下一集。"
+      }
     },
     "quota": "今天还能免费发 {{count}} 条"
   },

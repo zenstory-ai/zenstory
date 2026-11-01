@@ -17,6 +17,19 @@ export function normalizePlanIntent(rawPlan: string | null | undefined): PlanInt
   return normalized as PlanIntent;
 }
 
+/**
+ * Upgrade-funnel source for a sign-in or sign-up that started with a paid plan intent
+ * (`/register?plan=pro`, `/login?plan=pro`, or the same through Google). The billing page
+ * records its landing under it and the checkout keeps it as `upgrade_source`, so this path
+ * is no longer counted as the billing page's own header button.
+ */
+export const AUTH_PLAN_INTENT_SOURCE = 'auth_plan_intent';
+
+/** Where a signed-in author with a paid plan intent continues: billing, with the checkout open. */
+export function planIntentBillingPath(planIntent: PlanIntent): string {
+  return `/dashboard/billing?${new URLSearchParams({ plan: planIntent, source: AUTH_PLAN_INTENT_SOURCE }).toString()}`;
+}
+
 export function saveOAuthPlanIntent(rawPlan: string | null | undefined): void {
   const plan = normalizePlanIntent(rawPlan);
   if (plan) {

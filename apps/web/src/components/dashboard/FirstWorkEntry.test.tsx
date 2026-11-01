@@ -12,7 +12,7 @@ const state: FirstWorkState = { status: 'pending', project_id: null, file_id: nu
   opened_at: null, first_manual_write_at: null, first_ai_requested_at: null };
 const created: FirstWorkState = { ...state, status: 'created', project_id: 'project', file_id: 'draft', available: true, static_guidance: true };
 function mount(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
-  return render(<StrictMode><QueryClientProvider client={client}><MemoryRouter><FirstWorkEntry userId="author" preferredType="short" onCreated={mocks.refresh} /></MemoryRouter></QueryClientProvider></StrictMode>);
+  return render(<StrictMode><QueryClientProvider client={client}><MemoryRouter><FirstWorkEntry userId="author" preferredType="short" ideaGoesHere onCreated={mocks.refresh} /></MemoryRouter></QueryClientProvider></StrictMode>);
 }
 beforeEach(() => { vi.clearAllMocks(); mocks.get.mockResolvedValue(state); mocks.initialize.mockResolvedValue(created); });
 describe('dashboard-only first-work initialization lifecycle', () => {

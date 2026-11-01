@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent.constants import coerce_bool
+from agent.core.events import iteration_exhausted_status_card
 from agent.core.stream_billing import _parse_sse as parse_sse_frame
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -504,8 +505,19 @@ def build_stop_outcome(
     return outcome
 
 
-def record_round_outcome(message_id: str, *, stop_kind: str, outcome: dict[str, Any]) -> bool:
-    """把停止 / 断线的结果写进助手消息的 message_metadata；返回是否写成。"""
+def record_round_outcome(
+    message_id: str,
+    *,
+    stop_kind: str,
+    outcome: dict[str, Any],
+    pause_card: dict[str, Any] | None = None,
+) -> bool:
+    """把停止 / 断线的结果写进助手消息的 message_metadata；返回是否写成。
+
+    ``pause_card``：路由层在墙钟时限上补发的暂停卡（iteration_exhausted 事件数据）。它不经过
+    process_stream，补存的部分历史里没有它：这里追加进 status_cards（「继续」路由读 lastAgent）
+    和已有的展示时间线末尾，刷新后作者看到同一张卡和继续按钮。
+    """
     from database import create_session
     from models import ChatMessage
 
@@ -524,6 +536,15 @@ def record_round_outcome(message_id: str, *, stop_kind: str, outcome: dict[str, 
             if not isinstance(existing_reason, str) or existing_reason in _OVERWRITABLE_STOP_REASONS:
                 metadata["stop_reason"] = stop_kind
             metadata["stop_outcome"] = outcome
+            if pause_card is not None:
+                cards = metadata.get("status_cards")
+                metadata["status_cards"] = [
+                    *(cards if isinstance(cards, list) else []),
+                    iteration_exhausted_status_card(pause_card),
+                ]
+                display_events = metadata.get("display_events")
+                if isinstance(display_events, list) and display_events:
+                    display_events.append({"type": "iteration_exhausted", "data": dict(pause_card)})
             message.message_metadata = json.dumps(metadata, ensure_ascii=False)
             session.add(message)
             session.commit()

@@ -371,3 +371,46 @@ describe("Login awaited SSO cancellation", () => {
     } finally { window.history.replaceState({}, "", previousUrl); }
   });
 });
+
+describe("Login unverified-email exit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOAuthEnabled.google = false;
+    localStorage.clear();
+  });
+
+  const submitAt = async (entry: string, identifier: string) => {
+    window.history.replaceState({}, '', entry);
+    render(<BrowserRouter><Login /></BrowserRouter>);
+    fireEvent.change(screen.getByTestId("email-input"), { target: { value: identifier } });
+    fireEvent.change(screen.getByTestId("password-input"), { target: { value: "offline-password" } });
+    fireEvent.submit(screen.getByTestId("login-form"));
+    await screen.findByRole("alert");
+  };
+
+  it("offers to verify the address the server names for a username login, keeping plan intent", async () => {
+    mockLogin.mockRejectedValueOnce(new ApiError(403, "ERR_AUTH_EMAIL_NOT_VERIFIED", { email: "pending@example.com" }));
+    await submitAt("/login?plan=pro", "pending_writer");
+    fireEvent.click(screen.getByRole("button", { name: "auth:login.goVerify" }));
+    expect(mockNavigate).toHaveBeenLastCalledWith("/verify-email?plan=pro", { state: { email: "pending@example.com" } });
+  });
+
+  it("falls back to a typed email when the server does not name one", async () => {
+    mockLogin.mockRejectedValueOnce(new ApiError(403, "ERR_AUTH_EMAIL_NOT_VERIFIED"));
+    await submitAt("/login", " pending@example.com ");
+    fireEvent.click(screen.getByRole("button", { name: "auth:login.goVerify" }));
+    expect(mockNavigate).toHaveBeenLastCalledWith("/verify-email", { state: { email: "pending@example.com" } });
+  });
+
+  it("does not offer verification for other login failures", async () => {
+    mockLogin.mockRejectedValueOnce(new ApiError(401, "ERR_AUTH_INVALID_CREDENTIALS"));
+    await submitAt("/login", "pending@example.com");
+    expect(screen.queryByRole("button", { name: "auth:login.goVerify" })).not.toBeInTheDocument();
+  });
+
+  it("prefills the account handed over from registration", () => {
+    window.history.replaceState({ usr: { identifier: "existing@example.com" } }, '', "/login");
+    render(<BrowserRouter><Login /></BrowserRouter>);
+    expect(screen.getByTestId("email-input")).toHaveValue("existing@example.com");
+  });
+});

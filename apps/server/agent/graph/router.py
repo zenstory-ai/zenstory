@@ -89,6 +89,9 @@ class RouterDecision(BaseModel):
     - read_only: 用户明确要求不改文件（只回答/只分析/只看看）。为 True 时
       不安排任何计划交接，图也不会交接给有写权限的 agent。
     - scope: 用户明确限定的交付范围（如“只写第1章”），没有则为空。
+    - accepts_previous_proposal: 回答上一轮只读回合的补问卡时，作者是否接受了那一轮
+      提出的具体方案并要求执行。只在可信旧状态为只读的补问作答里生效（见
+      _resolve_turn_decision），不授予其他权限。
     """
 
     agent_type: AgentType
@@ -101,6 +104,7 @@ class RouterDecision(BaseModel):
     requested_file_types: list[ArtifactFileType] = Field(default_factory=list, max_length=7)
     turn_disposition: TurnDisposition | None = None
     clarify_first: StrictBool | None = None
+    accepts_previous_proposal: StrictBool | None = None
     notes_append_allowed: StrictBool = False
 
     @field_validator("requested_file_types")
@@ -374,8 +378,9 @@ def _parse_router_response(response: dict) -> RouterDecision:
             for field in ("read_only", "write_content"):
                 if field in payload and _coerce_optional_bool(payload[field]) is None:
                     raise RouterFailure("schema", failed_fields=(field,))
-            if "clarify_first" in payload and not isinstance(payload["clarify_first"], bool):
-                raise RouterFailure("schema", failed_fields=("clarify_first",))
+            for field in ("clarify_first", "accepts_previous_proposal"):
+                if field in payload and not isinstance(payload[field], bool):
+                    raise RouterFailure("schema", failed_fields=(field,))
             if "scope" in payload and not isinstance(payload["scope"], str):
                 raise RouterFailure("schema", failed_fields=("scope",))
             normalized = _normalize_router_payload(payload)
@@ -529,6 +534,11 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
     write_content = _coerce_optional_bool(payload.get("write_content"))
     # 保留既有可选字段和明确等价布尔值；外部显式未知值已在 parser 拒绝。
     read_only = _coerce_optional_bool(payload.get("read_only")) is True
+    accepts_previous_proposal = payload.get("accepts_previous_proposal")
+    if read_only and accepts_previous_proposal is True:
+        # 本轮判了「不改文件」就不是接受方案去执行：下面的单轮纠正可能把 read_only 改回 False，
+        # 这里先取消接受，接续时照常继承只读（见 _resolve_turn_decision）。
+        accepts_previous_proposal = False
     if read_only and write_content is True:
         # 路由这一轮自己同时判了「不改文件」和「要写正文」（生产 10-26：「一并扩到2000字先」）：
         # 要写正文就要改文件，只读那一半不成立。只纠正这一轮的回答；接续时从上一轮继承来的
@@ -553,6 +563,7 @@ def _normalize_router_payload(payload: dict[str, object]) -> dict[str, object]:
         "requested_file_types": payload.get("requested_file_types", []),
         "turn_disposition": turn_disposition,
         "clarify_first": payload.get("clarify_first"),
+        "accepts_previous_proposal": accepts_previous_proposal,
         "notes_append_allowed": payload.get("notes_append_allowed", False),
     }
 
@@ -832,6 +843,24 @@ def _resolve_turn_decision(
     fields = _inherited_scope_fields(routing)
     if agent_type is None:
         raise RouterFailure("schema", failed_fields=("previous_routing.last_agent",))
+    if (
+        disposition == "answer_pending_clarification"
+        and fields["read_only"]
+        and decision.accepts_previous_proposal is True
+        and not decision.read_only
+    ):
+        # 只读回合用补问卡提出了具体方案、作者本轮接受并要求执行（此前作者同意
+        # 按方案修改后，writer 仍回复不能改动文件）。这和确认上一轮提议的
+        # 下一步是同一种语义：按方案那一步的本轮路由执行，不沿用只读回合的角色、
+        # 只读 / 禁写正文和已交付的范围。作者本轮又说别改（decision.read_only）时不走这里。
+        log_with_context(
+            logger, 20, "Router follow-up accepts a read-only round's proposal",
+            turn_disposition=disposition, followup_resolution="accepted_read_only_proposal",
+        )
+        constraints = _validate_scope_constraints(
+            [decision.scope] if decision.scope else [], field="scope_constraints"
+        )
+        return decision, {"scope_constraints": constraints}
     constraints = _accumulate_scope_constraints(
         fields["scope"], fields["scope_constraints"], decision.scope
     )

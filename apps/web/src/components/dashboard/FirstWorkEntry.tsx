@@ -5,12 +5,16 @@ import { useTranslation } from 'react-i18next';
 import { AlertCircle, Book } from '../icons';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { Button } from '../ui/Button';
-import { useFirstWork } from '../../hooks/useFirstWork';
+import { untouchedFirstWork, useFirstWork } from '../../hooks/useFirstWork';
 import { firstWorkApi, firstWorkQueryKey } from '../../lib/firstWorkApi';
 import type { ProjectType } from '../../types';
 
-export function FirstWorkEntry({ userId, preferredType, onCreated }: {
-  userId: string | null; preferredType: ProjectType; onCreated: () => Promise<void>;
+/**
+ * `ideaGoesHere`: the dashboard's 「开始创作」 currently opens this work, so the card may say an
+ * idea typed below is written here. Otherwise (another type is selected) it only offers to open it.
+ */
+export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated }: {
+  userId: string | null; preferredType: ProjectType | null; ideaGoesHere: boolean; onCreated: () => Promise<void>;
 }) {
   const { t, i18n } = useTranslation('dashboard');
   const navigate = useNavigate();
@@ -22,7 +26,7 @@ export function FirstWorkEntry({ userId, preferredType, onCreated }: {
   const currentUser = useRef(userId);
   useEffect(() => { currentUser.current = userId; }, [userId]);
   const initialize = useMutation({
-    mutationFn: ({ type, language }: { type: ProjectType; language: string; owner: string | null }) => firstWorkApi.initialize(type, language),
+    mutationFn: ({ type, language }: { type: ProjectType | null; language: string; owner: string | null }) => firstWorkApi.initialize(type, language),
     retry: false,
     onSuccess: (result, variables) => {
       client.setQueryData(firstWorkQueryKey(variables.owner), result);
@@ -58,13 +62,14 @@ export function FirstWorkEntry({ userId, preferredType, onCreated }: {
       <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">{t('firstWork.preparing')}</p>
     </div>;
   }
-  if (!work?.available || !work.static_guidance || work.first_manual_write_at || work.first_ai_requested_at || !work.project_id || !work.file_id) return null;
+  const untouched = untouchedFirstWork(work);
+  if (!untouched) return null;
   return <div data-testid="first-work-entry" className="mb-5 flex flex-col gap-5 rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
     <div className="flex min-w-0 items-start gap-3">
       <Book aria-hidden="true" className="mt-0.5 h-6 w-6 shrink-0 text-[hsl(var(--accent-primary))]" />
       <div className="min-w-0"><h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t('firstWork.title')}</h2>
-        <p className="mt-1 text-sm leading-6 text-[hsl(var(--text-secondary))]">{t('firstWork.description')}</p></div>
+        <p className="mt-1 text-sm leading-6 text-[hsl(var(--text-secondary))]">{t(ideaGoesHere ? 'firstWork.description' : 'firstWork.descriptionOpen')}</p></div>
     </div>
-    <Button variant="secondary" size="touch" className="shrink-0" onClick={() => navigate(`/project/${work.project_id}?file=${work.file_id}`)}>{t('firstWork.open')}</Button>
+    <Button variant="secondary" size="touch" className="shrink-0" onClick={() => navigate(`/project/${untouched.projectId}?file=${untouched.fileId}`)}>{t('firstWork.open')}</Button>
   </div>;
 }

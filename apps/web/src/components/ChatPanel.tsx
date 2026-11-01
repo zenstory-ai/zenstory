@@ -72,9 +72,9 @@ import {
   type MessageFeedbackData,
   type MessageFeedbackVote,
 } from "../lib/chatApi";
-import { fileVersionApi, projectApi, versionApi } from "../lib/api";
+import { fileApi, fileVersionApi, projectApi, versionApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
-import { StarterCards } from "./StarterCards";
+import { StarterCards, type ManuscriptStarterKind } from "./StarterCards";
 import { hasPendingInspiration } from "../lib/pendingInspiration";
 import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
 import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
@@ -92,9 +92,10 @@ import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
 import { nextAiQuotaResetMs, aiQuotaPeriodKey } from "../hooks/useAiMessageQuota";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
+import { reportActivationEvent } from "../lib/activationEvents";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
 import { StreamActivityLine } from "./StreamActivityLine";
-import { createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
+import { createBodyWriteProgress, createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
 import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
 import { exhaustionLeftFilesUnfinished, formatRoundDelivery, hasSubstantiveDisplayItems, parseIterationExhaustedFiles, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
@@ -267,6 +268,8 @@ const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[]
   !result.saved && result.fileId ? { keepFileIds: [result.fileId] } : undefined;
 
 const STARTER_HIGHLIGHT_MS = 1600;
+/** How long a work's first chat waits for its progress before showing the example starter. */
+const STARTER_PROGRESS_WAIT_MS = 1500;
 const SUGGESTION_COUNT = 3;
 const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
 const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
@@ -433,6 +436,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     currentProjectId,
     currentProject,
     selectedItem,
+    fileTreeVersion,
     triggerFileTreeRefresh,
     triggerEditorRefresh,
     setAiEditingFileId,
@@ -485,6 +489,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quotaLite(), restore);
   }, [queryClient]);
   const { isMobile, activePanel, chatFocusRequest, switchToEditor, focusChatInput } = useMobileLayout();
+  /** New-user funnel: a send was held back because today's AI messages are used up (once per account). */
+  const reportQuotaBlockedSend = useCallback((serverRefused: boolean) => {
+    void reportActivationEvent(userId, {
+      event_name: "ai_send_blocked_quota",
+      surface: "chat",
+      project_id: currentProjectId,
+      server_refused: serverRefused,
+      is_mobile: isMobile,
+    });
+  }, [userId, currentProjectId, isMobile]);
   // Sent here by the empty editor's 「让 AI 帮你写开头」: focusing the input alone looked like nothing
   // happened (2026-10-20 new-user audit), so the starter cards light up briefly as well.
   const [settledChatFocusRequest, setSettledChatFocusRequest] = useState(chatFocusRequest);
@@ -536,6 +550,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false });
   /** Reply text since the last segment boundary, counted like the server (see createProseCounter). */
   const proseCounterRef = useRef(createProseCounter());
+  /** Which file is getting its text right now, for the waiting line (see createBodyWriteProgress). */
+  const bodyWriteRef = useRef(createBodyWriteProgress());
+  const readBodyWrite = useCallback(() => bodyWriteRef.current.snapshot(), []);
   /** The author pressed 停止 in this project's current round; the note waits for how the round ended. */
   const stopRequestedProjectRef = useRef<string | null>(null);
   /** Reentrancy guard: two sends in the same tick (closure isStreaming still stale) start one round. */
@@ -673,11 +690,28 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       folder: "folder", outline: "outline", draft: "draft", document: "document", script: "script",
       character: "character", lore: "lore", snippet: "material", material: "material",
     };
-    // Reselecting an open file would reload it, including an unsaved title-only draft.
-    if (selectedItemRef.current?.id !== fileId) {
-      setSelectedItem({ id: fileId, type: typeMap[fileType] || "draft", title });
+    const selectedAtClick = selectedItemRef.current?.id ?? null;
+    const open = (type: string, openTitle: string) => {
+      // The author may have switched projects, or picked another file, while the type was looked up.
+      if (currentProjectIdRef.current !== currentProjectId) return;
+      if ((selectedItemRef.current?.id ?? null) !== selectedAtClick) return;
+      // Reselecting an open file would reload it, including an unsaved title-only draft.
+      if (selectedItemRef.current?.id !== fileId) {
+        setSelectedItem({ id: fileId, type: typeMap[type] || "draft", title: openTitle });
+      }
+      if (isMobile) switchToEditor();
+    };
+    if (fileType) {
+      open(fileType, title);
+      return;
     }
-    if (isMobile) switchToEditor();
+    // A saved round receipt names files without their type (or a later rename): read it, so the
+    // selection (and the next message's current-file context) carries the real one. A failed lookup
+    // (deleted, inaccessible, offline) still opens it, so the editor shows its usual load error.
+    void fileApi.get(fileId).then(
+      (file) => open(file.file_type, file.title || title),
+      () => open("draft", title),
+    );
   }, [currentProjectId, currentProject, setSelectedItem, isMobile, switchToEditor]);
 
   // "Write chapter 1" once a framework exists but no prose yet; refreshed on open, after each round
@@ -693,6 +727,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, [nextStepDismissal.isDismissed]);
   // 只认最后一次发出的进度请求，先发后到的旧结果（如保存前发出的轮末刷新）不能把卡片翻回来。
   const nextStepRequestSeqRef = useRef(0);
+  // The same progress also picks the starter cards: a work that already has prose gets the
+  // manuscript requests. The cards wait for the first answer (or its failure, which falls back
+  // to the example) so they do not flash the example first.
+  const [manuscriptProjectId, setManuscriptProjectId] = useState<string | null>(null);
+  const [progressKnownProjectId, setProgressKnownProjectId] = useState<string | null>(null);
   const refreshNextStep = useCallback(async (projectId: string) => {
     const seq = ++nextStepRequestSeqRef.current;
     try {
@@ -701,17 +740,27 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       const ready = progress?.framework_ready ? projectId : null;
       frameworkReadyRef.current = ready;
       setFrameworkReadyProjectId(ready);
+      setManuscriptProjectId((progress?.written_units ?? 0) > 0 ? projectId : null);
+      setProgressKnownProjectId(projectId);
     } catch (error) {
       logger.warn("Failed to load the project's progress:", error);
+      if (currentProjectIdRef.current === projectId && seq === nextStepRequestSeqRef.current) {
+        setProgressKnownProjectId(projectId);
+      }
     }
   }, []);
+  // The project whose first chat shows the example starter card, mirrored for the save listener:
+  // prose the author types there switches the cards to the manuscript requests.
+  const starterExampleShownRef = useRef<string | null>(null);
   // 作者手动保存/自动保存正文后立即重查进度，写出第一章正文后卡片当场消失，
-  // 不必等下一轮或重开项目。只在卡片可能显示（框架就绪且未「先不用」）时才请求，卡片消失后的保存不再请求。
+  // 不必等下一轮或重开项目。只在卡片可能显示（框架就绪且未「先不用」，或首个对话正显示示例卡）时才请求，
+  // 卡片消失或换成正文卡后的保存不再请求。
   useEffect(() => {
     const onSaved = (event: Event) => {
       const projectId = (event as CustomEvent<EditorContentSavedDetail>).detail?.projectId;
       if (!projectId || projectId !== currentProjectIdRef.current) return;
-      if (frameworkReadyRef.current !== projectId || isNextStepDismissedRef.current(projectId)) return;
+      const nextStepDue = frameworkReadyRef.current === projectId && !isNextStepDismissedRef.current(projectId);
+      if (!nextStepDue && starterExampleShownRef.current !== projectId) return;
       void refreshNextStep(projectId);
     };
     window.addEventListener(EDITOR_CONTENT_SAVED_EVENT, onSaved);
@@ -1309,6 +1358,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false };
       suggestionRequestSeqRef.current += 1;  // suggestions for the previous round no longer apply
       proseCounterRef.current.reset();
+      bodyWriteRef.current.reset();
       stopRequestedProjectRef.current = null;
       resetOnCompleteFlag();
     },
@@ -1340,15 +1390,18 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       invalidateQuota();
       if (code === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' || code === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED') {
         returnBlockedMessageToInput();
+        reportQuotaBlockedSend(true);
       }
     },
 
     // Tool call/result callbacks: the server's prose counter starts a new segment at both.
-    onToolCall: () => {
+    onToolCall: (toolName, args) => {
       proseCounterRef.current.boundary();
+      bodyWriteRef.current.toolCall(toolName, args);
     },
     onToolResult: (toolName, status, result, toolError) => {
       proseCounterRef.current.boundary();
+      bodyWriteRef.current.toolResult(toolName, status, result);
       if (isWriteToolResult(toolName, status, result)) {
         roundProgressRef.current.wroteFiles = true;
         roundProgressRef.current.producedOutput = true;
@@ -1359,6 +1412,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // File operation callbacks
     onFileCreated: (fileId, fileType, title) => {
       proseCounterRef.current.boundary();
+      bodyWriteRef.current.fileCreated(fileId, title);
       streamCallbacks.onFileCreated(fileId, fileType, title);
     },
     onFileContent: (fileId, chunk) => {
@@ -1366,9 +1420,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         roundProgressRef.current.wroteFiles = true;
         roundProgressRef.current.producedOutput = true;
       }
+      bodyWriteRef.current.chunk(fileId, chunk);
       streamCallbacks.onFileContent(fileId, chunk);
     },
-    onFileContentEnd: streamCallbacks.onFileContentEnd,
+    onFileContentEnd: (fileId) => {
+      bodyWriteRef.current.end(fileId);
+      streamCallbacks.onFileContentEnd(fileId);
+    },
     onFileEditStart: streamCallbacks.onFileEditStart,
     onFileEditApplied: streamCallbacks.onFileEditApplied,
     onFileEditEnd: streamCallbacks.onFileEditEnd,
@@ -1703,6 +1761,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     frameworkReadyRef.current = null;
     setFrameworkReadyProjectId(null);
+    setManuscriptProjectId(null);
+    setProgressKnownProjectId(null);
     void refreshNextStep(currentProjectId);
 
     // Load chat history first, then request project suggestions immediately.
@@ -1914,6 +1974,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Used up for today: keep the words as the draft and explain, instead of sending.
     if (aiSendBlocked) {
       if (!keepComposer) saveDraft(message);
+      reportQuotaBlockedSend(false);
       setShowQuotaUpgradeModal(true);
       return false;
     }
@@ -1970,7 +2031,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     trackEvent("ai_chat_submitted", {
       project_id: currentProjectId,
-      // Where this message came from: next_step / dashboard_idea / starter_example / first_message, otherwise typed.
+      // Where this message came from: next_step / dashboard_idea / starter_example / starter_manuscript / first_message, otherwise typed.
       entry: entry ?? "typed",
       generation_mode: generationMode,
       selected_item_type: selectedItem?.type,
@@ -1980,7 +2041,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     });
 
     return startRound(request, { userBubble: true });
-  }, [isStreaming, aiSendBlocked, saveDraft, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, clearDraft, currentProjectId, startRound]);
+  }, [isStreaming, aiSendBlocked, saveDraft, reportQuotaBlockedSend, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, clearDraft, currentProjectId, startRound]);
 
   /**
    * 「重新发送」 after a stop that wrote nothing: the same round again, with the original
@@ -2119,32 +2180,67 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   );
 
   // A dashboard idea about to be sent for this project: no starter cards for those 500 ms.
-  // The first work never consumes a leftover idea (see the auto-send effect below). Read on
-  // every render: the auto-send effect removes an expired idea without changing any state.
-  // An expired idea is never sent, so it does not hold the cards back.
+  // Read on every render: the auto-send effect removes an expired idea without changing any
+  // state. An expired idea is never sent, so it does not hold the cards back.
   const hasPendingDashboardIdea = Boolean(currentProjectId)
-    && firstWork.data?.project_id !== currentProjectId
     && messages.length === 0
     && hasPendingInspiration(currentProjectId);
   // Used up for today: the existing quota card explains instead (a press could not send).
-  const showStarterCards = Boolean(currentProjectId)
+  const starterCardsDue = Boolean(currentProjectId)
     && starterProjectId === currentProjectId
     && messages.length === 0
     && !aiSendBlocked
     && !hasPendingDashboardIdea
     && !newChatPending
     && !isCreatingSession;
+  const showStarterCards = starterCardsDue && progressKnownProjectId === currentProjectId;
+  const starterHasManuscript = manuscriptProjectId === currentProjectId;
+  useEffect(() => {
+    starterExampleShownRef.current = showStarterCards && !starterHasManuscript ? currentProjectId : null;
+  }, [showStarterCards, starterHasManuscript, currentProjectId]);
+
+  // A progress request that hangs must not leave the first chat blank: after a short wait the
+  // example shows, and an answer that arrives later still switches to the manuscript requests.
+  const starterProgressPending = starterCardsDue && progressKnownProjectId !== currentProjectId;
+  useEffect(() => {
+    if (!starterProgressPending || !currentProjectId) return;
+    const projectId = currentProjectId;
+    const timer = setTimeout(() => {
+      if (currentProjectIdRef.current === projectId) setProgressKnownProjectId(projectId);
+    }, STARTER_PROGRESS_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [starterProgressPending, currentProjectId]);
+
+  // A file imported (or created) while the first chat's cards show: re-read the progress so the
+  // cards follow what the work now holds. The first value is the open's own request.
+  const starterTreeVersionRef = useRef(fileTreeVersion);
+  useEffect(() => {
+    if (starterTreeVersionRef.current === fileTreeVersion) return;
+    starterTreeVersionRef.current = fileTreeVersion;
+    if (showStarterCards && currentProjectId) void refreshNextStep(currentProjectId);
+  }, [fileTreeVersion, showStarterCards, currentProjectId, refreshNextStep]);
 
   const starterViewedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!showStarterCards || !currentProjectId || starterViewedRef.current === currentProjectId) return;
     starterViewedRef.current = currentProjectId;
-    trackEvent("starter_viewed", { project_id: currentProjectId, project_type: currentProject?.project_type });
-  }, [showStarterCards, currentProjectId, currentProject?.project_type]);
+    trackEvent("starter_viewed", {
+      project_id: currentProjectId,
+      project_type: currentProject?.project_type,
+      variant: starterHasManuscript ? "manuscript" : "example",
+    });
+  }, [showStarterCards, currentProjectId, currentProject?.project_type, starterHasManuscript]);
 
   const handleStarterSend = useCallback((message: string) => {
-    trackEvent("starter_sent", { project_id: currentProjectId });
+    trackEvent("starter_sent", { project_id: currentProjectId, variant: "example" });
     void handleSendMessage(message, undefined, { entry: "starter_example" });
+  }, [currentProjectId, handleSendMessage]);
+
+  // Sent exactly as shown, like the example. Whether a request stays read-only (「先不改原文」) is
+  // the router's reading of these words, as for anything the author types.
+  const handleStarterManuscriptSend = useCallback((message: string, kind: ManuscriptStarterKind) => {
+    trackEvent("starter_sent", { project_id: currentProjectId, variant: "manuscript", kind });
+    void handleSendMessage(message, undefined, { entry: "starter_manuscript" });
   }, [currentProjectId, handleSendMessage]);
 
   const handleStarterEdit = useCallback((message: string) => {
@@ -2159,7 +2255,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const inspirationSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!currentProjectId || isLoadingHistory || isStreaming || newChatPending || isCreatingSession || sessionRecoveryError || !firstWork.isSuccess || firstWork.data?.project_id === currentProjectId) return;
+    // Every work, the untouched first work included, receives an idea only from the dashboard's
+    // 「开始创作」, written for it just now (feature/2026-10-31-first-work-rollout-polish.md), so
+    // sending does not wait for first-work status; the freshness rule below is the same for all.
+    if (!currentProjectId || isLoadingHistory || isStreaming || newChatPending || isCreatingSession || sessionRecoveryError) return;
     
     // Skip if we've already processed this project's inspiration
     if (inspirationProcessedRef.current.has(currentProjectId)) return;
@@ -2227,7 +2326,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         inspirationSendTimerRef.current = null;
       }
     };
-  }, [currentProjectId, isLoadingHistory, isStreaming, newChatPending, isCreatingSession, sessionRecoveryError, handleSendMessage, draft, saveDraft, firstWork.isSuccess, firstWork.data?.project_id]);
+  }, [currentProjectId, isLoadingHistory, isStreaming, newChatPending, isCreatingSession, sessionRecoveryError, handleSendMessage, draft, saveDraft]);
 
   /**
    * Starts a new chat session for the current project.
@@ -2674,7 +2773,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 remainingToday={showDailyCount && aiMessageQuota ? Math.max(0, aiMessageQuota.limit - aiMessageQuota.used) : null}
                 onSend={handleStarterSend}
                 onEdit={handleStarterEdit}
+                hasManuscript={starterHasManuscript}
+                onSendManuscript={handleStarterManuscriptSend}
               />
+            ) : starterCardsDue ? (
+              // The work's progress has not answered yet: keep the space without a welcome flash.
+              <div data-testid="starter-pending" className="h-[200px]" />
             ) : (
             <div className="h-[200px] flex flex-col items-center justify-center text-[hsl(var(--text-secondary))]">
               <Sparkles size={48} className="mb-4 opacity-30" />
@@ -2811,7 +2915,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               )}
 
               {isStreaming && (
-                <StreamActivityLine startedAt={streamStartedAt} isMobile={isMobile} />
+                <StreamActivityLine startedAt={streamStartedAt} isMobile={isMobile} bodyWrite={readBodyWrite} />
               )}
 
               {/* 作者点了「停止生成」：给出明确的结束状态 */}
@@ -2951,7 +3055,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             disabled={isLoadingHistory}
             sendDisabled={isStreaming || isThinking || isLoadingHistory || newChatPending || isCreatingSession || sessionRecoveryError === currentProjectId}
             // Quota used up: drafting stays possible; send / Enter explains instead of sending.
-            onBlockedSend={aiSendBlocked ? () => setShowQuotaUpgradeModal(true) : undefined}
+            onBlockedSend={aiSendBlocked ? () => { reportQuotaBlockedSend(false); setShowQuotaUpgradeModal(true); } : undefined}
             // Waiting for the round to wrap up before a new chat: still 「正在停止…」.
             onCancel={isStreaming || newChatPending ? handleCancel : undefined}
             isStopping={isStopping || newChatPending}

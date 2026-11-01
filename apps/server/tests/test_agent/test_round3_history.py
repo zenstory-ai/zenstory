@@ -167,18 +167,20 @@ def test_status_cards_without_reasoning_still_plain_string():
 
 
 @pytest.mark.unit
-def test_status_cards_not_appended_when_turn_has_real_text():
-    """有正文的轮次不重复合成状态卡文本（合成只服务于「只有状态卡」的轮次）。"""
+def test_only_clarification_cards_are_appended_when_turn_has_real_text():
+    """有正文的轮次不追加其他状态卡摘要，但补问卡的问题和选项仍要进回放（只追加一次）。"""
     msg = _assistant_message(
         content="已经写完第一章。",
         reasoning_content="思考",
-        status_cards=[CLARIFICATION_CARD],
+        status_cards=[ITERATION_CARD, CLARIFICATION_CARD],
     )
     msg_data = _loader()._format_chat_message_for_history(msg)  # noqa: SLF001
 
     replayed = extract_text_from_message_content(msg_data["content"])
-    assert replayed == "已经写完第一章。"
-    assert "clarification_needed" not in replayed
+    assert replayed.startswith("已经写完第一章。")
+    assert "iteration_exhausted" not in replayed
+    assert replayed.count("主角视角用第一人称还是第三人称？") == 1
+    assert "叙事视角; 时态" in replayed
 
 
 @pytest.mark.unit

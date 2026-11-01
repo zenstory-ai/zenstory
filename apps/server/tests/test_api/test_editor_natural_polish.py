@@ -432,6 +432,9 @@ async def test_natural_polish_failure_logs_only_fixed_diagnostics_and_one_refund
                 side_effect=NaturalPolishFailure(
                     stage="anchor_apply",
                     category="ambiguous_anchor",
+                    model="deepseek-flash",
+                    provider="deepseek",
+                    finish_reason="stop",
                 )
             ),
         ),
@@ -442,7 +445,7 @@ async def test_natural_polish_failure_logs_only_fixed_diagnostics_and_one_refund
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    assert response.status_code == 500
+    assert response.status_code == 502
     reserve.assert_called_once_with(db_session, user.id)
     refund.assert_called_once_with(db_session, user.id, period_start=_CHARGED_PERIOD)
     failure_log = next(
@@ -453,10 +456,69 @@ async def test_natural_polish_failure_logs_only_fixed_diagnostics_and_one_refund
     assert fields["stage"] == "anchor_apply"
     assert fields["failure_category"] == "ambiguous_anchor"
     assert fields["refund_succeeded"] is refund_succeeds
+    assert (fields["provider"], fields["model"], fields["finish_reason"]) == ("deepseek", "deepseek-flash", "stop")
     rendered_failure_log = repr((failure_log.getMessage(), fields))
     assert private_text not in rendered_failure_log
     assert str(project.id) not in rendered_failure_log
     assert user.id not in rendered_failure_log
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("stage", "category", "error_code"),
+    [
+        ("protocol_parse", "invalid_marker", "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE"),
+        ("anchor_apply", "missing_anchor", "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE"),
+        ("anchor_apply", "ambiguous_anchor", "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE"),
+        ("model_call", "model_call_failed", "ERR_NATURAL_POLISH_PROVIDER_FAILED"),
+    ],
+)
+@pytest.mark.parametrize("refund_succeeds", [True, False])
+async def test_natural_polish_failure_is_a_retryable_502_with_a_stable_code(
+    client: AsyncClient,
+    db_session: Session,
+    stage: str,
+    category: str,
+    error_code: str,
+    refund_succeeds: bool,
+):
+    user = _create_user(
+        db_session,
+        username=f"np_502_{category}_{refund_succeeds}",
+        email=f"np_502_{category}_{refund_succeeds}@example.com",
+        is_superuser=False,
+    )
+    project = _create_project(db_session, owner_id=user.id)
+    token = await _login(client, user.username)
+
+    with (
+        patch("api.editor.quota_service.check_ai_conversation_quota", return_value=(True, 0, 3)),
+        patch("api.editor.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as reserve,
+        patch("api.editor.quota_service.release_ai_conversation", return_value=refund_succeeds) as refund,
+        patch(
+            "api.editor.natural_polish_service.natural_polish",
+            new=AsyncMock(side_effect=NaturalPolishFailure(stage=stage, category=category)),
+        ) as polish,
+    ):
+        response = await client.post(
+            "/api/v1/editor/natural-polish",
+            json={"project_id": str(project.id), "selected_text": "原文"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body["error_code"] == error_code
+    assert body["error_detail"] == {
+        "retryable": True,
+        "quota_refunded": refund_succeeds,
+        "failure_category": category,
+    }
+    assert "text" not in body
+    # 一次请求只调用一次模型、只预扣一次、只退一次：服务端不自动重试。
+    polish.assert_awaited_once()
+    reserve.assert_called_once_with(db_session, user.id)
+    refund.assert_called_once_with(db_session, user.id, period_start=_CHARGED_PERIOD)
 
 
 @pytest.mark.integration

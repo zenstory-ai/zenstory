@@ -19,6 +19,7 @@ from models import User
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.quota_service import FEATURE_QUOTA_MAP, quota_service
 from services.subscription.subscription_service import subscription_service
+from tests.quota_periods import current_month_start
 
 
 @pytest.fixture
@@ -591,7 +592,7 @@ class TestCheckFeatureQuota:
             period_end=now + timedelta(days=30),
             material_uploads_used=0,
             last_reset_at=now,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=1),
         )
         db_session.add(quota)
@@ -627,7 +628,7 @@ class TestCheckFeatureQuota:
             period_end=now + timedelta(days=30),
             material_uploads_used=0,
             last_reset_at=now,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=1),
         )
         db_session.add(quota)
@@ -661,7 +662,7 @@ class TestCheckFeatureQuota:
             period_end=now + timedelta(days=30),
             material_decompositions_used=4,
             last_reset_at=now,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=1),
         )
         db_session.add(quota)
@@ -728,7 +729,7 @@ class TestConsumeFeatureQuota:
             period_end=now + timedelta(days=30),
             material_decompositions_used=2,
             last_reset_at=now,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=1),
         )
         db_session.add(quota)
@@ -764,7 +765,7 @@ class TestConsumeFeatureQuota:
             period_end=now + timedelta(days=30),
             material_decompositions_used=5,
             last_reset_at=now,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=1),
         )
         db_session.add(quota)
@@ -804,7 +805,7 @@ class TestReleaseFeatureQuota:
             period_end=now + timedelta(days=30),
             material_decompositions_used=3,
             last_reset_at=now,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=1),
         )
         db_session.add(quota)
@@ -828,7 +829,7 @@ class TestReleaseFeatureQuota:
             period_end=now + timedelta(days=30),
             material_decompositions_used=0,
             last_reset_at=now,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=1),
         )
         db_session.add(quota)

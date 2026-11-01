@@ -67,7 +67,7 @@ function moveTreeFocus(row: HTMLElement, key: string): boolean {
 // FileTreePane component - file tree pane for sidebar
 export const FileTreePane: React.FC = () => {
   const { t } = useTranslation(['editor', 'common']);
-  const { currentProjectId, selectedItem, setSelectedItem, fileTreeVersion } =
+  const { currentProjectId, selectedItem, setSelectedItem, fileTreeVersion, triggerFileTreeRefresh } =
     useProject();
   const { switchToEditor, isMobile } = useMobileLayout();
   const { addMaterial, removeMaterial, isMaterialAttached, isAtLimit } = useMaterialAttachment();
@@ -496,9 +496,11 @@ export const FileTreePane: React.FC = () => {
     // Clear right away so picking the same file again still fires a change.
     e.target.value = "";
     const { files: created, failed } = await importDrafts(projectId, picked, "file_tree");
-    // A batch that failed outright left nothing new to show; a partial one did.
+    // A batch that failed outright left nothing new to show; a partial one did. The shared
+    // refresh reloads this tree and tells the rest of the workbench (the first chat's starter
+    // cards follow what the work now holds), as the editor's own import does.
     if ((!failed || created.length > 0) && mountedRef.current && projectId === activeProjectIdRef.current) {
-      await loadData(false);
+      triggerFileTreeRefresh();
     }
   };
 

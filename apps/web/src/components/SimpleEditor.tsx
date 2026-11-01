@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { QueryClientContext } from "@tanstack/react-query";
-import { Save, Clock, Check, History, Sparkles, Loader2 } from "lucide-react";
+import { Save, Clock, Check, History, Sparkles, Loader2, RotateCcw, X } from "lucide-react";
 import type { FileUpdateVersionIntent } from "../lib/api";
 import { writingStatsApi } from "../lib/writingStatsApi";
 import { FileVersionHistory } from "./FileVersionHistory";
@@ -16,7 +16,11 @@ import { SavedAgoLabel } from "./SavedAgoLabel";
 import { countWords } from "../lib/documentChunker";
 import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
-import { MAX_NATURAL_POLISH_CHARS, preserveSelectionWhitespace } from "../lib/naturalPolish";
+import {
+  MAX_NATURAL_POLISH_CHARS,
+  preserveSelectionWhitespace,
+  readNaturalPolishRetryableFailure,
+} from "../lib/naturalPolish";
 import { naturalPolishApi } from "../lib/naturalPolishApi";
 import { subscriptionQueryKeys } from "../lib/subscriptionApi";
 import type { QuotaResponse } from "../types/subscription";
@@ -245,6 +249,17 @@ export const SimpleEditor = ({
     end: number;
     selection: string;
   } | null>(null);
+  // 去AI味这一次没能用上（模型回复对不回选区、或模型没响应）：留一条提示，作者手动点「再试一次」。
+  // 记住失败时的选区和正文，正文没变就按原选区重试。存文案 key，切换界面语言时提示跟着变。
+  const [naturalPolishRetry, setNaturalPolishRetry] = useState<{
+    messageKey: string;
+    start: number;
+    end: number;
+    content: string;
+  } | null>(null);
+  useEffect(() => {
+    setNaturalPolishRetry(null);
+  }, [fileId]);
 
   latestContentRef.current = content;
   latestTitleRef.current = title;
@@ -665,6 +680,7 @@ export const SimpleEditor = ({
     }
 
     const baselineContent = textarea.value;
+    setNaturalPolishRetry(null);
     naturalPolishBaselineRef.current = { content: baselineContent, start, end, selection };
     naturalPolishBufferRef.current = "";
     const runId = naturalPolishRunIdRef.current + 1;
@@ -762,6 +778,19 @@ export const SimpleEditor = ({
       naturalPolishBaselineRef.current = null;
       naturalPolishBufferRef.current = "";
       if (latestFileIdRef.current === fileId) {
+        const retryable = readNaturalPolishRetryableFailure(error);
+        if (retryable) {
+          const messageKey =
+            retryable.kind === "provider"
+              ? retryable.quotaRefunded
+                ? "editor:naturalPolishProviderFailedRefunded"
+                : "editor:naturalPolishProviderFailed"
+              : retryable.quotaRefunded
+                ? "editor:naturalPolishUnusableRefunded"
+                : "editor:naturalPolishUnusable";
+          setNaturalPolishRetry({ messageKey, start, end, content: baselineContent });
+          return;
+        }
         const errorMessage =
           error instanceof Error && error.message.trim()
             ? error.message
@@ -778,6 +807,19 @@ export const SimpleEditor = ({
     onEnterDiffReview,
     queryClient,
   ]);
+
+  const retryNaturalPolish = useCallback(() => {
+    const failed = naturalPolishRetry;
+    setNaturalPolishRetry(null);
+    const textarea = textareaRef.current;
+    if (failed && textarea && textarea.value === failed.content) {
+      // 正文没动过：按失败时的选区再试一次。正文改过就用当前选区（没有就提示先选中）。
+      selectionRangeRef.current = { start: failed.start, end: failed.end };
+      setSelectedText(textarea.value.substring(failed.start, failed.end).trim());
+      textarea.setSelectionRange(failed.start, failed.end);
+    }
+    void startNaturalPolish();
+  }, [naturalPolishRetry, startNaturalPolish]);
 
   // Cleanup selection timeout
   useEffect(() => {
@@ -1227,6 +1269,41 @@ export const SimpleEditor = ({
       )}
 
       {/* Status bar - hide during review mode */}
+      {!isReviewMode && naturalPolishRetry && (
+        <div
+          role="alert"
+          data-testid="natural-polish-retry"
+          className="shrink-0 mx-3 sm:mx-6 mb-1 flex flex-wrap items-center gap-2 rounded-lg border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.1)] px-3 py-2 text-xs"
+        >
+          <p className="min-w-0 flex-1 text-[hsl(var(--warning-text))]">{t(naturalPolishRetry.messageKey)}</p>
+          <button
+            type="button"
+            onClick={retryNaturalPolish}
+            disabled={!projectId || readOnly || isStreaming || isNaturalPolishRunning}
+            title={isLimitedAiQuota ? t("editor:naturalPolishTooltipFree") : undefined}
+            className="max-md:min-h-11 px-2 py-1.5 rounded flex items-center gap-1 text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RotateCcw size={14} />
+            {t("editor:naturalPolishRetry")}
+            {/* A retry reserves a new AI message, even right after the notice says the last one came back. */}
+            {isLimitedAiQuota && (
+              <span className="text-[10px] text-[hsl(var(--text-secondary))]">
+                {t("editor:naturalPolishCost")}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setNaturalPolishRetry(null)}
+            aria-label={t("editor:naturalPolishDismiss")}
+            title={t("editor:naturalPolishDismiss")}
+            className="max-md:min-h-11 max-md:min-w-11 p-1.5 rounded flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {!isReviewMode && (
         <div className="shrink-0 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 bg-[hsl(var(--bg-secondary)/0.3)]">
           <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">

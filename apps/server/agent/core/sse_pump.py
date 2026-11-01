@@ -5,7 +5,7 @@
 EventSource 都会忽略以冒号开头的行），避免 router 排队、工具参数生成等长时间
 无输出时被代理当作闲置连接切断。
 
-时限到期时先发可选的真实终态，再取消并等后台 task（生成器按「取消」路径收尾：
+时限到期时先发可选的真实终态（一个终止帧，或状态卡加终止帧），再取消并等后台 task（生成器按「取消」路径收尾：
 后台落库部分历史、补存进行中的文件正文、释放会话持有），最后抛出 ``StreamDeadlineExceeded``，由
 API 层发送终止帧并决定计费。作者主动停止（``request_stop``）走同一条收尾，
 抛出 ``StreamStoppedByUser``。
@@ -56,7 +56,7 @@ class SSEStreamPump:
         heartbeat_interval_s: float,
         deadline_s: float | None = None,
         on_item: Callable[[Any], None] | None = None,
-        on_deadline: Callable[[], str | None] | None = None,
+        on_deadline: Callable[[], str | list[str] | None] | None = None,
     ) -> None:
         self._source = source
         self._on_item = on_item
@@ -198,8 +198,10 @@ class SSEStreamPump:
         # may retain the session lease or finish a pending write past the edge.
         self.cancel()
         if self._on_deadline is not None:
-            frame = self._on_deadline()
-            if frame is not None:
+            announced = self._on_deadline()
+            # 一个终止帧，或「状态卡 + 终止帧」：都要在等收尾之前发出。
+            frames = [announced] if isinstance(announced, str) else announced or []
+            for frame in frames:
                 if self._on_item is not None:
                     self._on_item(frame)
                 yield frame

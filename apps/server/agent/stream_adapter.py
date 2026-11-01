@@ -19,9 +19,7 @@ from utils.text_metrics import count_words
 
 from .constants import coerce_bool
 from .core.events import (
-    StreamEvent as SSEEvent,
-)
-from .core.events import (
+    WALL_CLOCK_LIMIT,
     agent_selected_event,
     content_end_event,
     content_event,
@@ -40,6 +38,10 @@ from .core.events import (
     tool_call_event,
     tool_result_event,
 )
+from .core.events import (
+    StreamEvent as SSEEvent,
+)
+from .core.round_outcome import RUN_DEADLINE_STOP_REASON
 from .core.run_meter import AgentRunMeter
 from .core.stream_errors import REPETITION_LOOP_STOP_REASON, error_message_for, stream_error_from_event_data
 from .core.stream_processor import PREBODY_FILE_ID, StreamProcessor, StreamResult, StreamState
@@ -608,6 +610,10 @@ class StreamAdapter:
 
         elif event_type == StreamEventType.ITERATION_EXHAUSTED:
             # Iteration limit reached
+            if data.get("limit") == WALL_CLOCK_LIMIT:
+                # 时限暂停卡（runner 的时限收尾或图层收尾）：这一轮落可「继续」的时限原因。
+                # 图层收尾时每个 run 都已 end_turn，不靠这张卡就记成正常结束、「继续」接不上。
+                self._last_message_stop_reason = RUN_DEADLINE_STOP_REASON
             yield iteration_exhausted_event(
                 layer=data.get("layer", ""),
                 iterations_used=data.get("iterations_used", 0),

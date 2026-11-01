@@ -73,6 +73,34 @@ async def test_same_run_structured_stop_survives_following_error(reason):
     assert not any(event.type == EventType.DONE for event in events)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("card", "expected"),
+    [
+        # 图层收尾：每个 run 都是 end_turn，时限暂停卡让这一轮落可「继续」的原因。
+        ({"layer": "collaboration", "limit": "wall_clock"}, "run_deadline_exceeded"),
+        # 协作轮数用完不是时限：stop_reason 照旧跟最后一个 run。
+        ({"layer": "collaboration"}, "end_turn"),
+    ],
+)
+async def test_wall_clock_pause_card_records_the_resumable_deadline_stop(card, expected):
+    adapter = StreamAdapter()
+
+    async def workflow():
+        yield WorkflowStreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
+        yield WorkflowStreamEvent(type=StreamEventType.MESSAGE_END, data={
+            "stop_reason": "end_turn", "usage": {"input_tokens": 4, "output_tokens": 2},
+        })
+        yield WorkflowStreamEvent(type=StreamEventType.ITERATION_EXHAUSTED, data={
+            "iterations_used": 1, "max_iterations": 12, "reason": "r", "last_agent": "writer", **card,
+        })
+
+    events = [event async for event in adapter.process_workflow_events(workflow())]
+    assert adapter.get_last_message_metadata()["stop_reason"] == expected
+    assert adapter.get_last_message_metadata()["usage"]["input_tokens"] == 4
+    assert sum(event.type == EventType.ITERATION_EXHAUSTED for event in events) == 1
+
+
 @pytest.fixture
 def adapter_config():
     """Create test adapter configuration."""

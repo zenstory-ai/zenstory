@@ -640,6 +640,11 @@ def agent_selected_event(
     )
 
 
+# iteration_exhausted 的 limit：请求时间快用完了（runner 的时限收尾、图层收尾、墙钟硬超时且已有写入）。
+# 前端据此显示「这一轮先做到这里」与继续按钮；StreamAdapter 据此把这一轮记成可「继续」的时限截停。
+WALL_CLOCK_LIMIT = "wall_clock"
+
+
 class IterationExhaustedFile(BaseModel):
     """A file named on an iteration_exhausted card: id and title only, never its text."""
     id: str
@@ -761,6 +766,28 @@ def iteration_exhausted_event(
         if value is None:
             data.pop(key)
     return StreamEvent(type=EventType.ITERATION_EXHAUSTED, data=data)
+
+
+def iteration_exhausted_status_card(data: dict[str, Any]) -> dict[str, Any]:
+    """iteration_exhausted 事件落库成 message_metadata.status_cards 里的一张卡（前端 statusCards 的形状）。"""
+    return {
+        "type": "iteration_exhausted",
+        "layer": data.get("layer"),
+        "iterationsUsed": data.get("iterations_used"),
+        "maxIterations": data.get("max_iterations"),
+        "reason": data.get("reason"),
+        "lastAgent": data.get("last_agent"),
+        "limit": data.get("limit"),
+        # 空文件补不成：未写完 / 已撤销的文件（id 与标题），刷新后照样说清楚。
+        **{
+            card_key: data[event_key]
+            for event_key, card_key in (
+                ("unfinished_files", "unfinishedFiles"),
+                ("rolled_back_files", "rolledBackFiles"),
+            )
+            if isinstance(data.get(event_key), list)
+        },
+    }
 
 
 def session_started_event(session_id: str) -> StreamEvent:

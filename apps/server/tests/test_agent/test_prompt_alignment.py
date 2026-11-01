@@ -11,6 +11,7 @@ import pytest
 
 from agent.prompts.base import (
     AUTHOR_REPLY_PROTOCOL,
+    CONTENT_RED_LINES,
     DIALOGUE_GUIDELINES,
     IMPACT_ANALYSIS_EXAMPLES,
     OUTPUT_PROTOCOL,
@@ -53,7 +54,8 @@ def test_project_ids_preserve_shared_protocol_prefix_and_folder_isolation(folder
 
     shared_prefix = commonprefix(rendered)
     for protocol in (
-        PRODUCT_IDENTITY_PROTOCOL, OUTPUT_PROTOCOL, AUTHOR_REPLY_PROTOCOL, UNIFIED_EXECUTION_PROTOCOL,
+        PRODUCT_IDENTITY_PROTOCOL, CONTENT_RED_LINES, OUTPUT_PROTOCOL, AUTHOR_REPLY_PROTOCOL,
+        UNIFIED_EXECUTION_PROTOCOL,
     ):
         assert protocol in shared_prefix
 
@@ -61,7 +63,7 @@ def test_project_ids_preserve_shared_protocol_prefix_and_folder_isolation(folder
     assert fixed_tool_rules in shared_prefix, "项目目录 ID 不应打断固定的流式写入、标题或交互协议"
 
     static_sections = [
-        config["role_definition"], PRODUCT_IDENTITY_PROTOCOL, OUTPUT_PROTOCOL,
+        config["role_definition"], PRODUCT_IDENTITY_PROTOCOL, CONTENT_RED_LINES, OUTPUT_PROTOCOL,
         AUTHOR_REPLY_PROTOCOL, UNIFIED_EXECUTION_PROTOCOL, fixed_tool_rules,
         config["capabilities"], config["content_structure"], config["file_types"],
         config["writing_guidelines"], DIALOGUE_GUIDELINES, IMPACT_ANALYSIS_EXAMPLES,

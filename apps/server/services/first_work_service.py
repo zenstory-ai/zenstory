@@ -11,6 +11,7 @@ from sqlmodel import Session, col, select, update
 
 from config.datetime_utils import utcnow
 from config.feature_flags import get_first_work_rollout_percent, is_first_work_onboarding_enabled
+from config.project_templates import get_default_project_name
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import File, Project, User, UserPersonaProfile, WorkspaceOnboarding
@@ -26,6 +27,8 @@ PERSONA_TYPES = {"short_story": "short", "screenwriter": "screenplay"}
 class FirstWorkState(BaseModel):
     status: str
     project_id: str | None = None
+    # Lets the dashboard match the selected type before its project list has refreshed.
+    project_type: str | None = None
     file_id: str | None = None
     available: bool = False
     static_guidance: bool = False
@@ -56,7 +59,8 @@ def _state(session: Session, record: WorkspaceOnboarding | None) -> FirstWorkSta
     project_available = bool(project and project.owner_id == record.user_id and not project.is_deleted)
     available = bool(project_available and file and file.project_id == record.project_id and not file.is_deleted)
     return FirstWorkState(
-        status=record.status, project_id=record.project_id, file_id=record.file_id,
+        status=record.status, project_id=record.project_id,
+        project_type=project.project_type if project_available else None, file_id=record.file_id,
         available=available, static_guidance=project_available and record.first_ai_requested_at is None,
         opened_at=record.opened_at, first_manual_write_at=record.first_manual_write_at,
         first_ai_requested_at=record.first_ai_requested_at,
@@ -122,7 +126,8 @@ def initialize_first_work(
             if isinstance(personas, list):
                 project_type = next((PERSONA_TYPES[p] for p in personas if isinstance(p, str) and p in PERSONA_TYPES), "novel")
         english = lang == "en"
-        project = Project(name="My First Work" if english else "我的首部作品",
+        # The same default name as a work of this type created from the dashboard.
+        project = Project(name=get_default_project_name(project_type, lang),
                           owner_id=user_id, project_type=project_type)
         stage_project_with_default_folders(session, project, lang)
         script = project_type == "screenplay"

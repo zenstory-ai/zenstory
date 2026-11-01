@@ -49,6 +49,7 @@ class ErrorCode:
     AUTH_INVITE_CODE_REQUIRED = "ERR_AUTH_INVITE_CODE_REQUIRED"
     AUTH_REGISTRATION_FAILED = "ERR_AUTH_REGISTRATION_FAILED"
     AUTH_RESEND_FAILED = "ERR_AUTH_RESEND_FAILED"
+    AUTH_VERIFICATION_COOLDOWN = "ERR_AUTH_VERIFICATION_COOLDOWN"
     AUTH_EMAIL_UNDELIVERABLE = "ERR_AUTH_EMAIL_UNDELIVERABLE"
     AUTH_RATE_LIMIT_EXCEEDED = "ERR_AUTH_RATE_LIMIT_EXCEEDED"
     AUTH_PASSWORD_RESET_CODE_INVALID = "ERR_AUTH_PASSWORD_RESET_CODE_INVALID"
@@ -194,6 +195,12 @@ class ErrorCode:
     AGENT_OUTPUT_REPEATEDLY_TRUNCATED = "ERR_AGENT_OUTPUT_REPEATEDLY_TRUNCATED"
     AGENT_FILE_SAVE_FAILED = "ERR_AGENT_FILE_SAVE_FAILED"
 
+    # ==================== Editor Errors ====================
+
+    # 去AI味：模型回复没法安全套回选区，或模型服务这次没响应。都已退额、可以直接再试。
+    NATURAL_POLISH_OUTPUT_UNUSABLE = "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE"
+    NATURAL_POLISH_PROVIDER_FAILED = "ERR_NATURAL_POLISH_PROVIDER_FAILED"
+
 
 # Error messages mapping (for server-side reference, if needed)
 # Note: These messages are primarily used by frontend i18n
@@ -219,7 +226,8 @@ ERROR_MESSAGES = {
         "ERR_AUTH_INVALID_VERIFICATION_CODE": "验证码无效或已过期",
         "ERR_AUTH_INVITE_CODE_REQUIRED": "请输入邀请码",
         "ERR_AUTH_REGISTRATION_FAILED": "注册失败，请稍后重试",
-        "ERR_AUTH_RESEND_FAILED": "验证码发送失败，请稍后重试",
+        "ERR_AUTH_RESEND_FAILED": "验证码没有发出去，请稍后重试；多次失败请检查邮箱地址是否正确",
+        "ERR_AUTH_VERIFICATION_COOLDOWN": "验证码刚发过，请稍等再重发；先看看垃圾箱或 QQ 邮箱的广告邮件",
         "ERR_AUTH_EMAIL_UNDELIVERABLE": "无法向这个邮箱发送验证码，请检查并修改邮箱地址",
         "ERR_AUTH_RATE_LIMIT_EXCEEDED": "请求过于频繁，请稍后重试",
         "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "验证码错误或已过期，请重新输入或重新发送",
@@ -327,6 +335,8 @@ ERROR_MESSAGES = {
         "ERR_AGENT_OUTPUT_TRUNCATED": "这一步 AI 在思考阶段达到输出上限，尚未交付该步骤的内容。可以回复「继续」再尝试；任务较大时，建议先指定其中一部分。",
         "ERR_AGENT_OUTPUT_REPEATEDLY_TRUNCATED": "这一步再次在思考阶段达到输出上限，尚未交付该步骤的内容。建议缩小请求范围，例如一次只写一章。",
         "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
+        "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE": "这次去AI味的结果没法准确对回选中的文字，原文没有改动，可以直接再试，或缩小选区",
+        "ERR_NATURAL_POLISH_PROVIDER_FAILED": "AI 服务这次没有响应，原文没有改动，可以稍后再试",
     },
     "en": {
         "ERR_INTERNAL_SERVER_ERROR": "Internal server error, please try again later",
@@ -349,7 +359,8 @@ ERROR_MESSAGES = {
         "ERR_AUTH_INVALID_VERIFICATION_CODE": "Invalid or expired verification code",
         "ERR_AUTH_INVITE_CODE_REQUIRED": "Invite code is required",
         "ERR_AUTH_REGISTRATION_FAILED": "Registration failed, please try again later",
-        "ERR_AUTH_RESEND_FAILED": "Failed to send verification code, please try again later",
+        "ERR_AUTH_RESEND_FAILED": "The verification code was not sent. Please try again shortly; if it keeps failing, check that the email address is correct",
+        "ERR_AUTH_VERIFICATION_COOLDOWN": "A code was just sent. Please wait before resending, and check your spam folder",
         "ERR_AUTH_EMAIL_UNDELIVERABLE": "We cannot send a code to this email. Check and correct the address.",
         "ERR_AUTH_RATE_LIMIT_EXCEEDED": "Too many requests, please try again later",
         "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "That code is wrong or has expired. Check it or send a new one.",
@@ -457,6 +468,8 @@ ERROR_MESSAGES = {
         "ERR_AGENT_OUTPUT_TRUNCATED": "The AI reached its output limit while thinking and did not deliver this step. You can reply \"continue\" to try again, or ask for one part of a larger task.",
         "ERR_AGENT_OUTPUT_REPEATEDLY_TRUNCATED": "This step reached its output limit again while thinking, without delivering content. Try a smaller request, such as one chapter at a time.",
         "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
+        "ERR_NATURAL_POLISH_OUTPUT_UNUSABLE": "This Humanize result couldn't be matched back to the selected text, so nothing was changed. Try again, or select less text",
+        "ERR_NATURAL_POLISH_PROVIDER_FAILED": "The AI service didn't respond this time, so nothing was changed. Please try again shortly",
     },
 }
 

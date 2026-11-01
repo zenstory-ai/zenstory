@@ -111,6 +111,26 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
     ],
     [{ reason: 'completed', charged: true, saved_output: false, no_file_changes: true }, true, '本轮没有改动文件'],
     [{ reason: 'incomplete', charged: true, saved_output: true }, true, '已保存本轮完成的修改，可以继续写后续内容。'],
+    // A paused round (time limit) that wrote files names them, as the receipt when the reply's summary is short or missing.
+    [
+      { reason: 'incomplete', charged: true, saved_output: true,
+        written_files: [{ id: 'ch-3', title: '第3章', words: 3120 }, { id: 'ch-4', title: '第4章', partial: true }] },
+      true,
+      '已保存《第3章》3,120 字、《第4章》（部分修改未生效） · 本轮尚未完成，可以继续',
+    ],
+    // Files named without a confirmed save, or on an uncounted round, never leave an empty note.
+    [
+      { reason: 'incomplete', charged: true, saved_output: false,
+        written_files: [{ id: 'ch-3', title: '第3章', words: 3120 }] },
+      true,
+      '本轮尚未完成，可以继续。',
+    ],
+    [
+      { reason: 'incomplete', charged: false, saved_output: true,
+        written_files: [{ id: 'ch-3', title: '第3章', words: 3120 }] },
+      true,
+      '已保存《第3章》3,120 字 · 本轮尚未完成，可以继续',
+    ],
     [{ reason: 'incomplete', charged: true, saved_output: false }, true, '本轮尚未完成，可以继续。'],
     [{ reason: 'incomplete', charged: true, saved_output: false, no_file_changes: true }, true, '本轮尚未写入新内容，可以继续完成。'],
     [{ reason: 'incomplete', charged: true, saved_output: false, removed_files: ['临时空文件'] }, true, '本轮尚未完成，可以继续。'],
@@ -119,12 +139,31 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
     expect(screen.getByTestId('round-end-note')).toHaveTextContent(new RegExp(`^${text}$`))
   })
 
+  it('does not offer to continue in the file receipt once today\'s messages are used up', () => {
+    render(<RoundEndNote
+      outcome={outcome({ reason: 'incomplete', charged: true, saved_output: true,
+        written_files: [{ id: 'ch-3', title: '第3章', words: 3120 }] })}
+      showDailyCount
+      nextStepsBlocked
+    />)
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent(/^已保存《第3章》3,120 字 · 本轮尚未完成$/)
+  })
+
+  it.each([
+    [{ reason: 'incomplete', charged: true, saved_output: true }, '已保存本轮完成的修改。'],
+    [{ reason: 'incomplete', charged: true, saved_output: false }, '本轮尚未完成。'],
+    [{ reason: 'incomplete', charged: true, saved_output: false, no_file_changes: true }, '本轮尚未写入新内容。'],
+  ])('%j does not invite 继续 when today\'s AI messages are used up: 「%s」', (raw, text) => {
+    render(<RoundEndNote outcome={outcome(raw)} showDailyCount nextStepsBlocked />)
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent(new RegExp(`^${text}$`))
+  })
+
   it('reads only well-formed written files, and older messages without them as before', () => {
     expect(outcome({ reason: 'user_stopped', charged: true, saved_output: true }).writtenFiles).toEqual([])
     expect(outcome({
       reason: 'user_stopped', charged: true, saved_output: true,
       written_files: [{ id: 'a', title: '第1章', words: 12 }, { id: 'b', title: '' }, 'x', { id: 'c', title: '第3章', words: 'many' }],
-    }).writtenFiles).toEqual([{ title: '第1章', words: 12 }, { title: '第3章', words: null }])
+    }).writtenFiles).toEqual([{ id: 'a', title: '第1章', words: 12 }, { id: 'c', title: '第3章', words: null }])
   })
 
   it('ignores messages that did not end in a stop or disconnect', () => {

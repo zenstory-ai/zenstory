@@ -124,7 +124,7 @@ describe('actual embedded current OAuth default mode', () => {
       expect.soft(readState()).toMatchObject({ id: 'A', loading: false })
       expect.soft(localStorage.getItem('access_token')).toBe(a.access_token)
       if (mode === 'external-query') expect(hrefWrites).toEqual([`${target}?token=${a.access_token}`])
-      else expect(readState().path).toBe(mode === 'paid-hash' ? '/dashboard/billing?plan=pro' : '/dashboard')
+      else expect(readState().path).toBe(mode === 'paid-hash' ? '/dashboard/billing?plan=pro&source=auth_plan_intent' : '/dashboard')
       expect(calls.filter(call => call.path === '/api/auth/me')).toHaveLength(1)
     })
 })
@@ -195,7 +195,7 @@ for (const strict of [false, true]) {
       }
       observe(`login-current-${mode}`, strict)
       expect(readState().id).toBe('A')
-      expect(window.location.pathname + window.location.search + window.location.hash).toBe({ recent: '/project/A-recent', saved: '/project/A-old', paid: '/dashboard/billing?plan=pro', 'deep-link': '/dashboard/settings?tab=privacy#choice' }[mode])
+      expect(window.location.pathname + window.location.search + window.location.hash).toBe({ recent: '/project/A-recent', saved: '/project/A-old', paid: '/dashboard/billing?plan=pro&source=auth_plan_intent', 'deep-link': '/dashboard/settings?tab=privacy#choice' }[mode])
       expect(calls.filter(call => call.path === '/api/v1/projects')).toHaveLength(mode === 'paid' || mode === 'deep-link' ? 0 : 1)
     })
     it.each(['logout', 'new B', 'page departure'] as const)('obsolete Login project-list response after %s cannot select A route', async boundary => {

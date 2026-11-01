@@ -69,6 +69,12 @@ QUERY_NAME_MATCH_BOOST = 0.5
 # 名字太短（单字）作为子串极易误命中，不参与加成。
 MIN_QUERY_NAME_CHARS = 2
 
+# 前一章条目（relation="previous"）正文前的一行说明；写在每轮上下文里，不进固定前缀。
+# 见 .agents/notes/implemented/bug-fix/2026-10-31-prose-craft-and-continuity-self-check.md。
+PREVIOUS_CHAPTER_NOTE = (
+    "（前一章用于承接情节；文风以作者的 writing_style、样文和作者自己写或改过的章节为准）"
+)
+
 
 def _render_project_notes(notes: str) -> list[str]:
     """备注按来源分开渲染：作者确认 / 未标来源（见 config/project_notes）。
@@ -1906,7 +1912,7 @@ class ContextAssembler:
                 parts.append("")
 
             if project_status.get("writing_style"):
-                parts.append("【写作风格】")
+                parts.append("【写作风格】（只记作者要求或确认的文风；与作者原话不一致时以作者原话为准）")
                 parts.append(project_status["writing_style"])
                 parts.append("")
 
@@ -1988,6 +1994,9 @@ class ContextAssembler:
                 relation = item.metadata.get("relation", "")
                 prefix = f"[{relation}] " if relation else ""
                 parts.append(self._item_heading(item, prefix))
+                if relation == "previous":
+                    # 批量续写时前一章的碎句会逐章自我强化：它只用来接情节，文风另有来源。
+                    parts.append(PREVIOUS_CHAPTER_NOTE)
                 parts.append(item.content)
                 parts.append("")
                 add_block("【正文详情】", item, start)

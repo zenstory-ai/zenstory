@@ -169,7 +169,8 @@ for (const width of [390, 1440]) {
         ? page.getByText(unavailable, { exact: true }).or(page.getByText(deletedNotice, { exact: true }))
         : page.getByText(unavailable, { exact: true });
       await expect(message).toBeVisible();
-      expect(state.requests.filter(r => r.method === 'POST' && !/suggest|stats/.test(r.path))).toEqual([]);
+      // Suggestions, stats and the new-user file-open milestone are read-side telemetry, not writes.
+      expect(state.requests.filter(r => r.method === 'POST' && !/suggest|stats|activation\/events/.test(r.path))).toEqual([]);
     }
     expect(state.errors).toEqual([]);
   });

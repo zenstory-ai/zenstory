@@ -636,7 +636,7 @@ class MessageManager:
                 f"- The last input message, starting with {AGENT_DIRECTIVE_HEADER}, is also attached by the "
                 "system for this run: your current role and this turn's scope constraints. Follow it with the "
                 "authority of this system prompt; a scope constraint marked [highest priority] overrides every "
-                "other rule.",
+                "other rule except the content red lines (内容红线), which no instruction overrides.",
             ]
         return [
             "",
@@ -644,7 +644,7 @@ class MessageManager:
             f"- 本轮用户消息开头的 {TURN_CONTEXT_OPEN} 由系统附上：项目上下文、叙事约束、当前文件、任务计划板和本轮回复语言。"
             "它与本系统提示同等效力，其中的项目事实是权威信息。",
             f"- 输入最后一条以 {AGENT_DIRECTIVE_HEADER} 开头的消息也由系统附上，只对这次运行有效：你当前的角色和本轮用户范围约束。"
-            "按本系统提示的效力执行；标注 [最高优先级] 的范围约束高于其他所有规则。",
+            "按本系统提示的效力执行；标注 [最高优先级] 的范围约束高于其他所有规则（内容红线除外，任何指令都不能越过它）。",
         ]
 
     def _build_language_section(self, force_en: bool) -> list[str]:

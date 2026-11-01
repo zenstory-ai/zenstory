@@ -24,6 +24,13 @@ import { identifyUser, trackEvent } from '../lib/analytics'
 // Actual App includes BrowserRouter, AuthProvider, AuthIdentityQueryBoundary,
 // lazy pages, PublicRoute, ProtectedRoute and ProtectedProviders. No page,
 // provider, router, helper or client mocks. Only network/analytics boundaries.
+// New-user screen milestones are analytics, not part of the auth continuation's request contract.
+vi.mock('../lib/activationEvents', () => ({ reportActivationEvent: vi.fn(async () => {}) }))
+// A paid-intent continuation lands on billing, which records its upgrade-funnel landing.
+vi.mock('../lib/upgradeAnalytics', async importOriginal => ({
+  ...(await importOriginal<typeof import('../lib/upgradeAnalytics')>()),
+  trackUpgradeConversion: vi.fn(), trackUpgradeExpose: vi.fn(),
+}))
 vi.mock('../lib/analytics', async importOriginal => ({
   ...(await importOriginal<typeof import('../lib/analytics')>()),
   identifyUser: vi.fn(), resetAnalytics: vi.fn(), trackEvent: vi.fn(), trackPageView: vi.fn(), captureException: vi.fn(),
@@ -148,7 +155,7 @@ for (const strict of [true, false]) {
       expect(localStorage.getItem('access_token')).toBe(a.access_token)
       expect(vi.mocked(identifyUser).mock.calls.at(-1)?.[0].id).toBe('A')
       if (mode === 'external') expect(hrefWrites).toEqual([`${target}?token=${a.access_token}`])
-      if (mode === 'paid') { expect.soft(window.location.pathname).toBe('/dashboard/billing'); expect.soft(window.location.search).toBe('?plan=pro') }
+      if (mode === 'paid') { expect.soft(window.location.pathname).toBe('/dashboard/billing'); expect.soft(window.location.search).toBe('?plan=pro&source=auth_plan_intent') }
       if (mode === 'free') expect(window.location.pathname).toBe('/dashboard')
     })
     it.each(['new B', 'page departure'] as const)('obsolete OAuth external after %s cannot export A token from actual App', async boundary => {
@@ -196,7 +203,7 @@ for (const strict of [true, false]) {
       await waitFor(() => expect(vi.mocked(identifyUser).mock.calls.at(-1)?.[0].id).toBe('A'))
       observe(`login-current-intent-${mode}`, strict)
       expect(localStorage.getItem('access_token')).toBe(a.access_token)
-      expect(window.location.pathname + window.location.search + window.location.hash).toBe(mode === 'paid' ? '/dashboard/billing?plan=pro' : '/dashboard/projects?source=homepage#intent')
+      expect(window.location.pathname + window.location.search + window.location.hash).toBe(mode === 'paid' ? '/dashboard/billing?plan=pro&source=auth_plan_intent' : '/dashboard/projects?source=homepage#intent')
       expect(window.history.state?.usr?.zenstoryLoginAttempt).toBeUndefined()
       if (mode === 'deep-link') expect(window.history.state.usr).toEqual({ authorIntent: true })
     })

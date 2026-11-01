@@ -13,13 +13,19 @@ from sqlmodel import Session, func, select
 
 from config.datetime_utils import beijing_day_bounds, utcnow
 from models import (
+    ACTIVATION_EVENT_AI_FILE_OPENED,
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT,
     ACTIVATION_EVENT_FIRST_AI_REPLY_SUCCEEDED,
     ACTIVATION_EVENT_NAMES,
     ACTIVATION_EVENT_PROJECT_CREATED,
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
+    CHANGE_SOURCE_AI,
+    CLIENT_REPORTED_ACTIVATION_EVENTS,
     ActivationEvent,
+    File,
+    FileVersion,
+    Project,
     User,
 )
 from utils.logger import get_logger, log_with_context
@@ -213,6 +219,62 @@ class ActivationEventService:
                 error=str(exc),
                 error_type=type(exc).__name__,
             )
+
+    def record_client_event(
+        self,
+        session: Session,
+        *,
+        user_id: str,
+        event_name: str,
+        project_id: str | None,
+        file_id: str | None,
+        event_metadata: dict,
+    ) -> bool:
+        """Record a screen milestone the web app reported; returns whether the account now has it.
+
+        The client only names the event and sends enum/boolean metadata. Ownership is
+        checked here: a project the account does not own is dropped, and ``ai_file_opened``
+        only counts an owned, live file that has at least one AI-persisted version (its
+        ``file_type`` is read from the stored file). Anything else returns ``False``
+        without writing, so the endpoint never reveals another account's files.
+        """
+        if event_name not in CLIENT_REPORTED_ACTIVATION_EVENTS:
+            raise ValueError(f"Activation event is not client-reported: {event_name}")
+
+        metadata = dict(event_metadata)
+        if event_name == ACTIVATION_EVENT_AI_FILE_OPENED:
+            file = session.get(File, file_id) if file_id else None
+            project = session.get(Project, file.project_id) if file is not None else None
+            if (
+                file is None
+                or file.is_deleted
+                or project is None
+                or project.is_deleted
+                or project.owner_id != user_id
+            ):
+                return False
+            has_ai_version = session.exec(
+                select(FileVersion.id)
+                .where(FileVersion.file_id == file.id, FileVersion.change_source == CHANGE_SOURCE_AI)
+                .limit(1)
+            ).first()
+            if has_ai_version is None:
+                return False
+            project_id = project.id
+            metadata["file_type"] = file.file_type
+        elif project_id is not None:
+            project = session.get(Project, project_id)
+            if project is None or project.owner_id != user_id:
+                project_id = None
+
+        self.record_once(
+            session,
+            user_id=user_id,
+            event_name=event_name,
+            project_id=project_id,
+            event_metadata=metadata,
+        )
+        return True
 
     def get_funnel_stats(self, session: Session, *, days: int = 7) -> ActivationFunnelStats:
         """New-user funnel: of the customers who signed up in the window, how many got at least
