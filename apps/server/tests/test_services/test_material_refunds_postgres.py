@@ -30,6 +30,14 @@ TABLES = [
 ]
 MONTH_START = datetime(2026, 9, 30, 16, tzinfo=UTC)
 MONTH_END = datetime(2026, 10, 31, 16, tzinfo=UTC)
+# Refunds only return a unit to the month that was charged, so the quota
+# clock stays inside the fixture month instead of following the wall clock.
+INSIDE_MONTH = datetime(2026, 10, 6, 8, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def quota_clock_inside_fixture_month(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("services.quota_service.utcnow", lambda: INSIDE_MONTH)
 
 
 @pytest.fixture(scope="module")

@@ -42,6 +42,7 @@ from models.material_models import (
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.infra.upload_storage import S3UploadStorage, UploadReferenceError
 from services.material.novel_text import decode_novel_bytes
+from tests.quota_periods import current_month_start
 
 # ==================== Helper Functions ====================
 
@@ -454,7 +455,7 @@ def test_material_decompose_atomic_quota_consumption_caps_concurrent_requests(
         period_start=now,
         period_end=now + timedelta(days=30),
         material_decompositions_used=4,
-        monthly_period_start=now - timedelta(days=1),
+        monthly_period_start=current_month_start(now),
         monthly_period_end=now + timedelta(days=30),
         last_reset_at=now,
     )

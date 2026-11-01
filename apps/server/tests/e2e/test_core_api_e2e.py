@@ -31,6 +31,7 @@ from models.subscription import (
     UserSubscription,
 )
 from services.core.auth_service import hash_password
+from tests.quota_periods import current_month_start
 
 pytestmark = pytest.mark.e2e
 
@@ -542,7 +543,7 @@ async def test_subscription_status_quota_and_history_roundtrip(client: AsyncClie
         material_decompositions_used=1,
         skill_creates_used=3,
         inspiration_copies_used=4,
-        monthly_period_start=datetime.utcnow() - timedelta(days=2),
+        monthly_period_start=current_month_start(datetime.utcnow()),
         monthly_period_end=datetime.utcnow() + timedelta(days=28),
     )
     history = SubscriptionHistory(

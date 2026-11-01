@@ -13,6 +13,7 @@ from models.material_models import IngestionJob, Novel
 from models.subscription import SubscriptionPlan, UsageQuota
 from services.material.ingestion_jobs_service import IngestionJobsService
 from tests.conftest import TestSessionLocal
+from tests.quota_periods import current_month_start
 
 
 def _make_user_with_quota(db_session: Session, username: str, used: int = 1) -> User:
@@ -33,7 +34,7 @@ def _make_user_with_quota(db_session: Session, username: str, used: int = 1) -> 
             period_start=now,
             period_end=now + timedelta(days=30),
             material_decompositions_used=used,
-            monthly_period_start=now - timedelta(days=1),
+            monthly_period_start=current_month_start(now),
             monthly_period_end=now + timedelta(days=30),
             last_reset_at=now,
         )
