@@ -43,6 +43,14 @@ const mockGetProgress = vi.hoisted(() => vi.fn(async () => [] as unknown[]))
 const mockGetFile = vi.hoisted(() => vi.fn())
 
 let testQueryClient: QueryClient
+// ChatPanel is memoized without props and these tests mock its contexts as plain hooks, so
+// rerendering the same element would not re-run it; a changing throwaway prop makes it read the
+// updated mock state now instead of whenever some unrelated async update happens to land.
+const RevisionedChatPanel = ChatPanel as unknown as React.ComponentType<{ revision: number }>
+let chatPanelRevision = 0
+const nextChatPanel = () => (
+  <QueryClientProvider client={testQueryClient}><RevisionedChatPanel revision={++chatPanelRevision} /></QueryClientProvider>
+)
 const render = (ui: React.ReactElement) => {
   testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(<QueryClientProvider client={testQueryClient}>{ui}</QueryClientProvider>)
@@ -475,7 +483,7 @@ describe('ChatPanel mount smoke', () => {
     expect(mockProjectState.setSelectedItem).not.toHaveBeenCalled()
 
     mockProjectState.selectedItem = { id: 'other', type: 'draft', title: '别的文件' }
-    rerender(<QueryClientProvider client={testQueryClient}><ChatPanel /></QueryClientProvider>)
+    rerender(nextChatPanel())
     await act(async () => { resolveFile({ id: 'ch-1', title: '第一章', file_type: 'draft' }) })
     expect(mockProjectState.setSelectedItem).not.toHaveBeenCalled()
   })
@@ -506,7 +514,7 @@ describe('ChatPanel mount smoke', () => {
     const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenFile?: (id: string, fileType: string, title: string) => void }
     mockProjectState.currentProjectId = 'project-2'
     mockProjectState.currentProject = { id: 'project-2', name: 'Another project' }
-    rerender(<QueryClientProvider client={testQueryClient}><ChatPanel /></QueryClientProvider>)
+    rerender(nextChatPanel())
     act(() => props.onOpenFile?.('old-file', 'draft', 'Old project file'))
     expect(mockProjectState.setSelectedItem).not.toHaveBeenCalled()
   })
@@ -1881,7 +1889,7 @@ describe('ChatPanel mount smoke', () => {
 
       // `done` arrived: the hook reports the round as over while its stream is still open.
       mockAgentStreamState.isStreaming = false
-      rerender(<QueryClientProvider client={testQueryClient}><ChatPanel /></QueryClientProvider>)
+      rerender(nextChatPanel())
       await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(true))
       expect(lastMessageInputProps().isStopping).toBe(true)
       expect(lastMessageInputProps().onCancel).toBeTypeOf('function')
