@@ -504,7 +504,9 @@ def test_missing_file_raises_file_not_found(db_session, test_user):
     with pytest.raises(EditFileError) as exc:
         editor.edit_file("no-such-file", [{"op": "append", "text": "x"}])
     assert exc.value.error_type == EDIT_ERROR_FILE_NOT_FOUND
-    assert exc.value.user_message == "这个文件已经不存在了，可能刚被删除。"
+    assert "不要猜测、枚举或改写相似 id" in str(exc.value)
+    assert "不能把失败解释成权限问题" in str(exc.value)
+    assert exc.value.user_message == "AI 没找到目标文件，这一步没有改动。"
 
 
 # ----------------------------------------------- 工具层：错误载荷与计费/守卫 --

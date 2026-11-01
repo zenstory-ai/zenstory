@@ -9,6 +9,8 @@ agent run（writer → quality_reviewer → writer 的往返不会让计数归�
 熔断判定只看工具结果本身（工具名 + 归一化参数 + 归一化错误），不依赖错误来源：
 - 同一调用（同名 + 同参数）以等价错误连续失败 MAX_IDENTICAL_TOOL_FAILURES 次 → 熔断
   （调用的是不存在的工具，或在执行前被只读请求 / 角色权限 / 先澄清拒绝时原因记为 TRIP_REASON_TOOL_NOT_FOUND，文案不说「相同参数」）；
+- edit_file 的无效文件标识（跨不同标识）或同一文件的定位失败累计
+  MAX_IDENTICAL_TOOL_FAILURES 次 → 按恢复失败族熔断；
 - 本次请求累计失败 MAX_TOOL_FAILURES_PER_REQUEST 次（参数/错误各不相同的乱试）→ 熔断。
 第一、二次失败照常把错误交还模型，让它有机会换参数/换方法自行恢复；
 同一调用一旦成功，它的连续失败计数清零。
@@ -50,6 +52,7 @@ _ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten", "file_body_pe
 
 # 触发原因，写进停止事件的 data.reason，供日志/测试区分。
 TRIP_REASON_IDENTICAL = "repeated_identical_tool_failure"
+TRIP_REASON_RECOVERY = "repeated_recoverable_tool_failure"
 TRIP_REASON_TOTAL = "too_many_tool_failures"
 # 同一个不存在的工具被连续调用（runner._format_tool_error 记账，参数记为空串）：
 # 调用根本没执行，也没有「参数」可言，单独一个原因与文案，不说成「以相同参数失败」。
@@ -68,6 +71,13 @@ _UNEXECUTED_CALL_ERROR_TYPES = frozenset(
         CLARIFY_FIRST_ERROR_TYPE,
     }
 )
+
+# 这两类失败即使模型每次换一点参数，恢复动作也不变：文件标识无效时必须重新取得
+# 当前真实标识；同一文件的锚点不存在时必须重读当前段落。按完整参数分别计数会让
+# “枚举相似 UUID / 不断换不存在的 old”绕到请求累计十次才停。
+_FILE_NOT_FOUND_ERROR_TYPE = "file_not_found"
+_ANCHOR_NOT_FOUND_ERROR_TYPE = "anchor_not_found"
+_FILE_NOT_FOUND_FAMILY = ("edit_file", _FILE_NOT_FOUND_ERROR_TYPE, "*")
 
 # 对外展示的错误摘要上限（SQL 报错可能带完整语句和参数）。
 _ERROR_PREVIEW_CHARS = 200
@@ -90,6 +100,51 @@ def _normalize_arguments(raw_arguments: str) -> str:
     if parse_error is not None:
         return raw.strip()
     return json.dumps(parsed, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _parsed_arguments(raw_arguments: str) -> dict[str, Any] | None:
+    parsed, parse_error, _metadata = parse_json_object(raw_arguments or "")
+    return parsed if parse_error is None and isinstance(parsed, dict) else None
+
+
+def _file_id_from_arguments(raw_arguments: str) -> str:
+    parsed = _parsed_arguments(raw_arguments)
+    if parsed is None:
+        return ""
+    raw_id = parsed.get("id") or parsed.get("file_id") or parsed.get("fileId")
+    return raw_id.strip() if isinstance(raw_id, str) else ""
+
+
+def _recovery_family_key(
+    tool_name: str, raw_arguments: str, payload: dict[str, Any]
+) -> tuple[str, str, str] | None:
+    """Return a structured recovery family; never infer meaning from prose."""
+    if tool_name != "edit_file":
+        return None
+    error_type = payload.get("error_type")
+    if error_type == _FILE_NOT_FOUND_ERROR_TYPE:
+        # Different guessed IDs are the production failure mode, so the ID is intentionally
+        # not part of this key. We do not choose or correct an ID; we only stop blind guessing.
+        return _FILE_NOT_FOUND_FAMILY
+    if error_type == _ANCHOR_NOT_FOUND_ERROR_TYPE:
+        file_id = _file_id_from_arguments(raw_arguments)
+        if file_id:
+            return (tool_name, _ANCHOR_NOT_FOUND_ERROR_TYPE, file_id)
+    return None
+
+
+def _clear_recovery_families(
+    families: dict[tuple[str, str, str], int], tool_name: str, raw_arguments: str
+) -> None:
+    if tool_name != "edit_file":
+        return
+    # A successful edit_file proves that the caller now has a usable ID, even if the
+    # requested mutation was a no-op. It is the only safe evidence for clearing the
+    # request-wide invalid-ID family; a list read alone does not prove the copied ID.
+    families.pop(_FILE_NOT_FOUND_FAMILY, None)
+    file_id = _file_id_from_arguments(raw_arguments)
+    if file_id:
+        families.pop((tool_name, _ANCHOR_NOT_FOUND_ERROR_TYPE, file_id), None)
 
 
 def _error_fingerprint(payload: dict[str, Any]) -> str:
@@ -235,6 +290,7 @@ class ToolFailureBreaker:
     total_failures: int = 0
     trip: ToolFailureTrip | None = None
     _streaks: dict[tuple[str, str], _CallStreak] = field(default_factory=dict)
+    _recovery_families: dict[tuple[str, str, str], int] = field(default_factory=dict)
 
     @property
     def is_open(self) -> bool:
@@ -249,6 +305,7 @@ class ToolFailureBreaker:
         if payload is None:
             # 同一调用成功：它的连续失败计数清零。累计失败数不清零——那是整次请求的兜底。
             self._streaks.pop(key, None)
+            _clear_recovery_families(self._recovery_families, tool_name, raw_arguments)
             return output_text
 
         self.total_failures += 1
@@ -263,9 +320,23 @@ class ToolFailureBreaker:
                 streak = _CallStreak(fingerprint=fingerprint, count=1)
                 self._streaks[key] = streak
 
+        recovery_key = _recovery_family_key(tool_name, raw_arguments, payload)
+        recovery_count = 0
+        if recovery_key is not None:
+            recovery_count = self._recovery_families.get(recovery_key, 0) + 1
+            self._recovery_families[recovery_key] = recovery_count
+
         last_error = _preview(str(payload.get("error") or ""))
         if self.trip is None:
-            if streak is not None and streak.count >= self.max_identical_failures:
+            if recovery_count >= self.max_identical_failures:
+                self.trip = ToolFailureTrip(
+                    reason=TRIP_REASON_RECOVERY,
+                    tool_name=tool_name,
+                    failures=recovery_count,
+                    threshold=self.max_identical_failures,
+                    last_error=last_error,
+                )
+            elif streak is not None and streak.count >= self.max_identical_failures:
                 self.trip = ToolFailureTrip(
                     reason=(
                         TRIP_REASON_TOOL_NOT_FOUND
@@ -286,6 +357,13 @@ class ToolFailureBreaker:
                     last_error=last_error,
                 )
 
+        if self.trip is None and recovery_count >= 2:
+            return _with_recovery_hint(
+                output_text,
+                str(payload.get("error_type") or ""),
+                recovery_count,
+                self.max_identical_failures,
+            )
         if self.trip is None and streak is not None and streak.count >= 2:
             return _with_repeat_hint(output_text, streak.count, self.max_identical_failures)
         return output_text
@@ -312,6 +390,28 @@ def _with_repeat_hint(output_text: str, count: int, threshold: int) -> str:
     return json.dumps(hinted, ensure_ascii=False)
 
 
+def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold: int) -> str:
+    remaining = max(threshold - count, 0)
+    hinted = dict(json.loads(output_text))
+    hinted["repeated_failures"] = count
+    if error_type == _FILE_NOT_FOUND_ERROR_TYPE:
+        recovery = (
+            "目标文件 id 已连续无效。不要猜测、枚举或改写相似 id；"
+            "先用 query_files 不带 id 查询当前文件列表，再从结果逐字复制目标 id。"
+            "只有确认准确 id 后才能继续写；不能确认就停止并如实说明未修改，"
+            "不能把失败解释成权限问题。"
+        )
+    else:
+        recovery = (
+            "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前段落，"
+            "从结果复制较短、逐字、唯一的 old/anchor；不要放宽匹配或整篇覆盖。"
+        )
+    hinted["retry_hint"] = (
+        f"{recovery}再发生 {remaining} 次同类失败，本轮将被自动终止。"
+    )
+    return json.dumps(hinted, ensure_ascii=False)
+
+
 __all__ = [
     "CLARIFY_FIRST_ERROR_TYPE",
     "MAX_IDENTICAL_TOOL_FAILURES",
@@ -319,6 +419,7 @@ __all__ = [
     "READ_ONLY_REQUEST_ERROR_TYPE",
     "ROLE_NOT_PERMITTED_ERROR_TYPE",
     "TRIP_REASON_IDENTICAL",
+    "TRIP_REASON_RECOVERY",
     "TRIP_REASON_TOOL_NOT_FOUND",
     "TRIP_REASON_TOTAL",
     "ToolFailureBreaker",

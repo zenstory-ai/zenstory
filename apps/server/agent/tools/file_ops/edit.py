@@ -108,7 +108,7 @@ EDIT_ERROR_STALE_CONTENT = "stale_content"
 EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
     EDIT_ERROR_ANCHOR_NOT_FOUND: "AI 没在原文里找到要改的那一段，正在重新定位。",
     EDIT_ERROR_ANCHOR_AMBIGUOUS: "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
-    EDIT_ERROR_FILE_NOT_FOUND: "这个文件已经不存在了，可能刚被删除。",
+    EDIT_ERROR_FILE_NOT_FOUND: "AI 没找到目标文件，这一步没有改动。",
     EDIT_ERROR_STALE_CONTENT: "这个文件在 AI 读过之后又被改过（多半是你刚改的），AI 没有在旧内容上改，这一步没有改动。",
 }
 EDIT_ERROR_GENERIC_USER_MESSAGE = "这一步没做成，AI 会换个方式继续。"
@@ -260,7 +260,10 @@ def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
         reason = "近似扫描因截止时间到达而未完成。"
     else:
         reason = "精确、引号等价、模糊和近似匹配都没有找到唯一位置。"
-    return f"{reason}请从当前文件原文中复制较短、逐字、唯一的{label}，必要时按段拆成多条 edit。"
+    return (
+        f"{reason}请先用 query_files 按准确 id 重读当前段落，再从结果复制较短、逐字、"
+        f"唯一的{label}，必要时按段拆成多条 edit；不要放宽匹配或整篇覆盖。"
+    )
 
 
 def _batch_anchor_invalidated(original: str, staged: str, edit: dict[str, Any]) -> bool:
@@ -665,7 +668,12 @@ class FileEditor:
                 file_id=id,
                 user_id=self.user_id,
             )
-            raise EditFileError("文件不存在或已删除", error_type=EDIT_ERROR_FILE_NOT_FOUND)
+            raise EditFileError(
+                "文件不存在或已删除。不要猜测、枚举或改写相似 id；"
+                "先用 query_files 不带 id 查询当前文件列表，再从结果逐字复制目标 id。"
+                "确认前不要继续写，也不能把失败解释成权限问题。",
+                error_type=EDIT_ERROR_FILE_NOT_FOUND,
+            )
 
         # Check permission (target must belong to the current tool-context project)
         check_file_access_in_tool_context(self.session, file, self.user_id)
