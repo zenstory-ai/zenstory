@@ -22,7 +22,17 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(outcome!.y).toBeLessThan(width === 1440 ? 900 : 844);
       if (width === 1440) {
         await expect(page.locator('.showcase-controls')).toBeHidden();
+        const headings = await page.locator('.band h2').evaluateAll(elements => elements.map(el => {
+          const style = getComputedStyle(el);
+          return `${style.fontSize}/${style.fontWeight}`;
+        }));
+        expect(new Set(headings).size, 'main chapters share one type scale').toBe(1);
       } else {
+        for (const [selector, minimum] of [['.leaf-title', 12], ['.leaf-chapter', 11], ['.stage figcaption', 12]] as const) {
+          expect(await page.locator(selector).evaluate(el => parseFloat(getComputedStyle(el).fontSize)), selector).toBeGreaterThanOrEqual(minimum);
+        }
+        const chapter = await page.locator('.leaf-chapter').evaluate(el => ({ height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) }));
+        expect(chapter.height, 'the short Chinese chapter label must not leave one character orphaned').toBeLessThanOrEqual(chapter.line + 0.5);
         for (const control of ['.tile-play', '.lang-switch a', '.nav-app', '.library-search button']) {
           for (const box of await page.locator(control).evaluateAll(elements => elements.map(el => el.getBoundingClientRect().height))) {
             expect(box, control).toBeGreaterThanOrEqual(44);
@@ -69,6 +79,62 @@ test('relationships and expanded learning references keep accessible heading ord
   const audit = await new AxeBuilder({ page }).analyze();
   expect(audit.violations.filter(v => v.id === 'heading-order' || ['critical', 'serious'].includes(v.impact ?? '')).map(v => v.id)).toEqual([]);
 });
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`home interactions stay legible and respect reduced motion in ${colorScheme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ colorScheme, reducedMotion: 'no-preference' });
+    await page.goto('/zh/');
+    const button = page.locator('.home-actions .btn');
+    const normal = await button.evaluate(el => {
+      const style = getComputedStyle(el);
+      return { color: style.color, background: style.backgroundColor };
+    });
+    await button.hover();
+    await button.evaluate(async el => {
+      await Promise.all(el.getAnimations().map(animation => animation.finished));
+    });
+    await expect.poll(() => button.evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+    expect(await button.evaluate(el => {
+      const style = getComputedStyle(el);
+      return { color: style.color, background: style.backgroundColor };
+    })).toEqual(normal);
+    await expect.poll(() => button.evaluate(el => {
+      const transform = getComputedStyle(el).transform;
+      return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
+    })).toBeLessThan(0);
+    const arrow = button.locator('.arrow');
+    await expect.poll(() => arrow.evaluate(el => {
+      const transform = getComputedStyle(el).transform;
+      const matrix = transform === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(transform);
+      return matrix.m41 === 0 && matrix.m42 > 0;
+    }), 'the downward CTA arrow must move down, not sideways').toBe(true);
+    await page.mouse.down();
+    await expect.poll(() => button.evaluate(el => {
+      const transform = getComputedStyle(el).transform;
+      return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
+    })).toBe(0);
+    await page.mouse.up();
+
+    for (const selector of ['.stage-case a', '.case-provenance a', '.tool-links a']) {
+      const link = page.locator(selector).first();
+      const restingColor = await link.evaluate(el => getComputedStyle(el).color);
+      await link.hover();
+      await expect.poll(() => link.evaluate(el => getComputedStyle(el).color), `${selector}: hover is distinguishable`).not.toBe(restingColor);
+      const hoverColor = await link.evaluate(el => getComputedStyle(el).color);
+      await page.mouse.move(0, 0);
+      await page.keyboard.press('Tab');
+      await link.focus();
+      await expect(link).toBeFocused();
+      expect(await link.evaluate(el => el.matches(':focus-visible'))).toBe(true);
+      await expect.poll(() => link.evaluate(el => getComputedStyle(el).color), `${selector}: keyboard matches pointer feedback`).toBe(hoverColor);
+    }
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await button.hover();
+    await expect.poll(() => button.evaluate(el => getComputedStyle(el).transform)).toBe('none');
+    await expect.poll(() => arrow.evaluate(el => getComputedStyle(el).transform)).toBe('none');
+  });
+}
 
 test.describe('Without JavaScript', () => {
   test.use({ javaScriptEnabled: false });

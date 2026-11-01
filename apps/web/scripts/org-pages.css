@@ -678,13 +678,15 @@ body[data-page="home"] {
 [data-page="home"] .lang-switch a { min-height: 44px; padding: 0 9px; }
 [data-page="home"] .lang-switch a[aria-current] { box-shadow: none; background: transparent; color: var(--ink); text-decoration: underline; text-underline-offset: 6px; text-decoration-color: var(--rule-strong); }
 [data-page="home"] .nav-app { min-height: 44px; border-radius: 10px; padding-inline: 16px; }
-[data-page="home"] .btn { min-height: 50px; border-radius: 10px; padding-inline: 24px; font-size: 15px; }
-[data-page="home"] .btn:hover { background: var(--btn-bg); color: var(--btn-fg); opacity: .85; }
+[data-page="home"] .btn { min-height: 50px; border-radius: 10px; padding-inline: 24px; font-size: 15px; transition: transform .16s ease; }
+[data-page="home"] .btn:is(:hover, :focus-visible) { background: var(--btn-bg); color: var(--btn-fg); opacity: 1; transform: translateY(-1px); }
+[data-page="home"] .btn:active { transform: translateY(0); }
+[data-page="home"] .home-actions .btn:is(:hover, :focus-visible) .arrow { transform: translateY(2px); }
 [data-page="home"] .btn.ghost { background: transparent; color: var(--ink); }
 [data-page="home"] .eyebrow { display: flex; align-items: center; gap: 10px; font: 500 12px/1.5 var(--mono); letter-spacing: .06em; color: var(--muted); }
 [data-page="home"] .eyebrow .star { width: 11px; height: 11px; margin: 0; }
 [data-page="home"] .band { padding-block: clamp(72px, 8vw, 116px); }
-[data-page="home"] .band h2 { margin: 0; border: 0; padding: 0; font-size: clamp(30px, 3.2vw, 42px); line-height: 1.25; letter-spacing: -.035em; }
+[data-page="home"] .band h2 { margin: 0; border: 0; padding: 0; font-size: clamp(30px, 3vw, 40px); font-weight: 500; line-height: 1.25; letter-spacing: -.035em; }
 [data-page="home"] .section-head { max-width: 800px; margin-bottom: 44px; }
 [data-page="home"] .section-lede { margin: 18px 0 0; font-size: 16px; line-height: 1.75; max-width: 620px; }
 [data-page="home"] .more { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-top: 30px; font-size: 14px; }
@@ -698,7 +700,7 @@ body[data-page="home"] {
 [data-page="home"] .hero h1 { font: 500 clamp(48px, 5.1vw, 72px)/1.12 var(--sans); letter-spacing: -.055em; }
 [data-page="home"] .hero h1 em { font: inherit; color: inherit; }
 html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(42px, 4.9vw, 70px); line-height: 1.25; letter-spacing: -.055em; }
-[data-page="home"] .hero .lede { max-width: 420px; margin: 28px 0 0; font-size: 16px; line-height: 1.9; text-wrap: pretty; }
+[data-page="home"] .hero .lede { max-width: 420px; margin: 28px 0 0; font-size: 16px; line-height: 1.9; text-wrap: balance; }
 [data-page="home"] .hero-cta { margin-top: 32px; }
 [data-page="home"] .home-actions { justify-content: flex-start; gap: 12px 22px; margin: 0; }
 [data-page="home"] .hero-secondary { display: inline-flex; align-items: center; min-height: 50px; color: var(--ink-2); font-size: 14px; text-decoration: none; }
@@ -724,6 +726,7 @@ html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(42px, 4.9vw,
 [data-page="home"] .disclosure-icon { font: 300 24px/1 var(--sans); flex: none; }
 
 /* A paper gallery, not a second dark website. Media keeps its original pixels. */
+[data-page="home"] .stage-band { padding-top: calc(clamp(72px, 8vw, 116px) - 40px); }
 [data-page="home"] .stage-band .wrap { border-top: 0; }
 [data-page="home"] .showcase-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 56px 40px; }
 [data-page="home"] .case-card { display: flex; flex-direction: column; min-width: 0; }
@@ -748,7 +751,6 @@ html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(42px, 4.9vw,
 /* All projects remain visible; detailed learning links are progressively disclosed. */
 [data-page="home"] .tools-band { padding-bottom: 56px; }
 [data-page="home"] .tools-band .section-head { margin-bottom: 24px; }
-[data-page="home"] .tools-band h2, [data-page="home"] .library-band h2 { font-size: 30px; }
 [data-page="home"] .library-band { padding-top: 48px; }
 [data-page="home"] :is(.tool-grid, .environment-grid) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 48px; }
 [data-page="home"] .environment-grid { margin-top: 44px; }
@@ -759,6 +761,7 @@ html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(42px, 4.9vw,
 [data-page="home"] .tool-role { max-width: 430px; font-size: 14px; color: var(--ink-2); }
 [data-page="home"] .tool-links { margin: 0; font-size: 12px; color: var(--muted); }
 [data-page="home"] .tool-links a { color: var(--muted); }
+[data-page="home"] :is(.stage-case, .case-provenance, .tool-links) a:is(:hover, :focus-visible) { color: var(--accent-text); text-decoration-color: currentColor; }
 [data-page="home"] .library { display: grid; grid-template-columns: 1fr 1.2fr; gap: 96px; align-items: start; }
 [data-page="home"] .library-search { margin-top: 28px; }
 [data-page="home"] .library-search label { display: block; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
@@ -782,9 +785,8 @@ html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(42px, 4.9vw,
 [data-page="home"] .knowledge-level .topic-more { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; color: var(--accent-text); }
 
 /* A quiet ink chapter connects the examples to the tools, without another navigation layer. */
-[data-page="home"] .relationships-band { background: var(--foot-bg); color: var(--foot-fg); --ink: var(--foot-fg); --ink-2: var(--foot-muted); --rule-strong: var(--foot-rule); --focus: #22d3ee; --btn-bg: #f5f1e7; --btn-fg: #0a0f1f; }
+[data-page="home"] .relationships-band { padding-block: clamp(56px, 6vw, 84px); background: var(--foot-bg); color: var(--foot-fg); --ink: var(--foot-fg); --ink-2: var(--foot-muted); --rule-strong: var(--foot-rule); --focus: #22d3ee; --btn-bg: #f5f1e7; --btn-fg: #0a0f1f; }
 [data-page="home"] .relationships-band .section-head { text-align: center; margin-inline: auto; }
-[data-page="home"] .relationships-band h2 { font-size: clamp(28px, 3vw, 40px); font-weight: 500; }
 [data-page="home"] .connection-note { max-width: 620px; margin: -20px auto 24px; color: var(--foot-muted); text-align: center; font-size: 14px; }
 [data-page="home"] .home-system { max-width: 760px; margin: 24px auto; }
 [data-page="home"] .pipe { display: block; width: 100%; height: auto; }
@@ -823,16 +825,19 @@ html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(42px, 4.9vw,
   html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(36px, 10.5vw, 62px); line-height: 1.3; letter-spacing: -.045em; }
   [data-page="home"] .hero .lede { max-width: 420px; margin-top: 20px; font-size: 15px; line-height: 1.85; }
   [data-page="home"] .hero-cta { margin-top: 24px; }
-  [data-page="home"] .stage-canvas { grid-template-columns: 54px minmax(0, 1fr); gap: 16px; }
+  [data-page="home"] .stage-canvas { grid-template-columns: 58px minmax(0, 1fr); gap: 12px; }
   [data-page="home"] .source-leaf { gap: 18px; }
+  [data-page="home"] .leaf-title { font-size: 12px; }
+  [data-page="home"] .leaf-chapter { font-size: 11px; }
   [data-page="home"] .source-leaf blockquote { font-size: 15px; height: 180px; }
   [data-page="home"] .tile-media { border-radius: 130px 130px 6px 6px; }
   [data-page="home"] .source-full { display: none; }
   [data-page="home"] .source-short { display: block; }
   [data-page="home"] .source-leaf blockquote { height: 144px; font-size: 17px; }
-  [data-page="home"] .stage figcaption { margin-left: 70px; font-size: 11px; }
+  [data-page="home"] .stage figcaption { margin-left: 70px; font-size: 12px; }
   [data-page="home"] .tile-play { min-height: 44px; font-size: 12px; }
   [data-page="home"] .band { padding-block: 64px; }
+  [data-page="home"] .relationships-band { padding-block: 52px; }
   [data-page="home"] .band h2 { font-size: 29px; line-height: 1.35; }
   [data-page="home"] .section-head { margin-bottom: 28px; }
   [data-page="home"] .section-lede { font-size: 15px; }
@@ -867,4 +872,7 @@ html[data-lang="zh"] [data-page="home"] .hero h1 { font-size: clamp(42px, 4.9vw,
 }
 @media (prefers-reduced-motion: reduce) {
   [data-page="home"] * { transition: none !important; }
+  [data-page="home"] .home-actions .btn:is(:hover, :focus-visible, :active),
+  [data-page="home"] .home-actions .btn:is(:hover, :focus-visible, :active) .arrow,
+  [data-page="home"] a:is(:hover, :focus-visible) .arrow { transform: none; }
 }
