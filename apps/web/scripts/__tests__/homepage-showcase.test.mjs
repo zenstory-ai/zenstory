@@ -3,6 +3,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import test, { after, before } from 'node:test'
 
@@ -128,6 +129,29 @@ test('homepage generator emits English and Chinese entry documents', () => {
   for (const config of Object.values(languages)) assert.ok(existsSync(join(out, config.file)), config.file)
 })
 
+test('browser language selection is opt-in only on the English home, before the body', () => {
+  const marker = '<script data-home-language>'
+  assert.ok(pages.en.includes(marker), 'English root entry needs language selection')
+  assert.ok(pages.en.indexOf(marker) < pages.en.indexOf('<body'), 'choose a language before rendering the page content')
+  assert.ok(!pages.zh.includes(marker), 'an explicit Chinese URL must keep its language')
+  for (const route of ['projects', 'zh/projects', 'guides', 'oh-story']) {
+    const html = readFileSync(join(out, route, 'index.html'), 'utf8')
+    assert.ok(!html.includes(marker), route)
+    assert.doesNotMatch(html, /href="\/\?lang=en"[^>]*hreflang="en"/, `${route}: only the root language entry needs an explicit English hint`)
+  }
+  for (const html of Object.values(pages)) {
+    assert.match(html, /href="\/\?lang=en"[^>]*hreflang="en"/, 'the English home link must work even when cookies cannot be saved')
+  }
+})
+
+test('the project relationship diagram is directly readable without a disclosure', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const relationships = section(html, 'model-h')
+    assert.match(relationships, /<svg\b/)
+    assert.doesNotMatch(relationships, /<details\b|<summary\b/, `${lang}: the overview must not require another click`)
+  }
+})
+
 test('homepage corpus contains exactly five cases, four CDN videos, and four creative owners; the hero case is not repeated below', () => {
   assert.equal(showcases.length, 5)
   assert.equal(showcases.filter((item) => item.video).length, 4)
@@ -152,20 +176,20 @@ test('generator rejects a showcase method that does not resolve to a published p
   assert.ok(!existsSync(join(fixture.outputDir, 'org-home/index.html')), 'generator must fail before publishing a homepage')
 })
 
-test('generator rejects a missing article referenced by a homepage path', (t) => {
+test('generator rejects a tool without a homepage role instead of silently dropping it', (t) => {
   const fixture = isolatedGenerator(t)
-  mutateJson(fixture.content('home-reading.json'), (reading) => { reading.paths[0][5][0] = 'nonexistent-home-reading-slug' })
+  mutateJson(fixture.content('home-reading.json'), (reading) => { delete reading.tools['oh-story'] })
   const result = fixture.run()
-  assert.notEqual(result.status, 0, 'unknown path article must not be silently filtered')
-  assert.ok(!existsSync(join(fixture.outputDir, 'org-home/index.html')), 'generator must fail before publishing a homepage')
+  assert.notEqual(result.status, 0)
+  assert.ok(!existsSync(join(fixture.outputDir, 'org-home/index.html')))
 })
 
-test('generator rejects a homepage path whose steps belong to a tool it does not name', (t) => {
-  const fixture = isolatedGenerator(t)
-  mutateJson(fixture.content('home-reading.json'), (reading) => { reading.paths[2][7] = ['oh-story'] })
-  const result = fixture.run()
-  assert.notEqual(result.status, 0, 'a path must not point readers at the wrong starting tool')
-  assert.ok(!existsSync(join(fixture.outputDir, 'org-home/index.html')), 'generator must fail before publishing a homepage')
+test('homepage removes the duplicate material paths and hero evidence drawer', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    assert.equal(section(html, 'start-h'), undefined, `${lang}: the duplicate step navigation must not remain`)
+    assert.equal(elementsWithClass(html, 'stage-evidence', 'details').length, 0)
+    assert.equal(elementsWithClass(html, 'home-paths').length, 0)
+  }
 })
 
 test('generator rejects a missing article referenced by a homepage knowledge level', (t) => {
@@ -177,8 +201,8 @@ test('generator rejects a missing article referenced by a homepage knowledge lev
 })
 
 test('homepage presents the showcase and learning journey in the agreed order', () => {
-  // Results first, then the visitor's material, then the tool for it, then reference.
-  const ids = ['examples-h', 'start-h', 'choose-h', 'guides-h', 'model-h']
+  // Results → relationships → one tool catalog → learning references.
+  const ids = ['examples-h', 'model-h', 'choose-h', 'guides-h']
   for (const [lang, html] of Object.entries(pages)) {
     const positions = ids.map((id) => html.indexOf(`id="${id}"`))
     positions.forEach((position, index) => assert.ok(position >= 0, `${lang}: missing ${ids[index]}`))
@@ -186,62 +210,40 @@ test('homepage presents the showcase and learning journey in the agreed order', 
   }
 })
 
-test('homepage hero links to outcomes, the material paths and the hero case’s own setup', () => {
-  const chainCase = showcases.find((item) => item.chain)
+test('homepage hero has one primary action to the tool catalog and a secondary outcomes link', () => {
   for (const [lang, html] of Object.entries(pages)) {
-    const prefix = lang === 'zh' ? '/zh' : ''
     const hero = html.slice(html.indexOf('<main'), html.indexOf('<section'))
     const heroLinks = anchors(hero)
     assert.ok(heroLinks.some(({ href }) => href === '#examples-h'), `${lang}: hero needs an outcomes link`)
-    const primary = heroLinks.filter(({ tag }) => {
-      const classes = attribute(tag, 'class')?.split(/\s+/) ?? []
-      return classes.includes('btn') && !classes.includes('ghost')
-    })
-    assert.deepEqual(primary.map(({ href }) => href), ['#start-h'], `${lang}: the one primary hero action leads to the material paths`)
-    assert.ok(html.includes('id="start-h"'), `${lang}: primary hero target is missing`)
-    // The case on the stage gets its own next step, owned by the project that made it.
-    const setup = `${prefix}/${chainCase.owner}#start-h`
-    assert.ok(heroLinks.some(({ href }) => href === setup), `${lang}: hero case needs a link to ${setup}`)
-    const owner = readFileSync(join(out, `${prefix}/${chainCase.owner}`.replace(/^\//, ''), 'index.html'), 'utf8')
-    assert.ok(owner.includes('id="start-h"') && owner.includes(`zenstory-ai/${chainCase.owner}`), `${lang}: ${setup} must hold the install steps`)
-    // No unrelated install command sits next to the case.
-    assert.doesNotMatch(hero, /npx skills add/, `${lang}: hero must not carry a generic install command`)
+    const primary = heroLinks.filter(({ tag }) => (attribute(tag, 'class')?.split(/\s+/) ?? []).includes('btn'))
+    assert.deepEqual(primary.map(({ href }) => href), ['#choose-h'])
+    assert.ok(html.includes('id="choose-h"'), `${lang}: primary action target is missing`)
+    assert.doesNotMatch(hero, /npx skills add/)
   }
 })
 
-test('hero caption stays short: one case line and three actions, no setup manual', () => {
+test('hero sources are attached to existing labels, not a separate directory', () => {
   const chainCase = showcases.find((item) => item.chain)
   for (const [lang, html] of Object.entries(pages)) {
-    const prefix = lang === 'zh' ? '/zh' : ''
     const hero = html.slice(html.indexOf('<main'), html.indexOf('<section'))
     const caption = hero.match(/<figure class="stage">[\s\S]*<figcaption>([\s\S]*?)<\/figcaption>/)[1]
-    assert.deepEqual(anchors(caption).map(({ href }) => href), [`${prefix}/${chainCase.owner}#start-h`, chainCase.chain.example, '#examples-h'], `${lang}: caption actions`)
-    assert.ok(textOf(caption).length <= (lang === 'en' ? 90 : 40), `${lang}: caption is too long: ${textOf(caption)}`)
-    // Host names, licence counts and environment explanations belong to the tool table, not the hero.
-    assert.doesNotMatch(hero, /Antigravity|OpenClaw|Reasonix|MIT/, `${lang}: hero repeats the host and licence strip`)
-    // The source chapter and its public-domain edition stay attached to the pinned source link.
-    assert.ok(hero.includes(`href="${chainCase.chain.source.url}" title="${chainCase.chain.source.note[lang]}"`), `${lang}: source note left the pinned source link`)
+    assert.deepEqual(anchors(caption).map(({ href }) => href), [chainCase.chain.example, chainCase.demo])
+    assert.ok(textOf(caption).length <= (lang === 'en' ? 90 : 40), `${lang}: keep one case line and one playable action`)
+    assert.ok(hero.includes(`href="${chainCase.chain.source.url}" title="${chainCase.chain.source.note[lang]}"`))
+    const art = anchors(hero).find(({ href }) => href === chainCase.chain.scene.source)
+    assert.match(art.tag, /class="tile-media"/, `${lang}: link the artwork itself to the pinned original`)
+    assert.ok(art.tag.includes(`src="${chainCase.chain.scene.file}"`))
+    assert.match(textOf(caption), lang === 'zh' ? /原画/ : /art/i, `${lang}: the existing caption must identify art rather than live gameplay`)
+    assert.doesNotMatch(hero, /Antigravity|OpenClaw|Reasonix|MIT/)
   }
 })
 
-test('homepage next steps land where they say: case → path → tool row → install', () => {
+test('homepage tool rows link to their real project installation steps', () => {
   const projects = JSON.parse(readFileSync(new URL('../../content/projects.json', import.meta.url), 'utf8'))
   for (const [lang, html] of Object.entries(pages)) {
     const prefix = lang === 'zh' ? '/zh' : ''
-    assert.ok(anchors(section(html, 'examples-h')).some(({ href }) => href === '#start-h'), `${lang}: after the cases, point to the material paths`)
     const choose = section(html, 'choose-h')
     const rows = elementsWithClass(choose, 'tool-choice', 'article')
-    const rowIds = rows.map((row) => attribute(row.match(/<article\b[^>]*>/i)[0], 'id'))
-    for (const path of elementsWithClass(section(html, 'start-h'), 'learning-path')) {
-      const tools = anchors(elementsWithClass(path, 'path-tools')[0] ?? '')
-      assert.ok(tools.length >= 1, `${lang}: every path names the tool it starts with`)
-      for (const { href } of tools) assert.ok(rowIds.includes(href.slice(1)), `${lang}: path tool ${href} has no row in the tool table`)
-    }
-    const branches = elementsWithClass(section(html, 'start-h'), 'path-branches', 'ul')[0]
-    for (const [route, name] of [['/drama-skills/', 'Drama Skills'], ['/novel-to-game/', 'Novel to Game']]) {
-      const branch = anchors(branches).find(({ href }) => href.startsWith(`${prefix}${route}`))
-      assert.ok(branch && branch.text.includes(name), `${lang}: adaptation branch must name ${name}`)
-    }
     for (const row of rows) {
       const slug = attribute(row.match(/<article\b[^>]*>/i)[0], 'id').replace(/^tool-/, '')
       const project = projects.find((p) => p.slug === slug)
@@ -251,6 +253,18 @@ test('homepage next steps land where they say: case → path → tool row → in
       const landing = readFileSync(join(out, `${prefix}/${slug}`.replace(/^\//, ''), 'index.html'), 'utf8')
       assert.ok(landing.includes('id="start-h"') && landing.includes(project.install.split(' ').slice(0, 4).join(' ')), `${lang}: ${slug}#start-h must show the install command`)
     }
+  }
+})
+
+test('tool selection keeps six project titles without redundant group headings', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const choose = section(html, 'choose-h')
+    const creative = elementsWithClass(choose, 'tool-grid')[0]
+    const environments = elementsWithClass(choose, 'environment-grid')[0]
+    assert.equal(elementsWithClass(creative, 'tool-choice', 'article').length, 4)
+    assert.equal(elementsWithClass(environments, 'tool-choice', 'article').length, 2)
+    assert.equal((choose.match(/<h3\b/g) ?? []).length, 6, `${lang}: only the six project names need subheadings`)
+    assert.equal(elementsWithClass(choose, 'count').length, 0, `${lang}: no decorative group totals`)
   }
 })
 
@@ -278,6 +292,36 @@ test('homepage hero shows a real outcome image instead of only describing result
       const source = attribute(image, 'src') ?? ''
       return source && !source.endsWith('/brand/zenstory-ai-mark.svg') && (attribute(image, 'alt') ?? '').trim()
     }), `${lang}: hero image must be an actual described outcome, not the brand mark`)
+  }
+})
+
+test('hero connects a visible original passage to an honestly labelled game detail', () => {
+  const item = showcases.find((candidate) => candidate.chain)
+  const scene = item.chain.scene
+  assert.equal(createHash('sha256').update(readFileSync(join(publicRoot, scene.file))).digest('hex'), scene.asset_sha256, 'the local art must match its source receipt')
+  assert.equal(scene.asset_sha256, scene.source_sha256, 'the game environment art must remain unmodified')
+  for (const [lang, html] of Object.entries(pages)) {
+    const hero = html.slice(html.indexOf('<main'), html.indexOf('<section'))
+    const figure = hero.slice(hero.indexOf('<figure class="stage">'), hero.indexOf('</figure>'))
+    assert.ok(textOf(figure).includes(item.chain.source.excerpt.split('。')[0]), `${lang}: the original must be visible beside the outcome, not only in a closed disclosure`)
+    assert.match(figure, /<blockquote\b[^>]*lang="zh-Hant"/)
+    assert.match(textOf(figure), lang === 'zh' ? /原画/ : /art/i)
+    assert.ok(figure.includes(`src="${item.chain.scene.file}"`), `${lang}: use the project’s actual environment art, not a synthetic brand image`)
+    assert.doesNotMatch(figure, /story-game-battle\.jpg|wukong\.webp/, `${lang}: no raw battle HUD or floating character in the hero`)
+    assert.ok(anchors(hero).some(({ href }) => href === item.chain.scene.source), `${lang}: cropped presentation must retain its full original source`)
+  }
+})
+
+test('knowledge references retain native disclosures and crawlable sources', () => {
+  for (const [lang, html] of Object.entries(pages)) {
+    const levels = elementsWithClass(section(html, 'guides-h'), 'knowledge-level', 'details')
+    assert.equal(levels.length, 4, `${lang}: keep all four reference layers in native disclosures`)
+    for (const level of levels) {
+      assert.match(level, /^<details\b[^>]*>/)
+      assert.doesNotMatch(level.match(/^<details\b[^>]*>/)[0], /\bopen(?:[\s=>])/)
+      assert.match(level, /<summary>[\s\S]*?<h3\b/)
+      assert.ok(anchors(level).length > 0, `${lang}: disclosure must retain crawlable method links`)
+    }
   }
 })
 
@@ -359,18 +403,19 @@ test('video cases expose descriptions, method pages, and direct-watch fallbacks 
   }
 })
 
-test('homepage offers three crawlable paths for the visitor’s three input states', () => {
-  for (const [lang, html] of Object.entries(pages)) {
-    const start = section(html, 'start-h')
-    assert.ok(start, `${lang}: missing learning-path section`)
-    const paths = elementsWithClass(start, 'learning-path')
-    assert.equal(paths.length, 3, `${lang}: expected exactly three learning paths`)
-    paths.forEach((path, index) => {
-      assert.ok(textOf(path).length >= 12, `${lang}: learning path ${index + 1} needs a readable explanation`)
-      const links = anchors(path).filter(({ href }) => href.startsWith('/') && !href.startsWith('/docs') && !href.includes('#'))
-      assert.ok(links.length >= 1, `${lang}: learning path ${index + 1} needs an internal link`)
-      for (const { href } of links) assert.ok(localPathExists(href), `${lang}: learning path ${index + 1} points to missing route ${href}`)
-    })
+test('articles removed from the homepage paths remain published and discoverable in the library', () => {
+  const routes = [
+    '/oh-story/agent-skills-for-writers', '/oh-story/novel-outline-template', '/oh-story/novel-opening',
+    '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/novel-to-game/quick-start',
+    '/video-recap/video-to-narration', '/video-recap/original-audio-and-narration', '/video-recap/capcut-draft',
+  ]
+  for (const [lang, config] of Object.entries(languages)) {
+    const index = readFileSync(join(out, config.guides.replace(/^\//, ''), 'index.html'), 'utf8')
+    for (const route of routes) {
+      const href = `${lang === 'zh' ? '/zh' : ''}${route}`
+      assert.ok(localPathExists(href), `${lang}: removed shortcut must not remove ${href}`)
+      assert.ok(anchors(index).some((link) => link.href === href), `${lang}: library must still expose ${href}`)
+    }
   }
 })
 
@@ -382,41 +427,23 @@ test('the showcase says how many cases a phone visitor can swipe through', () =>
   }
 })
 
-test('the idea path lets a visitor with no agent start writing in the browser workbench', () => {
+test('the workbench tool row provides the only direct homepage writing signup', () => {
   for (const [lang, html] of Object.entries(pages)) {
-    const paths = elementsWithClass(section(html, 'start-h'), 'learning-path')
-    const signup = `https://app.zenstory.ai/register?lang=${lang}&amp;source=org_home_path`
-    assert.equal(paths[0].split(`href="${signup}"`).length - 1, 1, `${lang}: the idea path needs one direct workbench start`)
-    // The workbench writes novels and scripts; adaptation and recap paths start with their skill packs.
-    for (const path of paths.slice(1)) assert.ok(!path.includes(signup), `${lang}: only paths the workbench can start offer it`)
+    const row = elementsWithClass(section(html, 'choose-h'), 'tool-choice', 'article').find((row) => row.includes('id="tool-workbench"'))
+    const signup = `https://app.zenstory.ai/register?lang=${lang}&amp;source=org_home_tools`
+    assert.equal(anchors(row).filter(({ href }) => href === signup).length, 1)
+    assert.equal(anchors(html).filter(({ href }) => href.startsWith('https://app.zenstory.ai/register?')).length, 1)
+    assert.ok(anchors(row).some(({ href }) => href === `${lang === 'zh' ? '/zh' : ''}/workbench`), 'keep project details accessible')
   }
 })
 
-test('manuscript path keeps continuation ordered and presents drama or game as alternatives', () => {
+test('relationships explain the two material sources without repeating tool actions', () => {
   for (const [lang, html] of Object.entries(pages)) {
-    const paths = elementsWithClass(section(html, 'start-h'), 'learning-path')
-    const manuscript = paths[1]
-    const orderedLists = manuscript.match(/<ol\b[^>]*>[\s\S]*?<\/ol>/gi) ?? []
-    const branchLists = manuscript.match(/<ul\b[^>]*\bclass=(?:"[^"]*\bpath-branches\b[^"]*"|'[^']*\bpath-branches\b[^']*')[^>]*>[\s\S]*?<\/ul>/gi) ?? []
-    assert.equal(orderedLists.length, 1, `${lang}: manuscript path needs one ordered continuation list`)
-    assert.equal((orderedLists[0].match(/<li\b/gi) ?? []).length, 1, `${lang}: continuation list must contain one step`)
-    assert.equal(branchLists.length, 1, `${lang}: manuscript path needs one alternatives list`)
-    assert.equal((branchLists[0].match(/<li\b/gi) ?? []).length, 2, `${lang}: alternatives list must contain drama and game`)
-    assert.match(textOf(manuscript), lang === 'en' ? /choose one/i : /任选一条/, `${lang}: missing branch instruction`)
-    const prefix = lang === 'zh' ? '/zh' : ''
-    for (const route of [`${prefix}/drama-skills/novel-to-short-drama`, `${prefix}/novel-to-game/quick-start`]) {
-      assert.ok(!orderedLists[0].includes(`href="${route}"`), `${lang}: adaptation route must not appear as a sequential step`)
-      assert.ok(branchLists[0].includes(`href="${route}"`), `${lang}: adaptation route must appear as an alternative`)
-    }
-    // Each alternative shows its tool's real result, the same local media the showcase uses.
-    for (const branch of branchLists[0].match(/<li\b[\s\S]*?<\/li>/gi)) {
-      assert.match(branch, /<img src="\/org\/demos\/[a-z0-9-]+\.jpg"[^>]* alt="" loading="lazy"/, `${lang}: adaptation branch needs its showcase media`)
-    }
-    for (const path of [paths[0], paths[2]]) {
-      assert.equal((path.match(/<ol\b[^>]*>[\s\S]*?<\/ol>/gi) ?? []).length, 1, `${lang}: sequential path needs one ordered list`)
-      assert.equal((path.match(/<li\b/gi) ?? []).length, 3, `${lang}: sequential path must keep three steps`)
-      assert.doesNotMatch(path, /\bpath-branches\b/, `${lang}: sequential path must not render alternatives`)
-    }
+    const model = section(html, 'model-h')
+    assert.equal(anchors(model).length, 0, `${lang}: relationships explain; the tool catalog owns actions`)
+    assert.doesNotMatch(model, /<ol\b|<details\b/)
+    assert.match(model, lang === 'zh' ? /一部小说可以改成短剧或游戏/ : /A novel can become a short drama or a game/)
+    assert.match(model, lang === 'zh' ? /现成的视频素材/ : /existing footage/)
   }
 })
 
@@ -432,9 +459,7 @@ test('homepage condenses the knowledge system into four meaningful levels', () =
       assert.ok(links.length >= 1, `${lang}: knowledge level ${index + 1} needs a crawlable route`)
       for (const href of links) assert.ok(localPathExists(href), `${lang}: knowledge level ${index + 1} points to missing route ${href}`)
     })
-    // Say it once: the knowledge levels don't re-list articles the creative paths already link.
-    const pathArticles = new Set(anchors(section(html, 'start-h')).map(({ href }) => href).filter((href) => /^\/(?:zh\/)?[a-z-]+\/[a-z0-9-]+$/.test(href)))
-    for (const { href } of anchors(guides)) assert.ok(!pathArticles.has(href), `${lang}: knowledge levels repeat ${href} from the creative paths`)
+
   }
 })
 

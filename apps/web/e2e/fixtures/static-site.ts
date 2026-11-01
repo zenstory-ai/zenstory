@@ -32,7 +32,10 @@ export const test = base.extend<{ staticSite: void }, { staticDir: string }>({
     await page.route(`${origin}/**`, async route => {
       const pathname = new URL(route.request().url()).pathname;
       const rootPrefix = pathname.split('/')[1];
-      let file = join(staticDir, sharedPrefixes.includes(rootPrefix) ? '_site' : '', pathname);
+      // Match the existing organization-host root rewrite, not the App's index.html.
+      let file = pathname === '/'
+        ? join(staticDir, 'org-home/index.html')
+        : join(staticDir, sharedPrefixes.includes(rootPrefix) ? '_site' : '', pathname);
       if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
       if (!existsSync(file)) file = join(webRoot, 'public', pathname);
       if (!existsSync(file) || statSync(file).isDirectory()) {

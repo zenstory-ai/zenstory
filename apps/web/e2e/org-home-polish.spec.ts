@@ -13,15 +13,26 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
       await page.goto('/zh/');
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText('写下故事，做出作品');
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('从一页故事，走进一个世界');
+      await expect(page.locator('.source-leaf blockquote')).toBeVisible();
+      await expect(page.locator('.home-system svg')).toBeVisible();
+      await expect(page.locator('.connection-details')).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      const stage = page.locator('.stage');
+      const outcome = await page.locator('.tile-media').boundingBox();
+      expect(outcome!.y).toBeLessThan(width === 1440 ? 900 : 844);
       if (width === 1440) {
-        expect((await stage.boundingBox())!.y + (await stage.boundingBox())!.height).toBeLessThanOrEqual(900);
         await expect(page.locator('.showcase-controls')).toBeHidden();
+        const headings = await page.locator('.band h2').evaluateAll(elements => elements.map(el => {
+          const style = getComputedStyle(el);
+          return `${style.fontSize}/${style.fontWeight}`;
+        }));
+        expect(new Set(headings).size, 'main chapters share one type scale').toBe(1);
       } else {
-        const game = await page.locator('.tile-media').boundingBox();
-        expect(game!.y + game!.height).toBeLessThanOrEqual(844);
+        for (const [selector, minimum] of [['.leaf-title', 12], ['.leaf-chapter', 11], ['.stage figcaption', 12]] as const) {
+          expect(await page.locator(selector).evaluate(el => parseFloat(getComputedStyle(el).fontSize)), selector).toBeGreaterThanOrEqual(minimum);
+        }
+        const chapter = await page.locator('.leaf-chapter').evaluate(el => ({ height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) }));
+        expect(chapter.height, 'the short Chinese chapter label must not leave one character orphaned').toBeLessThanOrEqual(chapter.line + 0.5);
         for (const control of ['.tile-play', '.lang-switch a', '.nav-app', '.library-search button']) {
           for (const box of await page.locator(control).evaluateAll(elements => elements.map(el => el.getBoundingClientRect().height))) {
             expect(box, control).toBeGreaterThanOrEqual(44);
@@ -60,13 +71,77 @@ test('mobile carousel tracks button navigation, native scrolling and its ends', 
   expect(Math.abs((await third.boundingBox())!.x - ((await grid.boundingBox())!.x + gutter))).toBeLessThan(2);
 });
 
+test('relationships and expanded learning references keep accessible heading order', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/zh/');
+  await expect(page.locator('.stage-evidence, .home-paths')).toHaveCount(0);
+  for (const summary of await page.locator('.knowledge-level summary').all()) await summary.click();
+  const audit = await new AxeBuilder({ page }).analyze();
+  expect(audit.violations.filter(v => v.id === 'heading-order' || ['critical', 'serious'].includes(v.impact ?? '')).map(v => v.id)).toEqual([]);
+});
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`home interactions stay legible and respect reduced motion in ${colorScheme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ colorScheme, reducedMotion: 'no-preference' });
+    await page.goto('/zh/');
+    const button = page.locator('.home-actions .btn');
+    const normal = await button.evaluate(el => {
+      const style = getComputedStyle(el);
+      return { color: style.color, background: style.backgroundColor };
+    });
+    await button.hover();
+    await button.evaluate(async el => {
+      await Promise.all(el.getAnimations().map(animation => animation.finished));
+    });
+    await expect.poll(() => button.evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+    expect(await button.evaluate(el => {
+      const style = getComputedStyle(el);
+      return { color: style.color, background: style.backgroundColor };
+    })).toEqual(normal);
+    await expect.poll(() => button.evaluate(el => {
+      const transform = getComputedStyle(el).transform;
+      return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
+    })).toBeLessThan(0);
+    const arrow = button.locator('.arrow');
+    await expect.poll(() => arrow.evaluate(el => {
+      const transform = getComputedStyle(el).transform;
+      const matrix = transform === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(transform);
+      return matrix.m41 === 0 && matrix.m42 > 0;
+    }), 'the downward CTA arrow must move down, not sideways').toBe(true);
+    await page.mouse.down();
+    await expect.poll(() => button.evaluate(el => {
+      const transform = getComputedStyle(el).transform;
+      return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
+    })).toBe(0);
+    await page.mouse.up();
+
+    for (const selector of ['.stage-case a', '.case-provenance a', '.tool-links a']) {
+      const link = page.locator(selector).first();
+      const restingColor = await link.evaluate(el => getComputedStyle(el).color);
+      await link.hover();
+      await expect.poll(() => link.evaluate(el => getComputedStyle(el).color), `${selector}: hover is distinguishable`).not.toBe(restingColor);
+      const hoverColor = await link.evaluate(el => getComputedStyle(el).color);
+      await page.mouse.move(0, 0);
+      await page.keyboard.press('Tab');
+      await link.focus();
+      await expect(link).toBeFocused();
+      expect(await link.evaluate(el => el.matches(':focus-visible'))).toBe(true);
+      await expect.poll(() => link.evaluate(el => getComputedStyle(el).color), `${selector}: keyboard matches pointer feedback`).toBe(hoverColor);
+    }
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await button.hover();
+    await expect.poll(() => button.evaluate(el => getComputedStyle(el).transform)).toBe('none');
+    await expect.poll(() => arrow.evaluate(el => getComputedStyle(el).transform)).toBe('none');
+  });
+}
+
 test.describe('Without JavaScript', () => {
   test.use({ javaScriptEnabled: false });
 test('English home remains readable without JavaScript and keeps native video controls', async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  // The finalized directory is served without Vercel's apex -> /org-home rewrite locally.
-  await page.goto(baseURL + '/org-home/');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Write stories. Make them real.');
+  await page.goto(baseURL + '/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('From one page, into a world.');
   await expect(page.locator('.showcase-controls')).toBeHidden();
   await expect(page.locator('.case-card')).toHaveCount(4);
   for (const video of await page.locator('video').all()) {
@@ -75,6 +150,34 @@ test('English home remains readable without JavaScript and keeps native video co
     await expect(video).not.toHaveAttribute('autoplay');
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+  // Provenance is linked directly from the artwork and existing labels; no script or extra disclosure is required.
+  for (const selector of ['.leaf-title', 'a.tile-media', '.stage-case a']) {
+    await expect(page.locator(selector)).toBeVisible();
+    await expect(page.locator(selector)).toHaveAttribute('href', /github\.com\/zenstory-ai\/novel-to-game\/(?:blob|tree)\/[a-f0-9]{40}\//);
+  }
+  // The crop is the link itself, not an inner anchor whose keyboard ring can be clipped.
+  const artwork = page.locator('a.tile-media');
+  await artwork.focus();
+  await expect(artwork).toBeFocused();
+  const ring = await artwork.evaluate(el => {
+    const style = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    return { visible: el.matches(':focus-visible'), outline: parseFloat(style.outlineWidth), offset: parseFloat(style.outlineOffset), box: { left: box.left, right: box.right } };
+  });
+  expect(ring.visible).toBe(true);
+  expect(ring.outline).toBeGreaterThanOrEqual(2);
+  expect(ring.offset).toBeGreaterThanOrEqual(2);
+  expect(ring.box.left - ring.offset - ring.outline).toBeGreaterThanOrEqual(0);
+  expect(ring.box.right + ring.offset + ring.outline).toBeLessThanOrEqual(390);
+  // The remaining reference disclosures keep native keyboard behavior.
+  const level = page.locator('.knowledge-level').first();
+  await expect(level.locator('a').first()).toBeHidden();
+  await level.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(level.locator('a').first()).toBeVisible();
+
+  await expect(page.locator('.home-system svg')).toBeVisible();
 
 });
 

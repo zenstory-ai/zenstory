@@ -29,7 +29,7 @@ const scratch = (t, articles) => {
   if (articles) {
     writeFileSync(join(root, 'content/articles.json'), JSON.stringify(articles))
     // Paths and layers cite the real article library; the tool notes do not.
-    writeFileSync(join(root, 'content/home-reading.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(root, 'content/home-reading.json'), 'utf8')), paths: [], levels: [] }))
+    writeFileSync(join(root, 'content/home-reading.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(root, 'content/home-reading.json'), 'utf8')), levels: [] }))
   }
   return root
 }

@@ -31,7 +31,7 @@ import { join, resolve } from 'node:path'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import { SITE, appHref, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, HOME_FONTS } from './site-shell.mjs'
+import { SITE, appHref, LANGS, LOCALE, webRoot, org, projects, esc, orgNode, arrowGlyph, extGlyph, localized, alternatesOf, page as shellPage, t as tt, HOME_FONTS, homeLanguageScript } from './site-shell.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
@@ -313,8 +313,8 @@ const navSection = (route) => {
 }
 
 /** A complete document for the English route `route` in the current language. */
-const page = ({ route, title, description, ogType = 'article', ld, body, alternates = alternatesOf(route), switchLinks = alternates, pageId, fonts }) =>
-  shellPage({ lang: LANG, route: L(route), alternates, switchLinks, section: navSection(route), title, description, ogType, ld, body: localizeBody(body), pageId, fonts })
+const page = ({ route, title, description, ogType = 'article', ld, body, alternates = alternatesOf(route), switchLinks = alternates, pageId, fonts, head }) =>
+  shellPage({ lang: LANG, route: L(route), alternates, switchLinks, section: navSection(route), title, description, ogType, ld, body: localizeBody(body), pageId, fonts, head })
 
 const roster = (current) => `
 <section class="roster band-cream" aria-labelledby="roster-h">
@@ -348,17 +348,27 @@ const taskChoices = [
 const projectChips = (p) => [
   p.stars ? proof(`${starGlyph}${num(p.stars)} GitHub ${t('stars', 'star')}`) : '',
   p.skills ? proof(t(`${p.skills} skills`, `${p.skills} 个 skill`)) : '',
+  p.stars ? `<span class="asof star-snapshot">${t('Stars as of', 'Star 数据截至')} ${org.proof.as_of}</span>` : '',
 ].filter(Boolean)
 
-/** One card component shared by the home page and /projects: task, name, one sentence, two facts, two links. The install command lives on the project page. */
-const projectCard = (p) => `
-      <article class="project-card">
-        <p class="eyebrow">${esc(pick(p.format))}</p>
-        <h3><a href="/${p.slug}">${toolName(p)}</a></h3>
-        ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
-        <p class="card-meta">${[p.skills ? t(`${p.skills} skills`, `${p.skills} 个 skill`) : '', p.stars ? `${starGlyph}${num(p.stars)} ${t('stars', 'star')}<span class="sr-only"> GitHub</span>` : ''].filter(Boolean).join('<span class="sep" aria-hidden="true"> · </span>')}</p>
-        <p class="card-actions">${p.install && p.entry ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}${arrowGlyph}</a>` : ''}<a href="${p.github}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${appHref(LANG, '/login', 'org_projects')}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
+/** One editorial catalog row on /projects. The install command itself lives on the project page. */
+const projectCard = (p) => {
+  const [en, zh] = p.slug === 'workbench'
+    ? ['Write novels and scripts in your browser', '在浏览器里写小说和短剧']
+    : taskChoices.find(([, , slug]) => slug === p.slug)
+  return `
+      <article class="project-entry">
+        <div class="project-entry-main">
+          <p class="project-purpose">${t(en, zh)}</p>
+          <h3><a href="/${p.slug}">${toolName(p)}</a></h3>
+          ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
+        </div>
+        <div class="project-entry-side">
+          <p class="project-facts">${[p.skills ? t(`${p.skills} skills`, `${p.skills} 个 skill`) : '', p.stars ? `${num(p.stars)} GitHub ${t('stars', 'star')}` : ''].filter(Boolean).map((fact) => `<span>${fact}</span>`).join('')}</p>
+          <p class="project-actions">${p.install && p.entry ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}${arrowGlyph}</a>` : ''}<a href="${p.github}">${t('Source', '源码')}${extGlyph}</a>${p.slug === 'workbench' ? `<a href="${appHref(LANG, '/login', 'org_projects')}">${t('Open app', '打开工作台')}${extGlyph}</a>` : ''}</p>
+        </div>
       </article>`
+}
 
 /** Relationship diagram (closing band): idea → novel → short drama / game, and footage → video recap, labelled with the tools. */
 const pipelineSvg = () => {
@@ -407,13 +417,13 @@ for (const item of showcases) {
   }
   if (item.chain) {
     // The hero's single verified case: source text → adaptation documents → playable result, all in the owner's pinned repository.
-    const { source, rule, files, result, figure, example } = item.chain
+    const { source, rule, files, result, figure, scene, example } = item.chain
     const pinned = new RegExp(`^${owner.github.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(?:blob|tree)/[a-f0-9]{40}/`)
-    for (const url of [example, source?.url, rule?.url, result?.source, figure?.source]) assert.match(url ?? '', pinned, `Showcase chain must cite ${owner.github} at a pinned commit`)
+    for (const url of [example, source?.url, rule?.url, result?.source, figure?.source, scene?.source]) assert.match(url ?? '', pinned, `Showcase chain must cite ${owner.github} at a pinned commit`)
     assert.ok(source.file && source.heading?.trim() && source.excerpt?.trim() && LANGS.every((lang) => source.note?.[lang]?.trim()), 'Invalid showcase chain source')
     assert.ok(rule.file && ['name', 'fact', 'design'].every((field) => LANGS.every((lang) => rule[field]?.[lang]?.trim())), 'Invalid showcase chain rule')
     assert.ok(Array.isArray(files) && files.length && files.every((file) => typeof file === 'string' && file.trim()), 'Invalid showcase chain files')
-    for (const asset of [result, figure]) {
+    for (const asset of [result, figure, scene]) {
       assert.match(asset?.file ?? '', /^\/org\/demos\/[a-z0-9-]+\.(?:jpg|webp)$/, 'Invalid showcase chain asset')
       assert.ok(Number.isInteger(asset.width) && Number.isInteger(asset.height) && LANGS.every((lang) => asset.alt?.[lang]?.trim()), 'Invalid showcase chain asset')
     }
@@ -421,11 +431,8 @@ for (const item of showcases) {
   }
 }
 const showcaseImage = (item, eager = false) => `<img src="${esc(item.image.file)}" width="${item.image.width}" height="${item.image.height}" alt="${esc(pick(item.image.alt))}" loading="${eager ? 'eager' : 'lazy'}" decoding="async"${eager ? ' fetchpriority="high"' : ''}>`
-/** Media shape decides the case's place in the grid: the first case is the feature, a vertical video gets a phone-shaped stage. */
-const caseShape = (item, index) => (index === 0 ? ' is-feature' : item.video && item.video.height > item.video.width ? ' is-tall' : '')
-/** Showcase cards in content order (content/showcases.json is the homepage curation). */
 /** The hero already shows the case with a verified chain; the showcase carries the others. */
-const showcaseCards = () => showcases.filter((item) => !item.chain).map((item, index) => {
+const showcaseCards = () => showcases.filter((item) => !item.chain).map((item) => {
   const owner = projects.find((p) => p.slug === item.owner)
   const tall = item.video && item.video.height > item.video.width
   // Native controls stay in the HTML (no-JS playback); playerScript swaps them for one play button until the first play.
@@ -435,60 +442,31 @@ const showcaseCards = () => showcases.filter((item) => !item.chain).map((item, i
   const links = [
     item.video ? `<a href="${esc(item.video.url)}">${t('Watch directly', '直接观看视频')}${extGlyph}</a>` : '',
     item.demo ? `<a href="${esc(item.demo)}">${t('Play the prototype', '试玩原型')}${extGlyph}</a>` : '',
-    `<a href="${esc(item.source)}">${t('README source', 'README 来源')}</a>`,
+    `<a href="${esc(item.source)}">${t('Source', '源码')}</a>`,
     item.transcript_source ? `<a href="${esc(item.transcript_source)}">${t('Caption transcript', '字幕稿')}</a>` : '',
   ].filter(Boolean)
-  return `<article class="case-card${caseShape(item, index)}" aria-labelledby="case-${esc(item.slug)}">
+  return `<article class="case-card${tall ? ' is-tall' : ''}" aria-labelledby="case-${esc(item.slug)}">
     <figure class="case-media"><div class="media-frame"${tall ? ` style="--poster:url('${esc(item.video.poster)}')"` : ''}>${media}</div><figcaption><span class="case-kind">${esc(pick(item.kind))}</span><span class="case-owner">${esc(owner.name.en)}</span></figcaption></figure>
     <div class="case-copy"><h3 id="case-${esc(item.slug)}">${esc(pick(item.title))}</h3><p>${esc(pick(item.description))}</p>
-    <dl class="case-io"><div><dt>${starGlyph}${t('Input', '输入')}</dt><dd>${esc(pick(item.input))}</dd></div><div><dt>${starGlyph}${t('Output', '产物')}</dt><dd>${esc(pick(item.output))}</dd></div></dl>
     <p class="case-actions"><a class="case-method" href="${esc(item.method)}">${t('Follow the method', '看创作方法')}${arrowGlyph}</a></p><p class="case-provenance">${links.join('<span aria-hidden="true"> · </span>')}</p></div>
   </article>`
 }).join('')
 
 const chainImage = (asset, { eager = false, cls = '' } = {}) => `<img${cls ? ` class="${cls}"` : ''} src="${esc(asset.file)}" width="${asset.width}" height="${asset.height}" alt="${esc(pick(asset.alt))}" loading="${eager ? 'eager' : 'lazy'}" decoding="async"${eager ? ' fetchpriority="high"' : ''}>`
-/** A small label attached to one object on the stage: the mark's star, the step and where it comes from. */
-const objLabel = (step, name, meta = '') => `<p class="obj-label">${starGlyph}<span class="obj-step">${step}</span><span class="obj-name">${name}</span>${meta ? `<span class="obj-meta">${meta}</span>` : ''}</p>`
-/**
- * Hero stage: one verified case as one scene. The playable prototype (browser QA capture) is the
- * protagonist, with the game's own Sun Wukong stepping out of it; the source chapter lies beside it
- * on manuscript paper and a slip from the Novel to Game source bible is pinned across the seam.
- * A dashed story thread runs from the chapter to the level. Every piece links to the owner
- * repository at a pinned commit; the other cases follow in the showcase.
- */
+/** One source-to-world composition; a labelled crop never replaces the full, pinned source. */
 const heroStage = () => {
   const item = showcases.find((s) => s.chain)
   assert.ok(item, 'Homepage hero needs one showcase with a verified chain')
-  const { source, rule, result, figure, example } = item.chain
-  const owner = projects.find((p) => p.slug === item.owner)
-  const host = esc(new URL(item.demo).host)
+  const { source, scene, example } = item.chain
   return `<figure class="stage">
         <div class="stage-canvas">
-          <svg class="stage-thread" viewBox="0 0 1200 545" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M298 156C362 108 434 120 495 194"/></svg>
-          <div class="stage-obj obj-source">
-            ${objLabel('01', t('Source', '原著'), `<a href="${esc(source.url)}" title="${esc(pick(source.note))}">${esc(source.file)}</a>`)}
-            <div class="manuscript" lang="zh-Hant"><p class="ms-heading">${esc(source.heading)}</p><p class="ms-text">${esc(source.excerpt)}</p></div>
-          </div>
-          <div class="stage-obj obj-result">
-            ${objLabel('03', esc(pick(item.kind)))}
-            <div class="tile-media"><div class="tile-bar"><span class="tile-dots" aria-hidden="true"><span></span><span></span><span></span></span><span class="tile-url">${host}</span><a class="tile-play" href="${esc(item.demo)}">${t('Play in your browser', '在浏览器里试玩')}${extGlyph}</a></div>${chainImage(result, { eager: true })}</div>
-            ${chainImage(figure, { eager: true, cls: 'act-figure' })}
-          </div>
-          <div class="stage-obj obj-rule">
-            <div class="doc-card">
-              ${objLabel('02', esc(owner.name.en))}
-              <p class="doc-file"><a href="${esc(rule.url)}">${esc(rule.file)}</a></p>
-              <p class="doc-rule">${t(`“${esc(rule.name.en)}”`, `「${esc(rule.name.zh)}」`)}</p>
-              <dl class="doc-rows"><div><dt>${t('Source', '原作')}</dt><dd>${esc(pick(rule.fact))}</dd></div><div><dt>${t('Design', '改编')}</dt><dd>${esc(pick(rule.design))}</dd></div></dl>
-              ${rule.translated ? `<p class="doc-note">${t('Translated from the Chinese source bible.', '摘自原著设定集。')}</p>` : ''}
-            </div>
-          </div>
-          <span class="thread-star" aria-hidden="true">${starGlyph}</span>
+          <div class="source-leaf"><a class="leaf-title" href="${esc(source.url)}" title="${esc(pick(source.note))}">${t('Journey to the West', '西游记')}</a><blockquote lang="zh-Hant"><p class="source-full">${esc(source.excerpt.split('。')[0])}。</p><p class="source-short">${esc(source.excerpt.split('，').slice(1).join('，').split('。')[0])}。</p></blockquote><span class="leaf-chapter">${t('Chapter 59', '第五十九回')}</span></div>
+          <a class="tile-media" href="${esc(scene.source)}">${chainImage(scene, { eager: true })}</a>
         </div>
-        <figcaption><span class="stage-case">${t('<cite>Journey to the West</cite> → a playable game', '《西游记》→ 可玩游戏')}</span><a class="stage-method" href="/${item.owner}#start-h" aria-label="${t(`Start adapting: set up ${esc(owner.name.en)}`, `开始改编：安装 ${esc(owner.name.en)}`)}">${t('Start adapting', '开始改编')}${arrowGlyph}</a><a href="${esc(example)}">${t('Case files', '案例源码')}${extGlyph}</a><a href="#examples-h">${t('More demos', '更多演示')}<span class="arrow" aria-hidden="true">↓</span></a></figcaption>
+        <figcaption><span class="stage-case"><a href="${esc(example)}" title="${t('Case source files', '案例源码')}">${t('<cite>Journey to the West</cite> · game art', '《西游记》游戏原画')}</a></span><a class="tile-play" href="${esc(item.demo)}">${t('Step into the prototype', '走进游戏原型')}${extGlyph}</a></figcaption>
       </figure>`
 }
-/** A knowledge-level entry `workflow:<id>` links that /guides workflow instead of repeating articles the paths already link. */
+/** A knowledge-level entry `workflow:<id>` links the complete workflow in /guides. */
 const workflowLink = (ref) => {
   const flow = WORKFLOWS.find((candidate) => `workflow:${candidate.id}` === ref)
   assert.ok(flow, `Unknown homepage workflow: ${ref}`)
@@ -501,46 +479,15 @@ const homeReadingItems = (slugs) => slugs.map((slug) => {
 })
 /** Short tool name for homepage labels: the pack's English name, or the workbench in the page language. */
 const toolName = (p) => (p.slug === 'workbench' ? esc(pick(p.name)) : esc(p.name.en))
-const homeReadingLinks = (slugs, labels, branching = false) => {
-  const items = homeReadingItems(slugs)
-  // An adaptation branch names the tool it needs (the article's owner), so "choose one" reads as one more tool, not two.
-  const tool = (item) => toolName(projects.find((p) => p.slug === item.owner))
-  // …and shows that tool's first showcase result (the same local poster or screenshot the showcase uses), so the choice is between outcomes.
-  const branchMedia = (item) => {
-    const shown = showcases.find((s) => s.owner === item.owner)
-    const media = shown?.image ?? (shown?.video && { file: shown.video.poster, width: shown.video.width, height: shown.video.height })
-    return media ? `<span class="branch-media"><img src="${esc(media.file)}" width="${media.width}" height="${media.height}" alt="" loading="lazy" decoding="async"></span>` : ''
-  }
-  const links = items.map((item, i) => {
-    if (!labels) return `<li>${guideLink(item)}</li>`
-    const label = esc(pick(labels[i]))
-    return branching && i > 0
-      ? `<li><a href="/${item.owner}/${item.slug}" aria-label="${label} · ${tool(item)}: ${esc(pick(item.title))}">${branchMedia(item)}<span class="branch-label">${label}</span><span class="branch-meta"><span class="branch-tool">${tool(item)}</span>${arrowGlyph}</span></a></li>`
-      : `<li><a href="/${item.owner}/${item.slug}" aria-label="${label}: ${esc(pick(item.title))}">${label}${arrowGlyph}</a></li>`
-  })
-  return branching ? `<ol>${links[0]}</ol><p class="path-branch-label">${t('To adapt it, choose one:', '需要改编时，任选一条：')}</p><ul class="path-branches">${links.slice(1).join('')}</ul>` : `<ol>${links.join('')}</ol>`
-}
-/** The tool a path starts with, linked to its row in the tool table below (where setup lives). */
-const pathTools = (slugs) => {
-  const list = slugs.map((slug) => projects.find((p) => p.slug === slug))
-  return `<p class="path-tools"><span class="path-tools-label">${t('Start with', '起步工具')}</span>${list.map((p) => `<a href="#tool-${p.slug}">${toolName(p)}</a>`).join(`<span class="path-tools-or">${t('or', '或')}</span>`)}</p>`
-}
-/** A path the browser workbench can start: one direct action into its signup, for visitors with no agent to install (on a phone, say). */
-const workbenchStart = (tools) => (tools.includes('workbench')
-  ? `<p class="path-direct"><a href="${appHref(LANG, '/register', 'org_home_path')}">${t('No agent to install? Start writing in your browser', '不装 Agent，在浏览器里直接开写')}${extGlyph}</a></p>`
-  : '')
-/** Where a tool row's setup link lands: the project page's install-and-entry steps when the project has them. */
-const setupLink = (p) => (p.install && p.entry
-  ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}</a>`
-  : `<a href="/${p.slug}">${t(p.slug === 'workbench' ? 'About the workbench' : 'Project details', p.slug === 'workbench' ? '工作台介绍' : '项目详情')}</a>`)
+const homeReadingLinks = (slugs) => `<ol>${homeReadingItems(slugs).map((item) => `<li>${guideLink(item)}</li>`).join('')}</ol>`
 const toolCards = (list) => list.map((p) => {
   const [en, zh] = taskChoices.find(([, , slug]) => slug === p.slug)
-  // The title opens the project page; a separate setup link only when it lands somewhere else (the install steps).
-  const setup = p.install && p.entry ? `${setupLink(p)} · ` : ''
+  // Titles open project details; a second action goes to installation or browser signup, never the same page.
+  const setup = p.slug === 'workbench'
+    ? `<a href="${appHref(LANG, '/register', 'org_home_tools')}">${t('Open the workbench', '打开工作台')}${extGlyph}</a> · `
+    : p.install && p.entry ? `<a href="/${p.slug}#start-h">${t('Install & first run', '安装与上手')}</a> · ` : ''
   return `<article class="tool-choice" id="tool-${p.slug}"><span class="eyebrow">${toolName(p)}</span><h3><a href="/${p.slug}">${t(esc(en), esc(zh))}${arrowGlyph}</a></h3><span class="tool-role">${esc(pick(homeReading.tools[p.slug]))}</span><p class="tool-links">${setup}<a href="${esc(p.github)}">${t('Source on GitHub', 'GitHub 源码')}${extGlyph}</a></p></article>`
 }).join('')
-/** A Chinese heading in phrases: each phrase stays on one line (see `.ph`). */
-const phrases = (...parts) => parts.map((part) => `<span class="ph">${part}</span>`).join('')
 /**
  * Progressive enhancement for the showcase players: with JavaScript, a video shows one play button
  * instead of the native control bar until it starts; the click starts playback (never autoplay) and
@@ -576,36 +523,32 @@ const homePage = () => {
   const title = t('ZenStory AI — Open-source AI tools for writing and adapting stories', 'ZenStory AI — 开源 AI 写小说、做短剧、改游戏与视频解说工具')
   const description = t('Write novels with AI, adapt them into short drama or playable games, and turn footage into video recaps. Explore real open-source demos, workflows and practical guides.', '用 AI 写小说，再改成短剧或可玩游戏；已有视频素材，也能做成解说。看真实开源项目演示，按步骤走完创作流程，从任务、案例与模板进入知识库。')
   const ld = [orgNode, { '@type': 'WebSite', '@id': `${SITE}/#website`, name: org.name, url: SITE, description, publisher: { '@id': `${SITE}/#org` }, inLanguage: LOCALE[LANG] }]
-  const { paths, levels } = homeReading
+  const { levels } = homeReading
   const creative = projects.filter((p) => !['dsh', 'workbench'].includes(p.slug))
   const environments = projects.filter((p) => ['dsh', 'workbench'].includes(p.slug))
-  for (const [number, , , , , slugs, , tools] of paths) {
-    // A path names the tools it starts with; its ordered steps must be taught by one of them.
-    assert.ok(Array.isArray(tools) && tools.length && tools.every((slug) => projects.some((p) => p.slug === slug)), `Homepage path ${number} needs known starting tools`)
-    const steps = homeReadingItems(number === '02' ? slugs.slice(0, 1) : slugs)
-    assert.ok(steps.every((item) => tools.includes(item.owner)), `Homepage path ${number} steps belong to a tool it does not name`)
-  }
   for (const p of projects) assert.ok(LANGS.every((lang) => homeReading.tools?.[p.slug]?.[lang]?.trim()), `Homepage tool table needs a short note for ${p.slug}`)
   for (const [en, , , , , more, label] of levels) assert.ok(routeExists(LANG, more.split('#')[0]) && LANGS.every((lang) => label?.[lang]?.trim()), `Homepage knowledge level "${en}" needs a published destination and its own label`)
   const body = `
 <article class="home">
   <div class="hero">
-    <div class="wrap hero-head">
-      <h1>${t('Write stories.<br> Make them real.', '写下故事，<br>做出作品')}</h1>
-      <p class="lede">${t('Write novels with AI, adapt them into drama or games, or turn footage into a narrated recap.', '用 AI 写小说，再改成短剧或可玩的游戏；已有视频素材，也能做成解说。')}</p>
+    <div class="wrap hero-layout">
+    <div class="hero-head">
+      <p class="hero-kicker">${starGlyph}${t('Open-source tools for storytelling', '为故事而做的开源工具')}</p>
+      <h1>${t('From one page, <br><em>into a world.</em>', '从一页故事，<br><em>走进一个世界</em>')}</h1>
+      <p class="lede">${t('Write novels with AI, adapt stories into drama or games, and turn footage into a narrated recap.', '用开源 AI 工具写小说、改编短剧与游戏，也把视频素材做成解说。')}</p>
       <div class="hero-cta">
-        <p class="actions home-actions"><a class="btn" href="#start-h">${t('Start with what you have', '选一条创作路径')}<span class="arrow" aria-hidden="true">↓</span></a></p>
+        <p class="actions home-actions"><a class="btn" href="#choose-h">${t('Explore the tools', '选择创作工具')}<span class="arrow" aria-hidden="true">↓</span></a><a class="hero-secondary" href="#examples-h">${t('See what’s been made', '看看真实作品')}${arrowGlyph}</a></p>
       </div>
     </div>
-    <div class="wrap">
+    <div class="hero-work">
       ${heroStage()}
+    </div>
     </div>
   </div>
   <section class="band stage-band" aria-labelledby="examples-h"><div class="wrap">
     <header class="section-head">
-      <p class="eyebrow">${starGlyph}<span>${t('Real demos', '真实演示')}</span></p>
-      ${heading(2, 'Real projects. Visible results.', phrases('真实项目，', '看得见的产物'), 'examples-h')}
-      <p class="section-lede">${t('Demos and playable prototypes from our project READMEs, each with the method behind it.', '各项目 README 里的演示与可试玩原型，每个都附创作方法。')}</p>
+      ${heading(2, 'See the tools in action', '先看看创作效果', 'examples-h')}
+      <p class="section-lede">${t('Four independent demos, with tutorials and source files to follow.', '四个实际案例，都有对应的教程和源码。')}</p>
     </header>
     <p class="swipe-hint" aria-hidden="true">${((n) => t(`Swipe to see all ${n} demos`, `左右滑动，查看全部 ${n} 个演示`))(showcases.filter((item) => !item.chain).length)}<span class="arrow">→</span></p>
     <div class="showcase-controls" hidden>
@@ -614,49 +557,33 @@ const homePage = () => {
       <button type="button" data-next aria-label="${t('Next demo', '下一个演示')}" aria-controls="showcase-list"><span aria-hidden="true">→</span></button>
     </div>
     <div class="showcase-grid" id="showcase-list">${showcaseCards()}</div>
-    <p class="more stage-next"><a href="#start-h">${t('Pick a path for what you have', '看看从哪里开始')}<span class="arrow" aria-hidden="true">↓</span></a></p>
   </div></section>
-  <section class="band" aria-labelledby="start-h"><div class="wrap">
-    <header class="split-head">
-      <p class="eyebrow">${starGlyph}<span>${t('Creative paths', '创作路径')}</span></p>
-      ${heading(2, 'Start with what you have', phrases('你手上有什么，', '就从哪里开始'), 'start-h')}
-      <p class="section-lede">${t('Pick one and follow the steps.', '选一条，照步骤做。')}</p>
-    </header>
-    <div class="learning-paths home-paths">${paths.map(([number, en, zh, desc, descZh, slugs, labels, tools]) => `<article class="learning-path"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${homeReadingLinks(slugs, labels, number === '02')}${pathTools(tools)}${workbenchStart(tools)}</article>`).join('')}</div>
-  </div></section>
-  <section class="band" aria-labelledby="choose-h"><div class="wrap">
+  <section class="band relationships-band" aria-labelledby="model-h"><div class="wrap">
     <header class="section-head">
-      <p class="eyebrow">${starGlyph}<span>${t('Tools and where to use them', '工具与使用环境')}</span></p>
-      ${heading(2, 'Choose by what you want to make', phrases('按你想做的作品，', '选择工具'), 'choose-h')}
-      <p class="section-lede">${t('Each row leads to its install and entry command.', '每一行都直达安装与入口命令。')}</p>
+      ${heading(2, 'From writing to adaptation', '从写作到改编', 'model-h')}
     </header>
-    <h3 class="tool-group-title">${t('Creative tools', '创作工具')}<span class="count">${creative.length}</span></h3>
-    <div class="tool-grid">${toolCards(creative)}</div>
-    <h3 class="tool-group-title">${t('Where to work', '在哪里使用')}<span class="count">${environments.length}</span></h3>
-    <p class="tool-group-note">${t('The four packs install into an agent you already use, such as Claude Code or Codex. Or work in one of these:', '四套 skill 装进你已在用的 Agent（如 Claude Code、Codex）；也可以用下面两种方式：')}</p>
-    <div class="environment-grid">${toolCards(environments)}</div>
-    <p class="more"><a href="/compare/writing-workflows">${t('Compare writing environments', '比较写作环境')}${arrowGlyph}</a><a href="/projects">${t(`All ${projects.length} projects`, `全部 ${projects.length} 个项目`)}${arrowGlyph}</a></p>
+    <p class="connection-note">${t('A novel can become a short drama or a game; a recap starts from existing footage.', '一部小说可以改成短剧或游戏；解说视频则从现成的视频素材开始。')}</p>
+    <div class="home-system"><figure>${pipelineSvg()}</figure></div>
   </div></section>
-  <section class="band" aria-labelledby="guides-h"><div class="wrap library">
+  <section class="band tools-band" aria-labelledby="choose-h"><div class="wrap">
+    <header class="section-head">
+      ${heading(2, 'Choose your creative tools', '选择创作工具', 'choose-h')}
+    </header>
+    <div class="tool-grid">${toolCards(creative)}</div>
+    <div class="environment-grid">${toolCards(environments)}</div>
+    <p class="more"><a href="/compare/writing-workflows">${t('Compare writing environments', '比较写作环境')}${arrowGlyph}</a><a href="/projects">${t('All projects', '全部项目')}${arrowGlyph}</a></p>
+  </div></section>
+  <section class="band library-band" aria-labelledby="guides-h"><div class="wrap library">
     <div class="library-intro">
-      <p class="eyebrow">${starGlyph}<span>${t('Knowledge library', '知识体系')}</span></p>
-      ${heading(2, 'From first steps to fixes, layer by layer', phrases('从上手到排错，', '按层次找到方法'), 'guides-h')}
+      ${heading(2, 'Tutorials & reference', '教程与参考资料', 'guides-h')}
       <form class="library-search" action="${L('/guides')}" method="get" role="search"><label for="home-search">${t('Search the library', '搜索知识库')}</label><span class="library-search-row"><input id="home-search" name="q" type="search" placeholder="${t('e.g. storyboard, CapCut draft', '例如：去AI味、分镜、剪映草稿')}"><button type="submit">${t('Search', '搜索')}</button></span></form>
       <p class="more"><a href="/guides">${t('Browse the complete library', '浏览完整知识库')}${arrowGlyph}</a></p>
     </div>
-    <div class="knowledge-grid">${levels.map(([en, zh, desc, descZh, slugs, more, label]) => `<article class="knowledge-level"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${slugs.every((slug) => slug.startsWith('workflow:')) ? `<ol>${slugs.map(workflowLink).join('')}</ol>` : homeReadingLinks(slugs)}<a class="topic-more" href="${more}">${esc(pick(label))}${arrowGlyph}</a></article>`).join('')}</div>
-  </div></section>
-  <section class="band closing" aria-labelledby="model-h"><div class="wrap">
-    <header class="section-head">
-      <p class="eyebrow">${starGlyph}<span>${t('How the projects connect', '项目关系')}</span></p>
-      ${heading(2, 'One story. Different ways to build.', phrases('围绕故事，', '把创作连接起来'), 'model-h')}
-    </header>
-    <div class="home-system"><figure>${pipelineSvg()}<figcaption>${t('A novel can become a short drama or a game; a recap starts from existing footage.', '一部小说可以改成短剧或游戏；解说视频则从现成的视频素材开始。')}</figcaption></figure></div>
-    <p class="actions"><a class="btn" href="${appHref(LANG, '/register', 'org_home_closing')}">${t('Open ZenStory Workbench', '打开 ZenStory 工作台')}${extGlyph}</a><a class="btn ghost" href="#choose-h">${t('Install a skill pack in your agent', '在 Agent 中安装 skill 包')}<span class="arrow" aria-hidden="true">↑</span></a></p>
+    <div class="knowledge-grid">${levels.map(([en, zh, desc, descZh, slugs, more, label]) => `<details class="knowledge-level"><summary><h3><span>${t(en, zh)}</span><span class="knowledge-description">${t(desc, descZh)}</span><span class="disclosure-icon" aria-hidden="true">+</span></h3></summary><div class="knowledge-content">${slugs.every((slug) => slug.startsWith('workflow:')) ? `<ol>${slugs.map(workflowLink).join('')}</ol>` : homeReadingLinks(slugs)}<a class="topic-more" href="${more}">${esc(pick(label))}${arrowGlyph}</a></div></details>`).join('')}</div>
   </div></section>
 </article>
 ${playerScript}${carouselScript}`
-  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'home', fonts: HOME_FONTS }))
+  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'home', fonts: HOME_FONTS, head: LANG === 'en' ? homeLanguageScript : '' }))
 }
 
 // ---------- project pages ----------
@@ -1036,13 +963,13 @@ const taskIndex = () => `<ul class="task-index">${topics.filter((topic) => topic
 /** /guides reads in the homepage's four knowledge layers, in order: get started → whole workflows → techniques by task → revise and look up. */
 const GUIDE_LAYERS = [
   ['get-started', 'Get started', '入门'],
-  ['learning-paths', 'Complete workflows', '完整创作路径'],
-  ['browse-topics', 'Go deeper by task', '按任务深入'],
-  ['revise-and-look-up', 'Revise and look up', '改稿与查询'],
+  ['learning-paths', 'Complete workflows', '完整工作流'],
+  ['browse-topics', 'Techniques & templates', '技法与模板'],
+  ['revise-and-look-up', 'Revision & reference', '排错与参考'],
 ]
 const layerHead = (index, lede) => {
   const [id, en, zh] = GUIDE_LAYERS[index]
-  return `<p class="layer-step">${String(index + 1).padStart(2, '0')} / ${String(GUIDE_LAYERS.length).padStart(2, '0')}</p><h2 id="${id}">${t(en, zh)}</h2><p class="section-lede">${lede}</p>`
+  return `<h2 id="${id}">${t(en, zh)}</h2><p class="section-lede">${lede}</p>`
 }
 const topicBySlug = (slug) => topics.find((topic) => topic.slug === slug)
 /** Three guides of a task for a /guides layer, skipping any the workflows on the same page already list. */
@@ -1065,9 +992,8 @@ const guidesIndex = () => {
   const body = `
 <article class="guides-index">
   <header class="page-hero"><div class="wrap">
-    <p class="eyebrow">${t('Writing and adaptation', '写作与改编')}</p>
-    <h1>${t('What are you working on?', '你正在写什么、做什么？')}</h1>
-    <p class="lede">${t('Go from a first draft to revision one layer at a time. Every method comes from a file in our open-source skills, with a template, an original example and the source link.', '从第一稿到改稿，一层层往下走。每篇方法都来自开源 skill 里的具体文件，附模板、原创示例和来源链接。')}</p>
+    <h1>${t('Writing & adaptation guides', '创作指南')}</h1>
+    <p class="lede">${t('Practical methods for novels, drama, games and video, with examples, templates and open-source references.', '小说、短剧、游戏与视频的实用方法，附示例、模板和开源出处。')}</p>
     <form class="guide-search" data-guide-search hidden role="search">
       <label for="guide-query">${t('Search all guides', '搜索全部指南')}</label>
       <div class="guide-search-controls"><input type="search" id="guide-query" name="q" placeholder="${t('Try dialogue, outline, subtitles…','试试：大纲、对白、字幕……')}" autocomplete="off"><button type="reset">${t('Clear','清空')}</button></div>
@@ -1107,7 +1033,7 @@ const guidesIndex = () => {
     </section>
   </div>
 </article>`
-  write(route,page({route,title,description,ogType:'website',ld,body}))
+  write(route,page({route,title,description,ogType:'website',ld,body,pageId:'guides'}))
 }
 
 /**
@@ -1247,15 +1173,15 @@ const projectsIndex = () => {
 <article class="projects-index">
   <header class="page-hero">
     <div class="wrap">
-      <p class="eyebrow">${t('Six open-source projects · MIT', '六个开源项目 · MIT')}</p>
       <h1>${t('From one idea to novels, short dramas, games and video.', esc(org.tagline.zh))}</h1>
     </div>
   </header>
 
   <section class="band" aria-labelledby="catalog-h">
     <div class="wrap">
-    ${heading(2, 'Start with what you want to make', '从目标开始', 'catalog-h')}
-    <div class="project-grid">${projects.map(projectCard).join('')}
+    ${heading(2, 'Choose by creative goal', '按创作目标选择', 'catalog-h')}
+    <p class="star-snapshot">${t('Stars as of', 'Star 数据截至')} ${org.proof.as_of}</p>
+    <div class="project-catalog">${projects.map(projectCard).join('')}
     </div>
     <p class="more">${comparisons.map((comparison) => `<a href="/compare/${comparison.slug}">${t('Not sure where to write? Compare the three writing environments', '不知道在哪写？看看三种写作环境怎么选')}${arrowGlyph}</a>`).join('')}</p>
     </div>
@@ -1264,18 +1190,18 @@ const projectsIndex = () => {
   <section class="band band-cream" aria-labelledby="model-h">
     <div class="wrap">
     ${heading(2, 'How they fit together', '怎么搭配着用', 'model-h')}
-    <div class="model">${pair(steps(org.model.en), steps(org.model.zh), 'cols')}</div>
+    <dl class="project-relations">${org.model[LANG].map(([label, description]) => `<div><dt>${rich(label)}</dt><dd>${rich(description)}</dd></div>`).join('')}</dl>
     </div>
   </section>
 
   <section class="band" aria-labelledby="hosts-h">
     <div class="wrap">
     ${heading(2, 'Runs inside the agents you already use', '在你已经使用的 Agent 里运行', 'hosts-h')}
-    <ul class="host-grid">${org.proof.harnesses.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>
+    <ul class="project-hosts">${org.proof.harnesses.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>
     </div>
   </section>
 </article>`
-  write(route, page({ route, title, description, ogType: 'website', ld, body }))
+  write(route, page({ route, title, description, ogType: 'website', ld, body, pageId: 'projects' }))
 }
 
 // ---------- glossary ----------

@@ -150,6 +150,8 @@ test('the guides index reads in four layers, and every workflow step names its s
   const read=(lang,route)=>readFileSync(join(out,pathOf(lang,route),'index.html'),'utf8')
   for(const lang of ['en','zh']) {
     const index=read(lang,'/guides')
+    assert.match(index, /<body data-page="guides">/)
+    assert.doesNotMatch(index, /class="layer-step"/)
     // Get started → whole workflows → techniques by task → revise and look up, the homepage's knowledge layers in order.
     const layers=['get-started','learning-paths','browse-topics','revise-and-look-up'].map((id)=>index.indexOf(`<h2 id="${id}">`))
     assert.ok(layers.every((at,i)=>at>0 && (i===0 || at>layers[i-1])),`${lang}: guide layers out of order ${layers}`)

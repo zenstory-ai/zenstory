@@ -176,7 +176,7 @@
     },
     "install": "npx skills add zenstory-ai/oh-story-claudecode -y -g",
     "entry": "/story-setup",
-    "stars": 7170,
+    "stars": 8220,
     "skills": 13,
     "sources": {
       "checked_on": "2026-10-15",
@@ -197,7 +197,7 @@
         "[State-change and dialogue-function review](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
         "[Dimension-level style precedence and shared decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
         "[Receipts, explicit choices, pending inference and scope](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
-        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: opening defaults and book-specific requirements](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/opening-design.md#L25-L33)",
+        "The workflow notes below reflect this source review. [2026-10-15: opening defaults and book-specific requirements](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/opening-design.md#L25-L33)",
         "[2026-10-15: author requirements override reference defaults](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/style-resolution.md#L5-L11)"
       ],
       "zh": [
@@ -217,7 +217,7 @@
         "[状态变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
         "[按维度的文风优先级与统一取舍](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
         "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
-        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：开篇默认参照与本书要求](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/opening-design.md#L25-L33)",
+        "以下流程依据本次源码复核。 [2026-10-15：开篇默认参照与本书要求](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/opening-design.md#L25-L33)",
         "[2026-10-15：作者要求优先于参考默认写法](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/style-resolution.md#L5-L11)"
       ]
     },
@@ -360,7 +360,7 @@
     },
     "install": "npx skills add zenstory-ai/drama-skills -y -g",
     "entry": "$short-drama",
-    "stars": 2383,
+    "stars": 3615,
     "skills": 11,
     "sources": {
       "checked_on": "2026-10-15",
@@ -373,7 +373,7 @@
         "[Character anchors and compatible Look definitions](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[Where continuity-lock text must be carried](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
         "[Real REF images, planned inputs and non-production states](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
-        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: core creator documents and the additional cut list](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/README.md#L35-L49)"
+        "The workflow notes below reflect this source review. [2026-10-15: core creator documents and the additional cut list](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/README.md#L35-L49)"
       ],
       "zh": [
         "[按戏剧结果而非章节数量切集](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
@@ -384,7 +384,7 @@
         "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
         "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
-        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：核心创作文档与另增剪辑单](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/README.md#L35-L49)"
+        "以下流程依据本次源码复核。 [2026-10-15：核心创作文档与另增剪辑单](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/README.md#L35-L49)"
       ]
     },
     "vocabulary": [
@@ -507,7 +507,7 @@
     },
     "install": "npx skills add zenstory-ai/novel-to-game -y -g",
     "entry": "/novel-to-game",
-    "stars": 813,
+    "stars": 952,
     "skills": 7,
     "sources": {
       "checked_on": "2026-09-29",
@@ -657,7 +657,7 @@
     },
     "install": "npx skills add zenstory-ai/video-recap-skills -y -g",
     "entry": "/video-recap",
-    "stars": 541,
+    "stars": 601,
     "skills": 7,
     "sources": {
       "checked_on": "2026-10-15",
@@ -673,7 +673,7 @@
         "[Source and output clocks in the cut workflow](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
         "[Visual understanding can skip transcription, not remote VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)",
         "[Video/audio/subtitle separation and authored volume placement](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)",
-        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: seven skills, supported hosts and remote providers](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/README.md#L41-L50)"
+        "The workflow notes below reflect this source review. [2026-10-15: seven skills, supported hosts and remote providers](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/README.md#L41-L50)"
       ],
       "zh": [
         "[编导规划与各阶段衔接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
@@ -687,7 +687,7 @@
         "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
         "[视觉理解可跳过转写，不等于跳过远程 VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)",
         "[视频、音频与字幕的分离及音量位置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)",
-        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：七个技能、受支持宿主与远程服务](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/README.md#L41-L50)"
+        "以下流程依据本次源码复核。 [2026-10-15：七个技能、受支持宿主与远程服务](https://github.com/zenstory-ai/video-recap-skills/blob/5785c33d8b5172cfa2837a8a0d57eb4b87837475/README.md#L41-L50)"
       ]
     },
     "vocabulary": [
@@ -789,7 +789,7 @@
     },
     "install": null,
     "entry": null,
-    "stars": 425,
+    "stars": 664,
     "skills": null,
     "sources": {
       "checked_on": "2026-09-29",
@@ -928,7 +928,7 @@
     },
     "install": null,
     "entry": "https://app.zenstory.ai",
-    "stars": 56,
+    "stars": 84,
     "skills": 13,
     "sources": {
       "checked_on": "2026-10-15",
@@ -941,7 +941,7 @@
         "[Focused file, attachments and quotes](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
         "[Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
         "[Project memory is budget-bound context](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)",
-        "Star counts are a 2026-09-29 snapshot; the workflow notes below reflect this source review. [2026-10-15: user-version quota and save coalescing](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L332-L391) · [Plan quota for user versions](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L817-L852)"
+        "The workflow notes below reflect this source review. [2026-10-15: user-version quota and save coalescing](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L332-L391) · [Plan quota for user versions](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L817-L852)"
       ],
       "zh": [
         "[Agent API、文件编辑与版本功能](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
@@ -952,7 +952,7 @@
         "[焦点文件、附件与引用](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
         "[导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
         "[项目记忆受上下文预算约束](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)",
-        "星标数为 2026-09-29 快照；以下流程依据本次源码复核。 [2026-10-15：用户版本配额与保存合并](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L332-L391) · [用户版本的套餐配额](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L817-L852)"
+        "以下流程依据本次源码复核。 [2026-10-15：用户版本配额与保存合并](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L332-L391) · [用户版本的套餐配额](https://github.com/zenstory-ai/zenstory/blob/681fdaf705816426855f0ad3eb4ce38abce1fca3/apps/server/services/features/file_version_service.py#L817-L852)"
       ]
     },
     "vocabulary": []
