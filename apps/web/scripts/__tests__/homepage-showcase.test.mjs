@@ -3,6 +3,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import test, { after, before } from 'node:test'
 
@@ -209,13 +210,12 @@ test('homepage hero links to outcomes, the material paths and the hero case’s 
   }
 })
 
-test('hero caption stays short: one case line and three actions, no setup manual', () => {
+test('hero caption stays short: one case line and one playable action, with sources in the adjacent disclosure', () => {
   const chainCase = showcases.find((item) => item.chain)
   for (const [lang, html] of Object.entries(pages)) {
-    const prefix = lang === 'zh' ? '/zh' : ''
     const hero = html.slice(html.indexOf('<main'), html.indexOf('<section'))
     const caption = hero.match(/<figure class="stage">[\s\S]*<figcaption>([\s\S]*?)<\/figcaption>/)[1]
-    assert.deepEqual(anchors(caption).map(({ href }) => href), [`${prefix}/${chainCase.owner}#start-h`, chainCase.chain.example, '#examples-h'], `${lang}: caption actions`)
+    assert.deepEqual(anchors(caption).map(({ href }) => href), [chainCase.demo], `${lang}: caption should offer the prototype, not a second directory`)
     assert.ok(textOf(caption).length <= (lang === 'en' ? 90 : 40), `${lang}: caption is too long: ${textOf(caption)}`)
     // Host names, licence counts and environment explanations belong to the tool table, not the hero.
     assert.doesNotMatch(hero, /Antigravity|OpenClaw|Reasonix|MIT/, `${lang}: hero repeats the host and licence strip`)
@@ -278,6 +278,23 @@ test('homepage hero shows a real outcome image instead of only describing result
       const source = attribute(image, 'src') ?? ''
       return source && !source.endsWith('/brand/zenstory-ai-mark.svg') && (attribute(image, 'alt') ?? '').trim()
     }), `${lang}: hero image must be an actual described outcome, not the brand mark`)
+  }
+})
+
+test('hero connects a visible original passage to an honestly labelled game detail', () => {
+  const item = showcases.find((candidate) => candidate.chain)
+  const scene = item.chain.scene
+  assert.equal(createHash('sha256').update(readFileSync(join(publicRoot, scene.file))).digest('hex'), scene.asset_sha256, 'the local art must match its source receipt')
+  assert.equal(scene.asset_sha256, scene.source_sha256, 'the game environment art must remain unmodified')
+  for (const [lang, html] of Object.entries(pages)) {
+    const hero = html.slice(html.indexOf('<main'), html.indexOf('<section'))
+    const figure = hero.slice(hero.indexOf('<figure class="stage">'), hero.indexOf('</figure>'))
+    assert.ok(textOf(figure).includes(item.chain.source.excerpt.split('。')[0]), `${lang}: the original must be visible beside the outcome, not only in a closed disclosure`)
+    assert.match(figure, /<blockquote\b[^>]*lang="zh-Hant"/)
+    assert.match(figure, lang === 'zh' ? /游戏场景原画/ : /In-game environment art/)
+    assert.ok(figure.includes(`src="${item.chain.scene.file}"`), `${lang}: use the project’s actual environment art, not a synthetic brand image`)
+    assert.doesNotMatch(figure, /story-game-battle\.jpg|wukong\.webp/, `${lang}: no raw battle HUD or floating character in the hero`)
+    assert.ok(anchors(hero).some(({ href }) => href === item.chain.scene.source), `${lang}: cropped presentation must retain its full original source`)
   }
 })
 

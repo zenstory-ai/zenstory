@@ -221,6 +221,23 @@
           "en": "Sun Wukong, the game’s own character art",
           "zh": "游戏中的孙悟空角色立绘"
         }
+      },
+      "scene": {
+        "file": "/org/demos/story-game-village-art.jpg",
+        "width": 1672,
+        "height": 941,
+        "source": "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/build/app/assets/scene/map-village.jpg",
+        "source_sha256": "0d73406e8ddb43914b6c504001de2ce44b8a0c13b230715b891589d6e41d437e",
+        "asset_sha256": "0d73406e8ddb43914b6c504001de2ce44b8a0c13b230715b891589d6e41d437e",
+        "transform": "Unmodified in-game environment art",
+        "usage_sources": [
+          "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/build/app/js/world.js",
+          "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/build/app/js/assets.js"
+        ],
+        "alt": {
+          "en": "The Flame Mountain village environment art used in the Journey to the West game prototype, without interface or characters.",
+          "zh": "《西游记》游戏原型实际使用的火焰山村落场景原画，不含界面或角色。"
+        }
       }
     }
   },

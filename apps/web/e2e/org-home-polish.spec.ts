@@ -13,7 +13,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
       await page.goto('/zh/');
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText('故事，不只一种形态');
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('从一页故事，走进一个世界');
+      await expect(page.locator('.source-leaf blockquote')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       const outcome = await page.locator('.tile-media').boundingBox();
       expect(outcome!.y).toBeLessThan(width === 1440 ? 900 : 844);
@@ -63,6 +64,7 @@ test('expanded case evidence and learning references keep accessible heading ord
   await page.goto('/zh/');
   await page.locator('.stage-evidence summary').click();
   for (const summary of await page.locator('.knowledge-level summary').all()) await summary.click();
+  await page.locator('.connection-details summary').click();
   const audit = await new AxeBuilder({ page }).analyze();
   expect(audit.violations.filter(v => v.id === 'heading-order' || ['critical', 'serious'].includes(v.impact ?? '')).map(v => v.id)).toEqual([]);
 });
@@ -73,7 +75,7 @@ test('English home remains readable without JavaScript and keeps native video co
   await page.setViewportSize({ width: 390, height: 844 });
   // The finalized directory is served without Vercel's apex -> /org-home rewrite locally.
   await page.goto(baseURL + '/org-home/');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stories take more than one form.');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('From one page, into a world.');
   await expect(page.locator('.showcase-controls')).toBeHidden();
   await expect(page.locator('.case-card')).toHaveCount(4);
   for (const video of await page.locator('video').all()) {
@@ -96,6 +98,12 @@ test('English home remains readable without JavaScript and keeps native video co
   await level.locator('summary').focus();
   await page.keyboard.press('Enter');
   await expect(level.locator('a').first()).toBeVisible();
+
+  const relationships = page.locator('.connection-details');
+  await expect(relationships.locator('svg')).toBeHidden();
+  await relationships.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(relationships.locator('svg')).toBeVisible();
 
 });
 

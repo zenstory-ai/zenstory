@@ -407,13 +407,13 @@ for (const item of showcases) {
   }
   if (item.chain) {
     // The hero's single verified case: source text → adaptation documents → playable result, all in the owner's pinned repository.
-    const { source, rule, files, result, figure, example } = item.chain
+    const { source, rule, files, result, figure, scene, example } = item.chain
     const pinned = new RegExp(`^${owner.github.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(?:blob|tree)/[a-f0-9]{40}/`)
-    for (const url of [example, source?.url, rule?.url, result?.source, figure?.source]) assert.match(url ?? '', pinned, `Showcase chain must cite ${owner.github} at a pinned commit`)
+    for (const url of [example, source?.url, rule?.url, result?.source, figure?.source, scene?.source]) assert.match(url ?? '', pinned, `Showcase chain must cite ${owner.github} at a pinned commit`)
     assert.ok(source.file && source.heading?.trim() && source.excerpt?.trim() && LANGS.every((lang) => source.note?.[lang]?.trim()), 'Invalid showcase chain source')
     assert.ok(rule.file && ['name', 'fact', 'design'].every((field) => LANGS.every((lang) => rule[field]?.[lang]?.trim())), 'Invalid showcase chain rule')
     assert.ok(Array.isArray(files) && files.length && files.every((file) => typeof file === 'string' && file.trim()), 'Invalid showcase chain files')
-    for (const asset of [result, figure]) {
+    for (const asset of [result, figure, scene]) {
       assert.match(asset?.file ?? '', /^\/org\/demos\/[a-z0-9-]+\.(?:jpg|webp)$/, 'Invalid showcase chain asset')
       assert.ok(Number.isInteger(asset.width) && Number.isInteger(asset.height) && LANGS.every((lang) => asset.alt?.[lang]?.trim()), 'Invalid showcase chain asset')
     }
@@ -447,25 +447,26 @@ const showcaseCards = () => showcases.filter((item) => !item.chain).map((item, i
 }).join('')
 
 const chainImage = (asset, { eager = false, cls = '' } = {}) => `<img${cls ? ` class="${cls}"` : ''} src="${esc(asset.file)}" width="${asset.width}" height="${asset.height}" alt="${esc(pick(asset.alt))}" loading="${eager ? 'eager' : 'lazy'}" decoding="async"${eager ? ' fetchpriority="high"' : ''}>`
-/** One real outcome leads; the complete, pinned adaptation evidence stays directly below it. */
+/** One source-to-world composition; a labelled crop never replaces the full, pinned source. */
 const heroStage = () => {
   const item = showcases.find((s) => s.chain)
   assert.ok(item, 'Homepage hero needs one showcase with a verified chain')
-  const { source, rule, result, example } = item.chain
+  const { source, rule, result, scene, example } = item.chain
   const owner = projects.find((p) => p.slug === item.owner)
   return `<figure class="stage">
         <div class="stage-canvas">
-          <div class="stage-topline"><span>${t('Novel → playable world', '小说 → 可玩的世界')}</span><a class="tile-play" href="${esc(item.demo)}">${t('Play in your browser', '在浏览器里试玩')}${extGlyph}</a></div>
-          <div class="tile-media">${chainImage(result, { eager: true })}</div>
+          <div class="source-leaf"><span class="leaf-title">${t('Journey to the West', '西游记')}</span><blockquote lang="zh-Hant"><p class="source-full">${esc(source.excerpt.split('。')[0])}。</p><p class="source-short">${esc(source.excerpt.split('，').slice(1).join('，').split('。')[0])}。</p></blockquote><span class="leaf-chapter">${t('Chapter 59', '第五十九回')}</span></div>
+          <div class="world-window"><div class="tile-media">${chainImage(scene, { eager: true })}</div><p class="world-label">${t('In-game environment art', '游戏场景原画')}</p></div>
         </div>
-        <figcaption><span class="stage-case">${t('<cite>Journey to the West</cite> → a playable game', '《西游记》→ 可玩游戏')}</span><a class="stage-method" href="/${item.owner}#start-h" aria-label="${t(`Start adapting: set up ${esc(owner.name.en)}`, `开始改编：安装 ${esc(owner.name.en)}`)}">${t('Start adapting', '开始改编')}${arrowGlyph}</a><a href="${esc(example)}">${t('Case files', '案例源码')}${extGlyph}</a><a href="#examples-h">${t('More demos', '更多演示')}<span class="arrow" aria-hidden="true">↓</span></a></figcaption>
+        <figcaption><span class="stage-case">${t('<cite>Journey to the West</cite> → a playable prototype', '《西游记》原著 → 可玩游戏原型')}</span><a class="tile-play" href="${esc(item.demo)}">${t('Step into the prototype', '走进游戏原型')}${extGlyph}</a></figcaption>
       </figure>
       <details class="stage-evidence">
-        <summary>${t('From the original text to the game: explore the adaptation', '从原著到游戏，查看改编依据')}<span aria-hidden="true">+</span></summary>
+        <summary>${t('Adaptation notes & source files', '改编依据与源码')}<span aria-hidden="true">+</span></summary>
         <div class="evidence-grid">
           <div><p class="eyebrow">${t('The original', '原著片段')}</p><blockquote lang="zh-Hant"><p>${esc(source.heading)}</p><p>${esc(source.excerpt)}</p></blockquote><p><a href="${esc(source.url)}" title="${esc(pick(source.note))}">${esc(source.file)}${extGlyph}</a></p></div>
-          <div><p class="eyebrow">${esc(owner.name.en)}</p><p class="evidence-rule">${esc(pick(rule.name))}</p><dl><div><dt>${t('Source', '原作')}</dt><dd>${esc(pick(rule.fact))}</dd></div><div><dt>${t('Design', '改编')}</dt><dd>${esc(pick(rule.design))}</dd></div></dl><p><a href="${esc(rule.url)}">${esc(rule.file)}${extGlyph}</a> · <a href="${esc(result.source)}">${t('QA screenshot source', '实机截图来源')}${extGlyph}</a></p>${rule.translated ? `<p class="evidence-note">${t('Translated from the Chinese source bible.', '摘自原著设定集。')}</p>` : ''}</div>
+          <div><p class="eyebrow">${esc(owner.name.en)}</p><p class="evidence-rule">${esc(pick(rule.name))}</p><dl><div><dt>${t('Source', '原作')}</dt><dd>${esc(pick(rule.fact))}</dd></div><div><dt>${t('Design', '改编')}</dt><dd>${esc(pick(rule.design))}</dd></div></dl><p><a href="${esc(rule.url)}">${esc(rule.file)}${extGlyph}</a> · <a href="${esc(scene.source)}">${t('Original environment art', '场景原画来源')}${extGlyph}</a> · <a href="${esc(result.source)}">${t('QA screenshot source', '实机截图来源')}${extGlyph}</a></p>${rule.translated ? `<p class="evidence-note">${t('Translated from the Chinese source bible.', '摘自原著设定集。')}</p>` : ''}</div>
         </div>
+        <p class="evidence-actions"><a class="stage-method" href="/${item.owner}#start-h" aria-label="${t(`Start adapting: set up ${esc(owner.name.en)}`, `开始改编：安装 ${esc(owner.name.en)}`)}">${t('Start adapting', '开始改编')}${arrowGlyph}</a> · <a href="${esc(example)}">${t('Case files', '案例源码')}${extGlyph}</a></p>
       </details>`
 }
 /** A knowledge-level entry `workflow:<id>` links that /guides workflow instead of repeating articles the paths already link. */
@@ -564,23 +565,25 @@ const homePage = () => {
   const body = `
 <article class="home">
   <div class="hero">
-    <div class="wrap hero-head">
-      <p class="hero-kicker">${t('An open-source story studio', '开源故事创作工具')}</p>
-      <h1>${t('Stories take <br><em>more than one form.</em>', '故事，<br><em>不只一种形态</em>')}</h1>
-      <p class="lede">${t('Write novels with AI, adapt them into drama or games, or turn footage into a narrated recap.', '用 AI 写小说，再改成短剧或可玩的游戏；已有视频素材，也能做成解说。')}</p>
+    <div class="wrap hero-layout">
+    <div class="hero-head">
+      <p class="hero-kicker">${starGlyph}${t('Open-source tools for storytelling', '为故事而做的开源工具')}</p>
+      <h1>${t('From one page, <br><em>into a world.</em>', '从一页故事，<br><em>走进一个世界</em>')}</h1>
+      <p class="lede">${t('Write novels with AI, adapt stories into drama or games, and turn footage into a narrated recap.', '用开源 AI 工具写小说、改编短剧与游戏，也把视频素材做成解说。')}</p>
       <div class="hero-cta">
-        <p class="actions home-actions"><a class="btn" href="#start-h">${t('Start with what you have', '选一条创作路径')}<span class="arrow" aria-hidden="true">↓</span></a></p>
+        <p class="actions home-actions"><a class="btn" href="#start-h">${t('Find your starting point', '找到你的创作起点')}<span class="arrow" aria-hidden="true">↓</span></a><a class="hero-secondary" href="#examples-h">${t('See what’s been made', '看看真实作品')}${arrowGlyph}</a></p>
       </div>
     </div>
-    <div class="wrap">
+    <div class="hero-work">
       ${heroStage()}
+    </div>
     </div>
   </div>
   <section class="band stage-band" aria-labelledby="examples-h"><div class="wrap">
     <header class="section-head">
-      <p class="eyebrow">${starGlyph}<span>${t('Real demos', '真实演示')}</span></p>
-      ${heading(2, 'Real projects. Visible results.', phrases('真实项目，', '看得见的产物'), 'examples-h')}
-      <p class="section-lede">${t('Demos and playable prototypes from our project READMEs, each with the method behind it.', '各项目 README 里的演示与可试玩原型，每个都附创作方法。')}</p>
+      <p class="eyebrow">${starGlyph}<span>${t('Made with our tools', '用这些工具，做出的作品')}</span></p>
+      ${heading(2, 'More ways to tell a story', phrases('让想法落在纸上，', '也发生在画面里'), 'examples-h')}
+      <p class="section-lede">${t('Writing, short drama, narrated edits and playable worlds. Independent projects, with the methods behind each one.', '写作、短剧、视频解说、互动世界。不同的真实项目，各有可以跟着做的方法。')}</p>
     </header>
     <p class="swipe-hint" aria-hidden="true">${((n) => t(`Swipe to see all ${n} demos`, `左右滑动，查看全部 ${n} 个演示`))(showcases.filter((item) => !item.chain).length)}<span class="arrow">→</span></p>
     <div class="showcase-controls" hidden>
@@ -591,7 +594,7 @@ const homePage = () => {
     <div class="showcase-grid" id="showcase-list">${showcaseCards()}</div>
     <p class="more stage-next"><a href="#start-h">${t('Pick a path for what you have', '看看从哪里开始')}<span class="arrow" aria-hidden="true">↓</span></a></p>
   </div></section>
-  <section class="band" aria-labelledby="start-h"><div class="wrap">
+  <section class="band explore-band" aria-labelledby="start-h"><div class="wrap">
     <header class="split-head">
       <p class="eyebrow">${starGlyph}<span>${t('Creative paths', '创作路径')}</span></p>
       ${heading(2, 'Start with what you have', phrases('你手上有什么，', '就从哪里开始'), 'start-h')}
@@ -599,7 +602,7 @@ const homePage = () => {
     </header>
     <div class="learning-paths home-paths">${paths.map(([number, en, zh, desc, descZh, slugs, labels, tools]) => `<article class="learning-path"><h3>${t(en, zh)}</h3><p>${t(desc, descZh)}</p>${homeReadingLinks(slugs, labels, number === '02')}${pathTools(tools)}${workbenchStart(tools)}</article>`).join('')}</div>
   </div></section>
-  <section class="band" aria-labelledby="choose-h"><div class="wrap">
+  <section class="band tools-band" aria-labelledby="choose-h"><div class="wrap">
     <header class="section-head">
       <p class="eyebrow">${starGlyph}<span>${t('Tools and where to use them', '工具与使用环境')}</span></p>
       ${heading(2, 'Choose by what you want to make', phrases('按你想做的作品，', '选择工具'), 'choose-h')}
@@ -612,7 +615,7 @@ const homePage = () => {
     <div class="environment-grid">${toolCards(environments)}</div>
     <p class="more"><a href="/compare/writing-workflows">${t('Compare writing environments', '比较写作环境')}${arrowGlyph}</a><a href="/projects">${t(`All ${projects.length} projects`, `全部 ${projects.length} 个项目`)}${arrowGlyph}</a></p>
   </div></section>
-  <section class="band" aria-labelledby="guides-h"><div class="wrap library">
+  <section class="band library-band" aria-labelledby="guides-h"><div class="wrap library">
     <div class="library-intro">
       <p class="eyebrow">${starGlyph}<span>${t('Knowledge library', '知识体系')}</span></p>
       ${heading(2, 'From first steps to fixes, layer by layer', phrases('从上手到排错，', '按层次找到方法'), 'guides-h')}
@@ -626,7 +629,8 @@ const homePage = () => {
       <p class="eyebrow">${starGlyph}<span>${t('How the projects connect', '项目关系')}</span></p>
       ${heading(2, 'One story. Different ways to build.', phrases('围绕故事，', '把创作连接起来'), 'model-h')}
     </header>
-    <div class="home-system"><figure>${pipelineSvg()}<figcaption>${t('A novel can become a short drama or a game; a recap starts from existing footage.', '一部小说可以改成短剧或游戏；解说视频则从现成的视频素材开始。')}</figcaption></figure></div>
+    <p class="connection-note">${t('A novel can become a short drama or a game; a recap starts from existing footage.', '一部小说可以改成短剧或游戏；解说视频则从现成的视频素材开始。')}</p>
+    <details class="connection-details"><summary>${t('See how the projects connect', '查看项目之间的关系')}<span aria-hidden="true">+</span></summary><div class="home-system"><figure>${pipelineSvg()}</figure></div></details>
     <p class="actions"><a class="btn" href="${appHref(LANG, '/register', 'org_home_closing')}">${t('Open ZenStory Workbench', '打开 ZenStory 工作台')}${extGlyph}</a><a class="btn ghost" href="#choose-h">${t('Install a skill pack in your agent', '在 Agent 中安装 skill 包')}<span class="arrow" aria-hidden="true">↑</span></a></p>
   </div></section>
 </article>
