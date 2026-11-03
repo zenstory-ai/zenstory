@@ -30,7 +30,7 @@ const test = base.extend<object, { appBuild: string }>({
       for (const file of ['index.html', 'package.json', 'postcss.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts']) {
         copyFileSync(join(webRoot, file), join(workspace, file));
       }
-      for (const dir of ['content', 'docs', 'node_modules', 'public', 'src']) {
+      for (const dir of ['content', 'docs', 'node_modules', 'public', 'scripts', 'src']) {
         symlinkSync(join(webRoot, dir), join(workspace, dir), 'dir');
       }
       execFileSync(process.execPath, [join(webRoot, 'node_modules/vite/bin/vite.js'), 'build'], {
