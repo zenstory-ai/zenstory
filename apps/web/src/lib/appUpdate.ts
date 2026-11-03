@@ -25,6 +25,7 @@ let state: AppUpdateState = { available: false, required: false };
 let latestEntry: string | null = null;
 let dismissedEntry: string | null = null;
 let lastCheckAt = 0;
+let lastSuccessfulCheckAt: number | null = null;
 let checkInFlight: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
@@ -76,7 +77,9 @@ export function checkForAppUpdate(doc: Document = document): Promise<void> {
   lastCheckAt = Date.now();
   checkInFlight = fetchLatestEntry()
     .then((entry) => {
-      if (!entry || entry === running) return;
+      if (!entry) return;
+      lastSuccessfulCheckAt = lastCheckAt;
+      if (entry === running) return;
       latestEntry = entry;
       if (entry !== dismissedEntry) setState({ ...state, available: true });
     })
@@ -99,7 +102,8 @@ export function dismissAppUpdate(): void {
 }
 
 /**
- * Polls while the tab is visible and checks again when the user returns to it.
+ * Checks visible tabs at most every thirty minutes after a successful check.
+ * Failed checks can retry on return or reconnect after a minute.
  * Does nothing when the document has no built entry script (development).
  */
 export function startAppUpdateChecks(doc: Document = document): () => void {
@@ -108,6 +112,7 @@ export function startAppUpdateChecks(doc: Document = document): () => void {
   const checkIfDue = () => {
     if (doc.visibilityState !== "visible") return;
     if (Date.now() - lastCheckAt < MIN_CHECK_GAP_MS) return;
+    if (lastSuccessfulCheckAt !== null && Date.now() - lastSuccessfulCheckAt < CHECK_INTERVAL_MS) return;
     void checkForAppUpdate(doc);
   };
   const timer = window.setInterval(checkIfDue, CHECK_INTERVAL_MS);

@@ -2,9 +2,9 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import sitemapPlugin from 'vite-plugin-sitemap'
 import { visualizer } from 'rollup-plugin-visualizer'
-import { createHash } from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { localeBundlePlugin } from './scripts/locale-bundle-plugin'
 
 /**
  * Public docs routes for the sitemap, derived from the same markdown tree that
@@ -98,24 +98,6 @@ function appVersionManifest(): Plugin {
   }
 }
 
-/**
- * Content hash of public/locales. src/lib/i18n.ts sends it as ?v= so the CDN can
- * cache translation files for good (vercel.json headers); it only changes when a
- * translation file does.
- */
-function localesVersion(localesDir = path.resolve(__dirname, 'public/locales')): string {
-  const hash = createHash('sha256')
-  const walk = (dir: string, rel: string) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      const relPath = `${rel}/${entry.name}`
-      if (entry.isDirectory()) walk(path.join(dir, entry.name), relPath)
-      else hash.update(relPath).update('\0').update(fs.readFileSync(path.join(dir, entry.name))).update('\0')
-    }
-  }
-  walk(localesDir, '')
-  return hash.digest('hex').slice(0, 12)
-}
-
 const apiProxyTarget = (process.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
 const allowedHosts = (process.env.VITE_ALLOWED_HOSTS || 'localhost,127.0.0.1')
   .split(',')
@@ -125,6 +107,7 @@ const allowedHosts = (process.env.VITE_ALLOWED_HOSTS || 'localhost,127.0.0.1')
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    localeBundlePlugin(path.resolve(__dirname, 'public/locales')),
     react(),
     appVersionManifest(),
     sitemapPlugin({
@@ -224,10 +207,6 @@ export default defineConfig({
     ],
     // 排除不需要预构建的库
     exclude: [],
-  },
-
-  define: {
-    'import.meta.env.VITE_LOCALES_VERSION': JSON.stringify(localesVersion()),
   },
 
   resolve: {

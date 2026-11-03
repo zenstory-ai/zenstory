@@ -1,9 +1,10 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { localeBundlePlugin } from './scripts/locale-bundle-plugin'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [localeBundlePlugin(path.resolve(__dirname, 'public/locales')), react()],
   test: {
     // Configure module resolution to handle case-sensitivity issues
     deps: {

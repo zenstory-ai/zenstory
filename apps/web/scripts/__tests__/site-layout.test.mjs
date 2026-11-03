@@ -14,6 +14,21 @@ test('IndexNow ownership key is not shipped as a static public asset', () => {
   assert.equal(existsSync(new URL(`../../public/${INDEXNOW_FILE}`, import.meta.url)), false)
 })
 
+test('root favicon is a real multi-size icon for clients that ignore the SVG link', () => {
+  const icon = readFileSync(new URL('../../public/favicon.ico', import.meta.url))
+  assert.equal(icon.readUInt16LE(0), 0, 'ICO reserved field')
+  assert.equal(icon.readUInt16LE(2), 1, 'ICO image type')
+  const count = icon.readUInt16LE(4)
+  assert.ok(count >= 3, 'ICO contains at least 16, 32 and 48 px images')
+  const sizes = new Set(Array.from({ length: count }, (_, index) => {
+    const width = icon[6 + index * 16]
+    const height = icon[7 + index * 16]
+    assert.equal(width, height, 'favicon frames are square')
+    return width || 256
+  }))
+  assert.deepEqual([...sizes].sort((a, b) => a - b).slice(0, 3), [16, 32, 48])
+})
+
 test('Vercel config is source-controlled and API bypasses the SPA', () => {
   assert.deepEqual(JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url))), vercelConfig)
   assert.deepEqual(vercelConfig.rewrites[0], {
@@ -73,6 +88,8 @@ test('only content-addressed URLs get a year-long immutable cache', () => {
 
   for (const path of ['/assets/index-DHri9pxn.js', '/assets/index-BIH8wqnx.css']) assert.match(cacheControl(path), /immutable/, path)
   assert.match(cacheControl('/locales/zh/common.json', { v: 'abc123' }), /immutable/)
+  assert.match(cacheControl('/favicon.ico'), /max-age=604800/)
+  assert.doesNotMatch(cacheControl('/favicon.ico'), /immutable/)
   for (const path of ['/', '/index.html', '/_app/index.html', '/_app/home.html', '/org-home/index.html', '/oh-story/novel-opening', '/assets-archive',
     '/version.json', '/locales/zh/common.json', '/org/org.css', '/brand/zenstory-ai-mark.svg', '/favicon.svg', '/sitemap.xml', '/robots.txt']) {
     assert.doesNotMatch(cacheControl(path), /immutable/, `${path} can change in place and must stay revalidatable`)
@@ -85,6 +102,7 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     writeFileSync(join(dir, 'index.html'), '<html><head><title>App</title><meta name="description" content="App" /></head><body><div id="root"></div></body></html>')
     writeFileSync(join(dir, 'robots.txt'), 'old robots')
     writeFileSync(join(dir, 'sitemap.xml'), 'old sitemap')
+    writeFileSync(join(dir, 'favicon.ico'), 'icon bytes')
     for (const path of ['org-home','projects','docs/example','workbench','zh','zh/projects']) {
       mkdirSync(join(dir,path), {recursive:true});writeFileSync(join(dir,path,'index.html'), '<html>Existing content</html>')
     }
@@ -127,6 +145,7 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     assert.equal(readFileSync(join(dir,'_site/docs/example/index.html'),'utf8'), '<html>Existing content</html>')
     assert.equal(existsSync(join(dir, 'privacy-policy')), false)
     assert.equal(existsSync(join(dir, 'terms-of-service')), false)
+    assert.equal(readFileSync(join(dir, 'favicon.ico'), 'utf8'), 'icon bytes')
     assert.equal(existsSync(join(dir, INDEXNOW_FILE)), false)
     for (const path of ['_site/sitemap.xml', '_app/sitemap.xml', '_site/robots.txt', '_app/robots.txt']) {
       assert.doesNotMatch(readFileSync(join(dir, path), 'utf8'), new RegExp(INDEXNOW_KEY))
