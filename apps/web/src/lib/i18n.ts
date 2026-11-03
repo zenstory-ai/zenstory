@@ -2,13 +2,13 @@
  * Internationalization (i18n) configuration and initialization.
  *
  * Sets up i18next with React integration for multi-language support.
- * Uses HTTP backend to lazy-load translation files; the locale comes from an
+ * Uses one lazy-loaded bundle per language; the locale comes from an
  * explicit `?lang=` or the preference stored in localStorage.
  *
  * Architecture:
  * - Uses i18next as the core i18n framework
  * - React integration via react-i18next hooks (useTranslation)
- * - HTTP backend loads JSON translation files from /public/locales/
+ * - Locale bundle backend code-splits the existing /public/locales/ JSON by language
  * - `?lang=` (sent by zenstory.ai links) or the stored preference, persisted to localStorage
  *
  * Supported Languages:
@@ -55,7 +55,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
-import Backend from 'i18next-http-backend';
+import { LocaleBundleBackend } from './localeBundleBackend';
 
 /** Search and link-preview crawlers: they keep the Chinese default so each indexed page stays in one language. */
 const CRAWLER_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|inspectiontool/i;
@@ -93,8 +93,8 @@ export const languageOptions = {
 };
 
 i18n
-  // HTTP backend for loading translation files from /public/locales/
-  .use(Backend)
+  // One lazy bundle per language, shared across all namespace reads
+  .use(new LocaleBundleBackend())
   // Language detection from `?lang=` or localStorage (see languageDetection)
   .use(LanguageDetector)
   // React integration for hooks and components
@@ -110,16 +110,6 @@ i18n
 
     /** Default namespace when not specified in useTranslation() */
     defaultNS: 'common',
-
-    /** HTTP backend configuration for loading translation files */
-    backend: {
-      /** Path pattern for translation JSON files */
-      loadPath: '/locales/{{lng}}/{{ns}}.json',
-      /** Build-time hash of public/locales (vite.config.ts); versioned URLs are cached for good by the CDN */
-      ...(import.meta.env.VITE_LOCALES_VERSION
-        ? { queryStringParams: { v: import.meta.env.VITE_LOCALES_VERSION } }
-        : {}),
-    },
 
     /** Language detection configuration */
     detection: languageDetection,

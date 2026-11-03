@@ -72,6 +72,9 @@ export const vercelConfig = {
     {source:'/locales/(.*)',has:[{type:'query',key:'v'}],headers:[{key:'Cache-Control',value:'public, max-age=31536000, immutable'}]},
     // Unhashed shared files may change in place: fresh for an hour, then refreshed in the background.
     {source:'/:path((?:brand|org)/.*|favicon\\.svg)',headers:[{key:'Cache-Control',value:'public, max-age=3600, stale-while-revalidate=86400'}]},
+    // Compatibility clients probe the conventional root ICO even when the page advertises an SVG.
+    // Keep it fresh for a week without claiming an unversioned URL is immutable.
+    {source:'/favicon.ico',headers:[{key:'Cache-Control',value:'public, max-age=604800'}]},
   ],
   rewrites:[
     rewrite('/1e4acbc11fe3407a8a641d69a13af696.txt','/api/indexnow-key'),
