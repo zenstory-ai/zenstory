@@ -47,3 +47,5 @@ router 继续看到有界上一轮原话供理解「可以/按第二个」，但
 ## Consequences
 
 本批是对下列历史取舍的局部替换，而非重写旧记录：[剩余阶段恢复](../../implemented/bug-fix/2026-10-18-resume-keeps-the-remaining-plan.md)、[笼统改稿与规划落盘](../../implemented/bug-fix/2026-10-09-agent-vague-requests-and-plan-files.md)、[写作篇幅要求](../../implemented/feature/2026-10-14-writer-delivery-author-requirements.md)、[真实权限和产物证据](../../implemented/architecture/2026-10-14-typed-authority-and-delivery-evidence.md)。续接不再跳过现有 router，因此原先命中旁路的请求多一次路由调用；不额外增加分类调用，不把本批当作逐章持久化检查点已完成。缺新字段仍兼容普通成功路由，代价是不提供继承优化；合成测试不能证明真实模型的分类质量，后续仅按固定字段/路径分类观测，不记录原文。
+
+后续：scope_constraints 超限不再技术失败，见 [2026-11-04](2026-11-04-router-scope-constraints-never-fail-the-turn.md)。

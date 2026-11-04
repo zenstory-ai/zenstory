@@ -26,3 +26,5 @@
 - 尚未授权部署、真实模型语义评测或 staging 运行，故不将程序通路的通过等同于模型分类准确率或线上已修复。
 
 - 最终联合离线回归：`tests/test_agent` + `tests/test_api/test_agent.py` + `tests/test_api/test_agent_stream_hardening.py`，排除 real_llm，4 workers：**2978 passed / 27 skipped**。初次全量发现空文件纠偏总失败兜底测试仍用坏ID预热，已改为互不相同的改名失败来继续证明累计十次保护，单模块45条及最终全套通过；没有放宽生产熔断。独立代码审查 APPROVE、无发现项。Mypy 有既有基线诊断，不宣称类型检查全绿。
+
+后续：scope_constraints 不再让整轮路由报错、提示词只记读写边界，见 [2026-11-04](2026-11-04-router-scope-constraints-never-fail-the-turn.md)。
