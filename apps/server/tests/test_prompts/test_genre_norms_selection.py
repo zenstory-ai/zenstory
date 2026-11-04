@@ -71,5 +71,8 @@ def test_screenplay_norms_end_episode_on_the_hook_without_end_marker():
 
     assert "【本集完】" in norms
     assert "钩子就是剧本最后一行" in norms
-    # 每类不超过 8 条
-    assert sum(1 for line in norms.splitlines() if line.startswith("- ")) <= 8
+    # 每类自己的规范和三类共用的网文口感各不超过 8 条
+    own, shared = norms.split(prompts._WEB_FICTION_VOICE)
+    for section in (own, prompts._WEB_FICTION_VOICE):
+        assert sum(1 for line in section.splitlines() if line.startswith("- ")) <= 8
+    assert not shared
