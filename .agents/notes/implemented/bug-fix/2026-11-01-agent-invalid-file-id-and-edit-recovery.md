@@ -32,3 +32,5 @@ Status: implemented
 - 静态检查：修改涉及的熔断、编辑和测试文件通过 Ruff。
 
 - 最终联合离线回归：`tests/test_agent` + `tests/test_api/test_agent.py` + `tests/test_api/test_agent_stream_hardening.py`，排除 real_llm，4 workers：**2978 passed / 27 skipped**。初次全量发现空文件纠偏总失败兜底测试仍用坏ID预热，已改为互不相同的改名失败来继续证明累计十次保护，单模块45条及最终全套通过；没有放宽生产熔断。独立代码审查 APPROVE、无发现项。Mypy 有既有基线诊断，不宣称类型检查全绿。
+
+后续：同一文件找不到原文不再三次即熔断，见 [2026-11-04](2026-11-04-anchor-misses-do-not-trip-early.md)。

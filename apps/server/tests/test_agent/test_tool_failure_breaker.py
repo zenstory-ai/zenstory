@@ -209,9 +209,11 @@ def test_accurate_id_read_then_successful_edit_resets_invalid_file_id_recovery_f
 
 
 @pytest.mark.unit
-def test_changed_missing_anchors_for_same_file_trip_recovery_family():
+def test_changed_missing_anchors_for_same_file_hint_but_do_not_trip_early():
+    """生产 11-01～03：同一文件锚点失败三次即熔断，掐断了改前 78% 会自己恢复的轮次。
+    现在只给恢复提示，计入请求累计上限，不提前终止。"""
     breaker = ToolFailureBreaker()
-    for attempt in range(3):
+    for attempt in range(5):
         output = breaker.observe(
             "edit_file",
             json.dumps(
@@ -223,12 +225,15 @@ def test_changed_missing_anchors_for_same_file_trip_recovery_family():
             ),
             _error("找不到要替换的原文片段", error_type="anchor_not_found"),
         )
-        if attempt == 1:
-            assert "按准确 id 重读当前段落" in json.loads(output)["retry_hint"]
-            assert "不要放宽匹配或整篇覆盖" in json.loads(output)["retry_hint"]
+        if attempt >= 1:
+            hint = json.loads(output)["retry_hint"]
+            assert "按准确 id 重读当前段落" in hint
+            assert "拆成几次 edit_file 调用" in hint
+            assert "不要放宽匹配或整篇覆盖" in hint
+            assert "自动终止" not in hint
 
-    assert breaker.is_open
-    assert breaker.trip.reason == TRIP_REASON_RECOVERY
+    assert not breaker.is_open
+    assert breaker.total_failures == 5
 
 
 @pytest.mark.unit
