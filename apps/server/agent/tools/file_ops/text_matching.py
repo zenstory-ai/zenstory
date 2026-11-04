@@ -13,6 +13,7 @@ text anchors in content even when there are minor differences.
 import re
 import time
 import unicodedata
+from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 
 # --- Approximate-match safety limits -------------------------------------
@@ -21,10 +22,9 @@ from difflib import SequenceMatcher
 # both fail. Its sliding-window + SequenceMatcher scan is O(windows × N × P),
 # which on a full novel chapter can spin the CPU for seconds to minutes and,
 # in the default SQLite deployment, block the asyncio event loop (stalling
-# every other request served by the same process). When the input is too large
-# we skip it and let the caller fall through to the helpful
-# "copy a longer/unique snippet" error instead.
-MAX_APPROX_CONTENT_LEN = 5000  # normalized chars; skip approximate scan above this
+# every other request served by the same process). Inputs above these limits use
+# the seeded scan below instead of the full window scan.
+MAX_APPROX_CONTENT_LEN = 5000  # normalized chars; full window scan only up to this
 # 工作量上限：真实代价是「窗口尺寸种类数 × 内容长度 × pattern 长度」的字符级操作
 # ——每个窗口都要做 norm_content[i:i+w] 切片、set(window) 构造、set_seq1() 与
 # quick_ratio()，常数是 O(pattern_len) 而不是 O(1)。旧公式只算到
@@ -36,6 +36,13 @@ MAX_APPROX_WORK = 5_000_000  # ceiling on window_count × len(norm_content) × p
 # 差数倍），静态估算不可能精确，所以扫描过程中再加一道硬超时。超时即放弃近似匹配，
 # 调用方会走「请复制更长且唯一的原文」的错误分支——这比让整个进程停摆好得多。
 MAX_APPROX_SECONDS = 1.0
+# 超出上面两道静态工作量线的输入（长章节、长 old）不再跳过近似匹配，改走种子定位：
+# 用 pattern 的 3 / 6 / 12 字片段在原文里投票找对齐位置，只在得票最多的几处做原来的相似度打分。
+# 出现次数太多的片段（常用字组合）不投票，长片段在重复多的正文里仍然少见；候选处数有上限。
+# 阈值、歧义间隔、跨段规则不变。
+SEED_GRAM_LENS = (3, 6, 12)
+SEED_MAX_POSTINGS = 64
+SEED_MAX_CANDIDATES = 8
 
 # Minimum score gap between the best window and the best *non-overlapping*
 # runner-up. If a different, distant passage scores nearly as high, the match
@@ -311,7 +318,7 @@ def find_approximate_match(
         keep_line_breaks: 同 find_fuzzy_spans。近似窗口没有逐字对齐，所以按数量
             约束：窗口内部跨过的原文换行不能多于 pattern 自己的换行。
         stats: 收到 "paragraph_rejected"（因跨段被丢弃的达标窗口数）、
-            "workload_skipped"（静态工作量保护跳过扫描）和 "deadline_exceeded"
+            "workload_skipped"（恒为 0：超出静态工作量线时改用种子定位，不再跳过）和 "deadline_exceeded"
             （扫描超时且未完成）。跨段窗口里最好的一个不比段内最好的差时返回 None：
             段内窗口只是跨段那处的一部分。
 
@@ -337,26 +344,64 @@ def find_approximate_match(
     window_max = int(pattern_len * 1.3)
     window_count = max(0, window_max - window_min + 1)
 
-    # Safety guard: approximate matching is a best-effort fallback. On large
-    # inputs the scan is prohibitively expensive (and would block the event
-    # loop), so bail out and let the caller surface the helpful
-    # "copy a longer/unique snippet" error instead of hanging.
-    # 工作量必须带上 pattern_len：每个窗口内部的切片/set/quick_ratio 都是
-    # O(pattern_len)，漏掉它会让「守卫放行的那一档」恰好是最慢的一档。
+    # 静态估算之外再加一道 wall-clock 硬超时（见 MAX_APPROX_SECONDS）。
+    deadline = time.monotonic() + MAX_APPROX_SECONDS
+    min_similarity = 1.0 - max_error_rate
+
+    # break_prefix[k] = 归一化位置 1..k-1 里有几个字符前面隔着换行；窗口 [i, i+w)
+    # 内部的换行数 = break_prefix[i+w] - break_prefix[i+1]。
+    break_prefix: list[int] = []
+    allowed_breaks = 0
+    if keep_line_breaks:
+        content_breaks = _line_break_before(content, map_content)
+        break_prefix = [0] * (len(content_breaks) + 1)
+        for k, flag in enumerate(content_breaks):
+            break_prefix[k + 1] = break_prefix[k] + (1 if flag and k > 0 else 0)
+        allowed_breaks = sum(_line_break_before(pattern, map_pattern))
+
+    # 小输入照旧逐窗口全扫；超出静态工作量线（长章节、长 old）时改用种子定位，
+    # 不再整段跳过——跳过会让只差一两个字的长锚点必然失败。
     if (
         len(norm_content) > MAX_APPROX_CONTENT_LEN
         or window_count * len(norm_content) * pattern_len > MAX_APPROX_WORK
     ):
+        scan = _seeded_approximate_scan(
+            norm_content, norm_pattern, window_min, window_max, min_similarity,
+            break_prefix, allowed_breaks, deadline,
+        )
+    else:
+        scan = _full_approximate_scan(
+            norm_content, norm_pattern, window_min, window_max, min_similarity,
+            break_prefix, allowed_breaks, deadline,
+        )
+    if scan is None:
+        # 扫描不完整就无法判定歧义（可能漏掉真正的最佳窗口或它的竞争者），
+        # 因此超时一律放弃匹配，绝不返回「半程最佳」。
         if stats is not None:
-            stats["workload_skipped"] = 1
+            stats["deadline_exceeded"] = 1
         return None
+    candidates, paragraph_rejected, best_rejected_score = scan
+    if stats is not None:
+        stats["paragraph_rejected"] = paragraph_rejected
+    return _unique_approximate_span(content, map_content, candidates, best_rejected_score)
 
-    # 静态估算之外再加一道 wall-clock 硬超时（见 MAX_APPROX_SECONDS）。
-    deadline = time.monotonic() + MAX_APPROX_SECONDS
 
+_ApproxScan = tuple[list[tuple[tuple[int, int], float]], int, float]
+
+
+def _full_approximate_scan(
+    norm_content: str,
+    norm_pattern: str,
+    window_min: int,
+    window_max: int,
+    min_similarity: float,
+    break_prefix: list[int],
+    allowed_breaks: int,
+    deadline: float,
+) -> _ApproxScan | None:
+    """Score every window of every allowed size; None when the deadline passes."""
     pattern_char_set = set(norm_pattern)
     min_common = len(pattern_char_set) * 0.5
-    min_similarity = 1.0 - max_error_rate
 
     # Reuse a single SequenceMatcher with a fixed second sequence so its
     # autojunk/b2j index is built once instead of per-window, and gate the
@@ -372,33 +417,16 @@ def find_approximate_match(
     # never see it. Deciding after the scan also makes the runner-up order-
     # independent (a shifted window of the true match no longer inflates it).
     candidates: list[tuple[tuple[int, int], float]] = []  # ((start, end), score)
-
-    # break_prefix[k] = 归一化位置 1..k-1 里有几个字符前面隔着换行；窗口 [i, i+w)
-    # 内部的换行数 = break_prefix[i+w] - break_prefix[i+1]。
-    break_prefix: list[int] = []
-    allowed_breaks = 0
-    if keep_line_breaks:
-        content_breaks = _line_break_before(content, map_content)
-        break_prefix = [0] * (len(content_breaks) + 1)
-        for k, flag in enumerate(content_breaks):
-            break_prefix[k + 1] = break_prefix[k] + (1 if flag and k > 0 else 0)
-        allowed_breaks = sum(_line_break_before(pattern, map_pattern))
     paragraph_rejected = 0
     best_rejected_score = 0.0
 
     for window_size in range(window_min, window_max + 1):
         if time.monotonic() > deadline:
-            # 扫描不完整就无法判定歧义（可能漏掉真正的最佳窗口或它的竞争者），
-            # 因此超时一律放弃匹配，绝不返回「半程最佳」。
-            if stats is not None:
-                stats["deadline_exceeded"] = 1
             return None
         for i in range(len(norm_content) - window_size + 1):
             # 单个 window_size 的内层循环本身也可能很长（通过预过滤的窗口还要跑
             # 一次 O(N×P) 的 ratio()），所以内层每 64 个窗口也检查一次超时。
             if (i & 0x3F) == 0 and time.monotonic() > deadline:
-                if stats is not None:
-                    stats["deadline_exceeded"] = 1
                 return None
             window = norm_content[i:i + window_size]
 
@@ -425,9 +453,125 @@ def find_approximate_match(
                     best_rejected_score = max(best_rejected_score, score)
                     continue
                 candidates.append(((i, i + window_size), score))
+    return candidates, paragraph_rejected, best_rejected_score
 
-    if stats is not None:
-        stats["paragraph_rejected"] = paragraph_rejected
+
+def _seeded_approximate_scan(
+    norm_content: str,
+    norm_pattern: str,
+    window_min: int,
+    window_max: int,
+    min_similarity: float,
+    break_prefix: list[int],
+    allowed_breaks: int,
+    deadline: float,
+) -> _ApproxScan | None:
+    """Score windows only where the pattern's 3/6/12-char pieces line up with the content.
+
+    Each piece of the pattern found in the content votes for the offset it implies
+    (content position minus pattern position). A passage within the error budget keeps
+    most of its pieces, so it collects a band of votes around one offset; the best
+    distinct bands become candidates, and each is aligned and scored with the same
+    ratio as the full scan. Distant look-alike passages form their own bands, so the
+    ambiguity gap still sees them. None when the deadline passes.
+    """
+    pattern_len = len(norm_pattern)
+    grams = [g for g in SEED_GRAM_LENS if pattern_len >= 2 * g] or [1]
+    gram = max(grams)
+    votes: Counter[int] = Counter()
+    for size in grams:
+        positions: dict[str, list[int]] = defaultdict(list)
+        for i in range(len(norm_content) - size + 1):
+            positions[norm_content[i:i + size]].append(i)
+        for j in range(pattern_len - size + 1):
+            hits = positions.get(norm_pattern[j:j + size])
+            if not hits or len(hits) > SEED_MAX_POSTINGS:
+                continue
+            for p in hits:
+                votes[p - j] += 1
+        if time.monotonic() > deadline:
+            return None
+
+    # Votes summed over a band of offsets: insertions and deletions inside the passage
+    # shift its pieces to neighbouring offsets.
+    band = int(pattern_len * (1.0 - min_similarity)) + gram
+    offsets = sorted(votes)
+    band_votes: list[tuple[int, int]] = []
+    lo = 0
+    running = 0
+    hi = 0
+    for offset in offsets:
+        while hi < len(offsets) and offsets[hi] <= offset + band:
+            running += votes[offsets[hi]]
+            hi += 1
+        while offsets[lo] < offset - band:
+            running -= votes[offsets[lo]]
+            lo += 1
+        band_votes.append((running, offset))
+    band_votes.sort(reverse=True)
+
+    chosen: list[int] = []
+    for support, offset in band_votes:
+        if len(chosen) >= SEED_MAX_CANDIDATES or support < 2:
+            break
+        if all(abs(offset - other) >= pattern_len for other in chosen):
+            chosen.append(offset)
+
+    candidates: list[tuple[tuple[int, int], float]] = []
+    paragraph_rejected = 0
+    best_rejected_score = 0.0
+    slack = band + gram
+    for offset in chosen:
+        if time.monotonic() > deadline:
+            return None
+        region_start = max(0, offset - slack)
+        region_end = min(len(norm_content), offset + pattern_len + slack)
+        region = norm_content[region_start:region_end]
+        # Alignment without autojunk: in a pattern over 200 chars, autojunk drops every common
+        # character, and the passage barely aligns. Scoring below stays as in the full scan.
+        blocks = [
+            b for b in SequenceMatcher(None, region, norm_pattern, autojunk=False).get_matching_blocks() if b.size
+        ]
+        if not blocks:
+            continue
+        first, last = blocks[0], blocks[-1]
+        tail = pattern_len - (last.b + last.size)
+        spans = {
+            # The matched stretch itself, and the stretch padded by the unmatched pattern edges.
+            (region_start + first.a, region_start + last.a + last.size),
+            (
+                region_start + max(0, first.a - first.b),
+                region_start + min(len(region), last.a + last.size + tail),
+            ),
+        }
+        best_here: tuple[tuple[int, int], float] | None = None
+        rejected_here = 0.0
+        for start, end in spans:
+            if not window_min <= end - start <= window_max:
+                continue
+            score = SequenceMatcher(None, norm_content[start:end], norm_pattern).ratio()
+            if score < min_similarity:
+                continue
+            if break_prefix and break_prefix[end] - break_prefix[start + 1] > allowed_breaks:
+                rejected_here = max(rejected_here, score)
+                continue
+            if best_here is None or score > best_here[1]:
+                best_here = ((start, end), score)
+        if rejected_here:
+            paragraph_rejected += 1
+            best_rejected_score = max(best_rejected_score, rejected_here)
+        if best_here is not None:
+            candidates.append(best_here)
+    return candidates, paragraph_rejected, best_rejected_score
+
+
+def _unique_approximate_span(
+    content: str,
+    map_content: list[int],
+    candidates: list[tuple[tuple[int, int], float]],
+    best_rejected_score: float,
+) -> tuple[int, int, float, str] | None:
+    """The best window mapped back to the original text, or None if it is not unique."""
     if not candidates:
         return None
 

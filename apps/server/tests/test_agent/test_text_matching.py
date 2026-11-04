@@ -8,6 +8,7 @@ Covers:
 - Preservation of the legitimate word-error match on reasonably-sized content.
 """
 
+import random
 import time
 
 from agent.tools.file_ops.text_matching import (
@@ -34,8 +35,8 @@ def test_ambiguous_match_is_rejected():
     assert find_approximate_match(content, pattern, max_error_rate=0.25, min_pattern_len=8) is None
 
 
-def test_large_content_is_guarded_and_fast():
-    """Oversized content must bail out quickly instead of scanning (no hang)."""
+def test_large_content_is_searched_quickly_instead_of_skipped():
+    """Content over the full-scan limit uses the seeded scan: no skip, still fast."""
     big = "这是一个测试段落，用于验证性能守卫是否生效。" * 500
     assert len(big) > MAX_APPROX_CONTENT_LEN
     start = time.time()
@@ -49,10 +50,37 @@ def test_large_content_is_guarded_and_fast():
     )
     elapsed = time.time() - start
     assert result is None
-    assert stats["workload_skipped"] == 1
+    assert stats["workload_skipped"] == 0
     assert stats["deadline_exceeded"] == 0
-    # The guard should return effectively immediately (generously bounded).
     assert elapsed < 1.0
+
+
+def test_long_anchor_with_a_slip_in_a_long_chapter_is_found_fast():
+    rng = random.Random(3)
+    who, act, what = ["林舟", "她", "苏晚", "老人", "少年"], ["看着", "走向", "想起", "握紧", "推开"], ["那扇门", "窗外的雪", "手里的剑", "桌上的信", "灯火"]
+    paragraphs = [
+        "\u3000\u3000" + "".join(rng.choice(who) + rng.choice(act) + rng.choice(what) + "，没有说话。" for _ in range(6))
+        for _ in range(400)
+    ]
+    content = "\n\n".join(paragraphs)
+    start_index = content.index("\n\n", 12000) + 2
+    passage = content[start_index:start_index + 400]
+    slipped = passage[:200] + ("的" if passage[200] != "的" else "地") + passage[201:]
+    stats: dict[str, int] = {}
+    began = time.time()
+    result = find_approximate_match(content, slipped, keep_line_breaks=True, stats=stats)
+    assert time.time() - began < 1.0
+    assert result is not None
+    assert abs(result[0] - start_index) <= 2 and result[2] >= 0.95
+    assert stats["deadline_exceeded"] == 0
+
+
+def test_long_chapter_refuses_two_equally_close_passages():
+    filler = "".join(chr(0x4E00 + (i * 37) % 5000) for i in range(12000))
+    passage = "".join(chr(0x5E00 + (i * 11) % 900) for i in range(300))
+    content = filler[:4000] + passage + filler[4000:9000] + passage + filler[9000:]
+    slipped = passage[:150] + "某" + passage[151:]
+    assert find_approximate_match(content, slipped) is None
 
 
 def test_short_pattern_is_ignored():

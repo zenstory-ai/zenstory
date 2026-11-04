@@ -112,9 +112,9 @@ class RouterDecision(BaseModel):
     @field_validator("scope_constraints", mode="before")
     @classmethod
     def _item_scope_constraints(cls, value: Any) -> list[str]:
-        if not isinstance(value, list):
-            raise ValueError("scope_constraints must be a list")
-        return _validate_scope_constraints(value, field="scope_constraints")
+        # Never a routing failure: the budget is checked once the turn's constraints are
+        # merged (_resolve_turn_decision), where going over it asks the author instead.
+        return _coerce_scope_constraints(value)
 
     @field_validator("requested_file_types")
     @classmethod
@@ -634,8 +634,38 @@ RESUMABLE_STOP_REASONS: frozenset[str] = frozenset(
     {"max_turns_exceeded", "no_progress", "model_call_budget_exhausted",
      "run_deadline_exceeded", "output_truncated", "repetition_loop"}
 )
-MAX_SCOPE_CONSTRAINTS = 8
+MAX_SCOPE_CONSTRAINTS = 24
 MAX_SCOPE_CONSTRAINTS_JSON_CHARS = 2048
+
+
+class ScopeConstraintsOverBudget(Exception):
+    """The merged constraints do not fit the persisted budget; the turn asks the author."""
+
+    def __init__(self, *, limit: str, item_count: int, json_chars: int) -> None:
+        super().__init__(f"scope_constraints over budget: {limit}")
+        self.limit = limit
+        self.item_count = item_count
+        self.json_chars = json_chars
+
+
+def _coerce_scope_constraints(value: Any) -> list[str]:
+    """Model output into a list of strings without dropping any restriction text.
+
+    A missing value is no constraint; a lone string is one item; a non-string item is kept
+    as its JSON text so its content still narrows the turn. Only empty items are dropped.
+    """
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else [value]
+    coerced: list[str] = []
+    for item in items:
+        if item is None or item == {} or item == []:
+            continue
+        text = item if isinstance(item, str) else json.dumps(item, ensure_ascii=False, default=str)
+        text = text.strip()
+        if text and text not in coerced:
+            coerced.append(text)
+    return coerced
 
 
 def _last_assistant_message(messages: list[Any]) -> dict[str, Any] | None:
@@ -667,12 +697,8 @@ def has_pending_followup_state(state: WritingState) -> bool:
 
 
 def _validate_scope_constraints(constraints: list[Any], *, field: str) -> list[str]:
-    if any(
-        not isinstance(item, str)
-        or not item.strip()
-        or len(item.strip()) > MAX_SCOPE_CHARS
-        for item in constraints
-    ):
+    """Check persisted constraints (always within budget when written) before inheriting them."""
+    if any(not isinstance(item, str) or not item.strip() for item in constraints):
         raise RouterFailure("schema", failed_fields=(field,))
     normalized: list[str] = []
     for item in constraints:
@@ -742,14 +768,18 @@ def _accumulate_scope_constraints(
     old_scope: str, existing: list[str], current_scope: str,
     current_constraints: list[str] | None = None,
 ) -> list[str]:
-    if len(current_scope) > MAX_SCOPE_CHARS:
-        raise RouterFailure("schema", failed_fields=("scope",))
+    """Merge every restriction in full; raise ScopeConstraintsOverBudget instead of truncating."""
     accumulated: list[str] = []
     for item in (old_scope, *existing, current_scope, *(current_constraints or [])):
         normalized = item.strip()
         if normalized and normalized not in accumulated:
             accumulated.append(normalized)
-    return _validate_scope_constraints(accumulated, field="scope_constraints")
+    json_chars = len(json.dumps(accumulated, ensure_ascii=False))
+    if len(accumulated) > MAX_SCOPE_CONSTRAINTS:
+        raise ScopeConstraintsOverBudget(limit="count", item_count=len(accumulated), json_chars=json_chars)
+    if json_chars > MAX_SCOPE_CONSTRAINTS_JSON_CHARS:
+        raise ScopeConstraintsOverBudget(limit="json_chars", item_count=len(accumulated), json_chars=json_chars)
+    return accumulated
 
 
 def _remaining_planned_agents(routing: dict[str, Any], agent_type: str) -> list[str]:
@@ -813,8 +843,42 @@ def _compose_followup_write_content(old: bool | None, current: bool | None) -> b
 def _resolve_turn_decision(
     state: WritingState, decision: RouterDecision
 ) -> tuple[RouterDecision, dict[str, Any]]:
+    """Resolve the turn; constraints that do not fit the budget ask the author, never fail the turn.
+
+    Dropping or truncating a restriction would widen what the turn may change, so an
+    over-budget merge turns into clarify_first (no file writes) instead of a routing error.
+    """
+    try:
+        return _resolve_turn_decision_within_budget(state, decision)
+    except ScopeConstraintsOverBudget as over:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Router scope constraints over budget; asking the author instead of failing",
+            limit=over.limit,
+            item_count=over.item_count,
+            json_chars=over.json_chars,
+            max_items=MAX_SCOPE_CONSTRAINTS,
+            max_json_chars=MAX_SCOPE_CONSTRAINTS_JSON_CHARS,
+        )
+        asked = decision.model_copy(
+            update={"clarify_first": True, "scope": decision.scope[:MAX_SCOPE_CHARS], "scope_constraints": []}
+        )
+        return asked, {"scope_constraints": []}
+
+
+def _resolve_turn_decision_within_budget(
+    state: WritingState, decision: RouterDecision
+) -> tuple[RouterDecision, dict[str, Any]]:
     """Apply semantic disposition to trusted previous state without text heuristics."""
     disposition = decision.turn_disposition
+    if len(decision.scope) > MAX_SCOPE_CHARS:
+        # A follow-up scope is never clipped on its own (that would widen authority); its full
+        # text stays as a constraint, so the persisted short scope can be clipped safely.
+        constraints = _accumulate_scope_constraints("", [], decision.scope, decision.scope_constraints)
+        decision = decision.model_copy(
+            update={"scope": decision.scope[:MAX_SCOPE_CHARS], "scope_constraints": constraints}
+        )
     current_constraints = _accumulate_scope_constraints(
         "", [], decision.scope, decision.scope_constraints
     )

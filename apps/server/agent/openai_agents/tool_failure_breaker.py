@@ -328,7 +328,10 @@ class ToolFailureBreaker:
 
         last_error = _preview(str(payload.get("error") or ""))
         if self.trip is None:
-            if recovery_count >= self.max_identical_failures:
+            # 只有无效文件 id 这一族提前熔断（模型在猜 id）。同一文件的锚点失败只附恢复提示、
+            # 计入请求累计上限：生产 11-01～03 这类失败多是长 old 差一两个字、大批编辑整批回滚，
+            # 改前 78% 之后都在同一文件上改成功了，三次即停反而掐断能自己恢复的轮次。
+            if recovery_key == _FILE_NOT_FOUND_FAMILY and recovery_count >= self.max_identical_failures:
                 self.trip = ToolFailureTrip(
                     reason=TRIP_REASON_RECOVERY,
                     tool_name=tool_name,
@@ -404,8 +407,11 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
     else:
         recovery = (
             "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前段落，"
-            "从结果复制较短、逐字、唯一的 old/anchor；不要放宽匹配或整篇覆盖。"
+            "从结果复制较短、逐字、唯一的 old/anchor；改动多时拆成几次 edit_file 调用、"
+            "每次只改少量几处，不要在一次调用里堆很多条；不要放宽匹配或整篇覆盖。"
         )
+        hinted["retry_hint"] = recovery
+        return json.dumps(hinted, ensure_ascii=False)
     hinted["retry_hint"] = (
         f"{recovery}再发生 {remaining} 次同类失败，本轮将被自动终止。"
     )

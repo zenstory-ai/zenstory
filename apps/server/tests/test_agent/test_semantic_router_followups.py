@@ -56,13 +56,14 @@ async def test_two_mid_plan_resumes_roundtrip_persisted_history_without_repeatin
 
 
 @pytest.mark.parametrize("disposition", ["resume_interrupted_task", "answer_pending_clarification"])
-async def test_first_turn_mismatched_followup_cannot_persist_an_oversize_scope(disposition):
+async def test_first_turn_mismatched_followup_keeps_an_oversize_scope_as_a_constraint(disposition):
+    """过长的 follow-up scope 不再整轮报错：落库的短 scope 截到上限，全文作为限制保留，不放宽范围。"""
     model = _response({"agent_type": "writer", "workflow_type": "quick",
                        "turn_disposition": disposition, "scope": "长" * 81})
     with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=model)):
-        with pytest.raises(RouterFailure) as caught:
-            await router_node({"user_message": "处理这条新要求", "messages": []})
-    assert caught.value.usage == model["usage"]
+        result = await router_node({"user_message": "处理这条新要求", "messages": []})
+    assert len(result["routing_metadata"]["scope"]) == 80
+    assert "长" * 81 in result["routing_metadata"]["scope_constraints"]
 
 
 @pytest.mark.asyncio
@@ -328,13 +329,11 @@ async def test_scope_restrictions_persist_across_two_resumes_without_expanding_t
 @pytest.mark.parametrize(
     ("routing_patch", "scope", "failed_field"),
     [
-        ({"scope_constraints": [f"限制{i}" for i in range(8)]}, "第九条限制", "scope_constraints"),
         ({"scope_constraints": ["合法", 3]}, "", "previous_routing.scope_constraints"),
         ({"last_agent": "mystery_agent"}, "", "previous_routing.last_agent"),
-        ({}, "超" * 81, "scope"),
     ],
 )
-async def test_invalid_or_overflowed_followup_scope_fails_before_authority_is_granted(
+async def test_corrupted_previous_routing_fails_before_authority_is_granted(
     routing_patch, scope, failed_field
 ):
     routing = {
@@ -824,3 +823,29 @@ def test_router_prompt_example_requests_every_semantic_decision_field():
 
     assert "accepts_previous_proposal" in payload
     assert decision.accepts_previous_proposal is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_followup_with_more_limits_and_a_long_scope_keeps_every_restriction():
+    """生产 11-01～03：续接时旧限制加本轮限制超过 8 条、或本轮 scope 过长，整轮报错。现在全部保留。"""
+    previous = {
+        "content": "未完成。",
+        "stop_reason": "run_deadline_exceeded",
+        "routing": {
+            "initial_agent": "writer", "last_agent": "writer", "owner_agent": "writer",
+            "workflow_type": "quick", "read_only": False, "write_content": True,
+            "scope": "原范围", "requested_file_types": ["draft"],
+            "scope_constraints": [f"限制{i}" for i in range(8)],
+        },
+    }
+    decision = {
+        "agent_type": "writer", "workflow_type": "quick", "turn_disposition": "resume_interrupted_task",
+        "read_only": False, "write_content": True, "scope": "超" * 81,
+    }
+    with patch("agent.graph.router._route_with_chat_model", AsyncMock(return_value=_response(decision))):
+        result = await router_node(_state("继续原任务", previous))
+    restrictions = result["routing_metadata"]["scope_constraints"]
+    assert all(f"限制{i}" in restrictions for i in range(8))
+    assert "超" * 81 in restrictions
+    assert result["routing_metadata"]["clarify_first"] is not True

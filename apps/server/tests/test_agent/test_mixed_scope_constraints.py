@@ -88,14 +88,25 @@ async def test_mixed_restrictions_survive_persisted_history_and_narrower_followu
         assert result["routing_metadata"]["read_only"] is False
 
 
-@pytest.mark.parametrize("constraints", [None, "只讨论", {}, [1], [""], ["x" * 81], [str(i) for i in range(9)]])
-async def test_invalid_explicit_item_restrictions_fail_closed_without_losing_usage(constraints):
-    response = _response(scope_constraints=constraints)
-    with pytest.raises(RouterFailure) as caught:
-        await _route(response)
-    assert caught.value.category == "schema"
-    assert caught.value.failed_fields == ("scope_constraints",)
-    assert caught.value.usage == response["usage"]
+@pytest.mark.parametrize(
+    ("constraints", "kept"),
+    [
+        (None, []),
+        ("只讨论", ["只讨论"]),
+        ({}, []),
+        ([1], ["1"]),
+        ([""], []),
+        (["x" * 81], ["x" * 81]),
+        ([str(i) for i in range(9)], [str(i) for i in range(9)]),
+    ],
+)
+async def test_explicit_item_restrictions_never_fail_routing_and_keep_their_text(constraints, kept):
+    """生产 11-01～03：路由给的限制条数或格式不合规时整轮报错，作者重试照样失败（最多连续 29 次）。
+    现在按协议字段收成字符串列表，一条不丢、不截断，路由照常成功。"""
+    result = await _route(_response(scope_constraints=constraints))
+    restrictions = result["routing_metadata"]["scope_constraints"]
+    assert restrictions == ["推演关系线并修改第二章日期", *kept]
+    assert result["routing_metadata"]["clarify_first"] is not True
 
 
 async def test_accepted_proposal_keeps_its_own_item_limits_not_previous_read_only_scope():
@@ -118,10 +129,20 @@ async def test_unmatched_followup_keeps_current_item_limits():
     assert "关系线仅推演，未经确认不写入任何文件" in result["routing_metadata"]["scope_constraints"]
 
 
-async def test_summary_and_item_limits_share_one_bounded_budget_without_dropping_any_item():
-    with pytest.raises(RouterFailure) as caught:
-        await _route(_response(scope_constraints=[f"独立限制{i}" for i in range(8)]))
-    assert caught.value.failed_fields == ("scope_constraints",)
+async def test_many_item_limits_route_normally_within_the_raised_count():
+    items = [f"独立限制{i}" for i in range(20)]
+    result = await _route(_response(scope_constraints=items))
+    assert result["routing_metadata"]["scope_constraints"] == ["推演关系线并修改第二章日期", *items]
+
+
+async def test_constraints_over_the_budget_ask_the_author_instead_of_failing():
+    """超出 2048 字预算时不截断、不丢限制，也不报错：本轮先问作者（clarify_first，不写文件）。"""
+    items = [f"第{i}项只讨论不落档，" + "保留" * 60 for i in range(20)]
+    response = _response(scope_constraints=items)
+    result = await _route(response)
+    assert result["routing_metadata"]["clarify_first"] is True
+    assert result["routing_metadata"]["scope_constraints"] == []
+    assert result["workflow_agents"] == []
 
 
 async def test_new_task_does_not_inherit_restrictions_from_completed_previous_task():

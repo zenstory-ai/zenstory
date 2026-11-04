@@ -144,7 +144,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `service.first_message_hint`（不落库）。作者没限定范围时按作品类型交付一个完整单元（长篇第一章、短篇写到第一个转折的开篇、
   短剧第 1 集），scope 不写字数，内部篇幅不复述给作者。[first-turn-writes][n-first-turn]、[first-turn-complete-unit][n-first-unit]
 - 输出：`current_agent`、`workflow_plan`、`workflow_agents`（已裁剪）、`routing_metadata`（`RouterDecision` 全量，含
-  `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`scope_constraints`、`requested_file_types`，以及可选严格 `turn_disposition` / `clarify_first`）。缺新字段按普通成功路由、不继承；显式非法技术失败并保留真实 usage。普通旧格式 scope 保留80字符兼容；真实继承不截断旧限制或新收窄，`scope_constraints` 最多8项（含短 scope）、每项80字符、JSON2048字符，完整跨轮持久化；超限在工具前失败。混合读写请求由路由逐项输出限制，首轮和续接都保留；整轮可写不代表每项都可落档，限制本身不新增权限，也不是内容级硬 ACL。[mixed-request-scope][n-mixed-scope] requested types 沿用旧列表，不扩张并集。
+  `write_content`（None = 旧格式未给出）、`read_only`、`scope`、`scope_constraints`、`requested_file_types`，以及可选严格 `turn_disposition` / `clarify_first`）。缺新字段按普通成功路由、不继承；显式非法技术失败并保留真实 usage。普通旧格式 scope 保留80字符兼容；真实继承不截断旧限制或新收窄，`scope_constraints` 完整跨轮持久化。`scope_constraints` 只记整轮字段表达不了的读写边界（通常一条作者原话，不写任务内容），模型给的字段按协议收成字符串列表、从不让路由报错；合并后最多24项（含短 scope）、JSON2048字符，超预算时本轮改为 `clarify_first`（不写文件、先问作者），不截断不丢限制；过长的 follow-up scope 全文并入限制。混合读写请求由路由输出限制，首轮和续接都保留；整轮可写不代表每项都可落档，限制本身不新增权限，也不是内容级硬 ACL。[mixed-request-scope][n-mixed-scope]、[scope-constraints-never-fail][n-scope-never-fail] requested types 沿用旧列表，不扩张并集。
 - 决策记录：[semantic-routing-and-evidence](../../../.agents/notes/implemented/bug-fix/2026-10-24-agent-semantic-routing-and-evidence.md)、[router-previous-turn-context][n-router-ctx]、[routing-continuity][n-routing]、[routing-inherits-the-task-owner][n-owner]。
 
 ### 用户范围与交接规则
@@ -278,7 +278,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 | 工具 | 用途 |
 |---|---|
 | `create_file` | 新建文件（只建空文件，正文随后用 `<file>` 流式写入） |
-| `edit_file` | 精确编辑（replace / insert / append / delete） |
+| `edit_file` | 精确编辑（replace / insert / append / delete）；逐字、引号等价、模糊都找不到时近似匹配兜底，长章节用种子定位（[approx-seeds][n-approx-seeds]）；同一文件找不到原文只附恢复提示、不提前熔断，无效文件 id 三次即熔断（[anchor-no-early-trip][n-anchor-no-early-trip]） |
 | `delete_file` | 删除文件 |
 | `rename_file` | 只改文件标题，id 与正文不变（同文件夹重名拒绝；[rename-file][n-rename]） |
 | `query_files` | 查询和读取文件；按 id 可只读 `section` / `tail_chars` / `start_char`+`max_chars`，结果标明范围，范围读取只做陈旧检查快照、不算看过全文（[range-reads][n-range]） |
@@ -356,6 +356,9 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-thinking]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-thinking-loop-contradictory-inputs.md
 [n-breaker]: ../../../.agents/notes/implemented/bug-fix/2026-10-03-agent-tool-failure-circuit-breaker.md
 [n-mixed-scope]: ../../../.agents/notes/implemented/bug-fix/2026-11-01-agent-mixed-request-item-scope.md
+[n-scope-never-fail]: ../../../.agents/notes/implemented/bug-fix/2026-11-04-router-scope-constraints-never-fail-the-turn.md
+[n-anchor-no-early-trip]: ../../../.agents/notes/implemented/bug-fix/2026-11-04-anchor-misses-do-not-trip-early.md
+[n-approx-seeds]: ../../../.agents/notes/implemented/bug-fix/2026-11-04-approximate-match-seeds-long-chapters.md
 [n-review]: ../../../.agents/notes/implemented/bug-fix/2026-10-08-agent-review-gating-and-handoff-details.md
 [n-continue]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-file-stream-continuation-and-truthful-completion.md
 [n-repeat]: ../../../.agents/notes/implemented/bug-fix/2026-10-11-repeat-create-of-pending-empty-file.md
