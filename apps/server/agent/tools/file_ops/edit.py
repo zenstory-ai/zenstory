@@ -254,15 +254,13 @@ def _preview(text: str) -> str:
 
 
 def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
-    if stats.get("workload_skipped"):
-        reason = "近似扫描因工作量保护未执行。"
-    elif stats.get("deadline_exceeded"):
+    if stats.get("deadline_exceeded"):
         reason = "近似扫描因截止时间到达而未完成。"
     else:
         reason = "精确、引号等价、模糊和近似匹配都没有找到唯一位置。"
     return (
         f"{reason}请先用 query_files 按准确 id 重读当前段落，再从结果复制较短、逐字、"
-        f"唯一的{label}，必要时按段拆成多条 edit；不要放宽匹配或整篇覆盖。"
+        f"唯一的{label}；改动多时拆成几次 edit_file 调用、每次只改少量几处，不要在一次调用里堆很多条；不要放宽匹配或整篇覆盖。"
     )
 
 

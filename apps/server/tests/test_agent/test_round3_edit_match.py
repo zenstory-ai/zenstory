@@ -121,7 +121,7 @@ def test_approx_guard_does_not_over_block_normal_edits():
     assert match[2] >= 0.75
 
 
-def test_replace_workload_skip_requests_shorter_exact_unique_snippet(editor):
+def test_replace_not_found_in_long_content_requests_short_snippets_in_separate_calls(editor):
     content = "甲" * 5001
     with pytest.raises(EditFileError) as exc:
         editor._apply_replace(
@@ -137,9 +137,23 @@ def test_replace_workload_skip_requests_shorter_exact_unique_snippet(editor):
         )
 
     message = str(exc.value)
-    assert "近似扫描因工作量保护未执行" in message
+    assert "工作量保护" not in message  # long content is searched, not skipped
     assert "较短、逐字、唯一" in message
+    assert "拆成几次 edit_file 调用" in message
     assert "更长" not in message
+
+
+def test_replace_in_long_chapter_tolerates_a_one_character_slip(editor):
+    """生产 11-03：章节过 5000 字后近似匹配被整段跳过，只差一个字的长 old 必然失败，
+    25 处一批的修改因此整批回滚、三次后熔断。现在长章节照样近似定位。"""
+    content, target = _long_content_forcing_paragraph_fallback()
+    old = target.replace("推门而出", "排门而出")
+    applied: list[dict] = []
+
+    result = editor._apply_replace(content, {"op": "replace", "old": old, "new": "【改写】"}, 0, applied, [])
+
+    assert result == content.replace(target, "【改写】")
+    assert applied[0]["match_mode"] == "approximate"
 
 
 def test_replace_deadline_requests_shorter_exact_unique_snippet(editor, monkeypatch):
@@ -217,8 +231,16 @@ def test_containment_shortcut_still_applies_to_similar_lengths():
     assert score >= 0.9
 
 
+@pytest.fixture
+def no_approximate_match(monkeypatch):
+    """Exercise the paragraph fallback: the approximate step finds nothing."""
+    import agent.tools.file_ops.edit as edit_module
+
+    monkeypatch.setattr(edit_module, "find_approximate_match", lambda *_args, **_kwargs: None)
+
+
 def _long_content_forcing_paragraph_fallback() -> tuple[str, str]:
-    """构造一份 > MAX_APPROX_CONTENT_LEN 的正文，使近似匹配被跳过、只剩段落兜底。"""
+    """构造一份 > MAX_APPROX_CONTENT_LEN 的正文（近似匹配走种子定位）。"""
     filler = "\n\n".join(_plain_content(200) for _ in range(30))
     target = "天亮时林风背上行囊推门而出走进濛濛细雨里再没有回头看那座空荡荡的院子"
     content = filler + "\n\n" + target
@@ -226,7 +248,7 @@ def _long_content_forcing_paragraph_fallback() -> tuple[str, str]:
     return content, target
 
 
-def test_fuzzy_paragraph_reports_confidence_and_fallback(editor):
+def test_fuzzy_paragraph_reports_confidence_and_fallback(editor, no_approximate_match):
     """兜底段落匹配必须自报置信度与兜底性质，不能伪装成确定无疑的唯一匹配。"""
     content, target = _long_content_forcing_paragraph_fallback()
     # 中间改一个字：既不是精确/模糊子串命中，也让 SequenceMatcher 仍有 ~0.97
@@ -265,7 +287,7 @@ def test_fuzzy_paragraph_fallback_rejects_occurrence_beyond_one(editor, op):
     assert applied == []
 
 
-def test_fuzzy_paragraph_fallback_finds_a_line_in_a_single_newline_file(editor):
+def test_fuzzy_paragraph_fallback_finds_a_line_in_a_single_newline_file(editor, no_approximate_match):
     """F-25：只用单个换行分段的文件，以前整篇被当成一段，段落兜底永远失败。"""
     filler = "\n".join(_plain_content(200) for _ in range(30))
     target = "天亮时林风背上行囊推门而出走进濛濛细雨里再没有回头看那座空荡荡的院子"
