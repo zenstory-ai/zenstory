@@ -852,6 +852,26 @@ describe('agentApi', () => {
       )
     })
 
+    it('reports an account task refusal once for a manual retry and never re-sends by itself', async () => {
+      const status = 409
+      const code = 'ERR_ACCOUNT_RUNS_BUSY'
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status,
+        json: async () => ({ detail: code, error_code: code }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const onError = vi.fn()
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError })
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError).toHaveBeenCalledWith(`Translated: ${code}`, code, true)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
     it('ignores SSE heartbeat comment frames between events', async () => {
       const onContent = vi.fn()
       const onError = vi.fn()

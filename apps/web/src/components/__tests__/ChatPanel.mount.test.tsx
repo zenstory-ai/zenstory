@@ -136,20 +136,20 @@ vi.mock('../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => mockLayout,
 }))
 
-const mockAttachments = vi.hoisted(() => ({ fileIds: [] as string[] }))
+const mockAttachments = vi.hoisted(() => ({ fileIds: [] as string[], clearMaterials: vi.fn(), clearQuotes: vi.fn() }))
 
 vi.mock('../../contexts/MaterialAttachmentContext', () => ({
   useMaterialAttachment: () => ({
     attachedFileIds: mockAttachments.fileIds,
     attachedLibraryMaterials: [],
-    clearMaterials: vi.fn(),
+    clearMaterials: mockAttachments.clearMaterials,
   }),
 }))
 
 vi.mock('../../contexts/TextQuoteContext', () => ({
   useTextQuote: () => ({
     quotes: [],
-    clearQuotes: vi.fn(),
+    clearQuotes: mockAttachments.clearQuotes,
   }),
 }))
 
@@ -2820,6 +2820,97 @@ describe('ChatPanel new-author flow', () => {
 
     expect(mockDraft.saveDraft).toHaveBeenCalledTimes(1)
     expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章\n\n再补一句：主角怕水')
+  })
+
+  describe('a round the server refused because the account is busy', () => {
+    const code = 'ERR_ACCOUNT_RUNS_BUSY'
+
+    const refuse = () => act(() => {
+      mockAgentStreamState.error = '已有 2 个任务正在进行，请等待完成或停止其中一个后再试。'
+      mockAgentStreamState.errorCode = code
+      mockAgentStreamState.retryable = true
+      streamOptions().onError(mockAgentStreamState.error, code, true)
+    })
+
+    afterEach(() => {
+      mockAgentStreamState.error = null
+      mockAgentStreamState.errorCode = null
+      mockAgentStreamState.retryable = false
+    })
+
+    it('puts the words back, drops the bubble, explains, and does not send again', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', ['skill-1'])
+      })
+      refuse()
+
+      expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章')
+      expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(false)
+      expect(lastMessageInputProps().refusedSend?.message).toBe('写第二章')
+      expect(mockStartStream).toHaveBeenCalledTimes(1)
+      const alert = await screen.findByRole('alert')
+      expect(within(alert).getByText('已有 2 个任务正在进行，请等待完成或停止其中一个后再试。')).toBeVisible()
+      expect(within(alert).getByText('chat:panel.accountRunsBusyTitle')).toBeVisible()
+      // The words are back in the input: a retry button would send a second, bubble-less copy.
+      expect(within(alert).queryByRole('button', { name: 'common:retry' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('leaves staged attachments and quotes in place when the refused round finishes', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+      mockAttachments.fileIds = ['file-outline']
+      mockAttachments.clearMaterials.mockClear()
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', [])
+      })
+      refuse()
+      // The hook finishes the refused round through onComplete, as it does for any error.
+      await act(async () => {
+        await (capturedUseAgentStream.options as { onComplete: (...args: unknown[]) => Promise<void> })
+          .onComplete([], null)
+      })
+      expect(mockAttachments.clearMaterials).not.toHaveBeenCalled()
+    })
+
+    it('keeps the bubble, the request and the manual retry when a retry of a stored message is refused', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+      // An earlier round failed after it was stored: the panel offers the manual retry.
+      mockAgentStreamState.error = 'failed'
+      mockAgentStreamState.retryable = true
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', [])
+      })
+      const retry = await screen.findByRole('button', { name: 'common:retry' })
+      await act(async () => { fireEvent.click(retry) })
+      expect(mockStartStream).toHaveBeenCalledTimes(2)
+      mockDraft.saveDraft.mockClear()
+      refuse()
+      expect(mockDraft.saveDraft).not.toHaveBeenCalled()
+      expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(true)
+      expect(await screen.findByRole('button', { name: 'common:retry' })).toBeVisible()
+      expect(mockStartStream).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps what the author typed after sending', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+      mockDraft.draft = '再补一句：主角怕水'
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', [])
+      })
+      refuse()
+      expect(mockDraft.saveDraft).toHaveBeenCalledTimes(1)
+      expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章\n\n再补一句：主角怕水')
+    })
   })
 
   it('treats a plan without daily AI messages (limit 0) like the home page does: never "used up"', async () => {

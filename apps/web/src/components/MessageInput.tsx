@@ -19,7 +19,7 @@ import { Send, X, Square, RefreshCw, FileText, Quote, Zap, Sparkles } from "luci
 import { VoiceInputButton } from "./VoiceInputButton";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { useTextQuote } from "../contexts/TextQuoteContext";
-import { MAX_SELECTED_SKILLS, useSkillTrigger } from "../contexts/SkillTriggerContext";
+import { MAX_SELECTED_SKILLS, useSkillTrigger, type SelectedSkill } from "../contexts/SkillTriggerContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { useTranslation } from "react-i18next";
 import { skillsApi } from "../lib/api";
@@ -192,6 +192,11 @@ interface MessageInputProps {
    * call this instead of `onSend`, and the typed text stays in the box.
    */
   onBlockedSend?: () => void;
+  /**
+   * The server refused this message before starting a round, and its words are back in the
+   * draft. The skills sent with it come back too. A new `seq` means a new refusal.
+   */
+  refusedSend?: { seq: number; message: string; skillIds: string[] } | null;
   /** Callback to cancel an ongoing operation (shows cancel button when disabled) */
   onCancel?: () => void;
   /** Stop already requested: the stop button shows it is waiting and ignores presses */
@@ -300,6 +305,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   sendDisabled,
   onBlockedSend,
+  refusedSend,
   onCancel,
   isStopping = false,
   onSteer,
@@ -653,6 +659,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
+  const lastSentRef = useRef<{ message: string; skills: SelectedSkill[] } | null>(null);
+  const refusedSeq = refusedSend?.seq;
+  const refusedSendRef = useRef(refusedSend);
+  refusedSendRef.current = refusedSend;
+  useEffect(() => {
+    const refused = refusedSendRef.current;
+    if (refusedSeq === undefined || !refused) return;
+    const sent = lastSentRef.current;
+    // The same words sent another way (a follow-up, a starter card) carried no skills from here.
+    if (!sent || sent.message !== refused.message) return;
+    if (sent.skills.map((skill) => skill.id).join() !== refused.skillIds.join()) return;
+    lastSentRef.current = null;
+    sent.skills.forEach((skill) => selectSkill(skill));
+  }, [refusedSeq, selectSkill]);
+
   const handleSubmit = () => {
     const message = input.trim();
     if (message && onBlockedSend && !effectiveSendDisabled && !inputTooLong) {
@@ -664,6 +685,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       const fromSuggestion = pickedSuggestionRef.current?.trim() === message;
       pickedSuggestionRef.current = null;
       const skillIds = selectedSkills.map((skill) => skill.id);
+      lastSentRef.current = { message, skills: selectedSkills };
       if (fromSuggestion) {
         onSend(message, skillIds, { entry: "suggestion" });
       } else {

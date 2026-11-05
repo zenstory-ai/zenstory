@@ -30,6 +30,7 @@ agent/
 │   ├── events.py           # SSE 事件（EventType）与帧构造
 │   ├── workflow_events.py  # 图内部事件（StreamEventType / StreamEvent）
 │   ├── sse_pump.py         # SSEStreamPump：心跳、请求墙钟时限、作者停止
+│   ├── account_run_limit.py# 账号任务名额（每账号最多 2 个）：原子获取、续租、失效回收
 │   ├── stream_billing.py   # StreamBillingTracker：按发出的帧判定计费 / 退还
 │   ├── stream_errors.py    # 错误码、固定文案、retryable / refundable
 │   ├── round_outcome.py    # 停止 / 断线的一轮怎样收尾（终态落库、空白占位文件）
@@ -88,6 +89,7 @@ agent/
 ## 请求与流
 
 1. `apps/server/api/agent.py` 的 `POST /api/v1/agent/stream`：鉴权、项目权限（`verify_project_access`）、按用户限流、
+   会话忙预检、额度预检、原子获取账号任务名额（`core/account_run_limit.py`，每账号最多 2 个，见下）、
    预扣一次 AI 对话额度；用 `SSEStreamPump` 包住 `AgentService.process_stream`，`StreamBillingTracker` 记账每一帧。
    同文件还有 `/stop`（作者停止）、`/steer`（运行中插话）、`/suggest`、`/health`。新增会触发 LLM 的端点必须同时有
    鉴权 + 项目权限 + 成本上限 + 按用户限流（见该文件模块 docstring）。
@@ -235,6 +237,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 - 墙钟时限由 `SSEStreamPump` 执行：到点先发真实超时终态再等生产者收尾。[platform-deadline][n-deadline]、[deadline-terminal][n-deadline2]
 - 发布交接：SIGTERM 后 `core/server_drain.py` 让所有运行立即按时限收尾提醒，`api/agent.py` 把进行中的泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒），到点以 `ERR_AGENT_SERVER_RESTARTING` 收尾、计费同墙钟超时（`billing_reason=server_restarting`）；lifespan 关闭前等后台退还与终态任务。[deploy-drain][n-drain]
 - 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。入队与「存在未封口的存活 run」原子判定；工作流结束后、保存历史前的那次 drain 起就封口（本 run 不再把引导喂给模型），释放前的兜底 drain 再封一次；之后的 steer 回 404，前端改为下一条普通消息发送。[steering-busy-409][n-steer]
+- 账号任务名额：同一账号所有写作任务（`/agent/stream`）合计最多 2 个，跨项目、会话、设备和进程共享；路由、内部模型调用、审稿、工具和 `/steer` 不另占。超限 409 `ERR_ACCOUNT_RUNS_BUSY`，不排队、不自动重试、不扣额；前端把这句话和技能退回输入框。名额在预扣额度前原子获取，每 20 秒续租，90 秒没心跳即失效；`process_stream` 接管后在真正结束时释放（取消路径在残稿补存和会话释放之后），接管前的失败由路由释放。Redis 故障或 staging / production 没配 Redis 时放行，不用进程内计数拒绝请求；首次初始化和数据丢失没有等待窗口。只续租当前任务，不批量写回其他任务，避免已释放任务被旧快照复活。故障恢复和首次混合版本发布期间可能暂时超出 2 个，这是优先保障写作可用性的取舍。[account-two-tasks][n-account-tasks]
 - SSE 事件类型见 `core/events.py` 的 `EventType`。
 
 ## 上下文与跨轮记忆
@@ -393,3 +396,4 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
 [n-continued-run]: ../../../.agents/notes/implemented/architecture/2026-10-21-same-agent-runs-continue-the-previous-input.md
 [n-lean]: ../../../.agents/notes/implemented/simplification/2026-10-20-quality-mode-length-tolerance-and-attached-text.md
 [n-drain]: ../../../.agents/notes/implemented/architecture/2026-10-21-deploy-drain-ends-running-generations.md
+[n-account-tasks]: ../../../.agents/notes/implemented/feature/2026-11-05-account-concurrency-availability-first.md

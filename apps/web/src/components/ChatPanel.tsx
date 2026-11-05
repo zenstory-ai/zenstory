@@ -267,6 +267,10 @@ interface ChatPanelProps {}
 const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[] } | undefined =>
   !result.saved && result.fileId ? { keepFileIds: [result.fileId] } : undefined;
 
+/** The account's task slots are taken: the server started and charged nothing. */
+const isAccountRunRefusal = (code: string | null | undefined) =>
+  code === "ERR_ACCOUNT_RUNS_BUSY";
+
 const STARTER_HIGHLIGHT_MS = 1600;
 /** How long a work's first chat waits for its progress before showing the example starter. */
 const STARTER_PROGRESS_WAIT_MS = 1500;
@@ -627,22 +631,25 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     draftRef.current = draft;
   }, [draft]);
   /** The bubble just sent, until the server accepts the round (it is not stored before that). */
-  const blockedCandidateRef = useRef<{ id: string; content: string } | null>(null);
+  const blockedCandidateRef = useRef<{ id: string; content: string; skillIds: string[]; keepIfBusy?: boolean } | null>(null);
   /**
-   * The server refused the round for today's AI messages: put the words back in the input.
+   * The server refused the round before starting it: put the words back in the input.
    * Anything typed into the box since sending stays, after the returned message.
    */
+  const [refusedSend, setRefusedSend] = useState<{ seq: number; message: string; skillIds: string[] } | null>(null);
   const returnBlockedMessageToInput = useCallback(() => {
     const candidate = blockedCandidateRef.current;
     blockedCandidateRef.current = null;
-    if (!candidate) return;
+    if (!candidate) return false;
     setMessages((prev) => prev.filter((message) => message.id !== candidate.id));
+    setRefusedSend((prev) => ({ seq: (prev?.seq ?? 0) + 1, message: candidate.content, skillIds: candidate.skillIds }));
     const typedSince = draftRef.current;
     if (!typedSince.trim()) {
       saveDraft(candidate.content);
     } else if (!typedSince.includes(candidate.content)) {
       saveDraft(`${candidate.content}\n\n${typedSince}`);
     }
+    return true;
   }, [saveDraft]);
   const messageListRef = useRef<MessageListRef>(null);
   const messagesScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -657,6 +664,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   useEffect(() => {
     lastRetryRequestRef.current = null;
     lastUserRequestRef.current = null;
+    blockedCandidateRef.current = null;
   }, [currentProjectId]);
 
   // Persist generation mode per project in localStorage.
@@ -1392,6 +1400,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         returnBlockedMessageToInput();
         reportQuotaBlockedSend(true);
       }
+      if (isAccountRunRefusal(code)) {
+        // Nothing was accepted: the round's end must not clear the attachments and quotes staged with it.
+        resetPendingContextClears();
+        // The words go back to the input, so there is nothing left to retry. A retry has no
+        // bubble to return, and a resend's old attachments exist only in its request: both stay
+        // as they are, with their manual retry button.
+        if (!blockedCandidateRef.current?.keepIfBusy && returnBlockedMessageToInput()) {
+          lastRetryRequestRef.current = null;
+        }
+      }
     },
 
     // Tool call/result callbacks: the server's prose counter starts a new segment at both.
@@ -1905,7 +1923,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    */
   const startRound = useCallback((
     request: Omit<AgentRequest, "project_id">,
-    options: { userBubble: boolean },
+    options: { userBubble: boolean; keepIfBusy?: boolean },
   ): boolean => {
     if (sendLockRef.current || isStreaming || newChatAfterStopRef.current || creatingSessionRef.current !== null || sessionRecoveryBlockedRef.current) return false;
     // Held until the next task: by then React has re-rendered with isStreaming = true,
@@ -1923,17 +1941,25 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       clearTimeout(suggestionTimeoutRef.current);
     }
 
+    const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     if (options.userBubble) {
       // Add user message to chat (optimistic update)
       const userMessage: Message = {
-        id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        id: userMessageId,
         role: "user",
         content: request.message,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, userMessage]);
-      blockedCandidateRef.current = { id: userMessage.id, content: request.message };
     }
+    blockedCandidateRef.current = options.userBubble
+      ? {
+          id: userMessageId,
+          content: request.message,
+          skillIds: request.selected_skill_ids ?? [],
+          keepIfBusy: options.keepIfBusy,
+        }
+      : null;
     lastUserRequestRef.current = request.message;
     roundQuotaBaselineRef.current =
       queryClient.getQueryData<QuotaResponse>(subscriptionQueryKeys.quota())?.ai_conversations.used ?? null;
@@ -2057,7 +2083,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     });
     startRound(
       { ...last.request, metadata: { ...last.request.metadata, resent_after_stop: true } },
-      { userBubble: true },
+      { userBubble: true, keepIfBusy: true },
     );
   }, [currentProjectId, startRound]);
 
@@ -2067,7 +2093,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (!retryable || isStreaming || !currentProjectId || lastRequest?.projectId !== currentProjectId) {
       return;
     }
-    blockedCandidateRef.current = null;
     const started = startRound(
       { ...lastRequest.request, metadata: { ...lastRequest.request.metadata, retry_unanswered: true } },
       { userBubble: false },
@@ -2878,7 +2903,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                       <p className="text-[hsl(var(--warning-text))] text-sm font-medium">
                         {isAiQuotaLimit
                           ? t('chat:panel.quotaExceededTitle')
-                          : t('chat:panel.streamErrorTitle')}
+                          : isAccountRunRefusal(errorCode)
+                            ? t('chat:panel.accountRunsBusyTitle')
+                            : t('chat:panel.streamErrorTitle')}
                       </p>
                       {!isAiQuotaLimit && (
                         <p className="text-[hsl(var(--warning-text))] text-sm break-words whitespace-pre-line">
@@ -3051,6 +3078,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           <MessageInput
             focusRequest={!isMobile || activePanel === "chat" ? chatFocusRequest : 0}
             onSend={handleSendMessage}
+            refusedSend={refusedSend}
             // Allow drafting while AI is streaming/thinking, but prevent sending until it finishes.
             disabled={isLoadingHistory}
             sendDisabled={isStreaming || isThinking || isLoadingHistory || newChatPending || isCreatingSession || sessionRecoveryError === currentProjectId}
