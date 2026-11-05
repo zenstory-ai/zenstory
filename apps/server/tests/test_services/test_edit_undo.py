@@ -4,7 +4,6 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from fastapi import BackgroundTasks
 from sqlalchemy import event
 from sqlmodel import Session, select
 
@@ -39,9 +38,7 @@ def undo_file(db_session, monkeypatch):
     monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
     monkeypatch.setattr(files.activation_event_service, "record_once", lambda *_a, **_kw: None)
     monkeypatch.setattr(files.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
-    cache_bumps = []
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **kw: cache_bumps.append(kw))
-    return user, project, file, key, cache_bumps
+    return user, project, file, key
 
 
 def _count_versions(session, file_id):
@@ -67,7 +64,7 @@ def test_edit_emits_exact_before_version_and_committed_after_token(db_session, u
 
 @pytest.mark.parametrize("conditional", [False, True])
 async def test_missing_rollback_version_matches_content_and_compare_404_without_effects(client, db_session, undo_file, conditional):
-    user, _, file, _, cache_bumps = undo_file
+    user, _, file, _ = undo_file
     token = normalize_datetime_to_utc(file.updated_at).isoformat()
     before = (file.content, token, _count_versions(db_session, file.id))
     kwargs = {"json": {"expected_updated_at": token}} if conditional else {}
@@ -77,7 +74,6 @@ async def test_missing_rollback_version_matches_content_and_compare_404_without_
     assert [(r.status_code, r.json()["error_code"]) for r in (restored, content, compared)] == [(404, "ERR_VERSION_NOT_FOUND")] * 3
     db_session.refresh(file)
     assert (file.content, normalize_datetime_to_utc(file.updated_at).isoformat(), _count_versions(db_session, file.id)) == before
-    assert cache_bumps == []
 
 
 @pytest.mark.parametrize("reason", ["missing", "mismatched"])
@@ -146,7 +142,7 @@ def test_edit_can_offer_anchored_undo_when_optional_after_history_fails(db_sessi
 
 
 async def test_conditional_rollback_uses_exact_token_and_second_click_conflicts(client, db_session, undo_file):
-    user, _, file, _, cache_bumps = undo_file
+    user, _, file, _ = undo_file
     _edit(db_session, user, file)
     db_session.refresh(file)
     token = normalize_datetime_to_utc(file.updated_at).isoformat()
@@ -159,7 +155,6 @@ async def test_conditional_rollback_uses_exact_token_and_second_click_conflicts(
     assert file.content == "Before\n"
     restored_token = normalize_datetime_to_utc(file.updated_at)
     count = _count_versions(db_session, file.id)
-    cache_bumps.clear()
     second = await client.post(url, json={"expected_updated_at": token})
     assert second.status_code == 409
     assert second.json()["error_code"] == "ERR_RESOURCE_CONFLICT"
@@ -167,12 +162,11 @@ async def test_conditional_rollback_uses_exact_token_and_second_click_conflicts(
     assert file.content == "Before\n"
     assert normalize_datetime_to_utc(file.updated_at) == restored_token
     assert _count_versions(db_session, file.id) == count
-    assert cache_bumps == []
 
 
 @pytest.mark.parametrize("writer", ["web", "agent", "tool_edit", "tool_title", "snapshot"])
 async def test_intervening_writes_reject_old_undo_without_success_effects(client, db_session, undo_file, writer):
-    user, project, file, key, cache_bumps = undo_file
+    user, project, file, key = undo_file
     _edit(db_session, user, file)
     db_session.refresh(file)
     token = normalize_datetime_to_utc(file.updated_at).isoformat()
@@ -190,17 +184,15 @@ async def test_intervening_writes_reject_old_undo_without_success_effects(client
         service.rollback_to_snapshot(db_session, snapshot.id)
     db_session.refresh(file)
     expected = (file.content, file.title, file.updated_at, _count_versions(db_session, file.id))
-    cache_bumps.clear()
     response = await client.post(f"/api/v1/files/{file.id}/versions/1/rollback", json={"expected_updated_at": token})
     assert response.status_code == 409
     db_session.refresh(file)
     assert (file.content, file.title, file.updated_at, _count_versions(db_session, file.id)) == expected
-    assert cache_bumps == []
 
 
 @pytest.mark.parametrize("difference", [-1, 1, 1_000_000])
 async def test_undo_requires_exact_equality_not_only_a_newer_current_stamp(client, db_session, undo_file, difference):
-    user, _, file, _, cache_bumps = undo_file
+    user, _, file, _ = undo_file
     _edit(db_session, user, file)
     db_session.refresh(file)
     current = normalize_datetime_to_utc(file.updated_at)
@@ -214,7 +206,6 @@ async def test_undo_requires_exact_equality_not_only_a_newer_current_stamp(clien
     assert file.content == "Before\nAI\n"
     assert normalize_datetime_to_utc(file.updated_at) == current
     assert _count_versions(db_session, file.id) == count
-    assert cache_bumps == []
 
 
 @pytest.mark.parametrize("token", ["", "invalid-date"])

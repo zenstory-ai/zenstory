@@ -50,7 +50,6 @@ async function fixture(page: Page, locale: 'zh' | 'en', theme: 'light' | 'dark')
     if (url.pathname.endsWith('/file-tree')) return fulfill({ tree: [{ id: 'draft-folder', title: 'Drafts', file_type: 'folder', parent_id: null, order: 0, metadata: { folder_type: 'draft' }, children: Object.values(files).map(file => ({ ...file, children: [] })) }] });
     if (url.pathname.endsWith('/agent/suggest')) return fulfill({ suggestions: [] });
     if (url.pathname.endsWith('/versions')) return fulfill({ versions: [], total: 0 });
-    if (url.pathname.endsWith('/stats/record')) return fulfill({ success: true });
     return route.fallback();
   });
   return { state, files };

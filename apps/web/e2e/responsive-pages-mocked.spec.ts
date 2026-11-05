@@ -24,7 +24,7 @@ const readyHeadings: Record<string, string> = {
   "/dashboard/skills": "技能管理",
   "/dashboard/billing": "订阅权益",
   "/project/responsive-project-0": "开始写作",
-  "/project/responsive-project-0/dashboard": "项目统计",
+  "/project/responsive-project-0/dashboard": "开始写作",
   "/materials/responsive-material": "素材标题：很长的人物选择与情节发展"
 };
 
@@ -44,7 +44,11 @@ for (const viewport of sizes) {
         }
         await page.goto(new URL(route, baseURL).href);
         await expect(page.locator('h1,h2').filter({ hasText: readyHeadings[route] }).first(), route).toBeVisible();
-        const expectedPath = route === '/auth/callback' ? '/login' : route.split('?')[0];
+        const expectedPath = route === '/auth/callback'
+          ? '/login'
+          : route.endsWith('/dashboard') && route.startsWith('/project/')
+            ? route.slice(0, -'/dashboard'.length)
+            : route.split('?')[0];
         expect(new URL(page.url()).pathname, route).toBe(expectedPath);
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: route }).toBeLessThanOrEqual(viewport.width);
         // Hidden overflow can mask an oversized fixed shell; inspect its actual bounds too.
@@ -88,7 +92,7 @@ for (const viewport of sizes) {
     await page.goto('/materials/responsive-material');
     const search = page.getByPlaceholder("搜索", { exact: true });
     if (viewport.width < 768) expect((await search.boundingBox())!.width).toBeGreaterThanOrEqual(200);
-    await page.getByRole('button', { name: '章节', exact: true }).click();
+    await page.getByRole('button', { name: /^章节\s+25$/ }).click();
     await page.getByText('第1章 很长的标题与人物选择', { exact: true }).click();
     await expect(page.getByText('章节摘要。'.repeat(30), { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);

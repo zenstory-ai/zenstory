@@ -569,7 +569,7 @@ def _usage_dict_from_result(result: Any) -> dict[str, int]:
 
     cache_read_tokens：DeepSeek 的 prompt cache 命中量（OpenAI 兼容字段
     prompt_tokens_details.cached_tokens，SDK 映射为 input_tokens_details.cached_tokens）。
-    它是 prompt_tokens 的**子集**，而 writing_stats_service 的计价公式是
+    它是 prompt_tokens 的**子集**，用量字段按以下口径归一化：
     input * 输入价 + cache_read * 缓存价（相加），所以这里必须把命中缓存的部分从
     input_tokens 里扣掉，否则同一批 token 会被按输入价和缓存价重复计费。
     """

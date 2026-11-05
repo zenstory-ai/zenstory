@@ -456,24 +456,6 @@ def rollback_to_version(
             expected_updated_at=(rollback_request.expected_updated_at if rollback_request else None),
         )
 
-        try:
-            from services.infra.dashboard_cache import dashboard_cache
-
-            dashboard_cache.bump_project_version(
-                user_id=current_user.id,
-                project_id=updated_file.project_id,
-            )
-        except Exception as exc:
-            log_with_context(
-                logger,
-                10,  # DEBUG
-                "Failed to bump dashboard cache after version rollback",
-                error=str(exc),
-                file_id=file_id,
-                project_id=updated_file.project_id,
-            )
-
-
         undo_recorded = False
         if (
             rollback_request is not None

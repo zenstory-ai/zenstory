@@ -15,7 +15,6 @@
     "appName": "ZenStory",
     "goDashboard": "Back to dashboard",
     "mobileMenu": "Mobile menu",
-    "projectDashboard": "Project stats",
     "helpDocs": "Help Docs",
     "moreActions": "More Actions",
     "export": "Export whole work (TXT)",
@@ -312,12 +311,10 @@
     "files": "Files",
     "skills": "Skills",
     "materials": "Materials",
-    "dashboard": "Project stats",
     "menu": "Menu"
   },
   "projectMenu": {
     "ariaLabel": "Project menu",
-    "dashboard": "Project stats",
     "settings": "Project Settings"
   },
   "projectSwitcher": {

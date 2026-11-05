@@ -45,7 +45,6 @@ vi.mock('react-router-dom', () => ({
 // (see public/locales), matching the map convention used by sibling tests
 // like PublicHeader.test.tsx and BottomTabs.test.tsx.
 const headerTranslations: Record<string, string> = {
-  'editor:header.projectDashboard': '项目统计',
   'editor:header.helpDocs': '帮助文档',
   'common:feedback.entry': '问题反馈',
   'editor:header.exportWithOutline': '导出大纲与正文',
@@ -353,22 +352,12 @@ describe('Header', () => {
       expect(screen.queryByText('项目统计')).not.toBeInTheDocument()
     })
 
-    it('shows project dashboard action in more menu when project is selected', () => {
+    it('does not show the retired project statistics action when a project is selected', () => {
       mockCurrentProjectId = 'project-123'
       render(<Header />)
 
       fireEvent.click(screen.getByTestId('header-more-actions'))
-      expect(screen.getByText('项目统计')).toBeInTheDocument()
-    })
-
-    it('navigates to project dashboard when project dashboard action is clicked', () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('项目统计'))
-
-      expect(mockNavigate).toHaveBeenCalledWith('/project/project-123/dashboard')
+      expect(screen.queryByText('项目统计')).not.toBeInTheDocument()
     })
 
     it('navigates to docs when help docs action is clicked', () => {
@@ -788,19 +777,14 @@ describe('Header', () => {
       })
     })
 
-    it('navigates to project dashboard from mobile menu', async () => {
+    it('does not show the retired project statistics action in the mobile menu', async () => {
       mockCurrentProjectId = 'project-123'
       render(<Header />)
 
       const menuButton = screen.getByTestId('menu-icon').closest('button')
       fireEvent.click(menuButton!)
 
-      await waitFor(() => {
-        expect(screen.getByTestId('project-dashboard-button-mobile')).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByTestId('project-dashboard-button-mobile'))
-      expect(mockNavigate).toHaveBeenCalledWith('/project/project-123/dashboard')
+      expect(screen.queryByTestId('project-dashboard-button-mobile')).not.toBeInTheDocument()
     })
 
     it('navigates to docs from mobile menu', async () => {

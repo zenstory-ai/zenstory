@@ -24,17 +24,23 @@ export interface MaterialNovel {
   /** Unique identifier for the material library */
   id: string;
   /** ID of the user who owns this material */
-  user_id: string;
+  user_id?: string;
   /** Display title of the novel */
   title: string;
+  /** Author returned by the material detail endpoint. */
+  author?: string | null;
+  /** Synopsis of the content admitted into this material's decomposition scope. */
+  synopsis?: string | null;
+  /** Source fields this UI intentionally consumes; the response may contain other internal fields. */
+  source_meta?: MaterialSourceMeta | null;
   /** Original filename of the uploaded file */
-  original_filename: string;
+  original_filename?: string | null;
   /** File size in bytes */
-  file_size: number;
+  file_size?: number | null;
   /** Processing status of the decomposition task */
-  status: 'pending' | 'processing' | 'completed' | 'completed_with_errors' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'completed_with_errors' | 'failed' | null;
   /** Error message if status is 'failed' */
-  error_message?: string;
+  error_message?: string | null;
   /** Total number of chapters detected */
   total_chapters?: number;
   /** Number of chapters processed */
@@ -64,6 +70,16 @@ export interface MaterialNovel {
   created_at: string;
   /** UTC timestamp of last update */
   updated_at: string;
+}
+
+export interface MaterialSourceMeta {
+  original_filename?: string | null;
+  file_size?: number | null;
+  char_count?: number | null;
+  chapter_count?: number | null;
+  source_char_count?: number | null;
+  source_chapter_count?: number | null;
+  trial_chapter_limit?: number | null;
 }
 
 /**

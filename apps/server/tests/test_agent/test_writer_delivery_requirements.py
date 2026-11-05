@@ -16,7 +16,6 @@ def delivery_project(db_session, monkeypatch):
     from services.features.activation_event_service import activation_event_service
     monkeypatch.setattr(activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     monkeypatch.setattr(activation_event_service, "record_once", lambda *_a, **_kw: None)
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **_kw: None)
     user = User(email="delivery@example.com", username="delivery", hashed_password="synthetic")
     db_session.add(user)
     db_session.commit()

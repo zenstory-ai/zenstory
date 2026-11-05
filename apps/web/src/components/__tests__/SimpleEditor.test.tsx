@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SimpleEditor } from '../SimpleEditor';
 import { MobileLayoutProvider, useMobileLayout } from '../../contexts/MobileLayoutContext';
 import { toast } from '../../lib/toast';
-import { writingStatsApi } from '../../lib/writingStatsApi';
 import {
   BEFORE_CHUNK_RELOAD_EVENT,
   readEditorDraftSnapshot,
@@ -38,12 +37,6 @@ const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
 const quotaPayload = (limit: number) => ({
   ai_conversations: { used: 2, limit, remaining: limit === -1 ? -1 : limit - 2, reset_at: null },
 });
-
-vi.mock('../../lib/writingStatsApi', () => ({
-  writingStatsApi: {
-    recordStats: vi.fn(),
-  },
-}));
 
 vi.mock('../../contexts/TextQuoteContext', () => ({
   useTextQuote: () => ({
@@ -971,7 +964,7 @@ describe('SimpleEditor', () => {
     expect(screen.getByRole('button', { name: 'editor:save' })).toBeDisabled();
   });
 
-  it('keeps dirty baseline and skips stats when save reports a conflict', async () => {
+  it('keeps the dirty baseline when save reports a conflict', async () => {
     const onSave = vi.fn().mockResolvedValue({ outcome: 'conflict' });
     render(
       <SimpleEditor
@@ -997,7 +990,6 @@ describe('SimpleEditor', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(saveButton).toBeEnabled());
     expect(screen.getByText('editor:unsaved')).toBeInTheDocument();
-    expect(writingStatsApi.recordStats).not.toHaveBeenCalled();
   });
 
   it('does not create content version when only title changes after async file switch', async () => {
@@ -1270,11 +1262,10 @@ describe('SimpleEditor', () => {
     vi.useRealTimers();
   });
 
-  it('resolves queued save version and stats deltas against the preceding successful save', async () => {
+  it('resolves a queued save version and base token against the preceding successful save', async () => {
     let resolveFirstSave: (outcome: { outcome: 'saved'; updatedAt: string }) => void = () => {};
     const firstSave = new Promise<{ outcome: 'saved'; updatedAt: string }>((resolve) => { resolveFirstSave = resolve; });
     const onSave = vi.fn().mockReturnValueOnce(firstSave).mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
-    vi.mocked(writingStatsApi.recordStats).mockResolvedValue(undefined as never);
     const Harness = () => {
       const [content, setContent] = useState('Old text');
       return <SimpleEditor projectId="project-1" fileId="file-1" fileType="draft"
@@ -1291,14 +1282,12 @@ describe('SimpleEditor', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     await act(async () => resolveFirstSave({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[0][0]).toMatchObject({
+      content: 'First saved text', baseUpdatedAt: undefined,
+    });
     expect(onSave.mock.calls[1][0]).toMatchObject({
-      content: 'First saved text plus', versionIntent: { skip_version: true, word_count: 4 },
-    });
-    expect(writingStatsApi.recordStats).toHaveBeenNthCalledWith(1, 'project-1', {
-      word_count: 3, words_added: 1, words_deleted: 0,
-    });
-    expect(writingStatsApi.recordStats).toHaveBeenNthCalledWith(2, 'project-1', {
-      word_count: 4, words_added: 1, words_deleted: 0,
+      content: 'First saved text plus', baseUpdatedAt: '2026-10-06T10:00:00.000002',
+      versionIntent: { skip_version: true, word_count: 4 },
     });
   });
 

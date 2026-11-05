@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 from threading import Barrier
 
 import pytest
-from fastapi import BackgroundTasks
 from sqlalchemy import create_engine
 from sqlmodel import Session, select
 
@@ -142,8 +141,6 @@ def test_concurrent_agent_updates_with_same_token_commit_one_version(
         user_id, file_id, key_id = _seed_file(setup, "agent-race")
 
     both_preloaded = Barrier(2)
-    indexed_contents: list[str] = []
-
     def update(content: str):
         with Session(pg_engine) as session:
             cached_file = session.get(File, file_id)
@@ -178,7 +175,6 @@ def test_agent_rejects_old_token_after_preloaded_web_update(
     with Session(pg_engine) as setup:
         user_id, file_id, key_id = _seed_file(setup, "web-agent")
 
-    indexed_contents: list[str] = []
     current_user = User(
         id=user_id,
         username="agent-precondition-web-agent",
@@ -413,9 +409,6 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
 
     locked, release = Event(), Event()
     reader_pid = []
-    indexed, cache_bumps = [], []
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **kw: cache_bumps.append(kw))
-
     def request_session():
         with Session(pg_engine) as session:
             # Keep this strong reference through yield, so a missing refresh
@@ -470,7 +463,6 @@ async def test_conditional_undo_waits_for_writer_then_rejects_its_old_token(pg_e
 
     assert response.status_code == 409
     assert response.json()["error_code"] == "ERR_RESOURCE_CONFLICT"
-    assert cache_bumps == []
     with Session(pg_engine) as verify:
         file = verify.get(File, file_id)
         assert file.content == "Writer committed after undo card"
@@ -533,9 +525,6 @@ async def test_undo_token_belongs_to_edit_even_when_web_write_commits_before_ref
     monkeypatch.setattr(file_edit_module, "utcnow", lambda: STAMP)
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
     monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
-    cache_bumps, indexed = [], []
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **kw: cache_bumps.append(kw))
-
     own_token = STAMP + timedelta(microseconds=1)
     later_token = STAMP + timedelta(microseconds=2)
     interposed = []
@@ -564,8 +553,6 @@ async def test_undo_token_belongs_to_edit_even_when_web_write_commits_before_ref
         result = FileEditor(editor_session, user_id).edit_file(file_id, [{"op": "append", "text": " + AI edit"}])
 
     assert interposed == [later_token]
-    before_rollback_cache_bumps = list(cache_bumps)
-    before_rollback_indexed = list(indexed)
     # Invoke actual HTTP rollback/body parsing before asserting the token, so RED proves
     # the unsafe overwrite rather than merely a wrong response field.
     def request_session():
@@ -587,7 +574,6 @@ async def test_undo_token_belongs_to_edit_even_when_web_write_commits_before_ref
         assert observed == (own_token.isoformat(), 409, "Later Web work", 3)
         assert file.updated_at.replace(tzinfo=UTC) == later_token
     assert response.json()["error_code"] == "ERR_RESOURCE_CONFLICT"
-    assert cache_bumps == before_rollback_cache_bumps
 
 
 @pytest.mark.parametrize("writer", ["update_file", "edit_file"])

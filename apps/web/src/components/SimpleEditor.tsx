@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { QueryClientContext } from "@tanstack/react-query";
 import { Save, Clock, Check, History, Sparkles, Loader2, RotateCcw, X } from "lucide-react";
 import type { FileUpdateVersionIntent } from "../lib/api";
-import { writingStatsApi } from "../lib/writingStatsApi";
 import { FileVersionHistory } from "./FileVersionHistory";
 import { DiffReviewSplitView } from "./DiffReviewSplitView";
 import { DiffToolbar } from "./DiffToolbar";
@@ -929,7 +928,7 @@ export const SimpleEditor = ({
       const result = await onSave(submission);
       if (result.outcome !== "saved") {
         // Conflict/failure paths deliberately keep the old baseline, dirty
-        // indicator and pending writing stats. The parent may have opened a
+        // indicator and pending local edits. The parent may have opened a
         // diff review, but no save has completed yet.
         return result.outcome;
       }
@@ -940,28 +939,6 @@ export const SimpleEditor = ({
       if (latestFileIdRef.current === submission.fileId) {
         lastSavedContentRef.current = submission.content;
         lastSavedTitleRef.current = submission.title;
-      }
-
-      // Record daily writing stats for primary writing content.
-      if (
-        projectId &&
-        (fileType === "draft" || fileType === "script") &&
-        contentChanged
-      ) {
-        const previousWords = countWords(previousContent);
-        const currentWords = countWords(submission.content);
-        const wordsAdded = Math.max(currentWords - previousWords, 0);
-        const wordsDeleted = Math.max(previousWords - currentWords, 0);
-
-        try {
-          await writingStatsApi.recordStats(projectId, {
-            word_count: currentWords,
-            words_added: wordsAdded,
-            words_deleted: wordsDeleted,
-          });
-        } catch (statsError) {
-          logger.error("Failed to record writing stats:", statsError);
-        }
       }
 
       if (

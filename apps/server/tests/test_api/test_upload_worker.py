@@ -28,10 +28,7 @@ async def test_upload_initial_version_uses_fastapi_worker(client, db_session, mo
     project_id = project.id
     monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
 
-    # Keep strict history/persistence real; don't execute external indexing/cache.
-    from services.infra.dashboard_cache import dashboard_cache
-
-    monkeypatch.setattr(dashboard_cache, "bump_project_version", lambda **kwargs: None)
+    # Keep strict history/persistence real; don't execute external indexing.
     original = FileVersionService.create_initial_version
     loop_thread = get_ident()
     observed = []

@@ -23,7 +23,6 @@ vi.mock('../../contexts/TextQuoteContext', () => ({ useTextQuote: () => ({ addQu
 vi.mock('../../contexts/MaterialAttachmentContext', () => ({ useMaterialAttachment: () => ({ attachedMaterials: [], removeMaterial: vi.fn() }) }));
 vi.mock('../../contexts/SkillTriggerContext', () => ({ MAX_SELECTED_SKILLS: 3, useSkillTrigger: () => ({ selectedSkills: [], selectSkill: vi.fn(), removeSkill: vi.fn(), clearSkills: vi.fn() }) }));
 vi.mock('../../lib/api', () => ({ skillsApi: { list: vi.fn(async () => ({ skills: [] })) } }));
-vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats: vi.fn() } }));
 vi.mock('../../hooks/useGestures', () => ({ usePinchZoom: () => ({ zoom: 1, bind: () => ({}), resetZoom: vi.fn() }) }));
 vi.mock('../FileVersionHistory', () => ({ FileVersionHistory: () => null }));
 vi.mock('../VoiceInputButton', () => ({ VoiceInputButton: () => null }));

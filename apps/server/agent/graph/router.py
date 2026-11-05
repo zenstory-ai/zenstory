@@ -265,12 +265,12 @@ def _extract_usage(response: object) -> dict[str, int] | None:
     键名必须与 openai_agents/runner.py 的 `_usage_dict_from_result` 完全一致
     （input_tokens / output_tokens / cache_read_tokens / total_tokens）：
     stream_adapter._merge_usage 是**按字面键**逐一相加的，两族键名并存时只有
-    total_tokens 会被真正相加，而下游 writing_stats_service 取 input_tokens 时
+    total_tokens 会被真正相加，而下游用量聚合取 input_tokens 时
     已经被 runner 填过，router 的 prompt_tokens 会被静默丢弃——于是
     total_tokens ≠ input + output + cache，计价口径自相矛盾。
 
     cache_read_tokens 取自 OpenAI 兼容字段 prompt_tokens_details.cached_tokens，
-    它是 prompt_tokens 的**子集**；writing_stats_service 的公式是
+    它是 prompt_tokens 的**子集**；用量字段按以下口径归一化：
     input * 输入价 + cache_read * 缓存价（相加），所以必须从 input_tokens 里
     把命中缓存的部分扣掉，否则同一批 token 被重复计价。
     """

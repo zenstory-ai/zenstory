@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { materialEnumLabel } from "../lib/materialEnumLabels";
@@ -79,6 +79,10 @@ interface TreeItem {
   title: string;
   children?: TreeItem[];
   data?: unknown;
+  /** Explicit, user-readable search corpus for this row. Never contains internal identifiers. */
+  searchText?: string;
+  /** Aggregate count from the material detail response; undefined means unknown. */
+  count?: number;
   /** Folder whose decomposition stage was not enabled and that has no data: muted, not expandable. */
   disabled?: boolean;
 }
@@ -93,6 +97,10 @@ const ITEM_FOLDERS: Partial<Record<TreeItemType, string>> = {
   goldenfinger: "goldenfingers",
   worldview: "worldview",
 };
+
+function treeItemKey(item: Pick<TreeItem, "type" | "id">): string {
+  return `${item.type}:${item.id}`;
+}
 
 /**
  * Whether a decomposition stage ran for this material. Jobs created before the
@@ -111,6 +119,32 @@ function shouldShowFolder(stageEnabled: boolean, dataCount: number | boolean | u
   return stageEnabled || dataCount === undefined || Number(dataCount) > 0;
 }
 
+function readableText(values: Array<string | null | undefined | string[]>): string {
+  return values.flatMap((value) => Array.isArray(value) ? value : [value ?? ""]).join(" ");
+}
+
+function parseThemes(themes: string | null | undefined): string[] {
+  if (!themes) return [];
+  try {
+    const parsed: unknown = JSON.parse(themes);
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [themes];
+  } catch {
+    return themes.split(",").map((theme) => theme.trim()).filter(Boolean);
+  }
+}
+
+function formatFileSize(bytes: number, language: string): string {
+  if (bytes < 1024) return `${bytes.toLocaleString(language)} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = units[0];
+  for (let index = 1; value >= 1024 && index < units.length; index += 1) {
+    value /= 1024;
+    unit = units[index];
+  }
+  return `${value.toLocaleString(language, { maximumFractionDigits: 1 })} ${unit}`;
+}
+
 export default function MaterialDetailPage() {
   const { novelId } = useParams<{ novelId: string }>();
   return <MaterialDetailContent key={novelId} novelId={novelId} />;
@@ -124,6 +158,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItem, setSelectedItem] = useState<TreeItem | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [folderNavigationTarget, setFolderNavigationTarget] = useState<string | null>(null);
   // 移动端：是否显示内容详情（false = 显示文件树）
   const [showMobileContent, setShowMobileContent] = useState(false);
 
@@ -206,6 +241,16 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       && shouldShowFolder(isStageEnabled(enabledStages, "relationships"), material?.relationships_count),
     goldenfingers: shouldShowFolder(isStageEnabled(enabledStages, "meta"), material?.golden_fingers_count),
     worldview: shouldShowFolder(isStageEnabled(enabledStages, "meta"), material?.has_world_view),
+  };
+  const folderCounts: Record<string, number | undefined> = {
+    chapters: material?.chapters_count,
+    characters: material?.characters_count,
+    stories: material?.stories_count,
+    plots: material?.plots_count,
+    storylines: material?.story_lines_count,
+    relationships: material?.relationships_count,
+    goldenfingers: material?.golden_fingers_count,
+    worldview: material?.has_world_view === undefined ? undefined : Number(material.has_world_view),
   };
   const shouldLoadFolder = (folderId: string) => Boolean(
     novelId && material && folderVisibility[folderId]
@@ -327,6 +372,9 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   const folderErrors = new Set(
     Object.entries(folderQueries).filter(([, query]) => query.isError).map(([id]) => id),
   );
+  const loadedStates = Object.fromEntries(
+    Object.entries(folderQueries).map(([id, query]) => [id, query.isSuccess]),
+  );
 
   // Build tree structure - folders always visible, children lazy loaded
   const buildTree = (): TreeItem[] => {
@@ -336,6 +384,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       id: "chapters",
       type: "folder",
       title: t("materials:detail.chapters"),
+      count: folderCounts.chapters,
       children: chapters.map((chapter) => ({
         id: chapter.id,
         type: "chapter",
@@ -350,11 +399,13 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       id: "characters",
       type: "folder",
       title: t("materials:detail.characters"),
+      count: folderCounts.characters,
       children: characters.map((character) => ({
         id: character.id,
         type: "character",
         title: character.name,
         data: character,
+        searchText: readableText([character.name, character.aliases ?? [], character.description]),
       })),
     });
 
@@ -362,11 +413,19 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       id: "stories",
       type: "folder",
       title: t("materials:detail.stories"),
+      count: folderCounts.stories,
       children: stories.map((story) => ({
         id: story.id,
         type: "story",
         title: story.title,
         data: story,
+        searchText: readableText([
+          story.title,
+          story.synopsis,
+          story.core_objective,
+          story.core_conflict,
+          parseThemes(story.themes),
+        ]),
         metadata: {
           description: story.synopsis,
           plot_type: story.story_type,
@@ -378,11 +437,13 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       id: "plots",
       type: "folder",
       title: t("materials:detail.plots"),
+      count: folderCounts.plots,
       children: plots.map((plot) => ({
         id: String(plot.id),
         type: "plot",
         title: plot.description.substring(0, 50) + (plot.description.length > 50 ? "…" : ""),
         data: plot,
+        searchText: readableText([plot.description, plot.characters ?? []]),
       })),
     });
 
@@ -390,11 +451,18 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       id: "storylines",
       type: "folder",
       title: t("materials:detail.storylines"),
+      count: folderCounts.storylines,
       children: storylines.map((storyline) => ({
         id: String(storyline.id),
         type: "storyline",
         title: storyline.title,
         data: storyline,
+        searchText: readableText([
+          storyline.title,
+          storyline.description,
+          storyline.main_characters ?? [],
+          storyline.themes ?? [],
+        ]),
       })),
     });
 
@@ -403,11 +471,19 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
         id: "relationships",
         type: "folder",
         title: t("materials:detail.relationships"),
+        count: folderCounts.relationships,
         children: relationships.map((rel) => ({
           id: String(rel.id),
           type: "relationship",
           title: `${rel.character_a_name} - ${rel.character_b_name}`,
           data: rel,
+          searchText: readableText([
+            rel.character_a_name,
+            rel.character_b_name,
+            rel.description,
+            rel.relationship_type,
+            rel.sentiment,
+          ]),
         })),
       });
     }
@@ -416,11 +492,18 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       id: "goldenfingers",
       type: "folder",
       title: t("materials:detail.goldenfingers"),
+      count: folderCounts.goldenfingers,
       children: goldenFingers.map((gf) => ({
         id: String(gf.id),
         type: "goldenfinger",
         title: gf.name,
         data: gf,
+        searchText: readableText([
+          gf.name,
+          gf.type,
+          gf.description,
+          ...(gf.evolution_history ?? []).flatMap((entry) => [entry.stage, entry.description, entry.timestamp]),
+        ]),
       })),
     });
 
@@ -428,11 +511,23 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       id: "worldview",
       type: "folder",
       title: t("materials:detail.worldview"),
+      count: folderCounts.worldview,
       children: worldview ? [{
         id: String(worldview.id),
         type: "worldview",
         title: t("materials:detail.worldviewItem"),
         data: worldview,
+        searchText: readableText([
+          worldview.power_system,
+          worldview.world_structure,
+          worldview.special_rules,
+          ...(worldview.key_factions ?? []).flatMap((faction) => [
+            faction.name,
+            faction.description,
+            faction.leader,
+            faction.territory,
+          ]),
+        ]),
       }] : [],
     });
 
@@ -442,7 +537,8 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   const treeData = buildTree();
   // Filter tree based on search
   const filterTree = (items: TreeItem[], query: string): TreeItem[] => {
-    if (!query) return items;
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    if (!normalizedQuery) return items;
 
     return items
       .map((item) => {
@@ -456,7 +552,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
           }
         }
 
-        if (item.title.toLowerCase().includes(query.toLowerCase())) {
+        if ((item.searchText ?? item.title).toLocaleLowerCase().includes(normalizedQuery)) {
           return item;
         }
 
@@ -466,6 +562,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   };
 
   const filteredTree = filterTree(treeData, searchQuery);
+  const searchComplete = treeData.every((folder) => folderQueries[folder.id]?.isSuccess);
 
   const toggleFolder = (folderId: string) => {
     setExpandedFolders((prev) => {
@@ -491,6 +588,27 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       }
     }
   };
+
+  const handleOverviewClick = () => {
+    setSelectedItem(null);
+    if (isMobile) setShowMobileContent(true);
+  };
+
+  const handleOverviewCategoryClick = (folderId: string) => {
+    setSearchQuery("");
+    setExpandedFolders((prev) => new Set(prev).add(folderId));
+    if (isMobile) setShowMobileContent(false);
+    setFolderNavigationTarget(folderId);
+  };
+
+  useEffect(() => {
+    if (!folderNavigationTarget) return;
+    const folderButton = document.getElementById(`material-folder-${folderNavigationTarget}`);
+    if (!folderButton) return;
+    folderButton.scrollIntoView?.({ block: "nearest" });
+    folderButton.focus({ preventScroll: true });
+    setFolderNavigationTarget(null);
+  }, [folderNavigationTarget, searchQuery, showMobileContent, expandedFolders, filteredTree]);
 
   // Selection keeps its identity; refreshed directory data owns the displayed reference.
   const currentSelectedItem = selectedItem && (
@@ -577,7 +695,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
                 {material.title}
               </h1>
               <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">
-                {material.chapters_count || 0} {t("materials:chapters")}
+                {material.chapters_count == null ? "—" : material.chapters_count.toLocaleString(i18n.language)} {t("materials:detail.readableChapters")}
               </p>
             </div>
           </div>
@@ -638,16 +756,35 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               <h2 className="mb-3 px-2 text-xs font-medium text-[hsl(var(--text-secondary))]">
                 {t("materials:detail.contents")}
               </h2>
+              <button
+                type="button"
+                aria-current={selectedItem === null ? "true" : undefined}
+                onClick={handleOverviewClick}
+                className={`mb-2 flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] ${
+                  selectedItem === null
+                    ? "bg-[hsl(var(--accent-primary)/0.08)] text-[hsl(var(--accent-primary))]"
+                    : "text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                }`}
+              >
+                <BookOpen className="h-4 w-4 shrink-0" />
+                <span>{t("materials:detail.overview")}</span>
+              </button>
               <FileTree
                 items={filteredTree}
-                selectedId={selectedItem?.id}
+                selectedKey={selectedItem ? treeItemKey(selectedItem) : undefined}
                 expandedFolders={expandedFolders}
                 onItemClick={handleItemClick}
                 loadingStates={loadingStates}
+                loadedStates={loadedStates}
                 folderErrors={folderErrors}
                 onRetryFolder={(folderId) => { void folderQueries[folderId]?.refetch(); }}
                 searchActive={Boolean(searchQuery.trim())}
               />
+              {searchQuery.trim() && searchComplete && filteredTree.length === 0 && (
+                <p className="px-2 py-5 text-sm text-[hsl(var(--text-secondary))]">
+                  {t("materials:detail.noSearchResults")}
+                </p>
+              )}
             </div>
           </aside>
         )}
@@ -656,7 +793,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
             aria-label={t("materials:detail.contentLabel")}
             className="min-w-0 flex-1 overflow-y-auto bg-[hsl(var(--bg-secondary))]"
           >
-            <div className="mx-auto w-full max-w-[50rem] px-5 py-7 md:px-8 md:py-10 lg:px-12">
+            <div className="mx-auto w-full max-w-[44rem] px-5 py-7 md:px-8 md:py-10">
               {selectedContentItem ? (
                 isFetchingSelectedChapter && selectedContentItem.type === "chapter" ? (
                   <div role="status" aria-label={t("common:loading")} className="flex min-h-40 items-center justify-center">
@@ -670,7 +807,13 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
                     </Button>
                   </div>
                 ) : <ContentDetail item={selectedContentItem} />
-              ) : <EmptyState material={material} />}
+              ) : (
+                <MaterialOverview
+                  material={material}
+                  folders={treeData}
+                  onCategoryClick={handleOverviewCategoryClick}
+                />
+              )}
             </div>
           </section>
         )}
@@ -682,17 +825,18 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
 // FileTree Component
 interface FileTreeProps {
   items: TreeItem[];
-  selectedId?: string;
+  selectedKey?: string;
   expandedFolders: Set<string>;
   onItemClick: (item: TreeItem) => void;
   loadingStates: Record<string, boolean>;
+  loadedStates: Record<string, boolean>;
   folderErrors: Set<string>;
   onRetryFolder: (folderId: string) => void;
   searchActive?: boolean;
   level?: number;
 }
 
-function FileTree({ items, selectedId, expandedFolders, onItemClick, loadingStates, folderErrors, onRetryFolder, searchActive = false, level = 0 }: FileTreeProps) {
+function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingStates, loadedStates, folderErrors, onRetryFolder, searchActive = false, level = 0 }: FileTreeProps) {
   const { t } = useTranslation(["materials", "common"]);
   const getIcon = (type: TreeItemType, isExpanded: boolean) => {
     switch (type) {
@@ -730,12 +874,13 @@ function FileTree({ items, selectedId, expandedFolders, onItemClick, loadingStat
       {items.map((item) => {
         const isDisabled = Boolean(item.disabled);
         const isExpanded = !isDisabled && (searchActive || expandedFolders.has(item.id));
-        const isSelected = selectedId === item.id;
+        const isSelected = selectedKey === treeItemKey(item);
         const hasChildren = item.children && item.children.length > 0;
 
         return (
           <div key={item.id}>
             <button
+              id={item.type === "folder" ? `material-folder-${item.id}` : undefined}
               onClick={() => onItemClick(item)}
               disabled={isDisabled}
               aria-disabled={isDisabled || undefined}
@@ -771,9 +916,9 @@ function FileTree({ items, selectedId, expandedFolders, onItemClick, loadingStat
               {item.type === "folder" && loadingStates[item.id] && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[hsl(var(--accent-primary))]" />
               )}
-              {hasChildren && (
+              {item.type === "folder" && item.count !== undefined && (
                 <span className="text-xs text-[hsl(var(--text-tertiary))]">
-                  {item.children!.length}
+                  {item.count.toLocaleString(i18n.language)}
                 </span>
               )}
             </button>
@@ -789,15 +934,21 @@ function FileTree({ items, selectedId, expandedFolders, onItemClick, loadingStat
             {item.type === "folder" && isExpanded && hasChildren && !folderErrors.has(item.id) && (
               <FileTree
                 items={item.children!}
-                selectedId={selectedId}
+                selectedKey={selectedKey}
                 expandedFolders={expandedFolders}
                 onItemClick={onItemClick}
                 loadingStates={loadingStates}
+                loadedStates={loadedStates}
                 folderErrors={folderErrors}
                 onRetryFolder={onRetryFolder}
                 searchActive={searchActive}
                 level={level + 1}
               />
+            )}
+            {item.type === "folder" && isExpanded && loadedStates[item.id] && !loadingStates[item.id] && !hasChildren && !folderErrors.has(item.id) && (
+              <p className="ml-8 px-2 py-2 text-xs text-[hsl(var(--text-secondary))]">
+                {t("materials:detail.emptyFolder")}
+              </p>
             )}
           </div>
         );
@@ -1131,32 +1282,133 @@ function ContentDetail({ item }: ContentDetailProps) {
   return null;
 }
 
-// EmptyState Component
-interface EmptyStateProps {
+interface MaterialOverviewProps {
   material: MaterialNovel;
+  folders: TreeItem[];
+  onCategoryClick: (folderId: string) => void;
 }
 
-function EmptyState({ material }: EmptyStateProps) {
+function MaterialOverview({ material, folders, onCategoryClick }: MaterialOverviewProps) {
   const { t } = useTranslation(["materials"]);
+  const titleId = useId();
+  const source = material.source_meta;
+  const sourceChapterCount = source?.source_chapter_count ?? material.source_chapter_count;
+  const trialLimit = source?.trial_chapter_limit ?? material.trial_chapter_limit;
+  const includedChapterCount = source?.chapter_count;
+  const isKnownCompleteSource = includedChapterCount != null
+    && sourceChapterCount != null
+    && includedChapterCount === sourceChapterCount;
+  const coverageMessage = includedChapterCount != null
+    && sourceChapterCount != null
+    && includedChapterCount < sourceChapterCount
+    ? t("materials:detail.trialCoverageExact", {
+        included: includedChapterCount,
+        source: sourceChapterCount,
+        count: includedChapterCount,
+      })
+    : trialLimit != null && !isKnownCompleteSource
+      ? t("materials:detail.trialCoverageMaximum", { limit: trialLimit, count: trialLimit })
+      : null;
+  const sourceFacts = [
+    {
+      label: t("materials:detail.originalFilename"),
+      value: source?.original_filename ?? material.original_filename,
+    },
+    {
+      label: t("materials:detail.fileSize"),
+      value: source?.file_size != null
+        ? formatFileSize(source.file_size, i18n.language)
+        : material.file_size != null
+          ? formatFileSize(material.file_size, i18n.language)
+          : undefined,
+    },
+    {
+      label: t("materials:detail.includedCharacterCount"),
+      value: source?.char_count == null ? undefined : source.char_count.toLocaleString(i18n.language),
+    },
+    {
+      label: t("materials:detail.includedChapterCount"),
+      value: includedChapterCount == null ? undefined : includedChapterCount.toLocaleString(i18n.language),
+    },
+    {
+      label: t("materials:detail.sourceCharacterCount"),
+      value: source?.source_char_count == null ? undefined : source.source_char_count.toLocaleString(i18n.language),
+    },
+    {
+      label: t("materials:detail.sourceChapterCount"),
+      value: sourceChapterCount == null ? undefined : sourceChapterCount.toLocaleString(i18n.language),
+    },
+    {
+      label: t("materials:detail.trialChapterLimit"),
+      value: trialLimit == null ? undefined : trialLimit.toLocaleString(i18n.language),
+    },
+  ].filter((fact): fact is { label: string; value: string } => typeof fact.value === "string" && fact.value.length > 0);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center py-12">
-      <div className="w-12 h-12 rounded-xl bg-[hsl(var(--bg-tertiary))] flex items-center justify-center mb-4">
-        <BookOpen className="w-6 h-6 text-[hsl(var(--text-secondary))]" />
-      </div>
-      <h3 className="text-base font-semibold text-[hsl(var(--text-primary))] mb-2">
-        {t("materials:detail.emptyTitle")}
-      </h3>
-      <p className="text-sm text-[hsl(var(--text-secondary))] max-w-md">
-        {t("materials:detail.emptyDescription")}
-      </p>
+    <article className="material-detail material-overview" aria-labelledby={titleId}>
+      <header className="material-overview-header">
+        <h2 id={titleId} className="heading-display text-2xl font-semibold leading-snug tracking-tight text-[hsl(var(--text-primary))] md:text-[28px]">
+          {t("materials:detail.overview")}
+        </h2>
+        {material.author && (
+          <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
+            {t("materials:detail.author")} · <span className="text-[hsl(var(--text-primary))]">{material.author}</span>
+          </p>
+        )}
+        {isActiveMaterialStatus(material.status) && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-[hsl(var(--text-secondary))]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{t(`materials:status.${material.status}`)}</span>
+          </div>
+        )}
+      </header>
 
-      {isActiveMaterialStatus(material.status) && (
-        <div className="mt-6 flex items-center gap-2 text-sm text-[hsl(var(--text-secondary))]">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[hsl(var(--text-secondary))]" />
-          <span>{t(`materials:status.${material.status}`)}</span>
-        </div>
+      {coverageMessage && (
+        <p className="material-overview-coverage" role="note">{coverageMessage}</p>
       )}
-    </div>
+
+      {material.synopsis && (
+        <section className="material-overview-section" aria-labelledby={`${titleId}-synopsis`}>
+          <h3 id={`${titleId}-synopsis`}>{t("materials:detail.synopsis")}</h3>
+          <MarkdownContent content={material.synopsis} />
+        </section>
+      )}
+
+      <section className="material-overview-section" aria-labelledby={`${titleId}-index`}>
+        <h3 id={`${titleId}-index`}>{t("materials:detail.categoryIndex")}</h3>
+        <div className="material-overview-index">
+          {folders.map((folder) => (
+            <button
+              key={folder.id}
+              type="button"
+              aria-label={folder.count === undefined
+                ? t("materials:detail.openCategoryUnknown", { category: folder.title })
+                : t("materials:detail.openCategoryCount", {
+                    category: folder.title,
+                    count: folder.count,
+                  })}
+              onClick={() => onCategoryClick(folder.id)}
+            >
+              <span>{folder.title} ·</span>
+              <span>{folder.count === undefined ? "—" : folder.count.toLocaleString(i18n.language)}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {sourceFacts.length > 0 && (
+        <section className="material-overview-section" aria-labelledby={`${titleId}-source`}>
+          <h3 id={`${titleId}-source`}>{t("materials:detail.sourceFacts")}</h3>
+          <dl className="material-overview-facts">
+            {sourceFacts.map((fact) => (
+              <div key={fact.label}>
+                <dt>{fact.label}</dt>
+                <dd>{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+    </article>
   );
 }

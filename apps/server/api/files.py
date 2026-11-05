@@ -1039,27 +1039,6 @@ def update_file(
         session.commit()
         session.refresh(file)
 
-    if content_changed and file.file_type in {"draft", "script"}:
-        try:
-            from services.infra.dashboard_cache import dashboard_cache
-
-            dashboard_cache.bump_project_version(
-                user_id=current_user.id,
-                project_id=file.project_id,
-            )
-        except Exception as e:
-            log_with_context(
-                logger,
-                logging.DEBUG,
-                "Failed to bump dashboard cache version after file update (continuing)",
-                error=str(e),
-                error_type=type(e).__name__,
-                user_id=current_user.id,
-                project_id=file.project_id,
-                file_id=file.id,
-                operation="update_file_bump_dashboard_cache_version",
-            )
-
     if content_changed:
         try:
             if change_source == CHANGE_SOURCE_USER:
@@ -1773,17 +1752,7 @@ def upload_drafts(
             version_service.create_initial_version(session, created_file)
         session.flush()
         file_responses = [FileResponse.model_validate(f) for f in created_files]
-    user_id = current_user.id
     session.commit()
-    if file_responses:
-        # 6. Refresh the dashboard cache after the committed upload.
-
-        try:
-            from services.infra.dashboard_cache import dashboard_cache
-
-            dashboard_cache.bump_project_version(user_id=user_id, project_id=project_id)
-        except Exception:
-            pass
 
     return UploadDraftsResponse(
         files=file_responses,

@@ -8,7 +8,7 @@ import type { DiffReviewState, SelectedItem } from '../../types';
 const mocks = vi.hoisted(() => ({
   get: vi.fn(), getTree: vi.fn(), create: vi.fn(), update: vi.fn(),
   error: vi.fn(), success: vi.fn(), refresh: vi.fn(), select: vi.fn(),
-  enter: vi.fn(), exit: vi.fn(), recordStats: vi.fn(), reject: vi.fn(),
+  enter: vi.fn(), exit: vi.fn(), reject: vi.fn(),
   t: (key: string) => key,
   context: {
     currentProjectId: 'project-a', selectedItem: null as SelectedItem | null,
@@ -24,7 +24,6 @@ vi.mock('../../lib/api', () => ({
 vi.mock('../../lib/toast', () => ({ toast: { error: mocks.error, success: mocks.success, info: vi.fn() } }));
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn(), captureException: vi.fn() }));
 vi.mock('../../lib/upgradeAnalytics', () => ({ trackUpgradeExpose: vi.fn(), trackUpgradeClick: vi.fn() }));
-vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats: mocks.recordStats } }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: mocks.t }) }));
 const ContextRevision = createContext(0);
 vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => {
@@ -167,7 +166,6 @@ for (const strict of [false, true]) {
         pending.resolve({ ...fileA, title: 'Renamed old A', content: 'Pending renamed A manuscript', updated_at: token2 });
         await settle(); evidence(`late-save ${strict} ${boundary}`);
         expect(mocks.update).toHaveBeenCalledTimes(1);
-        expect(mocks.recordStats).toHaveBeenCalledTimes(1); // actual child receives saved result and finishes the legitimate write
         expect(mocks.refresh).toHaveBeenCalledTimes(1); // renamed A still reconciles its tree after remount
         expect(mocks.select).not.toHaveBeenCalled();
         expect(mocks.context.selectedItem).toBe(liveSelection);
@@ -202,7 +200,6 @@ for (const strict of [false, true]) {
       await settle(); evidence(`late-save ${strict} unchanged title final write`);
       expect(mocks.update).toHaveBeenCalledTimes(1);
       expect(mocks.update).toHaveBeenCalledWith(fileA.id, expect.objectContaining({ title: fileA.title, content: 'Final unchanged-title dirty draft', base_updated_at: fileA.updated_at }));
-      expect(mocks.recordStats).toHaveBeenCalledTimes(1);
       expect(mocks.refresh).not.toHaveBeenCalled(); expect(mocks.select).not.toHaveBeenCalled();
       replacement.redraw(); await settle(); expect(textarea()).toHaveValue(fileB.content);
     });
@@ -344,34 +341,21 @@ for (const strict of [false, true]) {
       fireEvent.change(textarea(), { target: { value: 'Clean server refresh plus edit' } }); save(); await settle();
       expect(mocks.update).toHaveBeenCalledWith(fileA.id, expect.objectContaining({ base_updated_at: token2 }));
     });
-    for (const external of [false, true]) {
-      it(`C5 queue advances only from own returned token (external during stats=${external})`, async () => {
-        const first = deferred<typeof fileA>(); const stats = deferred<void>();
-        mocks.update.mockReturnValueOnce(first.promise);
-        if (external) mocks.recordStats.mockReturnValueOnce(stats.promise);
-        const view = mount(strict); await settle();
-        fireEvent.change(textarea(), { target: { value: 'Own first save' } });
-        fireEvent.keyDown(textarea(), { key: 's', ctrlKey: true }); await settle();
-        fireEvent.change(textarea(), { target: { value: 'Own queued second save' } });
-        fireEvent.keyDown(textarea(), { key: 's', ctrlKey: true }); await settle();
-        expect(mocks.update).toHaveBeenCalledTimes(1);
-        first.resolve({ ...fileA, content: 'Own first save', updated_at: token2 }); await settle();
-        if (external) {
-          expect(mocks.update).toHaveBeenCalledTimes(1);
-          mocks.context.aiEditingFileId = fileA.id; mocks.context.lastEditedFileId = fileA.id; mocks.context.editorRefreshVersion = 1;
-          mocks.get.mockResolvedValue({ ...fileA, content: 'External after own save', updated_at: '2026-10-06T10:00:00.000003' });
-          view.redraw(); await settle(); await advance(100);
-          // A queued own draft is unsaved text: the external copy opens a comparison, never replaces it.
-          expect(mocks.enter).toHaveBeenCalledWith(fileA.id, 'Own queued second save', 'External after own save');
-          expect(screen.queryByPlaceholderText('editor:placeholder.contentPlaceholder')).toBeNull();
-          stats.resolve(); await settle();
-        }
-        evidence(`C5 queue ${strict} external=${external}`);
-        expect(mocks.update).toHaveBeenCalledTimes(2);
-        expect(mocks.update).toHaveBeenNthCalledWith(1, fileA.id, expect.objectContaining({ base_updated_at: fileA.updated_at }));
-        expect(mocks.update).toHaveBeenNthCalledWith(2, fileA.id, expect.objectContaining({ content: 'Own queued second save', base_updated_at: token2 }));
-      });
-    }
+    it('C5 queue advances only from its own returned token', async () => {
+      const first = deferred<typeof fileA>();
+      mocks.update.mockReturnValueOnce(first.promise);
+      mount(strict); await settle();
+      fireEvent.change(textarea(), { target: { value: 'Own first save' } });
+      fireEvent.keyDown(textarea(), { key: 's', ctrlKey: true }); await settle();
+      fireEvent.change(textarea(), { target: { value: 'Own queued second save' } });
+      fireEvent.keyDown(textarea(), { key: 's', ctrlKey: true }); await settle();
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+      first.resolve({ ...fileA, content: 'Own first save', updated_at: token2 }); await settle();
+      evidence(`C5 queue ${strict}`);
+      expect(mocks.update).toHaveBeenCalledTimes(2);
+      expect(mocks.update).toHaveBeenNthCalledWith(1, fileA.id, expect.objectContaining({ base_updated_at: fileA.updated_at }));
+      expect(mocks.update).toHaveBeenNthCalledWith(2, fileA.id, expect.objectContaining({ content: 'Own queued second save', base_updated_at: token2 }));
+    });
     for (const outcome of ['failure', 'conflict'] as const) {
       it(`C5 ${outcome} does not advance a queued draft token`, async () => {
         const first = deferred<typeof fileA>(); const second = deferred<typeof fileA>();

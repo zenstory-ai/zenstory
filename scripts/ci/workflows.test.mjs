@@ -151,8 +151,6 @@ test("backend CI runs PostgreSQL regressions serially against a dedicated databa
   assert.match(step, /tests\/test_services\/test_agent_file_preconditions_postgres\.py/);
   assert.match(step, /tests\/test_services\/test_agent_auth_postgres\.py/);
   assert.match(step, /tests\/test_services\/test_auth_refresh_revocation_postgres\.py/);
-  assert.match(step, /tests\/test_services\/test_writing_stats_concurrency_postgres\.py/);
-  assert.match(step, /tests\/test_api\/test_stats_record_first_rows_postgres\.py/);
   assert.match(step, /tests\/test_api\/test_public_skill_counts_postgres\.py/);
   assert.match(step, /tests\/test_api\/test_chat_worker_postgres\.py/);
   assert.match(step, /tests\/test_api\/test_chat_session_concurrency_postgres\.py/);

@@ -17,7 +17,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { History, Settings, Menu, X, Download, Bug, CreditCard, BarChart3, BookOpen, FileText } from "lucide-react";
+import { History, Settings, Menu, X, Download, Bug, CreditCard, BookOpen, FileText } from "lucide-react";
 import { Logo, LogoMark } from "./Logo";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
@@ -112,14 +112,6 @@ export const Header: React.FC<HeaderProps> = () => {
     }
   };
 
-  const handleOpenProjectDashboard = (closeMobileMenu = false) => {
-    if (!currentProjectId) return;
-    navigate(`/project/${currentProjectId}/dashboard`);
-    if (closeMobileMenu) {
-      setShowMobileMenu(false);
-    }
-  };
-
   const handleOpenDocs = (closeMobileMenu = false) => {
     navigate('/docs');
     if (closeMobileMenu) {
@@ -202,13 +194,6 @@ export const Header: React.FC<HeaderProps> = () => {
   ).slice(0, 255);
 
   const secondaryActionItems = [
-    ...(currentProjectId
-      ? [{
-          icon: BarChart3,
-          label: t('editor:header.projectDashboard'),
-          onClick: () => handleOpenProjectDashboard(),
-        }]
-      : []),
     ...(downloadableFile
       ? [{
           icon: Download,
@@ -392,18 +377,6 @@ export const Header: React.FC<HeaderProps> = () => {
               <CreditCard size={18} />
               {t('editor:header.manageSubscription')}
             </button>
-            {currentProjectId && (
-              <button
-                type="button"
-                onClick={() => handleOpenProjectDashboard(true)}
-                data-testid="project-dashboard-button-mobile"
-                className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-                role="menuitem"
-              >
-                <BarChart3 size={18} />
-                {t('editor:header.projectDashboard')}
-              </button>
-            )}
             {currentProjectId && (
               <button
                 type="button"

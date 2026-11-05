@@ -532,7 +532,7 @@ async def test_usage_is_accumulated_across_agents():
 
     另外：prompt/completion 这一族别名键必须先归一到规范键
     （input_tokens/output_tokens）再累加，否则两族键在同一个 dict 里并存，
-    下游 writing_stats_service 只认规范键，别名那族被静默丢弃。
+    下游用量汇总只认规范键，别名那族会被静默丢弃。
     """
     adapter = _make_adapter()
     await _drive(

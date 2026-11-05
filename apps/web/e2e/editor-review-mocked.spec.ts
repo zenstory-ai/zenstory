@@ -106,7 +106,6 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
       return fulfill({ tree: [{ id: `folder-${treeProject}`, title: 'Drafts', file_type: 'folder', metadata: { folder_type: 'draft' }, parent_id: null, order: 0, children: Object.values(files).filter(file => file.project_id === treeProject).map(file => ({ ...file, children: [] })) }] });
     }
     if (method === 'POST' && url.pathname.endsWith('/agent/suggest')) return fulfill({ suggestions: [] });
-    if (method === 'POST' && url.pathname.endsWith('/stats/record')) return fulfill({ success: true });
     if (method === 'POST' && url.pathname === '/api/v1/activation/events') return fulfill({ recorded: true });
     if (method === 'POST' && url.pathname === '/api/v1/editor/natural-polish') return fulfill({ text: 'A polished local story.' });
     if (method === 'GET' && url.pathname === '/api/v1/projects') return fulfill(responsiveProjects);
@@ -114,7 +113,7 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
     if (method === 'GET' && /^\/api\/v1\/projects\/[^/]+$/.test(url.pathname)) return fulfill(responsiveProjects.find(p => p.id === url.pathname.split('/').at(-1)));
     // Reuse only auxiliary GET fakes from the existing safe responsive fixture.
     if (method === 'GET' && url.pathname === '/api/v1/workspace/first-work') return route.fallback();
-    if (method === 'GET' && /auth\/me|subscription\/|persona|skills|points|\/recent$|\/agent\/suggest$|\/stats|materials|attachments/.test(url.pathname)) return route.fallback();
+    if (method === 'GET' && /auth\/me|subscription\/|persona|skills|points|\/recent$|\/agent\/suggest$|materials|attachments/.test(url.pathname)) return route.fallback();
     f.blocked.push(`${method} ${url.origin}${url.pathname}`);
     return route.abort('blockedbyclient');
   });

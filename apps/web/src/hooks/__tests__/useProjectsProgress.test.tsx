@@ -9,7 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({ getProgress: vi.fn() }));
 vi.mock('../../lib/api', () => ({ projectApi: { getProgress: api.getProgress } }));
-vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats: vi.fn(async () => ({})) } }));
 vi.mock('../../contexts/TextQuoteContext', () => ({ useTextQuote: () => ({ addQuote: vi.fn() }) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 

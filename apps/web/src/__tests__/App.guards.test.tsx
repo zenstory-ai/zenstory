@@ -270,6 +270,22 @@ describe("App route guards", () => {
     });
   });
 
+  it("keeps the retired project statistics deep link protected", async () => {
+    renderAppAt("/project/project-1/dashboard");
+
+    expect(await screen.findByText("Login Page")).toBeInTheDocument();
+  });
+
+  it("redirects an authenticated retired project statistics deep link to the editor", async () => {
+    state.auth.user = { id: "user-auth" };
+    state.project.currentProject = { id: "project-1" };
+    state.project.projects = [{ id: "project-1" }];
+
+    renderAppAt("/project/project-1/dashboard");
+
+    expect(await screen.findByText("Layout")).toBeInTheDocument();
+  });
+
   it("requires login before viewing a payment return", async () => {
     renderAppAt("/dashboard/billing/payment-return?out_trade_no=20261005001");
     expect(await screen.findByText("Login Page")).toBeInTheDocument();

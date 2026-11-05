@@ -50,13 +50,10 @@ def order_engine():
 def effects(monkeypatch):
     import database
     from services.features.activation_event_service import activation_event_service
-    from services.infra.dashboard_cache import dashboard_cache
-
-    captured = {"activation": [], "cache": []}
+    captured = {"activation": []}
     monkeypatch.setattr(database, "is_postgres", True)
     monkeypatch.setattr(activation_event_service, "record_once", lambda *a, **kw: captured["activation"].append(kw))
     monkeypatch.setattr(activation_event_service, "record_ai_write_accepted", lambda *a, **kw: captured["activation"].append(kw))
-    monkeypatch.setattr(dashboard_cache, "bump_project_version", lambda **kw: captured["cache"].append(kw))
     monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *a, **kw: (True, 0, 100))
     return captured
 

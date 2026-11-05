@@ -6,10 +6,10 @@ import pytest
 from sqlalchemy.orm import load_only
 from sqlmodel import Session, select
 
+import services.project_progress as project_progress
 from models import File, Project, User
-from models.file_model import FILE_TYPE_DRAFT, cached_word_count
-from services.features import writing_stats_service
-from services.features.writing_stats_service import resolve_prose_word_counts
+from models.file_model import FILE_TYPE_DRAFT, WORD_COUNT_REV, cached_word_count
+from services.project_progress import resolve_prose_word_counts
 from tests.conftest import TestSessionLocal
 
 
@@ -55,11 +55,42 @@ def test_backfill_stamps_an_untouched_stale_cache(db_session: Session):
 
 
 @pytest.mark.unit
+def test_current_cache_is_returned_without_recounting(db_session: Session, monkeypatch):
+    draft = _draft(
+        db_session,
+        "山风吹过断崖",
+        {"word_count": 6, "word_count_rev": WORD_COUNT_REV},
+    )
+    monkeypatch.setattr(
+        project_progress,
+        "count_words",
+        lambda _content: pytest.fail("current cache must not be recounted"),
+    )
+
+    counts = resolve_prose_word_counts(db_session, _light(db_session, draft.id))
+
+    assert counts == {draft.id: 6}
+
+
+@pytest.mark.unit
+def test_backfill_replaces_malformed_metadata_with_a_valid_cache(db_session: Session):
+    draft = _draft(db_session, "山风吹过断崖", None)
+    draft.file_metadata = "{broken"
+    db_session.add(draft)
+    db_session.commit()
+
+    counts = resolve_prose_word_counts(db_session, _light(db_session, draft.id))
+
+    assert counts == {draft.id: 6}
+    assert cached_word_count(_stored(draft.id).file_metadata) == 6
+
+
+@pytest.mark.unit
 def test_backfill_does_not_overwrite_a_save_that_lands_between_read_and_write_back(
     db_session: Session, monkeypatch
 ):
     draft = _draft(db_session, "山风", {"word_count": 999})
-    real_count_words = writing_stats_service.count_words
+    real_count_words = project_progress.count_words
     saved = {"done": False}
 
     def count_then_concurrent_save(content):
@@ -78,7 +109,7 @@ def test_backfill_does_not_overwrite_a_save_that_lands_between_read_and_write_ba
                 other.commit()
         return real_count_words(content)
 
-    monkeypatch.setattr(writing_stats_service, "count_words", count_then_concurrent_save)
+    monkeypatch.setattr(project_progress, "count_words", count_then_concurrent_save)
 
     resolve_prose_word_counts(db_session, _light(db_session, draft.id))
 

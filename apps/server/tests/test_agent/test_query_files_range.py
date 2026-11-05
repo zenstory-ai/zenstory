@@ -59,7 +59,6 @@ def owner_project(db_session, monkeypatch):
     db_session.add_all([user, project])
     db_session.commit()
     monkeypatch.setattr(activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **_kw: None)
     return user, project
 
 

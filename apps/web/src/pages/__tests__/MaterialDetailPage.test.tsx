@@ -51,6 +51,20 @@ vi.mock("react-i18next", () => ({
       key: string,
       defaultValueOrOptions?: string | Record<string, unknown>,
     ) => {
+      if (key === "materials:detail.trialCoverageExact" && typeof defaultValueOrOptions === "object" && defaultValueOrOptions) {
+        return `仅涵盖前${String(defaultValueOrOptions.included)}/${String(defaultValueOrOptions.source)}章；梗概和分类仅基于该范围。`;
+      }
+      if (key === "materials:detail.trialCoverageMaximum" && typeof defaultValueOrOptions === "object" && defaultValueOrOptions) {
+        return `最多涵盖前${String(defaultValueOrOptions.limit)}章；梗概和分类仅基于实际纳入范围。`;
+      }
+      if (key === "materials:detail.openCategoryCount" && typeof defaultValueOrOptions === "object" && defaultValueOrOptions) {
+        const category = String(defaultValueOrOptions.category).replace("materials:detail.", "");
+        return `打开${category}目录，${String(defaultValueOrOptions.count)}项`;
+      }
+      if (key === "materials:detail.openCategoryUnknown" && typeof defaultValueOrOptions === "object" && defaultValueOrOptions) {
+        const category = String(defaultValueOrOptions.category).replace("materials:detail.", "");
+        return `打开${category}目录，数量未知`;
+      }
       if (typeof defaultValueOrOptions === "string") return defaultValueOrOptions;
       if (
         defaultValueOrOptions &&
@@ -237,6 +251,203 @@ describe("MaterialDetailPage", () => {
     expect(screen.queryByText("materials:detail.relationships")).not.toBeInTheDocument();
   });
 
+  it("opens on a complete overview and exposes only allowlisted source facts", async () => {
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      author: "林海",
+      synopsis: "第一段梗概。\n第二行保留。\n\n```text\n完整代码块\n```",
+      source_meta: {
+        original_filename: "山海故人.txt",
+        file_size: 2048,
+        char_count: 45678,
+        chapter_count: 10,
+        source_char_count: 126000,
+        source_chapter_count: 24,
+        trial_chapter_limit: 10,
+        file_path: "/private/uploads/secret.txt",
+        md5: "internal-md5",
+        private_note: "never-render-this",
+      },
+    });
+
+    const { container } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    const overview = await screen.findByRole("article", { name: "materials:detail.overview" });
+    expect(overview).toHaveTextContent("林海");
+    await within(overview).findByText("完整代码块");
+    expect(within(overview).getByText(/第一段梗概/).textContent).toBe("第一段梗概。\n第二行保留。");
+    expect(within(overview).getByText("完整代码块").tagName).toBe("CODE");
+    expect(overview).toHaveTextContent("山海故人.txt");
+    expect(overview).toHaveTextContent("45,678");
+    expect(overview).toHaveTextContent("126,000");
+    expect(overview).toHaveTextContent("仅涵盖前10/24章；梗概和分类仅基于该范围。");
+    expect(overview).not.toHaveTextContent("materials:detail.wholeBook");
+    expect(container).not.toHaveTextContent("/private/uploads/secret.txt");
+    expect(container).not.toHaveTextContent("internal-md5");
+    expect(container).not.toHaveTextContent("never-render-this");
+    expect(mockGetTree).not.toHaveBeenCalled();
+  });
+
+  it("formats large allowlisted source files without exposing another source field", async () => {
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      source_meta: {
+        original_filename: "archive.txt",
+        file_size: 2 * 1024 * 1024 * 1024,
+        file_path: "/private/uploads/archive.txt",
+      },
+    });
+
+    const { container } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const overview = await screen.findByRole("article", { name: "materials:detail.overview" });
+    expect(overview).toHaveTextContent("2 GB");
+    expect(container).not.toHaveTextContent("/private/uploads/archive.txt");
+  });
+
+  it("does not claim a trial truncation when a shorter source was fully admitted", async () => {
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      source_meta: {
+        char_count: 12000,
+        chapter_count: 6,
+        source_char_count: 12000,
+        source_chapter_count: 6,
+        trial_chapter_limit: 10,
+      },
+    });
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const overview = await screen.findByRole("article", { name: "materials:detail.overview" });
+    expect(overview).not.toHaveTextContent(/仅涵盖|最多涵盖/);
+  });
+
+  it("describes a cap-only legacy material as a maximum rather than an actual range", async () => {
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      source_meta: { trial_chapter_limit: 10 },
+    });
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("最多涵盖前10章；梗概和分类仅基于实际纳入范围。")).toBeInTheDocument();
+  });
+
+  it("uses the cap maximum when legacy metadata has an admitted count but no full-source count", async () => {
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      source_meta: { chapter_count: 5, trial_chapter_limit: 10 },
+    });
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("最多涵盖前10章；梗概和分类仅基于实际纳入范围。")).toBeInTheDocument();
+  });
+
+  it("keeps processing and null-status sparse details readable without claiming completion", async () => {
+    mockGet.mockResolvedValueOnce({
+      id: "novel-1", title: "Processing source", status: "processing",
+      synopsis: "范围内素材梗概", source_meta: { char_count: 8000, chapter_count: 3 },
+      created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+    });
+    const { unmount } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const processing = await screen.findByRole("article", { name: "materials:detail.overview" });
+    expect(processing).toHaveTextContent("materials:detail.includedCharacterCount");
+    expect(processing).toHaveTextContent("materials:detail.includedChapterCount");
+    expect(processing).not.toHaveTextContent(/已完成|Completed/);
+    unmount();
+
+    mockGet.mockResolvedValueOnce({
+      id: "novel-1", title: "Sparse source", status: null, error_message: null,
+      source_meta: {}, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+    });
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    expect(await screen.findByRole("article", { name: "materials:detail.overview" })).toBeInTheDocument();
+    expect(screen.queryByText("materials:status.null")).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])("opens a category from the overview, clears filtering, and focuses its directory folder (mobile=%s)", async (mobile) => {
+    mediaState.isMobile = mobile;
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const search = await screen.findByPlaceholderText("materials:detail.searchPlaceholder");
+    fireEvent.change(search, { target: { value: "no category can match this" } });
+    expect(await screen.findByText("materials:detail.noSearchResults")).toBeInTheDocument();
+    if (mobile) fireEvent.click(screen.getByRole("button", { name: "materials:detail.overview" }));
+
+    expect(screen.getByRole("button", { name: "打开stories目录，数量未知" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "打开characters目录，0项" }));
+    const folder = await screen.findByRole("button", { name: /materials:detail.characters/ });
+    await waitFor(() => expect(folder).toHaveFocus());
+    expect(folder).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByPlaceholderText("materials:detail.searchPlaceholder")).toHaveValue("");
+  });
+
+  it("selects exactly one entity when different reference types share an id", async () => {
+    mockGetCharacters.mockResolvedValue([{ ...referenceCharacter, id: "1", name: "Same id character" }]);
+    mockGetStoryLines.mockResolvedValue([{ ...referenceStoryline, id: 1, title: "Same id storyline" }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByRole("button", { name: /materials:detail.characters/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Same id character" }));
+    fireEvent.click(screen.getByRole("button", { name: /materials:detail.storylines/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Same id storyline" }));
+
+    expect(screen.getByRole("button", { name: "Same id storyline" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Same id character" })).not.toHaveAttribute("aria-current");
+    expect(screen.getAllByRole("button").filter(button => button.getAttribute("aria-current") === "true")).toHaveLength(1);
+  });
+
+  it("shows aggregate directory counts before lazy content is loaded and marks a loaded empty folder", async () => {
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      chapters_count: 18,
+      characters_count: 7,
+      stories_count: 0,
+    });
+    mockGetStories.mockResolvedValue([]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    const chapters = await screen.findByRole("button", { name: /materials:detail.chapters/ });
+    const characters = screen.getByRole("button", { name: /materials:detail.characters/ });
+    expect(chapters).toHaveTextContent("18");
+    expect(characters).toHaveTextContent("7");
+    expect(mockGetTree).not.toHaveBeenCalled();
+    expect(mockGetCharacters).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /materials:detail.stories/ }));
+    expect(await screen.findByText("materials:detail.emptyFolder")).toBeInTheDocument();
+  });
+
+  it("searches only readable per-kind fields and does not announce no results while folders are loading", async () => {
+    let resolveCharacters!: (value: unknown[]) => void;
+    mockGetCharacters.mockReturnValue(new Promise((resolve) => { resolveCharacters = resolve; }));
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      source_meta: { file_path: "/private/secret-author-path" },
+    });
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const search = await screen.findByPlaceholderText("materials:detail.searchPlaceholder");
+
+    fireEvent.change(search, { target: { value: "守灯人" } });
+    expect(screen.queryByText("materials:detail.noSearchResults")).not.toBeInTheDocument();
+    resolveCharacters([{ ...referenceCharacter, name: "沈砚", aliases: ["守灯人"] }]);
+    expect(await screen.findByRole("button", { name: /^沈砚$/ })).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "secret-author-path" } });
+    expect(await screen.findByText("materials:detail.noSearchResults")).toBeInTheDocument();
+    expect(screen.queryByText("/private/secret-author-path")).not.toBeInTheDocument();
+  });
+
+  it("keeps the mobile directory state when visiting and leaving the whole-book overview", async () => {
+    mediaState.isMobile = true;
+    mockGet.mockResolvedValue({ ...referenceMaterial, author: "林海", synopsis: "全书梗概" });
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByRole("complementary", { name: "materials:detail.contents" })).toBeInTheDocument();
+    const search = screen.getByPlaceholderText("materials:detail.searchPlaceholder");
+    fireEvent.change(search, { target: { value: "Li Wei" } });
+    expect(await screen.findByRole("button", { name: /^Li Wei$/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "materials:detail.overview" }));
+    expect(await screen.findByRole("article", { name: "materials:detail.overview" })).toHaveTextContent("全书梗概");
+    fireEvent.click(screen.getByRole("button", { name: "返回" }));
+    expect(screen.getByPlaceholderText("materials:detail.searchPlaceholder")).toHaveValue("Li Wei");
+    expect(screen.getByRole("button", { name: /materials:detail.characters/ })).toHaveAttribute("aria-expanded", "true");
+  });
+
   it.each([
     { folder: 'characters', node: /^沈砚$/, title: '沈砚', fields: ['protagonist', '阿砚', '守灯人', '离乡十年的修灯匠', '查明旧信的来历'], section: 'characterOverview' },
     { folder: 'stories', node: /^归乡与旧信$/, title: '归乡与旧信', fields: ['沈砚循着一封旧信', '找到写信的人', '保护故人与追索真相', '真相与代价', '1–12'], section: 'storySynopsis' },
@@ -308,6 +519,37 @@ describe("MaterialDetailPage", () => {
     const themesSection = await screen.findByRole('region', { name: 'materials:detail.themes' });
     expect(within(themesSection).getByText('归乡')).toBeInTheDocument();
     expect(within(themesSection).getByText('承诺')).toBeInTheDocument();
+  });
+
+  it.each([
+    { themes: null, query: "归乡与旧信" },
+    { themes: '"孤勇"', query: "孤勇" },
+  ])("searches stories when legacy themes are $themes", async ({ themes, query }) => {
+    mockGetStories.mockResolvedValue([{ ...referenceStory, themes }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    fireEvent.change(await screen.findByPlaceholderText("materials:detail.searchPlaceholder"), {
+      target: { value: query },
+    });
+
+    expect(await screen.findByRole("button", { name: /^归乡与旧信$/ })).toBeInTheDocument();
+  });
+
+  it("searches plot and storyline descriptions when their optional people and theme lists are absent", async () => {
+    mockGetPlots.mockResolvedValue([{ ...referencePlot, characters: undefined }]);
+    mockGetStoryLines.mockResolvedValue([{
+      ...referenceStoryline,
+      main_characters: undefined,
+      themes: undefined,
+    }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const search = await screen.findByPlaceholderText("materials:detail.searchPlaceholder");
+
+    fireEvent.change(search, { target: { value: "老人递来的信封上" } });
+    expect(await screen.findByRole("button", { name: new RegExp(referencePlot.description.slice(0, 20)) })).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "每次接近真相" } });
+    expect(await screen.findByRole("button", { name: referenceStoryline.title })).toBeInTheDocument();
   });
 
   it("exposes folder expansion without loading unopened folders", async () => {
@@ -860,9 +1102,10 @@ describe("MaterialDetailPage", () => {
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
     });
+    let resolveCompletedCharacters!: (value: unknown[]) => void;
     mockGetCharacters
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: "late-character", name: "Late Hero" }]);
+      .mockImplementationOnce(() => new Promise(resolve => { resolveCompletedCharacters = resolve; }));
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -888,8 +1131,10 @@ describe("MaterialDetailPage", () => {
       });
     });
 
+    await waitFor(() => expect(mockGetCharacters).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("materials:detail.emptyFolder")).not.toBeInTheDocument();
+    await act(async () => resolveCompletedCharacters([{ id: "late-character", name: "Late Hero" }]));
     expect(await screen.findByText("Late Hero")).toBeInTheDocument();
-    expect(mockGetCharacters).toHaveBeenCalledTimes(2);
   });
 
   it("refreshes a previously loaded collapsed folder after processing completes", async () => {

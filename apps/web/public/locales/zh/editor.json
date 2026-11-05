@@ -15,7 +15,6 @@
     "appName": "ZenStory",
     "goDashboard": "返回工作台",
     "mobileMenu": "移动端菜单",
-    "projectDashboard": "项目统计",
     "helpDocs": "帮助文档",
     "moreActions": "更多功能",
     "export": "导出整本正文（TXT）",
@@ -312,12 +311,10 @@
     "files": "项目文件",
     "skills": "技能",
     "materials": "素材库",
-    "dashboard": "项目统计",
     "menu": "菜单"
   },
   "projectMenu": {
     "ariaLabel": "项目菜单",
-    "dashboard": "项目统计",
     "settings": "项目设置"
   },
   "projectSwitcher": {

@@ -475,12 +475,6 @@ async def test_rollback_to_version(client: AsyncClient, db_session, monkeypatch)
         headers=headers,
     )
 
-    cache_bumps: list[tuple[str, str]] = []
-    monkeypatch.setattr(
-        "services.infra.dashboard_cache.dashboard_cache.bump_project_version",
-        lambda user_id, project_id: cache_bumps.append((user_id, project_id)),
-    )
-
     # 回滚到第一个用户版本，不是创建时的系统基线。
     resp = await client.post(
         f"/api/v1/files/{file_id}/versions/{first_number}/rollback",
@@ -499,7 +493,6 @@ async def test_rollback_to_version(client: AsyncClient, db_session, monkeypatch)
     assert backup.json()["content"] == "Content"
     live_file = await client.get(f"/api/v1/files/{file_id}", headers=headers)
     assert live_file.json()["content"] == v1_content
-    assert cache_bumps == [(user.id, project_id)]
 
     # 验证新版本的内容是第一个用户版本的内容。
     content_resp = await client.get(

@@ -4,7 +4,7 @@ import os
 from io import BytesIO
 
 import pytest
-from fastapi import BackgroundTasks, UploadFile
+from fastapi import UploadFile
 from sqlalchemy import event
 from sqlmodel import Session, select
 
@@ -62,7 +62,6 @@ async def test_draft_nul_is_per_input_error_and_keeps_valid_neighbour(pg_engine,
     user_id, project_id = _seed(pg_engine, f"nul-{field}-{invalid_first}")
     invalid = _upload("bad\x00.txt" if field == "filename" else "bad.txt", "bad\x00body" if field == "body" else "bad body")
     valid = _upload("valid.txt", "valid body")
-    tasks = BackgroundTasks()
     with Session(pg_engine) as session:
         result = files_api.upload_drafts(
             project_id, [invalid, valid] if invalid_first else [valid, invalid],
@@ -93,7 +92,6 @@ async def test_draft_oversized_inferred_order_rejects_entire_input_only(pg_engin
     invalid = _upload("Chapter 2147483648.txt", "invalid body") if overflow_source == "filename" else _upload(
         "novel.txt", "Chapter 1 Valid prefix\ninvalid first chapter\n\nChapter 2147483648 Invalid suffix\ninvalid second chapter",
     )
-    tasks = BackgroundTasks()
     with Session(pg_engine) as session:
         result = files_api.upload_drafts(
             project_id, [_upload("before.txt", "before"), invalid, _upload("after.txt", "after")],
@@ -176,12 +174,7 @@ async def test_draft_append_reads_one_aggregate_row_instead_of_all_sibling_order
 
 @pytest.mark.parametrize(("kind", "count"), [("material", 1), ("material", 3), ("draft", 1), ("draft", 50)])
 async def test_upload_response_uses_no_postcommit_expired_rows(pg_engine, monkeypatch, kind, count):
-    from services.infra.dashboard_cache import dashboard_cache
-
-    cache_calls = []
-    monkeypatch.setattr(dashboard_cache, "bump_project_version", lambda **kwargs: cache_calls.append(kwargs))
     user_id, project_id = _seed(pg_engine, f"postcommit-{kind}-{count}")
-    tasks = BackgroundTasks()
     with Session(pg_engine) as session:  # Production default: expire_on_commit=True.
         assert session.expire_on_commit
         committed = []
@@ -210,7 +203,6 @@ async def test_upload_response_uses_no_postcommit_expired_rows(pg_engine, monkey
                 )
                 assert response.total == count and response.errors == []
                 returned = response.files
-                assert cache_calls == [{"user_id": user_id, "project_id": project_id}]
             else:
                 content = "Short material" if count == 1 else "x" * (files_api.MATERIAL_AUTO_SPLIT_MAX_CHARS * 2 + 1)
                 response = files_api.upload_material(
@@ -233,13 +225,8 @@ async def test_upload_response_uses_no_postcommit_expired_rows(pg_engine, monkey
 
 
 @pytest.mark.parametrize("kind", ["material", "draft"])
-async def test_failed_upload_commit_emits_no_cache_and_rolls_back_folder(pg_engine, monkeypatch, kind):
-    from services.infra.dashboard_cache import dashboard_cache
-
-    cache_calls = []
-    monkeypatch.setattr(dashboard_cache, "bump_project_version", lambda **kwargs: cache_calls.append(kwargs))
+async def test_failed_upload_commit_rolls_back_folder(pg_engine, monkeypatch, kind):
     user_id, project_id = _seed(pg_engine, f"failed-commit-{kind}")
-    tasks = BackgroundTasks()
     with Session(pg_engine) as session:
         user = session.get(User, user_id)
 
@@ -255,22 +242,15 @@ async def test_failed_upload_commit_emits_no_cache_and_rolls_back_folder(pg_engi
                     project_id, [_upload("draft.txt", "Body")], parent_id=None,
                     current_user=user, session=session,
                 )
-    assert cache_calls == []
     with Session(pg_engine) as reader:
         assert reader.exec(select(File).where(File.project_id == project_id)).all() == []
 
 
 async def test_all_invalid_draft_upload_returns_empty_response_without_postcommit_reads(pg_engine, monkeypatch):
-    from services.infra.dashboard_cache import dashboard_cache
-
-    cache_calls = []
-    monkeypatch.setattr(dashboard_cache, "bump_project_version", lambda **kwargs: cache_calls.append(kwargs))
     user_id, project_id = _seed(pg_engine, "empty-result")
-    tasks = BackgroundTasks()
     with Session(pg_engine) as session:
         result = files_api.upload_drafts(
             project_id, [_upload("invalid.exe", "Rejected")], parent_id=None,
             current_user=session.get(User, user_id), session=session,
         )
-    assert cache_calls == []
     assert result.total == 0 and result.files == [] and len(result.errors) == 1

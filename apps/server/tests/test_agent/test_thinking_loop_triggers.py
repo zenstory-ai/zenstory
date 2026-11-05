@@ -125,10 +125,9 @@ def long_novel(db_session, monkeypatch):
     from models import File, Project, User
     from services.features.activation_event_service import activation_event_service
 
-    # 写入路径的副作用（向量索引、激活事件、看板缓存）与送审内容无关，就地关掉。
+    # 写入路径的副作用（向量索引、激活事件）与送审内容无关，就地关掉。
     monkeypatch.setattr(activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     monkeypatch.setattr(activation_event_service, "record_once", lambda *_a, **_kw: None)
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **_kw: None)
 
     user = User(
         email="thinking_loop@example.com",
