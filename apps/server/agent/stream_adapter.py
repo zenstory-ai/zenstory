@@ -219,7 +219,7 @@ class StreamAdapter:
 
     # usage 键别名 → 规范键。Chat Completions 用 prompt/completion，
     # Responses/SDK 用 input/output；两族键名若同时进同一个累加字典，
-    # 就只有 total_tokens 会被相加，而下游 writing_stats_service 取
+    # 就只有 total_tokens 会被相加，而下游用量聚合取
     # input_tokens 时读到的是另一族的值，别名那族被静默丢弃——
     # 结果 total_tokens ≠ input + output + cache，计价口径自相矛盾。
     _USAGE_KEY_ALIASES: dict[str, str] = {

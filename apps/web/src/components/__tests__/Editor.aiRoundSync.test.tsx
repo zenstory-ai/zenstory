@@ -16,7 +16,6 @@ const server = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 const toastError = vi.hoisted(() => vi.fn());
-const recordStats = vi.hoisted(() => vi.fn(async () => ({})));
 const auth = vi.hoisted(() => ({ value: { user: { id: 'user-1' } } }));
 
 vi.mock('../../lib/api', () => ({
@@ -35,7 +34,6 @@ vi.mock('../../lib/api', () => ({
 vi.mock('../../lib/toast', () => ({ toast: { error: toastError, success: vi.fn(), info: vi.fn() } }));
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn(), captureException: vi.fn() }));
 vi.mock('../../lib/upgradeAnalytics', () => ({ trackUpgradeExpose: vi.fn(), trackUpgradeClick: vi.fn() }));
-vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats } }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth.value }));
 vi.mock('../../contexts/MaterialLibraryContext', () => ({ useMaterialLibraryContext: () => ({ preview: null }) }));
@@ -178,7 +176,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
   toastError.mockReset();
-  recordStats.mockClear();
   server.files.clear();
   server.files.set(CH1.id, { ...CH1 });
   server.get.mockReset();
@@ -430,13 +427,13 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(putsFor(CH2_ID)[0][1]).toMatchObject({ title: '第2章 倒着拨的表', base_updated_at: T_V2 });
   });
 
-  it("counts only the author's words after the editor followed the AI's copy", async () => {
+  it("persists the author's edit after the editor followed the AI's copy", async () => {
     await runRoundUntilV1();
     await secondWrite('parallel_execute');
     fireEvent.change(textarea(), { target: { value: `${V2}好` } });
     await advance(3100); await settle();
-    expect(recordStats).toHaveBeenCalledTimes(1);
-    expect(recordStats.mock.calls[0]).toEqual(['project-1', expect.objectContaining({ words_added: 1, words_deleted: 0 })]);
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${V2}好`, base_updated_at: T_V2, skip_version: true });
   });
 
   it('retries the re-read when it fails once', async () => {
@@ -565,15 +562,13 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(putsFor(CH2_ID)).toHaveLength(1);
   });
 
-  it("does not count the AI's streamed chapter as the author's words", async () => {
+  it("persists only the author's edit after the AI's streamed chapter", async () => {
     await runRoundUntilV1();
     fireEvent.change(textarea(), { target: { value: `${V1}好` } });
     await advance(3100); await settle();
     expect(putsFor(CH2_ID)).toHaveLength(1);
     // One typed character: no "author edit" version for the AI's text either.
     expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${V1}好`, base_updated_at: T_V1, skip_version: true });
-    expect(recordStats).toHaveBeenCalledTimes(1);
-    expect(recordStats.mock.calls[0]).toEqual(['project-1', expect.objectContaining({ words_added: 1, words_deleted: 0 })]);
   });
 
   it("keeps the editor and offers to load again when the reload after the AI's streamed chapter fails", async () => {
@@ -669,7 +664,6 @@ describe('deleted open file terminal state', () => {
     expect(harness.project?.selectedItem).toBeNull();
     expect(screen.getByLabelText('editor:deletedFile.draft')).toHaveValue('Save encountered deletion');
     expect(server.update).toHaveBeenCalledTimes(1);
-    expect(recordStats).not.toHaveBeenCalled();
   });
 
   it('treats refresh 404 as terminal after one request', async () => {
@@ -916,7 +910,6 @@ describe('deleted open file terminal state', () => {
     expect(harness.project?.selectedItem).toBeNull();
     expect(readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH1.id })?.content).toBe('删除前最后输入的正文');
     expect(screen.getByLabelText('editor:deletedFile.draft')).toHaveValue('删除前最后输入的正文');
-    expect(recordStats).not.toHaveBeenCalled();
     expect(toastError).not.toHaveBeenCalled();
   });
 

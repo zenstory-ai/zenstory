@@ -9,68 +9,6 @@ const messages = [{ id: 'message-1', role: 'assistant', content: '', created_at:
 const material = { id: 'responsive-material', user_id: responsiveUser.id, title: '素材标题：很长的人物选择与情节发展', original_filename: 'source.txt', file_size: 12000, status: 'completed', total_chapters: 25, chapters_count: 25, characters_count: 1, story_lines_count: 0, golden_fingers_count: 0, has_world_view: false, created_at: '2025-01-01T00:00:00Z', updated_at: '2026-10-04T00:00:00Z' };
 const skill = { id: 'responsive-skill', name: '长标题技能：人物行动与剧情的因果关系', description: '用具体行动检查角色选择，不覆盖原有设定。', triggers: ['人物'], instructions: '# 角色行动\n保持作者意图，检查行动和后果。', source: 'user', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2026-10-04T00:00:00Z' };
 const publicSkill = { ...skill, id: 'responsive-public-skill', instructions: '', instructions_hidden: true, source: 'official', category: 'Writing', tags: ['角色'], author_id: null, status: 'approved', add_count: 42 };
-const stats = {
-    total_word_count: 12000,
-    words_today: 1200,
-    words_this_week: 4800,
-    words_this_month: 12000,
-    chapter_completion: {
-        completion_percentage: 50,
-        completed_chapters: 2,
-        in_progress_chapters: 1,
-        not_started_chapters: 1,
-        total_chapters: 4,
-        chapter_details: [
-            {
-                outline_id: 'outline-1',
-                draft_id: 'draft-1',
-                title: 'Chapter 1',
-                status: 'complete',
-                word_count: 1500,
-                target_word_count: 1500,
-                completion_percentage: 100,
-            },
-            {
-                outline_id: 'outline-2',
-                draft_id: 'draft-2',
-                title: 'Chapter 2',
-                status: 'in_progress',
-                word_count: 800,
-                target_word_count: 2000,
-                completion_percentage: 40,
-            },
-            {
-                outline_id: 'outline-3',
-                draft_id: null,
-                title: 'Chapter 3',
-                status: 'not_started',
-                word_count: 0,
-                target_word_count: 1500,
-                completion_percentage: 0,
-            },
-        ],
-    },
-    streak: {
-        current_streak: 3,
-        longest_streak: 9,
-        streak_status: 'active',
-        days_until_break: 1,
-        streak_recovery_count: 1,
-        last_writing_date: '2026-04-06T00:00:00Z',
-    },
-    ai_usage: {
-        current: {
-            total_messages: 14,
-            total_sessions: 2,
-            active_session_id: 'session-1',
-            last_interaction_date: '2026-04-07T03:00:00Z',
-            last_interaction_at: '2026-04-07T03:00:00Z',
-        },
-        today: { total: 3, estimated_tokens: 500 },
-        this_week: { total: 10, estimated_tokens: 2000 },
-        this_month: { total: 22, estimated_tokens: 4500 },
-    },
-};
 export async function mockResponsiveApp(page: Page, saved: number | null = null, tier: 'free' | 'pro' = 'free', language: 'zh' | 'en' = 'zh') {
     await page.addInitScript(({ user, saved, language }) => {
         localStorage.setItem('zenstory-language', language);
@@ -109,13 +47,6 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
             data = catalog;
         else if (path.endsWith('/persona/onboarding'))
             data = { required: false, profile: null, rollout_at: '2025-01-01T00:00:00Z', new_user_window_days: 7 };
-        else if (path.endsWith('/stats/word-count-trend'))
-            data = { data: [{ date: '2026-10-01', net_words: 120 }, { date: '2026-10-02', net_words: 260 }] };
-        else if (path.endsWith('/stats')) {
-            const projectId = path.match(/\/projects\/([^/]+)\/stats$/)?.[1];
-            const project = responsiveProjects.find(project => project.id === projectId) ?? responsiveProjects[0];
-            data = { ...stats, project_id: project.id, project_name: project.name, project_type: project.project_type };
-        }
         else if (path.endsWith('/public-skills/categories'))
             data = { categories: [{ name: 'Writing', count: 1 }] };
         else if (path === '/api/v1/public-skills')

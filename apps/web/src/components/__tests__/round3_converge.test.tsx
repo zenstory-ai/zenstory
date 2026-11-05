@@ -15,9 +15,6 @@ vi.mock('../../lib/naturalPolishApi', () => ({
   naturalPolishApi: { naturalPolish: vi.fn() },
 }));
 
-vi.mock('../../lib/writingStatsApi', () => ({
-  writingStatsApi: { recordStats: vi.fn() },
-}));
 
 vi.mock('../../contexts/TextQuoteContext', () => ({
   useTextQuote: () => ({ addQuote: vi.fn() }),

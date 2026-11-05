@@ -38,7 +38,6 @@ for (const width of [390, 1440]) {
         fileReads.push(id);
         return json(files.find(file => file.id === id));
       }
-      if (request.method() === 'POST' && url.pathname.endsWith('/stats/record')) return json({ success: true });
       if (request.method() === 'POST' && url.pathname === '/api/v1/activation/events') return json({ recorded: true });
       if (request.method() === 'POST' && url.pathname === '/api/v1/agent/suggest') {
         mockedSuggestions++;

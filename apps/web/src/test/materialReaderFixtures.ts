@@ -6,6 +6,12 @@ import type {
 const createdAt = '2026-10-17T00:00:00Z';
 export const referenceMaterial: MaterialNovel = {
   id: '24', user_id: 'responsive-user', title: '山海故人 · 合成示例', original_filename: 'synthetic.txt',
+  author: '林海',
+  synopsis: '沈砚循着一封旧信回到临江城，重新走进十年前离开的旧灯铺。\n他要找到失踪兄长留下的真相，也必须决定是否还能相信故乡的人。',
+  source_meta: {
+    original_filename: 'synthetic.txt', file_size: 1000, char_count: 36800, source_char_count: 36800,
+    chapter_count: 18, source_chapter_count: 18,
+  },
   file_size: 1000, status: 'completed', chapters_count: 1, characters_count: 1, stories_count: 1,
   plots_count: 1, story_lines_count: 1, relationships_count: 1, golden_fingers_count: 1, has_world_view: true,
   created_at: createdAt, updated_at: createdAt,

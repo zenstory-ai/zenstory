@@ -944,6 +944,29 @@ code, pre, .font-mono {
 .material-analysis-records .material-analysis-facts:not(:last-child) { margin-block-end: 0.75rem; }
 .material-analysis-records .material-reader-prose + .material-analysis-facts { margin-block-start: 0.75rem; }
 
+/* Whole-book reference overview: a compact reading sheet, not a dashboard. */
+.material-overview-header { padding-block-end: 1.5rem; border-block-end: 1px solid hsl(var(--separator-color)); }
+.material-overview-coverage { margin-block-start: 1.25rem; border-inline-start: 2px solid hsl(var(--accent-primary) / 0.45); padding: 0.75rem 0.875rem; background: hsl(var(--accent-primary) / 0.04); color: hsl(var(--text-secondary)); font-size: 0.875rem; line-height: 1.65; }
+.material-overview-section { padding-block: 1.5rem; }
+.material-overview-section + .material-overview-section { border-block-start: 1px solid hsl(var(--separator-color)); }
+.material-overview-section > h3 { margin-block-end: 0.875rem; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 600; color: hsl(var(--text-secondary)); }
+.material-overview .material-reader-prose { font-size: 1rem; line-height: 1.85; }
+.material-overview .material-reader-prose p { white-space: pre-wrap; }
+.material-overview-index { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.material-overview-index button { display: flex; min-height: 2.75rem; align-items: center; justify-content: space-between; gap: 0.75rem; border: 1px solid hsl(var(--separator-color)); border-radius: 0.625rem; padding: 0.625rem 0.75rem; color: hsl(var(--text-primary)); text-align: start; transition: border-color 150ms, background-color 150ms; }
+.material-overview-index button:hover { border-color: hsl(var(--accent-primary) / 0.35); background: hsl(var(--accent-primary) / 0.04); }
+.material-overview-index button:focus-visible { outline: 2px solid hsl(var(--accent-primary) / 0.5); outline-offset: 2px; }
+.material-overview-index button span:last-child { color: hsl(var(--text-secondary)); font-variant-numeric: tabular-nums; }
+.material-overview-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+.material-overview-facts > div { min-width: 0; padding-block: 0.625rem; border-block-end: 1px solid hsl(var(--separator-color)); }
+.material-overview-facts dt { font-family: var(--font-sans); font-size: 0.75rem; color: hsl(var(--text-secondary)); }
+.material-overview-facts dd { margin: 0.2rem 0 0; overflow-wrap: anywhere; color: hsl(var(--text-primary)); }
+
+@media (max-width: 479px) {
+    .material-overview-index,
+    .material-overview-facts { grid-template-columns: minmax(0, 1fr); }
+}
+
 .editor-content {
     @apply outline-none min-h-full;
     line-height: 1.8;

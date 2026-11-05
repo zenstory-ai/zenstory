@@ -526,7 +526,7 @@ async def test_router_decided_usage_is_merged_into_message_usage():
     assert usage["input_tokens"] == 1000
     assert usage["output_tokens"] == 100
     assert usage["total_tokens"] == 1100
-    # 两族键名不得并存：否则 writing_stats_service 只认 input/output 那族，
+    # 两族键名不得并存：否则下游用量汇总只认 input/output 那族，
     # 另一族被静默丢弃，而 total_tokens 却把它算进去了。
     assert "prompt_tokens" not in usage
     assert "completion_tokens" not in usage

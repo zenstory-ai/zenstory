@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -52,7 +52,6 @@ const SkillsPage = lazyRoute(() => import("./pages/SkillsPage"), "SkillsPage");
 const MaterialsPage = lazyRoute(() => import("./pages/MaterialsPage"), "MaterialsPage");
 const MaterialDetailPage = lazyRoute(() => import("./pages/MaterialDetailPage"), "MaterialDetailPage");
 const DashboardProjects = lazyRoute(() => import("./pages/DashboardProjects"), "DashboardProjects");
-const ProjectDashboardPage = lazyRoute(() => import("./pages/ProjectDashboardPage"), "ProjectDashboardPage");
 const BillingPage = lazyRoute(() => import("./pages/BillingPage"), "BillingPage");
 const PaymentReturnPage = lazyRoute(() => import("./pages/PaymentReturnPage"), "PaymentReturnPage");
 const OnboardingPersonaPage = lazyRoute(() => import("./pages/OnboardingPersonaPage"), "OnboardingPersonaPage");
@@ -152,6 +151,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+function RetiredProjectStatisticsRedirect() {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <Navigate to={projectId ? `/project/${projectId}` : "/dashboard/projects"} replace />;
 }
 
 // Public route wrapper - redirects to dashboard if already authenticated
@@ -391,9 +395,7 @@ function App() {
                       path="/project/:projectId/dashboard"
                       element={
                         <ProtectedRoute>
-                          <ProtectedProviders>
-                            <ProjectDashboardPage />
-                          </ProtectedProviders>
+                          <RetiredProjectStatisticsRedirect />
                         </ProtectedRoute>
                       }
                     />

@@ -605,12 +605,6 @@ async def test_snapshot_rollback_restores_content_and_refreshes_stats_cache(
     )
     assert update.status_code == 200
 
-    cache_bumps: list[tuple[str, str]] = []
-    monkeypatch.setattr(
-        "services.infra.dashboard_cache.dashboard_cache.bump_project_version",
-        lambda user_id, project_id: cache_bumps.append((user_id, project_id)),
-    )
-
     response = await client.post(
         f"/api/v1/snapshots/{snapshot['id']}/rollback", headers=headers
     )
@@ -618,7 +612,6 @@ async def test_snapshot_rollback_restores_content_and_refreshes_stats_cache(
     assert response.status_code == 200, response.text
     restored = await client.get(f"/api/v1/files/{file['id']}", headers=headers)
     assert restored.json()["content"] == "Before"
-    assert cache_bumps == [(user.id, project["id"])]
 
 
 @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": -1}, {"limit": 101}, {"offset": -1}])

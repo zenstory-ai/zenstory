@@ -17,7 +17,6 @@ vi.mock('../../lib/api', () => ({
   fileVersionApi: { getVersions, rollback },
 }))
 vi.mock('../../lib/toast', () => ({ toast: { error: toastError } }))
-vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats: vi.fn() } }))
 vi.mock('../../lib/upgradeAnalytics', () => ({ trackUpgradeClick: vi.fn(), trackUpgradeExpose: vi.fn() }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t }) }))
 vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => projectContext }))

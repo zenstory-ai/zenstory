@@ -83,7 +83,6 @@ async function setup(page: Page) {
     if (url.pathname === `/api/v1/projects/${projectId}/file-tree`) {
       return fulfill({ tree: [{ id: `folder-${projectId}`, title: '正文', file_type: 'folder', metadata: { folder_type: 'draft' }, parent_id: null, order: 0, children: Object.values(files).map(file => ({ ...file, children: [] })) }] });
     }
-    if (method === 'POST' && url.pathname.endsWith('/stats/record')) return fulfill({ success: true });
     if (/\/versions$|\/snapshots$/.test(url.pathname)) return fulfill(method === 'GET' ? { versions: [], total: 0 } : { id: 'snap-1' });
     return route.fallback();
   });

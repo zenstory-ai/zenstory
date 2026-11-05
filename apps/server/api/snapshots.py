@@ -20,27 +20,6 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["snapshots"])
 
 
-def _refresh_snapshot_dashboard_cache(
-    *,
-    project_id: str,
-    user_id: str,
-) -> None:
-    """Refresh derived state after the rollback transaction has committed."""
-    try:
-        from services.infra.dashboard_cache import dashboard_cache
-
-        dashboard_cache.bump_project_version(user_id=user_id, project_id=project_id)
-    except Exception as exc:
-        log_with_context(
-            logger,
-            logging.DEBUG,
-            "Failed to bump dashboard cache after snapshot rollback",
-            error=str(exc),
-            project_id=project_id,
-            user_id=user_id,
-        )
-
-
 # Request schemas
 class CreateSnapshotRequest(BaseModel):
     """Request body for creating a snapshot"""
@@ -221,10 +200,6 @@ def rollback_to_snapshot(
         # The protected service view includes creators that committed while
         # rollback waited for its gate. Keep this internal field off the API.
         result.pop("affected_file_ids")
-        _refresh_snapshot_dashboard_cache(
-            project_id=snapshot.project_id,
-            user_id=current_user.id,
-        )
         log_with_context(
             logger,
             logging.INFO,

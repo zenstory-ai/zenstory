@@ -165,7 +165,7 @@ def test_router_extract_usage_uses_canonical_keys():
     )
 
     # 缓存命中部分必须从 input_tokens 里扣出来，否则同一批 token 会被
-    # 按输入价 + 缓存价重复计价（writing_stats 的公式是相加）。
+    # 按输入价 + 缓存价重复计价（下游用量公式是相加）。
     assert usage == {
         "input_tokens": 20,
         "output_tokens": 30,
@@ -188,7 +188,7 @@ async def test_router_usage_and_agent_usage_merge_into_one_key_family():
     """router 的用量与 runner 的用量必须落在同一族键上再相加。
 
     键名不统一时两族并存：只有 total_tokens 被相加，而下游
-    writing_stats_service 取 input_tokens 时读到的是 runner 那一份，
+    下游用量汇总取 input_tokens 时读到的是 runner 那一份，
     router 的 prompt_tokens 被静默丢弃 —— total ≠ input+output+cache。
     """
     adapter = StreamAdapter()

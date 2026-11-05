@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { mockResponsiveApp, responsiveProjects } from './fixtures-responsive';
+import { mockResponsiveApp } from './fixtures-responsive';
 
 const viewports = [
   { width: 390, height: 844 },
@@ -37,24 +37,14 @@ for (const viewport of viewports) {
     await expect(page.getByText('没有匹配的项目', { exact: true })).toBeVisible();
     await search.clear();
 
+    const statsRequests: string[] = [];
+    page.on('request', request => {
+      if (/\/projects\/[^/]+\/stats(?:\/|\?|$)/.test(request.url())) statsRequests.push(request.url());
+    });
     await page.goto('/project/responsive-project-1/dashboard');
-    await expect(page.getByRole('heading', { name: '项目统计', exact: true })).toBeVisible();
-    const heading = page.getByRole('heading', { name: '项目统计', exact: true });
-    const refresh = page.getByRole('button', { name: '刷新', exact: true });
-    const headingBox = await box(heading);
-    const refreshBox = await box(refresh);
-    expect(headingBox.x + headingBox.width + 8).toBeLessThanOrEqual(refreshBox.x);
-    const projectNameBox = await box(page.getByText(responsiveProjects[1].name, { exact: true }));
-    expect(projectNameBox.y).toBeGreaterThanOrEqual(headingBox.y + headingBox.height);
-    expect(projectNameBox.x + projectNameBox.width).toBeLessThanOrEqual(viewport.width);
-    expect(refreshBox.width).toBeGreaterThanOrEqual(viewport.width < 768 ? 44 : 32);
-    expect(refreshBox.height).toBeGreaterThanOrEqual(viewport.width < 768 ? 44 : 32);
-    for (const toggle of [page.locator('[aria-controls="project-chapter-details"]'), page.getByRole('button', { name: /手写字数趋势/ })]) {
-      await toggle.scrollIntoViewIfNeeded();
-      await toggle.click();
-      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    }
-    await page.screenshot({ path: `/tmp/zenstory-ui-audit/app-project-stats-${viewport.width}.png` });
+    await expect(page).toHaveURL(/\/project\/responsive-project-1$/);
+    await expect(page.getByRole('heading', { name: '开始写作', exact: true })).toBeVisible();
+    expect(statsRequests).toEqual([]);
 
     await page.goto('/materials/responsive-material');
     const materialHeading = page.getByRole('heading', { name: '素材标题：很长的人物选择与情节发展', exact: true });
@@ -66,7 +56,7 @@ for (const viewport of viewports) {
     expect((await box(materialSearch)).width).toBeGreaterThanOrEqual(200);
     const actualInputFont = await materialSearch.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
     if (viewport.width < 768) expect(actualInputFont).toBeGreaterThanOrEqual(16);
-    await page.getByRole('button', { name: '章节', exact: true }).click();
+    await page.getByRole('button', { name: /^章节\s+25$/ }).click();
     await page.getByText('第1章 很长的标题与人物选择', { exact: true }).click();
     await expect(page.getByText('章节摘要。'.repeat(30), { exact: true })).toBeVisible();
   });
@@ -117,6 +107,8 @@ for (const viewport of viewports) {
     await page.goto('/dashboard/projects');
     const settings = await openSettings(page, viewport.width);
     await expect(settings).toBeVisible();
+    // Layout bounds are comparable only after the dialog's entry transform settles.
+    await settings.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
     for (const id of ['profile', 'general', 'subscription', 'points', 'agent', 'referral']) {
       if (await settings.getByTestId(`settings-tab-${id}`).count() === 0) continue;
       await settings.getByTestId(`settings-tab-${id}`).click();

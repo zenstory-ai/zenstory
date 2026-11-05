@@ -3,12 +3,11 @@
 import json
 
 import pytest
-from fastapi import BackgroundTasks
 from sqlmodel import Session
 
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools import mcp_tools
-from agent.tools.file_ops import FileCRUD, FileEditor
+from agent.tools.file_ops import FileEditor
 from agent.tools.file_ops.edit import EditFileError
 from api import agent_api
 from models import File, Project, User
@@ -26,7 +25,6 @@ def owner_project(db_session, monkeypatch):
     monkeypatch.setattr(activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     monkeypatch.setattr(activation_event_service, "record_once", lambda *_a, **_kw: None)
     monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **_kw: None)
     return user, project
 
 

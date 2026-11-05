@@ -50,7 +50,6 @@ from api.public_skills import router as public_skills_router
 from api.referral import router as referral_router
 from api.skills import router as skills_router
 from api.snapshots import router as snapshots_router
-from api.stats import router as stats_router
 from api.subscription import router as subscription_router
 from api.search import router as file_search_router
 from api.verification import router as verification_router
@@ -104,7 +103,7 @@ async def lifespan(_app: FastAPI):
 
     try:
         await asyncio.wait_for(drain_pending_usage_records(), timeout=5)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Timed out after 5s draining pending usage records on shutdown")
 
 
@@ -178,7 +177,6 @@ app.include_router(verification_router)
 app.include_router(oauth_router)
 app.include_router(projects_router)
 app.include_router(snapshots_router)
-app.include_router(stats_router)
 app.include_router(files_router)
 app.include_router(versions_router)
 app.include_router(export_router)

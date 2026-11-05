@@ -438,7 +438,7 @@ describe("chunkRecovery", () => {
     );
     const Sibling = newPageRecovery.lazyRoute(
       async () => ({ default: () => createElement("div", null, "sibling ready") }),
-      "ProjectDashboardPage",
+      "BillingPage",
     );
     render(
       createElement(

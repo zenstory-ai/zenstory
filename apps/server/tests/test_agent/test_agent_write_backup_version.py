@@ -3,7 +3,6 @@
 from datetime import datetime
 
 import pytest
-from fastapi import BackgroundTasks
 from sqlmodel import select
 
 from agent.tools.file_ops import FileCRUD, FileEditor
@@ -24,7 +23,6 @@ def chapter(db_session, monkeypatch):
     db_session.commit()
     monkeypatch.setattr(activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
     monkeypatch.setattr(activation_event_service, "record_once", lambda *_a, **_kw: None)
-    monkeypatch.setattr("services.infra.dashboard_cache.dashboard_cache.bump_project_version", lambda *_a, **_kw: None)
     return user, project, file
 
 

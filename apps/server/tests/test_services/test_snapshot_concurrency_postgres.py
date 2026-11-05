@@ -11,7 +11,6 @@ from threading import Barrier, Event
 from types import SimpleNamespace
 
 import pytest
-from fastapi import BackgroundTasks
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
@@ -397,7 +396,7 @@ def test_create_revalidates_cached_parent_deleted_by_rollback(pg_engine, monkeyp
 def test_api_reconciliation_includes_creator_committed_while_rollback_waits(pg_engine, monkeypatch):
     user_id, project_id, _, snapshot_id, key_id, _ = _seed(pg_engine, "reconcile-wait")
     creator_ready, finish_create, rollback_started = Event(), Event(), Event()
-    pid_box, refreshed = [], []
+    pid_box = []
     original_initial = FileVersionService.create_initial_version
 
     def pause_after_baseline(self, *args, **kwargs):
@@ -407,7 +406,6 @@ def test_api_reconciliation_includes_creator_committed_while_rollback_waits(pg_e
         return result
 
     monkeypatch.setattr(FileVersionService, "create_initial_version", pause_after_baseline)
-    monkeypatch.setattr(snapshots_api, "_refresh_snapshot_dashboard_cache", lambda **kwargs: refreshed.append(kwargs["project_id"]))
 
     def create():
         with Session(pg_engine) as session:
@@ -432,7 +430,6 @@ def test_api_reconciliation_includes_creator_committed_while_rollback_waits(pg_e
         created_id = creator.result(timeout=10)
         result = rollback.result(timeout=10)
     assert blocked
-    assert refreshed == [project_id]
     assert set(result) == {"snapshot_id", "pre_rollback_snapshot_id", "restored"}
     with Session(pg_engine) as reader:
         assert reader.get(File, created_id).is_deleted is True

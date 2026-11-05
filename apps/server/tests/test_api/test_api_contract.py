@@ -47,6 +47,16 @@ def _collect_api_routes() -> list[_RouteInfo]:
     return routes
 
 
+def test_project_statistics_routes_are_retired():
+    routes = _collect_api_routes()
+
+    assert not any(
+        route.path == "/api/v1/projects/{project_id}/stats"
+        or route.path.startswith("/api/v1/projects/{project_id}/stats/")
+        for route in routes
+    )
+
+
 class TestRouterPrefixContract:
     """Test that all routers follow the API prefix contract."""
 
