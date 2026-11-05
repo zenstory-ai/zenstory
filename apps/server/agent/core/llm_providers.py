@@ -9,7 +9,9 @@ configuration:
 - ``LLM_PRIMARY_PROVIDER`` (default ``deepseek``) / ``LLM_PRIMARY_MODEL``
 - ``LLM_BACKUP_PROVIDER`` (unset: no backup) / ``LLM_BACKUP_MODEL``
 - credentials per provider: ``DEEPSEEK_API_KEY`` / ``DEEPSEEK_BASE_URL``,
-  ``MINIMAX_API_KEY`` / ``MINIMAX_BASE_URL``
+  ``MINIMAX_API_KEY`` / ``MINIMAX_BASE_URL``. MiniMax may additionally set
+  ``MINIMAX_SECONDARY_API_KEY`` and
+  ``MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT`` (default 20).
 - ``MINIMAX_REASONING_EFFORT`` (default ``high``): MiniMax defaults to ``max``
   when the request names no effort.
 - read timeout (longest silence between bytes, including the wait for the first byte):
@@ -22,7 +24,9 @@ cost budget refuses calls to unpriced models.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,6 +38,11 @@ logger = get_logger(__name__)
 
 SLOT_PRIMARY = "primary"
 SLOT_BACKUP = "backup"
+KEY_SLOT_PRIMARY = "primary"
+KEY_SLOT_SECONDARY = "secondary"
+_MINIMAX_SECONDARY_DEFAULT_WEIGHT_PERCENT = 20
+# Coprime with 100: a full context-free cycle visits each percentage bucket once.
+_MINIMAX_ROTATION_STEP = 37
 
 
 def _get_positive_float_env(name: str, default: float) -> float:
@@ -137,6 +146,8 @@ class ModelProvider:
     api_key: str
     base_url: str
     reasoning_effort: str | None
+    # Safe credential identity for diagnostics. Never log ``api_key`` itself.
+    key_slot: str = KEY_SLOT_PRIMARY
 
     @property
     def name(self) -> str:
@@ -169,43 +180,118 @@ def _kind(name: str, env_name: str) -> ProviderKind:
     return kind
 
 
-def _build_provider(slot: str, kind: ProviderKind, model_env: str) -> ModelProvider:
+_minimax_rotation_lock = threading.Lock()
+_minimax_rotation_index = 0
+
+
+def _minimax_secondary_weight_percent() -> int:
+    raw = os.getenv("MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT")
+    if raw is None:
+        return _MINIMAX_SECONDARY_DEFAULT_WEIGHT_PERCENT
+    try:
+        value = int(raw)
+    except ValueError:
+        return _MINIMAX_SECONDARY_DEFAULT_WEIGHT_PERCENT
+    return value if 0 <= value <= 100 else _MINIMAX_SECONDARY_DEFAULT_WEIGHT_PERCENT
+
+
+def _next_minimax_bucket() -> int:
+    global _minimax_rotation_index
+    with _minimax_rotation_lock:
+        bucket = (_minimax_rotation_index * _MINIMAX_ROTATION_STEP) % 100
+        _minimax_rotation_index = (_minimax_rotation_index + 1) % 100
+    return bucket
+
+
+def _minimax_key(routing_key: str | None, *, rotate_if_unkeyed: bool) -> tuple[str, str]:
+    primary_key = os.getenv(MINIMAX.api_key_env) or ""
+    secondary_key = os.getenv("MINIMAX_SECONDARY_API_KEY") or ""
+    weight = _minimax_secondary_weight_percent()
+    if not secondary_key or weight == 0:
+        return primary_key, KEY_SLOT_PRIMARY
+
+    if routing_key:
+        digest = hashlib.sha256(routing_key.encode("utf-8")).digest()
+        bucket = int.from_bytes(digest[:8], "big") % 100
+    elif rotate_if_unkeyed:
+        bucket = _next_minimax_bucket()
+    else:
+        return primary_key, KEY_SLOT_PRIMARY
+    if bucket < weight:
+        return secondary_key, KEY_SLOT_SECONDARY
+    return primary_key, KEY_SLOT_PRIMARY
+
+
+def _build_provider(
+    slot: str,
+    kind: ProviderKind,
+    model_env: str,
+    *,
+    routing_key: str | None = None,
+    rotate_if_unkeyed: bool = False,
+) -> ModelProvider:
     effort = kind.default_reasoning_effort
     if kind.reasoning_effort_env:
         raw = (os.getenv(kind.reasoning_effort_env) or "").strip().lower()
         if raw in kind.reasoning_efforts:
             effort = raw
+    api_key, key_slot = (
+        _minimax_key(routing_key, rotate_if_unkeyed=rotate_if_unkeyed)
+        if kind is MINIMAX
+        else (os.getenv(kind.api_key_env) or "", KEY_SLOT_PRIMARY)
+    )
     return ModelProvider(
         slot=slot,
         kind=kind,
         model=(os.getenv(model_env) or "").strip() or kind.default_model,
-        api_key=os.getenv(kind.api_key_env) or "",
+        api_key=api_key,
         base_url=os.getenv(kind.base_url_env) or kind.default_base_url,
         reasoning_effort=effort,
+        key_slot=key_slot,
     )
 
 
 _warned_backup_without_key: set[str] = set()
 
 
-def configured_providers() -> list[ModelProvider]:
+def configured_providers(
+    *,
+    routing_key: str | None = None,
+    rotate_if_unkeyed: bool = False,
+) -> list[ModelProvider]:
     """``[primary]`` or ``[primary, backup]`` from the environment.
 
     A primary without an API key raises. A backup without one is skipped with
     a warning: a half-configured backup must not take the primary down.
     """
+    # ``agent_run_id`` is generated server-side and keeps every model call in a run
+    # together. Do not route on a client-controlled request id: a caller must not be
+    # able to choose a credential bucket. A trusted internal session id is the fallback.
+    from utils.request_context import get_agent_run_id
+
+    routing_key = get_agent_run_id() or routing_key
     primary = _build_provider(
         SLOT_PRIMARY,
         _kind(os.getenv("LLM_PRIMARY_PROVIDER") or DEEPSEEK.name, "LLM_PRIMARY_PROVIDER"),
         "LLM_PRIMARY_MODEL",
+        routing_key=routing_key,
+        rotate_if_unkeyed=rotate_if_unkeyed,
     )
-    if not primary.api_key:
+    # A selected secondary credential does not make the documented primary
+    # credential optional; deployment rollback must always have a primary key.
+    if not (os.getenv(primary.kind.api_key_env) or ""):
         raise ValueError(f"{primary.kind.api_key_env} is required")
     providers = [primary]
     backup_name = (os.getenv("LLM_BACKUP_PROVIDER") or "").strip()
     if backup_name:
-        backup = _build_provider(SLOT_BACKUP, _kind(backup_name, "LLM_BACKUP_PROVIDER"), "LLM_BACKUP_MODEL")
-        if backup.api_key:
+        backup = _build_provider(
+            SLOT_BACKUP,
+            _kind(backup_name, "LLM_BACKUP_PROVIDER"),
+            "LLM_BACKUP_MODEL",
+            routing_key=routing_key,
+            rotate_if_unkeyed=rotate_if_unkeyed,
+        )
+        if os.getenv(backup.kind.api_key_env) or "":
             providers.append(backup)
         elif backup.kind.api_key_env not in _warned_backup_without_key:
             _warned_backup_without_key.add(backup.kind.api_key_env)
@@ -229,7 +315,7 @@ def primary_model_name() -> str:
         kind = _kind(os.getenv("LLM_PRIMARY_PROVIDER") or DEEPSEEK.name, "LLM_PRIMARY_PROVIDER")
     except ValueError:
         return ""
-    return _build_provider(SLOT_PRIMARY, kind, "LLM_PRIMARY_MODEL").model
+    return (os.getenv("LLM_PRIMARY_MODEL") or "").strip() or kind.default_model
 
 
 def _is_empty_assistant_message(message: object) -> bool:
@@ -302,6 +388,7 @@ def get_async_client(provider: ModelProvider) -> AsyncOpenAI:
         "LLM OpenAI-compatible client initialized",
         slot=provider.slot,
         provider=provider.name,
+        key_slot=provider.key_slot,
         base_url=provider.base_url,
         model=provider.model,
     )
@@ -329,11 +416,24 @@ def get_sync_client(
             max_retries=resolved_retries,
         )
         _sync_clients[key] = client
+        log_with_context(
+            logger,
+            20,  # INFO
+            "LLM OpenAI-compatible sync client initialized",
+            slot=provider.slot,
+            provider=provider.name,
+            key_slot=provider.key_slot,
+            base_url=provider.base_url,
+            model=provider.model,
+        )
     return install_sync_cost_guard(client)
 
 
 def reset_provider_client_cache() -> None:
     """Clear cached clients; intended for tests."""
+    global _minimax_rotation_index
     _async_clients.clear()
     _sync_clients.clear()
     _warned_backup_without_key.clear()
+    with _minimax_rotation_lock:
+        _minimax_rotation_index = 0

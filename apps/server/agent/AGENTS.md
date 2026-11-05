@@ -4,6 +4,13 @@ ZenStory 写作 agent 的服务端：路由 → 多角色工作流（planner / h
 openai-agents-python 运行时（OpenAI 兼容 Chat Completions，主备两个供应商，见 `core/llm_providers.py` / `core/llm_failover.py`）→ SSE。
 工作流是 `graph/` 里的自研编排，**不使用 LangGraph**。
 
+MiniMax 可配置双凭证：`MINIMAX_API_KEY` 是主凭证，
+`MINIMAX_SECONDARY_API_KEY` 是次凭证，
+`MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT` 控制次凭证承担的任务比例（默认 20）。
+同一服务端 `agent_run_id` 的全部 MiniMax 调用固定到同一凭证；没有 run 上下文的素材调用按每次真实模型调用轮转分配。
+双凭证仍属于同一个 provider 槽位，不互相 failover；client cache 按真实凭证隔离，日志只记录
+`key_slot=primary|secondary`，不得记录 Key 或分桶值。该比例是任务数比例，不保证 token 或费用精确同比分摊。
+
 路径约定：不带前缀的路径相对 `apps/server/agent/`；模块外的文件写全路径（例如 `apps/server/utils/logger.py`，
 不要和 `agent/utils/` 混淆）。行为细节与取舍以 `.agents/notes/` 里链接的决策记录为准，改行为前先读对应记录。
 

@@ -153,6 +153,7 @@ def log_provider_failure(
         provider=provider.name,
         model=provider.model,
         slot=provider.slot,
+        key_slot=provider.key_slot,
         call_site=call_site if call_site in _FAILURE_CALL_SITES else "other",
         phase=phase if phase in {"request", "stream_start", "stream"} else "other",
         status_code=status,
@@ -339,7 +340,16 @@ def is_in_stream_error(exc: BaseException) -> bool:
 
 def ordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
     """Providers in the order this call should try them."""
-    providers = llm_providers.configured_providers()
+    providers = llm_providers.configured_providers(routing_key=session_id, rotate_if_unkeyed=True)
+    return _order_configured_providers(providers, session_id, thinking_enabled=thinking_enabled)
+
+
+def _order_configured_providers(
+    providers: list[ModelProvider],
+    session_id: str | None,
+    *,
+    thinking_enabled: bool,
+) -> list[ModelProvider]:
     if len(providers) == 1:
         return providers
     primary, backup = providers
@@ -363,7 +373,7 @@ def ordered_providers(session_id: str | None = None, *, thinking_enabled: bool =
 
 def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> None:
     """Count a provider failure and pin the session to the other slot."""
-    providers = llm_providers.configured_providers()
+    providers = llm_providers.configured_providers(routing_key=session_id)
     if len(providers) == 1:
         return
     other = next(p for p in providers if p.slot != provider.slot)
@@ -400,19 +410,25 @@ def record_success(provider: ModelProvider, session_id: str | None, ordered: lis
 
 
 async def aordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
-    if len(llm_providers.configured_providers()) == 1:
-        return llm_providers.configured_providers()
-    return await asyncio.to_thread(ordered_providers, session_id, thinking_enabled=thinking_enabled)
+    providers = llm_providers.configured_providers(routing_key=session_id, rotate_if_unkeyed=True)
+    if len(providers) == 1:
+        return providers
+    return await asyncio.to_thread(
+        _order_configured_providers,
+        providers,
+        session_id,
+        thinking_enabled=thinking_enabled,
+    )
 
 
 async def arecord_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> None:
-    if len(llm_providers.configured_providers()) > 1:
+    if len(llm_providers.configured_providers(routing_key=session_id)) > 1:
         await asyncio.to_thread(record_failure, provider, session_id, exc)
 
 
 def pin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
     """Pin the session to the slot other than ``provider`` without counting a circuit failure."""
-    providers = llm_providers.configured_providers()
+    providers = llm_providers.configured_providers(routing_key=session_id)
     if len(providers) == 1 or not session_id:
         return
     other = next(p for p in providers if p.slot != provider.slot)
@@ -429,7 +445,7 @@ def pin_session_to_other(provider: ModelProvider, session_id: str | None) -> Non
 
 
 async def apin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
-    if session_id and len(llm_providers.configured_providers()) > 1:
+    if session_id and len(llm_providers.configured_providers(routing_key=session_id)) > 1:
         await asyncio.to_thread(pin_session_to_other, provider, session_id)
 
 
