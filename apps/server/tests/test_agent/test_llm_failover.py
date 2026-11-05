@@ -654,7 +654,7 @@ async def test_422_is_observed_without_retry_or_raw_data(endpoints, monkeypatch,
     assert record.custom_fields == {
         "request_id": "synthetic-request", "agent_run_id": "synthetic-run",
         "provider": provider, "model": "deepseek-flash" if provider == "deepseek" else "MiniMax-M3.1-Flash",
-        "slot": "primary", "call_site": "router", "phase": "request",
+        "slot": "primary", "key_slot": "primary", "call_site": "router", "phase": "request",
         "status_code": 422, "failure_category": "request_rejected",
         "provider_error_format": "base_resp",
         "provider_reason": "invalid_parameters",
