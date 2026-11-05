@@ -898,3 +898,50 @@ describe('MessageInput', () => {
     })
   })
 })
+
+describe('MessageInput refused send', () => {
+  const setup = () => {
+    const selectSkill = vi.fn()
+    mockUseSkillTrigger.mockReturnValue({
+      selectedSkills: [{ id: 'skill-1', name: '场景节奏' }],
+      selectSkill,
+      removeSkill: vi.fn(),
+      clearSkills: vi.fn(),
+    })
+    return selectSkill
+  }
+
+  afterEach(() => cleanup())
+
+  it('puts back the skills sent with the refused message', async () => {
+    const selectSkill = setup()
+    const user = userEvent.setup({ delay: null })
+    const { rerender } = render(<MessageInput onSend={vi.fn()} />)
+    await user.type(screen.getByPlaceholderText('chat:input.placeholder'), '写第二章{Enter}')
+    expect(selectSkill).not.toHaveBeenCalled()
+
+    rerender(<MessageInput onSend={vi.fn()} refusedSend={{ seq: 1, message: '写第二章', skillIds: ['skill-1'] }} />)
+    expect(selectSkill).toHaveBeenCalledTimes(1)
+    expect(selectSkill).toHaveBeenCalledWith({ id: 'skill-1', name: '场景节奏' })
+  })
+
+  it('leaves skills alone when the same words were refused from a send without them', async () => {
+    const selectSkill = setup()
+    const user = userEvent.setup({ delay: null })
+    const { rerender } = render(<MessageInput onSend={vi.fn()} />)
+    await user.type(screen.getByPlaceholderText('chat:input.placeholder'), '继续{Enter}')
+
+    rerender(<MessageInput onSend={vi.fn()} refusedSend={{ seq: 1, message: '继续', skillIds: [] }} />)
+    expect(selectSkill).not.toHaveBeenCalled()
+  })
+
+  it('leaves skills alone when the refused message did not come from this box', async () => {
+    const selectSkill = setup()
+    const user = userEvent.setup({ delay: null })
+    const { rerender } = render(<MessageInput onSend={vi.fn()} />)
+    await user.type(screen.getByPlaceholderText('chat:input.placeholder'), '写第二章{Enter}')
+
+    rerender(<MessageInput onSend={vi.fn()} refusedSend={{ seq: 1, message: '起始卡片的示例', skillIds: [] }} />)
+    expect(selectSkill).not.toHaveBeenCalled()
+  })
+})

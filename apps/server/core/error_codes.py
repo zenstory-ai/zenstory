@@ -179,6 +179,7 @@ class ErrorCode:
     # ==================== Agent Stream Errors (14xxx) ====================
 
     SESSION_BUSY = "ERR_SESSION_BUSY"
+    ACCOUNT_RUNS_BUSY = "ERR_ACCOUNT_RUNS_BUSY"
     AGENT_UPSTREAM_RATE_LIMITED = "ERR_AGENT_UPSTREAM_RATE_LIMITED"
     AGENT_UPSTREAM_UNAVAILABLE = "ERR_AGENT_UPSTREAM_UNAVAILABLE"
     AGENT_CONTEXT_TOO_LONG = "ERR_AGENT_CONTEXT_TOO_LONG"
@@ -320,6 +321,7 @@ ERROR_MESSAGES = {
         "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "兑换最低需要 7 天",
 
         "ERR_SESSION_BUSY": "上一轮回复仍在生成或收尾中，请稍候片刻再发送，或开启新对话",
+        "ERR_ACCOUNT_RUNS_BUSY": "已有 2 个任务正在进行，请等待完成或停止其中一个后再试。",
         "ERR_AGENT_UPSTREAM_RATE_LIMITED": "AI 服务当前繁忙，请稍后重试",
         "ERR_AGENT_UPSTREAM_UNAVAILABLE": "AI 服务暂时不可用或响应超时，请稍后重试",
         "ERR_AGENT_CONTEXT_TOO_LONG": "本轮对话内容过长，请精简消息或开启新对话后重试",
@@ -453,6 +455,7 @@ ERROR_MESSAGES = {
         "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "Minimum redemption is 7 days",
 
         "ERR_SESSION_BUSY": "The previous reply is still being generated or finalized. Wait a moment, or start a new chat",
+        "ERR_ACCOUNT_RUNS_BUSY": "2 tasks are already running. Wait for one to finish or stop one, then try again.",
         "ERR_AGENT_UPSTREAM_RATE_LIMITED": "The AI service is busy right now. Please try again shortly",
         "ERR_AGENT_UPSTREAM_UNAVAILABLE": "The AI service is unavailable or timed out. Please try again shortly",
         "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat",

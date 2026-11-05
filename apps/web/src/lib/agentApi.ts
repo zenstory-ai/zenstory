@@ -136,6 +136,12 @@ type StreamErrorEventData = {
  */
 export type QuotaRefundKind = "no_progress" | "error" | "stopped";
 
+/** 会话仍在收尾或账号任务名额已满：服务端没有扣额，也没有开始运行。 */
+const MANUALLY_RETRYABLE_REFUSALS = new Set([
+  "ERR_SESSION_BUSY",
+  "ERR_ACCOUNT_RUNS_BUSY",
+]);
+
 /** 作者停止、这一轮被退还时，服务端移除的「这一轮新建、还是空白」的文件。 */
 export interface RemovedPlaceholderFile {
   id: string;
@@ -465,8 +471,8 @@ export function streamAgentRequest(
         callbacks.onError?.(
           toUserErrorMessage(errorMessage),
           errorCode,
-          // 会话仍在收尾（409 ERR_SESSION_BUSY）通常几秒后就会释放，提供重试。
-          errorCode === "ERR_SESSION_BUSY",
+          // 这些拒绝都发生在开始运行之前、很快会恢复：可以手动重试（这里从不自动重发）。
+          MANUALLY_RETRYABLE_REFUSALS.has(errorCode),
         );
         return;
       }

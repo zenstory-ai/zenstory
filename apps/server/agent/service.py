@@ -37,6 +37,7 @@ from utils.logger import get_logger, log_with_context
 from .context import ContextAssembler, get_context_assembler
 from .context.budget import compute_history_token_budget
 from .context.turn_snapshot import plan_turn_context
+from .core.account_run_limit import AccountRunSlot
 from .core.events import (
     context_event,
     done_event,
@@ -652,6 +653,7 @@ class AgentService:
         selected_skill_ids: list[str] | None = None,
         run_report: dict[str, Any] | None = None,
         run_outcome: RunOutcome | None = None,
+        account_run_slot: AccountRunSlot | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Process user message with streaming response.
@@ -672,6 +674,9 @@ class AgentService:
                 the caller sets ``stop_kind`` before cancelling a stopped /
                 disconnected run; this method resolves the persisted assistant
                 message id on it once the round's history is saved.
+            account_run_slot: The account's task slot the caller acquired for this run.
+                Adopted once this generator's cleanup is guaranteed to run; released when
+                the run has really ended (after the cancellation path's partial save too).
 
         Yields:
             SSE event strings
@@ -1035,6 +1040,9 @@ class AgentService:
                     persist_empty_assistant=persist_empty_assistant,
                     user_created_at=user_sent_at,
                 )
+
+        if account_run_slot is not None:
+            account_run_slot.adopt()
 
         try:
             lang = (language or "").strip().lower() or "zh"
@@ -1744,6 +1752,8 @@ class AgentService:
                         await cleanup_steering_queue_async(session_id, run_id=steering_run_id)
                     finally:
                         _stop_run_heartbeat()
+                        if account_run_slot is not None:
+                            await account_run_slot.release()
 
                 self._schedule_background_cleanup(
                     _cleanup_after_cancellation_save(),
@@ -1818,6 +1828,8 @@ class AgentService:
                         )
                     finally:
                         _stop_run_heartbeat()
+                        if account_run_slot is not None:
+                            await account_run_slot.release()
 
             total_duration = int((utcnow() - start_time).total_seconds() * 1000)
             if run_report is not None:

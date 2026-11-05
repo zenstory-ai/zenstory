@@ -28,6 +28,10 @@ from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
+from agent.core.account_run_limit import (
+    AccountRunLimitExceeded,
+    acquire_account_run_slot,
+)
 from agent.core.events import (
     WALL_CLOCK_LIMIT,
     EventType,
@@ -335,6 +339,22 @@ def _session_busy_exception() -> APIException:
     )
 
 
+async def _acquire_account_slot(user_id: str, project_id: str):
+    """这个账号的任务名额；拒绝时什么都还没发生：没有预扣额度，也没有模型调用。"""
+    try:
+        return await acquire_account_run_slot(user_id)
+    except AccountRunLimitExceeded as exc:
+        log_with_context(
+            logger, 20, "Agent stream rejected: account task limit reached",
+            user_id=user_id, project_id=project_id,
+        )
+        raise APIException(
+            error_code=ErrorCode.ACCOUNT_RUNS_BUSY,
+            status_code=409,
+            detail="This account already has its maximum number of running tasks.",
+        ) from exc
+
+
 # ==================== Request Models ====================
 
 
@@ -558,95 +578,106 @@ async def stream_request(
 
     lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
 
-    # Reserve one quota unit before streaming to avoid concurrent overrun.
-    # We may compensate (refund) in finally when the stream fails internally.
-    if _should_offload_session_work(session):
-        charged_period_start = await asyncio.to_thread(
-            _reserve_ai_conversation_sync,
-            current_user.id,
-        )
-    else:
-        charged_period_start = quota_service.reserve_ai_conversation(
-            session,
-            current_user.id,
-        )
-    if charged_period_start is None:
-        raise APIException(
-            error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
-            status_code=402,
-            detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
-        )
-
-    # Only an explicitly submitted, quota-accepted task ends static onboarding.
-    # An observation failure must not turn an already reserved request into an
-    # unrefunded pre-stream failure; the existing stream settlement still owns it.
+    # 预扣额度前检查账号任务名额；明确满额才拒绝，Redis 故障由名额层放行。
+    account_slot = await _acquire_account_slot(user_id, body.project_id)
     try:
+        # Reserve one quota unit before streaming to avoid concurrent overrun.
+        # We may compensate (refund) in finally when the stream fails internally.
         if _should_offload_session_work(session):
-            await asyncio.to_thread(_record_first_work_ai_sync, user_id, body.project_id)
+            charged_period_start = await asyncio.to_thread(
+                _reserve_ai_conversation_sync,
+                current_user.id,
+            )
         else:
-            from services.first_work_service import observe_first_work_ai_request
+            charged_period_start = quota_service.reserve_ai_conversation(
+                session,
+                current_user.id,
+            )
+        if charged_period_start is None:
+            raise APIException(
+                error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
+                status_code=402,
+                detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
+            )
 
-            observe_first_work_ai_request(session, user_id, body.project_id)
-    except Exception:
-        session.rollback()
-        logger.warning("Could not record first-work AI request", exc_info=True)
-    # 新用户漏斗：作者主动发出的第一条 AI 消息（预扣成功）。每个账号只记一次。
-    activation_entry = _activation_entry(body.metadata)
-    _record_activation(
-        session, user_id, body.project_id, ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT, activation_entry
-    )
+        # Only an explicitly submitted, quota-accepted task ends static onboarding.
+        # An observation failure must not turn an already reserved request into an
+        # unrefunded pre-stream failure; the existing stream settlement still owns it.
+        try:
+            if _should_offload_session_work(session):
+                await asyncio.to_thread(_record_first_work_ai_sync, user_id, body.project_id)
+            else:
+                from services.first_work_service import observe_first_work_ai_request
 
-    # SSE 可能持续数分钟，而鉴权/权限校验的 SELECT 会让请求级 session 一直
-    # 保持事务打开（Postgres 上表现为 idle in transaction，连接被整个流式
-    # 期间占用）。此处主动结束事务把连接还回连接池；后续对该 session 的
-    # 使用（如 finally 中的 refund）会惰性开启新事务。rollback 会 expire
-    # ORM 实例，流式期间只能使用已提前取出的标量（user_id），不要再触碰
-    # current_user。
-    session.rollback()
-
-    run_report: dict[str, Any] = {}
-    # 停止 / 断线时路由层在取消运行前写入 stop_kind；process_stream 落库后交回助手消息 id。
-    run_outcome = RunOutcome()
-    stream = service.process_stream(
-        project_id=body.project_id,
-        user_id=user_id,
-        message=body.message,
-        session_id=body.session_id,
-        session=session,
-        selected_text=body.selected_text,
-        metadata=body.metadata,
-        language=lang,
-        selected_skill_ids=body.selected_skill_ids,
-        run_report=run_report,
-        run_outcome=run_outcome,
-    )
-
-    # 先在路由里取出第一个事件：process_stream 在发出 session_started 之前
-    # 解析聊天会话并原子地抢占该会话唯一的生成槽。槽被占用（上一轮仍在生成或
-    # 收尾）时必须在发送 200 响应头之前转成 409 ERR_SESSION_BUSY 并退还刚预扣
-    # 的额度；其余预启动异常保持原行为，由 event_generator 发终止帧并退款。
-    first_event: str | None = None
-    prestart_error: Exception | None = None
-    prime_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
-    try:
-        first_event = await stream.__anext__()
-    except StopAsyncIteration:
-        first_event = None
-    except SteeringSessionBusyError as exc:
-        await _refund_quota(session, user_id, charged_period_start)
-        log_with_context(
-            logger,
-            20,  # INFO
-            "Agent stream rejected: chat session busy",
-            user_id=user_id,
-            project_id=body.project_id,
-            agent_run_id=agent_run_id,
+                observe_first_work_ai_request(session, user_id, body.project_id)
+        except Exception:
+            session.rollback()
+            logger.warning("Could not record first-work AI request", exc_info=True)
+        # 新用户漏斗：作者主动发出的第一条 AI 消息（预扣成功）。每个账号只记一次。
+        activation_entry = _activation_entry(body.metadata)
+        _record_activation(
+            session, user_id, body.project_id, ACTIVATION_EVENT_FIRST_AI_MESSAGE_SENT, activation_entry
         )
-        raise _session_busy_exception() from exc
-    except Exception as exc:
-        prestart_error = exc
-    finally:
-        reset_request_context(prime_ctx_tokens)
+
+        # SSE 可能持续数分钟，而鉴权/权限校验的 SELECT 会让请求级 session 一直
+        # 保持事务打开（Postgres 上表现为 idle in transaction，连接被整个流式
+        # 期间占用）。此处主动结束事务把连接还回连接池；后续对该 session 的
+        # 使用（如 finally 中的 refund）会惰性开启新事务。rollback 会 expire
+        # ORM 实例，流式期间只能使用已提前取出的标量（user_id），不要再触碰
+        # current_user。
+        session.rollback()
+
+        run_report: dict[str, Any] = {}
+        # 停止 / 断线时路由层在取消运行前写入 stop_kind；process_stream 落库后交回助手消息 id。
+        run_outcome = RunOutcome()
+        stream = service.process_stream(
+            project_id=body.project_id,
+            user_id=user_id,
+            message=body.message,
+            session_id=body.session_id,
+            session=session,
+            selected_text=body.selected_text,
+            metadata=body.metadata,
+            language=lang,
+            selected_skill_ids=body.selected_skill_ids,
+            run_report=run_report,
+            run_outcome=run_outcome,
+            account_run_slot=account_slot,
+        )
+
+        # 先在路由里取出第一个事件：process_stream 在发出 session_started 之前
+        # 解析聊天会话并原子地抢占该会话唯一的生成槽。槽被占用（上一轮仍在生成或
+        # 收尾）时必须在发送 200 响应头之前转成 409 ERR_SESSION_BUSY 并退还刚预扣
+        # 的额度；其余预启动异常保持原行为，由 event_generator 发终止帧并退款。
+        first_event: str | None = None
+        prestart_error: Exception | None = None
+        prime_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
+        try:
+            first_event = await stream.__anext__()
+        except StopAsyncIteration:
+            first_event = None
+            await account_slot.release()
+        except SteeringSessionBusyError as exc:
+            await _refund_quota(session, user_id, charged_period_start)
+            await account_slot.release()
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Agent stream rejected: chat session busy",
+                user_id=user_id,
+                project_id=body.project_id,
+                agent_run_id=agent_run_id,
+            )
+            raise _session_busy_exception() from exc
+        except Exception as exc:
+            prestart_error = exc
+            await account_slot.release()
+        finally:
+            reset_request_context(prime_ctx_tokens)
+    except BaseException:
+        # 还没交给响应流：process_stream 没接管（或已自己收尾）时由这里放回名额。
+        await account_slot.release()
+        raise
 
     async def _primed_stream():
         try:
@@ -658,6 +689,10 @@ async def stream_request(
                 yield event
         finally:
             await stream.aclose()
+            # process_stream 接管后由它的收尾释放（取消路径上在残稿补存之后）；
+            # 没接管时生成器已经退出，这里放回。
+            if not account_slot.adopted:
+                await account_slot.release()
 
     async def event_generator():
         agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)

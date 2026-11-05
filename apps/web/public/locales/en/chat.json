@@ -20,6 +20,7 @@
     "skillMatched": "Skill activated: {{name}}",
     "skillMatchedMulti": "Skill {{index}}: {{name}}",
     "streamErrorTitle": "Generation was interrupted",
+    "accountRunsBusyTitle": "Can’t start a new task yet",
     "streamErrorQuotaPaused": "This round didn't finish; anything already saved is kept. Today's AI messages are used up, so pick it up again once they come back.",
     "quotaExceededTitle": "You've used today's free AI messages",
     "quotaExceededHint": "They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
