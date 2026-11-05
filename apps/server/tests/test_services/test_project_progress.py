@@ -6,6 +6,10 @@ from models import File, Project, User
 from services.project_progress import get_projects_progress
 
 
+def test_progress_for_unknown_owner_is_empty(db_session):
+    assert get_projects_progress(db_session, "missing-owner") == []
+
+
 def test_screenplay_progress_counts_scripts_and_refreshes_stale_word_count(db_session):
     suffix = uuid4().hex[:8]
     user = User(

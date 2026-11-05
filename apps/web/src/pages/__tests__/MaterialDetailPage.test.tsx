@@ -288,6 +288,22 @@ describe("MaterialDetailPage", () => {
     expect(mockGetTree).not.toHaveBeenCalled();
   });
 
+  it("formats large allowlisted source files without exposing another source field", async () => {
+    mockGet.mockResolvedValue({
+      ...referenceMaterial,
+      source_meta: {
+        original_filename: "archive.txt",
+        file_size: 2 * 1024 * 1024 * 1024,
+        file_path: "/private/uploads/archive.txt",
+      },
+    });
+
+    const { container } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const overview = await screen.findByRole("article", { name: "materials:detail.overview" });
+    expect(overview).toHaveTextContent("2 GB");
+    expect(container).not.toHaveTextContent("/private/uploads/archive.txt");
+  });
+
   it("does not claim a trial truncation when a shorter source was fully admitted", async () => {
     mockGet.mockResolvedValue({
       ...referenceMaterial,
@@ -503,6 +519,37 @@ describe("MaterialDetailPage", () => {
     const themesSection = await screen.findByRole('region', { name: 'materials:detail.themes' });
     expect(within(themesSection).getByText('归乡')).toBeInTheDocument();
     expect(within(themesSection).getByText('承诺')).toBeInTheDocument();
+  });
+
+  it.each([
+    { themes: null, query: "归乡与旧信" },
+    { themes: '"孤勇"', query: "孤勇" },
+  ])("searches stories when legacy themes are $themes", async ({ themes, query }) => {
+    mockGetStories.mockResolvedValue([{ ...referenceStory, themes }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    fireEvent.change(await screen.findByPlaceholderText("materials:detail.searchPlaceholder"), {
+      target: { value: query },
+    });
+
+    expect(await screen.findByRole("button", { name: /^归乡与旧信$/ })).toBeInTheDocument();
+  });
+
+  it("searches plot and storyline descriptions when their optional people and theme lists are absent", async () => {
+    mockGetPlots.mockResolvedValue([{ ...referencePlot, characters: undefined }]);
+    mockGetStoryLines.mockResolvedValue([{
+      ...referenceStoryline,
+      main_characters: undefined,
+      themes: undefined,
+    }]);
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    const search = await screen.findByPlaceholderText("materials:detail.searchPlaceholder");
+
+    fireEvent.change(search, { target: { value: "老人递来的信封上" } });
+    expect(await screen.findByRole("button", { name: new RegExp(referencePlot.description.slice(0, 20)) })).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "每次接近真相" } });
+    expect(await screen.findByRole("button", { name: referenceStoryline.title })).toBeInTheDocument();
   });
 
   it("exposes folder expansion without loading unopened folders", async () => {

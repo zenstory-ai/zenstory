@@ -103,7 +103,7 @@ async def lifespan(_app: FastAPI):
 
     try:
         await asyncio.wait_for(drain_pending_usage_records(), timeout=5)
-    except TimeoutError:
+    except asyncio.TimeoutError:
         logger.warning("Timed out after 5s draining pending usage records on shutdown")
 
 
