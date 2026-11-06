@@ -46,11 +46,11 @@
     },
     "context": {
       "title": "深度理解上下文",
-      "description": "AI 记住你的角色卡、世界观和剧情，保持故事的一致性"
+      "description": "AI 记住你的角色卡、世界观和前文剧情，保持故事前后一致"
     },
     "multiType": {
       "title": "多类型支持",
-      "description": "无论是长篇小说、短篇小说还是短剧剧本，都能轻松驾驭"
+      "description": "支持长篇小说、短篇故事和短剧剧本，按题材定制写作流程"
     },
     "privacy": {
       "title": "隐私安全",
@@ -136,7 +136,7 @@
   },
   "footer": {
     "copyright": "© {{year}} ZenStory AI",
-    "tagline": "把 AI 放进你的创作生产线"
+    "tagline": "陪你从灵感到完稿的 AI 写作工作台"
   },
   "preview": {
     "projectFiles": "项目文件",

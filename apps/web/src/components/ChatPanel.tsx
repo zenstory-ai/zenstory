@@ -2156,7 +2156,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   >(null);
 
   const handleSteer = useCallback(async (message: string) => {
-    // 不能静默 return / 静默吞异常：调用方（MessageInput）以「没有抛错 = 已送达」
+    // 不能直接 return 或忽略异常：调用方（MessageInput）以「没有抛错 = 已送达」
     // 来决定是否清空输入框，而 setInput("") 会连带把持久化草稿覆写成空串，
     // 用户敲的这段追加指令在 textarea 和 localStorage 里都不复存在。
     try {
