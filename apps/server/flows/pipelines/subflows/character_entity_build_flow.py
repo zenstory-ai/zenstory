@@ -13,6 +13,7 @@ from typing import Any
 from prefect import flow, get_run_logger
 from prefect.task_runners import ConcurrentTaskRunner
 
+from config.material_settings import TRIAL_MAX_CHARACTER_ENTITIES
 from config.material_settings import material_settings as settings
 from flows.atomic_tasks.entities.character_tasks_v2 import (
     build_character_entity_task,
@@ -65,11 +66,13 @@ def character_entity_build_flow(
         # 查询所有角色提及，按角色主名分组
         from flows.database_session import get_db_session
         from services.material.character_mentions_service import CharacterMentionsService
+        from services.material.ingestion_jobs_service import executing_trial_job
 
         # 【关键修复】在 Session 内完成所有数据提取，转换为 Python 原生类型
         with get_db_session() as db:
             mention_svc = CharacterMentionsService()
             all_mentions = mention_svc.get_by_novel(db, novel_id)
+            trial_job = executing_trial_job(db, novel_id) is not None
 
             # 提取需要的数据为 Python 原生类型（避免 DetachedInstanceError）
             mention_data = [
@@ -140,6 +143,8 @@ def character_entity_build_flow(
             top_n = min(20, total_chars)  # 15-50个，提取20个
         else:
             top_n = min(30, total_chars)  # 超过50个，提取30个
+        if trial_job:
+            top_n = min(top_n, TRIAL_MAX_CHARACTER_ENTITIES)
 
         important_characters = [char_name for char_name, _ in sorted_characters[:top_n]]
 

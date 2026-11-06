@@ -177,11 +177,12 @@ export interface QuotaResponse {
   material_trial?: MaterialTrial;
 }
 
-/** One free book breakdown per account, first `max_chapters` chapters only. */
+/** One free breakdown per account, ever: the first `max_chapters` chapters, `max_characters` in total. */
 export interface MaterialTrial {
   available: boolean;
   used: boolean;
   max_chapters: number;
+  max_characters: number;
 }
 
 export interface QuotaMetric {

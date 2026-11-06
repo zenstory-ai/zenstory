@@ -80,7 +80,7 @@ class _FakeSession:
     def __init__(self, job: IngestionJob):
         self.job = job
 
-    def get(self, _model, job_id):
+    def get(self, _model, job_id, **_options):
         return self.job if job_id == self.job.id else None
 
     def exec(self, statement):

@@ -76,6 +76,7 @@ from .material_models import (
     StoryPlotLink,
     WorldView,
 )
+from .material_trial import MaterialTrialNetworkSeat
 from .payment import PaymentOrder
 from .persona_profile import UserPersonaProfile
 from .points import (
@@ -124,6 +125,7 @@ __all__ = [
     "AICostDailyBudget",
     "AICostReservation",
     "FreeAINetworkReservation",
+    "MaterialTrialNetworkSeat",
     "AnnouncementConfig",
     # Entities
     "User",

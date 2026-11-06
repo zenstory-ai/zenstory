@@ -222,14 +222,14 @@ describe("MaterialsPage", () => {
     current_period_end: null,
     features: { materials_library_access: false },
   };
-  const freeQuota = (trial: { available: boolean; used: boolean; max_chapters: number }) => ({
+  const freeQuota = (trial: { available: boolean; used: boolean; max_chapters: number; max_characters?: number }) => ({
     ai_conversations: { used: 0, limit: 10, reset_at: null },
     projects: { used: 0, limit: 3, reset_at: null },
     material_uploads: { used: 0, limit: 0, reset_at: null },
     material_decompositions: { used: 0, limit: 0, reset_at: null },
     skill_creates: { used: 0, limit: 3, reset_at: null },
     inspiration_copies: { used: 0, limit: 10, reset_at: null },
-    material_trial: trial,
+    material_trial: { max_characters: 15_000, ...trial },
   });
 
   it("waits for the trial state instead of flashing the Pro teaser first", async () => {
@@ -431,9 +431,48 @@ describe("MaterialsPage", () => {
     expect(mockUpload.mock.calls[0][0]).toBe(picked);
   });
 
-  it("says the trial was not used when a trial upload fails on the platform side", async () => {
+  it("shows the limits and the one-time rule before a free author starts the trial", async () => {
     mockGetStatus.mockResolvedValue(freeStatus);
-    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 3 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-trial-start")).toBeInTheDocument();
+    expect(screen.getByTestId("materials-trial-limits")).toBeInTheDocument();
+    expect(screen.getByTestId("materials-example-source")).toBeInTheDocument();
+    expect(screen.queryByTestId("materials-free-try")).not.toBeInTheDocument();
+  });
+
+  it("does not offer the trial while it is unavailable", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: false, max_chapters: 0, max_characters: 0 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-free-try")).toBeInTheDocument();
+    expect(screen.queryByTestId("materials-trial-start")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("materials-trial-limits")).not.toBeInTheDocument();
+  });
+
+  it("refuses over-limit first chapters before upload", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 3, max_characters: 500 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByTestId("materials-trial-start"));
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File([trialBook(5)], "long.txt", { type: "text/plain" })] },
+    });
+
+    expect(await screen.findByText(/trialTooManyCharacters/)).toBeInTheDocument();
+    expect(screen.queryByText("long.txt")).not.toBeInTheDocument();
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+
+  it("re-reads the trial state when a trial upload fails, and promises nothing about it", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 3 }));
     mockUpload.mockRejectedValueOnce(new ApiError(503, "ERR_SERVICE_UNAVAILABLE"));
 
     render(<MaterialsPage />, { wrapper: createWrapper() });
@@ -443,9 +482,43 @@ describe("MaterialsPage", () => {
       target: { files: [new File([trialBook(3)], "short.txt", { type: "text/plain" })] },
     });
     await screen.findByText("short.txt");
+    const quotaReads = mockGetQuota.mock.calls.length;
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 3 }));
+    mockList.mockResolvedValue([
+      { id: "n1", title: "short", status: "failed", chapters_count: 0, created_at: "2026-10-09T00:00:00Z" },
+    ]);
     fireEvent.click(screen.getByRole("button", { name: "materials:uploadModal.upload" }));
 
-    expect(await screen.findByText(/这次没有用掉免费试拆机会。/)).toBeInTheDocument();
+    await waitFor(() => expect(mockGetQuota.mock.calls.length).toBeGreaterThan(quotaReads));
+    expect(await screen.findByTestId("materials-trial-banner")).toBeInTheDocument();
+  });
+
+  it("keeps a failed trial book visible and explains it, with no free retry", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 3 }));
+    mockList.mockResolvedValue([
+      { id: "n1", title: "参考书", status: "failed", chapters_count: 0, created_at: "2026-10-09T00:00:00Z" },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("参考书")).toBeInTheDocument();
+    expect(screen.getByTestId("materials-trial-incomplete")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /common:retry|重试/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("materials-trial-start")).not.toBeInTheDocument();
+  });
+
+  it("does not call a finished trial incomplete", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 3 }));
+    mockList.mockResolvedValue([
+      { id: "n1", title: "参考书", status: "completed", chapters_count: 3, created_at: "2026-10-09T00:00:00Z" },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("参考书")).toBeInTheDocument();
+    expect(screen.queryByTestId("materials-trial-incomplete")).not.toBeInTheDocument();
   });
 
   it("states the Pro breakdown limit from the plan catalog instead of a constant", async () => {

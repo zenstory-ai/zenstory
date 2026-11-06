@@ -9,13 +9,13 @@
   "teaserFeatureOne": "拆出章节梗概、角色、世界观和金手指",
   "teaserFeatureTwo": "把角色和设定添加到项目，或引用到 AI 对话",
   "teaserFeatureThree": "次数用完后，已拆好的内容仍可查看和引用",
-  "teaserFreeTry": "免费版也可以先试：在作品的对话里贴一章参考正文，让 AI 拆人物、节奏和爽点。素材库会把整本自动拆好，写作时随时引用。",
-  "teaserCardCharacter": "角色拆解示例",
-  "teaserCardCharacterBody": "林舟 · 导师型配角 · 首次出场第 3 章",
-  "teaserCardSynopsis": "章节梗概示例",
-  "teaserCardSynopsisBody": "第 3 章：林舟入宗门试炼，暗中护住主角，身份险些暴露",
-  "teaserCardWorldview": "世界观拆解示例",
-  "teaserCardWorldviewBody": "灵脉阶层、宗门辖区、禁术代价",
+  "teaserFreeTry": "素材库免费试拆暂未开放。开通 Pro 后，可上传参考小说自动拆解，并在写作时引用拆解结果。",
+  "teaserCardCharacter": "角色 · 秦月儿",
+  "teaserCardCharacterBody": "林辰的未婚妻，却选择入宗机会与力量：探狱时撕下伪装，向落难的林辰索取唯一的入宗信物青玄令。",
+  "teaserCardSynopsis": "章节梗概 · 前 3 章",
+  "teaserCardSynopsisBody": "少帅林辰蒙冤待斩 → 玉佩带来重修机会 → 未婚妻摊牌索要信物。第 3 章结尾他刚恢复聚力境一重，脱困仍悬而未决。",
+  "teaserCardWorldview": "设定 · 天钨",
+  "teaserCardWorldviewBody": "能穿透禁制与大阵、遮掩气息、遁入黑暗。丹田虽已修复，重伤未愈：力量有用，危机仍在。",
   "quotaRemaining": "本月还可拆解 {{remaining}} / {{limit}} 次，每次上传或重试用 1 次",
   "quotaExhausted": "本月 {{limit}} 次拆解已用完，将于 {{resetAt}} 恢复。已拆好的内容仍可查看和引用。",
   "quotaResetFallback": "下月 1 日",
@@ -42,7 +42,7 @@
     "selectFile": "选择文件",
     "clickToSelect": "点击选择文件",
     "supportedFormats": "仅支持 .txt，不超过 20MB、30 万字，需要有章节标题（如“第一章”“第一回”）",
-    "trialSupportedFormats": "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 30 万字",
+    "trialSupportedFormats": "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 {{characters}} 字",
     "titleLabel": "小说标题",
     "titlePlaceholder": "留空则使用文件名",
     "uploading": "上传中…",
@@ -53,7 +53,7 @@
       "trialTooLarge": "文件超过 20MB。免费试拆只拆前 {{chapters}} 章，可以只保留前 {{chapters}} 章再上传",
       "tooManyCharacters": "字数超过 30 万，请拆分后再上传",
       "tooManyCharactersCounted": "这本书约 {{wan}} 万字，超过 30 万字上限，请拆分后再上传",
-      "trialTooManyCharacters": "这本书前 {{chapters}} 章就有约 {{wan}} 万字，超过 30 万字上限，请删减后再上传"
+      "trialTooManyCharacters": "这本书前 {{chapters}} 章约有 {{chars}} 字，超过免费试拆 {{limit}} 字的上限。请删减到上限内再上传，或开通 Pro。"
     }
   },
   "deleteConfirm": {
@@ -226,13 +226,15 @@
       "minor": "次要角色"
     }
   },
-  "trialStart": "免费试拆一本（前 {{chapters}} 章）",
-  "trialUploadNote": "免费试拆：整本上传即可，只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
-  "trialUsedBanner": "你已经用过免费试拆（只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
+  "trialStart": "免费试拆前 {{chapters}} 章",
+  "trialUploadNote": "免费试拆每个账号仅 1 次，提交成功后即消耗机会，之后失败或删书都不会恢复。整本上传即可，只拆前 {{chapters}} 章，合计不能超过 {{characters}} 字。",
+  "trialUsedBanner": "你已经用掉免费试拆（每个账号 1 次，只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
   "trialSelectionCut": "这本书共 {{total}} 章，免费试拆只拆前 {{chapters}} 章，后 {{rest}} 章不拆。",
   "trialSelectionAll": "这本书共 {{total}} 章，会全部拆解。",
-  "trialNotUsed": "这次没有用掉免费试拆机会。",
   "trialBookNote": "免费试拆：全书 {{total}} 章，只拆了前 {{chapters}} 章",
-  "trialUsedEmptyTitle": "免费试拆已经用过了",
-  "trialUsedEmptyBody": "开通 Pro 后，每月可以拆解参考小说，每本最多 30 万字；拆出的角色、设定和章节梗概写作时随时引用。"
+  "trialUsedEmptyTitle": "免费试拆已经用掉了",
+  "trialUsedEmptyBody": "开通 Pro 后，每月可以拆解参考小说，每本最多 30 万字；拆出的角色、设定和章节梗概写作时随时引用。",
+  "teaserExampleSource": "拆解示例 ·《九天斩神诀》· 小知了 · 前 3 章",
+  "trialLimits": "每个账号仅 1 次：前 {{chapters}} 章，合计不超过 {{characters}} 字。提交成功后即消耗机会。",
+  "trialIncomplete": "这次试拆没有全部完成，已拆好的内容仍可查看；免费机会不会恢复，开通 Pro 后可以继续拆解。"
 }

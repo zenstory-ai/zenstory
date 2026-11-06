@@ -120,11 +120,12 @@ class QuotaMetricResponse(BaseModel):
 
 
 class MaterialTrialResponse(BaseModel):
-    """素材拆书免费试用：一个账号一本、只拆前 max_chapters 章。"""
+    """素材拆书免费试用：一个账号永久一次，前 max_chapters 章且合计不超过 max_characters 字。"""
 
     available: bool = False
     used: bool = False
     max_chapters: int = 0
+    max_characters: int = 0
 
 
 class QuotaResponse(BaseModel):
@@ -440,6 +441,7 @@ def get_quota(session: Session = Depends(get_session), current_user: User = Depe
             available=trial["available"],
             used=trial["used"],
             max_chapters=trial["max_chapters"],
+            max_characters=trial["max_characters"],
         ),
     )
 

@@ -11,12 +11,22 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
 _legacy_entity_flag_warned = False
+
+
+# 免费试拆的硬上限。配置和任务上记录的值都必须落在 1..上限 内。
+TRIAL_CHAPTER_CEILING = 3
+TRIAL_CHARACTER_CEILING = 15_000
+# 试拆单次调用的输出上限（含 thinking 头寸），合并设定一次可用更高的上限。
+TRIAL_OUTPUT_TOKENS = 4096
+TRIAL_MERGED_OUTPUT_TOKENS = 8192
+# 试拆最多整合的主要角色数（沿用现有的角色权重排序）。
+TRIAL_MAX_CHARACTER_ENTITIES = 5
 
 
 class MaterialSettings(BaseSettings):
@@ -37,11 +47,12 @@ class MaterialSettings(BaseSettings):
     NOVEL_MAX_CHARACTERS: int = 50000  # 单章最大字符数
     # 单次拆解的章节数上限（上传预检与阶段0共用）；超出直接拒绝，不扣额度
     MAX_CHAPTERS_PER_NOVEL: int = 3000
-    # 免费试拆：没有素材库权益的账号可拆一本的前 N 章（一次）。默认关闭：
-    # 阶段0 的章节上限要随 Prefect worker 一起发布，worker 上线后再打开。
-    # 环境变量带 MATERIAL_ 前缀：MATERIAL_TRIAL_ENABLED / MATERIAL_TRIAL_MAX_CHAPTERS。
+    # 免费试拆：没有素材库权益的账号，每个账号永久一次，一本书的前 N 个完整章节。默认关闭：
+    # worker 的校验和成本预留要随 Prefect worker 一起发布，worker 上线后再打开。
+    # 环境变量带 MATERIAL_ 前缀；取值只能在 trial_limits 的范围内收紧，否则试拆不可用。
     TRIAL_ENABLED: bool = False
-    TRIAL_MAX_CHAPTERS: int = 20
+    TRIAL_MAX_CHAPTERS: int = TRIAL_CHAPTER_CEILING
+    TRIAL_MAX_CHARACTERS: int = TRIAL_CHARACTER_CEILING
     MIN_PLOTS_PER_CHAPTER: int = 10
     MAX_PLOTS_PER_CHAPTER: int = 15
     MIN_PLOTS_PER_STORY: int = 3
@@ -94,6 +105,15 @@ class MaterialSettings(BaseSettings):
         extra="ignore",  # 忽略额外的环境变量
     )
 
+    @field_validator("TRIAL_MAX_CHAPTERS", "TRIAL_MAX_CHARACTERS", mode="before")
+    @classmethod
+    def _malformed_trial_limit_closes_the_trial(cls, value: object) -> int:
+        """A bad value must close the trial, not stop the API and worker from starting."""
+        try:
+            return int(str(value))
+        except ValueError:
+            return 0
+
     @model_validator(mode="after")
     def _warn_legacy_entity_flag(self) -> MaterialSettings:
         global _legacy_entity_flag_warned
@@ -106,6 +126,31 @@ class MaterialSettings(BaseSettings):
                 self.ENABLE_ENTITY_EXTRACTION,
             )
         return self
+
+
+@dataclass(frozen=True)
+class TrialLimits:
+    max_chapters: int
+    max_characters: int
+
+
+def validated_trial_limits(max_chapters: object, max_characters: object) -> TrialLimits | None:
+    """The limits when both are integers inside the allowed range, else None (fail closed)."""
+    def in_range(value: object, ceiling: int) -> int | None:
+        valid = isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= ceiling
+        return value if valid else None  # type: ignore[return-value]
+
+    chapters = in_range(max_chapters, TRIAL_CHAPTER_CEILING)
+    characters = in_range(max_characters, TRIAL_CHARACTER_CEILING)
+    if chapters is None or characters is None:
+        return None
+    return TrialLimits(chapters, characters)
+
+
+def trial_limits(settings: MaterialSettings | None = None) -> TrialLimits | None:
+    """Configured trial limits; None means the trial is unavailable."""
+    source = settings or material_settings
+    return validated_trial_limits(source.TRIAL_MAX_CHAPTERS, source.TRIAL_MAX_CHARACTERS)
 
 
 # ============ Effective stage resolution ============

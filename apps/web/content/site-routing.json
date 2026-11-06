@@ -7,7 +7,8 @@
   "previewAppOrigin": "https://app-preview.zenstory.ai",
   "apiFallbackExcludedPaths": [
     "v1/agent/stream",
-    "v1/editor/natural-polish"
+    "v1/editor/natural-polish",
+    "v1/materials/upload"
   ],
   "appPrefixes": [
     "login",

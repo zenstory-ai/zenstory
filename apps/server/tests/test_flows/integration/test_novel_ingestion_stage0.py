@@ -14,7 +14,7 @@ class _FakeSession:
         self._novel = novel
         self.commit_calls = 0
 
-    def get(self, _model_cls, _id):
+    def get(self, _model_cls, _id, **_options):
         return self._novel
 
     def commit(self):

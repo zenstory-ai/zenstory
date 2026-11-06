@@ -338,7 +338,7 @@ def test_every_charging_route_is_excluded_from_the_public_api_fallback():
 
     contract = json.loads((SERVER_ROOT.parents[1] / "apps/web/content/site-routing.json").read_text(encoding="utf-8"))
     excluded = {f"/api/{path}" for path in contract["apiFallbackExcludedPaths"]}
-    assert excluded == {"/api/v1/agent/stream", "/api/v1/editor/natural-polish"}
+    assert excluded == {"/api/v1/agent/stream", "/api/v1/editor/natural-polish", "/api/v1/materials/upload"}
     assert excluded <= {route.path for route in app.routes if "POST" in getattr(route, "methods", ())}
 
 

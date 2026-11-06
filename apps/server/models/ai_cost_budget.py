@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Column
+from sqlalchemy import BigInteger, Boolean, Column, text
 from sqlmodel import Field, SQLModel
 
 
@@ -21,3 +21,7 @@ class AICostReservation(SQLModel, table=True):
     reserved_units: int = Field(sa_column=Column(BigInteger, nullable=False))
     settled_units: int | None = Field(default=None, sa_column=Column(BigInteger, nullable=True))
     started_at: datetime
+    # Which ledgers hold this reservation: the free daily bucket and/or the account's
+    # lifetime material-trial total (usage_quota.material_trial_charged_units).
+    charges_daily: bool = Field(default=True, sa_column=Column(Boolean, nullable=False, server_default=text("true")))
+    charges_trial: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default=text("false")))

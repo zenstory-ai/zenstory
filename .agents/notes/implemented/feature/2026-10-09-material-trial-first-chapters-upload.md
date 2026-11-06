@@ -2,6 +2,8 @@
 
 Status: implemented
 
+后续：退还、章数和字数上限已由 `feature/2026-11-06-material-trial-safe-launch.md` 修改。
+
 本 note 补充 `feature/2026-10-09-material-free-trial.md` 的「上传」和「前端」两条：试拆的字数预检、存储和派发都改为只针对前 `TRIAL_MAX_CHAPTERS` 章。付费整本拆解的 30 万字上限不变。来源：2026-10-09 新用户审计（PR163）P1-5、P2-10、P2-11、P3-10、P3-15。
 
 ## Problem

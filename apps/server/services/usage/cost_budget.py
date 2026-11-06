@@ -5,6 +5,11 @@ Unknown/cancelled calls retain their reservation. The Beijing day and price band
 are fixed at call start, including for calls that finish across midnight. Live
 usage records use that same timestamp. No process-local or Redis fallback can
 bypass this durable budget.
+
+A free material trial also reserves against the account's lifetime total
+(``usage_quota.material_trial_charged_units``), which nothing ever resets. That
+call is identified by its job, not by the account's plan, so upgrading during a
+trial does not lift it.
 """
 
 from __future__ import annotations
@@ -21,10 +26,11 @@ from sqlalchemy import func, text
 from sqlmodel import select
 
 from config.datetime_utils import utcnow
+from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models.ai_cost_budget import AICostDailyBudget, AICostReservation
 from models.llm_usage import LLMUsageEvent, has_usage_tokens
-from models.subscription import SubscriptionPlan, UserSubscription
+from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.usage.pricing import (
     COST_WEIGHTS_BY_VERSION,
     beijing_range_utc,
@@ -37,11 +43,13 @@ from services.usage.pricing import (
 )
 
 FREE_DAILY_BUDGET_UNITS = 1_500_000_000
+MATERIAL_TRIAL_BUDGET_UNITS = 100_000_000  # 1 CNY, per account, for life.
 COST_LIMIT_CODE = "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
 UNAVAILABLE_CODE = "ERR_AI_COST_BUDGET_UNAVAILABLE"
 _attribution: ContextVar[Any] = ContextVar("ai_cost_attribution", default=None)
 _call_started_at: ContextVar[datetime | None] = ContextVar("ai_cost_call_started_at", default=None)
 _call_user_id: ContextVar[str | None] = ContextVar("ai_cost_call_user_id", default=None)
+_trial_output_limit: ContextVar[int | None] = ContextVar("ai_cost_trial_output_limit", default=None)
 
 
 def call_started_at(user_id: str | None = None) -> datetime | None:
@@ -60,6 +68,16 @@ def budget_attribution(attribution: Any):
         yield
     finally:
         _attribution.reset(token)
+
+
+@contextmanager
+def material_trial_call(*, output_limit: int | None):
+    """Model calls inside belong to a free trial job; None means they do not."""
+    token = _trial_output_limit.set(output_limit)
+    try:
+        yield
+    finally:
+        _trial_output_limit.reset(token)
 
 
 def current_user_id() -> str | None:
@@ -153,20 +171,52 @@ class Reservation:
     pricing_version: str | None = None
 
 
+def _commit_reservation(
+    session: Any,
+    user_id: str,
+    day: Any,
+    upper: int,
+    started: datetime,
+    pricing_version: str,
+    quota: UsageQuota | None,
+    *,
+    charges_daily: bool = True,
+) -> Reservation:
+    record = AICostReservation(
+        id=uuid.uuid4().hex,
+        user_id=user_id,
+        day=day,
+        reserved_units=upper,
+        started_at=started,
+        charges_daily=charges_daily,
+        charges_trial=quota is not None,
+    )
+    if quota is not None:
+        quota.material_trial_charged_units += upper
+        session.add(quota)
+    session.add(record)
+    session.commit()
+    return Reservation(record.id, started, pricing_version)
+
+
 def reserve_model_call(
     payload: dict[str, Any], *, user_id: str | None = None, now: datetime | None = None
 ) -> Reservation | None:
     """Atomically reserve worst-case call cost; paid users bypass the free cap."""
     started = naive_utc(now or utcnow())
+    trial_limit = _trial_output_limit.get()
     user_id = user_id or current_user_id()
     _call_started_at.set(started if user_id else None)
     _call_user_id.set(user_id)
     if not user_id:
+        if trial_limit is not None:
+            raise _error(UNAVAILABLE_CODE, 503)
         return None  # Infrastructure calls without a user are not free-user calls.
     try:
         with _factory() as session:
             _begin_locked(session)
-            if _has_non_free_entitlement(session, user_id, started):
+            paid = _has_non_free_entitlement(session, user_id, started)
+            if paid and trial_limit is None:
                 session.rollback()
                 return None
             pricing_version = pricing_version_for_model(payload.get("model"))
@@ -174,6 +224,13 @@ def reserve_model_call(
                 raise _error(UNAVAILABLE_CODE, 503)
             if payload.get("n", 1) != 1:
                 raise _error(UNAVAILABLE_CODE, 503)
+            if trial_limit is not None:
+                # The last step before transport, so failover headroom is covered too.
+                if payload.get("stream"):
+                    raise _error(UNAVAILABLE_CODE, 503)
+                requested = payload.pop("max_completion_tokens", payload.get("max_tokens"))
+                valid = isinstance(requested, int) and not isinstance(requested, bool) and requested > 0
+                payload["max_tokens"] = min(requested, trial_limit) if valid else trial_limit
             maximum = payload.get("max_completion_tokens", payload.get("max_tokens"))
             if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
                 # Set explicit output bound; DeepSeek thinking default can be 64K.
@@ -181,6 +238,21 @@ def reserve_model_call(
                 payload["max_tokens"] = maximum
             upper = cost_units("peak", 0, _input_upper_bound(payload), maximum, pricing_version=pricing_version)
             day = beijing_today(started)
+            quota = None
+            if trial_limit is not None:
+                quota = session.exec(
+                    select(UsageQuota).where(UsageQuota.user_id == user_id).with_for_update()
+                ).first()
+                if quota is None or quota.material_trial_used_at is None:
+                    # A trial job always has its committed mark; without it nothing is provable.
+                    raise _error(UNAVAILABLE_CODE, 503)
+                if quota.material_trial_charged_units + upper > MATERIAL_TRIAL_BUDGET_UNITS:
+                    raise _error(ErrorCode.MATERIAL_TRIAL_COST_LIMIT, 402)
+            if paid:
+                # Upgraded during the trial: only the lifetime total applies.
+                return _commit_reservation(
+                    session, user_id, day, upper, started, pricing_version, quota, charges_daily=False
+                )
             # Portable upsert, then lock this user's day. SQLite has its writer
             # lock already; PostgreSQL locks the inserted/conflicting row.
             session.execute(
@@ -253,13 +325,9 @@ def reserve_model_call(
                     error_code=COST_LIMIT_CODE,
                 )
                 raise _error(COST_LIMIT_CODE, 402)
-            reservation = AICostReservation(
-                id=uuid.uuid4().hex, user_id=user_id, day=day, reserved_units=upper, started_at=started
-            )
             bucket.charged_units += upper
             session.add(bucket)
-            session.add(reservation)
-            session.commit()
+            reservation = _commit_reservation(session, user_id, day, upper, started, pricing_version, quota)
             if initialized:
                 _log_budget(
                     "AI free daily cost budget initialized",
@@ -268,7 +336,7 @@ def reserve_model_call(
                     charged_units=seed_units,
                     historical_rows=len(historical),
                 )
-            return Reservation(reservation.id, started, pricing_version)
+            return reservation
     except APIException:
         raise
     except Exception as exc:
@@ -308,17 +376,25 @@ def settle_model_call(reservation: Reservation | None, usage: Any) -> None:
             record = session.exec(
                 select(AICostReservation).where(AICostReservation.id == reservation.id).with_for_update()
             ).one()
-            bucket = session.exec(
-                select(AICostDailyBudget)
-                .where(AICostDailyBudget.user_id == record.user_id, AICostDailyBudget.day == record.day)
-                .with_for_update()
-            ).one()
             if record.settled_units is not None:
                 return
             # A provider violating the upper bound must never refund overspend.
-            bucket.charged_units += actual - record.reserved_units
+            difference = actual - record.reserved_units
+            if record.charges_trial:
+                quota = session.exec(
+                    select(UsageQuota).where(UsageQuota.user_id == record.user_id).with_for_update()
+                ).one()
+                quota.material_trial_charged_units += difference
+                session.add(quota)
+            if record.charges_daily:
+                bucket = session.exec(
+                    select(AICostDailyBudget)
+                    .where(AICostDailyBudget.user_id == record.user_id, AICostDailyBudget.day == record.day)
+                    .with_for_update()
+                ).one()
+                bucket.charged_units += difference
+                session.add(bucket)
             record.settled_units = actual
-            session.add(bucket)
             session.add(record)
             session.commit()
     except Exception:

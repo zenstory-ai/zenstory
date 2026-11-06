@@ -80,7 +80,7 @@ export default function MaterialsPage() {
   );
   const hasWorkspaceAccess = materialsAccess === true;
 
-  // The quota also carries the free trial (one book, first N chapters), so free
+  // The quota also carries the free trial (once per account, first N chapters), so free
   // authors need it too.
   const {
     data: quota,
@@ -92,6 +92,7 @@ export default function MaterialsPage() {
   });
   const materialTrial = quota?.material_trial;
   const trialAvailable = materialsAccess === false && materialTrial?.available === true;
+  const trialCharacterLimit = (materialTrial?.max_characters ?? 0).toLocaleString("en-US");
   // A free author who used the trial reads their trial book in the library.
   const trialUsed = materialsAccess === false && materialTrial?.used === true;
   const canReadLibrary = hasWorkspaceAccess || trialUsed;
@@ -280,6 +281,7 @@ export default function MaterialsPage() {
       // A free trial only checks and uploads the first chapters of the book.
       const prepared = await prepareMaterialUpload(selectedFile, t, {
         trialMaxChapters: trialAvailable ? materialTrial?.max_chapters : null,
+        trialMaxCharacters: trialAvailable ? materialTrial?.max_characters : null,
       });
       if (prepared.error !== null) {
         setFile(null);
@@ -322,13 +324,10 @@ export default function MaterialsPage() {
     } catch (err) {
       const message = resolveMaterialUploadErrorMessage(err, t, t("materials:uploadError"));
       setError(message);
-      if (uploadingWithTrial && !(err instanceof ApiError && err.errorCode === "ERR_FEATURE_NOT_INCLUDED")) {
-        // Failed trial uploads give the trial back; say so once the quota confirms it.
-        void confirmTrialStillAvailable().then((available) => {
-          if (!available) return;
-          const note = t("materials:trialNotUsed", { defaultValue: "这次没有用掉免费试拆机会。" });
-          setError((current) => (current === message ? `${message} ${note}` : current));
-        });
+      if (uploadingWithTrial) {
+        // A failure after the trial was committed leaves a used trial and a failed book.
+        queryClient.invalidateQueries({ queryKey: ["materials"] });
+        queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
       }
       if (err instanceof ApiError && err.errorCode === "ERR_FEATURE_NOT_INCLUDED") {
         trackEvent("materials_upload_blocked_free", {
@@ -344,19 +343,6 @@ export default function MaterialsPage() {
       }
     } finally {
       setUploading(false);
-    }
-  };
-
-  const confirmTrialStillAvailable = async (): Promise<boolean> => {
-    try {
-      const fresh = await queryClient.fetchQuery({
-        queryKey: subscriptionQueryKeys.quota(),
-        queryFn: () => subscriptionApi.getQuota(),
-        staleTime: 0,
-      });
-      return fresh?.material_trial?.available === true;
-    } catch {
-      return false;
     }
   };
 
@@ -485,48 +471,62 @@ export default function MaterialsPage() {
               {!trialAvailable && (
               <p data-testid="materials-free-try" className="text-sm text-[hsl(var(--text-secondary))]">
                 {t("materials:teaserFreeTry", {
-                  defaultValue: "免费版也可以先试：在作品的对话里贴一章参考正文，让 AI 拆人物、节奏和爽点。素材库会把整本自动拆好，写作时随时引用。",
+                  defaultValue: "素材库免费试拆暂未开放。开通 Pro 后，可上传参考小说自动拆解，并在写作时引用拆解结果。",
                 })}
               </p>
               )}
-              <div className="grid gap-3 pt-2 md:grid-cols-3">
+              <p data-testid="materials-example-source" className="pt-2 text-xs text-[hsl(var(--text-tertiary))]">
+                {t("materials:teaserExampleSource", {
+                  defaultValue: "拆解示例 ·《九天斩神诀》· 小知了 · 前 3 章",
+                })}
+              </p>
+              <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
                   <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
                     {t("materials:teaserCardCharacter", {
-                      defaultValue: "角色拆解示例",
+                      defaultValue: "角色 · 秦月儿",
                     })}
                   </div>
                   <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
                     {t("materials:teaserCardCharacterBody", {
-                      defaultValue: "林舟 · 导师型配角 · 首次出场第 3 章",
+                      defaultValue: "林辰的未婚妻，却选择入宗机会与力量：探狱时撕下伪装，向落难的林辰索取唯一的入宗信物青玄令。",
                     })}
                   </p>
                 </div>
                 <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
                   <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
                     {t("materials:teaserCardSynopsis", {
-                      defaultValue: "章节梗概示例",
+                      defaultValue: "章节梗概 · 前 3 章",
                     })}
                   </div>
                   <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
                     {t("materials:teaserCardSynopsisBody", {
-                      defaultValue: "第 3 章：林舟入宗门试炼，暗中护住主角，身份险些暴露",
+                      defaultValue: "少帅林辰蒙冤待斩 → 玉佩带来重修机会 → 未婚妻摊牌索要信物。第 3 章结尾他刚恢复聚力境一重，脱困仍悬而未决。",
                     })}
                   </p>
                 </div>
                 <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
                   <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
                     {t("materials:teaserCardWorldview", {
-                      defaultValue: "世界观拆解示例",
+                      defaultValue: "设定 · 天钨",
                     })}
                   </div>
                   <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
                     {t("materials:teaserCardWorldviewBody", {
-                      defaultValue: "灵脉阶层、宗门辖区、禁术代价",
+                      defaultValue: "能穿透禁制与大阵、遮掩气息、遁入黑暗。丹田虽已修复，重伤未愈：力量有用，危机仍在。",
                     })}
                   </p>
                 </div>
               </div>
+              {trialAvailable && (
+                <p data-testid="materials-trial-limits" className="pt-2 text-sm text-[hsl(var(--text-secondary))]">
+                  {t("materials:trialLimits", {
+                    defaultValue: "每个账号仅 1 次：前 {{chapters}} 章，合计不超过 {{characters}} 字。提交成功后即消耗机会。",
+                    chapters: materialTrial?.max_chapters,
+                    characters: trialCharacterLimit,
+                  })}
+                </p>
+              )}
               <div className="flex flex-wrap gap-3 pt-2">
                 {trialAvailable && (
                   <Button
@@ -538,7 +538,7 @@ export default function MaterialsPage() {
                     }}
                   >
                     {t("materials:trialStart", {
-                      defaultValue: "免费试拆一本（前 {{chapters}} 章）",
+                      defaultValue: "免费试拆前 {{chapters}} 章",
                       chapters: materialTrial?.max_chapters,
                     })}
                   </Button>
@@ -606,9 +606,16 @@ export default function MaterialsPage() {
             >
               <p className="flex-1 min-w-0 text-sm text-[hsl(var(--text-primary))]">
                 {t("materials:trialUsedBanner", {
-                  defaultValue: "你已经用过免费试拆（只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
+                  defaultValue: "你已经用掉免费试拆（每个账号 1 次，只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
                   chapters: materialTrial?.max_chapters,
                 })}
+                {materials.some((material) => material.status === "failed" || material.status === "completed_with_errors") && (
+                  <span data-testid="materials-trial-incomplete" className="mt-1 block text-[hsl(var(--text-secondary))]">
+                    {t("materials:trialIncomplete", {
+                      defaultValue: "这次试拆没有全部完成，已拆好的内容仍可查看；免费机会不会恢复，开通 Pro 后可以继续拆解。",
+                    })}
+                  </span>
+                )}
               </p>
               <Button size={actionSize} onClick={() => openUpgradePath("billing")}>
                 {proEntry.label}
@@ -708,8 +715,9 @@ export default function MaterialsPage() {
         {trialAvailable && (
           <p data-testid="materials-trial-upload-note" className="mb-4 text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:trialUploadNote", {
-              defaultValue: "免费试拆：整本上传即可，只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
+              defaultValue: "免费试拆每个账号仅 1 次，提交成功后即消耗机会，之后失败或删书都不会恢复。整本上传即可，只拆前 {{chapters}} 章，合计不能超过 {{characters}} 字。",
               chapters: materialTrial?.max_chapters,
+              characters: trialCharacterLimit,
             })}
           </p>
         )}
@@ -752,8 +760,9 @@ export default function MaterialsPage() {
                   <p className="text-xs text-[hsl(var(--text-tertiary))]">
                     {trialAvailable
                       ? t("materials:uploadModal.trialSupportedFormats", {
-                          defaultValue: "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 30 万字",
+                          defaultValue: "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 {{characters}} 字",
                           chapters: materialTrial?.max_chapters,
+                          characters: trialCharacterLimit,
                         })
                       : t("materials:uploadModal.supportedFormats")}
                   </p>
