@@ -58,6 +58,7 @@ from .file_version import (
     VERSION_BASE_INTERVAL,
     FileVersion,
 )
+from .free_ai_network_quota import FreeAINetworkReservation
 from .inspiration import Inspiration
 from .llm_usage import LLMUsageEvent
 from .material_models import (
@@ -123,6 +124,7 @@ from .workspace_onboarding import WorkspaceOnboarding
 __all__ = [
     "AICostDailyBudget",
     "AICostReservation",
+    "FreeAINetworkReservation",
     "AnnouncementConfig",
     # Entities
     "User",

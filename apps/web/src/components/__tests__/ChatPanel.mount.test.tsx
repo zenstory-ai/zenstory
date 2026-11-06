@@ -73,6 +73,8 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:starter.quota': '今天还能免费发 {{count}} 条',
   'chat:panel.quotaExceededTitle': '今天的免费 AI 消息用完了',
   'chat:panel.quotaExceededHint': '北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。',
+  'chat:panel.networkQuotaExceededTitle': '当前网络今日免费体验额度已用完',
+  'chat:panel.networkQuotaExceededHint': '请明天再试（北京时间 00:00 恢复），或开通 Pro 接着写。写好的内容会留在输入框里。',
   'chat:panel.notCharged': '这一轮没有改动文件，不计入今日 AI 消息。',
   'chat:panel.notChargedError': '这次出错不计入今日 AI 消息。',
   'chat:panel.notChargedStopped': '已停止，这一轮还没有写出内容，不计入今日 AI 消息。',
@@ -2820,6 +2822,73 @@ describe('ChatPanel new-author flow', () => {
 
     expect(mockDraft.saveDraft).toHaveBeenCalledTimes(1)
     expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章\n\n再补一句：主角怕水')
+  })
+
+  describe('a round the server refused because the network allowance is used up', () => {
+    const code = 'ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED'
+    const copy = '当前网络今日免费体验额度已用完，请明天再试或升级。'
+
+    const refuse = () => act(() => {
+      mockAgentStreamState.error = copy
+      mockAgentStreamState.errorCode = code
+      mockAgentStreamState.retryable = false
+      streamOptions().onError(copy, code, false)
+    })
+
+    afterEach(() => {
+      mockAgentStreamState.error = null
+      mockAgentStreamState.errorCode = null
+      mockAgentStreamState.retryable = false
+    })
+
+    it('explains neutrally, returns the words, offers upgrade, and keeps sending available', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', ['skill-1'])
+      })
+      expect(mockStartStream).toHaveBeenCalledTimes(1)
+      refuse()
+
+      const panel = await screen.findByRole('alert')
+      expect(panel).toHaveTextContent('当前网络今日免费体验额度已用完')
+      expect(panel).toHaveTextContent('请明天再试')
+      expect(panel).not.toHaveTextContent(/\d+\s*条|\d+\s*个账号|¥|成本|预算|作弊|滥用/)
+      // It says nothing about this account's own messages, and shows no used-up-account card.
+      expect(screen.queryByTestId('chat-quota-card')).not.toBeInTheDocument()
+      expect(screen.queryByText('今天的免费 AI 消息用完了')).not.toBeInTheDocument()
+      expect(within(panel).queryByRole('button', { name: 'common:retry' })).not.toBeInTheDocument()
+      expect(within(panel).getByRole('button', { name: '升级专业版' })).toBeInTheDocument()
+      // The words come back; the server decides the next send (the author may change networks).
+      expect(lastMessageInputProps().refusedSend).toEqual(expect.objectContaining({ message: '写第二章', skillIds: ['skill-1'] }))
+      expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(false)
+      expect(lastMessageInputProps().onBlockedSend).toBeUndefined()
+      expect(mockStartStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the refusal at the next Beijing midnight', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      try {
+        vi.setSystemTime(new Date('2026-10-09T15:59:58Z'))
+        render(<ChatPanel />)
+        await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+        await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+        await act(async () => {
+          await lastMessageInputProps().onSend('写第二章', [])
+        })
+        refuse()
+        expect(await screen.findByRole('alert')).toBeInTheDocument()
+        mockClearError.mockClear()
+        await act(async () => {
+          vi.advanceTimersByTime(3000)
+        })
+        expect(mockClearError).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('a round the server refused because the account is busy', () => {

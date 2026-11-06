@@ -9,16 +9,18 @@ from typing import Any
 from sqlalchemy import update
 from sqlmodel import Session, col, func, select
 
-from config.datetime_utils import BEIJING_TIMEZONE, beijing_day_bounds, normalize_datetime_to_utc, utcnow
+from config.datetime_utils import BEIJING_TIMEZONE, beijing_date, beijing_day_bounds, normalize_datetime_to_utc, utcnow
 from models.entities import Project, User
 from models.skill import UserSkill
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.subscription.defaults import (
     DEFAULT_FREE_PLAN_DISPLAY_NAME,
     DEFAULT_FREE_PLAN_DISPLAY_NAME_EN,
+    DEFAULT_FREE_PLAN_NAME,
     clone_default_free_features,
     resolve_plan_feature,
 )
+from services.usage import free_ai_network_quota
 
 # Feature type to (limit_field, used_field) mapping
 FEATURE_QUOTA_MAP = {
@@ -414,12 +416,23 @@ class QuotaService:
         """Consume a daily unit; use reserve_ai_conversation when it may be refunded."""
         return self.reserve_ai_conversation(session, user_id) is not None
 
-    def reserve_ai_conversation(self, session: Session, user_id: str) -> datetime | None:
+    def reserve_ai_conversation(
+        self,
+        session: Session,
+        user_id: str,
+        *,
+        client_ip: str | None = None,
+        reservation_id: str | None = None,
+    ) -> datetime | None:
         """
         Increment AI conversation count and return the charged day's UTC start.
 
         The period comes from the same atomic UPDATE as the charge, rather than
-        the request/response timestamp. None means the quota was exceeded.
+        the request/response timestamp. None means the account's quota was exceeded.
+
+        With a reservation_id (every request entry passes one), a free account also
+        claims its network's shared allowance in the same transaction; a refusal rolls
+        the account charge back and raises FreeNetworkQuotaExceeded.
         """
         plan = self.get_user_plan(session, user_id)
         limit = self.get_ai_conversation_limit(plan)
@@ -441,11 +454,34 @@ class QuotaService:
             session.rollback()
             return None
 
+        charged_period = normalize_datetime_to_utc(period_start)
+        claims_network_share = reservation_id is not None and plan.name == DEFAULT_FREE_PLAN_NAME
+        charged_day = beijing_date(charged_period)
+        if claims_network_share:
+            try:
+                free_ai_network_quota.claim_network_share(
+                    session,
+                    reservation_id=reservation_id,
+                    user_id=user_id,
+                    client_ip=client_ip,
+                    day=charged_day,
+                )
+            except Exception:
+                session.rollback()
+                raise
+
         session.commit()
-        return normalize_datetime_to_utc(period_start)
+        if claims_network_share:
+            free_ai_network_quota.purge_expired_reservations(session, today=charged_day)
+        return charged_period
 
     def release_ai_conversation(
-        self, session: Session, user_id: str, *, period_start: datetime | None = None
+        self,
+        session: Session,
+        user_id: str,
+        *,
+        period_start: datetime | None = None,
+        reservation_id: str | None = None,
     ) -> bool:
         """
         Decrement AI conversation count atomically as a compensation action.
@@ -453,10 +489,23 @@ class QuotaService:
         Returns True if one unit was refunded, False when there is nothing to refund
         or the target row does not exist. A reservation's period_start prevents
         a failed request from refunding another day's usage after midnight.
+
+        A reservation_id makes the refund idempotent and frees the network share in the
+        same transaction: only its owner's first call changes anything. A refund that
+        arrives after midnight frees yesterday's share and returns False.
         """
         quota = self._get_or_create_quota(session, user_id)
         self._reset_quota_if_needed(session, quota)
         session.refresh(quota)
+
+        share_released: bool | None = None
+        if reservation_id is not None:
+            share_released = free_ai_network_quota.mark_released(
+                session, reservation_id=reservation_id, user_id=user_id
+            )
+            if share_released is False:
+                session.rollback()
+                return False
 
         query = (
             update(UsageQuota)
@@ -469,7 +518,10 @@ class QuotaService:
 
         result = session.exec(query)
         if result.rowcount == 0:
-            session.rollback()
+            if share_released:
+                session.commit()
+            else:
+                session.rollback()
             return False
 
         session.commit()

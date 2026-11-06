@@ -97,7 +97,7 @@ agent/
 
 1. `apps/server/api/agent.py` 的 `POST /api/v1/agent/stream`：鉴权、项目权限（`verify_project_access`）、按用户限流、
    会话忙预检、额度预检、原子获取账号任务名额（`core/account_run_limit.py`，每账号最多 2 个，见下）、
-   预扣一次 AI 对话额度；用 `SSEStreamPump` 包住 `AgentService.process_stream`，`StreamBillingTracker` 记账每一帧。
+   预扣一次 AI 对话额度（免费账号同时占用客户端网络的共享额度，同一事务，运行 id 即预约 id，退还幂等；网络额度用完时 402 `ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED`）；用 `SSEStreamPump` 包住 `AgentService.process_stream`，`StreamBillingTracker` 记账每一帧。
    同文件还有 `/stop`（作者停止）、`/steer`（运行中插话）、`/suggest`、`/health`。新增会触发 LLM 的端点必须同时有
    鉴权 + 项目权限 + 成本上限 + 按用户限流（见该文件模块 docstring）。
 2. `AgentService.process_stream`（`service.py`）：`SessionLoader` 按本轮已解析的会话 id（`chat_session_id`，不是重新挑最新活跃会话）取历史与跨轮工作集，`ContextAssembler` 组装上下文，

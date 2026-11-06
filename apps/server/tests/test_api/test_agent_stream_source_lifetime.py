@@ -8,8 +8,12 @@ from uuid import uuid4
 
 import pytest
 
+from starlette.requests import Request
+
 import api.agent as agent_api
 from models import Project, User
+
+_SYNTHETIC_REQUEST = Request({"type": "http", "headers": []})
 
 
 @pytest.mark.asyncio
@@ -41,6 +45,7 @@ async def test_stream_body_close_reaches_inner_source(db_session, monkeypatch, r
     with monkeypatch.context() as overrides:
         overrides.setattr(agent_api, "get_agent_service", SyntheticProviderService)
         response = await agent_api.stream_request(
+            _SYNTHETIC_REQUEST,
             agent_api.AgentRequest(project_id=project_id, message="Local source fixture"),
             session=db_session, current_user=user, accept_language="zh", _rate_limit=0,
         )

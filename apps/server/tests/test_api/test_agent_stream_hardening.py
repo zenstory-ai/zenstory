@@ -9,6 +9,8 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
+from starlette.requests import Request
+
 import api.agent as agent_api
 from models import Project, User
 from services.core.auth_service import hash_password
@@ -16,6 +18,8 @@ from services.core.auth_service import hash_password
 _CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 # 真正的回复正文（超过一句过渡旁白的长度），停止 / 断线时算产出。
 _PROSE = "第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"
+
+_SYNTHETIC_REQUEST = Request({"type": "http", "headers": []})
 
 
 async def _login_with_project(client: AsyncClient, db_session) -> tuple[str, Project, User]:
@@ -159,6 +163,7 @@ async def test_offloaded_refund_preserves_charged_period(db_session):
             db_session,
             "user-1",
             _CHARGED_PERIOD,
+            "synthetic-run",
             billing_reason="internal_error",
         )
 
@@ -167,6 +172,7 @@ async def test_offloaded_refund_preserves_charged_period(db_session):
         agent_api._release_ai_conversation_sync,
         "user-1",
         _CHARGED_PERIOD,
+        "synthetic-run",
     )
 
 
@@ -389,6 +395,7 @@ async def test_generator_exit_disconnect_refunds_only_rounds_without_output(
         patch("api.agent.log_with_context") as log_spy,
     ):
         response = await agent_api.stream_request(
+            _SYNTHETIC_REQUEST,
             body=body,
             session=db_session,
             current_user=user,
@@ -441,6 +448,7 @@ async def test_author_stop_ends_run_on_open_stream_and_settles_billing(
         patch("api.agent.log_with_context") as log_spy,
     ):
         response = await agent_api.stream_request(
+            _SYNTHETIC_REQUEST,
             body=body,
             session=db_session,
             current_user=user,
@@ -503,6 +511,7 @@ async def test_stop_request_for_another_users_run_does_not_stop_it(client: Async
         patch("api.agent.quota_service.release_ai_conversation", return_value=True),
     ):
         response = await agent_api.stream_request(
+            _SYNTHETIC_REQUEST,
             body=body,
             session=db_session,
             current_user=owner,
@@ -556,6 +565,7 @@ async def test_billing_log_line_carries_run_summary(client: AsyncClient, db_sess
         patch("api.agent.log_with_context") as log_spy,
     ):
         response = await agent_api.stream_request(
+            _SYNTHETIC_REQUEST,
             body=body,
             session=db_session,
             current_user=user,
@@ -630,6 +640,7 @@ async def _stream(
     # 默认是认识停止约定的新前端（带 X-Client-Stop-Contract: 1）。
     body = agent_api.AgentRequest(project_id=str(project.id), message="写第一章")
     return await agent_api.stream_request(
+        _SYNTHETIC_REQUEST,
         body=body,
         session=db_session,
         current_user=user,
@@ -2025,6 +2036,7 @@ async def test_server_drain_ends_a_running_stream_with_a_restart_terminal(
         patch("api.agent.log_with_context") as log_spy,
     ):
         response = await agent_api.stream_request(
+            _SYNTHETIC_REQUEST,
             body=body,
             session=db_session,
             current_user=user,
@@ -2082,6 +2094,7 @@ async def test_deadline_hands_the_resumable_stop_reason_to_the_cancelled_run(
         patch("api.agent.quota_service.release_ai_conversation", return_value=True),
     ):
         response = await agent_api.stream_request(
+            _SYNTHETIC_REQUEST,
             body=body, session=db_session, current_user=user, accept_language=None, _rate_limit=0
         )
         iterator = response.body_iterator
