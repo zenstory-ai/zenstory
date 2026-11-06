@@ -36,6 +36,7 @@ from database import get_session
 from middleware.rate_limit import get_client_ip
 from models import ACTIVATION_EVENT_SIGNUP_SUCCESS, RefreshTokenRecord, User
 from models.referral import InviteCode
+from services.core.registration_email_policy import is_registration_email_blocked
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
 from services.subscription.subscription_service import subscription_service
@@ -601,6 +602,13 @@ async def google_oauth_callback(
             email=google_email,
             username=google_name,
         )
+
+        if is_registration_email_blocked(google_email):
+            log_with_context(logger, logging.INFO, "registration_email_domain_blocked", entry="google_oauth")
+            return _redirect_to_frontend_register(
+                error_code=ErrorCode.AUTH_EMAIL_DOMAIN_NOT_ALLOWED,
+                redirect=redirect_from_state,
+            )
 
         invite_code_optional, invite_policy_variant, invite_policy_rollout_percent = (
             _resolve_registration_invite_policy(

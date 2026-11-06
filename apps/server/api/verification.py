@@ -26,6 +26,7 @@ from core.i18n import get_accept_language
 from core.messages import get_message
 from database import get_session
 from models import RefreshTokenRecord, User
+from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features.referral_service import complete_pending_referral_for_invitee
 from services.features.user_preference_service import get_ui_language
 from services.infra.email_client import InvalidRecipientError
@@ -63,6 +64,9 @@ async def verify_email(
     - Distributes referral rewards if applicable
     """
     normalized_email = normalize_email_identity(str(request.email))
+    # Finishing verification is what completes a signup, so an earlier code cannot get past
+    # the rule. Same answer for any account state on the domain.
+    ensure_registration_email_allowed(normalized_email, entry="verify_email")
 
     log_with_context(
         logger,
@@ -205,6 +209,8 @@ async def resend_verification(
     - Sends new verification code
     """
     normalized_email = normalize_email_identity(str(request.email))
+    # Verified accounts get no mail here anyway, so refusing every state reveals nothing.
+    ensure_registration_email_allowed(normalized_email, entry="resend_verification")
 
     # Keep address ownership stable until sending finishes. A correction must
     # invalidate this code before releasing the old unique email address.
