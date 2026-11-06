@@ -15,7 +15,7 @@ Status: implemented
 - **退还**：`release_ai_conversation` 接收 `reservation_id`，用带 `user_id` 和 `released_at IS NULL` 条件的 `UPDATE` 标记释放，和账号减扣同一事务。重复结算或别的账号拿这个 id 都不改任何计数。账号在这个网络当天的最后一条被退还后，名额随之让出，因为它实际没有用到 AI。午夜后才到的退还释放旧日预约、不动新一天的账号计数，并返回 False（与既有语义一致）。
 - **中断与重启**：与账号额度完全一致，没有独立的恢复任务。优雅退出沿用既有后台退还任务的等待；进程被杀时账号扣减和网络占用都保留到当天结束，一起在北京午夜失效。两者同一事务写入，不会只有一边生效。
 - **Redis 故障**：这条规则不依赖 Redis，Redis 故障不改变判定，也没有降级路径。数据库故障时预扣抛错，请求失败且不调用模型，与账号预扣相同。退还失败沿用既有 WARNING，额度到午夜恢复。
-- **可信 IP**：只用 `get_client_ip`（CF 来源校验、`TRUSTED_PROXY_HOPS`，见 [信任边界决策](../architecture/2026-10-05-client-ip-trust-boundary.md)），请求自带的 `X-Forwarded-For` 前缀不影响结果。入库的是以 `JWT_SECRET_KEY` 为密钥的 HMAC，日志只记前 12 位，不存原始 IP。IPv4 映射地址按 IPv4 算；IPv6 按 /64 算，因为一个用户通常持有整个 /64，可以在其中随意换地址。6to4 和 Teredo 地址由客户端自选，按内嵌的公网 IPv4 算；内嵌的不是公网地址时按地址本身算，不走跳过路径。
+- **可信 IP**：只用 `get_client_ip`（CF 来源校验、`TRUSTED_PROXY_HOPS`，见 [信任边界决策](../architecture/2026-10-05-client-ip-trust-boundary.md)和 [Railway 实测](../architecture/2026-11-06-railway-client-ip-two-hops.md)），请求自带的 `X-Forwarded-For` 前缀不影响结果。入库的是以 `JWT_SECRET_KEY` 为密钥的 HMAC，日志只记前 12 位，不存原始 IP。IPv4 映射地址按 IPv4 算；IPv6 按 /64 算，因为一个用户通常持有整个 /64，可以在其中随意换地址。6to4 和 Teredo 地址由客户端自选，按内嵌的公网 IPv4 算；内嵌的不是公网地址时按地址本身算，不走跳过路径。
 - **缺失或不可用的 IP**：`unknown`、非法值、内网/回环等非公网地址不构成客户端网络，跳过网络规则，只保留账号 3 条和成本兜底，记 WARNING `free_ai_network_limit_skipped`。行仍然写入（`ip_key` 为 NULL），退还同样幂等。
 - **Pro**：沿用 `get_user_plan`；非 `free` 套餐不写表、不计数。到期的 Pro 回到免费后受规则约束。
 - **保留期**：只有当天预约需要退还，其余为余量；每个进程每天最多清理一次 7 天前的行，失败只记 WARNING，不影响本次扣减。
@@ -37,9 +37,8 @@ Status: implemented
 - 代价：学校、公司、CGNAT 等共享出口的用户可能在账号未用完时被拒，这是已确认的产品取舍。换网络可以绕过，规则不是身份校验。每条免费消息多一次锁、一次统计和一次插入；退还多一次更新。
 - **上线前置条件**：
   - 先在目标环境执行迁移 `20261105_120000` 再发布服务端，否则免费用户预扣报错、AI 不可用。
-  - 确认 `TRUSTED_PROXY_HOPS` / `CLIENT_IP_CLOUDFLARE` 和实际拓扑一致。如果所有请求都解析成同一个公网代理地址（例如加了一层未配置的代理、Cloudflare 网段过期），全站免费用户会共用 9 条。解析成内网地址时规则跳过，可以从 WARNING 发现。
-  - **公开的 `/api` 回退改写是第二条路径**：`apps/web/vercel.json` 把 `app.zenstory.ai/api/*` 无条件转发到生产 API。经它到达时最右的 XFF 是 Vercel 出口地址（`TRUSTED_PROXY_HOPS=1`），作者不用换网络、只换域名就能进入另一个桶，也可能和同路径的其他人共用一个桶。不能把 hops 改成 2，那样直连请求可以伪造 XFF。上线前先核对生产构建直连 API（`VITE_API_BASE_URL`），再决定移除或收窄这条改写。这次没有改动路由。
-  - 在已授权的 staging 上实测 Railway 边缘：单行和两行 `X-Forwarded-For` 分别到达应用时的原始内容和解析结果。`get_client_ip` 只读第一行；如果边缘保留客户端的独立一行，就要按实测顺序读 `getlist`。公开资料不足以确定这一点，代码暂未改动。
+  - 托管环境必须设置 `TRUSTED_PROXY_HOPS=2`，并让生产回退改写排除计费入口，见 [Railway 实测记录](../architecture/2026-11-06-railway-client-ip-two-hops.md)。默认值 1 在 Railway 上取到的是边缘地址，会让全站免费账号共用额度。
+  - 上线后用已知出口地址比对 `client_host`，确认解析到真实客户端。
   - `JWT_SECRET_KEY` 轮换会让当天已有的网络计数失效，只影响当天，方向是多放行。
 - 账号行锁和网络锁都只在预扣事务内持有，不跨模型调用。
 - 已知缺口：收尾说明里的「回复继续」只看账号额度，网络已满时作者回复后会收到这条提示，不扣额。`/suggest`、素材入口等不占 AI 消息的成本不在此规则内。

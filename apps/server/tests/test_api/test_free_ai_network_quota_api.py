@@ -280,6 +280,37 @@ async def test_reading_is_not_limited_on_a_full_network(client: AsyncClient, db_
     assert response.status_code == 200
 
 
+@pytest.mark.integration
+async def test_railway_chain_counts_the_client_behind_any_edge_address(client: AsyncClient, db_session, monkeypatch):
+    """Railway 的链路是「客户端, 边缘」：不同边缘地址上的同一客户端共用额度，不同客户端互不影响。"""
+    monkeypatch.setenv("TRUSTED_PROXY_HOPS", "2")
+    with patch(
+        "api.editor.natural_polish_service.natural_polish",
+        new=AsyncMock(return_value=NaturalPolishResult(polished_text="改写后", model="test-model")),
+    ):
+        for index in range(3):
+            token, _user, project = await _member(client, db_session)
+            response = await _polish(client, token, project, forwarded=f"{IP}, 84.17.44.{225 + index}")
+            assert response.status_code == 200
+        token, user, project = await _member(client, db_session)
+        same_client = await _polish(client, token, project, forwarded=f"{IP}, 84.17.44.229")
+        other_client = await _polish(client, token, project, forwarded="93.184.216.99, 84.17.44.225")
+    assert same_client.status_code == 402
+    assert same_client.json()["error_code"] == CODE
+    assert other_client.status_code == 200
+    assert _used(db_session, user) == 1
+
+
+def test_every_charging_route_is_excluded_from_the_public_api_fallback():
+    """生产 /api 回退经 Vercel 轮换出口到达，新的计费入口必须同时加入排除清单。"""
+    from main import app
+
+    contract = json.loads((SERVER_ROOT.parents[1] / "apps/web/content/site-routing.json").read_text(encoding="utf-8"))
+    excluded = {f"/api/{path}" for path in contract["apiFallbackExcludedPaths"]}
+    assert excluded == {"/api/v1/agent/stream", "/api/v1/editor/natural-polish"}
+    assert excluded <= {route.path for route in app.routes if "POST" in getattr(route, "methods", ())}
+
+
 def test_every_production_charge_passes_the_network_identity():
     """新入口如果直接预扣却不带网络信息，这里会失败。"""
     calls = []

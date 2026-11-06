@@ -130,9 +130,18 @@ gh workflow run e2e.yml --ref main -f expected_source_sha=<exact-main-sha> -f su
 
 The web routing contract sends `/api/*` on `geo-preview.zenstory.ai`,
 `app-preview.zenstory.ai`, and Vercel preview hosts to the preview API origin.
-All other hosts keep the production API fallback. Replace the checked-in
+All other hosts keep the production API fallback, except the paths in
+`apiFallbackExcludedPaths` (`apps/web/content/site-routing.json`): requests through
+it reach the API from Vercel's rotating egress addresses, so entries charged per
+client network must not use it. Replace the checked-in
 preview API origin only after its stable Railway domain has been assigned and
 verified.
+
+Hosted API services set `TRUSTED_PROXY_HOPS=2`; on Railway the client is the second
+entry from the right. After a release or platform change, send a synthetic
+unauthenticated request from a source with a known exit address and compare it with
+`client_host` in the API log, including a forged `X-Forwarded-For`
+([measurements](../../.agents/notes/implemented/architecture/2026-11-06-railway-client-ip-two-hops.md)).
 
 This repository contract does not prove that either provider has switched its
 production branch or isolated every staging resource. Until authenticated

@@ -5,6 +5,10 @@
   "previewApiOrigin": "https://staging-api-staging-a289.up.railway.app",
   "previewSiteOrigin": "https://geo-preview.zenstory.ai",
   "previewAppOrigin": "https://app-preview.zenstory.ai",
+  "apiFallbackExcludedPaths": [
+    "v1/agent/stream",
+    "v1/editor/natural-polish"
+  ],
   "appPrefixes": [
     "login",
     "register",

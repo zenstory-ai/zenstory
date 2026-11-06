@@ -1,6 +1,6 @@
 # Agent Note: 客户端 IP 只信任代理追加的那一段，Cloudflare 头需经来源校验
 
-Status: implemented
+Status: implemented（Railway 拓扑的事实已由 [2026-11-06 实测记录](2026-11-06-railway-client-ip-two-hops.md)修正：托管环境应为 `TRUSTED_PROXY_HOPS=2`）
 
 ## Problem
 

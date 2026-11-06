@@ -746,7 +746,7 @@
       ]
     },
     {
-      "source": "/:path(api(?:/.*)?)",
+      "source": "/:path(api(?!/(?:v1/agent/stream|v1/editor/natural-polish)(?:/|$))(?:/.*)?)",
       "destination": "https://api.zenstory.ai/:path"
     },
     {

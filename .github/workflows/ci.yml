@@ -361,6 +361,7 @@ jobs:
           tests/test_services/test_admin_roles_postgres.py \
           tests/test_services/test_admin_skills_postgres.py \
           tests/test_services/test_commercial_backend_postgres.py \
+          tests/test_services/test_free_ai_network_quota_postgres.py \
           tests/test_services/test_material_refunds_postgres.py \
           tests/test_services/test_agent_file_preconditions_postgres.py \
           tests/test_services/test_edit_undo_card_postgres.py \

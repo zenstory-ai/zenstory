@@ -29,6 +29,34 @@ test('root favicon is a real multi-size icon for clients that ignore the SVG lin
   assert.deepEqual([...sizes].sort((a, b) => a - b).slice(0, 3), [16, 32, 48])
 })
 
+test('production API fallback carries ordinary API paths but never paths charged per client network', () => {
+  const matcher = (rule) => new RegExp(`^/${rule.source.slice('/:path('.length, -1)}$`, 'i')
+  const fallback = vercelConfig.rewrites.find((rule) => rule.destination === 'https://api.zenstory.ai/:path')
+  const matches = matcher(fallback)
+
+  for (const path of ['/api', '/api/health', '/api/auth/google', '/api/auth/google/callback', '/api/v1/projects',
+    '/api/v1/agent/suggest', '/api/v1/agent/steer', '/api/v1/agent/stop', '/api/v1/agent/streams', '/api/v1/editor/other']) {
+    assert.equal(matches.test(path), true, path)
+  }
+  for (const path of ['/api/v1/agent/stream', '/api/v1/agent/stream/', '/api/v1/editor/natural-polish',
+    '/api/v1/editor/natural-polish/', '/API/V1/AGENT/STREAM']) {
+    assert.equal(matches.test(path), false, path)
+  }
+
+  // Nothing else on a production host may pick those paths up and send them to the API or the SPA.
+  const previewOnly = (rule) => rule.has?.some((item) => item.value.startsWith('geo-preview'))
+  for (const rule of vercelConfig.rewrites.filter((item) => !previewOnly(item))) {
+    if (!rule.source.startsWith('/:path(')) continue
+    for (const path of ['/api/v1/agent/stream', '/api/v1/editor/natural-polish']) {
+      assert.equal(matcher(rule).test(path), false, `${rule.source} -> ${path}`)
+    }
+  }
+
+  // Preview builds use the same origin, so their proxy stays whole.
+  const preview = vercelConfig.rewrites.find((rule) => rule.destination.includes('staging-api'))
+  assert.equal(matcher(preview).test('/api/v1/agent/stream'), true)
+})
+
 test('Vercel config is source-controlled and API bypasses the SPA', () => {
   assert.deepEqual(JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url))), vercelConfig)
   assert.deepEqual(vercelConfig.rewrites[0], {
@@ -41,8 +69,8 @@ test('Vercel config is source-controlled and API bypasses the SPA', () => {
     type: 'host',
     value: 'geo-preview\\.zenstory\\.ai|app-preview\\.zenstory\\.ai|.*\\.vercel\\.app',
   }])
-  assert.equal(vercelConfig.rewrites[2].source, '/:path(api(?:/.*)?)')
   assert.equal(vercelConfig.rewrites[2].destination, 'https://api.zenstory.ai/:path')
+  assert.equal(vercelConfig.rewrites[2].has, undefined)
   assert.ok(vercelConfig.headers.some(r => r.source === '/:path(api(?:/.*)?)' && r.headers.some(h=>h.key==='x-vercel-enable-rewrite-caching' && h.value==='0')))
   assert.ok(vercelConfig.redirects.findIndex(r=>r.source.endsWith('/index.html') && r.source.startsWith('/:path')) < vercelConfig.redirects.findIndex(r=>r.source.includes('projects|') && r.has), 'Clean aliases before host redirects')
   const scripts = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).scripts
