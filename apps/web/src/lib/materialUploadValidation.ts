@@ -57,14 +57,18 @@ async function readMaterialUploadText(file: File): Promise<string | null> {
 function tooManyCharactersMessage(
   t: Translate,
   charCount: number,
-  trialChapters?: number,
+  trial?: { chapters: number; limit: number },
 ): string {
   const counts = {
     wan: (charCount / 10_000).toFixed(1),
     chars: charCount.toLocaleString("en-US"),
   };
-  return trialChapters
-    ? t("materials:uploadModal.errors.trialTooManyCharacters", { ...counts, chapters: trialChapters })
+  return trial
+    ? t("materials:uploadModal.errors.trialTooManyCharacters", {
+        ...counts,
+        chapters: trial.chapters,
+        limit: trial.limit.toLocaleString("en-US"),
+      })
     : t("materials:uploadModal.errors.tooManyCharactersCounted", counts);
 }
 
@@ -73,6 +77,7 @@ const UPLOAD_PRECHECK_ERROR_CODES = new Set([
   "ERR_MATERIAL_NO_CHAPTERS",
   "ERR_MATERIAL_TOO_MANY_CHAPTERS",
   "ERR_FILE_ENCODING_UNSUPPORTED",
+  "ERR_MATERIAL_TRIAL_NETWORK_LIMIT",
 ]);
 
 /** How much of the picked book a free trial breaks down, for the note in the upload dialog. */
@@ -97,10 +102,11 @@ export type PreparedMaterialUpload =
 export async function prepareMaterialUpload(
   file: File,
   t: Translate,
-  options: { trialMaxChapters?: number | null } = {},
+  options: { trialMaxChapters?: number | null; trialMaxCharacters?: number | null } = {},
 ): Promise<PreparedMaterialUpload> {
   const trialMaxChapters = options.trialMaxChapters ?? null;
-  const trial = trialMaxChapters !== null && trialMaxChapters > 0;
+  const trialMaxCharacters = options.trialMaxCharacters ?? 0;
+  const trial = trialMaxChapters !== null && trialMaxChapters > 0 && trialMaxCharacters > 0;
 
   if (!file.name.toLowerCase().endsWith(".txt")) {
     return { error: t("materials:uploadModal.errors.invalidType") };
@@ -123,13 +129,12 @@ export async function prepareMaterialUpload(
     if (trial) {
       const kept = truncateNovelText(text, trialMaxChapters);
       const keptCharacters = countCharacters(kept.text);
-      if (keptCharacters > MATERIALS_UPLOAD_MAX_CHARACTERS) {
+      if (keptCharacters > trialMaxCharacters) {
         return {
-          error: tooManyCharactersMessage(
-            t,
-            keptCharacters,
-            kept.truncated ? kept.keptChapters : undefined,
-          ),
+          error: tooManyCharactersMessage(t, keptCharacters, {
+            chapters: kept.keptChapters,
+            limit: trialMaxCharacters,
+          }),
         };
       }
       return {
@@ -168,10 +173,13 @@ export function resolveMaterialUploadErrorMessage(
       const charCount = error.details?.char_count;
       if (typeof charCount === "number") {
         const trialChapters = error.details?.trial_chapters;
+        const limit = error.details?.limit;
         return tooManyCharactersMessage(
           t,
           charCount,
-          typeof trialChapters === "number" ? trialChapters : undefined,
+          typeof trialChapters === "number" && typeof limit === "number"
+            ? { chapters: trialChapters, limit }
+            : undefined,
         );
       }
       return t("materials:uploadModal.errors.tooManyCharacters");

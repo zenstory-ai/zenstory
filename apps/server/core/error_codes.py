@@ -90,6 +90,9 @@ class ErrorCode:
     MATERIAL_EXTRACTION_FAILED = "ERR_MATERIAL_EXTRACTION_FAILED"
     MATERIAL_PARTIALLY_COMPLETED = "ERR_MATERIAL_PARTIALLY_COMPLETED"
     MATERIAL_DECOMPOSE_FAILED = "ERR_MATERIAL_DECOMPOSE_FAILED"
+    MATERIAL_TRIAL_NETWORK_LIMIT = "ERR_MATERIAL_TRIAL_NETWORK_LIMIT"
+    MATERIAL_TRIAL_COST_LIMIT = "ERR_MATERIAL_TRIAL_COST_LIMIT"
+    MATERIAL_TRIAL_LIMIT_INVALID = "ERR_MATERIAL_TRIAL_LIMIT_INVALID"
 
     # ==================== Skill Package Errors ====================
 
@@ -262,6 +265,9 @@ ERROR_MESSAGES = {
         "ERR_MATERIAL_EXTRACTION_FAILED": "章节内容拆解失败",
         "ERR_MATERIAL_PARTIALLY_COMPLETED": "部分内容拆解失败",
         "ERR_MATERIAL_DECOMPOSE_FAILED": "拆解失败",
+        "ERR_MATERIAL_TRIAL_NETWORK_LIMIT": "当前网络今天暂时不能开始免费试拆，请明天再试或开通 Pro。",
+        "ERR_MATERIAL_TRIAL_COST_LIMIT": "这次免费试拆只完成了部分内容，开通 Pro 后可以继续拆解。",
+        "ERR_MATERIAL_TRIAL_LIMIT_INVALID": "这次免费试拆未能开始拆解，开通 Pro 后可以重新拆解。",
         "ERR_SKILL_PACKAGE_INVALID": "技能包格式无效",
         "ERR_SKILL_PACKAGE_TOO_LARGE": "技能包或资源文件超出大小限制",
 
@@ -398,6 +404,9 @@ ERROR_MESSAGES = {
         "ERR_MATERIAL_EXTRACTION_FAILED": "Chapter decomposition failed",
         "ERR_MATERIAL_PARTIALLY_COMPLETED": "Some content could not be decomposed",
         "ERR_MATERIAL_DECOMPOSE_FAILED": "Decomposition failed",
+        "ERR_MATERIAL_TRIAL_NETWORK_LIMIT": "This network can't start a free trial today. Try again tomorrow or upgrade to Pro.",
+        "ERR_MATERIAL_TRIAL_COST_LIMIT": "This free trial finished only part of the breakdown. Upgrade to Pro to continue.",
+        "ERR_MATERIAL_TRIAL_LIMIT_INVALID": "This free trial could not start. Upgrade to Pro to break the book down again.",
         "ERR_SKILL_PACKAGE_INVALID": "Invalid skill package",
         "ERR_SKILL_PACKAGE_TOO_LARGE": "Skill package or resource exceeds size limits",
 

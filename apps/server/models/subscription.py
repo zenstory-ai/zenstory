@@ -12,7 +12,7 @@ Defines SQLModel entities for:
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, BigInteger, Column, text
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -117,6 +117,10 @@ class UsageQuota(SQLModel, table=True):
     inspiration_copies_used: int = Field(default=0)
     # 素材拆书免费试用：一个账号一次，不随月度重置；平台原因失败退还时清空
     material_trial_used_at: datetime | None = Field(default=None)
+    # Lifetime model cost of the account's free trial, in 1e-8 CNY. Never reset.
+    material_trial_charged_units: int = Field(
+        default=0, sa_column=Column(BigInteger, nullable=False, server_default=text("0"))
+    )
     # 月度周期
     monthly_period_start: datetime | None = Field(default=None)
     monthly_period_end: datetime | None = Field(default=None)

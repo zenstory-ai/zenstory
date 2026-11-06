@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from agent.core import llm_failover, llm_providers
+from config.material_settings import (
+    TRIAL_MERGED_OUTPUT_TOKENS,
+    TRIAL_OUTPUT_TOKENS,
+)
 from config.material_settings import material_settings as settings
 from core.error_codes import ErrorCode
 from flows.utils.helpers.exceptions import LLMAPIError, LLMNonRetryableError, LLMOutputError
@@ -39,8 +43,15 @@ def _repair_json_object(json_str: str) -> dict[str, Any] | None:
 def _classify_llm_exception(error: Exception) -> LLMAPIError:
     """Wrap an OpenAI SDK error; only transient failures stay retryable."""
     from core.error_handler import APIException
+    from services.material.job_errors import MaterialPipelineError
     from services.usage.cost_budget import COST_LIMIT_CODE, UNAVAILABLE_CODE
 
+    if isinstance(error, LLMNonRetryableError):
+        return error
+    if isinstance(error, MaterialPipelineError):
+        return LLMNonRetryableError(str(error), error.error_code)
+    if isinstance(error, APIException) and error.error_code == ErrorCode.MATERIAL_TRIAL_COST_LIMIT:
+        return LLMNonRetryableError("免费试拆的模型预算已用完", error.error_code)
     if isinstance(error, llm_failover.JSONResponseFormatUnavailableError):
         return LLMNonRetryableError(
             "当前模型暂不支持所需的 JSON 输出格式",
@@ -65,6 +76,23 @@ class LLMResponse:
     usage: dict[str, int]
     model: str
     finish_reason: str
+
+
+def _trial_output_limit(session: Any, novel_id: int, requested: int | None) -> int | None:
+    """The output limit when this execution's own job is a free trial, else None.
+
+    A late worker of a finished trial job, or of a deleted book, must not spend more.
+    """
+    from models.material_models import Novel
+    from services.material.ingestion_jobs_service import TERMINAL_JOB_STATUSES, executing_trial_job
+
+    job = executing_trial_job(session, novel_id)
+    if job is None:
+        return None
+    novel = session.get(Novel, novel_id)
+    if job.status in TERMINAL_JOB_STATUSES or novel is None or novel.deleted_at is not None:
+        raise LLMNonRetryableError("免费试拆任务已结束", ErrorCode.MATERIAL_TRIAL_LIMIT_INVALID)
+    return min(requested or TRIAL_OUTPUT_TOKENS, TRIAL_MERGED_OUTPUT_TOKENS)
 
 
 def _meter_material_call(
@@ -119,12 +147,14 @@ class MaterialLLMClient:
         *,
         usage_novel_id: int | None = None,
         usage_chapter_id: int | None = None,
+        trial_output_tokens: int | None = None,
         **kwargs,
     ) -> LLMResponse:
         """调用聊天补全接口（主供应商不可用时用备用供应商）。
 
         usage_novel_id / usage_chapter_id：这次调用所处理的小说或章节，用来把
         用量记到小说所有者名下（llm_usage_event）。两者都不传时不记账。
+        trial_output_tokens：免费试拆任务时这次调用可用的输出上限；付费任务忽略。
         """
         logger = get_logger(__name__)
 
@@ -137,6 +167,7 @@ class MaterialLLMClient:
                 logger,
                 usage_novel_id=usage_novel_id,
                 usage_chapter_id=usage_chapter_id,
+                trial_output_tokens=trial_output_tokens,
                 **kwargs,
             )
         except Exception as e:
@@ -153,6 +184,7 @@ class MaterialLLMClient:
         *,
         usage_novel_id: int | None = None,
         usage_chapter_id: int | None = None,
+        trial_output_tokens: int | None = None,
         **kwargs,
     ) -> LLMResponse:
         """调用 OpenAI 兼容接口。"""
@@ -162,21 +194,32 @@ class MaterialLLMClient:
         full_messages.extend(messages)
 
         from flows.database_session import create_prefect_session
-        from services.usage.cost_budget import budget_attribution
+        from services.usage.cost_budget import budget_attribution, material_trial_call
         from services.usage.llm_usage_service import LLMUsageAttribution, resolve_material_owner
         owner = None
+        trial_limit = None
         if usage_novel_id is not None or usage_chapter_id is not None:
             with create_prefect_session() as owner_session:
-                owner, _ = resolve_material_owner(owner_session, novel_id=usage_novel_id, chapter_id=usage_chapter_id)
-        with budget_attribution(LLMUsageAttribution(user_id=owner, source="material")):
+                owner, novel_id = resolve_material_owner(
+                    owner_session, novel_id=usage_novel_id, chapter_id=usage_chapter_id
+                )
+                if novel_id is not None:
+                    trial_limit = _trial_output_limit(owner_session, novel_id, trial_output_tokens)
+        if trial_limit is not None:
+            # Reasoning would spend the capped output and truncate the JSON answer.
+            kwargs["thinking_enabled"] = False
+        with (
+            budget_attribution(LLMUsageAttribution(user_id=owner, source="material")),
+            material_trial_call(output_limit=trial_limit),
+        ):
             # Explicit bounds: the SDK default is a 600s timeout; Prefect task
             # retries add their own attempts on top of these.
             response, provider = llm_failover.create_chat_completion(
                 call_site="material",
                 timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
-                max_retries=settings.LLM_SDK_MAX_RETRIES,
+                max_retries=0 if trial_limit is not None else settings.LLM_SDK_MAX_RETRIES,
                 messages=full_messages,
-                max_tokens=max_tokens or self.max_tokens,
+                max_tokens=trial_limit or max_tokens or self.max_tokens,
                 temperature=temperature or self.temperature,
                 **kwargs,
             )

@@ -177,6 +177,32 @@ def novel_ingestion_v3(
     job_id: int | None = None,
     correlation_id: str | None = None,
 ) -> dict[str, Any]:
+    """小说导入主流程 V3；这次运行的模型调用都归属于 job_id 这个任务。"""
+    from services.material.ingestion_jobs_service import material_job_scope
+
+    with material_job_scope(job_id):
+        return _run_novel_ingestion(
+            file_path=file_path,
+            user_id=user_id,
+            novel_title=novel_title,
+            author=author,
+            resume_from_checkpoint=resume_from_checkpoint,
+            novel_id=novel_id,
+            job_id=job_id,
+            correlation_id=correlation_id,
+        )
+
+
+def _run_novel_ingestion(
+    file_path: str,
+    user_id: str,
+    novel_title: str | None,
+    author: str | None,
+    resume_from_checkpoint: bool,
+    novel_id: int | None,
+    job_id: int | None,
+    correlation_id: str | None,
+) -> dict[str, Any]:
     """
     小说导入主流程 V3 (简化版Pipeline模式)
 
@@ -401,6 +427,8 @@ def novel_ingestion_v3(
         # 确保novel_id不为None
         if novel_id is None:
             raise ValueError("novel_id不能为None")
+
+        _enforce_trial_scope(job_id, chapter_ids)
 
         # =================================================================
         # 阶段3: 使用StageExecutor执行章节提取(阶段1)
@@ -664,6 +692,7 @@ def _execute_stage0(
         from services.material.chapters_service import ChaptersService
         from services.material.checkpoint_service import CheckpointService
         from services.material.ingestion_jobs_service import (
+            TERMINAL_JOB_STATUSES,
             IngestionJobsService,
             job_chapter_limit,
         )
@@ -702,10 +731,17 @@ def _execute_stage0(
             if job_id is not None:
                 from models.material_models import IngestionJob
 
-                existing_job = session.get(IngestionJob, job_id)
+                existing_job = session.get(
+                    IngestionJob, job_id, with_for_update=True, populate_existing=True
+                )
                 if existing_job is None or existing_job.novel_id != novel_id:
                     raise ValueError(
                         f"job_id={job_id} 不属于 novel_id={novel_id}"
+                    )
+                if existing_job.status in TERMINAL_JOB_STATUSES:
+                    # Finished while this run was starting: never back to processing.
+                    raise MaterialPipelineError(
+                        ErrorCode.MATERIAL_PROCESSING_TIMEOUT, "job finished before stage0"
                     )
             else:
                 logger.warning(
@@ -842,6 +878,35 @@ def _execute_stage0(
         "checkpoint_manager": checkpoint_manager,
         "job_id": job_id,
     }
+
+
+def _enforce_trial_scope(job_id: int | None, chapter_ids: list[int]) -> None:
+    """Before any model call: a trial job must hold valid limits and stay within them."""
+    if job_id is None:
+        return
+    from sqlmodel import select
+
+    from config.material_settings import validated_trial_limits
+    from models.material_models import Chapter, IngestionJob
+    from services.material.ingestion_jobs_service import IngestionJobsService, is_trial_job
+
+    with get_prefect_db_session() as session:
+        job = session.get(IngestionJob, job_id)
+        if job is None or not is_trial_job(job):
+            return
+        billing = IngestionJobsService.get_billing(job)
+        limits = validated_trial_limits(billing.get("chapter_limit"), billing.get("character_limit"))
+        contents = session.exec(
+            select(Chapter.original_content).where(Chapter.id.in_(chapter_ids))
+        ).all()
+    if (
+        limits is None
+        or len(chapter_ids) > limits.max_chapters
+        or sum(len(content or "") for content in contents) > limits.max_characters
+    ):
+        raise MaterialPipelineError(
+            ErrorCode.MATERIAL_TRIAL_LIMIT_INVALID, "trial job outside its recorded limits"
+        )
 
 
 def _mark_job_as_failed(

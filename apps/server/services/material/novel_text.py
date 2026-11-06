@@ -376,16 +376,17 @@ def truncate_novel_text(
     The cut is made on the line where chapter ``max_chapters + 1`` begins, so
     ``split_novel_text`` on the result yields exactly the same first chapters
     as on the whole text (short chapters merged into chapter N stay with it).
-    Line endings are normalized to ``\\n``.
+    Line endings are normalized to ``\\n``, so ``len(text)`` of the result is
+    the number of characters that are stored and processed.
     """
+    if max_chapters < 1:
+        raise ValueError("max_chapters must be positive")
     lines = _normalized_lines(text)
     chapters = _split_lines(lines, min_chapter_length)
     total = len(chapters)
-    if max_chapters < 1 or total <= max_chapters:
-        return NovelTruncation(text=text, total_chapters=total, kept_chapters=total)
-    cut_line = chapters[max_chapters]["start_line"]
+    cut_line = chapters[max_chapters]["start_line"] if total > max_chapters else len(lines)
     kept_text = "\n".join(lines[:cut_line]).rstrip()
-    return NovelTruncation(text=kept_text, total_chapters=total, kept_chapters=max_chapters)
+    return NovelTruncation(text=kept_text, total_chapters=total, kept_chapters=min(total, max_chapters))
 
 
 def analyze_novel_bytes(data: bytes) -> NovelTextAnalysis:

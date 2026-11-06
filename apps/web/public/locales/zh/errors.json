@@ -63,6 +63,9 @@
   "ERR_MATERIAL_META_EXTRACTION_FAILED": "金手指和世界观没有拆出来，其他内容已完成，重试可补全",
   "ERR_MATERIAL_UPLOAD_FAILED": "上传没有完成，请重试",
   "ERR_MATERIAL_DECOMPOSE_FAILED": "拆解失败，请重试",
+  "ERR_MATERIAL_TRIAL_NETWORK_LIMIT": "当前网络今天暂时不能开始免费试拆，请明天再试或开通 Pro。",
+  "ERR_MATERIAL_TRIAL_COST_LIMIT": "这次免费试拆只完成了部分内容，开通 Pro 后可以继续拆解。",
+  "ERR_MATERIAL_TRIAL_LIMIT_INVALID": "这次免费试拆未能开始拆解，开通 Pro 后可以重新拆解。",
 
   "ERR_VERSION_NOT_FOUND": "版本不存在",
   "ERR_VERSION_NO_VERSIONS_FOUND": "这个文件还没有历史版本",

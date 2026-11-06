@@ -2,6 +2,8 @@
 
 Status: implemented
 
+后续：退还、章数和字数上限已由 `feature/2026-11-06-material-trial-safe-launch.md` 修改。
+
 本 note 修改了 `feature/2026-04-29-materials-paid-entitlements.md` 中「免费用户只看预览」的规定：免费账号可以试拆一本的前 N 章，并在素材库里查看、引用这一本。付费权益（月度次数、退款口径）不变。
 
 后续：试拆的上传预检、存储和派发改为只针对前 N 章，退还的失败试拆不再出现在素材库，见 `feature/2026-10-09-material-trial-first-chapters-upload.md`。

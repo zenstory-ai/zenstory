@@ -5,6 +5,9 @@ Handles IngestionJob tracking and status updates.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -14,7 +17,7 @@ from sqlmodel import Session, select
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from models.material_models import IngestionJob, Novel
-from services.material.job_errors import REFUNDABLE_JOB_ERROR_CODES
+from services.material.job_errors import REFUNDABLE_JOB_ERROR_CODES, MaterialPipelineError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,9 +37,10 @@ ENABLED_STAGES_KEY = "enabled_stages"
 # stage_progress key holding the job's quota state:
 # {"quota_charged": bool, "quota_refunded": bool, "refund_reason": str}.
 # quota_charged means this job currently holds one material_decompose unit, or,
-# with quota_mode="trial", the account's one free trial; a trial job (and a paid
-# retry of a trial book, whose stored source holds only those chapters) also
-# carries chapter_limit, which stage0 applies before creating chapters.
+# with quota_mode="trial", the account's one free trial, which is never refunded;
+# a trial job carries chapter_limit and character_limit, which the worker checks
+# before any model call. A paid retry of a trial book keeps chapter_limit (its
+# stored source holds only those chapters).
 BILLING_KEY = "billing"
 
 
@@ -47,21 +51,44 @@ def job_chapter_limit(job: Any) -> int | None:
     return limit if isinstance(limit, int) and not isinstance(limit, bool) and limit > 0 else None
 
 
-def is_refunded_trial_attempt(job: Any) -> bool:
-    """
-    A free-trial job that failed for a platform reason and gave the trial back.
-
-    For the author that attempt never happened: they can try again, and the
-    library does not show it as a failed book.
-    """
-    if job is None or getattr(job, "status", None) != "failed":
-        return False
+def is_trial_job(job: Any) -> bool:
+    """This job spends the account's one free trial (billing.quota_mode)."""
     billing = _load_stage_progress(getattr(job, "stage_progress", None)).get(BILLING_KEY)
-    return (
-        isinstance(billing, dict)
-        and billing.get("quota_mode") == "trial"
-        and billing.get("quota_refunded") is True
-    )
+    return isinstance(billing, dict) and billing.get("quota_mode") == "trial"
+
+
+# The job this flow run was started for. A novel can hold several jobs at once: a
+# timed-out trial whose old worker is still running and the paid retry after it. Only
+# this identity says which one a model call belongs to, never the novel's latest job.
+_executing_job_id: ContextVar[int | None] = ContextVar("material_executing_job_id", default=None)
+
+
+@contextmanager
+def material_job_scope(job_id: int | None) -> Iterator[None]:
+    """Bind the flow run's job; Prefect copies it to its subflows, tasks and task threads."""
+    token = _executing_job_id.set(job_id)
+    try:
+        yield
+    finally:
+        _executing_job_id.reset(token)
+
+
+def executing_trial_job(session: Session, novel_id: int) -> IngestionJob | None:
+    """The trial job this execution belongs to, or None when it belongs to a paid job.
+
+    Refuses when the identity cannot be trusted: a job of another novel, or no bound
+    job on a novel that holds a trial job.
+    """
+    job_id = _executing_job_id.get()
+    if job_id is None:
+        jobs = session.exec(select(IngestionJob).where(IngestionJob.novel_id == novel_id)).all()
+        if any(is_trial_job(job) for job in jobs):
+            raise MaterialPipelineError(ErrorCode.MATERIAL_TRIAL_LIMIT_INVALID, "trial call without its job")
+        return None
+    job = session.get(IngestionJob, job_id)
+    if job is None or job.novel_id != novel_id:
+        raise MaterialPipelineError(ErrorCode.MATERIAL_TRIAL_LIMIT_INVALID, "call outside its job's novel")
+    return job if is_trial_job(job) else None
 
 
 def _load_stage_progress(raw: str | None) -> dict[str, Any]:
@@ -109,9 +136,21 @@ class IngestionJobsService:
         )
         return session.exec(statement).first()
 
+    @staticmethod
+    def _lock_running_job(session: Session, job_id: int) -> IngestionJob | None:
+        """The job with its row locked until commit, or None once it is finished.
+
+        A late worker must not bring back a job the watchdog already failed. The lock and
+        the re-read make the check and the caller's write one atomic step on PostgreSQL.
+        """
+        job = session.get(IngestionJob, job_id, with_for_update=True, populate_existing=True)
+        if job is None or job.status in TERMINAL_JOB_STATUSES:
+            return None
+        return job
+
     def update_status(self, session: Session, job_id: int, status: str) -> None:
         """Update job status."""
-        job = session.get(IngestionJob, job_id)
+        job = self._lock_running_job(session, job_id)
         if job:
             job.status = status
             if status == "processing" and job.started_at is None:
@@ -135,7 +174,7 @@ class IngestionJobsService:
         error_details: dict[str, Any] | None = None,
     ) -> None:
         """Update processed count, status, and optional stage/error metadata."""
-        job = session.get(IngestionJob, job_id)
+        job = self._lock_running_job(session, job_id)
         if not job:
             return
 
@@ -175,7 +214,7 @@ class IngestionJobsService:
         **stage_payload: Any,
     ) -> None:
         """Update only stage progress payload for the job."""
-        job = session.get(IngestionJob, job_id)
+        job = self._lock_running_job(session, job_id)
         if not job:
             return
         if status == "processing" and job.started_at is None:
@@ -260,7 +299,7 @@ class IngestionJobsService:
     ) -> bool:
         """
         Mark ``job`` failed with an error code and refund its quota when the code is
-        refundable and the job still holds a charged unit.
+        refundable and the job still holds a charged unit. A free trial is never refunded.
 
         The transition always compares the exact loaded snapshot. Watchdog
         callers set ``only_if_unchanged`` to avoid retrying after fresh progress;
@@ -318,6 +357,7 @@ class IngestionJobsService:
         if (
             job.status != "failed" or job.error_message not in REFUNDABLE_JOB_ERROR_CODES
             or billing.get("quota_charged") is not True
+            or is_trial_job(job)
         ):
             return
 
@@ -356,9 +396,6 @@ class IngestionJobsService:
         if novel is None:
             return False
         billing = self.get_billing(job)
-        if billing.get("quota_mode") == "trial":
-            # A free trial is one per account: a platform failure gives it back.
-            return quota_service.release_material_trial(session, novel.user_id, commit=False)
         raw_period_start = billing.get("quota_period_start")
         period_start = None
         consumed_at = job.created_at if raw_period_start is None else None

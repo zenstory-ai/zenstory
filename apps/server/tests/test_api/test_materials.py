@@ -320,6 +320,7 @@ async def test_upload_pre_job_failure_does_not_refund_a_new_month_charge(
 
     with pytest.raises(APIException) as exc_info:
         await materials_upload_api.process_material_upload(
+            client_ip=None,
             file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
             title=None,
             author=None,
@@ -348,6 +349,7 @@ async def test_upload_pre_job_failure_rolls_back_without_refund_io(client, db_se
     monkeypatch.setattr(materials_upload_api.quota_service, "release_feature_quota", unexpected_refund)
     with pytest.raises(APIException) as exc_info:
         await materials_upload_api.process_material_upload(
+            client_ip=None,
             file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
             title=None, author=None, current_user=user, session=db_session,
         )
@@ -518,6 +520,7 @@ async def test_upload_reconciles_refund_after_failure_status_poisoned_session(
     expected_error = RuntimeError if dispatch_raises else APIException
     with pytest.raises(expected_error) as raised:
         await materials_upload_api.process_material_upload(
+            client_ip=None,
             file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
             title=None, author=None, current_user=user, session=db_session,
         )

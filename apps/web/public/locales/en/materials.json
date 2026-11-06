@@ -9,13 +9,13 @@
   "teaserFeatureOne": "Get chapter summaries, characters, worldbuilding, and the protagonist's special powers",
   "teaserFeatureTwo": "Add characters and settings to your project, or reference them in AI chat",
   "teaserFeatureThree": "When your monthly breakdowns run out, you can still browse and reference finished results",
-  "teaserFreeTry": "Try it on the free plan: paste a chapter of a reference novel into a project chat and ask the AI to break down its characters, pacing and payoffs. The library breaks down the whole book automatically and keeps it ready to cite.",
-  "teaserCardCharacter": "Character example",
-  "teaserCardCharacterBody": "Lin Zhou · mentor archetype · first appears in chapter 3",
-  "teaserCardSynopsis": "Chapter summary example",
-  "teaserCardSynopsisBody": "Chapter 3: Lin Zhou joins the sect trial and quietly shields the hero, nearly exposing himself",
-  "teaserCardWorldview": "Worldbuilding example",
-  "teaserCardWorldviewBody": "Spirit-rank hierarchy, sect territories, forbidden-magic costs",
+  "teaserFreeTry": "The free material breakdown trial is not currently available. With Pro, upload a reference novel for automatic breakdown and cite the results while you write.",
+  "teaserCardCharacter": "Character · Qin Yue'er",
+  "teaserCardCharacterBody": "Lin Chen's fiancée, yet she chooses power and a place in the sect: on a prison visit she drops the mask and demands from the fallen Lin Chen the Qingxuan token, the only way in.",
+  "teaserCardSynopsis": "Chapter summary · first 3 chapters",
+  "teaserCardSynopsisBody": "Young marshal Lin Chen awaits execution on a false charge → a jade pendant offers a chance to rebuild his cultivation → his fiancée shows her hand and demands the token. By the end of chapter 3 he has only reached the first level of Force Gathering, and escape is still undecided.",
+  "teaserCardWorldview": "Setting · Tianwu",
+  "teaserCardWorldviewBody": "Pierces wards and formations, hides his aura, slips into darkness. His dantian is restored but his wounds are not: the power helps, and the danger remains.",
   "quotaRemaining": "{{remaining}} / {{limit}} breakdowns left this month. Each upload or retry uses 1.",
   "quotaExhausted": "You've used all {{limit}} breakdowns this month (resets {{resetAt}}). You can still browse and reference finished results.",
   "quotaResetFallback": "on the 1st of next month",
@@ -42,7 +42,7 @@
     "selectFile": "Select File",
     "clickToSelect": "Click to select file",
     "supportedFormats": ".txt only, up to 20MB and 300,000 characters, with chapter headings (e.g. \"Chapter 1\" or \"第一章\")",
-    "trialSupportedFormats": ".txt only, up to 20MB, with chapter headings (e.g. \"Chapter 1\" or \"第一章\"); the first {{chapters}} chapters must total no more than 300,000 characters",
+    "trialSupportedFormats": ".txt only, up to 20MB, with chapter headings (e.g. \"Chapter 1\" or \"第一章\"); the first {{chapters}} chapters must total no more than {{characters}} characters",
     "titleLabel": "Novel title",
     "titlePlaceholder": "Leave blank to use the file name",
     "uploading": "Uploading…",
@@ -53,7 +53,7 @@
       "trialTooLarge": "The file is over 20MB. The free trial only breaks down the first {{chapters}} chapters, so you can keep just those and upload again.",
       "tooManyCharacters": "The text is over 300,000 characters. Split it and upload again.",
       "tooManyCharactersCounted": "This book has about {{chars}} characters, over the 300,000-character limit. Split it and upload again.",
-      "trialTooManyCharacters": "The first {{chapters}} chapters alone have about {{chars}} characters, over the 300,000-character limit. Shorten them and upload again."
+      "trialTooManyCharacters": "The first {{chapters}} chapters have about {{chars}} characters, over the free trial's limit of {{limit}}. Shorten them and upload again, or upgrade to Pro."
     }
   },
   "deleteConfirm": {
@@ -226,13 +226,15 @@
       "minor": "Minor"
     }
   },
-  "trialStart": "Try one book free (first {{chapters}} chapters)",
-  "trialUploadNote": "Free trial: upload the whole book; only its first {{chapters}} chapters are broken down, once per account. If it fails on our side, you get the trial back.",
-  "trialUsedBanner": "You've used the free trial (first {{chapters}} chapters only). With Pro you can break down more reference novels every month, up to 300,000 characters each.",
+  "trialStart": "Try the first {{chapters}} chapters free",
+  "trialUploadNote": "The free trial is once per account. A successful submission uses it, and a later failure or deleting the book does not restore it. Upload the whole book; only the first {{chapters}} chapters are broken down, up to {{characters}} characters in total.",
+  "trialUsedBanner": "You've used your free trial (once per account, first {{chapters}} chapters only). With Pro you can break down more reference novels every month, up to 300,000 characters each.",
   "trialSelectionCut": "This book has {{total}} chapters. The free trial breaks down only the first {{chapters}}; the last {{rest}} are skipped.",
   "trialSelectionAll": "This book has {{total}} chapters; all of them will be broken down.",
-  "trialNotUsed": "Your free trial was not used.",
   "trialBookNote": "Free trial: first {{chapters}} of {{total}} chapters",
   "trialUsedEmptyTitle": "You've used the free trial",
-  "trialUsedEmptyBody": "With Pro you can break down reference novels every month, up to 300,000 characters each, and cite their characters, settings and chapter summaries while you write."
+  "trialUsedEmptyBody": "With Pro you can break down reference novels every month, up to 300,000 characters each, and cite their characters, settings and chapter summaries while you write.",
+  "teaserExampleSource": "Breakdown example · Jiutian Zhanshen Jue · Xiao Zhiliao · first 3 chapters",
+  "trialLimits": "Once per account: the first {{chapters}} chapters, up to {{characters}} characters in total. A successful submission uses your trial.",
+  "trialIncomplete": "This trial did not fully finish. Whatever was broken down stays available; the trial is not restored. Upgrade to Pro to continue."
 }

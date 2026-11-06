@@ -35,10 +35,7 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
-from services.material.ingestion_jobs_service import (
-    IngestionJobsService,
-    is_refunded_trial_attempt,
-)
+from services.material.ingestion_jobs_service import IngestionJobsService
 from services.material.job_errors import public_job_error
 from services.material.stories_service import story_in_novel
 from utils.logger import get_logger
@@ -91,13 +88,7 @@ def get_materials(
         elif job is not None and job.status == "failed":
             _reconcile_job_if_needed(session, job)
 
-    # A free-trial attempt that failed for a platform reason gave the trial
-    # back; it is not a book in the author's library.
-    novel_ids = [
-        novel_id
-        for novel_id, (_novel, job) in novel_map.items()
-        if not is_refunded_trial_attempt(job)
-    ]
+    novel_ids = list(novel_map)
     # Batch query for chapter counts
     chapter_counts_dict = {}
 

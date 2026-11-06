@@ -11,6 +11,7 @@ from typing import Any
 from prefect import get_run_logger
 from sqlmodel import col, select
 
+from config.material_settings import TRIAL_MERGED_OUTPUT_TOKENS
 from flows.database_session import get_db_session
 from flows.utils import (
     api_task,
@@ -80,6 +81,7 @@ def extract_novel_meta_task(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
         usage_novel_id=novel_id,
+        trial_output_tokens=TRIAL_MERGED_OUTPUT_TOKENS,
     )
 
     # 提取 JSON

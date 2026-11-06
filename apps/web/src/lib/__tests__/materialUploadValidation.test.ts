@@ -92,10 +92,10 @@ describe("prepareMaterialUpload for the free trial", () => {
     expect(text.length).toBeGreaterThan(MATERIALS_UPLOAD_MAX_CHARACTERS);
     const file = new File([text], "whole-book.txt", { type: "text/plain" });
 
-    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 20 });
+    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 3, trialMaxCharacters: 15_000 });
 
     // The whole file is uploaded; the server cuts it and records 150 chapters.
-    expect(prepared).toEqual({ error: null, trial: { totalChapters: 150, keptChapters: 20 } });
+    expect(prepared).toEqual({ error: null, trial: { totalChapters: 150, keptChapters: 3 } });
   });
 
   it("keeps the 300k-character limit for a paid upload of the same book", async () => {
@@ -109,7 +109,7 @@ describe("prepareMaterialUpload for the free trial", () => {
   it("applies the limit to the first chapters of a trial", async () => {
     const file = new File([wholeBook(5, 160_000)], "huge-chapters.txt", { type: "text/plain" });
 
-    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 2 });
+    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 2, trialMaxCharacters: 15_000 });
 
     expect(prepared.error).toBe("materials:uploadModal.errors.trialTooManyCharacters");
   });
@@ -124,7 +124,7 @@ describe("prepareMaterialUpload for the free trial", () => {
     ]);
     const file = new File([encoded], "gbk.txt", { type: "text/plain" });
 
-    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 1 });
+    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 1, trialMaxCharacters: 15_000 });
 
     expect(prepared).toEqual({ error: null, trial: { totalChapters: 2, keptChapters: 1 } });
   });
@@ -133,7 +133,7 @@ describe("prepareMaterialUpload for the free trial", () => {
     const file = new File(["x"], "big.txt", { type: "text/plain" });
     Object.defineProperty(file, "size", { value: MATERIALS_UPLOAD_MAX_BYTES + 1 });
 
-    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 20 });
+    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 3, trialMaxCharacters: 15_000 });
 
     expect(prepared.error).toBe("materials:uploadModal.errors.trialTooLarge");
   });

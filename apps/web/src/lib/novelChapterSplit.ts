@@ -166,7 +166,7 @@ export function truncateNovelText(text: string, maxChapters: number): NovelTrunc
   const starts = chapterStartLines(lines);
   const total = starts.length;
   if (maxChapters < 1 || total <= maxChapters) {
-    return { text, totalChapters: total, keptChapters: total, truncated: false };
+    return { text: pyRstrip(lines.join("\n")), totalChapters: total, keptChapters: total, truncated: false };
   }
   const keptText = pyRstrip(lines.slice(0, starts[maxChapters]).join("\n"));
   return { text: keptText, totalChapters: total, keptChapters: maxChapters, truncated: true };

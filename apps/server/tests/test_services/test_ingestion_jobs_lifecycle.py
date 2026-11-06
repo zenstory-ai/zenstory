@@ -106,3 +106,30 @@ def test_update_processed_writes_error_details(
     assert test_job.error_details is not None
     parsed = json.loads(test_job.error_details)
     assert parsed["stage"] == "stage1"
+
+
+@pytest.mark.parametrize("status", ["processing", "completed", "completed_with_errors"])
+def test_a_late_worker_cannot_bring_back_a_failed_job(db_session, ingestion_jobs_svc, test_job, status):
+    job = test_job
+    job.status, job.processed_chapters = "processing", 0
+    db_session.add(job)
+    db_session.commit()
+    ingestion_jobs_svc.fail_job(db_session, job, error_code="ERR_MATERIAL_PROCESSING_TIMEOUT", stage="processing_timeout", reason="x")
+    before = (job.status, job.processed_chapters, job.stage_progress, job.error_message)
+
+    ingestion_jobs_svc.update_processed(db_session, job.id, processed_chapters=3, status=status, stage="completed", stage_status=status)
+    ingestion_jobs_svc.update_stage_progress(db_session, job.id, "stage1", "processing")
+    ingestion_jobs_svc.update_status(db_session, job.id, status)
+    db_session.commit()
+
+    db_session.refresh(job)
+    assert (job.status, job.processed_chapters, job.stage_progress, job.error_message) == before
+
+
+def test_a_finished_job_keeps_its_terminal_status(db_session, ingestion_jobs_svc, test_job):
+    job = test_job
+
+    ingestion_jobs_svc.update_processed(db_session, job.id, status="completed")
+    ingestion_jobs_svc.update_processed(db_session, job.id, status="processing")
+
+    assert job.status == "completed"
