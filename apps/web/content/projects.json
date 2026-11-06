@@ -104,59 +104,59 @@
       "zh": [
         [
           "已经写了十几章，怎么接着写？",
-          "先用 story-import 建立可续写工程，再把反推前史与作者选定的下一章分开。[海港收音机续写示例](https://zenstory.ai/oh-story/import-and-continue)保留一个承诺、已经作出的决定与不同人物各自知道的事，不补猜修理成功或彻底和解。旧正文不动，未来细纲也不是已发生事件。"
+          "先用 story-import 导入已有书稿、建好可续写的工程，再把整理出来的前情记录和准备写的下一章分开。[海港收音机续写示例](https://zenstory.ai/oh-story/import-and-continue)保留了一个未兑现的承诺、已经拍板的决定，以及各角色不同的知情范围，不会擅自把收音机写成已经修好，也不会让人物突然冰释前嫌。旧正文原样保留，后面的细纲也不算已经发生的事实。"
         ],
         [
           "Claude Code 装好后，怎么开始写小说？",
-          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 工作台。 “不写正文”仍会建立规划文件；明确请求写新书首章时才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。 如果人设很完整、人物却不行动，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)从中继规划写到争取、抵抗与分享功劳的原创场景，不把达成约定当成已完成送达。"
+          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 工作台。“不写正文”仍会建立规划文件；明确请求写新书首章时才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。如果人设写得很细、人物进了场景却推不动剧情，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)演示了怎样从一张接力送件计划表，写出主角主动争取、顶住阻力并与同伴分担功劳的原创场景，而且不会把“谈妥合作”直接当成“已经送到”。"
         ],
         [
           "黄金三章怎么写，前三章怎样让人想接着看？",
-          "把前三章放在一起读：主角的处境、目标与本书看点是否清楚，读者实际得到了什么进展或回报，又为什么愿意接着看。各项的顺序与分量按本书题材和节奏调整。[黄金三章指南](https://zenstory.ai/oh-story/novel-opening)附开篇检查表与原创改写示例；[网文断章技巧](https://zenstory.ai/oh-story/chapter-ending-hooks)说明怎样把期待带到下一章。"
+          "把前三章连起来读：主角的处境、目标和全书看点立住了没有，读者在前三章拿到了什么实质进展或回报，章末又留了什么让人想翻页的钩子。各项的先后顺序与篇幅比重按题材和节奏调整。[黄金三章指南](https://zenstory.ai/oh-story/novel-opening)附有开篇检查表与原创改写对照；[网文断章技巧](https://zenstory.ai/oh-story/chapter-ending-hooks)说明怎样把期待自然带进下一章。"
         ],
         [
           "只有一个梗，怎么写成完整短篇而不是连载开头？",
-          "先选一个核心问题和能用行动回答它的结尾，再写出让变化成立的过程。[原创修补店规划与正文节选](https://zenstory.ai/oh-story/short-story-from-idea)从暗示无效写到说清条件、付下定金与离开。约定周三寄出，不代表当日送达，更不代表此刻已经修好；约定落定也不等于一家人的旧伤全好了。六节设计、示范节选与后续完整正文文件要分开。"
+          "先定一个核心问题和能用具体行动回答它的结局，再把中间那一步转折写扎实。[原创修补店规划与正文节选](https://zenstory.ai/oh-story/short-story-from-idea)从委婉试探无效，写到把条件摊开讲明、收下定金并转身离开。约定周三寄出，不代表当天就能寄到，更不代表东西此刻已经修好；谈妥这一单，也不等于一家人的旧伤就此揭过。六节大纲、示范节选和后续完整正文文件各自独立。"
         ],
         [
           "扫榜",
-          "在条件允许时采集所支持平台的数据，接受作者提供的样本，或明确标注历史知识回退；不可用的数据源可以跳过。"
+          "在条件允许时采集所支持平台的数据，接受作者提供的样本，或明确标注改用历史经验；不可用的数据源可以跳过。"
         ],
         [
           "怎样拆小说，才能学到写法而不照搬情节？",
-          "分开原文观察、可选解释和新故事练习。[原创片段精读示例](https://zenstory.ai/oh-story/learn-from-fiction)从未签的海报校样读出有条件的下一步，再比较事实与结果相同的两套菜园场景：接纳限制并共同承担解释，或放下尚未成立的人手补救。再用原创正文让人手补救在交谈中受检验、让较小订单实际落定，不照搬海报里的动作。指南也区分前三章停靠、明确范围的局部精读和按进度续跑。只做拆文不是导入可续写工程，处理完一个批次也不是已经得到全书结论。"
+          "把原文观察、手法解读和新故事练笔分成三步。[原创片段精读示例](https://zenstory.ai/oh-story/learn-from-fiction)先从一张还没签字的海报校样拆出“带条件推进下一步”的写法，再换到社区菜园题材，在事实与结果相同的前提下对比两种写法：一种是坦然接受人手限制、一起向居民解释，另一种是放弃还不靠谱的临时凑人方案。接着用一段原创正文把对话里的试探和最终敲定的小订单写出来，完全不照搬海报剧情里的动作。指南还区分了前三章试读停靠、指定范围局部精读与按进度续跑。只做拆文不会生成可续写的项目，跑完一批章节也不代表整本书已经拆完。"
         ],
         [
           "长篇续写怎样减少人设和情节漂移？",
-          "分开作者私下的真相、各角色本人已知和读者已经看到的内容。从同一项目带上相关人物现状、活跃伏笔与下一章承诺。[原创退信与期限示例](https://zenstory.ai/oh-story/long-novel-continuity)补充一条可选回收设计：合理怀疑仍是怀疑，后续证据先有来源，新地址改变下一步行动，却不会把尚未交出的信变成已送达。"
+          "把作者知道的幕后真相、每个角色当下的知情范围和读者已经看到的内容分开记账。写新章节时，从项目记录里带上相关人物现状、未回收的伏笔和本章要兑现的细纲。[原创退信与期限示例](https://zenstory.ai/oh-story/long-novel-continuity)演示了怎样跨三章传递状态，并附带一套伏笔回收设计：合理怀疑依然只是怀疑，新证据必须先交代来源，查到新地址会改变下一步行动，但不会把还没寄出的信直接写成已经送达。"
         ],
         [
           "发现某一章与既有设定冲突怎么办？",
-          "先指出冲突段落和希望保留的事实，再带着依据请求 `/story-long-write 修改第N章`。修订若改变连续性事实，文档规定通过 `tracking_commit.py` 提交同章修订事务，不要手改派生上下文或角色快照。继续写之前核对改后的正文与状态。结构检查不能代替作者对人设、文风和文学质量的判断。"
+          "先指出前后矛盾的段落和原本要保留的事实，再带着这些依据运行 `/story-long-write 修改第N章`。如果修改涉及人物状态或剧情事实，按文档流程会通过 `tracking_commit.py` 一并更新同章记录，不要手动去改自动生成的状态摘要或角色快照。接着往下写之前，先核对改后的正文和状态记录。脚本检查只能抓出格式和设定冲突，不能代替作者判断人设、文风和文学质量。"
         ],
         [
           "审稿意见互相矛盾，是不是都要改？",
-          "不必照单全改。先让意见回到段落证据与本书约束，再选择修法，不接受每项附带的剧情改变。[原创审稿到改稿示例](https://zenstory.ai/oh-story/review-and-revise)把“增强主角主动性”写成移交单场景：由她核对证据、坚持先登记编号差异，不靠拆封或提前揭底。示例也分清谈妥登记与登记完成，并具体说明后文发现者归属该怎样检查。"
+          "不必照单全收。先把审稿意见核对到具体段落和本书设定限制上，再决定怎么改，不要顺着每条意见把剧情全改乱。[原创审稿到改稿示例](https://zenstory.ai/oh-story/review-and-revise)把“增强主角主动性”落实到一场交接单戏里：由主角亲自核对证据、坚持先登记编号差异，既不拆毁封条，也不提前抖出幕后黑手。示例同时分清了“同意登记”和“办完登记”，并说明改完这一章后怎样检查后文里“是谁先发现端倪”的说法。"
         ],
         [
           "有细纲，为什么写出来仍像剧情复述？",
-          "细纲列出必须发生的变化，正文则把决定与回应真正写出来。[原创搬书库示例](https://zenstory.ai/oh-story/outline-to-chapter)从开场对照继续写到签字后的有条件合作与首趟结束，展示哪里应展开、哪里可以简短过渡。提前收章须先改定章界，不靠新增反转补强，也不把聊天试段当作已保存章节。"
+          "细纲只写了这一章要发生什么变化，正文得把人物怎么权衡、怎么交手写出来。[原创搬书库示例](https://zenstory.ai/oh-story/outline-to-chapter)先对比流水账与场面化写法，再从签下借用单一路写到有条件配合与第一趟搬运结束，示范哪里该放慢写细、哪里一笔带过即可。如果想提前收尾，必须先改章节切分点，不要靠硬塞反转凑章末钩子，也不要把聊天里的试写片段当成已经落盘的正式章节。"
         ],
         [
           "怎么改掉正文的套话和解释腔？",
-          "先说清措辞问题，保留场景事实、有功能的细节和选定的节奏。模式命中需要语境判断，不是作者身份结论。[原创改稿对照](https://zenstory.ai/oh-story/revise-ai-prose)比较克制写法与连贯句式，说明哪些重复值得留，以及删丢场景细节和改掉动作有什么不同。粘贴片段修订、只检测和文件原位修改也分别说明。"
+          "先指明具体的句式毛病，同时保住原有的场景事实、有效细节和叙述节奏。脚本标出的高频句式还要结合上下文判断，不能一刀切。[原创改稿对照](https://zenstory.ai/oh-story/revise-ai-prose)对比了克制精简与长短句衔接两种改法，演示哪些刻意重复应当保留，以及“删掉冗余细节”和“改掉人物动作”的区别。指南也分别说明了粘贴片段试改、仅做扫描检测和直接修改项目文件三种用法。"
         ],
         [
           "怎么保留我的文风，而不是越改越像统一模板？",
-          "提供有权使用的样本，说清哪些表达维度有用，再分开本书事实与视角。[原创文风示例](https://zenstory.ai/oh-story/preserve-author-voice)保留较长节奏与轻微调侃，却不搬入另一个故事的人物。样本推断不等于已确认记忆；本段选择、本书偏好与全局习惯的范围不同。 新增的本段例外保留较长观察，却不沿用分号结构和调侃，说明保持文风不等于每段都套同一形状。"
+          "提供一段自己写的旧作样本，点明你想保留的句式、节奏与用词习惯，再把文风偏好和当前这本书的剧情事实、叙事视角分开。[原创文风示例](https://zenstory.ai/oh-story/preserve-author-voice)保留了偏舒展的叙述节奏与冷幽默腔调，但不会把样本里的人物带进新书。从样本归纳出的特点需经你确认才会长期生效；单段微调、单书文风和全局习惯各自独立。文末的例外示例保留了细致观察，却去掉了分号句式和调侃，说明保持同一文风并不等于每段话都套同一个句型。"
         ],
         [
           "怎样让人物对白不同，而不只给每人添口头禅？",
-          "先分眼前目标、信息边界与听者关系，再选措辞。[原创排练对白示例](https://zenstory.ai/oh-story/character-dialogue)区分三人的对话议程，同时保留既定结果与尚未公开的私人事实。人物可以因听者不同而改变说法，不必把整本书的叙述声音一并换掉。 另一版用直接回答纠正误解，又不公开离开的私事：潜台词不等于把每个回答都写成谜语。"
+          "先定好每个说话人眼前的目的、知道多少实情、和听话人是什么关系，再落笔写台词。[原创排练对白示例](https://zenstory.ai/oh-story/character-dialogue)让三个人带着各自的盘算说话，在保住同一商议结果的同时，守住尚未公开的私人隐情。人物完全可以见什么人说什么话，不需要把整本书的叙述腔调跟着换掉。另一版改写则用直白的回答解开误会，同时依然守住私人隐情：有潜台词，不等于每句回答都要打哑谜。"
         ],
         [
           "封面",
-          "准备题材相关的封面指引，并在配置可用生图工具时调用。"
+          "准备贴合题材的封面构图与文字方案，并在配置了生图工具时调用生成。"
         ]
       ]
     },
@@ -202,21 +202,21 @@
       ],
       "zh": [
         "[导入入口、材料类型与作者决定](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L98)",
-        "[扫榜输入、历史回退与不可用数据源](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
-        "[开篇预览与作者已要求的完整拆解](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
+        "[扫榜输入、历史经验回退与不可用数据源](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
+        "[开篇预览与作者指定的全书拆解](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
         "[去AI味的用途与检测分数边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-deslop/SKILL.md#L23-L49)",
-        "[结构化追踪权威与派生视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)",
-        "[任务路由与先部署再导入的顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
-        "[规划停靠、明确章节请求与批次边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)",
-        "[单章输入与相关连续性上下文](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L13-L34)",
-        "[改变连续性事实的修订需提交追踪事务](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)",
-        "[续写输入、状态卡与下一章承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
-        "[作者事实、读者认知、伏笔与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
-        "[未来细纲不是已成立的追踪事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
-        "[从细纲规格到可见场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
-        "[状态变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
-        "[按维度的文风优先级与统一取舍](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
-        "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
+        "[结构化状态记录与自动生成的摘要视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)",
+        "[任务路由与先配置再导入的顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
+        "[规划停靠、明确章节请求与批次上限](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)",
+        "[单章输入与相关前文状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L13-L34)",
+        "[涉及前文事实的改稿须同步更新追踪记录](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)",
+        "[续写输入、状态卡与下一章待兑现内容](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
+        "[作者真相、读者已知、伏笔与待兑现事项](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
+        "[未来细纲不计入已发生的剧情事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
+        "[从章节细纲到具体场面](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
+        "[局面变化与对白作用检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
+        "[文风各要素的优先级与统一取舍](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
+        "[记录回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
         "以下流程依据本次源码复核。 [2026-10-15：开篇默认参照与本书要求](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/opening-design.md#L25-L33)",
         "[2026-10-15：作者要求优先于参考默认写法](https://github.com/zenstory-ai/oh-story-claudecode/blob/747b8e30d1e5993dbfb04f38593e1bf36847cab4/skills/story-long-write/references/style-resolution.md#L5-L11)"
       ]
@@ -312,35 +312,35 @@
       "zh": [
         [
           "小说改短剧，是不是一章对应一集？",
-          "不是默认一一对应。按每集的阶段性结果和下集承接来分集，保留原文事实，并标清拟改内容。合并集数时，要保住改变人物判断的信息与选择的可见后果，不必保留每次回顾或断点。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创维修铺故事比较一集与三集切法，并演示从叙述到场次、镜头的转换。"
+          "不是默认一一对应。按每集的阶段性结果和下集钩子来切集，保住原文核心事实，并标清准备改动的地方。合并集数时，要留住真正改变人物判断的信息和决定的当场后果，不必把每处前情回顾或章节断点都搬过来。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创维修铺故事对比了一集版与三集版的切法，并演示了怎样把小说叙述改成剧本场次和镜头。"
         ],
         [
           "开发",
-          "按需创建分集地图或题材指引；候选导演阐述经创作者接受后才成为权威。"
+          "按需生成分集地图或题材指引；候选导演阐述须经创作者确认后才作为后续依据。"
         ],
         [
           "怎样改好短剧对白，又不把故事改掉？",
-          "先明确说话者想争取什么；把心里话改成对白前，还要决定谁听得见。[维修铺改编示例](https://zenstory.ai/drama-skills/novel-to-short-drama)比较仅给观众的内心旁白与取件员听见的异议，再修改母亲的回应，不新增资金或替女儿决定。人物的判断不证明另一个人的真实意愿；必要的直白回答也不必改成谜语。"
+          "先明确说话人当下想争取什么；把心理活动改成台词之前，还要先想清楚在场有谁听得见。[维修铺改编示例](https://zenstory.ai/drama-skills/novel-to-short-drama)对比了只给观众听的内心独白和被取件员当场听见的反驳，随后改写了母亲的回应——既不凭空变出钱来，也不越俎代庖替女儿做决定。角色的主观猜测不等于别人的真实意图；该直说的回答也不必绕弯子。"
         ],
         [
           "已经确认的剧本，可以直接做分镜吗？",
-          "可以从当前剧本与必要视觉事实进入，不必重做开发，也不必等待图片提示词。[剧本到分镜指南](https://zenstory.ai/drama-skills/script-to-storyboard)用原创场景展示四镜设计，保留对白、动作衔接与结尾，并说明完整发声和顺序动作装不下时该改哪一层；示例时长是文本估计，不是实测视频。 另用同一剧本比较四镜与连续双人镜怎样分配注意，不把切得多或长镜当成天然更好。"
+          "可以直接从定稿剧本和必要的视觉设定切入，不用重头走开发流程，也不用等图片提示词写完。[剧本到分镜指南](https://zenstory.ai/drama-skills/script-to-storyboard)用一段原创场景演示四镜分镜设计，完整保留对白、动作衔接和结尾落点，并说明当整句台词与连贯动作塞不进预定秒数时该调整哪一层；示例里的时长是文字预估，不代表实测成片时长。文末还用同一段剧本对比了四镜切分与双人同框长镜头如何引导观众视线，不把“多切镜头”或“一镜到底”当成死规矩。"
         ],
         [
           "想把信息留到结尾揭晓，只在画面里藏住就够了吗？",
-          "若对白已经说破，就不够。[剧本到分镜示例](https://zenstory.ai/drama-skills/script-to-storyboard)逐镜说明观众先听到或看到什么，再比较保留原场与明确提出结尾揭晓改稿。移走一句话可能改变反应的原因和结尾，不能冒充只调机位；若采用字幕或起始帧，也要服从同一信息顺序。"
+          "如果台词已经提前说漏嘴，只靠画面遮挡是藏不住的。[剧本到分镜示例](https://zenstory.ai/drama-skills/script-to-storyboard)逐镜梳理观众先听到什么、先看到什么，再对比“按原剧本拍”和“明确改写剧本、把悬念留到结尾揭晓”两种做法。挪动一句台词往往会改变对手戏反应的起因和结局落点，不能当成单纯调机位；如果加了字幕或首帧参考图，也必须遵守同一套信息揭晓顺序。"
         ],
         [
           "同一角色跨镜头，怎样减少外观和动作串线？",
-          "分开长期人物身份、本场相容造型，以及每镜变化的手位、道具和视线；只有必要且不变的可见事实才作为连续性锁传递。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示镜头之间具体怎么衔接，不把角色设定表当成生成脸部一致的保证。"
+          "把角色固定的五官身份、适合当前场次的服装造型，以及每个镜头里变化的手部位置、道具状态和视线方向拆开记录；只有跨镜头不能变的外观细节，才放进连续性锁往下传。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示了镜头之间具体怎么接戏，不把“有一张角色设定图”当成 AI 生图不换脸的保证。"
         ],
         [
           "有提示词编号，就算已经有参考图了吗？",
-          "不是。`IMG-*` 标记提示词，`REF-*` 绑定已检查的项目内真实文件；外部 `PLAN-*` 指向当前 IMG 或 SHOT 条目，不是虚构图片路径。创作者可以先按完整计划请求视频提示词，再在自己的画布挂图，但计划不能向 `short-drama-produce` 提供文件。[挑图与挂图示例](https://zenstory.ai/drama-skills/character-consistency)区分可见身份、相容造型、地理与边界帧，不要求每张已有图都重新生成。"
+          "不算。`IMG-*` 只是提示词条目编号，`REF-*` 才代表项目里已经核对过的真实图片文件；外部 `PLAN-*` 指向现有的 IMG 或 SHOT 条目，并非虚构路径。创作者可以先按规划写好视频提示词，之后再去自己的工作流里挂载参考图，但规划编号本身不能直接当成文件喂给 `short-drama-produce` 出片。[挑图与挂图示例](https://zenstory.ai/drama-skills/character-consistency)区分了五官身份图、同款服装图、空间环境图与首尾帧的各自用途，也不要求把手里已有的每张图都重画一遍。"
         ],
         [
           "制作、剪辑、审查",
-          "媒体生成遵循准备 → 明确确认 → 执行。剪辑与另行请求的审查是独立阶段。"
+          "出片流程严格按“生成预览 → 创作者确认 → 调用生成”三步走。成片剪辑与按需发起的质量审查各自独立。"
         ]
       ]
     },
@@ -381,9 +381,9 @@
         "[可选画风探索、制作与审查边界](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
         "[导演阐述的确认与可选输出](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
         "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
-        "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
-        "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
-        "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
+        "[角色固定特征与场景服装造型的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[连续性锁字段需要同步到哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[真实 REF 参考图、规划输入与尚不可出片的状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
         "以下流程依据本次源码复核。 [2026-10-15：核心创作文档与另增剪辑单](https://github.com/zenstory-ai/drama-skills/blob/dafe80ee390ec8be5a7ec8dd156a84d511f8e7dd/README.md#L35-L49)"
       ]
     },
@@ -469,27 +469,27 @@
       "zh": [
         [
           "我想做互动文游，不想做战斗游戏，可以吗？",
-          "可以，在简报与概念阶段选择叙事主导体验。决定可以改变证词、人物知道的信息和后续场景，不必包装成卡牌、回合或好感度条。"
+          "可以，在立项简报与概念设计阶段直接选剧情主导的互动体验即可。玩家的决定可以直接改变证词、角色知道的信息和后续场面，不必硬套卡牌、回合制或好感度数值条。"
         ],
         [
           "怎样避免选择只换一句文案？",
-          "让关键行动在点选前可理解，再用场景文案兑现后果，不只列状态值。[原创渡口示例](https://zenstory.ai/novel-to-game/meaningful-choices)为两个选择点写出事前信息、单独的同意确认与三段收束。单纯表达语气的选项可以保留，但不必为每句话承诺新结局或隐藏分数。"
+          "先让玩家在点选前看清不同选项的代价，再用实打实的场面变化兑现后果，不能只改一行状态文字。[原创渡口示例](https://zenstory.ai/novel-to-game/meaningful-choices)围绕两个关键选择点写出了事前信息提示、单独的确认对话和三段截然不同的收尾剧情。纯粹表现角色语气的选项可以保留，但不用给每句顺嘴的台词都许诺新结局或隐藏加分。"
         ],
         [
           "原著可以改到什么程度？",
-          "在 `analysis/SOURCE_BIBLE.md` 保留带出处的事实和疑点，把批准的改编新增设定与原文证据分开。实现阶段不能悄悄改写已确定的产品简报或原著设定集。"
+          "把带原文出处的事实和存疑之处记在 `analysis/SOURCE_BIBLE.md` 里，把经确认新增的改编设定和原著依据分开。写代码实现时，不能悄悄涂改已经定好的立项简报或原著设定集。"
         ],
         [
           "第一次应该改编多大范围？",
-          "先明确来源范围，再选一个玩家身份、具体目标与能保住体验承诺的结果。首版做得小，不代表已经要求的全书改编可以跳过来源覆盖。[切片选择简报示例](https://zenstory.ai/novel-to-game/quick-start)比较只读梗概、一次渡口决定和整城扩展；选定后，再由 game-world-design 在完整美术生产前明确切片设计。"
+          "先划定原著取材范围，再定一个玩家扮演的身份、明确的目标和能体现原著张力的结局。第一版试玩包可以先做小一段，但如果约定了全书改编，前期的原著梳理仍然不能跳步。[试玩范围选择示例](https://zenstory.ai/novel-to-game/quick-start)对比了“只看剧情梗概”“聚焦一次渡口抉择”和“铺开整座城镇”三种范围；选定之后，再由 `game-world-design` 在正式做美术资产前把这一段试玩流程设计清楚。"
         ],
         [
           "最后会拿到什么，什么还不能证明？",
-          "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建可玩版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"
+          "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)会带你走完立项简报、设计文档和可试玩构建版本。光有设计文档还不算可玩的游戏；六项运行检查只证明当时跑通的那一条试玩路径，不代表所有分支、耐玩度或商业发售标准都已达标。"
         ],
         [
           "拿到第一个游戏可玩版本后，该怎样继续改？",
-          "点名具体选项或场景，说明输入、期待与实际表现。[渡口候选反馈示例](https://zenstory.ai/novel-to-game/quick-start)分清误导性的拒绝标签、结尾显示与状态转换的差异，以及作者新提出的规则。保留已确认事实与未点名的设计，有范围的修改不等于重新生成整个概念。"
+          "直接点名具体的选项或场景，说清楚你点了什么、原本期望看到什么、实际画面出现了什么。[渡口试玩版修改示例](https://zenstory.ai/novel-to-game/quick-start)区分了三类问题：让人误解的拒绝按钮文案、结局画面与底层状态没对上，以及作者临时新增的规则。改的时候保住已确认的原著事实和其他没点名要改的设计，局部调整不用推翻重做整套概念。"
         ]
       ]
     },
@@ -526,9 +526,9 @@
         "[语言、产品范围与目标运行环境契约](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
         "[构建工具边界与真实完成报告](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/SKILL.md#L15-L30)",
         "[六项运行检查与 QA 边界](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)",
-        "[因果权、结算权与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
-        "[知识边界、选择后果与诚实汇流](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
-        "[叙事设计交付与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[玩家选择权、结果判定与剧情主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[人物知情范围、选择后果与分支汇流](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
+        "[剧情设计交接与最小可玩范围](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
         "[玩家动作、规则判定与状态更新](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)"
       ]
     },
@@ -615,31 +615,31 @@
       "zh": [
         [
           "怎样把本地视频做成中文解说？",
-          "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、各阶段怎么衔接和预期文件，再按需导出草稿。"
+          "先建立分场画面与对白证据索引，定好这期视频给观众的看点，分清画面、原片声音和解说旁白各自承担什么信息，再为有依据的解说稿配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明了原片全长解说与先剪后配两种模式、各阶段的交接文件，以及最后按需导出剪映草稿的方法。"
         ],
         [
           "原片没有旁白，可以看画面生成解说吗？",
-          "可以。没有旁白不等于没有对白，人物说话时仍应保留对白证据；确无对白时可跳过 ASR，但仍需远程 VLM 分析。[原创证据到文案示例](https://zenstory.ai/video-recap/video-to-narration)分清改写书面承诺与证实结果，再展示只拿到起初尝试时能说什么。缺少后续画面，应补要证据或明确提出较窄方案，不编造结尾。"
+          "可以。原片没有旁白不代表没有人物对白，有人说话时仍应保留对白原声；如果整段素材确实没有对白，可以跳过语音转写（ASR），但仍会调用远程视觉模型（VLM）理解画面。[原创证据到文案示例](https://zenstory.ai/video-recap/video-to-narration)区分了“画面上写了宣传承诺”和“结果真的已经兑现”，并演示当素材只拍到前几次尝试、缺少后续结果画面时该怎么写——要么请创作者补交后续素材，要么收窄解说结论，绝不凭空编造结局。"
         ],
         [
           "哪些地方应该保留原声？",
-          "让完整原话、揭示变化的动作声或有意义的等待主导。[收音机五拍示例](https://zenstory.ai/video-recap/original-audio-and-narration)比较缩短背景与去掉它，再逐拍安排字幕：保留忠实台词，另分可选声音提示，不把“搬过来就没声”改成“搬家弄坏了”。保住等待，不虚构贫困，也不把文字方案当成已完成混音。"
+          "凡是完整的关键台词、能直接交代变化的动作声，或者有戏剧张力的停顿，都应该让原声站到前台。[收音机五拍示例](https://zenstory.ai/video-recap/original-audio-and-narration)对比了“缩短背景介绍”与“直接删掉旁白”两种改法，并逐拍排好字幕：保留忠实还原原话的台词字幕，把可选的声音提示单独列出，不把“搬过来之后就没声了”曲解成“搬家途中摔坏了”。剪辑保留了按下开关后的安静等待，既不凭空渲染贫苦，也不把纸面方案当成已经混完音的成片。"
         ],
         [
           "可以先写好旁白，再随便剪画面吗？",
-          "先明确故事与声音职责。编排式 cut 流程先选原片片段，再针对实际剪后输出时间线写旁白，不能直接把原片时间戳抄进输出时间的旁白稿。"
+          "要先定好叙事主线和声音分工。在“先剪后配”（cut）流程里，必须先挑出原片片段剪好成片时间线，再对着剪辑后的新时间轴写解说词，不能把原片的时间戳直接抄进成片解说稿里。"
         ],
         [
           "配音太长，放不进窗口怎么办？",
-          "先删减或移动这段意思，不要抢下一句须保留原话的位置。受限变速不等于无限加速；无法安全放入时可阻断放置，而不是裁掉尾音。"
+          "先精简词句或挪动旁白位置，不要压住下一句必须露出的原片台词。配音微调语速有上限，不能无限加速；实在塞不进空档时会报错拦截，不会把一句话的尾音硬生生截断。"
         ],
         [
           "写了声音职责标签，就能自动保住原声吗？",
-          "不能。渲染器不解析创意 board，需要实际旁白时间、对白证据与混音设置落实；原声可能在书面段落结束后仍被压低，直到安全恢复点。要听渲染后实际的声音衔接。"
+          "不能。合成渲染器不会直接读取编导策划表里的文字标签，而是靠实际的旁白起止时间、对白区间和混音参数来压低或恢复原声；原片声音在旁白读完后可能还会短暂压低，直到合适的空档才恢复音量。最终效果一定要以渲染成片的实际试听为准。"
         ],
         [
           "可以再手动精修声音和字幕吗？",
-          "先导出已有时间轴，再选择这场戏需要什么。[剪映 / CapCut 指南](https://zenstory.ai/video-recap/capcut-draft)比较两种原创排练剪法：把解说移到结果后，或去掉解说做原声主导的短版。对应字幕要一起处理，旧位置与新位置的音量关键帧也要检查；只移动旁白，不等于所有相关元素都会跟着移动。"
+          "可以先导出已有的时间轴草稿，再按这场戏的需要手动微调。[剪映 / CapCut 指南](https://zenstory.ai/video-recap/capcut-draft)对比了两种原创排练片段剪法：一种是把旁白挪到动作结果之后，另一种是干脆删掉旁白、做成原声主导的短片。挪动旁白时记得同步调整对应的字幕，并检查新旧位置的音量关键帧；只拖动配音音频，其他关联轨道不会自动跟着改好。"
         ]
       ]
     },
@@ -890,27 +890,27 @@
         ],
         [
           "怎样把一个点子变成第一场正文？",
-          "先区分确定事实与待定决定，保存人物和场景提纲，再写入指定正文文件。[第一篇短篇教程](https://zenstory.ai/docs/getting-started/first-project)提供原创失物招领故事、文件安排和三段范围明确的请求；示例不是实际模型运行记录。"
+          "先分清已经拍板的设定和还没想好的问题，保存角色卡与分场提纲，再把正文写进指定章节文件。[第一篇短篇教程](https://zenstory.ai/docs/getting-started/first-project)以一篇原创失物招领短篇为例，给出了文件目录安排和三轮边界清晰的提示词示范；文中的文字是教学示例，并非某次真实模型运行的录屏记录。"
         ],
         [
           "怎样局部改稿，不把整篇故事改掉？",
-          "打开目标文件，命名需要读取的依据，引用问题段落；相关素材可附加到对话。[AI 创作助手](https://zenstory.ai/docs/user-guide/ai-assistant)说明上下文与接续，[编辑器指南](https://zenstory.ai/docs/user-guide/editor)给出局部修改前后对照。“只给建议”不是强制只读模式，也不是所有文件操作都有逐项批准界面。"
+          "先在编辑器里打开要改的文件，在对话里点明需要参考哪些设定，再框选引用有问题的段落；需要核对素材库时也可以手动勾选附加。[AI 创作助手](https://zenstory.ai/docs/user-guide/ai-assistant)介绍了上下文读取范围与续写用法，[编辑器指南](https://zenstory.ai/docs/user-guide/editor)给出了局部改稿的前后对比。注意：在提示词里写“只给修改建议”并不等于系统强制开启了只读模式，也不是所有文件写入操作都会弹出逐条确认窗口。"
         ],
         [
           "能把作品带出工作台吗？",
-          "[稿件导出指南](https://zenstory.ai/docs/user-guide/export)说明已保存正文与剧本的 TXT 合并、章节排序和另存送审副本；这不是包含人物、素材、聊天和历史的完整备份。[版本指南](https://zenstory.ai/docs/user-guide/version-history)区分单文件恢复与项目快照，重要原稿仍需独立保留。"
+          "[稿件导出指南](https://zenstory.ai/docs/user-guide/export)说明了怎样把已保存的正文或剧本按章节顺序合并导出为 TXT，以及怎样另存一份送审稿；但导出的 TXT 只含正文，不包含角色卡、素材库、聊天记录和版本历史，不能代替完整备份。[版本指南](https://zenstory.ai/docs/user-guide/version-history)区分了单文件历史恢复与全项目快照，重要书稿仍建议在本地独立留存备份。"
         ],
         [
           "AI 记忆能保证长篇不崩人设吗？",
-          "AI 记忆是四字段项目摘要，不证明每轮都读完全部文件，也不保证不会写偏。分开已确认设定、已写进度与待定想法。[记忆填写与更正示例](https://zenstory.ai/docs/advanced/ai-memory)说明怎样保存、上下文为什么有限，以及如何纠正摘要而不悄悄重写正文。"
+          "AI 记忆是一份包含四个字段的项目摘要，既不代表 AI 每轮对话都会读完所有项目文件，也不能自动保证长篇永不写偏。填写时要把已确定的设定、已落盘的正文进度和还在构思的想法分开。[记忆填写与更正示例](https://zenstory.ai/docs/advanced/ai-memory)演示了该往记忆里存什么、为什么上下文有长度限制，以及发现摘要记错时怎样手动更正而不重改已写好的正文。"
         ],
         [
           "写一章必须拆成很多轮提示词吗？",
-          "没有固定轮数。决定、依据和停止点明确时，可以请求完整章节；动机尚未确定时，先讨论这个关键选择。[写作接续流程](https://zenstory.ai/docs/advanced/workflow-tips)用一场戏连起已选设计、正文、局部修改与实际保存状态。"
+          "没有固定轮数要求。只要这一章的关键决定、前情依据和收尾停点已经想清楚，完全可以一次让 AI 写完整章；如果人物为什么这么选还没想通，就先在对话里把这个选择聊透。[写作接续流程](https://zenstory.ai/docs/advanced/workflow-tips)以一场戏为例，串起了拍板方案、起草正文、局部润色和更新项目状态的全过程。"
         ],
         [
           "分析完参考小说，怎样写出自己的场景？",
-          "先从原文定位人物选择，分开依据与解读，再决定自己角色的行动和代价。[素材分析原创示例](https://zenstory.ai/docs/advanced/material-analysis)从录音片段走到不同的小车练习场景，不只是换人名与道具。[素材库入门](https://zenstory.ai/docs/user-guide/materials)说明 TXT 限制、异步分析与显式附加；上传一本书，不等于每轮对话都读完它。"
+          "先从参考段落里找出人物当时的抉择，把原文事实和手法拆解分开，再想清楚换成你自己的角色后，他会怎么做、要付什么代价。[素材分析原创示例](https://zenstory.ai/docs/advanced/material-analysis)演示了怎样从一段录音室剧情拆出结构，再落到一场完全不同的玩具小车练习戏上，绝不是简单换个人名和道具。[素材库入门](https://zenstory.ai/docs/user-guide/materials)说明了 TXT 大小限制、后台异步拆解和对话中手动挂载素材的方法；把整本书传进素材库，不代表每轮对话都会把整本书读一遍。"
         ]
       ]
     },
