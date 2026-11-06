@@ -349,6 +349,16 @@ def test_addresses_of_one_network_share_a_key():
     assert network_key(IP) != network_key(OTHER_IP)
 
 
+def test_tunnel_addresses_cannot_reach_the_skip_path():
+    # 6to4 和 Teredo 地址内嵌客户端的公网 IPv4，按那个 IPv4 算。
+    assert network_key("2002:5db8:d822::1") == network_key(IP)
+    teredo_for_ip = "2001:0:4136:e378:8000:63bf:a247:27dd"
+    assert network_key(teredo_for_ip) == network_key(IP)
+    # 内嵌的不是公网地址时，地址是客户端自己选的：仍然计数，不能跳过规则。
+    assert network_key("2002:0a00:0001::1") is not None
+    assert network_key("2002:0a00:0001::1") != network_key("2002:0a00:0002::1")
+
+
 @pytest.mark.parametrize("value", [None, "", "unknown", "not-an-ip", "127.0.0.1", "10.1.2.3", "192.168.0.8", "::1", "fd00::1", "169.254.1.1"])
 def test_values_that_do_not_identify_a_client_network_have_no_key(value):
     assert network_key(value) is None

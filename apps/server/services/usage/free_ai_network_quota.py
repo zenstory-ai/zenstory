@@ -58,14 +58,22 @@ def network_key(client_ip: str | None) -> str | None:
     Non-public addresses mean the proxy chain gave us no client address (a misconfigured
     hop count, local development). Pooling those would put every user in one bucket.
     IPv6 counts per /64 because one subscriber holds a whole /64 and can rotate within it.
+    A 6to4 or Teredo client picks its own address, so it counts as the public IPv4 inside
+    it, or as the address itself: a tunnel address never skips the rule.
     """
     try:
         address = ip_address((client_ip or "").strip())
     except ValueError:
         return None
-    if isinstance(address, IPv6Address) and address.ipv4_mapped:
-        address = address.ipv4_mapped
-    if not address.is_global:
+    is_tunnel = False
+    if isinstance(address, IPv6Address):
+        tunnelled = address.sixtofour or (address.teredo[1] if address.teredo else None)
+        if address.ipv4_mapped:
+            address = address.ipv4_mapped
+        elif tunnelled:
+            is_tunnel = True
+            address = tunnelled if tunnelled.is_global else address
+    if not address.is_global and not is_tunnel:
         return None
     network = str(ip_network(f"{address}/64", strict=False)) if address.version == 6 else str(address)
 
@@ -170,4 +178,3 @@ def purge_expired_reservations(session: Session, *, today: date) -> None:
         log_with_context(
             logger, _WARNING, "free_ai_network_purge_failed", error_type=type(exc).__name__,
         )
-

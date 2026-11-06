@@ -74,7 +74,7 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:panel.quotaExceededTitle': '今天的免费 AI 消息用完了',
   'chat:panel.quotaExceededHint': '北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。',
   'chat:panel.networkQuotaExceededTitle': '当前网络今日免费体验额度已用完',
-  'chat:panel.networkQuotaExceededHint': '请明天再试（北京时间 00:00 恢复），或开通 Pro 接着写。写好的内容会留在输入框里。',
+  'chat:panel.networkQuotaExceededHint': '请明天再试（北京时间 00:00 恢复），或开通 Pro 接着写。',
   'chat:panel.notCharged': '这一轮没有改动文件，不计入今日 AI 消息。',
   'chat:panel.notChargedError': '这次出错不计入今日 AI 消息。',
   'chat:panel.notChargedStopped': '已停止，这一轮还没有写出内容，不计入今日 AI 消息。',
@@ -2831,8 +2831,8 @@ describe('ChatPanel new-author flow', () => {
     const refuse = () => act(() => {
       mockAgentStreamState.error = copy
       mockAgentStreamState.errorCode = code
-      mockAgentStreamState.retryable = false
-      streamOptions().onError(copy, code, false)
+      mockAgentStreamState.retryable = true
+      streamOptions().onError(copy, code, true)
     })
 
     afterEach(() => {
@@ -2866,6 +2866,65 @@ describe('ChatPanel new-author flow', () => {
       expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(false)
       expect(lastMessageInputProps().onBlockedSend).toBeUndefined()
       expect(mockStartStream).toHaveBeenCalledTimes(1)
+      // The account's own messages are not used up: this must not count as that in the funnel.
+      expect(mockReportActivationEvent).not.toHaveBeenCalledWith('test-user', expect.objectContaining({
+        event_name: 'ai_send_blocked_quota',
+      }))
+    })
+
+    it('keeps the staged attachments when a first send is refused', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+      mockAttachments.fileIds = ['file-outline']
+      mockAttachments.clearMaterials.mockClear()
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', [])
+      })
+      refuse()
+      await act(async () => {
+        await (capturedUseAgentStream.options as { onComplete: (segments: unknown[], action: unknown) => Promise<void> }).onComplete([], null)
+      })
+      expect(mockAttachments.clearMaterials).not.toHaveBeenCalled()
+      mockAttachments.fileIds = []
+    })
+
+    it('keeps a manual retry, with its request, when there is no bubble to give back', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+      mockAgentStreamState.error = 'failed'
+      mockAgentStreamState.retryable = true
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', [])
+      })
+      await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'common:retry' })) })
+      expect(mockStartStream).toHaveBeenCalledTimes(2)
+      mockDraft.saveDraft.mockClear()
+      refuse()
+      // The mocked hook does not re-render on its own the way the real one does.
+      act(() => { (capturedUseAgentStream.options as { onStart: () => void }).onStart() })
+
+      const panel = await screen.findByRole('alert')
+      expect(panel).toHaveTextContent('当前网络今日免费体验额度已用完')
+      expect(panel).not.toHaveTextContent('输入框')
+      expect(mockDraft.saveDraft).not.toHaveBeenCalled()
+      expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(true)
+      await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'common:retry' })) })
+      expect(mockStartStream).toHaveBeenCalledTimes(3)
+    })
+
+    it('drops the refusal once the account turns out to have no daily limit', async () => {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+      await act(async () => {
+        await lastMessageInputProps().onSend('写第二章', [])
+      })
+      mockClearError.mockClear()
+      mockQuota.value = { ai_conversations: { used: 0, limit: -1, reset_at: null } }
+      refuse()
+      await waitFor(() => expect(mockClearError).toHaveBeenCalled())
     })
 
     it('clears the refusal at the next Beijing midnight', async () => {

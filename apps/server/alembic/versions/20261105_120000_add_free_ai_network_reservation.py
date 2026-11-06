@@ -18,7 +18,7 @@ def upgrade():
     op.create_table(
         "free_ai_network_reservation",
         sa.Column("id", sa.String(), primary_key=True),
-        sa.Column("user_id", sa.String(), sa.ForeignKey("user.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("day", sa.Date(), nullable=False),
         sa.Column("ip_key", sa.String(64), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),

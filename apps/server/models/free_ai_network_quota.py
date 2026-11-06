@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Column, ForeignKey, Index, String
+from sqlalchemy import Column, Index, String
 from sqlmodel import Field, SQLModel
 
 
@@ -11,6 +11,9 @@ class FreeAINetworkReservation(SQLModel, table=True):
 
     ``ip_key`` is a keyed hash, never the address, and is NULL when the request had no
     usable client network: the row then only makes that account's refund idempotent.
+
+    ``user_id`` deliberately has no foreign key: its check would make the charge wait on
+    any lock held on the user row, under the network lock. Rows are purged within days.
     """
 
     __tablename__ = "free_ai_network_reservation"
@@ -21,9 +24,7 @@ class FreeAINetworkReservation(SQLModel, table=True):
     )
 
     id: str = Field(primary_key=True)
-    user_id: str = Field(
-        sa_column=Column(String, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
-    )
+    user_id: str
     day: date
     ip_key: str | None = Field(default=None, sa_column=Column(String(64), nullable=True))
     created_at: datetime

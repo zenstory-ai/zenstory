@@ -25,7 +25,7 @@
     "quotaExceededTitle": "You've used today's free AI messages",
     "quotaExceededHint": "They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
     "networkQuotaExceededTitle": "Today's free AI allowance on this network is used up",
-    "networkQuotaExceededHint": "Please try again tomorrow (it resets at 00:00 Beijing time, UTC+8), or get Pro to keep writing. What you typed stays in the box.",
+    "networkQuotaExceededHint": "Please try again tomorrow (it resets at 00:00 Beijing time, UTC+8), or get Pro to keep writing.",
     "notCharged": "No files were changed this round, so it doesn't count toward today's AI messages.",
     "notChargedError": "This error doesn't count toward today's AI messages.",
     "userStopped": "Stopped",

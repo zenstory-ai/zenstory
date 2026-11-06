@@ -83,6 +83,23 @@ def test_claim_waits_for_an_uncommitted_claim_on_the_same_network(engine):
         assert _used(session, late) == 0
 
 
+def test_reservation_does_not_wait_on_a_locked_user_row(engine):
+    """别的请求锁着 user 行（例如验证码流程）时，预扣不能等它，否则网络锁也会被一起占住。"""
+    with Session(engine) as session:
+        account = _account(session)
+    with Session(engine) as holder, ThreadPoolExecutor(max_workers=1) as pool:
+        holder.exec(select(User).where(User.id == account).with_for_update()).one()
+
+        def reserve():
+            with Session(engine) as session:
+                return quota_service.reserve_ai_conversation(
+                    session, account, client_ip=IP, reservation_id=uuid4().hex
+                )
+
+        assert pool.submit(reserve).result(timeout=10) is not None
+        holder.rollback()
+
+
 def test_concurrent_accounts_get_exactly_nine_messages_on_three_seats(engine):
     with Session(engine) as session:
         accounts = [_account(session) for _ in range(6)]

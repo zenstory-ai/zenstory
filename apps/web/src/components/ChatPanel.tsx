@@ -273,7 +273,8 @@ const isAccountRunRefusal = (code: string | null | undefined) =>
 
 /**
  * This network's shared free allowance is used up: nothing was started or charged. Sending stays
- * open (the author may change networks, and the server decides); the count on this account is untouched.
+ * open (the author may change networks, and the server decides). This account's own count is
+ * untouched, so this is not reported as the used-up day.
  */
 const isNetworkQuotaRefusal = (code: string | null | undefined) =>
   code === "ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED";
@@ -1407,13 +1408,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         returnBlockedMessageToInput();
         reportQuotaBlockedSend(true);
       }
-      if (isNetworkQuotaRefusal(code)) {
-        // Nothing was accepted: keep the attachments and quotes staged with it, and offer no retry.
-        resetPendingContextClears();
-        if (returnBlockedMessageToInput()) lastRetryRequestRef.current = null;
-        reportQuotaBlockedSend(true);
-      }
-      if (isAccountRunRefusal(code)) {
+      if (isAccountRunRefusal(code) || isNetworkQuotaRefusal(code)) {
         // Nothing was accepted: the round's end must not clear the attachments and quotes staged with it.
         resetPendingContextClears();
         // The words go back to the input, so there is nothing left to retry. A retry has no
@@ -1593,6 +1588,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const timer = setTimeout(clearError, Math.max(0, nextAiQuotaResetMs(Date.now()) - Date.now()));
     return () => clearTimeout(timer);
   }, [isNetworkQuotaLimit, clearError]);
+  // Upgraded elsewhere: paid plans are exempt, and the next send goes through.
+  useEffect(() => {
+    if (isNetworkQuotaLimit && aiMessageQuota?.limit === -1) clearError();
+  }, [isNetworkQuotaLimit, aiMessageQuota?.limit, clearError]);
   const isAiQuotaLimitRef = useRef(isAiQuotaLimit);
   useEffect(() => {
     isAiQuotaLimitRef.current = isAiQuotaLimit;
@@ -2810,7 +2809,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               <Loader2 size={32} className="mb-4 animate-spin opacity-50" />
               <p className="text-sm">{t('chat:panel.loadingMessages')}</p>
             </div>
-          ) : messages.length === 0 && !isStreaming && !isThinking && !(error && (retryable || isNetworkQuotaLimit)) && sessionRecoveryError !== currentProjectId ? (
+          ) : messages.length === 0 && !isStreaming && !isThinking && !(error && retryable) && sessionRecoveryError !== currentProjectId ? (
             showStarterCards ? (
               <StarterCards
                 highlighted={starterHighlighted}
