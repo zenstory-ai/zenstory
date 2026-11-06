@@ -16,7 +16,7 @@ Status: implemented
 - **输出上限**：实际 payload 的 `max_tokens` 上限 4096，合并设定 8192，含 thinking 头寸；试拆关闭 thinking，主要角色整合最多 5 人。
 - **网络规则**：同一可信网络每个北京日最多 1 个账号开始试拆，主键 `(day, ip_key)` 原子占位，与 AI 消息额度分开，不释放。缺 IP 只跳过这一条。上传路径加入 `apiFallbackExcludedPaths` 并拒绝百分号编码的路径，否则生产 `/api` 回退的出口地址会被当成另一个网络。
 - **调用归属**：一本书可能同时存在超时的试拆任务 A（旧 worker 还活着）和升级后的付费重试 B，所以模型调用不能看「最新任务」。流程把自己的 `job_id` 绑到 `material_job_scope`（ContextVar），由 Prefect 复制到子 flow、task 和 task 线程。调用按这个确切任务判定：A 已结束则拒绝，B 按付费规则。书上有试拆任务却没有绑定任务时也拒绝。
-- **终态不回写**：`update_processed`、`update_stage_progress`、`update_status` 在行锁下重新读取任务，已结束就不再改动；阶段0 同样不把已结束的任务改回 processing。这一条关闭的漏洞是迟到的 worker 把 watchdog 判失败的任务复活，绕开调用前的终态检查。
+- **终态不回写**：`update_processed`、`update_stage_progress`、`update_status` 在行锁下重新读取任务，已结束就不再改动；阶段0 同样不把已结束的任务改回 processing。这一条关闭的漏洞是迟到的 worker 把 watchdog 判失败的任务复活，绕开调用前的终态检查。`fail_job` 在流程失败路径的那次重试也持行锁，否则并发进度写入会让失败连续落空，任务一直停在 processing；watchdog 路径仍在有新进度时放弃。
 - **入口示例**：用真实小说《九天斩神诀》（小知了）前 3 章串起现有的角色、章节梗概、设定字段，文案对照原文人工核对，标注「拆解示例」，不写前 3 章以外的情节，也不宣传当前没开的阶段。
 
 ## Alternatives considered
@@ -36,5 +36,5 @@ Status: implemented
 ## Verification
 
 - 回归：`tests/test_api/test_materials_trial.py`、`tests/test_services/test_material_trial_budget.py`、`tests/test_flows/unit/test_material_trial_worker_limits.py`、`tests/test_flows/integration/test_material_trial_job_scope_prefect.py`、`tests/test_services/test_ingestion_jobs_lifecycle.py`。
-- 真实 PostgreSQL：`tests/test_services/test_material_trial_postgres.py`（设置 `ZENSTORY_TEST_POSTGRES_URL`）覆盖同账号并发占用、同网络并发占位、成本并发预留与重复结算、迟到写入与失败并发。
+- 真实 PostgreSQL：`tests/test_services/test_material_trial_postgres.py`（设置 `ZENSTORY_TEST_POSTGRES_URL`）覆盖同账号并发占用、同网络并发占位、成本并发预留与重复结算、并发进度下流程失败必定落地、迟到写入等待进行中的失败事务后不改动。去掉行锁或重试锁后，后两项测试会失败。
 - 本地合成运行（真实 Prefect 引擎、OpenAI SDK、一次性 PostgreSQL、127.0.0.1 假模型）：正常 3 章 13 次请求，所有预留合计上界约 ¥0.80，低于 ¥1；输出上限 4096/8192 出现在实际 payload；角色整合 5 人。假模型全部 500 时，失败调用按上界保留，预算约 ¥0.97 后停止继续调用。

@@ -337,7 +337,8 @@ class IngestionJobsService:
         result = session.exec(statement.values(**values).execution_options(synchronize_session=False))
         if result.rowcount != 1:
             session.rollback()
-            session.refresh(job)
+            # The lock makes the one retry land even while workers keep writing progress.
+            session.refresh(job, with_for_update=not only_if_unchanged)
             if not only_if_unchanged:
                 return self.fail_job(
                     session, job, error_code=error_code, stage=stage, reason=reason,

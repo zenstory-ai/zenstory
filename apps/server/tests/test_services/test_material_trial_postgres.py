@@ -1,6 +1,7 @@
 """Owned PostgreSQL proof that the trial claim, network seat and cost total hold under real locks."""
 
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -137,42 +138,68 @@ def test_concurrent_reservations_never_pass_the_lifetime_budget_across_sessions(
     assert quota.material_trial_charged_units == len(granted) * (10 * 200 + 10 * 800)
 
 
-def test_a_late_progress_write_cannot_overwrite_a_concurrent_failure(owned_engine):
-    user_id = _account(owned_engine)
-    with Session(owned_engine) as session:
-        novel = Novel(user_id=user_id, title="t", source_meta="{}")
+def _running_job(engine) -> int:
+    with Session(engine) as session:
+        novel = Novel(user_id=_account(engine), title="t", source_meta="{}")
         session.add(novel)
         session.flush()
         job = IngestionJob(novel_id=novel.id, source_path="x", status="processing", total_chapters=3, processed_chapters=0)
         session.add(job)
         session.commit()
-        job_id = job.id
+        return job.id
 
+
+def test_a_flow_failure_lands_once_among_concurrent_progress_writes(owned_engine):
+    job_id = _running_job(owned_engine)
     service = IngestionJobsService()
+    outcome = []
 
-    def late_progress(_):
+    def late_progress():
         with Session(owned_engine) as session:
             service.update_processed(session, job_id, processed_chapters=1, status="processing", stage="stage1")
             session.commit()
 
-    def fail(_):
-        # A lost compare-and-set is retried by the watchdog's next read; here until it lands.
-        for _attempt in range(50):
-            with Session(owned_engine) as session:
-                if service.fail_job(
-                    session, session.get(IngestionJob, job_id),
-                    error_code="ERR_MATERIAL_PROCESSING_TIMEOUT", stage="processing_timeout", reason="x",
-                ):
-                    return
-        raise AssertionError("the failure never landed")
+    def fail():
+        with Session(owned_engine) as session:
+            outcome.append(service.fail_job(
+                session, session.get(IngestionJob, job_id),
+                error_code="ERR_MATERIAL_DECOMPOSE_FAILED", stage="flow", reason="x",
+            ))
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        list(pool.map(lambda index: (fail if index == 5 else late_progress)(index), range(40)))
+        futures = [pool.submit(fail if index == 10 else late_progress) for index in range(21)]
+        for future in futures:
+            future.result()
 
-    # Everything that ran after the failure landed changed nothing, including a final late write.
-    late_progress(None)
-    with Session(owned_engine) as other:
-        service.update_processed(other, job_id, status="completed")
-        other.commit()
+    assert outcome == [True]
     with Session(owned_engine) as session:
         assert session.get(IngestionJob, job_id).status == "failed"
+
+
+def test_a_late_write_waits_for_a_failure_in_flight_and_then_changes_nothing(owned_engine):
+    """The check and the write are one step: an unlocked read would see processing and overwrite."""
+    job_id = _running_job(owned_engine)
+    service = IngestionJobsService()
+    finished = threading.Event()
+
+    def late_completion():
+        with Session(owned_engine) as session:
+            service.update_processed(session, job_id, processed_chapters=3, status="completed", stage="completed")
+            session.commit()
+        finished.set()
+
+    with Session(owned_engine) as failing:
+        job = failing.get(IngestionJob, job_id)
+        job.status = "failed"
+        job.error_message = "ERR_MATERIAL_PROCESSING_TIMEOUT"
+        failing.add(job)
+        failing.flush()  # Row changed and locked, not committed.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            writer = pool.submit(late_completion)
+            assert not finished.wait(0.5), "the late write must wait for the failure's transaction"
+            failing.commit()
+            writer.result(timeout=10)
+
+    with Session(owned_engine) as session:
+        job = session.get(IngestionJob, job_id)
+        assert (job.status, job.processed_chapters) == ("failed", 0)
