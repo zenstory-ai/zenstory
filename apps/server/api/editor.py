@@ -23,7 +23,11 @@ from services.features.natural_polish_service import (
 )
 from services.first_work_service import observe_first_work_ai_request
 from services.quota_service import quota_service
-from services.usage.free_ai_network_quota import FreeNetworkQuotaExceeded, free_network_quota_exception
+from services.usage.free_ai_network_quota import (
+    FreeNetworkQuotaExceeded,
+    free_network_quota_exception,
+    require_canonical_request_path,
+)
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access
 
@@ -95,7 +99,11 @@ def _refund_ai_conversation(
         return False
 
 
-@router.post("/natural-polish", response_model=NaturalPolishResponse)
+@router.post(
+    "/natural-polish",
+    response_model=NaturalPolishResponse,
+    dependencies=[Depends(require_canonical_request_path)],
+)
 async def natural_polish(
     request: Request,
     body: NaturalPolishRequest,

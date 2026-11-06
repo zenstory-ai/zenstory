@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from ipaddress import IPv6Address, ip_address, ip_network
 from typing import Literal
 
+from fastapi import Request
 from sqlalchemy import delete, func, text, update
 from sqlmodel import Session, select
 
@@ -50,6 +51,18 @@ def free_network_quota_exception() -> APIException:
         status_code=402,
         detail="Today's free AI allowance on this network is used up.",
     )
+
+
+def require_canonical_request_path(request: Request) -> None:
+    """Refuse a percent-encoded spelling of a charged path.
+
+    Such a spelling slips past the production /api fallback's path exclusion and arrives
+    from cloud egress addresses, which would count as another network. No client of ours
+    encodes these paths.
+    """
+    raw_path = request.scope.get("raw_path")
+    if raw_path is not None and raw_path != request.scope["path"].encode():
+        raise APIException(error_code=ErrorCode.NOT_FOUND, status_code=404)
 
 
 def network_key(client_ip: str | None) -> str | None:

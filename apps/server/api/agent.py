@@ -83,7 +83,11 @@ from models import (
 )
 from services.features.activation_event_service import activation_event_service
 from services.quota_service import quota_service
-from services.usage.free_ai_network_quota import FreeNetworkQuotaExceeded, free_network_quota_exception
+from services.usage.free_ai_network_quota import (
+    FreeNetworkQuotaExceeded,
+    free_network_quota_exception,
+    require_canonical_request_path,
+)
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access
 from utils.request_context import bind_request_context, reset_request_context
@@ -503,7 +507,7 @@ class StopResponse(BaseModel):
 # ==================== Endpoints ====================
 
 
-@router.post("/stream")
+@router.post("/stream", dependencies=[Depends(require_canonical_request_path)])
 async def stream_request(
     request: Request,
     body: AgentRequest,
