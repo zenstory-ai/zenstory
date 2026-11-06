@@ -3629,7 +3629,7 @@
           "en": "Four Steps for Writing a Face-Slapping Scene"
         },
         "body": {
-          "zh": "1. **定标价人**：谁最有资格判断这项能力？路人只能制造声量，真正懂行或握资源的人才能改变分量。\n2. **立错误判断**：低估要有信息差或利益原因，别让所有人凭空辱骂主角。\n3. **用行动验真**：主角完成一件可见、可比较的事，少靠自报身份。\n4. **让反应改局面**：有人改价、撤单、让位、求合作或开始反制。不同角色按照自己的损益行动。\n\n反应可以从目击者传到关键人物，再反向影响原先轻视主角的人。传递的重点是信息和利益发生变化，不是把“震惊”复制很多遍。",
+          "zh": "1. **定衬托人**：谁最有资格判断这项能力？路人只能制造声量，真正懂行或握资源的人才能改变分量。\n2. **立错误判断**：低估要有信息差或利益原因，别让所有人凭空辱骂主角。\n3. **用行动验真**：主角完成一件可见、可比较的事，少靠自报身份。\n4. **让反应改局面**：有人改价、撤单、让位、求合作或开始反制。不同角色按照自己的损益行动。\n\n反应可以从目击者传到关键人物，再反向影响原先轻视主角的人。传递的重点是信息和利益发生变化，不是把“震惊”复制很多遍。",
           "en": "1. **Choose the qualified evaluator.** Who has the standing to judge this ability? Bystanders create noise, but an expert or resource holder gives the result weight.\n2. **Establish the wrong judgment.** Underestimation should come from an information gap or self-interest, not universal abuse without cause.\n3. **Verify through action.** Let the protagonist complete something visible and comparable rather than winning by announcing an identity.\n4. **Make reactions alter the situation.** Someone changes a price, withdraws an order, yields a position, requests cooperation, or starts a countermeasure. Each character acts from their own gains and losses.\n\nReactions may travel from a witness to a decision-maker and then back to the person who dismissed the protagonist. What matters is changed information and interests, not repeating the word “shocked.”"
         }
       },
@@ -36047,7 +36047,7 @@
       "name": "story-long-write",
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
       "text": {
-        "zh": "用 /story-long-write（Codex 用 $story-long-write）修指定片段，说明本次是局部修订、采用的视角和是否允许展开已有事件。writing-craft 的“把规格演成场景”提供方法，本书文风优先；它不是剧本自动转小说的专用模式。",
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）修指定片段，说明本次是局部修订、采用的视角和是否允许展开已有事件。writing-craft 的“把细纲要求演成场景”提供方法，本书文风优先；它不是剧本自动转小说的专用模式。",
         "en": "Use /story-long-write, or $story-long-write in Codex, for local revision with viewpoint and explicit permission to develop events. The writing-craft scene method supplies the approach under the book’s style. This is not a dedicated screenplay-to-novel mode."
       }
     },
@@ -53869,7 +53869,7 @@
       "en": "Stop AI Video Analysis From Inventing the Story"
     },
     "description": {
-      "zh": "先逐段记录可见动作和实听对白，再写有证据的解释与未知项。附视频分析核对表、完整原创片段和返修示例。",
+      "zh": "先逐段记录可见动作和实际听到的对白，再写有证据的解释与未知项。附视频分析核对表、完整原创片段和返修示例。",
       "en": "Record visible action and heard dialogue before interpretation. Includes a claim-check worksheet, original footage sketch, and repaired AI analysis."
     },
     "answer": {
@@ -53884,7 +53884,7 @@
           "en": "Separate a video analysis into four layers"
         },
         "body": {
-          "zh": "第一层写直接观察：谁进入画面、手碰了什么、物件从哪里移到哪里、屏幕上确实出现了哪些字。第二层写实听对白，并保留说话人尚未确认的情况。第三层才写解释，例如某个动作改变了谁能使用一件物品；解释强度不能超过画面与声音。第四层列未知项，包括人物动机、镜头外协议、身份真伪、后续结果和创作者意图。\n\n单帧能证明那一刻的可见状态，不能独自证明动作全过程。自动字幕能帮助寻找声音，不能自动证明字词、人名和说话者正确。背景简介能补人物关系，不能替当前镜头宣布人物做了什么。",
+          "zh": "第一层写直接观察：谁进入画面、手碰了什么、物件从哪里移到哪里、屏幕上确实出现了哪些字。第二层写实际听到的对白，并保留说话人尚未确认的情况。第三层才写解释，例如某个动作改变了谁能使用一件物品；解释强度不能超过画面与声音。第四层列未知项，包括人物动机、镜头外协议、身份真伪、后续结果和创作者意图。\n\n单帧能证明那一刻的可见状态，不能独自证明动作全过程。自动字幕能帮助寻找声音，不能自动证明字词、人名和说话者正确。背景简介能补人物关系，不能替当前镜头宣布人物做了什么。",
           "en": "Layer one records direct observation: who enters the image, what a hand touches, where an object moves, and which words are actually visible on screen. Layer two records dialogue that was heard, while preserving an unidentified speaker when necessary. Layer three adds interpretation, such as how an action changes access to an object; its strength cannot exceed picture and sound evidence. Layer four lists unknowns, including motive, off-screen agreements, verified identity, later results, and authorial intent.\n\nA frame supports the visible state at that instant, not an entire action by itself. Automatic captions can help locate speech, but they do not establish exact wording, names, or speaker identity. Background notes can supply relationships, but they cannot declare what happens in the current shot."
         }
       },
@@ -53895,7 +53895,7 @@
           "en": "Copyable two-column video-analysis worksheet"
         },
         "body": {
-          "zh": "| 项目 | 填写内容 |\n|---|---|\n| 当前问题 | <这段要确认的人物、动作或变化> |\n| 可见事实 | <人物位置、物件状态、动作起止、画中文字> |\n| 实听对白 | <原句或待确认片段；标明谁说话是否确定> |\n| 支持到的变化 | <知识、目标、关系、权力、情绪或风险实际怎样改变> |\n| 有限解释 | <由哪些画面和对白共同支持> |\n| 不能推出 | <动机、身份、授权、结果或镜头外事件> |\n| 需回看的范围 | <动作前提、执行、反应和本段结果> |\n| 最终表述 | <具体、可追溯、保留未知的两三句分析> |\n\n先填写左侧问题，再从完整片段补右侧证据。若“有限解释”找不到对应画面或对白，把它移到“不能推出”或删除。",
+          "zh": "| 项目 | 填写内容 |\n|---|---|\n| 当前问题 | <这段要确认的人物、动作或变化> |\n| 可见事实 | <人物位置、物件状态、动作起止、画中文字> |\n| 实际听到的对白 | <原句或待确认片段；标明谁说话是否确定> |\n| 支持到的变化 | <知识、目标、关系、权力、情绪或风险实际怎样改变> |\n| 有限解释 | <由哪些画面和对白共同支持> |\n| 不能推出 | <动机、身份、授权、结果或镜头外事件> |\n| 需回看的范围 | <动作前提、执行、反应和本段结果> |\n| 最终表述 | <具体、可追溯、保留未知的两三句分析> |\n\n先填写左侧问题，再从完整片段补右侧证据。若“有限解释”找不到对应画面或对白，把它移到“不能推出”或删除。",
           "en": "| Item | What to record |\n|---|---|\n| Current question | <The person, action, or change this excerpt must establish> |\n| Visible facts | <Positions, object states, action boundaries, and visible text> |\n| Heard dialogue | <Exact line or pending fragment; state whether the speaker is known> |\n| Supported change | <Actual change in knowledge, goal, relationship, power, emotion, or risk> |\n| Limited interpretation | <The picture and dialogue that jointly support it> |\n| Cannot establish | <Motive, identity, permission, result, or off-screen event> |\n| Review range | <Premise, action, response, and local outcome> |\n| Final wording | <Two or three specific, traceable sentences that preserve unknowns> |\n\nWrite the question first, then gather evidence from the complete excerpt. If a limited interpretation has no matching image or line, move it to cannot establish or remove it."
         }
       },
@@ -53960,7 +53960,7 @@
       "name": "video-recap",
       "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md",
       "text": {
-        "zh": "用 $video-recap 处理我提供的视频，只运行理解与分析阶段，写出理解索引和创作简报后停止。逐段分开可见事实、实听对白、有证据的解释和未知项；为每项解释标出对应时段。人物动机、身份、关系与结果缺少依据时保留未知，不把空转写当静音证明。",
+        "zh": "用 $video-recap 处理我提供的视频，只运行理解与分析阶段，写出理解索引和创作简报后停止。逐段分开可见事实、实际听到的对白、有证据的解释和未知项；为每项解释标出对应时段。人物动机、身份、关系与结果缺少依据时保留未知，不把空转写当静音证明。",
         "en": "Use $video-recap on my video, run only the understanding and analysis stage, and stop after producing the understanding indexes and creative brief. For each excerpt, separate visible facts, heard dialogue, evidence-backed interpretation, and unknowns; attach a source range to each interpretation. Preserve uncertainty around motive, identity, relationships, and outcomes, and do not treat an empty transcript window as proof of silence."
       }
     },
@@ -55348,7 +55348,7 @@
       },
       {
         "label": {
-          "zh": "可执行因果、代表路径、进程与世界响应",
+          "zh": "可执行因果、代表路径、进程与世界反馈",
           "en": "Executable causality, representative paths, progression, and world response"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/d76cdca5b54edbdb15ef5ce7618a83b281415d21/skills/game-world-design/references/world-design-method.md"
