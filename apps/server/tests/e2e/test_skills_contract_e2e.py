@@ -6,7 +6,6 @@ These tests pin the backend contracts used by the nightly skills web suites:
 - quota-exceeded response when custom skill creation is exhausted
 - my-skills aggregation of user + added public skills
 - share-to-public submission flow
-- project skill usage stats
 """
 
 from __future__ import annotations
@@ -19,11 +18,10 @@ from httpx import AsyncClient
 from sqlmodel import Session, select
 
 from models import PublicSkill, UserAddedSkill
-from models.entities import Project
 from models.skill import UserSkill
-from models.skill_usage import SkillUsage
 from models.subscription import SubscriptionPlan, UsageQuota
 from services.subscription.defaults import clone_default_free_features
+
 from .test_core_api_e2e import _attach_subscription, _auth_headers, _create_user, _login
 
 pytestmark = pytest.mark.e2e
@@ -330,67 +328,3 @@ async def test_skills_contract_share_flow_supports_submit_and_rejected_reshare(
     assert resubmitted_public is not None
     assert resubmitted_public.category == "plot"
     assert resubmitted_public.status == "pending"
-
-
-@pytest.mark.asyncio
-async def test_skills_contract_stats_endpoint_returns_project_usage_rollups(
-    client: AsyncClient,
-    db_session: Session,
-):
-    user = await _create_user(db_session, prefix="skills_contract_stats")
-    project = Project(name="Skill Stats Project", owner_id=user.id)
-    db_session.add(project)
-    db_session.commit()
-    db_session.refresh(project)
-
-    now = datetime.utcnow()
-    db_session.add_all(
-        [
-            SkillUsage(
-                user_id=user.id,
-                project_id=project.id,
-                skill_id="builtin-outline",
-                skill_name="Builtin Outline",
-                skill_source="builtin",
-                matched_trigger="/outline",
-                confidence=0.7,
-                created_at=now - timedelta(days=1),
-            ),
-            SkillUsage(
-                user_id=user.id,
-                project_id=project.id,
-                skill_id="user-pacing",
-                skill_name="User Pacing",
-                skill_source="user",
-                matched_trigger="/pace",
-                confidence=0.9,
-                created_at=now,
-            ),
-            SkillUsage(
-                user_id=user.id,
-                project_id=project.id,
-                skill_id="added-dialogue",
-                skill_name="Added Dialogue",
-                skill_source="added",
-                matched_trigger="对白",
-                confidence=0.8,
-                created_at=now,
-            ),
-        ]
-    )
-    db_session.commit()
-
-    login_payload = await _login(client, identifier=user.username)
-    headers = _auth_headers(login_payload["access_token"])
-
-    response = await client.get(f"/api/v1/skills/stats/{project.id}?days=7", headers=headers)
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["total_triggers"] == 3
-    assert payload["builtin_count"] == 1
-    assert payload["user_count"] == 2
-    assert "avg_confidence" not in payload
-    assert payload["top_skills"][0]["count"] == 1
-    assert {item["skill_source"] for item in payload["top_skills"]} == {"builtin", "user", "added"}
-    assert len(payload["daily_usage"]) == 7
-    assert sum(item["count"] for item in payload["daily_usage"]) == 3

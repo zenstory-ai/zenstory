@@ -166,7 +166,6 @@ def db_session():
         cleanup_session.exec(Custom("DELETE FROM subscription_plan"))
         # Core tables
         cleanup_session.exec(Custom("DELETE FROM skill_resource"))
-        cleanup_session.exec(Custom("DELETE FROM skill_usage"))
         cleanup_session.exec(Custom("DELETE FROM user_added_skill"))
         cleanup_session.exec(Custom("DELETE FROM public_skill"))
         cleanup_session.exec(Custom("DELETE FROM user_skill"))

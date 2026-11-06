@@ -10,7 +10,6 @@ import { login } from './helpers/common';
  * - Managing triggers and instructions
  * - Sharing skills to public library
  * - Batch operations (select all, batch delete)
- * - Skill statistics
  * - Discovering and adding public skills
  */
 
@@ -19,7 +18,6 @@ import { login } from './helpers/common';
 const SKILLS_PAGE = {
   title: 'h1',
   description: 'h1 + p',
-  statsButton: 'button:has(svg.lucide-bar-chart-3)',
   tabs: '.flex.gap-1.p-1',
   discoverTab: 'button:has-text("发现技能"), button:has-text("Discover")',
   mySkillsTab: 'button:has-text("我的技能"), button:has-text("My Skills")',
@@ -74,13 +72,6 @@ const SHARE_MODAL = {
   categorySelect: 'select',
   submitButton: 'button:has-text("提交")',
   cancelButton: 'button:has-text("取消")',
-};
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const STATS_DIALOG = {
-  container: '.fixed.inset-0',
-  closeButton: 'button:has(svg.lucide-x)',
-  daysSelect: 'select',
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -562,51 +553,6 @@ test.describe('Skills Management', () => {
       for (const name of skillNames) {
         await expect(page.locator(`text=${name}`)).not.toBeVisible({ timeout: 5000 });
       }
-    }
-  });
-
-  // ==================== Skill Statistics ====================
-
-  test('skill stats button is visible when project exists', async ({ page }) => {
-    // Check if stats button is visible (only shows when there's a current project)
-    const statsButton = page.locator('button:has(svg.lucide-bar-chart-3)');
-    // This may or may not be visible depending on project context
-    await statsButton.isVisible();
-    // Just verify the page structure is correct
-    await expect(page.locator('h1')).toBeVisible();
-  });
-
-  test('skill stats dialog opens and closes', async ({ page }) => {
-    const token = await page.evaluate(() => localStorage.getItem('access_token'));
-    expect(token).toBeTruthy();
-    const createProjectResponse = await page.request.post('/api/v1/projects', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      data: {
-        description: `E2E 技能统计测试项目 ${Date.now()}`,
-      },
-    });
-    expect(createProjectResponse.ok()).toBeTruthy();
-    const createdProject = await createProjectResponse.json();
-    await page.goto(`/project/${createdProject.id}`);
-    await page.waitForURL(/\/project\//, { timeout: 15000 });
-
-    // Navigate to skills page
-    await page.goto('/dashboard/skills');
-    await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
-
-    // Click stats button
-    const statsButton = page.locator('button:has(svg.lucide-bar-chart-3)');
-    if (await statsButton.isVisible()) {
-      await statsButton.click();
-
-      // Verify stats dialog appears
-      await expect(page.locator('.fixed.inset-0:has(svg.lucide-bar-chart-3)')).toBeVisible({ timeout: 5000 });
-
-      // Close dialog
-      await page.locator('.fixed.inset-0 button:has(svg.lucide-x)').click();
-      await expect(page.locator('.fixed.inset-0:has(svg.lucide-bar-chart-3)')).not.toBeVisible();
     }
   });
 

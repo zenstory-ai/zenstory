@@ -6,7 +6,6 @@ Tests skill management operations:
 - POST /api/v1/skills - Create skill
 - PUT /api/v1/skills/{id} - Update skill
 - DELETE /api/v1/skills/{id} - Delete skill
-- GET /api/v1/skills/stats/{project_id} - Get skill stats
 - GET /api/v1/skills/my-skills - Get my skills
 - POST /api/v1/skills/{id}/share - Share skill
 - POST /api/v1/skills/batch-update - Batch update skills
@@ -17,7 +16,7 @@ import json
 import pytest
 from httpx import AsyncClient
 
-from models import Project, PublicSkill, SkillResource, User, UserAddedSkill, UserSkill
+from models import PublicSkill, SkillResource, User, UserAddedSkill, UserSkill
 
 
 async def create_user_and_login(client: AsyncClient, db_session, username: str, email: str):
@@ -484,55 +483,14 @@ async def test_delete_skill_other_user(client: AsyncClient, db_session):
     assert existing_skill is not None
 
 
-# ==================== Skill Stats Tests ====================
-
-
 @pytest.mark.integration
-async def test_get_skill_stats_success(client: AsyncClient, db_session):
-    """Test getting skill stats for a project."""
-    setup = await create_user_and_login(client, db_session, "skilluser16", "skilluser16@example.com")
-    user = setup["user"]
-    token = setup["token"]
-
-    # Create project
-    project = Project(name="Test Project", owner_id=user.id)
-    db_session.add(project)
-    db_session.commit()
-
+async def test_retired_skill_stats_endpoint_is_not_available(client: AsyncClient, db_session):
+    setup = await create_user_and_login(client, db_session, "retiredstats", "retiredstats@example.com")
     response = await client.get(
-        f"/api/v1/skills/stats/{project.id}",
-        headers={"Authorization": f"Bearer {token}"},
+        "/api/v1/skills/stats/00000000-0000-0000-0000-000000000000",
+        headers={"Authorization": f"Bearer {setup['token']}"},
     )
-    assert response.status_code == 200
-    data = response.json()
-    assert "total_triggers" in data
-    assert "builtin_count" in data
-    assert "user_count" in data
-    assert "avg_confidence" not in data
-    assert "top_skills" in data
-    assert "daily_usage" in data
-
-
-@pytest.mark.integration
-async def test_get_skill_stats_unauthorized_project(client: AsyncClient, db_session):
-    """Test getting stats for another user's project returns 403."""
-    setup1 = await create_user_and_login(client, db_session, "skilluser17", "skilluser17@example.com")
-    user1 = setup1["user"]
-
-    setup2 = await create_user_and_login(client, db_session, "skilluser18", "skilluser18@example.com")
-    token2 = setup2["token"]
-
-    # Create project for user1
-    project = Project(name="User1 Project", owner_id=user1.id)
-    db_session.add(project)
-    db_session.commit()
-
-    # Try to get stats as user2
-    response = await client.get(
-        f"/api/v1/skills/stats/{project.id}",
-        headers={"Authorization": f"Bearer {token2}"},
-    )
-    assert response.status_code == 403
+    assert response.status_code == 404
 
 
 # ==================== My Skills Tests ====================
@@ -1210,15 +1168,6 @@ async def test_list_skills_without_auth(client: AsyncClient, db_session):
 async def test_get_my_skills_without_auth(client: AsyncClient, db_session):
     """Test getting my skills without authentication returns 401."""
     response = await client.get("/api/v1/skills/my-skills")
-    assert response.status_code == 401
-
-
-@pytest.mark.integration
-async def test_get_skill_stats_without_auth(client: AsyncClient, db_session):
-    """Test getting skill stats without authentication returns 401."""
-    response = await client.get(
-        "/api/v1/skills/stats/00000000-0000-0000-0000-000000000000"
-    )
     assert response.status_code == 401
 
 

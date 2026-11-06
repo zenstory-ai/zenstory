@@ -483,20 +483,16 @@ class AgentService:
         self,
         session: Session,
         *,
-        project_id: str,
         user_id: str | None,
         selected_skill_ids: list[str] | None,
-        message: str,
     ) -> list[dict[str, Any]]:
         """
-        Resolve skills the user explicitly selected for this message and record their usage.
+        Resolve skills the user explicitly selected for this message.
 
         只接受属于当前用户且启用中的技能，其余 ID 静默忽略。
         """
         if not user_id or not selected_skill_ids:
             return []
-
-        from services.skill_usage_service import record_skill_usage
 
         selected: list[dict[str, Any]] = []
         skills = resolve_selected_skills(session, user_id, selected_skill_ids)
@@ -516,31 +512,6 @@ class AgentService:
                     resource.path for resource in list_active_skill_resources(session, skill)
                 ],
             })
-            # 用独立 session（同一个 engine）记录用量：record_skill_usage 失败时要回滚，
-            # 若用请求 session 回滚，会连带丢掉它上面尚未提交的状态并让已加载对象全部过期。
-            try:
-                with Session(session.get_bind()) as usage_session:
-                    record_skill_usage(
-                        session=usage_session,
-                        project_id=project_id,
-                        skill_id=skill.id,
-                        skill_name=skill.name,
-                        skill_source=skill.source,
-                        matched_trigger="selected",
-                        confidence=1.0,
-                        user_id=user_id,
-                        user_message=message,
-                    )
-            except Exception as exc:
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Failed to record selected skill usage",
-                    skill_id=skill.id,
-                    project_id=project_id,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
         return selected
 
     def _prepare_prompt_artifacts(
@@ -574,10 +545,8 @@ class AgentService:
         )
         selected_skills = self._resolve_selected_skills(
             session,
-            project_id=project_id,
             user_id=user_id,
             selected_skill_ids=selected_skill_ids,
-            message=message,
         )
         # 系统提示只放跨轮、跨角色都不变的内容；随轮次变化的上下文放进本轮用户消息
         # （见 build_turn_context），否则 DeepSeek 前缀缓存从系统提示起就断了。
@@ -1313,8 +1282,6 @@ class AgentService:
                 project_id=project_id,
                 session_id=session_id,
                 create_session_func=create_session,
-                # 显式选择的技能已记过 selected 用量，模型再 load_skill 它时不重复记
-                recorded_skill_ids=[selected["id"] for selected in selected_skills],
                 # 显式选择的正文已占用的技能内容预算
                 skill_tokens_used=sum(
                     int(selected.get("instructions_tokens") or 0) for selected in selected_skills

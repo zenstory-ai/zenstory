@@ -77,20 +77,6 @@
     "submit": "提交审核",
     "error": "分享失败，请稍后重试"
   },
-  "stats": {
-    "title": "技能使用统计",
-    "days7": "最近 7 天",
-    "days30": "最近 30 天",
-    "days90": "最近 90 天",
-    "totalUses": "总使用次数",
-    "builtinCount": "内置技能",
-    "userCount": "自定义技能",
-    "topSkills": "最常用技能",
-    "dailyUsage": "每日使用趋势",
-    "builtin": "内置",
-    "user": "自定义",
-    "noData": "还没有使用记录"
-  },
   "quota": {
     "createTitle": "自定义技能数量已达上限",
     "createDescription": "删掉不用的技能就能腾出名额，或开通 Pro 建更多技能。",

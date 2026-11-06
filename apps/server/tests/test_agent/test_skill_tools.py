@@ -1,9 +1,10 @@
 """load_skill / read_skill_resource 工具（技能渐进式加载 L2/L3）。"""
 
 import json
+from unittest.mock import patch
 
 import pytest
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from agent.skills.content_budget import SKILL_CONTENT_TOKEN_BUDGET
 from agent.skills.context_injector import SkillContextInjector
@@ -11,7 +12,7 @@ from agent.tools.mcp_tools import ToolContext, load_skill, read_skill_resource
 from agent.tools.registry import get_agent_tools
 from agent.tools.tool_schemas import TOOL_SCHEMAS
 from agent.utils.token_utils import estimate_text_tokens
-from models import Project, PublicSkill, SkillResource, SkillUsage, User, UserAddedSkill, UserSkill
+from models import Project, PublicSkill, SkillResource, User, UserAddedSkill, UserSkill
 
 
 def _user(db_session: Session, suffix: str) -> User:
@@ -79,7 +80,7 @@ def test_skill_tools_are_registered_for_all_agents():
 
 
 @pytest.mark.integration
-async def test_load_skill_returns_instructions_resources_and_records_usage(
+async def test_load_skill_returns_instructions_resources(
     db_session: Session, owner: User, project: Project, tool_context
 ):
     skill = UserSkill(user_id=owner.id, name="悬念大师", description="d", instructions="先强化钩子。")
@@ -89,7 +90,9 @@ async def test_load_skill_returns_instructions_resources_and_records_usage(
     db_session.add(SkillResource(user_skill_id=skill.id, path="assets/a.json", content="{}", size=2))
     db_session.commit()
 
-    payload = _payload(await load_skill({"name": "悬念大师"}))
+    with patch.object(Session, "commit", autospec=True) as commit:
+        payload = _payload(await load_skill({"name": "悬念大师"}))
+    commit.assert_not_called()
 
     assert payload == {
         "status": "success",
@@ -102,10 +105,6 @@ async def test_load_skill_returns_instructions_resources_and_records_usage(
             "resources": [{"path": "assets/a.json", "size": 2}, {"path": "references/b.md", "size": 1}],
         },
     }
-    usages = db_session.exec(select(SkillUsage)).all()
-    assert [(u.skill_id, u.skill_source, u.matched_trigger, u.confidence, u.project_id) for u in usages] == [
-        (skill.id, "user", "load_skill", 1.0, project.id),
-    ]
 
 
 @pytest.mark.integration
@@ -137,8 +136,6 @@ async def test_added_skill_resolves_by_custom_name_and_ids(db_session: Session, 
         assert payload["data"]["skill_id"] == public.id
         assert payload["data"]["skill_name"] == "阴影编织者"
         assert payload["data"]["source"] == "added"
-    usages = db_session.exec(select(SkillUsage)).all()
-    assert {u.skill_source for u in usages} == {"added"}
 
 
 @pytest.mark.integration
@@ -159,8 +156,6 @@ async def test_inactive_unapproved_and_foreign_skills_are_hidden(
         assert "正常技能" in payload["error"]
         assert hidden not in payload["error"].split("可用技能：", 1)[1]
 
-    assert db_session.exec(select(SkillUsage)).all() == []
-
 
 @pytest.mark.integration
 async def test_unknown_skill_error_lists_at_most_ten_names(db_session: Session, owner: User, tool_context):
@@ -180,22 +175,6 @@ async def test_load_skill_requires_user_context(db_session: Session):
     ToolContext.set_context(session=db_session, user_id=None, project_id="p", session_id=None)
     payload = _payload(await load_skill({"name": "x"}))
     assert payload["status"] == "error"
-
-
-@pytest.mark.integration
-async def test_usage_recording_failure_does_not_break_load_skill(db_session: Session, owner: User):
-    """项目不属于当前用户时 record_skill_usage 会拒绝写入，但技能仍要能加载。"""
-    other = _user(db_session, "project_owner")
-    foreign_project = Project(name="别人的项目", owner_id=other.id, project_type="novel")
-    db_session.add(foreign_project)
-    db_session.add(UserSkill(user_id=owner.id, name="悬念大师", instructions="方法"))
-    db_session.commit()
-    ToolContext.set_context(session=db_session, user_id=owner.id, project_id=foreign_project.id, session_id=None)
-
-    payload = _payload(await load_skill({"name": "悬念大师"}))
-
-    assert payload["status"] == "success"
-    assert db_session.exec(select(SkillUsage)).all() == []
 
 
 @pytest.mark.integration
@@ -223,8 +202,6 @@ async def test_read_skill_resource(db_session: Session, owner: User, tool_contex
     assert missing["status"] == "error"
     assert "references/hooks.md" in missing["error"]
     assert no_path["status"] == "error"
-    # 读资源不单独记用量（用量以 load_skill 为准）
-    assert db_session.exec(select(SkillUsage)).all() == []
 
 
 @pytest.mark.integration
@@ -256,7 +233,7 @@ async def test_read_skill_resource_cannot_reach_foreign_skill(db_session: Sessio
 
 
 @pytest.mark.integration
-async def test_repeated_load_skill_records_usage_once_per_request(
+async def test_repeated_load_skill_returns_same_instructions(
     db_session: Session, owner: User, project: Project, tool_context
 ):
     skill = UserSkill(user_id=owner.id, name="悬念大师", instructions="方法")
@@ -267,34 +244,12 @@ async def test_repeated_load_skill_records_usage_once_per_request(
     second = _payload(await load_skill({"name": skill.id}))
 
     assert first["status"] == second["status"] == "success"
-    usages = db_session.exec(select(SkillUsage)).all()
-    assert [(u.skill_id, u.matched_trigger) for u in usages] == [(skill.id, "load_skill")]
+    assert first["data"]["instructions"] == second["data"]["instructions"] == "方法"
 
 
 @pytest.mark.integration
-async def test_load_skill_of_selected_skill_does_not_record_again(
-    db_session: Session, owner: User, project: Project
-):
-    skill = UserSkill(user_id=owner.id, name="悬念大师", instructions="方法")
-    db_session.add(skill)
-    db_session.commit()
-    ToolContext.set_context(
-        session=db_session,
-        user_id=owner.id,
-        project_id=project.id,
-        session_id=None,
-        recorded_skill_ids=[skill.id],
-    )
-
-    payload = _payload(await load_skill({"name": "悬念大师"}))
-
-    assert payload["status"] == "success"
-    assert db_session.exec(select(SkillUsage)).all() == []
-
-
-@pytest.mark.integration
-async def test_usage_recording_failure_keeps_pending_state_of_tool_session(db_session: Session, owner: User):
-    """用量写入失败只回滚独立 session，工具 session 上未提交的对象不受影响。"""
+async def test_load_skill_keeps_pending_state_of_tool_session(db_session: Session, owner: User):
+    """加载技能不提交或回滚工具 session 上未提交的对象。"""
     other = _user(db_session, "pending_owner")
     foreign_project = Project(name="别人的项目", owner_id=other.id, project_type="novel")
     db_session.add(foreign_project)

@@ -77,7 +77,6 @@ vi.mock('react-i18next', () => ({
         'skills:collapse': 'Collapse',
         'skills:expand': 'Expand',
         'skills:official': 'Official',
-        'stats.title': 'Statistics',
         'common:cancel': 'Cancel',
         'common:save': 'Save',
         'common:delete': 'Delete',
@@ -99,12 +98,6 @@ vi.mock('../../hooks/useMediaQuery', () => ({
   useIsTablet: () => false,
 }))
 
-vi.mock('../../contexts/ProjectContext', () => ({
-  useProject: () => ({
-    currentProject: { id: 'project-1', name: 'Test Project' },
-    currentProjectId: 'project-1',
-  }),
-}))
 
 vi.mock('../../lib/api', () => ({
   skillsApi: {
@@ -139,10 +132,6 @@ vi.mock('react-markdown', () => ({
 }))
 
 // Mock dialog components
-vi.mock('../../components/SkillStatsDialog', () => ({
-  SkillStatsDialog: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="stats-dialog">Stats Dialog</div> : null,
-}))
 
 vi.mock('../../components/skills/ShareSkillModal', () => ({
   ShareSkillModal: ({ skill }: { skill: Skill | null }) =>

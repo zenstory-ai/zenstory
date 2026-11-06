@@ -855,29 +855,6 @@ export interface UpdateSkillRequest {
   is_active?: boolean;
 }
 
-/**
- * Skill usage statistics
- */
-export interface SkillUsageStats {
-  total_triggers: number;
-  builtin_count: number;
-  user_count: number;
-  top_skills: TopSkillItem[];
-  daily_usage: DailyUsageItem[];
-}
-
-export interface TopSkillItem {
-  skill_id: string;
-  skill_name: string;
-  skill_source: SkillSource;
-  count: number;
-}
-
-export interface DailyUsageItem {
-  date: string;
-  count: number;
-}
-
 // ==================== Public Skill Types ====================
 
 /**

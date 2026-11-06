@@ -413,28 +413,6 @@ class _PendingEmptyFileState:
             self._reservations.pop(ticket, None)
 
 
-class _SkillUsageClaims:
-    """本次请求里已记录过用量的技能 ID（跨子任务/线程共享，原因同 _PendingEmptyFileState）。
-
-    一次请求里同一技能只记一次用量：显式选择（selected）的技能预先登记，
-    之后模型再 load_skill 它、或多次 load_skill 同一技能都不重复记。
-    """
-
-    __slots__ = ("_lock", "_skill_ids")
-
-    def __init__(self, skill_ids: Iterable[str] | None = None) -> None:
-        self._lock = threading.Lock()
-        self._skill_ids: set[str] = {str(item) for item in (skill_ids or []) if item}
-
-    def claim(self, skill_id: str) -> bool:
-        """Return True the first time a skill id is claimed in this request."""
-        with self._lock:
-            if skill_id in self._skill_ids:
-                return False
-            self._skill_ids.add(skill_id)
-            return True
-
-
 class _PreWriteContents:
     """本次请求里每个文件第一次被 AI 写入之前的正文（跨子任务/线程共享，原因同上）。
 
@@ -585,7 +563,6 @@ class ToolContext:
         session_id: str | None,
         create_session_func: Callable[[], Session] | None = None,
         current_agent: str | None = None,
-        recorded_skill_ids: Iterable[str] | None = None,
         skill_tokens_used: int = 0,
         author_message: str | None = None,
         author_steering: list[str] | None = None,
@@ -605,8 +582,6 @@ class ToolContext:
             referenced_file_ids: 作者本轮附加的文件、引用的选中文本所在的文件。
             author_edit_refusals: 本轮因为作者手改过而没删 / 没整份重写的文件（service 持有，
                 交接给下一个 agent 时说明它们保持原样）。
-            recorded_skill_ids: 本次请求里已记录过用量的技能（显式选择的技能），
-                load_skill 不再为它们重复记用量。
             skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
                 从本次请求的技能内容预算里先扣掉。
             read_snapshots: 本轮开始时以全文给模型看的文件正文（file_id → 正文），edit_file 的
@@ -621,7 +596,6 @@ class ToolContext:
             "create_session_func": create_session_func,
             "current_agent": current_agent,
             "pending_empty_file_state": _PendingEmptyFileState(),
-            "skill_usage_claims": _SkillUsageClaims(recorded_skill_ids),
             "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
             "author_message": author_message,
             "author_steering": author_steering,
@@ -956,15 +930,6 @@ class ToolContext:
             state.clear_all()
         _tool_context_var.set(None)
         _pending_empty_file_var.set(None)
-
-    @classmethod
-    def claim_skill_usage(cls, skill_id: str) -> bool:
-        """True 表示本次请求第一次为该技能记用量；没有请求上下文时总是 True。"""
-        context = _tool_context_var.get()
-        claims = context.get("skill_usage_claims") if isinstance(context, dict) else None
-        if isinstance(claims, _SkillUsageClaims):
-            return claims.claim(skill_id)
-        return True
 
     @classmethod
     def get_skill_content_budget(cls) -> SkillContentBudget:
@@ -2721,7 +2686,6 @@ def _load_skill_sync(args: dict[str, Any]) -> dict[str, Any]:
     """Synchronous load_skill implementation."""
     from agent.skills.active_skills import list_active_skill_resources
     from agent.skills.content_budget import SKILL_BODY_PATH
-    from services.skill_usage_service import record_skill_usage
 
     tool_name = "load_skill"
     name = str(args.get("name") or "").strip()
@@ -2742,33 +2706,6 @@ def _load_skill_sync(args: dict[str, Any]) -> dict[str, Any]:
             {"path": resource.path, "size": resource.size}
             for resource in list_active_skill_resources(session, skill)
         ]
-
-        # 用量统计来自 load_skill 调用本身（而不是模型自报的文本标记）；一次请求里同一技能只记一次。
-        # 用独立 session 记录：失败时回滚的只是这条用量，不会波及工具/请求 session 上的待提交状态。
-        project_id = ToolContext.get_project_id()
-        if project_id and ToolContext.claim_skill_usage(skill.id):
-            try:
-                with Session(session.get_bind()) as usage_session:
-                    record_skill_usage(
-                        session=usage_session,
-                        project_id=project_id,
-                        skill_id=skill.id,
-                        skill_name=skill.name,
-                        skill_source=skill.source,
-                        matched_trigger="load_skill",
-                        confidence=1.0,
-                        user_id=ToolContext.get_user_id(),
-                    )
-            except Exception as exc:
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Failed to record skill usage for load_skill",
-                    skill_id=skill.id,
-                    project_id=project_id,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
 
         return _make_result({
             "status": "success",
