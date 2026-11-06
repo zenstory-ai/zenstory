@@ -954,18 +954,6 @@ describe('api', () => {
       expect(result).toEqual(mockResponse)
     })
 
-    it('gets skill stats', async () => {
-      const mockStats = { total_calls: 10, unique_skills_used: 5 }
-      mockApi.get.mockResolvedValue(mockStats)
-
-      const result = await skillsApi.getStats('project-1', 30)
-
-      expect(result).toEqual(mockStats)
-      expect(mockApi.get).toHaveBeenCalledWith(
-        '/api/v1/skills/stats/project-1?days=30'
-      )
-    })
-
     it('batch updates skills', async () => {
       const mockResponse = { success: true, updated_count: 3 }
       mockApi.post.mockResolvedValue(mockResponse)

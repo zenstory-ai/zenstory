@@ -11,7 +11,6 @@ import { login as authenticate } from './helpers/common';
  * - Skill duplication flow
  * - Keyboard navigation and accessibility
  * - Cross-session persistence
- * - Usage statistics tracking
  * - Error recovery scenarios
  */
 

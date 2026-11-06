@@ -2,14 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { LazyMarkdown } from "../components/LazyMarkdown";
-import { Plus, Pencil, Trash2, Zap, Check, ChevronDown, ChevronUp, BarChart3, Share2, Compass, MinusCircle, Search, Square, CheckSquare, Download, Upload, AlertTriangle } from "../components/icons";
+import { Plus, Pencil, Trash2, Zap, Check, ChevronDown, ChevronUp, Share2, Compass, MinusCircle, Search, Square, CheckSquare, Download, Upload, AlertTriangle } from "../components/icons";
 import { skillsApi, publicSkillsApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
 import type { Skill, AddedSkill, CreateSkillRequest, UpdateSkillRequest, PublicSkill, SkillCategory, SkillShareStatus } from "../types";
 import { PUBLIC_SKILLS_PAGE_SIZE, PUBLIC_SKILLS_SEARCH_DEBOUNCE_MS, SKILL_FIELD_LIMITS } from "../config/skills";
 import { useIsMobile } from "../hooks/useMediaQuery";
-import { useProject } from "../contexts/ProjectContext";
-import { SkillStatsDialog } from "../components/SkillStatsDialog";
 import { ShareSkillModal } from "../components/skills/ShareSkillModal";
 import { SkillResourcesSection } from "../components/skills/SkillResourcesSection";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
@@ -72,7 +70,6 @@ export default function SkillsPage() {
   const { t } = useTranslation(["skills", "common"]);
   const skillCreateUpgradePrompt = getUpgradePromptDefinition("skill_create_quota_blocked");
   const isMobile = useIsMobile();
-  const { currentProject } = useProject();
 
   // Tab state - default to discover tab
   const [activeTab, setActiveTab] = useState<TabType>("discover");
@@ -87,7 +84,6 @@ export default function SkillsPage() {
   const [formData, setFormData] = useState<SkillFormData>(emptyForm);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showStats, setShowStats] = useState(false);
   const [sharingSkill, setSharingSkill] = useState<Skill | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [mySkillsSearchQuery, setMySkillsSearchQuery] = useState("");
@@ -561,16 +557,6 @@ export default function SkillsPage() {
             >
               {t("skills:import.button")}
             </Button>
-            {currentProject && (
-              <Button
-                variant="ghost"
-                size={isMobile ? "touch" : "md"}
-                onClick={() => setShowStats(true)}
-                leftIcon={<BarChart3 className="w-4 h-4" />}
-              >
-                {t("stats.title")}
-              </Button>
-            )}
           </div>
         }
       />
@@ -810,15 +796,6 @@ export default function SkillsPage() {
           onClose={() => setSharingSkill(null)}
           onSuccess={loadSkills}
           isMobile={isMobile}
-        />
-      )}
-
-      {/* Stats Dialog */}
-      {currentProject && (
-        <SkillStatsDialog
-          isOpen={showStats}
-          onClose={() => setShowStats(false)}
-          projectId={currentProject.id || ""}
         />
       )}
 

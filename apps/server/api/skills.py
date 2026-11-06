@@ -368,65 +368,6 @@ async def delete_skill(
     return {"success": True, "message": "Skill deleted"}
 
 
-# ==================== Statistics Endpoints ====================
-
-
-class SkillStatsResponse(BaseModel):
-    """Response model for skill usage statistics."""
-
-    total_triggers: int
-    builtin_count: int
-    user_count: int
-    top_skills: list[dict]
-    daily_usage: list[dict]
-
-
-@router.get("/stats/{project_id}", response_model=SkillStatsResponse)
-async def get_skill_stats(
-    project_id: str,
-    days: int = 30,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-) -> SkillStatsResponse:
-    """
-    Get skill usage statistics for a project.
-
-    Args:
-        project_id: Project ID
-        days: Number of days to look back (default 30, max 90)
-    """
-    from models import Project
-    from services.skill_usage_service import get_skill_usage_stats
-
-    # Verify project ownership
-    project = session.get(Project, project_id)
-    # Admin/superuser can access stats for any project for support/debugging.
-    if (
-        not project
-        or project.is_deleted
-        or (project.owner_id != current_user.id and not current_user.is_superuser)
-    ):
-        raise APIException(
-            status_code=403,
-            error_code=ErrorCode.NOT_AUTHORIZED,
-            detail="Not authorized to access this project",
-        )
-
-    # Limit days to reasonable range
-    days = min(max(days, 1), 90)
-
-    stats = get_skill_usage_stats(session, project_id, days)
-
-    log_with_context(
-        logger, 20, "Skill stats retrieved",
-        project_id=project_id,
-        days=days,
-        total_triggers=stats["total_triggers"],
-    )
-
-    return SkillStatsResponse(**stats)
-
-
 # ==================== My Skills Endpoints ====================
 
 

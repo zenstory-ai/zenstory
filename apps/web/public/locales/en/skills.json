@@ -77,20 +77,6 @@
     "submit": "Submit for review",
     "error": "Failed to share. Please try again later."
   },
-  "stats": {
-    "title": "Skill Usage Statistics",
-    "days7": "Last 7 days",
-    "days30": "Last 30 days",
-    "days90": "Last 90 days",
-    "totalUses": "Total Uses",
-    "builtinCount": "Built-in",
-    "userCount": "Custom",
-    "topSkills": "Top Skills",
-    "dailyUsage": "Daily Usage Trend",
-    "builtin": "Built-in",
-    "user": "Custom",
-    "noData": "No usage yet"
-  },
   "quota": {
     "createTitle": "Custom skill limit reached",
     "createDescription": "Delete a skill you don't use, or get Pro for more custom skills.",

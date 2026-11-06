@@ -1554,29 +1554,6 @@ export const skillsApi = {
   },
 
   /**
-   * Get skill usage statistics for a project.
-   *
-   * Returns analytics on how often skills have been used in AI
-   * conversations within the specified project.
-   *
-   * @param projectId - The UUID of the project
-   * @param days - Number of days to include in stats (default: 30)
-   * @returns Promise resolving to usage statistics by skill
-   *
-   * @example
-   * ```ts
-   * // Get last 30 days of skill usage
-   * const stats = await skillsApi.getStats('project-uuid');
-   *
-   * // Get last 7 days
-   * const weeklyStats = await skillsApi.getStats('project-uuid', 7);
-   * ```
-   */
-  getStats: async (projectId: string, days: number = 30) => {
-    return api.get<import("../types").SkillUsageStats>(`/api/v1/skills/stats/${projectId}?days=${days}`);
-  },
-
-  /**
    * Perform a batch operation on multiple skills.
    *
    * Enables efficient management of multiple skills at once.

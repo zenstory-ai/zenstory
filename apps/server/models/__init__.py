@@ -98,7 +98,6 @@ from .referral import (
 from .refresh_token import RefreshTokenRecord
 from .skill import UserSkill
 from .skill_resource import SkillResource
-from .skill_usage import SkillUsage
 from .subscription import (
     AdminAuditLog,
     RedemptionCode,
@@ -161,7 +160,6 @@ __all__ = [
     # Skill model
     "UserSkill",
     "SkillResource",
-    "SkillUsage",
     "PublicSkill",
     "UserAddedSkill",
     # Material library models

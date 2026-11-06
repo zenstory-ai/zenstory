@@ -23,7 +23,6 @@ from models import (
     Project,
     PublicSkill,
     SkillResource,
-    SkillUsage,
     User,
     UserAddedSkill,
     UserSkill,
@@ -171,8 +170,6 @@ class TestAgentServiceInit:
         )
 
         assert service.context_assembler == mock_context_assembler
-
-
 
 
 @pytest.mark.integration
@@ -372,20 +369,14 @@ class TestAgentServiceProcessStream:
             {"skill_id": skill.id, "skill_name": "悬念大师", "matched_trigger": "selected"},
         ]
 
-        usages = db_session.exec(select(SkillUsage).where(SkillUsage.project_id == project.id)).all()
-        assert [(u.skill_id, u.skill_source, u.matched_trigger) for u in usages] == [
-            (skill.id, "user", "selected"),
-        ]
-
-    async def test_selected_skill_is_not_recorded_or_announced_again_by_load_skill(
+    async def test_selected_skill_is_not_announced_again_by_load_skill(
         self,
         mock_agent_service,
         test_user_with_project,
         db_session: Session,
     ):
-        """显式选择的技能：ToolContext 与适配器都预先登记，模型再 load_skill 它时不重复记用量/发事件。"""
+        """显式选择的技能预先登记到适配器，模型再 load_skill 时不重复发事件。"""
         from agent.core.workflow_events import StreamEvent, StreamEventType
-        from agent.tools.mcp_tools import ToolContext
 
         service, _ = mock_agent_service
         project = test_user_with_project["project"]
@@ -395,10 +386,8 @@ class TestAgentServiceProcessStream:
         db_session.add(skill)
         db_session.commit()
 
-        claims: list[bool] = []
 
         async def workflow_stream():
-            claims.append(ToolContext.claim_skill_usage(skill.id))
             payload = {
                 "status": "success",
                 "data": {"skill_id": skill.id, "skill_name": "悬念大师", "source": "user",
@@ -427,20 +416,18 @@ class TestAgentServiceProcessStream:
                 )
             ]
 
-        assert claims == [False]
         assert self._skill_matched_payloads(events) == [
             {"skill_id": skill.id, "skill_name": "悬念大师", "matched_trigger": "selected"},
         ]
 
-    async def test_selected_skill_usage_failure_does_not_roll_back_request_session(
+    async def test_selected_skills_keep_pending_state_of_request_session(
         self,
         mock_agent_service,
         test_user_with_project,
         db_session: Session,
     ):
-        """记录 selected 用量失败时，只回滚独立 session；请求 session 上未提交的对象保持不动。"""
+        """解析 selected 技能时，请求 session 上未提交的对象保持不动。"""
         service, _ = mock_agent_service
-        project = test_user_with_project["project"]
         user = test_user_with_project["user"]
 
         skill = UserSkill(user_id=user.id, name="悬念大师", instructions="先强化钩子。", is_active=True)
@@ -449,17 +436,13 @@ class TestAgentServiceProcessStream:
         pending = UserSkill(user_id=user.id, name="未提交的技能", instructions="x")
         db_session.add(pending)
 
-        with patch(
-            "services.skill_usage_service.record_skill_usage",
-            side_effect=RuntimeError("usage table unavailable"),
-        ):
+        with patch.object(Session, "commit", autospec=True) as commit:
             selected = service._resolve_selected_skills(
                 db_session,
-                project_id=str(project.id),
                 user_id=str(user.id),
                 selected_skill_ids=[skill.id],
-                message="m",
             )
+        commit.assert_not_called()
 
         assert [item["id"] for item in selected] == [skill.id]
         assert pending in db_session.new
@@ -490,10 +473,8 @@ class TestAgentServiceProcessStream:
 
         selected = service._resolve_selected_skills(
             db_session,
-            project_id=str(project.id),
             user_id=str(user.id),
             selected_skill_ids=[short.id, skills[0].id, skills[1].id],
-            message="m",
         )
 
         assert [item["id"] for item in selected] == [short.id, skills[0].id, skills[1].id]
@@ -564,7 +545,6 @@ class TestAgentServiceProcessStream:
         assert "## 用户本条消息指定技能" not in prompt
         assert "偷看" not in prompt
         assert self._skill_matched_payloads(events) == []
-        assert db_session.exec(select(SkillUsage)).all() == []
 
     async def test_process_stream_resolves_added_skill_by_added_id(
         self,

@@ -10,24 +10,22 @@ import commonEnglish from '../../../public/locales/en/common.json'
 import SkillsPage from '../../pages/SkillsPage'
 import { SkillResourcesSection } from '../skills/SkillResourcesSection'
 import { ShareSkillModal } from '../skills/ShareSkillModal'
-import { SkillStatsDialog } from '../SkillStatsDialog'
 import { skillsApi } from '../../lib/api'
 import { toast } from '../../lib/toast'
-import type { MySkillsResponse, Skill, SkillUsageStats } from '../../types'
+import type { MySkillsResponse, Skill } from '../../types'
 
 vi.mock('../../lib/api', () => ({
   skillsApi: {
     mySkills: vi.fn(), listResources: vi.fn(), getResourceContent: vi.fn(),
     upsertResource: vi.fn(), deleteResource: vi.fn(), create: vi.fn(), update: vi.fn(),
     delete: vi.fn(), batchUpdate: vi.fn(), importSkill: vi.fn(), exportSkill: vi.fn(),
-    share: vi.fn(), getStats: vi.fn(),
+    share: vi.fn(),
   },
   publicSkillsApi: {
     list: vi.fn(async () => ({ skills: [], total: 0, page: 1, page_size: 20 })),
     getCategories: vi.fn(async () => ({ categories: [] })),
   },
 }))
-vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => ({ currentProject: null }) }))
 vi.mock('../../lib/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }))
 
 const i18n = createInstance()
@@ -35,8 +33,6 @@ const skill = (id: string): Skill => ({ id, name: `Skill ${id}`, description: nu
   instructions: `Method ${id}`, triggers: [], source: 'user', is_active: true })
 const collection = (id = 'initial'): MySkillsResponse => ({ user_skills: [skill(id)], added_skills: [], total: 1 })
 const resource = (content = 'owned content') => ({ path: 'references/a.md', content })
-const stats = (id: string): SkillUsageStats => ({ total_triggers: 7, builtin_count: 0, user_count: 7,
-  top_skills: [{ skill_id: id, skill_name: `Stats ${id}`, skill_source: 'user', count: 7 }], daily_usage: [] })
 let gates: { done: () => boolean; settle: () => void }[]
 let unexpected: string[]
 let oldOverflow: string
@@ -100,7 +96,6 @@ beforeEach(async () => {
   vi.mocked(skillsApi.update).mockResolvedValue(skill('updated'))
   vi.mocked(skillsApi.share).mockResolvedValue({ success: true, message: 'shared' })
   vi.mocked(skillsApi.importSkill).mockResolvedValue({ skill: skill('imported'), warnings: ['scripts dropped'] })
-  vi.mocked(skillsApi.getStats).mockResolvedValue(stats('current'))
 })
 afterEach(async () => {
   const remaining = gates.filter(g => !g.done()).length
@@ -111,7 +106,7 @@ afterEach(async () => {
     myQueries: vi.mocked(skillsApi.mySkills).mock.calls,
     resourceReads: vi.mocked(skillsApi.getResourceContent).mock.calls,
     writes: vi.mocked(skillsApi.upsertResource).mock.calls,
-    shareCalls: vi.mocked(skillsApi.share).mock.calls, statsCalls: vi.mocked(skillsApi.getStats).mock.calls,
+    shareCalls: vi.mocked(skillsApi.share).mock.calls,
     creates: vi.mocked(skillsApi.create).mock.calls, imports: vi.mocked(skillsApi.importSkill).mock.calls.length,
     toasts: vi.mocked(toast.error).mock.calls, cleanup: { remaining, timers: vi.getTimerCount(), portals: document.querySelectorAll('[role="dialog"]').length }, unexpected }))
   expect(remaining).toBe(0)
@@ -277,39 +272,6 @@ it('current share success calls parent once and failure remains retryable', asyn
   expect(screen.getByText('Already shared')).toBeInTheDocument(); expect(close).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Submit for review' })); await flush()
   expect(close).toHaveBeenCalledTimes(1); expect(success).toHaveBeenCalledTimes(1)
-})
-
-describe.each([false, true])('stats ownership rootStrict=%s', strict => {
-  it('range7 remains current after obsolete range30 response', async () => {
-    const a = deferred(stats('obsolete')); const b = deferred(stats('latest'))
-    vi.mocked(skillsApi.getStats).mockImplementation((_id, days) => days === 7 ? b.promise : a.promise)
-    mount(<SkillStatsDialog isOpen onClose={() => {}} projectId="a" />, strict); await flush()
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '7' } })
-    await act(async () => { b.resolve(stats('latest')) })
-    expect(screen.getByText('Stats latest')).toBeInTheDocument()
-    await act(async () => { a.resolve(stats('obsolete')) })
-    expect(screen.getByText('Stats latest')).toBeInTheDocument()
-    expect(screen.queryByText('Stats obsolete')).not.toBeInTheDocument()
-  })
-})
-it('stats project replacement success owns loading and older error cannot reveal prior data', async () => {
-  const a = deferred(stats('a')); const b = deferred(stats('b'))
-  vi.mocked(skillsApi.getStats).mockImplementation(id => id === 'a' ? a.promise : b.promise)
-  const view = mount(<SkillStatsDialog isOpen onClose={() => {}} projectId="a" />); await flush()
-  view.rerender(<SkillStatsDialog isOpen onClose={() => {}} projectId="b" />)
-  await act(async () => { a.reject(new Error('obsolete stats error')) })
-  const stillLoading = screen.getByRole('dialog').querySelector('.animate-spin') !== null
-  await act(async () => { b.resolve(stats('b')) })
-  expect(stillLoading).toBe(true)
-  expect(screen.getByText('Stats b')).toBeInTheDocument()
-})
-it('owned stats error retains existing empty policy and dialog can close', async () => {
-  vi.mocked(skillsApi.getStats).mockRejectedValueOnce(new Error('current stats error'))
-  const close = vi.fn(); mount(<SkillStatsDialog isOpen onClose={close} projectId="a" />); await flush()
-  expect(screen.queryByText('Total Uses')).not.toBeInTheDocument()
-  expect(screen.getByRole('dialog').querySelector('.animate-spin')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Close modal' }))
-  expect(close).toHaveBeenCalledTimes(1)
 })
 
 it('resource Close also suppresses obsolete content rejection', async () => {
