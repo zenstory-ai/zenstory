@@ -271,6 +271,14 @@ const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[]
 const isAccountRunRefusal = (code: string | null | undefined) =>
   code === "ERR_ACCOUNT_RUNS_BUSY";
 
+/**
+ * This network's shared free allowance is used up: nothing was started or charged. Sending stays
+ * open (the author may change networks, and the server decides). This account's own count is
+ * untouched, so this is not reported as the used-up day.
+ */
+const isNetworkQuotaRefusal = (code: string | null | undefined) =>
+  code === "ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED";
+
 const STARTER_HIGHLIGHT_MS = 1600;
 /** How long a work's first chat waits for its progress before showing the example starter. */
 const STARTER_PROGRESS_WAIT_MS = 1500;
@@ -1400,7 +1408,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         returnBlockedMessageToInput();
         reportQuotaBlockedSend(true);
       }
-      if (isAccountRunRefusal(code)) {
+      if (isAccountRunRefusal(code) || isNetworkQuotaRefusal(code)) {
         // Nothing was accepted: the round's end must not clear the attachments and quotes staged with it.
         resetPendingContextClears();
         // The words go back to the input, so there is nothing left to retry. A retry has no
@@ -1573,6 +1581,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   useEffect(() => {
     if (isAiQuotaLimit) setAiLimitHitUntil(nextAiQuotaResetMs(Date.now()));
   }, [isAiQuotaLimit]);
+  const isNetworkQuotaLimit = isNetworkQuotaRefusal(errorCode);
+  useEffect(() => {
+    if (!isNetworkQuotaLimit) return;
+    // A new Beijing day: yesterday's refusal must not stay on screen.
+    const timer = setTimeout(clearError, Math.max(0, nextAiQuotaResetMs(Date.now()) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [isNetworkQuotaLimit, clearError]);
+  // Upgraded elsewhere: paid plans are exempt, and the next send goes through.
+  useEffect(() => {
+    if (isNetworkQuotaLimit && aiMessageQuota?.limit === -1) clearError();
+  }, [isNetworkQuotaLimit, aiMessageQuota?.limit, clearError]);
   const isAiQuotaLimitRef = useRef(isAiQuotaLimit);
   useEffect(() => {
     isAiQuotaLimitRef.current = isAiQuotaLimit;
@@ -2903,11 +2922,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                       <p className="text-[hsl(var(--warning-text))] text-sm font-medium">
                         {isAiQuotaLimit
                           ? t('chat:panel.quotaExceededTitle')
+                          : isNetworkQuotaLimit
+                            ? t('chat:panel.networkQuotaExceededTitle')
                           : isAccountRunRefusal(errorCode)
                             ? t('chat:panel.accountRunsBusyTitle')
                             : t('chat:panel.streamErrorTitle')}
                       </p>
-                      {!isAiQuotaLimit && (
+                      {!isAiQuotaLimit && !isNetworkQuotaLimit && (
                         <p className="text-[hsl(var(--warning-text))] text-sm break-words whitespace-pre-line">
                           {/* Today's messages are used up: 「回复继续」/ retry could not send, the quota card below says when it comes back. */}
                           {aiSendBlocked ? t('chat:panel.streamErrorQuotaPaused') : error}
@@ -2922,10 +2943,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                           {t('common:retry')}
                         </button>
                       )}
-                      {isAiQuotaLimit && (
+                      {(isAiQuotaLimit || isNetworkQuotaLimit) && (
                         <div className="mt-2 space-y-2">
                           <p className="text-xs text-[hsl(var(--text-secondary))]">
-                            {t('chat:panel.quotaExceededHint')}
+                            {isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
                           </p>
                           <button
                             type="button"
@@ -3123,8 +3144,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         source={chatQuotaUpgradePrompt.source}
         primaryDestination="billing"
         secondaryDestination="pricing"
-        title={t('chat:panel.quotaExceededTitle')}
-        description={t('chat:panel.quotaExceededHint')}
+        title={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededTitle') : t('chat:panel.quotaExceededTitle')}
+        description={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
         primaryLabel={t('dashboard:billing.ctaUpgradePro')}
         onPrimary={() => {
           window.location.assign(

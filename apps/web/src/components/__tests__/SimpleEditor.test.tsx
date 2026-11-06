@@ -610,6 +610,40 @@ describe('SimpleEditor', () => {
     });
   });
 
+  it('natural polish shows the network refusal as a neutral notice and leaves the text alone', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    const naturalPolishMock = naturalPolishApi.naturalPolish as unknown as ReturnType<typeof vi.fn>;
+    const copy = '当前网络今日免费体验额度已用完，请明天再试或升级。';
+    naturalPolishMock.mockRejectedValueOnce(
+      Object.assign(new Error(copy), { status: 402, errorCode: 'ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED' }),
+    );
+    const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    const onEnterDiffReview = vi.fn();
+
+    render(
+      <SimpleEditor
+        projectId="project-1"
+        fileId="file-1"
+        fileType="draft"
+        title="File 1"
+        content="Hello world"
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+        onEnterDiffReview={onEnterDiffReview}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
+    selectText(textarea);
+    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
+
+    await waitFor(() => expect(toastErrorSpy).toHaveBeenCalledWith(copy));
+    expect(textarea.value).toBe('Hello world');
+    expect(onEnterDiffReview).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'editor:naturalPolishRetry' })).not.toBeInTheDocument();
+  });
+
   const polishFailure = (errorCode: string, quotaRefunded: boolean) =>
     Object.assign(new Error('translated headline'), {
       status: 502,

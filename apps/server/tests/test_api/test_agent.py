@@ -6,7 +6,7 @@ Uses the in-house workflow graph.
 """
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -245,6 +245,7 @@ async def test_agent_stream_error_refunds_quota(client: AsyncClient, db_session:
         db_session,
         user.id,
         period_start=_CHARGED_PERIOD,
+        reservation_id=ANY,
     )
 
 

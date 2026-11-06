@@ -159,6 +159,7 @@ def db_session():
         # Activation milestones are written by agent tools and auth flows;
         # leftovers skew funnel assertions in later tests on the same worker.
         cleanup_session.exec(Custom("DELETE FROM activation_event"))
+        cleanup_session.exec(Custom("DELETE FROM free_ai_network_reservation"))
         cleanup_session.exec(Custom("DELETE FROM usage_quota"))
         cleanup_session.exec(Custom("DELETE FROM redemption_code"))
         cleanup_session.exec(Custom("DELETE FROM user_subscription"))

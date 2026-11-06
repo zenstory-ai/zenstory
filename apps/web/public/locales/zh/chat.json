@@ -24,6 +24,8 @@
     "streamErrorQuotaPaused": "这一轮没做完，已经保存的内容不受影响。今天的 AI 消息用完了，额度恢复后再接着写。",
     "quotaExceededTitle": "今天的免费 AI 消息用完了",
     "quotaExceededHint": "北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。",
+    "networkQuotaExceededTitle": "当前网络今日免费体验额度已用完",
+    "networkQuotaExceededHint": "请明天再试（北京时间 00:00 恢复），或开通 Pro 接着写。",
     "notCharged": "这一轮没有改动文件，不计入今日 AI 消息。",
     "notChargedError": "这次出错不计入今日 AI 消息。",
     "userStopped": "已停止",

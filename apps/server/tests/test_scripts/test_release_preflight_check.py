@@ -131,3 +131,25 @@ def test_main_exit_code_follows_the_probe(preflight, monkeypatch, capsys, probe_
     output = capsys.readouterr().out
     assert f"[{'PASS' if probe_ok else 'FAIL'}] Upload storage: {detail}" in output
     assert SECRET not in output
+
+
+@pytest.mark.parametrize(("hops", "exit_code"), [(None, 1), ("2", 0)])
+def test_strict_release_requires_an_explicit_proxy_hop_count(preflight, monkeypatch, capsys, hops, exit_code):
+    """The default fits one proxy; on Railway it silently resolves the edge instead of the client."""
+    for name, value in {
+        "ENVIRONMENT": "production",
+        "JWT_SECRET_KEY": "x" * 40,
+        "CORS_ORIGINS": "https://app.zenstory.ai",
+        "RATE_LIMIT_BACKEND": "redis",
+        "ZPAY_ENABLED": "false",
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("TRUSTED_PROXY_HOPS", raising=False)
+    if hops:
+        monkeypatch.setenv("TRUSTED_PROXY_HOPS", hops)
+    monkeypatch.setattr(preflight, "_load_dotenv_if_available", lambda: None)
+    monkeypatch.setattr(preflight, "upload_storage_preflight", lambda **_kwargs: (True, "synthetic"))
+    monkeypatch.setattr("sys.argv", ["release_preflight_check.py", "--strict", "--probe-upload-storage"])
+
+    assert preflight.main() == exit_code
+    assert f"[{'PASS' if hops else 'FAIL'}] TRUSTED_PROXY_HOPS" in capsys.readouterr().out

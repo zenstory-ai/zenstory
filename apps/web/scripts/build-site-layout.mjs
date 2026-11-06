@@ -28,6 +28,9 @@ const sharedImplementationPaths = `/_site/:path((?:${contract.sharedPrefixes.map
 /** Cookie the organization header's language switch sets (see site-shell.mjs langChoiceScript). */
 export const LANG_COOKIE = 'zs_lang'
 const redirect = (source,destination,has) => ({source,destination,permanent:true,...(has ? {has} : {})})
+// The production fallback reaches the API from Vercel's rotating egress addresses, so it cannot carry
+// requests charged per client network. Production clients call the API origin directly.
+const apiFallbackSource = `/:path(api(?!/(?:${contract.apiFallbackExcludedPaths.join('|')})(?:/|$))(?:/.*)?)`
 const rewrite = (source,destination,value) => ({source,destination,...(value ? {has:host(value)} : {})})
 const internalAliases = {
   '/org-home': `${SITE}/`, '/org-home/':`${SITE}/`, '/org-home/index.html':`${SITE}/`,
@@ -79,7 +82,7 @@ export const vercelConfig = {
   rewrites:[
     rewrite('/1e4acbc11fe3407a8a641d69a13af696.txt','/api/indexnow-key'),
     rewrite('/:path(api(?:/.*)?)',`${PREVIEW_API}/:path`,previews),
-    rewrite('/:path(api(?:/.*)?)',`${API}/:path`),
+    rewrite(apiFallbackSource,`${API}/:path`),
     rewrite('/', '/org-home/index.html', `${siteHosts}|.*\\.vercel\\.app`),
     rewrite('/', '/_app/home.html', appHosts),
     rewrite('/pricing','/_app/pricing.html',`${appHosts}|.*\\.vercel\\.app`),

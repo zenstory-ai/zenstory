@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -102,7 +102,7 @@ async def test_natural_polish_success(client: AsyncClient, db_session: Session):
     assert response.status_code == 200
     assert response.json() == {"text": "rewritten text", "model": "test-model", "unchanged": False}
     mock_check.assert_called_once_with(db_session, user.id)
-    mock_consume.assert_called_once_with(db_session, user.id)
+    mock_consume.assert_called_once_with(db_session, user.id, client_ip=ANY, reservation_id=ANY)
     mock_polish.assert_awaited_once_with(
         selected_text="原始文本",
         language="zh",
@@ -215,7 +215,7 @@ async def test_natural_polish_consume_denied_after_check(client: AsyncClient, db
     assert response.status_code == 402
     assert response.json()["detail"] == "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED"
     mock_check.assert_called_once_with(db_session, admin.id)
-    mock_consume.assert_called_once_with(db_session, admin.id)
+    mock_consume.assert_called_once_with(db_session, admin.id, client_ip=ANY, reservation_id=ANY)
 
 
 @pytest.mark.integration
@@ -348,6 +348,7 @@ async def test_natural_polish_llm_failure_returns_500(client: AsyncClient, db_se
         db_session,
         admin.id,
         period_start=_CHARGED_PERIOD,
+        reservation_id=ANY,
     )
 
 
@@ -392,11 +393,12 @@ async def test_natural_polish_protocol_failure_attempts_one_refund_and_never_ret
     assert response.json()["detail"] == "ERR_INTERNAL_SERVER_ERROR"
     assert "text" not in response.json()
     assert "unchanged" not in response.json()
-    mock_reserve.assert_called_once_with(db_session, admin.id)
+    mock_reserve.assert_called_once_with(db_session, admin.id, client_ip=ANY, reservation_id=ANY)
     mock_refund.assert_called_once_with(
         db_session,
         admin.id,
         period_start=_CHARGED_PERIOD,
+        reservation_id=ANY,
     )
 
 
@@ -446,8 +448,10 @@ async def test_natural_polish_failure_logs_only_fixed_diagnostics_and_one_refund
         )
 
     assert response.status_code == 502
-    reserve.assert_called_once_with(db_session, user.id)
-    refund.assert_called_once_with(db_session, user.id, period_start=_CHARGED_PERIOD)
+    reserve.assert_called_once_with(db_session, user.id, client_ip=ANY, reservation_id=ANY)
+    refund.assert_called_once_with(
+        db_session, user.id, period_start=_CHARGED_PERIOD, reservation_id=reserve.call_args.kwargs["reservation_id"]
+    )
     failure_log = next(
         record for record in caplog.records if record.getMessage() == "Natural polish request failed"
     )
@@ -517,8 +521,10 @@ async def test_natural_polish_failure_is_a_retryable_502_with_a_stable_code(
     assert "text" not in body
     # 一次请求只调用一次模型、只预扣一次、只退一次：服务端不自动重试。
     polish.assert_awaited_once()
-    reserve.assert_called_once_with(db_session, user.id)
-    refund.assert_called_once_with(db_session, user.id, period_start=_CHARGED_PERIOD)
+    reserve.assert_called_once_with(db_session, user.id, client_ip=ANY, reservation_id=ANY)
+    refund.assert_called_once_with(
+        db_session, user.id, period_start=_CHARGED_PERIOD, reservation_id=reserve.call_args.kwargs["reservation_id"]
+    )
 
 
 @pytest.mark.integration
@@ -563,8 +569,10 @@ async def test_natural_polish_cost_guard_error_is_preserved_and_refunded_once(
 
     assert response.status_code == status_code
     assert response.json()["detail"] == error_code
-    reserve.assert_called_once_with(db_session, user.id)
-    refund.assert_called_once_with(db_session, user.id, period_start=_CHARGED_PERIOD)
+    reserve.assert_called_once_with(db_session, user.id, client_ip=ANY, reservation_id=ANY)
+    refund.assert_called_once_with(
+        db_session, user.id, period_start=_CHARGED_PERIOD, reservation_id=reserve.call_args.kwargs["reservation_id"]
+    )
 
 
 def test_natural_polish_refund_exception_log_is_redacted(db_session: Session):
@@ -581,6 +589,7 @@ def test_natural_polish_refund_exception_log_is_redacted(db_session: Session):
             db_session,
             "private-user-id",
             _CHARGED_PERIOD,
+            "synthetic-reservation",
             reason="ambiguous_anchor",
         )
 
@@ -589,6 +598,7 @@ def test_natural_polish_refund_exception_log_is_redacted(db_session: Session):
         db_session,
         "private-user-id",
         period_start=_CHARGED_PERIOD,
+        reservation_id="synthetic-reservation",
     )
     assert log_event.call_args.args[2] == "Failed to refund AI conversation quota for natural polish"
     assert log_event.call_args.kwargs == {

@@ -152,6 +152,7 @@ class ErrorCode:
     QUOTA_EXCEEDED = "ERR_QUOTA_EXCEEDED"
     QUOTA_AI_CONVERSATIONS_EXCEEDED = "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED"
     QUOTA_AI_DAILY_COST_EXCEEDED = "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
+    QUOTA_FREE_NETWORK_DAILY_EXCEEDED = "ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED"
     AI_COST_BUDGET_UNAVAILABLE = "ERR_AI_COST_BUDGET_UNAVAILABLE"
     QUOTA_PROJECTS_EXCEEDED = "ERR_QUOTA_PROJECTS_EXCEEDED"
     QUOTA_FILE_VERSIONS_EXCEEDED = "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
@@ -300,6 +301,7 @@ ERROR_MESSAGES = {
         "ERR_QUOTA_EXCEEDED": "配额已用尽",
         "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "今天的免费 AI 消息用完了，北京时间明天 00:00 恢复；开通 Pro 可不限条数继续写。",
         "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "今天的免费 AI 消息用完了，北京时间明天 00:00 恢复；开通 Pro 可不限条数继续写。",
+        "ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED": "当前网络今日免费体验额度已用完，请明天再试或升级。",
         "ERR_AI_COST_BUDGET_UNAVAILABLE": "暂时无法确认 AI 可用额度，请稍后重试",
         "ERR_QUOTA_PROJECTS_EXCEEDED": "项目数量已达上限",
         "ERR_QUOTA_FILE_VERSIONS_EXCEEDED": "文件版本数量已达上限",
@@ -434,6 +436,7 @@ ERROR_MESSAGES = {
         "ERR_QUOTA_EXCEEDED": "Quota exceeded",
         "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "You've used today's free AI messages. They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
         "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "You've used today's free AI messages. They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
+        "ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED": "Today's free AI allowance on this network is used up. Please try again tomorrow or upgrade.",
         "ERR_AI_COST_BUDGET_UNAVAILABLE": "We cannot confirm your AI allowance right now. Please try again later",
         "ERR_QUOTA_PROJECTS_EXCEEDED": "Project limit reached",
         "ERR_QUOTA_FILE_VERSIONS_EXCEEDED": "File version limit reached",

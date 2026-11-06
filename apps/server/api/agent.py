@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from pydantic_core import PydanticCustomError
@@ -72,6 +72,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session, get_session
 from middleware.rate_limit import (
+    get_client_ip,
     require_user_beijing_daily_rate_limit,
     require_user_rate_limit,
 )
@@ -82,6 +83,7 @@ from models import (
 )
 from services.features.activation_event_service import activation_event_service
 from services.quota_service import quota_service
+from services.usage.free_ai_network_quota import FreeNetworkQuotaExceeded, free_network_quota_exception
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access
 from utils.request_context import bind_request_context, reset_request_context
@@ -247,19 +249,27 @@ def _record_activation(session: Session, user_id: str, project_id: str, event_na
         logger.warning("Could not record activation event %s", event_name, exc_info=True)
 
 
-def _reserve_ai_conversation_sync(user_id: str) -> datetime | None:
+def _reserve_ai_conversation_sync(
+    user_id: str, client_ip: str, reservation_id: str
+) -> datetime | None:
     """Reserve quota using a fresh sync DB session."""
     with create_session() as quota_session:
-        return quota_service.reserve_ai_conversation(quota_session, user_id)
+        return quota_service.reserve_ai_conversation(
+            quota_session,
+            user_id,
+            client_ip=client_ip,
+            reservation_id=reservation_id,
+        )
 
 
-def _release_ai_conversation_sync(user_id: str, period_start: datetime) -> bool:
+def _release_ai_conversation_sync(user_id: str, period_start: datetime, reservation_id: str) -> bool:
     """Release quota using a fresh sync DB session."""
     with create_session() as quota_session:
         return quota_service.release_ai_conversation(
             quota_session,
             user_id,
             period_start=period_start,
+            reservation_id=reservation_id,
         )
 
 
@@ -267,6 +277,7 @@ async def _refund_quota(
     session: Session,
     user_id: str,
     period_start: datetime,
+    reservation_id: str,
     **log_fields: Any,
 ) -> bool:
     """退还一次已预扣的 AI 对话额度；失败只记日志，返回是否真的退了。"""
@@ -276,6 +287,7 @@ async def _refund_quota(
                 _release_ai_conversation_sync,
                 user_id,
                 period_start,
+                reservation_id,
             )
         # The shared request session may be in a failed transaction state from
         # the error that aborted the stream. Reset it before the compensating
@@ -288,6 +300,7 @@ async def _refund_quota(
             session,
             user_id,
             period_start=period_start,
+            reservation_id=reservation_id,
         )
     except Exception as refund_error:
         log_with_context(
@@ -307,12 +320,13 @@ def _schedule_detached_refund(
     session: Session,
     user_id: str,
     period_start: datetime,
+    reservation_id: str,
     **log_fields: Any,
 ) -> asyncio.Task[bool] | None:
     """在后台退还额度（断线路径不能 await）；返回排上的任务（没排上为 None）。"""
     try:
         task = asyncio.get_running_loop().create_task(
-            _refund_quota(session, user_id, period_start, **log_fields)
+            _refund_quota(session, user_id, period_start, reservation_id, **log_fields)
         )
     except RuntimeError as exc:  # 没有运行中的事件循环（生成器被回收时）
         log_with_context(
@@ -491,6 +505,7 @@ class StopResponse(BaseModel):
 
 @router.post("/stream")
 async def stream_request(
+    request: Request,
     body: AgentRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -583,16 +598,25 @@ async def stream_request(
     try:
         # Reserve one quota unit before streaming to avoid concurrent overrun.
         # We may compensate (refund) in finally when the stream fails internally.
-        if _should_offload_session_work(session):
-            charged_period_start = await asyncio.to_thread(
-                _reserve_ai_conversation_sync,
-                current_user.id,
-            )
-        else:
-            charged_period_start = quota_service.reserve_ai_conversation(
-                session,
-                current_user.id,
-            )
+        # A run id names one request, so it is also this charge's reservation id.
+        client_ip = get_client_ip(request)
+        try:
+            if _should_offload_session_work(session):
+                charged_period_start = await asyncio.to_thread(
+                    _reserve_ai_conversation_sync,
+                    current_user.id,
+                    client_ip,
+                    agent_run_id,
+                )
+            else:
+                charged_period_start = quota_service.reserve_ai_conversation(
+                    session,
+                    current_user.id,
+                    client_ip=client_ip,
+                    reservation_id=agent_run_id,
+                )
+        except FreeNetworkQuotaExceeded as exc:
+            raise free_network_quota_exception() from exc
         if charged_period_start is None:
             raise APIException(
                 error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
@@ -658,7 +682,7 @@ async def stream_request(
             first_event = None
             await account_slot.release()
         except SteeringSessionBusyError as exc:
-            await _refund_quota(session, user_id, charged_period_start)
+            await _refund_quota(session, user_id, charged_period_start, agent_run_id)
             await account_slot.release()
             log_with_context(
                 logger,
@@ -894,7 +918,7 @@ async def stream_request(
                     # 退还一律放进后台任务：断线路径不能挂起；连接还开着时用 shield 等它，
                     # 等待途中请求被取消也不会把排队中的退还一起取消。
                     refund_task = _schedule_detached_refund(
-                        session, user_id, charged_period_start, **refund_fields
+                        session, user_id, charged_period_start, agent_run_id, **refund_fields
                     )
                     refund_scheduled = refund_task is not None
                     if refund_task is not None and not detached:
@@ -905,7 +929,7 @@ async def stream_request(
                         refund_scheduled = False
                     elif refund_task is None and not detached:
                         refund_applied = await _refund_quota(
-                            session, user_id, charged_period_start, **refund_fields
+                            session, user_id, charged_period_start, agent_run_id, **refund_fields
                         )
                 settlement = (billing_reason, should_refund, refund_applied)
             return settlement

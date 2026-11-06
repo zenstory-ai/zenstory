@@ -96,8 +96,9 @@ _CLOUDFLARE_MODES = {"auto", "always", "off"}
 def _trusted_proxy_hops() -> int:
     """How many proxies in front of the app append to X-Forwarded-For.
 
-    Default 1: the Railway edge appends the address that connected to it.
-    0 ignores X-Forwarded-For and uses the socket peer.
+    Default 1 fits a single proxy. Railway measures 2: its edge removes what the client
+    sent, then the chain ends with the client and an address of its own, so hosted
+    environments set this explicitly. 0 ignores X-Forwarded-For and uses the socket peer.
     """
     raw = os.getenv("TRUSTED_PROXY_HOPS", "1").strip()
     try:

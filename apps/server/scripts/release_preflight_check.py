@@ -210,6 +210,15 @@ def main() -> int:
             f"{environment} (strict check disabled)",
         )
 
+    # The code default suits one proxy; on Railway it would resolve the edge, not the client,
+    # and put every free account on one network allowance.
+    proxy_hops = os.getenv("TRUSTED_PROXY_HOPS", "").strip()
+    all_ok &= _print_result(
+        bool(proxy_hops) or not args.strict,
+        "TRUSTED_PROXY_HOPS",
+        proxy_hops or "unset",
+    )
+
     jwt_secret = os.getenv("JWT_SECRET_KEY", "")
     jwt_secret_ok = bool(jwt_secret) and len(jwt_secret) >= MIN_SECRET_LENGTH
     all_ok &= _print_result(

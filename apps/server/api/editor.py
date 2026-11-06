@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
 from services.auth import get_current_active_user
 from sqlmodel import Session
@@ -13,7 +14,7 @@ from sqlmodel import Session
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
-from middleware.rate_limit import require_user_rate_limit
+from middleware.rate_limit import get_client_ip, require_user_rate_limit
 from models import User
 from services.features.natural_polish_service import (
     NaturalPolishFailure,
@@ -22,6 +23,7 @@ from services.features.natural_polish_service import (
 )
 from services.first_work_service import observe_first_work_ai_request
 from services.quota_service import quota_service
+from services.usage.free_ai_network_quota import FreeNetworkQuotaExceeded, free_network_quota_exception
 from utils.logger import get_logger, log_with_context
 from utils.permission import verify_project_access
 
@@ -61,6 +63,7 @@ def _refund_ai_conversation(
     session: Session,
     user_id: str,
     period_start: datetime,
+    reservation_id: str,
     *,
     reason: str,
 ) -> bool:
@@ -78,6 +81,7 @@ def _refund_ai_conversation(
             session,
             user_id,
             period_start=period_start,
+            reservation_id=reservation_id,
         )
     except Exception:
         log_with_context(
@@ -93,6 +97,7 @@ def _refund_ai_conversation(
 
 @router.post("/natural-polish", response_model=NaturalPolishResponse)
 async def natural_polish(
+    request: Request,
     body: NaturalPolishRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -134,10 +139,16 @@ async def natural_polish(
     # 先扣额度再生成，避免并发绕过；生成失败时在下面补偿退还
     # （与 /agent/stream 的失败退款一致——原注释说"不退款，与 stream 对齐"，
     #  但 stream 早已改成失败退款，注释与实现已经脱节）。
-    charged_period_start = quota_service.reserve_ai_conversation(
-        session,
-        user_id,
-    )
+    reservation_id = uuid4().hex
+    try:
+        charged_period_start = quota_service.reserve_ai_conversation(
+            session,
+            user_id,
+            client_ip=get_client_ip(request),
+            reservation_id=reservation_id,
+        )
+    except FreeNetworkQuotaExceeded as exc:
+        raise free_network_quota_exception() from exc
     if charged_period_start is None:
         raise APIException(
             error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
@@ -166,6 +177,7 @@ async def natural_polish(
             session,
             user_id,
             charged_period_start,
+            reservation_id,
             reason="api_exception",
         )
         log_with_context(
@@ -182,6 +194,7 @@ async def natural_polish(
             session,
             user_id,
             charged_period_start,
+            reservation_id,
             reason=exc.category,
         )
         log_with_context(
@@ -216,6 +229,7 @@ async def natural_polish(
             session,
             user_id,
             charged_period_start,
+            reservation_id,
             reason="unexpected_error",
         )
         log_with_context(
@@ -239,6 +253,7 @@ async def natural_polish(
             session,
             user_id,
             charged_period_start,
+            reservation_id,
             reason="no_change",
         )
         if refunded:

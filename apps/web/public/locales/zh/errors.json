@@ -137,6 +137,7 @@
   "ERR_PAYMENT_RATE_LIMITED": "操作太频繁，请 1 分钟后再试",
   "ERR_PAYMENT_SYNC_FAILED": "暂时无法向支付平台查询订单，请稍后刷新",
   "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "今天的免费 AI 消息用完了，北京时间明天 00:00 恢复；开通 Pro 可不限条数继续写。",
+  "ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED": "当前网络今日免费体验额度已用完，请明天再试或升级。",
   "ERR_AI_COST_BUDGET_UNAVAILABLE": "暂时无法确认 AI 可用额度，请稍后重试。",
   "ERR_FILE_TITLE_TOO_LONG": "文件名最多 255 个字符，请将正文粘贴到编辑器中。"
 }
