@@ -51,6 +51,7 @@ class ErrorCode:
     AUTH_RESEND_FAILED = "ERR_AUTH_RESEND_FAILED"
     AUTH_VERIFICATION_COOLDOWN = "ERR_AUTH_VERIFICATION_COOLDOWN"
     AUTH_EMAIL_UNDELIVERABLE = "ERR_AUTH_EMAIL_UNDELIVERABLE"
+    AUTH_EMAIL_DOMAIN_NOT_ALLOWED = "ERR_AUTH_EMAIL_DOMAIN_NOT_ALLOWED"
     AUTH_RATE_LIMIT_EXCEEDED = "ERR_AUTH_RATE_LIMIT_EXCEEDED"
     AUTH_PASSWORD_RESET_CODE_INVALID = "ERR_AUTH_PASSWORD_RESET_CODE_INVALID"
     AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS = "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS"
@@ -231,6 +232,7 @@ ERROR_MESSAGES = {
         "ERR_AUTH_RESEND_FAILED": "验证码没有发出去，请稍后重试；多次失败请检查邮箱地址是否正确",
         "ERR_AUTH_VERIFICATION_COOLDOWN": "验证码刚发过，请稍等再重发；先看看垃圾箱或 QQ 邮箱的广告邮件",
         "ERR_AUTH_EMAIL_UNDELIVERABLE": "无法向这个邮箱发送验证码，请检查并修改邮箱地址",
+        "ERR_AUTH_EMAIL_DOMAIN_NOT_ALLOWED": "暂不支持使用此邮箱注册，请更换邮箱",
         "ERR_AUTH_RATE_LIMIT_EXCEEDED": "请求过于频繁，请稍后重试",
         "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "验证码错误或已过期，请重新输入或重新发送",
         "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "操作太频繁了，请过几分钟再试",
@@ -366,6 +368,7 @@ ERROR_MESSAGES = {
         "ERR_AUTH_RESEND_FAILED": "The verification code was not sent. Please try again shortly; if it keeps failing, check that the email address is correct",
         "ERR_AUTH_VERIFICATION_COOLDOWN": "A code was just sent. Please wait before resending, and check your spam folder",
         "ERR_AUTH_EMAIL_UNDELIVERABLE": "We cannot send a code to this email. Check and correct the address.",
+        "ERR_AUTH_EMAIL_DOMAIN_NOT_ALLOWED": "This email can't be used to sign up. Please use a different email.",
         "ERR_AUTH_RATE_LIMIT_EXCEEDED": "Too many requests, please try again later",
         "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "That code is wrong or has expired. Check it or send a new one.",
         "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "Too many tries. Please wait a few minutes and try again.",

@@ -2,6 +2,8 @@
  * Tests for error handling and translation
  */
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock i18next
@@ -35,6 +37,15 @@ import {
   toUserErrorMessage,
   translateError,
 } from '../errorHandler'
+
+describe('network and signup refusals', () => {
+  const locale = (lang: string) => JSON.parse(readFileSync(resolve(process.cwd(), `public/locales/${lang}/errors.json`), 'utf8'))
+
+  it('has copy for a blocked signup email in both languages, without naming the rule', () => {
+    expect(locale('zh').ERR_AUTH_EMAIL_DOMAIN_NOT_ALLOWED).toBe('暂不支持使用此邮箱注册，请更换邮箱')
+    expect(locale('en').ERR_AUTH_EMAIL_DOMAIN_NOT_ALLOWED).toMatch(/different email/)
+  })
+})
 
 describe('errorHandler', () => {
   beforeEach(() => {

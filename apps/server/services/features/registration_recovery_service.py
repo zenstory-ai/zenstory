@@ -10,6 +10,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import User
 from services.core.auth_service import verify_password
+from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features import verification_service
 from services.infra.email_client import InvalidRecipientError
 from utils.email_identity import email_identity_matches, normalize_email_identity, validate_registration_email
@@ -33,6 +34,7 @@ async def correct_registration_email(
         raise APIException(error_code=ErrorCode.AUTH_INVALID_CREDENTIALS, status_code=401)
 
     corrected = normalize_email_identity(new_email)
+    ensure_registration_email_allowed(corrected, entry="registration_email")
     try:
         validate_registration_email(corrected)
     except ValueError:

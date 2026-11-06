@@ -46,6 +46,7 @@ from models import (
     User,
 )
 from models.referral import InviteCode
+from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features import password_reset_service
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
@@ -466,6 +467,9 @@ async def register(
         validate_registration_email(normalized_email)
     except ValueError:
         raise APIException(error_code=ErrorCode.AUTH_EMAIL_UNDELIVERABLE, status_code=400) from None
+
+    # Before any lookup, so the answer does not depend on whether the address is taken.
+    ensure_registration_email_allowed(normalized_email, entry="register")
 
     # A chosen username must be free; otherwise derive one from the email prefix.
     if request.username is not None:
@@ -1143,6 +1147,7 @@ def update_current_user(
         normalized_email = normalize_email_identity(str(request.email))
         current_normalized_email = normalize_email_identity(current_user.email)
         if normalized_email != current_normalized_email:
+            ensure_registration_email_allowed(normalized_email, entry="profile_email")
             existing_email = session.exec(
                 select(User).where(email_identity_matches(User.email, normalized_email))
             ).first()

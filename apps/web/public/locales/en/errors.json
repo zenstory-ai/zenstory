@@ -24,6 +24,7 @@
   "ERR_AUTH_RESEND_FAILED": "The verification code wasn’t sent. Please try again shortly; if it keeps failing, check that the email address is correct.",
   "ERR_AUTH_VERIFICATION_COOLDOWN": "A code was just sent. Please wait a moment before resending, and check your spam or promotions folder.",
   "ERR_AUTH_EMAIL_UNDELIVERABLE": "We cannot send a code to this email. Check and correct the address.",
+  "ERR_AUTH_EMAIL_DOMAIN_NOT_ALLOWED": "This email can't be used to sign up. Please use a different email.",
   "ERR_AUTH_RATE_LIMIT_EXCEEDED": "Too many attempts. Please try again later.",
   "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "That code is wrong or has expired. Check it or send a new one.",
   "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "Too many tries. Please wait a few minutes and try again.",

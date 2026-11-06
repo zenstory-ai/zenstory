@@ -24,6 +24,7 @@
   "ERR_AUTH_RESEND_FAILED": "验证码没有发出去，请稍后重试；多次失败请检查邮箱地址是否正确。",
   "ERR_AUTH_VERIFICATION_COOLDOWN": "验证码刚发过，请稍等再重发。先看看垃圾箱；QQ 邮箱还要看「广告邮件」。",
   "ERR_AUTH_EMAIL_UNDELIVERABLE": "无法向这个邮箱发送验证码，请检查并修改邮箱地址",
+  "ERR_AUTH_EMAIL_DOMAIN_NOT_ALLOWED": "暂不支持使用此邮箱注册，请更换邮箱",
   "ERR_AUTH_RATE_LIMIT_EXCEEDED": "操作太频繁，请稍后再试",
   "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "验证码错误或已过期，请重新输入或重新发送",
   "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "操作太频繁了，请过几分钟再试",
