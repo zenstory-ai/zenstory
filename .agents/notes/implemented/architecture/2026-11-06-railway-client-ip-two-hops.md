@@ -15,6 +15,7 @@ Status: implemented
 - 托管环境显式设置 `TRUSTED_PROXY_HOPS=2`。这是实测结果，不是推断；代码默认值不变（自托管单层代理仍是 1）。`release_preflight_check.py --strict` 在变量缺失时失败，因为默认值在 Railway 上不报错、只会静默取错地址。
 - 实测 hops=2（staging）：两个不同来源各自解析到自己的真实出口；客户端发送的单行、逗号分隔、两行、内网、空值、非法 `X-Forwarded-For`，以及 `X-Real-IP`、`CF-Connecting-IP`，都不能改变结果。Railway 边缘会移除客户端发送的 XFF，所以 `get_client_ip` 只读第一行不构成绕过，无需改代码。
 - `site-routing.json` 的 `apiFallbackExcludedPaths` 列出按客户端网络计费的入口（`v1/agent/stream`、`v1/editor/natural-polish`），生产回退改写排除它们，这两条路径在生产主机上不再到达 API。其余路径（OAuth 发起、健康检查、CLI 文档等）继续走回退。服务端守卫测试要求新的计费入口同时列入清单。
+- 线上核对发现路由规则只匹配未编码写法：`agent/%73tream`、`agent%2Fstream` 这类编码路径会绕过排除，经云厂商出口到达 API，由 uvicorn 解码后命中路由。因此两个计费路由还要求原始路径与解码后完全一致，否则 404（`require_canonical_request_path`）。自家客户端都不编码这些路径，路由排除和这项校验合起来才关闭这条路径。
 - 生产构建已经直连 API 源站（核对过线上 bundle 和跨源预检），排除不影响正常客户端。没有配置 `VITE_API_BASE_URL` 的生产构建会在这两个入口上明确失败，而不是静默错分额度。
 - Preview 构建走同源，其代理规则保持完整，否则预览环境无法使用 AI。Preview 经该路径的用户按云厂商出口分桶，这只影响测试环境。
 
@@ -27,7 +28,7 @@ Status: implemented
 ## Consequences
 
 - 收益：免费网络额度按真实客户端计算；登录 IP 限流、管理员审计和请求日志也第一次拿到真实客户端地址。
-- 代价：平台改变链路结构时结果会静默变错，上线后和平台变更后都要用已知出口地址比对 `client_host`。路由排除是名单制，规则匹配的编码变体要用未登录请求在线上核对（返回不来自 API 才算通过）。
+- 代价：平台改变链路结构时结果会静默变错，上线后和平台变更后都要用已知出口地址比对 `client_host`。路由排除是名单制；编码写法由路由自身拒绝，线上用未登录请求核对（路由返回 404 而不是 401）。
 - 用户自建代理等同于换网络，不在此规则能解决的范围内。
 
 ## Verification

@@ -301,6 +301,37 @@ async def test_railway_chain_counts_the_client_behind_any_edge_address(client: A
     assert _used(db_session, user) == 1
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("path", [
+    "/api/v1/agent/%73tream",
+    "/api/v1/agent%2Fstream",
+    "/api/%76%31/agent/stream",
+    "/api/v1/editor/natural%2Dpolish",
+    "/api/v1/editor%2Fnatural-polish",
+])
+async def test_encoded_spellings_of_charged_paths_do_not_reach_the_routes(client: AsyncClient, db_session, path):
+    """编码写法能绕过生产回退改写的路径排除，经云厂商出口进入别的额度桶，所以路由本身拒绝。"""
+    token, user, project = await _member(client, db_session)
+    service = _Service()
+    polish = AsyncMock()
+    with (
+        patch("api.agent.get_agent_service", return_value=service),
+        patch("api.editor.natural_polish_service.natural_polish", new=polish),
+    ):
+        anonymous = await client.post(path, json={})
+        signed_in = await client.post(
+            path,
+            json={"project_id": str(project.id), "message": "写第五章", "selected_text": "原始文本"},
+            headers={"Authorization": f"Bearer {token}", "X-Forwarded-For": IP},
+        )
+    assert anonymous.status_code == 404
+    assert signed_in.status_code == 404
+    assert service.started == 0
+    polish.assert_not_awaited()
+    assert _used(db_session, user) == 0
+    assert _active(db_session) == []
+
+
 def test_every_charging_route_is_excluded_from_the_public_api_fallback():
     """生产 /api 回退经 Vercel 轮换出口到达，新的计费入口必须同时加入排除清单。"""
     from main import app
