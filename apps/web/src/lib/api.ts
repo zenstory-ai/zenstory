@@ -317,7 +317,6 @@ export const exportApi = {
    * Handles authentication automatically with token refresh on 401 errors.
    *
    * @param projectId - The UUID of the project to export
-   * @param options.includeOutline - Put the outline files before the chapters
    * @returns Promise that resolves when download is initiated
    * @throws {ApiError} ERR_EXPORT_NO_DRAFTS if project has no drafts
    *

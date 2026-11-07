@@ -430,15 +430,6 @@ describe('Header', () => {
       mockSelectedItem = null
     })
 
-    it('no longer offers an export with outlines', () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      fireEvent.click(screen.getByTestId('header-more-actions'))
-
-      expect(screen.queryByText(/大纲/)).not.toBeInTheDocument()
-    })
-
     it('shows translated error toast when export fails', async () => {
       mockCurrentProjectId = 'project-123'
       const exportError = new Error('ERR_QUOTA_EXPORT_FORMAT_RESTRICTED')

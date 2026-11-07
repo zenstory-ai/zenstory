@@ -108,7 +108,7 @@ Custom skills use the open Agent Skills `SKILL.md` format, optionally with `refe
 
 - Autosave runs about 3 seconds after you stop typing. By default, consecutive manual saves within 10 minutes coalesce into the latest manual version; later saves create a new version. Small edits are included too. AI edits record separate AI Edited versions and do not use the manual-version allowance.
 - The History button at the bottom of the editor opens the current file's versions: compare any two line by line, or roll the file back. Rollback deletes no versions; while the file's version allowance has room, the restored text is recorded as a new version. Current prose that has not entered history is backed up before restoration; if that backup fails, restoration is cancelled. Preserve unsaved editor text first.
-- Export Manuscript merges chapters and scripts into one TXT in chapter order. Export outline and text also includes outlines; character sheets and lore are outside both exports.
+- Export Manuscript merges chapters and scripts into one TXT in chapter order. Outlines, character sheets and lore are outside the export; open a file and use Download current file to save one separately.
 
 ### Material library and inspiration library
 

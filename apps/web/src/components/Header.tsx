@@ -346,7 +346,7 @@ export const Header: React.FC<HeaderProps> = () => {
                     <LoadingSpinner size="sm" />
                   </span>
                 ) : (
-                  <Download size={18} />
+                  <Download size={18} className="shrink-0" />
                 )}
                 {exportLabel}
               </button>
