@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { User, Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
+import { Badge, type BadgeProps } from './ui/Badge';
 import { ThinkingContent } from './ThinkingContent';
 import type { AgentContextItem, FileEditUndoTarget, IterationExhaustedLayer, ToolCall } from '../types';
 import { getLocaleCode } from '../lib/i18n-helpers';
@@ -235,23 +236,23 @@ const priorityLabel = (p: string | undefined, t: TFunction) => {
 };
 
 /**
- * Returns the CSS class names for a context item based on its priority.
+ * Returns the shared badge variant for a context item's priority.
  *
  * @param p - Priority string ('critical', 'constraint', 'relevant', 'inspiration')
- * @returns Tailwind CSS class string for the priority badge
+ * @returns Semantic badge variant
  */
-const priorityClassName = (p?: string) => {
+const priorityVariant = (p?: string): BadgeProps['variant'] => {
   switch (p) {
     case "critical":
-      return "bg-[hsl(var(--error))] text-white border border-[hsl(var(--error)/0.5)]";
+      return 'error';
     case "constraint":
-      return "bg-[hsl(var(--accent-primary))] text-white border border-[hsl(var(--accent-primary)/0.5)]";
+      return 'info';
     case "relevant":
-      return "bg-[hsl(var(--success))] text-white border border-[hsl(var(--success)/0.5)]";
+      return 'success';
     case "inspiration":
-      return "bg-[hsl(var(--accent-secondary)/0.15)] text-[hsl(var(--accent-secondary))] border border-[hsl(var(--accent-secondary)/0.3)]";
+      return 'purple';
     default:
-      return "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] border border-[hsl(var(--separator-color))]";
+      return 'neutral';
   }
 };
 
@@ -461,19 +462,20 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                  <span
-                    className="inline-block px-1.5 py-0.5 rounded bg-[hsl(var(--bg-primary))] text-[hsl(var(--accent-primary))] shrink-0 max-w-28 truncate"
+                  <Badge
+                    className="shrink-0 max-w-28 [&>span]:truncate"
                   >
                     {contextTypeLabel(item, t)}
-                  </span>
+                  </Badge>
                   <span className="min-w-0 flex-1 truncate text-[hsl(var(--text-primary))]">
                     {contextItemTitle(item)}
                   </span>
-                  <span
-                    className={`inline-block px-1.5 py-0.5 rounded shrink-0 max-w-28 truncate ${priorityClassName(item.priority)}`}
+                  <Badge
+                    variant={priorityVariant(item.priority)}
+                    className="shrink-0 max-w-28 [&>span]:truncate"
                   >
                     {priorityLabel(item.priority, t)}
-                  </span>
+                  </Badge>
                 </summary>
 
                 <div className="px-2 pb-2">

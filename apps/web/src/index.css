@@ -821,28 +821,6 @@ code, pre, .font-mono {
         @apply line-through;
     }
 
-    /* Badge/Tag */
-    .badge {
-        @apply px-2 py-0.5 rounded text-xs font-medium;
-        background-color: hsl(var(--border));
-        color: hsl(var(--foreground-subtle));
-    }
-    .badge-primary {
-        background-color: hsl(var(--primary) / 0.2);
-        color: hsl(var(--primary));
-    }
-    .badge-success {
-        background-color: hsl(var(--success) / 0.2);
-        color: hsl(var(--success-light));
-    }
-    .badge-warning {
-        background-color: hsl(var(--warning) / 0.2);
-        color: hsl(var(--warning));
-    }
-    .badge-error {
-        background-color: hsl(var(--error) / 0.2);
-        color: hsl(var(--error));
-    }
 }
 
 /* Review-only ink and pale semantic fills; history/chat diffs keep their palette. */

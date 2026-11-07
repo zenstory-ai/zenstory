@@ -453,7 +453,7 @@ describe('FileVersionHistory current-text marker and restore confirmation', () =
     getVersions.mockResolvedValue({ total: 2, versions: [version(4), version(3)], current_version_number: 3 })
     render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
     const marker = await screen.findByText('currentText')
-    expect(marker.parentElement).toHaveTextContent('v3')
+    expect(marker.closest('[tabindex="0"]')).toHaveTextContent('v3')
     expect(screen.getAllByText('currentText')).toHaveLength(1)
   })
 
