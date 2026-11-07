@@ -11,7 +11,8 @@ configuration:
 - credentials per provider: ``DEEPSEEK_API_KEY`` / ``DEEPSEEK_BASE_URL``,
   ``MINIMAX_API_KEY`` / ``MINIMAX_BASE_URL``. MiniMax may additionally set
   ``MINIMAX_SECONDARY_API_KEY`` and
-  ``MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT`` (default 20).
+  ``MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT`` (default 20). A session stays on one key
+  for ``LLM_KEY_ROUTING_WINDOW_S`` (default 1800) and a run for its whole length.
 - ``MINIMAX_REASONING_EFFORT`` (default ``high``): MiniMax defaults to ``max``
   when the request names no effort.
 - read timeout (longest silence between bytes, including the wait for the first byte):
@@ -25,9 +26,12 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import os
 import threading
-from dataclasses import dataclass
+import time
+from collections import OrderedDict
+from dataclasses import dataclass, replace
 from typing import Any
 
 from openai import AsyncOpenAI, OpenAI, Timeout
@@ -43,6 +47,8 @@ KEY_SLOT_SECONDARY = "secondary"
 _MINIMAX_SECONDARY_DEFAULT_WEIGHT_PERCENT = 20
 # Coprime with 100: a full context-free cycle visits each percentage bucket once.
 _MINIMAX_ROTATION_STEP = 37
+# How many running agent runs remember their credential route (one process serves a whole run).
+_KEY_ROUTE_MEMORY_RUNS = 4096
 
 
 def _get_positive_float_env(name: str, default: float) -> float:
@@ -71,6 +77,9 @@ def _get_non_negative_int_env(name: str, default: int) -> int:
 # The read timeout (longest silence between bytes) is per provider: ProviderKind.read_timeout_s.
 LLM_CLIENT_CONNECT_TIMEOUT_S = _get_positive_float_env("DEEPSEEK_CLIENT_CONNECT_TIMEOUT_S", 5.0)
 LLM_CLIENT_MAX_RETRIES = _get_non_negative_int_env("DEEPSEEK_CLIENT_MAX_RETRIES", 2)
+# MiniMax's prefix cache looks per-key and lasts about 10-15 minutes, so a longer stay on
+# one key gains little, while a re-draw keeps a heavy session from sitting on one key's quota.
+LLM_KEY_ROUTING_WINDOW_S = _get_positive_float_env("LLM_KEY_ROUTING_WINDOW_S", 1800.0)
 
 
 @dataclass(frozen=True)
@@ -211,7 +220,8 @@ def _minimax_key(routing_key: str | None, *, rotate_if_unkeyed: bool) -> tuple[s
         return primary_key, KEY_SLOT_PRIMARY
 
     if routing_key:
-        digest = hashlib.sha256(routing_key.encode("utf-8")).digest()
+        # Keyed: a session id may come from the client, which must not choose its bucket.
+        digest = hmac.new(primary_key.encode("utf-8"), routing_key.encode("utf-8"), hashlib.sha256).digest()
         bucket = int.from_bytes(digest[:8], "big") % 100
     elif rotate_if_unkeyed:
         bucket = _next_minimax_bucket()
@@ -220,6 +230,47 @@ def _minimax_key(routing_key: str | None, *, rotate_if_unkeyed: bool) -> tuple[s
     if bucket < weight:
         return secondary_key, KEY_SLOT_SECONDARY
     return primary_key, KEY_SLOT_PRIMARY
+
+
+def other_key(provider: ModelProvider) -> ModelProvider | None:
+    """The same provider on its other credential, when dual-key routing is active.
+
+    Weight 0 means the secondary key was switched off on purpose: it is no alternative.
+    """
+    if provider.kind is not MINIMAX:
+        return None
+    secondary_key = os.getenv("MINIMAX_SECONDARY_API_KEY") or ""
+    if not secondary_key or _minimax_secondary_weight_percent() == 0:
+        return None
+    if provider.key_slot == KEY_SLOT_SECONDARY:
+        return replace(provider, api_key=os.getenv(MINIMAX.api_key_env) or "", key_slot=KEY_SLOT_PRIMARY)
+    return replace(provider, api_key=secondary_key, key_slot=KEY_SLOT_SECONDARY)
+
+
+_key_route_lock = threading.Lock()
+_key_routes: OrderedDict[str, str] = OrderedDict()
+
+
+def _route_for_run(run_id: str, session_key: str | None) -> str:
+    """The run's credential route, decided by its first call and kept to its end.
+
+    Consecutive runs of a session share a route within a time window, so the next run finds
+    its prefix cache on the same key; a run crossing the window boundary does not move.
+    """
+    with _key_route_lock:
+        route = _key_routes.get(run_id)
+        if route is None:
+            route = f"{session_key}:{int(time.time() // LLM_KEY_ROUTING_WINDOW_S)}" if session_key else run_id
+            _key_routes[run_id] = route
+            while len(_key_routes) > _KEY_ROUTE_MEMORY_RUNS:
+                _key_routes.popitem(last=False)
+        return route
+
+
+def reset_key_routing_state() -> None:
+    """Clear remembered run routes; intended for tests."""
+    with _key_route_lock:
+        _key_routes.clear()
 
 
 def _build_provider(
@@ -265,11 +316,13 @@ def configured_providers(
     a warning: a half-configured backup must not take the primary down.
     """
     # ``agent_run_id`` is generated server-side and keeps every model call in a run
-    # together. Do not route on a client-controlled request id: a caller must not be
-    # able to choose a credential bucket. A trusted internal session id is the fallback.
+    # together; the session only decides that run's route. Do not route on a
+    # client-controlled request id. See _minimax_key for why a session id is safe here.
     from utils.request_context import get_agent_run_id
 
-    routing_key = get_agent_run_id() or routing_key
+    run_id = get_agent_run_id()
+    if run_id:
+        routing_key = _route_for_run(run_id, routing_key)
     primary = _build_provider(
         SLOT_PRIMARY,
         _kind(os.getenv("LLM_PRIMARY_PROVIDER") or DEEPSEEK.name, "LLM_PRIMARY_PROVIDER"),

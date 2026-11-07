@@ -80,6 +80,7 @@ class UsageMeteringMixin:
 
                 reasoning_tokens = getattr(getattr(usage, "output_tokens_details", None), "reasoning_tokens", None)
                 output_tokens = getattr(usage, "output_tokens", None)
+                key_slot = getattr(sdk_model, "served_key_slot", None)
                 log_thinking_before_answer(
                     model,
                     outcome="completed",
@@ -88,6 +89,7 @@ class UsageMeteringMixin:
                     duration_ms=getattr(timing, "duration_ms", None),
                     reasoning_tokens=reasoning_tokens if isinstance(reasoning_tokens, int) else None,
                     output_tokens=output_tokens if isinstance(output_tokens, int) else None,
+                    key_slot=key_slot if isinstance(key_slot, str) else None,
                 )
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Thinking observation after model call failed: {exc}")

@@ -1,5 +1,7 @@
 """When the per-session context snapshot is reused, and when it is rebuilt (each rebuild is a cache miss)."""
 
+import json
+
 import pytest
 
 from agent.context import turn_snapshot
@@ -113,3 +115,95 @@ def test_an_unchanged_turn_sends_no_stale_listing():
     blocks = [HEADER, CARD, _focus_chapter(1, focus=True)]
     _plan(blocks)
     assert _plan(blocks).changed_context == ""
+
+
+def _snapshot_logs(monkeypatch):
+    logged: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        turn_snapshot,
+        "log_with_context",
+        lambda _logger, _level, message, **fields: logged.append((message, fields)),
+    )
+    return logged
+
+
+def test_reused_snapshot_log_separates_live_changed_and_gone_chars(monkeypatch):
+    """The cost of keeping an old snapshot depends on its dead share, so logs must show it."""
+    logged = _snapshot_logs(monkeypatch)
+    old_chapter = _chapter(1, size=2)
+    new_chapter = _chapter(2, size=1)
+    first = _plan([HEADER, CARD, old_chapter])
+    logged.clear()
+
+    second = _plan([HEADER, CARD, new_chapter])
+
+    assert not second.rebuilt
+    message, fields = logged[-1]
+    assert message == "Context snapshot reused"
+    assert fields["live_chars"] == len(HEADER["text"]) + len(CARD["text"])
+    assert fields["changed_chars"] == len(new_chapter["text"])
+    assert fields["gone_chars"] == len(old_chapter["text"])
+    assert fields["stale_chars"] == fields["changed_chars"] + fields["gone_chars"]
+    assert fields["snapshot_chars"] == len(first.snapshot_message)
+    assert fields["changed_chars_by_section"] == {new_chapter["key"].split(":", 1)[0]: len(new_chapter["text"])}
+
+
+def test_outgrown_rebuild_log_describes_the_snapshot_it_replaces(monkeypatch):
+    logged = _snapshot_logs(monkeypatch)
+    old_chapter = _chapter(1)
+    new_chapter = _chapter(2, size=400)
+    first = _plan([HEADER, CARD, old_chapter])
+    logged.clear()
+
+    second = _plan([HEADER, CARD, new_chapter])
+
+    assert second.rebuilt
+    message, fields = logged[-1]
+    assert message == "Context snapshot rebuilt"
+    assert fields["reason"] == "outgrown"
+    assert fields["previous_snapshot_chars"] == len(first.snapshot_message)
+    assert fields["live_chars"] == len(HEADER["text"]) + len(CARD["text"])
+    assert fields["stale_chars"] == len(new_chapter["text"]) + len(old_chapter["text"])
+
+
+def test_first_build_log_has_no_previous_snapshot_to_describe(monkeypatch):
+    logged = _snapshot_logs(monkeypatch)
+
+    _plan([HEADER, CARD])
+
+    message, fields = logged[-1]
+    assert message == "Context snapshot rebuilt" and fields["reason"] == "missing"
+    assert "previous_snapshot_chars" not in fields and "stale_chars" not in fields
+
+
+def test_stale_accounting_log_never_contains_document_titles(monkeypatch):
+    logged = _snapshot_logs(monkeypatch)
+    secret_title = {"key": "【正文详情】:秘密书名", "text": "x" * 20}
+    _plan([HEADER, CARD])
+    logged.clear()
+
+    _plan([HEADER, CARD, secret_title])
+
+    assert "秘密书名" not in repr(logged)
+
+
+def test_edited_document_counts_its_old_copy_as_dead(monkeypatch):
+    logged = _snapshot_logs(monkeypatch)
+    edited = {"key": "file:f1", "text": "x" * 30}
+    _plan([HEADER, CARD, edited])
+    logged.clear()
+
+    _plan([HEADER, CARD, {"key": "file:f1", "text": "y" * 40}])
+
+    _message, fields = logged[-1]
+    assert fields["dead_chars"] == 30 and fields["gone_chars"] == 0 and fields["changed_chars"] == 40
+
+
+def test_malformed_stored_state_still_rebuilds_instead_of_failing_the_turn():
+    """日志统计不能影响这一轮：存储里的旧格式只该触发重建。"""
+    turn_snapshot._store_set(
+        turn_snapshot._snapshot_key("s1"),
+        json.dumps({"v": -1, "project_id": "p1", "language": "zh", "hashes": ["bad"], "sizes": [1], "text": "old"}),
+    )
+
+    assert _plan([HEADER, CARD]).rebuilt

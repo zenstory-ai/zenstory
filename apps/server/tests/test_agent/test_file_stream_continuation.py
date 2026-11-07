@@ -104,6 +104,7 @@ async def _run(
     routing_metadata: dict | None = None,
     max_iterations: int = 12,
     tasks: list[dict] | None = None,
+    inventory: dict | None = None,
 ) -> list[StreamEvent]:
     from agent.graph.writing_graph import run_writing_workflow_streaming
 
@@ -124,7 +125,7 @@ async def _run(
         with (
             patch("agent.graph.writing_graph.router_node", AsyncMock(return_value=router_result)),
             patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
-            patch("agent.tools.mcp_tools.ToolContext.refresh_file_inventory", return_value={}),
+            patch("agent.tools.mcp_tools.ToolContext.refresh_file_inventory", return_value=inventory or {}),
             patch(
                 "services.infra.task_board_service.task_board_service.get_tasks",
                 return_value=list(tasks or []),
@@ -436,3 +437,51 @@ async def test_ends_on_file_block(tail, expected):
 )
 async def test_ends_on_unclosed_file_block(tail, expected):
     assert ends_on_unclosed_file_block(tail) is expected
+
+
+async def test_same_agent_continuation_does_not_resend_the_file_inventory():
+    """同一 agent 接着跑时 SDK 输入和工具结果都在：清单只会重复占 prompt，每写一个文件多一份。"""
+    runs: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        runs.append(str(state.get("user_message") or ""))
+        if len(runs) == 1:
+            for event in _create(state, "c1", "f2", "第2集 暗流"):
+                yield event
+            yield _file("第二集正文。" * 20)
+            state["native_run_holder"].update(agent_type=agent_type, items=[{"role": "user", "content": "x"}])
+        else:
+            yield _text("第2集写好了。")
+
+    await _run(
+        fake_agent,
+        routing_metadata={"agent_type": "writer"},
+        inventory={"draft": [{"id": "f2", "title": "第2集 暗流"}]},
+    )
+
+    assert len(runs) == 2
+    assert "《第2集 暗流》" in runs[1]
+    assert "[当前项目文件清单]" not in runs[1]
+
+
+async def test_continuation_without_a_kept_run_still_gets_the_file_inventory():
+    """上一轮的 SDK 输入没保留（例如轮数耗尽）时输入是重建的，看不到工具结果，清单不能省。"""
+    runs: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        runs.append(str(state.get("user_message") or ""))
+        if len(runs) == 1:
+            for event in _create(state, "c1", "f2", "第2集 暗流"):
+                yield event
+            yield _file("第二集正文。" * 20)
+        else:
+            yield _text("第2集写好了。")
+
+    await _run(
+        fake_agent,
+        routing_metadata={"agent_type": "writer"},
+        inventory={"draft": [{"id": "f2", "title": "第2集 暗流"}]},
+    )
+
+    assert len(runs) == 2
+    assert "[当前项目文件清单]" in runs[1]

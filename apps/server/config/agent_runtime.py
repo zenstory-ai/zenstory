@@ -82,9 +82,10 @@ AGENT_REASONING_EFFORT: str | None = (
     _raw_reasoning_effort if _raw_reasoning_effort in AGENT_REASONING_EFFORT_CHOICES else None
 )
 
-# 上下文预算按 deepseek-flash 的 1M 窗口 + 自动前缀缓存来定：缓存命中的输入只要
-# 未命中价的 1/50，而预算过小导致的「上下文被压缩 → 模型反复 query_files 重读」
-# 每次都会把整段前缀重新送一遍，反而贵得多。
+# 上下文预算按 deepseek-flash 的 1M 窗口 + 自动前缀缓存来定：预算过小导致的「上下文
+# 被压缩 → 模型反复 query_files 重读」每次都会把整段前缀重新送一遍。缓存命中价
+# 因供应商而异（services/usage/pricing.py）：DeepSeek 约为未命中的 1/50，MiniMax
+# M3.1-Flash 是 1/10，后者每多带一段上下文的成本明显更高。
 
 # Chat history loading budget (sliding window, newest-first)
 AGENT_CHAT_HISTORY_TOKEN_BUDGET = _get_int_env(

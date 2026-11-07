@@ -2224,23 +2224,25 @@ async def run_writing_workflow_streaming(
                         "常规文本编辑仍按现有读写保护执行。"
                     )
 
-                # 刷新文件清单
+                # 刷新文件清单。同一 agent 接着跑时上一轮的 SDK 输入和工具结果都还在
+                # （runner._continued_run_input），新建文件的 id 就在里面，不再发一份。
                 inventory_text = ""
-                try:
-                    # 同步查库放进工作线程，并用短生命周期 session（查完即还
-                    # 连接）：在事件循环上直接查会阻塞所有并发 SSE，且懒建的
-                    # session 会以 idle in transaction 挂到整轮结束。
-                    refreshed = await asyncio.to_thread(
-                        ToolContext.refresh_file_inventory
-                    )
-                    if refreshed:
-                        inventory_text = _format_file_inventory(refreshed)
-                        if inventory_text:
-                            inventory_text = f"\n\n[当前项目文件清单]:\n{inventory_text}"
-                except Exception as e:
-                    log_with_context(
-                        logger, 30, "Failed to refresh file inventory", error=str(e)
-                    )
+                if not continue_native_run:
+                    try:
+                        # 同步查库放进工作线程，并用短生命周期 session（查完即还
+                        # 连接）：在事件循环上直接查会阻塞所有并发 SSE，且懒建的
+                        # session 会以 idle in transaction 挂到整轮结束。
+                        refreshed = await asyncio.to_thread(
+                            ToolContext.refresh_file_inventory
+                        )
+                        if refreshed:
+                            inventory_text = _format_file_inventory(refreshed)
+                            if inventory_text:
+                                inventory_text = f"\n\n[当前项目文件清单]:\n{inventory_text}"
+                    except Exception as e:
+                        log_with_context(
+                            logger, 30, "Failed to refresh file inventory", error=str(e)
+                        )
 
                 # 对 Reviewer 使用专门的消息格式，不传递原始用户请求
                 # 避免 Reviewer 误以为自己需要创作

@@ -62,9 +62,10 @@ _ANSWER_OUTPUT_EVENT_TYPES = frozenset({
 def _replay_reasoning_content(_context: Any) -> bool:
     """Send prior reasoning back as ``reasoning_content`` within a run.
 
-    MiniMax M3.1-Flash requires the full ``reasoning_content`` of earlier
-    tool-call turns; DeepSeek accepts it. After a mid-run failover the
-    reasoning came from the other model; it is plain text either way.
+    DeepSeek answers HTTP 400 when a tool-call turn lacks ``reasoning_content``.
+    MiniMax M3.1-Flash accepts such a turn but its docs ask to keep the full
+    reasoning for best results; dropping it has not been evaluated. After a mid-run
+    failover the reasoning came from the other model; it is plain text either way.
     """
     return True
 
@@ -156,6 +157,7 @@ class FailoverChatModel:
         self._usage_attribution = usage_attribution
         # Model name that served the latest call (usage ledger, logs).
         self.served_model: str | None = None
+        self.served_key_slot: str | None = None
         # Timing of the latest successful call, taken once by the usage hook.
         self._call_timing: CallTiming | None = None
         # The latest successful call's thinking before its first answer output
@@ -210,11 +212,13 @@ class FailoverChatModel:
 
     def _served(self, provider: ModelProvider) -> None:
         self.served_model = provider.model
+        self.served_key_slot = provider.key_slot
         if self._on_served is not None:
             self._on_served(provider.model)
 
     async def get_response(self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any) -> Any:
         ordered = await llm_failover.aordered_providers(self._session_id)
+        key_cooled = False
         self._call_timing = None
         for index, provider in enumerate(ordered):
             attempt_started = time.monotonic()
@@ -230,7 +234,7 @@ class FailoverChatModel:
                 llm_failover.log_provider_failure(provider, exc, call_site="agent")
                 if not llm_failover.is_provider_unavailable(exc):
                     raise
-                await llm_failover.arecord_failure(provider, self._session_id, exc)
+                key_cooled = await llm_failover.arecord_failure(provider, self._session_id, exc) or key_cooled
                 if index + 1 >= len(ordered):
                     raise
                 if _rejects_missing_tool_turn_reasoning(ordered[index + 1], input):
@@ -240,7 +244,8 @@ class FailoverChatModel:
                 continue
             self._succeeded(attempt_started)
             self._served(provider)
-            await llm_failover.arecord_success(provider, self._session_id, ordered)
+            if not key_cooled:
+                await llm_failover.arecord_success(provider, self._session_id, ordered)
             return response
         raise AssertionError("unreachable: configured_providers() is never empty")
 
@@ -248,6 +253,7 @@ class FailoverChatModel:
         self, system_instructions: Any, input: Any, model_settings: Any, *args: Any, **kwargs: Any
     ) -> AsyncIterator[Any]:
         ordered = await llm_failover.aordered_providers(self._session_id)
+        key_cooled = False
         self._call_timing = None
         self._thinking_before_answer = None
         for index, provider in enumerate(ordered):
@@ -314,12 +320,12 @@ class FailoverChatModel:
                     )
                     log_thinking_before_answer(
                         provider.model, outcome="failed", thinking_chars=thinking_chars,
-                        first_answer_ms=first_answer_ms, started=attempt_started,
+                        first_answer_ms=first_answer_ms, started=attempt_started, key_slot=provider.key_slot,
                     )
                 if llm_failover.is_provider_unavailable(exc):
                     # Pins the session to the other provider even mid-stream, so the
                     # author's retry goes there, and counts towards the provider's circuit.
-                    await llm_failover.arecord_failure(provider, self._session_id, exc)
+                    key_cooled = await llm_failover.arecord_failure(provider, self._session_id, exc) or key_cooled
                 elif llm_failover.is_in_stream_error(exc):
                     # Possibly about this request's content: this session moves to the
                     # other provider, other authors stay where they are (no circuit count).
@@ -346,7 +352,8 @@ class FailoverChatModel:
             if not completed:
                 self._succeeded(attempt_started, ttft_ms)
                 self._thinking_before_answer = (thinking_chars, first_answer_ms)
-            await llm_failover.arecord_success(provider, self._session_id, ordered)
+            if not key_cooled:
+                await llm_failover.arecord_success(provider, self._session_id, ordered)
             return
 
 
@@ -360,6 +367,7 @@ def log_thinking_before_answer(
     duration_ms: int | None = None,
     reasoning_tokens: int | None = None,
     output_tokens: int | None = None,
+    key_slot: str | None = None,
 ) -> None:
     """One line per streamed agent model call: how much it thought before answering (numbers only).
 
@@ -373,6 +381,7 @@ def log_thinking_before_answer(
         20,  # INFO
         "LLM call thinking before answer",
         model=model,
+        key_slot=key_slot,
         outcome=outcome,
         thinking_chars_before_answer=thinking_chars,
         first_answer_ms=first_answer_ms,

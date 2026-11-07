@@ -19,7 +19,7 @@ from ..schemas.context import ContextItem, ContextPriority
 # 只能用剩下的额度。
 #
 # deepseek-flash 的上下文窗口是 1M token，且有自动前缀缓存（命中价约为未命中的
-# 1/50）。上限定在 160k：远低于模型窗口、给本轮工具结果留足空间，同时明显高于
+# 1/50；MiniMax M3.1-Flash 是 1/10，见 services/usage/pricing.py）。上限定在 160k：远低于模型窗口、给本轮工具结果留足空间，同时明显高于
 # 「系统提示 + 32k 上下文 + 32k 历史」的常规总量，所以台账只在其他 prompt 成本
 # 真的很大时才收缩历史，绝不放大历史预算。旧值 24k（按 6k 预算定的）会把上下文
 # 与历史压到模型只能靠反复 query_files 重读来补，重读的成本远高于多带的前缀。
