@@ -296,27 +296,6 @@ export const authApi = {
 export interface DraftExportResult {
   /** Filename from Content-Disposition, or null when the header was unreadable. */
   filename: string | null;
-  /**
-   * Whether the server put the outline in the file, read from its filename
-   * (`{项目名}_大纲和正文.txt` vs `{项目名}_正文.txt`). An API that predates
-   * `include_outline` ignores the flag and still answers `_正文.txt`, so the
-   * caller must not promise an outline it did not get. null = unknown.
-   */
-  includesOutline: boolean | null;
-  /**
-   * The outline was asked for but the work has none written yet
-   * (`{项目名}_正文（暂无大纲）.txt`), as opposed to an old API skipping it.
-   */
-  noOutlineYet: boolean;
-}
-
-export function exportFilenameIncludesOutline(filename: string | null): boolean | null {
-  if (!filename) return null;
-  return /_大纲和正文\.txt$/.test(filename);
-}
-
-export function exportFilenameHasNoOutlineYet(filename: string | null): boolean {
-  return !!filename && /_正文（暂无大纲）\.txt$/.test(filename);
 }
 
 /**
@@ -338,7 +317,6 @@ export const exportApi = {
    * Handles authentication automatically with token refresh on 401 errors.
    *
    * @param projectId - The UUID of the project to export
-   * @param options.includeOutline - Put the outline files before the chapters
    * @returns Promise that resolves when download is initiated
    * @throws {ApiError} ERR_EXPORT_NO_DRAFTS if project has no drafts
    *
@@ -349,13 +327,12 @@ export const exportApi = {
    * // Browser will download a file named "{ProjectName}_drafts.txt"
    * ```
    */
-  exportDrafts: async (projectId: string, options: { includeOutline?: boolean } = {}): Promise<DraftExportResult> => {
-    const query = options.includeOutline ? "?include_outline=true" : "";
+  exportDrafts: async (projectId: string): Promise<DraftExportResult> => {
     const entryAccess = getAccessToken();
     const entryRefresh = localStorage.getItem("refresh_token");
     const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
-        `${getApiBase()}/api/v1/projects/${projectId}/export/drafts${query}`,
+        `${getApiBase()}/api/v1/projects/${projectId}/export/drafts`,
         {
           method: "GET",
           headers: accessToken
@@ -417,8 +394,6 @@ export const exportApi = {
 
     return {
       filename: serverFilename,
-      includesOutline: exportFilenameIncludesOutline(serverFilename),
-      noOutlineYet: exportFilenameHasNoOutlineYet(serverFilename),
     };
   },
 };

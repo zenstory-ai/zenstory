@@ -5,10 +5,10 @@ Provides endpoints for exporting project content to downloadable files.
 """
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from services.auth import get_current_active_user
-from services.export_service import export_drafts_to_txt_with_outline_state
+from services.export_service import export_drafts_to_txt
 from sqlmodel import Session
 
 from core.error_codes import ErrorCode
@@ -27,7 +27,6 @@ router = APIRouter(prefix="/api/v1", tags=["export"])
 @router.get("/projects/{project_id}/export/drafts")
 def export_project_drafts(
     project_id: str,
-    include_outline: bool = Query(False, description="Put the outline files before the chapters"),
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
 ):
@@ -35,7 +34,7 @@ def export_project_drafts(
     Export all drafts from a project as a single TXT file.
 
     The drafts are merged in chapter order with titles and separators, under the
-    work title. With ``include_outline`` the non-empty outline files come first.
+    work title.
 
     Args:
         project_id: The project ID to export drafts from
@@ -103,21 +102,8 @@ def export_project_drafts(
             )
 
     # 3. Generate export content
-    content, has_outlines = export_drafts_to_txt_with_outline_state(
-        session,
-        project_id,
-        title=project.name,
-        include_outline=include_outline,
-    )
-    # The file name tells the author (and the web app's toast) what is inside.
-    # Asked for the outline but none is written yet: say so instead of
-    # promising 「大纲和正文」.
-    if not include_outline:
-        filename = f"{project.name}_正文.txt"
-    elif has_outlines:
-        filename = f"{project.name}_大纲和正文.txt"
-    else:
-        filename = f"{project.name}_正文（暂无大纲）.txt"
+    content = export_drafts_to_txt(session, project_id, title=project.name)
+    filename = f"{project.name}_正文.txt"
 
     if not content:
         log_with_context(

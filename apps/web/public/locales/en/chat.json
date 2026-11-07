@@ -240,12 +240,14 @@
       "repeatReadUntitled": "This was already read; continuing with it.",
       "authorEdited": "\"{{title}}\" has changes you made yourself, so the AI didn't delete or overwrite it. It will ask you first.",
       "authorEditedUntitled": "This file has changes you made yourself, so the AI didn't delete or overwrite it. It will ask you first.",
+      "protectionUnavailable": "The AI didn't delete or replace this file. Use the file menu or the editor if you still want to.",
       "authorChanged": "This file changed after the AI read it (most likely your own edit), so the AI didn't edit the old text. Nothing was changed in this step.",
       "clarifyFirst": "You haven't said which part to change yet. The AI will ask first; no files were changed.",
       "generic": "That step didn't work; the AI will try another way."
     },
     "skippedTitle": {
       "authorEdited": "Kept your changes",
+      "protectionUnavailable": "File left unchanged",
       "authorChanged": "File just changed, left as is",
       "clarifyFirst": "Asking before changing anything"
     },

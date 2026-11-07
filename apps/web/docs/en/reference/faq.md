@@ -44,7 +44,7 @@ There is no user-facing file or project trash, and deleted files cannot be resto
 
 ### Does export include the whole project?
 
-**Export manuscript** includes saved drafts and scripts. **Export outline and text** also includes outlines. Keep characters, materials, chat, memory, and history separately. See [export](../user-guide/export.md).
+**Export manuscript** includes saved drafts and scripts. Keep outlines, characters, materials, chat, memory, and history separately. See [export](../user-guide/export.md).
 
 ### Can I work offline?
 

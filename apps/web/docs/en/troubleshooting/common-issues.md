@@ -42,7 +42,7 @@ Follow Retry when offered instead of repeatedly uploading. See [Materials](../us
 
 Confirm prose is saved and draft or script files exist. Check page errors and browser downloads. TXT uses UTF-8; open with that encoding and keep the original before converting.
 
-Characters are outside the export scope. Choose **Export outline and text** when you need outlines, and check the download. See [export](../user-guide/export.md).
+Characters and outlines are outside the export scope. To keep an outline, open it and use **Download current file**. See [export](../user-guide/export.md).
 
 ## Slow pages
 

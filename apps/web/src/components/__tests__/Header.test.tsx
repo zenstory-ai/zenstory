@@ -45,12 +45,8 @@ vi.mock('react-router-dom', () => ({
 const headerTranslations: Record<string, string> = {
   'editor:header.helpDocs': '帮助文档',
   'common:feedback.entry': '问题反馈',
-  'editor:header.exportWithOutline': '导出大纲与正文',
   'editor:header.export': '导出正文（TXT）',
   'editor:header.exportScript': '导出整部剧本（TXT）',
-  'editor:header.exportScriptWithOutline': '导出大纲与剧本',
-  'editor:header.exportScriptOutlineSkipped': '这次只导出了剧本，大纲没能一起导出，请过几分钟再试',
-  'editor:header.exportScriptNoOutlineYet': '这部作品还没有写好的大纲，这次导出了剧本',
   'editor:header.downloadFile': '下载当前文件（TXT）',
   'editor:header.downloadFileSuccess': '已下载《{{title}}》',
   'common:loading': '加载中…',
@@ -432,92 +428,6 @@ describe('Header', () => {
 
       expect(screen.queryByText('下载当前文件（TXT）')).not.toBeInTheDocument()
       mockSelectedItem = null
-    })
-
-    it('offers an outline-included export next to the plain one', async () => {
-      mockCurrentProjectId = 'project-123'
-      mockExportDrafts.mockResolvedValueOnce({ filename: '晚风_大纲和正文.txt', includesOutline: true })
-      render(<Header />)
-
-      fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲与正文'))
-
-      await waitFor(() => {
-        expect(mockExportDrafts).toHaveBeenCalledWith({ includeOutline: true })
-      })
-      await waitFor(() => {
-        expect(mockToastSuccess).toHaveBeenCalledWith('大纲和正文已导出为 TXT 文件')
-      })
-    })
-
-    it('does not promise the outline when the server sent the text only', async () => {
-      // Vercel ships before Railway: the old API ignores include_outline.
-      mockCurrentProjectId = 'project-123'
-      mockExportDrafts.mockResolvedValueOnce({ filename: '晚风_正文.txt', includesOutline: false })
-      render(<Header />)
-
-      fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲与正文'))
-
-      await waitFor(() => {
-        expect(mockToastInfo).toHaveBeenCalledWith('这次只导出了正文，大纲没能一起导出，请过几分钟再试')
-      })
-      expect(mockToastSuccess).not.toHaveBeenCalledWith('大纲和正文已导出为 TXT 文件')
-    })
-
-    it('says the work has no outline yet instead of asking to retry', async () => {
-      mockCurrentProjectId = 'project-123'
-      mockExportDrafts.mockResolvedValueOnce({
-        filename: '晚风_正文（暂无大纲）.txt',
-        includesOutline: false,
-        noOutlineYet: true,
-      })
-      render(<Header />)
-
-      fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲与正文'))
-
-      await waitFor(() => {
-        expect(mockToastInfo).toHaveBeenCalledWith('这部作品还没有写好的大纲，这次导出了正文')
-      })
-      expect(mockToastInfo).not.toHaveBeenCalledWith('这次只导出了正文，大纲没能一起导出，请过几分钟再试')
-      expect(mockToastSuccess).not.toHaveBeenCalledWith('大纲和正文已导出为 TXT 文件')
-    })
-
-    it.each([
-      ['the outline could not be included', { filename: '剧名_剧本.txt', includesOutline: false }, '这次只导出了剧本，大纲没能一起导出，请过几分钟再试', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'],
-      ['the work has no outline yet', { filename: '剧名_剧本（暂无大纲）.txt', includesOutline: false, noOutlineYet: true }, '这部作品还没有写好的大纲，这次导出了剧本', '这部作品还没有写好的大纲，这次导出了正文'],
-    ])('says 剧本 in a screenplay project when %s', async (_label, result, expected, novelText) => {
-      mockCurrentProjectId = 'project-123'
-      mockCurrentProject = { id: 'project-123', project_type: 'screenplay' }
-      mockExportDrafts.mockResolvedValueOnce(result)
-      try {
-        render(<Header />)
-
-        fireEvent.click(screen.getByTestId('header-more-actions'))
-        fireEvent.click(screen.getByText('导出大纲与剧本'))
-
-        await waitFor(() => {
-          expect(mockToastInfo).toHaveBeenCalledWith(expected)
-        })
-        expect(mockToastInfo).not.toHaveBeenCalledWith(novelText)
-        expect(mockExportDrafts).toHaveBeenCalledWith({ includeOutline: true })
-      } finally {
-        mockCurrentProject = null
-      }
-    })
-
-    it('uses a neutral toast when the exported file name is unreadable', async () => {
-      mockCurrentProjectId = 'project-123'
-      mockExportDrafts.mockResolvedValueOnce({ filename: null, includesOutline: null })
-      render(<Header />)
-
-      fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('导出大纲与正文'))
-
-      await waitFor(() => {
-        expect(mockToastSuccess).toHaveBeenCalledWith('已导出为 TXT 文件')
-      })
     })
 
     it('shows translated error toast when export fails', async () => {

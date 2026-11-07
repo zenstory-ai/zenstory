@@ -17,7 +17,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Settings, Menu, X, Download, Bug, CreditCard, BookOpen, FileText } from "lucide-react";
+import { Settings, Menu, X, Download, Bug, CreditCard, BookOpen } from "lucide-react";
 import { Logo, LogoMark } from "./Logo";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { DropdownMenu } from "./ui/DropdownMenu";
@@ -90,9 +90,6 @@ export const Header: React.FC<HeaderProps> = () => {
   // Only the wording differs; what is exported is the same.
   const isScreenplay = currentProject?.project_type === 'screenplay';
   const exportLabel = isScreenplay ? t('editor:header.exportScript') : t('editor:header.export');
-  const exportWithOutlineLabel = isScreenplay
-    ? t('editor:header.exportScriptWithOutline')
-    : t('editor:header.exportWithOutline');
   const [showSettings, setShowSettings] = useState(false);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [showExportUpgradeModal, setShowExportUpgradeModal] = useState(false);
@@ -117,34 +114,13 @@ export const Header: React.FC<HeaderProps> = () => {
     }
   };
 
-  const handleExport = async (closeMobileMenu = false, includeOutline = false) => {
+  const handleExport = async (closeMobileMenu = false) => {
     if (!currentProjectId) return;
     try {
-      if (includeOutline) {
-        const result = await exportDrafts({ includeOutline: true });
-        // Only promise the outline when the file name says it is in there: an API
-        // deployed before include_outline ignores it and sends the text only.
-        if (result?.includesOutline === true) {
-          toast.success(isScreenplay
-            ? t('editor:header.exportScriptWithOutlineSuccess')
-            : t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
-        } else if (result?.noOutlineYet) {
-          toast.info(isScreenplay
-            ? t('editor:header.exportScriptNoOutlineYet')
-            : t('editor:header.exportNoOutlineYet', '这部作品还没有写好的大纲，这次导出了正文'));
-        } else if (result?.includesOutline === false) {
-          toast.info(isScreenplay
-            ? t('editor:header.exportScriptOutlineSkipped')
-            : t('editor:header.exportOutlineSkipped', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'));
-        } else {
-          toast.success(t('editor:header.exportDone', '已导出为 TXT 文件'));
-        }
-      } else {
-        await exportDrafts();
-        toast.success(isScreenplay
-          ? t('editor:header.exportScriptSuccess')
-          : t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
-      }
+      await exportDrafts();
+      toast.success(isScreenplay
+        ? t('editor:header.exportScriptSuccess')
+        : t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
       if (closeMobileMenu) {
         setShowMobileMenu(false);
       }
@@ -198,16 +174,6 @@ export const Header: React.FC<HeaderProps> = () => {
           label: t('editor:header.downloadFile'),
           onClick: () => {
             void handleDownloadCurrentFile();
-          },
-        }]
-      : []),
-    ...(currentProjectId
-      ? [{
-          icon: FileText,
-          label: exportWithOutlineLabel,
-          disabled: exportLoading,
-          onClick: () => {
-            void handleExport(false, true);
           },
         }]
       : []),
@@ -380,30 +346,9 @@ export const Header: React.FC<HeaderProps> = () => {
                     <LoadingSpinner size="sm" />
                   </span>
                 ) : (
-                  <Download size={18} />
+                  <Download size={18} className="shrink-0" />
                 )}
                 {exportLabel}
-              </button>
-            )}
-            {currentProjectId && (
-              <button
-                type="button"
-                onClick={() => {
-                  void handleExport(true, true);
-                }}
-                disabled={exportLoading}
-                aria-busy={exportLoading}
-                className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-                role="menuitem"
-              >
-                {exportLoading ? (
-                  <span role="status" aria-label={t('common:loading')}>
-                    <LoadingSpinner size="sm" />
-                  </span>
-                ) : (
-                  <FileText size={18} className="shrink-0" />
-                )}
-                {exportWithOutlineLabel}
               </button>
             )}
             {downloadableFile && (
