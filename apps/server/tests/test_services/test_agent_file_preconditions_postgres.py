@@ -8,9 +8,10 @@ from datetime import UTC, datetime, timedelta
 from threading import Barrier
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlmodel import Session, select
 
+from agent.tools.author_edit_guard import AuthorEditProtectionUnavailableError
 from agent.tools.file_ops import crud as file_crud_module
 from agent.tools.file_ops import edit as file_edit_module
 from agent.tools.file_ops.crud import FileCRUD
@@ -23,7 +24,7 @@ from models.entities import Project, Snapshot, User
 from models.file_model import File
 from models.file_version import FileVersion
 from models.workspace_onboarding import WorkspaceOnboarding
-from services.features.file_version_service import before_restore_summary, get_file_version_service
+from services.features.file_version_service import FileVersionService, before_restore_summary, get_file_version_service
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"),
@@ -552,6 +553,99 @@ def test_undo_provenance_query_failure_does_not_poison_postgres_edit_transaction
         file = verify.get(File, file_id)
         assert file.content == "Original + edit"
         assert len(verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()) == 2
+
+
+def _seed_blank_file(session: Session, suffix: str) -> tuple[str, str]:
+    user_id, file_id, _key_id = _seed_file(session, suffix)
+    file = session.get(File, file_id)
+    file.content = ""
+    session.add(file)
+    for version in session.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all():
+        session.delete(version)
+    session.commit()
+    return user_id, file_id
+
+
+def test_concurrent_first_ai_edits_of_blank_file_share_one_baseline_and_undo_restores_blank(pg_engine, monkeypatch):
+    monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
+    with Session(pg_engine) as setup:
+        user_id, file_id = _seed_blank_file(setup, "blank-race")
+
+    ready = Barrier(2)
+
+    def edit(text: str):
+        with Session(pg_engine) as session:
+            ready.wait(timeout=5)
+            return FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": text}])
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(edit, ["A\n", "B\n"]))
+
+    with Session(pg_engine) as verify:
+        rows = verify.exec(
+            select(FileVersion).where(FileVersion.file_id == file_id).order_by(FileVersion.version_number)
+        ).all()
+        assert [(row.version_number, row.change_source) for row in rows] == [(1, "system"), (2, "ai"), (3, "ai")]
+    assert sorted(result["undo"]["before_version_number"] for result in results) == [1, 2]
+
+    first = next(result for result in results if result["undo"]["before_version_number"] == 1)
+    second = next(result for result in results if result["undo"]["before_version_number"] == 2)
+    service = get_file_version_service()
+    with Session(pg_engine) as session, pytest.raises(APIException) as conflict:
+        service.rollback_to_version(
+            session, file_id, 1, user_id=user_id,
+            expected_updated_at=datetime.fromisoformat(first["undo"]["expected_after_updated_at"]),
+        )
+    assert conflict.value.status_code == 409
+    with Session(pg_engine) as session:
+        service.rollback_to_version(session, file_id, 2, user_id=user_id, expected_updated_at=datetime.fromisoformat(second["undo"]["expected_after_updated_at"]))
+    with Session(pg_engine) as session:
+        service.rollback_to_version(session, file_id, 1, user_id=user_id)
+    with Session(pg_engine) as verify:
+        assert verify.get(File, file_id).content == ""
+
+
+def test_blank_baseline_failure_does_not_poison_the_content_transaction(pg_engine, monkeypatch):
+    monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
+    with Session(pg_engine) as setup:
+        user_id, file_id = _seed_blank_file(setup, "blank-fail")
+    original = FileVersionService.create_version
+
+    def fail_baseline(self, session, *args, **kwargs):
+        if kwargs.get("change_source") == "system":
+            session.exec(text("select 1 / 0"))
+        return original(self, session, *args, **kwargs)
+
+    monkeypatch.setattr(FileVersionService, "create_version", fail_baseline)
+    with Session(pg_engine) as session:
+        result = FileEditor(session, user_id).edit_file(file_id, [{"op": "append", "text": "AI\n"}])
+    assert result.get("undo") is None
+    with Session(pg_engine) as verify:
+        assert verify.get(File, file_id).content == "AI\n"
+        rows = verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
+        assert [(row.version_number, row.change_source) for row in rows] == [(1, "ai")]
+
+
+def test_recursive_delete_with_unknown_provenance_child_changes_nothing(pg_engine):
+    with Session(pg_engine) as setup:
+        user_id, child_id, _key_id = _seed_file(setup, "unknown-tree")
+        child = setup.get(File, child_id)
+        for version in setup.exec(select(FileVersion).where(FileVersion.file_id == child_id)).all():
+            setup.delete(version)
+        folder = File(project_id=child.project_id, title="Folder", file_type="folder", content="")
+        setup.add(folder)
+        setup.flush()
+        child.parent_id = folder.id
+        setup.add(child)
+        setup.commit()
+        folder_id = folder.id
+    with Session(pg_engine) as session, pytest.raises(AuthorEditProtectionUnavailableError):
+        FileCRUD(session, user_id).delete_file(folder_id, recursive=True, protect_author_content=True)
+    with Session(pg_engine) as verify:
+        assert verify.get(File, folder_id).is_deleted is False
+        kept = verify.get(File, child_id)
+        assert (kept.is_deleted, kept.content, kept.parent_id) == (False, "Original", folder_id)
+        assert verify.exec(select(FileVersion).where(FileVersion.file_id == child_id)).all() == []
 
 
 @pytest.mark.asyncio

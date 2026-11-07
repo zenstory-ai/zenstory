@@ -431,7 +431,7 @@ export interface UseChatStreamingOptions {
     segments: MessageSegment[],
     applyAction: ApplyAction | null,
     completionMeta?: StreamCompletionMeta,
-  ) => void;
+  ) => void | Promise<void>;
 
   /** Called when an error occurs during streaming */
   onError?: (message?: string, code?: string, retryable?: boolean) => void;
@@ -1594,7 +1594,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
          * Called when streaming completes successfully.
          * Handles cleanup and the final refresh of the open file.
          */
-        onComplete: (
+        onComplete: async (
           segments: MessageSegment[],
           _applyAction: ApplyAction | null,
           completionMeta?: StreamCompletionMeta,

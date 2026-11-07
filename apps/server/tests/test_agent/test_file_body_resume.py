@@ -28,6 +28,7 @@ from agent.core.stream_billing import StreamBillingTracker
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools.mcp_tools import ToolContext
 from models import File, Project, User
+from services.features.file_version_service import FileVersionService
 from tests.conftest import TestSessionLocal
 from utils.text_metrics import count_words
 
@@ -1220,6 +1221,7 @@ async def test_a_reused_episode_with_a_body_is_not_deletable_as_a_cancel(workspa
     workspace.session.add(episode)
     workspace.session.commit()
     episode_id = episode.id
+    FileVersionService().create_version(workspace.session, episode_id, "这一集此前已经写好的合成正文。", change_type="create", change_source="ai")
     reuse = Reply(tools=(("create_file", {"title": "第1集", "file_type": "script", "parent_id": folder.id, "order": 1}),))
     model = ScriptedModel(runs=[[reuse, Reply(tools=(("delete_file", {"id": episode_id}),))]])
 

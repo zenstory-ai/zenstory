@@ -1591,6 +1591,25 @@ describe('useChatStreaming', () => {
         expect(result.current.streamRenderItems).toHaveLength(0)
       })
 
+      it('reports a finalize failure as a rejection, not a synchronous throw that stops the caller', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const failure = new Error('finalize failed')
+        deps.finishFileStreaming = vi.fn(() => { throw failure })
+        deps.getCurrentStreamingFileId = vi.fn(() => 'file-1')
+        const callbacks = result.current.getStreamCallbacks(deps)
+        const callerContinued = vi.fn()
+
+        let completion: void | Promise<void> = undefined
+        act(() => {
+          completion = callbacks.onComplete([], null)
+          callerContinued()
+        })
+
+        expect(callerContinued).toHaveBeenCalledTimes(1)
+        await expect(completion).rejects.toBe(failure)
+      })
+
       describe('file refresh on completion', () => {
         const openDraft = { id: 'open-draft', type: 'draft' as const, title: 'Chapter 1' }
 

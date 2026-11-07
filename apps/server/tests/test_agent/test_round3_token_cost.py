@@ -21,6 +21,7 @@ from agent.openai_agents.events import mcp_text_result
 from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools.mcp_tools import ToolContext, create_file
 from models import File, Project, User
+from services.features.file_version_service import FileVersionService
 
 EPISODE_TITLE = "第7集 潮落"
 EPISODE_BODY = "旧正文。" * 2000  # 8000 字，与线上实测的一集体量一致
@@ -97,6 +98,7 @@ def _seed_episode(db_session: Session, project: Project, body: str = EPISODE_BOD
     db_session.add(existing)
     db_session.commit()
     db_session.refresh(existing)
+    FileVersionService().create_version(db_session, existing.id, body, change_type="create", change_source="ai")
     return existing.id
 
 

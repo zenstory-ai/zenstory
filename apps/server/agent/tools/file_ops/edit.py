@@ -23,7 +23,9 @@ from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, 
 from models import File
 from models.file_version import (
     CHANGE_SOURCE_AI,
+    CHANGE_SOURCE_SYSTEM,
     CHANGE_TYPE_AI_EDIT,
+    CHANGE_TYPE_EDIT,
 )
 from services.features.activation_event_service import activation_event_service
 from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY
@@ -883,6 +885,20 @@ class FileEditor:
                 with self.session.begin_nested():
                     version_service = FileVersionService()
                     latest = version_service.get_latest_version(self.session, id)
+                    if latest is None and not old_content.strip():
+                        # 备份规则不存空白正文，这里只给「真要被改、没有历史」的空白文件补一个
+                        # 基线，撤销才有落点。有了版本就不会再补；新建未改的文件不经过这里。
+                        latest = version_service.create_version(
+                            session=self.session,
+                            file_id=id,
+                            new_content=old_content,
+                            change_type=CHANGE_TYPE_EDIT,
+                            change_source=CHANGE_SOURCE_SYSTEM,
+                            change_summary=BEFORE_AI_EDIT_SUMMARY,
+                            force_base=True,
+                            skip_quota=True,
+                            commit=False,
+                        )
                     if latest and version_service._get_contents_for_versions(self.session, {id: latest})[id] == old_content:
                         before_version_number = latest.version_number
             except Exception:

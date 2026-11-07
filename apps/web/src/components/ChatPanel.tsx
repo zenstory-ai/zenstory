@@ -1247,7 +1247,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     invalidateQuota();
     if (currentProjectId) void refreshNextStep(currentProjectId);
 
-    streamCallbacks.onComplete(
+    // Let the streaming hook finalize cleanup in the background.
+    void streamCallbacks.onComplete(
       completedSegments,
       applyAction as ApplyAction | null,
       completionMeta,

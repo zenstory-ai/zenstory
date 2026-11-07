@@ -97,19 +97,122 @@ def test_unversioned_live_content_is_backed_up_and_anchors_undo(db_session, undo
     assert file.content == original_content + "AI\n"
 
 
-def test_blank_file_without_history_commits_ai_edit_without_undo_target(db_session, undo_file):
-    # 空正文没有版本可锚定，也不需要备份：修改卡不给撤销，AI 文字落成 v1。
-    user, project, *_ = undo_file
+@pytest.fixture
+def blank_file(db_session, undo_file):
+    _, project, *_ = undo_file
     blank = File(project_id=project.id, title="Blank", file_type="draft", content="", updated_at=STAMP)
     db_session.add(blank)
     db_session.commit()
+    return blank
+
+
+def _version_rows(session, file_id):
+    rows = session.exec(select(FileVersion).where(FileVersion.file_id == file_id).order_by(FileVersion.version_number)).all()
+    return [(row.version_number, row.change_type, row.change_source) for row in rows]
+
+
+async def test_first_ai_edit_of_blank_file_undoes_to_blank_through_real_rollback(client, db_session, undo_file, blank_file):
+    user, project, *_ = undo_file
+    assert _version_rows(db_session, blank_file.id) == []
+    result = _edit(db_session, user, blank_file)
+    db_session.refresh(blank_file)
+    token = normalize_datetime_to_utc(blank_file.updated_at).isoformat()
+    assert result["undo"] == {"before_version_number": 1, "expected_after_updated_at": token}
+    assert _version_rows(db_session, blank_file.id) == [(1, "edit", "system"), (2, "ai_edit", "ai")]
+    service = get_file_version_service()
+    assert service.get_version_by_number(db_session, blank_file.id, 1).change_summary == "Before AI edit"
+    assert service.get_content_at_version(db_session, blank_file.id, 2) == "AI\n"
+
+    chat = ChatSession(project_id=project.id, user_id=user.id)
+    db_session.add(chat)
+    db_session.commit()
+    message_id = MessageManager(project.id, user.id)._save_messages_with_session(
+        db_session, session_id=chat.id, user_message="Edit", assistant_message="Edited",
+        tool_calls=[{"id": "blank-edit", "name": "edit_file", "arguments": {"id": blank_file.id}, "status": "success", "result": {"id": blank_file.id, "undo": result["undo"]}}],
+    )
+    url = f"/api/v1/files/{blank_file.id}/versions/1/rollback"
+    body = {"expected_updated_at": token, "chat_message_id": message_id, "tool_use_id": "blank-edit"}
+    first = await client.post(url, json=body)
+    assert first.status_code == 200
+    assert first.json()["undo_recorded"] is True
+    db_session.expire_all()
+    restored = db_session.get(File, blank_file.id)
+    assert restored.content == ""
+    assert json.loads(db_session.get(ChatMessage, message_id).tool_calls)[0]["result"]["undo"]["undone"] is True
+    assert (await client.post(url, json=body)).status_code == 409
+    assert db_session.get(File, blank_file.id).content == ""
+
+
+async def test_whitespace_only_file_without_history_undoes_to_its_exact_text(client, db_session, undo_file):
+    user, project, *_ = undo_file
+    blank = File(project_id=project.id, title="Spaces", file_type="draft", content=" \n", updated_at=STAMP)
+    db_session.add(blank)
+    db_session.commit()
     result = _edit(db_session, user, blank)
-    assert result.get("undo") is None
-    versions = db_session.exec(select(FileVersion).where(FileVersion.file_id == blank.id)).all()
-    assert [(version.version_number, version.change_type) for version in versions] == [(1, "ai_edit")]
+    response = await client.post(
+        f"/api/v1/files/{blank.id}/versions/{result['undo']['before_version_number']}/rollback",
+        json={"expected_updated_at": result["undo"]["expected_after_updated_at"]},
+    )
+    assert response.status_code == 200
     db_session.refresh(blank)
-    assert blank.content == "AI\n"
-    assert get_file_version_service().get_content_at_version(db_session, blank.id, 1) == "AI\n"
+    assert blank.content == " \n"
+
+
+def test_blank_baseline_is_added_once_and_only_for_a_real_change(db_session, undo_file, blank_file):
+    user, *_ = undo_file
+    editor = FileEditor(db_session, user.id)
+    editor.edit_file(blank_file.id, [{"op": "append", "text": ""}], continue_on_error=True)
+    assert _version_rows(db_session, blank_file.id) == []
+    _edit(db_session, user, blank_file)
+    second = _edit(db_session, user, blank_file)
+    assert second["undo"]["before_version_number"] == 2
+    assert _version_rows(db_session, blank_file.id) == [(1, "edit", "system"), (2, "ai_edit", "ai"), (3, "ai_edit", "ai")]
+
+
+async def test_blank_undo_keeps_token_conflict_and_quota_rules(client, db_session, undo_file, blank_file, monkeypatch):
+    user, *_ = undo_file
+    monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (False, 10, 10))
+    result = _edit(db_session, user, blank_file)
+    service = get_file_version_service()
+    assert service.get_version_count(db_session, blank_file.id, change_source="user") == 0
+    db_session.refresh(blank_file)
+    url = f"/api/v1/files/{blank_file.id}/versions/1/rollback"
+    stale = (normalize_datetime_to_utc(blank_file.updated_at) + timedelta(microseconds=1)).isoformat()
+    assert (await client.post(url, json={"expected_updated_at": stale})).status_code == 409
+    db_session.refresh(blank_file)
+    assert blank_file.content == "AI\n"
+    restored = await client.post(url, json={"expected_updated_at": result["undo"]["expected_after_updated_at"]})
+    assert restored.status_code == 200
+    assert restored.json()["version_quota_exceeded"] is True
+    db_session.refresh(blank_file)
+    assert blank_file.content == ""
+
+
+def test_blank_baseline_failure_keeps_the_ai_edit_without_undo(db_session, undo_file, blank_file, monkeypatch):
+    user, *_ = undo_file
+    original = FileVersionService.create_version
+
+    def fail_baseline(self, *args, **kwargs):
+        if kwargs.get("change_source") == "system":
+            raise RuntimeError("Baseline unavailable")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(FileVersionService, "create_version", fail_baseline)
+    result = _edit(db_session, user, blank_file)
+    assert result.get("undo") is None
+    db_session.refresh(blank_file)
+    assert blank_file.content == "AI\n"
+    assert _version_rows(db_session, blank_file.id) == [(1, "ai_edit", "ai")]
+
+
+def test_blank_baseline_survives_a_failed_ai_version_and_still_anchors_undo(db_session, undo_file, blank_file, monkeypatch):
+    user, *_ = undo_file
+    monkeypatch.setattr(FileEditor, "_create_edit_version", lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("History unavailable")))
+    result = _edit(db_session, user, blank_file)
+    assert result["undo"]["before_version_number"] == 1
+    db_session.refresh(blank_file)
+    assert blank_file.content == "AI\n"
+    assert _version_rows(db_session, blank_file.id) == [(1, "edit", "system")]
 
 
 def test_unanchored_edits_commit_without_an_undo_descriptor(db_session, undo_file, monkeypatch):

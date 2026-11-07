@@ -170,7 +170,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `edit_file` 在锁内比对本请求模型看过的正文（`mcp_tools._ReadSnapshots`，读到的内容由 `usage_hooks.ReadSnapshotPromotionMixin`
   在下一次模型调用起生效；换 agent 时清空，同一 agent 接着跑时保留），作者在生成期间又改了就以 `stale_content` 拒绝，改到作者写的段落时结果带 `author_edits_touched`。
   [author-edits-shown-not-guessed][n-author-edits]
-- **受保护稿件不由聊天删除或整份覆盖**：作者保存过正文的文件，在应用内对话中的 delete_file（含递归删除）和 create_file 同名剧集复用会拒绝；附加、焦点、点名、否定词、上一轮提议不授予权限，核验失败也不放行。作者使用现有文件菜单/编辑器；普通 edit_file、AI 自己的产物和直接人工 API 保持既有路径。参见 [typed-boundaries][n-typed-boundaries]。
+- **受保护稿件不由聊天删除或整份覆盖**：作者保存过正文的文件，在应用内对话中的 delete_file（含递归删除）和 create_file 同名剧集复用会拒绝；附加、焦点、点名、否定词、上一轮提议不授予权限，核验失败也不放行；非空且没有任何版本的文件来源未知，同样拒绝，且不声称是作者的（`author_edit_protection_unavailable`）。作者使用现有文件菜单/编辑器；普通 edit_file、AI 自己的产物和直接人工 API 保持既有路径。参见 [typed-boundaries][n-typed-boundaries]。
 - **作者可见文字**：每个 agent run 的 TEXT 经 `core/author_facing_text.AgentTextShaper` 补段落空行；作者写中文时，紧接工具调用的
   英文过程句不发给作者。[no-english-narration][n-narration]
 - **只给作者一份总结**：writer（非快速模式、非返修、未到审查上限，且开着自动质检门或计划里下一个是 quality_reviewer）写正文类文件、

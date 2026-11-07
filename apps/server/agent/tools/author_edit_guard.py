@@ -2,7 +2,8 @@
 
 Natural-language messages, selected references, the focused editor file, and prior assistant
 suggestions are context for the model.  They are not authorization to delete or wholly replace
-text whose latest persisted owner is the author.
+text whose latest persisted owner is the author, or text whose owner cannot be established
+(non-empty with no version history), which is refused without claiming author ownership.
 
 The guard applies only to application chat, identified by ``ToolContext`` carrying an author
 message.  Direct human APIs and non-chat integrations do not pass through this boundary.
@@ -65,16 +66,25 @@ class AuthorEditProtectionUnavailableError(AuthorContentProtectionError):
         self.action = action
         RuntimeError.__init__(
             self,
-            "无法确认目标文件的保护状态，本次破坏性操作未执行。"
-            "请稍后重试；需要删除时也可以由作者使用文件菜单。",
+            "无法确认目标文件的内容来源或保护状态，本次破坏性操作未执行。"
+            "局部调整可用 edit_file；需要删除或整份替换时，请作者在文件菜单或编辑器中操作。",
         )
 
 
 def latest_text_is_authors(session: Any, file: Any) -> bool:
-    """Whether the current non-empty body most recently came from an author-side write.
+    """Whether the current non-empty body is known to come from an author-side write.
 
-    Unknown legacy provenance (no versions) is not claimed as author-owned.  A content/version
-    mismatch is protected because it represents a write newer than the latest recorded AI state.
+    Unknown provenance is not claimed as author-owned; destructive callers go through
+    ``enforce_author_content_protection``, which refuses it separately.
+    """
+    return _latest_text_owner_is_author(session, file) is True
+
+
+def _latest_text_owner_is_author(session: Any, file: Any) -> bool | None:
+    """True: author. False: blank body or confirmed AI text. None: non-empty with no history.
+
+    A content/version mismatch is protected because it represents a write newer than the latest
+    recorded AI state.
     ``ai_edit`` versions count as AI-written, except the editor's review save
     (``user/ai_edit/"AI edit (reviewed)"``) right after an AI-written version: the author
     reviewed that AI change and saved their own result.  Only the version tuples are read.
@@ -88,7 +98,7 @@ def latest_text_is_authors(session: Any, file: Any) -> bool:
     service = FileVersionService()
     latest = service.get_latest_version(session, file.id)
     if latest is None:
-        return False
+        return None
     latest_content = service._get_contents_for_versions(session, {file.id: latest})[file.id]
     if latest_content != content:
         return True
@@ -119,11 +129,16 @@ def enforce_author_content_protection(
         if getattr(file, "file_type", None) == "folder":
             continue
         try:
-            protected = latest_text_is_authors(session, file)
+            protected = _latest_text_owner_is_author(session, file)
         except Exception as exc:
             raise AuthorEditProtectionUnavailableError(
                 str(getattr(file, "id", "")), action=action
             ) from exc
+        if protected is None:
+            # 正文来源未知：不认成作者的，也不当作可以破坏。
+            raise AuthorEditProtectionUnavailableError(
+                str(getattr(file, "id", "")), action=action
+            )
         if protected:
             raise AuthorEditProtectedError(
                 str(getattr(file, "id", "")),

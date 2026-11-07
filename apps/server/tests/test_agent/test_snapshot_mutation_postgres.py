@@ -35,6 +35,7 @@ async def test_streamed_mutation_tracks_locked_postgres_commit(pg_engine, monkey
         file = File(project_id=project.id, title="Draft", file_type="draft", content="Body")
         session.add(file)
         session.commit()
+        FileVersionService().create_version(session, file.id, "Body", change_type="create", change_source="ai")
         user_id, project_id, file_id = user.id, project.id, file.id
 
     adapter = StreamAdapter(StreamAdapterConfig(user_id=user_id, project_id=project_id))

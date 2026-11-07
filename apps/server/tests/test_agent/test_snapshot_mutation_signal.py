@@ -12,6 +12,7 @@ from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools import mcp_tools, parallel_executor
 from agent.tools.file_ops import FileCRUD, FileEditor
 from models import File, Project, User
+from services.features.file_version_service import FileVersionService
 
 
 def _payload(result):
@@ -199,6 +200,7 @@ async def test_streamed_save_marks_only_changed_committed_content(db_session, mu
     file = File(project_id=project.id, title="Draft", content="Body", file_type="draft")
     db_session.add(file)
     db_session.commit()
+    FileVersionService().create_version(db_session, file.id, "Body", change_type="create", change_source="ai")
     engine = db_session.get_bind()
 
     def get_session():
@@ -271,6 +273,7 @@ async def test_closed_reused_file_stream_flips_false_tool_flag_after_commit(db_s
     file = File(project_id=project.id, title="第3集", content="Original body", file_type="script", parent_id=folder.id, order=3)
     db_session.add(file)
     db_session.commit()
+    FileVersionService().create_version(db_session, file.id, "Original body", change_type="create", change_source="ai")
     engine = db_session.get_bind()
 
     def get_session():
