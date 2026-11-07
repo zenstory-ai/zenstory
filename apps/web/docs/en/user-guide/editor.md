@@ -69,3 +69,5 @@ After **Humanize** finishes or when a concurrent-edit comparison opens, the edit
   - Click **Reject All** (`Shift + N`) to keep all original text;
   - Click **Finish Review** (`Enter`) to save the reviewed text and record a version (if you reject every change in a Humanize review, exiting leaves the file untouched without creating an extra version);
   - Press `Esc` to reject all changes and exit review immediately.
+
+For help writing or revising with AI, see [AI assistant](ai-assistant.md). To compare earlier drafts or restore a file, see [Version history](version-history.md). To save a local copy, see [Export](export.md).
