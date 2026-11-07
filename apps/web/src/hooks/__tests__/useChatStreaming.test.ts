@@ -1747,6 +1747,102 @@ describe('useChatStreaming', () => {
         expect(result.current.streamRenderItems).toHaveLength(0)
       })
 
+      describe('file refresh on completion', () => {
+        const openDraft = { id: 'open-draft', type: 'draft' as const, title: 'Chapter 1' }
+
+        function createDepsWithOpenDraft() {
+          const deps = createMockDeps()
+          deps.getCurrentSelectedItem = vi.fn(() => openDraft)
+          return deps
+        }
+
+        it('re-reads the open file once when the server confirms a file mutation', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
+
+          await act(async () => {
+            await callbacks.onComplete([], null, { confirmedFileMutation: true })
+          })
+          act(() => {
+            vi.advanceTimersByTime(250)
+          })
+
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledTimes(1)
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledWith(openDraft.id)
+        })
+
+        it.each([
+          ['an absent mutation flag', undefined],
+          ['a false mutation flag', { confirmedFileMutation: false }],
+        ])('refreshes nothing with %s and no writes in the round', async (_label, completionMeta) => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
+
+          await act(async () => {
+            await callbacks.onComplete([], null, completionMeta)
+          })
+          act(() => {
+            vi.advanceTimersByTime(250)
+          })
+
+          expect(deps.triggerEditorRefresh).not.toHaveBeenCalled()
+          expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
+          expect(deps.finishFileStreaming).not.toHaveBeenCalled()
+        })
+
+        it('still re-reads the open file when a confirmed mutation ends as a partial completion', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
+
+          await act(async () => {
+            await callbacks.onComplete([], null, { confirmedFileMutation: true, partial: true })
+          })
+
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledTimes(1)
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledWith(openDraft.id)
+        })
+
+        it('flushes a pending debounced tree refresh immediately and only once', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
+
+          act(() => {
+            callbacks.onToolResult('create_file', 'success')
+          })
+          expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
+
+          await act(async () => {
+            await callbacks.onComplete([], null)
+          })
+          expect(deps.triggerFileTreeRefresh).toHaveBeenCalledTimes(1)
+
+          // The debounce timer must not fire a second refresh afterwards.
+          act(() => {
+            vi.advanceTimersByTime(1000)
+          })
+          expect(deps.triggerFileTreeRefresh).toHaveBeenCalledTimes(1)
+        })
+
+        it('finishes a stream that never sent file_content_end and forces a tree refresh', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          deps.getCurrentStreamingFileId = () => 'streaming-file'
+          const callbacks = result.current.getStreamCallbacks(deps)
+
+          await act(async () => {
+            await callbacks.onComplete([], null)
+          })
+
+          expect(deps.finishFileStreaming).toHaveBeenCalledTimes(1)
+          expect(deps.finishFileStreaming).toHaveBeenCalledWith('streaming-file')
+          expect(deps.triggerFileTreeRefresh).toHaveBeenCalledTimes(1)
+        })
+      })
+
       it('force flushes pending stream items before processing', async () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()

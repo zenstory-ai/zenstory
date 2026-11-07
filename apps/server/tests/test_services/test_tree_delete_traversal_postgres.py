@@ -25,7 +25,7 @@ from tests.test_api.test_tree_delete_traversal import (
 from tests.test_api.test_tree_delete_traversal import (
     test_web_recursive_delete_handles_legacy_cycles_once as _web_cycle_contract,
 )
-from tests.test_services.test_snapshot_concurrency_postgres import pg_engine as pg_engine
+from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured",
@@ -136,29 +136,27 @@ def test_delete_loader_locks_descendant_only_before_mutation(pg_engine, monkeypa
 
 
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])
-def test_shared_snapshot_gate_waits_for_recursive_delete_commit(pg_engine, monkeypatch, entrypoint):
-    import json
-
+def test_shared_tree_gate_waits_for_recursive_delete_commit(pg_engine, monkeypatch, entrypoint):
     from sqlalchemy import text
 
     from models import User
-    from services.features.snapshot_service import VersionService
+    from services.file_tree_rules import lock_project_for_files
     from tests.test_services.test_tree_writers_postgres import _observe_wait
 
     with Session(pg_engine, expire_on_commit=False) as setup:
-        user, project = _make_user_and_project(setup, f"pg-snapshot-delete-{entrypoint}")
+        user, project = _make_user_and_project(setup, f"pg-shared-delete-{entrypoint}")
         user_id, project_id = user.id, project.id
-        ids = _bulk_seed_chain(setup, project.id, count=3, prefix=f"pg-snapshot-delete-{entrypoint}")
+        ids = _bulk_seed_chain(setup, project.id, count=3, prefix=f"pg-shared-delete-{entrypoint}")
 
-    loaded, release, snapshot_started = Event(), Event(), Event()
-    snapshot_pid = []
+    loaded, release, reader_started = Event(), Event(), Event()
+    reader_pid = []
     module = files_api if entrypoint == "web" else crud_module
     original = module.load_live_subtree_postorder
 
     def pause_loaded(session, root):
         rows = original(session, root)
         loaded.set()
-        assert release.wait(8), "snapshot/delete gate proof was not released"
+        assert release.wait(8), "shared gate/delete proof was not released"
         return rows
 
     monkeypatch.setattr(module, "load_live_subtree_postorder", pause_loaded)
@@ -170,27 +168,31 @@ def test_shared_snapshot_gate_waits_for_recursive_delete_commit(pg_engine, monke
                 user=session.get(User, user_id), file_id=ids[0], recursive=True,
             )
 
-    def snapshot():
+    def read_live_files():
         with Session(pg_engine, autoflush=False, expire_on_commit=False) as session:
             cached_leaf = session.get(File, ids[-1])
             assert not cached_leaf.is_deleted
-            snapshot_pid.append(session.exec(text("SELECT pg_backend_pid()")).scalar())
-            snapshot_started.set()
-            result = VersionService().create_snapshot(session, project_id)
+            reader_pid.append(session.exec(text("SELECT pg_backend_pid()")).scalar())
+            reader_started.set()
+            lock_project_for_files(session, project_id)
+            live = session.exec(
+                select(File).where(File.project_id == project_id, File.is_deleted.is_(False))
+                .execution_options(populate_existing=True)
+            ).all()
             assert cached_leaf is not None  # Keep the stale reference through the gate wait.
-            return json.loads(result.data)
+            return live
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         delete_future = pool.submit(delete)
         try:
             assert loaded.wait(5)
-            snapshot_future = pool.submit(snapshot)
-            assert snapshot_started.wait(5)
-            assert _observe_wait(pg_engine, snapshot_pid[0], snapshot_future)
+            reader_future = pool.submit(read_live_files)
+            assert reader_started.wait(5)
+            assert _observe_wait(pg_engine, reader_pid[0], reader_future)
         finally:
             release.set()
         delete_future.result(10)
-        assert snapshot_future.result(10)["files_metadata"] == []
+        assert reader_future.result(10) == []
 
 
 @pytest.mark.parametrize("entrypoint", ["web", "tool"])

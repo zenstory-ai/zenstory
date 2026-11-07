@@ -11,6 +11,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
+from agent.tools.file_ops.edit import FileEditor
 from models import File, FileVersion, Snapshot, User
 from models.file_version import (
     CHANGE_SOURCE_SYSTEM,
@@ -190,8 +191,8 @@ async def test_snapshot_after_version_blocks_merge_and_keeps_snapshot_content(
     project_id, file_id = await _create_draft(client, headers)
     await _save(client, headers, file_id, PARAGRAPH + "拍快照前。\n")
     referenced = _user_versions(db_session, file_id)[0]
-    # 快照按 version_id 引用版本。这里直接写一行引用最新用户版本的快照，
-    # 确认合并不会改写它（快照服务自己可能额外建系统基线，那条路径同样不会合并）。
+    # 历史快照按 version_id 引用版本。这里直接写一行引用最新用户版本的快照，
+    # 确认合并不会改写它。
     db_session.add(
         Snapshot(
             project_id=project_id,
@@ -212,6 +213,64 @@ async def test_snapshot_after_version_blocks_merge_and_keeps_snapshot_content(
     user_versions = _user_versions(db_session, file_id)
     assert len(user_versions) == 2
     assert _content(db_session, file_id, referenced.version_number) == PARAGRAPH + "拍快照前。\n"
+
+
+@pytest.mark.integration
+async def test_version_pinned_by_snapshot_id_is_not_merged(client: AsyncClient, db_session: Session):
+    """旧数据里 snapshot_id 钉住的版本不被改写，即使项目里没有比它更晚的快照。"""
+    _user, headers = await _login(client, db_session, "co_pinned")
+    project_id, file_id = await _create_draft(client, headers)
+    # 这行快照早于版本，later_snapshot 查询不会命中，能挡住合并的只有版本上的 snapshot_id。
+    earlier = Snapshot(
+        project_id=project_id,
+        data="{}",
+        description="旧快照",
+        snapshot_type="manual",
+        created_at=datetime.utcnow() - timedelta(hours=1),
+    )
+    db_session.add(earlier)
+    db_session.commit()
+    await _save(client, headers, file_id, PARAGRAPH + "钉住前。\n")
+    pinned = _user_versions(db_session, file_id)[0]
+    assert earlier.created_at < pinned.created_at
+    pinned.snapshot_id = earlier.id
+    db_session.add(pinned)
+    db_session.commit()
+
+    await _save(client, headers, file_id, PARAGRAPH + "钉住后。\n")
+
+    user_versions = _user_versions(db_session, file_id)
+    assert len(user_versions) == 2
+    assert _content(db_session, file_id, pinned.version_number) == PARAGRAPH + "钉住前。\n"
+    assert _content(db_session, file_id, user_versions[1].version_number) == PARAGRAPH + "钉住后。\n"
+
+
+@pytest.mark.integration
+async def test_ai_round_on_another_file_without_snapshot_row_keeps_merging(
+    client: AsyncClient, db_session: Session
+):
+    """AI 改的是别的文件、又没有新快照行时，这个文件窗口内的手动保存照常合并。"""
+    user, headers = await _login(client, db_session, "co_other_file")
+    project_id, file_id = await _create_draft(client, headers)
+    other = await client.post(
+        f"/api/v1/projects/{project_id}/files",
+        json={"title": "第二章", "content": PARAGRAPH, "file_type": "draft"},
+        headers=headers,
+    )
+    assert other.status_code == 200, other.text
+    other_id = other.json()["id"]
+    await _save(client, headers, file_id, PARAGRAPH + "先写的。\n")
+
+    FileEditor(db_session, user.id).edit_file(other_id, [{"op": "append", "text": "AI 写的。\n"}])
+
+    assert _versions(db_session, other_id)[-1].change_type == "ai_edit"
+    assert db_session.exec(select(Snapshot).where(Snapshot.project_id == project_id)).all() == []
+
+    await _save(client, headers, file_id, PARAGRAPH + "先写的。\n又改了。\n")
+
+    user_versions = _user_versions(db_session, file_id)
+    assert len(user_versions) == 1
+    assert _content(db_session, file_id, user_versions[0].version_number) == PARAGRAPH + "先写的。\n又改了。\n"
 
 
 @pytest.mark.integration

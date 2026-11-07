@@ -11,8 +11,8 @@ from sqlmodel import Session, SQLModel, select
 
 from models import File, Project, Snapshot, User
 from services.features.snapshot_service import VersionService
-from tests.test_services.test_snapshot_concurrency_postgres import TABLES
-from tests.test_services.test_snapshot_concurrency_postgres import pg_engine as pg_engine
+from tests.test_services.test_tree_writers_postgres import TABLES
+from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine
 
 STAMP = datetime(2026, 10, 6, 14, 0, 0, 123456)
 

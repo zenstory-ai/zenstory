@@ -9,7 +9,7 @@ from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
 from agent.tools.file_ops import FileCRUD
 from models import File, Project, User
 from services.features.file_version_service import FileVersionService
-from tests.test_services.test_snapshot_concurrency_postgres import pg_engine as pg_engine
+from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured",

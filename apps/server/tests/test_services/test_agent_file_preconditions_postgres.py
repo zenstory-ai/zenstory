@@ -23,7 +23,7 @@ from models.entities import Project, Snapshot, User
 from models.file_model import File
 from models.file_version import FileVersion
 from models.workspace_onboarding import WorkspaceOnboarding
-from services.features.file_version_service import get_file_version_service
+from services.features.file_version_service import before_restore_summary, get_file_version_service
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"),
@@ -383,6 +383,55 @@ def test_preloaded_rollback_advances_past_latest_web_token(
         assert file.content == "Original"
         assert file.updated_at.replace(tzinfo=UTC) > web_token
         assert len(versions) == 3
+
+
+def test_rollback_backs_up_committed_unversioned_body_not_cached_identity(pg_engine):
+    service = get_file_version_service()
+    with Session(pg_engine) as setup:
+        user_id, file_id, _key_id = _seed_file(setup, "backup-fresh")
+        service.create_version(
+            setup,
+            file_id,
+            "Original",
+            change_source="system",
+            force_base=True,
+            skip_quota=True,
+        )
+
+    with Session(pg_engine) as rollback_session:
+        cached_file = rollback_session.get(File, file_id)
+        assert cached_file is not None
+        assert cached_file.content == "Original"
+        with Session(pg_engine) as other_session:
+            committed = other_session.get(File, file_id)
+            assert committed is not None
+            committed.content = "Committed unversioned"
+            other_session.add(committed)
+            other_session.commit()
+
+        _restored, new_version, exceeded = service.rollback_to_version(
+            rollback_session,
+            file_id,
+            1,
+            user_id=user_id,
+        )
+        assert exceeded is False
+        assert new_version is not None
+
+    with Session(pg_engine) as verify:
+        file = verify.get(File, file_id)
+        assert file is not None
+        assert file.content == "Original"
+        backup = verify.exec(
+            select(FileVersion).where(
+                FileVersion.file_id == file_id,
+                FileVersion.change_summary == before_restore_summary(1),
+            )
+        ).one()
+        assert (
+            service.get_content_at_version(verify, file_id, backup.version_number)
+            == "Committed unversioned"
+        )
 
 
 @pytest.mark.asyncio

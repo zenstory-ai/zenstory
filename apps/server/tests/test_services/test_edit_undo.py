@@ -19,7 +19,6 @@ from main import app
 from models import ChatMessage, ChatSession, File, FileVersion, Project, User
 from models.agent_api_key import AgentApiKey
 from services.features.file_version_service import FileVersionService, get_file_version_service
-from services.features.snapshot_service import VersionService
 
 STAMP = datetime(2035, 1, 1, 12, 0, 0, 123456, tzinfo=UTC)
 
@@ -98,6 +97,21 @@ def test_unversioned_live_content_is_backed_up_and_anchors_undo(db_session, undo
     assert file.content == original_content + "AI\n"
 
 
+def test_blank_file_without_history_commits_ai_edit_without_undo_target(db_session, undo_file):
+    # 空正文没有版本可锚定，也不需要备份：修改卡不给撤销，AI 文字落成 v1。
+    user, project, *_ = undo_file
+    blank = File(project_id=project.id, title="Blank", file_type="draft", content="", updated_at=STAMP)
+    db_session.add(blank)
+    db_session.commit()
+    result = _edit(db_session, user, blank)
+    assert result.get("undo") is None
+    versions = db_session.exec(select(FileVersion).where(FileVersion.file_id == blank.id)).all()
+    assert [(version.version_number, version.change_type) for version in versions] == [(1, "ai_edit")]
+    db_session.refresh(blank)
+    assert blank.content == "AI\n"
+    assert get_file_version_service().get_content_at_version(db_session, blank.id, 1) == "AI\n"
+
+
 def test_unanchored_edits_commit_without_an_undo_descriptor(db_session, undo_file, monkeypatch):
     user, _, file, *_ = undo_file
     original = FileVersionService._get_contents_for_versions
@@ -164,9 +178,9 @@ async def test_conditional_rollback_uses_exact_token_and_second_click_conflicts(
     assert _count_versions(db_session, file.id) == count
 
 
-@pytest.mark.parametrize("writer", ["web", "agent", "tool_edit", "tool_title", "snapshot"])
+@pytest.mark.parametrize("writer", ["web", "agent", "tool_edit", "tool_title", "file_rollback"])
 async def test_intervening_writes_reject_old_undo_without_success_effects(client, db_session, undo_file, writer):
-    user, project, file, key = undo_file
+    user, _, file, key = undo_file
     _edit(db_session, user, file)
     db_session.refresh(file)
     token = normalize_datetime_to_utc(file.updated_at).isoformat()
@@ -179,9 +193,7 @@ async def test_intervening_writes_reject_old_undo_without_success_effects(client
     elif writer == "tool_title":
         FileCRUD(db_session, user.id).update_file(file.id, title="Renamed after AI edit")
     else:
-        service = VersionService()
-        snapshot = service.create_snapshot(db_session, project.id, file_id=file.id)
-        service.rollback_to_snapshot(db_session, snapshot.id)
+        get_file_version_service().rollback_to_version(db_session, file.id, 1, user_id=user.id)
     db_session.refresh(file)
     expected = (file.content, file.title, file.updated_at, _count_versions(db_session, file.id))
     response = await client.post(f"/api/v1/files/{file.id}/versions/1/rollback", json={"expected_updated_at": token})

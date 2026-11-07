@@ -11,9 +11,9 @@ from threading import Barrier, Event
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Session, select
 from starlette.datastructures import UploadFile
 
 from agent.tools.file_ops import crud as crud_module
@@ -24,30 +24,16 @@ from api import snapshots as snapshots_api
 from api.materials import import_ as material_import
 from api.materials.schemas import MaterialImportRequest
 from core.error_handler import APIException
-from models import File, FileVersion, Project, Snapshot, User, WorkspaceOnboarding
+from models import File, Project, Snapshot, User
 from models.agent_api_key import AgentApiKey
 from services.features.file_version_service import FileVersionService, get_file_version_service
 from services.features.snapshot_service import VersionService
+from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured"
 )
-TABLES = [User.__table__, Project.__table__, File.__table__, Snapshot.__table__, FileVersion.__table__, AgentApiKey.__table__, WorkspaceOnboarding.__table__]
 STAMP = datetime(2026, 10, 6, 8, 0, 0, 123456)
-
-
-@pytest.fixture(scope="module")
-def pg_engine():
-    engine = create_engine(
-        os.environ["ZENSTORY_TEST_POSTGRES_URL"],
-        connect_args={"options": "-c timezone=UTC -c statement_timeout=10000 -c lock_timeout=8000"},
-    )
-    SQLModel.metadata.create_all(engine, tables=TABLES)
-    try:
-        yield engine
-    finally:
-        SQLModel.metadata.drop_all(engine, tables=TABLES)
-        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
