@@ -21,7 +21,8 @@
     "project",
     "materials",
     "admin",
-    "pricing"
+    "pricing",
+    "status"
   ],
   "sitePrefixes": [
     "zh",

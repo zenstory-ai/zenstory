@@ -25,6 +25,7 @@ vi.mock("react-i18next", () => ({
         "common:productMenu.title": "产品",
         "common:productMenu.aiStory": "AI写作",
         "common:nav.docs": "文档",
+        "common:nav.status": "服务状态",
         "home:nav.pricing": "订阅",
         "home:nav.login": "登录",
         "home:nav.getStarted": "开始免费试用",
@@ -91,20 +92,22 @@ describe("PublicHeader", () => {
     vi.useRealTimers();
   });
 
-  it("shows docs, pricing and auth CTA on home variant for anonymous users", () => {
+  it("shows docs, pricing, status and auth CTA on home variant for anonymous users", () => {
     renderHeader({ variant: "home" });
 
     expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "订阅" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "服务状态" })).toHaveAttribute("href", "/status");
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始免费试用" })).toBeInTheDocument();
   });
 
-  it("hides docs and pricing links on auth variant", () => {
+  it("hides docs, pricing and status links on auth variant", () => {
     renderHeader({ variant: "auth" });
 
     expect(screen.queryByRole("link", { name: "文档" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "订阅" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "服务状态" })).not.toBeInTheDocument();
   });
 
   it("opens product menu and navigates to AI writing entry", () => {
@@ -200,6 +203,10 @@ describe("PublicHeader", () => {
     fireEvent.click(screen.getByRole("button", { name: "打开导航菜单" }));
 
     const mobileMenu = screen.getByRole("menu", { name: "移动端导航菜单" });
+    expect(within(mobileMenu).getByRole("menuitem", { name: "服务状态" })).toHaveAttribute(
+      "href",
+      "/status"
+    );
     expect(within(mobileMenu).getByRole("menuitem", { name: "订阅" })).toHaveAttribute(
       "href",
       "/pricing?plan=team&source=header_nav_pricing"

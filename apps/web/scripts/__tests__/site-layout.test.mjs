@@ -106,6 +106,17 @@ test('missing Vite assets bypass the SPA fallback while app deep links still mat
   for (const host of ['zenstory.ai', 'geo-preview.zenstory.ai']) assert.equal(matchesHost(host), false)
 })
 
+test('public status has an App shell without private-route indexing headers', () => {
+  const statusRewrite = vercelConfig.rewrites.find(rule => rule.source === '/status')
+  assert.equal(statusRewrite?.destination, '/_app/status.html')
+  assert.ok(statusRewrite.has.some(rule => new RegExp(`^(?:${rule.value})$`).test('app.zenstory.ai')))
+  const privateRule = vercelConfig.headers.find(rule => rule.headers.some(header => header.value === 'noindex, nofollow'))
+  const matches = new RegExp(`^/${privateRule.source.slice('/:path('.length, -1)}$`)
+  assert.equal(matches.test('/status'), false)
+  assert.equal(matches.test('/dashboard'), true)
+  assert.ok(vercelConfig.headers.some(rule => rule.has && rule.headers.some(header => header.value === 'noindex')))
+})
+
 test('only content-addressed URLs get a year-long immutable cache', () => {
   // Host conditions are treated as matching, so a host-scoped immutable rule still fails the entry checks.
   const cacheControl = (path, query = {}) => vercelConfig.headers
@@ -137,6 +148,10 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     finalizeSite(dir)
     for (const f of ['index.html','robots.txt','sitemap.xml']) assert.equal(existsSync(join(dir,f)), false)
     assert.match(readFileSync(join(dir,'_app/home.html'),'utf8'), /href="https:\/\/app\.zenstory\.ai\/"/)
+    const statusShell = readFileSync(join(dir, '_app/status.html'), 'utf8')
+    assert.match(statusShell, /<title>服务状态 - ZenStory<\/title>/)
+    assert.match(statusShell, /href="https:\/\/app\.zenstory\.ai\/status"/)
+    assert.match(statusShell, /<div id="root"><\/div>/)
     assert.doesNotMatch(readFileSync(join(dir,'_app/index.html'),'utf8'), /rel="canonical"/)
     const privacy = readFileSync(join(dir, '_site/privacy-policy/index.html'), 'utf8')
     const terms = readFileSync(join(dir, '_site/terms-of-service/index.html'), 'utf8')
@@ -168,6 +183,8 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     assert.doesNotMatch(siteMap, /app\.zenstory|org-home|_app|_site|\/pricing|\/login/)
     const appMap=readFileSync(join(dir,'_app/sitemap.xml'),'utf8')
     assert.match(appMap, /https:\/\/app\.zenstory\.ai\/pricing/)
+    assert.match(appMap, /https:\/\/app\.zenstory\.ai\/status/)
+    assert.doesNotMatch(readFileSync(join(dir, '_app/robots.txt'), 'utf8'), /Disallow: \/status/)
     assert.doesNotMatch(appMap, /\/docs|\/dashboard|\/login/)
     assert.match(readFileSync(join(dir,'_site/robots.txt'),'utf8'), /Sitemap: https:\/\/zenstory\.ai\/sitemap.xml/)
     assert.equal(readFileSync(join(dir,'_site/docs/example/index.html'),'utf8'), '<html>Existing content</html>')

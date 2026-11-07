@@ -19,6 +19,9 @@ describe('getBoundaryDestination', () => {
     expect(getBoundaryDestination('https://zenstory.ai/auth/callback?error=denied#result')).toBe(
       'https://app.zenstory.ai/auth/callback?error=denied#result',
     )
+    expect(getBoundaryDestination('https://zenstory.ai/status')).toBe(
+      'https://app.zenstory.ai/status',
+    )
     expect(getBoundaryDestination('https://zenstory.ai/projects')).toBeNull()
     expect(getBoundaryDestination('https://zenstory.ai/projectile')).toBeNull()
   })
@@ -37,6 +40,9 @@ describe('getBoundaryDestination', () => {
     expect(getBoundaryDestination('https://geo-preview.zenstory.ai/pricing?plan=pro#checkout')).toBe(
       'https://app-preview.zenstory.ai/pricing?plan=pro#checkout',
     )
+    expect(getBoundaryDestination('https://geo-preview.zenstory.ai/status')).toBe(
+      'https://app-preview.zenstory.ai/status',
+    )
     expect(getBoundaryDestination('https://app-preview.zenstory.ai/docs')).toBeNull()
     expect(getBoundaryDestination('https://geo-preview.zenstory.ai/docs')).toBeNull()
   })
@@ -52,6 +58,8 @@ describe('getPublicCanonicalUrl', () => {
     expect(getPublicCanonicalUrl('https://app.zenstory.ai/?utm=campaign#top')).toBe('https://app.zenstory.ai/')
     expect(getPublicCanonicalUrl('https://zenstory.ai/?utm=campaign#top')).toBe('https://zenstory.ai/')
     expect(getPublicCanonicalUrl('https://zenstory.ai/pricing?plan=pro')).toBe('https://app.zenstory.ai/pricing')
+    expect(getPublicCanonicalUrl('https://zenstory.ai/status?ref=nav')).toBe('https://app.zenstory.ai/status')
+    expect(getPublicCanonicalUrl('https://app.zenstory.ai/status#history')).toBe('https://app.zenstory.ai/status')
     expect(getPublicCanonicalUrl('https://app.zenstory.ai/docs/guide#install')).toBe('https://zenstory.ai/docs/guide')
     expect(getPublicCanonicalUrl('https://geo-preview.zenstory.ai/docs')).toBe('https://zenstory.ai/docs')
     expect(getPublicCanonicalUrl('https://app-preview.zenstory.ai/')).toBe('https://app.zenstory.ai/')
