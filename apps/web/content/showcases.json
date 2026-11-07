@@ -154,7 +154,7 @@
       "height": 750,
       "alt": {
         "en": "Game screenshot: Wukong’s party in the painted Flame Mountain village with a quest tracker.",
-        "zh": "游戏实截图：悟空一行在火焰山村落，右侧显示任务追踪。"
+        "zh": "游戏实机截图：悟空一行在火焰山村落，右侧显示任务追踪。"
       }
     },
     "method": "/novel-to-game/quick-start",
@@ -186,7 +186,7 @@
         },
         "design": {
           "en": "The level goal is to reopen the road—no somersault-cloud skip.",
-          "zh": "关卡目标是恢复通路，不能用筋斗云直接跳过整段责任"
+          "zh": "关卡目标是打通去路，不能一个筋斗云直接翻过去"
         },
         "translated": true
       },

@@ -23,7 +23,7 @@
         },
         "environment": {
           "en": "Install the skill pack using the adapter documented for your host, then run its setup/check workflow in the intended project. Integrations are not identical: some hosts use skills-only or solo/direct execution rather than every custom agent and hook.",
-          "zh": "按你用的 Agent 安装对应的 skill 包，在写作项目里运行 setup/check。安装与编排按宿主区分，可能采用 skills-only 或直接执行；自定义 Agent 与 hooks 的支持请按各端说明确认。"
+          "zh": "按你用的 Agent 安装对应的 skill 包，在写作项目里运行 setup/check。不同宿主支持的分工方式不完全一样，有的走纯 skill 流程或单角色直接执行；是否支持自定义子 Agent 与 hooks，请对照各端说明确认。"
         },
         "configuration": {
           "en": "The pack supplies skills and reference material; it is not a model bundle. Review the selected host’s model, tool, permission and data-processing configuration. A local skills directory alone does not establish offline inference or private processing.",
@@ -155,7 +155,7 @@
       ],
       "zh": [
         "先看手头有什么：只有点子，先做规划；已经有小说，先导入；已经有正文，直接修订。[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)把这些任务对应到入口，也说明什么时候一条提示词就够用。",
-        "先拿一小段你自己的、或获准使用的非敏感文本试一下：说清要改什么，看改了哪些地方，确认保存或导出的内容，并留好备份。",
+        "先拿一小段你自己写的、或有使用权的非敏感文本试一下：说清要改什么，看改了哪些地方，确认保存或导出的内容，并留好备份。",
         "如果你就是想用 DeepSeek，先分清普通聊天和 DeepSeek Harness。[DeepSeek 小说写作指南](https://zenstory.ai/dsh/deepseek-novel-writing)讲了怎么准备 DSH 和插件，并给出在工作区里开书的写法。ZenStory 工作台是另一个独立产品。"
       ]
     },

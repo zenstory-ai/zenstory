@@ -70,7 +70,7 @@ function getHomePageSchema(): { zh: SEOConfig["schema"]; en: SEOConfig["schema"]
     zh: generateSoftwareApplicationSchema(
       baseUrl,
       'ZenStory',
-      '专业的AI小说写作助手，提供智能大纲生成、角色管理、世界观构建等功能'
+      'AI 小说与剧本写作助手，支持大纲规划、角色管理、世界观设定与章节创作'
     ) as SEOConfig["schema"],
     en: generateSoftwareApplicationSchema(
       baseUrl,
@@ -118,7 +118,7 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   '/': {
     zh: {
       title: 'ZenStory - 创作让人难忘的故事',
-      description: 'ZenStory 是一款 AI 小说写作助手，提供大纲生成、角色管理、世界观构建等功能',
+      description: 'ZenStory 是一款 AI 小说与剧本写作助手，支持大纲规划、角色管理、世界观设定与章节创作',
       keywords: ['AI写作', '小说创作', '写作助手', '智能创作'],
       noindex: false,  // 公开页面，允许索引
       schema: homePageSchema.zh,
@@ -285,7 +285,7 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
 export const defaultSEOConfig: SEOPageConfig = {
   zh: {
     title: 'ZenStory - 创作让人难忘的故事',
-    description: '专业的AI小说写作助手，提供智能大纲生成、角色管理、世界观构建等功能',
+    description: 'AI 小说与剧本写作助手，支持大纲规划、角色管理、世界观设定与章节创作',
     noindex: false,
   },
   en: {

@@ -109,7 +109,7 @@ flowchart LR
 
 ### 素材库与灵感库
 
-- **素材库**：上传一本 TXT 参考小说（不超过 30 万字），后台默认拆出每章摘要、全书概要、角色档案、世界观和金手指；逐章情节点及其下游（跨章剧情与故事线、人物关系）默认关闭，可用 `MATERIAL_ENABLE_*` 开关开启（见 `apps/server/.env.example`）；关闭后每章仍有摘要和角色提取两次全文调用（开启情节点时为三次）。AI 不会自己去翻素材库，要用时附加到对话或导入项目（见[常见问题](#ai-会自动参考素材库里的书吗)）。在线版的完整素材库是 Pro 权益，启用免费试拆的环境会显示一次试用入口，按页面给出的章节范围保留和处理开篇。
+- **素材库**：上传一本 TXT 参考小说（不超过 30 万字），后台默认拆出每章摘要、全书概要、角色档案、世界观和金手指；逐章情节点及依赖它的后续分析（跨章剧情与故事线、人物关系）默认关闭，可用 `MATERIAL_ENABLE_*` 开关开启（见 `apps/server/.env.example`）；关闭后每章仍有摘要和角色提取两次全文调用（开启情节点时为三次）。AI 不会自己去翻素材库，要用时附加到对话或导入项目（见[常见问题](#ai-会自动参考素材库里的书吗)）。在线版的完整素材库是 Pro 权益，启用免费试拆的环境会显示一次试用入口，按页面给出的章节范围保留和处理开篇。
 - **灵感库（可选，默认关闭）**：官方上架的，以及用户投稿、经管理员审核通过的整套项目模板。启用后，点「使用此模板」会新建一个项目，把模板里的文件都复制进去。后端设 `INSPIRATIONS_ENABLED=true` 后重启服务，前端设 `VITE_INSPIRATIONS_ENABLED=true` 并重新构建（开发模式重启 Vite）；快速 Docker 部署只需设 `INSPIRATIONS_ENABLED=true` 后重新创建容器。关闭时隐藏灵感库入口、推荐、投稿和相关权益，并禁用用户与管理 API；已有数据保留，不影响输入自己的创意创建项目。
 
 ### 其他
@@ -128,7 +128,7 @@ flowchart LR
 
 新建一个「短篇小说」项目，第一条请求可以先要一份能改的提纲，不急着写正文（示例来自[快速开始](https://zenstory.ai/docs/getting-started/quick-start)）：
 
-> 我想写一篇现实悬疑短篇。先只给三场景提纲，暂不写正文，也不要创建或修改文件。现在五点四十分，车站失物招领窗口六点关闭。值班员林禾处理沈敏对灰色帆布包的认领：她准确说出包的外观，却说错了内袋里的一件物品。不要直接认定她偷窃，也不要替我决定真相。林禾不能仅凭口头认领交付物品。每个场景写：地点、人物当下目标、可见行动、信息变化、场景结束时留下的问题。最后列出两个必须由我决定的故事选择，然后停止。
+> 我想写一篇现实悬疑短篇。先只给三场景提纲，暂不写正文，也不要创建或修改文件。现在五点四十分，车站失物招领窗口六点关闭。值班员林禾处理沈敏对灰色帆布包的认领：她准确说出包的外观，却说错了内袋里的一件物品。不要直接认定她偷窃，也不要替我决定真相。林禾不能仅凭口头认领交付物品。每个场景写：地点、人物当下目标、具体行动、信息变化、场景结束时留下的问题。最后列出两个必须由我决定的故事选择，然后停止。
 
 提纲定了，再点名文件让它落盘（第三行的「钩子设计：」要先在「技能 → 发现技能」里添加这个技能）：
 
@@ -415,13 +415,13 @@ zenstory/
 
 ## ZenStory AI 项目
 
-ZenStory 工作台由 [ZenStory AI](https://zenstory.ai/zh) 维护——一组开源、面向 agent 的故事创作、改编与生产工具（GitHub 组织：[zenstory-ai](https://github.com/zenstory-ai)）。同组织项目：
+ZenStory 工作台由 [ZenStory AI](https://zenstory.ai/zh) 维护——一套可在 AI Agent 中使用的开源故事创作、改编与制作工具（GitHub 组织：[zenstory-ai](https://github.com/zenstory-ai)）。同组织项目：
 
 | 项目 | 用途 |
 | --- | --- |
 | [oh-story-claudecode](https://github.com/zenstory-ai/oh-story-claudecode) | 网文写作 skill 包：扫榜、拆文、写作、去AI味、封面图 |
 | [drama-skills](https://github.com/zenstory-ai/drama-skills) | AI 短剧 / 漫剧创作 skill 合集：剧本、资产、分镜、图片/视频提示词、独立审查 |
-| [novel-to-game](https://github.com/zenstory-ai/novel-to-game) | 面向原著改编、指定运行环境构建与运行证据 QA 的 agent skills |
+| [novel-to-game](https://github.com/zenstory-ai/novel-to-game) | 小说改编游戏 skill 合集：原著拆解、目标运行环境构建与实机运行验收 |
 | [video-recap-skills](https://github.com/zenstory-ai/video-recap-skills) | 将支持的视频文件制作成中文解说，可选导出可编辑的剪映/CapCut 草稿 |
 | [oh-story-dsh](https://github.com/zenstory-ai/oh-story-dsh) | DeepSeek Harness 社区插件，提供小说、短剧、游戏和视频解说工作台 |
 | [zenstory](https://github.com/zenstory-ai/zenstory) | 对话即创作的 AI 小说写作工作台，在线版 [app.zenstory.ai](https://app.zenstory.ai)（本仓库） |

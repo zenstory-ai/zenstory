@@ -798,7 +798,7 @@ export function useAgentStream(
       isThinking: false,
     }));
 
-    // abort 之后 fetch 侧只会抛 AbortError 并被静默吞掉，不会再有任何回调，
+    // abort 之后 fetch 侧只会抛 AbortError 并被忽略，不会再有任何回调，
     // 所以必须在这里主动补发终止回调（不经过 isStaleEvent，epoch 已自增也不受影响）。
     finalizeStream();
   }, [clearFlushTimer, finalizeStream, flushPendingContent, onSegmentEnd, settleStreamClosed, updateSegmentsSync]);
