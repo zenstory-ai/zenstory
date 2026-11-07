@@ -1003,6 +1003,7 @@ async def test_usage_hook_logs_reasoning_tokens_with_the_thinking_observation(ca
 
     class _Model:
         served_model = "MiniMax-M3.1-Flash"
+        served_key_slot = "secondary"
 
         def take_call_timing(self):
             return SimpleNamespace(duration_ms=4200, outcome="success", ttft_ms=900)
@@ -1019,6 +1020,7 @@ async def test_usage_hook_logs_reasoning_tokens_with_the_thinking_observation(ca
     line = next(r.custom_fields for r in caplog.records if r.getMessage() == "LLM call thinking before answer")
     assert (line["outcome"], line["thinking_chars_before_answer"], line["first_answer_ms"]) == ("completed", 1234, 3100)
     assert (line["reasoning_tokens"], line["output_tokens"], line["duration_ms"]) == (700, 900, 4200)
+    assert line["key_slot"] == "secondary"  # the only per-call record of the real split between keys
 
 
 @pytest.mark.unit

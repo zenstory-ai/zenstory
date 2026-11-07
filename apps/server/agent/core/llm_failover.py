@@ -17,6 +17,10 @@ or written. With a backup (see ``agent/core/llm_providers.py``):
   cancellation never fail over.
 - A successful call on a slot other than the session's pin re-pins the session
   to it, so a session does not bounce between providers (prefix cache).
+- With two credentials on a provider, a rate limit or account error is that key's
+  problem: only that key cools for ``LLM_KEY_COOLDOWN_S`` and later calls use the
+  other key, with no circuit count or session pin. The failing call itself still goes
+  to the other provider, never to the other key. Both keys cooling is a provider failure.
 
 State lives in Redis when ``REDIS_URL`` is configured, shared by API workers
 and Prefect workers, and falls back to process memory when Redis is not
@@ -54,12 +58,14 @@ LLM_SESSION_PIN_TTL_S = _env_int("LLM_SESSION_PIN_TTL_S", 1800)
 LLM_CIRCUIT_FAILURE_THRESHOLD = _env_int("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
 LLM_CIRCUIT_FAILURE_WINDOW_S = _env_int("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
 LLM_CIRCUIT_OPEN_S = _env_int("LLM_CIRCUIT_OPEN_S", 120)
+LLM_KEY_COOLDOWN_S = _env_int("LLM_KEY_COOLDOWN_S", 300)
 
 # A model that cannot turn reasoning off spends part of a short budget on it.
 THINKING_HEADROOM_TOKENS = 2048
 
 _ACCOUNT_FAILURE_STATUSES = frozenset({401, 402, 403, 404})
 _REQUEST_REJECTION_STATUSES = frozenset({400, 413, 422})
+_KEY_SCOPED_FAILURE_STATUSES = frozenset({401, 402, 403, 429})
 _DOCUMENTED_JSON_OBJECT_MODELS = frozenset({("deepseek", "deepseek-flash")})
 
 # Official contracts, checked 2026-10-25. HTTP and MiniMax business codes are
@@ -318,6 +324,50 @@ def _failures_key(slot: str) -> str:
     return f"llm:circuit_failures:{slot}"
 
 
+def _cooldown_key(provider: ModelProvider) -> str:
+    return f"llm:key_cooldown:{provider.name}:{provider.key_slot}"
+
+
+def _cooled_with_alternative(provider: ModelProvider) -> ModelProvider | None:
+    """The provider on its other key when this key is cooling and the other one is not."""
+    alternative = llm_providers.other_key(provider)
+    if alternative is None:
+        return None
+    keys = [_cooldown_key(provider), _cooldown_key(alternative)]
+    cooling, other_cooling = _with_store(lambda store: store.get_many(keys))
+    return alternative if cooling and not other_cooling else None
+
+
+def _apply_key_cooldowns(providers: list[ModelProvider]) -> list[ModelProvider]:
+    return [_cooled_with_alternative(provider) or provider for provider in providers]
+
+
+def _cool_key(provider: ModelProvider, exc: BaseException) -> bool:
+    """Cool ``provider``'s key for a key-scoped failure; False when the other key can't take over."""
+    if _status_code_of(exc) not in _KEY_SCOPED_FAILURE_STATUSES:
+        return False
+    alternative = llm_providers.other_key(provider)
+    if alternative is None:
+        return False
+
+    def write(store: Any) -> bool:
+        store.set(_cooldown_key(provider), "1", LLM_KEY_COOLDOWN_S)
+        return not store.get_many([_cooldown_key(alternative)])[0]
+
+    taken_over = _with_store(write)
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "LLM credential cooling down",
+        provider=provider.name,
+        key_slot=provider.key_slot,
+        status_code=_status_code_of(exc),
+        cooldown_s=LLM_KEY_COOLDOWN_S,
+        other_key_available=taken_over,
+    )
+    return taken_over
+
+
 def is_in_stream_error(exc: BaseException) -> bool:
     """An error event inside an HTTP 200 stream (``openai.APIError`` without a status).
 
@@ -350,6 +400,7 @@ def _order_configured_providers(
     *,
     thinking_enabled: bool,
 ) -> list[ModelProvider]:
+    providers = _apply_key_cooldowns(providers)
     if len(providers) == 1:
         return providers
     primary, backup = providers
@@ -371,11 +422,17 @@ def _order_configured_providers(
     return [first, second]
 
 
-def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> None:
-    """Count a provider failure and pin the session to the other slot."""
+def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> bool:
+    """Cool a key for its own failure; otherwise count a provider failure and pin the session.
+
+    True when only the key cooled: the caller must not pin the session to whichever
+    provider answers this call (see ``record_success``), however long that call takes.
+    """
+    if _cool_key(provider, exc):
+        return True
     providers = llm_providers.configured_providers(routing_key=session_id)
     if len(providers) == 1:
-        return
+        return False
     other = next(p for p in providers if p.slot != provider.slot)
 
     def write(store: Any) -> int:
@@ -400,6 +457,7 @@ def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseExc
         circuit_opened=failures >= LLM_CIRCUIT_FAILURE_THRESHOLD,
         session_pinned_to=other.slot if session_id else None,
     )
+    return False
 
 
 def record_success(provider: ModelProvider, session_id: str | None, ordered: list[ModelProvider]) -> None:
@@ -411,7 +469,7 @@ def record_success(provider: ModelProvider, session_id: str | None, ordered: lis
 
 async def aordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
     providers = llm_providers.configured_providers(routing_key=session_id, rotate_if_unkeyed=True)
-    if len(providers) == 1:
+    if len(providers) == 1 and llm_providers.other_key(providers[0]) is None:
         return providers
     return await asyncio.to_thread(
         _order_configured_providers,
@@ -421,9 +479,13 @@ async def aordered_providers(session_id: str | None = None, *, thinking_enabled:
     )
 
 
-async def arecord_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> None:
-    if len(llm_providers.configured_providers(routing_key=session_id)) > 1:
-        await asyncio.to_thread(record_failure, provider, session_id, exc)
+async def arecord_failure(provider: ModelProvider, session_id: str | None, exc: BaseException) -> bool:
+    if (
+        len(llm_providers.configured_providers(routing_key=session_id)) > 1
+        or llm_providers.other_key(provider) is not None
+    ):
+        return await asyncio.to_thread(record_failure, provider, session_id, exc)
+    return False
 
 
 def pin_session_to_other(provider: ModelProvider, session_id: str | None) -> None:
@@ -577,6 +639,7 @@ async def acreate_chat_completion(
         usage_attribution = None
     ordered = await aordered_providers(session_id, thinking_enabled=thinking_enabled)
     rejected = False
+    key_cooled = False
     for index, provider in enumerate(ordered):
         client = llm_providers.get_async_client(provider)
         if attempt_sink is not None:
@@ -603,14 +666,14 @@ async def acreate_chat_completion(
                     rejected = True
                     continue
                 raise
-            await arecord_failure(provider, session_id, exc)
+            key_cooled = await arecord_failure(provider, session_id, exc) or key_cooled
             if index + 1 >= len(ordered):
                 raise
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
-        if not rejected:
-            # A rejected request says nothing about the provider: the session keeps its order.
+        # A rejected request says nothing about the provider: the session keeps its order.
+        if not rejected and not key_cooled:
             await arecord_success(provider, session_id, ordered)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
@@ -634,6 +697,7 @@ def create_chat_completion(
             raise JSONResponseFormatUnavailableError(
                 "No configured provider supports the required JSON object response format"
             )
+    key_cooled = False
     for index, provider in enumerate(ordered):
         client = llm_providers.get_sync_client(provider, timeout=timeout, max_retries=max_retries)
         try:
@@ -644,12 +708,13 @@ def create_chat_completion(
             log_provider_failure(provider, exc, call_site=call_site)
             if not is_provider_unavailable(exc):
                 raise
-            record_failure(provider, session_id, exc)
+            key_cooled = record_failure(provider, session_id, exc) or key_cooled
             if index + 1 >= len(ordered):
                 raise
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
-        record_success(provider, session_id, ordered)
+        if not key_cooled:
+            record_success(provider, session_id, ordered)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 

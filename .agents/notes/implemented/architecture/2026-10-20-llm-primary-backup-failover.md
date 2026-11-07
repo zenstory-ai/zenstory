@@ -4,7 +4,7 @@ Status: implemented
 
 关联：推翻 `openai_agents/model.py` 原注释里「只支持一个供应商、回滚靠 git revert」的取舍；模型名由来见 [deepseek-flash 升级](../feature/2026-10-02-deepseek-flash-model.md)。
 
-后续：第 2、3 条已调整（只出了思考就失败的调用当场切换、流内错误算供应商失败、路由被拒试另一边），见 [2026-10-26 调整](2026-10-26-failover-after-reasoning-and-in-stream-errors.md)。
+后续：第 2、3 条已调整（只出了思考就失败的调用当场切换、流内错误算供应商失败、路由被拒试另一边），见 [2026-10-26 调整](2026-10-26-failover-after-reasoning-and-in-stream-errors.md)。第 6 条「MiniMax 要求完整回传」已更正为 DeepSeek 缺失会报错、MiniMax 接受但建议保留，见 [2026-10-29](../bug-fix/2026-10-29-no-failover-when-backup-rejects-missing-reasoning.md)、[2026-11-07](../bug-fix/2026-11-07-token-audit-low-risk-batch.md)；单 Key 的限流与账号错误不再计入槽位，见 [2026-11-07 Key 路由](2026-11-07-minimax-key-sticky-routing-and-cooldown.md)。
 
 ## Problem
 

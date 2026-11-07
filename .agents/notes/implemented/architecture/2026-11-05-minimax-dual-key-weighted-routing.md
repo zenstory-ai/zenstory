@@ -4,6 +4,8 @@ Status: implemented
 
 关联：[模型供应商主备切换](2026-10-20-llm-primary-backup-failover.md)。
 
+后续：第 2 条（每个 run 独立分桶）和第 4 条（Key 问题仍按供应商处理）已调整，见 [会话粘性与单 Key 冷却](2026-11-07-minimax-key-sticky-routing-and-cooldown.md)。
+
 ## Problem
 
 MiniMax 只有一个凭证入口。单个账号额度接近上限时，无法把新任务按稳定比例分给第二个账号；如果把两个 Key 伪装成两个 provider，又会错误引入跨 Key 重试、会话固定和熔断，改变现有供应商 failover 与成本语义。

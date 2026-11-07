@@ -6,7 +6,7 @@ openai-agents-python 运行时（OpenAI 兼容 Chat Completions，主备两个�
 
 MiniMax 可配置双凭证：`MINIMAX_API_KEY` 是主凭证，
 `MINIMAX_SECONDARY_API_KEY` 是次凭证，
-`MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT` 控制次凭证承担的任务比例（默认 20）。
+`MINIMAX_SECONDARY_KEY_WEIGHT_PERCENT` 控制次凭证承担的任务比例（默认 20）；同一会话在 `LLM_KEY_ROUTING_WINDOW_S` 内留在一把 Key，一把 Key 限流或账号出错只冷却自己 `LLM_KEY_COOLDOWN_S`，两把都冷却才算供应商失败。
 同一服务端 `agent_run_id` 的全部 MiniMax 调用固定到同一凭证；没有 run 上下文的素材调用按每次真实模型调用轮转分配。
 双凭证仍属于同一个 provider 槽位，不互相 failover；client cache 按真实凭证隔离，日志只记录
 `key_slot=primary|secondary`，不得记录 Key 或分桶值。该比例是任务数比例，不保证 token 或费用精确同比分摊。
@@ -215,7 +215,7 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   结束（`completion_evidence.ends_on_file_block`），且没有显式交接、澄清、轮数耗尽、错误时，同一 agent 再跑一轮（交接说明以
   `FILE_STREAM_CONTINUATION_MARKER` 开头）；放在计划交接 / 自动质检之前，正文与正文写入记录接续给续写轮；受 `max_iterations` 约束，
   每轮都要真的新建并写完文件才再续。同一 agent 紧接着自己再跑（续写、纠偏、只写总结、插话追加、截断续写）时，runner 从上一轮完整的
-  SDK 输入接着来（`runner._continued_run_input`，`state["native_run_holder"]`），请求只在末尾追加、读过的文件不用重读；换了 agent 照旧从折叠后的历史重建。
+  SDK 输入接着来（`runner._continued_run_input`，`state["native_run_holder"]`），请求只在末尾追加、读过的文件不用重读，也不再重发文件清单；换了 agent 照旧从折叠后的历史重建。
   writer 的运行指令要求写多个文件时 `</file>` 之后直接 create_file 下一个（`nodes.WRITER_CHAIN_FILES_DIRECTIVE`）。
   [file-stream-continuation][n-continue]、[same-agent-continuation][n-continued-run]
 - **「已保存 / 已还原 / 已修改」不做文字检测**：靠 `prompts/base.py` 的 `UNIFIED_EXECUTION_PROTOCOL` 约束（只有本轮对应工具成功后才这样说，
