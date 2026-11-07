@@ -33,7 +33,7 @@ const HOME_CTA_SOURCES = {
 } as const;
 
 export default function HomePage() {
-  const { t } = useTranslation(['home', 'privacy']);
+  const { t } = useTranslation(['home', 'privacy', 'common']);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
@@ -609,6 +609,9 @@ export default function HomePage() {
             </Link>
             <Link to="/terms-of-service" className="text-[hsl(var(--text-secondary))] hover:opacity-100 transition-opacity">
               {t('privacy:footer.terms')}
+            </Link>
+            <Link to="/status" className="text-[hsl(var(--text-secondary))] hover:opacity-100 transition-opacity">
+              {t('common:nav.status', { defaultValue: '服务状态' })}
             </Link>
           </div>
           <p className="text-xs text-[hsl(var(--text-secondary))]">{t('home:footer.copyright', { year: new Date().getFullYear() })}</p>

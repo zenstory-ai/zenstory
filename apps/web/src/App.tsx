@@ -48,6 +48,7 @@ const PrivacyPolicy = lazyRoute(() => import("./pages/PrivacyPolicy"), "PrivacyP
 const TermsOfService = lazyRoute(() => import("./pages/TermsOfService"), "TermsOfService");
 const DocsPage = lazyRoute(() => import("./pages/DocsPage"), "DocsPage");
 const PricingPage = lazyRoute(() => import("./pages/PricingPage"), "PricingPage");
+const StatusPage = lazyRoute(() => import("./pages/StatusPage"), "StatusPage");
 const SkillsPage = lazyRoute(() => import("./pages/SkillsPage"), "SkillsPage");
 const MaterialsPage = lazyRoute(() => import("./pages/MaterialsPage"), "MaterialsPage");
 const MaterialDetailPage = lazyRoute(() => import("./pages/MaterialDetailPage"), "MaterialDetailPage");
@@ -320,6 +321,7 @@ function App() {
                     <Route path="/docs" element={<DocsPage />} />
                     <Route path="/docs/*" element={<DocsPage />} />
                     <Route path="/pricing" element={<PricingPage />} />
+                    <Route path="/status" element={<StatusPage />} />
                     <Route path="/auth/callback" element={<OAuthCallback />} />
                     <Route
                       path="/login"
