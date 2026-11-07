@@ -149,6 +149,45 @@ def _snapshot_key(session_id: str) -> str:
     return f"agent:context_snapshot:{session_id}"
 
 
+def _stale_accounting(state: dict[str, Any], docs: list[dict[str, str]], hashes: dict[str, str]) -> dict[str, Any]:
+    """Log-only breakdown of the previous snapshot against this turn; never affects the turn.
+
+    live_chars / dead_chars split the old snapshot's documents by whether their stored text
+    still matches. Keeping a snapshot costs its dead share on every later call, so a rebuild
+    can't be judged without them. stale_chars is the rebuild decision's numerator (this turn's
+    new text plus documents that left), not the dead share. Only section names and sizes:
+    document keys can fall back to a title, so keys are never logged.
+    """
+    try:
+        snapshot_hashes: dict[str, str] = state.get("hashes") or {}
+        snapshot_sizes: dict[str, int] = state.get("sizes") or {}
+        by_section: dict[str, int] = {}
+        for doc in docs:
+            if snapshot_hashes.get(doc["key"]) != hashes[doc["key"]]:
+                section = doc["key"].split(":", 1)[0]
+                by_section[section] = by_section.get(section, 0) + len(doc["text"])
+        changed_chars = sum(by_section.values())
+        live_chars = dead_chars = gone_chars = 0
+        for key, digest in snapshot_hashes.items():
+            size = int(snapshot_sizes.get(key) or 0)
+            if hashes.get(key) == digest:
+                live_chars += size
+            else:
+                dead_chars += size
+                gone_chars += size if key not in hashes else 0
+        return {
+            "previous_snapshot_chars": len(state.get("text") or ""),
+            "live_chars": live_chars,
+            "dead_chars": dead_chars,
+            "stale_chars": changed_chars + gone_chars,
+            "changed_chars": changed_chars,
+            "gone_chars": gone_chars,
+            "changed_chars_by_section": by_section,
+        }
+    except Exception:  # noqa: BLE001 - old or foreign stored state must not fail the turn over a log line
+        return {}
+
+
 def plan_turn_context(
     *,
     session_id: str | None,
@@ -229,6 +268,7 @@ def plan_turn_context(
             reason=reason,
             snapshot_chars=len(snapshot_text),
             documents=len(docs),
+            **(_stale_accounting(state, docs, hashes) if state else {}),
         )
         return TurnContextPlan(
             snapshot_message=snapshot_text,
@@ -255,9 +295,9 @@ def plan_turn_context(
         "Context snapshot reused",
         snapshot_chars=len(state.get("text") or ""),
         changed_documents=len(changed),
-        changed_chars=sum(len(doc["text"]) for doc in changed),
         gone_documents=len(gone),
         turn_in_snapshot=state["turns"],
+        **_stale_accounting(state, docs, hashes),
     )
     return TurnContextPlan(
         snapshot_message=str(state.get("text") or ""),

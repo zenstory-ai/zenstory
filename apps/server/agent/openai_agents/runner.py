@@ -662,8 +662,9 @@ def _build_agent(
     # unknown values return 422) and ``extra_body={"thinking": {"type": "disabled"}}``.
     # ModelSettings exposes them as ``reasoning={"effort": ...}`` / ``extra_body``.
     # The writing agent deliberately runs at the model's default effort (high): lowering it
-    # trades writing/tool-planning quality for latency and tokens, and that trade has not
-    # been evaluated.  LLMClient.acomplete(thinking_enabled=False) already uses the
+    # trades writing/tool-planning quality for latency and tokens. The controlled comparison
+    # (2026-10-19) covered deepseek-flash only; MiniMax has just a small latency sample with
+    # no quality conclusion (2026-10-21 primary-model-slow-turns).  LLMClient.acomplete(thinking_enabled=False) already uses the
     # ``thinking`` toggle for short single-shot calls (suggestions, polish).
     # #278: AGENT_REASONING_EFFORT exists only for controlled comparisons; it is unset in
     # production (see .agents/notes/.../2026-10-19-reasoning-effort-evaluation.md).

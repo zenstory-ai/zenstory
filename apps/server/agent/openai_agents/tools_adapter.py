@@ -170,6 +170,7 @@ CLARIFY_FIRST_TOOLS_NOTE = f"作者的要求还不清楚，本轮先问清楚再
 # 审稿人看到的工具清单与其他角色相同（前缀缓存），写文件工具只在调用时拒绝。
 REVIEWER_TOOLS_NOTE = (
     f"你是审稿人，只读：{_WRITE_TOOLS_TEXT} 在你的角色里不可用，调用会被拒绝；"
+    "读多份文件时在同一条回复里并列发出多个 query_files(id=…) 调用；"
     "需要改稿时用 handoff_to_agent 交给 writer。"
 )
 
