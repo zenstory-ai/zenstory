@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { PublicHeader } from "../components/PublicHeader";
 import { Button } from "../components/ui/Button";
 import {
@@ -40,31 +40,24 @@ function formatBeijingTimestamp(isoString: string | null | undefined, locale: st
 
 function getToneClasses(tone: DisplayTone): {
   dot: string;
-  badge: string;
   banner: string;
 } {
   switch (tone) {
     case "operational":
       return {
         dot: "bg-[hsl(var(--success))]",
-        badge:
-          "border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success-text))]",
         banner:
           "border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success)/0.08)] text-[hsl(var(--text-primary))]",
       };
     case "degraded":
       return {
         dot: "bg-[hsl(var(--warning))]",
-        badge:
-          "border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]",
         banner:
           "border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.1)] text-[hsl(var(--text-primary))]",
       };
     case "unavailable":
       return {
         dot: "bg-[hsl(var(--error))]",
-        badge:
-          "border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error-text))]",
         banner:
           "border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.08)] text-[hsl(var(--text-primary))]",
       };
@@ -73,8 +66,6 @@ function getToneClasses(tone: DisplayTone): {
     default:
       return {
         dot: "bg-[hsl(var(--text-secondary))]",
-        badge:
-          "border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]",
         banner:
           "border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))]",
       };
@@ -276,7 +267,7 @@ export function StatusPage() {
           return t("statusPage.status.degraded", { defaultValue: "有异常调用" });
         case "stale":
         case "unavailable":
-          return t("statusPage.status.stale", { defaultValue: "上次更新" });
+          return t("statusPage.status.stale", { defaultValue: "待更新" });
         case "unknown":
         default:
           return t("statusPage.status.unknown", { defaultValue: "无数据" });
@@ -295,159 +286,117 @@ export function StatusPage() {
     <div className="public-page min-h-screen bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))]">
       <PublicHeader variant="home" maxWidth="max-w-5xl" />
 
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-[hsl(var(--text-primary))] sm:text-3xl">
-            {t("statusPage.title", { defaultValue: "服务状态" })}
-          </h1>
-
-          <Button
-            type="button"
-            variant="secondary"
-            size="touch"
-            onClick={() => void loadStatus(false)}
-            disabled={initialLoading || refreshing}
-            leftIcon={
-              <RefreshCw
-                aria-hidden="true"
-                className={`h-4 w-4 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`}
-              />
-            }
-            className="min-h-11 px-3.5 text-xs sm:text-sm"
-          >
-            {refreshing
-              ? t("statusPage.refreshing", { defaultValue: "刷新中…" })
-              : t("statusPage.refresh", { defaultValue: "刷新" })}
-          </Button>
-        </div>
+      <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+        <h1 className="mb-6 text-2xl font-bold tracking-tight sm:text-3xl">
+          {t("statusPage.title", { defaultValue: "服务状态" })}
+        </h1>
 
         {initialLoading && !snapshot && !fetchError ? (
           <div
             role="status"
             aria-busy="true"
             aria-label={t("statusPage.loadingAria", { defaultValue: "正在加载服务状态…" })}
-            className="space-y-4"
+            className="space-y-5 animate-pulse motion-reduce:animate-none"
           >
-            <div className="h-20 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5 animate-pulse motion-reduce:animate-none" />
-            <div className="rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] divide-y divide-[hsl(var(--separator-color))]">
-              <div className="h-40 p-6 animate-pulse motion-reduce:animate-none" />
-              <div className="h-40 p-6 animate-pulse motion-reduce:animate-none" />
-            </div>
+            <div className="h-20 rounded-xl bg-[hsl(var(--bg-secondary))]" />
+            <div className="h-36 rounded-xl bg-[hsl(var(--bg-secondary))]" />
           </div>
         ) : (
           <div className="space-y-5">
-            {/* Overall status summary bar */}
             <section
+              role={fetchError ? "alert" : undefined}
               data-testid="status-overview-banner"
               data-status-tone={overallTone}
-              className={`rounded-xl border px-4 py-3.5 sm:px-5 sm:py-4 ${overallClasses.banner}`}
+              className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${overallClasses.banner}`}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <span
-                    aria-hidden="true"
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${overallClasses.dot}`}
-                  />
-                  <span className="text-base font-semibold sm:text-lg">{overallHeadline}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${overallClasses.dot}`} />
+                  <p className="font-medium">{overallHeadline}</p>
                 </div>
-
-                <div className="text-xs tabular-nums text-[hsl(var(--text-secondary))]">
-                  <span>{windowLabel}</span>
-                  {formattedGeneratedAt && (
-                    <>
-                      <span className="mx-1.5">·</span>
-                      <span>
-                        {isStaleOrFailed
-                          ? t("statusPage.lastUpdatedAt", {
-                              time: formattedGeneratedAt,
-                              defaultValue: "上次更新 {{time}}",
-                            })
-                          : t("statusPage.updatedAt", {
-                              time: formattedGeneratedAt,
-                              defaultValue: "更新于 {{time}}",
-                            })}
-                      </span>
-                    </>
-                  )}
-                </div>
+                {formattedGeneratedAt && (
+                  <p className="mt-1 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
+                    {isStaleOrFailed
+                      ? t("statusPage.lastUpdatedAt", { time: formattedGeneratedAt, defaultValue: "上次更新 {{time}}" })
+                      : t("statusPage.updatedAt", { time: formattedGeneratedAt, defaultValue: "更新于 {{time}}" })}
+                  </p>
+                )}
               </div>
-
-              {isStaleOrFailed && snapshot && !fetchError && (
-                <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
-                  {t("statusPage.errors.staleNotice", {
-                    defaultValue: "最新状态尚未刷新，下方保留上次更新的历史记录。",
-                  })}
-                </p>
-              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="touch"
+                onClick={() => void loadStatus(false)}
+                disabled={refreshing}
+                leftIcon={<RefreshCw aria-hidden="true" className={`h-4 w-4 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} />}
+                className="min-h-11 shrink-0 px-3 text-sm"
+              >
+                {refreshing
+                  ? t("statusPage.refreshing", { defaultValue: "刷新中…" })
+                  : fetchError
+                    ? t("statusPage.retry", { defaultValue: "重试" })
+                    : t("statusPage.refresh", { defaultValue: "刷新" })}
+              </Button>
             </section>
 
-            {/* Fetch error alert with manual retry */}
-            {fetchError && (
-              <div
-                role="alert"
-                className="flex flex-col gap-3 rounded-xl border border-[hsl(var(--error)/0.35)] bg-[hsl(var(--error)/0.08)] p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-2.5">
-                  <AlertCircle
-                    aria-hidden="true"
-                    className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--error-text))]"
-                  />
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                      {t("statusPage.errors.fetchFailedTitle", {
-                        defaultValue: "状态数据获取失败",
-                      })}
-                    </p>
-                    <p className="text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
-                      {t("statusPage.errors.fetchFailedDescription", {
-                        defaultValue: "当前无法获取最新服务状态，请稍后重试。",
-                      })}
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="touch"
-                  onClick={() => void loadStatus(false)}
-                  disabled={refreshing}
-                  className="min-h-11 shrink-0 px-4 text-xs sm:text-sm"
-                >
-                  {t("statusPage.retry", { defaultValue: "重试" })}
-                </Button>
-              </div>
-            )}
-
-            {/* Two services + 30-day history in a single divided container */}
             {orderedComponents.length > 0 && (
-              <section
-                aria-label={t("statusPage.history.title", { defaultValue: "近 30 天调用记录" })}
-                className="rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] divide-y divide-[hsl(var(--separator-color))]"
-              >
-                {orderedComponents.map((component) => (
-                  <ComponentStatusSection
-                    key={component.id}
-                    component={component}
-                    isStaleOrFailed={isStaleOrFailed}
-                    windowLabel={windowLabel}
-                    selectedDate={selectedDates[component.id]}
-                    onSelectDate={(date) => handleSelectDate(component.id, date)}
-                    statusLabelFor={statusLabelFor}
-                  />
-                ))}
-              </section>
+              <>
+                <section aria-labelledby="status-current-window">
+                  <div className="flex items-center justify-between gap-3 px-1 pb-2 text-xs text-[hsl(var(--text-secondary))]">
+                    <span id="status-current-window">{windowLabel}</span>
+                    <span>{t("statusPage.metrics.successRate", { defaultValue: "调用成功率" })}</span>
+                  </div>
+                  <div className="divide-y divide-[hsl(var(--separator-color))] rounded-xl border border-[hsl(var(--border-color))]">
+                    {orderedComponents.map((component) => {
+                      const tone = isStaleOrFailed ? "stale" : component.status;
+                      return (
+                        <div
+                          key={component.id}
+                          data-testid={`status-component-${component.id}`}
+                          data-status-tone={tone}
+                          className="flex items-center justify-between gap-4 px-4 py-4"
+                        >
+                          <div className="min-w-0">
+                            <h2 className="text-sm font-medium">{t(`statusPage.components.${component.id}.title`)}</h2>
+                            <p className="mt-1 flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]">
+                              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${getToneClasses(tone).dot}`} />
+                              {statusLabelFor(tone)}
+                            </p>
+                          </div>
+                          <span className="text-sm tabular-nums">
+                            {isStaleOrFailed ? "—" : formatSuccessRate(component.success_rate) ?? "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <details className="group border-b border-[hsl(var(--border-color))]">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] [&::-webkit-details-marker]:hidden">
+                    {t("statusPage.history.title", { defaultValue: "近 30 天调用记录" })}
+                    <ChevronRight aria-hidden="true" className="h-4 w-4 group-open:rotate-90" />
+                  </summary>
+                  <div className="space-y-6 pb-4 pt-3">
+                    {orderedComponents.map((component) => (
+                      <ComponentHistory
+                        key={component.id}
+                        component={component}
+                        selectedDate={selectedDates[component.id]}
+                        onSelectDate={(date) => handleSelectDate(component.id, date)}
+                        statusLabelFor={statusLabelFor}
+                      />
+                    ))}
+                  </div>
+                </details>
+              </>
             )}
 
-            {/* Single-sentence scope note */}
-            <footer className="pt-1 text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
-              <p>
-                {t("statusPage.scopeNote", {
-                  defaultValue:
-                    "根据模型调用结果汇总，一次回复可能包含多次调用。取消、额度不足不算服务错误。日期按北京时间（UTC+8）统计。",
-                })}
-              </p>
-            </footer>
+            <p className="text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
+              {t("statusPage.scopeNote", {
+                defaultValue: "按模型调用统计，一次回复可能包含多次调用。时间为北京时间（UTC+8）。",
+              })}
+            </p>
           </div>
         )}
       </main>
@@ -455,43 +404,21 @@ export function StatusPage() {
   );
 }
 
-interface ComponentStatusSectionProps {
+interface ComponentHistoryProps {
   component: ComponentStatusObservation;
-  isStaleOrFailed: boolean;
-  windowLabel: string;
   selectedDate: string | undefined;
   onSelectDate: (date: string) => void;
   statusLabelFor: (tone: DisplayTone) => string;
 }
 
-function ComponentStatusSection({
+function ComponentHistory({
   component,
-  isStaleOrFailed,
-  windowLabel,
   selectedDate,
   onSelectDate,
   statusLabelFor,
-}: ComponentStatusSectionProps) {
-  const { t, i18n } = useTranslation("common");
-
-  // When expired or refresh failed, current status is always stale (never keep old operational or degraded as current).
-  const currentTone: DisplayTone = isStaleOrFailed ? "stale" : component.status;
-
-  const toneClasses = getToneClasses(currentTone);
-  const serviceName = t(`statusPage.components.${component.id}.title`, {
-    defaultValue: component.id === "writing" ? "AI 写作" : "去 AI 味",
-  });
-  const serviceDesc = t(`statusPage.components.${component.id}.description`, {
-    defaultValue:
-      component.id === "writing" ? "构思、大纲与正文创作" : "润色选中文字，让表达更自然",
-  });
-
-  const currentRateText = formatSuccessRate(component.success_rate);
-  const currentRateDisplay = isStaleOrFailed
-    ? "—"
-    : (currentRateText ?? t("statusPage.status.unknown", { defaultValue: "无数据" }));
-  const lastObservedText = formatBeijingTimestamp(component.last_observed_at, i18n.language);
-
+}: ComponentHistoryProps) {
+  const { t } = useTranslation("common");
+  const serviceName = t(`statusPage.components.${component.id}.title`);
   const history = component.history;
   const maxIndex = Math.max(0, history.length - 1);
 
@@ -547,61 +474,10 @@ function ComponentStatusSection({
   };
 
   return (
-    <div
-      data-testid={`status-component-${component.id}`}
-      data-status-tone={currentTone}
-      className="p-4 sm:p-6"
-    >
-      {/* Top row: service title, recent 1-hour metrics, and current status badge */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold text-[hsl(var(--text-primary))] sm:text-lg">
-            {serviceName}
-          </h2>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">{serviceDesc}</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${toneClasses.badge}`}
-          >
-            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${toneClasses.dot}`} />
-            <span>{statusLabelFor(currentTone)}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Live 1-hour summary metrics */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
-        <span>
-          {windowLabel}
-          {" · "}
-          {t("statusPage.metrics.successRate", { defaultValue: "调用成功率" })}{" "}
-          <strong className="font-medium text-[hsl(var(--text-primary))]">
-            {currentRateDisplay}
-          </strong>
-        </span>
-        <span>·</span>
-        <span>
-          {lastObservedText
-            ? t("statusPage.metrics.lastObserved", {
-                time: lastObservedText,
-                defaultValue: "最近记录 {{time}}",
-              })
-            : t("statusPage.metrics.noRecentRecord", { defaultValue: "近 30 天无记录" })}
-        </span>
-      </div>
-
-      {/* 30-day visual strip + full-width 44px range slider */}
+    <div>
+      <h3 className="mb-1 text-sm font-medium">{serviceName}</h3>
       {history.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-1.5 flex items-center justify-between text-[11px] text-[hsl(var(--text-secondary))]">
-            <span>{t("statusPage.history.title", { defaultValue: "近 30 天调用记录" })}</span>
-            <span className="tabular-nums">
-              {history[0]?.date} — {history[maxIndex]?.date}
-            </span>
-          </div>
-
+        <div>
           <div className="relative flex min-h-11 items-center">
             {/* Read-only 30-day visual bars (no narrow buttons, no 30 tab stops) */}
             <div
@@ -645,7 +521,7 @@ function ComponentStatusSection({
           {activeDay && (
             <div
               data-testid={`status-history-detail-${component.id}`}
-              className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] px-2 py-1.5 text-xs"
+              className="flex items-center justify-between gap-2 text-xs"
             >
               <button
                 type="button"
@@ -665,7 +541,7 @@ function ComponentStatusSection({
                 </span>
                 {isTodaySelected && (
                   <span className="text-[hsl(var(--text-secondary))]">
-                    {t("statusPage.history.todayPartial", { defaultValue: "今天（截至更新时间）" })}
+                    {t("statusPage.history.todayPartial", { defaultValue: "截至更新" })}
                   </span>
                 )}
                 <span className="text-[hsl(var(--text-secondary))]">·</span>
@@ -678,7 +554,6 @@ function ComponentStatusSection({
                 </span>
                 <span className="text-[hsl(var(--text-secondary))]">·</span>
                 <span className="text-[hsl(var(--text-secondary))]">
-                  {t("statusPage.metrics.successRate", { defaultValue: "调用成功率" })}{" "}
                   <strong className="font-medium text-[hsl(var(--text-primary))]">
                     {activeDayRate ?? t("statusPage.status.unknown", { defaultValue: "无数据" })}
                   </strong>

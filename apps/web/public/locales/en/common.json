@@ -116,38 +116,27 @@
       "operational": "Normal",
       "degraded": "Issues observed",
       "unknown": "No data",
-      "stale": "Last update"
+      "stale": "Awaiting update"
     },
     "components": {
       "writing": {
-        "title": "AI Writing",
-        "description": "Brainstorming, outlining, and chapter drafting"
+        "title": "AI Writing"
       },
       "polish": {
-        "title": "Humanize",
-        "description": "Polish selected text for more natural phrasing"
+        "title": "Humanize"
       }
     },
     "metrics": {
-      "successRate": "Call success rate",
-      "lastObserved": "Last recorded {{time}}",
-      "noRecentRecord": "No records in 30 days"
+      "successRate": "Call success rate"
     },
     "history": {
       "title": "Last 30 days call history",
       "rangeAria": "Select date in {{service}} 30-day history",
       "prevDay": "Previous day",
       "nextDay": "Next day",
-      "todayPartial": "Today (up to last update)",
-      "daysAgo": "30d ago",
-      "today": "Today"
+      "todayPartial": "up to last update"
     },
-    "errors": {
-      "fetchFailedTitle": "Unable to load status data",
-      "fetchFailedDescription": "Could not fetch the latest service status. Please try again.",
-      "staleNotice": "Live status has expired or failed to refresh; historical records below reflect the last update."
-    },
-    "scopeNote": "Aggregated from model call outcomes; a single reply may include multiple calls. Cancellations and quota limits are not counted as service errors. Dates use Beijing Time (UTC+8).",
+    "scopeNote": "Based on model calls; one reply may include multiple calls. All times are Beijing Time (UTC+8).",
     "loadingAria": "Loading service status…"
   },
   "feedback": {

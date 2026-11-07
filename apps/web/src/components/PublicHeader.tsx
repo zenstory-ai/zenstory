@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { LogOut, Menu, X, BookOpen, ChevronDown, BookText, CreditCard, Activity } from "lucide-react";
+import { LogOut, Menu, X, BookOpen, ChevronDown, BookText, CreditCard } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAuth } from "../contexts/AuthContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
@@ -279,13 +279,6 @@ export function PublicHeader({
                   <CreditCard className="w-4 h-4" />
                   <span>{t('home:nav.pricing')}</span>
                 </Link>
-                <Link
-                  to="/status"
-                  className="min-h-[44px] px-3 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-                >
-                  <Activity className="w-4 h-4" />
-                  <span>{t('common:nav.status')}</span>
-                </Link>
               </>
             )}
 
@@ -440,15 +433,6 @@ export function PublicHeader({
                 >
                   <CreditCard size={16} />
                   <span>{t('home:nav.pricing')}</span>
-                </Link>
-                <Link
-                  to="/status"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-                  role="menuitem"
-                >
-                  <Activity size={16} />
-                  <span>{t('common:nav.status')}</span>
                 </Link>
 
                 {user ? (

@@ -92,12 +92,12 @@ describe("PublicHeader", () => {
     vi.useRealTimers();
   });
 
-  it("shows docs, pricing, status and auth CTA on home variant for anonymous users", () => {
+  it("keeps primary home navigation focused on docs, pricing and auth", () => {
     renderHeader({ variant: "home" });
 
     expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "订阅" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "服务状态" })).toHaveAttribute("href", "/status");
+    expect(screen.queryByRole("link", { name: "服务状态" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始免费试用" })).toBeInTheDocument();
   });
@@ -203,10 +203,7 @@ describe("PublicHeader", () => {
     fireEvent.click(screen.getByRole("button", { name: "打开导航菜单" }));
 
     const mobileMenu = screen.getByRole("menu", { name: "移动端导航菜单" });
-    expect(within(mobileMenu).getByRole("menuitem", { name: "服务状态" })).toHaveAttribute(
-      "href",
-      "/status"
-    );
+    expect(within(mobileMenu).queryByRole("menuitem", { name: "服务状态" })).not.toBeInTheDocument();
     expect(within(mobileMenu).getByRole("menuitem", { name: "订阅" })).toHaveAttribute(
       "href",
       "/pricing?plan=team&source=header_nav_pricing"

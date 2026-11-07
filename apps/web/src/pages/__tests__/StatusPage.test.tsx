@@ -164,7 +164,27 @@ describe("StatusPage", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("renders operational status, author-facing descriptions, 30-day history, and scope explanation", async () => {
+  it("keeps history collapsed until requested and shows only one error message and retry action", async () => {
+    mockFetchServiceStatus.mockResolvedValueOnce(buildSnapshot()).mockRejectedValueOnce(new Error("503"));
+    render(<MemoryRouter><StatusPage /></MemoryRouter>);
+    await act(async () => { await Promise.resolve(); });
+
+    const disclosure = screen.getByText("近 30 天调用记录").closest("details")!;
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(screen.getByTestId("status-history-strip-writing")).not.toBeVisible();
+    fireEvent.click(screen.getByText("近 30 天调用记录"));
+    expect(disclosure).toHaveAttribute("open");
+    expect(screen.getByTestId("status-history-strip-writing")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getAllByText("状态数据获取失败")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toBe(screen.getByTestId("status-overview-banner"));
+    expect(screen.getAllByRole("button", { name: /重试|刷新/ })).toHaveLength(1);
+    expect(disclosure).toHaveAttribute("open");
+  });
+
+  it("renders a compact current summary with on-demand history and aggregation scope", async () => {
     mockFetchServiceStatus.mockResolvedValueOnce(buildSnapshot());
 
     render(
@@ -182,19 +202,17 @@ describe("StatusPage", () => {
     const banner = screen.getByTestId("status-overview-banner");
     expect(banner).toHaveAttribute("data-status-tone", "operational");
     expect(banner).toHaveTextContent("近期调用正常");
-    expect(banner).toHaveTextContent("最近 1 小时");
+    expect(screen.getByRole("region", { name: "最近 1 小时" })).toBeVisible();
 
     const writingRow = screen.getByTestId("status-component-writing");
     expect(writingRow).toHaveAttribute("data-status-tone", "operational");
     expect(writingRow).toHaveTextContent("AI 写作");
-    expect(writingRow).toHaveTextContent("构思、大纲与正文创作");
     expect(writingRow).toHaveTextContent("正常");
     expect(writingRow).toHaveTextContent("100%");
 
     const polishRow = screen.getByTestId("status-component-polish");
     expect(polishRow).toHaveAttribute("data-status-tone", "operational");
     expect(polishRow).toHaveTextContent("去 AI 味");
-    expect(polishRow).toHaveTextContent("润色选中文字，让表达更自然");
     expect(polishRow).toHaveTextContent("正常");
     expect(polishRow).toHaveTextContent("100%");
 
@@ -203,7 +221,7 @@ describe("StatusPage", () => {
     expect(writingStrip.querySelectorAll("button")).toHaveLength(0);
     expect(writingStrip.querySelectorAll("[data-day-bar]")).toHaveLength(30);
 
-    expect(screen.getByText(/根据模型调用结果汇总，一次回复可能包含多次调用/)).toBeInTheDocument();
+    expect(screen.getByText(/按模型调用统计，一次回复可能包含多次调用/)).toBeInTheDocument();
     expect(screen.queryByText(/99\.99%|90\s*天|宕机|意图路由/)).not.toBeInTheDocument();
   });
 
@@ -247,7 +265,7 @@ describe("StatusPage", () => {
     const writingRow = screen.getByTestId("status-component-writing");
     expect(writingRow).toHaveAttribute("data-status-tone", "unknown");
     expect(writingRow).toHaveTextContent("无数据");
-    expect(writingRow).toHaveTextContent("近 30 天无记录");
+    expect(writingRow).toHaveTextContent("—");
   });
 
   it("renders degraded status when recent calls had errors without claiming site-wide outage", async () => {
@@ -312,6 +330,7 @@ describe("StatusPage", () => {
       await Promise.resolve();
     });
 
+    fireEvent.click(screen.getByText("近 30 天调用记录"));
     const writingDetail = screen.getByTestId("status-history-detail-writing");
     const rangeInput = screen.getByTestId("status-history-range-writing") as HTMLInputElement;
 
@@ -325,7 +344,7 @@ describe("StatusPage", () => {
 
     // Defaults to today (2026-11-07), labeled as partial day up to update time
     expect(writingDetail).toHaveTextContent("2026-11-07");
-    expect(writingDetail).toHaveTextContent("截至更新时间");
+    expect(writingDetail).toHaveTextContent("截至更新");
     expect(writingDetail).toHaveTextContent("100%");
 
     // Select degraded day 2026-10-15 (index 6) via range input
@@ -514,7 +533,9 @@ describe("StatusPage", () => {
     );
     // Live 1-hour rate shows "—" when stale while 30-day history detail retains 98%
     const writingRow = screen.getByTestId("status-component-writing");
-    expect(writingRow).toHaveTextContent("最近 1 小时 · 调用成功率 —");
+    expect(writingRow).toHaveTextContent("待更新");
+    expect(writingRow).toHaveTextContent("—");
+    expect(writingRow).not.toHaveTextContent("98%");
     expect(screen.getByTestId("status-history-detail-writing")).toHaveTextContent("98%");
   });
 
@@ -594,8 +615,8 @@ describe("StatusPage", () => {
     });
 
     expect(screen.getByRole("heading", { level: 1, name: "Service Status" })).toBeInTheDocument();
-    expect(screen.getByText("AI Writing")).toBeInTheDocument();
-    expect(screen.getByText("Humanize")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "AI Writing" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Humanize" })).toBeInTheDocument();
 
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
