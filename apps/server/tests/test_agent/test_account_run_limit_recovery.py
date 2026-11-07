@@ -54,25 +54,23 @@ async def test_empty_redis_immediately_admits_then_limits(redis_backend):
     user_id = _user()
     client.delete(limit.account_runs_key(user_id))
     first = await limit.acquire_account_run_slot(user_id)
-    second = await limit.acquire_account_run_slot(user_id)
     with pytest.raises(limit.AccountRunLimitExceeded):
         await limit.acquire_account_run_slot(user_id)
-    assert _count(client, user_id) == 2
+    assert _count(client, user_id) == 1
     await first.release()
-    await second.release()
 
 
 async def test_state_loss_prefers_availability_until_live_runs_renew(redis_backend):
     client = redis_backend
     user_id = _user()
-    old = await _take_as_other_processes(client, user_id, 2)
+    old = await _take_as_other_processes(client, user_id, 1)
     client.delete(limit.account_runs_key(user_id))
-    fresh = [await limit.acquire_account_run_slot(user_id) for _ in range(2)]
+    fresh = [await limit.acquire_account_run_slot(user_id)]
     with pytest.raises(limit.AccountRunLimitExceeded):
         await limit.acquire_account_run_slot(user_id)
     for run in old:
         run.renew(client)
-    assert _count(client, user_id) == 4
+    assert _count(client, user_id) == 2
     with pytest.raises(limit.AccountRunLimitExceeded):
         await limit.acquire_account_run_slot(user_id)
     for slot in fresh:
@@ -126,13 +124,10 @@ async def test_release_during_another_acquire_does_not_resurrect_finished_slot(
     await finished.release()
     proceed.set()
     second = await acquiring
-    third = await limit.acquire_account_run_slot(user_id)
-    assert set(client.zrange(limit.account_runs_key(user_id), 0, -1)) == {
-        second.slot_id,
-        third.slot_id,
-    }
+    with pytest.raises(limit.AccountRunLimitExceeded):
+        await limit.acquire_account_run_slot(user_id)
+    assert client.zrange(limit.account_runs_key(user_id), 0, -1) == [second.slot_id]
     await second.release()
-    await third.release()
 
 
 async def test_released_and_ceiling_expired_slots_are_not_written_back(redis_backend, monkeypatch):
@@ -143,10 +138,10 @@ async def test_released_and_ceiling_expired_slots_are_not_written_back(redis_bac
     leaked = await limit.acquire_account_run_slot(user_id)
     await asyncio.sleep(0.1)
     assert not leaked.renewing
-    released = await limit.acquire_account_run_slot(user_id)
-    await released.release()
     real_time = time.time
     monkeypatch.setattr(limit.time, "time", lambda: real_time() + limit.SLOT_STALE_AFTER_S + 5)
+    released = await limit.acquire_account_run_slot(user_id)
+    await released.release()
     fresh = await limit.acquire_account_run_slot(user_id)
     assert client.zrange(limit.account_runs_key(user_id), 0, -1) == [fresh.slot_id]
     await fresh.release()
@@ -180,7 +175,7 @@ async def test_cancelled_acquire_cleans_up_a_slot_the_thread_already_took(redis_
 
 async def test_cancelled_refused_acquire_leaves_existing_slots_only(redis_backend, caplog):
     user_id = _user()
-    held = [await limit.acquire_account_run_slot(user_id) for _ in range(2)]
+    held = [await limit.acquire_account_run_slot(user_id)]
     proceed = threading.Event()
     real_acquire = limit._acquire_sync
 
@@ -196,7 +191,7 @@ async def test_cancelled_refused_acquire_leaves_existing_slots_only(redis_backen
             await task
         proceed.set()
         await asyncio.sleep(0.05)
-    assert _count(redis_backend, user_id) == 2
+    assert _count(redis_backend, user_id) == 1
     assert "Task exception was never retrieved" not in caplog.text
     for slot in held:
         await slot.release()

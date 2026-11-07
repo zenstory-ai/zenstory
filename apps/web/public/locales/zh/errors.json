@@ -118,7 +118,7 @@
   "ERR_RESOURCE_CONFLICT": "操作与现有数据冲突，请刷新后重试",
 
   "ERR_SESSION_BUSY": "上一条回复还没完成，请稍等再发送，或开启新对话",
-  "ERR_ACCOUNT_RUNS_BUSY": "已有 2 个任务正在进行，请等待完成或停止其中一个后再试。",
+  "ERR_ACCOUNT_RUNS_BUSY": "已有任务正在进行，请等待完成或停止当前任务后再试。",
   "ERR_AGENT_UPSTREAM_RATE_LIMITED": "AI 服务当前繁忙，请稍后重试",
   "ERR_AGENT_UPSTREAM_UNAVAILABLE": "AI 暂时没有响应，请稍后重试",
   "ERR_AGENT_CONTEXT_TOO_LONG": "这次对话内容太长，请精简消息或开启新对话",

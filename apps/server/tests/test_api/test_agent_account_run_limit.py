@@ -20,7 +20,7 @@ from services.core.auth_service import hash_password
 from services.quota_service import quota_service
 
 _CHARGED_PERIOD = datetime(2026, 11, 5, 16, tzinfo=UTC)
-_BUSY_MESSAGE_ZH = "已有 2 个任务正在进行，请等待完成或停止其中一个后再试。"
+_BUSY_MESSAGE_ZH = "已有任务正在进行，请等待完成或停止当前任务后再试。"
 
 
 def _sse(event: str, data: dict) -> str:
@@ -82,25 +82,23 @@ async def _once_frames():
     yield _DONE
 
 
-async def _assert_both_free(user_id: str) -> None:
-    results = await asyncio.gather(
-        *(limit.acquire_account_run_slot(user_id) for _ in range(2)), return_exceptions=True
-    )
-    assert all(isinstance(item, limit.AccountRunSlot) for item in results), results
-    for slot in results:
-        await slot.release()
+async def _assert_slot_free(user_id: str) -> None:
+    slot = await limit.acquire_account_run_slot(user_id)
+    await slot.release()
 
 
 def test_busy_message_is_the_confirmed_copy():
     assert ERROR_MESSAGES["zh"][ErrorCode.ACCOUNT_RUNS_BUSY] == _BUSY_MESSAGE_ZH
-    assert ErrorCode.ACCOUNT_RUNS_BUSY in ERROR_MESSAGES["en"]
+    assert ERROR_MESSAGES["en"][ErrorCode.ACCOUNT_RUNS_BUSY] == (
+        "A task is already running. Wait for it to finish or stop it, then try again."
+    )
 
 
 @pytest.mark.integration
-async def test_three_simultaneous_requests_only_two_enter(client: AsyncClient, db_session):
-    """跨项目同时到达 3 个：2 个进入并扣额，第 3 个 409，且没有开始运行、没有扣额。"""
+async def test_two_simultaneous_requests_only_one_enters(client: AsyncClient, db_session):
+    """跨项目同时到达 2 个：1 个进入并扣额，另一个 409 且不运行、不扣额。"""
     token, user = await _login(client, db_session)
-    projects = [_project(db_session, user, f"Limit {index}") for index in range(3)]
+    projects = [_project(db_session, user, f"Limit {index}") for index in range(2)]
     finish = asyncio.Event()
 
     async def held_frames():
@@ -124,12 +122,12 @@ async def test_three_simultaneous_requests_only_two_enter(client: AsyncClient, d
             asyncio.gather(*(post_one(project) for project in projects)), 30
         )
 
-    assert sorted(response.status_code for response in responses) == [200, 200, 409]
+    assert sorted(response.status_code for response in responses) == [200, 409]
     refused = next(response for response in responses if response.status_code == 409)
     assert refused.json()["error_code"] == "ERR_ACCOUNT_RUNS_BUSY"
-    assert service.started == 2
-    assert reserve.call_count == 2
-    await _assert_both_free(str(user.id))
+    assert service.started == 1
+    assert reserve.call_count == 1
+    await _assert_slot_free(str(user.id))
 
 
 @pytest.mark.integration
@@ -139,7 +137,7 @@ async def test_slot_held_elsewhere_blocks_other_sessions_and_projects_without_ch
     """别的设备 / 项目 / 会话占满时：不论这里带什么 session_id 都拒绝，真实额度不动。"""
     token, user = await _login(client, db_session)
     project = _project(db_session, user)
-    held = [await limit.acquire_account_run_slot(str(user.id)) for _ in range(2)]
+    held = [await limit.acquire_account_run_slot(str(user.id))]
     service = _Service(_once_frames)
     try:
         with patch("api.agent.get_agent_service", return_value=service):
@@ -160,7 +158,7 @@ async def test_refusal_does_not_affect_another_account(client: AsyncClient, db_s
     token, user = await _login(client, db_session)
     other_token, other = await _login(client, db_session)
     other_project = _project(db_session, other)
-    held = [await limit.acquire_account_run_slot(str(user.id)) for _ in range(2)]
+    held = [await limit.acquire_account_run_slot(str(user.id))]
     try:
         with (
             patch("api.agent.get_agent_service", return_value=_Service(_once_frames)),
@@ -180,7 +178,7 @@ async def test_quota_exceeded_takes_precedence_and_holds_no_slot(client: AsyncCl
     with patch("api.agent.quota_service.check_ai_conversation_quota", return_value=(False, 3, 3)):
         response = await _post(client, token, project)
     assert response.status_code == 402
-    await _assert_both_free(str(user.id))
+    await _assert_slot_free(str(user.id))
 
 
 @pytest.mark.integration
@@ -217,7 +215,7 @@ async def test_can_enter_again_after_normal_completion(client: AsyncClient, db_s
     ):
         for _ in range(4):  # 多于上限：只有都释放了才进得去
             assert (await _post(client, token, project)).status_code == 200
-    await _assert_both_free(str(user.id))
+    await _assert_slot_free(str(user.id))
 
 
 @pytest.mark.integration
@@ -236,7 +234,7 @@ async def test_can_enter_again_after_mid_stream_exception(client: AsyncClient, d
     ):
         with pytest.raises(RuntimeError):
             await _post(client, token, project)
-    await _assert_both_free(str(user.id))
+    await _assert_slot_free(str(user.id))
 
 
 @pytest.mark.integration
@@ -266,7 +264,7 @@ async def test_startup_failure_releases_and_refunds(
         except RuntimeError:
             assert status == 200  # 终止帧发出后异常按原行为继续上抛
     assert refund.call_count == 1
-    await _assert_both_free(str(user.id))
+    await _assert_slot_free(str(user.id))
 
 
 @pytest.mark.integration
@@ -283,7 +281,7 @@ async def test_quota_reserve_failure_releases_the_slot(client: AsyncClient, db_s
             assert (await _post(client, token, project)).status_code == 402
         else:
             assert (await _post(client, token, project)).status_code == 500
-    await _assert_both_free(str(user.id))
+    await _assert_slot_free(str(user.id))
 
 
 @pytest.mark.integration
@@ -318,7 +316,7 @@ async def test_author_stop_releases_the_slot(client: AsyncClient, db_session):
             asyncio.gather(_post(client, token, project), stop_when_started()), 30
         )
     assert response.status_code == 200
-    await _assert_both_free(str(user.id))
+    await _assert_slot_free(str(user.id))
 
 
 @pytest.mark.integration
@@ -361,4 +359,4 @@ async def test_session_busy_preflight_still_wins_for_the_same_chat(client: Async
         await cleanup_steering_queue_async(session_id)
     assert response.status_code == 409
     assert response.json()["error_code"] == "ERR_SESSION_BUSY"
-    await _assert_both_free(str(user.id))
+    await _assert_slot_free(str(user.id))

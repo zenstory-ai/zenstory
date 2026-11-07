@@ -1,4 +1,4 @@
-"""账号级写作任务名额：同一账号最多同时运行 2 个 /agent/stream 任务。
+"""账号级写作任务名额：同一账号最多同时运行 1 个 /agent/stream 任务。
 
 名额按完整的用户任务计：路由、内部模型调用、审稿和工具不另占；跨项目、会话、设备和进程共享。
 与会话生成槽（agent.core.steering）同一套做法：每个任务是 Redis ZSET 里的一个成员，score 是
@@ -8,13 +8,13 @@
 （adopt），之后由它的收尾在真正结束（含取消路径的残稿补存）时释放。接管之前的任何失败由路由层
 释放。进程被杀时心跳停止，名额在 SLOT_STALE_AFTER_S 后被下一次获取回收。
 
-Redis 是成本保护，不是写作可用性的硬依赖。只有 Lua 明确看到已有 2 个活跃任务时才拒绝；Redis
+Redis 是成本保护，不是写作可用性的硬依赖。只有 Lua 明确看到已有 1 个活跃任务时才拒绝；Redis
 未配置、连接失败、超时或状态丢失都放行。配置了 Redis 但获取结果未知时，仍保留同一个 slot id，
 后续心跳会尝试登记、释放会尝试删除，避免服务端已经执行脚本而客户端超时后留下无法清理的成员。
 staging / production 没配 Redis 时使用无跟踪名额，不退回进程内计数，否则多进程会各自误拦。
 
 这是可用性优先的 best-effort 上限：Redis 故障、无持久化重启、局部断联或滚动发布期间可能短暂超过
-2 个；Redis 恢复且运行中的任务完成一次心跳后，计数会逐步恢复。任务仍在运行时不中止。
+1 个；Redis 恢复且运行中的任务完成一次心跳后，计数会逐步恢复。任务仍在运行时不中止。
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-ACCOUNT_MAX_CONCURRENT_RUNS: Final[int] = 2
+ACCOUNT_MAX_CONCURRENT_RUNS: Final[int] = 1
 
 SLOT_STALE_AFTER_S: Final[int] = 90
 SLOT_HEARTBEAT_INTERVAL_S: float = 20.0
