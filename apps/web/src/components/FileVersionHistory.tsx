@@ -457,31 +457,22 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         />
       </div>
 
-      {/* Toolbar */}
-      {total > 0 && (
+      {/* Selection actions */}
+      {selectedVersions.length > 0 && (
       <div className="px-4 py-2 shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-[hsl(var(--text-secondary))]">
-            {t('totalVersions', { count: total })}
-          </span>
-          {selectedVersions.length > 0 && (
-            <span className="text-xs text-[hsl(var(--accent-primary))]">
-              {t('selectedVersions', { count: selectedVersions.length })}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {selectedVersions.length === 2 && (
-            <button
-              onClick={handleCompare}
-              disabled={isComparing}
-              className="btn btn-primary"
-            >
-              <GitCompare size={14} />
-              {isComparing ? t('comparing') : t('compare')}
-            </button>
-          )}
-        </div>
+        <span className="text-xs text-[hsl(var(--accent-primary))]">
+          {t('selectedVersions', { count: selectedVersions.length })}
+        </span>
+        {selectedVersions.length === 2 && (
+          <button
+            onClick={handleCompare}
+            disabled={isComparing}
+            className="btn btn-primary"
+          >
+            <GitCompare size={14} />
+            {isComparing ? t('comparing') : t('compare')}
+          </button>
+        )}
       </div>
       )}
 
