@@ -29,6 +29,7 @@ for (const { width, language, theme } of [
   test(`${width}px ${language} ${theme}: history labels and actions fit the dialog`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     const dialog = await openHistory(page, language, theme);
+    await expect(dialog.getByText(/共 \d+ 个版本|\d+ versions? total/)).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('history.png') });
     const current = dialog.getByText(language === 'zh' ? '当前内容' : 'Current text', { exact: true });
     await expect(current).toHaveCSS('font-size', '12px');
@@ -83,6 +84,16 @@ test('phone history scrolls and returns to the same row after preview', async ({
   await page.getByRole('button', { name: '关闭预览' }).click();
   await expect(list).toBeVisible();
   expect(await list.evaluate(el => el.scrollTop)).toBe(previousScroll);
+  await row.click();
+  await expect(dialog.getByText('已选择 1 个版本', { exact: true })).toBeVisible();
+  const secondRow = dialog.locator('div[tabindex="0"]').filter({ has: page.getByText('v25', { exact: true }) });
+  await secondRow.click();
+  await expect(dialog.getByText('已选择 2 个版本', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: '对比版本', exact: true })).toBeEnabled();
+  await secondRow.click();
+  await row.click();
+  await expect(dialog.getByText(/已选择 \d+ 个版本/)).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: '对比版本', exact: true })).toHaveCount(0);
 });
 
 for (const theme of ['light', 'dark'] as const) {

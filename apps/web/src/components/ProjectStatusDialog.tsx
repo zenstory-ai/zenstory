@@ -364,12 +364,6 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               </button>
             </>
           )}
-          <Button variant="secondary" size="touch"
-            onClick={onClose}
-            className="w-full sm:w-auto"
-          >
-            {t('cancel')}
-          </Button>
           <Button size="touch"
             onClick={() => void handleSave()}
             disabled={saving || loading || !hasChanges || notesConflict}

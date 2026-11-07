@@ -683,22 +683,6 @@ test.describe('Version History', () => {
     await expect(historyDialog).toHaveCount(0)
   })
 
-  test('version history shows total version count', async ({ page }) => {
-    await createTestFile(page, '版本计数测试')
-    await selectFile(page, '版本计数测试')
-
-    // Create multiple versions
-    for (let i = 1; i <= 3; i++) {
-      await editFileContent(page, `版本 ${i}`)
-    }
-
-    // Open version history
-    await openVersionHistory(page)
-
-    // Look for total count display
-    const countDisplay = page.locator('text=/共\\s*\\d+\\s*(个)?版本|\\d+\\s*(versions?|版本)/i').first()
-    await expect(countDisplay).toBeVisible({ timeout: 5000 })
-  })
 })
 
 test.describe('Version History - Error Handling', () => {

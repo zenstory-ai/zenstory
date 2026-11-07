@@ -400,7 +400,7 @@ for (const strict of [false, true]) {
     it.each(['A', 'B'])('control: conditional unmount/reopen %s preserves new dirty input after old load', async next => {
       const user = await mount(strict)
       const oldA = [...reads('A')]
-      await click(user, screen.getByRole('button', { name: 'Cancel' }))
+      await click(user, screen.getByRole('button', { name: 'Close modal' }))
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       const oldCount = reads(next).length
       await click(user, screen.getByRole('button', { name: `Open ${next}` }))
@@ -469,7 +469,7 @@ for (const strict of [false, true]) {
       const user = await initial(strict)
       change('notes', 'A pending final save')
       await click(user, screen.getByRole('button', { name: 'Save' }))
-      await click(user, screen.getByRole('button', { name: 'Cancel' }))
+      await click(user, screen.getByRole('button', { name: 'Close modal' }))
       await click(user, screen.getByRole('button', { name: 'Open B' }))
       await waitFor(() => expect(reads('B')).toHaveLength(strict ? 2 : 1))
       await finish(reads('B'), project('B'))
@@ -540,7 +540,7 @@ for (const strict of [false, true]) {
       event('A')
       expect(requests).toHaveLength(start + 1) // StrictMode leaves one live matching listener.
       await finish([requests.at(-1)!], project('A', 'event'))
-      await click(user, screen.getByRole('button', { name: 'Cancel' }))
+      await click(user, screen.getByRole('button', { name: 'Close modal' }))
       const closedCount = requests.length
       event('A')
       expect(requests).toHaveLength(closedCount)

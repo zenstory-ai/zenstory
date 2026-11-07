@@ -45,7 +45,11 @@ for (const { width, language, theme } of [
     const shots = process.env.AUDIT_SHOTS || test.info().outputDir;
     const openMemory = async () => {
       if (width < 768) await page.locator('#chat-tab').click();
-      await page.getByTitle(memory, { exact: true }).click();
+      // Keyboard activation gives both browser engines a focused return target;
+      // WebKit deliberately does not focus buttons on a pointer click.
+      const trigger = page.getByTitle(memory, { exact: true });
+      await trigger.focus();
+      await trigger.press('Enter');
     };
     await page.goto('/project/responsive-project-0');
     await openMemory();
@@ -54,7 +58,22 @@ for (const { width, language, theme } of [
     await expect(notesInput).toHaveValue('旧约定\n\n原确认');
     await expect(dialog.getByText(/提议|proposal/i)).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: /采纳|忽略|Adopt|Ignore/ })).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: /^(取消|Cancel)$/ })).toHaveCount(0);
     await page.screenshot({ path: `${shots}/notes-${width}-${language}-${theme}-ready.jpg`, type: 'jpeg' });
+
+    // The shared header close and Escape both discard edits without saving.
+    await notesInput.fill('未保存的草稿');
+    await dialog.getByRole('button', { name: language === 'zh' ? '关闭对话框' : 'Close modal', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTitle(memory, { exact: true })).toBeFocused();
+    expect(patches).toHaveLength(0);
+    await openMemory();
+    await expect(notesInput).toHaveValue('旧约定\n\n原确认');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTitle(memory, { exact: true })).toBeFocused();
+    await openMemory();
+    await expect(notesInput).toHaveValue('旧约定\n\n原确认');
 
     // The first author save drops the legacy block.
     await notesInput.fill('旧约定\n\n原确认\n本地新约定');
