@@ -452,8 +452,8 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       <Modal
         open={true}
         onClose={handleClose}
-        size="full"
-        className="max-w-[900px] h-[min(80vh,720px)] p-0 overflow-hidden"
+        size="xl"
+        className="h-[min(80vh,720px)] p-0 overflow-hidden"
         bodyClassName="p-0 flex flex-col overflow-hidden"
         ariaLabel={`${t('title')} - ${fileTitle}`}
         showCloseButton={false}

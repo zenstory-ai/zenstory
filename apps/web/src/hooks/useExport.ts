@@ -9,7 +9,7 @@ export interface UseExportResult {
    * Async function to trigger draft export for the current project. Resolves
    * with what the server actually exported (undefined without a project).
    */
-  exportDrafts: (options?: { includeOutline?: boolean }) => Promise<DraftExportResult | undefined>;
+  exportDrafts: () => Promise<DraftExportResult | undefined>;
   /** Indicates if an export operation is currently in progress */
   loading: boolean;
   /** Error message if export failed, null otherwise. Auto-clears after 3 seconds */
@@ -64,14 +64,14 @@ export const useExport = (projectId: string | null): UseExportResult => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const exportDrafts = useCallback(async (options?: { includeOutline?: boolean }) => {
+  const exportDrafts = useCallback(async () => {
     if (!projectId) return undefined;
 
     setLoading(true);
     setError(null);
 
     try {
-      return await (options ? exportApi.exportDrafts(projectId, options) : exportApi.exportDrafts(projectId));
+      return await exportApi.exportDrafts(projectId);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Export failed";
       setError(message);

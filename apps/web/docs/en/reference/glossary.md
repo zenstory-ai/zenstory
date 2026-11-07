@@ -41,6 +41,6 @@ See [AI assistant](../user-guide/ai-assistant.md) and [AI Memory](../advanced/ai
 | File version | A retained historical state of one file |
 | Diff review | Accept or reject changes between old and proposed text |
 | Restore / Rollback | Replace a file's text with a selected historical version |
-| Export | Download saved drafts and scripts as a TXT, optionally including outlines |
+| Export | Download saved drafts and scripts as a TXT |
 
 See the [editor](../user-guide/editor.md), [version history](../user-guide/version-history.md), and [export](../user-guide/export.md).

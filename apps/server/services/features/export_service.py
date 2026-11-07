@@ -8,7 +8,7 @@ from collections.abc import Iterator
 
 from sqlmodel import Session, select
 
-from models import File, Project
+from models import File
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import build_sequence_sort_key
 
@@ -135,18 +135,6 @@ def get_sorted_drafts(session: Session, project_id: str) -> list[File]:
     return drafts
 
 
-def get_sorted_outlines(session: Session, project_id: str) -> list[File]:
-    """Non-empty outline files of a project, in the same sequence order as the file tree."""
-    query = select(File).where(
-        File.project_id == project_id,
-        File.file_type == "outline",
-        File.is_deleted.is_(False),
-    )
-    outlines = [f for f in session.exec(query).all() if (f.content or "").strip()]
-    _sort_by_sequence(outlines)
-    return outlines
-
-
 def _sort_by_sequence(files: list[File]) -> None:
     """Sort in place by effective order, title sequence, then creation time."""
     # Sort with the same effective-order semantics as the file-tree endpoint:
@@ -183,7 +171,6 @@ def export_drafts_to_txt(
     project_id: str,
     *,
     title: str | None = None,
-    include_outline: bool = False,
 ) -> str:
     """
     Export all drafts for a project as merged TXT content.
@@ -191,16 +178,6 @@ def export_drafts_to_txt(
     Format:
     ```
     作品名            (when ``title`` is given)
-
-    【大纲】          (only with ``include_outline``)
-
-    大纲标题
-
-    大纲内容...
-
-    ---
-
-    【正文】 / 【剧本】
 
     第一章 标题
 
@@ -217,30 +194,15 @@ def export_drafts_to_txt(
         session: Database session
         project_id: Project ID to export
         title: Work title printed on the first line
-        include_outline: Put non-empty outline files before the chapters
 
     Returns:
         Merged text content, or empty string when there is nothing to export
     """
-    return export_drafts_to_txt_with_outline_state(
-        session, project_id, title=title, include_outline=include_outline
-    )[0]
-
-
-def export_drafts_to_txt_with_outline_state(
-    session: Session,
-    project_id: str,
-    *,
-    title: str | None = None,
-    include_outline: bool = False,
-) -> tuple[str, bool]:
-    """Render TXT and report whether the rendered content includes outlines."""
     log_with_context(
         logger,
         20,  # INFO
         "export_drafts_to_txt called",
         project_id=project_id,
-        include_outline=include_outline,
     )
 
     # The first-work starter is an editing entry point, not an unwritten
@@ -251,16 +213,15 @@ def export_drafts_to_txt_with_outline_state(
         if (draft.content or "").strip()
         or draft.get_metadata().get("creation_source") != "first_work"
     ]
-    outlines = get_sorted_outlines(session, project_id) if include_outline else []
 
-    if not drafts and not outlines:
+    if not drafts:
         log_with_context(
             logger,
             20,  # INFO
             "export_drafts_to_txt: No drafts found",
             project_id=project_id,
         )
-        return "", False
+        return ""
 
     log_with_context(
         logger,
@@ -268,7 +229,6 @@ def export_drafts_to_txt_with_outline_state(
         "export_drafts_to_txt completed",
         project_id=project_id,
         draft_count=len(drafts),
-        outline_count=len(outlines),
         content_length=sum(len(d.title or "") + len(d.content or "") for d in drafts),
     )
 
@@ -276,13 +236,6 @@ def export_drafts_to_txt_with_outline_state(
     # each body and then copying the full work again to add headings/title.
     clean_title = (title or "").strip()
     parts = [clean_title, "\n\n"] if clean_title else []
-    if outlines:
-        project = session.get(Project, project_id)
-        body_heading = "【剧本】" if project and project.project_type == "screenplay" else "【正文】"
-        parts.append("【大纲】\n\n")
-        parts.extend(_file_parts(outlines))
-        if drafts:
-            parts.extend((CHAPTER_SEPARATOR, body_heading, "\n\n"))
     parts.extend(_file_parts(drafts))
 
-    return "".join(parts), bool(outlines)
+    return "".join(parts)

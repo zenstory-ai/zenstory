@@ -240,12 +240,14 @@
       "repeatReadUntitled": "这份资料刚才已经读过，AI 直接用已读内容继续。",
       "authorEdited": "《{{title}}》有你手动改过的内容，AI 没有删除或整份重写它；需要的话会先问你。",
       "authorEditedUntitled": "这个文件有你手动改过的内容，AI 没有删除或整份重写它；需要的话会先问你。",
+      "protectionUnavailable": "AI 没有删除或整份替换这个文件。需要的话，请在文件菜单或编辑器里操作。",
       "authorChanged": "这个文件在 AI 读过之后又被改过（多半是你刚改的），AI 没有在旧内容上改，这一步没有改动。",
       "clarifyFirst": "你还没说改哪部分，AI 先问清楚再动手，这次没有改文件。",
       "generic": "这一步没做成，AI 会换个方式继续。"
     },
     "skippedTitle": {
       "authorEdited": "保留了你改过的内容",
+      "protectionUnavailable": "文件未改动",
       "authorChanged": "文件刚被改过，这一步没改",
       "clarifyFirst": "先问清楚再改"
     },

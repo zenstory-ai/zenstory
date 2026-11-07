@@ -343,6 +343,7 @@ type ToolFailureKind =
   | 'fileMissing'
   | 'repeatRead'
   | 'authorEdited'
+  | 'protectionUnavailable'
   | 'authorChanged'
   | 'clarifyFirst'
   | 'generic';
@@ -351,7 +352,7 @@ type ToolFailureKind =
  * AI 有意没动文件（不是没做成）：作者手改过的文件没点名就不删、不整份重写（author_edit_protected），
  * 要求太笼统先问清楚（clarify_first）。卡片标题按这一类说，不写「失败」。
  */
-const INTENTIONAL_SKIP_KINDS: ReadonlySet<ToolFailureKind> = new Set(['authorEdited', 'authorChanged', 'clarifyFirst']);
+const INTENTIONAL_SKIP_KINDS: ReadonlySet<ToolFailureKind> = new Set(['authorEdited', 'protectionUnavailable', 'authorChanged', 'clarifyFirst']);
 
 /**
  * 按 error_type 归到作者能看懂的几类。error_type 由各工具自己定义，这里只认
@@ -362,6 +363,7 @@ const classifyToolFailure = (errorType: string | undefined): ToolFailureKind => 
   const normalized = errorType.toLowerCase();
   if (normalized === 'repeated_read') return 'repeatRead';
   if (normalized === 'author_edit_protected') return 'authorEdited';
+  if (normalized === 'author_edit_protection_unavailable') return 'protectionUnavailable';
   // The file changed after the AI read it (usually the author's own edit): not edited on the old text.
   if (normalized === 'stale_content') return 'authorChanged';
   if (normalized === 'clarify_first') return 'clarifyFirst';

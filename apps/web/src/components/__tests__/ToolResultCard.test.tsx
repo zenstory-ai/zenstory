@@ -789,6 +789,7 @@ describe('ToolResultCard', () => {
 
     it.each([
       [{ error_type: 'author_edit_protected' }, 'chat:tool.failureHint.authorEditedUntitled', 'chat:tool.skippedTitle.authorEdited'],
+      [{ error_type: 'author_edit_protection_unavailable' }, 'chat:tool.failureHint.protectionUnavailable', 'chat:tool.skippedTitle.protectionUnavailable'],
       [{ error_type: 'clarify_first' }, 'chat:tool.failureHint.clarifyFirst', 'chat:tool.skippedTitle.clarifyFirst'],
     ])('maps the intentional skip %j to its own hint and title', (result, hint, title) => {
       render(<ToolResultCard type="tool_result" toolName="edit_file" error="x" result={result} />)

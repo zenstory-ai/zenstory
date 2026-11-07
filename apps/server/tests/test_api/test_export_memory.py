@@ -20,15 +20,13 @@ def test_export_releases_pre_bom_text_before_encoding(monkeypatch, character, pe
     # Construct inside the measured request, with no fixture reference retaining
     # the service's returned text after the route replaces it with BOM text.
     monkeypatch.setattr(
-        export_api, "export_drafts_to_txt_with_outline_state", lambda *args, **kwargs: (character * 500_000, False)
+        export_api, "export_drafts_to_txt", lambda *args, **kwargs: character * 500_000
     )
     monkeypatch.setattr(export_api.quota_service, "get_user_plan", lambda *args: None)
     gc.collect()
     tracemalloc.start()
     try:
-        response = export_api.export_project_drafts(
-            project.id, include_outline=False, current_user=owner, session=session
-        )
+        response = export_api.export_project_drafts(project.id, current_user=owner, session=session)
         _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()
@@ -42,26 +40,18 @@ def test_export_releases_pre_bom_text_before_encoding(monkeypatch, character, pe
     assert peak < peak_per_response_byte * len(response.body)
 
 
-@pytest.mark.parametrize("include_outline", [False, True])
-def test_export_service_avoids_per_chapter_and_whole_body_copies(monkeypatch, include_outline):
+def test_export_service_avoids_per_chapter_and_whole_body_copies(monkeypatch):
     body = "\u3000\u3000" + "汉" * 16_384 + "🙂"
     drafts = [File(title=f"第{i + 1}章", file_type="draft", content=body) for i in range(32)]
-    outlines = [File(title="核心大纲", file_type="outline", content="\u3000\u3000大纲内容")]
     project = Project(name="测量作品", project_type="screenplay")
     session = SimpleNamespace(get=lambda *args: project)
     monkeypatch.setattr(export_service, "get_sorted_drafts", lambda *args: drafts)
-    monkeypatch.setattr(export_service, "get_sorted_outlines", lambda *args: outlines)
     chapters = export_service.CHAPTER_SEPARATOR.join(f"{f.title}\n\n{body}" for f in drafts)
-    expected = "测量作品\n\n" + (
-        "【大纲】\n\n核心大纲\n\n\u3000\u3000大纲内容" + export_service.CHAPTER_SEPARATOR + "【剧本】\n\n"
-        if include_outline else ""
-    ) + chapters
+    expected = "测量作品\n\n" + chapters
     gc.collect()
     tracemalloc.start()
     try:
-        content = export_service.export_drafts_to_txt(
-            session, project.id, title=project.name, include_outline=include_outline
-        )
+        content = export_service.export_drafts_to_txt(session, project.id, title=project.name)
         _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()
