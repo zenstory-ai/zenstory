@@ -1,35 +1,44 @@
 # Using skills
 
-A skill stores a reusable writing method, such as character development, scene drafting, or local revision. Choose a method suited to the task, then provide characters, source text, and this turn's requirements.
+A skill stores a reusable writing method—such as viewpoint checking, character development, scene pacing, or local revision. Pick a skill suited to your task, then supply the characters, source text, and specific requirements in chat.
 
 ## Add and use a skill
 
-1. Open **Skills** in the workbench, browse discovery, search names, or filter categories.
-2. Read the name and purpose, then choose **Add to My Skills**.
-3. Return to a project. Type `/` in the input to select a skill, or add it from the project's Skills tab.
-4. Describe the task and send.
+1. Open **Skills** in the top dashboard navigation. In the default **Discover** tab, search by name or filter by category pills to browse official and community skills.
+2. Read the skill card's name and description (on community skills, click **Expand instructions** to read the published instructions), then click **Add to My Skills** to add it to your skills (the button updates to **Added**).
+3. Inside a project, type `/` in the AI chat input to select the skill from the popup menu, or open the left **Skills** tab and click `+` next to the skill.
+4. Describe your task and target files in the input box and send.
 
-Select up to 3 skills for a turn. The AI can also load available skills as needed. Trigger phrases are usage clues; a matching word does not guarantee activation.
+You can explicitly attach up to **3** skills per turn. Even when you do not attach a skill manually, the AI can load enabled skills as needed based on each skill's **Skill Name** and **Description**.
 
-Official skills show their purpose but keep detailed instructions private. Add them to use them. Community skills are shared by authors and reviewed; published instructions can be read.
+Official skills display their name and description while keeping internal instructions private; once added, they work directly in chat. Community skills are shared by authors and reviewed before listing—click **Expand instructions** on a Discover card to read its instructions, or inspect its instructions and attached resource files in **My Skills** after adding it.
 
 ## Manage your skills
 
+Switch to the **My Skills** tab on the **Skills** page to manage your skills by source:
+
 | Source | Available actions |
 | --- | --- |
-| Created by you | Edit, enable or disable, export, share, delete |
-| Added from the public library | Use, enable or disable, remove; content visibility depends on source |
+| **Created by you** | Toggle enabled or disabled, **Edit** (name, description, tags, instructions, and resources), **Export as zip**, **Share to Discover** (or unshare), and **Delete** |
+| **Added from Discover** | Toggle enabled/disabled, inspect details (full instructions for community skills; purpose summary for official skills), and remove from My Skills |
 
-Added official skills cannot export instructions or resources. Create your own skill to customize a method.
+Added official skills cannot export their instructions or resource files. To customize a workflow, create your own skill with your own instructions.
 
 ## Create a custom skill
 
-Choose New and enter a name, purpose, trigger phrases, and instructions. Separate phrases with English commas. Start with one specific task:
+Click **Create Skill** in the top right of the **Skills** page and fill in the dialog fields:
+
+- **Skill Name** (required, up to 100 characters): A concise name for the method.
+- **Description** (optional, up to 1,024 characters): Tells the AI when to use this skill when deciding whether to load it automatically.
+- **Tags** (optional, comma-separated, up to 50 tags of 100 characters each): For organizing and filtering your skills only—**tags do not affect when the AI uses the skill**.
+- **Instructions** (required, up to 50,000 characters): The evidence to read, steps to follow, deliverable format, and boundaries.
+
+Start with one specific writing problem:
 
 ```text
-Name: Limited viewpoint check
-Purpose: Find information the viewpoint character should not know yet.
-Triggers: check viewpoint, limited viewpoint
+Skill Name: Limited viewpoint check
+Description: Check a scene for information the viewpoint character should not know yet.
+Tags: viewpoint, revision
 
 Instructions: Read the specified character notes and quoted passage first.
 List each problem sentence, its evidence, and the smallest replacement.
@@ -37,12 +46,12 @@ Distinguish author knowledge from character knowledge. Ask when evidence is miss
 Suggest changes first; do not edit files or add character background.
 ```
 
-Save, select it in a project, and provide the passage to check. Free supports 3 owned custom skills; Pro supports 20. Deleting an unused owned skill frees a slot.
+Save the skill, attach it in a project chat, and provide the passage to check. Free accounts can create up to **3** custom skills, and Pro accounts up to **20**; deleting an unused custom skill frees a slot.
 
 ## Import, export, and share
 
-Use Import to select Markdown or a ZIP skill package. Check its name, instructions, and resources before enabling it. Export your own skills to retain a copy.
+- **Import a skill**: Click **Import** in the top right of the **Skills** page and choose a `.md` file (`SKILL.md` with YAML frontmatter, up to 256 KiB) or a `.zip` package (up to 1 MiB). Inspect the imported name, description, instructions, and resources before using it.
+- **Export a skill**: Open a custom skill you created in **My Skills** and click **Export as zip** to download its `SKILL.md` and resource files as a local archive.
+- **Share to Discover**: Click **Share to Discover** on an owned skill to submit it for review; once approved, it appears in the public **Discover** catalog. Before sharing, remove private manuscripts, personal details, and any text you do not have the right to publish.
 
-Sharing submits a skill for review; approved skills enter the public library. Remove private manuscripts, account details, and text you cannot publish first. A pending submission is not yet public.
-
-See [advanced custom skills](../advanced/skill-creation.md) for instruction writing, resources, and format limits.
+See [Advanced custom skills](../advanced/skill-creation.md) for instruction structure, `references/` and `assets/` resource files, and package limits.

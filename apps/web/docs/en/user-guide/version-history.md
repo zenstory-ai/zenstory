@@ -1,31 +1,31 @@
 # Version history
 
-Use history to read older prose, compare changes, or restore content. Choose the scope first: a sentence or a file.
+Click **History** in the editor's bottom status bar to read older versions of the open file, compare two versions side by side, or restore the file to an earlier state. Before acting, decide whether you want to recover a single sentence or replace the whole file.
 
-## File history
+## How file versions are recorded
 
-History in the editor keeps versions of one file: read, compare, or restore it. Restoring affects only that file; it does not bring back deleted files or the folder structure.
+- **Scoped to each file**: Version history is tracked per file. Restoring a version updates only the currently open file—it does not change other files in the project or bring back deleted files or folders.
+- **Coalescing and plan limits**: Saved body changes are recorded in history, and consecutive manual saves within a short window (including small edits) are merged into the same version automatically. Your plan's version allowance counts manual versions (**10 per file** on Free, **100 per file** on Pro), while AI edits and system backups do not consume that allowance. When a file's manual version allowance is full, consecutive saves that can coalesce into the latest manual version still merge; if merging is unavailable, your text saves normally without adding a new version.
+- **Version badges and counts**: Each row shows its version number, timestamp, source badge (**Created**, **Edited**, **AI edit**, **Reviewed**, or **Restored**, plus **Current text** on the latest entry), along with that version's total word/character count and added/removed line counts.
 
-Consecutive manual saves close together may share one history version, including small edits. The allowance counts manual versions; AI changes and system backups do not use it. A full allowance still permits merging into an existing version. If merging is unavailable, your text is saved without adding a version.
+## View and compare file versions
 
-## Read and compare file versions
+1. Open the target file in the editor and click **History** in the bottom status bar.
+2. Click **View Content** on any version row to read its full text and timestamp.
+3. **Compare two versions**: Click a version row in the list to select it (click it again to deselect, up to **2** versions); once two versions are selected, click the **Compare** button in the top bar to inspect added, removed, and replaced passages between the older and newer versions.
 
-1. Open the target file and its history.
-2. Use a version's view control to read the older text.
-3. Select two versions and choose **Compare** to inspect added, removed, and replaced passages.
+On phones, clicking **View Content** or **Compare** switches to the content panel; tap the close button (`×`, **Close preview**) in the top right of the panel to return to the list and pick other versions. When older records exist, click **Load More** at the bottom of the list.
 
-On a phone, viewing or comparing opens a content panel; return to select another version. Use Load More when further records are available.
-
-To recover one sentence, copy it from the old text, close history, paste it into the current draft, and save. This preserves later changes you still want.
+To recover just a sentence or paragraph without rolling back later work, open **View Content** on the older version, copy the lines you want, close **History**, and paste them into your current draft.
 
 ## Restore the whole file
 
-Select a version, choose Restore, and confirm. Restoration replaces current prose; resolve unsaved changes first.
+Click **Restore this version** on the version you want and confirm **Restore** in the dialog. Restoring replaces the file's current body text, so save or copy any unsaved edits in the editor first.
 
-Before replacement, the server retains a backup of current prose that has not entered history. If that backup fails, restoration is cancelled. Check prose and history afterward. History still does not replace separate copies of important originals.
+Before overwriting the file, the server automatically records a backup version of any current prose that has not entered history yet; if that backup cannot be created, the restore is cancelled so your current text is never lost. After restoring, check both the editor and the history list to confirm the result. Keep separate local exports for important milestones rather than relying on version history alone.
 
 ## When text is missing from history
 
-Check the account, project, and file, then look for unsaved drafts or text that exists only in chat. A save does not always add a record. Do not delete files to experiment with recovery.
+If you cannot find a passage in **History**, check that you are signed into the right account and project, verify that you opened the right file, and check whether the text is still sitting in an unsaved editor draft or only appeared as a candidate suggestion inside the AI chat reply without being written to the file. Never delete a file to test recovery.
 
-For independent copies, see [export](export.md). For unsaved work and conflicts, see the [editor](editor.md).
+For independent local backups, see [Export your manuscript](export.md). For unsaved draft recovery and save conflicts, see [Using the editor](editor.md).

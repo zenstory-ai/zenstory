@@ -1,39 +1,47 @@
 # Project management
 
-A project keeps a work's files, chat, and project memory together. Keep related characters, outlines, and prose in the same project for continuation.
+In ZenStory, each novel, short story, or short-drama script lives in its own **project**, with its own file tree, AI Memory, chat history, and export output.
 
-## Find and open a project
+## 1. Three ways to create a project
 
-Open **My Projects**, filter by format, or search names and descriptions. Projects are ordered by recent updates. Click a card to open it.
+### 1. Choose a format and start on the dashboard home
 
-The project switcher in the header also searches and switches works. Each project has its own address for bookmarks; sharing that address does not grant someone access.
+1. On the dashboard home, select **Long-form Novel**, **Short Story**, or **Short-drama Script** above the creation box (clicking **New Project** in the top right of **My Projects** also takes you back to this creation box on the dashboard home).
+2. Enter a brief idea (or click one of the example prompts below to fill it in) and click **Start Writing**—the workbench opens the work and sends your idea straight to the AI assistant. Leaving the box blank and clicking **Start Writing** opens an empty workspace of the chosen format. On a new account, you can also click **Open it** directly on the **Your first work is ready** card at the top.
 
-## Create and rename
+### 2. Import an existing manuscript (`.txt` / `.md`) on the dashboard home
 
-Choose a format on Home, enter an idea, and select **Start Writing**. The idea becomes your first chat message; leave it empty to create the workspace first. You can also create from My Projects or the project switcher.
+If you already have chapters written on your computer or phone, you can turn them into a project in one step:
 
-Starting folders vary by format:
+1. Select the target format (**Long-form Novel**, **Short Story**, or **Short-drama Script**) on the dashboard home.
+2. Click **Have a draft already? Import it (txt / md)** below the creation box and pick a `.txt` or `.md` file (up to 5MB and 500,000 characters per file, in UTF-8 or GBK encoding).
+3. ZenStory creates a project named after your file, splits recognizable chapter headings (`Chapter 1`, `Prologue`, `Epilogue`, `第一章`, `楔子`, `序章`, `番外`, or `1. Title`) into individual chapter files without calling the AI or using your daily AI messages, and opens Chapter 1.
 
-| Format | Starting folders in English |
-| --- | --- |
-| Novel | World Building, Characters, Materials, Outlines, Drafts |
-| Short Story | Characters, Concept, Materials, Drafts |
-| Short Drama Script | Characters, World Building, Materials, Episode Outlines, Scripts |
+### 3. Quick-create from the Project Switcher inside a project
 
-To rename, open the project switcher and choose the edit-name control. Enter saves, Esc cancels. Names cannot be empty.
+While working inside any project, click the current project name in the top-left corner to open the **Project Switcher**, then click **New Project** at the bottom of the dropdown. An inline name input expands right inside the menu—enter a name (up to 100 characters) and confirm to create and switch to the new project. Projects created from the Project Switcher default to **Long-form Novel**; to create a **Short Story** or **Short-drama Script**, return to the dashboard home and select that format in the creation box.
 
-Free supports up to 3 projects; Pro has no project limit. Check usage in [Plans & Benefits](billing-benefits.md).
+## 2. Project types and default folders
 
-## Switch projects
+Your project type sets the default folder structure and tailors the AI assistant's workflow. Project types cannot be changed once created:
 
-Check the current file's save status first. Files and chats are saved separately for each project. To reuse worldbuilding, copy the approved content into the target project and maintain the two files separately.
+| Project type | Default folders | Best for |
+| --- | --- | --- |
+| **Long-form Novel** | World Building, Characters, Materials, Outlines, Drafts | Multi-chapter web novels and serialized fiction |
+| **Short Story** | Characters, Concept, Materials, Drafts | Standalone short stories and novellas |
+| **Short-drama Script** | Characters, World Building, Materials, Episode Outlines, Scripts | Episodic short-drama scripts; the top-bar export button reads **Export whole script (TXT)** |
 
-The Materials Library belongs to your account, so you can attach relevant items in different projects. It is separate from project drafts and character files.
+## 3. Find, filter, and switch projects
 
-## Delete a project
+- **Filter and search in My Projects**: On the **My Projects** page, filter by format using the top pills (**All / Long-form Novel / Short Story / Short-drama Script**) or search by project title and description. Each card displays the project format, total word count, and last updated time—click any card to open the project.
+- **Switch projects from the workspace**: Click the project name in the top-left corner of the workspace to open the **Project Switcher**; the search box at the top of the dropdown is always available, and clicking any project switches to it immediately. Switching projects flushes any unsaved edits in the open editor first; if a save cannot complete, the draft remains protected in local browser storage under your account, project, and file.
 
-Choose Delete on a My Projects card and confirm the name and scope. The project switcher also offers deletion but keeps at least one project. Delete the last project from My Projects if needed.
+## 4. Rename and delete projects
 
-Deletion removes the project from available lists. There is currently no user-facing project trash. Export prose and keep separate copies of important characters, outlines, and other notes first. History inside the project is not a substitute for an independent copy.
+- **Rename a project (from the Project Switcher)**: Inside a project, click the project name in the top-left corner to open the **Project Switcher**, hover over the target project row, click the edit icon (**Rename**), enter the new name (up to 100 characters), and press `Enter` or click confirm. Renaming only updates the project title without affecting its files, versions, or chat history.
+- **Delete a project**: Hover a project card on the dashboard home or **My Projects** page and click the trash icon in its top-right corner, or hover a project row inside the top-left **Project Switcher** and click the trash icon, then confirm **Delete** in the dialog. Deleting a project removes it from your active project list, and there is currently no trash or restore entry—export a backup first with **Export whole work (TXT)** (or **Export whole script (TXT)**) if you want to keep a copy of the manuscript.
 
-Related: [file management](file-tree.md), [export](export.md), and [AI Memory](../advanced/ai-memory.md).
+## 5. Project limits by plan
+
+- **Free**: Up to **3** active projects at a time. When you reach 3 projects, creating a new project or importing a manuscript on the dashboard home prompts you to delete an unused project or upgrade to Pro.
+- **Pro**: **Unlimited** projects. If a Pro subscription expires and returns to Free, all existing projects and files stay intact for reading, editing, and exporting, though you cannot create new projects while your active project count remains above 3.

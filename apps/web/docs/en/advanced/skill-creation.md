@@ -1,12 +1,12 @@
 # Advanced custom skills
 
-Save methods you use repeatedly so you do not explain them every time. A skill works best on one clear problem with evidence, steps, a deliverable, and boundaries.
+Save writing and revision methods you use repeatedly as custom skills so you do not have to re-explain the rules each turn. A strong skill focuses on one clear problem and states the evidence to read, steps to follow, deliverable format, and edit boundaries.
 
-## Start from a real task
+## Extract instructions from a real task
 
-Complete a useful local task in chat, then extract its method. Keep private manuscripts and story-specific names out of a general-purpose skill.
+Run a local task in chat until you are happy with the result, then extract the reusable method into a skill. Keep story-specific character names, private notes, and unpublished manuscript text out of general-purpose skills.
 
-Use this limited-viewpoint method in the instructions field:
+For example, you can place this limited-viewpoint check in the **Instructions** field:
 
 ```markdown
 # Limited viewpoint check
@@ -26,31 +26,31 @@ Retain confirmed actions and outcomes.
 Suggest changes in chat first. Do not edit files or invent biographies.
 ```
 
-A skill provides a method. Supply this turn's material by opening the target, quoting text, or naming files to read. `{{selectedText}}` and `{{currentFile}}` are not automatically replaced with project content.
+A skill supplies the method; supply the current turn's material by opening the target file, highlighting text and clicking **Quote**, or naming files to read in your prompt. Placeholders such as `{{selectedText}}` or `{{currentFile}}` are not automatically replaced with project content.
 
-## Trigger phrases and explicit selection
+## Write descriptions, tags, and explicit selection rules
 
-Use memorable, task-specific phrases such as “check viewpoint” and “limited viewpoint.” Separate them with English commas. Avoid broad words such as “edit” for every skill.
+- **Description (tells the AI when to use the skill)**: When creating or editing a skill, the **Description** field (up to 1,024 characters) tells the AI what problem the skill solves and when to load it automatically. Be specific (for example, *“Check a scene for information the viewpoint character should not know yet”*) rather than using vague labels like *“edit prose.”*
+- **Tags (for organization only)**: The **Tags** field (comma-separated, up to 50 tags) is only for categorizing and filtering your skills in the Skills list—**tags do not affect when the AI uses the skill**.
+- **Explicit selection in chat**: Whenever you want a specific skill applied to a turn, select it directly via `/` in the chat input or click `+` next to the skill in the project's left **Skills** tab (up to **3** skills per message). For multi-stage work, attach different skills for planning, drafting, and revision.
 
-Select a skill explicitly through `/` when you want it used. Choose up to 3 per turn; use different methods at different stages for complex tasks.
+## Add and manage resource files
 
-## Add resources
+After saving a custom skill, you can manage attached **Resource files** at the bottom of the edit dialog. Store longer checklists, templates, or reference examples under `references/` or `assets/`, and explain in **Instructions** when each resource file should be read.
 
-After saving a skill, maintain longer templates and reference text under `references/` or `assets/`. Explain in the instructions when each resource should be read.
-
-| Field | Limit |
+| Field or item | Limit |
 | --- | --- |
-| Name | 100 characters |
-| Description | 1,024 characters |
-| Instructions | 50,000 characters |
-| Trigger phrases | Up to 50, 100 characters each |
-| Resources | Up to 20, 64KiB each, 256KiB total |
+| **Skill Name** | Required, up to 100 characters |
+| **Description** | Optional, up to 1,024 characters (used by the AI to decide when to load the skill) |
+| **Tags** | Optional, up to 50 tags, 100 characters each (for organizing skills only) |
+| **Instructions** | Required, up to 50,000 characters |
+| **Resource files** | Up to 20 text files, 64 KiB per file, 256 KiB total |
 
-Resources support text formats including Markdown, TXT, JSON, YAML, and CSV. Skills provide methods and reference text; package scripts do not run.
+Resource files support `.md`, `.txt`, `.json`, `.yaml`, `.yml`, and `.csv` text formats under `references/` or `assets/`. Skills provide methods and reference text only; scripts inside packages are never executed.
 
-## Import a standard package
+## Import a standard skill package
 
-Import accepts Markdown or ZIP. A standard package contains `SKILL.md` with at least `name` and `description` in its header:
+Click **Import** in the top right of the **Skills** page to upload a `.md` file (up to **256 KiB**) or a `.zip` archive (up to **1 MiB**). A standard package includes `SKILL.md` (up to 256 KiB) with at least `name` and `description` in its YAML frontmatter:
 
 ```markdown
 ---
@@ -62,12 +62,12 @@ Read the specified scene and character notes.
 List inconsistent sentences, evidence, and suggested replacements.
 ```
 
-ZIP packages must be at most 1MiB and may include text-resource directories. Check import warnings: scripts and unsupported binaries are skipped, and `allowed-tools` does not change workbench permissions.
+A `.zip` package may also include `references/` or `assets/` text resource folders. Check any import warnings after upload: scripts and unsupported binary files are skipped automatically, and `allowed-tools` frontmatter does not alter workbench permissions.
 
-## Check and improve
+## Test and iterate
 
-Try a short passage, then missing evidence and a conflicting fact. Inspect problem detection and edit scope, not just whether the skill was selected.
+Test a new skill on a short passage first, then test how it behaves when evidence is missing and when a fact conflicts with an established character sheet. Inspect whether it pinpoints the right lines and respects your edit boundaries rather than just checking whether the skill was loaded.
 
-Change the most relevant instruction first. Split long or conflicting methods into separate skills. Before sharing, export your own copy and remove private or unlicensed text.
+If the output misses the mark, adjust the single most relevant instruction first; if a skill grows too long or combines conflicting goals, split it into separate skills. Before clicking **Share to Discover**, export a local backup with **Export as zip** and remove any private or unlicensed text.
 
-See [using skills](../user-guide/skills.md) for basic operations.
+See [Using skills](../user-guide/skills.md) for basic skill management.

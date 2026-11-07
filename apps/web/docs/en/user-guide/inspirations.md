@@ -1,7 +1,7 @@
-# Inspirations Library
+# Inspirations (coming soon)
 
 The Inspirations Library is coming soon.
 
-For now, enter your own idea on the [workbench home](https://app.zenstory.ai/dashboard), choose a format, and start writing. If you are still exploring, ask the AI for a few story directions, choose one, then develop the characters, outline, and draft.
+For now, open the [dashboard home](https://app.zenstory.ai/dashboard), choose **Long-form Novel**, **Short Story**, or **Short-drama Script**, enter a one-line idea (or click an example prompt below the input box), and click **Start Writing**—or click **Have a draft already? Import it (txt / md)** to start from an existing manuscript.
 
-Follow [Write your first short story](../getting-started/first-project.md) for a complete example.
+If you are still exploring ideas, ask the AI assistant in chat for a few distinct story directions, pick the one you want, and save the approved characters and outline into your project files. See [Write your first short story](../getting-started/first-project.md) for a complete walkthrough.

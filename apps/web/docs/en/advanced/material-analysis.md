@@ -1,16 +1,16 @@
 # Material analysis
 
-Read with a specific writing question, then apply the method to your own scene. Analysis items help locate evidence; source passages verify your interpretation.
+Read reference novels with a specific craft question in mind, then adapt the underlying method to your own scene. Breakdown entries in the Materials Library help you locate relevant moments quickly, while the original chapter text verifies your interpretation.
 
-## Choose one question
+## Choose one specific question
 
-For example: “How does a character change their goal without delivering a lesson?” Find a relevant chapter or passage rather than asking for every strength of a whole book.
+Start with an observable craft question—for example, *“How does a character change their goal through concrete action rather than delivering a speech?”* Locate a specific chapter or passage instead of asking the AI to summarize every strength of an entire book at once.
 
-Separate explicit facts, supported interpretation, and questions needing more reading. Character labels and summaries cannot replace specific actions.
+Separate your reading notes into three layers: **explicit facts in the text**, **supported interpretation**, and **open questions requiring further reading**. Character labels and chapter synopses help you find scenes, but they cannot replace concrete actions and dialogue.
 
-## Example: what changes a choice
+## Example: what changes a character's choice
 
-This is an original teaching passage:
+Consider this original teaching passage:
 
 > Fang Yao edited the old concert recording for the third time. A chair scrape still covered her mother's solo. The listening-event program read “Her finest performance.” A friend suggested removing the noise and splicing in a later repetition.
 >
@@ -18,19 +18,19 @@ This is an original teaching passage:
 >
 > Fang undid the splice and changed the program line to “That day, she paused.”
 
-Read it in layers:
+Break it down in three layers:
 
-| Layer | Evidence |
+| Layer | Evidence in the passage |
 | --- | --- |
-| Explicit facts | Repeated editing, hearing a line, undoing the splice, changing the program |
-| Interpretation | Her goal shifts from the finest performance to preserving a meaningful pause |
-| Not established | Audience response, her mother's biography, or a permanent change in Fang |
+| **Explicit facts** | Repeated editing, hearing a quiet line after the scrape, undoing the splice, changing the program wording |
+| **Supported interpretation** | Her goal shifts from presenting a flawless performance to preserving a meaningful pause |
+| **Not established** | The audience's reaction, her mother's biography, or a permanent change in Fang's personality |
 
-Her success criterion changes, but the noise and obscured solo remain. The cost has not vanished.
+Notice that while her criterion for success changes, the chair scrape and covered solo remain—the cost of her choice does not vanish.
 
-## Ask the AI to check your interpretation
+## Ask the AI to verify your reading
 
-Attach an item or quote the source, then ask:
+In the project's left **Materials** tab, click **Add to chat** on a breakdown item—or highlight a passage in a project material file and click **Quote**—then ask:
 
 ```text
 Analyze this passage only: initial goal, evidence for changing it,
@@ -38,15 +38,15 @@ actual choice, and remaining cost. Support interpretations with short quotes.
 Identify missing context. Do not invent biographies, continue the story, or edit files.
 ```
 
-Return to the source afterward. Keep unsupported judgments as questions rather than established settings.
+Check the AI's reply against the original lines afterward. Keep unsupported guesses as open questions rather than copying them into your story's established settings.
 
 ## Turn the method into a new scene
 
-To borrow “changing the success criterion while retaining a cost,” design a different action:
+To borrow the structure *“shift the criterion for success while keeping the cost,”* design a new situation and action rather than merely swapping names or replacing a recording with a video:
 
-Cen Yi has ten minutes left to practice with his toy car. He can complete a full-speed run or ask first-time visitor Tao Tao whether she wants to try turning left. If he gives her the time, let her agree and operate herself; his own full lap remains unfinished.
+Suppose Cen Yi has ten minutes left to practice with his remote-controlled car. He can finish his own full-speed lap or ask first-time visitor Tao Tao whether she wants to try a left turn. If he gives her the slot, show that choice through asking, handing over the controller, and waiting—and leave his own full-speed run unfinished at the end.
 
-Choose the goal, action, and cost before drafting. Changing names or replacing a recording with video is not enough if the same events remain.
+Settle the character's goal, action, and cost first, then ask for a draft:
 
 ```text
 Draft Cen giving the remaining practice slot to Tao.
@@ -55,8 +55,8 @@ Do not add a lesson speech. End with Tao completing one left turn herself
 while Cen's full-speed run remains unfinished. Give candidate prose in chat only.
 ```
 
-## Save your reading
+## Save your reading and new scenes separately
 
-Reference notes retain the source location, short quotes, and interpretations. Your outline holds only new designs you accept. Save adopted prose in a draft file, then update progress.
+Keep source locations, short quotes, and craft notes in your project's **Materials** folder, and put only your own adopted scene designs into your **Outlines** (or **Concept**) folder. Once you approve the candidate prose, save it into your **Drafts** file and update your progress.
 
-See [Materials](../user-guide/materials.md) for uploads and attachments, then continue with [writing workflow](workflow-tips.md).
+See [Materials Library](../user-guide/materials.md) for upload and citation steps, and continue with [Writing workflow](workflow-tips.md).

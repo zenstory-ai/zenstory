@@ -1,51 +1,71 @@
 # Using the editor
 
-Open a project file to write, edit its title, quote a selection, or review AI changes. The editor uses plain text and shows save status at the bottom.
+The center editor is where you write and review outlines, character sheets, worldbuilding notes, novel chapters, and short-drama scripts. It includes debounced auto-save, local draft recovery, passage quoting, Humanize, and side-by-side diff review.
 
-## Save the current file
+## 1. Empty state actions and writing area
 
-Autosave runs after about three seconds without typing. Choose **Save** or press `Command/Ctrl + S` to submit immediately.
+### 1. Starting from an empty editor
 
-- Unsaved: the current text has not been confirmed on the server.
-- Saving: the submission is still pending.
-- Saved or a save time: the submitted title and text are saved.
+When a project opens with no file selected, the center pane offers four starting actions:
 
-Autosave pauses while AI edits the same file or diff review remains open. Finish that round before checking the current draft.
+- **Let AI write the opening**: Focuses the right-hand AI chat input and highlights the starter cards on desktop, or switches directly to the **AI** tab on mobile.
+- **New Chapter / New Script** and **New Outline**: Creates a blank file in **Drafts** (or **Scripts** in screenplay projects) or **Outlines** and opens it right away.
+- **More options**: Expands cards for **New Character** and **New Worldbuilding**.
+- **Import draft files (txt / md)**: Lets you pick up to 20 `.txt` or `.md` files from your device, splits recognizable chapter headings into the **Drafts** folder, and opens Chapter 1.
 
-Consecutive manual edits close together may merge into one history version. When the allowance is full and merging is unavailable, your prose is still saved without adding a version. See [version history](version-history.md).
+### 2. Title bar, body area, and status bar metrics
 
-## Quote and revise a passage
+When a file is open, the editor consists of three parts:
 
-Select text and choose **Add to chat**, or press `Command/Ctrl + Shift + Q`. The quote includes its source file.
+- **Title bar**: Click the top input to edit the file title (up to 255 characters). Saving a new title updates the file tree and chapter ordering automatically.
+- **Plain-text body editor**: Edits plain text directly (symbols such as `#` or `**` remain literal characters and are not rendered as rich text). On touch screens, pinch with two fingers to zoom between 50% and 250% (tap the zoom percentage in the status bar to reset to 100%). While the AI is streaming content into the open file, an **AI is writing...** banner appears at the top and the view follows the bottom unless you scroll up.
+- **Status bar counts**:
+  - **Words**: Counts Chinese characters and English words only, excluding punctuation and whitespace (so the number will read lower than platforms that count punctuation; hover or tap **Words** to see this note).
+  - **Paragraphs**: Counts non-empty lines, matching manuscript layouts where paragraphs are indented without blank lines between them.
 
-```text
-Check only the quoted passage. The character does not know the owner's identity yet.
-Identify any sentence that exceeds this knowledge and suggest a replacement.
-Keep the bag at the desk; do not change other paragraphs.
-```
+## 2. Auto-save, manual save, and local draft recovery
 
-For direct editing, name the target, replacement scope, and facts to retain. For suggestions only, say “Reply in chat only; do not change files.”
+### 1. Auto-save and manual save
 
-**Humanize**, or `Command/Ctrl + Shift + R`, generates a candidate rewrite for the selection and opens review. It helps revise expression; it cannot guarantee detector scores.
+- **Auto-save**: As soon as you edit the title or body, the bottom status bar shows **Unsaved**. Three seconds after you stop typing, the editor saves to the cloud and updates the indicator to **Saved just now** (or the elapsed time since the last save). Auto-save pauses automatically while the AI is editing the file, while Humanize is running, or while Diff Review is open.
+- **Manual save**: Press `Ctrl/Cmd + S` or click **Save** in the bottom-right corner at any time.
+- **When a file version is recorded**: Saved body changes are recorded in **History**, and consecutive saves within a short window may be merged into a single version; title-only edits save the new title without creating an extra version. If a file has reached your plan's manual version limit (10 versions per file on Free, 100 on Pro) and cannot merge into the latest version, your body text still saves normally without adding a new version.
 
-## Review changes
+### 2. Local draft protection across reloads and disconnects
 
-Read each old/new pair, then accept, reject, or reset. Pending changes are adopted when you finish. Explicitly reject changes you do not want.
+If a tab closes, reloads, or loses connection before your latest edits are saved to the cloud, ZenStory stores an unsaved draft snapshot in `localStorage` scoped to your account, project, and file:
 
-Use **Accept all** or **Reject all** after deciding the whole batch. Finish review, then inspect the combined text and save status. Some file operations write directly, so diff review is not a universal approval step before every write.
+- **When the cloud file is unchanged**: Reopening the file restores your unsaved text automatically and shows a **Restored your last unsaved draft** banner at the top. Keep typing or click **Save** to save it to the cloud, or click **Discard draft** on the banner to revert to the cloud copy.
+- **When the cloud file has a newer version**: If the AI or another device updated the file while you were away, ZenStory never overwrites the newer cloud copy automatically. Instead, it displays the latest cloud version and shows a **Found an unsaved draft, and this file has a newer version** banner so you can choose **Use draft** or **Discard draft**.
+- **When the file updates while you are typing**: If the AI or another tab saves a new version while you have unsaved edits open, ZenStory preserves every word you typed and opens a side-by-side comparison (your text on the left, the merged server version on the right, with any overlapping edits defaulting to keep your words) so you can review each change and click **Finish Review**.
 
-## Draft recovery and conflicts
+## 3. Quoting passages and Humanize
 
-The browser attempts to retain unsaved drafts before leaving or a page update. When reopening the same account, project, and file:
+### 1. Quote selected text to AI chat (`Ctrl/Cmd + Shift + Q`)
 
-- If server content is unchanged, the draft returns to the editor. Check it and save.
-- If server content has changed, compare both copies and choose whether to restore the local draft or use the server copy.
-- If local storage fails, follow the message and keep important text separately.
+Highlight any passage in the editor and wait 0.3 seconds for the floating **Quote** toolbar to appear (or press `Ctrl/Cmd + Shift + Q` immediately):
 
-A save conflict means the file changed while you were editing. Retain local text, compare the newer server copy, and merge. Reloading or clearing site data can affect local recovery; do not start there.
+- Clicking **Quote** attaches the selected text and its source file title to the **Quoted** row above the AI chat input (up to **5** quotes per message).
+- Type your revision instructions in chat and send to have the AI rewrite that exact passage in context.
 
-## Word count
+### 2. Humanize selected text (`Ctrl/Cmd + Shift + R`)
 
-The workbench counts Chinese characters and continuous English-letter sequences, excluding numbers and punctuation. Submission platforms can count differently; check their rules before delivery.
+To smooth out stiff, repetitive, or overly formal phrasing in a passage without leaving the editor:
 
-Next: [AI assistant](ai-assistant.md) and [keyboard shortcuts](../reference/keyboard-shortcuts.md).
+1. Select the passage you want to polish (up to **6,000 characters** at a time; split longer sections into smaller selections).
+2. Click **Humanize** in the bottom status bar or press `Ctrl/Cmd + Shift + R`.
+   - **Quota rule**: On the Free plan, the button notes **(uses 1 AI message)**; when the system determines that the run produced no substantive output and refunds the message, it is not counted toward today's allowance. Pro includes unlimited daily AI messages.
+3. Once the rewrite finishes, the editor opens **Diff Review** so you can inspect every change before it touches your manuscript.
+4. If a temporary model or matching failure occurs, your original text stays untouched and a banner appears above the status bar—click **Try again** on the banner to re-run Humanize on the same selection.
+
+## 4. Diff Review mode
+
+After **Humanize** finishes or when a concurrent-edit comparison opens, the editor enters a side-by-side split view:
+
+- **Split comparison**: The left pane shows **Original** and the right pane shows **Modified**, while the top toolbar summarizes the number of deletions and additions.
+- **Per-change actions**: On each change card, click `✓` to accept the change, `✗` to reject it (keeping your original text), or the reset icon to undo your decision.
+- **Batch actions and shortcuts**:
+  - Click **Accept All** (`Shift + Y`) to accept every change;
+  - Click **Reject All** (`Shift + N`) to keep all original text;
+  - Click **Finish Review** (`Enter`) to save the reviewed text and record a version (if you reject every change in a Humanize review, exiting leaves the file untouched without creating an extra version);
+  - Press `Esc` to reject all changes and exit review immediately.
