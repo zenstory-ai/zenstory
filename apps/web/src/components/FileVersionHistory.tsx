@@ -23,6 +23,7 @@ import type { FileVersion, VersionComparison } from "../types";
 import { DiffViewer } from "./DiffViewer";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
+import { Badge } from "./ui/Badge";
 import { IconButton } from "./ui/IconButton";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { logger } from "../lib/logger";
@@ -52,7 +53,6 @@ interface VersionRowWrapperProps {
   onRollback: (versionNumber: number) => void;
   getChangeTypeIcon: (changeType: string, changeSource: string) => React.ReactNode;
   getChangeTypeLabel: (changeType: string, changeSource: string) => string;
-  getChangeTypeBadgeClass: (changeType: string, changeSource: string) => string;
 }
 
 export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
@@ -328,19 +328,6 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     return t(typeMap[changeType] ?? 'types.edited');
   };
 
-  const getChangeTypeBadgeClass = (changeType: string, changeSource: string) => {
-    if (changeSource === "ai") {
-      return "badge-primary";
-    }
-    if (changeType === "restore") {
-      return "badge-warning";
-    }
-    if (changeType === "create") {
-      return "badge-success";
-    }
-    return "badge";
-  };
-
   // VersionRow component for rendering version items
   const VersionRowWrapper: React.FC<VersionRowWrapperProps> = ({
     index,
@@ -353,7 +340,6 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     onRollback,
     getChangeTypeIcon,
     getChangeTypeLabel,
-    getChangeTypeBadgeClass,
   }) => {
     const version = versions[index];
     const summaryText = describeVersionSummary(version.change_summary, t);
@@ -361,10 +347,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     return (
       <div
         tabIndex={0}
-        className={`p-3 hover:bg-[hsl(var(--bg-tertiary))] cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${
+        className={`px-4 py-3 border-l-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] ${
           selectedVersions.includes(version.version_number)
-            ? "bg-[hsl(var(--accent-primary)/0.1)] border-l-2 border-l-[hsl(var(--accent-primary))]"
-            : ""
+            ? "bg-[hsl(var(--accent-primary)/0.1)] border-l-[hsl(var(--accent-primary))]"
+            : "border-l-transparent hover:bg-[hsl(var(--bg-tertiary))]"
         }`}
         onClick={() => onSelectVersion(version.version_number)}
         onKeyDown={(e) => {
@@ -374,32 +360,28 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           }
         }}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            {getChangeTypeIcon(
-              version.change_type,
-              version.change_source
-            )}
-            <span className="font-medium text-[hsl(var(--text-primary))]">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 py-1">
+            <span className="text-sm font-semibold text-[hsl(var(--text-primary))]">
               v{version.version_number}
             </span>
-            <span className={getChangeTypeBadgeClass(version.change_type, version.change_source)}>
+            <Badge icon={getChangeTypeIcon(version.change_type, version.change_source)} className="whitespace-nowrap">
               {getChangeTypeLabel(version.change_type, version.change_source)}
-            </span>
+            </Badge>
             {currentVersionNumber !== null && version.version_number === currentVersionNumber && (
-              <span className="badge-success">
+              <Badge variant="success" className="whitespace-nowrap">
                 {t('currentText')}
-              </span>
+              </Badge>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <IconButton
               onClick={(e) => {
                 e.stopPropagation();
                 onViewContent(version.version_number);
               }}
               label={t('viewContent')}
-              icon={<FileText size={14} />}
+              icon={<FileText size={16} />}
             />
             <IconButton
               onClick={(e) => {
@@ -407,29 +389,29 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                 onRollback(version.version_number);
               }}
               label={t('rollback')}
-              icon={<RotateCcw size={14} />}
+              icon={<RotateCcw size={16} />}
               disabled={isRollingBack}
             />
           </div>
         </div>
 
-        <div className="mt-1 flex items-center gap-3 text-xs text-[hsl(var(--text-secondary))]">
-          <span className="flex items-center gap-1">
-            <Clock size={12} />
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[hsl(var(--text-secondary))]">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <Clock size={12} className="shrink-0" />
             {formatRelativeTime(version.created_at)}
           </span>
-          <span>{t('wordCount', { count: version.word_count })}</span>
+          <span className="whitespace-nowrap">{t('wordCount', { count: version.word_count })}</span>
           {(version.lines_added > 0 ||
             version.lines_removed > 0) && (
-            <span className="flex items-center gap-1">
+            <span className="inline-flex flex-wrap items-center gap-2">
               {version.lines_added > 0 && (
-                <span className="text-[hsl(var(--success-text))] flex items-center">
+                <span className="text-[hsl(var(--success-text))] inline-flex items-center whitespace-nowrap">
                   <Plus size={12} />
                   {t('linesAdded', { count: version.lines_added })}
                 </span>
               )}
               {version.lines_removed > 0 && (
-                <span className="text-[hsl(var(--error-text))] flex items-center">
+                <span className="text-[hsl(var(--error-text))] inline-flex items-center whitespace-nowrap">
                   <Minus size={12} />
                   {t('linesRemoved', { count: version.lines_removed })}
                 </span>
@@ -439,7 +421,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         </div>
 
         {summaryText && (
-          <div className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
+          <div className="mt-2 break-words text-xs text-[hsl(var(--text-secondary))]">
             {summaryText}
           </div>
         )}
@@ -453,17 +435,19 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         open={true}
         onClose={handleClose}
         size="xl"
-        className="h-[min(80vh,720px)] p-0 overflow-hidden"
+        className={`${showComparison || preview ? 'h-[min(80vh,720px)]' : 'max-h-[min(80vh,720px)]'} p-0 overflow-hidden`}
         bodyClassName="p-0 flex flex-col overflow-hidden"
         ariaLabel={`${t('title')} - ${fileTitle}`}
         showCloseButton={false}
       >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-[hsl(var(--border-color))] flex items-center justify-between bg-[hsl(var(--bg-secondary))]">
-        <div className="flex items-center gap-2">
-          <History size={18} className="text-[hsl(var(--text-secondary))]" />
-          <h2 className="font-medium text-[hsl(var(--text-primary))]">{t('title')}</h2>
-          <span className="text-sm text-[hsl(var(--text-secondary))]">- {fileTitle}</span>
+      <div className="px-4 py-4 shrink-0 border-b border-[hsl(var(--border-color))] flex items-start justify-between gap-3 bg-[hsl(var(--bg-secondary))]">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <History size={18} className="shrink-0 text-[hsl(var(--text-secondary))]" />
+            <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t('title')}</h2>
+          </div>
+          <p className="mt-1 break-words text-sm text-[hsl(var(--text-secondary))]">{fileTitle}</p>
         </div>
         <IconButton
           onClick={handleClose}
@@ -475,13 +459,13 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
 
       {/* Toolbar */}
       {total > 0 && (
-      <div className="px-4 py-2 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-[hsl(var(--text-secondary))]">
+      <div className="px-4 py-2 shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[hsl(var(--text-secondary))]">
             {t('totalVersions', { count: total })}
           </span>
           {selectedVersions.length > 0 && (
-            <span className="text-sm text-[hsl(var(--accent-primary))]">
+            <span className="text-xs text-[hsl(var(--accent-primary))]">
               {t('selectedVersions', { count: selectedVersions.length })}
             </span>
           )}
@@ -555,7 +539,6 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                   onRollback={handleRollback}
                   getChangeTypeIcon={getChangeTypeIcon}
                   getChangeTypeLabel={getChangeTypeLabel}
-                  getChangeTypeBadgeClass={getChangeTypeBadgeClass}
                 />
               ))}
               {versions.length < total && (
