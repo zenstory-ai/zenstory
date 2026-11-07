@@ -21,7 +21,6 @@ import {
  *
  * Backend API Reference: apps/server/api/versions.py
  * Frontend Components:
- * - apps/web/src/components/VersionHistoryPanel.tsx (project-level snapshots)
  * - apps/web/src/components/FileVersionHistory.tsx (file-level versions)
  */
 

@@ -40,7 +40,7 @@ Edit the title in the editor and save. There is no direct type-conversion interf
 
 ### Is there a trash for deleted work?
 
-There is no user-facing file or project trash. An existing project snapshot may contain earlier files, but restoring it affects other files too. Inspect [history](../user-guide/version-history.md) first; do not test recovery by deleting work.
+There is no user-facing file or project trash, and deleted files cannot be restored from [history](../user-guide/version-history.md). Do not test recovery by deleting work.
 
 ### Does export include the whole project?
 

@@ -162,7 +162,6 @@ vi.mock('../../lib/subscriptionApi', () => ({
 
 vi.mock('../../lib/api', () => ({
   fileVersionApi: {},
-  versionApi: {},
   projectApi: { getProgress: vi.fn(async () => []) },
 }))
 

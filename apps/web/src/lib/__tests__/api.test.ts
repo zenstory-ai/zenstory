@@ -51,7 +51,6 @@ import {
   authApi,
   projectApi,
   fileApi,
-  versionApi,
   fileVersionApi,
   exportApi,
   exportFilenameIncludesOutline,
@@ -638,95 +637,6 @@ describe('api', () => {
           })
         )
         expect(analyticsMocks.captureExceptionMock).toHaveBeenCalledTimes(1)
-      })
-    })
-  })
-
-  describe('versionApi', () => {
-    describe('getSnapshots', () => {
-      it('fetches snapshots for project', async () => {
-        const mockSnapshots = [{ id: '1', project_id: 'p1' }]
-        mockApi.get.mockResolvedValue(mockSnapshots)
-
-        const result = await versionApi.getSnapshots('p1')
-
-        expect(result).toEqual(mockSnapshots)
-        expect(mockApi.get).toHaveBeenCalledWith('/api/v1/projects/p1/snapshots')
-      })
-
-      it('filters by file_id', async () => {
-        mockApi.get.mockResolvedValue([])
-
-        await versionApi.getSnapshots('p1', { fileId: 'f1' })
-
-        expect(mockApi.get).toHaveBeenCalledWith(
-          '/api/v1/projects/p1/snapshots?file_id=f1'
-        )
-      })
-
-      it('filters by limit', async () => {
-        mockApi.get.mockResolvedValue([])
-
-        await versionApi.getSnapshots('p1', { limit: 10 })
-
-        expect(mockApi.get).toHaveBeenCalledWith(
-          '/api/v1/projects/p1/snapshots?limit=10'
-        )
-      })
-
-      it('passes the offset for older snapshot pages', async () => {
-        mockApi.get.mockResolvedValue([])
-        await versionApi.getSnapshots('p1', { fileId: 'f1', limit: 50, offset: 50 })
-        expect(mockApi.get).toHaveBeenCalledWith('/api/v1/projects/p1/snapshots?file_id=f1&limit=50&offset=50')
-      })
-    })
-
-    describe('createSnapshot', () => {
-      it('creates snapshot', async () => {
-        const mockResponse = { id: '1', project_id: 'p1' }
-        mockApi.post.mockResolvedValue(mockResponse)
-
-        const result = await versionApi.createSnapshot('p1', {
-          description: 'Test snapshot',
-        })
-
-        expect(result).toEqual(mockResponse)
-        expect(mockApi.post).toHaveBeenCalledWith(
-          '/api/v1/projects/p1/snapshots',
-          expect.objectContaining({ description: 'Test snapshot' })
-        )
-      })
-    })
-
-    describe('compare', () => {
-      it('compares two snapshots', async () => {
-        const mockComparison = {
-          snapshot1: { id: 's1' },
-          snapshot2: { id: 's2' },
-          changes: { added: [], removed: [], modified: [] },
-        }
-        mockApi.get.mockResolvedValue(mockComparison)
-
-        const result = await versionApi.compare('s1', 's2')
-
-        expect(result).toEqual(mockComparison)
-        expect(mockApi.get).toHaveBeenCalledWith(
-          '/api/v1/snapshots/s1/compare/s2'
-        )
-      })
-    })
-
-    describe('rollback', () => {
-      it('rolls back to snapshot', async () => {
-        const mockResponse = { message: 'Rollback successful' }
-        mockApi.post.mockResolvedValue(mockResponse)
-
-        const result = await versionApi.rollback('s1')
-
-        expect(result).toEqual(mockResponse)
-        expect(mockApi.post).toHaveBeenCalledWith(
-          '/api/v1/snapshots/s1/rollback'
-        )
       })
     })
   })

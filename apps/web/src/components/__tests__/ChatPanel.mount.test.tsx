@@ -193,7 +193,6 @@ const streamCallbacks = {
 }
 
 const mockGetStreamCallbacks = vi.fn((_deps: {
-  getLatestUserRequest?: () => string | null | undefined
   onProjectRenamed?: (projectId: string) => void
 }) => streamCallbacks)
 
@@ -258,7 +257,6 @@ vi.mock('../../lib/agentApi', () => ({
 
 vi.mock('../../lib/api', () => ({
   fileVersionApi: { rollback: mockRollback },
-  versionApi: {},
   projectApi: { getProgress: mockGetProgress },
   fileApi: { get: mockGetFile },
 }))
@@ -2583,8 +2581,6 @@ describe('ChatPanel new-author flow', () => {
     await waitFor(() => {
       expect(lastMessageListProps().messages?.map((m) => [m.role, m.content])).toEqual([['user', idea]])
     })
-    // The automatic snapshot after this round is described with the author's words.
-    expect(mockGetStreamCallbacks.mock.calls.at(-1)?.[0].getLatestUserRequest?.()).toBe(idea)
   })
 
 

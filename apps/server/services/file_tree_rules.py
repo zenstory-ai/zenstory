@@ -58,12 +58,12 @@ def begin_file_creation_savepoint(session: Session) -> SessionTransaction:
 
 
 def lock_project_for_files(
-    session: Session, project_id: str, *, rollback: bool = False, exclusive: bool = False
+    session: Session, project_id: str, *, exclusive: bool = False
 ) -> Project | None:
-    """Hold the tree/snapshot gate until the caller ends its transaction.
+    """Hold the file-tree gate until the caller ends its transaction.
 
-    Creators/reorder share this gate; rollback and graph/deletion writers exclude
-    them but remain compatible with ordinary version writers' FK KEY SHARE.
+    Creators/reorder share this gate; graph/deletion writers exclude them but
+    remain compatible with ordinary version writers' FK KEY SHARE.
     Acquire before validation or mutations. This does not provide a SQLite
     cross-process project lock, nor replace the caller's authorization checks.
     """
@@ -71,8 +71,7 @@ def lock_project_for_files(
 
     query = select(Project).where(Project.id == project_id)
     if is_postgres:
-        strong = rollback or exclusive
-        query = query.with_for_update(read=not strong, key_share=strong)
+        query = query.with_for_update(read=not exclusive, key_share=exclusive)
     return session.exec(query.execution_options(populate_existing=True)).first()
 
 

@@ -10,20 +10,17 @@
  * - parseUTCDate() ensures these strings are correctly interpreted as UTC
  * - Formatting functions use i18n for localized output in user's language
  * - Relative time formatting (e.g., "5 minutes ago") for recent timestamps
- * - Full date formatting for older timestamps
+ * - Short date formatting for older timestamps
  *
  * Usage:
  * ```ts
- * import { parseUTCDate, formatRelativeTime, formatFullDate } from '../lib/dateUtils';
+ * import { parseUTCDate, formatRelativeTime } from '../lib/dateUtils';
  *
  * // Parse UTC string from backend
  * const localDate = parseUTCDate('2024-01-12T10:00:00');
  *
  * // Show relative time for recent items
  * const relative = formatRelativeTime(utcString); // "5 分钟前" or "5 minutes ago"
- *
- * // Show full date for detailed display
- * const full = formatFullDate(utcString); // "2024/01/12 10:30"
  * ```
  *
  * @module lib/dateUtils
@@ -152,81 +149,6 @@ export function formatRelativeTime(dateString: string, now: Date = new Date()): 
   return date.toLocaleDateString(getLocaleCode(), {
     month: "short",
     day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/**
- * Format a UTC datetime string to full date with year.
- *
- * Produces a complete localized date/time string including year,
- * suitable for file timestamps, version history, and detailed views.
- *
- * @param dateString - UTC datetime string from backend
- * @returns Formatted date string (e.g., "2024/01/12 10:30" or "01/12/2024, 10:30 AM")
- *
- * @example
- * ```ts
- * formatFullDate('2024-01-12T10:30:00');
- * // Returns: "2024/01/12 10:30" (zh) or "01/12/2024, 10:30 AM" (en)
- * ```
- */
-export function formatFullDate(dateString: string): string {
-  const date = parseUTCDate(dateString);
-  return date.toLocaleDateString(getLocaleCode(), {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/**
- * Format a UTC datetime string to relative time with full date fallback for older items.
- *
- * Combination of formatRelativeTime and formatFullDate behavior.
- * Shows relative time for recent items (within 7 days) and full date with year
- * for older items. This is useful for lists where you want readable timestamps
- * but also need the year for context on older entries.
- *
- * Time thresholds:
- * - < 1 minute: "刚刚" (just now)
- * - < 60 minutes: "X 分钟前" (X minutes ago)
- * - < 24 hours: "X 小时前" (X hours ago)
- * - < 7 days: "X 天前" (X days ago)
- * - >= 7 days: Full date with year (e.g., "2024/01/01 10:30")
- *
- * @param dateString - UTC datetime string from backend
- * @returns Formatted time string with relative or full date format
- *
- * @example
- * ```ts
- * // Recent item (2 hours ago)
- * formatRelativeTimeWithYear('2024-01-12T08:00:00'); // "2 小时前"
- *
- * // Older item (more than 7 days)
- * formatRelativeTimeWithYear('2024-01-01T10:00:00'); // "2024/01/01 10:00"
- * ```
- */
-export function formatRelativeTimeWithYear(dateString: string): string {
-  const date = parseUTCDate(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return i18n.t('relativeTime.justNow');
-  if (diffMins < 60) return i18n.t('relativeTime.minutesAgo', { count: diffMins });
-  if (diffHours < 24) return i18n.t('relativeTime.hoursAgo', { count: diffHours });
-  if (diffDays < 7) return i18n.t('relativeTime.daysAgo', { count: diffDays });
-
-  return date.toLocaleDateString(getLocaleCode(), {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });

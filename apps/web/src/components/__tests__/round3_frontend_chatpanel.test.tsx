@@ -222,7 +222,6 @@ vi.mock('../../lib/api', () => ({
     getVersions: getVersionsMock,
     rollback: rollbackMock,
   },
-  versionApi: {},
 }))
 
 const undoneEditsSeen = vi.hoisted(() => vi.fn<(undone: ReadonlySet<string>) => void>())
@@ -639,7 +638,7 @@ describe('ChatPanel immutable edit undo', () => {
     await waitFor(() => expect(lastUndoneEdits().has(undoneEditKey(target))).toBe(true))
   })
 
-  it('confirms with the file-level undo message, not the snapshot pre-save promise', async () => {
+  it('confirms with the file-level undo message', async () => {
     const confirmMock = vi.fn(() => false)
     vi.stubGlobal('confirm', confirmMock)
     const onUndo = await renderAndGetUndo()
@@ -649,10 +648,9 @@ describe('ChatPanel immutable edit undo', () => {
     })
 
     // File rollback does not save the current text first, so the undo confirm
-    // must not reuse the snapshot copy that promises a way back.
+    // has its own copy and uses the in-app dialog.
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('editor:versionHistory.confirmUndoAIEdit')
-    expect(dialog).not.toHaveTextContent('editor:versionHistory.confirmRollback')
     expect(confirmMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'common:cancel' }))

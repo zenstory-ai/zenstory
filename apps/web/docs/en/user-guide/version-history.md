@@ -1,13 +1,10 @@
 # Version history
 
-Use history to read older prose, compare changes, or restore content. Choose the scope first: a sentence, a file, or the whole project.
+Use history to read older prose, compare changes, or restore content. Choose the scope first: a sentence or a file.
 
-## File history and project snapshots
+## File history
 
-| Entry | Scope | Useful for |
-| --- | --- | --- |
-| History in the editor | Retained versions of one file | Read, compare, or restore a file |
-| Project history in the header | Project file state at a moment | Compare file changes or restore a project |
+History in the editor keeps versions of one file: read, compare, or restore it. Restoring affects only that file; it does not bring back deleted files or the folder structure.
 
 Consecutive manual saves close together may share one history version, including small edits. The allowance counts manual versions; AI changes and system backups do not use it. A full allowance still permits merging into an existing version. If merging is unavailable, your text is saved without adding a version.
 
@@ -26,14 +23,6 @@ To recover one sentence, copy it from the old text, close history, paste it into
 Select a version, choose Restore, and confirm. Restoration replaces current prose; resolve unsaved changes first.
 
 Before replacement, the server retains a backup of current prose that has not entered history. If that backup fails, restoration is cancelled. Check prose and history afterward. History still does not replace separate copies of important originals.
-
-## Compare and restore a project
-
-Project comparison lists added, removed, and changed files with version numbers. For precise wording, open the corresponding file history.
-
-Project restoration affects multiple files. It can restore titles, locations, and content, and remove later files absent from the target snapshot. The server creates a pre-rollback snapshot before restoring.
-
-Check the affected files and retain later text you need first. To recover one file, use file restoration instead of project rollback.
 
 ## When text is missing from history
 

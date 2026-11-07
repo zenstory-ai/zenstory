@@ -8,7 +8,6 @@ Module codes:
 - 3xxx: Project errors
 - 4xxx: File errors
 - 5xxx: Version errors
-- 6xxx: Snapshot errors
 - 7xxx: Export errors
 - 8xxx: Chat errors
 - 9xxx: Voice errors
@@ -57,9 +56,6 @@ class ErrorCode:
     AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS = "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS"
     NOT_AUTHORIZED = "ERR_NOT_AUTHORIZED"
     NOT_AUTHORIZED_TO_EXPORT = "ERR_NOT_AUTHORIZED_TO_EXPORT"
-    NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT = "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT"
-    NOT_AUTHORIZED_TO_ACCESS_FIRST_SNAPSHOT = "ERR_NOT_AUTHORIZED_TO_ACCESS_FIRST_SNAPSHOT"
-    NOT_AUTHORIZED_TO_ACCESS_SECOND_SNAPSHOT = "ERR_NOT_AUTHORIZED_TO_ACCESS_SECOND_SNAPSHOT"
 
     # ==================== Project Errors (3000-3999) ====================
 
@@ -105,15 +101,6 @@ class ErrorCode:
     VERSION_NO_VERSIONS_FOUND = "ERR_VERSION_NO_VERSIONS_FOUND"
     VERSION_DELETE_FAILED = "ERR_VERSION_DELETE_FAILED"
     VERSION_RESTORE_FAILED = "ERR_VERSION_RESTORE_FAILED"
-
-    # ==================== Snapshot Errors (6000-6999) ====================
-
-    SNAPSHOT_NOT_FOUND = "ERR_SNAPSHOT_NOT_FOUND"
-    SNAPSHOT_ONE_OR_BOTH_NOT_FOUND = "ERR_SNAPSHOT_ONE_OR_BOTH_NOT_FOUND"
-    SNAPSHOT_FIRST_NOT_FOUND = "ERR_SNAPSHOT_FIRST_NOT_FOUND"
-    SNAPSHOT_SECOND_NOT_FOUND = "ERR_SNAPSHOT_SECOND_NOT_FOUND"
-    SNAPSHOT_DIFF_FAILED = "ERR_SNAPSHOT_DIFF_FAILED"
-    SNAPSHOT_CREATE_FAILED = "ERR_SNAPSHOT_CREATE_FAILED"
 
     # ==================== Export Errors (7000-7999) ====================
 
@@ -241,9 +228,6 @@ ERROR_MESSAGES = {
         "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "操作太频繁了，请过几分钟再试",
         "ERR_NOT_AUTHORIZED": "您没有权限执行此操作",
         "ERR_NOT_AUTHORIZED_TO_EXPORT": "您没有权限导出此项目",
-        "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT": "您没有权限访问此快照",
-        "ERR_NOT_AUTHORIZED_TO_ACCESS_FIRST_SNAPSHOT": "您没有权限访问第一个快照",
-        "ERR_NOT_AUTHORIZED_TO_ACCESS_SECOND_SNAPSHOT": "您没有权限访问第二个快照",
 
         "ERR_PROJECT_NOT_FOUND": "项目不存在",
         "ERR_PROJECT_ALREADY_EXISTS": "项目已存在",
@@ -275,13 +259,6 @@ ERROR_MESSAGES = {
         "ERR_VERSION_NO_VERSIONS_FOUND": "未找到文件的版本",
         "ERR_VERSION_DELETE_FAILED": "删除版本失败",
         "ERR_VERSION_RESTORE_FAILED": "恢复版本失败",
-
-        "ERR_SNAPSHOT_NOT_FOUND": "快照不存在",
-        "ERR_SNAPSHOT_ONE_OR_BOTH_NOT_FOUND": "未找到快照",
-        "ERR_SNAPSHOT_FIRST_NOT_FOUND": "未找到第一个快照",
-        "ERR_SNAPSHOT_SECOND_NOT_FOUND": "未找到第二个快照",
-        "ERR_SNAPSHOT_DIFF_FAILED": "比较快照失败",
-        "ERR_SNAPSHOT_CREATE_FAILED": "创建快照失败",
 
         "ERR_EXPORT_NO_DRAFTS": "此项目中没有草稿",
 
@@ -380,9 +357,6 @@ ERROR_MESSAGES = {
         "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "Too many tries. Please wait a few minutes and try again.",
         "ERR_NOT_AUTHORIZED": "You are not authorized to perform this action",
         "ERR_NOT_AUTHORIZED_TO_EXPORT": "You are not authorized to export this project",
-        "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT": "You are not authorized to access this snapshot",
-        "ERR_NOT_AUTHORIZED_TO_ACCESS_FIRST_SNAPSHOT": "You are not authorized to access the first snapshot",
-        "ERR_NOT_AUTHORIZED_TO_ACCESS_SECOND_SNAPSHOT": "You are not authorized to access the second snapshot",
 
         "ERR_PROJECT_NOT_FOUND": "Project not found",
         "ERR_PROJECT_ALREADY_EXISTS": "Project already exists",
@@ -414,13 +388,6 @@ ERROR_MESSAGES = {
         "ERR_VERSION_NO_VERSIONS_FOUND": "No versions found for this file",
         "ERR_VERSION_DELETE_FAILED": "Failed to delete version",
         "ERR_VERSION_RESTORE_FAILED": "Failed to restore version",
-
-        "ERR_SNAPSHOT_NOT_FOUND": "Snapshot not found",
-        "ERR_SNAPSHOT_ONE_OR_BOTH_NOT_FOUND": "One or both snapshots not found",
-        "ERR_SNAPSHOT_FIRST_NOT_FOUND": "First snapshot not found",
-        "ERR_SNAPSHOT_SECOND_NOT_FOUND": "Second snapshot not found",
-        "ERR_SNAPSHOT_DIFF_FAILED": "Failed to compare snapshots",
-        "ERR_SNAPSHOT_CREATE_FAILED": "Failed to create snapshot",
 
         "ERR_EXPORT_NO_DRAFTS": "No drafts found in this project",
 

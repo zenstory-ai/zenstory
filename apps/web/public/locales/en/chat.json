@@ -122,8 +122,6 @@
   },
   "message": {
     "aiEdit": "AI Edit: {{files}}{{extra}}",
-    "aiDone": "AI Chat Finished",
-    "snapshotAfterAiEdit": "After AI edit: {{request}}",
     "aiConversationAt": "AI Assistant Conversation - {{time}}"
   },
   "context": {

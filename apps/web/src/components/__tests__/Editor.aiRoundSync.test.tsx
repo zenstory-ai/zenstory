@@ -107,7 +107,6 @@ function Harness({ initialSelection = true }: { initialSelection?: boolean }) {
       getCurrentStreamingFileId: () => streamingRef.current,
       enterDiffReview: project.enterDiffReview,
       activeProjectId: project.currentProjectId,
-      createSnapshot: async () => ({}),
       t: (key: string) => key,
     });
   });

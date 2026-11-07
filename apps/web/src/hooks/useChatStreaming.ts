@@ -431,7 +431,7 @@ export interface UseChatStreamingOptions {
     segments: MessageSegment[],
     applyAction: ApplyAction | null,
     completionMeta?: StreamCompletionMeta,
-  ) => void | Promise<void>;
+  ) => void;
 
   /** Called when an error occurs during streaming */
   onError?: (message?: string, code?: string, retryable?: boolean) => void;
@@ -468,22 +468,8 @@ export interface UseChatStreamingDependencies {
   getCurrentStreamingFileId?: () => string | null;
   /** Function to enter diff review mode */
   enterDiffReview: (fileId: string, originalContent: string, newContent: string) => void;
-  /** Active UI project ID for snapshot creation */
+  /** Active UI project ID; scopes file checks during the stream */
   activeProjectId: string | null;
-  /** Function to create a project snapshot */
-  createSnapshot: (
-    projectId: string,
-    options?: {
-      fileId?: string;
-      description?: string;
-      snapshotType?: string;
-    }
-  ) => Promise<unknown>;
-  /**
-   * Returns the author's own wording for the current round (the message that
-   * started it). Used to describe the automatic snapshot taken after AI edits.
-   */
-  getLatestUserRequest?: () => string | null | undefined;
   /**
    * Called when a successful `update_project` reports that the server renamed
    * the project (`project_name_updated: true`, set when the agent gave a
@@ -491,28 +477,9 @@ export interface UseChatStreamingDependencies {
    * project so the header shows the new name.
    */
   onProjectRenamed?: (projectId: string) => void;
-  /** Translation function for generating snapshot descriptions */
+  /** Translation function for stream status text */
   t: (key: string, options?: Record<string, unknown>) => string;
 }
-
-/** Maximum characters of the author's request quoted in a snapshot description. */
-const SNAPSHOT_REQUEST_PREVIEW_CHARS = 24;
-
-/**
- * One-line preview of the author's request for a snapshot description:
- * line breaks removed, first 24 characters, "…" when cut.
- */
-export const buildSnapshotRequestPreview = (request: string | null | undefined): string => {
-  // Drop line breaks; keep a space only between two Latin letters/digits so English words don't merge.
-  const singleLine = (request ?? "")
-    .trim()
-    .replace(/([A-Za-z0-9]?)\s*[\r\n]+\s*([A-Za-z0-9]?)/g, (_m, before: string, after: string) =>
-      before && after ? `${before} ${after}` : `${before}${after}`,
-    );
-  const chars = Array.from(singleLine);
-  if (chars.length <= SNAPSHOT_REQUEST_PREVIEW_CHARS) return singleLine;
-  return `${chars.slice(0, SNAPSHOT_REQUEST_PREVIEW_CHARS).join("")}…`;
-};
 
 /**
  * Return type for the useChatStreaming hook.
@@ -803,8 +770,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
         getCurrentStreamingFileId,
         enterDiffReview,
         activeProjectId,
-        createSnapshot,
-        getLatestUserRequest,
         onProjectRenamed,
         t,
       } = deps;
@@ -1627,9 +1592,9 @@ export function useChatStreaming(): UseChatStreamingReturn {
 
         /**
          * Called when streaming completes successfully.
-         * Handles cleanup, snapshot creation, and external callback invocation.
+         * Handles cleanup and the final refresh of the open file.
          */
-        onComplete: async (
+        onComplete: (
           segments: MessageSegment[],
           _applyAction: ApplyAction | null,
           completionMeta?: StreamCompletionMeta,
@@ -1665,26 +1630,6 @@ export function useChatStreaming(): UseChatStreamingReturn {
           // 服务端版本，保证编辑器停在本轮最后一次写入之后。
           if (roundWroteFilesRef.current || completionMeta?.confirmedFileMutation === true) {
             refreshOpenFileFromServer();
-          }
-
-          if (
-            completionMeta?.partial !== true &&
-            completionMeta?.confirmedFileMutation === true &&
-            activeProjectId
-          ) {
-            // 快照列表里一排「AI 对话完成」分不出哪次是哪次，用作者这一轮的原话来区分。
-            const requestPreview = buildSnapshotRequestPreview(getLatestUserRequest?.());
-            try {
-              await createSnapshot(activeProjectId, {
-                description: requestPreview
-                  ? t("chat:message.snapshotAfterAiEdit", { request: requestPreview })
-                  : t("chat:message.aiDone"),
-                snapshotType: "auto",
-              });
-            } catch (err) {
-              // Snapshot creation is non-critical, log but don't throw
-              logger.error("Failed to create snapshot:", err);
-            }
           }
         },
 

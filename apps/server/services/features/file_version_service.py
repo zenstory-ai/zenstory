@@ -139,7 +139,7 @@ class FileVersionService:
         # 但「来源」绝不能直接取自请求体：POST /files/{id}/versions 的
         # change_source 是客户端可控字段，若拿它当闸门判据，任何登录用户发一个
         # {"change_source": "ai"} 就能无限建版本。因此判据独立成 quota_source，
-        # 由服务端调用方决定；只有内部调用（agent / snapshot）才允许省略。
+        # 由服务端调用方决定；只有内部调用（agent、系统备份与恢复）才允许省略。
         effective_quota_source = quota_source if quota_source is not None else change_source
         enforce_user_quota = (
             bool(user_id)
@@ -396,6 +396,7 @@ class FileVersionService:
         if current_time - started_at >= timedelta(seconds=window):
             return None
 
+        # Snapshot rows are legacy; this keeps versions they reference from being amended.
         later_snapshot = session.exec(
             select(Snapshot.id)
             .where(

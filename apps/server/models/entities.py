@@ -4,7 +4,7 @@ Database entity models.
 Defines all SQLModel entities for the application:
 - User: User accounts
 - Project: Novel projects
-- Snapshot: Version snapshots
+- Snapshot: Legacy project snapshots (no longer written)
 - ChatSession: AI chat sessions
 - ChatMessage: Chat messages
 """
@@ -122,13 +122,10 @@ class AgentArtifactLedger(SQLModel, table=True):
 
 class Snapshot(SQLModel, table=True):
     """
-    Version snapshot model.
+    Legacy project snapshot model.
 
-    Stores complete project state at a point in time.
-    Types:
-    - auto: Automatic snapshot before AI edits
-    - manual: User-created snapshots
-    - pre_ai_edit: Before AI edit
+    No longer written; existing rows stay for the file-version coalesce guard
+    and the FileVersion.snapshot_id links of old versions.
     """
 
     id: str = Field(default_factory=generate_uuid, primary_key=True)

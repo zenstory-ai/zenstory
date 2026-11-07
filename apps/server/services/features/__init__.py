@@ -5,7 +5,6 @@ Contains business logic services for various features:
 - referral_service: Invite code and referral management
 - verification_service: Email verification
 - file_version_service: File version management
-- snapshot_service: Project snapshots
 - export_service: Project export
 - points_service: Points and check-in management
 """

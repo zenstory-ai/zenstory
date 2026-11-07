@@ -72,7 +72,7 @@ import {
   type MessageFeedbackData,
   type MessageFeedbackVote,
 } from "../lib/chatApi";
-import { fileApi, fileVersionApi, projectApi, versionApi } from "../lib/api";
+import { fileApi, fileVersionApi, projectApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
 import { StarterCards, type ManuscriptStarterKind } from "./StarterCards";
 import { hasPendingInspiration } from "../lib/pendingInspiration";
@@ -584,8 +584,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
-  /** The author's own wording for the current round (used for the auto snapshot description). */
-  const lastUserRequestRef = useRef<string | null>(null);
   const [pendingUndoTarget, setPendingUndoTarget] = useState<FileEditUndoTarget | null>(null);
   const [undoneEdits, setUndoneEdits] = useState<ReadonlySet<string>>(() => new Set());
   const [isUndoing, setIsUndoing] = useState(false);
@@ -671,7 +669,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
   useEffect(() => {
     lastRetryRequestRef.current = null;
-    lastUserRequestRef.current = null;
     blockedCandidateRef.current = null;
   }, [currentProjectId]);
 
@@ -854,12 +851,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       getCurrentStreamingFileId: () => streamingFileIdRef.current,
       enterDiffReview,
       activeProjectId: currentProjectId,
-      createSnapshot: (projectId, options) =>
-        versionApi.createSnapshot(projectId, {
-          description: options?.description,
-          snapshotType: options?.snapshotType,
-        }),
-      getLatestUserRequest: () => lastUserRequestRef.current,
       // update_project 报告服务端给默认名项目改了名：只重读这一个项目，顶栏换上新名字。
       // 不走 refreshProjects——它会打开全局 loading，整个工作台（含本面板）被换成加载页。
       onProjectRenamed: (projectId) => {
@@ -1164,7 +1155,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   /**
    * Handles completion of an AI response stream.
    * Adds message to the messages array and fetches suggestions.
-   * The hook's onComplete handles the rest (snapshot creation, cleanup, etc.).
+   * The hook's onComplete handles the rest (cleanup, final file refresh).
    * Protected against duplicate calls with a ref flag.
    *
    * @param completedSegments - Array of message segments from the completed stream
@@ -1256,8 +1247,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     invalidateQuota();
     if (currentProjectId) void refreshNextStep(currentProjectId);
 
-    // Let the streaming hook finalize cleanup/snapshot work in the background.
-    void streamCallbacks.onComplete(
+    streamCallbacks.onComplete(
       completedSegments,
       applyAction as ApplyAction | null,
       completionMeta,
@@ -1979,7 +1969,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           keepIfBusy: options.keepIfBusy,
         }
       : null;
-    lastUserRequestRef.current = request.message;
     roundQuotaBaselineRef.current =
       queryClient.getQueryData<QuotaResponse>(subscriptionQueryKeys.quota())?.ai_conversations.used ?? null;
     followLatestMessage();
@@ -3186,8 +3175,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       />
 
       {/* Undo an AI edit: the copy is the file-level undo message owned by the editor
-          namespace (not the snapshot "restore" copy), shown in the in-app dialog
-          instead of the browser's native confirm. */}
+          namespace, shown in the in-app dialog instead of the browser's native confirm. */}
       <ConfirmDialog
         open={pendingUndoTarget !== null}
         onClose={handleCloseUndoDialog}

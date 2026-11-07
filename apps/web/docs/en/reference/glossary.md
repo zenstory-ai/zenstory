@@ -39,9 +39,8 @@ See [AI assistant](../user-guide/ai-assistant.md) and [AI Memory](../advanced/ai
 | Local draft | Unsaved text retained in the browser, separate from cloud saving |
 | Save conflict | Server content changed; compare and merge before submitting |
 | File version | A retained historical state of one file |
-| Project snapshot | Project file state and version references at a moment |
 | Diff review | Accept or reject changes between old and proposed text |
-| Restore / Rollback | Replace a file or project with a selected historical state |
+| Restore / Rollback | Replace a file's text with a selected historical version |
 | Export | Download saved drafts and scripts as a TXT, optionally including outlines |
 
 See the [editor](../user-guide/editor.md), [version history](../user-guide/version-history.md), and [export](../user-guide/export.md).

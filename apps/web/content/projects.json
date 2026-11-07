@@ -868,7 +868,7 @@
         ],
         [
           "Can I take the manuscript out of the workbench?",
-          "The [manuscript export guide](https://zenstory.ai/docs/user-guide/export) explains combined TXT from saved draft/script files, chapter ordering and a separate review copy. It is not a backup of characters, materials, chat or history. Use the [version guide](https://zenstory.ai/docs/user-guide/version-history) to distinguish file recovery from project snapshots; keep important originals independently."
+          "The [manuscript export guide](https://zenstory.ai/docs/user-guide/export) explains combined TXT from saved draft/script files, chapter ordering and a separate review copy. It is not a backup of characters, materials, chat or history. Use the [version guide](https://zenstory.ai/docs/user-guide/version-history) to read, compare and restore a file's versions; keep important originals independently."
         ],
         [
           "Will AI Memory keep every character consistent?",
@@ -898,7 +898,7 @@
         ],
         [
           "能把作品带出工作台吗？",
-          "[稿件导出指南](https://zenstory.ai/docs/user-guide/export)说明了怎样把已保存的正文或剧本按章节顺序合并导出为 TXT，以及怎样另存一份送审稿；但导出的 TXT 只含正文，不包含角色卡、素材库、聊天记录和版本历史，不能代替完整备份。[版本指南](https://zenstory.ai/docs/user-guide/version-history)区分了单文件历史恢复与全项目快照，重要书稿仍建议在本地独立留存备份。"
+          "[稿件导出指南](https://zenstory.ai/docs/user-guide/export)说明了怎样把已保存的正文或剧本按章节顺序合并导出为 TXT，以及怎样另存一份送审稿；但导出的 TXT 只含正文，不包含角色卡、素材库、聊天记录和版本历史，不能代替完整备份。[版本指南](https://zenstory.ai/docs/user-guide/version-history)说明了如何查看、比较和恢复单个文件的版本，重要书稿仍建议在本地独立留存备份。"
         ],
         [
           "AI 记忆能保证长篇不崩人设吗？",
@@ -916,12 +916,12 @@
     },
     "distinctive": {
       "en": [
-        "Saved files support version comparison and recovery, and the whole project can be snapshotted. New version entries depend on the save type, plan quota and coalescing of consecutive manual saves.",
+        "Saved files support version comparison and recovery. New version entries depend on the save type, plan quota and coalescing of consecutive manual saves.",
         "Under the privacy policy, your writing is not used to train general models by default; AI processing is done by third-party model services, as the policy describes.",
         "ZenStory Workbench needs no agent skill pack, only a browser; self-hosting means configuring the backend and model services yourself."
       ],
       "zh": [
-        "已保存文件支持版本对比与恢复，整个项目也能拍快照。是否新增版本记录取决于保存来源、套餐配额，以及连续手动保存是否合并。",
+        "已保存文件支持版本对比与恢复。是否新增版本记录取决于保存来源、套餐配额，以及连续手动保存是否合并。",
         "按隐私政策，你的作品默认不会用于训练通用模型；AI 处理由第三方模型服务完成，详见隐私政策。",
         "ZenStory 工作台不用装 Agent skill 包，打开浏览器就能写；自托管需要自己配置后端和模型服务。"
       ]

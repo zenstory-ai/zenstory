@@ -53,7 +53,7 @@ raise HTTPException(status_code=404, detail="Project not found")
 
 ## 错误码与翻译
 
-错误码是 `ERR_...` 字符串，覆盖通用错误、鉴权、项目、文件、版本、快照、导出、聊天、语音、订阅、配额、兑换、积分和 Agent 流。新增错误时在 `ErrorCode` 中声明，并维护对应消息：
+错误码是 `ERR_...` 字符串，覆盖通用错误、鉴权、项目、文件、版本、导出、聊天、语音、订阅、配额、兑换、积分和 Agent 流。新增错误时在 `ErrorCode` 中声明，并维护对应消息：
 
 ```python
 # 认证错误

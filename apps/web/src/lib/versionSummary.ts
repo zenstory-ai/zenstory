@@ -1,13 +1,13 @@
 /**
  * Human-readable labels for the machine-written summaries stored on file
- * versions and project snapshots.
+ * versions.
  *
  * The server and the agent record stable English (and some Chinese) markers
  * such as "Before restoring version 3", "Before rollback to snapshot <uuid>"
  * or "AI 编辑: 替换、追加". Showing them verbatim put English, Chinese and raw
- * UUIDs in front of writers regardless of the UI language. The history panels
- * translate the known markers, hide the ones that only repeat the version's
- * type badge, and show anything else (user notes) with ids scrubbed.
+ * UUIDs in front of writers regardless of the UI language. The file history
+ * translates the known markers, hides the ones that only repeat the version's
+ * type badge, and shows anything else (user notes) with ids scrubbed.
  *
  * Keys live under `versions:summary.*`; every inline `defaultValue` equals the
  * zh locale text.
@@ -45,7 +45,7 @@ const describeAiEditCount = (opsText: string, total: string | undefined, t: Tran
 };
 
 /**
- * Returns the line to show under a version or snapshot entry, or null when
+ * Returns the line to show under a version entry, or null when
  * there is nothing worth showing (empty, or it repeats the type badge).
  */
 export function describeVersionSummary(summary: string | null | undefined, t: Translate): string | null {
