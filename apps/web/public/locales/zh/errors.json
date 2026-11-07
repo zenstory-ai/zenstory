@@ -37,9 +37,6 @@
   "ERR_REFERRAL_NOT_FOUND": "没有找到这条邀请记录",
   "ERR_NOT_AUTHORIZED": "你没有权限执行此操作",
   "ERR_NOT_AUTHORIZED_TO_EXPORT": "你没有权限导出这个项目",
-  "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT": "你没有权限查看这个快照",
-  "ERR_NOT_AUTHORIZED_TO_ACCESS_FIRST_SNAPSHOT": "你没有权限查看要对比的快照",
-  "ERR_NOT_AUTHORIZED_TO_ACCESS_SECOND_SNAPSHOT": "你没有权限查看要对比的快照",
 
   "ERR_PROJECT_NOT_FOUND": "项目不存在",
   "ERR_PROJECT_ALREADY_EXISTS": "项目已存在",
@@ -71,13 +68,6 @@
   "ERR_VERSION_NO_VERSIONS_FOUND": "这个文件还没有历史版本",
   "ERR_VERSION_DELETE_FAILED": "删除版本失败，请稍后重试",
   "ERR_VERSION_RESTORE_FAILED": "恢复版本失败，请稍后重试",
-
-  "ERR_SNAPSHOT_NOT_FOUND": "快照不存在",
-  "ERR_SNAPSHOT_ONE_OR_BOTH_NOT_FOUND": "要对比的快照不存在，请刷新后重新选择",
-  "ERR_SNAPSHOT_FIRST_NOT_FOUND": "要对比的快照不存在，请刷新后重新选择",
-  "ERR_SNAPSHOT_SECOND_NOT_FOUND": "要对比的快照不存在，请刷新后重新选择",
-  "ERR_SNAPSHOT_DIFF_FAILED": "比较快照失败，请稍后重试",
-  "ERR_SNAPSHOT_CREATE_FAILED": "创建快照失败，请稍后重试",
 
   "ERR_EXPORT_NO_DRAFTS": "项目里还没有正文，写好正文后再导出",
 

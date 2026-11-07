@@ -32,6 +32,6 @@ Open a character, outline, or draft, select a passage, and choose **Add to chat*
 
 ## Delete
 
-Choose the item's delete control, check its title, and confirm. Deleting a folder affects its contents. There is no separate file-trash interface. An existing project snapshot may include earlier files, but restoring a project can affect other files too.
+Choose the item's delete control, check its title, and confirm. Deleting a folder affects its contents. There is no separate file-trash interface, and deleted files cannot be restored from history.
 
 For one lost passage, inspect [version history](version-history.md) and choose the smallest recovery scope.

@@ -95,7 +95,6 @@ Unused `MaterialViewer` and `UploadNovelModal` components and their orphaned tes
 
 **Well-tested components**:
 - `ThinkingContent.tsx` - 96.33% coverage
-- `VersionHistoryPanel.tsx` - 96.05% coverage
 - `MessageList.tsx` - 75.34% coverage
 - `Editor.tsx` - 73.2% coverage
 - `ToolResultCard.tsx` - 82.15% coverage

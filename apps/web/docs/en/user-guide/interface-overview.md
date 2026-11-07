@@ -25,9 +25,9 @@ Wide screens show the areas side by side, with draggable dividers. On phones, us
 
 ## Project header
 
-Click the project name to switch, create, or rename a project. The header provides manuscript export, project history, settings, and the user menu. On phones, open these through the menu.
+Click the project name to switch, create, or rename a project. The header provides manuscript export, settings, and the user menu. On phones, open these through the menu.
 
-File history is inside the editor; project history is in the header. They restore different scopes. See [version history](version-history.md).
+File history is inside the editor. See [version history](version-history.md).
 
 ## Settings and input
 

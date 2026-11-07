@@ -3,29 +3,52 @@
 import os
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime, timedelta
-from threading import Event
+from io import BytesIO
+from threading import Barrier, Event
+from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import event, text
-from sqlmodel import Session, select
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, SQLModel, select
+from starlette.datastructures import UploadFile
 
 from agent.tools.file_ops import crud as crud_module
 from agent.tools.file_ops.crud import FileCRUD
 from api import agent_api
 from api import files as files_api
+from api.materials import import_ as material_import
+from api.materials.schemas import MaterialImportRequest
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from models import File, Project, User
+from models import File, Project, Snapshot, User, WorkspaceOnboarding
 from models.agent_api_key import AgentApiKey
 from models.file_version import FileVersion
 from services.features.file_version_service import FileVersionService
-from tests.test_services.test_snapshot_concurrency_postgres import pg_engine as pg_engine
+from services.file_tree_rules import lock_project_for_files
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured"
 )
+TABLES = [User.__table__, Project.__table__, File.__table__, Snapshot.__table__, FileVersion.__table__, AgentApiKey.__table__, WorkspaceOnboarding.__table__]
 STAMP = datetime(2026, 10, 6, 8, 0, 0, 123456)
+CREATED_BODY = "Created through the tree gate"
+
+
+@pytest.fixture(scope="module")
+def pg_engine():
+    engine = create_engine(
+        os.environ["ZENSTORY_TEST_POSTGRES_URL"],
+        connect_args={"options": "-c timezone=UTC -c statement_timeout=10000 -c lock_timeout=8000"},
+    )
+    SQLModel.metadata.create_all(engine, tables=TABLES)
+    try:
+        yield engine
+    finally:
+        SQLModel.metadata.drop_all(engine, tables=TABLES)
+        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -452,6 +475,10 @@ def test_recursive_delete_refreshes_descendant_after_content_writer_lock(pg_engi
             session.flush()
             writer_locked.set()
             assert release.wait(8)
+            # The version insert's FK KEY SHARE must stay compatible with the waiting delete's gate.
+            FileVersionService().create_version(
+                session, c_id, child.content, change_source="system", commit=False,
+            )
             session.commit()
 
     def delete():
@@ -498,3 +525,203 @@ def test_combined_parent_content_update_commits_history_under_strong_gate(pg_eng
         versions = verify.exec(select(FileVersion).where(FileVersion.file_id == c_id)).all()
         assert len(versions) == 1 and versions[0].content == "Moved and saved"
         assert verify.get(File, a_id).parent_id is None
+
+
+@pytest.fixture
+def material_stubs(monkeypatch):
+    # Gate tests isolate unrelated material-library decoding/ownership. The
+    # authentic preview/import transaction is covered by the SQLite regressions.
+    monkeypatch.setattr(material_import, "_get_novel_or_404", lambda *_a, **_kw: None)
+    monkeypatch.setattr(material_import, "get_material_preview", lambda **_kw: SimpleNamespace(
+        markdown=CREATED_BODY, suggested_file_name="Concurrent",
+        suggested_file_type="snippet", suggested_folder_name="Materials",
+    ))
+
+
+def _seed_empty_project(engine, suffix):
+    with Session(engine) as session:
+        user = User(
+            username=f"tree-gate-{suffix}", email=f"tree-gate-{suffix}@example.test",
+            hashed_password="unused", email_verified=True,
+        )
+        session.add(user)
+        session.flush()
+        project = Project(name=f"Tree gate {suffix}", owner_id=user.id)
+        session.add(project)
+        session.commit()
+        return user.id, project.id
+
+
+def _create_via(session, entrypoint, user_id, project_id):
+    user = session.get(User, user_id)
+    if entrypoint == "tool-folder":
+        return FileCRUD(session, user_id).create_file(
+            project_id, "Concurrent", content=CREATED_BODY,
+            file_type="draft", parent_id=f"{project_id}-draft-folder",
+        )["id"]
+    if entrypoint == "import":
+        return material_import.import_material(MaterialImportRequest(
+            project_id=project_id, novel_id=1, entity_type="characters", entity_id=1,
+        ), current_user=user, session=session, accept_language="en").file_id
+    upload = UploadFile(filename="concurrent.txt", file=BytesIO(CREATED_BODY.encode()))
+    if entrypoint == "material":
+        return files_api.upload_material(project_id, upload, current_user=user, session=session).id
+    result = files_api.upload_drafts(project_id, [upload], parent_id=None, current_user=user, session=session)
+    assert result.errors == []
+    return result.files[0].id
+
+
+def _take_strong_gate(engine, project_id, pid, started):
+    """Take the exclusive gate, then report the live files visible once it is granted."""
+    with Session(engine) as session:
+        pid.append(session.exec(text("SELECT pg_backend_pid()")).scalar())
+        started.set()
+        lock_project_for_files(session, project_id, exclusive=True)
+        return set(session.exec(select(File.id).where(
+            File.project_id == project_id, File.is_deleted.is_(False),
+        )).all())
+
+
+def _assert_active_with_baseline(session, file_id):
+    file = session.get(File, file_id)
+    assert file.is_deleted is False
+    assert file.content == CREATED_BODY
+    versions = session.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()
+    assert len(versions) == 1
+    assert FileVersionService().get_content_at_version(session, file_id, versions[0].version_number) == CREATED_BODY
+
+
+@pytest.mark.parametrize("entrypoint", ["material", "draft", "import", "tool-folder"])
+def test_create_waits_for_strong_gate_then_remains_active(pg_engine, material_stubs, entrypoint):
+    user_id, project_id = _seed_empty_project(pg_engine, f"wait-{entrypoint}")
+    started, pid = Event(), []
+
+    def create():
+        with Session(pg_engine) as session:
+            pid.append(session.exec(text("SELECT pg_backend_pid()")).scalar())
+            started.set()
+            return _create_via(session, entrypoint, user_id, project_id)
+
+    with Session(pg_engine) as holder, ThreadPoolExecutor(max_workers=1) as pool:
+        lock_project_for_files(holder, project_id, exclusive=True)
+        creator = pool.submit(create)
+        try:
+            assert started.wait(5)
+            waited = _observe_wait(pg_engine, pid[0], creator)
+        finally:
+            holder.commit()
+        created_id = creator.result(10)
+    assert waited, "creation did not wait for the strong tree gate"
+    with Session(pg_engine) as verify:
+        _assert_active_with_baseline(verify, created_id)
+
+
+@pytest.mark.parametrize("entrypoint", ["material", "draft", "tool-folder"])
+def test_canonical_folder_repair_holds_gate_until_content_commit(pg_engine, monkeypatch, entrypoint):
+    user_id, project_id = _seed_empty_project(pg_engine, f"repair-{entrypoint}")
+    folder_ready, finish_create, taker_started = Event(), Event(), Event()
+    pid = []
+
+    def gate_after_folder(original):
+        def wrapped(*args, **kwargs):
+            result = original(*args, **kwargs)
+            folder_ready.set()
+            assert finish_create.wait(8), "creator was not released after folder repair"
+            return result
+        return wrapped
+
+    if entrypoint == "tool-folder":
+        monkeypatch.setattr(FileCRUD, "_normalize_parent_to_folder", gate_after_folder(FileCRUD._normalize_parent_to_folder))
+    else:
+        name = "_ensure_material_folder" if entrypoint == "material" else "_ensure_draft_folder"
+        monkeypatch.setattr(files_api, name, gate_after_folder(getattr(files_api, name)))
+
+    def create():
+        with Session(pg_engine) as session:
+            return _create_via(session, entrypoint, user_id, project_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        creator = pool.submit(create)
+        try:
+            assert folder_ready.wait(5)
+            taker = pool.submit(_take_strong_gate, pg_engine, project_id, pid, taker_started)
+            assert taker_started.wait(5)
+            waited = _observe_wait(pg_engine, pid[0], taker)
+        finally:
+            finish_create.set()
+        created_id = creator.result(10)
+        visible = taker.result(10)
+    assert waited, "folder repair committed and released the logical creation gate"
+    assert created_id in visible, "strong taker was granted the gate before the child committed"
+    with Session(pg_engine) as verify:
+        _assert_active_with_baseline(verify, created_id)
+
+
+@pytest.mark.parametrize("entrypoint", ["material", "draft", "tool-folder"])
+def test_concurrent_canonical_folder_duplicate_preserves_creation_gate(pg_engine, monkeypatch, entrypoint):
+    user_id, project_id = _seed_empty_project(pg_engine, f"duplicate-{entrypoint}")
+    both_missing = Barrier(2)
+    duplicate_ready, finish_duplicate, taker_started = Event(), Event(), Event()
+    pid = []
+    module = crud_module if entrypoint == "tool-folder" else files_api
+    original_savepoint = module.begin_file_creation_savepoint
+
+    @contextmanager
+    def synchronized_savepoint(session):
+        both_missing.wait(timeout=5)
+        try:
+            with original_savepoint(session):
+                yield
+        except IntegrityError:
+            session.info["canonical_duplicate"] = True
+            raise
+
+    monkeypatch.setattr(module, "begin_file_creation_savepoint", synchronized_savepoint)
+
+    def pause_duplicate(session):
+        if session.info.get("canonical_duplicate"):
+            duplicate_ready.set()
+            assert finish_duplicate.wait(8), "duplicate recovery was not released"
+
+    if entrypoint == "tool-folder":
+        original_version = FileCRUD._create_version
+
+        def pause_tool_version(self, *args, **kwargs):
+            result = original_version(self, *args, **kwargs)
+            pause_duplicate(self.session)
+            return result
+
+        monkeypatch.setattr(FileCRUD, "_create_version", pause_tool_version)
+    else:
+        original_initial = FileVersionService.create_initial_version
+
+        def pause_initial(self, session, *args, **kwargs):
+            result = original_initial(self, session, *args, **kwargs)
+            pause_duplicate(session)
+            return result
+
+        monkeypatch.setattr(FileVersionService, "create_initial_version", pause_initial)
+
+    def create():
+        with Session(pg_engine) as session:
+            return _create_via(session, entrypoint, user_id, project_id)
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        creators = [pool.submit(create) for _ in range(2)]
+        try:
+            assert duplicate_ready.wait(5), "duplicate insert did not reach savepoint recovery"
+            taker = pool.submit(_take_strong_gate, pg_engine, project_id, pid, taker_started)
+            assert taker_started.wait(5)
+            waited = _observe_wait(pg_engine, pid[0], taker)
+        finally:
+            finish_duplicate.set()
+        created_ids = {future.result(10) for future in creators}
+        visible = taker.result(10)
+    assert waited, "duplicate recovery released its enclosing Project SHARE gate"
+    assert len(created_ids) == 2
+    assert created_ids <= visible, "strong taker was granted the gate before both children committed"
+    with Session(pg_engine) as verify:
+        folders = verify.exec(select(File).where(File.project_id == project_id, File.file_type == "folder")).all()
+        assert len(folders) == 1
+        for created_id in created_ids:
+            _assert_active_with_baseline(verify, created_id)

@@ -378,9 +378,6 @@ jobs:
           tests/test_agent/test_update_project_lock_postgres.py \
           tests/test_services/test_project_capacity_concurrency_postgres.py \
           tests/test_services/test_first_work_concurrency_postgres.py \
-          tests/test_services/test_snapshot_cleanup.py \
-          tests/test_services/test_snapshot_concurrency_postgres.py \
-          tests/test_services/test_snapshot_hierarchy_restore.py \
           tests/test_services/test_tree_writers_postgres.py \
           tests/test_services/test_canonical_folder_repair_postgres.py \
           tests/test_services/test_tree_delete_traversal_postgres.py \

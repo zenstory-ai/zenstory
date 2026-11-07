@@ -17,7 +17,6 @@ function createMockDeps(): UseChatStreamingDependencies {
     streamingFileId: null,
     enterDiffReview: vi.fn(),
     activeProjectId: 'test-project-id',
-    createSnapshot: vi.fn().mockResolvedValue({}),
     t: vi.fn((key: string) => key),
   }
 }
@@ -1592,159 +1591,119 @@ describe('useChatStreaming', () => {
         expect(result.current.streamRenderItems).toHaveLength(0)
       })
 
-      it.each([
-        ['prose-only completion', [{ id: '1', type: 'content', content: 'Generated content' }], undefined],
-        ['read-only tool result', [{ id: '1', type: 'tool_calls', toolCalls: [{ tool_name: 'search', arguments: {}, status: 'success' }] }], undefined],
-        ['named failed mutation tool', [{ id: '1', type: 'tool_calls', toolCalls: [{ tool_name: 'edit_file', arguments: { title: 'Chapter 1' }, status: 'error' }] }], undefined],
-        ['absent mutation flag', [], undefined],
-        ['explicit false mutation flag', [], { confirmedFileMutation: false }],
-      ])('does not snapshot %s', async (_label, segments, completionMeta) => {
+      it('reports a finalize failure as a rejection, not a synchronous throw that stops the caller', async () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
+        const failure = new Error('finalize failed')
+        deps.finishFileStreaming = vi.fn(() => { throw failure })
+        deps.getCurrentStreamingFileId = vi.fn(() => 'file-1')
         const callbacks = result.current.getStreamCallbacks(deps)
+        const callerContinued = vi.fn()
 
-        await act(async () => {
-          await callbacks.onComplete(segments, null, completionMeta)
+        let completion: void | Promise<void> = undefined
+        act(() => {
+          completion = callbacks.onComplete([], null)
+          callerContinued()
         })
 
-        expect(deps.createSnapshot).not.toHaveBeenCalled()
+        expect(callerContinued).toHaveBeenCalledTimes(1)
+        await expect(completion).rejects.toBe(failure)
       })
 
-      it('creates one snapshot for an explicit confirmed mutation even without segments', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
+      describe('file refresh on completion', () => {
+        const openDraft = { id: 'open-draft', type: 'draft' as const, title: 'Chapter 1' }
 
-        await act(async () => {
-          await callbacks.onComplete([], null, { confirmedFileMutation: true })
-        })
+        function createDepsWithOpenDraft() {
+          const deps = createMockDeps()
+          deps.getCurrentSelectedItem = vi.fn(() => openDraft)
+          return deps
+        }
 
-        expect(deps.createSnapshot).toHaveBeenCalledTimes(1)
-        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
-          description: 'chat:message.aiDone',
-          snapshotType: 'auto',
-        })
-      })
+        it('re-reads the open file once when the server confirms a file mutation', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
 
-      it('describes the snapshot with the author\'s request, on one line and cut to 24 characters', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        deps.t = vi.fn((key: string, options?: Record<string, unknown>) =>
-          key === 'chat:message.snapshotAfterAiEdit' ? `AI 修改后：${options?.request}` : key)
-        deps.getLatestUserRequest = () => '把第二章的结尾改得更紧张一些，\n让主角在雨夜里发现那封信，然后立刻去码头'
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        await act(async () => {
-          await callbacks.onComplete([], null, { confirmedFileMutation: true })
-        })
-
-        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
-          description: 'AI 修改后：把第二章的结尾改得更紧张一些，让主角在雨夜里发现…',
-          snapshotType: 'auto',
-        })
-      })
-
-      it('keeps a short request whole in the snapshot description', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        deps.t = vi.fn((key: string, options?: Record<string, unknown>) =>
-          key === 'chat:message.snapshotAfterAiEdit' ? `After AI edit: ${options?.request}` : key)
-        deps.getLatestUserRequest = () => 'Write\nchapter 3'
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        await act(async () => {
-          await callbacks.onComplete([], null, { confirmedFileMutation: true })
-        })
-
-        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
-          description: 'After AI edit: Write chapter 3',
-          snapshotType: 'auto',
-        })
-      })
-
-      it('suppresses snapshots for partial completion even when mutation was confirmed', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        await act(async () => {
-          await callbacks.onComplete([], null, {
-            confirmedFileMutation: true,
-            partial: true,
+          await act(async () => {
+            await callbacks.onComplete([], null, { confirmedFileMutation: true })
           })
+          act(() => {
+            vi.advanceTimersByTime(250)
+          })
+
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledTimes(1)
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledWith(openDraft.id)
         })
 
-        expect(deps.createSnapshot).not.toHaveBeenCalled()
-      })
+        it.each([
+          ['an absent mutation flag', undefined],
+          ['a false mutation flag', { confirmedFileMutation: false }],
+        ])('refreshes nothing with %s and no writes in the round', async (_label, completionMeta) => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
 
-      it('creates only one snapshot for a completed turn containing multiple mutations', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-        const segments = [{
-          id: '1',
-          type: 'tool_calls',
-          toolCalls: [
-            { tool_name: 'create_file', arguments: { title: 'One' }, status: 'success' },
-            { tool_name: 'edit_file', arguments: { title: 'Two' }, status: 'success' },
-          ],
-        }]
+          await act(async () => {
+            await callbacks.onComplete([], null, completionMeta)
+          })
+          act(() => {
+            vi.advanceTimersByTime(250)
+          })
 
-        await act(async () => {
-          await callbacks.onComplete(segments, null, { confirmedFileMutation: true })
+          expect(deps.triggerEditorRefresh).not.toHaveBeenCalled()
+          expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
+          expect(deps.finishFileStreaming).not.toHaveBeenCalled()
         })
 
-        expect(deps.createSnapshot).toHaveBeenCalledTimes(1)
-      })
+        it('still re-reads the open file when a confirmed mutation ends as a partial completion', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
 
-      it('does not create a snapshot without an active project', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        deps.activeProjectId = null
-        const callbacks = result.current.getStreamCallbacks(deps)
+          await act(async () => {
+            await callbacks.onComplete([], null, { confirmedFileMutation: true, partial: true })
+          })
 
-        await act(async () => {
-          await callbacks.onComplete([], null, { confirmedFileMutation: true })
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledTimes(1)
+          expect(deps.triggerEditorRefresh).toHaveBeenCalledWith(openDraft.id)
         })
 
-        expect(deps.createSnapshot).not.toHaveBeenCalled()
-      })
+        it('flushes a pending debounced tree refresh immediately and only once', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          const callbacks = result.current.getStreamCallbacks(deps)
 
-      it('does not carry mutation confirmation across stream or project callback sets', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const firstProject = createMockDeps()
-        firstProject.activeProjectId = 'project-a'
-        const firstCallbacks = result.current.getStreamCallbacks(firstProject)
+          act(() => {
+            callbacks.onToolResult('create_file', 'success')
+          })
+          expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
 
-        await act(async () => {
-          await firstCallbacks.onComplete([], null, { confirmedFileMutation: true })
+          await act(async () => {
+            await callbacks.onComplete([], null)
+          })
+          expect(deps.triggerFileTreeRefresh).toHaveBeenCalledTimes(1)
+
+          // The debounce timer must not fire a second refresh afterwards.
+          act(() => {
+            vi.advanceTimersByTime(1000)
+          })
+          expect(deps.triggerFileTreeRefresh).toHaveBeenCalledTimes(1)
         })
 
-        const nextProject = createMockDeps()
-        nextProject.activeProjectId = 'project-b'
-        const nextCallbacks = result.current.getStreamCallbacks(nextProject)
-        await act(async () => {
-          await nextCallbacks.onComplete([], null)
+        it('finishes a stream that never sent file_content_end and forces a tree refresh', async () => {
+          const { result } = renderHook(() => useChatStreaming())
+          const deps = createDepsWithOpenDraft()
+          deps.getCurrentStreamingFileId = () => 'streaming-file'
+          const callbacks = result.current.getStreamCallbacks(deps)
+
+          await act(async () => {
+            await callbacks.onComplete([], null)
+          })
+
+          expect(deps.finishFileStreaming).toHaveBeenCalledTimes(1)
+          expect(deps.finishFileStreaming).toHaveBeenCalledWith('streaming-file')
+          expect(deps.triggerFileTreeRefresh).toHaveBeenCalledTimes(1)
         })
-
-        expect(firstProject.createSnapshot).toHaveBeenCalledTimes(1)
-        expect(nextProject.createSnapshot).not.toHaveBeenCalled()
-      })
-
-      it('handles confirmed snapshot creation errors as best effort', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        deps.createSnapshot = vi.fn().mockRejectedValue(new Error('Snapshot failed'))
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        await act(async () => {
-          await expect(
-            callbacks.onComplete([], null, { confirmedFileMutation: true })
-          ).resolves.toBeUndefined()
-        })
-
-        expect(result.current.editProgress).toBe(null)
-        expect(result.current.streamRenderItems).toHaveLength(0)
       })
 
       it('force flushes pending stream items before processing', async () => {

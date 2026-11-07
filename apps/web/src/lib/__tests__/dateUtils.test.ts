@@ -34,8 +34,6 @@ import {
   formatCalendarDate,
   parseUTCDate,
   formatRelativeTime,
-  formatFullDate,
-  formatRelativeTimeWithYear,
   formatAdminDateTime,
   formatAdminDate,
   formatBeijingPeriodDate,
@@ -217,100 +215,6 @@ describe('dateUtils', () => {
       const result = formatRelativeTime(dateString)
 
       expect(result).toBe('6 天前')
-    })
-  })
-
-  describe('formatFullDate', () => {
-    it('formats date with year, month, day, hour, and minute', () => {
-      const dateString = '2024-03-15T10:30:00'
-      const result = formatFullDate(dateString)
-
-      // Should contain year 2024, month 3, day 15
-      expect(result).toContain('2024')
-      expect(result).toContain('03')
-      expect(result).toContain('15')
-    })
-
-    it('formats different dates correctly', () => {
-      const dateString = '2023-12-25T08:15:00'
-      const result = formatFullDate(dateString)
-
-      expect(result).toContain('2023')
-      expect(result).toContain('12')
-      expect(result).toContain('25')
-    })
-
-    it('uses toLocaleDateString with correct options', () => {
-      const dateString = '2024-01-05T14:30:00'
-      const result = formatFullDate(dateString)
-
-      // Just verify it returns a formatted string
-      expect(typeof result).toBe('string')
-      expect(result.length).toBeGreaterThan(0)
-    })
-
-    it('handles date with UTC parsing', () => {
-      // Date without Z should be treated as UTC
-      const dateString = '2024-06-20T18:45:00'
-      const result = formatFullDate(dateString)
-
-      expect(typeof result).toBe('string')
-    })
-  })
-
-  describe('formatRelativeTimeWithYear', () => {
-    it('returns "刚刚" for times less than 1 minute ago', () => {
-      const dateString = '2024-03-15T11:59:30'
-      const result = formatRelativeTimeWithYear(dateString)
-
-      expect(result).toBe('刚刚')
-    })
-
-    it('returns minutes ago for times less than 1 hour ago', () => {
-      const dateString = '2024-03-15T11:50:00'
-      const result = formatRelativeTimeWithYear(dateString)
-
-      expect(result).toBe('10 分钟前')
-    })
-
-    it('returns hours ago for times less than 24 hours ago', () => {
-      const dateString = '2024-03-15T08:00:00'
-      const result = formatRelativeTimeWithYear(dateString)
-
-      expect(result).toBe('4 小时前')
-    })
-
-    it('returns days ago for times less than 7 days ago', () => {
-      const dateString = '2024-03-12T12:00:00'
-      const result = formatRelativeTimeWithYear(dateString)
-
-      expect(result).toBe('3 天前')
-    })
-
-    it('returns full date with year for times 7 or more days ago', () => {
-      // 10 days ago
-      const dateString = '2024-03-05T12:00:00'
-      const result = formatRelativeTimeWithYear(dateString)
-
-      // Should contain year for dates older than 7 days
-      expect(result).toContain('2024')
-    })
-
-    it('includes year for dates from previous year', () => {
-      // Previous year
-      const dateString = '2023-12-25T12:00:00'
-      const result = formatRelativeTimeWithYear(dateString)
-
-      expect(result).toContain('2023')
-    })
-
-    it('uses same format as formatFullDate for old dates', () => {
-      const dateString = '2024-02-01T12:00:00'
-      const relativeWithYear = formatRelativeTimeWithYear(dateString)
-      const fullDate = formatFullDate(dateString)
-
-      // Both should produce the same format for old dates
-      expect(relativeWithYear).toBe(fullDate)
     })
   })
 

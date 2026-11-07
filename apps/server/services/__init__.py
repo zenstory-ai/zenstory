@@ -32,10 +32,6 @@ from .features.file_version_service import (
     FileVersionService,
     get_file_version_service,
 )
-from .features.snapshot_service import (
-    VersionService,
-    get_version_service,
-)
 
 # Feature services (from features/)
 from .features.verification_service import (
@@ -66,7 +62,6 @@ from .infra.redis_client import (
 sys.modules['services.auth'] = import_module('.core.auth_service', package='services')
 sys.modules['services.verification_service'] = import_module('.features.verification_service', package='services')
 sys.modules['services.file_version'] = import_module('.features.file_version_service', package='services')
-sys.modules['services.version'] = import_module('.features.snapshot_service', package='services')
 sys.modules['services.export_service'] = import_module('.features.export_service', package='services')
 sys.modules['services.email_service'] = import_module('.infra.email_client', package='services')
 sys.modules['services.redis_client'] = import_module('.infra.redis_client', package='services')
@@ -91,9 +86,6 @@ __all__ = [
     # File version service
     "FileVersionService",
     "get_file_version_service",
-    # Version/Snapshot service
-    "VersionService",
-    "get_version_service",
     # Export service
     "export_drafts_to_txt",
     # Redis client

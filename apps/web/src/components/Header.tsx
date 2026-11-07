@@ -4,7 +4,7 @@
  * This component provides the main application header with:
  * - Logo and branding (responsive: icon-only on mobile, full logo on desktop)
  * - Project switcher dropdown for navigating between projects
- * - Project actions (export, version history) - only shown when a project is open
+ * - Project actions (export) - only shown when a project is open
  * - Settings dialog trigger
  * - User menu with authentication options
  * - Mobile-responsive dropdown menu for smaller screens
@@ -17,10 +17,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { History, Settings, Menu, X, Download, Bug, CreditCard, BookOpen, FileText } from "lucide-react";
+import { Settings, Menu, X, Download, Bug, CreditCard, BookOpen, FileText } from "lucide-react";
 import { Logo, LogoMark } from "./Logo";
 import { ProjectSwitcher } from "./ProjectSwitcher";
-import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { DropdownMenu } from "./ui/DropdownMenu";
 import { SettingsDialog } from "./SettingsDialog";
 import { UserMenu, UserMenuMobile } from "./UserMenu";
@@ -53,12 +52,12 @@ interface HeaderProps {}
  *
  * Renders a responsive header bar containing:
  * - **Left section**: Logo (clickable to navigate to dashboard) and ProjectSwitcher
- * - **Right section (desktop)**: Export button, version history, settings, user menu
+ * - **Right section (desktop)**: Export button, settings, user menu
  * - **Right section (mobile)**: Hamburger menu toggle button
  *
  * Desktop Layout:
  * ```
- * [Logo] | [ProjectSwitcher]          [Export] [History] [Settings] | [UserMenu]
+ * [Logo] | [ProjectSwitcher]          [Export] [Settings] | [UserMenu]
  * ```
  *
  * Mobile Layout:
@@ -86,7 +85,7 @@ export const Header: React.FC<HeaderProps> = () => {
   const navigate = useNavigate();
   const { t } = useTranslation(['editor', 'common', 'dashboard', 'home']);
   const exportUpgradePrompt = getUpgradePromptDefinition("export_format_quota_blocked");
-  const { currentProjectId, currentProject, triggerFileTreeRefresh, setSelectedItem, selectedItem } = useProject();
+  const { currentProjectId, currentProject, selectedItem } = useProject();
   // A screenplay project's text is its scripts (the file tree says 剧本): the export entry says so too.
   // Only the wording differs; what is exported is the same.
   const isScreenplay = currentProject?.project_type === 'screenplay';
@@ -95,7 +94,6 @@ export const Header: React.FC<HeaderProps> = () => {
     ? t('editor:header.exportScriptWithOutline')
     : t('editor:header.exportWithOutline');
   const [showSettings, setShowSettings] = useState(false);
-  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [showExportUpgradeModal, setShowExportUpgradeModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -285,36 +283,25 @@ export const Header: React.FC<HeaderProps> = () => {
 
           {/* Project actions */}
           {currentProjectId && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleExport();
-                }}
-                disabled={exportLoading}
-                aria-busy={exportLoading}
-                className={desktopIconButtonClass}
-                title={exportLabel}
-                aria-label={exportLabel}
-              >
-                {exportLoading ? (
-                  <span role="status" aria-label={t('common:loading')}>
-                    <LoadingSpinner size="sm" />
-                  </span>
-                ) : (
-                  <Download size={18} />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowVersionHistory(true)}
-                className={desktopIconButtonClass}
-                title={t('editor:header.versionHistory')}
-                aria-label={t('editor:header.versionHistory')}
-              >
-                <History size={18} />
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => {
+                void handleExport();
+              }}
+              disabled={exportLoading}
+              aria-busy={exportLoading}
+              className={desktopIconButtonClass}
+              title={exportLabel}
+              aria-label={exportLabel}
+            >
+              {exportLoading ? (
+                <span role="status" aria-label={t('common:loading')}>
+                  <LoadingSpinner size="sm" />
+                </span>
+              ) : (
+                <Download size={18} />
+              )}
+            </button>
           )}
 
           {/* Secondary actions (non-primary) */}
@@ -432,20 +419,6 @@ export const Header: React.FC<HeaderProps> = () => {
                 {t('editor:header.downloadFile')}
               </button>
             )}
-            {currentProjectId && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowVersionHistory(true);
-                  setShowMobileMenu(false);
-                }}
-                className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-                role="menuitem"
-              >
-                <History size={18} />
-                {t('editor:header.versionHistory')}
-              </button>
-            )}
             <button
               type="button"
               onClick={() => handleOpenDocs(true)}
@@ -484,23 +457,6 @@ export const Header: React.FC<HeaderProps> = () => {
             <UserMenuMobile onLogout={() => setShowMobileMenu(false)} />
           </div>
         </div>
-      )}
-
-      {/* Version History Modal */}
-      {showVersionHistory && currentProjectId && (
-        <VersionHistoryPanel
-          projectId={currentProjectId}
-          onClose={() => setShowVersionHistory(false)}
-          onRollback={() => {
-            // Refresh file tree and clear selection after rollback
-            triggerFileTreeRefresh();
-            setSelectedItem(null);
-            setShowVersionHistory(false);
-          }}
-          onCompare={(id1, id2) => {
-            logger.log("Compare snapshots:", id1, id2);
-          }}
-        />
       )}
 
       {/* Settings Modal */}

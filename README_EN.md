@@ -44,7 +44,7 @@ ZenStory Workbench is a place to write fiction in the browser. Outlines, chapter
 
 - **Edit files from the chat**: ask for "a villain, brooding, with a tragic past" and the Agent creates a character sheet in the Characters folder, streaming it into the editor as it writes. Continuing or rewriting a chapter works the same way: the change lands in the file.
 - **One router, four specialist agents**: the router uses your current request and relevant context from the previous turn to choose a workflow. The Planner, Hook Designer, Writer and Quality Reviewer work within your requested scope: an outline request stops at the outline. In Quality mode, automatic review normally starts when successful manuscript writes total 500 characters; chat and outlines do not count. The reviewer reads and reports, handing back only issues that need revision.
-- **Version history for revisions**: AI edits from chat record versions and can be undone from the edit card. Consecutive editor saves coalesce into the latest manual version within a time window; later saves create a new one. Reaching the manual-version quota still allows the text to save. A normally completed AI turn also records a project snapshot.
+- **Version history for revisions**: AI edits from chat record versions and can be undone from the edit card. Consecutive editor saves coalesce into the latest manual version within a time window; later saves create a new one. Reaching the manual-version quota still allows the text to save.
 - **Each turn carries the right material**: within a budget of about 32,000 tokens the AI gets the four AI Memory fields (Project Summary, Writing Style, Current Phase, Notes; long ones are shortened), the project's file list, the file you are editing, the previous chapter and a few recently edited files from the same folder, and recently edited characters and lore.
 - **Other agents can plug in**: generate an API key in Settings, sign in with `npx zenstory login` and install the skill with `npx zenstory skill install`, and agents such as Claude Code, Codex or OpenClaw can read and write your projects.
 
@@ -102,13 +102,12 @@ Official skill descriptions and instructions live in the database; see [writing-
 
 Custom skills use the open Agent Skills `SKILL.md` format, optionally with `references/` resources, and can be imported or exported as `.zip` / `.md` packages. Scripts in imported packages are discarded with a warning. Shared skills become public after admin approval.
 
-### Versions, snapshots and export
+### Versions and export
 
 ![Version history of a single file](docs/screenshots/version-history.png)
 
 - Autosave runs about 3 seconds after you stop typing. By default, consecutive manual saves within 10 minutes coalesce into the latest manual version; later saves create a new version. Small edits are included too. AI edits record separate AI Edited versions and do not use the manual-version allowance.
 - The History button at the bottom of the editor opens the current file's versions: compare any two line by line, or roll the file back. Rollback deletes no versions; while the file's version allowance has room, the restored text is recorded as a new version. Current prose that has not entered history is backed up before restoration; if that backup fails, restoration is cancelled. Preserve unsaved editor text first.
-- The history icon in the top bar (tooltip: Version History) lists whole-project snapshots. Compare two snapshots, or roll the whole project back to one. A snapshot records file versions and structure; the server creates a pre-rollback snapshot before restoration. Whole-project restoration also removes later files absent from the target snapshot. Check the scope and preserve unsaved browser drafts first.
 - Export Manuscript merges chapters and scripts into one TXT in chapter order. Export outline and text also includes outlines; character sheets and lore are outside both exports.
 
 ### Material library and inspiration library
@@ -370,7 +369,7 @@ There is no self-service reset on the hosted app. Email support@zenstory.ai from
 - [Your first short story](https://zenstory.ai/docs/getting-started/first-project#en): an original short story's file plan and three scoped requests.
 - [AI assistant](https://zenstory.ai/docs/user-guide/ai-assistant#en): focused files, quotes, and picking up after an interruption.
 - [AI Memory](https://zenstory.ai/docs/advanced/ai-memory#en): what to put in the four fields and how to correct them.
-- [Version history](https://zenstory.ai/docs/user-guide/version-history#en): restoring one file versus a whole-project snapshot.
+- [Version history](https://zenstory.ai/docs/user-guide/version-history#en): view, compare and restore one file's versions.
 - [From a reference passage to your own scene](https://zenstory.ai/docs/advanced/material-analysis#en): after analysing a reference novel, how to write a scene of your own.
 - [Writing environments compared](https://zenstory.ai/compare/writing-workflows): plain chat, the Oh Story skill pack, the DSH plugin and ZenStory Workbench, and what each suits.
 - [Keeping your voice when AI continues](https://zenstory.ai/oh-story/preserve-author-voice): describe your voice in concrete terms and give a short sample of your own.

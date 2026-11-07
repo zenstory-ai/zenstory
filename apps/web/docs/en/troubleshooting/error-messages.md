@@ -9,7 +9,7 @@ An error describes the state of an operation. Read the complete message before d
 | Content changed; save conflict | Retain local text, compare, and merge the newer server draft |
 | Saved without a new history version | Current prose is saved; check history allowance and keep milestone copies |
 | Local draft could not be retained | Copy important text now; do not assume recovery after reload |
-| Version or snapshot missing | Reload history and check the file and selected record |
+| Version missing | Reload history and check the file and selected record |
 | Could not back up before restoring | Restoration was not executed; retain the draft and address the error |
 
 See the [editor](../user-guide/editor.md) and [history](../user-guide/version-history.md).

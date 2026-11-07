@@ -83,7 +83,7 @@ async function setup(page: Page) {
     if (url.pathname === `/api/v1/projects/${projectId}/file-tree`) {
       return fulfill({ tree: [{ id: `folder-${projectId}`, title: '正文', file_type: 'folder', metadata: { folder_type: 'draft' }, parent_id: null, order: 0, children: Object.values(files).map(file => ({ ...file, children: [] })) }] });
     }
-    if (/\/versions$|\/snapshots$/.test(url.pathname)) return fulfill(method === 'GET' ? { versions: [], total: 0 } : { id: 'snap-1' });
+    if (/\/versions$/.test(url.pathname)) return fulfill({ versions: [], total: 0 });
     return route.fallback();
   });
   return { files, requests, errors };
@@ -168,6 +168,19 @@ for (const secondWrite of ['edit_file', 'parallel_execute'] as const) {
     expect(f.errors).toEqual([]);
   });
 }
+
+test('a round that confirms a file write re-reads the chapter and requests no project snapshot', async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'edit_file');
+  // Positive gate: the round has ended and the editor reloaded the final text from the server.
+  await expect(page.getByTestId('send-button')).toBeVisible();
+  await expect(textarea(page)).toHaveValue(V2);
+  expect(f.requests.filter(r => r.method === 'GET' && r.path.endsWith('/files/ch2')).length).toBeGreaterThan(0);
+  // Completion work runs in the background: give any late request time to arrive.
+  await page.waitForTimeout(1000);
+  expect(f.requests.filter(r => r.path.endsWith('/snapshots'))).toEqual([]);
+  expect(f.errors).toEqual([]);
+});
 
 test('unsaved author text is kept and compared when the AI writes the same chapter again', async ({ page }) => {
   const f = await setup(page);

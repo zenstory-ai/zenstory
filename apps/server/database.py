@@ -134,7 +134,7 @@ POSTGRES_PERFORMANCE_INDEX_SQL: tuple[str, ...] = (
         "CREATE INDEX IF NOT EXISTS ix_ingestion_jobs_novel_created_at_desc "
         "ON ingestion_jobs (novel_id, created_at DESC)"
     ),
-    # Snapshot list pagination by project (and optional file)
+    # Legacy snapshot rows: the version-coalesce guard looks them up by project and time
     (
         "CREATE INDEX IF NOT EXISTS ix_snapshot_project_created_at_desc "
         "ON snapshot (project_id, created_at DESC)"

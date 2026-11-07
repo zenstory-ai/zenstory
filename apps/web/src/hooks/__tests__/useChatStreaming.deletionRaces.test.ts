@@ -11,7 +11,7 @@ const options = (activeProjectId: string | null = 'race-project') => ({
   activeProjectId, triggerFileTreeRefresh: vi.fn(), triggerEditorRefresh: vi.fn(),
   setSelectedItem: vi.fn(), getCurrentSelectedItem: vi.fn(() => selected),
   appendFileContent: vi.fn(), finishFileStreaming: vi.fn(), startFileStreaming: vi.fn(), streamingFileId: null,
-  enterDiffReview: vi.fn(), createSnapshot: vi.fn(async () => ({})), t: (key: string) => key,
+  enterDiffReview: vi.fn(), t: (key: string) => key,
 }) satisfies UseChatStreamingDependencies
 const settle = async () => { await act(async () => { for (let i = 0; i < 15; i++) await Promise.resolve() }) }
 afterEach(() => { vi.restoreAllMocks(); api.getTree.mockReset(); clearFileRemoved('race-project', selected.id); clearFileRemoved('race-project', 'other-draft') })

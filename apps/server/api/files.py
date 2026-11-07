@@ -848,7 +848,7 @@ def update_file(
     version_quota_exceeded = False
 
     if "parent_id" in file_data.model_fields_set:
-        # Structural writers use Project -> File order, matching snapshot restore.
+        # Structural writers lock Project before File.
         target = session.get(File, file_id)
         if not target or target.is_deleted:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)

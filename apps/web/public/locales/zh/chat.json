@@ -122,8 +122,6 @@
   },
   "message": {
     "aiEdit": "AI 修改: {{files}}{{extra}}",
-    "aiDone": "AI 对话完成",
-    "snapshotAfterAiEdit": "AI 修改后：{{request}}",
     "aiConversationAt": "AI 助手对话 - {{time}}"
   },
   "context": {

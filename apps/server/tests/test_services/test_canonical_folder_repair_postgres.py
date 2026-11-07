@@ -19,7 +19,7 @@ from models import File, Project, User
 from models.file_version import FileVersion
 from services.features.file_version_service import FileVersionService, get_file_version_service
 from services.file_tree_rules import lock_project_for_files
-from tests.test_services.test_snapshot_concurrency_postgres import pg_engine as pg_engine
+from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured",
@@ -34,7 +34,7 @@ def isolate_dependencies(monkeypatch):
 
     monkeypatch.setattr(database, "is_postgres", True)
     # 普通写入现在总会走版本（合并或新建），额度检查要查 user_subscription；
-    # 这里的 PG schema 不建订阅表，和 test_snapshot_concurrency_postgres 一样把额度桩掉。
+    # 这里的 PG schema 不建订阅表，所以把额度桩掉。
     monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
     monkeypatch.setattr(crud_module, "utcnow", lambda: STAMP)

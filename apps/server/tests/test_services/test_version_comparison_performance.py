@@ -1,13 +1,14 @@
-"""Comparison payload fidelity and bounded duplicate work."""
+"""Comparison payload fidelity, bounded duplicate work and version replay contracts."""
 
 import difflib
 import time
 
 import pytest
 from sqlalchemy import event
+from sqlmodel import select
 
 from models import File, FileVersion, Project, User
-from services.features.file_version_service import FileVersionService
+from services.features.file_version_service import FileVersionService, get_file_version_service
 
 
 def _seed(session, contents, *, bases=True):
@@ -92,3 +93,96 @@ def test_representative_comparison_measurement_without_latency_gate(db_session, 
         durations.append((time.perf_counter() - start) * 1000)
     print(f"comparison lines={lines} chars={len(before)} median_ms={sorted(durations)[2]:.3f} structured_rows={len(result['html_diff'])}")
     assert result["stats"]["lines_added"] == result["stats"]["lines_removed"] == 1
+
+
+def _seed_replay_files(session, count, delta):
+    user = User(username="version-replay", email="version-replay@example.test", hashed_password="unused")
+    project = Project(name="Version replay", owner_id=user.id)
+    session.add_all([user, project])
+    session.flush()
+    service = get_file_version_service()
+    files = []
+    for index in range(count):
+        file = File(project_id=project.id, title=f"File {index}", file_type="draft", content=f"Base {index}\nSame\n")
+        session.add(file)
+        session.flush()
+        service.create_initial_version(session, file)
+        if delta:
+            file.content = f"Changed {index}\nSame\n"
+            session.add(file)
+            session.flush()
+            service.create_version(session, file.id, file.content, change_source="system", commit=False)
+        files.append(file)
+    session.commit()
+    return project, files
+
+
+def test_reconstruction_respects_target_and_nearest_base(db_session):
+    _, files = _seed_replay_files(db_session, 1, False)
+    file = files[0]
+    service = get_file_version_service()
+    contents = [file.content, "Earlier delta\nSame\n", "New base\nSame\n", "Target delta\nSame\n", "Later delta\nSame\n"]
+    for number, content in enumerate(contents[1:], start=2):
+        service.create_version(db_session, file.id, content, change_source="system", force_base=number == 3)
+    assert service.get_content_at_version(db_session, file.id, 2) == contents[1]
+    assert service.get_content_at_version(db_session, file.id, 4) == contents[3]
+    assert service.get_content_at_version(db_session, file.id, 5) == contents[4]
+
+
+def test_reconstruction_without_base_keeps_legacy_empty_start(db_session):
+    _, files = _seed_replay_files(db_session, 1, False)
+    file = files[0]
+    service = get_file_version_service()
+    version = db_session.exec(select(FileVersion).where(FileVersion.file_id == file.id)).one()
+    version.is_base_version = False
+    version.content = service._create_diff("", "Legacy delta\n")
+    db_session.add(version)
+    db_session.commit()
+    assert service.get_content_at_version(db_session, file.id, 1) == "Legacy delta\n"
+
+
+def test_mixed_selected_targets_keep_individual_base_and_upper_bounds(db_session):
+    _, files = _seed_replay_files(db_session, 4, False)
+    service = get_file_version_service()
+    targets = {}
+    expected = {}
+    for index, file in enumerate(files[:2]):
+        for number in range(2, 6):
+            content = f"File {index}, version {number}\n"
+            version = service.create_version(db_session, file.id, content, change_source="system", force_base=number == (3 if index == 0 else 4))
+            if number == (2 if index == 0 else 5):
+                targets[file.id] = version
+                expected[file.id] = content
+    base = files[2]
+    targets[base.id] = service.get_latest_version(db_session, base.id)
+    expected[base.id] = base.content
+    legacy = files[3]
+    version = service.get_latest_version(db_session, legacy.id)
+    version.is_base_version = False
+    version.content = service._create_diff("", "Legacy 无基线\n")
+    db_session.add(version)
+    db_session.commit()
+    targets[legacy.id] = version
+    expected[legacy.id] = "Legacy 无基线\n"
+    assert {file_id: service.get_content_at_version(db_session, file_id, target.version_number) for file_id, target in targets.items()} == expected
+    assert service._get_contents_for_versions(db_session, targets) == expected
+
+
+def test_loaded_base_and_empty_mapping_reconstruction_need_no_query(db_session):
+    _, files = _seed_replay_files(db_session, 1, False)
+    service = get_file_version_service()
+    file = files[0]
+    target = service.get_latest_version(db_session, file.id)
+    statements = []
+    engine = db_session.get_bind()
+
+    def record(_connection, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        assert service._get_contents_for_versions(db_session, {}) == {}
+        assert service._get_contents_for_versions(db_session, {file.id: target}) == {file.id: file.content}
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert statements == []

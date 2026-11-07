@@ -49,7 +49,6 @@ from api.workspace_onboarding import router as workspace_onboarding_router
 from api.public_skills import router as public_skills_router
 from api.referral import router as referral_router
 from api.skills import router as skills_router
-from api.snapshots import router as snapshots_router
 from api.subscription import router as subscription_router
 from api.search import router as file_search_router
 from api.verification import router as verification_router
@@ -176,7 +175,6 @@ app.include_router(auth_router)
 app.include_router(verification_router)
 app.include_router(oauth_router)
 app.include_router(projects_router)
-app.include_router(snapshots_router)
 app.include_router(files_router)
 app.include_router(versions_router)
 app.include_router(export_router)

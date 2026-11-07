@@ -6,7 +6,6 @@
  * - Projects (CRUD operations, templates)
  * - Files (CRUD operations, tree structure, upload)
  * - Versions (file-level version history, comparison, rollback)
- * - Snapshots (project-level snapshots, comparison, rollback)
  * - Export (draft export to various formats)
  *
  * All API functions use the centralized `api` client from apiClient.ts which handles:
@@ -26,8 +25,6 @@ import type {
   Project,
   ProjectProgress,
   RollbackResponse,
-  SnapshotComparison,
-  Snapshot,
   VersionComparison,
   VersionContentResponse,
 } from "../types";
@@ -575,171 +572,11 @@ export const projectApi = {
 };
 
 /**
- * Version/Snapshot API endpoints.
- *
- * Provides project-level snapshot functionality for saving and restoring
- * project state at specific points in time. Unlike file-level versions,
- * snapshots capture the entire project state.
- *
- * @namespace versionApi
- */
-export const versionApi = {
-  /**
-   * Get all snapshots for a project.
-   *
-   * @param projectId - The UUID of the project
-   * @param options - Optional filters
-   * @param options.fileId - Filter snapshots to a specific file
-   * @param options.limit - Maximum number of snapshots to return
-   * @returns Promise resolving to array of Snapshot objects
-   *
-   * @example
-   * ```ts
-   * // Get all snapshots for a project
-   * const snapshots = await versionApi.getSnapshots('project-uuid');
-   *
-   * // Get last 10 snapshots for a specific file
-   * const fileSnapshots = await versionApi.getSnapshots('project-uuid', {
-   *   fileId: 'file-uuid',
-   *   limit: 10
-   * });
-   * ```
-   */
-  getSnapshots: (
-    projectId: string,
-    options?: {
-      fileId?: string;
-      limit?: number;
-      offset?: number;
-    },
-  ) => {
-    const params = new URLSearchParams();
-    if (options?.fileId)
-      params.append("file_id", String(options.fileId));
-    if (options?.limit !== undefined) params.append("limit", String(options.limit));
-    if (options?.offset !== undefined) params.append("offset", String(options.offset));
-    const query = params.toString() ? `?${params}` : "";
-    return api.get<Snapshot[]>(
-      `/api/v1/projects/${projectId}/snapshots${query}`,
-    );
-  },
-
-  /**
-   * Get a single snapshot by ID.
-   *
-   * @param snapshotId - The UUID of the snapshot
-   * @returns Promise resolving to the Snapshot object
-   *
-   * @example
-   * ```ts
-   * const snapshot = await versionApi.getSnapshot('snapshot-uuid');
-   * ```
-   */
-  getSnapshot: (snapshotId: string) =>
-    api.get<Snapshot>(`/api/v1/snapshots/${snapshotId}`),
-
-  /**
-   * Create a new project snapshot.
-   *
-   * Captures the current state of all files in the project.
-   *
-   * @param projectId - The UUID of the project
-   * @param options - Optional snapshot configuration
-   * @param options.fileId - Limit snapshot to a specific file (partial snapshot)
-   * @param options.description - Human-readable description of the snapshot
-   * @param options.snapshotType - Type classification (e.g., 'milestone', 'backup')
-   * @returns Promise resolving to the created Snapshot object
-   *
-   * @example
-   * ```ts
-   * const snapshot = await versionApi.createSnapshot('project-uuid', {
-   *   description: 'Before major revision',
-   *   snapshotType: 'milestone'
-   * });
-   * ```
-   */
-  createSnapshot: (
-    projectId: string,
-    options?: {
-      fileId?: string;
-      description?: string;
-      snapshotType?: string;
-    },
-  ) => {
-    const payload = {
-      file_id: options?.fileId,
-      description: options?.description,
-      snapshot_type: options?.snapshotType,
-    };
-    return api.post<Snapshot>(`/api/v1/projects/${projectId}/snapshots`, payload);
-  },
-
-  /**
-   * Compare two snapshots to see differences.
-   *
-   * @param snapshotId1 - The UUID of the first (older) snapshot
-   * @param snapshotId2 - The UUID of the second (newer) snapshot
-   * @returns Promise resolving to SnapshotComparison with diff details
-   *
-   * @example
-   * ```ts
-   * const comparison = await versionApi.compare('old-snapshot', 'new-snapshot');
-   * console.log(comparison.changes); // Array of file changes
-   * ```
-   */
-  compare: (snapshotId1: string, snapshotId2: string) =>
-    api.get<SnapshotComparison>(
-      `/api/v1/snapshots/${snapshotId1}/compare/${snapshotId2}`,
-    ),
-
-  /**
-   * Rollback a project to a previous snapshot state.
-   *
-   * This restores all files to their state at the time of the snapshot.
-   * Use with caution as this operation cannot be easily undone.
-   *
-   * @param snapshotId - The UUID of the snapshot to rollback to
-   * @returns Promise resolving to success message
-   *
-   * @example
-   * ```ts
-   * await versionApi.rollback('milestone-snapshot');
-   * ```
-   */
-  rollback: (snapshotId: string) =>
-    api.post<{ message: string }>(`/api/v1/snapshots/${snapshotId}/rollback`),
-
-  /**
-   * Update a snapshot's metadata.
-   *
-   * Currently only supports updating the description field.
-   *
-   * @param snapshotId - The UUID of the snapshot to update
-   * @param updates - Fields to update
-   * @param updates.description - New description for the snapshot
-   * @returns Promise resolving to the updated Snapshot object
-   *
-   * @example
-   * ```ts
-   * await versionApi.updateSnapshot('snapshot-uuid', {
-   *   description: 'Updated description'
-   * });
-   * ```
-   */
-  updateSnapshot: (snapshotId: string, updates: { description?: string }) =>
-    api.put<Snapshot>(`/api/v1/snapshots/${snapshotId}`, {
-      description: updates.description,
-    }),
-};
-
-/**
  * File Version API endpoints.
  *
  * Provides file-level version history for tracking changes to individual files.
  * Every file update creates a new version, allowing users to compare versions
  * and rollback to previous states.
- *
- * Unlike project-level snapshots, file versions track changes on a per-file basis.
  *
  * @namespace fileVersionApi
  */

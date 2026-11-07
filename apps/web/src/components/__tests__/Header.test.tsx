@@ -5,8 +5,6 @@ import * as React from 'react'
 // Mock dependencies BEFORE importing Header
 const mockNavigate = vi.fn()
 const mockExportDrafts = vi.fn()
-const mockTriggerFileTreeRefresh = vi.fn()
-const mockSetSelectedItem = vi.fn()
 const { mockToastError, mockToastSuccess, mockToastInfo, mockHandleApiError, mockLoggerError } = vi.hoisted(() => ({
   mockToastError: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -95,7 +93,6 @@ vi.mock('@tanstack/react-query', () => ({
 
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
-  History: () => React.createElement('svg', { 'data-testid': 'history-icon' }, 'History'),
   Settings: () => React.createElement('svg', { 'data-testid': 'settings-icon' }, 'Settings'),
   MoreHorizontal: () => React.createElement('svg', { 'data-testid': 'more-actions-icon' }, 'MoreHorizontal'),
   Menu: () => React.createElement('svg', { 'data-testid': 'menu-icon' }, 'Menu'),
@@ -122,27 +119,6 @@ vi.mock('../Logo', () => ({
 vi.mock('../ProjectSwitcher', () => ({
   ProjectSwitcher: () =>
     React.createElement('div', { 'data-testid': 'project-switcher' }, 'ProjectSwitcher'),
-}))
-
-// Mock VersionHistoryPanel
-vi.mock('../VersionHistoryPanel', () => ({
-  VersionHistoryPanel: ({
-    projectId,
-    onClose,
-    onRollback,
-  }: {
-    projectId: string
-    onClose: () => void
-    onRollback: () => void
-    onCompare: (id1: string, id2: string) => void
-  }) =>
-    React.createElement(
-      'div',
-      { 'data-testid': 'version-history-panel' },
-      React.createElement('span', null, `Project: ${projectId}`),
-      React.createElement('button', { onClick: onRollback }, 'Trigger Rollback'),
-      React.createElement('button', { onClick: onClose }, 'Close')
-    ),
 }))
 
 // Mock SettingsDialog
@@ -189,8 +165,6 @@ vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProjectId: mockCurrentProjectId,
     currentProject: mockCurrentProject,
-    triggerFileTreeRefresh: mockTriggerFileTreeRefresh,
-    setSelectedItem: mockSetSelectedItem,
     selectedItem: mockSelectedItem,
   }),
 }))
@@ -408,20 +382,6 @@ describe('Header', () => {
       expect(screen.getByTestId('download-icon')).toBeInTheDocument()
     })
 
-    it('does not show history button when no project is selected', () => {
-      mockCurrentProjectId = null
-      render(<Header />)
-
-      expect(screen.queryByTestId('history-icon')).not.toBeInTheDocument()
-    })
-
-    it('shows history button when project is selected', () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      expect(screen.getByTestId('history-icon')).toBeInTheDocument()
-    })
-
     it('calls exportDrafts when export button is clicked', async () => {
       mockCurrentProjectId = 'project-123'
       render(<Header />)
@@ -594,57 +554,6 @@ describe('Header', () => {
         expect(screen.getByText('升级专业版')).toBeInTheDocument()
       })
     })
-
-    it('shows version history panel when history button is clicked', async () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      const historyButton = screen.getByTestId('history-icon').closest('button')
-      fireEvent.click(historyButton!)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('version-history-panel')).toBeInTheDocument()
-      })
-    })
-
-    it('closes version history panel when close is clicked', async () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      const historyButton = screen.getByTestId('history-icon').closest('button')
-      fireEvent.click(historyButton!)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('version-history-panel')).toBeInTheDocument()
-      })
-
-      const closeButton = screen.getByText('Close')
-      fireEvent.click(closeButton)
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('version-history-panel')).not.toBeInTheDocument()
-      })
-    })
-
-    it('refreshes tree and clears selection after rollback callback', async () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      const historyButton = screen.getByTestId('history-icon').closest('button')
-      fireEvent.click(historyButton!)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('version-history-panel')).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByText('Trigger Rollback'))
-
-      await waitFor(() => {
-        expect(mockTriggerFileTreeRefresh).toHaveBeenCalledTimes(1)
-        expect(mockSetSelectedItem).toHaveBeenCalledWith(null)
-        expect(screen.queryByTestId('version-history-panel')).not.toBeInTheDocument()
-      })
-    })
   })
 
   describe('Settings Dialog', () => {
@@ -815,20 +724,6 @@ describe('Header', () => {
       expect(screen.queryByTestId('download-icon')).not.toBeInTheDocument()
     })
 
-    it('shows history button in mobile menu when project is selected', async () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      const menuButton = screen.getByTestId('menu-icon').closest('button')
-      fireEvent.click(menuButton!)
-
-      await waitFor(() => {
-        // There should be history icons (one from desktop actions + one from mobile menu)
-        const historyIcons = screen.getAllByTestId('history-icon')
-        expect(historyIcons.length).toBeGreaterThan(0)
-      })
-    })
-
     it('closes mobile menu after clicking settings', async () => {
       render(<Header />)
 
@@ -846,31 +741,6 @@ describe('Header', () => {
         btn.closest('[class*="flex-col"]')
       ) || settingsButtons[settingsButtons.length - 1]
       fireEvent.click(mobileSettingsButton)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('menu-icon')).toBeInTheDocument()
-      })
-    })
-
-    it('closes mobile menu after clicking history', async () => {
-      mockCurrentProjectId = 'project-123'
-      render(<Header />)
-
-      // Open menu
-      const menuButton = screen.getByTestId('menu-icon').closest('button')
-      fireEvent.click(menuButton!)
-
-      await waitFor(() => {
-        expect(screen.getAllByTestId('history-icon').length).toBeGreaterThan(0)
-      })
-
-      // Click history in mobile menu (find it in the dropdown container)
-      const dropdownContainer = screen.getByTestId('user-menu-mobile').closest('[class*="flex-col"]')
-      const historyButtons = dropdownContainer?.querySelectorAll('button')
-      const historyButton = Array.from(historyButtons || []).find(btn =>
-        btn.querySelector('[data-testid="history-icon"]')
-      )
-      fireEvent.click(historyButton!)
 
       await waitFor(() => {
         expect(screen.getByTestId('menu-icon')).toBeInTheDocument()
@@ -933,7 +803,6 @@ describe('Header', () => {
       expect(screen.getByTestId('header-subscription-entry')).toBeInTheDocument()
       expect(screen.getByTestId('header-more-actions')).toBeInTheDocument()
       expect(screen.getByTestId('download-icon')).toBeInTheDocument()
-      expect(screen.getByTestId('history-icon')).toBeInTheDocument()
       expect(screen.getByTestId('settings-icon')).toBeInTheDocument()
       expect(screen.getByTestId('user-menu')).toBeInTheDocument()
     })
@@ -1038,9 +907,6 @@ describe('Header', () => {
 
       const downloadButton = screen.getByTestId('download-icon').closest('button')
       expect(downloadButton).toHaveAttribute('title')
-
-      const historyButton = screen.getByTestId('history-icon').closest('button')
-      expect(historyButton).toHaveAttribute('title')
     })
   })
 })

@@ -513,7 +513,7 @@ Documentation for the browser writing workbench at https://app.zenstory.ai. Each
 - [Revise a passage in the workbench editor](https://zenstory.ai/docs/user-guide/editor): manual writing, quotations, review decisions, and save and conflict boundaries.
 - [Use reference materials in ZenStory Workbench](https://zenstory.ai/docs/user-guide/materials): TXT limits, asynchronous decomposition, result categories and explicit attachments.
 - [Export a manuscript from the workbench](https://zenstory.ai/docs/user-guide/export): sequence-aware TXT export, a separate review copy, and bringing back offline edits.
-- [Choose the scope of version recovery](https://zenstory.ai/docs/user-guide/version-history): file versions versus project snapshots, and comparing before recovery.
+- [Read, compare and restore file versions](https://zenstory.ai/docs/user-guide/version-history): file version history, comparing before recovery, and what restoring changes.
 - [AI Memory: settings, progress and open ideas](https://zenstory.ai/docs/advanced/ai-memory): four editable project-summary fields, saved facts versus plans, and context budgets.
 - [Browser writing workflow: decisions to saved prose](https://zenstory.ai/docs/advanced/workflow-tips): what to keep in context, what to save, and what the workbench does not promise.
 - [Material analysis: source evidence to your own scene](https://zenstory.ai/docs/advanced/material-analysis): separate evidence from interpretation, then transfer the changed goal and cost into your own scene.

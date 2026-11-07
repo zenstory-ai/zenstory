@@ -122,8 +122,8 @@
           "zh": "在工作台 commit `9bad4fd` 里，后端有自己的内置、项目和用户 skill。登录工作台不代表装好或同步了你单独使用的 Oh Story，也不说明它和 DSH 里的版本一样。"
         },
         "review": {
-          "en": "Review proposed edits and the actual exported text. Snapshot, comparison and rollback features help revision, but do not guarantee unlimited retention or writing quality. Source inspection here is not a live authenticated-account test or a privacy/security audit.",
-          "zh": "检查 AI 建议的修改和实际导出的文本。快照、对比和回滚方便改稿，但不保证无限期保留，也不保证写得好。本页只核对了源码，没有测试线上账号功能，也不是隐私或安全审计。"
+          "en": "Review proposed edits and the actual exported text. File history, comparison and restore help revision, but do not guarantee unlimited retention or writing quality. Source inspection here is not a live authenticated-account test or a privacy/security audit.",
+          "zh": "检查 AI 建议的修改和实际导出的文本。文件历史、对比和恢复方便改稿，但不保证无限期保留，也不保证写得好。本页只核对了源码，没有测试线上账号功能，也不是隐私或安全审计。"
         },
         "sources": {
           "en": [

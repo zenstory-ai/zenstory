@@ -4,11 +4,12 @@ import json
 import threading
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from agent.tools import mcp_tools
 from agent.tools.author_edit_guard import (
     AUTHOR_EDIT_PROTECTED_ERROR,
+    AuthorEditProtectionUnavailableError,
     AuthorEditRefusals,
     latest_text_is_authors,
     referenced_file_ids_from_metadata,
@@ -18,7 +19,7 @@ from agent.tools.file_ops.edit import file_write_lock
 from api import files as files_api
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from models import File, Project, User
+from models import File, FileVersion, Project, User
 from services.features.activation_event_service import activation_event_service
 from services.features.file_version_service import FileVersionService
 
@@ -558,6 +559,122 @@ def test_latest_text_owner_detection(db_session, owner_project):
     _author_saves(db_session, user, chapter, AUTHOR_CH3)
     db_session.expire_all()
     assert latest_text_is_authors(db_session, db_session.get(File, chapter.id)) is True
+
+
+def _unversioned(session, project, *, title="来源未知", parent_id=None):
+    file = File(project_id=project.id, title=title, content="来源未知的正文", file_type="draft", parent_id=parent_id)
+    session.add(file)
+    session.commit()
+    return file.id
+
+
+def _tree_state(session, project_id):
+    session.expire_all()
+    files = session.exec(select(File).where(File.project_id == project_id)).all()
+    versions = session.exec(select(FileVersion).where(FileVersion.project_id == project_id)).all()
+    return (
+        sorted((f.id, f.title, f.content, f.is_deleted, f.parent_id, f.updated_at) for f in files),
+        sorted(v.id for v in versions),
+    )
+
+
+def _assert_unknown_refused(payload, file_id):
+    assert payload["error_type"] == "author_edit_protection_unavailable"
+    assert payload["mutation_applied"] is False
+    assert payload["id"] == file_id
+    assert "有作者手动" not in payload["error"]
+
+
+async def test_chat_delete_refuses_non_empty_file_of_unknown_provenance(db_session, owner_project):
+    user, project = owner_project
+    file_id = _unversioned(db_session, project)
+    before = _tree_state(db_session, project.id)
+    payload = await _run(mcp_tools.delete_file, db_session, user, project, {"id": file_id}, message="删掉它")
+    _assert_unknown_refused(payload, file_id)
+    assert _tree_state(db_session, project.id) == before
+
+
+async def test_chat_recursive_delete_refuses_folder_holding_unknown_provenance_child(db_session, owner_project):
+    user, project = owner_project
+    folder = File(project_id=project.id, title="正文", content="", file_type="folder")
+    db_session.add(folder)
+    db_session.commit()
+    ai_child = _ai_chapter(db_session, project, title="AI 写的")
+    ai_child.parent_id = folder.id
+    db_session.add(ai_child)
+    db_session.commit()
+    child_id = _unversioned(db_session, project, parent_id=folder.id)
+    before = _tree_state(db_session, project.id)
+    payload = await _run(
+        mcp_tools.delete_file, db_session, user, project, {"id": folder.id, "recursive": True}, message="删掉文件夹"
+    )
+    _assert_unknown_refused(payload, child_id)
+    assert _tree_state(db_session, project.id) == before
+
+
+async def test_chat_rewrite_refuses_unknown_provenance_but_partial_edit_still_works(db_session, owner_project):
+    user, project = owner_project
+    file_id = _unversioned(db_session, project)
+    before = _tree_state(db_session, project.id)
+    with Session(db_session.get_bind()) as session, pytest.raises(AuthorEditProtectionUnavailableError):
+        FileToolExecutor(session, user.id).update_file(id=file_id, content="整份覆盖", protect_author_content=True)
+    assert _tree_state(db_session, project.id) == before
+
+    payload = await _run(
+        mcp_tools.edit_file, db_session, user, project,
+        {"id": file_id, "edits": [{"op": "append", "text": "续写"}]}, message="补一句",
+    )
+    assert payload["status"] == "success"
+    db_session.expire_all()
+    assert db_session.get(File, file_id).content.startswith("来源未知的正文")
+
+
+async def test_chat_create_file_refuses_to_reuse_unknown_provenance_episode(db_session, owner_project):
+    user, project = owner_project
+    project.project_type = "screenplay"
+    folder = File(id=f"{project.id}-script-folder", project_id=project.id, title="剧本", file_type="folder")
+    db_session.add_all([project, folder])
+    db_session.commit()
+    episode = File(project_id=project.id, title="第3集", content="来源未知的正文", file_type="script", parent_id=folder.id, order=3)
+    db_session.add(episode)
+    db_session.commit()
+    before = _tree_state(db_session, project.id)
+    payload = await _run(
+        mcp_tools.create_file, db_session, user, project,
+        {"title": "第3集", "file_type": "script", "parent_id": folder.id}, message="重写第三集",
+    )
+    _assert_unknown_refused(payload, episode.id)
+    assert _tree_state(db_session, project.id) == before
+
+
+async def test_confirmed_ai_text_and_blank_file_stay_deletable_in_chat(db_session, owner_project):
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project)
+    blank = File(project_id=project.id, title="空白", content="", file_type="draft")
+    db_session.add(blank)
+    db_session.commit()
+    for file_id in (chapter.id, blank.id):
+        payload = await _run(mcp_tools.delete_file, db_session, user, project, {"id": file_id}, message="删掉它")
+        assert payload["status"] == "success"
+        db_session.expire_all()
+        assert db_session.get(File, file_id).is_deleted is True
+
+
+async def test_unknown_provenance_guard_stays_out_of_non_chat_entries(db_session, owner_project):
+    user, project = owner_project
+    deleted = _unversioned(db_session, project, title="工具直删")
+    rewritten = _unversioned(db_session, project, title="工具直改")
+    engine = db_session.get_bind()
+    mcp_tools.ToolContext.set_context(None, user.id, project.id, None, create_session_func=lambda: Session(engine))
+    try:
+        raw = await mcp_tools.delete_file({"id": deleted})
+    finally:
+        mcp_tools.ToolContext.clear_context()
+    assert json.loads(raw["content"][0]["text"])["status"] == "success"
+    with Session(engine) as session:
+        FileToolExecutor(session, user.id).update_file(id=rewritten, content="非聊天入口")
+    db_session.expire_all()
+    assert db_session.get(File, rewritten).content == "非聊天入口"
 
 
 async def test_chat_delete_refuses_the_authors_reviewed_reject_save(db_session, owner_project):

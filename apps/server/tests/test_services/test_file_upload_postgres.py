@@ -13,7 +13,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import File, Project, User
 from models.file_version import FileVersion
-from tests.test_services.test_snapshot_concurrency_postgres import pg_engine as pg_engine
+from tests.test_services.test_tree_writers_postgres import pg_engine as pg_engine
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"), reason="isolated PostgreSQL URL not configured",

@@ -118,62 +118,6 @@ export interface SelectedItem {
 
 // ==================== Search ====================
 
-// ==================== Snapshot / Version ====================
-
-export interface Snapshot {
-  id?: string;
-  project_id: string;
-  file_id?: string;
-  data: string;
-  description?: string;
-  snapshot_type?: "auto" | "manual" | "pre_ai_edit" | "pre_rollback";
-  version?: number;
-  created_at?: string;
-}
-
-export interface SnapshotComparison {
-  snapshot1: {
-    id: string;
-    created_at: string;
-  };
-  snapshot2: {
-    id: string;
-    created_at: string;
-  };
-  changes: {
-    added: SnapshotComparisonFile[];
-    removed: SnapshotComparisonFile[];
-    modified: Array<{
-      file_id: string;
-      old_version?: number | null;
-      new_version?: number | null;
-      old_title?: string | null;
-      new_title?: string | null;
-      old_file_type?: string | null;
-      new_file_type?: string | null;
-      metadata_changes?: Partial<Record<SnapshotMetadataField, SnapshotMetadataChange>>;
-    }>;
-  };
-}
-
-type SnapshotMetadataField = "title" | "file_type" | "parent_id" | "order" | "file_metadata";
-
-interface SnapshotMetadataChange {
-  old: unknown;
-  new: unknown;
-}
-
-interface SnapshotComparisonFile {
-  file_id: string;
-  title?: string | null;
-  file_type?: string | null;
-  parent_id?: string | null;
-  order?: number | null;
-  file_metadata?: string | null;
-  version_number?: number | null;
-  version_id?: string | null;
-}
-
 // ==================== File Version (New) ====================
 
 /**

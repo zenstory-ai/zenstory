@@ -735,8 +735,9 @@ def _first_index(chunks: list[str], needle: str) -> int:
 
 
 def _seed_finished_episode(db_session: Session, project, body: str = _E2E_OLD_BODY) -> str:
-    """预置一集"已经写满"的剧本，返回文件 id。"""
+    """预置一集"已经写满"、来源明确是 AI 的剧本，返回文件 id。"""
     from models import File
+    from services.features.file_version_service import FileVersionService
 
     episode = File(
         project_id=project.id,
@@ -749,6 +750,7 @@ def _seed_finished_episode(db_session: Session, project, body: str = _E2E_OLD_BO
     db_session.add(episode)
     db_session.commit()
     db_session.refresh(episode)
+    FileVersionService().create_version(db_session, episode.id, body, change_type="create", change_source="ai")
     return episode.id
 
 

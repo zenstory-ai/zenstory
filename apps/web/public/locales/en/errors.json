@@ -37,9 +37,6 @@
   "ERR_REFERRAL_NOT_FOUND": "That invite wasn't found.",
   "ERR_NOT_AUTHORIZED": "You don’t have permission to do this",
   "ERR_NOT_AUTHORIZED_TO_EXPORT": "You don’t have permission to export this project",
-  "ERR_NOT_AUTHORIZED_TO_ACCESS_SNAPSHOT": "You don’t have permission to view this snapshot",
-  "ERR_NOT_AUTHORIZED_TO_ACCESS_FIRST_SNAPSHOT": "You don’t have permission to view the snapshots you’re comparing",
-  "ERR_NOT_AUTHORIZED_TO_ACCESS_SECOND_SNAPSHOT": "You don’t have permission to view the snapshots you’re comparing",
 
   "ERR_PROJECT_NOT_FOUND": "Project not found",
   "ERR_PROJECT_ALREADY_EXISTS": "Project already exists",
@@ -71,13 +68,6 @@
   "ERR_VERSION_NO_VERSIONS_FOUND": "This file has no earlier versions yet",
   "ERR_VERSION_DELETE_FAILED": "Couldn’t delete the version. Please try again later.",
   "ERR_VERSION_RESTORE_FAILED": "Couldn’t restore the version. Please try again later.",
-
-  "ERR_SNAPSHOT_NOT_FOUND": "Snapshot not found",
-  "ERR_SNAPSHOT_ONE_OR_BOTH_NOT_FOUND": "A snapshot you’re comparing no longer exists. Refresh and choose again.",
-  "ERR_SNAPSHOT_FIRST_NOT_FOUND": "A snapshot you’re comparing no longer exists. Refresh and choose again.",
-  "ERR_SNAPSHOT_SECOND_NOT_FOUND": "A snapshot you’re comparing no longer exists. Refresh and choose again.",
-  "ERR_SNAPSHOT_DIFF_FAILED": "Couldn’t compare the snapshots. Please try again later.",
-  "ERR_SNAPSHOT_CREATE_FAILED": "Couldn’t create the snapshot. Please try again later.",
 
   "ERR_EXPORT_NO_DRAFTS": "This project has no manuscript yet. Write some before exporting.",
 
