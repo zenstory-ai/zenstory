@@ -15,27 +15,10 @@ function buildValidSnapshot(): ServiceStatusResponse {
     window_minutes: 60,
     timezone: "Asia/Shanghai",
     status: "operational",
-    components: [
-      {
-        id: "writing",
-        status: "operational",
-        success_rate: 1,
-        last_observed_at: "2026-11-07T10:59:00+00:00",
-        history: [
-          { date: "2026-11-06", status: "degraded", success_rate: 0.98 },
-          { date: "2026-11-07", status: "operational", success_rate: 1 },
-        ],
-      },
-      {
-        id: "polish",
-        status: "unknown",
-        success_rate: null,
-        last_observed_at: null,
-        history: [
-          { date: "2026-11-06", status: "unknown", success_rate: null },
-          { date: "2026-11-07", status: "unknown", success_rate: null },
-        ],
-      },
+    success_rate: 1,
+    history: [
+      { date: "2026-11-06", status: "degraded", success_rate: 0.98 },
+      { date: "2026-11-07", status: "operational", success_rate: 1 },
     ],
   };
 }

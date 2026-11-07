@@ -13,8 +13,8 @@ describe('pageSEOConfig', () => {
   it('defines public bilingual SEO metadata for /status', () => {
     const status = pageSEOConfig['/status']
     expect(status).toBeDefined()
-    expect(status.zh.title).toBe('服务状态 - ZenStory')
-    expect(status.en.title).toBe('Service Status - ZenStory')
+    expect(status.zh.title).toBe('Agent 状态 - ZenStory')
+    expect(status.en.title).toBe('Agent Status - ZenStory')
     expect(status.zh.noindex).toBe(false)
     expect(status.en.noindex).toBe(false)
   })

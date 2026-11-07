@@ -7,16 +7,13 @@ import {
   fetchServiceStatus,
   formatSuccessRate,
   isStatusSnapshotExpired,
-  type ComponentStatusObservation,
   type DailyStatusObservation,
   type ObservationStatus,
   type ServiceStatusResponse,
-  type StatusComponentId,
 } from "../lib/statusApi";
 
 const POLL_INTERVAL_MS = 60_000;
 const STATUS_REQUEST_TIMEOUT_MS = 10_000;
-const COMPONENT_ORDER: readonly StatusComponentId[] = ["writing", "polish"];
 
 type DisplayTone = ObservationStatus | "stale" | "unavailable";
 
@@ -92,7 +89,7 @@ export function StatusPage() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  const [selectedDates, setSelectedDates] = useState<Partial<Record<StatusComponentId, string>>>({});
+  const [selectedDate, setSelectedDate] = useState<string>();
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef<boolean>(true);
@@ -215,14 +212,6 @@ export function StatusPage() {
     return snapshot.status;
   }, [snapshot, fetchError, isStaleOrFailed]);
 
-  const orderedComponents = useMemo<ComponentStatusObservation[]>(() => {
-    if (!snapshot) return [];
-    const byId = new Map(snapshot.components.map((item) => [item.id, item]));
-    return COMPONENT_ORDER.map((id) => byId.get(id)).filter(
-      (item): item is ComponentStatusObservation => Boolean(item),
-    );
-  }, [snapshot]);
-
   const windowLabel = useMemo(() => {
     const minutes = snapshot?.window_minutes ?? 60;
     if (minutes === 60) {
@@ -259,15 +248,12 @@ export function StatusPage() {
   }, [snapshot, fetchError, isStaleOrFailed, overallTone, t]);
 
   const statusLabelFor = useCallback(
-    (tone: DisplayTone): string => {
+    (tone: ObservationStatus): string => {
       switch (tone) {
         case "operational":
           return t("statusPage.status.operational", { defaultValue: "正常" });
         case "degraded":
           return t("statusPage.status.degraded", { defaultValue: "有异常调用" });
-        case "stale":
-        case "unavailable":
-          return t("statusPage.status.stale", { defaultValue: "待更新" });
         case "unknown":
         default:
           return t("statusPage.status.unknown", { defaultValue: "无数据" });
@@ -275,10 +261,6 @@ export function StatusPage() {
     },
     [t],
   );
-
-  const handleSelectDate = useCallback((componentId: StatusComponentId, date: string) => {
-    setSelectedDates((prev) => ({ ...prev, [componentId]: date }));
-  }, []);
 
   const overallClasses = getToneClasses(overallTone);
 
@@ -288,7 +270,7 @@ export function StatusPage() {
 
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
         <h1 className="mb-6 text-2xl font-bold tracking-tight sm:text-3xl">
-          {t("statusPage.title", { defaultValue: "服务状态" })}
+          {t("statusPage.title", { defaultValue: "Agent 状态" })}
         </h1>
 
         {initialLoading && !snapshot && !fetchError ? (
@@ -339,37 +321,20 @@ export function StatusPage() {
               </Button>
             </section>
 
-            {orderedComponents.length > 0 && (
+            {snapshot && (
               <>
-                <section aria-labelledby="status-current-window">
-                  <div className="flex items-center justify-between gap-3 px-1 pb-2 text-xs text-[hsl(var(--text-secondary))]">
-                    <span id="status-current-window">{windowLabel}</span>
-                    <span>{t("statusPage.metrics.successRate", { defaultValue: "调用成功率" })}</span>
-                  </div>
-                  <div className="divide-y divide-[hsl(var(--separator-color))] rounded-xl border border-[hsl(var(--border-color))]">
-                    {orderedComponents.map((component) => {
-                      const tone = isStaleOrFailed ? "stale" : component.status;
-                      return (
-                        <div
-                          key={component.id}
-                          data-testid={`status-component-${component.id}`}
-                          data-status-tone={tone}
-                          className="flex items-center justify-between gap-4 px-4 py-4"
-                        >
-                          <div className="min-w-0">
-                            <h2 className="text-sm font-medium">{t(`statusPage.components.${component.id}.title`)}</h2>
-                            <p className="mt-1 flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]">
-                              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${getToneClasses(tone).dot}`} />
-                              {statusLabelFor(tone)}
-                            </p>
-                          </div>
-                          <span className="text-sm tabular-nums">
-                            {isStaleOrFailed ? "—" : formatSuccessRate(component.success_rate) ?? "—"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <section
+                  aria-labelledby="status-current-window"
+                  data-testid="status-current-rate"
+                  className="flex items-center justify-between gap-4 px-1 text-sm"
+                >
+                  <span id="status-current-window" className="text-[hsl(var(--text-secondary))]">{windowLabel}</span>
+                  <span className="text-[hsl(var(--text-secondary))]">
+                    {t("statusPage.metrics.successRate", { defaultValue: "调用成功率" })}{" "}
+                    <strong className="font-medium tabular-nums text-[hsl(var(--text-primary))]">
+                      {isStaleOrFailed ? "—" : formatSuccessRate(snapshot.success_rate) ?? "—"}
+                    </strong>
+                  </span>
                 </section>
 
                 <details className="group border-b border-[hsl(var(--border-color))]">
@@ -377,16 +342,13 @@ export function StatusPage() {
                     {t("statusPage.history.title", { defaultValue: "近 30 天调用记录" })}
                     <ChevronRight aria-hidden="true" className="h-4 w-4 group-open:rotate-90" />
                   </summary>
-                  <div className="space-y-6 pb-4 pt-3">
-                    {orderedComponents.map((component) => (
-                      <ComponentHistory
-                        key={component.id}
-                        component={component}
-                        selectedDate={selectedDates[component.id]}
-                        onSelectDate={(date) => handleSelectDate(component.id, date)}
-                        statusLabelFor={statusLabelFor}
-                      />
-                    ))}
+                  <div className="pb-4 pt-3">
+                    <AgentHistory
+                      history={snapshot.history}
+                      selectedDate={selectedDate}
+                      onSelectDate={setSelectedDate}
+                      statusLabelFor={statusLabelFor}
+                    />
                   </div>
                 </details>
               </>
@@ -404,22 +366,20 @@ export function StatusPage() {
   );
 }
 
-interface ComponentHistoryProps {
-  component: ComponentStatusObservation;
+interface AgentHistoryProps {
+  history: DailyStatusObservation[];
   selectedDate: string | undefined;
   onSelectDate: (date: string) => void;
-  statusLabelFor: (tone: DisplayTone) => string;
+  statusLabelFor: (tone: ObservationStatus) => string;
 }
 
-function ComponentHistory({
-  component,
+function AgentHistory({
+  history,
   selectedDate,
   onSelectDate,
   statusLabelFor,
-}: ComponentHistoryProps) {
+}: AgentHistoryProps) {
   const { t } = useTranslation("common");
-  const serviceName = t(`statusPage.components.${component.id}.title`);
-  const history = component.history;
   const maxIndex = Math.max(0, history.length - 1);
 
   const selectedIndex = useMemo(() => {
@@ -475,13 +435,12 @@ function ComponentHistory({
 
   return (
     <div>
-      <h3 className="mb-1 text-sm font-medium">{serviceName}</h3>
       {history.length > 0 && (
         <div>
           <div className="relative flex min-h-11 items-center">
             {/* Read-only 30-day visual bars (no narrow buttons, no 30 tab stops) */}
             <div
-              data-testid={`status-history-strip-${component.id}`}
+              data-testid="status-history-strip"
               aria-hidden="true"
               className="pointer-events-none flex w-full items-center gap-[3px] sm:gap-1"
             >
@@ -501,14 +460,13 @@ function ComponentHistory({
             {/* Full-width >=44px native range input for touch, mouse, and keyboard */}
             <input
               type="range"
-              data-testid={`status-history-range-${component.id}`}
+              data-testid="status-history-range"
               min={0}
               max={maxIndex}
               step={1}
               value={selectedIndex}
               aria-label={t("statusPage.history.rangeAria", {
-                service: serviceName,
-                defaultValue: "{{service}}近 30 天日期选择",
+                defaultValue: "Agent 近 30 天日期选择",
               })}
               aria-valuetext={ariaValueText}
               onChange={(event) => selectByIndex(Number(event.target.value))}
@@ -520,12 +478,12 @@ function ComponentHistory({
           {/* Selected date details + 44px prev/next step controls */}
           {activeDay && (
             <div
-              data-testid={`status-history-detail-${component.id}`}
+              data-testid="status-history-detail"
               className="flex items-center justify-between gap-2 text-xs"
             >
               <button
                 type="button"
-                data-testid={`status-history-prev-${component.id}`}
+                data-testid="status-history-prev"
                 onClick={() => selectByIndex(selectedIndex - 1)}
                 disabled={selectedIndex <= 0}
                 aria-label={t("statusPage.history.prevDay", { defaultValue: "前一天" })}
@@ -562,7 +520,7 @@ function ComponentHistory({
 
               <button
                 type="button"
-                data-testid={`status-history-next-${component.id}`}
+                data-testid="status-history-next"
                 onClick={() => selectByIndex(selectedIndex + 1)}
                 disabled={selectedIndex >= maxIndex}
                 aria-label={t("statusPage.history.nextDay", { defaultValue: "后一天" })}

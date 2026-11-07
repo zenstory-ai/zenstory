@@ -149,7 +149,7 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     for (const f of ['index.html','robots.txt','sitemap.xml']) assert.equal(existsSync(join(dir,f)), false)
     assert.match(readFileSync(join(dir,'_app/home.html'),'utf8'), /href="https:\/\/app\.zenstory\.ai\/"/)
     const statusShell = readFileSync(join(dir, '_app/status.html'), 'utf8')
-    assert.match(statusShell, /<title>服务状态 - ZenStory<\/title>/)
+    assert.match(statusShell, /<title>Agent 状态 - ZenStory<\/title>/)
     assert.match(statusShell, /href="https:\/\/app\.zenstory\.ai\/status"/)
     assert.match(statusShell, /<div id="root"><\/div>/)
     assert.doesNotMatch(readFileSync(join(dir,'_app/index.html'),'utf8'), /rel="canonical"/)

@@ -94,10 +94,10 @@
     "closeMenu": "关闭菜单",
     "materials": "素材库",
     "docs": "文档",
-    "status": "服务状态"
+    "status": "Agent 状态"
   },
   "statusPage": {
-    "title": "服务状态",
+    "title": "Agent 状态",
     "refresh": "刷新",
     "refreshing": "刷新中…",
     "retry": "重试",
@@ -115,23 +115,14 @@
     "status": {
       "operational": "正常",
       "degraded": "有异常调用",
-      "unknown": "无数据",
-      "stale": "待更新"
-    },
-    "components": {
-      "writing": {
-        "title": "AI 写作"
-      },
-      "polish": {
-        "title": "去 AI 味"
-      }
+      "unknown": "无数据"
     },
     "metrics": {
       "successRate": "调用成功率"
     },
     "history": {
       "title": "近 30 天调用记录",
-      "rangeAria": "{{service}}近 30 天日期选择",
+      "rangeAria": "Agent 近 30 天日期选择",
       "prevDay": "前一天",
       "nextDay": "后一天",
       "todayPartial": "截至更新"

@@ -101,32 +101,12 @@ function buildSnapshot(overrides: Partial<ServiceStatusResponse> = {}): ServiceS
     window_minutes: 60,
     timezone: "Asia/Shanghai",
     status: "operational",
-    components: [
-      {
-        id: "writing",
-        status: "operational",
-        success_rate: 1,
-        last_observed_at: "2026-11-07T10:59:00+00:00",
-        history: buildThirtyDayHistory({
-          "2026-10-15": { status: "degraded", success_rate: 0.98 },
-          "2026-10-20": { status: "unknown", success_rate: null },
-          "2026-11-07": { status: "operational", success_rate: 1 },
-        }),
-      },
-      {
-        id: "polish",
-        status: "operational",
-        success_rate: 1,
-        last_observed_at: "2026-11-07T10:45:00+00:00",
-        history: buildThirtyDayHistory(
-          {
-            "2026-11-07": { status: "operational", success_rate: 1 },
-          },
-          "unknown",
-          null,
-        ),
-      },
-    ],
+    success_rate: 1,
+    history: buildThirtyDayHistory({
+      "2026-10-15": { status: "degraded", success_rate: 0.98 },
+      "2026-10-20": { status: "unknown", success_rate: null },
+      "2026-11-07": { status: "operational", success_rate: 1 },
+    }),
     ...overrides,
   };
 }
@@ -171,10 +151,10 @@ describe("StatusPage", () => {
 
     const disclosure = screen.getByText("近 30 天调用记录").closest("details")!;
     expect(disclosure).not.toHaveAttribute("open");
-    expect(screen.getByTestId("status-history-strip-writing")).not.toBeVisible();
+    expect(screen.getByTestId("status-history-strip")).not.toBeVisible();
     fireEvent.click(screen.getByText("近 30 天调用记录"));
     expect(disclosure).toHaveAttribute("open");
-    expect(screen.getByTestId("status-history-strip-writing")).toBeVisible();
+    expect(screen.getByTestId("status-history-strip")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "刷新" }));
     await act(async () => { await Promise.resolve(); });
@@ -204,20 +184,14 @@ describe("StatusPage", () => {
     expect(banner).toHaveTextContent("近期调用正常");
     expect(screen.getByRole("region", { name: "最近 1 小时" })).toBeVisible();
 
-    const writingRow = screen.getByTestId("status-component-writing");
-    expect(writingRow).toHaveAttribute("data-status-tone", "operational");
-    expect(writingRow).toHaveTextContent("AI 写作");
-    expect(writingRow).toHaveTextContent("正常");
-    expect(writingRow).toHaveTextContent("100%");
-
-    const polishRow = screen.getByTestId("status-component-polish");
-    expect(polishRow).toHaveAttribute("data-status-tone", "operational");
-    expect(polishRow).toHaveTextContent("去 AI 味");
-    expect(polishRow).toHaveTextContent("正常");
-    expect(polishRow).toHaveTextContent("100%");
+    const currentRate = screen.getByTestId("status-current-rate");
+    expect(currentRate).toHaveTextContent("调用成功率 100%");
+    expect(screen.getByRole("heading", { level: 1, name: "Agent 状态" })).toBeVisible();
+    expect(screen.queryByText("去 AI 味")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("status-history-strip")).toHaveLength(1);
 
     // 30-day visual strip is read-only (no 30 narrow buttons)
-    const writingStrip = screen.getByTestId("status-history-strip-writing");
+    const writingStrip = screen.getByTestId("status-history-strip");
     expect(writingStrip.querySelectorAll("button")).toHaveLength(0);
     expect(writingStrip.querySelectorAll("[data-day-bar]")).toHaveLength(30);
 
@@ -229,22 +203,8 @@ describe("StatusPage", () => {
     mockFetchServiceStatus.mockResolvedValueOnce(
       buildSnapshot({
         status: "unknown",
-        components: [
-          {
-            id: "writing",
-            status: "unknown",
-            success_rate: null,
-            last_observed_at: null,
-            history: buildThirtyDayHistory({}, "unknown", null),
-          },
-          {
-            id: "polish",
-            status: "unknown",
-            success_rate: null,
-            last_observed_at: null,
-            history: buildThirtyDayHistory({}, "unknown", null),
-          },
-        ],
+        success_rate: null,
+        history: buildThirtyDayHistory({}, "unknown", null),
       }),
     );
 
@@ -262,34 +222,18 @@ describe("StatusPage", () => {
     expect(banner).toHaveAttribute("data-status-tone", "unknown");
     expect(banner).toHaveTextContent("暂无近期数据");
 
-    const writingRow = screen.getByTestId("status-component-writing");
-    expect(writingRow).toHaveAttribute("data-status-tone", "unknown");
-    expect(writingRow).toHaveTextContent("无数据");
-    expect(writingRow).toHaveTextContent("—");
+    expect(screen.getByTestId("status-current-rate")).toHaveTextContent("—");
+    expect(screen.getByTestId("status-current-rate")).not.toHaveTextContent("100%");
   });
 
   it("renders degraded status when recent calls had errors without claiming site-wide outage", async () => {
     mockFetchServiceStatus.mockResolvedValueOnce(
       buildSnapshot({
         status: "degraded",
-        components: [
-          {
-            id: "writing",
-            status: "degraded",
-            success_rate: 0.98,
-            last_observed_at: "2026-11-07T10:59:00+00:00",
-            history: buildThirtyDayHistory({
-              "2026-11-07": { status: "degraded", success_rate: 0.98 },
-            }),
-          },
-          {
-            id: "polish",
-            status: "unknown",
-            success_rate: null,
-            last_observed_at: null,
-            history: buildThirtyDayHistory({}, "unknown", null),
-          },
-        ],
+        success_rate: 0.98,
+        history: buildThirtyDayHistory({
+          "2026-11-07": { status: "degraded", success_rate: 0.98 },
+        }),
       }),
     );
 
@@ -307,14 +251,7 @@ describe("StatusPage", () => {
     expect(banner).toHaveAttribute("data-status-tone", "degraded");
     expect(banner).toHaveTextContent("近期有异常调用");
 
-    const writingRow = screen.getByTestId("status-component-writing");
-    expect(writingRow).toHaveAttribute("data-status-tone", "degraded");
-    expect(writingRow).toHaveTextContent("有异常调用");
-    expect(writingRow).toHaveTextContent("98%");
-
-    const polishRow = screen.getByTestId("status-component-polish");
-    expect(polishRow).toHaveAttribute("data-status-tone", "unknown");
-    expect(polishRow).toHaveTextContent("无数据");
+    expect(screen.getByTestId("status-current-rate")).toHaveTextContent("98%");
   });
 
   it("supports full-width 44px range slider, keyboard navigation, and 44px prev/next buttons for 30-day history", async () => {
@@ -331,8 +268,8 @@ describe("StatusPage", () => {
     });
 
     fireEvent.click(screen.getByText("近 30 天调用记录"));
-    const writingDetail = screen.getByTestId("status-history-detail-writing");
-    const rangeInput = screen.getByTestId("status-history-range-writing") as HTMLInputElement;
+    const writingDetail = screen.getByTestId("status-history-detail");
+    const rangeInput = screen.getByTestId("status-history-range") as HTMLInputElement;
 
     // Full-width and at least 44px high
     expect(rangeInput.className).toContain("w-full");
@@ -372,8 +309,8 @@ describe("StatusPage", () => {
     expect(writingDetail).toHaveTextContent("2026-11-07");
 
     // 44px previous/next buttons also step day by day
-    const prevBtn = screen.getByTestId("status-history-prev-writing");
-    const nextBtn = screen.getByTestId("status-history-next-writing");
+    const prevBtn = screen.getByTestId("status-history-prev");
+    const nextBtn = screen.getByTestId("status-history-next");
     expect(prevBtn.className).toContain("min-h-11");
     expect(nextBtn.className).toContain("min-h-11");
     expect(nextBtn).toBeDisabled();
@@ -470,24 +407,10 @@ describe("StatusPage", () => {
       .mockResolvedValueOnce(
         buildSnapshot({
           status: "degraded",
-          components: [
-            {
-              id: "writing",
-              status: "degraded",
-              success_rate: 0.98,
-              last_observed_at: "2026-11-07T10:59:00+00:00",
-              history: buildThirtyDayHistory({
-                "2026-11-07": { status: "degraded", success_rate: 0.98 },
-              }),
-            },
-            {
-              id: "polish",
-              status: "operational",
-              success_rate: 1,
-              last_observed_at: "2026-11-07T10:45:00+00:00",
-              history: buildThirtyDayHistory(),
-            },
-          ],
+          success_rate: 0.98,
+          history: buildThirtyDayHistory({
+            "2026-11-07": { status: "degraded", success_rate: 0.98 },
+          }),
         }),
       )
       .mockRejectedValueOnce(new Error("HTTP 503"));
@@ -506,10 +429,6 @@ describe("StatusPage", () => {
       "data-status-tone",
       "degraded",
     );
-    expect(screen.getByTestId("status-component-writing")).toHaveAttribute(
-      "data-status-tone",
-      "degraded",
-    );
 
     // Advance 60s to trigger background poll which fails with 503
     await act(async () => {
@@ -523,20 +442,11 @@ describe("StatusPage", () => {
       "data-status-tone",
       "stale",
     );
-    expect(screen.getByTestId("status-component-writing")).toHaveAttribute(
-      "data-status-tone",
-      "stale",
-    );
-    expect(screen.getByTestId("status-component-polish")).toHaveAttribute(
-      "data-status-tone",
-      "stale",
-    );
     // Live 1-hour rate shows "—" when stale while 30-day history detail retains 98%
-    const writingRow = screen.getByTestId("status-component-writing");
-    expect(writingRow).toHaveTextContent("待更新");
-    expect(writingRow).toHaveTextContent("—");
-    expect(writingRow).not.toHaveTextContent("98%");
-    expect(screen.getByTestId("status-history-detail-writing")).toHaveTextContent("98%");
+    const currentRate = screen.getByTestId("status-current-rate");
+    expect(currentRate).toHaveTextContent("—");
+    expect(currentRate).not.toHaveTextContent("98%");
+    expect(screen.getByTestId("status-history-detail")).toHaveTextContent("98%");
   });
 
   it("stops showing green operational status as soon as expires_at is reached", async () => {
@@ -569,38 +479,20 @@ describe("StatusPage", () => {
       "data-status-tone",
       "stale",
     );
-    expect(screen.getByTestId("status-component-writing")).toHaveAttribute(
-      "data-status-tone",
-      "stale",
-    );
     expect(screen.getByTestId("status-overview-banner")).toHaveTextContent("上次更新");
   });
 
-  it("refreshes when background tab becomes visible again and renders English copy (including Humanize) when locale is en", async () => {
+  it("refreshes when background tab becomes visible again and renders English Agent copy when locale is en", async () => {
     mockLanguage.value = "en-US";
     mockFetchServiceStatus
       .mockResolvedValueOnce(buildSnapshot())
       .mockResolvedValueOnce(
         buildSnapshot({
           status: "degraded",
-          components: [
-            {
-              id: "writing",
-              status: "degraded",
-              success_rate: 0.9,
-              last_observed_at: "2026-11-07T11:01:00+00:00",
-              history: buildThirtyDayHistory({
-                "2026-11-07": { status: "degraded", success_rate: 0.9 },
-              }),
-            },
-            {
-              id: "polish",
-              status: "operational",
-              success_rate: 1,
-              last_observed_at: "2026-11-07T11:01:00+00:00",
-              history: buildThirtyDayHistory(),
-            },
-          ],
+          success_rate: 0.9,
+          history: buildThirtyDayHistory({
+            "2026-11-07": { status: "degraded", success_rate: 0.9 },
+          }),
         }),
       );
 
@@ -614,9 +506,8 @@ describe("StatusPage", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByRole("heading", { level: 1, name: "Service Status" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "AI Writing" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Humanize" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Agent Status" })).toBeInTheDocument();
+    expect(screen.queryByText("Humanize")).not.toBeInTheDocument();
 
     Object.defineProperty(document, "visibilityState", {
       configurable: true,

@@ -15,14 +15,12 @@ from models.llm_usage import (
     CALL_OUTCOME_SUCCESS,
     CALL_OUTCOME_TIMEOUT,
     LLM_USAGE_SOURCE_AGENT,
-    LLM_USAGE_SOURCE_POLISH,
     LLM_USAGE_SOURCE_ROUTER,
     LLMUsageEvent,
 )
 from services.usage.pricing import BEIJING_TZ_NAME, beijing_day_start_utc, beijing_today
 
 ObservationStatus = Literal["operational", "degraded", "unknown"]
-ComponentId = Literal["writing", "polish"]
 HISTORY_DAYS = 30
 WINDOW_MINUTES = 60
 CACHE_SECONDS = 30
@@ -35,14 +33,6 @@ class DailyObservation(BaseModel):
     success_rate: float | None
 
 
-class ComponentObservation(BaseModel):
-    id: ComponentId
-    status: ObservationStatus
-    success_rate: float | None
-    last_observed_at: UTCDateTime | None
-    history: list[DailyObservation]
-
-
 class ServiceStatus(BaseModel):
     generated_at: UTCDateTime
     expires_at: UTCDateTime
@@ -50,7 +40,8 @@ class ServiceStatus(BaseModel):
     window_minutes: int = WINDOW_MINUTES
     timezone: str = BEIJING_TZ_NAME
     status: ObservationStatus
-    components: list[ComponentObservation]
+    success_rate: float | None
+    history: list[DailyObservation]
 
 
 def _observation(successes: int, attempts: int) -> tuple[ObservationStatus, float | None]:
@@ -79,58 +70,42 @@ def get_service_status(session: Session, *, now: datetime | None = None) -> Serv
             for day in days
         ]
     )
-    component_key = case((events.source == LLM_USAGE_SOURCE_POLISH, "polish"), else_="writing")
     successful = events.outcome == CALL_OUTCOME_SUCCESS
     recent = events.occurred_at >= window_start.replace(tzinfo=None)
     rows = session.exec(
         select(
-            component_key.label("component"),
             day_key.label("day"),
             func.count().label("attempts"),
             func.sum(case((successful, 1), else_=0)).label("successes"),
             func.sum(case((recent, 1), else_=0)).label("recent_attempts"),
             func.sum(case((and_(recent, successful), 1), else_=0)).label("recent_successes"),
-            func.max(events.occurred_at).label("last_observed_at"),
         )
         .where(
             events.occurred_at >= beijing_day_start_utc(days[0]),
             events.occurred_at < now.replace(tzinfo=None),
-            events.source.in_((LLM_USAGE_SOURCE_AGENT, LLM_USAGE_SOURCE_ROUTER, LLM_USAGE_SOURCE_POLISH)),
+            events.source.in_((LLM_USAGE_SOURCE_AGENT, LLM_USAGE_SOURCE_ROUTER)),
             events.outcome.in_((CALL_OUTCOME_SUCCESS, CALL_OUTCOME_ERROR, CALL_OUTCOME_TIMEOUT)),
             events.is_backfilled.is_(False),
         )
-        .group_by(component_key, day_key)
+        .group_by(day_key)
     ).all()
-    by_day = {(row.component, row.day): row for row in rows}
-    components = []
-    for component_id in ("writing", "polish"):
-        component_rows = [row for row in rows if row.component == component_id]
-        state, rate = _observation(
-            sum(row.recent_successes for row in component_rows),
-            sum(row.recent_attempts for row in component_rows),
-        )
-        history = []
-        for day in days:
-            row = by_day.get((component_id, day.isoformat()))
-            day_state, day_rate = _observation(row.successes, row.attempts) if row else ("unknown", None)
-            history.append(DailyObservation(date=day.isoformat(), status=day_state, success_rate=day_rate))
-        components.append(
-            ComponentObservation(
-                id=component_id,
-                status=state,
-                success_rate=rate,
-                last_observed_at=max((row.last_observed_at for row in component_rows), default=None),
-                history=history,
-            )
-        )
-    states = {component.status for component in components}
-    overall = "degraded" if "degraded" in states else "unknown" if "unknown" in states else "operational"
+    by_day = {row.day: row for row in rows}
+    state, rate = _observation(
+        sum(row.recent_successes for row in rows),
+        sum(row.recent_attempts for row in rows),
+    )
+    history = []
+    for day in days:
+        row = by_day.get(day.isoformat())
+        day_state, day_rate = _observation(row.successes, row.attempts) if row else ("unknown", None)
+        history.append(DailyObservation(date=day.isoformat(), status=day_state, success_rate=day_rate))
     return ServiceStatus(
         generated_at=now,
         expires_at=now + timedelta(seconds=FRESH_SECONDS),
         window_start=window_start,
-        status=overall,
-        components=components,
+        status=state,
+        success_rate=rate,
+        history=history,
     )
 
 

@@ -8,7 +8,9 @@
 
 ## Decision
 
-入口与页面层级已由[弱入口与精简展示](../simplification/2026-11-07-status-secondary-entry.md)调整；以下保留初版决策背景，数据契约仍有效。
+服务范围与接口结构随后收敛为[仅展示 Agent](../simplification/2026-11-07-status-agent-only.md)；以下保留当时的设计背景。
+
+入口与页面层级已由[弱入口与精简展示](../simplification/2026-11-07-status-secondary-entry.md)调整；以下保留初版决策背景。
 
 公开 App `/status` 与匿名 `GET /api/status`，复用 App 设计语言与既有账本。展示 AI 写作（agent/router）和去 AI 味（polish）最近 60 分钟调用状态及北京日期的近 30 天记录。任一有效错误/超时表示该窗口出现异常调用；全成功表示近期调用正常；没有有效记录表示未知。总体有异常优先，否则有未知即未知，两项正常才正常。成功率为成功次数除以成功、错误、超时次数之和，不标成 uptime。
 

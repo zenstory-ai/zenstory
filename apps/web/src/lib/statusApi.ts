@@ -1,20 +1,11 @@
 import { getApiBase } from "./apiClient";
 
 export type ObservationStatus = "operational" | "degraded" | "unknown";
-export type StatusComponentId = "writing" | "polish";
 
 export interface DailyStatusObservation {
   date: string;
   status: ObservationStatus;
   success_rate: number | null;
-}
-
-export interface ComponentStatusObservation {
-  id: StatusComponentId;
-  status: ObservationStatus;
-  success_rate: number | null;
-  last_observed_at: string | null;
-  history: DailyStatusObservation[];
 }
 
 export interface ServiceStatusResponse {
@@ -24,7 +15,8 @@ export interface ServiceStatusResponse {
   window_minutes: number;
   timezone: string;
   status: ObservationStatus;
-  components: ComponentStatusObservation[];
+  success_rate: number | null;
+  history: DailyStatusObservation[];
 }
 
 export class StatusApiError extends Error {
@@ -42,8 +34,6 @@ const VALID_OBSERVATION_STATUSES = new Set<ObservationStatus>([
   "degraded",
   "unknown",
 ]);
-
-const VALID_COMPONENT_IDS = new Set<StatusComponentId>(["writing", "polish"]);
 
 function isObservationStatus(value: unknown): value is ObservationStatus {
   return typeof value === "string" && VALID_OBSERVATION_STATUSES.has(value as ObservationStatus);
@@ -67,20 +57,6 @@ function isDailyObservation(value: unknown): value is DailyStatusObservation {
   );
 }
 
-function isComponentObservation(value: unknown): value is ComponentStatusObservation {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Record<string, unknown>;
-  return (
-    typeof item.id === "string" &&
-    VALID_COMPONENT_IDS.has(item.id as StatusComponentId) &&
-    isObservationStatus(item.status) &&
-    isValidSuccessRate(item.success_rate) &&
-    (item.last_observed_at === null || typeof item.last_observed_at === "string") &&
-    Array.isArray(item.history) &&
-    item.history.every(isDailyObservation)
-  );
-}
-
 function isServiceStatusResponse(value: unknown): value is ServiceStatusResponse {
   if (!value || typeof value !== "object") return false;
   const payload = value as Record<string, unknown>;
@@ -91,8 +67,9 @@ function isServiceStatusResponse(value: unknown): value is ServiceStatusResponse
     typeof payload.window_minutes === "number" &&
     typeof payload.timezone === "string" &&
     isObservationStatus(payload.status) &&
-    Array.isArray(payload.components) &&
-    payload.components.every(isComponentObservation)
+    isValidSuccessRate(payload.success_rate) &&
+    Array.isArray(payload.history) &&
+    payload.history.every(isDailyObservation)
   );
 }
 

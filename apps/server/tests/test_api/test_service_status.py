@@ -1,4 +1,4 @@
-"""Anonymous status uses aggregate, synthetic provider attempts, never user payloads."""
+"""Public Agent status uses synthetic provider attempts, never user payloads."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -56,15 +56,11 @@ async def test_anonymous_empty_history_is_unknown_not_uptime(client):
     assert datetime.fromisoformat(data["window_start"]) == NOW - timedelta(hours=1)
     assert datetime.fromisoformat(data["expires_at"]) == NOW + timedelta(seconds=120)
     assert response.headers["cache-control"] == "public, max-age=30"
-    assert [c["id"] for c in data["components"]] == ["writing", "polish"]
-    for component in data["components"]:
-        assert component["status"] == "unknown"
-        assert component["success_rate"] is None
-        assert component["last_observed_at"] is None
-        assert len(component["history"]) == 30
-        assert component["history"][0]["date"] == "2026-10-10"
-        assert component["history"][-1]["date"] == "2026-11-08"
-        assert all(day["status"] == "unknown" and day["success_rate"] is None for day in component["history"])
+    assert data["success_rate"] is None
+    assert len(data["history"]) == 30
+    assert data["history"][0]["date"] == "2026-10-10"
+    assert data["history"][-1]["date"] == "2026-11-08"
+    assert all(day["status"] == "unknown" and day["success_rate"] is None for day in data["history"])
 
 
 async def test_call_failover_and_exclusions_do_not_become_user_failure_rate(client, attempt):
@@ -73,6 +69,8 @@ async def test_call_failover_and_exclusions_do_not_become_user_failure_rate(clie
     attempt("success")
     attempt("timeout")
     attempt("success", source="polish")
+    attempt("error", source="polish")
+    attempt("timeout", source="polish")
     attempt("cancelled")
     attempt(None)
     attempt("error", backfilled=True)
@@ -82,57 +80,60 @@ async def test_call_failover_and_exclusions_do_not_become_user_failure_rate(clie
     response = await client.get("/api/status")
     data = response.json()
     assert data["status"] == "degraded"
-    writing, polish = data["components"]
-    assert writing["status"] == "degraded"
-    assert writing["success_rate"] == 0.5
-    assert writing["history"][-1]["success_rate"] == 0.5
-    assert polish["status"] == "operational"
-    assert polish["success_rate"] == 1
-    assert datetime.fromisoformat(writing["last_observed_at"]) == NOW - timedelta(minutes=5)
+    assert data["success_rate"] == 0.5
+    assert data["history"][-1]["success_rate"] == 0.5
     # Public DTO is deliberately allowlisted; no traffic counts or identifying details.
-    assert set(data) == {"generated_at", "expires_at", "window_start", "window_minutes", "timezone", "status", "components"}
-    assert set(writing) == {"id", "status", "success_rate", "last_observed_at", "history"}
-    assert set(writing["history"][-1]) == {"date", "status", "success_rate"}
+    assert set(data) == {
+        "generated_at", "expires_at", "window_start", "window_minutes", "timezone",
+        "status", "success_rate", "history",
+    }
+    assert set(data["history"][-1]) == {"date", "status", "success_rate"}
     assert "private-" not in response.text
     assert "status@example.com" not in response.text
 
 
 def test_beijing_boundaries_recent_window_and_retention(db_session, attempt):
-    attempt("success", at=NOW - timedelta(hours=1))  # Inclusive recent boundary, previous Beijing day.
+    attempt("success", at=NOW - timedelta(hours=1))  # Inclusive boundary, previous Beijing day.
     attempt("error", at=NOW - timedelta(hours=1, seconds=1))  # History only.
     attempt("success", at=datetime(2026, 11, 7, 16, tzinfo=UTC))  # Beijing midnight.
     attempt("error", at=datetime(2026, 10, 9, 16, tzinfo=UTC))  # First included day.
-    attempt("error", source="polish", at=datetime(2026, 10, 9, 15, 59, 59, tzinfo=UTC))
+    attempt("error", at=datetime(2026, 10, 9, 15, 59, 59, tzinfo=UTC))  # Outside retention.
     data = service_status.get_service_status(db_session)
-    writing, polish = data.components
-    assert writing.status == "operational"
-    assert writing.success_rate == 1
-    assert writing.history[-2].status == "degraded"
-    assert writing.history[-2].success_rate == 0.5
-    assert writing.history[-1].status == "operational"
-    assert writing.history[0].status == "degraded"
-    assert polish.status == "unknown"
-    assert polish.last_observed_at is None
-    assert data.status == "unknown"  # One healthy service is not all services operational.
+    assert data.status == "operational"
+    assert data.success_rate == 1
+    assert data.history[-2].status == "degraded"
+    assert data.history[-2].success_rate == 0.5
+    assert data.history[-1].status == "operational"
+    assert data.history[0].status == "degraded"
 
 
 def test_only_cancelled_or_unrecorded_calls_remain_unknown(db_session, attempt):
     attempt("cancelled")
     attempt(None)
     attempt("success", backfilled=True)
-    attempt("success", source="polish", at=NOW - timedelta(hours=2))
+    attempt("success", at=NOW - timedelta(hours=2))
     data = service_status.get_service_status(db_session)
     assert data.status == "unknown"
-    assert data.components[0].last_observed_at is None
-    assert data.components[1].status == "unknown"
-    assert data.components[1].success_rate is None
-    assert data.components[1].history[-2].status == "operational"
+    assert data.success_rate is None
+    assert data.history[-2].status == "operational"
 
 
-def test_all_services_success_is_operational(db_session, attempt):
+@pytest.mark.parametrize("outcome", ["success", "error", "timeout"])
+def test_polish_alone_cannot_supply_agent_current_or_history_status(db_session, attempt, outcome):
+    attempt(outcome, source="polish")
+    data = service_status.get_service_status(db_session)
+    assert data.status == "unknown"
+    assert data.success_rate is None
+    assert all(day.status == "unknown" and day.success_rate is None for day in data.history)
+
+
+def test_agent_success_stays_operational_with_no_polish_or_failed_polish(db_session, attempt):
     attempt()
-    attempt(source="polish")
-    assert service_status.get_service_status(db_session).status == "operational"
+    before = service_status.get_service_status(db_session)
+    assert before.status == "operational"
+    attempt("error", source="polish")
+    attempt("timeout", source="polish", at=NOW - timedelta(days=1))
+    assert service_status.get_service_status(db_session) == before
 
 
 def test_cache_reuses_snapshot_then_refreshes(db_session, attempt, monkeypatch):
@@ -141,7 +142,6 @@ def test_cache_reuses_snapshot_then_refreshes(db_session, attempt, monkeypatch):
     cache = service_status.StatusCache()
     first = cache.get(db_session)
     attempt()
-    attempt(source="polish")
     clock[0] = 39.9
     assert cache.get(db_session) is first
     clock[0] = 40.0
@@ -152,7 +152,6 @@ async def test_failed_refresh_returns_503_without_serving_old_green_or_error_det
     clock = [0.0]
     monkeypatch.setattr(service_status, "monotonic", lambda: clock[0])
     attempt()
-    attempt(source="polish")
     assert (await client.get("/api/status")).json()["status"] == "operational"
 
     def unavailable(_session):

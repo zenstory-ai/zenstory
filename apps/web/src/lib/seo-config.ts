@@ -229,13 +229,13 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   },
   '/status': {
     zh: {
-      title: '服务状态 - ZenStory',
-      description: 'ZenStory AI 写作与去 AI 味服务的近期调用状态与 30 天记录',
+      title: 'Agent 状态 - ZenStory',
+      description: 'ZenStory 写作 Agent 的近期调用状态与 30 天记录',
       noindex: false,
     },
     en: {
-      title: 'Service Status - ZenStory',
-      description: 'Recent model call status and 30-day history for ZenStory AI Writing and Humanize',
+      title: 'Agent Status - ZenStory',
+      description: 'Recent model call status and 30-day history for the ZenStory writing agent',
       noindex: false,
     }
   },
