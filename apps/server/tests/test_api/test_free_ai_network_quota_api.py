@@ -128,7 +128,7 @@ async def test_both_entries_share_seats_and_refuse_the_fourth_account(client: As
     polish.assert_not_awaited()
     assert _used(db_session, user) == 0
     # 被拒绝的请求放回了账号任务名额。
-    slots = [await limit.acquire_account_run_slot(str(user.id)) for _ in range(2)]
+    slots = [await limit.acquire_account_run_slot(str(user.id))]
     for slot in slots:
         await slot.release()
 

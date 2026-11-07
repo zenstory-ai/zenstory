@@ -2954,7 +2954,7 @@ describe('ChatPanel new-author flow', () => {
     const code = 'ERR_ACCOUNT_RUNS_BUSY'
 
     const refuse = () => act(() => {
-      mockAgentStreamState.error = '已有 2 个任务正在进行，请等待完成或停止其中一个后再试。'
+      mockAgentStreamState.error = '已有任务正在进行，请等待完成或停止当前任务后再试。'
       mockAgentStreamState.errorCode = code
       mockAgentStreamState.retryable = true
       streamOptions().onError(mockAgentStreamState.error, code, true)
@@ -2981,7 +2981,7 @@ describe('ChatPanel new-author flow', () => {
       expect(lastMessageInputProps().refusedSend?.message).toBe('写第二章')
       expect(mockStartStream).toHaveBeenCalledTimes(1)
       const alert = await screen.findByRole('alert')
-      expect(within(alert).getByText('已有 2 个任务正在进行，请等待完成或停止其中一个后再试。')).toBeVisible()
+      expect(within(alert).getByText('已有任务正在进行，请等待完成或停止当前任务后再试。')).toBeVisible()
       expect(within(alert).getByText('chat:panel.accountRunsBusyTitle')).toBeVisible()
       // The words are back in the input: a retry button would send a second, bubble-less copy.
       expect(within(alert).queryByRole('button', { name: 'common:retry' })).not.toBeInTheDocument()

@@ -118,7 +118,7 @@
   "ERR_RESOURCE_CONFLICT": "This was changed somewhere else. Refresh and try again.",
 
   "ERR_SESSION_BUSY": "The previous reply isn’t finished yet. Wait a moment, or start a new chat.",
-  "ERR_ACCOUNT_RUNS_BUSY": "2 tasks are already running. Wait for one to finish or stop one, then try again.",
+  "ERR_ACCOUNT_RUNS_BUSY": "A task is already running. Wait for it to finish or stop it, then try again.",
   "ERR_AGENT_UPSTREAM_RATE_LIMITED": "The AI is busy right now. Please try again shortly.",
   "ERR_AGENT_UPSTREAM_UNAVAILABLE": "The AI isn’t responding right now. Please try again shortly.",
   "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat.",

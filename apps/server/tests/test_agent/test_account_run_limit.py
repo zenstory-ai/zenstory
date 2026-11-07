@@ -56,30 +56,30 @@ async def _release_all(results: list) -> None:
             await item.release()
 
 
-def test_limit_is_two_for_every_account():
-    assert limit.ACCOUNT_MAX_CONCURRENT_RUNS == 2
+def test_limit_is_one_for_every_account():
+    assert limit.ACCOUNT_MAX_CONCURRENT_RUNS == 1
 
 
 def test_heartbeat_renews_well_within_the_stale_window():
     assert limit.SLOT_HEARTBEAT_INTERVAL_S * 3 <= limit.SLOT_STALE_AFTER_S
 
 
-async def test_three_simultaneous_acquires_admit_exactly_two(backend):
+async def test_three_simultaneous_acquires_admit_exactly_one(backend):
     user_id = _user()
     results = await _acquire_results(user_id, 3)
     try:
         slots = [item for item in results if isinstance(item, limit.AccountRunSlot)]
         refused = [item for item in results if isinstance(item, limit.AccountRunLimitExceeded)]
-        assert len(slots) == 2
-        assert len(refused) == 1
+        assert len(slots) == 1
+        assert len(refused) == 2
     finally:
         await _release_all(results)
 
 
 async def test_accounts_are_counted_independently(backend):
     first, second = _user(), _user()
-    first_slots = await _acquire_results(first, 2)
-    second_slots = await _acquire_results(second, 2)
+    first_slots = await _acquire_results(first, 1)
+    second_slots = await _acquire_results(second, 1)
     try:
         assert all(isinstance(item, limit.AccountRunSlot) for item in [*first_slots, *second_slots])
         with pytest.raises(limit.AccountRunLimitExceeded):
@@ -90,21 +90,21 @@ async def test_accounts_are_counted_independently(backend):
 
 async def test_release_frees_only_its_own_slot_and_is_idempotent(backend):
     user_id = _user()
-    one, two = await _acquire_results(user_id, 2)
+    one = await limit.acquire_account_run_slot(user_id)
     await one.release()
-    await one.release()  # 第二次释放不能把别的任务的名额也放掉
-    three = await limit.acquire_account_run_slot(user_id)
+    await one.release()
+    two = await limit.acquire_account_run_slot(user_id)
     try:
         with pytest.raises(limit.AccountRunLimitExceeded):
             await limit.acquire_account_run_slot(user_id)
     finally:
-        await _release_all([two, three])
+        await two.release()
 
 
 async def test_crashed_slots_recover_after_the_stale_window(backend, monkeypatch):
     """进程被杀：心跳停了、finally 没跑。超过失效窗口后名额自动恢复。"""
     user_id = _user()
-    crashed = await _acquire_results(user_id, 2)
+    crashed = await _acquire_results(user_id, 1)
     for slot in crashed:  # 进程死了：心跳停了
         slot._heartbeat_task.cancel()
 
@@ -117,7 +117,7 @@ async def test_crashed_slots_recover_after_the_stale_window(backend, monkeypatch
 async def test_renewed_long_run_keeps_its_slot_past_the_stale_window(backend, monkeypatch):
     """长任务一直续租：超过失效窗口也不会被回收。"""
     user_id = _user()
-    slots = await _acquire_results(user_id, 2)
+    slots = await _acquire_results(user_id, 1)
     real_time = time.time
     try:
         monkeypatch.setattr(limit.time, "time", lambda: real_time() + limit.SLOT_STALE_AFTER_S - 1)
@@ -146,11 +146,14 @@ async def test_periodic_heartbeat_task_renews_until_release(backend, monkeypatch
 async def test_renew_cannot_resurrect_a_released_slot(backend):
     user_id = _user()
     slot = await limit.acquire_account_run_slot(user_id)
-    other = await limit.acquire_account_run_slot(user_id)
     await slot.release()
     await slot.renew()  # 在途的续租晚于释放到达
-    third = await limit.acquire_account_run_slot(user_id)
-    await _release_all([other, third])
+    other = await limit.acquire_account_run_slot(user_id)
+    try:
+        with pytest.raises(limit.AccountRunLimitExceeded):
+            await limit.acquire_account_run_slot(user_id)
+    finally:
+        await other.release()
 
 
 async def test_lease_stops_renewing_past_the_hard_ceiling(backend, monkeypatch):
@@ -219,7 +222,7 @@ async def test_outage_during_a_run_keeps_it_running_and_release_does_not_raise(
 
 
 async def test_acquire_is_atomic_across_real_processes(real_redis):  # noqa: F811
-    """多个独立进程共用一个 Redis：6 个同时抢，只有 2 个进。"""
+    """多个独立进程共用一个 Redis：6 个同时抢，只有 1 个进。"""
     kwargs = real_redis.connection_pool.connection_kwargs
     connection = {key: kwargs[key] for key in ("path", "host", "port", "db") if key in kwargs}
     user_id = _user()
@@ -264,7 +267,7 @@ else:
                 process.kill()
         real_redis.delete(limit.account_runs_key(user_id), gate)
     verdicts = sorted(out.strip() for out, _err in outputs)
-    assert verdicts == ["admitted", "admitted", "refused", "refused", "refused", "refused"], outputs
+    assert verdicts == ["admitted", "refused", "refused", "refused", "refused", "refused"], outputs
 
 
 # ==================== process_stream 的真实生命周期（模型与工作流全部替身） ====================
@@ -301,18 +304,18 @@ def owner_and_project(db_session: Session):
 
 
 async def _assert_slot_count_free(user_id: str) -> None:
-    """两个名额都能拿到，说明之前的任务已经全部释放。"""
-    slots = await _acquire_results(user_id, 2)
+    """唯一名额能拿到，说明之前的任务已经释放。"""
+    slots = await _acquire_results(user_id, 1)
     assert all(isinstance(item, limit.AccountRunSlot) for item in slots), slots
     await _release_all(slots)
 
 
 async def _assert_slot_held(user_id: str) -> None:
-    """只拿得到一个名额，说明之前的任务还占着另一个。"""
-    results = await _acquire_results(user_id, 2)
+    """拿不到名额，说明之前的任务仍占着唯一名额。"""
+    results = await _acquire_results(user_id, 1)
     held = [item for item in results if isinstance(item, limit.AccountRunSlot)]
     await _release_all(results)
-    assert len(held) == 1, results
+    assert len(held) == 0, results
 
 
 async def _wait_all_background_cleanup() -> None:
