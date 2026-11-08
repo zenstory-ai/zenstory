@@ -1868,9 +1868,8 @@ class ContextAssembler:
         """
         Format context items into a structured prompt with clear sections.
 
-        Also returns the same content as keyed blocks (the header, then one block per
-        item with its section label) for the per-session context snapshot
-        (agent/context/turn_snapshot.py): unchanged blocks are sent once per session.
+        Also returns keyed blocks for the prompt layout. Blocks marked for this turn
+        go after the history; the other blocks can be shared in the session snapshot.
 
         Args:
             items: List of context items to format
@@ -1906,11 +1905,6 @@ class ContextAssembler:
                 parts.append(project_status["summary"])
                 parts.append("")
 
-            if project_status.get("current_phase"):
-                parts.append("【当前阶段】")
-                parts.append(project_status["current_phase"])
-                parts.append("")
-
             if project_status.get("writing_style"):
                 parts.append("【写作风格】（只记作者要求或确认的文风；与作者原话不一致时以作者原话为准）")
                 parts.append(project_status["writing_style"])
@@ -1934,12 +1928,23 @@ class ContextAssembler:
         parts.append("以上是当前保存的写作约定；历史对话中的记住请求不代表本轮追加要求。")
         parts.append("")
 
+        blocks: list[dict[str, str]] = [{"key": "header", "text": "\n".join(parts).strip()}]
+        turn_header_start = len(parts)
+        if project_status and project_status.get("current_phase"):
+            parts.extend(["【当前阶段】", project_status["current_phase"], ""])
+
         # File inventory section —— 受 inventory_token_budget 约束，见
         # _render_file_inventory 的说明
         if file_inventory:
             parts.extend(
                 self._render_file_inventory(file_inventory, inventory_token_budget)
             )
+        if len(parts) > turn_header_start:
+            blocks.append({
+                "key": "turn_header",
+                "text": "\n".join(parts[turn_header_start:]).strip(),
+                "placement": "turn",
+            })
 
         # Group items by type
         sections: dict[str, list[ContextItem]] = {
@@ -1965,14 +1970,15 @@ class ContextAssembler:
         for section_items in sections.values():
             section_items.sort(key=lambda x: x.title or "")
 
-        blocks: list[dict[str, str]] = [{"key": "header", "text": "\n".join(parts).strip()}]
-
-        def add_block(section: str, item: ContextItem, start: int) -> None:
+        def add_block(section: str, item: ContextItem, start: int, *, turn_only: bool = False) -> None:
             body = "\n".join(parts[start:]).strip()
             # label 在条目离开后续轮次的上下文时用来点名（turn_snapshot 的「本轮未核对」列表）。
             file_id = self._item_file_id(item)
             label = f"{section}{item.title}" + (f" (id={file_id})" if file_id else "")
-            blocks.append({"key": f"{section}:{item.id or item.title}", "text": f"{section}\n{body}", "label": label})
+            block = {"key": f"{section}:{item.id or item.title}", "text": f"{section}\n{body}", "label": label}
+            if turn_only or item.is_focus or item.metadata.get("relation"):
+                block["placement"] = "turn"
+            blocks.append(block)
 
         # Outlines (detailed content)
         if sections["outline"]:
@@ -1999,7 +2005,7 @@ class ContextAssembler:
                     parts.append(PREVIOUS_CHAPTER_NOTE)
                 parts.append(item.content)
                 parts.append("")
-                add_block("【正文详情】", item, start)
+                add_block("【正文详情】", item, start, turn_only=True)
 
         # Snippets
         if sections["snippet"]:
@@ -2029,7 +2035,7 @@ class ContextAssembler:
                 parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
-                add_block("【参考素材】", item, start)
+                add_block("【参考素材】", item, start, turn_only=True)
 
         # Characters
         if sections["character"]:
@@ -2062,7 +2068,7 @@ class ContextAssembler:
                 parts.append(f"{item.title}")
                 parts.append(item.content)
                 parts.append("")
-                add_block("【用户引用文本】", item, start)
+                add_block("【用户引用文本】", item, start, turn_only=True)
 
         return "\n".join(parts), blocks
 

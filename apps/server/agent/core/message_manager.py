@@ -58,16 +58,8 @@ _CONTEXT_MAX_CONSTRAINTS = 12
 _CONTEXT_MAX_WORLD_KNOWLEDGE = 24
 _CONTEXT_MAX_WORKING_SET = 18
 _CONTEXT_ITEM_TEXT_CHAR_LIMIT = 220
-# 原始项目上下文的兜底字符上限。真正的预算由 ContextAssembler 按 token 控制
-# （AGENT_CONTEXT_TOKEN_BUDGET，默认 32k token ≈ 6 万中文字），这里只防异常超长，
-# 必须明显高于组装预算，否则会把已按预算选好的全文条目再拦腰截断。
-_CONTEXT_RAW_CHAR_LIMIT = 200000
 # world_model 预览条目的节选标记：明确这是摘要而不是原文，避免被当成「被压缩的全文」。
 _CONTEXT_PREVIEW_SUFFIX = "…（节选）"
-_CONTEXT_RAW_TRUNCATION_NOTICE = (
-    "[项目上下文超出长度上限，以下内容被截断；末尾条目可能不完整，"
-    "未标注[全文]的条目需要时用 query_files(id=…) 读取]"
-)
 
 
 class MessageManager:
@@ -532,8 +524,8 @@ class MessageManager:
         Build this turn's context block for the current user message.
 
         With a context snapshot (agent/context/turn_snapshot.py) ``assembled_context``
-        holds only the blocks that changed since the snapshot; ``full_assembled_context``
-        is the whole assembled context, which decides whether it is complete.
+        holds turn-only blocks and updates to the snapshot; ``full_assembled_context``
+        represents all project context available across the snapshot and this turn.
 
         It holds everything that changes from turn to turn: narrative constraints
         taken from this turn's context items, skills the author selected for this
@@ -559,9 +551,8 @@ class MessageManager:
         force_en = self._force_en(language)
         parts: list[str] = []
 
-        raw_context_complete = self._raw_context_is_complete(
-            full_assembled_context if full_assembled_context is not None else assembled_context
-        )
+        full_context = full_assembled_context if full_assembled_context is not None else assembled_context
+        raw_context_complete = bool((full_context or "").strip())
         constraints, world_truth, world_surface = self._extract_structured_context(
             context_items=context_items,
             force_en=force_en,
@@ -786,12 +777,13 @@ class MessageManager:
             _, world_truth, world_surface = self._extract_structured_context(
                 context_items=context_items,
                 force_en=force_en,
-                raw_context_complete=self._raw_context_is_complete(assembled_context),
+                raw_context_complete=bool(assembled_context.strip()),
             )
 
         truth_items = world_truth or []
         surface_items = world_surface or []
-        raw_context = self._cap_raw_context(assembled_context, _CONTEXT_RAW_CHAR_LIMIT)
+        # ContextAssembler has already applied its token budget and labelled partial items.
+        raw_context = assembled_context.strip()
 
         parts: list[str] = [
             "",
@@ -851,8 +843,8 @@ class MessageManager:
     ) -> tuple[list[str], list[str], list[str]]:
         """拆出叙事约束与 world_model truth/surface 条目。
 
-        raw_context_complete=True 表示 <project_context_raw> 未被兜底截断：
-        此时未被预算截断的条目已在原始上下文里以 [全文] 出现，truth/surface 里只
+        raw_context_complete=True 表示模型收到了组装好的项目上下文（含快照）：
+        此时未被预算截断的条目已在项目上下文里以 [全文] 出现，truth/surface 里只
         保留「标题 (id=…)」用于可见性分类，不再重复一份 220 字预览——
         重复的短预览会让模型以为文件被压缩过，转而 query_files 重读。
         """
@@ -974,31 +966,6 @@ class MessageManager:
                 clipped = clipped[: idx + 1]
                 break
         return clipped.rstrip() + _CONTEXT_PREVIEW_SUFFIX
-
-    @staticmethod
-    def _raw_context_is_complete(assembled_context: str | None) -> bool:
-        """原始项目上下文能否原样放进本轮上下文（未触发兜底截断）。"""
-        text = (assembled_context or "").strip()
-        return bool(text) and len(text) <= _CONTEXT_RAW_CHAR_LIMIT
-
-    @staticmethod
-    def _cap_raw_context(text: str, max_chars: int) -> str:
-        """原始项目上下文只做 strip + 兜底封顶，保留换行与段落。
-
-        历史缺陷：这里曾复用 _truncate_text，先 `" ".join(text.split())` 把整段
-        上下文压成一行，章节正文、大纲层级全部糊在一起，模型看到的像是「压缩版」，
-        于是坚持用 query_files 重读全文。
-        """
-        stripped = (text or "").strip()
-        if max_chars <= 0 or len(stripped) <= max_chars:
-            return stripped
-
-        clipped = stripped[:max_chars]
-        # 尽量在段落边界处截断
-        idx = clipped.rfind("\n")
-        if idx > max_chars * 0.8:
-            clipped = clipped[:idx]
-        return clipped.rstrip() + "\n" + _CONTEXT_RAW_TRUNCATION_NOTICE
 
     def _build_skill_catalog_section(
         self, skill_catalog: str, _force_en: bool

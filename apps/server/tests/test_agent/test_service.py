@@ -1614,9 +1614,9 @@ class TestAgentServiceProcessStream:
         assert assembled_context[:200] not in system_prompt
         turn_context = writing_state["user_message"].rpartition(WORKING_SET_USER_MESSAGE_LABEL)[0].rstrip("\n")
         snapshot = writing_state["context_snapshot"]
-        # The session's first turn puts the assembled context in the project snapshot, not the turn context.
-        assert assembled_context[:200] in snapshot
-        assert assembled_context[:200] not in turn_context
+        # Unclassified fallback context still reaches the model in the current turn.
+        assert assembled_context[:200] not in snapshot
+        assert turn_context.count(assembled_context) == 1
 
         # Ledger charges the system prompt, the snapshot and the turn context once each — no
         # re-adding of skill catalog/reference/context they already embed.

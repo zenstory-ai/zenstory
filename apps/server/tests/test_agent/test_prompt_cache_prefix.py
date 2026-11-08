@@ -11,8 +11,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
+from agent.context.assembler import ContextAssembler
 from agent.core.message_manager import AGENT_DIRECTIVE_HEADER, TURN_CONTEXT_OPEN
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.nodes import run_streaming_agent
@@ -21,8 +22,11 @@ from agent.openai_agents.runner import (
     build_history_messages,
     build_run_input,
 )
-from agent.schemas.context import ContextData
-from models import ChatMessage, ChatSession, Project, User
+from agent.schemas.context import ContextData, ContextItem
+from agent.tools.mcp_tools import ToolContext
+from agent.utils.token_utils import estimate_text_tokens
+from config.agent_runtime import AGENT_CONTEXT_TOKEN_BUDGET
+from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
 
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
@@ -33,28 +37,32 @@ CHARACTER_CARD = "角色：码头邮差阿昼，左手有旧伤，只在雾天�
 
 def _context(marker: str) -> ContextData:
     """一轮的组装上下文：项目状态与角色卡两轮相同，正文章节每轮不同。"""
-    header = "项目状态 [核心信息]\n【项目简介】雾港来信，悬疑。"
-    chapter = f"【正文详情】\n第{marker}章 (id=ch-{marker}) [全文]\n雾港的第{marker}封信到了。"
-    card = f"【角色信息】\n阿昼 (id=char-1) [全文]\n{CHARACTER_CARD}"
     items = [
-        {
-            "id": "char-1",
-            "type": "character",
-            "title": "阿昼",
-            "content": CHARACTER_CARD,
-            "priority": "constraint",
-            "metadata": {"file_type": "character"},
-        }
+        ContextItem(
+            id="char-1", type="character", title="阿昼", content=CHARACTER_CARD,
+            priority="constraint", metadata={"file_type": "character"},
+        ),
+        ContextItem(
+            id=f"ch-{marker}", type="outline", title=f"第{marker}章",
+            content=f"雾港的第{marker}封信到了。" * 160,
+            priority="critical", metadata={"file_type": "draft", "is_focus": True},
+        ),
+        ContextItem(
+            id=f"attachment-{marker}", type="lore", title=f"第{marker}章附件",
+            content=f"第{marker}章附件的设定原文。", metadata={"file_type": "lore", "relation": "attached"},
+        ),
+        ContextItem(
+            id=f"quote-{marker}", type="quote", title="作者引用", content=f"作者引用的第{marker}段。",
+        ),
     ]
+    context, blocks = ContextAssembler()._format_context_with_blocks(
+        items,
+        file_inventory={"draft": [{"id": f"ch-{marker}", "title": f"第{marker}章清单项"}]},
+        project_status={"summary": "雾港来信，悬疑。", "current_phase": f"第{marker}章施工中"},
+    )
     return ContextData(
-        items=items,
-        context="\n\n".join([header, chapter, card]),
-        blocks=[
-            {"key": "header", "text": header},
-            {"key": f"【正文详情】:ch-{marker}", "text": chapter},
-            {"key": "【角色信息】:char-1", "text": card},
-        ],
-        token_estimate=50,
+        items=[item.to_dict() for item in items], context=context, blocks=blocks,
+        token_estimate=sum(item.token_estimate for item in items),
     )
 
 
@@ -94,7 +102,7 @@ def project_with_history(db_session: Session):
     return user, project, chat
 
 
-async def _run_turn(db_session, user, project, chat, *, message, context, metadata) -> dict[str, Any]:
+async def _run_turn(db_session, user, project, chat, *, message, context, metadata, selected_text=None) -> dict[str, Any]:
     """跑一轮真实的 process_stream，返回工作流收到的 state（模型不调用）。"""
     from agent.service import AgentService
 
@@ -104,6 +112,7 @@ async def _run_turn(db_session, user, project, chat, *, message, context, metada
 
     def fake_workflow(state, **_kwargs):
         captured.update(state)
+        captured["read_snapshots"] = {file_id: ToolContext.read_snapshot(file_id) for file_id in context.refs}
 
         async def stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"已按「{message}」处理。"})
@@ -123,6 +132,7 @@ async def _run_turn(db_session, user, project, chat, *, message, context, metada
             session=db_session,
             session_id=chat.id,
             metadata=metadata,
+            selected_text=selected_text,
         ):
             pass
     return captured
@@ -145,14 +155,81 @@ def _serialize(instructions: str, messages: list[dict[str, Any]]) -> bytes:
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+@pytest.mark.parametrize("use_blocks", [True, False], ids=["structured", "unstructured-fallback"])
+async def test_snapshot_split_preserves_long_accepted_context(db_session, project_with_history, use_blocks):
+    user, project, chat = project_with_history
+    body = "The international correspondence continued overnight.\n\n" * 3700 + "The final envelope was empty."
+    chapter = File(project_id=project.id, title="长章节", file_type="draft", content=body)
+    db_session.add(chapter)
+    db_session.commit()
+    assembler = ContextAssembler()
+    character = ContextItem(id="char-1", type="character", title="阿昼", content=CHARACTER_CARD * 4)
+    items = [
+        character,
+        ContextItem(
+            id=chapter.id, type="outline", title=chapter.title, content=body, priority="critical",
+            metadata={"file_type": "draft", "is_focus": True},
+        ),
+        ContextItem(id="quote-tail", type="quote", title="作者引用", content="请保留末段停顿。"),
+    ]
+    assembled, blocks = assembler._format_context_with_blocks(items)
+    token_estimate = estimate_text_tokens(assembled)
+    assert len(assembled) > 200_000
+    assert token_estimate < AGENT_CONTEXT_TOKEN_BUDGET
+    context = ContextData(
+        context=assembled, blocks=blocks if use_blocks else [], items=[item.to_dict() for item in items],
+        refs=[chapter.id], token_estimate=token_estimate,
+    )
+    if use_blocks:
+        previous, previous_blocks = assembler._format_context_with_blocks(
+            [character], project_status={"notes": "用第三人称。"},
+        )
+        first = await _run_turn(
+            db_session, user, project, chat, message="继续用第三人称。", metadata=None,
+            context=ContextData(context=previous, blocks=previous_blocks, items=[character.to_dict()]),
+        )
+        assert "用第三人称。" in first["context_snapshot"]
+
+    state = await _run_turn(
+        db_session, user, project, chat, message="取消之前的人称约定，只改选中的一句。", context=context,
+        metadata={"current_file_id": chapter.id}, selected_text="请对照选区末句。",
+    )
+
+    _, model_input = _model_input(state, "writer")
+    current = model_input[-2]["content"]
+    assert f"[全文]\n{body}" in current
+    assert "请保留末段停顿。" in current
+    assert "取消之前的人称约定，只改选中的一句。" in current
+    assert "请对照选区末句。" in current
+    assert "【当前写作约定】\n（空）" in current
+    if use_blocks:
+        assert state["context_snapshot"] == first["context_snapshot"]
+    assert state["read_snapshots"][chapter.id] == body
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_consecutive_turns_share_system_prompt_and_history_byte_for_byte(db_session, project_with_history):
     user, project, chat = project_with_history
+    working_file = File(project_id=project.id, title="续写参考", file_type="document", content="工作集原稿。")
+    db_session.add(working_file)
+    assistant_message = db_session.exec(
+        select(ChatMessage).where(ChatMessage.session_id == chat.id, ChatMessage.role == "assistant")
+    ).one()
+    assistant_message.tool_calls = json.dumps(
+        [{"name": "query_files", "arguments": {"id": working_file.id}, "status": "success"}],
+    )
+    db_session.add(assistant_message)
+    db_session.commit()
 
     first = await _run_turn(
         db_session, user, project, chat,
         message="续写第二章", context=_context("二"),
         metadata={"current_file_id": "ch-二", "current_file_type": "draft", "current_file_title": "第二章"},
     )
+    working_file.content = "工作集作者更新后的全文。"
+    db_session.add(working_file)
+    db_session.commit()
     second = await _run_turn(
         db_session, user, project, chat,
         message="Rewrite chapter three in English", context=_context("三"),
@@ -168,24 +245,31 @@ async def test_consecutive_turns_share_system_prompt_and_history_byte_for_byte(d
                      "## 本轮回复语言", "## Reply language for this turn"):
         assert per_turn not in system_1
 
-    # [项目资料快照][上一轮之前的历史] 是两轮共同的前缀，序列化后逐字节相同：没变的上下文
-    # （项目状态、角色卡、第二章）只在快照里发一次，第二轮不再重发。
+    # 大段正文、文件清单和工作集变化后，仍能复用快照与前两条历史。
     snapshot = input_1[0]
     assert input_2[0] == snapshot
     assert snapshot["content"].startswith("<project_snapshot>")
-    assert "阿昼" in snapshot["content"] and "雾港的第二封信" in snapshot["content"]
-    history = [{"role": "user", "content": "先写第一章"}, {"role": "assistant", "content": "第一章已经写进正文。"}]
-    assert input_1[1:3] == history
+    assert "阿昼" in snapshot["content"] and "雾港来信，悬疑。" in snapshot["content"]
+    for text in ("雾港的第二封信", "第二章清单项", "第二章施工中", "工作集原稿", "第二章附件", "作者引用的第二段"):
+        assert text not in snapshot["content"]
+    history = input_1[1:3]
+    assert history[0] == {"role": "user", "content": "先写第一章"}
+    assert history[1]["content"].startswith("第一章已经写进正文。")
     assert input_2[1:3] == history
     shared = _serialize(system_1, [snapshot, *history])
     assert _serialize(system_1, input_1).startswith(shared[:-1])
     assert _serialize(system_2, input_2).startswith(shared[:-1])
 
-    # 本轮上下文只在本轮用户消息里：第一轮的资料都在快照里，第二轮只带新出现的第三章。
+    # 每一轮的动态资料都在本轮用户消息里，旧的正文、清单、工作集不再留在前缀。
     turn_1, turn_2 = input_1[3]["content"], input_2[5]["content"]
     assert turn_1.startswith(TURN_CONTEXT_OPEN) and turn_2.startswith(TURN_CONTEXT_OPEN)
-    assert "雾港的第二封信" not in turn_1 and "本轮作者用中文写消息" in turn_1
-    assert "雾港的第三封信" in turn_2 and "本轮更新的项目资料" in turn_2
+    assert "雾港的第二封信" in turn_1 and "本轮作者用中文写消息" in turn_1
+    assert "雾港的第三封信" in turn_2 and "第三章清单项" in turn_2 and "第三章施工中" in turn_2
+    assert "工作集原稿。" in turn_1 and "工作集作者更新后的全文。" in turn_2
+    assert "工作集原稿。" not in turn_2 and "第二章清单项" not in turn_2
+    assert "第二章附件的设定原文。" in turn_1 and "作者引用的第二段。" in turn_1
+    assert "第三章附件的设定原文。" in turn_2 and "作者引用的第三段。" in turn_2
+    assert "第二章附件的设定原文。" not in turn_2 and "作者引用的第二段。" not in turn_2
     assert CHARACTER_CARD not in turn_2 and "雾港的第二封信" not in turn_2
     assert "wrote this turn's message in English" in turn_2
     assert input_2[3] == {"role": "user", "content": "续写第二章"}
@@ -264,8 +348,9 @@ async def test_writer_reviewer_writer_share_system_prompt_history_and_turn_conte
     # [系统提示][项目资料快照][历史][本轮用户消息（含 <turn_context>）] 是三次运行共同的前缀，逐字节相同。
     shared_messages = runs[0][2][:4]
     assert shared_messages[0]["content"].startswith("<project_snapshot>")
-    assert "雾港的第二封信" in shared_messages[0]["content"]
+    assert "雾港的第二封信" not in shared_messages[0]["content"]
     assert shared_messages[3]["content"].startswith(TURN_CONTEXT_OPEN)
+    assert "雾港的第二封信" in shared_messages[3]["content"]
     shared = _serialize(system, shared_messages)
     for _agent, run_system, run_input in runs:
         assert run_input[:4] == shared_messages
