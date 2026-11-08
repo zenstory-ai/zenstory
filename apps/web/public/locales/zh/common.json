@@ -93,7 +93,42 @@
     "openMenu": "打开菜单",
     "closeMenu": "关闭菜单",
     "materials": "素材库",
-    "docs": "文档"
+    "docs": "文档",
+    "status": "Agent 状态"
+  },
+  "statusPage": {
+    "title": "Agent 状态",
+    "refresh": "刷新",
+    "refreshing": "刷新中…",
+    "retry": "重试",
+    "windowHour": "最近 1 小时",
+    "windowMinutes": "最近 {{minutes}} 分钟",
+    "updatedAt": "更新于 {{time}}",
+    "lastUpdatedAt": "上次更新 {{time}}",
+    "overall": {
+      "operational": "近期调用正常",
+      "degraded": "近期有异常调用",
+      "unknown": "暂无近期数据",
+      "stale": "状态数据已过期",
+      "unavailable": "状态数据获取失败"
+    },
+    "status": {
+      "operational": "正常",
+      "degraded": "有异常调用",
+      "unknown": "无数据"
+    },
+    "metrics": {
+      "successRate": "调用成功率"
+    },
+    "history": {
+      "title": "近 30 天调用记录",
+      "rangeAria": "Agent 近 30 天日期选择",
+      "prevDay": "前一天",
+      "nextDay": "后一天",
+      "todayPartial": "截至更新"
+    },
+    "scopeNote": "按模型调用统计，一次回复可能包含多次调用。时间为北京时间（UTC+8）。",
+    "loadingAria": "正在加载服务状态…"
   },
   "feedback": {
     "entry": "问题反馈",

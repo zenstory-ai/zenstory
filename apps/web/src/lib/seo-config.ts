@@ -227,6 +227,18 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
       noindex: false,
     }
   },
+  '/status': {
+    zh: {
+      title: 'Agent 状态 - ZenStory',
+      description: 'ZenStory 写作 Agent 的近期调用状态与 30 天记录',
+      noindex: false,
+    },
+    en: {
+      title: 'Agent Status - ZenStory',
+      description: 'Recent model call status and 30-day history for the ZenStory writing agent',
+      noindex: false,
+    }
+  },
   '/privacy-policy': {
     zh: {
       title: '隐私政策 - ZenStory',

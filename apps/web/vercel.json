@@ -509,6 +509,11 @@
       "permanent": true
     },
     {
+      "source": "/_app/status.html",
+      "destination": "https://app.zenstory.ai/status",
+      "permanent": true
+    },
+    {
       "source": "/_app/robots.txt",
       "destination": "https://app.zenstory.ai/robots.txt",
       "permanent": true
@@ -594,7 +599,7 @@
       ]
     },
     {
-      "source": "/:path((?:login|register|forgot-password|verify-email|auth|onboarding|dashboard|project|materials|admin|pricing)(?:/.*)?)",
+      "source": "/:path((?:login|register|forgot-password|verify-email|auth|onboarding|dashboard|project|materials|admin|pricing|status)(?:/.*)?)",
       "destination": "https://app.zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -605,7 +610,7 @@
       ]
     },
     {
-      "source": "/:path((?:login|register|forgot-password|verify-email|auth|onboarding|dashboard|project|materials|admin|pricing)(?:/.*)?)",
+      "source": "/:path((?:login|register|forgot-password|verify-email|auth|onboarding|dashboard|project|materials|admin|pricing|status)(?:/.*)?)",
       "destination": "https://app-preview.zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -772,6 +777,16 @@
     {
       "source": "/pricing",
       "destination": "/_app/pricing.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai|app-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ]
+    },
+    {
+      "source": "/status",
+      "destination": "/_app/status.html",
       "has": [
         {
           "type": "host",

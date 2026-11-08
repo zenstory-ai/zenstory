@@ -49,6 +49,7 @@ from api.workspace_onboarding import router as workspace_onboarding_router
 from api.public_skills import router as public_skills_router
 from api.referral import router as referral_router
 from api.skills import router as skills_router
+from api.status import router as status_router
 from api.subscription import router as subscription_router
 from api.search import router as file_search_router
 from api.verification import router as verification_router
@@ -199,6 +200,7 @@ app.include_router(agent_api_keys_router)
 app.include_router(agent_api_router)
 app.include_router(file_search_router)
 app.include_router(feedback_router)
+app.include_router(status_router)
 
 
 # Root endpoint

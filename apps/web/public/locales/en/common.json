@@ -93,7 +93,42 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "materials": "Materials",
-    "docs": "Docs"
+    "docs": "Docs",
+    "status": "Agent Status"
+  },
+  "statusPage": {
+    "title": "Agent Status",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "retry": "Retry",
+    "windowHour": "Last 1 hour",
+    "windowMinutes": "Last {{minutes}} min",
+    "updatedAt": "Updated {{time}}",
+    "lastUpdatedAt": "Last updated {{time}}",
+    "overall": {
+      "operational": "Recent calls normal",
+      "degraded": "Recent call issues observed",
+      "unknown": "No recent data",
+      "stale": "Status data expired",
+      "unavailable": "Unable to load status"
+    },
+    "status": {
+      "operational": "Normal",
+      "degraded": "Issues observed",
+      "unknown": "No data"
+    },
+    "metrics": {
+      "successRate": "Call success rate"
+    },
+    "history": {
+      "title": "Last 30 days call history",
+      "rangeAria": "Select date in Agent 30-day history",
+      "prevDay": "Previous day",
+      "nextDay": "Next day",
+      "todayPartial": "up to last update"
+    },
+    "scopeNote": "Based on model calls; one reply may include multiple calls. All times are Beijing Time (UTC+8).",
+    "loadingAria": "Loading service status…"
   },
   "feedback": {
     "entry": "Feedback",

@@ -22,6 +22,7 @@ const appHosts = hosts([APP,PREVIEW_APP])
 const previews = `${hosts([PREVIEW_SITE,PREVIEW_APP])}|.*\\.vercel\\.app`
 const prefixPattern = prefixes => `/:path((?:${prefixes.map(escapeRegex).join('|')})(?:/.*)?)`
 const appPaths = prefixPattern(contract.appPrefixes)
+const privateAppPrefixes = contract.appPrefixes.filter(p=>!['pricing','status'].includes(p))
 const sitePaths = prefixPattern(contract.sitePrefixes)
 const sharedPaths = prefixPattern(contract.sharedPrefixes)
 const sharedImplementationPaths = `/_site/:path((?:${contract.sharedPrefixes.map(escapeRegex).join('|')})(?:/.*)?)`
@@ -36,6 +37,7 @@ const internalAliases = {
   '/org-home': `${SITE}/`, '/org-home/':`${SITE}/`, '/org-home/index.html':`${SITE}/`,
   '/_app':`${APP}/`, '/_app/':`${APP}/`, '/_app/index.html':`${APP}/`, '/_app/home.html':`${APP}/`,
   '/_app/pricing.html':`${APP}/pricing`,
+  '/_app/status.html':`${APP}/status`,
   '/_app/robots.txt':`${APP}/robots.txt`, '/_app/sitemap.xml':`${APP}/sitemap.xml`,
   [sharedImplementationPaths]:`${SITE}/:path`,
   '/_site/robots.txt':`${SITE}/robots.txt`, '/_site/sitemap.xml':`${SITE}/sitemap.xml`,
@@ -66,7 +68,7 @@ export const vercelConfig = {
   ],
   headers:[
     {source:'/:path(.*)',has:host(previews),headers:[{key:'X-Robots-Tag',value:'noindex'}]},
-    {source:prefixPattern(contract.appPrefixes.filter(p=>p!=='pricing')),headers:[{key:'X-Robots-Tag',value:'noindex, nofollow'}]},
+    {source:prefixPattern(privateAppPrefixes),headers:[{key:'X-Robots-Tag',value:'noindex, nofollow'}]},
     {source:'/:path(api(?:/.*)?)',headers:[{key:'Cache-Control',value:'private, no-store'},{key:'x-vercel-enable-rewrite-caching',value:'0'}]},
     // Browsers otherwise revalidate every file on every load, and each revalidation is a billed CDN request.
     // Vite names /assets files by content hash and the app requests translations with a build hash (?v=),
@@ -86,6 +88,7 @@ export const vercelConfig = {
     rewrite('/', '/org-home/index.html', `${siteHosts}|.*\\.vercel\\.app`),
     rewrite('/', '/_app/home.html', appHosts),
     rewrite('/pricing','/_app/pricing.html',`${appHosts}|.*\\.vercel\\.app`),
+    rewrite('/status','/_app/status.html',`${appHosts}|.*\\.vercel\\.app`),
     rewrite(sharedPaths,'/_site/:path',`${siteHosts}|.*\\.vercel\\.app`),
     ...['robots.txt','sitemap.xml'].flatMap(name=>[
       rewrite(`/${name}`,`/_app/${name}`,appHosts),
@@ -203,6 +206,7 @@ export function finalizeSite(outDir) {
   }
   writeFileSync(join(outDir,'_app/home.html'),pageHead(shell,'/',APP,'ZenStory — AI 小说写作工作台'))
   writeFileSync(join(outDir,'_app/pricing.html'),pageHead(shell,'/pricing',APP,'定价 - ZenStory'))
+  writeFileSync(join(outDir,'_app/status.html'),pageHead(shell,'/status',APP,'Agent 状态 - ZenStory'))
   const modifiedOn = new Map()
   for (const route of siteRoutes) {
     const path = route === '/' ? 'org-home' : route.slice(1)
@@ -210,9 +214,9 @@ export function finalizeSite(outDir) {
     if (date) modifiedOn.set(route, date)
   }
   writeFileSync(join(outDir,'_site/sitemap.xml'),sitemap(SITE,[...new Set(siteRoutes)].sort(),modifiedOn))
-  writeFileSync(join(outDir,'_app/sitemap.xml'),sitemap(APP,['/','/pricing']))
+  writeFileSync(join(outDir,'_app/sitemap.xml'),sitemap(APP,['/','/pricing','/status']))
   writeFileSync(join(outDir,'_site/robots.txt'),`# Public organization corpus and legacy redirects are crawlable.\nUser-agent: *\nAllow: /\nDisallow: /api\n\nSitemap: ${SITE}/sitemap.xml\n`)
-  writeFileSync(join(outDir,'_app/robots.txt'),`User-agent: *\nAllow: /\nDisallow: /api\n${contract.appPrefixes.filter(p=>p!=='pricing').map(p=>`Disallow: /${p}`).join('\n')}\n\nSitemap: ${APP}/sitemap.xml\n`)
+  writeFileSync(join(outDir,'_app/robots.txt'),`User-agent: *\nAllow: /\nDisallow: /api\n${privateAppPrefixes.map(p=>`Disallow: /${p}`).join('\n')}\n\nSitemap: ${APP}/sitemap.xml\n`)
   // Keep generated organization docs from shadowing the App's React reader.
   for (const prefix of contract.sharedPrefixes) {
     if (existsSync(join(outDir, prefix))) renameSync(join(outDir, prefix), join(outDir, '_site', prefix))
@@ -220,7 +224,7 @@ export function finalizeSite(outDir) {
   renameSync(join(outDir,'index.html'),join(outDir,'_app/index.html'))
   for(const file of ['robots.txt','sitemap.xml']) rmSync(join(outDir,file),{force:true})
   for(const file of ['index.html','robots.txt','sitemap.xml']) assert.equal(existsSync(join(outDir,file)),false,`Root ${file} shadows host routing`)
-  console.log(`Domain layout: ${new Set(siteRoutes).size} organization URLs; 2 app URLs; no root filesystem shadows.`)
+  console.log(`Domain layout: ${new Set(siteRoutes).size} organization URLs; 3 app URLs; no root filesystem shadows.`)
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
