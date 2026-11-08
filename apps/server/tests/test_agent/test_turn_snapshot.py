@@ -77,6 +77,21 @@ def test_a_document_that_left_the_turn_is_flagged_as_unchecked_in_the_turn_conte
     assert "设定2" not in stale_section and "阿昼" not in stale_section
 
 
+def test_a_snapshot_document_moved_to_this_turn_is_not_flagged_as_unchecked():
+    old = _lore(1)
+    first = _plan([HEADER, CARD, old, _lore(2)])
+    focused = {**old, "text": "【世界设定】\n设定1 (id=lore1) ← 当前焦点 [全文]\n新版正文。", "placement": "turn"}
+
+    second = _plan([HEADER, CARD, focused])
+
+    assert not second.rebuilt
+    assert second.snapshot_message == first.snapshot_message
+    current, unchecked = second.changed_context.split(turn_snapshot.GONE_CONTEXT_HEADER, 1)
+    assert focused["text"] in current
+    assert old["label"] not in unchecked
+    assert _lore(2)["label"] in unchecked
+
+
 def test_documents_that_left_the_turn_count_toward_the_rebuild_ratio():
     """A large document that is no longer in the turn is dead weight in the snapshot: rebuild it away."""
     _plan([HEADER, CARD, _lore(1, size=400)])

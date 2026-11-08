@@ -23,6 +23,9 @@ from agent.openai_agents.runner import (
     build_run_input,
 )
 from agent.schemas.context import ContextData, ContextItem
+from agent.tools.mcp_tools import ToolContext
+from agent.utils.token_utils import estimate_text_tokens
+from config.agent_runtime import AGENT_CONTEXT_TOKEN_BUDGET
 from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
 
@@ -99,7 +102,7 @@ def project_with_history(db_session: Session):
     return user, project, chat
 
 
-async def _run_turn(db_session, user, project, chat, *, message, context, metadata) -> dict[str, Any]:
+async def _run_turn(db_session, user, project, chat, *, message, context, metadata, selected_text=None) -> dict[str, Any]:
     """跑一轮真实的 process_stream，返回工作流收到的 state（模型不调用）。"""
     from agent.service import AgentService
 
@@ -109,6 +112,7 @@ async def _run_turn(db_session, user, project, chat, *, message, context, metada
 
     def fake_workflow(state, **_kwargs):
         captured.update(state)
+        captured["read_snapshots"] = {file_id: ToolContext.read_snapshot(file_id) for file_id in context.refs}
 
         async def stream():
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"已按「{message}」处理。"})
@@ -128,6 +132,7 @@ async def _run_turn(db_session, user, project, chat, *, message, context, metada
             session=db_session,
             session_id=chat.id,
             metadata=metadata,
+            selected_text=selected_text,
         ):
             pass
     return captured
@@ -146,6 +151,60 @@ def _serialize(instructions: str, messages: list[dict[str, Any]]) -> bytes:
     """按发给模型的顺序序列化：系统提示在最前，之后逐条消息。"""
     payload = [{"role": "system", "content": instructions}, *messages]
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("use_blocks", [True, False], ids=["structured", "unstructured-fallback"])
+async def test_snapshot_split_preserves_long_accepted_context(db_session, project_with_history, use_blocks):
+    user, project, chat = project_with_history
+    body = "The international correspondence continued overnight.\n\n" * 3700 + "The final envelope was empty."
+    chapter = File(project_id=project.id, title="长章节", file_type="draft", content=body)
+    db_session.add(chapter)
+    db_session.commit()
+    assembler = ContextAssembler()
+    character = ContextItem(id="char-1", type="character", title="阿昼", content=CHARACTER_CARD * 4)
+    items = [
+        character,
+        ContextItem(
+            id=chapter.id, type="outline", title=chapter.title, content=body, priority="critical",
+            metadata={"file_type": "draft", "is_focus": True},
+        ),
+        ContextItem(id="quote-tail", type="quote", title="作者引用", content="请保留末段停顿。"),
+    ]
+    assembled, blocks = assembler._format_context_with_blocks(items)
+    token_estimate = estimate_text_tokens(assembled)
+    assert len(assembled) > 200_000
+    assert token_estimate < AGENT_CONTEXT_TOKEN_BUDGET
+    context = ContextData(
+        context=assembled, blocks=blocks if use_blocks else [], items=[item.to_dict() for item in items],
+        refs=[chapter.id], token_estimate=token_estimate,
+    )
+    if use_blocks:
+        previous, previous_blocks = assembler._format_context_with_blocks(
+            [character], project_status={"notes": "用第三人称。"},
+        )
+        first = await _run_turn(
+            db_session, user, project, chat, message="继续用第三人称。", metadata=None,
+            context=ContextData(context=previous, blocks=previous_blocks, items=[character.to_dict()]),
+        )
+        assert "用第三人称。" in first["context_snapshot"]
+
+    state = await _run_turn(
+        db_session, user, project, chat, message="取消之前的人称约定，只改选中的一句。", context=context,
+        metadata={"current_file_id": chapter.id}, selected_text="请对照选区末句。",
+    )
+
+    _, model_input = _model_input(state, "writer")
+    current = model_input[-2]["content"]
+    assert f"[全文]\n{body}" in current
+    assert "请保留末段停顿。" in current
+    assert "取消之前的人称约定，只改选中的一句。" in current
+    assert "请对照选区末句。" in current
+    assert "【当前写作约定】\n（空）" in current
+    if use_blocks:
+        assert state["context_snapshot"] == first["context_snapshot"]
+    assert state["read_snapshots"][chapter.id] == body
 
 
 @pytest.mark.asyncio

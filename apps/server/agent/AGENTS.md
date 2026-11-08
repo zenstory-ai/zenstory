@@ -257,14 +257,14 @@ quality_reviewer；同一交付在 writer 及其之前的计划内可写角色�
   `context/budget.DEFAULT_PROMPT_TOKEN_LEDGER_CEILING`（160000）台账，台账只收缩历史。
 - 前一章（`relation="previous"` 的正文条目）标题下多一行 `PREVIOUS_CHAPTER_NOTE`：前一章用于承接情节；文风以作者的 writing_style、样文和作者自己写或改过的章节为准（模型不知道前一章是谁写的，说明不以此为条件）。[prose-craft][n-prose-craft]
 - 渲染：条目标题行为 `标题 (id=…) [全文]` 或 `[已截断：显示 x/y 字；全文用 query_files(id="…")]`（检索片段标 `[检索片段，非全文…]`）；
-  标注 [全文] 的条目就是该文件截至本请求开始的完整内容（本请求内被修改过的文件除外）。`MessageManager` 只对原始上下文 strip + 兜底封顶；已在原始上下文完整出现的条目，
+  标注 [全文] 的条目就是该文件截至本请求开始的完整内容（本请求内被修改过的文件除外）。`MessageManager` 保留组装后各条目的正文与完整性标注；已在项目上下文完整出现的条目，
   world_model 里只列标题 + id。
 - 跨轮（`core/session_loader.py`）：runner 回放历史时丢弃工具结果，新一轮靠面包屑（assistant 历史末尾的「[此前的工具操作]」，列创建 /
   编辑 / 删除和按 id 精确读取的文件）和工作集（最近 2 条 assistant 回复读写过的文件，按当前库内容整份注入，最多
   `AGENT_WORKING_SET_MAX_FILES`=8 份、`AGENT_WORKING_SET_MAX_CHARS`=60000 字）。
 - 项目资料快照（`context/turn_snapshot.py`）：相对稳定的项目资料在首次使用或重建时渲染成
   `<project_snapshot>`，作为模型输入第一条消息紧跟系统提示（`runner.build_run_input`，不写回 `state["messages"]`）。
-  快照条目的变动随 `<turn_context>` 发送，离开本轮的条目标为未核对。快照改动和离开的条目超过快照一半、达到 20 轮或 2 小时、
+  快照条目的变动随 `<turn_context>` 发送，离开本轮的条目标为未核对，移到本轮的同一条目以本轮版本为准。快照改动和移出稳定快照的条目超过快照一半、达到 20 轮或 2 小时、
   项目 / 语言变化时重建。正文、焦点及其关联文件、文件清单、当前阶段、引用与工作集全文随本轮消息发送，位于历史之后。
 - 本轮上下文（`MessageManager.build_turn_context`，`<turn_context>`）：叙事约束、作者本条消息选的技能、本轮更新的项目资料、当前文件、
   任务计划板快照、本轮回复语言，加工作集，放在本轮用户消息最前面（`SessionLoader.attach_working_set_to_user_content`）。

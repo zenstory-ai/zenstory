@@ -554,11 +554,7 @@ class SessionLoader:
     @staticmethod
     def _full_text_context_ids(context_data: Any) -> set[str]:
         """组装上下文里未被截断（渲染为 [全文]）的项目文件 id。"""
-        from agent.core.message_manager import MessageManager
-
-        if context_data is None:
-            return set()
-        if not MessageManager._raw_context_is_complete(getattr(context_data, "context", "")):
+        if not (getattr(context_data, "context", "") or "").strip():
             return set()
 
         ids: set[str] = set()

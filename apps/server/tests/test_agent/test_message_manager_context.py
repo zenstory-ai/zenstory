@@ -156,7 +156,7 @@ def test_raw_context_keeps_paragraphs_and_skips_duplicate_previews():
     _, truth, surface = manager._extract_structured_context(  # noqa: SLF001
         context_items=context_items,
         force_en=False,
-        raw_context_complete=MessageManager._raw_context_is_complete(assembled),  # noqa: SLF001
+        raw_context_complete=True,
     )
     section = "\n".join(
         manager._build_context_section(  # noqa: SLF001

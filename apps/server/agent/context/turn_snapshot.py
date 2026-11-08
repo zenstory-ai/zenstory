@@ -179,8 +179,8 @@ def plan_turn_context(
     if not session_id:
         return None
     docs = [block for block in context_blocks if block.get("placement") != "turn"]
-    turn_texts = [block["text"] for block in context_blocks if block.get("placement") == "turn"]
-    sections = [TURN_CONTEXT_HEADER, *turn_texts] if turn_texts else []
+    turn_docs = [block for block in context_blocks if block.get("placement") == "turn"]
+    sections = [TURN_CONTEXT_HEADER, *(doc["text"] for doc in turn_docs)] if turn_docs else []
     hashes = {doc["key"]: _digest(doc["text"]) for doc in docs}
     sizes = {doc["key"]: len(doc["text"]) for doc in docs}
     labels = {doc["key"]: str(doc.get("label") or doc["key"]) for doc in docs}
@@ -208,14 +208,14 @@ def plan_turn_context(
         reason = "aged"
 
     changed: list[dict[str, str]] = []
-    gone: list[str] = []
+    removed: list[str] = []
     if reason is None:
         snapshot_hashes: dict[str, str] = state.get("hashes") or {}
         changed = [doc for doc in docs if snapshot_hashes.get(doc["key"]) != hashes[doc["key"]]]
-        # In the snapshot but not in this turn: its copy there is unchecked (snapshot order).
-        gone = [key for key in snapshot_hashes if key not in hashes]
+        # An old snapshot copy still costs tokens even when this turn supplies its replacement.
+        removed = [key for key in snapshot_hashes if key not in hashes]
         snapshot_sizes: dict[str, int] = state.get("sizes") or {}
-        stale_chars = sum(len(doc["text"]) for doc in changed) + sum(int(snapshot_sizes.get(key) or 0) for key in gone)
+        stale_chars = sum(len(doc["text"]) for doc in changed) + sum(int(snapshot_sizes.get(key) or 0) for key in removed)
         if stale_chars > REBUILD_CHANGED_RATIO * max(len(state.get("text") or ""), 1):
             reason = "outgrown"
 
@@ -252,16 +252,18 @@ def plan_turn_context(
     _store_set(key, json.dumps(state, ensure_ascii=False))
     if changed:
         sections.extend([CHANGED_CONTEXT_HEADER, *(doc["text"] for doc in changed)])
-    if gone:
+    turn_keys = {doc["key"] for doc in turn_docs}
+    unchecked = [key for key in removed if key not in turn_keys]
+    if unchecked:
         snapshot_labels: dict[str, str] = state.get("labels") or {}
-        sections.append("\n".join([GONE_CONTEXT_HEADER, *(f"- {snapshot_labels.get(key) or key}" for key in gone)]))
+        sections.append("\n".join([GONE_CONTEXT_HEADER, *(f"- {snapshot_labels.get(key) or key}" for key in unchecked)]))
     log_with_context(
         logger,
         20,  # INFO
         "Context snapshot reused",
         snapshot_chars=len(state.get("text") or ""),
         changed_documents=len(changed),
-        gone_documents=len(gone),
+        gone_documents=len(removed),
         turn_in_snapshot=state["turns"],
         **_stale_accounting(state, docs, hashes),
     )
