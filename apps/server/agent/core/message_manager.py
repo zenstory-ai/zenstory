@@ -532,7 +532,7 @@ class MessageManager:
         Build this turn's context block for the current user message.
 
         With a context snapshot (agent/context/turn_snapshot.py) ``assembled_context``
-        holds only the blocks that changed since the snapshot; ``full_assembled_context``
+        holds turn-only blocks and updates to the snapshot; ``full_assembled_context``
         is the whole assembled context, which decides whether it is complete.
 
         It holds everything that changes from turn to turn: narrative constraints

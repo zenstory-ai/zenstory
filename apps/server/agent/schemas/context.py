@@ -260,7 +260,7 @@ class ContextData(BaseModel):
 
     blocks: list[dict[str, str]] = Field(
         default_factory=list,
-        description="The same content as keyed blocks (header + one per item) for the context snapshot",
+        description="Keyed prompt blocks; placement='turn' keeps a block out of the stable snapshot",
     )
 
     items: list[dict[str, Any]] = Field(
