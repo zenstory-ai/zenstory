@@ -27,7 +27,7 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-# Version 3 excludes turn-only blocks and working-set files from persisted snapshots.
+# Version 3 keeps only stable blocks and fingerprints them with SHA-256.
 SNAPSHOT_FORMAT_VERSION = 3
 SNAPSHOT_TTL_S = 6 * 3600
 REBUILD_AFTER_TURNS = 20
@@ -61,7 +61,7 @@ class TurnContextPlan:
 
 
 def _digest(text: str) -> str:
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _render_snapshot(docs: list[dict[str, str]]) -> str:
