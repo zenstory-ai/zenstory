@@ -154,7 +154,7 @@ export const footer = (lang) => `
       <div class="foot-brand">
         <a class="brand" href="${localized(lang, '/')}">${brandMark(28)}<span class="wordmark">ZenStory AI</span></a>
         <p class="foot-desc">${esc(t(lang, org.tagline.en, org.tagline.zh))}</p>
-        <p class="foot-desc">${t(lang, `Open-source tools for creating and adapting stories, ${esc(org.proof.license)}-licensed.`, `用于创作与改编故事的开源工具，${esc(org.proof.license)} 许可。`)}</p>
+        <p class="foot-desc">${t(lang, `Open-source tools for creating and adapting stories: ${esc(org.proof.license)} skill packs and an AGPL-3.0 workbench.`, `用于创作与改编故事的开源工具：skill 包按 ${esc(org.proof.license)} 许可，工作台按 AGPL-3.0 许可。`)}</p>
         <p><a href="${org.github}">GitHub${extGlyph}</a></p>
       </div>
       <nav aria-label="${t(lang, 'Footer: projects', '页脚：项目')}">

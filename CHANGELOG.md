@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- License changed from MIT to GNU AGPL-3.0 for the workbench (web, server, worker). The `apps/cli` client stays MIT.
+
 ### Added
 
 - Open-source preparation: MIT LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md

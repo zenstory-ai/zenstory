@@ -1,6 +1,6 @@
 # ZenStory AI
 
-> MIT-licensed tools and agent skills for writing fiction, developing short drama, adapting novels into games, and producing video recaps. Maintained at https://github.com/zenstory-ai.
+> Open-source tools and agent skills for writing fiction, developing short drama, adapting novels into games, and producing video recaps. Maintained at https://github.com/zenstory-ai.
 
 ZenStory AI (GitHub org `zenstory-ai`) publishes six creative projects: four agent skill packs, a DeepSeek Harness plugin, and a browser writing workbench. Choose a project by your source material and intended result. Each repository lists its supported hosts, installation steps, and workspace requirements.
 
@@ -15,7 +15,7 @@ Overview page: https://zenstory.ai/projects (中文: https://zenstory.ai/zh/proj
 - [Novel to Game (novel-to-game)](https://zenstory.ai/novel-to-game) · [source](https://github.com/zenstory-ai/novel-to-game): Seven agent skills for source-grounded adaptation into a game candidate on a selected target runtime. Six runtime QA checks record execution evidence, not subjective quality or readiness for commercial release.
 - [Video Recap Skills (video-recap-skills)](https://zenstory.ai/video-recap) · [source](https://github.com/zenstory-ai/video-recap-skills): Seven skills: five stage skills plus one orchestrator for Chinese-narration video production, and an optional reference-analysis skill. CapCut/JianYing draft export is available. ffmpeg processes media locally; MiMo and optional Fish Audio services handle remote model tasks. Final output requires playback review.
 - [Oh Story DSH (oh-story-dsh)](https://zenstory.ai/dsh) · [source](https://github.com/zenstory-ai/oh-story-dsh): A community DeepSeek Harness plugin with pinned novel, short-drama, game and video skill packs and four workbenches. The local DSH Web environment and model/media services require configuration. Package: `@oh-story/dsh`; not affiliated with, partnered with or endorsed by DeepSeek.
-- [ZenStory Workbench (zenstory)](https://zenstory.ai/workbench) · [source](https://github.com/zenstory-ai/zenstory): A browser writing workspace where AI creates and edits your outline, chapters and character files, with version history. Hosted at https://app.zenstory.ai (free: 3 AI messages a day, 3 projects); MIT-licensed for self-hosting.
+- [ZenStory Workbench (zenstory)](https://zenstory.ai/workbench) · [source](https://github.com/zenstory-ai/zenstory): A browser writing workspace where AI creates and edits your outline, chapters and character files, with version history. Hosted at https://app.zenstory.ai (free: 3 AI messages a day, 3 projects); AGPL-3.0-licensed for self-hosting.
 
 ## Guides
 

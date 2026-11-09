@@ -600,7 +600,7 @@ const needBlock = (p) => {
   <section class="need" aria-labelledby="need-h">
     ${heading(2, 'What you need', '你需要什么', 'need-h')}
     <ul class="need-list">
-      <li><b>${t('License', '许可')}</b><span>${t(`${esc(org.proof.license)}, open source.`, `${esc(org.proof.license)}，开源。`)}</span></li>
+      <li><b>${t('License', '许可')}</b><span>${t(`${esc(p.license ?? org.proof.license)}, open source.`, `${esc(p.license ?? org.proof.license)}，开源。`)}</span></li>
       <li><b>${t(p.slug === 'workbench' ? 'Where it runs' : 'Host', p.slug === 'workbench' ? '在哪里运行' : '宿主')}</b><span>${host}</span></li>
       ${p.slug === 'workbench' ? `<li><b>${t('Docs', '文档')}</b><span>${t('The <a href="/docs">workbench documentation</a>: getting started, user guide, reference and troubleshooting.', '<a href="/docs">工作台文档</a>：快速入门、用户指南、参考资料与故障排除。')}</span></li>` : ''}
       ${WRITING_ENTRIES.has(p.slug) ? `<li><b>${t('Or in the browser', '或在浏览器里')}</b><span>${t(`For novel writing only, you can skip the agent setup and use the <a href="/workbench">ZenStory Workbench</a> in the browser (<a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>).`, `只写小说的话，也可以不装 Agent，直接用网页版 <a href="/workbench">ZenStory 工作台</a>（<a href="${appHref(LANG, '/register', `org_${p.slug.replace(/-/g, '_')}_need`)}">app.zenstory.ai</a>）。`)}</span></li>` : ''}
@@ -646,7 +646,7 @@ const projectPage = (p) => {
       description: pick(p.definition),
       url: U(route),
       codeRepository: p.github,
-      license: 'https://opensource.org/licenses/MIT',
+      license: `https://opensource.org/licenses/${p.license ?? org.proof.license}`,
       publisher: { '@id': `${SITE}/#org` },
       inLanguage: LOCALE[LANG],
       ...(p.slug === 'workbench' ? { applicationCategory: 'BusinessApplication', operatingSystem: 'Web' } : { programmingLanguage: 'Markdown' }),
