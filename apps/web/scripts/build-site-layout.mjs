@@ -100,14 +100,25 @@ export const vercelConfig = {
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')
 const legalContent = JSON.parse(readFileSync(join(web, 'public/locales/en/privacy.json'), 'utf8'))
 const legalContentZh = JSON.parse(readFileSync(join(web, 'public/locales/zh/privacy.json'), 'utf8'))
-function pageHead(shell,route,origin,title) {
+const homeContentZh = JSON.parse(readFileSync(join(web, 'public/locales/zh/home.json'), 'utf8'))
+const dashboardContentZh = JSON.parse(readFileSync(join(web, 'public/locales/zh/dashboard.json'), 'utf8'))
+function pageHead(shell,route,origin,title,description=title,body='') {
   return shell
     .replace(/<title>[^<]*<\/title>/,`<title>${esc(title)}</title>`)
-    .replace(/<meta\b[^>]*name=["']description["'][^>]*>/gi,`<meta data-rh="true" name="description" content="${esc(title)}" />`)
+    .replace(/<meta\b[^>]*name=["']description["'][^>]*>/gi,`<meta data-rh="true" name="description" content="${esc(description)}" />`)
     .replace(/<meta\b[^>]*property=["']og:title["'][^>]*>/gi,`<meta data-rh="true" property="og:title" content="${esc(title)}" />`)
-    .replace(/<meta\b[^>]*property=["']og:description["'][^>]*>/gi,`<meta data-rh="true" property="og:description" content="${esc(title)}" />`)
+    .replace(/<meta\b[^>]*property=["']og:description["'][^>]*>/gi,`<meta data-rh="true" property="og:description" content="${esc(description)}" />`)
     .replace('</head>',`<link data-rh="true" rel="canonical" href="${origin}${route}" /><meta data-rh="true" property="og:url" content="${origin}${route}" /></head>`)
+    .replace('<div id="root"></div>',`<div id="root">${body}</div>`)
 }
+// Static fallback body matches the Chinese default locale (`<html lang="zh-CN">` + `fallbackLng: 'zh'` for crawlers);
+// client-side React hydration replaces `#root` children and switches language on `?lang=en` or user preference.
+const appHomeTitle = `${homeContentZh.hero.titlePart1}${homeContentZh.hero.titlePart2}`
+const appHomeDescription = homeContentZh.hero.description
+const appHomeBody = `<main><h1>${esc(appHomeTitle)}</h1><p>${esc(appHomeDescription)}</p><p>${esc(homeContentZh.whyChoose.subtitle)}。支持${esc(homeContentZh.projectTypes.novel.name)}、${esc(homeContentZh.projectTypes.short.name)}、${esc(homeContentZh.projectTypes.screenplay.name)}；${esc(homeContentZh.pricingTeaser.free.badge)}版提供 ${esc(homeContentZh.pricingTeaser.free.title)}，${esc(homeContentZh.features.cloudSave)}，${esc(homeContentZh.features.versionHistory)}。</p><p><a href="${APP}/register">${esc(homeContentZh.nav.getStarted)}</a> · <a href="${APP}/login">${esc(homeContentZh.nav.login)}</a> · <a href="${APP}/pricing">${esc(homeContentZh.nav.pricing)}</a> · <a href="${SITE}/docs">工作台文档</a></p></main>`
+const appPricingTitle = dashboardContentZh.billing.compareTitle
+const appPricingDescription = `${dashboardContentZh.billing.catalogSubtitle}${dashboardContentZh.billing.summaryStarter} Pro：${dashboardContentZh.billing.summaryCreator}`
+const appPricingBody = `<main><h1>${esc(appPricingTitle)}</h1><p>${esc(appPricingDescription)}</p><p>${esc(dashboardContentZh.billing.dailyQuotaResetHint)}${esc(dashboardContentZh.billing.trustFlexible)}。</p><p><a href="${APP}/register">${esc(dashboardContentZh.billing.ctaFreeStart)}</a> · <a href="${APP}/login">${esc(homeContentZh.nav.login)}</a> · <a href="${APP}/">返回工作台首页</a></p></main>`
 function renderLegalValue(value, depth = 2) {
   if (Array.isArray(value)) return `<ul>${value.map(item => `<li>${esc(String(item))}</li>`).join('')}</ul>`
   if (!value || typeof value !== 'object') return ''
@@ -201,8 +212,8 @@ export function finalizeSite(outDir) {
     writeFileSync(join(outDir,route,'index.html'),legalPage(route,title,document,documentZh))
     siteRoutes.push(route)
   }
-  writeFileSync(join(outDir,'_app/home.html'),pageHead(shell,'/',APP,'ZenStory — AI 小说写作工作台'))
-  writeFileSync(join(outDir,'_app/pricing.html'),pageHead(shell,'/pricing',APP,'定价 - ZenStory'))
+  writeFileSync(join(outDir,'_app/home.html'),pageHead(shell,'/',APP,'ZenStory — AI 小说写作工作台',appHomeDescription,appHomeBody))
+  writeFileSync(join(outDir,'_app/pricing.html'),pageHead(shell,'/pricing',APP,'定价 - ZenStory',appPricingDescription,appPricingBody))
   const modifiedOn = new Map()
   for (const route of siteRoutes) {
     const path = route === '/' ? 'org-home' : route.slice(1)
