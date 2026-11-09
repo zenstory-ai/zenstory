@@ -187,10 +187,9 @@ The app shows these English names in the English interface; the Chinese names ar
 
 Enable skills under **Skills → Discover**. Each turn, the AI sees the L1 catalog (names and purposes of enabled skills) and progressively loads L2 instructions and L3 reference files on demand; you can also type `/` in chat or pick skills from the sidebar to attach up to 3 directly to a message. Custom skills follow the open Agent Skills `SKILL.md` specification and can be imported or exported as `.zip` or `.md` packages (executable scripts are stripped on import).
 
-### Reference novel deconstruction & resilient model routing
+### Reference novel deconstruction (Material Library)
 
-- **Reference Novel Material Library**: backed by a Prefect pipeline, upload a reference novel as TXT (up to 300,000 characters) to extract per-chapter summaries, a whole-book synopsis, character profiles, worldbuilding settings and protagonist edges (金手指). Attach entries to chat (up to 5 per message) or import them into your project as searchable files.
-- **DeepSeek / MiniMax failover & weighted dual-key routing**: configure primary and backup providers between DeepSeek and MiniMax (pre-output instant failover, session pinning to preserve prompt caches, and circuit breaking), plus weighted primary/secondary API key routing with per-key cooldowns for MiniMax. Stream billing automatically refunds the turn if a run is stopped, times out, or fails before producing substantive prose.
+Backed by an asynchronous Prefect pipeline, upload a reference novel as TXT (up to 300,000 characters) to extract per-chapter summaries, a whole-book synopsis, character profiles, worldbuilding settings and protagonist edges (金手指). Attach entries to chat (up to 5 per message) or import them into your project as searchable files.
 
 ## FAQ
 
@@ -245,7 +244,7 @@ zenstory/
     │   ├── prompts/          #     shared protocols, web-fiction/drama genre norms and role prompts
     │   └── skills/           #     progressive skill loading and injection
     ├── flows/                #   material decomposition pipeline (Prefect)
-    ├── services/             #   business logic and stream billing ledger
+    ├── services/             #   business logic
     └── models/               #   data models
 ```
 
@@ -253,7 +252,7 @@ zenstory/
 | --- | --- |
 | Frontend | React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Zustand · TanStack Query |
 | Backend | FastAPI · SQLModel · Server-Sent Events |
-| AI | DeepSeek / MiniMax failover & weighted dual-key routing · openai-agents-python |
+| AI | DeepSeek / MiniMax (OpenAI-compatible API) · openai-agents-python |
 | Retrieval | Database keyword search with snippets and line numbers; edits are searchable immediately, without indexing |
 | Data | SQLite (default) / PostgreSQL · Redis · Alembic |
 | Deploy | Docker Compose; the hosted app runs the frontend on Vercel and the API plus Prefect on Railway |

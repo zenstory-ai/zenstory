@@ -183,10 +183,9 @@ flowchart LR
 
 启用技能后，AI 每轮先看到已启用技能的名称与用途（L1 目录），匹配需求时再按需加载完整方法（L2）与参考资源（L3）；也可以在输入框打 `/` 或从侧栏点选技能显式附加到当前消息（最多 3 个）。自定义技能遵循开放 Agent Skills 的 `SKILL.md` 规范，支持 `.zip` / `.md` 导入导出（自动过滤可执行脚本）。
 
-### 参考小说拆解（素材库）与主备模型容灾
+### 参考小说拆解（素材库）
 
-- **参考小说素材库**：基于 Prefect 异步流水线，上传一本 30 万字以内的 TXT 参考小说，后台自动拆出每章摘要、全书概要、角色档案、世界观和金手指。在项目「参考小说库」面板可将条目「附加到聊天」（每条消息最多 5 个）或导入为项目文件供检索参考。
-- **DeepSeek / MiniMax 主备切换与双凭证分流**：服务端支持配置 DeepSeek 与 MiniMax 主备供应商（首包输出前故障当场无感切换、会话级固定保缓存、全局熔断），并支持 MiniMax 主次 API Key 按权重分流与独立冷却；流式计费在用户主动停止、超时或异常且无实质正文产出时自动退还当次额度。
+上传一本 30 万字以内的 TXT 参考小说，后台基于 Prefect 异步流水线自动拆出每章摘要、全书概要、角色档案、世界观和金手指。在项目「参考小说库」面板可将条目「附加到聊天」（每条消息最多 5 个）或导入为项目文件供检索参考。
 
 ## 常见问题
 
@@ -241,7 +240,7 @@ zenstory/
     │   ├── prompts/          #     共享协议、网文/短剧题材规范与角色提示
     │   └── skills/           #     渐进式技能加载与注入
     ├── flows/                #   素材拆解流水线（Prefect）
-    ├── services/             #   业务逻辑与流式计费账本
+    ├── services/             #   业务逻辑
     └── models/               #   数据模型
 ```
 
@@ -249,7 +248,7 @@ zenstory/
 | --- | --- |
 | 前端 | React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Zustand · TanStack Query |
 | 后端 | FastAPI · SQLModel · Server-Sent Events |
-| AI | DeepSeek / MiniMax 主备切换与双凭证分流 · openai-agents-python |
+| AI | DeepSeek / MiniMax（OpenAI 兼容接口）· openai-agents-python |
 | 检索 | 数据库关键词匹配、相关片段与行号；文件编辑后立即可搜，无索引任务 |
 | 数据 | SQLite（默认）/ PostgreSQL · Redis · Alembic |
 | 部署 | Docker Compose；在线版前端在 Vercel，后端与 Prefect 在 Railway |
