@@ -136,8 +136,15 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     }
     finalizeSite(dir)
     for (const f of ['index.html','robots.txt','sitemap.xml']) assert.equal(existsSync(join(dir,f)), false)
-    assert.match(readFileSync(join(dir,'_app/home.html'),'utf8'), /href="https:\/\/app\.zenstory\.ai\/"/)
-    assert.doesNotMatch(readFileSync(join(dir,'_app/index.html'),'utf8'), /rel="canonical"/)
+    const appHome = readFileSync(join(dir,'_app/home.html'),'utf8')
+    const appPricing = readFileSync(join(dir,'_app/pricing.html'),'utf8')
+    assert.match(appHome, /href="https:\/\/app\.zenstory\.ai\/"/)
+    assert.match(appPricing, /href="https:\/\/app\.zenstory\.ai\/pricing"/)
+    for (const html of [appHome, appPricing]) {
+      assert.match(html, /<div id="root"><main><h1>[^<]+<\/h1><p>[^<]+<\/p>/)
+      assert.equal((html.match(/<h1\b/g) ?? []).length, 1)
+    }
+    assert.doesNotMatch(readFileSync(join(dir,'_app/index.html'),'utf8'), /rel="canonical"|<main>/)
     const privacy = readFileSync(join(dir, '_site/privacy-policy/index.html'), 'utf8')
     const terms = readFileSync(join(dir, '_site/terms-of-service/index.html'), 'utf8')
     for (const html of [privacy, terms]) {
@@ -322,7 +329,7 @@ test('static legal note/email escape markup without rendering unrelated scalar f
   const fixture = mkdtempSync(join(tmpdir(), 'site-privacy-escaped-'))
   try {
     for (const dir of ['scripts', 'content', 'public/locales/en', 'public/locales/zh', 'output/org-home']) mkdirSync(join(fixture, dir), { recursive: true })
-    for (const file of ['scripts/build-site-layout.mjs', 'scripts/site-shell.mjs', 'content/org.json', 'content/projects.json', 'content/site-routing.json', 'content/guide-redirects.json', 'public/locales/zh/privacy.json', 'vercel.json']) {
+    for (const file of ['scripts/build-site-layout.mjs', 'scripts/site-shell.mjs', 'content/org.json', 'content/projects.json', 'content/site-routing.json', 'content/guide-redirects.json', 'public/locales/zh/privacy.json', 'public/locales/zh/home.json', 'public/locales/zh/dashboard.json', 'vercel.json']) {
       cpSync(new URL(`../../${file}`, import.meta.url), join(fixture, file))
     }
     const source = JSON.parse(readFileSync(new URL('../../public/locales/en/privacy.json', import.meta.url), 'utf8'))
