@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -314,7 +314,7 @@ describe("OnboardingPersonaPage", () => {
         expect(mockNavigate).toHaveBeenCalledWith("/project/first-project?file=first-file", { replace: true });
       });
       expect(mockNavigate).toHaveBeenCalledTimes(1);
-      expect(mockInitializeFirstWork).toHaveBeenCalledWith("short", "zh");
+      expect(mockInitializeFirstWork).toHaveBeenCalledWith("short", "zh", expect.any(AbortSignal));
       expect(queryClient.getQueryData(["workspace-first-work", "user-onboarding-1"])).toMatchObject({ project_id: "first-project" });
       // Desktop shows the AI panel next to the editor already.
       expect(mockRequestChatOnOpen).not.toHaveBeenCalled();
@@ -344,6 +344,31 @@ describe("OnboardingPersonaPage", () => {
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true }));
       expect(mockNavigate).toHaveBeenCalledTimes(1);
       expect(mockToastError).not.toHaveBeenCalled();
+    });
+
+    it("stops waiting for a stalled creation and keeps the dashboard", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        let seenSignal: AbortSignal | undefined;
+        mockInitializeFirstWork.mockImplementation((_type: unknown, _language: unknown, signal: AbortSignal) =>
+          new Promise((_resolve, reject) => {
+            seenSignal = signal;
+            signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          }));
+        renderPage();
+
+        fireEvent.click(typeButton("novel"));
+        await waitFor(() => expect(mockInitializeFirstWork).toHaveBeenCalledTimes(1));
+        await act(async () => { vi.advanceTimersByTime(9_000); });
+        expect(mockNavigate).not.toHaveBeenCalled();
+        await act(async () => { vi.advanceTimersByTime(1_000); });
+
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true }));
+        expect(seenSignal?.aborted).toBe(true);
+        expect(mockToastError).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("skipping looks around on the dashboard without creating the first work", async () => {

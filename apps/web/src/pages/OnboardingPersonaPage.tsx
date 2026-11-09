@@ -36,6 +36,8 @@ import { reportActivationEvent } from "../lib/activationEvents";
 const MAX_PERSONA_SELECTION = 3;
 const EXPERIENCE_LEVELS: PersonaExperienceLevel[] = ["beginner", "intermediate", "advanced"];
 const DEFAULT_NEXT_PATH = "/dashboard";
+/** Creation usually answers in well under a second; past this the page stops waiting. */
+const FIRST_WORK_OPEN_TIMEOUT_MS = 10_000;
 
 interface TypeOption {
   type: ProjectType;
@@ -95,7 +97,7 @@ interface StoredAnswers {
 const asStringList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-/** Script lines keep their format: 【scene】, △ action, 人物：台词. */
+/** Script lines keep their format: 【scene】, △ action, 人物：台词 (Name: line in English). */
 function SampleLine({ line, script }: { line: string; script: boolean }) {
   if (script && line.startsWith("【")) {
     return <p className="font-sans text-[13px] font-semibold">{line}</p>;
@@ -103,7 +105,8 @@ function SampleLine({ line, script }: { line: string; script: boolean }) {
   if (script && line.startsWith("△")) {
     return <p className="text-[hsl(var(--text-secondary))]">{line}</p>;
   }
-  const colon = script ? line.indexOf("：") : -1;
+  const fullWidth = line.indexOf("：");
+  const colon = script ? (fullWidth >= 0 ? fullWidth : line.indexOf(":")) : -1;
   if (colon > 0 && colon < 8) {
     return (
       <p>
@@ -189,12 +192,16 @@ export default function OnboardingPersonaPage() {
   /**
    * A chosen type on the default path opens the author's first work. The server decides
    * eligibility and is idempotent; anything other than an untouched first work (older
-   * accounts, rollout off, a failed request) keeps the original destination.
+   * accounts, rollout off, a failed or stalled request) keeps the original destination.
+   * A stalled request is abandoned after a bound: the dashboard asks again, and a creation
+   * that did finish on the server is the same work there.
    */
   const openFirstWork = async (userId: string, type: ProjectType): Promise<boolean> => {
     if (nextPath !== DEFAULT_NEXT_PATH) return false;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), FIRST_WORK_OPEN_TIMEOUT_MS);
     try {
-      const state = await firstWorkApi.initialize(type, i18n.language);
+      const state = await firstWorkApi.initialize(type, i18n.language, controller.signal);
       if (!mountedRef.current) return true;
       queryClient.setQueryData(firstWorkQueryKey(userId), state);
       const work = untouchedFirstWork(state);
@@ -205,6 +212,8 @@ export default function OnboardingPersonaPage() {
       return true;
     } catch {
       return false;
+    } finally {
+      window.clearTimeout(timer);
     }
   };
 
@@ -304,7 +313,8 @@ export default function OnboardingPersonaPage() {
           </p>
         )}
 
-        <div className="mt-5 grid items-start gap-7 sm:mt-7 lg:grid-cols-[minmax(0,1fr)_440px]">
+        {/* The footer sits under the cards, so it stays put while the preview changes height. */}
+        <div className="mt-5 grid items-start gap-x-7 gap-y-5 sm:mt-7 lg:grid-cols-[minmax(0,1fr)_440px] lg:grid-rows-[auto_1fr]">
           <ul className="grid gap-3" aria-label={t("onboarding:start.title", "你准备写哪种作品？")}>
             {TYPE_OPTIONS.map(({ type, icon: Icon }) => {
               const highlighted = highlightedType === type;
@@ -320,8 +330,8 @@ export default function OnboardingPersonaPage() {
                     disabled={saving !== null}
                     aria-pressed={highlighted}
                     className={cn(
-                      "group grid w-full grid-cols-[36px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-2xl border px-4 pt-3.5 text-left transition-colors",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] disabled:cursor-default",
+                      "group grid w-full grid-cols-[36px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-2xl border px-4 pt-3.5 text-left transition-colors motion-reduce:transition-none",
+                      "active:bg-[hsl(var(--accent-primary)/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] disabled:cursor-default",
                       "sm:grid-cols-[40px_minmax(0,1fr)_auto] sm:gap-x-4 sm:px-5 sm:py-4",
                       saving !== null && !loading && "opacity-50",
                       "border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.55)]",
@@ -343,15 +353,15 @@ export default function OnboardingPersonaPage() {
                         {optionList(type, "platforms").map((platform) => (
                           <span
                             key={platform}
-                            className="whitespace-nowrap rounded-md bg-[hsl(var(--bg-tertiary))] px-2 py-0.5 text-[hsl(var(--text-primary)/0.82)]"
+                            className="whitespace-nowrap rounded-md bg-[hsl(var(--text-primary)/0.06)] px-2 py-0.5 text-[hsl(var(--text-primary)/0.82)]"
                           >
                             {platform}
                           </span>
                         ))}
                       </span>
                       {/* Phones have no preview: the folders the work opens with stay on the card. */}
-                      <span className="col-span-2 flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))] lg:hidden">
-                        <Folder aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                      <span className="col-span-2 flex items-start gap-1.5 text-xs text-[hsl(var(--text-secondary))] sm:col-span-1 lg:hidden">
+                        <Folder aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
                         {optionList(type, "folders").join(" / ")}
                       </span>
                     </span>
@@ -360,7 +370,7 @@ export default function OnboardingPersonaPage() {
                       {loading ? (
                         <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                       ) : (
-                        <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
                       )}
                     </span>
                   </button>
@@ -369,17 +379,30 @@ export default function OnboardingPersonaPage() {
             })}
           </ul>
 
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[13px] text-[hsl(var(--text-secondary))] lg:col-start-1">
+            <p>{t("onboarding:start.switchLater", "选了之后也随时能换。")}</p>
+            <button
+              type="button"
+              onClick={() => { void handleChoose(null); }}
+              disabled={saving !== null}
+              className="-mx-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-md px-1 text-sm underline decoration-[hsl(var(--text-secondary)/0.35)] underline-offset-4 hover:text-[hsl(var(--text-primary))] hover:decoration-current disabled:opacity-50"
+            >
+              {saving === "skip" && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
+              {t("onboarding:actions.skip", "还没定？先随便看看")}
+            </button>
+          </div>
+
           {/* Desktop only, purely supplementary: what the work looks like once opened. */}
           <aside
             aria-hidden="true"
-            className="sticky top-6 hidden overflow-hidden rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] lg:block"
+            className="sticky top-6 hidden overflow-hidden rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:block"
             data-testid="onboarding-preview"
           >
             <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--separator-color))] px-4 py-3">
               <span className="text-sm font-semibold text-[hsl(var(--text-primary))]">{option(previewType, "title")}</span>
               <span className="text-xs text-[hsl(var(--text-secondary))]">{t("onboarding:start.preview", "示例")}</span>
             </div>
-            <div className="grid min-h-[336px] grid-cols-[144px_minmax(0,1fr)]">
+            <div className="grid min-h-[336px] grid-cols-[minmax(144px,auto)_minmax(0,1fr)]">
               <ul className="border-r border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-primary))] p-2 text-[13px]">
                 {previewFolders.map((folder, index) => {
                   const last = index === previewFolders.length - 1;
@@ -406,18 +429,6 @@ export default function OnboardingPersonaPage() {
           </aside>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[13px] text-[hsl(var(--text-secondary))]">
-          <p>{t("onboarding:start.switchLater", "选了之后也随时能换。")}</p>
-          <button
-            type="button"
-            onClick={() => { void handleChoose(null); }}
-            disabled={saving !== null}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md px-1 text-sm underline decoration-[hsl(var(--text-secondary)/0.35)] underline-offset-4 hover:text-[hsl(var(--text-primary))] hover:decoration-current disabled:opacity-50"
-          >
-            {saving === "skip" && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
-            {t("onboarding:actions.skip", "还没定？先随便看看")}
-          </button>
-        </div>
         <p className="sr-only" role="status" aria-live="polite">
           {saving !== null && saving !== "skip" ? t("onboarding:start.opening", "正在打开你的作品…") : ""}
         </p>
