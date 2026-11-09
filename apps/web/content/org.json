@@ -7,8 +7,8 @@
     "zh": "从一个灵感，到小说、短剧、游戏和视频。"
   },
   "intro": {
-    "en": "All MIT-licensed. Write web fiction with skills in Claude Code, Codex and other agents; turn a novel into short-drama scripts and storyboards or a playable game; cut footage into a narrated recap. No agent setup? Write in the browser with ZenStory Workbench.",
-    "zh": "都是 MIT 开源。在 Claude Code、Codex 等 Agent 里装上 skill 写网文；有了小说，可以改成短剧剧本和分镜，或做成可玩的游戏；有视频素材，可以剪成解说成片。不想装 Agent，就直接用网页版 ZenStory 工作台。"
+    "en": "All open source. Write web fiction with skills in Claude Code, Codex and other agents; turn a novel into short-drama scripts and storyboards or a playable game; cut footage into a narrated recap. No agent setup? Write in the browser with ZenStory Workbench.",
+    "zh": "都是开源项目。在 Claude Code、Codex 等 Agent 里装上 skill 写网文；有了小说，可以改成短剧剧本和分镜，或做成可玩的游戏；有视频素材，可以剪成解说成片。不想装 Agent，就直接用网页版 ZenStory 工作台。"
   },
   "category": {
     "primary": "agent skills for story creation and adaptation",

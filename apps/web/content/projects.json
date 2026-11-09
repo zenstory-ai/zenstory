@@ -814,6 +814,7 @@
   {
     "slug": "workbench",
     "repo": "zenstory",
+    "license": "AGPL-3.0",
     "github": "https://github.com/zenstory-ai/zenstory",
     "readme_en": "https://github.com/zenstory-ai/zenstory/blob/main/README_EN.md",
     "format": {
@@ -829,8 +830,8 @@
       "zh": "在浏览器里和 AI 一起写小说：大纲、人设、章节和版本都放在同一个项目里。"
     },
     "definition": {
-      "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, manuscripts, characters and settings are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under MIT, and is available as a service at app.zenstory.ai with free and paid plans.",
-      "zh": "ZenStory 工作台在浏览器里用：左边文件树、中间编辑器、右边 AI 对话。大纲、正文、角色卡和设定都是文件，后台的多个 AI 角色围绕这些文件起草、提建议和修改。它自带 skill，也提供给 Claude Code / OpenClaw 用的 Agent API；代码按 MIT 许可开源，可以自己部署，也提供 app.zenstory.ai 的在线服务（有免费和付费方案）。"
+      "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, manuscripts, characters and settings are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under AGPL-3.0, and is available as a service at app.zenstory.ai with free and paid plans.",
+      "zh": "ZenStory 工作台在浏览器里用：左边文件树、中间编辑器、右边 AI 对话。大纲、正文、角色卡和设定都是文件，后台的多个 AI 角色围绕这些文件起草、提建议和修改。它自带 skill，也提供给 Claude Code / OpenClaw 用的 Agent API；代码按 AGPL-3.0 许可开源，可以自己部署，也提供 app.zenstory.ai 的在线服务（有免费和付费方案）。"
     },
     "seo": {
       "title": {
@@ -839,7 +840,7 @@
       },
       "description": {
         "en": "Chat to create: a three-panel writing workbench where AI agents read and write your project files, with materials, characters, chapters and versions together.",
-        "zh": "对话即创作：三栏式 AI 小说写作工作台，AI Agent 直接读写你的创作文件，素材、人设、章节和版本历史都在一处。app.zenstory.ai 免费使用，也可 MIT 自托管。"
+        "zh": "对话即创作：三栏式 AI 小说写作工作台，AI Agent 直接读写你的创作文件，素材、人设、章节和版本历史都在一处。app.zenstory.ai 免费使用，也可按 AGPL-3.0 自托管。"
       }
     },
     "audience": {

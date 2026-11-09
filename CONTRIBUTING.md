@@ -85,4 +85,4 @@ chore: upgrade dependencies
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions will be licensed under the [GNU AGPL-3.0](LICENSE) (contributions to `apps/cli` under the [MIT License](apps/cli/LICENSE)), and you grant ZenStory a perpetual, irrevocable, worldwide, royalty-free right to also distribute your contributions under other license terms, including commercial licenses.

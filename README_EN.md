@@ -24,7 +24,7 @@
   <a href="https://github.com/zenstory-ai/zenstory/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zenstory-ai/zenstory?style=flat-square&color=22D3EE&logo=github&logoColor=white&label=Stars"></a>
   <img alt="Skills 14" src="https://img.shields.io/badge/Skills-14-081431?style=flat-square">
   <a href="https://app.zenstory.ai/"><img alt="app.zenstory.ai" src="https://img.shields.io/website?style=flat-square&url=https%3A%2F%2Fapp.zenstory.ai&label=app.zenstory.ai"></a>
-  <a href="./LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-1F6FEB?style=flat-square"></a>
+  <a href="./LICENSE"><img alt="License AGPL-3.0" src="https://img.shields.io/badge/License-AGPL--3.0-1F6FEB?style=flat-square"></a>
 </p>
 
 <p align="center">
@@ -40,7 +40,7 @@ The workspace puts the file tree on the left, the editor in the middle and AI ch
 
 ## What it is
 
-ZenStory Workbench is a place to write fiction in the browser. Outlines, chapters, character sheets, settings and reference material are all files in a project. You talk to the AI on the right, and it creates and edits those files directly, with no copy-paste in between. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or host it yourself under the MIT license.
+ZenStory Workbench is a place to write fiction in the browser. Outlines, chapters, character sheets, settings and reference material are all files in a project. You talk to the AI on the right, and it creates and edits those files directly, with no copy-paste in between. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or host it yourself under the AGPL-3.0 license.
 
 - **Edit files from the chat**: ask for "a villain, brooding, with a tragic past" and the Agent creates a character sheet in the Characters folder, streaming it into the editor as it writes. Continuing or rewriting a chapter works the same way: the change lands in the file.
 - **One router, four specialist agents**: the router uses your current request and relevant context from the previous turn to choose a workflow. The Planner, Hook Designer, Writer and Quality Reviewer work within your requested scope: an outline request stops at the outline. In Quality mode, automatic review normally starts when successful manuscript writes total 500 characters; chat and outlines do not count. The reviewer reads and reports, handing back only issues that need revision.
@@ -414,7 +414,13 @@ zenstory/
 
 ## License
 
-[MIT License](LICENSE) &copy; 2024-2026 ZenStory
+[GNU AGPL-3.0](LICENSE) &copy; 2024-2026 ZenStory
+
+This repository is licensed under the GNU Affero General Public License v3.0. You may use, modify and self-host it; if you offer a modified version to others as a network service, the AGPL requires you to make the corresponding source available to those users.
+
+The ZenStory name and logo are not licensed: forks and self-hosted services should use their own name. For a commercial license without the AGPL obligations, contact the maintainers.
+
+The `apps/cli` command-line client stays under the MIT license; see [apps/cli/LICENSE](apps/cli/LICENSE).
 
 ## Part of ZenStory AI
 
