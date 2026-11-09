@@ -128,11 +128,11 @@ test.describe("Onboarding persona flow", () => {
     await clearCurrentUserPersonaStorage(page);
     await gotoWithRetry(page, "/onboarding/persona");
     await expect(
-      page.getByRole("heading", { level: 1, name: /你想写什么|what do you want to write/i })
+      page.getByRole("heading", { level: 1, name: /你准备写哪种作品|what are you writing/i })
     ).toBeVisible();
   });
 
-  test("one tap on a type saves it and opens the dashboard", async ({ page }) => {
+  test("one tap on a type saves it and, without a first work, opens the dashboard", async ({ page }) => {
     await page.getByRole("button", { name: /长篇小说|novel/i }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15000 });
@@ -156,7 +156,7 @@ test.describe("Onboarding persona flow", () => {
   });
 
   test("skip action stores skipped payload and redirects to dashboard", async ({ page }) => {
-    await page.getByRole("button", { name: /^(先跳过|Skip for now)$/i }).click();
+    await page.getByRole("button", { name: /^(还没定？先随便看看|Not sure yet\? Look around first)$/i }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15000 });
 

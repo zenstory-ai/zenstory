@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +17,9 @@ const mockSavePersonaOnboardingData = vi.fn();
 const mockGetState = vi.fn();
 const mockSave = vi.fn();
 const mockToastError = vi.fn();
+const mockInitializeFirstWork = vi.fn();
+const mockRequestChatOnOpen = vi.fn();
+let mockIsMobile = false;
 let mockUser: { id: string } | null = { id: "user-onboarding-1" };
 let mockLocationState: { from?: { pathname?: string; search?: string; hash?: string } } | null = {
   from: { pathname: "/dashboard/projects", search: "", hash: "" },
@@ -24,6 +27,7 @@ let mockLocationState: { from?: { pathname?: string; search?: string; hash?: str
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
+    i18n: { language: "zh" },
     t: (
       key: string,
       defaultValueOrOptions?: string | Record<string, unknown>,
@@ -67,6 +71,17 @@ vi.mock("../../lib/activationEvents", () => ({
   reportActivationEvent: (...args: unknown[]) => mockReportActivationEvent(...args),
 }));
 
+vi.mock("../../lib/firstWorkApi", () => ({
+  firstWorkQueryKey: (userId: string | null) => ["workspace-first-work", userId],
+  firstWorkApi: { initialize: (...args: unknown[]) => mockInitializeFirstWork(...args) },
+}));
+
+vi.mock("../../hooks/useMediaQuery", () => ({ useIsMobile: () => mockIsMobile }));
+
+vi.mock("../../lib/pendingInspiration", () => ({
+  requestChatOnOpen: (...args: unknown[]) => mockRequestChatOnOpen(...args),
+}));
+
 vi.mock("../../lib/toast", () => ({
   toast: { error: (...args: unknown[]) => mockToastError(...args) },
 }));
@@ -90,6 +105,19 @@ import OnboardingPersonaPage from "../OnboardingPersonaPage";
 
 let queryClient: QueryClient;
 
+const firstWorkState = (overrides: Record<string, unknown> = {}) => ({
+  status: "created",
+  project_id: "first-project",
+  project_type: "short",
+  file_id: "first-file",
+  available: true,
+  static_guidance: true,
+  opened_at: null,
+  first_manual_write_at: null,
+  first_ai_requested_at: null,
+  ...overrides,
+});
+
 const renderPage = () => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -106,6 +134,8 @@ describe("OnboardingPersonaPage", () => {
     vi.clearAllMocks();
     mockUser = { id: "user-onboarding-1" };
     mockLocationState = { from: { pathname: "/dashboard/projects", search: "", hash: "" } };
+    mockIsMobile = false;
+    mockInitializeFirstWork.mockResolvedValue(firstWorkState({ status: "ineligible", project_id: null, file_id: null, available: false, static_guidance: false }));
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
     localStorage.removeItem(`${PREFERRED_PROJECT_TYPE_STORAGE_KEY}:${mockUser.id}`);
     mockGetPersonaOnboardingData.mockReturnValue(null);
@@ -143,7 +173,7 @@ describe("OnboardingPersonaPage", () => {
   it("asks one question and goes on with one tap", async () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("你想写什么？");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("你准备写哪种作品？");
     fireEvent.click(typeButton("short"));
 
     await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
@@ -162,7 +192,15 @@ describe("OnboardingPersonaPage", () => {
     for (const type of ["novel", "short", "screenplay"] as const) {
       expect(zhOnboarding.start.options[type].title).toBeTruthy();
       expect(enOnboarding.start.options[type].title).toBeTruthy();
+      // Each locale lists the platforms, the folders the work opens with and a sample opening.
+      for (const options of [zhOnboarding.start.options[type], enOnboarding.start.options[type]]) {
+        expect(options.platforms.length).toBeGreaterThan(0);
+        expect(options.folders.length).toBeGreaterThan(0);
+        expect(options.sample.length).toBeGreaterThan(1);
+      }
     }
+    // Only the default destination opens the first work.
+    expect(mockInitializeFirstWork).not.toHaveBeenCalled();
   });
 
   it("keeps earlier identities, goals and experience it no longer asks about", async () => {
@@ -225,7 +263,7 @@ describe("OnboardingPersonaPage", () => {
     mockLocationState = { from: { pathname: "/onboarding/persona" } };
 
     renderPage();
-    fireEvent.click(screen.getByRole("button", { name: "先跳过" }));
+    fireEvent.click(screen.getByRole("button", { name: "还没定？先随便看看" }));
 
     await waitFor(() => {
       expect(mockSavePersonaOnboardingData).toHaveBeenCalledWith("user-onboarding-1", {
@@ -257,6 +295,89 @@ describe("OnboardingPersonaPage", () => {
         "/project/project-1?file=file-2&tab=outline#section-1",
         { replace: true },
       );
+    });
+    expect(mockInitializeFirstWork).not.toHaveBeenCalled();
+  });
+
+  describe("on the default path", () => {
+    beforeEach(() => {
+      mockLocationState = { from: { pathname: "/dashboard", search: "", hash: "" } };
+    });
+
+    it("a chosen type opens the untouched first work", async () => {
+      mockInitializeFirstWork.mockResolvedValue(firstWorkState());
+      renderPage();
+
+      fireEvent.click(typeButton("short"));
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith("/project/first-project?file=first-file", { replace: true });
+      });
+      expect(mockNavigate).toHaveBeenCalledTimes(1);
+      expect(mockInitializeFirstWork).toHaveBeenCalledWith("short", "zh", expect.any(AbortSignal));
+      expect(queryClient.getQueryData(["workspace-first-work", "user-onboarding-1"])).toMatchObject({ project_id: "first-project" });
+      // Desktop shows the AI panel next to the editor already.
+      expect(mockRequestChatOnOpen).not.toHaveBeenCalled();
+    });
+
+    it("opens the first work on the AI tab on phones", async () => {
+      mockIsMobile = true;
+      mockInitializeFirstWork.mockResolvedValue(firstWorkState());
+      renderPage();
+
+      fireEvent.click(typeButton("novel"));
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/project/first-project?file=first-file", { replace: true }));
+      expect(mockRequestChatOnOpen).toHaveBeenCalledWith("first-project");
+    });
+
+    it.each([
+      ["an account without a first work", () => mockInitializeFirstWork.mockResolvedValue(firstWorkState({ status: "ineligible", project_id: null, file_id: null, available: false, static_guidance: false }))],
+      ["a first work the author already used", () => mockInitializeFirstWork.mockResolvedValue(firstWorkState({ first_ai_requested_at: "2026-11-09T00:00:00Z", static_guidance: false }))],
+      ["a failed request", () => mockInitializeFirstWork.mockRejectedValue(new Error("network"))],
+    ])("keeps the dashboard for %s", async (_label, arrange) => {
+      arrange();
+      renderPage();
+
+      fireEvent.click(typeButton("novel"));
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true }));
+      expect(mockNavigate).toHaveBeenCalledTimes(1);
+      expect(mockToastError).not.toHaveBeenCalled();
+    });
+
+    it("stops waiting for a stalled creation and keeps the dashboard", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        let seenSignal: AbortSignal | undefined;
+        mockInitializeFirstWork.mockImplementation((_type: unknown, _language: unknown, signal: AbortSignal) =>
+          new Promise((_resolve, reject) => {
+            seenSignal = signal;
+            signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          }));
+        renderPage();
+
+        fireEvent.click(typeButton("novel"));
+        await waitFor(() => expect(mockInitializeFirstWork).toHaveBeenCalledTimes(1));
+        await act(async () => { vi.advanceTimersByTime(9_000); });
+        expect(mockNavigate).not.toHaveBeenCalled();
+        await act(async () => { vi.advanceTimersByTime(1_000); });
+
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true }));
+        expect(seenSignal?.aborted).toBe(true);
+        expect(mockToastError).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("skipping looks around on the dashboard without creating the first work", async () => {
+      renderPage();
+
+      fireEvent.click(screen.getByRole("button", { name: "还没定？先随便看看" }));
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true }));
+      expect(mockInitializeFirstWork).not.toHaveBeenCalled();
     });
   });
 

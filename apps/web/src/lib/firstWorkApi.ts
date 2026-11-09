@@ -18,9 +18,10 @@ export const firstWorkQueryKey = (userId: string | null) => ['workspace-first-wo
 export const firstWorkApi = {
   get: () => api.get<FirstWorkState>('/api/v1/workspace/first-work'),
   /** `null` lets the server choose from the onboarding persona. */
-  initialize: (preferredType: ProjectType | null, language: string) =>
+  initialize: (preferredType: ProjectType | null, language: string, signal?: AbortSignal) =>
     api.post<FirstWorkState>('/api/v1/workspace/first-work', { preferred_type: preferredType }, {
       headers: { 'Accept-Language': language },
+      signal,
     }),
   open: () => api.post<FirstWorkState>('/api/v1/workspace/first-work/open'),
 };
