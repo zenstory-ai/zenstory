@@ -207,6 +207,10 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   /** The click that browsers synthesize after a hold-to-talk touch must not toggle. */
   const suppressClickRef = useRef(false);
   const [interaction, setInteraction] = useState<'hold' | 'toggle'>('toggle');
+  /** How the current session was started; a session keeps its mode until it ends. */
+  const sessionModeRef = useRef<'hold' | 'toggle'>('toggle');
+  /** Touch pointer pressed during a click-started session; its release ends that session. */
+  const toggleTouchPointerRef = useRef<number | null>(null);
   
   const {
     status,
@@ -253,6 +257,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     }
     isLongPressRef.current = false;
     holdPointerRef.current = null;
+    toggleTouchPointerRef.current = null;
     if (status === 'requesting' || status === 'recording' || status === 'processing') cancelRecording();
   }, [disabled, status, cancelRecording]);
 
@@ -263,15 +268,32 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 
   const holdToTalk = (e: React.PointerEvent) => isMobile && e.pointerType === 'touch';
 
+  const startSession = (mode: 'hold' | 'toggle') => {
+    sessionModeRef.current = mode;
+    setInteraction(mode);
+    return startRecording();
+  };
+
   // Click/keyboard toggle; works at every width for mouse, pen and keyboard.
   const handleClick = async (e: React.MouseEvent) => {
-    // A keyboard activation (detail 0) is never the tail of a touch press.
-    if (suppressClickRef.current && e.detail !== 0) {
+    // A keyboard activation (detail 0), or any click while a touch is still
+    // down, is never the tail of a touch press; it must not consume the
+    // suppression meant for the click that follows the finger's release.
+    const touchDown = holdPointerRef.current !== null || toggleTouchPointerRef.current !== null;
+    if (e.detail !== 0 && !touchDown) {
+      const suppressed = suppressClickRef.current;
       suppressClickRef.current = false;
-      return;
+      if (suppressed) return;
     }
-    suppressClickRef.current = false;
     if (disabled) return;
+
+    // Keyboard/mouse takes over a touch that has not reached the hold
+    // threshold yet: the pending hold must not start a second session.
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      isLongPressRef.current = false;
+    }
 
     if (status === 'requesting') {
       cancelRecording();
@@ -279,15 +301,20 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     } else if (isRecording) {
       stopRecording();
     } else if (!isProcessing) {
-      setInteraction('toggle');
-      await startRecording();
+      await startSession('toggle');
     }
   };
+
+  const toggleSessionActive = () =>
+    sessionModeRef.current === 'toggle' && (status === 'requesting' || isRecording);
 
   // Phone-width touch: press and hold to talk.
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!holdToTalk(e)) {
-      suppressClickRef.current = false;
+      // A mouse/pen press while a touch is down keeps that touch's suppression.
+      if (holdPointerRef.current === null && toggleTouchPointerRef.current === null) {
+        suppressClickRef.current = false;
+      }
       return;
     }
     suppressClickRef.current = true;
@@ -298,6 +325,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     } catch {
       // Capture is best effort; children ignore pointer events anyway.
     }
+    // A click/keyboard-started session stays a toggle session: this touch ends
+    // it on release instead of starting (and discarding into) a new hold.
+    if (toggleSessionActive()) {
+      toggleTouchPointerRef.current = e.pointerId;
+      return;
+    }
     if (longPressTimerRef.current !== null) clearTimeout(longPressTimerRef.current);
     isLongPressRef.current = false;
     holdPointerRef.current = e.pointerId;
@@ -305,17 +338,26 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null;
       isLongPressRef.current = true;
-      setInteraction('hold');
-      void startRecording();
+      void startSession('hold');
     }, 200);
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (holdToTalk(e) && toggleTouchPointerRef.current === e.pointerId) {
+      toggleTouchPointerRef.current = null;
+      if (isRecording) {
+        stopRecording();
+      } else if (status === 'requesting') {
+        cancelRecording();
+        toast.info(t('chat:voice.cancelled'));
+      }
+      return;
+    }
     if (!holdToTalk(e) || holdPointerRef.current !== e.pointerId) return;
     holdPointerRef.current = null;
 
     if (longPressTimerRef.current !== null) {
-      // Released before the hold threshold: explain the gesture.
+      // Released before the hold threshold (and not taken over): explain the gesture.
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
       if (!disabled) toast.info(t('chat:voice.mobile_hold'));
@@ -328,6 +370,11 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    // A cancelled touch leaves a click-started session running.
+    if (toggleTouchPointerRef.current === e.pointerId) {
+      toggleTouchPointerRef.current = null;
+      return;
+    }
     if (!holdToTalk(e) || holdPointerRef.current !== e.pointerId) return;
     holdPointerRef.current = null;
     if (longPressTimerRef.current !== null) {
@@ -346,7 +393,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   // raise contextmenu, which must not cancel a hold).
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (interaction === 'toggle' && holdPointerRef.current === null && (isRecording || status === 'requesting')) {
+    if (
+      sessionModeRef.current === 'toggle'
+      && holdPointerRef.current === null
+      && toggleTouchPointerRef.current === null
+      && (isRecording || status === 'requesting')
+    ) {
       cancelRecording();
       toast.info(t('chat:voice.cancelled'));
     }
@@ -394,7 +446,9 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       return interaction === 'hold' ? t('chat:voice.mobile_stop') : t('chat:voice.desktop_stop');
     }
     if (error) return error;
-    return isMobile ? t('chat:voice.mobile_hold') : t('chat:voice.input');
+    // The hold gesture is explained on a short tap; the idle name stays generic
+    // because mouse and keyboard toggle at every width.
+    return t('chat:voice.input');
   };
 
   return (

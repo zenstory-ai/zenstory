@@ -258,6 +258,103 @@ describe('VoiceInputButton', () => {
     expect(stopRecording).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['short tap', 'long hold'] as const)(
+    'a %s during a keyboard-started recording stops it instead of starting a hold',
+    async (kind) => {
+      isMobile = true
+      const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+      const button = screen.getByTestId('voice-input-button')
+      fireEvent.click(button, { detail: 0 })
+      expect(startRecording).toHaveBeenCalledTimes(1)
+      voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 2 }
+      rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+      fireEvent.pointerDown(button, touch)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(kind === 'long hold' ? 800 : 50)
+      })
+      fireEvent.pointerUp(button, touch)
+      fireEvent.click(button, { detail: 1 })
+
+      expect(startRecording).toHaveBeenCalledTimes(1)
+      expect(stopRecording).toHaveBeenCalledTimes(1)
+      expect(releaseRecording).not.toHaveBeenCalled()
+      expect(toastInfo).not.toHaveBeenCalledWith('Hold to record')
+    },
+  )
+
+  it('a touch during a keyboard-started permission wait cancels that request only', async () => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+    fireEvent.click(button, { detail: 0 })
+    voiceState = { ...voiceState, status: 'requesting' }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+    fireEvent.pointerDown(button, touch)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800)
+    })
+    fireEvent.pointerUp(button, touch)
+
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    expect(cancelRecording).toHaveBeenCalledTimes(1)
+    expect(toastInfo).toHaveBeenCalledWith('Recording cancelled')
+  })
+
+  it('keyboard stop during a hold does not let the release click start a new recording', async () => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+    await holdPastThreshold(button)
+    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 2 }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+    fireEvent.click(button, { detail: 0 })
+    expect(stopRecording).toHaveBeenCalledTimes(1)
+    voiceState = { ...voiceState, status: 'processing', isRecording: false, isProcessing: true }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+    fireEvent.pointerUp(button, touch)
+    voiceState = { ...voiceState, status: 'idle', isProcessing: false }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+    fireEvent.click(button, { detail: 1 })
+
+    expect(startRecording).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['keyboard', { detail: 0 }],
+    ['mouse', { detail: 1 }],
+  ] as const)('a %s activation within the hold threshold cancels the pending hold', async (via, init) => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+
+    fireEvent.pointerDown(button, touch)
+    if (via === 'mouse') fireEvent.pointerDown(button, { pointerType: 'mouse', pointerId: 1, isPrimary: true })
+    fireEvent.click(button, init)
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 1 }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600)
+    })
+    fireEvent.pointerUp(button, touch)
+    fireEvent.click(button, { detail: 1 }) // synthesized after the finger lifts
+
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    expect(stopRecording).not.toHaveBeenCalled()
+    expect(releaseRecording).not.toHaveBeenCalled()
+    expect(toastInfo).not.toHaveBeenCalledWith('Hold to record')
+  })
+
+  it('names the feature when idle at phone width', () => {
+    isMobile = true
+    render(<VoiceInputButton onResult={vi.fn()} />)
+    expect(screen.getByTestId('voice-input-button')).toHaveAttribute('aria-label', 'Voice input')
+  })
+
   it('keeps touch taps as click-to-toggle on wide screens', () => {
     render(<VoiceInputButton onResult={vi.fn()} />)
     const button = screen.getByTestId('voice-input-button')

@@ -303,6 +303,122 @@ test.describe('voice input in the real chat input', () => {
     });
   });
 
+  test.describe('phone width with touch and a keyboard or mouse (mixed input)', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    async function startWith(page: Page, via: 'keyboard' | 'mouse') {
+      const button = page.getByTestId('voice-input-button');
+      if (via === 'keyboard') {
+        await button.focus();
+        await page.keyboard.press('Enter');
+      } else {
+        const box = await button.boundingBox();
+        if (!box) throw new Error('no voice button box');
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      }
+    }
+
+    for (const via of ['keyboard', 'mouse'] as const) {
+      for (const touchKind of ['short tap', 'long hold'] as const) {
+        test(`${via} starts, a ${touchKind} on the button stops the same recording`, async ({ page }) => {
+          const harness = await prepare(page);
+          await openChat(page);
+          await startWith(page, via);
+          await expect(recording(page)).toBeAttached();
+          await page.waitForTimeout(1500);
+
+          const point = await center(page, '[data-testid="voice-input-button"]');
+          const finger = await touch(page);
+          await finger.down(point.x, point.y);
+          await page.waitForTimeout(touchKind === 'long hold' ? 1000 : 60);
+          await finger.up();
+
+          await expect(chatInput(page)).toHaveValue(RECOGNIZED);
+          await page.waitForTimeout(400);
+          await expect(recording(page)).not.toBeAttached();
+          expect(harness.calls).toHaveLength(1);
+          // The whole take (≈1.5 s before the touch, plus the hold) is kept, not a restarted fragment.
+          expect(harness.calls[0].durationSec).toBeGreaterThan(touchKind === 'long hold' ? 2.2 : 1.3);
+          const gum = await gumState(page);
+          expect(gum.calls).toBe(1);
+          expect(gum.liveTracks).toBe(0);
+        });
+      }
+    }
+
+    for (const via of ['keyboard', 'mouse'] as const) {
+      test(`${via} takes over during the hold threshold: one recording, no restart`, async ({ page }) => {
+        const harness = await prepare(page);
+        await openChat(page);
+        const point = await buttonEdge(page);
+        const finger = await touch(page);
+        await finger.down(point.x, point.y);
+        await startWith(page, via); // well within the 200 ms threshold
+        await expect(recording(page)).toBeAttached();
+        await page.waitForTimeout(600); // past the threshold: a stale hold timer would restart here
+        await finger.up();
+        await page.waitForTimeout(800);
+        // The click-started session survives the release and the synthesized click.
+        await expect(recording(page)).toBeAttached();
+        await startWith(page, via);
+        await expect(chatInput(page)).toHaveValue(RECOGNIZED);
+        expect(harness.calls).toHaveLength(1);
+        expect(harness.calls[0].durationSec).toBeGreaterThan(1.2);
+        const gum = await gumState(page);
+        expect(gum.calls).toBe(1);
+        expect(gum.liveTracks).toBe(0);
+      });
+    }
+
+    test('keyboard starts while permission is pending, then a hold cancels without a second session', async ({ page }) => {
+      const harness = await prepare(page, { gum: { mode: 'allow', delayMs: 1500 } });
+      const button = await openChat(page);
+      await startWith(page, 'keyboard');
+      await expect(button).toHaveAttribute('aria-label', '正在请求麦克风权限…');
+
+      const point = await center(page, '[data-testid="voice-input-button"]');
+      const finger = await touch(page);
+      await finger.down(point.x, point.y);
+      await page.waitForTimeout(800);
+      await finger.up();
+
+      await expect(page.getByRole('status').filter({ hasText: '已取消录音' })).toBeVisible();
+      await page.waitForTimeout(1500); // the abandoned grant resolves meanwhile
+      await expect(recording(page)).not.toBeAttached();
+      const gum = await gumState(page);
+      expect(gum.calls).toBe(1);
+      expect(gum.liveTracks).toBe(0);
+      expect(harness.calls).toHaveLength(0);
+    });
+
+    test('a hold starts, then the keyboard stops it and the release adds nothing', async ({ page }) => {
+      const harness = await prepare(page);
+      const button = await openChat(page);
+      const point = await center(page, '[data-testid="voice-input-button"] svg');
+      const finger = await touch(page);
+      await finger.down(point.x, point.y);
+      await expect(recording(page)).toBeAttached();
+      await page.waitForTimeout(1500);
+      await button.focus();
+      await page.keyboard.press('Enter');
+      await expect(chatInput(page)).toHaveValue(RECOGNIZED);
+      await finger.up();
+      await page.waitForTimeout(600);
+      await expect(recording(page)).not.toBeAttached();
+      expect(harness.calls).toHaveLength(1);
+      expect(harness.calls[0].durationSec).toBeGreaterThan(1.3);
+      const gum = await gumState(page);
+      expect(gum.calls).toBe(1);
+      expect(gum.liveTracks).toBe(0);
+    });
+
+    test('idle label names the feature; a short tap still explains holding', async ({ page }) => {
+      await prepare(page);
+      const button = await openChat(page);
+      await expect(button).toHaveAttribute('aria-label', '语音输入');
+    });
+  });
+
   test.describe('narrow desktop window (mouse and keyboard)', () => {
     test.use({ viewport: { width: 600, height: 900 }, hasTouch: false, isMobile: false });
 
