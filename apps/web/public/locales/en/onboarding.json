@@ -1,19 +1,87 @@
 {
   "start": {
-    "title": "What do you want to write?",
-    "subtitle": "Tap one to start. You can switch any time.",
+    "title": "What are you writing?",
+    "fit": "Suits",
+    "preview": "Example",
+    "switchLater": "You can switch any time.",
+    "opening": "Opening your work…",
     "options": {
       "novel": {
         "title": "Novel",
-        "desc": "Web fiction or a long novel, chapter after chapter"
+        "platforms": [
+          "Fanqie",
+          "Qidian",
+          "Qimao"
+        ],
+        "promise": "Get a chapter 1 draft",
+        "folders": [
+          "World Building",
+          "Characters",
+          "Materials",
+          "Outlines",
+          "Drafts"
+        ],
+        "file": "Draft",
+        "sampleTitle": "Chapter 1: Stay the Blade",
+        "sample": [
+          "“Noon has come. Begin!”",
+          "Qin Lang knelt below the scaffold as they dragged his father to the block.",
+          "In his last life he wept here, and three months later his family was put to death.",
+          "Now the blade had not yet fallen.",
+          "He eyed the letter in the overseer’s sleeve and stood. “Stay the blade! My father never took that silver.”",
+          "“I know where it is. In your house, my lord.”"
+        ]
       },
       "short": {
         "title": "Short story",
-        "desc": "One complete story in one go"
+        "platforms": [
+          "Zhihu Yanxuan",
+          "Fanqie Shorts",
+          "Heiyan",
+          "Dianzhong"
+        ],
+        "promise": "Write up to the first twist",
+        "folders": [
+          "Characters",
+          "Concept",
+          "Materials",
+          "Drafts"
+        ],
+        "file": "Draft",
+        "sample": [
+          "The night before our wedding, my fiancé gave the dress I’d sewn for three years to his first love.",
+          "“She has terminal stomach cancer. Be reasonable.”",
+          "I stared at the diagnosis and said nothing.",
+          "The doctor who signed it was me. I never wrote that report.",
+          "Three days ago I examined her myself: gastritis.",
+          "So I swapped tomorrow’s wedding slideshow for her clinic footage."
+        ]
       },
       "screenplay": {
         "title": "Short drama script",
-        "desc": "Vertical short drama, episode by episode"
+        "platforms": [
+          "Hongguo",
+          "Douyin, Kuaishou",
+          "Mini-program dramas"
+        ],
+        "promise": "Get an episode 1 script",
+        "folders": [
+          "Characters",
+          "World Building",
+          "Materials",
+          "Episode Outlines",
+          "Scripts"
+        ],
+        "file": "Script",
+        "sampleTitle": "Episode 1",
+        "sample": [
+          "【Gu family engagement banquet, night, interior】",
+          "△ In front of every guest, Mrs. Gu throws a glass of red wine in Su Wan’s face.",
+          "Mrs. Gu: An orphan, marrying into the Gu family? The new owner arrives tonight. Get out.",
+          "Su Wan: (wiping off the wine) No need to wait. The owner is already here.",
+          "△ A lawyer walks past Mrs. Gu and bows to Su Wan, holding out a file.",
+          "Lawyer: Chairwoman Su, the Gu Group bankruptcy filing. Will you sign now?"
+        ]
       }
     }
   },
@@ -21,7 +89,7 @@
     "restore": "Your previous answer is selected"
   },
   "actions": {
-    "skip": "Skip for now"
+    "skip": "Not sure yet? Look around first"
   },
   "errors": {
     "saveFailed": "Couldn’t save. Check your connection and try again.",
