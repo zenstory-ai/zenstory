@@ -40,13 +40,13 @@ The workspace puts the file tree on the left, the editor in the middle and AI ch
 
 ## What it is
 
-ZenStory Workbench is a file-centred AI writing environment for **long-form novels, short stories and short-drama screenplays**. Outlines, chapters, character sheets, worldbuilding lore and reference materials live as structured files in your project. You talk to the AI on the right, and it creates or edits those files directly, streaming changes into the editor without copy-pasting between a chat window and a word processor. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or self-host it under the AGPL-3.0 license.
+ZenStory Workbench is a browser workspace for writing **long-form novels, short stories and short-drama screenplays**. Outlines, chapters, character sheets, worldbuilding lore and reference materials are all files in your project. You talk to the AI on the right, and it creates or edits those files directly without copy-pasting between a chat window and a word processor. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or self-host it under the AGPL-3.0 license.
 
-- **Direct file streaming that respects author edits**: the Agent streams prose straight into project files with one-click undo cards in chat; manual edits you make in the editor are passed to the AI as `<author_edits>` net diffs, and author-saved manuscripts are protected against accidental deletion or full overwrite from chat.
-- **Purpose-built multi-agent orchestration & scope guards**: a structured router coordinates the Planner, Hook Designer, Writer and Quality Reviewer. An outline request stops at the outline; prose is written only when requested, and in Quality mode manuscript writes automatically go through review and emit a single consolidated summary.
-- **Web-fiction & short-drama native craft**: built-in genre norms keep openings in immediate conflict, deliver concrete payoffs on screen, drive dialogue through active stakes, and land chapter-end cliffhangers; selecting text in the editor and clicking **Humanize** opens a paragraph-by-paragraph diff for selective acceptance.
-- **Cache-stable context snapshots & cross-turn working set**: each turn assembles AI Memory, a cross-turn working set (full text of recently read or edited files), adjacent chapters, and relevant character/lore sheets within dual ~32,000-token budgets, pinning stable material in `<project_snapshot>` to maximize LLM prompt-cache hits.
-- **Open Agent Skills ecosystem & CLI integration**: ships with 14 progressively loaded official writing skills, imports/exports standard `SKILL.md` packages, and lets external agents like Claude Code, Codex and OpenClaw read and write your projects via `npx zenstory`.
+- **Direct file edits that respect your own revisions**: ask for a new character sheet, outline or chapter in chat and the Agent streams it straight into the file, with one-click undo on the chat card. Anything you edit by hand in the editor is synced back to the AI so continuations build on your changes, and your saved manuscripts cannot be deleted or overwritten in full from chat.
+- **Four specialist agents working in relay**: the Planner, Hook Designer, Writer and Quality Reviewer divide the work according to your request — ask for an outline and it stops at the outline; ask for prose and it writes the chapter. In Quality mode, finished prose is automatically checked by the reviewer and wrapped up in a single clean summary.
+- **Paced for web fiction and short dramas**: openings start inside the conflict, payoffs land on screen, dialogue drives the stakes, and chapters end on a hook. Select any passage in the editor and click **Humanize** to review paragraph-by-paragraph rewrites and accept only the lines you want.
+- **Long-form continuity without digging through chat history**: each turn automatically brings in AI Memory, the full text of chapters you just read or edited, the previous chapter, and relevant character and lore sheets.
+- **14 built-in skills, plus external agent support**: ships with 14 skills for continuation, hooks, short stories, short-drama episodes and prose polishing, and imports or exports standard `SKILL.md` packages. With the `npx zenstory` CLI, external agents like Claude Code, Codex and OpenClaw can also read and write your project files.
 
 ## Get started
 
@@ -56,7 +56,7 @@ Sign up at [app.zenstory.ai](https://app.zenstory.ai) to start creating. Create 
 
 > I want to write a xianxia web novel. Plan a three-chapter opening outline first and do not write prose yet. The protagonist Xiao Wuya runs the largest merchant guild across the realms and has spent ten years funding Empress Luo Qinghan's rise with spirit stones, top-grade pills and mountain-warding arrays. At her ascension ceremony, to favor her new sword-prodigy favorite Ye Chen, she publicly mocks Xiao Wuya as reeking of copper coins and banishes him from the sect. Unbothered, Xiao Wuya immediately cuts off all spirit stone, pill and array supplies to her sect. Give the core conflict, reversal payoff and cliffhanger hook for each of the first three chapters.
 
-Once the outline is settled, name the target files and let the AI write (the third line uses the Design Hooks skill, stored as `钩子设计`, added under **Skills → Discover** first):
+Once the outline is settled, name the target files and let the AI write (the third line uses the Design Hooks skill, stored as `钩子设计`, enabled under **Skills → Discover** first):
 
 ```text
 Save the three-chapter outline in the Outlines folder as "Opening 3-Chapter Outline".
@@ -81,7 +81,8 @@ Sign in at <http://localhost:5173>; the API reference is at <http://localhost:80
 
 - **Writing configuration**: project system prompts (`novel`, `short`, `screenplay`) and official skills live in the database. Configure and reload them in the admin console after first launch; see [docs/agent-writing-guidance.md](docs/agent-writing-guidance.md).
 - **Plan seeding**: run `docker compose exec server python scripts/seed_subscription_plans.py` to initialize plans, then assign Pro under **Subscriptions** in the admin console.
-- **Production deployment & optional features**: for PostgreSQL + Redis setup, optional invite codes, email verification and password reset (Resend), primary/backup model failover (DeepSeek / MiniMax), Google sign-in, Tencent Cloud voice input, material-library Prefect workers, the Inspiration Library, and Zpay Alipay checkout, see [docs/docker-compose.md](docs/docker-compose.md) (in Chinese).
+- **Model selection**: configure DeepSeek or MiniMax via environment variables (`LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`, with `DEEPSEEK_API_KEY` or `MINIMAX_API_KEY`); see [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py).
+- **Open sign-up & optional features**: self-hosted instances require an invite code by default; set `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` to allow open registration. For PostgreSQL + Redis deployment, email verification and password reset (Resend), Google sign-in, Tencent Cloud voice input, material-library Prefect workers, the Inspiration Library, and Zpay Alipay checkout, see [docs/docker-compose.md](docs/docker-compose.md) (in Chinese).
 
 <details>
 <summary>Local development without Docker</summary>
@@ -112,20 +113,20 @@ Create the first admin account from `apps/server` by running `python scripts/cre
 Create an API key under **Settings → Agent**, then run in your terminal (Node.js 20+):
 
 ```bash
-npx zenstory login           # paste the key when prompted (hidden input; add --api-base https://your-server/api/v1 if self-hosted)
+npx zenstory login           # paste the key when prompted; add --api-base https://your-server/api/v1 if self-hosted
 npx zenstory skill install   # installs for Claude Code by default; add --target codex or --target openclaw for others
 npx zenstory whoami          # verify login status and read/write scopes
 ```
 
-Once installed, the external agent writes with its own model while using the `zenstory` CLI to fetch assembled project context and save chapters back:
+Once installed, the external agent writes with its own model while using the `zenstory` CLI to fetch project context and save chapters back:
 
 ```bash
 dir=$(mktemp -d)
 zenstory files list <projectId> --type draft --fields id,title --json                # list drafts
-zenstory context <projectId> --file <chapterId> --query "what happens next" --json   # fetch assembled project context
+zenstory context <projectId> --file <chapterId> --query "what happens next" --json   # fetch project context
 zenstory files get <chapterId> --fields updated_at --json                            # record current timestamp token
 zenstory files get <chapterId> -o "$dir/<chapterId>.md"                              # download chapter to a temp file
-zenstory files put <chapterId> --content-file "$dir/<chapterId>.md" --if-updated-at <updated_at>   # write back with lock check
+zenstory files put <chapterId> --content-file "$dir/<chapterId>.md" --if-updated-at <updated_at>   # write chapter back
 ```
 
 See [apps/cli/README.md](apps/cli/README.md) and <https://api.zenstory.ai/skill.md?lang=en> for the full CLI and HTTP reference.
@@ -143,16 +144,16 @@ See [apps/cli/README.md](apps/cli/README.md) and <https://api.zenstory.ai/skill.
   </tr>
 </table>
 
-### Multi-agent orchestration and runtime guards
+### Multi-agent roles
 
 ```mermaid
 flowchart LR
-    R["Router<br/>current request & relevant previous-turn context"] -->|quick| W["Writer"]
+    R["Router<br/>current request & previous-turn context"] -->|quick| W["Writer"]
     R -->|standard| P["Planner"] -->|when prose requested| W
     R -->|full| P2["Planner"] --> H["Hook Designer"] -->|when prose requested| W
     R -->|hook_focus| H2["Hook Designer"] -->|when prose requested| W
     R -->|review_only| Q["Quality Reviewer"]
-    W -. Quality mode: successful manuscript writes reach 500 chars .-> Q
+    W -. Quality mode: auto-review once prose reaches 500 chars .-> Q
     Q -. problems found .-> W
 ```
 
@@ -164,14 +165,13 @@ flowchart LR
 | `hook_focus` | Hook Designer first; Writer when revision is requested | Strengthening payoffs, twists or pacing |
 | `review_only` | Quality Reviewer only (read-only) | Continuity checks, evaluations or read-on assessments |
 
-- **Fast vs. Quality mode**: both use the same model. **Fast** skips length-triggered auto-review for rapid drafting. **Quality** triggers automatic review once successful manuscript writes reach 500 characters — checking author requirements, continuity and causality (up to two review rounds per request) while holding intermediate chatter so you receive a single consolidated summary.
-- **In-flight steering & resumable long runs**: send follow-up instructions while the AI is generating — the running agent finishes its turn uninterrupted, and the next agent in line (or one extra round of the current agent) picks up the instruction. Long tasks approaching the wall-clock deadline wrap up cleanly with a resumable progress card, and options offered at the end of an AI reply automatically appear as one-click suggestion chips above the input box.
+- **Fast vs. Quality mode**: both use the same model. **Fast** writes directly without length-triggered auto-review. **Quality** sends finished prose (500+ characters) to the reviewer to check your requirements, continuity and cause-and-effect, then presents a single final summary.
+- **Follow-up instructions & resumable runs**: send additional instructions while the AI is still writing — the current agent finishes its step uninterrupted and applies your follow-up next. Long tasks that reach the single-turn time limit wrap up cleanly with a **Continue** card so you can pick up right where it stopped, and revision options at the end of a reply become one-click buttons above the input box.
 
-### Context snapshots, working set and AI Memory
+### AI Memory and project context
 
-- **Dual ~32,000-token budgets & priority tiers**: each turn sends the most recent ~32,000 tokens of conversation and the cross-turn working set (full text of files read or edited in the last two turns, up to 8 files / 60,000 chars) alongside a separate ~32,000-token budget assembled by priority: focused file & quotes → character sheets, core lore & previous chapter → sibling chapters & live keyword search snippets.
-- **Prompt-cache stable prefix**: relatively stable project material is rendered into `<project_snapshot>` right after the system prompt, while turn-specific updates and the active chapter travel in `<turn_context>`, maximizing prompt-cache reuse across turns and agent handoffs.
-- **AI Memory & Writing Conventions**: structured into four fields (Project Summary, Writing Style, Current Phase, Writing Conventions). When you explicitly ask the AI in chat to remember a rule (e.g. "Remember: the heroine doesn't appear until Chapter 5"), it appends the entry to Writing Conventions without altering your existing notes and shows a receipt card in chat.
+- **Relevant files assembled every turn**: alongside the most recent ~32,000 tokens of chat history and full text of chapters you just read or edited, a separate ~32,000-token budget brings in the open chapter, quoted passages, character sheets, core lore, the previous chapter, and keyword search matches. Stable project material stays at the front of the prompt so continuing across chapters is fast and cache-friendly.
+- **AI Memory & Writing Conventions**: organized into four fields (Project Summary, Writing Style, Current Phase, Writing Conventions). When you ask the AI in chat to remember a rule (e.g. "Remember: the heroine doesn't appear until Chapter 5"), it appends the rule to Writing Conventions without altering your existing notes and shows what was saved on the chat card.
 
 ### 14 built-in skills and custom skill packages
 
@@ -185,30 +185,11 @@ The app shows these English names in the English interface; the Chinese names ar
 | Character | Create a Character 创建角色 |
 | Worldbuilding | Build the World 世界观设定 |
 
-Enable skills under **Skills → Discover**. Each turn, the AI sees the L1 catalog (names and purposes of enabled skills) and progressively loads L2 instructions and L3 reference files on demand; you can also type `/` in chat or pick skills from the sidebar to attach up to 3 directly to a message. Custom skills follow the open Agent Skills `SKILL.md` specification and can be imported or exported as `.zip` or `.md` packages (executable scripts are stripped on import).
+Enable skills under **Skills → Discover**. Each turn, the AI sees the names and purposes of enabled skills and reads the full method when needed; you can also type `/` in chat or pick skills from the sidebar to attach up to 3 directly to a message. Custom skills use the open Agent Skills `SKILL.md` format (with optional `references/` files) and can be imported or exported as `.zip` or `.md` packages.
 
-### Reference novel deconstruction & resilient model routing
+### Reference novel deconstruction (Material Library)
 
-- **Reference Novel Material Library**: backed by a Prefect pipeline, upload a reference novel as TXT (up to 300,000 characters) to extract per-chapter summaries, a whole-book synopsis, character profiles, worldbuilding settings and protagonist edges (金手指). Attach entries to chat (up to 5 per message) or import them into your project as searchable files.
-- **DeepSeek / MiniMax failover & weighted dual-key routing**: configure primary and backup providers between DeepSeek and MiniMax (pre-output instant failover, session pinning to preserve prompt caches, and circuit breaking), plus weighted primary/secondary API key routing with per-key cooldowns for MiniMax. Stream billing automatically refunds the turn if a run is stopped, times out, or fails before producing substantive prose.
-
-## FAQ
-
-### How do I discuss ideas with the AI without letting it edit my files?
-
-Include "do not create or modify files" in your prompt — when the router classifies a request as read-only, all file-write tools are blocked. If the AI already edited a file, click **Undo** on the edit card in chat or roll back from **History** at the bottom of the editor.
-
-### Can I use a different model?
-
-Self-hosted deployments can configure primary and backup providers between DeepSeek and MiniMax via environment variables: `LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`, `LLM_BACKUP_PROVIDER` / `LLM_BACKUP_MODEL`, with keys in `DEEPSEEK_API_KEY` and `MINIMAX_API_KEY` (plus optional `MINIMAX_SECONDARY_API_KEY` weighted routing). See [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py) (new models require a price entry in `apps/server/services/usage/pricing.py`).
-
-### Can I export to Word or publish directly to web-novel platforms?
-
-**Export Manuscript** merges chapters and scripts in chapter order into a single UTF-8 with BOM `.txt` file (`<project>_正文.txt`), and individual outlines or lore files can be saved via **Download current file**. For Word formatting or platform publishing, import the exported TXT into your local word processor or upload it manually ([#13](https://github.com/zenstory-ai/zenstory/issues/13)).
-
-### How do I disable invite codes when self-hosting?
-
-Self-hosted instances require an invite code by default (generated on the admin console's **Referral System** page). To allow open sign-ups without an invite code, set `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true` on the backend (and optionally `VITE_INVITE_CODE_OPTIONAL=true` on the frontend); see [docs/docker-compose.md](docs/docker-compose.md) ([#1](https://github.com/zenstory-ai/zenstory/issues/1)).
+Upload a reference novel as TXT (up to 300,000 characters) and the backend extracts per-chapter summaries, a whole-book synopsis, character profiles, worldbuilding settings and protagonist edges (金手指). Attach entries to chat or import them into your project as searchable files.
 
 ## Further reading
 
@@ -241,11 +222,11 @@ zenstory/
     ├── agent/                #   the writing agents
     │   ├── graph/            #     orchestration loop: routing, handoffs, auto-review
     │   ├── tools/            #     file, project, skill and handoff tools
-    │   ├── context/          #     context snapshots, token budgets and priority tiers
-    │   ├── prompts/          #     shared protocols, web-fiction/drama genre norms and role prompts
-    │   └── skills/           #     progressive skill loading and injection
+    │   ├── context/          #     per-turn context assembly, token budgets and priority ordering
+    │   ├── prompts/          #     shared protocols, genre guidance and role prompts
+    │   └── skills/           #     skill loading and injection
     ├── flows/                #   material decomposition pipeline (Prefect)
-    ├── services/             #   business logic and stream billing ledger
+    ├── services/             #   business logic
     └── models/               #   data models
 ```
 
@@ -253,7 +234,7 @@ zenstory/
 | --- | --- |
 | Frontend | React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Zustand · TanStack Query |
 | Backend | FastAPI · SQLModel · Server-Sent Events |
-| AI | DeepSeek / MiniMax failover & weighted dual-key routing · openai-agents-python |
+| AI | DeepSeek / MiniMax (OpenAI-compatible API) · openai-agents-python |
 | Retrieval | Database keyword search with snippets and line numbers; edits are searchable immediately, without indexing |
 | Data | SQLite (default) / PostgreSQL · Redis · Alembic |
 | Deploy | Docker Compose; the hosted app runs the frontend on Vercel and the API plus Prefect on Railway |
