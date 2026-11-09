@@ -616,7 +616,11 @@ test.describe('Subscription Error Handling', () => {
 
     await navigateToSubscriptionSettings(page);
     await expect(page.locator('h1')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=/加载失败|重试|error/i').first()).toBeVisible({ timeout: 5000 });
+    // The shared test account's UI language is persisted server-side and another
+    // spec in the same shard may have switched it, so accept either language.
+    const errorState = page.getByRole('alert').filter({ hasText: /加载失败|Failed to load/ }).first();
+    await expect(errorState).toBeVisible({ timeout: 5000 });
+    await expect(errorState.getByRole('button', { name: /重试|Retry/ })).toBeVisible();
   });
 
   test('should handle network timeout gracefully', async ({ page }) => {
