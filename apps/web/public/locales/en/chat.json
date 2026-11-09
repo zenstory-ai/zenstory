@@ -326,7 +326,9 @@
     "micAccessDenied": "Can't use the microphone",
     "micPermissionDenied": "Allow microphone access in your browser settings",
     "micNotFound": "No microphone found",
-    "recording": "Recording"
+    "recording": "Recording",
+    "requesting": "Requesting microphone access…",
+    "permissionReady": "Microphone ready. Press and hold again to speak."
   },
   "stream": {
     "processing": "Processing…",

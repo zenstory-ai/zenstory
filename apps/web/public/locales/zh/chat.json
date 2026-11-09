@@ -326,7 +326,9 @@
     "micAccessDenied": "无法使用麦克风",
     "micPermissionDenied": "请在浏览器设置中允许使用麦克风",
     "micNotFound": "没有检测到麦克风",
-    "recording": "录音中"
+    "recording": "录音中",
+    "requesting": "正在请求麦克风权限…",
+    "permissionReady": "麦克风已就绪，请再次按住说话"
   },
   "stream": {
     "processing": "正在处理…",

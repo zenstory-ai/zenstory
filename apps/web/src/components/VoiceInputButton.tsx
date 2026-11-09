@@ -2,8 +2,8 @@
  * @fileoverview VoiceInputButton component - Voice input control with cross-platform support.
  *
  * This component provides a voice input button with platform-specific interaction patterns:
- * - Desktop: Click to start/stop recording
- * - Mobile: Long-press to record, release to transcribe
+ * - Mouse/keyboard (any width) and touch on wide screens: click to start/stop recording
+ * - Touch on phone-width screens: press and hold to record, release to transcribe
  * - Visual waveform feedback during recording
  * - Toast notifications for errors and cancellation
  * - Browser support detection (graceful degradation)
@@ -11,7 +11,7 @@
  * @module components/VoiceInputButton
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { useVoiceInput } from '../hooks/useVoiceInput';
@@ -118,7 +118,10 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({ volume, isRecording }) =>
  * @returns Tailwind CSS class string for the button
  */
 function getButtonStyles(status: VoiceInputStatus, disabled: boolean, isMobile: boolean): string {
-  const baseStyles = 'shrink-0 flex items-center justify-center rounded-lg transition-all duration-200 select-none';
+  // Children never receive pointer events: the press target must stay the
+  // button while its icon is swapped for the waveform. touch-action/callout
+  // keep a hold from scrolling the page or opening the system callout.
+  const baseStyles = 'shrink-0 flex items-center justify-center rounded-lg transition-all duration-200 select-none touch-none [-webkit-touch-callout:none] [&_*]:pointer-events-none';
   const squareSize = isMobile ? 'w-11 h-11' : 'w-9 h-9';
   const recordingSize = isMobile ? 'min-w-[96px] h-11 px-3' : 'min-w-[80px] h-9 px-2.5';
   
@@ -129,6 +132,8 @@ function getButtonStyles(status: VoiceInputStatus, disabled: boolean, isMobile: 
   switch (status) {
     case 'recording':
       return `${baseStyles} ${recordingSize} bg-[hsl(var(--error))] text-white ${isMobile ? '' : 'hover:bg-[hsl(var(--error)/0.9)]'}`;
+    case 'requesting':
+      return `${baseStyles} ${squareSize} bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]`;
     case 'processing':
       return `${baseStyles} ${squareSize} bg-[hsl(var(--accent-primary))] text-white`;
     case 'error':
@@ -144,15 +149,19 @@ function getButtonStyles(status: VoiceInputStatus, disabled: boolean, isMobile: 
  * Provides voice recording and speech-to-text functionality with different
  * behaviors for desktop and mobile platforms:
  *
- * **Desktop (click interaction):**
- * - Click to start recording
- * - Click again or right-click to stop/cancel
+ * **Click interaction (mouse, keyboard, and touch on wide screens):**
+ * - Click (or Enter/Space) to start recording
+ * - Click again to stop; right-click cancels
  * - Visual waveform shows recording progress
  *
- * **Mobile (long-press interaction):**
- * - Long-press (200ms threshold) starts recording
- * - Release to stop and transcribe
- * - Move finger away to cancel
+ * **Hold-to-talk (touch on phone-width screens):**
+ * - Press and hold (200ms threshold) starts recording; a shorter tap shows a hint
+ * - Release to stop and transcribe; the pointer is captured, so the release is
+ *   delivered even after the icon is replaced by the waveform
+ * - Releasing while the microphone permission is still pending records nothing
+ *   and asks the user to hold again once the microphone is ready
+ * - A system-cancelled touch cancels an active recording; while the permission
+ *   request is pending it is treated like a release
  * - Touch-optimized button sizing
  *
  * **Features:**
@@ -192,7 +201,12 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const isMobile = useIsMobile();
   const { t } = useTranslation(['chat', 'common']);
   const longPressTimerRef = useRef<number | null>(null);
+  /** Touch pointer of the current hold-to-talk press, once its hold started recording. */
+  const holdPointerRef = useRef<number | null>(null);
   const isLongPressRef = useRef(false);
+  /** The click that browsers synthesize after a hold-to-talk touch must not toggle. */
+  const suppressClickRef = useRef(false);
+  const [interaction, setInteraction] = useState<'hold' | 'toggle'>('toggle');
   
   const {
     status,
@@ -204,6 +218,8 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     startRecording,
     stopRecording,
     cancelRecording,
+    releaseRecording,
+    cancelPress,
     isSupported,
   } = useVoiceInput({
     onResult: (text) => {
@@ -213,6 +229,9 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     onError: (err) => {
       logger.error('Voice input error:', err);
       toast.error(err);
+    },
+    onReleasedBeforeStart: () => {
+      toast.info(t('chat:voice.permissionReady'));
     },
     maxDuration: 55,
   });
@@ -233,6 +252,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       longPressTimerRef.current = null;
     }
     isLongPressRef.current = false;
+    holdPointerRef.current = null;
     if (status === 'requesting' || status === 'recording' || status === 'processing') cancelRecording();
   }, [disabled, status, cancelRecording]);
 
@@ -241,77 +261,92 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     return null;
   }
 
-  // PC 端点击处理
-  const handleClick = async () => {
-    if (disabled || isMobile) return;
-    
+  const holdToTalk = (e: React.PointerEvent) => isMobile && e.pointerType === 'touch';
+
+  // Click/keyboard toggle; works at every width for mouse, pen and keyboard.
+  const handleClick = async (e: React.MouseEvent) => {
+    // A keyboard activation (detail 0) is never the tail of a touch press.
+    if (suppressClickRef.current && e.detail !== 0) {
+      suppressClickRef.current = false;
+      return;
+    }
+    suppressClickRef.current = false;
+    if (disabled) return;
+
     if (status === 'requesting') {
       cancelRecording();
+      toast.info(t('chat:voice.cancelled'));
     } else if (isRecording) {
       stopRecording();
     } else if (!isProcessing) {
+      setInteraction('toggle');
       await startRecording();
     }
   };
 
-  // 移动端长按开始
-  const handleTouchStart = async (e: React.TouchEvent) => {
-    if (disabled || !isMobile || isProcessing || status === 'requesting') return;
-    
-    e.preventDefault();
+  // Phone-width touch: press and hold to talk.
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!holdToTalk(e)) {
+      suppressClickRef.current = false;
+      return;
+    }
+    suppressClickRef.current = true;
+    if (!e.isPrimary || disabled || isProcessing) return;
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Capture is best effort; children ignore pointer events anyway.
+    }
+    if (longPressTimerRef.current !== null) clearTimeout(longPressTimerRef.current);
     isLongPressRef.current = false;
-    
-    // 200ms 后判定为长按
-    longPressTimerRef.current = window.setTimeout(async () => {
+    holdPointerRef.current = e.pointerId;
+
+    longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null;
       isLongPressRef.current = true;
-      await startRecording();
+      setInteraction('hold');
+      void startRecording();
     }, 200);
   };
 
-  // 移动端长按结束
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (disabled || !isMobile) return;
-    
-    e.preventDefault();
-    
-    // 清除长按计时器
-    if (longPressTimerRef.current) {
+  const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!holdToTalk(e) || holdPointerRef.current !== e.pointerId) return;
+    holdPointerRef.current = null;
+
+    if (longPressTimerRef.current !== null) {
+      // Released before the hold threshold: explain the gesture.
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+      if (!disabled) toast.info(t('chat:voice.mobile_hold'));
+    } else if (isLongPressRef.current) {
+      // Stops a recording, defers a pending permission request, and leaves an
+      // auto-stopped recording's recognition alone.
+      releaseRecording();
     }
-    
-    // Permission may still be pending after the finger is released.
-    if (isLongPressRef.current) {
-      if (isRecording) {
-        stopRecording();
-      } else {
-        cancelRecording();
-      }
-    }
-    
     isLongPressRef.current = false;
   };
 
-  // 移动端取消（手指移开）
-  const handleTouchCancel = () => {
-    if (longPressTimerRef.current) {
+  const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!holdToTalk(e) || holdPointerRef.current !== e.pointerId) return;
+    holdPointerRef.current = null;
+    if (longPressTimerRef.current !== null) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
-    
-    if (isLongPressRef.current) {
-      cancelRecording();
+    // Decided from the hook's refs: a permission prompt that steals the touch
+    // behaves like a release, so the grant still ends in the "ready" hint.
+    if (isLongPressRef.current && cancelPress()) {
       toast.info(t('chat:voice.cancelled'));
     }
-    
     isLongPressRef.current = false;
   };
 
-  // PC 端右键取消
+  // Right-click cancels a click-started recording (a touch long-press may also
+  // raise contextmenu, which must not cancel a hold).
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    if ((isRecording || status === 'requesting') && !isMobile) {
+    if (interaction === 'toggle' && holdPointerRef.current === null && (isRecording || status === 'requesting')) {
       cancelRecording();
       toast.info(t('chat:voice.cancelled'));
     }
@@ -339,6 +374,10 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       );
     }
     
+    if (status === 'requesting') {
+      return <Mic size={16} className="animate-pulse" />;
+    }
+
     if (status === 'error') {
       return <MicOff size={16} />;
     }
@@ -350,8 +389,9 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const getTitle = () => {
     if (disabled) return t('chat:voice.unavailable');
     if (isProcessing) return t('chat:voice.recognizing');
+    if (status === 'requesting') return t('chat:voice.requesting');
     if (isRecording) {
-      return isMobile ? t('chat:voice.mobile_stop') : t('chat:voice.desktop_stop');
+      return interaction === 'hold' ? t('chat:voice.mobile_stop') : t('chat:voice.desktop_stop');
     }
     if (error) return error;
     return isMobile ? t('chat:voice.mobile_hold') : t('chat:voice.input');
@@ -364,9 +404,9 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
         type="button"
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         disabled={disabled || isProcessing}
         className={`${buttonStyles} ${className}`}
         title={getTitle()}

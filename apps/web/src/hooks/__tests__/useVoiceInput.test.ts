@@ -338,6 +338,180 @@ describe('useVoiceInput', () => {
     })
   })
 
+  describe('releaseRecording', () => {
+    function pendingGetUserMedia() {
+      let resolve: ((stream: { getTracks: typeof mockGetTracks }) => void) | undefined
+      let reject: ((error: Error) => void) | undefined
+      const pending = new Promise<{ getTracks: typeof mockGetTracks }>((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      vi.mocked(navigator.mediaDevices.getUserMedia).mockReturnValueOnce(pending as Promise<MediaStream>)
+      return { resolve: (stream: { getTracks: typeof mockGetTracks }) => resolve?.(stream), reject: (error: Error) => reject?.(error) }
+    }
+
+    it('releases a microphone granted after the press ended, without recording', async () => {
+      const gum = pendingGetUserMedia()
+      const track = { stop: vi.fn() }
+      mockGetTracks.mockReturnValue([track])
+      const onReleasedBeforeStart = vi.fn()
+      const onError = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onReleasedBeforeStart, onError }))
+
+      let startPromise: Promise<void>
+      act(() => {
+        startPromise = result.current.startRecording()
+      })
+      act(() => result.current.releaseRecording())
+      expect(result.current.status).toBe('requesting')
+
+      await act(async () => {
+        gum.resolve({ getTracks: mockGetTracks })
+        await startPromise!
+      })
+
+      expect(track.stop).toHaveBeenCalled()
+      expect(mockStart).not.toHaveBeenCalled()
+      expect(result.current.status).toBe('idle')
+      expect(onReleasedBeforeStart).toHaveBeenCalledOnce()
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('still reports a permission denial that arrives after the press ended', async () => {
+      const gum = pendingGetUserMedia()
+      const onReleasedBeforeStart = vi.fn()
+      const onError = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onReleasedBeforeStart, onError }))
+
+      let startPromise: Promise<void>
+      act(() => {
+        startPromise = result.current.startRecording()
+      })
+      act(() => result.current.releaseRecording())
+
+      const denied = new Error('denied')
+      denied.name = 'NotAllowedError'
+      await act(async () => {
+        gum.reject(denied)
+        await startPromise!
+      })
+
+      expect(onError).toHaveBeenCalledWith('chat:voice.micPermissionDenied')
+      expect(result.current.status).toBe('error')
+      expect(onReleasedBeforeStart).not.toHaveBeenCalled()
+    })
+
+    it('does not let an abandoned request affect a newer recording', async () => {
+      const first = pendingGetUserMedia()
+      const staleTrack = { stop: vi.fn() }
+      const onReleasedBeforeStart = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onReleasedBeforeStart }))
+
+      let firstStart: Promise<void>
+      act(() => {
+        firstStart = result.current.startRecording()
+      })
+      act(() => result.current.releaseRecording())
+
+      await act(async () => {
+        await result.current.startRecording()
+      })
+      expect(result.current.status).toBe('recording')
+
+      await act(async () => {
+        first.resolve({ getTracks: vi.fn(() => [staleTrack]) })
+        await firstStart!
+      })
+
+      expect(staleTrack.stop).toHaveBeenCalled()
+      expect(result.current.status).toBe('recording')
+      expect(onReleasedBeforeStart).not.toHaveBeenCalled()
+      expect(mockStart).toHaveBeenCalledTimes(1)
+    })
+
+    it('stops an active recording and sends it for recognition', async () => {
+      vi.mocked(voiceApi.recognizeVoice).mockResolvedValueOnce({ success: true, text: '你好' })
+      const onResult = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onResult }))
+      await act(async () => {
+        await result.current.startRecording()
+      })
+
+      act(() => {
+        ondataavailableCallback?.({ data: new Blob(['audio'], { type: 'audio/webm' }) })
+        result.current.releaseRecording()
+      })
+      expect(mockStop).toHaveBeenCalledOnce()
+      await act(async () => {
+        onstopCallback?.()
+      })
+      await vi.waitFor(() => expect(onResult).toHaveBeenCalledWith('你好'))
+    })
+
+    it('cancelPress treats a pending request like a release and cancels only a live recording', async () => {
+      const gum = pendingGetUserMedia()
+      const track = { stop: vi.fn() }
+      mockGetTracks.mockReturnValue([track])
+      const onReleasedBeforeStart = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onReleasedBeforeStart }))
+
+      let startPromise: Promise<void>
+      act(() => {
+        startPromise = result.current.startRecording()
+      })
+      let cancelled: boolean | undefined
+      act(() => {
+        cancelled = result.current.cancelPress()
+      })
+      expect(cancelled).toBe(false)
+      await act(async () => {
+        gum.resolve({ getTracks: mockGetTracks })
+        await startPromise!
+      })
+      expect(onReleasedBeforeStart).toHaveBeenCalledOnce()
+      expect(mockStart).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await result.current.startRecording()
+      })
+      act(() => {
+        cancelled = result.current.cancelPress()
+      })
+      expect(cancelled).toBe(true)
+      expect(result.current.status).toBe('idle')
+      expect(voiceApi.recognizeVoice).not.toHaveBeenCalled()
+    })
+
+    it('leaves an in-flight recognition alone (e.g. after the auto-stop)', async () => {
+      let resolveRecognition: ((value: { success: boolean; text: string }) => void) | undefined
+      vi.mocked(voiceApi.recognizeVoice).mockReturnValueOnce(new Promise((resolve) => {
+        resolveRecognition = resolve
+      }))
+      const onResult = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onResult }))
+      await act(async () => {
+        await result.current.startRecording()
+      })
+      act(() => {
+        ondataavailableCallback?.({ data: new Blob(['audio'], { type: 'audio/webm' }) })
+        result.current.stopRecording()
+      })
+      await act(async () => {
+        onstopCallback?.()
+      })
+      await vi.waitFor(() => expect(voiceApi.recognizeVoice).toHaveBeenCalled())
+      const signal = vi.mocked(voiceApi.recognizeVoice).mock.calls[0][4] as AbortSignal
+
+      act(() => result.current.releaseRecording())
+
+      expect(signal.aborted).toBe(false)
+      await act(async () => {
+        resolveRecognition?.({ success: true, text: '保留' })
+      })
+      await vi.waitFor(() => expect(onResult).toHaveBeenCalledWith('保留'))
+    })
+  })
+
   describe('voice recognition', () => {
     it('calls recognizeVoice after recording', async () => {
       vi.mocked(voiceApi.recognizeVoice).mockResolvedValueOnce({
@@ -691,6 +865,8 @@ describe('useVoiceInput', () => {
       expect(result.current).toHaveProperty('startRecording')
       expect(result.current).toHaveProperty('stopRecording')
       expect(result.current).toHaveProperty('cancelRecording')
+      expect(result.current).toHaveProperty('releaseRecording')
+      expect(result.current).toHaveProperty('cancelPress')
       expect(result.current).toHaveProperty('isSupported')
     })
   })
