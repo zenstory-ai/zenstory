@@ -74,17 +74,26 @@ docker compose -f docker-compose.full.yml up -d --build
 
 ## 可选能力
 
-| 能力 | 配置入口 |
-| --- | --- |
-| 邮件验证、密码重设 | Redis、Resend 配置 |
-| Google 登录 | 后端 OAuth 配置、准确回调域名、前端 Google 开关 |
-| 语音 | 腾讯云语音凭证 |
-| 素材拆解 | Prefect server、worker、任务注册及模型配置 |
-| 在线支付 | Zpay 配置与显式启用，核对回调及权益发放 |
-| 兑换码 | 套餐初始化与独立 HMAC 密钥 |
-| 外部 Agent / CLI | API HTTPS origin、用户 API Key，见 `apps/cli` |
+使用快速启动（`docker-compose.yml`）时，后端变量加在 `server.environment` 下，前端 `VITE_*` 变量加在 `web.environment` 下，修改后运行 `docker compose up -d`；仓库根目录 `.env` 只填充 Compose 文件里声明的 `${…}` 占位符（如 `DEEPSEEK_API_KEY`、`JWT_SECRET_KEY`）。使用 `docker-compose.full.yml` 时，变量写入 `apps/server/.env.docker` 和 `apps/web/.env.docker`。
 
-灵感库默认关闭。自托管需要时，后端与前端的开关必须一致；配置方式以 Compose 与环境模板为准。面向在线用户的文档只显示“待开放”。
+| 能力 | 需要的配置 |
+| --- | --- |
+| 免邀请码注册 | 默认要邀请码（管理员在后台「邀请系统」生成）；免邀请码设后端 `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true`，前端可选加 `VITE_INVITE_CODE_OPTIONAL=true` |
+| 积分与邀请（默认关闭） | 前端 `VITE_POINTS_ENABLED=true` 显示积分页和签到，`VITE_REFERRAL_ENABLED=true` 显示「设置 → 邀请」和注册页的可选邀请码；修改后重新构建前端 |
+| 邮件验证、密码重设 | `REDIS_URL`、`RESEND_API_KEY`、`RESEND_FROM_EMAIL`（需使用带 Redis 的 `docker-compose.full.yml`） |
+| 重启后保持登录 | `JWT_SECRET_KEY`（至少 32 字符） |
+| 主备模型切换 | `LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`、`LLM_BACKUP_PROVIDER` / `LLM_BACKUP_MODEL`，Key 分别为 `DEEPSEEK_API_KEY`、`MINIMAX_API_KEY`（见 [`apps/server/agent/core/llm_providers.py`](../apps/server/agent/core/llm_providers.py)） |
+| Google 登录 | 后端 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`、`FRONTEND_URL`；前端 `VITE_GOOGLE_OAUTH_ENABLED=true` |
+| 语音输入 | `TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY` |
+| 素材拆解与扩展提取 | 另外运行 Prefect server 和 worker（见 [`apps/server/prefect.yaml`](../apps/server/prefect.yaml)），并在套餐里开启素材库权限。逐章情节点及跨章故事线、人物关系默认关闭，按需在后端开启 `MATERIAL_ENABLE_*`（见 `apps/server/.env.example`） |
+| 灵感库（默认关闭） | 后端 `INSPIRATIONS_ENABLED=true`，前端 `VITE_INSPIRATIONS_ENABLED=true`（快速 Compose 只需设 `INSPIRATIONS_ENABLED=true` 并重建容器） |
+| 兑换码 | 先初始化 Pro 套餐，再配置 `REDEMPTION_CODE_HMAC_SECRET`（至少 32 字符） |
+| 支付宝在线开通 / 续费 | 后端 `ZPAY_ENABLED=true`、`ZPAY_PID`、`ZPAY_KEY`、`ZPAY_NOTIFY_URL`、`ZPAY_RETURN_URL`，可选 `ZPAY_CID` |
+| 外部 Agent / CLI | 后端 `API_BASE_URL=https://你的服务器/api/v1`（写入 `/skill.md`）；CLI 除本机 `localhost` / `127.0.0.1` 外只接受 HTTPS，详见 [`apps/cli/README.md`](../apps/cli/README.md) |
+
+### Zpay 支付宝收款注意事项
+
+在线支付默认关闭。启用前先初始化 Pro 套餐并设置月付/年付价格，应用数据库迁移并确认 `payment_order` 表存在。商户密钥只配置在后端环境变量中，不要放进 `VITE_*`。`ZPAY_NOTIFY_URL` 使用公开可访问的后端 HTTPS 地址（如 `https://api.example.com/api/v1/payments/zpay/notify`），`ZPAY_RETURN_URL` 使用前端回跳页（如 `https://app.example.com/dashboard/billing/payment-return`），两者都不能预设查询参数或片段。会员权益仅在后端验证 Zpay 签名、商户、金额和订单后发放；停用新支付时设 `ZPAY_ENABLED=false`，保留密钥和回调地址以处理存量订单通知。
 
 ## 数据与排查
 
