@@ -27,6 +27,11 @@ export interface UseVoiceInputOptions {
   maxDuration?: number;
   /** 采样率，默认 16000 */
   sampleRate?: VoiceSampleRate;
+  /**
+   * The press ended while the microphone request was still pending (typically
+   * the first permission prompt); the granted microphone was released unused.
+   */
+  onReleasedBeforeStart?: () => void;
 }
 
 export interface UseVoiceInputReturn {
@@ -48,6 +53,19 @@ export interface UseVoiceInputReturn {
   stopRecording: () => void;
   /** 取消录音 */
   cancelRecording: () => void;
+  /**
+   * End a hold-to-talk press: stop and recognize when recording; when the
+   * microphone request is still pending, release the microphone once it is
+   * granted instead of recording; otherwise (e.g. already recognizing) no-op.
+   */
+  releaseRecording: () => void;
+  /**
+   * The system cancelled a hold-to-talk press (pointercancel). Cancels and
+   * returns true only while recording; a pending microphone request (e.g. the
+   * permission prompt took the touch) is treated like a release, and an
+   * in-flight recognition is left alone.
+   */
+  cancelPress: () => boolean;
   /** 浏览器是否支持录音 */
   isSupported: boolean;
 }
@@ -93,6 +111,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     onError,
     maxDuration = 55,
     sampleRate = 16000,
+    onReleasedBeforeStart,
   } = options;
 
   const [status, setStatus] = useState<VoiceInputStatus>('idle');
@@ -118,6 +137,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const errorResetTimerRef = useRef<number | null>(null);
   const recognitionRequestRef = useRef<AbortController | null>(null);
   const requestGenerationRef = useRef(0);
+  /** Generation whose getUserMedia call is still pending. */
+  const pendingStartGenerationRef = useRef<number | null>(null);
+  /** Generation whose press ended before the microphone was granted. */
+  const releasedBeforeStartGenerationRef = useRef<number | null>(null);
 
   const isSupported = checkMediaRecorderSupport();
 
@@ -279,6 +302,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
     setStatus('requesting');
     setError(null);
+    pendingStartGenerationRef.current = requestGeneration;
+    releasedBeforeStartGenerationRef.current = null;
 
     try {
       // 请求麦克风权限
@@ -293,6 +318,14 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
       if (requestGeneration !== requestGenerationRef.current) {
         stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      pendingStartGenerationRef.current = null;
+      if (releasedBeforeStartGenerationRef.current === requestGeneration) {
+        releasedBeforeStartGenerationRef.current = null;
+        stream.getTracks().forEach(track => track.stop());
+        setStatus('idle');
+        onReleasedBeforeStart?.();
         return;
       }
       
@@ -383,6 +416,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       if (requestGeneration !== requestGenerationRef.current) {
         return;
       }
+      if (pendingStartGenerationRef.current === requestGeneration) pendingStartGenerationRef.current = null;
+      releasedBeforeStartGenerationRef.current = null;
       cleanup();
       
       let errorMessage = t('chat:voice.micAccessDenied');
@@ -403,16 +438,38 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       // 3 秒后恢复 idle 状态
       scheduleErrorReset(requestGeneration);
     }
-  }, [isSupported, cleanup, maxDuration, onError, processRecording, sampleRate, scheduleErrorReset, stopRecording, t]);
+  }, [isSupported, cleanup, maxDuration, onError, onReleasedBeforeStart, processRecording, sampleRate, scheduleErrorReset, stopRecording, t]);
 
 
   // 取消录音
   const cancelRecording = useCallback(() => {
     requestGenerationRef.current += 1;
+    pendingStartGenerationRef.current = null;
+    releasedBeforeStartGenerationRef.current = null;
     cleanup();
     setStatus('idle');
     setError(null);
   }, [cleanup]);
+
+  const releaseRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      stopRecording();
+      return;
+    }
+    const pending = pendingStartGenerationRef.current;
+    if (pending !== null && pending === requestGenerationRef.current) {
+      releasedBeforeStartGenerationRef.current = pending;
+    }
+  }, [stopRecording]);
+
+  const cancelPress = useCallback((): boolean => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      cancelRecording();
+      return true;
+    }
+    releaseRecording();
+    return false;
+  }, [cancelRecording, releaseRecording]);
 
   return {
     status,
@@ -424,6 +481,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     startRecording,
     stopRecording,
     cancelRecording,
+    releaseRecording,
+    cancelPress,
     isSupported,
   };
 }

@@ -318,6 +318,7 @@ run_playwright_suite() {
                 e2e/large-document.spec.ts
                 e2e/concurrent.spec.ts
                 e2e/voice.spec.ts
+                e2e/voice-input-mocked.spec.ts
                 --project=chromium
             )
             env_args+=(

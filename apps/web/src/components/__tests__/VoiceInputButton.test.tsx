@@ -6,6 +6,8 @@ let isMobile = false
 const startRecording = vi.fn()
 const stopRecording = vi.fn()
 const cancelRecording = vi.fn()
+const releaseRecording = vi.fn()
+const cancelPress = vi.fn(() => true)
 const toastInfo = vi.fn()
 const toastError = vi.fn()
 const loggerError = vi.fn()
@@ -20,6 +22,8 @@ let voiceState: {
   startRecording: typeof startRecording
   stopRecording: typeof stopRecording
   cancelRecording: typeof cancelRecording
+  releaseRecording: typeof releaseRecording
+  cancelPress: typeof cancelPress
   isSupported: boolean
 }
 
@@ -27,6 +31,7 @@ let lastOptions:
   | {
       onResult: (text: string) => void
       onError: (message: string) => void
+      onReleasedBeforeStart: () => void
       maxDuration: number
     }
   | undefined
@@ -67,6 +72,8 @@ vi.mock('react-i18next', () => ({
           'chat:voice.mobile_hold': 'Hold to record',
           'chat:voice.input': 'Voice input',
           'chat:voice.unavailable': 'Voice unavailable',
+          'chat:voice.requesting': 'Requesting microphone',
+          'chat:voice.permissionReady': 'Microphone ready, hold again',
         } as Record<string, string>
       )[key] ?? key,
   }),
@@ -88,6 +95,8 @@ describe('VoiceInputButton', () => {
       startRecording,
       stopRecording,
       cancelRecording,
+      releaseRecording,
+      cancelPress,
       isSupported: true,
     }
   })
@@ -120,47 +129,240 @@ describe('VoiceInputButton', () => {
     expect(toastInfo).toHaveBeenCalledWith('Recording cancelled')
   })
 
-  it('handles mobile long press and touch cancel flows', async () => {
-    isMobile = true
-    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 5 }
+  const touch = { pointerType: 'touch', pointerId: 7, isPrimary: true }
 
+  async function holdPastThreshold(button: HTMLElement) {
+    fireEvent.pointerDown(button, touch)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+  }
+
+  it('records while a phone-width touch is held and stops on release', async () => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+
+    await holdPastThreshold(button)
+    expect(startRecording).toHaveBeenCalledTimes(1)
+
+    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 2 }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+    expect(button).toHaveAttribute('aria-label', 'Release to stop')
+
+    fireEvent.pointerUp(button, touch)
+    expect(releaseRecording).toHaveBeenCalledTimes(1)
+    expect(cancelRecording).not.toHaveBeenCalled()
+
+    // The click browsers synthesize after the touch must not toggle again.
+    fireEvent.click(button, { detail: 1 })
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    expect(stopRecording).not.toHaveBeenCalled()
+  })
+
+  it('cancels a hold when the system cancels the touch', async () => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+    await holdPastThreshold(button)
+    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 1 }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+    fireEvent.pointerCancel(button, touch)
+
+    expect(cancelPress).toHaveBeenCalledTimes(1)
+    expect(toastInfo).toHaveBeenCalledWith('Recording cancelled')
+  })
+
+  it('does not announce a cancel when the permission prompt takes the touch', async () => {
+    isMobile = true
+    cancelPress.mockReturnValueOnce(false)
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+    await holdPastThreshold(button)
+    voiceState = { ...voiceState, status: 'requesting' }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+    fireEvent.pointerCancel(button, touch)
+
+    expect(cancelPress).toHaveBeenCalledTimes(1)
+    expect(cancelRecording).not.toHaveBeenCalled()
+    expect(toastInfo).not.toHaveBeenCalledWith('Recording cancelled')
+  })
+
+  it('explains the gesture on a short tap without opening the microphone', async () => {
+    isMobile = true
     render(<VoiceInputButton onResult={vi.fn()} />)
     const button = screen.getByTestId('voice-input-button')
 
-    fireEvent.touchStart(button)
+    fireEvent.pointerDown(button, touch)
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(200)
+      await vi.advanceTimersByTimeAsync(100)
     })
-    fireEvent.touchEnd(button)
+    fireEvent.pointerUp(button, touch)
+    fireEvent.click(button, { detail: 1 })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    expect(toastInfo).toHaveBeenCalledWith('Hold to record')
+    expect(startRecording).not.toHaveBeenCalled()
+  })
+
+  it.each(['requesting', 'processing'] as const)(
+    'hands a release during %s to the hook instead of cancelling',
+    async (status) => {
+      isMobile = true
+      startRecording.mockReturnValueOnce(new Promise<void>(() => {}))
+      const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+      const button = screen.getByTestId('voice-input-button')
+      await holdPastThreshold(button)
+
+      voiceState = { ...voiceState, status, isProcessing: status === 'processing' }
+      rerender(<VoiceInputButton onResult={vi.fn()} />)
+      fireEvent.pointerUp(button, touch)
+
+      expect(releaseRecording).toHaveBeenCalledOnce()
+      expect(cancelRecording).not.toHaveBeenCalled()
+      expect(stopRecording).not.toHaveBeenCalled()
+    },
+  )
+
+  it('shows the pending permission state and the ready hint', () => {
+    voiceState = { ...voiceState, status: 'requesting' }
+    render(<VoiceInputButton onResult={vi.fn()} />)
+    expect(screen.getByTestId('voice-input-button')).toHaveAttribute('aria-label', 'Requesting microphone')
+
+    act(() => {
+      lastOptions?.onReleasedBeforeStart()
+    })
+    expect(toastInfo).toHaveBeenCalledWith('Microphone ready, hold again')
+  })
+
+  it.each([
+    ['mouse click', { detail: 1 }],
+    ['keyboard activation', { detail: 0 }],
+  ] as const)('starts and stops with a %s at phone width', (_label, init) => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+
+    fireEvent.pointerDown(button, { pointerType: 'mouse', pointerId: 1, isPrimary: true })
+    fireEvent.click(button, init)
+    expect(startRecording).toHaveBeenCalledTimes(1)
+
+    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 3 }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+    expect(button).toHaveAttribute('aria-label', 'Stop recording')
+    fireEvent.click(button, init)
+    expect(stopRecording).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['short tap', 'long hold'] as const)(
+    'a %s during a keyboard-started recording stops it instead of starting a hold',
+    async (kind) => {
+      isMobile = true
+      const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+      const button = screen.getByTestId('voice-input-button')
+      fireEvent.click(button, { detail: 0 })
+      expect(startRecording).toHaveBeenCalledTimes(1)
+      voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 2 }
+      rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+      fireEvent.pointerDown(button, touch)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(kind === 'long hold' ? 800 : 50)
+      })
+      fireEvent.pointerUp(button, touch)
+      fireEvent.click(button, { detail: 1 })
+
+      expect(startRecording).toHaveBeenCalledTimes(1)
+      expect(stopRecording).toHaveBeenCalledTimes(1)
+      expect(releaseRecording).not.toHaveBeenCalled()
+      expect(toastInfo).not.toHaveBeenCalledWith('Hold to record')
+    },
+  )
+
+  it('a touch during a keyboard-started permission wait cancels that request only', async () => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+    fireEvent.click(button, { detail: 0 })
+    voiceState = { ...voiceState, status: 'requesting' }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+    fireEvent.pointerDown(button, touch)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800)
+    })
+    fireEvent.pointerUp(button, touch)
 
     expect(startRecording).toHaveBeenCalledTimes(1)
-    expect(stopRecording).toHaveBeenCalledTimes(1)
-
-    fireEvent.touchStart(button)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(200)
-    })
-    fireEvent.touchCancel(button)
-
     expect(cancelRecording).toHaveBeenCalledTimes(1)
     expect(toastInfo).toHaveBeenCalledWith('Recording cancelled')
   })
 
-  it('cancels pending mobile permission when touch ends after the hold threshold', async () => {
+  it('keyboard stop during a hold does not let the release click start a new recording', async () => {
     isMobile = true
-    startRecording.mockReturnValueOnce(new Promise<void>(() => {}))
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+    await holdPastThreshold(button)
+    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 2 }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
 
+    fireEvent.click(button, { detail: 0 })
+    expect(stopRecording).toHaveBeenCalledTimes(1)
+    voiceState = { ...voiceState, status: 'processing', isRecording: false, isProcessing: true }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+    fireEvent.pointerUp(button, touch)
+    voiceState = { ...voiceState, status: 'idle', isProcessing: false }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+    fireEvent.click(button, { detail: 1 })
+
+    expect(startRecording).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['keyboard', { detail: 0 }],
+    ['mouse', { detail: 1 }],
+  ] as const)('a %s activation within the hold threshold cancels the pending hold', async (via, init) => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    const button = screen.getByTestId('voice-input-button')
+
+    fireEvent.pointerDown(button, touch)
+    if (via === 'mouse') fireEvent.pointerDown(button, { pointerType: 'mouse', pointerId: 1, isPrimary: true })
+    fireEvent.click(button, init)
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    voiceState = { ...voiceState, status: 'recording', isRecording: true, duration: 1 }
+    rerender(<VoiceInputButton onResult={vi.fn()} />)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600)
+    })
+    fireEvent.pointerUp(button, touch)
+    fireEvent.click(button, { detail: 1 }) // synthesized after the finger lifts
+
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    expect(stopRecording).not.toHaveBeenCalled()
+    expect(releaseRecording).not.toHaveBeenCalled()
+    expect(toastInfo).not.toHaveBeenCalledWith('Hold to record')
+  })
+
+  it('names the feature when idle at phone width', () => {
+    isMobile = true
+    render(<VoiceInputButton onResult={vi.fn()} />)
+    expect(screen.getByTestId('voice-input-button')).toHaveAttribute('aria-label', 'Voice input')
+  })
+
+  it('keeps touch taps as click-to-toggle on wide screens', () => {
     render(<VoiceInputButton onResult={vi.fn()} />)
     const button = screen.getByTestId('voice-input-button')
-    fireEvent.touchStart(button)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(200)
-    })
-    fireEvent.touchEnd(button)
-
-    expect(startRecording).toHaveBeenCalledOnce()
-    expect(cancelRecording).toHaveBeenCalledOnce()
-    expect(stopRecording).not.toHaveBeenCalled()
+    fireEvent.pointerDown(button, touch)
+    fireEvent.pointerUp(button, touch)
+    fireEvent.click(button, { detail: 1 })
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    expect(toastInfo).not.toHaveBeenCalled()
   })
 
   it('surfaces hook errors through logger and toast', () => {
@@ -192,7 +394,7 @@ describe('VoiceInputButton', () => {
   it('clears the mobile hold timer when disabled before recording starts', async () => {
     isMobile = true
     const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
-    fireEvent.touchStart(screen.getByTestId('voice-input-button'))
+    fireEvent.pointerDown(screen.getByTestId('voice-input-button'), touch)
     rerender(<VoiceInputButton onResult={vi.fn()} disabled />)
     await act(async () => { await vi.advanceTimersByTimeAsync(200) })
     expect(startRecording).not.toHaveBeenCalled()
