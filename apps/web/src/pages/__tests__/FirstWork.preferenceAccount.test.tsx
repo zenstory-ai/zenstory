@@ -105,6 +105,7 @@ beforeEach(async () => {
       <Route path="/login" element={<div>offline login</div>} />
       <Route path="/onboarding/persona" element={<OnboardingPersonaPage />} />
       <Route path="/dashboard" element={<DashboardEntry />} />
+      <Route path="/project/:projectId" element={<div>first work opened</div>} />
     </Routes></AuthIdentityQueryBoundary>
   </BrowserRouter></AuthProvider></QueryClientProvider>);
   await screen.findByText('auth-ready');
@@ -116,14 +117,18 @@ afterEach(() => {
   expect(unknown).toEqual([]);
 });
 
-/** Log in and answer the one-question page: tap a type, or skip it. */
+/**
+ * Log in and answer the one-question page. A tapped type opens the first work straight
+ * away; skipping looks around on the dashboard, whose entry creates it.
+ */
 async function logInAndFinishProfile(owner: string, answer: 'novel' | 'short' | 'screenplay' | 'skip') {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: `Log in ${owner}` })); });
   await screen.findByRole('heading', { name: onboarding.start.title });
   fireEvent.click(answer === 'skip'
     ? screen.getByRole('button', { name: onboarding.actions.skip })
     : screen.getByRole('button', { name: new RegExp(onboarding.start.options[answer].title) }));
-  await screen.findByRole('button', { name: dashboard.firstWork.open });
+  if (answer === 'skip') await screen.findByRole('button', { name: dashboard.firstWork.open });
+  else await screen.findByText('first work opened');
   await waitFor(() => expect(initialized.some(item => item.owner === owner)).toBe(true));
 }
 
@@ -137,7 +142,7 @@ describe('first-work type belongs to the current account', () => {
 
     await logInAndFinishProfile('B', type);
     expect(initialized).toEqual([{ owner: 'A', type: 'short' }, { owner: 'B', type }]);
-    expect(screen.getByLabelText('active project type')).toHaveTextContent(type);
+    expect(window.location.pathname).toBe('/project/B-project');
     expect(getPreferredProjectType('A')).toBe('short');
     expect(getPreferredProjectType('B')).toBe(type);
   });

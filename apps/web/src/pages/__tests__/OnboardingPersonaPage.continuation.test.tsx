@@ -72,6 +72,10 @@ beforeEach(async () => {
       saved.push(payload);
       const held = deferred(); pending.push(held); return held.promise;
     }
+    // A seeded account has no first work: the default destination stays the dashboard.
+    if (path === '/api/v1/workspace/first-work' && method === 'POST') return Promise.resolve(response({ status: 'ineligible',
+      project_id: null, file_id: null, available: false, static_guidance: false, opened_at: null,
+      first_manual_write_at: null, first_ai_requested_at: null }));
     unknown.push(`${method} ${path}`);
     throw new Error('Unexpected offline persona request: ' + path);
   }));
@@ -136,6 +140,8 @@ describe.each([false, true])('actual persona save continuation Strict=%s', stric
     expect(screen.getByText('author chosen destination')).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
     expect(saved).toHaveLength(1);
+    // A page the author already left does not create or open the first work.
+    expect(requests.some(request => request.path === '/api/v1/workspace/first-work')).toBe(false);
   });
   it('retains current successful save, cache, profile and destination', async () => {
     await mount(strict); await submit(); await finish(200);
@@ -144,6 +150,7 @@ describe.each([false, true])('actual persona save continuation Strict=%s', stric
       selected_goals: ['monetize'], experience_level: 'intermediate', skipped: false });
     expect(clients[0].getQueryData(personaOnboardingQueryKey(user.id))).toEqual(state({ ...profile, ...saved[0], completed_at: '2026-10-06T01:00:00Z' }));
     expect(window.location.pathname).toBe('/dashboard');
+    expect(requests.filter(request => request.path === '/api/v1/workspace/first-work').map(request => request.method)).toEqual(['POST']);
     expect(toast.error).not.toHaveBeenCalled();
   });
 });

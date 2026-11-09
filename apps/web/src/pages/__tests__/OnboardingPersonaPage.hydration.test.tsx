@@ -72,6 +72,10 @@ beforeEach(async () => {
       saved.push(payload);
       return Promise.resolve(response(state({ ...payload, version: 1, completed_at: profile.completed_at })));
     }
+    // A seeded account has no first work: the default destination stays the dashboard.
+    if (path === '/api/v1/workspace/first-work' && method === 'POST') return Promise.resolve(response({ status: 'ineligible',
+      project_id: null, file_id: null, available: false, static_guidance: false, opened_at: null,
+      first_manual_write_at: null, first_ai_requested_at: null }));
     unknown.push(`${method} ${path}`);
     throw new Error('Unexpected offline persona request: ' + path);
   }));
