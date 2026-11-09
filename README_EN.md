@@ -54,16 +54,16 @@ ZenStory Workbench is a browser-based writing environment for long-form novels, 
 
 Sign up at [app.zenstory.ai](https://app.zenstory.ai); no invite code is needed. The free plan includes 3 AI messages per day (reset at 00:00 Beijing time, UTC+8) and up to 3 projects; see the [pricing page](https://app.zenstory.ai/pricing) for plan comparisons.
 
-Create a **Short Story** project. A good first request asks for an outline you can edit rather than jumping straight to prose (example from the [quick start](https://zenstory.ai/docs/getting-started/quick-start#en)):
+Create a **Long-form Novel** project. A good first request asks the AI to plan a three-chapter opening outline before writing prose:
 
-> Plan a realistic mystery short story as a three-scene outline only. Do not write prose or create or modify files. It is 5:40 p.m.; the station lost-property desk closes at six. Lin He handles Shen Min's claim for a gray canvas bag. She describes its exterior correctly but names the wrong object in its inner pocket. Do not conclude that she stole it or decide the truth. Lin He cannot release the bag on a verbal claim alone. For each scene, give the location, immediate goal, visible action, information change and closing question. End with two choices for me to decide, then stop.
+> I want to write a xianxia web novel. Plan a three-chapter opening outline first and do not write prose yet. The protagonist Xiao Wuya runs the largest merchant guild across the realms and has spent ten years funding Empress Luo Qinghan's rise with spirit stones, top-grade pills and mountain-warding arrays. At her ascension ceremony, to favor her new sword-prodigy favorite Ye Chen, she publicly mocks Xiao Wuya as reeking of copper coins and banishes him from the sect. Unbothered, Xiao Wuya immediately cuts off all spirit stone, pill and array supplies to her sect. Give the core conflict, reversal payoff and cliffhanger hook for each of the first three chapters.
 
 Once the outline is settled, name the target files and let the AI write (the third line uses the Design Hooks skill, stored as `钩子设计`, added under **Skills → Discover** first):
 
 ```text
-Save the three-scene outline as "Lost and Found outline" in the Concept folder.
-Following "Lost and Found outline", write scene one as "Scene 1: The Claim" in the Drafts folder and stop after that scene.
-钩子设计：rewrite only the last two paragraphs of "Scene 1: The Claim" so it ends on a stronger hook.
+Save the three-chapter outline in the Outlines folder as "Opening 3-Chapter Outline".
+Following "Opening 3-Chapter Outline", write chapter one as "Chapter 1: Reeking of Copper? Then I Cut Off Your Path to Immortality" in the Drafts folder and stop after that chapter.
+钩子设计：rewrite only the last two paragraphs of Chapter 1 so it ends right as the sect's grand array drains to zero and the elders freeze in panic.
 ```
 
 See the [user documentation](https://zenstory.ai/docs#en) for more workflows.
@@ -130,7 +130,7 @@ zenstory files get <chapterId> -o "$dir/<chapterId>.md"                         
 zenstory files put <chapterId> --content-file "$dir/<chapterId>.md" --if-updated-at <updated_at>   # write back with lock check
 ```
 
-`files put` includes three safeguards: it rejects the write if the file was edited in the browser meanwhile (`updated_at` changed), requires `--allow-shrink` if the new text is under half the old length, and backs up the previous copy to `~/.cache/zenstory/backups/` while recording a server-side version (restorable via `zenstory files rollback <chapterId> <version> --yes`). See [apps/cli/README.md](apps/cli/README.md) and `https://api.zenstory.ai/skill.md?lang=en` for the full CLI and HTTP reference.
+See [apps/cli/README.md](apps/cli/README.md) and <https://api.zenstory.ai/skill.md?lang=en> for the full CLI and HTTP reference.
 
 ## Core features
 
