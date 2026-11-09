@@ -5,7 +5,7 @@
 <h1 align="center">ZenStory 工作台</h1>
 
 <p align="center">
-  <b>对话即创作：在浏览器里写小说，AI 直接新建、改写你的大纲、正文和角色卡。</b>
+  <b>对话即创作：在浏览器里写小说与短剧，AI 直接新建、改写你的大纲、正文和角色卡。</b>
 </p>
 
 <p align="center">
@@ -38,21 +38,19 @@
 
 ## 这是什么
 
-ZenStory 工作台是一个面向长篇小说、短篇小说和短剧剧本的浏览器写作环境。大纲、正文、角色卡、设定、素材都是项目里的文件；你在右侧和 AI 对话，AI 直接新建或改写这些文件，无需在聊天窗口和文档软件之间来回复制粘贴。可以在 [app.zenstory.ai](https://app.zenstory.ai) 在线使用，也可以按 AGPL-3.0 许可自己部署。
+ZenStory 工作台是一个以文件为中心的 AI 写作环境，覆盖**长篇小说、短篇小说和短剧剧本**。大纲、正文、角色卡、世界观设定和参考素材都是项目里的结构化文件；你在右侧提要求，AI 直接新建或改写文件并流式呈现在编辑器里，不用在聊天窗口和文档软件之间来回复制粘贴。可以在 [app.zenstory.ai](https://app.zenstory.ai) 在线使用，也可以按 AGPL-3.0 许可自己部署。
 
-- **在对话里直接改文件**：说「帮我建一个反派，性格阴沉，有悲情过往」，Agent 会在「角色」文件夹里新建角色卡，边写边流式显示在编辑器里；续写、改写章节同样直接落盘。
-- **一个路由，四个专职 Agent**：按请求范围由大纲规划师、爽点设计师、内容创作者、质量审稿人接力——只要求规划就停在规划，明确要求写正文才动笔。
-- **改稿有版本可查**：AI 每次改稿都记录独立的「AI 编辑」版本，可在对话卡片一键撤销，也能在文件历史中任选两个版本逐行对比或回滚。
-- **每轮自动组装项目上下文**：自动带上「AI 记忆」、项目文件清单、当前打开的章节、相邻章节以及最近修改的角色和设定，不靠翻长聊天记录记设定。
-- **支持外部 Agent 接入**：生成 API Key 后，通过 `npx zenstory` 命令行与标准技能包，Claude Code、Codex、OpenClaw 等外部 Agent 也能直接读写你的项目。
+- **对话直接落盘，且感知你的手改**：Agent 边写边将正文流式落入文件，对话卡片支持一键撤销；你在编辑器里亲手改过的段落会以 `<author_edits>` 净差异自动同步给 AI，且受保护的手改稿件不会被对话误删或整份覆盖。
+- **自研多 Agent 编排与严格的范围守卫**：由意图路由调度大纲规划师、爽点设计师、内容创作者和质量审稿人。只要求细纲就停在规划；要求写正文时才动笔，并在「高质量」模式下按实际落库字数自动送审、合并输出唯一总结。
+- **贴合网文与短剧的原生文风**：内置网文与竖屏短剧叙事规范（第一屏进冲突、爽点当场兑现、对白争锋推进、章末留钩子）；编辑器选中文字点「去AI味」可逐段对比、逐段接受或拒绝。
+- **前缀缓存友好的上下文与跨轮工作集**：每轮在双 32,000 token 预算内自动组装「AI 记忆」、跨轮工作集（最近读写过的文件全文）、相邻章节及关联角色与设定，并将稳定资料固定为 `<project_snapshot>` 以最大化命中模型 Prompt Cache。
+- **开放 Agent 技能生态与 CLI 接入**：内置 14 个渐进式加载的官方写作技能，兼容开放 `SKILL.md` 格式导入导出；通过 `npx zenstory` 命令行，Claude Code、Codex、OpenClaw 等外部 Agent 也能直接读写你的项目。
 
 ## 开始使用
 
 ### 在线使用
 
-打开 [app.zenstory.ai](https://app.zenstory.ai) 注册即可，不需要邀请码。免费版包含每天 3 条 AI 消息（北京时间 00:00 重置）、最多 3 个项目，各套餐对比见[定价页](https://app.zenstory.ai/pricing)。
-
-新建一个「长篇小说」项目后，第一条请求可以先让 AI 规划「黄金三章」细纲，确认节奏后再动笔写正文：
+打开 [app.zenstory.ai](https://app.zenstory.ai) 注册即可创作。新建一个「长篇小说」项目后，第一条请求可以先让 AI 规划「黄金三章」细纲，确认节奏后再动笔写正文：
 
 > 我想写一本玄幻爽文，先规划黄金三章细纲，暂不写正文。男主萧无涯是诸天万界最大的商会之主，十年来倾尽灵石、极品丹药和护山大阵把青云女帝洛清寒捧上神坛。开篇女帝证道大典，她为了刚入门的剑道白月光叶尘，当众嘲讽萧无涯满身铜臭、不配与她并肩，直接将他逐出宗门。萧无涯当场笑纳，一键切断宗门所有灵石、丹药和阵法供应。请按黄金三章给出每章的核心冲突、打脸爽点和章末卡点钩子。
 
@@ -80,8 +78,8 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 打开 <http://localhost:5173> 登录，API 文档在 <http://localhost:8000/docs>。默认使用 SQLite，数据库与上传文件保存在 Docker 卷中，`docker compose down` 和重新构建不会丢失数据。
 
 - **写作配置**：项目系统提示词（`novel`、`short`、`screenplay`）和官方技能保存在数据库中，首次启动后请在管理后台配置并重新加载，维护方式见 [docs/agent-writing-guidance.md](docs/agent-writing-guidance.md)。
-- **套餐额度**：新账号（含管理员）默认为免费套餐（每天 3 条 AI 消息、最多 3 个项目）。需要更多额度时，运行 `docker compose exec server python scripts/seed_subscription_plans.py` 初始化套餐，再从管理后台「订阅管理」给账号开通 Pro。
-- **完整部署与可选功能**：PostgreSQL + Redis 生产部署、免邀请码注册、积分与邀请开关、邮箱验证码（Resend）、主备模型（DeepSeek / MiniMax）、Google 登录、腾讯云语音输入、素材拆解（Prefect Worker）、灵感库以及支付宝 Zpay 收款等配置，详见 [docs/docker-compose.md](docs/docker-compose.md)。
+- **套餐初始化**：运行 `docker compose exec server python scripts/seed_subscription_plans.py` 初始化套餐，即可在管理后台「订阅管理」给账号开通 Pro。
+- **生产部署与可选功能**：PostgreSQL + Redis 完整部署、免邀请码注册、邮箱验证与密码重置（Resend）、主备模型切换（DeepSeek / MiniMax）、Google 登录、腾讯云语音输入、素材拆解（Prefect Worker）、灵感库以及支付宝 Zpay 收款等配置，详见 [docs/docker-compose.md](docs/docker-compose.md)。
 
 <details>
 <summary>不用 Docker，本地开发</summary>
@@ -117,11 +115,11 @@ npx zenstory skill install   # 默认装到 Claude Code；Codex、OpenClaw 加 -
 npx zenstory whoami          # 确认登录状态和读写权限
 ```
 
-装好技能后，外部 Agent 使用自己的模型写作，通过 `zenstory` CLI 读取上下文并写回章节：
+装好技能后，外部 Agent 使用自己的模型写作，通过 `zenstory` CLI 读取组装好的项目上下文并写回章节：
 
 ```bash
 dir=$(mktemp -d)
-zenstory files list <项目ID> --type draft --fields id,title --json           # 列出草稿（顺序与工作台文件树一致）
+zenstory files list <项目ID> --type draft --fields id,title --json           # 列出草稿
 zenstory context <项目ID> --file <章节ID> --query "接下来写什么" --json        # 获取组装好的项目上下文
 zenstory files get <章节ID> --fields updated_at --json                       # 记录当前版本时间戳
 zenstory files get <章节ID> -o "$dir/<章节ID>.md"                            # 导出到本地临时文件
@@ -143,7 +141,7 @@ zenstory files put <章节ID> --content-file "$dir/<章节ID>.md" --if-updated-a
   </tr>
 </table>
 
-### 多 Agent 分工
+### 多 Agent 编排与运行守卫
 
 ```mermaid
 flowchart LR
@@ -152,7 +150,7 @@ flowchart LR
     R -->|full| P2["大纲规划师"] --> H["爽点设计师"] -->|要求正文时| W
     R -->|hook_focus| H2["爽点设计师"] -->|要求正文时| W
     R -->|review_only| Q["质量审稿人"]
-    W -. 高质量模式：成功写入正文累计达到默认 500 字 .-> Q
+    W -. 高质量模式：成功写入正文累计满 500 字 .-> Q
     Q -. 有问题 .-> W
 ```
 
@@ -164,10 +162,16 @@ flowchart LR
 | `hook_focus` | 先设计爽点、反转或节奏；要求改稿时再写 | 觉得不够爽、太平淡、要加反转 |
 | `review_only` | 只审稿，不改文件 | 要检查问题、评估质量或看追更指数 |
 
-- **「高质量」与「快速」模式**：两者使用同一个模型。「高质量」默认经过路由分工，并在成功写入的正文累计达到 500 字时自动交由审稿人核对作者要求、事实连续性与因果（每次请求最多两轮审查）；「快速」跳过路由和按字数自动送审，直接交给内容创作者。
-- **生成中追加指令**：AI 写作过程中可继续在输入框发送补充要求。当前正在执行的 Agent 不会被中途打断，本轮结束后由下一个接力的 Agent 或当前 Agent 补一轮处理。
+- **「快速」与「高质量」模式**：两者使用同一模型。「快速」模式跳过按字数自动送审，适合日常连贯快写；「高质量」模式在成功写入的正文累计达到 500 字时自动送交审稿人核对作者要求、事实连续性与因果（最多两轮审查），并扣留前置角色的中间寒暄，只向作者呈现一份最终总结。
+- **生成中插话（Steering）与长任务续接**：AI 写作过程中可随时在输入框追加指令，当前正在执行的 Agent 不会被中途打断，本轮结束后由下一接力角色或当前角色补一轮无缝处理。长任务接近运行墙钟时限时会自动收尾并给出进度卡，点「继续」即可从断点接着写；回复末尾给出的改稿方向也会直接转为输入框上方的快捷建议按钮。
 
-### 14 个内置技能与自定义技能
+### 上下文快照、跨轮工作集与 AI 记忆
+
+- **双 32,000 token 预算与优先级分档**：每轮对话除携带最近约 32,000 token 的聊天记录和跨轮工作集（最近两轮读写过的文件全文，最多 8 份 / 6 万字）外，另用独立的 32,000 token 预算按优先级（焦点文件与选区引用 → 角色卡、核心设定与上一章 → 同目录章节与实时关键词检索片段）组装项目资料。
+- **Prompt Cache 稳定前缀**：相对稳定的项目资料会被打包为 `<project_snapshot>` 固定在系统提示之后，本轮变动与当前章节通过 `<turn_context>` 附在消息末尾，跨轮与跨 Agent 交接时最大化复用模型前缀缓存。
+- **AI 记忆与写作约定**：面板包含「项目简介、写作风格、当前阶段、写作约定」四栏。你在对话里明确让 AI 记住的规则（如「记住：女主第五章才出场」）会只追加不删改地写入「写作约定」，并在对话结果卡中列出回执。
+
+### 14 个内置技能与自定义技能包
 
 | 分类 | 技能 |
 | --- | --- |
@@ -177,43 +181,30 @@ flowchart LR
 | 角色 | 创建角色 |
 | 世界观 | 世界观设定 |
 
-在「技能 → 发现技能」启用后，AI 每轮会先看到已启用技能的名称与用途，按需加载完整方法；你也可以在输入框输入 `/` 或从侧栏点选技能，显式附加到当前消息（最多 3 个）。自定义技能采用开放 Agent Skills 的 `SKILL.md` 格式（可附 `references/` 资源），支持 `.zip` / `.md` 导入导出。
+启用技能后，AI 每轮先看到已启用技能的名称与用途（L1 目录），匹配需求时再按需加载完整方法（L2）与参考资源（L3）；也可以在输入框打 `/` 或从侧栏点选技能显式附加到当前消息（最多 3 个）。自定义技能遵循开放 Agent Skills 的 `SKILL.md` 规范，支持 `.zip` / `.md` 导入导出（自动过滤可执行脚本）。
 
-### AI 记忆、上下文与素材库
+### 参考小说拆解（素材库）与主备模型容灾
 
-- **双 32,000 token 上下文预算**：每轮对话除了携带最近约 32,000 token 的聊天记录与刚读写过的文件全文外，还会用独立的约 32,000 token 预算组装项目资料——包含「AI 记忆」四栏（项目简介、写作风格、当前阶段、备注）、项目文件清单、当前编辑文件、同文件夹的上一章与近期修改文件，以及近期修改的角色和设定。需要长期记住的核心设定请简明写进「AI 记忆」，细节放进角色卡和设定文件；AI 对备注的更新会作为提议呈现，由你确认是否保留。
-- **参考小说素材库**：上传一本 TXT 参考小说（不超过 30 万字），后台自动拆出每章摘要、全书概要、角色档案、世界观和金手指。AI 不会自动去翻素材库；需要参考时，在项目的「参考小说库」面板把条目「附加到聊天」（每条消息最多 5 个），或直接导入项目成为可检索的文件。在线版完整素材库为 Pro 权益（启用免费试拆的环境会按页面提示提供一次开篇试拆）。
-
-### 版本历史与章节导出
-
-![单个文件的版本历史](docs/screenshots/version-history.png)
-
-- **文件版本与撤回**：停笔约 3 秒自动保存；10 分钟内的连续手动保存自动合并到最近的手动版本。AI 对话改稿单独记为「AI 编辑」版本（不占手动版本名额），可在对话卡片点「撤销」，或在编辑器底部「历史」任选两个版本逐行对比、回滚（回滚前会自动备份当前未入历史的稿件）。在编辑器内选中文字点击「去AI味」时，改写结果会按段落对比展示，逐段接受或拒绝后才保存。
-- **旧稿导入、自动排序与导出**：在「正文」文件夹旁点「+」（上传正文），单次最多上传 20 个 `.txt` 或 `.md` 文件（单个不超过 5MB、50 万字），包含两个以上「第X章」「卷X」「序章」「楔子」「番外」「Chapter N」等标题时会自动拆成多个章节文件。文件树和「导出正文」都能正确混排中文与阿拉伯数字序号（如 `第一章` → `第2章` → `第十章` → `第一百零二章`；无序号的「序章」若在空文件夹中第一个创建则排在最前）。点击「导出正文」即可按章节顺序将正文和剧本合成为单个带 UTF-8 BOM 的 TXT 文件；大纲、角色卡和设定可打开文件后用「下载当前文件」单独保存。
-
-### 其他特性
-
-- **三种项目类型**：新建项目可选长篇小说、短篇小说或短剧剧本，各自带有对应的默认文件夹结构与专属写作指引。
-- **快捷搜索与语音输入**：按 `Cmd+K`（Windows 为 `Ctrl+K`）按标题搜索项目文件；对话框内置语音输入（腾讯云一句话识别）。
-- **多端与多语言**：支持中英文界面与深浅色主题切换；手机浏览器自动切换为底部「文件 / 编辑 / AI」三标签布局。
+- **参考小说素材库**：基于 Prefect 异步流水线，上传一本 30 万字以内的 TXT 参考小说，后台自动拆出每章摘要、全书概要、角色档案、世界观和金手指。在项目「参考小说库」面板可将条目「附加到聊天」（每条消息最多 5 个）或导入为项目文件供检索参考。
+- **DeepSeek / MiniMax 主备切换与双凭证分流**：服务端支持配置 DeepSeek 与 MiniMax 主备供应商（首包输出前故障当场无感切换、会话级固定保缓存、全局熔断），并支持 MiniMax 主次 API Key 按权重分流与独立冷却；流式计费在用户主动停止、超时或异常且无实质正文产出时自动退还当次额度。
 
 ## 常见问题
 
 ### 只想和 AI 讨论、不想让它改文件怎么办？
 
-在请求里写明「暂不创建或修改文件」，路由识别为只读请求后会禁用文件写入工具。如果 AI 已经修改了文件，直接在对话的编辑卡片上点「撤销」，或打开编辑器底部的「历史」回滚到上一版本即可。
+在请求里写明「暂不创建或修改文件」，路由识别为只读请求后会禁用所有文件写入工具。如果 AI 已经修改了文件，直接在对话的编辑卡片上点「撤销」，或打开编辑器底部的「历史」回滚即可。
 
 ### 能换别的大模型吗？
 
-自托管环境可以用环境变量在 DeepSeek 和 MiniMax 之间配置主用与备用模型：`LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`、`LLM_BACKUP_PROVIDER` / `LLM_BACKUP_MODEL`，Key 分别为 `DEEPSEEK_API_KEY`、`MINIMAX_API_KEY`。主用不可用（连不上、超时、限流、5xx、Key 失效）时，当前会话窗口自动切换到备用。完整说明见 [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py)（新增模型需先在 `apps/server/services/usage/pricing.py` 配置价格）。
+自托管环境可以用环境变量在 DeepSeek 和 MiniMax 之间配置主用与备用模型：`LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`、`LLM_BACKUP_PROVIDER` / `LLM_BACKUP_MODEL`，Key 分别为 `DEEPSEEK_API_KEY`、`MINIMAX_API_KEY`（MiniMax 另支持 `MINIMAX_SECONDARY_API_KEY` 按权重分流）。完整说明见 [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py)（新增模型需先在 `apps/server/services/usage/pricing.py` 配置价格）。
 
 ### 能导出 Word，或者直接发布到小说平台吗？
 
-目前「导出正文」生成单个带 BOM 的 UTF-8 TXT 文件（`项目名_正文.txt`，Windows 记事本可直接打开）。需要 Word 排版或发布到小说平台时，请将该 TXT 导入本地软件或手动上传（[#13](https://github.com/zenstory-ai/zenstory/issues/13)）。
+目前「导出正文」生成按章节排好序的带 BOM UTF-8 TXT 文件（`项目名_正文.txt`），单个大纲或设定可用「下载当前文件」保存。需要 Word 排版或发布到小说平台时，请将导出的文件放入本地软件或手动上传（[#13](https://github.com/zenstory-ai/zenstory/issues/13)）。
 
-### 自托管怎么放开注册？忘记密码怎么办？
+### 自托管怎么关闭注册邀请码？
 
-自托管默认要求邀请码注册（管理员在后台「邀请系统」生成）；如需免邀请码注册，在后端配置 `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true`（前端可选加 `VITE_INVITE_CODE_OPTIONAL=true`），详见 [docs/docker-compose.md](docs/docker-compose.md)（[#1](https://github.com/zenstory-ai/zenstory/issues/1)）。在线版暂未开放自助重置密码，忘记密码请使用注册邮箱发信至 `support@zenstory.ai`。
+自托管默认要求邀请码注册（管理员在后台「邀请系统」生成）；如需免邀请码注册，在后端配置 `AUTH_REGISTER_INVITE_CODE_OPTIONAL=true`（前端可选加 `VITE_INVITE_CODE_OPTIONAL=true`），详见 [docs/docker-compose.md](docs/docker-compose.md)（[#1](https://github.com/zenstory-ai/zenstory/issues/1)）。
 
 ## 延伸阅读
 
@@ -246,11 +237,11 @@ zenstory/
     ├── agent/                #   写作 Agent
     │   ├── graph/            #     路由、交接、自动审稿的调度循环
     │   ├── tools/            #     文件、项目、技能和交接工具
-    │   ├── context/          #     每轮上下文的组装、预算和优先级
-    │   ├── prompts/          #     共享协议与角色提示，项目写作配置在数据库
-    │   └── skills/           #     技能加载与注入，官方技能正文在数据库
+    │   ├── context/          #     每轮上下文快照、预算和优先级分档
+    │   ├── prompts/          #     共享协议、网文/短剧题材规范与角色提示
+    │   └── skills/           #     渐进式技能加载与注入
     ├── flows/                #   素材拆解流水线（Prefect）
-    ├── services/             #   业务逻辑
+    ├── services/             #   业务逻辑与流式计费账本
     └── models/               #   数据模型
 ```
 
@@ -258,7 +249,7 @@ zenstory/
 | --- | --- |
 | 前端 | React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Zustand · TanStack Query |
 | 后端 | FastAPI · SQLModel · Server-Sent Events |
-| AI | DeepSeek `deepseek-flash`（默认，可配 DeepSeek / MiniMax 主备切换）· openai-agents-python |
+| AI | DeepSeek / MiniMax 主备切换与双凭证分流 · openai-agents-python |
 | 检索 | 数据库关键词匹配、相关片段与行号；文件编辑后立即可搜，无索引任务 |
 | 数据 | SQLite（默认）/ PostgreSQL · Redis · Alembic |
 | 部署 | Docker Compose；在线版前端在 Vercel，后端与 Prefect 在 Railway |
