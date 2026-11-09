@@ -81,7 +81,7 @@ Sign in at <http://localhost:5173>; the API reference is at <http://localhost:80
 
 - **Writing configuration**: project system prompts (`novel`, `short`, `screenplay`) and official skills live in the database. Configure and reload them in the admin console after first launch; see [docs/agent-writing-guidance.md](docs/agent-writing-guidance.md).
 - **Plan seeding**: run `docker compose exec server python scripts/seed_subscription_plans.py` to initialize plans, then assign Pro under **Subscriptions** in the admin console.
-- **Production deployment & optional features**: for PostgreSQL + Redis setup, optional invite codes, email verification and password reset (Resend), primary/backup model failover (DeepSeek / MiniMax), Google sign-in, Tencent Cloud voice input, material-library Prefect workers, the Inspiration Library, and Zpay Alipay checkout, see [docs/docker-compose.md](docs/docker-compose.md) (in Chinese).
+- **Production deployment & optional features**: for PostgreSQL + Redis setup, optional invite codes, email verification and password reset (Resend), Google sign-in, Tencent Cloud voice input, material-library Prefect workers, the Inspiration Library, and Zpay Alipay checkout, see [docs/docker-compose.md](docs/docker-compose.md) (in Chinese).
 
 <details>
 <summary>Local development without Docker</summary>
@@ -199,7 +199,7 @@ Include "do not create or modify files" in your prompt — when the router class
 
 ### Can I use a different model?
 
-Self-hosted deployments can configure primary and backup providers between DeepSeek and MiniMax via environment variables: `LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`, `LLM_BACKUP_PROVIDER` / `LLM_BACKUP_MODEL`, with keys in `DEEPSEEK_API_KEY` and `MINIMAX_API_KEY` (plus optional `MINIMAX_SECONDARY_API_KEY` weighted routing). See [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py) (new models require a price entry in `apps/server/services/usage/pricing.py`).
+Self-hosted deployments can configure DeepSeek or MiniMax models via environment variables (`LLM_PRIMARY_PROVIDER` / `LLM_PRIMARY_MODEL`, with `DEEPSEEK_API_KEY` or `MINIMAX_API_KEY`); see [`apps/server/agent/core/llm_providers.py`](apps/server/agent/core/llm_providers.py).
 
 ### Can I export to Word or publish directly to web-novel platforms?
 
