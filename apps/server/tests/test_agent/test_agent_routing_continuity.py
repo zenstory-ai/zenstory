@@ -1024,8 +1024,8 @@ async def test_no_new_agent_run_starts_near_the_wall_clock_limit():
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_wrap_up_after_review_resumes_the_writer_with_the_review_notes():
-    """审稿已跑、要求返修时到了收尾时间：返修 writer 不再开跑，审稿要点照实写给作者（随回复落库，
-    下一轮「继续」的 writer 看得到），暂停卡的 last_agent 是 writer。"""
+    """审稿已跑、要求返修时到了收尾时间：返修 writer 不再开跑，作者只看到简短说明（条数，不是完整工单；
+    完整要求由 SessionLoader 从落库的交接调用回放，见下方 A3 用例），暂停卡的 last_agent 是 writer。"""
     import time
 
     from agent.core.run_meter import AgentRunMeter
@@ -1051,8 +1051,10 @@ async def test_wrap_up_after_review_resumes_the_writer_with_the_review_notes():
     handoff_targets = [e.data["target_agent"] for e in events if e.type == StreamEventType.HANDOFF]
     assert handoff_targets == ["quality_reviewer"], "返修不会再跑，不发悬空的交接"
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
-    assert "第三段节奏拖沓，需要压缩" in texts
-    assert "把第三段压到两百字以内" in texts
+    assert "审稿人提出了修改意见，这一轮没来得及改" in texts
+    assert "共 1 处待改" in texts
+    assert "第三段节奏拖沓，需要压缩" not in texts
+    assert "把第三段压到两百字以内" not in texts
     exhausted = [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert len(exhausted) == 1
     assert exhausted[0].data["last_agent"] == "writer"
@@ -1159,3 +1161,231 @@ async def test_english_author_sees_english_status_and_wrap_up():
     assert router_messages == ["Fast mode: reading your request..."]
     texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
     assert texts.endswith(WRAP_UP_TEXT_REVIEW_SKIPPED_EN)
+
+
+# --------------------------------------------- 收尾时没来得及改的审稿要求：跨轮恢复（A3）
+
+_REWORK_CONTEXT = "第三段节奏拖沓，林晚进门那段要压缩。\n[要告诉作者]\n第三段会重写，旧稿可以在历史版本里找回"
+_REWORK_TODO = ["把第三段压到两百字以内", "删掉重复的雨声描写"]
+_REWORK_REASON = "第三段节奏需要压缩"
+
+
+async def _reviewer_handoff_events(target: str = "writer") -> list[StreamEvent]:
+    """与 runner 一样：handoff_to_agent 的工具调用、真实工具结果，再是图处理的 HANDOFF。"""
+    from agent.openai_agents.events import mcp_text_result
+    from agent.tools import mcp_tools
+
+    arguments = {"target_agent": target, "reason": _REWORK_REASON, "context": _REWORK_CONTEXT,
+                 "todo": list(_REWORK_TODO)}
+    raw = await mcp_tools.handoff_to_agent(arguments)
+    result_text = raw["content"][0]["text"]
+    result = json.loads(result_text)
+    return [
+        StreamEvent(type=StreamEventType.TOOL_USE,
+                    data={"id": "rv-h1", "name": "handoff_to_agent", "status": "complete", "input": arguments}),
+        StreamEvent(type=StreamEventType.TOOL_RESULT,
+                    data={"tool_use_id": "rv-h1", "name": "handoff_to_agent",
+                          "result": mcp_text_result(result_text)}),
+        StreamEvent(type=StreamEventType.HANDOFF,
+                    data={"target_agent": target, "reason": result["reason"], "context": result["context"],
+                          "handoff_packet": {key: result[key] for key in
+                                             ("target_agent", "reason", "context", "completed", "todo",
+                                              "evidence")}}),
+    ]
+
+
+def _history_text(message: dict) -> str:
+    content = message.get("content")
+    if isinstance(content, list):
+        return "\n".join(str(block.get("text") or "") for block in content if isinstance(block, dict))
+    return str(content or "")
+
+
+def _next_round_history(db_session, project, user) -> list[dict]:
+    from agent.core.session_loader import SessionLoader
+
+    return SessionLoader(str(project.id), str(user.id)).load_chat_session(db_session).history_messages
+
+
+def _assert_full_rework_replayed(history: list[dict]) -> str:
+    assistant = [m for m in history if m.get("role") == "assistant"][-1]
+    replay = _history_text(assistant)
+    assert "第三段节奏拖沓，林晚进门那段要压缩" in replay
+    for item in _REWORK_TODO:
+        assert item in replay
+    return replay
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_wrap_up_review_notes_survive_save_and_reload_for_the_next_writer(
+    routing_service, routing_service_project, db_session: Session
+):
+    """真实图 + service 落库 + SessionLoader：审稿后撞上收尾，作者只看到简短说明，
+    下一轮「继续」的 writer 历史里有完整返修要求（context / todo），路由看到的上一轮结尾里没有它。"""
+    import time
+
+    from agent.graph.router import _previous_reply_tail
+
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+    calls: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        if agent_type == "writer":
+            for event in _write_done("w1"):
+                yield event
+            yield _text(LONG_TEXT)
+            for event in _handoff_call("quality_reviewer", "请审查第五章"):
+                yield event
+            return
+        state["run_meter"].started_at = time.monotonic() - 10_000  # 审稿这一程把请求带过了收尾时刻
+        yield _text("审完了，第三段需要返修。")
+        for event in await _reviewer_handoff_events():
+            yield event
+
+    router = AsyncMock(return_value={
+        "current_agent": "writer", "workflow_plan": "quick", "workflow_agents": [],
+        "routing_metadata": {"agent_type": "writer", "write_content": True},
+    })
+    with (
+        patch("agent.graph.writing_graph.router_node", router),
+        patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
+        patch("agent.tools.mcp_tools.ToolContext.refresh_file_inventory", return_value={}),
+        patch("agent.graph.writing_graph._auto_finalize_task_board_on_completion", AsyncMock(return_value=[])),
+        patch("agent.graph.writing_graph._ai_messages_left_today", return_value=True),
+    ):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id), user_id=str(user.id), message="写第五章", session=db_session,
+            metadata={"generation_mode": "quality"},
+        ):
+            pass
+
+    assert calls == ["writer", "quality_reviewer"]
+    saved = _latest_assistant(db_session, str(project.id))
+    metadata = json.loads(saved.message_metadata)
+    assert metadata["stop_reason"] == "run_deadline_exceeded"
+    assert metadata["status_cards"][-1]["lastAgent"] == "writer"
+
+    # 作者看到的：一句说明、原因、待改项条数、写给作者的那段话；不是完整工单。
+    visible = saved.content
+    assert "第三段节奏需要压缩" in visible
+    assert "2" in visible
+    assert "旧稿可以在历史版本里找回" in visible
+    for item in _REWORK_TODO:
+        assert item not in visible
+    assert "林晚进门那段要压缩" not in visible
+
+    history = _next_round_history(db_session, project, user)
+    replay = _assert_full_rework_replayed(history)
+    assert "不是新的授权" in replay
+    previous = [m for m in history if m.get("role") == "assistant"][-1]
+    tail = _previous_reply_tail(previous)
+    assert "把第三段压到两百字以内" not in tail
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.parametrize("deadline", [True, False])
+async def test_rework_requirements_survive_a_cancel_during_wrap_up(
+    routing_service, routing_service_project, db_session: Session, deadline
+):
+    """收尾阶段被硬超时 / 作者停止取消（暂停卡还没发出、只流出了简短说明）：补存的这条消息里
+    已有审稿人的交接调用，下一轮仍能拿回完整返修要求。"""
+    from agent.core.round_outcome import RunOutcome
+
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+    started = asyncio.Event()
+    handoff_events = await _reviewer_handoff_events()
+
+    async def slow_workflow():
+        yield _router_decided("writer", "quick", write_content=True, scope="")
+        yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
+        yield _text("第五章写好了。")
+        yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "quality_reviewer"})
+        yield _text("审完了，第三段需要返修。")
+        for event in handoff_events:
+            yield event
+        yield _text("\n\n审稿人提出了修改意见，这一轮没来得及改。")
+        started.set()
+        await asyncio.sleep(3600)
+
+    run_outcome = RunOutcome()
+
+    async def consume():
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id), user_id=str(user.id), message="写第五章",
+            session=db_session, run_outcome=run_outcome,
+        ):
+            pass
+
+    with (
+        patch("agent.service.run_writing_workflow_streaming", return_value=slow_workflow()),
+        patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),
+        patch("database.create_session", side_effect=lambda: Session(db_session.get_bind())),
+    ):
+        task = asyncio.create_task(consume())
+        waiter = asyncio.create_task(started.wait())
+        await asyncio.wait({task, waiter}, timeout=10, return_when=asyncio.FIRST_COMPLETED)
+        if task.done():
+            waiter.cancel()
+            task.result()  # consume 提前结束：把真实异常抛出来，而不是一直等
+            pytest.fail("process_stream ended before the wrap-up point")
+        assert waiter.done(), "workflow never reached the wrap-up point"
+        await asyncio.sleep(0)
+        if deadline:
+            run_outcome.deadline_stop_reason = "run_deadline_exceeded"
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        saved = None
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            saved = _latest_assistant(db_session, str(project.id))
+            if saved is not None:
+                break
+
+    assert saved is not None
+    assert "把第三段压到两百字以内" not in saved.content
+    _assert_full_rework_replayed(_next_round_history(db_session, project, user))
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.parametrize("ending", ["writer_ran", "end_turn"])
+async def test_reviewer_handoff_is_not_replayed_when_it_ran_or_the_round_ended_normally(
+    routing_service, routing_service_project, db_session: Session, ending
+):
+    """返修 writer 已经跑过，或这一轮正常结束（例如达到审查上限、作者自己决定）：不追加回放块。"""
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+    handoff_events = await _reviewer_handoff_events()
+
+    async def workflow():
+        yield _router_decided("writer", "quick", write_content=True, scope="")
+        yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "quality_reviewer"})
+        for event in handoff_events:
+            yield event
+        if ending == "writer_ran":
+            yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
+            yield _text("第三段已经压缩好了。")
+            yield StreamEvent(
+                type=StreamEventType.ITERATION_EXHAUSTED,
+                data={"layer": "collaboration", "iterations_used": 3, "max_iterations": 12,
+                      "reason": "时间快用完了。", "last_agent": "writer", "limit": "wall_clock"},
+            )
+        else:
+            yield _text("已完成 2 轮质量审查。")
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    with patch("agent.service.run_writing_workflow_streaming", return_value=workflow()):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id), user_id=str(user.id), message="写第五章", session=db_session,
+        ):
+            pass
+
+    history = _next_round_history(db_session, project, user)
+    assistant = [m for m in history if m.get("role") == "assistant"][-1]
+    assert "把第三段压到两百字以内" not in _history_text(assistant)

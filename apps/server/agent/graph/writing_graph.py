@@ -548,11 +548,36 @@ WRAP_UP_CARD_REASON_EN = (
 )
 
 
-def _wrap_up_review_notes_text(notes: str, english: bool) -> str:
-    """审稿人要求返修、返修 writer 因收尾不再开跑时写给作者的审稿要点（随回复落库，下一轮「继续」看得到）。"""
+def _wrap_up_review_notice_text(packet: dict[str, Any] | None, context: str, english: bool) -> str:
+    """审稿人要求返修、返修的 agent 因收尾不再开跑时给作者的简短说明。
+
+    只写说明、作者口径的交接原因、待改项条数和交接里明确写给作者的话（「[要告诉作者]」）；
+    完整的 context / todo 不展示。它们随审稿人的 handoff_to_agent 调用落库（取消、超时补存也带上），
+    下一轮由 SessionLoader 只回放给模型（_pending_rework_history_content），不靠这段可见文字承载。
+    """
+    packet = packet if isinstance(packet, dict) else {}
+    reason = author_facing_handoff_reason(packet.get("reason"), english)
+    todo_count = sum(1 for item in packet.get("todo") or [] if str(item).strip())
+    author_notes = author_facing_text(
+        _author_notes_from_handoff(packet.get("context") or context), english
+    )
     if english:
-        return f"\n\nThe reviewer's revision notes (not applied yet in this round):\n{notes}"
-    return f"\n\n审稿人的修改意见（这一轮还没来得及改）：\n{notes}"
+        text = "\n\nThe reviewer asked for revisions that this round did not get to"
+        if reason:
+            text += f": {reason}"
+        if todo_count:
+            text += f" ({todo_count} item{'s' if todo_count != 1 else ''} to revise)"
+        text += ". The full notes are kept for the next round."
+    else:
+        text = "\n\n审稿人提出了修改意见，这一轮没来得及改"
+        if reason:
+            text += f"：{reason}"
+        if todo_count:
+            text += f"（共 {todo_count} 处待改）"
+        text += "。完整意见已经记下，下一轮接着改时会用上。"
+    if author_notes:
+        text += f"\n\n{author_notes}"
+    return text
 
 
 def _ai_messages_left_today(user_id: str) -> bool | None:
@@ -3411,21 +3436,17 @@ async def run_writing_workflow_streaming(
                 and (author_notes := _author_notes_from_handoff(handoff_context))
             ):
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"\n\n{author_notes}"})
-            # 审稿人要求返修、返修 writer 不会再跑：审稿要点只在交接包里（工具结果不跨轮回放），
-            # 和达到审查上限时一样写给作者，随回复落库；下一轮「继续」回到 writer 时看得到。
+            # 审稿人要求返修、返修的 agent 不会再跑：完整要求已随审稿人的 handoff_to_agent 调用落库
+            # （取消 / 超时补存同样带上），下一轮由 SessionLoader 只回放给模型；这里只给作者一段简短说明。
             if (
                 wrap_up_stops_next_agent
                 and current_agent_type == "quality_reviewer"
                 and _agent_can_write_files(pending_next_agent)
-                and (
-                    review_notes := author_facing_text(
-                        _review_notes_from_packet(handoff_packet, handoff_context), english
-                    )
-                )
+                and _review_notes_from_packet(handoff_packet, handoff_context)
             ):
                 yield StreamEvent(
                     type=StreamEventType.TEXT,
-                    data={"text": _wrap_up_review_notes_text(review_notes, english)},
+                    data={"text": _wrap_up_review_notice_text(handoff_packet, handoff_context, english)},
                 )
 
             if (

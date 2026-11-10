@@ -30,6 +30,57 @@ from services.chat_session_service import latest_active_chat_session
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
+# 回放「上一轮没来得及执行的审稿返修要求」的终止原因：时限截停与停止 / 断线（取消补存）。
+_REWORK_REPLAY_STOP_REASONS: frozenset[str] = frozenset(
+    {"run_deadline_exceeded", "cancelled", "user_stopped", "client_disconnected"}
+)
+# 回放块的固定标题；router._SYNTHESIZED_SECTION_HEADERS 按它截掉上一轮结尾里的这段。
+PENDING_REWORK_HEADER = "[上一轮未执行的审稿返修要求]"
+PENDING_REWORK_HEADER_EN = "[Unapplied review revisions from the previous round]"
+
+
+def _breadcrumb_lang_is_english() -> bool:
+    return (os.getenv("AGENT_HISTORY_BREADCRUMB_LANG") or "").strip().lower().startswith("en")
+
+
+def _agent_has_write_tools(agent_type: Any) -> bool:
+    """与 writing_graph._agent_can_write_files 同一口径：按 registry 的实际工具集判断。"""
+    if not isinstance(agent_type, str) or not agent_type:
+        return False
+    from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
+
+    tool_names = AGENT_TOOL_NAME_MAP.get(agent_type)
+    return tool_names is not None and bool(FILE_WRITE_TOOL_NAMES.intersection(tool_names))
+
+
+def _format_pending_rework(packet: dict[str, Any], *, english: bool) -> str:
+    reason = str(packet.get("reason") or "").strip()
+    context = str(packet.get("context") or "").strip()
+    todo = [str(item).strip() for item in packet.get("todo") or [] if str(item).strip()]
+    if english:
+        lines = [
+            PENDING_REWORK_HEADER_EN,
+            "The reviewer handed these revisions over last round; they were not applied before the round ended. "
+            "This is not a new authorization: what to do and which files may change this round still follow the "
+            "author's current message and this round's routing.",
+        ]
+        labels = ("Reason: ", "Notes:", "To do:")
+    else:
+        lines = [
+            PENDING_REWORK_HEADER,
+            "上一轮审稿人交来的返修要求，这一轮结束前没有执行。这不是新的授权：本轮做什么、能改哪些文件，"
+            "仍以作者这条消息和本轮路由为准。",
+        ]
+        labels = ("原因：", "说明：", "待改：")
+    if reason:
+        lines.append(f"{labels[0]}{reason}")
+    if context and context != reason:
+        lines.extend([labels[1], context])
+    if todo:
+        lines.append(labels[2])
+        lines.extend(f"- {item}" for item in todo)
+    return "\n".join(lines)
+
 logger = get_logger(__name__)
 
 # 跨轮工作集取最近几条 assistant 回复里的文件读写记录
@@ -841,6 +892,7 @@ class SessionLoader:
             "role": msg.role,
             "content": msg.content,
         }
+        rework_block = ""
 
         # Include persisted assistant metadata for token estimation
         #
@@ -871,6 +923,9 @@ class SessionLoader:
                 routing = metadata.get("routing")
                 if isinstance(routing, dict):
                     msg_data["routing"] = routing
+                rework_block = self._pending_rework_history_content(
+                    metadata, getattr(msg, "tool_calls", None)
+                )
                 if isinstance(status_cards, list):
                     msg_data.update(self._status_card_routing_hints(status_cards))
                     synthesized_content = self._build_status_cards_history_content(status_cards)
@@ -921,7 +976,59 @@ class SessionLoader:
             if breadcrumb:
                 self._append_text_to_content(msg_data, breadcrumb)
 
+        # 审稿人要求返修、返修的 agent 没来得及跑：作者只看到简短说明，完整要求在这里只给模型看
+        # （见 _pending_rework_history_content）。
+        if rework_block:
+            self._append_text_to_content(msg_data, rework_block)
+
         return msg_data
+
+    def _pending_rework_history_content(self, metadata: dict[str, Any], tool_calls_raw: Any) -> str:
+        """上一轮审稿人交给可写 agent、却没有执行的返修要求（只给模型看的回放块）。
+
+        载体是审稿 run 期间就已落库的 ``handoff_to_agent`` 调用（参数与真实工具结果）：
+        正常收尾、取消补存、硬超时补存都会带上它，比作者可见的收尾说明更早进入历史。
+        只看结构化事实：
+
+        - 这一轮停在时限或停止 / 断线上（``stop_reason``）；正常结束（例如达到审查上限、
+          作者自己拍板）不回放，那条路径的完整意见本来就写在可见回复里。
+        - 按 ``display_events`` 的先后：交接调用发生在 quality_reviewer 运行期间、工具结果是
+          ``handoff``、目标 agent 有写文件工具，且之后没有任何 agent 再开始运行。
+
+        回放块说明这不是新的授权：本轮的范围与权限仍以作者这条消息和本轮路由为准。
+        """
+        if metadata.get("stop_reason") not in _REWORK_REPLAY_STOP_REASONS:
+            return ""
+        display_events = metadata.get("display_events")
+        tool_calls = self._parse_json_value(tool_calls_raw)
+        if not isinstance(display_events, list) or not isinstance(tool_calls, list):
+            return ""
+        current_agent = ""
+        pending: dict[str, Any] | None = None
+        for event in display_events:
+            if not isinstance(event, dict):
+                continue
+            if event.get("type") == "agent_selected":
+                data = event.get("data")
+                current_agent = str((data or {}).get("agent_type") or "") if isinstance(data, dict) else ""
+                pending = None
+                continue
+            if event.get("type") != "tool_call" or current_agent != "quality_reviewer":
+                continue
+            index = event.get("tool_call_index")
+            call = tool_calls[index] if isinstance(index, int) and 0 <= index < len(tool_calls) else None
+            if not isinstance(call, dict) or call.get("name") != "handoff_to_agent":
+                continue
+            result = call.get("result")
+            if (
+                isinstance(result, dict)
+                and result.get("status") == "handoff"
+                and _agent_has_write_tools(result.get("target_agent"))
+            ):
+                pending = result
+        if pending is None:
+            return ""
+        return _format_pending_rework(pending, english=_breadcrumb_lang_is_english())
 
     @staticmethod
     def _extract_content_text(content: Any) -> str:
