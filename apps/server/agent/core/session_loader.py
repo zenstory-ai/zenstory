@@ -792,9 +792,10 @@ class SessionLoader:
             msg = session.exec(msg_stmt).first()
             if not msg:
                 return []
-            return [self._format_chat_message_for_history(msg)]
+            return [self._format_chat_message_for_history(msg, latest_assistant=True)]
 
         selected_reversed: list[dict[str, Any]] = []
+        assistant_seen = False
         used_tokens = 0
         cursor_created_at = None
         cursor_id = None
@@ -840,7 +841,11 @@ class SessionLoader:
 
             stop = False
             for msg in page:
-                msg_data = self._format_chat_message_for_history(msg)
+                # 由新到旧读：第一条 assistant 就是上一轮的回复，只有它带「上一轮未执行的返修要求」。
+                msg_data = self._format_chat_message_for_history(
+                    msg, latest_assistant=msg.role == "assistant" and not assistant_seen
+                )
+                assistant_seen = assistant_seen or msg.role == "assistant"
                 msg_data["ordinal"] = next_ordinal
                 next_ordinal -= 1
                 msg_tokens = max(1, estimate_message_tokens(msg_data))
@@ -885,8 +890,13 @@ class SessionLoader:
 
         return list(reversed(selected_reversed))
 
-    def _format_chat_message_for_history(self, msg: Any) -> dict[str, Any]:
-        """Convert ChatMessage ORM row to dict for agent history + token math."""
+    def _format_chat_message_for_history(self, msg: Any, *, latest_assistant: bool = False) -> dict[str, Any]:
+        """Convert ChatMessage ORM row to dict for agent history + token math.
+
+        latest_assistant：这是会话里最近一条 assistant 消息（上一轮的回复）。只有它会附上
+        「上一轮未执行的审稿返修要求」：之后又有新的一轮，那份要求就不再是“上一轮”的
+        （下一轮的 writer 已经处理过，或作者换了话题），不再给后续轮次重复注入。
+        """
         msg_data: dict[str, Any] = {
             "id": msg.id,
             "role": msg.role,
@@ -923,9 +933,10 @@ class SessionLoader:
                 routing = metadata.get("routing")
                 if isinstance(routing, dict):
                     msg_data["routing"] = routing
-                rework_block = self._pending_rework_history_content(
-                    metadata, getattr(msg, "tool_calls", None)
-                )
+                if latest_assistant:
+                    rework_block = self._pending_rework_history_content(
+                        metadata, getattr(msg, "tool_calls", None)
+                    )
                 if isinstance(status_cards, list):
                     msg_data.update(self._status_card_routing_hints(status_cards))
                     synthesized_content = self._build_status_cards_history_content(status_cards)

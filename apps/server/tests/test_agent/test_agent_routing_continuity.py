@@ -1284,6 +1284,23 @@ async def test_wrap_up_review_notes_survive_save_and_reload_for_the_next_writer(
     tail = _previous_reply_tail(previous)
     assert "把第三段压到两百字以内" not in tail
 
+    # 下一轮已经跑过（例如 writer 接着改完了）：那份要求不再是“上一轮”的，之后的历史不再重复注入。
+    async def next_round():
+        yield _router_decided("writer", "quick", write_content=True, scope="")
+        yield StreamEvent(type=StreamEventType.AGENT_SELECTED, data={"agent_type": "writer"})
+        yield _text("第三段已经压缩好了。")
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    with patch("agent.service.run_writing_workflow_streaming", return_value=next_round()):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id), user_id=str(user.id), message="继续", session=db_session,
+        ):
+            pass
+    later = _next_round_history(db_session, project, user)
+    assert not any(
+        "[上一轮未执行的审稿返修要求]" in _history_text(m) for m in later if m.get("role") == "assistant"
+    )
+
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("writing_prompt_configs")

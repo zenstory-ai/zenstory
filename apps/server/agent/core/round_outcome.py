@@ -170,6 +170,11 @@ class RoundWrittenFiles:
     _pending_run_exhaustion: bool = False
 
     @property
+    def unexecuted_tool_text(self) -> bool:
+        """回复里有完整的工具调用只写成了文字、没有执行：终态说明不提「可以继续」。"""
+        return self._unexecuted_tool_text
+
+    @property
     def known_incomplete(self) -> bool:
         """只合并结构化终止事实，不从模型回复、运行时长或任务内容猜完成度。"""
         return self._empty_file_incomplete or self._unexecuted_tool_text or self._pending_run_exhaustion
@@ -546,6 +551,7 @@ def build_stop_outcome(
     written_files: list[dict[str, Any]] | None = None,
     unwritten_files: list[dict[str, Any]] | None = None,
     no_file_changes: bool = False,
+    unexecuted_tool_text: bool = False,
 ) -> dict[str, Any]:
     """落库到 message_metadata.stop_outcome 的结构（前端 RoundEndNote 读取）。
 
@@ -566,6 +572,9 @@ def build_stop_outcome(
         outcome["unwritten_files"] = unwritten_files
     if no_file_changes:
         outcome["no_file_changes"] = True
+    if unexecuted_tool_text:
+        # 有一步只写成了文字、没有执行（见 RoundWrittenFiles.unexecuted_tool_text）。
+        outcome["unexecuted_tool_text"] = True
     return outcome
 
 

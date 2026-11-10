@@ -158,6 +158,19 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
     expect(screen.getByTestId('round-end-note')).toHaveTextContent(new RegExp(`^${text}$`))
   })
 
+  it.each([
+    [{ reason: 'incomplete', charged: true, saved_output: false, unexecuted_tool_text: true }, '本轮尚未完成。'],
+    [{ reason: 'incomplete', charged: true, saved_output: true, unexecuted_tool_text: true }, '已保存本轮完成的修改。'],
+    [
+      { reason: 'incomplete', charged: true, saved_output: true, unexecuted_tool_text: true,
+        written_files: [{ id: 'ch-3', title: '第3章', words: 3120 }] },
+      '已保存《第3章》3,120 字 · 本轮尚未完成',
+    ],
+  ])('%j: a step only written out as text never ran, so the note does not invite 继续: 「%s」', (raw, text) => {
+    render(<RoundEndNote outcome={outcome(raw)} showDailyCount />)
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent(new RegExp(`^${text}$`))
+  })
+
   it('reads only well-formed written files, and older messages without them as before', () => {
     expect(outcome({ reason: 'user_stopped', charged: true, saved_output: true }).writtenFiles).toEqual([])
     expect(outcome({

@@ -2075,9 +2075,11 @@ async def test_unexecuted_tool_text_marks_the_round_incomplete_without_changing_
     )
 
     assert done["delivery_incomplete"] is True
+    assert done["unexecuted_tool_text"] is True
     assert metadata["stop_reason"] == "end_turn"
     assert metadata["stop_outcome"]["reason"] == "incomplete"
     assert metadata["stop_outcome"]["charged"] is True
+    assert metadata["stop_outcome"]["unexecuted_tool_text"] is True
 
 
 @pytest.mark.integration
