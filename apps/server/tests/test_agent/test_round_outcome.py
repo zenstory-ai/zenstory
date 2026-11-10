@@ -721,3 +721,11 @@ def test_failed_parallel_batch_lists_nothing():
     ))
 
     assert written == []
+
+
+def test_unexecuted_tool_text_stays_incomplete_after_a_later_agent_selection():
+    files = RoundWrittenFiles()
+    files.observe(_frame("iteration_exhausted", {"layer": "unexecuted_tool_text", "iterations_used": 1,
+                                                 "max_iterations": 12, "reason": "", "last_agent": None}))
+    files.observe(_frame("agent_selected", {"agent_type": "quality_reviewer"}))
+    assert files.known_incomplete is True

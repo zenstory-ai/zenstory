@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent.constants import coerce_bool
-from agent.core.events import iteration_exhausted_status_card
+from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, iteration_exhausted_status_card
 from agent.core.stream_billing import _APPLIED_PARALLEL_TASK_STATUSES
 from agent.core.stream_billing import _parse_sse as parse_sse_frame
 from utils.logger import get_logger, log_with_context
@@ -162,6 +162,9 @@ class RoundWrittenFiles:
     # 空文件纠正失败是请求级粘性事实：临时空文件随后被安全撤回、或图又选择其他角色，
     # 都不能把这一轮记成 completed。
     _empty_file_incomplete: bool = False
+    # 回复里有完整的工具调用只写成了文字、没有执行（layer=unexecuted_tool_text）：同样是请求级
+    # 粘性事实，图随后交给别的角色也不能把这一轮记成 completed。
+    _unexecuted_tool_text: bool = False
     # 单次 agent run / 整个协作图的结构化耗尽事实。图若随后合法选择下一个 agent，说明
     # 该耗尽已被编排层接住；否则直到终态都应如实记为 incomplete。
     _pending_run_exhaustion: bool = False
@@ -169,7 +172,7 @@ class RoundWrittenFiles:
     @property
     def known_incomplete(self) -> bool:
         """只合并结构化终止事实，不从模型回复、运行时长或任务内容猜完成度。"""
-        return self._empty_file_incomplete or self._pending_run_exhaustion
+        return self._empty_file_incomplete or self._unexecuted_tool_text or self._pending_run_exhaustion
 
     def observe(self, frame: Any) -> None:
         if not isinstance(frame, str) or not frame.startswith("event:"):
@@ -197,6 +200,8 @@ class RoundWrittenFiles:
             layer = payload.get("layer")
             if layer == "empty_file_correction":
                 self._empty_file_incomplete = True
+            elif layer == UNEXECUTED_TOOL_TEXT_LAYER:
+                self._unexecuted_tool_text = True
             elif layer in {"tool_call", "collaboration"}:
                 self._pending_run_exhaustion = True
             # 空文件补不成时图已撤销的空文件：它们不再存在，不列为「未确认保存」。

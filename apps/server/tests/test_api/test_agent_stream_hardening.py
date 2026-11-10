@@ -2063,6 +2063,24 @@ async def test_parallel_task_that_reused_a_file_without_writing_is_not_a_receipt
 
 
 @pytest.mark.integration
+async def test_unexecuted_tool_text_marks_the_round_incomplete_without_changing_billing(client, db_session):
+    """回复里写成文字、没有执行的工具调用：done 与落库都是未完成，仍按原规则计入（不退还）。"""
+    done, metadata, _file = await _run_completed_round(
+        client, db_session,
+        lambda _file: [_sse("iteration_exhausted", {
+            "layer": "unexecuted_tool_text", "iterations_used": 1, "max_iterations": 12,
+            "reason": "回复里有一步操作只写成了文字，没有实际执行。", "last_agent": None,
+        })],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["delivery_incomplete"] is True
+    assert metadata["stop_reason"] == "end_turn"
+    assert metadata["stop_outcome"]["reason"] == "incomplete"
+    assert metadata["stop_outcome"]["charged"] is True
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("routing", [
     {"write_content": False, "read_only": False},
     {"write_content": True, "read_only": True},

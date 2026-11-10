@@ -1389,3 +1389,96 @@ async def test_reviewer_handoff_is_not_replayed_when_it_ran_or_the_round_ended_n
     history = _next_round_history(db_session, project, user)
     assistant = [m for m in history if m.get("role") == "assistant"][-1]
     assert "把第三段压到两百字以内" not in _history_text(assistant)
+
+
+# ------------------------------------------------ 回复里写成文字、没有执行的工具调用（A2）
+
+_TEXTUAL_CALL = (
+    "好的，我来建第七章。\n<tool_call>]<]minimax[>[<invoke name=\"create_file\">]<]minimax[>["
+    "<title>第七章</title>]<]minimax[>[</invoke>]<]minimax[>[</tool_call>"
+)
+
+
+def _deltas(text: str, size: int = 7) -> list[StreamEvent]:
+    return [_text(text[i:i + size]) for i in range(0, len(text), size)]
+
+
+async def _graph_with_writer_tail(tail_events, state_extra=None, router=None):
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        for event in tail_events:
+            yield event
+
+    return await _run_graph(fake_agent, _state("建第七章", **(state_extra or {})), router=router)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_textual_tool_call_after_the_last_tool_event_is_flagged_once_and_text_is_unchanged():
+    events = await _graph_with_writer_tail(_deltas(_TEXTUAL_CALL))
+
+    flagged = [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+    assert len(flagged) == 1
+    assert flagged[0].data["layer"] == "unexecuted_tool_text"
+    assert flagged[0].data["last_agent"] is None
+    assert "limit" not in flagged[0].data
+    texts = "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT)
+    assert _TEXTUAL_CALL in texts  # 文字逐字节原样流出，不改写、不删除
+    assert not any(e.type == StreamEventType.TOOL_USE for e in events)  # 不把文字当工具执行
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_textual_call_followed_by_a_real_tool_event_or_a_read_only_round_is_not_flagged():
+    real_after = [*_deltas(_TEXTUAL_CALL), *_write_done("w1"), _text("第七章建好了。")]
+    events = await _graph_with_writer_tail(real_after)
+    assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+
+    read_only_router = AsyncMock(return_value={
+        "current_agent": "writer", "workflow_plan": "quick", "workflow_agents": [],
+        "routing_metadata": {"agent_type": "writer", "read_only": True},
+    })
+    events = await _graph_with_writer_tail(_deltas(_TEXTUAL_CALL), router=read_only_router)
+    assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_textual_tool_call_card_is_saved_without_routing_hint_or_resumable_stop(
+    routing_service, routing_service_project, db_session: Session
+):
+    """真实图 + service 落库 + SessionLoader：卡片随消息落库；stop_reason 仍是 end_turn（不是可「继续」
+    的截停），卡不提供 lastAgent 路由线索，回放里正文原样、不追加卡片摘要。"""
+    project = routing_service_project["project"]
+    user = routing_service_project["user"]
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        for event in _deltas(_TEXTUAL_CALL):
+            yield event
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    router = AsyncMock(return_value={
+        "current_agent": "writer", "workflow_plan": "quick", "workflow_agents": [],
+        "routing_metadata": {"agent_type": "writer", "write_content": True},
+    })
+    with (
+        patch("agent.graph.writing_graph.router_node", router),
+        patch("agent.graph.writing_graph.run_streaming_agent", new=fake_agent),
+        patch("agent.tools.mcp_tools.ToolContext.refresh_file_inventory", return_value={}),
+        patch("agent.graph.writing_graph._auto_finalize_task_board_on_completion", AsyncMock(return_value=[])),
+    ):
+        async for _ in routing_service.process_stream(
+            project_id=str(project.id), user_id=str(user.id), message="建第七章", session=db_session,
+        ):
+            pass
+
+    saved = _latest_assistant(db_session, str(project.id))
+    metadata = json.loads(saved.message_metadata)
+    assert _TEXTUAL_CALL in saved.content
+    assert metadata["stop_reason"] == "end_turn"
+    cards = [card for card in metadata["status_cards"] if card.get("layer") == "unexecuted_tool_text"]
+    assert len(cards) == 1 and cards[0]["lastAgent"] is None
+
+    history = _next_round_history(db_session, project, user)
+    assistant = [m for m in history if m.get("role") == "assistant"][-1]
+    assert "last_agent" not in assistant
+    assert "[iteration_exhausted]" not in _history_text(assistant)

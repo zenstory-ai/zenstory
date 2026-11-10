@@ -141,6 +141,8 @@
     "collaborationExhaustedSummary": "This round is pausing here. Click \"Keep going\" to continue.",
     "toolCallExhaustedSummary": "This round is pausing here. Click \"Keep going\" to continue.",
     "timeLimitSummary": "This round is pausing here. Click \"Keep going\" to continue.",
+    "unexecutedToolText": "A step did not run",
+    "unexecutedToolTextSummary": "Part of the reply only wrote an action out as text; it did not actually run, so no file was created or changed by it. Saved work is listed in the receipt; ask again if you still need that step.",
     "emptyFileUnfinished": "This round is unfinished",
     "emptyFileUnresolved": "\"{{titles}}\" has no text yet and could not be removed automatically. Click \"Keep going\" to write it, or delete it yourself.",
     "emptyFileRolledBack": "\"{{titles}}\" never got its text, so the empty file was removed. Click \"Keep going\" to write it again.",
