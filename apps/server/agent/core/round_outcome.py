@@ -25,6 +25,7 @@ from typing import Any
 
 from agent.constants import coerce_bool
 from agent.core.events import iteration_exhausted_status_card
+from agent.core.stream_billing import _APPLIED_PARALLEL_TASK_STATUSES
 from agent.core.stream_billing import _parse_sse as parse_sse_frame
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -109,6 +110,9 @@ _WRITTEN_FILE_EVENTS: frozenset[str] = frozenset(
     }
 )
 _FOLDER_FILE_TYPE = "folder"
+# 能列给作者的并行写入子任务（计费口径 PARALLEL_WRITE_TASK_TYPES 还含 delete_file）；
+# 子任务状态与计费同一口径，回执在此之上再要求内层结果 mutation_applied 为 True。
+_PARALLEL_WRITE_TASK_TYPES: frozenset[str] = frozenset({"write_chapter", "edit_file"})
 
 
 @dataclass
@@ -120,6 +124,8 @@ class _WrittenFile:
     edited: bool = False
     # 某次 edit_file 只生效了一部分（partial_success），其余几处没有改成。
     partial: bool = False
+    # 并行子任务写的整篇正文：结果里的 content 可能被截断，整篇字数无从确认，不报字数。
+    words_unknown: bool = False
 
 
 @dataclass
@@ -132,8 +138,11 @@ class RoundWrittenFiles:
 
     - 幂等复用（``reused_existing``）命中一个本来就有正文的文件时，中断后的残稿会被截断
       覆盖保护拒绝落库（见 agent/stream_adapter.py），这里不把它列成「已保存」。
-    - ``parallel_execute`` 的子任务帧、``delete_file``、``update_project`` 不带可列给作者的
-      文件，不在列表里；这类一轮仍有 ``saved_output``，前端照旧只说「已写入的内容已保存」。
+    - ``parallel_execute`` 整批结果（tool_result）按子任务的真实结果展开：write_chapter /
+      edit_file 子任务 completed 或 partial、内层结果 ``mutation_applied`` 为 True、内层
+      ``data.id`` 可取时才列；子任务正文可能在结果里被截断，不报字数。批次中途被截停时只有
+      ``parallel_task_*`` 帧，不带文件 id，这类写入和 ``update_project`` 一样列不出文件；
+      这类一轮仍有 ``saved_output``，前端照旧只说「已写入的内容已保存」。
 
     ``delivery`` 用工具实际写入或 StreamAdapter 保存回执确认正文；本轮新建空壳在
     终态仍无确认写入时列为未写入，不把创建过程中的空壳当作失败。
@@ -219,7 +228,7 @@ class RoundWrittenFiles:
                 continue
             item = self._files.get(file_id, _WrittenFile(title=self._titles.get(file_id, "")))
             entry: dict[str, Any] = {"id": file_id, "title": item.title or self._titles.get(file_id, "")}
-            if include_words and not item.edited:
+            if include_words and not item.edited and not item.words_unknown:
                 entry["words"] = final_word_counts.get(file_id, count_words(item.body))
             if item.partial:
                 entry["partial"] = True
@@ -273,7 +282,7 @@ class RoundWrittenFiles:
     ) -> bool:
         """作者看到的「写入的内容已保存」：只由确认的写入推出，不看流式正文帧。
 
-        有确认写入的文件就是 True。列不出文件的写入（并行写章、删除）沿用计费口径
+        有确认写入的文件就是 True。列不出文件的写入（批次中途截停的并行子任务、删除）沿用计费口径
         ``any_write_succeeded``，但这一轮只要有流式正文没拿到确认保存回执就不这么说。
         计费仍按 ``StreamBillingTracker.write_succeeded``，与这里无关。
         """
@@ -299,7 +308,7 @@ class RoundWrittenFiles:
         """正常收尾的回执：确认写入的文件；作者要正文却什么都没写成时明说没有改动。
 
         只看工具实际结果和保存回执，不看模型怎么描述自己做了什么。``any_write_succeeded``
-        来自计费口径（含并行写章、删除这类列不出文件的写入），有它就不说「没有改动」。
+        来自计费口径（含批次中途截停的并行子任务、删除这类列不出文件的写入），有它就不说「没有改动」。
         """
         delivery = self.delivery(final_word_counts=final_word_counts)
         if delivery:
@@ -326,16 +335,16 @@ class RoundWrittenFiles:
         if payload.get("tool_name") == "delete_file":
             file_id = self._delete_targets.pop(payload.get("tool_use_id"), None)
             if payload.get("status") == "success" and payload.get("data") is True and file_id:
-                self._created_empty.pop(file_id, None)
-                self._files.pop(file_id, None)
-                self._titles.pop(file_id, None)
-                self._tool_writes.discard(file_id)
+                self._forget_file(file_id)
             return
         if payload.get("status") != "success":
             return
         tool_name = payload.get("tool_name")
         data = payload.get("data")
         data = data if isinstance(data, dict) else {}
+        if tool_name == "parallel_execute":
+            self._observe_parallel_tasks(data.get("tasks"))
+            return
         file_id = data.get("id")
         if not isinstance(file_id, str) or not file_id:
             return
@@ -369,6 +378,56 @@ class RoundWrittenFiles:
             if coerce_bool(data.get("partial_success")):
                 entry.partial = True
             self._tool_writes.add(file_id)
+
+    def _observe_parallel_tasks(self, tasks: Any) -> None:
+        """展开一整批 parallel_execute 的子任务，只认内层结果证实生效的写入与删除。
+
+        先登记本批的写入，再处理本批成功的删除（并行删除的结果 data 是 True，目标只在
+        params 回显里）。拿不到内层 ``data.id`` 的子任务（旧结果、退化成截断标记的结果）不列，
+        不按标题或下标去猜文件；计费口径另见 StreamBillingTracker，不受这里影响。
+        """
+        if not isinstance(tasks, list):
+            return
+        deleted: list[str] = []
+        for task in tasks:
+            if not isinstance(task, dict) or task.get("status") not in _APPLIED_PARALLEL_TASK_STATUSES:
+                continue
+            task_type = task.get("type")
+            result = task.get("result")
+            result = result if isinstance(result, dict) else {}
+            params = task.get("params")
+            params = params if isinstance(params, dict) else {}
+            if task_type == "delete_file":
+                file_id = params.get("id")
+                if result.get("mutation_applied") is True and isinstance(file_id, str) and file_id:
+                    deleted.append(file_id)
+                continue
+            if task_type not in _PARALLEL_WRITE_TASK_TYPES or result.get("mutation_applied") is not True:
+                continue
+            data = result.get("data")
+            data = data if isinstance(data, dict) else {}
+            file_id = data.get("id")
+            if not isinstance(file_id, str) or not file_id:
+                continue
+            if task_type == "write_chapter" and coerce_bool(data.get("reused_existing")):
+                continue
+            self._remember_title(file_id, data.get("title") or params.get("title"))
+            entry = self._entry(file_id)
+            if task_type == "edit_file":
+                entry.edited = True
+            else:
+                entry.words_unknown = True
+            if task.get("status") == "partial" or coerce_bool(data.get("partial_success")):
+                entry.partial = True
+            self._tool_writes.add(file_id)
+        for file_id in deleted:
+            self._forget_file(file_id)
+
+    def _forget_file(self, file_id: str) -> None:
+        self._created_empty.pop(file_id, None)
+        self._files.pop(file_id, None)
+        self._titles.pop(file_id, None)
+        self._tool_writes.discard(file_id)
 
 
 def _reused_file_had_body(data: dict[str, Any], content: str) -> bool:
@@ -486,7 +545,7 @@ def build_stop_outcome(
     """落库到 message_metadata.stop_outcome 的结构（前端 RoundEndNote 读取）。
 
     ``written_files``（:meth:`RoundWrittenFiles.files`）为空时不写这个键：旧消息和拿不到
-    文件的写入（并行写章、删除）在前端照旧只显示「已写入的内容已保存」。
+    文件的写入（批次中途截停的并行子任务、删除）在前端照旧只显示「已写入的内容已保存」。
     """
     outcome: dict[str, Any] = {
         "reason": stop_kind,

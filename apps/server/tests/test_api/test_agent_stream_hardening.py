@@ -1980,6 +1980,88 @@ async def test_partial_edit_is_listed_as_partial_not_as_a_complete_write(client,
     assert metadata["stop_outcome"]["written_files"] == done["written_files"]
 
 
+def _parallel_result(*tasks) -> str:
+    """parallel_execute 的整批结果，子任务与 parallel_executor.result_data["tasks"] 同形。"""
+    return _sse("tool_result", {
+        "tool_name": "parallel_execute",
+        "status": "success",
+        "data": {"execution_id": "exec-1", "total_tasks": len(tasks), "tasks": list(tasks)},
+    })
+
+
+def _parallel_chapter(file, *, index=0, status="completed", mutation_applied=True):
+    return {
+        "id": f"task-{index}", "index": index, "params": {"title": file.title}, "type": "write_chapter",
+        "description": "", "status": status, "error": None,
+        "result": {"status": "success", "mutation_applied": mutation_applied,
+                   "data": {"id": file.id, "title": file.title, "content": "正文", "file_type": "draft"}},
+    }
+
+
+@pytest.mark.integration
+async def test_parallel_only_writes_get_a_completed_receipt_live_and_in_history(client, db_session):
+    """只靠 parallel_execute 写成的一轮：done 与落库的 stop_outcome 列出同一批文件，计费照旧。"""
+    done, metadata, file = await _run_completed_round(
+        client, db_session,
+        lambda file: [_parallel_result(
+            _parallel_chapter(file),
+            {"id": "task-1", "index": 1, "params": {"title": "失败的章"}, "type": "write_chapter",
+             "description": "", "status": "failed", "error": "boom",
+             "result": {"status": "error", "error": "boom"}},
+        )],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["written_files"] == [{"id": file.id, "title": file.title}]
+    assert "no_file_changes" not in done
+    assert "delivery_incomplete" not in done
+    assert metadata["stop_reason"] == "end_turn"
+    assert metadata["stop_outcome"]["reason"] == "completed"
+    assert metadata["stop_outcome"]["charged"] is True
+    assert metadata["stop_outcome"]["saved_output"] is True
+    assert metadata["stop_outcome"]["written_files"] == done["written_files"]
+
+
+@pytest.mark.integration
+async def test_parallel_write_into_a_new_empty_shell_is_not_incomplete(client, db_session):
+    """先直接建空壳、再用并行 edit_file 写入：这一轮是完成，不是「有文件未确认保存」。"""
+    done, metadata, file = await _run_completed_round(
+        client, db_session,
+        lambda file: [
+            _create_file_result(file),
+            _parallel_result({
+                "id": "task-0", "index": 0, "params": {"id": file.id}, "type": "edit_file",
+                "description": "", "status": "completed", "error": None,
+                "result": {"status": "success", "mutation_applied": True,
+                           "data": {"id": file.id, "title": file.title, "mutation_applied": True,
+                                    "edits_applied": 1}},
+            }),
+        ],
+        routing=_WRITE_REQUEST,
+    )
+
+    assert done["written_files"] == [{"id": file.id, "title": file.title}]
+    assert "unwritten_files" not in done
+    assert "delivery_incomplete" not in done
+    assert metadata["stop_outcome"]["reason"] == "completed"
+    assert "unwritten_files" not in metadata["stop_outcome"]
+
+
+@pytest.mark.integration
+async def test_parallel_task_that_reused_a_file_without_writing_is_not_a_receipt(client, db_session):
+    done, metadata, _file = await _run_completed_round(
+        client, db_session,
+        lambda file: [_parallel_result(_parallel_chapter(file, mutation_applied=False))],
+        routing=_WRITE_REQUEST,
+    )
+
+    # 计费口径仍把 completed 的写章子任务算作产出（不改计费），所以不说「没有改动」；
+    # 但内层结果没有证实写入，回执不列这个文件。
+    assert "written_files" not in done
+    assert "no_file_changes" not in done
+    assert "stop_outcome" not in metadata
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize("routing", [
     {"write_content": False, "read_only": False},
