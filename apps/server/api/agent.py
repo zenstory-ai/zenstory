@@ -821,6 +821,7 @@ async def stream_request(
                             **delivery,
                             "delivery_incomplete": True,
                             "saved_output": _saved_output(delivery),
+                            **({"unexecuted_tool_text": True} if written_files.unexecuted_tool_text else {}),
                         },
                     ).to_sse()
                 # 正常收尾也带写入回执：作者对照它核对回复里说的「已修改」。
@@ -986,6 +987,7 @@ async def stream_request(
                     # 作者看到的「已保存」只认确认的保存回执；计费仍按 tracker 的帧口径。
                     saved_output=_saved_output(delivery),
                     removed_files=removed,
+                    unexecuted_tool_text=written_files.unexecuted_tool_text,
                     **delivery,
                 ),
                 pause_card=pause_card,

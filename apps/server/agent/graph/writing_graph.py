@@ -21,7 +21,11 @@ from agent.core.author_facing_text import (
     author_facing_text,
     text_contains_cjk,
 )
-from agent.core.events import READ_ONLY_HANDOFF_BLOCKED_REASON, WALL_CLOCK_LIMIT
+from agent.core.events import (
+    READ_ONLY_HANDOFF_BLOCKED_REASON,
+    UNEXECUTED_TOOL_TEXT_LAYER,
+    WALL_CLOCK_LIMIT,
+)
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import StreamErrorInfo, classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import (
@@ -50,6 +54,7 @@ from agent.graph.completion_evidence import (
     author_reply_tail,
     ends_on_file_block,
     ends_on_unclosed_file_block,
+    unexecuted_tool_protocol,
 )
 from agent.graph.nodes import (
     detect_task_complete,
@@ -304,6 +309,17 @@ STEERING_FOLLOWUP_CONTEXT_READONLY = (
 
 
 
+UNEXECUTED_TOOL_TEXT_REASON = "回复里有一步操作只写成了文字，没有实际执行。"
+UNEXECUTED_TOOL_TEXT_REASON_EN = "A step in the reply was only written out as text; it did not run."
+
+
+def _registered_tool_names(agent_type: str | None) -> frozenset[str]:
+    """该 agent 实际注册的工具名（registry 的映射）；未知类型为空集，不做识别。"""
+    from agent.tools.registry import AGENT_TOOL_NAME_MAP
+
+    return frozenset(AGENT_TOOL_NAME_MAP.get(agent_type or "") or ())
+
+
 def _agent_can_write_files(agent_type: str | None) -> bool:
     """该 agent 类型的工具集里是否包含写文件工具。
 
@@ -548,11 +564,36 @@ WRAP_UP_CARD_REASON_EN = (
 )
 
 
-def _wrap_up_review_notes_text(notes: str, english: bool) -> str:
-    """审稿人要求返修、返修 writer 因收尾不再开跑时写给作者的审稿要点（随回复落库，下一轮「继续」看得到）。"""
+def _wrap_up_review_notice_text(packet: dict[str, Any] | None, context: str, english: bool) -> str:
+    """审稿人要求返修、返修的 agent 因收尾不再开跑时给作者的简短说明。
+
+    只写说明、作者口径的交接原因、待改项条数和交接里明确写给作者的话（「[要告诉作者]」）；
+    完整的 context / todo 不展示。它们随审稿人的 handoff_to_agent 调用落库（取消、超时补存也带上），
+    下一轮由 SessionLoader 只回放给模型（_pending_rework_history_content），不靠这段可见文字承载。
+    """
+    packet = packet if isinstance(packet, dict) else {}
+    reason = author_facing_handoff_reason(packet.get("reason"), english)
+    todo_count = sum(1 for item in packet.get("todo") or [] if str(item).strip())
+    author_notes = author_facing_text(
+        _author_notes_from_handoff(packet.get("context") or context), english
+    )
     if english:
-        return f"\n\nThe reviewer's revision notes (not applied yet in this round):\n{notes}"
-    return f"\n\n审稿人的修改意见（这一轮还没来得及改）：\n{notes}"
+        text = "\n\nThe reviewer asked for revisions that this round did not get to"
+        if reason:
+            text += f": {reason}"
+        if todo_count:
+            text += f" ({todo_count} item{'s' if todo_count != 1 else ''} to revise)"
+        text += ". The full notes are kept for the next round."
+    else:
+        text = "\n\n审稿人提出了修改意见，这一轮没来得及改"
+        if reason:
+            text += f"：{reason}"
+        if todo_count:
+            text += f"（共 {todo_count} 处待改）"
+        text += "。完整意见已经记下，下一轮接着改时会用上。"
+    if author_notes:
+        text += f"\n\n{author_notes}"
+    return text
 
 
 def _ai_messages_left_today(user_id: str) -> bool | None:
@@ -2097,6 +2138,8 @@ async def run_writing_workflow_streaming(
         # 上一个正常结束的 agent run 完整的 SDK 输入（runner 写入）：同一 agent 紧接着自己再跑时
         # 从它接着来，请求只在末尾追加、整段命中前缀缓存，读过的文件不用重读。
         native_runs: dict[str, Any] = state.setdefault("native_run_holder", {})
+        # 本请求已如实标记过「有一步只写成了文字、没有执行」：同一请求只发一次。
+        unexecuted_tool_text_reported = False
         while current_agent_type and iteration < max_iterations:
             # 请求时间快用完：不再开新的 agent run（交接、自动送审、续写、纠偏、插话追加轮），
             # 这一轮停在已经完成的部分，作者回复「继续」接着做（不等墙钟时限把它从中间截断）。
@@ -2856,6 +2899,40 @@ async def run_writing_workflow_streaming(
                 and not tool_call_exhausted
                 and not agent_run_errored
             )
+            # 回复在最后一次真实工具事件之后写出了完整、已注册的工具调用协议：它没有执行。
+            # 只按协议结构识别，不判断作者意图或完成度；不改写或删除这段文字，不把它当工具执行，
+            # 也不自动重试。结构化事实交给 RoundWrittenFiles，终态如实记为未完成（计费不变）。
+            if (
+                run_ended_normally
+                and not unexecuted_tool_text_reported
+                and _agent_can_write_files(current_agent_type)
+                and not read_only_request
+                and not clarify_first_request
+                and (
+                    textual_calls := unexecuted_tool_protocol(
+                        agent_tail_text, _registered_tool_names(current_agent_type)
+                    )
+                )
+            ):
+                unexecuted_tool_text_reported = True
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "textual_tool_call",
+                    agent_type=current_agent_type,
+                    call_count=len(textual_calls),
+                    tool_names=sorted(set(textual_calls)),
+                )
+                yield StreamEvent(
+                    type=StreamEventType.ITERATION_EXHAUSTED,
+                    data={
+                        "layer": UNEXECUTED_TOOL_TEXT_LAYER,
+                        "iterations_used": iteration,
+                        "max_iterations": max_iterations,
+                        "reason": UNEXECUTED_TOOL_TEXT_REASON_EN if english else UNEXECUTED_TOOL_TEXT_REASON,
+                        "last_agent": None,
+                    },
+                )
             can_rerun_same_agent = (
                 run_ended_normally
                 and _agent_can_write_files(current_agent_type)
@@ -3411,21 +3488,17 @@ async def run_writing_workflow_streaming(
                 and (author_notes := _author_notes_from_handoff(handoff_context))
             ):
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": f"\n\n{author_notes}"})
-            # 审稿人要求返修、返修 writer 不会再跑：审稿要点只在交接包里（工具结果不跨轮回放），
-            # 和达到审查上限时一样写给作者，随回复落库；下一轮「继续」回到 writer 时看得到。
+            # 审稿人要求返修、返修的 agent 不会再跑：完整要求已随审稿人的 handoff_to_agent 调用落库
+            # （取消 / 超时补存同样带上），下一轮由 SessionLoader 只回放给模型；这里只给作者一段简短说明。
             if (
                 wrap_up_stops_next_agent
                 and current_agent_type == "quality_reviewer"
                 and _agent_can_write_files(pending_next_agent)
-                and (
-                    review_notes := author_facing_text(
-                        _review_notes_from_packet(handoff_packet, handoff_context), english
-                    )
-                )
+                and _review_notes_from_packet(handoff_packet, handoff_context)
             ):
                 yield StreamEvent(
                     type=StreamEventType.TEXT,
-                    data={"text": _wrap_up_review_notes_text(review_notes, english)},
+                    data={"text": _wrap_up_review_notice_text(handoff_packet, handoff_context, english)},
                 )
 
             if (

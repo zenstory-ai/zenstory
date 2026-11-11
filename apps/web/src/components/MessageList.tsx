@@ -297,6 +297,13 @@ function iterationExhaustedText(
   card: { layer?: IterationExhaustedLayer; limit?: string; unfinishedFiles?: string[]; rolledBackFiles?: string[] },
   nextStepsBlocked: boolean,
 ): { title: string; lines: string[] } {
+  // A step only written out as text: say it did not run; nothing to resume, so no continue wording.
+  if (card.layer === 'unexecuted_tool_text') {
+    return {
+      title: t('workflow.unexecutedToolText', { ns: 'chat' }),
+      lines: [t('workflow.unexecutedToolTextSummary', { ns: 'chat' })],
+    };
+  }
   // Used-up day: the same facts without 「点继续完成」 (the quota card says when sending comes back).
   const paused = nextStepsBlocked ? 'Paused' : '';
   if (exhaustionLeftFilesUnfinished(card)) {
@@ -336,6 +343,7 @@ function IterationExhaustedCard({ card, onIterationAssistAction, nextStepsBlocke
   const { t } = useTranslation(['chat']);
   const { isMobile } = useMobileLayout();
   const exhausted = iterationExhaustedText(t, card, nextStepsBlocked);
+  const showNextSteps = !nextStepsBlocked && card.layer !== 'unexecuted_tool_text';
   return (
     <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
       <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
@@ -348,7 +356,7 @@ function IterationExhaustedCard({ card, onIterationAssistAction, nextStepsBlocke
             {line}
           </span>
         ))}
-        {!nextStepsBlocked && (
+        {showNextSteps && (
           <>
             <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
               {t('workflow.nextStepHint', { ns: 'chat' })}

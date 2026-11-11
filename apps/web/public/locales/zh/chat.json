@@ -141,6 +141,8 @@
     "collaborationExhaustedSummary": "这一轮先做到这里。点「继续完成」就能接着做。",
     "toolCallExhaustedSummary": "这一轮先做到这里。点「继续完成」就能接着做。",
     "timeLimitSummary": "这一轮先做到这里。点「继续完成」就能接着做。",
+    "unexecutedToolText": "有一步没有执行",
+    "unexecutedToolTextSummary": "回复里有一段操作只写成了文字，并没有真正执行，相关文件没有因此新建或修改。已保存的内容以回执为准；还需要这一步的话，请再说一次。",
     "emptyFileUnfinished": "这一轮没写完",
     "emptyFileUnresolved": "《{{titles}}》还没写入正文，也没能自动撤销。点「继续完成」补写，或自己删掉。",
     "emptyFileRolledBack": "《{{titles}}》没写成正文，已撤销这个空文件。点「继续完成」会重新写。",

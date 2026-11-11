@@ -565,3 +565,167 @@ def test_plain_done_frame_carries_no_receipt_keys():
     data = done_event(assistant_message_id="m1").data
 
     assert not {"stop_reason", "produced_output", "written_files", "unwritten_files", "no_file_changes"} & set(data)
+
+
+# ------------------------------------------------- parallel_execute 子任务的写入回执（A1）
+
+
+def _task(task_type: str, status: str, *, params: dict | None = None, result=None, index: int = 0) -> dict:
+    """一个与 parallel_executor.result_data["tasks"][i] 同形的子任务条目。"""
+    return {
+        "id": f"task-{index}",
+        "index": index,
+        "params": params or {},
+        "type": task_type,
+        "description": "",
+        "status": status,
+        "result": result,
+        "error": None if status in {"completed", "partial"} else "failed",
+    }
+
+
+def _chapter_result(file_id: str, title: str, *, mutation_applied: bool = True, **data) -> dict:
+    """write_chapter 子任务的内层结果：就是 create_file 的返回体。"""
+    return {
+        "status": "success",
+        "mutation_applied": mutation_applied,
+        "data": {"id": file_id, "title": title, "content": "正文" * 3, "file_type": "draft", **data},
+    }
+
+
+def _edit_task_result(file_id: str, title: str, *, status: str = "success", mutation_applied: bool = True,
+                      **data) -> dict:
+    return {
+        "status": status,
+        "mutation_applied": mutation_applied,
+        "data": {"id": file_id, "title": title, "mutation_applied": mutation_applied, **data},
+    }
+
+
+def _parallel(*tasks: dict, status: str = "success") -> str:
+    return _frame(
+        "tool_result",
+        {
+            "tool_name": "parallel_execute",
+            "status": status,
+            "data": {"execution_id": "exec-1", "total_tasks": len(tasks), "tasks": list(tasks)},
+        },
+    )
+
+
+def test_parallel_chapter_writes_are_listed_without_an_invented_word_count():
+    written = _written(_parallel(
+        _task("write_chapter", "completed", params={"title": "第1章"},
+              result=_chapter_result("ch-1", "第1章"), index=0),
+        _task("edit_file", "completed", params={"id": "ch-0"},
+              result=_edit_task_result("ch-0", "序章", edits_applied=2), index=1),
+    ))
+
+    # 子任务的 content 可能在结果里被截断，字数无从确认，不报 words。
+    assert written == [{"id": "ch-1", "title": "第1章"}, {"id": "ch-0", "title": "序章"}]
+
+
+def test_parallel_failed_no_change_and_reused_tasks_are_not_written():
+    written = _written(_parallel(
+        _task("write_chapter", "failed", params={"title": "第2章"},
+              result={"status": "error", "error": "boom"}, index=0),
+        _task("edit_file", "completed", params={"id": "ch-0"},
+              result=_edit_task_result("ch-0", "序章", mutation_applied=False, edits_applied=0), index=1),
+        _task("write_chapter", "completed", params={"title": "第3章"},
+              result=_chapter_result("ch-3", "第3章", mutation_applied=False, reused_existing=True,
+                                     original_content_length=120), index=2),
+        _task("write_chapter", "completed", params={"title": "第4章"},
+              result=_chapter_result("ch-4", "第4章", mutation_applied=False), index=3),
+        # 退化成截断标记的结果：没有 id 也没有 mutation_applied，宁缺不列。
+        _task("write_chapter", "completed", params={"title": "第5章"},
+              result={"truncated": True, "original_length": 99999}, index=4),
+    ))
+
+    assert written == []
+
+
+def test_parallel_partial_edit_is_listed_as_partial():
+    written = _written(_parallel(
+        _task("edit_file", "partial", params={"id": "ch-0"},
+              result=_edit_task_result("ch-0", "序章", status="partial", edits_applied=1,
+                                       partial_success=True), index=0),
+    ))
+
+    assert written == [{"id": "ch-0", "title": "序章", "partial": True}]
+
+
+def test_parallel_writes_dedupe_by_file_id_with_direct_writes():
+    written = _written(
+        _edited("ch-0", "序章"),
+        _parallel(
+            _task("edit_file", "completed", params={"id": "ch-0"},
+                  result=_edit_task_result("ch-0", "序章", edits_applied=1), index=0),
+            _task("edit_file", "completed", params={"id": "ch-0"},
+                  result=_edit_task_result("ch-0", "序章", edits_applied=1), index=1),
+        ),
+    )
+
+    assert written == [{"id": "ch-0", "title": "序章"}]
+
+
+def test_parallel_and_later_deletes_remove_the_written_file():
+    files = RoundWrittenFiles()
+    files.observe(_parallel(
+        _task("write_chapter", "completed", params={"title": "第1章"},
+              result=_chapter_result("ch-1", "第1章"), index=0),
+        _task("write_chapter", "completed", params={"title": "第2章"},
+              result=_chapter_result("ch-2", "第2章"), index=1),
+        # 同批删除：并行删除的结果 data 是 True，目标 id 只在 params 回显里。
+        _task("delete_file", "completed", params={"id": "ch-1"},
+              result={"status": "success", "mutation_applied": True, "data": True}, index=2),
+        # 失败的删除不移除。
+        _task("delete_file", "failed", params={"id": "ch-2"},
+              result={"status": "error", "error": "busy"}, index=3),
+    ))
+    assert [item["id"] for item in files.files()] == ["ch-2"]
+
+    files.observe(_frame("tool_call", {"tool_name": "delete_file", "tool_use_id": "t-del", "arguments": {"id": "ch-2"}}))
+    files.observe(_frame("tool_result", {"tool_name": "delete_file", "tool_use_id": "t-del", "status": "success",
+                                         "data": True}))
+    assert files.files() == []
+
+
+def test_parallel_body_written_into_an_empty_shell_is_not_reported_unwritten():
+    """先直接建空壳、再用并行 edit_file 写入正文：不能把这个已写成的文件记成未确认保存。"""
+    files = RoundWrittenFiles()
+    files.observe(_created("shell", "第6章"))
+    files.observe(_parallel(
+        _task("edit_file", "completed", params={"id": "shell"},
+              result=_edit_task_result("shell", "第6章", edits_applied=1), index=0),
+    ))
+
+    assert files.delivery(final_word_counts={}) == {"written_files": [{"id": "shell", "title": "第6章"}]}
+    assert files.completion_receipt(final_word_counts={}, any_write_succeeded=True) == {
+        "written_files": [{"id": "shell", "title": "第6章"}]
+    }
+
+
+def test_parallel_results_without_ids_keep_the_old_unlisted_receipt():
+    """旧形态（子任务不带 result）：照旧列不出文件，saved_output 沿用计费口径。"""
+    files = RoundWrittenFiles()
+    files.observe(_parallel(_task("write_chapter", "completed", index=0)))
+    assert files.files() == []
+    assert files.completion_receipt(final_word_counts={}, any_write_succeeded=True) == {}
+
+
+def test_failed_parallel_batch_lists_nothing():
+    written = _written(_parallel(
+        _task("write_chapter", "completed", params={"title": "第1章"},
+              result=_chapter_result("ch-1", "第1章"), index=0),
+        status="error",
+    ))
+
+    assert written == []
+
+
+def test_unexecuted_tool_text_stays_incomplete_after_a_later_agent_selection():
+    files = RoundWrittenFiles()
+    files.observe(_frame("iteration_exhausted", {"layer": "unexecuted_tool_text", "iterations_used": 1,
+                                                 "max_iterations": 12, "reason": "", "last_agent": None}))
+    files.observe(_frame("agent_selected", {"agent_type": "quality_reviewer"}))
+    assert files.known_incomplete is True
