@@ -332,7 +332,7 @@ describe.each(['multipart', 'screenshot'] as const)('actual %s custom-fetch owne
   })
 
   it.each(['access', 'refresh', 'both'] as const)(
-    'control: missing entry %s credentials retains original 401 without refresh or clear', async missing => {
+    'control: missing entry %s credentials retains original 401 without refresh', async missing => {
       if (missing !== 'refresh') localStorage.removeItem('access_token')
       if (missing !== 'access') localStorage.removeItem('refresh_token')
       const before = authState()
@@ -340,18 +340,28 @@ describe.each(['multipart', 'screenshot'] as const)('actual %s custom-fetch owne
       assertCanceled(await start(surface))
       expect(requests).toHaveLength(1)
       expect(requests[0].authorization).toBe(missing === 'refresh' ? 'Bearer access-a-0' : null)
-      expect(authState()).toEqual(before)
-      expect(logoutReasons).toEqual([])
+      if (surface === 'multipart') {
+        expect(authState()).toEqual({ access: null, refresh: null, user: null, validated: null })
+        expect(logoutReasons).toEqual(['missing_token'])
+      } else {
+        expect(authState()).toEqual(before)
+        expect(logoutReasons).toEqual([])
+      }
     },
   )
 
-  it('control: replay 401 keeps existing decoder without another refresh or clear', async () => {
+  it('control: replay 401 keeps existing decoder without another refresh', async () => {
     route = async record => record.path === '/api/auth/refresh' ? refreshResponse('a', 1) : denied()
     assertCanceled(await start(surface))
     expect(requests).toHaveLength(3)
     expect(requests.at(-1)?.authorization).toBe('Bearer access-a-1')
-    expect(client.resolveOwnedAuthSession('access-a-0', 'refresh-a-0')).toEqual(pair('a', 1))
-    expect(logoutReasons).toEqual([])
+    if (surface === 'multipart') {
+      expect(authState()).toEqual({ access: null, refresh: null, user: null, validated: null })
+      expect(logoutReasons).toEqual(['retry_still_unauthorized'])
+    } else {
+      expect(client.resolveOwnedAuthSession('access-a-0', 'refresh-a-0')).toEqual(pair('a', 1))
+      expect(logoutReasons).toEqual([])
+    }
   })
 
   it.each(['503', 'network'] as const)('control: current %s refresh failure retains A and avoids replay', async failure => {

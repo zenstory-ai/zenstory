@@ -37,9 +37,9 @@ beforeEach(() => markdownRenders.clear())
 describe('MessageList history render isolation', () => {
   it('does not re-execute unchanged history during twenty stream updates', () => {
     const messages = Array.from({ length: 100 }, (_, index) => message(String(index)))
-    const { rerender } = render(<MessageList messages={messages} streamingMessageId="live" streamRenderItems={stream('Live 0')} />)
+    const { rerender } = render(<MessageList messages={messages} streamRenderItems={stream('Live 0')} />)
     for (let frame = 1; frame <= 20; frame++) {
-      rerender(<MessageList messages={messages} streamingMessageId="live" streamRenderItems={stream(`Live ${frame}`)} />)
+      rerender(<MessageList messages={messages} streamRenderItems={stream(`Live ${frame}`)} />)
     }
     const historyExecutions = messages.reduce((total, item) => total + count(item.content), 0)
     process.stdout.write(`PERF_CHAT_HISTORY ${JSON.stringify({ historyRows: 100, streamUpdates: 20, historyExecutions })}\n`)
@@ -57,17 +57,6 @@ describe('MessageList history render isolation', () => {
     expect(count(a.content)).toBe(1)
     expect(screen.getByText('Hydrated history')).toBeInTheDocument()
     expect(screen.queryByText(b.content)).not.toBeInTheDocument()
-  })
-
-  it('updates thinking only for the active row and removes it when streaming moves', () => {
-    const messages = [message('old'), message('active')]
-    const { rerender } = render(<MessageList messages={messages} streamingMessageId="active" streamingThinkingContent="Thinking one" isThinking />)
-    rerender(<MessageList messages={messages} streamingMessageId="active" streamingThinkingContent="Thinking two" isThinking />)
-    expect(count(messages[0].content)).toBe(1)
-    expect(count(messages[1].content)).toBe(2)
-    rerender(<MessageList messages={messages} streamingMessageId="new-stream" streamingThinkingContent="Next round" isThinking />)
-    expect(count(messages[1].content)).toBe(3)
-    expect(screen.queryByText('Thinking two')).not.toBeInTheDocument()
   })
 
   it('isolates feedback pending state and still uses a replaced callback', () => {

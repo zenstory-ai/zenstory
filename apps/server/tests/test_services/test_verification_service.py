@@ -157,6 +157,43 @@ class TestSendVerificationCode:
             mock_send_email.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_send_code_fails_closed_when_cooldown_or_attempts_reset_fails(self):
+        """Redis failures setting cooldown or resetting attempts must abort before sending email."""
+        from core.messages import get_message
+
+        email = "partial-redis@example.com"
+        expected = get_message("verification_send_failed", "zh")
+
+        with (
+            patch("services.features.verification_service.get_resend_cooldown_ttl", return_value=0),
+            patch("services.features.verification_service.store_verification_code", return_value=True),
+            patch("services.features.verification_service.set_resend_cooldown", return_value=False),
+            patch("services.features.verification_service.delete_verification_code", return_value=True) as mock_del_code,
+            patch("services.features.verification_service.send_verification_email", new_callable=AsyncMock) as mock_email,
+        ):
+            success, error = await send_verification_code(email, language="zh")
+            assert success is False
+            assert error == expected
+            mock_del_code.assert_called_once_with(email)
+            mock_email.assert_not_called()
+
+        with (
+            patch("services.features.verification_service.get_resend_cooldown_ttl", return_value=0),
+            patch("services.features.verification_service.store_verification_code", return_value=True),
+            patch("services.features.verification_service.set_resend_cooldown", return_value=True),
+            patch("services.features.verification_service.reset_verification_attempts", return_value=False),
+            patch("services.features.verification_service.delete_verification_code", return_value=True) as mock_del_code,
+            patch("services.features.verification_service.delete_resend_cooldown", return_value=True) as mock_del_cooldown,
+            patch("services.features.verification_service.send_verification_email", new_callable=AsyncMock) as mock_email,
+        ):
+            success, error = await send_verification_code(email, language="zh")
+            assert success is False
+            assert error == expected
+            mock_del_code.assert_called_once_with(email)
+            mock_del_cooldown.assert_called_once_with(email)
+            mock_email.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_send_code_email_failure(self):
         """Test handling of email sending failure."""
         email = "test@example.com"

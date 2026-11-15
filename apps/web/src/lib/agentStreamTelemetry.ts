@@ -63,18 +63,17 @@ export function createAgentStreamTelemetry(
 
   // Browsers suspend or drop the connections of hidden tabs (phones above all)
   // and of offline devices. A transport failure then is expected, not a defect.
-  const doc = typeof document === "undefined" ? undefined : document;
   let hiddenMs = 0;
-  let hiddenAt = doc?.visibilityState === "hidden" ? startedAt : undefined;
+  let hiddenAt = document.visibilityState === "hidden" ? startedAt : undefined;
   const onVisibilityChange = () => {
-    if (doc?.visibilityState === "hidden") {
+    if (document.visibilityState === "hidden") {
       hiddenAt ??= now();
     } else if (hiddenAt !== undefined) {
       hiddenMs += now() - hiddenAt;
       hiddenAt = undefined;
     }
   };
-  doc?.addEventListener("visibilitychange", onVisibilityChange);
+  document.addEventListener("visibilitychange", onVisibilityChange);
   const hiddenTotalMs = () => hiddenMs + (hiddenAt === undefined ? 0 : Math.max(0, now() - hiddenAt));
 
   const baseProperties = () => ({
@@ -94,7 +93,7 @@ export function createAgentStreamTelemetry(
   const settle = (): boolean => {
     if (settled) return false;
     settled = true;
-    doc?.removeEventListener("visibilitychange", onVisibilityChange);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
     return true;
   };
 
@@ -145,7 +144,7 @@ export function createAgentStreamTelemetry(
         ...baseProperties(),
         error_code: errorCode,
         retryable: Boolean(retryable),
-        online: typeof navigator === "undefined" ? undefined : navigator.onLine,
+        online: navigator.onLine,
       };
       if (!settle()) return;
       trackEvent("ai_chat_failed", properties);

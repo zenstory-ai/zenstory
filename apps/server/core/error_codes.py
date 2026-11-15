@@ -26,7 +26,6 @@ class ErrorCode:
 
     INTERNAL_SERVER_ERROR = "ERR_INTERNAL_SERVER_ERROR"
     VALIDATION_ERROR = "ERR_VALIDATION_ERROR"
-    DATABASE_ERROR = "ERR_DATABASE_ERROR"
     SERVICE_UNAVAILABLE = "ERR_SERVICE_UNAVAILABLE"
     BAD_REQUEST = "ERR_BAD_REQUEST"
     NOT_FOUND = "ERR_NOT_FOUND"
@@ -46,7 +45,6 @@ class ErrorCode:
     AUTH_EMAIL_ALREADY_VERIFIED = "ERR_AUTH_EMAIL_ALREADY_VERIFIED"
     AUTH_INVALID_VERIFICATION_CODE = "ERR_AUTH_INVALID_VERIFICATION_CODE"
     AUTH_INVITE_CODE_REQUIRED = "ERR_AUTH_INVITE_CODE_REQUIRED"
-    AUTH_REGISTRATION_FAILED = "ERR_AUTH_REGISTRATION_FAILED"
     AUTH_RESEND_FAILED = "ERR_AUTH_RESEND_FAILED"
     AUTH_VERIFICATION_COOLDOWN = "ERR_AUTH_VERIFICATION_COOLDOWN"
     AUTH_EMAIL_UNDELIVERABLE = "ERR_AUTH_EMAIL_UNDELIVERABLE"
@@ -60,9 +58,6 @@ class ErrorCode:
     # ==================== Project Errors (3000-3999) ====================
 
     PROJECT_NOT_FOUND = "ERR_PROJECT_NOT_FOUND"
-    PROJECT_ALREADY_EXISTS = "ERR_PROJECT_ALREADY_EXISTS"
-    PROJECT_SOFT_DELETED = "ERR_PROJECT_SOFT_DELETED"
-    PROJECT_EXPORT_NO_DRAFTS = "ERR_PROJECT_EXPORT_NO_DRAFTS"
 
     # ==================== File Errors (4000-4999) ====================
 
@@ -100,7 +95,6 @@ class ErrorCode:
 
     VERSION_NOT_FOUND = "ERR_VERSION_NOT_FOUND"
     VERSION_NO_VERSIONS_FOUND = "ERR_VERSION_NO_VERSIONS_FOUND"
-    VERSION_DELETE_FAILED = "ERR_VERSION_DELETE_FAILED"
     VERSION_RESTORE_FAILED = "ERR_VERSION_RESTORE_FAILED"
 
     # ==================== Export Errors (7000-7999) ====================
@@ -134,8 +128,6 @@ class ErrorCode:
 
     # ==================== Subscription Errors (10xxx) ====================
 
-    SUBSCRIPTION_NOT_FOUND = "ERR_SUBSCRIPTION_NOT_FOUND"
-    SUBSCRIPTION_EXPIRED = "ERR_SUBSCRIPTION_EXPIRED"
     FEATURE_NOT_INCLUDED = "ERR_FEATURE_NOT_INCLUDED"
     PAYMENT_SYNC_FAILED = "ERR_PAYMENT_SYNC_FAILED"
 
@@ -163,10 +155,6 @@ class ErrorCode:
 
     # ==================== Points Errors (13xxx) ====================
 
-    POINTS_INSUFFICIENT_BALANCE = "ERR_POINTS_INSUFFICIENT_BALANCE"
-    POINTS_ALREADY_CHECKED_IN = "ERR_POINTS_ALREADY_CHECKED_IN"
-    POINTS_INVALID_AMOUNT = "ERR_POINTS_INVALID_AMOUNT"
-    POINTS_REDEMPTION_MINIMUM_NOT_MET = "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET"
     POINTS_REDEMPTION_DISABLED = "ERR_POINTS_REDEMPTION_DISABLED"
 
     # ==================== Agent Stream Errors (14xxx) ====================
@@ -202,7 +190,6 @@ ERROR_MESSAGES = {
     "zh": {
         "ERR_INTERNAL_SERVER_ERROR": "服务器内部错误，请稍后重试",
         "ERR_VALIDATION_ERROR": "请求参数验证失败",
-        "ERR_DATABASE_ERROR": "数据库操作失败",
         "ERR_RESOURCE_CONFLICT": "操作与现有数据冲突，请检查后重试",
         "ERR_SERVICE_UNAVAILABLE": "服务暂时不可用",
         "ERR_BAD_REQUEST": "请求格式错误",
@@ -219,7 +206,6 @@ ERROR_MESSAGES = {
         "ERR_AUTH_EMAIL_ALREADY_VERIFIED": "邮箱已验证",
         "ERR_AUTH_INVALID_VERIFICATION_CODE": "验证码无效或已过期",
         "ERR_AUTH_INVITE_CODE_REQUIRED": "请输入邀请码",
-        "ERR_AUTH_REGISTRATION_FAILED": "注册失败，请稍后重试",
         "ERR_AUTH_RESEND_FAILED": "验证码没有发出去，请稍后重试；多次失败请检查邮箱地址是否正确",
         "ERR_AUTH_VERIFICATION_COOLDOWN": "验证码刚发过，请稍等再重发；先看看垃圾箱或 QQ 邮箱的广告邮件",
         "ERR_AUTH_EMAIL_UNDELIVERABLE": "无法向这个邮箱发送验证码，请检查并修改邮箱地址",
@@ -231,9 +217,6 @@ ERROR_MESSAGES = {
         "ERR_NOT_AUTHORIZED_TO_EXPORT": "您没有权限导出此项目",
 
         "ERR_PROJECT_NOT_FOUND": "项目不存在",
-        "ERR_PROJECT_ALREADY_EXISTS": "项目已存在",
-        "ERR_PROJECT_SOFT_DELETED": "项目已删除",
-        "ERR_PROJECT_EXPORT_NO_DRAFTS": "项目中没有草稿可导出",
 
         "ERR_FILE_NOT_FOUND": "文件不存在",
         "ERR_FILE_TYPE_INVALID": "文件类型无效",
@@ -259,7 +242,6 @@ ERROR_MESSAGES = {
 
         "ERR_VERSION_NOT_FOUND": "版本不存在",
         "ERR_VERSION_NO_VERSIONS_FOUND": "未找到文件的版本",
-        "ERR_VERSION_DELETE_FAILED": "删除版本失败",
         "ERR_VERSION_RESTORE_FAILED": "恢复版本失败",
 
         "ERR_EXPORT_NO_DRAFTS": "此项目中没有草稿",
@@ -280,8 +262,6 @@ ERROR_MESSAGES = {
         "ERR_REFERRAL_CODE_EXPIRED": "邀请码已过期",
         "ERR_REFERRAL_CODE_USED_UP": "邀请码已用完",
 
-        "ERR_SUBSCRIPTION_NOT_FOUND": "订阅不存在",
-        "ERR_SUBSCRIPTION_EXPIRED": "订阅已过期",
         "ERR_FEATURE_NOT_INCLUDED": "当前套餐暂不包含该功能",
         "ERR_PAYMENT_SYNC_FAILED": "暂时无法向支付平台查询订单，请稍后刷新",
 
@@ -303,11 +283,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU": "你已经兑换过这个码了，权益已在账户里",
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "兑换请求过于频繁，请稍后重试",
 
-        "ERR_POINTS_INSUFFICIENT_BALANCE": "积分余额不足",
         "ERR_POINTS_REDEMPTION_DISABLED": "积分兑换 Pro 已关闭",
-        "ERR_POINTS_ALREADY_CHECKED_IN": "今日已签到",
-        "ERR_POINTS_INVALID_AMOUNT": "积分数量无效",
-        "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "兑换最低需要 7 天",
 
         "ERR_SESSION_BUSY": "上一轮回复仍在生成或收尾中，请稍候片刻再发送，或开启新对话",
         "ERR_ACCOUNT_RUNS_BUSY": "已有任务正在进行，请等待完成或停止当前任务后再试。",
@@ -332,7 +308,6 @@ ERROR_MESSAGES = {
     "en": {
         "ERR_INTERNAL_SERVER_ERROR": "Internal server error, please try again later",
         "ERR_VALIDATION_ERROR": "Request validation failed",
-        "ERR_DATABASE_ERROR": "Database operation failed",
         "ERR_RESOURCE_CONFLICT": "The request conflicts with existing data",
         "ERR_SERVICE_UNAVAILABLE": "Service temporarily unavailable",
         "ERR_BAD_REQUEST": "Invalid request format",
@@ -349,7 +324,6 @@ ERROR_MESSAGES = {
         "ERR_AUTH_EMAIL_ALREADY_VERIFIED": "Email already verified",
         "ERR_AUTH_INVALID_VERIFICATION_CODE": "Invalid or expired verification code",
         "ERR_AUTH_INVITE_CODE_REQUIRED": "Invite code is required",
-        "ERR_AUTH_REGISTRATION_FAILED": "Registration failed, please try again later",
         "ERR_AUTH_RESEND_FAILED": "The verification code was not sent. Please try again shortly; if it keeps failing, check that the email address is correct",
         "ERR_AUTH_VERIFICATION_COOLDOWN": "A code was just sent. Please wait before resending, and check your spam folder",
         "ERR_AUTH_EMAIL_UNDELIVERABLE": "We cannot send a code to this email. Check and correct the address.",
@@ -361,9 +335,6 @@ ERROR_MESSAGES = {
         "ERR_NOT_AUTHORIZED_TO_EXPORT": "You are not authorized to export this project",
 
         "ERR_PROJECT_NOT_FOUND": "Project not found",
-        "ERR_PROJECT_ALREADY_EXISTS": "Project already exists",
-        "ERR_PROJECT_SOFT_DELETED": "Project has been deleted",
-        "ERR_PROJECT_EXPORT_NO_DRAFTS": "No drafts available to export",
 
         "ERR_FILE_NOT_FOUND": "File not found",
         "ERR_FILE_TYPE_INVALID": "Invalid file type",
@@ -389,7 +360,6 @@ ERROR_MESSAGES = {
 
         "ERR_VERSION_NOT_FOUND": "Version not found",
         "ERR_VERSION_NO_VERSIONS_FOUND": "No versions found for this file",
-        "ERR_VERSION_DELETE_FAILED": "Failed to delete version",
         "ERR_VERSION_RESTORE_FAILED": "Failed to restore version",
 
         "ERR_EXPORT_NO_DRAFTS": "No drafts found in this project",
@@ -410,8 +380,6 @@ ERROR_MESSAGES = {
         "ERR_REFERRAL_CODE_EXPIRED": "Invite code has expired",
         "ERR_REFERRAL_CODE_USED_UP": "Invite code has reached usage limit",
 
-        "ERR_SUBSCRIPTION_NOT_FOUND": "Subscription not found",
-        "ERR_SUBSCRIPTION_EXPIRED": "Subscription has expired",
         "ERR_FEATURE_NOT_INCLUDED": "This feature is not included in the current plan",
         "ERR_PAYMENT_SYNC_FAILED": "Could not check the order with the payment provider. Refresh later.",
 
@@ -433,11 +401,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU": "You've already redeemed this code; it's on your account.",
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "Too many redemption attempts, please try again later",
 
-        "ERR_POINTS_INSUFFICIENT_BALANCE": "Insufficient points balance",
         "ERR_POINTS_REDEMPTION_DISABLED": "Redeeming points for Pro is disabled",
-        "ERR_POINTS_ALREADY_CHECKED_IN": "Already checked in today",
-        "ERR_POINTS_INVALID_AMOUNT": "Invalid points amount",
-        "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "Minimum redemption is 7 days",
 
         "ERR_SESSION_BUSY": "The previous reply is still being generated or finalized. Wait a moment, or start a new chat",
         "ERR_ACCOUNT_RUNS_BUSY": "A task is already running. Wait for it to finish or stop it, then try again.",

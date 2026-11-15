@@ -59,7 +59,7 @@ export function normalizeDocsHref(href: string, currentPathname: string): string
   let resolvedPath: string;
 
   if (rawPath.startsWith('/')) {
-    if (rawPath.startsWith('/docs') || rawPath === '/docs') {
+    if (rawPath.startsWith('/docs')) {
       resolvedPath = rawPath;
     } else if (rawPath.endsWith('.md')) {
       // 兼容历史绝对链接：/getting-started/quick-start.md
@@ -95,7 +95,7 @@ export async function loadMarkdownContent(docPath: string, language: string): Pr
   // 如果是英文，尝试加载英文文档
   if (isEnglish) {
     // 如果是文档首页，尝试加载 en/README.md
-    if (!docPath || docPath === '') {
+    if (!docPath) {
       const enReadmePath = `${DOCS_ROOT}/en/README.md`;
       if (docsModules[enReadmePath]) {
         const content = await docsModules[enReadmePath]() as string;
@@ -129,7 +129,7 @@ export async function loadMarkdownContent(docPath: string, language: string): Pr
 
   // 中文：加载中文文档
   // 如果是文档首页，加载 README.md
-  if (!docPath || docPath === '') {
+  if (!docPath) {
     const readmePath = `${DOCS_ROOT}/README.md`;
     if (docsModules[readmePath]) {
       const content = await docsModules[readmePath]() as string;

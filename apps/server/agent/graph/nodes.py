@@ -181,15 +181,13 @@ class OutputEvaluationResult(NamedTuple):
     reason: str
 
 
-def evaluate_agent_output(content: str, agent_type: str = "unknown") -> OutputEvaluationResult:
+def evaluate_agent_output(content: str) -> OutputEvaluationResult:
     """
     Evaluate output quality signals for workflow decisions.
 
-    Priority order:
-    1) Explicit completion marker ([TASK_COMPLETE])
-    2) Conservative completion heuristics
+    Explicit completion marker ([TASK_COMPLETE] / [任务完成]) at the very end is the
+    only completion signal.
     """
-    _ = agent_type
     text = (content or "").strip()
     if not text:
         return OutputEvaluationResult(
@@ -240,7 +238,11 @@ class TaskCompleteResult(NamedTuple):
     reason: str
 
 
-def detect_task_complete(content: str, _agent_type: str = "unknown") -> TaskCompleteResult:
+def detect_task_complete(
+    content: str,
+    *,
+    evaluation: OutputEvaluationResult | None = None,
+) -> TaskCompleteResult:
     """
     检测 Agent 输出是否标记任务完成。
 
@@ -249,21 +251,14 @@ def detect_task_complete(content: str, _agent_type: str = "unknown") -> TaskComp
 
     Args:
         content: Agent 输出内容
-        agent_type: Agent 类型
+        evaluation: 已计算好的 OutputEvaluationResult（可选，避免同一段输出重复解析）
 
     Returns:
         TaskCompleteResult with is_complete flag, confidence, and reason
     """
-    evaluation = evaluate_agent_output(content, agent_type=_agent_type)
-    if evaluation.should_complete:
-        return TaskCompleteResult(
-            is_complete=True,
-            confidence=evaluation.complete_score,
-            reason=evaluation.reason,
-        )
-
+    resolved = evaluation if evaluation is not None else evaluate_agent_output(content)
     return TaskCompleteResult(
-        is_complete=False,
-        confidence=evaluation.complete_score,
-        reason=evaluation.reason,
+        is_complete=resolved.should_complete,
+        confidence=resolved.complete_score,
+        reason=resolved.reason,
     )

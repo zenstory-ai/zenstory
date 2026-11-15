@@ -26,6 +26,7 @@ __all__ = [
     "CONTENT_FILE_TYPES",
     "INVENTORY_FILE_TYPES",
     "coerce_bool",
+    "should_offload_session_work",
 ]
 
 
@@ -107,3 +108,10 @@ def coerce_bool(value: Any, default: bool = False) -> bool:
 
     # list/dict/自定义对象等：语义不明，不做猜测
     return default
+
+
+def should_offload_session_work(session: Any) -> bool:
+    """Only offload when running against PostgreSQL production-style sessions."""
+    bind = session.get_bind() if hasattr(session, "get_bind") else None
+    dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
+    return dialect_name == "postgresql"

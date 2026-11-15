@@ -55,11 +55,6 @@ export interface EarnOpportunity {
   is_available: boolean;
 }
 
-// Redeem Pro request
-export interface RedeemProRequest {
-  days: number;
-}
-
 // Redeem Pro response
 export interface RedeemProResponse {
   success: boolean;

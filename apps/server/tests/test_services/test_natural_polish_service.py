@@ -14,14 +14,18 @@ from services.features.natural_polish_service import (
     NaturalPolishFailure,
     NaturalPolishProtocolError,
     NaturalPolishService,
+    _parse_line_edits,
     apply_line_edits,
     guard_line_sentences,
     is_protected_sentence,
     join_sentences,
-    parse_line_edits,
     split_sentences,
 )
 from services.usage.llm_usage_service import LLMUsageAttribution
+
+
+def _parse_edits(output: str, original: str | None = None):
+    return _parse_line_edits(output, original)[0]
 
 
 @pytest.mark.unit
@@ -260,7 +264,7 @@ def test_exact_line_anchors_distinguish_normalized_collisions(
     if edit_both:
         output += f"\n\n原：{second}\n改：{revised_second}"
 
-    text, _ = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
     assert text == f"{revised_first}\n\n{revised_second if edit_both else second}"
 
@@ -274,7 +278,7 @@ def test_optional_marker_space_cannot_select_the_wrong_indented_line(indent: str
     output = f"原：{first}\n改：他在那儿站了很久，没动。"
 
     with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
-        apply_line_edits(f"{first}\n{second}", parse_line_edits(output))
+        apply_line_edits(f"{first}\n{second}", _parse_edits(output))
 
 
 @pytest.mark.unit
@@ -283,7 +287,7 @@ def test_trailing_whitespace_does_not_disambiguate_otherwise_identical_lines():
     output = f"原：{line} \n改：他在那儿站了很久，没动。"
 
     with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
-        apply_line_edits(f"{line} \n{line}  ", parse_line_edits(output))
+        apply_line_edits(f"{line} \n{line}  ", _parse_edits(output))
 
 
 @pytest.mark.unit
@@ -291,7 +295,7 @@ def test_unique_line_anchor_preserves_original_indentation_and_trailing_whitespa
     original = "    他，站在那里，很久，没有动。  \n\n　　窗外下着雨。"
     output = "原：    他，站在那里，很久，没有动。  \n改：他在那儿站了很久，没动。"
 
-    text, _ = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
     assert text == "    他在那儿站了很久，没动。  \n\n　　窗外下着雨。"
 
@@ -301,7 +305,7 @@ def test_normalized_line_anchor_still_matches_a_unique_original():
     original = '　　他说："不。"他心中一震。\n\n　　窗外下着雨。'
     output = "原：他说：“不。”他心中一震。\n改：他说：“不。”"
 
-    text, _ = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
     assert text == '　　他说："不。"\n\n　　窗外下着雨。'
 
@@ -312,7 +316,7 @@ def test_normalized_line_anchor_rejects_multiple_candidates_without_an_exact_mat
     output = "原：他，站在那里，  很久，没有动。\n改：他站了很久，没动。"
 
     with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
-        apply_line_edits(original, parse_line_edits(output))
+        apply_line_edits(original, _parse_edits(output))
 
 
 @pytest.mark.unit
@@ -324,7 +328,7 @@ def test_one_original_line_cannot_be_replaced_twice_using_different_quote_styles
     )
 
     with pytest.raises(NaturalPolishProtocolError, match="duplicate OLD anchor"):
-        apply_line_edits(original, parse_line_edits(output))
+        apply_line_edits(original, _parse_edits(output))
 
 
 @pytest.mark.unit
@@ -332,7 +336,7 @@ def test_distinct_substring_edits_in_one_line_remain_supported():
     original = "　　他心中一震，回头。她倒吸一口凉气，退后。"
     output = "原：他心中一震，回头。\n改：他回头。\n\n原：她倒吸一口凉气，退后。\n改：她退后。"
 
-    text, _ = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
     assert text == "　　他回头。她退后。"
 
@@ -345,7 +349,7 @@ def test_line_edit_response_rejects_dialect_switch_between_complete_pairs(revers
         pairs.reverse()
 
     with pytest.raises(NaturalPolishProtocolError):
-        parse_line_edits("\n\n".join(pairs))
+        _parse_edits("\n\n".join(pairs))
 
 
 @pytest.mark.unit
@@ -354,7 +358,7 @@ def test_line_edit_response_preserves_multiple_pairs_in_one_dialect(markers):
     old_marker, new_marker = markers
     output = f"{old_marker}First.\n{new_marker}Alpha.\n\n{old_marker}Second.\n{new_marker}Beta."
 
-    assert [(edit.old, edit.new) for edit in parse_line_edits(output)] == [
+    assert [(edit.old, edit.new) for edit in _parse_edits(output)] == [
         ("First.", "Alpha."),
         ("Second.", "Beta."),
     ]
@@ -376,6 +380,23 @@ def test_split_sentences_round_trips_and_keeps_closing_quotes():
     assert "".join(sentences) == text
     assert sentences[:3] == ["“走吧。”", "她说。", "他没动……"]
     assert "3.5" in sentences[-1]
+
+
+@pytest.mark.unit
+def test_split_sentences_keeps_cjk_corner_quotes_and_brackets_attached():
+    text = "「走吧。」『别动！』他说（小声。）【完。】《雨。》下一句。"
+
+    sentences = split_sentences(text)
+
+    assert "".join(sentences) == text
+    assert sentences == [
+        "「走吧。」",
+        "『别动！』",
+        "他说（小声。）",
+        "【完。】",
+        "《雨。》",
+        "下一句。",
+    ]
 
 
 @pytest.mark.unit
@@ -403,7 +424,7 @@ def test_restored_english_sentence_keeps_the_space_before_it():
     # 模型改写的最后一句没有句末空白；放回的原句不能和它粘在一起。
     original = "She left. She would rather I hated her than ever learned the truth about my father and the money."
 
-    text, _ = apply_line_edits(original, parse_line_edits(f"OLD: {original}\nNEW: She left."))
+    text = apply_line_edits(original, _parse_edits(f"OLD: {original}\nNEW: She left."))
 
     assert text == original
     indented = f"    {original}  "
@@ -431,7 +452,7 @@ def test_join_sentences_adds_a_space_only_at_latin_boundaries():
 def test_deleted_line_with_a_theme_sentence_comes_back_whole():
     original = f"{_THEME_LINE}\n\n　　窗外下着雨。"
 
-    text, _ = apply_line_edits(original, parse_line_edits(f"原：{_THEME_LINE}\n改："))
+    text = apply_line_edits(original, _parse_edits(f"原：{_THEME_LINE}\n改："))
 
     assert text == original
 
@@ -441,12 +462,12 @@ def test_stock_phrases_and_short_sentences_may_still_be_trimmed():
     original = "　　她唇角几不可察地勾起一抹弧度，指节泛白。不是愧疚，是心疼。她是在心疼我。"
     output = "原：" + original + "\n改：　　不是愧疚，是心疼。"
 
-    text, _ = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
     assert text == "　　不是愧疚，是心疼。"
     # 整行都是套话的行可以删。
     stock_only = "　　他心中一震，倒吸一口凉气。\n\n　　门开了。"
-    text, _ = apply_line_edits(stock_only, parse_line_edits("原：　　他心中一震，倒吸一口凉气。\n改："))
+    text = apply_line_edits(stock_only, _parse_edits("原：　　他心中一震，倒吸一口凉气。\n改："))
     assert text == "　　门开了。"
 
 
@@ -478,9 +499,9 @@ def test_script_lines_keep_one_prefix_when_a_sentence_is_restored():
     dialogue = "苏晚（低声）：我不怪你。我宁愿你恨我一辈子，也不想让你知道那天晚上的事。"
     action = "△ 苏晚站在雨里。她把那张写着周野名字的欠条撕成两半，扔进了排水沟。"
 
-    text, _ = apply_line_edits(
+    text = apply_line_edits(
         f"{dialogue}\n\n{action}",
-        parse_line_edits(
+        _parse_edits(
             f"原：{dialogue}\n改：苏晚（低声）：我不怪你。\n\n原：{action}\n改：△ 苏晚站在雨里。"
         ),
         file_type="script",
@@ -518,7 +539,7 @@ def test_blank_line_between_old_and_new_markers_is_accepted():
         "原：药盒是空的。他愣住了。心中一震。\n\n改：药盒是空的。他愣住了。"
     )
 
-    text, _ = apply_line_edits(_BLANK_SEPARATED, parse_line_edits(output))
+    text = apply_line_edits(_BLANK_SEPARATED, _parse_edits(output))
 
     assert text == "顾言推开门，屋里没开灯。\n\n药盒是空的。他愣住了。"
 
@@ -531,7 +552,7 @@ def test_unchanged_pair_on_a_repeated_line_is_skipped_instead_of_failing():
         "原：她也点了点头，眼泪却止不住地往下流，心头一紧。\n\n改：她也点了点头，眼泪却止不住地往下流。"
     )
 
-    text, _ = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
     assert text == "“好。”\n\n他转身离开。\n\n“好。”\n\n她也点了点头，眼泪却止不住地往下流。"
 
@@ -541,7 +562,7 @@ def test_multi_line_block_anchors_a_repeated_line_by_its_context():
     original = "“好。”\n他转身离开。\n“好。”\n她点了点头。"
     output = "原：“好。”\n她点了点头。\n改：“好吧。”\n她点了点头。"
 
-    text, _ = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
     assert text == "“好。”\n他转身离开。\n“好吧。”\n她点了点头。"
 
@@ -560,7 +581,7 @@ def test_multi_line_block_anchors_a_repeated_line_by_its_context():
 )
 def test_multi_line_block_keeps_anchor_safety(original: str, output: str, match: str):
     with pytest.raises(NaturalPolishProtocolError, match=match):
-        apply_line_edits(original, parse_line_edits(output))
+        apply_line_edits(original, _parse_edits(output))
 
 
 @pytest.mark.unit
@@ -577,7 +598,7 @@ def test_multi_line_block_keeps_anchor_safety(original: str, output: str, match:
 )
 def test_block_parser_still_rejects_extra_or_unpaired_text(output: str):
     with pytest.raises(NaturalPolishProtocolError):
-        parse_line_edits(output)
+        _parse_edits(output)
 
 
 _DIALOGUE = "「你来做什么？」苏棠冷冷地看着他。\n\n「来还你东西。」陆川把木盒放在桌上。"
@@ -701,9 +722,9 @@ _TWO_PARAGRAPHS_POLISHED = "　　进屋后，她摸黑走到桌边。\n\n　　
     ids=["code-fence", "bold-numbered", "bullets", "half-width-alias", "notes-around", "marker-own-line"],
 )
 def test_invalid_marker_shapes_with_clear_pairs_now_apply(reply: str):
-    edits = parse_line_edits(reply, _TWO_PARAGRAPHS)
+    edits = _parse_edits(reply, _TWO_PARAGRAPHS)
 
-    text, _ = apply_line_edits(_TWO_PARAGRAPHS, edits)
+    text = apply_line_edits(_TWO_PARAGRAPHS, edits)
 
     assert text == _TWO_PARAGRAPHS_POLISHED
 
@@ -713,7 +734,7 @@ def test_english_markers_ignore_case_and_full_width_colons():
     original = "She opened the door. The room was dark.\n\nHis heart lurched. He said nothing."
     reply = "old：She opened the door. The room was dark.\nnew：She opened the door to a dark room."
 
-    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+    text = apply_line_edits(original, _parse_edits(reply, original))
 
     assert text == "She opened the door to a dark room.\n\nHis heart lurched. He said nothing."
 
@@ -721,14 +742,14 @@ def test_english_markers_ignore_case_and_full_width_colons():
 @pytest.mark.unit
 @pytest.mark.parametrize("reply", ["无改动。", "无改动（这段已经很自然）", "No changes.", "NO CHANGE"])
 def test_no_change_wording_variants_without_any_marker_mean_no_change(reply: str):
-    assert parse_line_edits(reply, _TWO_PARAGRAPHS) == []
+    assert _parse_edits(reply, _TWO_PARAGRAPHS) == []
 
 
 @pytest.mark.unit
 def test_reply_cut_off_after_its_last_old_marker_keeps_the_complete_pairs():
     reply = "原：她推门。屋里没开灯。她摸到桌边。\n改：进屋后，她摸黑走到桌边。\n\n原：他心中一震，半晌没有说话。"
 
-    text, _ = apply_line_edits(_TWO_PARAGRAPHS, parse_line_edits(reply, _TWO_PARAGRAPHS))
+    text = apply_line_edits(_TWO_PARAGRAPHS, _parse_edits(reply, _TWO_PARAGRAPHS))
 
     assert text == "　　进屋后，她摸黑走到桌边。\n\n　　他心中一震，半晌没有说话。"
 
@@ -739,7 +760,7 @@ def test_trailing_old_followed_by_prose_is_a_protocol_error_not_truncation():
     reply = "原：她推门。屋里没开灯。她摸到桌边。\n改：进屋后，她摸黑走到桌边。\n\n原：他心中一震，半晌没有说话。\n我觉得这句也可以改"
 
     with pytest.raises(NaturalPolishProtocolError, match="expected NEW marker") as caught:
-        parse_line_edits(reply, _TWO_PARAGRAPHS)
+        _parse_edits(reply, _TWO_PARAGRAPHS)
     assert caught.value.category == "invalid_marker"
 
 
@@ -767,7 +788,7 @@ def test_no_change_line_does_not_excuse_a_lead_in_that_copies_the_selection():
     reply = "无改动\n她推门。屋里没开灯。她摸到桌边。\n原：他心中一震，半晌没有说话。\n改：他半晌没有说话。"
 
     with pytest.raises(NaturalPolishProtocolError, match="expected OLD marker"):
-        parse_line_edits(reply, _TWO_PARAGRAPHS)
+        _parse_edits(reply, _TWO_PARAGRAPHS)
 
 
 @pytest.mark.unit
@@ -787,7 +808,7 @@ def test_no_change_line_does_not_excuse_a_lead_in_that_copies_the_selection():
 )
 def test_replies_whose_intent_is_unclear_still_fail(reply: str):
     with pytest.raises(NaturalPolishProtocolError):
-        parse_line_edits(reply, _TWO_PARAGRAPHS)
+        _parse_edits(reply, _TWO_PARAGRAPHS)
 
 
 @pytest.mark.unit
@@ -812,7 +833,7 @@ def test_replies_whose_intent_is_unclear_still_fail(reply: str):
     ids=["half-width-punctuation", "ellipsis-dash", "wrapped-quotes", "substring-width", "fuzzy-one-char"],
 )
 def test_missing_anchor_shapes_now_find_their_line(original: str, reply: str, expected: str):
-    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+    text = apply_line_edits(original, _parse_edits(reply, original))
 
     assert text == expected
 
@@ -826,7 +847,7 @@ def test_fuzzy_anchor_refuses_when_two_lines_are_equally_close():
     reply = "原：那天傍晚，站在院门口，一直望着通往镇上的那条土路。\n改：那天傍晚，有人站在院门口。"
 
     with pytest.raises(NaturalPolishProtocolError, match="unmatched OLD anchor"):
-        apply_line_edits(original, parse_line_edits(reply, original))
+        apply_line_edits(original, _parse_edits(reply, original))
 
 
 _REPEATED = "“好。”\n他转身离开。\n“好。”\n她点了点头，心头一紧。"
@@ -847,7 +868,7 @@ _REPEATED = "“好。”\n他转身离开。\n“好。”\n她点了点头，�
     ids=["before-unique", "between-unique", "k-pairs-k-copies"],
 )
 def test_ambiguous_anchor_is_settled_by_the_listed_order(reply: str, expected: str):
-    text, _ = apply_line_edits(_REPEATED, parse_line_edits(reply, _REPEATED))
+    text = apply_line_edits(_REPEATED, _parse_edits(reply, _REPEATED))
 
     assert text == expected
 
@@ -865,7 +886,7 @@ def test_ambiguous_anchor_is_settled_by_the_listed_order(reply: str, expected: s
 )
 def test_ambiguous_anchor_without_trustworthy_order_still_fails(reply: str):
     with pytest.raises(NaturalPolishProtocolError, match="ambiguous OLD anchor"):
-        apply_line_edits(_REPEATED, parse_line_edits(reply, _REPEATED))
+        apply_line_edits(_REPEATED, _parse_edits(reply, _REPEATED))
 
 
 @pytest.mark.unit
@@ -873,7 +894,7 @@ def test_tolerated_reply_leaves_unmentioned_lines_byte_identical_and_drops_notes
     original = "　　第一段，原样。\t\n\n　　他心中一震，半晌没有说话。\n\n  第三段  \n"
     reply = "```text\n以下是修改：\n**原：**他心中一震，半晌没有说话。\n**改：**他半晌没有说话。\n\n说明：去掉了套话。\n```"
 
-    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+    text = apply_line_edits(original, _parse_edits(reply, original))
 
     assert text == "　　第一段，原样。\t\n\n　　他半晌没有说话。\n\n  第三段  \n"
     assert "说明" not in text and "以下" not in text
@@ -928,7 +949,7 @@ def test_prompts_are_static_prefixes_with_paired_rules():
 )
 def test_partial_anchor_ending_in_a_dash_or_ellipsis_run_replaces_the_whole_run(original, reply, expected):
     # 锚点规范化把一串「—」「…」「.」并成一个字符：句内替换要切到整串的末尾，不留下多出来的标点。
-    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+    text = apply_line_edits(original, _parse_edits(reply, original))
 
     assert text == expected
 
@@ -945,7 +966,7 @@ def test_partial_anchor_ending_in_a_dash_or_ellipsis_run_replaces_the_whole_run(
 def test_own_line_empty_new_followed_by_a_note_deletes_the_line_and_drops_the_note(reply):
     # 「改：」单独一行又是空的：这是删掉这一行。空行后面的说明不能当成改写写进选区。
     original = "他心中一震。\n她转身离开了房间。"
-    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+    text = apply_line_edits(original, _parse_edits(reply, original))
 
     assert "套话" not in text
     assert "他心中一震" not in text
@@ -1002,10 +1023,10 @@ def test_english_partial_anchor_does_not_match_across_word_boundaries():
     original = "Intro line here.\nI saw the rapist leave the room quietly.\nEnd."
 
     with pytest.raises(NaturalPolishProtocolError) as caught:
-        apply_line_edits(original, parse_line_edits("OLD:therapist\nNEW:doctor", original))
+        apply_line_edits(original, _parse_edits("OLD:therapist\nNEW:doctor", original))
     assert caught.value.category == "missing_anchor"
 
-    text, _ = apply_line_edits(original, parse_line_edits("OLD:the  Rapist\nNEW:the man", original))
+    text = apply_line_edits(original, _parse_edits("OLD:the  Rapist\nNEW:the man", original))
     assert text == "Intro line here.\nI saw the man leave the room quietly.\nEnd."
 
 
@@ -1015,7 +1036,7 @@ def test_own_line_empty_new_followed_by_blank_line_then_a_rewrite_applies_the_re
     original = "他推开门，走进了那个昏暗的房间。"
     reply = "原：\n他推开门，走进了那个昏暗的房间。\n改：\n\n他推开门，走进昏暗的房间。"
 
-    text, _ = apply_line_edits(original, parse_line_edits(reply, original))
+    text = apply_line_edits(original, _parse_edits(reply, original))
 
     assert text == "他推开门，走进昏暗的房间。"
 
@@ -1024,7 +1045,7 @@ def test_own_line_empty_new_followed_by_blank_line_then_a_rewrite_applies_the_re
 def test_partial_anchor_rejected_at_a_word_boundary_keeps_searching_inside_it():
     # "ha haha" 里第一个候选跨了词边界被拒；后面的 "haha" 和它重叠，仍要找到。
     original = "Intro.\nha haha end\nOutro."
-    text, _ = apply_line_edits(original, parse_line_edits("OLD:haha\nNEW:hoho", original))
+    text = apply_line_edits(original, _parse_edits("OLD:haha\nNEW:hoho", original))
     assert text == "Intro.\nha hoho end\nOutro."
 
 
@@ -1033,5 +1054,5 @@ def test_partial_anchor_with_two_overlapping_word_matches_stays_ambiguous():
     original = "Intro.\nha hahaha end\nOutro."
 
     with pytest.raises(NaturalPolishProtocolError) as caught:
-        apply_line_edits(original, parse_line_edits("OLD:haha\nNEW:hoho", original))
+        apply_line_edits(original, _parse_edits("OLD:haha\nNEW:hoho", original))
     assert caught.value.category == "ambiguous_anchor"

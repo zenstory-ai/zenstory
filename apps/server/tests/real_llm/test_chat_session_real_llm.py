@@ -40,7 +40,7 @@ async def test_chat_session_lifecycle_after_real_stream(
     ), f"No terminal event found in SSE stream: {names[-20:]}"
 
     messages_response = await client.get(
-        f"/api/v1/chat/session/{project_id}/messages",
+        f"/api/v1/chat/session/{project_id}/recent?limit=20",
         headers=context["headers"],
     )
     assert messages_response.status_code == 200
@@ -56,7 +56,7 @@ async def test_chat_session_lifecycle_after_real_stream(
     assert clear_response.json().get("success") is True
 
     cleared_messages_response = await client.get(
-        f"/api/v1/chat/session/{project_id}/messages",
+        f"/api/v1/chat/session/{project_id}/recent?limit=20",
         headers=context["headers"],
     )
     assert cleared_messages_response.status_code == 200

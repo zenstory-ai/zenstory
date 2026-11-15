@@ -278,6 +278,7 @@ def _run_novel_ingestion(
     downloaded_source_path: str | None = None
     content_hash: str | None = None
     encoding: str | None = None
+    decoded_text: str | None = None
     try:
         # =================================================================
         # 阶段0: 初始化和文件验证
@@ -306,7 +307,7 @@ def _run_novel_ingestion(
 
             # 解码：与上传接口预检使用同一个函数，API 接受的文件这里一定能解码
             try:
-                _, encoding = read_novel_text(local_file_path)
+                decoded_text, encoding = read_novel_text(local_file_path)
             except NovelDecodeError as decode_error:
                 raise MaterialPipelineError(
                     ErrorCode.MATERIAL_FILE_UNREADABLE, str(decode_error)
@@ -331,12 +332,10 @@ def _run_novel_ingestion(
             resume_result = _check_and_resume_from_checkpoint(
                 content_hash=content_hash,
                 user_id=user_id,
-                novel_id=novel_id,
                 job_id=job_id,
                 correlation_id=correlation_id,
                 flow_start=flow_start,
                 logger=logger,
-                publisher=publisher,
             )
 
             # 如果已完成或成功恢复,直接返回
@@ -388,6 +387,7 @@ def _run_novel_ingestion(
                     publisher=publisher,
                     existing_novel_id=novel_id,
                     job_id=job_id,
+                    novel_text=decoded_text,
                 )
                 chapter_ids = stage0_result["chapter_ids"]
                 checkpoint_manager = stage0_result["checkpoint_manager"]
@@ -407,6 +407,7 @@ def _run_novel_ingestion(
                 logger=logger,
                 publisher=publisher,
                 job_id=job_id,
+                novel_text=decoded_text,
             )
             novel_id = stage0_result["novel_id"]
             chapter_ids = stage0_result["chapter_ids"]
@@ -495,11 +496,9 @@ def _run_novel_ingestion(
 def _check_and_resume_from_checkpoint(
     content_hash: str,
     user_id: str,
-    novel_id: int | None,  # noqa: ARG001
     correlation_id: str | None,
     flow_start: float,
     logger: Any,
-    publisher: ProgressPublisher,  # noqa: ARG001
     job_id: int | None = None,
 ) -> dict[str, Any]:
     """
@@ -566,19 +565,6 @@ def _check_and_resume_from_checkpoint(
             logger.info("[断点检查] 保留失败检查点,准备按能力恢复")
             return {"completed": False, "novel_id": existing_novel.id}
 
-        elif stage == 'completed':
-            # 任务已完成
-            logger.info("[断点检查] 任务已完成,直接返回")
-            return {
-                "completed": True,
-                "result": {
-                    "novel_id": existing_novel.id,
-                    "chapters_count": len(chapter_ids),
-                    "status": "already_completed",
-                    "elapsed_ms": _elapsed_ms(flow_start),
-                }
-            }
-
         elif stage in ['stage1', 'stage2', 'stage2a', 'stage2b', 'stage2c']:
             # 从阶段1或阶段2恢复
             logger.info("[断点检查] 从%s恢复", stage)
@@ -623,6 +609,7 @@ def _execute_stage0(
     publisher: ProgressPublisher,
     existing_novel_id: int | None = None,
     job_id: int | None = None,
+    novel_text: str | None = None,
 ) -> dict[str, Any]:
     """
     执行阶段0: 文件摄取与章节建立
@@ -641,8 +628,12 @@ def _execute_stage0(
     logger.info("[阶段0] 文件摄取与章节建立")
     logger.info("=" * 60)
 
-    # 解析章节
-    parse_result = parse_novel_chapters(file_path, encoding)
+    # 解析章节（若主流程已解码全文则直接复用，避免二次读盘解码）
+    parse_result = (
+        parse_novel_chapters(file_path, encoding, text=novel_text)
+        if novel_text is not None
+        else parse_novel_chapters(file_path, encoding)
+    )
     chapters_data = parse_result["chapters"]
     inferred_title = parse_result["novel_title"]
 
@@ -821,8 +812,6 @@ def _execute_stage0(
                 chapters_created=len(chapter_ids),
             )
 
-        session.commit()
-
     logger.info("[阶段0] 创建 %d 个章节记录", len(chapter_ids))
 
     # 发布进度
@@ -883,7 +872,6 @@ def _mark_job_as_failed(
     logger: Any,
     publisher: ProgressPublisher,
     correlation_id: str | None = None,
-    _correlation_id: str | None = None,
     job_id: int | None = None,
     exception_type: str | None = None,
 ) -> None:
@@ -894,7 +882,6 @@ def _mark_job_as_failed(
     IngestionJobsService.fail_job 退还该任务占用的额度。
     """
     elapsed_ms = _elapsed_ms(flow_start)
-    resolved_correlation_id = correlation_id or _correlation_id
 
     # 发布失败进度
     publisher.publish(
@@ -934,7 +921,7 @@ def _mark_job_as_failed(
                         details={
                             "elapsed_ms": elapsed_ms,
                             "exception_type": exception_type,
-                            "correlation_id": resolved_correlation_id,
+                            "correlation_id": correlation_id,
                         },
                     )
         except Exception as e:
@@ -991,5 +978,4 @@ def _validate_and_repair_job_identity(
             changed = True
         if changed:
             session.add(job)
-            session.commit()
         return True

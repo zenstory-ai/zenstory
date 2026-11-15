@@ -178,4 +178,52 @@ describe("ImportMaterialDialog", () => {
     await act(async () => { await Promise.resolve(); });
     expect(screen.queryByRole("option", { name: "Project A Folder" })).not.toBeInTheDocument();
   });
+
+  it("keeps the recommended folder option selected when a folder with suggested_folder_name already exists", async () => {
+    vi.mocked(fileApi.getTree).mockResolvedValueOnce({
+      tree: [
+        { id: "folder-chars", title: "Characters", file_type: "folder" },
+        { id: "folder-other", title: "Other Folder", file_type: "folder" },
+      ],
+    } as never);
+    vi.mocked(materialsApi.importToProject).mockResolvedValueOnce({
+      file_id: "file-1",
+      folder_name: "Characters",
+    } as never);
+
+    render(
+      <ImportMaterialDialog
+        isOpen
+        onClose={vi.fn()}
+        preview={{
+          title: "Preview",
+          markdown: "content",
+          novel_title: "Novel",
+          suggested_file_type: "character",
+          suggested_folder_name: "Characters",
+          suggested_file_name: "Hero",
+        }}
+        novelId={1}
+        entityType="characters"
+        entityId={1}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    const folderSelect = screen.getByRole("combobox");
+    await waitFor(() => {
+      expect(folderSelect.querySelector('option[value="folder-other"]')).not.toBeNull();
+    });
+    expect(folderSelect).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "editor:fileTree.importDialog.confirm" }));
+    await waitFor(() => {
+      expect(materialsApi.importToProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project_id: "project-1",
+          target_folder_id: undefined,
+        })
+      );
+    });
+  });
 });

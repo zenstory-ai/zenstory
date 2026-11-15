@@ -35,21 +35,6 @@ class ContextPriority(StrEnum):
     """Inspirational text - low-importance lore, general references."""
 
     @classmethod
-    def get_budget_allocation(cls) -> dict["ContextPriority", float]:
-        """
-        Get default budget allocation percentages.
-
-        Returns:
-            Dict mapping priority to percentage (0.0-1.0)
-        """
-        return {
-            cls.CRITICAL: 0.30,      # 30% for focus content
-            cls.CONSTRAINT: 0.35,    # 35% for constraints
-            cls.RELEVANT: 0.25,      # 25% for relevant snippets
-            cls.INSPIRATION: 0.10,   # 10% for inspiration
-        }
-
-    @classmethod
     def priority_order(cls) -> list["ContextPriority"]:
         """Get priorities in order from highest to lowest."""
         return [
@@ -90,13 +75,6 @@ class ContextItem(BaseModel):
         default_factory=dict,
         description="Additional metadata"
     )
-
-    @property
-    def token_estimate(self) -> int:
-        """Estimate token count for this item."""
-        # Rough estimate: 1 token ≈ 4 characters for Chinese/English mix
-        text = f"{self.title}\n{self.content}"
-        return max(1, len(text) // 4)
 
     @property
     def is_focus(self) -> bool:

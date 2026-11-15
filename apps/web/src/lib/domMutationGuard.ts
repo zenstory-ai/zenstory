@@ -20,7 +20,6 @@ function isPageTranslated(): boolean {
 }
 
 export function installDomMutationGuard(): void {
-  if (typeof Node === "undefined") return;
   const reported = new Set<string>();
   const report = (operation: "removeChild" | "insertBefore") => {
     if (reported.has(operation)) return;

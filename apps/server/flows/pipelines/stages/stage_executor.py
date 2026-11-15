@@ -19,6 +19,8 @@ from config.material_settings import resolve_enabled_stages, warn_explicitly_dro
 from core.error_codes import ErrorCode
 from flows.database_session import get_prefect_db_session
 from flows.pipelines.helpers import ProgressPublisher, ResultBuilder
+from flows.utils.helpers.exceptions import is_llm_fatal_stop
+from services.material.job_errors import MaterialPipelineError
 
 META_EXTRACTION_ERROR = "Metadata extraction failed"
 META_EXTRACTION_ERROR_CODE = "ERR_MATERIAL_META_EXTRACTION_FAILED"
@@ -47,7 +49,6 @@ def _parse_cp_data(checkpoint) -> dict[str, Any]:
 def _task_run_story_aggregate(
     novel_id: int,
     chapter_ids: list[int],
-    correlation_id: str | None = None,
     job_id: int | None = None,
 ) -> dict[str, Any]:
     """任务包装器：执行剧情聚合子流程"""
@@ -55,7 +56,6 @@ def _task_run_story_aggregate(
     return story_aggregate_flow(
         novel_id=novel_id,
         chapter_ids=chapter_ids,
-        correlation_id=correlation_id,
         job_id=job_id,
     )
 
@@ -63,7 +63,6 @@ def _task_run_story_aggregate(
 def _task_run_relationship(
     novel_id: int,
     chapter_ids: list[int],
-    correlation_id: str | None = None,
     job_id: int | None = None,
 ) -> dict[str, Any]:
     """任务包装器：执行人物关系子流程"""
@@ -71,17 +70,16 @@ def _task_run_relationship(
     return relationship_flow(
         novel_id=novel_id,
         chapter_ids=chapter_ids,
-        correlation_id=correlation_id,
         job_id=job_id,
     )
 
 @task(name="run_character_entity_build_subflow", persist_result=False)
-def _task_run_character_entity_build(novel_id: int, correlation_id: str | None = None) -> dict[str, Any]:
+def _task_run_character_entity_build(novel_id: int) -> dict[str, Any]:
     """任务包装器：执行角色实体构建子流程"""
     from flows.pipelines.subflows.character_entity_build_flow import (
         character_entity_build_flow,
     )
-    return character_entity_build_flow(novel_id=novel_id, correlation_id=correlation_id)
+    return character_entity_build_flow(novel_id=novel_id)
 
 
 class StageExecutor:
@@ -153,7 +151,8 @@ class StageExecutor:
                 job = self._resolve_job(session, svc)
                 if job:
                     svc.set_enabled_stages(session, job.id, snapshot)
-                    session.commit()
+        except ValueError:
+            raise
         except Exception as e:
             self.logger.warning(f"[阶段开关] 写入阶段快照失败: {e}")
         return snapshot
@@ -186,13 +185,12 @@ class StageExecutor:
         stage1_start = time.perf_counter()
 
         # 并行触发元信息提取（统一逻辑）
-        meta_future = self._handle_meta_extraction(is_parallel=True)
+        meta_future = self._handle_meta_extraction()
 
         # 执行章节提取流程
         stage1_result = chapter_extraction_flow(
             novel_id=self.novel_id,
             chapter_ids=self.chapter_ids,
-            correlation_id=self.correlation_id,  # 【修复】统一传递关联ID
             job_id=self.job_id,
         )
 
@@ -202,6 +200,8 @@ class StageExecutor:
                 meta_result = meta_future.result()
                 self._complete_meta_extraction(meta_result)
             except Exception as e:
+                if is_llm_fatal_stop(e) or isinstance(e, MaterialPipelineError):
+                    raise
                 self.logger.warning(f"[阶段1] 元信息并行提取失败: {e}")
                 self._record_meta_failure(e)
 
@@ -215,6 +215,7 @@ class StageExecutor:
         self.checkpoint_manager.mark_stage_completed("stage1", {
             "summaries_count": stage1_result.get("summaries_count", 0),
             "plots_count": stage1_result.get("plots_count", 0),
+            "mentions_extracted": stage1_result.get("mentions_extracted", False),
             "failed_count": failed_count,
             "failed_chapters": stage1_result.get("failed_chapters", []),
             "failed_mention_chapters": stage1_result.get("failed_mention_chapters", []),
@@ -419,15 +420,12 @@ class StageExecutor:
 
         return result
 
-    def _handle_meta_extraction(self, is_parallel: bool = True) -> Any | None:
+    def _handle_meta_extraction(self) -> Any | None:
         """
-        统一处理元信息提取逻辑
-
-        Args:
-            is_parallel: 是否并行执行（True=submit, False=直接执行）
+        统一处理元信息并行提取逻辑
 
         Returns:
-            Future对象（并行模式）或 None
+            Future对象 或 None
         """
         if not self.stages.meta:
             return None
@@ -445,21 +443,19 @@ class StageExecutor:
             from flows.atomic_tasks.entities import extract_novel_meta_task
             self.logger.info("[元信息] 开始提取...")
             self._meta_extraction["executed"] = True
-
-            if is_parallel:
-                # 并行模式：返回 Future
-                return extract_novel_meta_task.submit(novel_id=self.novel_id)
-            else:
-                # 同步模式：直接执行
-                meta_result = extract_novel_meta_task(novel_id=self.novel_id)
-                self._complete_meta_extraction(meta_result)
-                return None
+            return extract_novel_meta_task.submit(novel_id=self.novel_id)
         except Exception as e:
+            if is_llm_fatal_stop(e) or isinstance(e, MaterialPipelineError):
+                raise
             self.logger.warning(f"[元信息] 提取失败: {e}")
             self._record_meta_failure(e)
             return None
 
-    def _record_meta_failure(self, _error: Exception | str) -> None:
+    def _record_meta_failure(self, error: Exception | str) -> None:
+        if isinstance(error, BaseException) and (
+            is_llm_fatal_stop(error) or isinstance(error, MaterialPipelineError)
+        ):
+            raise error
         self._meta_extraction.update(
             executed=True,
             succeeded=False,
@@ -518,6 +514,8 @@ class StageExecutor:
             return True
 
         except Exception as e:
+            if is_llm_fatal_stop(e) or isinstance(e, MaterialPipelineError):
+                raise
             self.logger.error(f"[元信息] 保存失败: {e}", exc_info=True)
             self._record_meta_failure(e)
             # 【修复 Bug #3】不要 raise，让上层流程继续（元信息是可选的）
@@ -559,14 +557,7 @@ class StageExecutor:
                 stage1_result = stats_service.count_stage1(session, self.novel_id)
             self.logger.debug(f"[阶段2] 从数据库加载: {stage1_result}")
 
-        # 3. 检查角色提及提取状态（从 stage1 checkpoint）
-        mentions_extracted = stage1_result.get("mentions_extracted", False)
-        if not mentions_extracted:
-            # 降级：从 checkpoint 获取
-            stage1_cp = self.checkpoint_manager.get_checkpoint("stage1")
-            _cp_data = _parse_cp_data(stage1_cp)
-            mentions_extracted = _cp_data.get("mentions_extracted", False)
-
+        mentions_extracted = bool((stage1_result or {}).get("mentions_extracted", False))
         if stage1_result:
             stage1_result["mentions_extracted"] = mentions_extracted
         else:
@@ -643,7 +634,7 @@ class StageExecutor:
         # 启动任务
         if not stage2a_done:
             self.logger.info("[阶段2-剧情] 子流未完成，并行执行 story_aggregate_flow")
-            story_args = (self.novel_id, self.chapter_ids, self.correlation_id)
+            story_args = (self.novel_id, self.chapter_ids)
             if self.job_id is None:
                 story_future = _task_run_story_aggregate.submit(*story_args)
             else:
@@ -653,7 +644,7 @@ class StageExecutor:
 
         if not stage2c_done and self.stages.characters:
             self.logger.info("[阶段2-角色] 子流未完成，并行执行 character_entity_build_flow")
-            character_entity_future = _task_run_character_entity_build.submit(self.novel_id, self.correlation_id)  # 【修复】传递关联ID
+            character_entity_future = _task_run_character_entity_build.submit(self.novel_id)
         else:
             if not self.stages.characters:
                 self.logger.info("[阶段2-角色] 角色提取功能未启用，跳过执行")
@@ -741,7 +732,7 @@ class StageExecutor:
 
         if not stage2b_done:
             self.logger.info("[阶段2-关系] 子流未完成，执行 relationship_flow")
-            relationship_args = (self.novel_id, self.chapter_ids, self.correlation_id)
+            relationship_args = (self.novel_id, self.chapter_ids)
             if self.job_id is None:
                 relationship_future = _task_run_relationship.submit(*relationship_args)
             else:
@@ -894,6 +885,8 @@ class StageExecutor:
                 svc = IngestionJobsService()
                 job = self._resolve_job(session, svc)
                 return job.id if job else None
+        except ValueError:
+            raise
         except Exception as e:
             self.logger.warning(f"[Job] 获取 Job ID 失败: {e}")
             return None
@@ -907,7 +900,7 @@ class StageExecutor:
         processed_chapters: int | None = None,
         status: str | None = None,
     ) -> None:
-        """同步 IngestionJob 的阶段进度，失败时仅记录 warning。"""
+        """同步 IngestionJob 的阶段进度，失败时仅记录 warning（跨小说所有权校验失败必须抛出）。"""
         try:
             from services.material.ingestion_jobs_service import IngestionJobsService
 
@@ -925,7 +918,8 @@ class StageExecutor:
                     stage_status=stage_status,
                     stage_data=payload or {},
                 )
-                session.commit()
+        except ValueError:
+            raise
         except Exception as e:
             self.logger.warning(f"[Job] 同步阶段进度失败: stage={stage}, status={stage_status}, err={e}")
 
@@ -957,48 +951,45 @@ class StageExecutor:
         character_entity_result: dict[str, Any],
     ) -> None:
         """
-        更新 IngestionJob 最终状态
+        更新 IngestionJob 最终状态（终态写库失败不能静默吞下）
         """
-        try:
-            from services.material.ingestion_jobs_service import IngestionJobsService
-            with get_prefect_db_session() as session:
-                svc = IngestionJobsService()
-                job = self._resolve_job(session, svc)
-                if job:
-                    svc.update_processed(
-                        session,
-                        job.id,
-                        processed_chapters=(stage1_result or {}).get(
-                            "processed_chapters", len(self.chapter_ids)
+        from services.material.ingestion_jobs_service import IngestionJobsService
+
+        with get_prefect_db_session() as session:
+            svc = IngestionJobsService()
+            job = self._resolve_job(session, svc)
+            if job:
+                svc.update_processed(
+                    session,
+                    job.id,
+                    processed_chapters=(stage1_result or {}).get(
+                        "processed_chapters", len(self.chapter_ids)
+                    ),
+                    status=final_status,
+                    stage="completed",
+                    stage_status=final_status,
+                    error_message=(
+                        ErrorCode.MATERIAL_PARTIALLY_COMPLETED
+                        if final_status == "completed_with_errors"
+                        else None
+                    ),
+                    stage_data={
+                        "chapters_total": len(self.chapter_ids),
+                        "failed_count": (stage1_result or {}).get("failed_count", 0)
+                        + character_entity_result.get("failed_count", 0)
+                        + int(
+                            (stage1_result or {})
+                            .get("meta_extraction", {})
+                            .get("succeeded")
+                            is False
                         ),
-                        status=final_status,
-                        stage="completed",
-                        stage_status=final_status,
-                        error_message=(
-                            ErrorCode.MATERIAL_PARTIALLY_COMPLETED
-                            if final_status == "completed_with_errors"
-                            else None
-                        ),
-                        stage_data={
-                            "chapters_total": len(self.chapter_ids),
-                            "failed_count": (stage1_result or {}).get("failed_count", 0)
-                            + character_entity_result.get("failed_count", 0)
-                            + int(
-                                (stage1_result or {})
-                                .get("meta_extraction", {})
-                                .get("succeeded")
-                                is False
-                            ),
-                            "failed_stories": story_result.get("failed_stories", []),
-                            "failed_chapters": (stage1_result or {}).get("failed_chapters", []),
-                            "failed_mention_chapters": (stage1_result or {}).get("failed_mention_chapters", []),
-                            "failed_characters": character_entity_result.get("failed_characters", []),
-                            "meta_extraction": (stage1_result or {}).get("meta_extraction"),
-                        },
-                    )
-                    session.commit()
-        except Exception as e:
-            self.logger.warning(f"[Job] 更新 Job 状态失败: {e}")
+                        "failed_stories": story_result.get("failed_stories", []),
+                        "failed_chapters": (stage1_result or {}).get("failed_chapters", []),
+                        "failed_mention_chapters": (stage1_result or {}).get("failed_mention_chapters", []),
+                        "failed_characters": character_entity_result.get("failed_characters", []),
+                        "meta_extraction": (stage1_result or {}).get("meta_extraction"),
+                    },
+                )
 
     def _resolve_job(self, session: Any, svc: Any) -> Any | None:
         """Resolve the exact job when supplied; legacy callers get one bounded fallback."""

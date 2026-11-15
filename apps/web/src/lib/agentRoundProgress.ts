@@ -29,11 +29,6 @@ export function proseUnits(text: string): number {
   return visible - letters + LATIN_WORD_UNITS * words.length;
 }
 
-/** Whether one streamed reply segment is real prose rather than a transitional line. */
-export function isRealProse(segmentContent: string): boolean {
-  return proseUnits(segmentContent) >= PROSE_MIN_CHARS;
-}
-
 /**
  * Counts reply text the way the server does (`StreamBillingTracker._prose_reached`): only
  * the text since the last segment boundary counts toward PROSE_MIN_CHARS. A boundary is a

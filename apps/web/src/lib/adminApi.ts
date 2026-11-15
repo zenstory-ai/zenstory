@@ -15,16 +15,16 @@
  */
 
 import {
-  ApiError,
   api,
+  apiErrorFromPayload,
   getAccessToken,
   getApiBase,
   resolveOwnedAuthSession,
   tryRefreshToken,
 } from "./apiClient";
-import { resolveApiErrorMessage } from "./errorHandler";
 import type {
   AcquisitionStats,
+  AuditLog,
   User,
   UserUpdateRequest,
   UsersListResponse,
@@ -33,6 +33,7 @@ import type {
   PromptReloadResult,
   PromptsListResponse,
   PendingSkill,
+  RedemptionCode,
   SkillReviewResource,
   SkillReviewStatus,
   DashboardStats,
@@ -45,7 +46,6 @@ import type {
   AdminFeedbackItem,
   AdminFeedbackListResponse,
   AdminFeedbackStatus,
-  // 商业化类型
   PointsStats,
   AdminPointsBalance,
   PointsAdjustRequest,
@@ -62,72 +62,39 @@ import type {
 import type { SubscriptionFeatures, SubscriptionPlan } from "../types/subscription";
 import type { PaymentOrder } from "../types/payment";
 
-export type { PendingSkill, SkillReviewResource, SkillReviewStatus } from "../types/admin";
+export type {
+  AuditLog,
+  PendingSkill,
+  RedemptionCode,
+  SkillReviewResource,
+  SkillReviewStatus,
+} from "../types/admin";
 
 const ADMIN_BASE = "/api/admin";
 const FALLBACK_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 
-const DEFAULT_DASHBOARD_STATS: DashboardStats = {
-  total_users: 0,
-  active_users: 0,
-  new_users_today: 0,
-  total_projects: 0,
-  author_created_projects: 0,
-  auto_initialized_projects: 0,
-  total_inspirations: 0,
-  pending_inspirations: 0,
-  active_subscriptions: 0,
-  pro_users: 0,
-  total_points_in_circulation: 0,
-  today_check_ins: 0,
-  active_invite_codes: 0,
-  week_referrals: 0,
-};
-
-const DEFAULT_ACTIVATION_FUNNEL: ActivationFunnelStats = {
-  window_days: 7,
-  period_start: "",
-  period_end: "",
-  steps: [],
-  activation_rate: 0,
-};
-
-const DEFAULT_UPGRADE_CONVERSION: UpgradeConversionStats = {
-  window_days: 7,
-  period_start: "",
-  period_end: "",
-  total_conversions: 0,
-  paid_conversions: 0,
-  unattributed_conversions: 0,
-  sources: [],
-  channels: [],
-  after_ai_quota_wall_conversions: 0,
-  paid_after_ai_quota_wall_conversions: 0,
-};
-
-const DEFAULT_UPGRADE_FUNNEL: UpgradeFunnelStats = {
-  window_days: 7,
-  period_start: "",
-  period_end: "",
-  totals: {
-    expose: 0,
-    click: 0,
-    conversion: 0,
-  },
-  sources: [],
-};
-
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asRecord(value: unknown): UnknownRecord | null {
-  if (isRecord(value)) {
-    return value;
+  return isRecord(value) ? value : null;
+}
+
+function requireRecord(value: unknown, errorMessage: string): UnknownRecord {
+  if (!isRecord(value)) {
+    throw new Error(errorMessage);
   }
-  return null;
+  return value;
+}
+
+function requireArray(value: unknown, errorMessage: string): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new Error(errorMessage);
+  }
+  return value;
 }
 
 function asText(value: unknown, fallback: string = ""): string {
@@ -157,6 +124,29 @@ function asNumber(value: unknown, fallback: number = 0): number {
     }
   }
   return fallback;
+}
+
+function requireFiniteNumber(value: unknown, errorMessage: string): number {
+  const parsed = asNumber(value, Number.NaN);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(errorMessage);
+  }
+  return parsed;
+}
+
+function requireString(value: unknown, errorMessage: string): string {
+  if (typeof value !== "string") {
+    throw new Error(errorMessage);
+  }
+  return value;
+}
+
+function requireNonEmptyString(value: unknown, errorMessage: string): string {
+  const text = asText(value);
+  if (!text) {
+    throw new Error(errorMessage);
+  }
+  return text;
 }
 
 function asBoolean(value: unknown, fallback: boolean = false): boolean {
@@ -210,9 +200,9 @@ function normalizeInspirationStatus(value: string): AdminInspiration["status"] {
 }
 
 function normalizeSubscriptionPlan(plan: unknown): SubscriptionPlan {
-  const raw = resolvePayloadRecord(plan);
+  const raw = requireRecord(plan, "Invalid subscription plan response");
   const rawName = asText(raw.name, "free");
-  const featuresRecord = asRecord(raw.features) ?? asRecord(raw.entitlements) ?? {};
+  const featuresRecord = asRecord(raw.features) ?? {};
   const effectiveFeatures = asRecord(raw.effective_features);
 
   return {
@@ -230,51 +220,8 @@ function normalizeSubscriptionPlan(plan: unknown): SubscriptionPlan {
   };
 }
 
-function pickArray<T>(payload: unknown, keys: string[]): T[] {
-  if (Array.isArray(payload)) {
-    return payload as T[];
-  }
-
-  const payloadRecord = asRecord(payload);
-  if (!payloadRecord) {
-    return [];
-  }
-
-  for (const key of keys) {
-    const value = payloadRecord[key];
-    if (Array.isArray(value)) {
-      return value as T[];
-    }
-  }
-
-  const nestedRecord = asRecord(payloadRecord.data);
-  if (!nestedRecord) {
-    return [];
-  }
-
-  for (const key of keys) {
-    const value = nestedRecord[key];
-    if (Array.isArray(value)) {
-      return value as T[];
-    }
-  }
-
-  return [];
-}
-
-function resolvePayloadRecord(payload: unknown): UnknownRecord {
-  if (isRecord(payload)) {
-    const nested = asRecord(payload.data);
-    if (nested) {
-      return nested;
-    }
-    return payload;
-  }
-  return {};
-}
-
 function normalizeUser(user: unknown): User {
-  const raw = resolvePayloadRecord(user);
+  const raw = requireRecord(user, "Invalid user response");
   const normalized: User = {
     id: asText(raw.id, ""),
     username: asText(raw.username, "-"),
@@ -300,7 +247,7 @@ function normalizeUser(user: unknown): User {
 }
 
 function normalizePendingSkill(skill: unknown): PendingSkill {
-  const raw = resolvePayloadRecord(skill);
+  const raw = requireRecord(skill, "Invalid pending skill response");
   return {
     id: asText(raw.id, ""),
     name: asText(raw.name, "Untitled Skill"),
@@ -308,10 +255,7 @@ function normalizePendingSkill(skill: unknown): PendingSkill {
     instructions: asText(raw.instructions, ""),
     category: asText(raw.category, "general"),
     tags: Array.isArray(raw.tags) ? raw.tags.map((tag) => String(tag)) : [],
-    skill_metadata:
-      raw.skill_metadata && typeof raw.skill_metadata === "object" && !Array.isArray(raw.skill_metadata)
-        ? (raw.skill_metadata as Record<string, unknown>)
-        : {},
+    skill_metadata: isRecord(raw.skill_metadata) ? raw.skill_metadata : {},
     resource_count: asNumber(raw.resource_count, 0),
     source: asText(raw.source, "community"),
     author_id: asNullableText(raw.author_id),
@@ -326,7 +270,7 @@ function normalizePendingSkill(skill: unknown): PendingSkill {
 }
 
 function normalizeSubscription(subscription: unknown): Subscription {
-  const raw = resolvePayloadRecord(subscription);
+  const raw = requireRecord(subscription, "Invalid subscription response");
   const id = asText(raw.id, "");
   const username = asText(raw.username, "-");
   const email = asText(raw.email, "-");
@@ -348,9 +292,11 @@ function normalizeSubscription(subscription: unknown): Subscription {
     plan_display_name: asNullableText(raw.plan_display_name),
     plan_display_name_en: asNullableText(raw.plan_display_name_en),
     effective_plan_name: effectivePlanName,
-    effective_plan_display_name: asNullableText(raw.effective_plan_display_name) ?? asNullableText(raw.plan_display_name),
+    effective_plan_display_name:
+      asNullableText(raw.effective_plan_display_name) ?? asNullableText(raw.plan_display_name),
     effective_plan_display_name_en:
-      asNullableText(raw.effective_plan_display_name_en) ?? asNullableText(raw.plan_display_name_en),
+      asNullableText(raw.effective_plan_display_name_en) ??
+      asNullableText(raw.plan_display_name_en),
     status,
     effective_status: effectiveStatus,
     current_period_start: asNullableIsoDate(raw.current_period_start),
@@ -366,7 +312,7 @@ function normalizeSubscription(subscription: unknown): Subscription {
 }
 
 function normalizeInspiration(inspiration: unknown): AdminInspiration {
-  const raw = resolvePayloadRecord(inspiration);
+  const raw = requireRecord(inspiration, "Invalid inspiration response");
   const sourceValue = asText(raw.source, "community");
   const statusValue = asText(raw.status, "pending");
   const tags = Array.isArray(raw.tags)
@@ -408,7 +354,7 @@ function normalizeFeedbackStatus(value: string): AdminFeedbackItem["status"] {
 }
 
 function normalizeAdminFeedback(feedback: unknown): AdminFeedbackItem {
-  const raw = resolvePayloadRecord(feedback);
+  const raw = requireRecord(feedback, "Invalid feedback response");
   return {
     id: asText(raw.id, ""),
     user_id: asText(raw.user_id, ""),
@@ -435,7 +381,7 @@ function normalizeAdminFeedback(feedback: unknown): AdminFeedbackItem {
 }
 
 function normalizeSystemPrompt(config: unknown): SystemPromptConfig {
-  const raw = resolvePayloadRecord(config);
+  const raw = requireRecord(config, "Invalid system prompt response");
   return {
     id: asText(raw.id, ""),
     project_type: asText(raw.project_type, "unknown"),
@@ -457,7 +403,7 @@ function normalizeSystemPrompt(config: unknown): SystemPromptConfig {
 }
 
 function normalizeRedemptionCode(code: unknown): RedemptionCode {
-  const raw = resolvePayloadRecord(code);
+  const raw = requireRecord(code, "Invalid redemption code response");
   return {
     id: asText(raw.id, ""),
     code: asText(raw.code, ""),
@@ -474,11 +420,13 @@ function normalizeRedemptionCode(code: unknown): RedemptionCode {
 }
 
 function normalizeAuditLog(log: unknown): AuditLog {
-  const raw = resolvePayloadRecord(log);
+  const raw = requireRecord(log, "Invalid audit log response");
   if (
-    !asText(raw.id) || !asText(raw.admin_id) ||
+    !asText(raw.id) ||
+    !asText(raw.admin_id) ||
     (typeof raw.admin_name !== "string" && raw.admin_name !== null) ||
-    !asText(raw.action) || !asText(raw.resource_type) ||
+    !asText(raw.action) ||
+    !asText(raw.resource_type) ||
     !Number.isFinite(Date.parse(asText(raw.created_at)))
   ) {
     throw new Error("Invalid audit log response");
@@ -493,7 +441,6 @@ function normalizeAuditLog(log: unknown): AuditLog {
     action: asText(raw.action, ""),
     resource_type: asText(raw.resource_type, ""),
     resource_id: asText(raw.resource_id, ""),
-    details: asNullableText(raw.details),
     old_value: oldValue,
     new_value: newValue,
     ip_address: asNullableText(raw.ip_address),
@@ -503,32 +450,34 @@ function normalizeAuditLog(log: unknown): AuditLog {
 }
 
 function normalizePointsStats(stats: unknown): PointsStats {
-  const raw = resolvePayloadRecord(stats);
+  const errorMessage = "Invalid points stats response";
+  const raw = requireRecord(stats, errorMessage);
   return {
-    total_points_issued: asNumber(raw.total_points_issued, 0),
-    total_points_spent: asNumber(raw.total_points_spent, 0),
-    total_points_expired: asNumber(raw.total_points_expired, 0),
-    active_users_with_points: asNumber(raw.active_users_with_points, 0),
+    total_points_issued: requireFiniteNumber(raw.total_points_issued, errorMessage),
+    total_points_spent: requireFiniteNumber(raw.total_points_spent, errorMessage),
+    total_points_expired: requireFiniteNumber(raw.total_points_expired, errorMessage),
+    active_users_with_points: requireFiniteNumber(raw.active_users_with_points, errorMessage),
   };
 }
 
 function normalizeUserPoints(balance: unknown): AdminPointsBalance {
-  const raw = resolvePayloadRecord(balance);
+  const errorMessage = "Invalid user points response";
+  const raw = requireRecord(balance, errorMessage);
   return {
-    user_id: asText(raw.user_id, ""),
+    user_id: requireNonEmptyString(raw.user_id, errorMessage),
     username: asText(raw.username, "-"),
     email: asText(raw.email, "-"),
-    available: asNumber(raw.available, 0),
-    pending_expiration: asNumber(raw.pending_expiration, 0),
-    total_earned: asNumber(raw.total_earned, 0),
-    total_spent: asNumber(raw.total_spent, 0),
+    available: requireFiniteNumber(raw.available, errorMessage),
+    pending_expiration: requireFiniteNumber(raw.pending_expiration, errorMessage),
+    total_earned: requireFiniteNumber(raw.total_earned, errorMessage),
+    total_spent: requireFiniteNumber(raw.total_spent, errorMessage),
   };
 }
 
 function normalizePointsTransaction(
   transaction: unknown
 ): PointsTransactionsResponse["items"][number] {
-  const raw = resolvePayloadRecord(transaction);
+  const raw = requireRecord(transaction, "Invalid points transaction response");
   return {
     id: asText(raw.id, ""),
     user_id: asText(raw.user_id, ""),
@@ -545,30 +494,31 @@ function normalizePointsTransaction(
 }
 
 function normalizeCheckInStats(stats: unknown): CheckInStats {
-  const raw = resolvePayloadRecord(stats);
-  const rawDistribution = asRecord(raw.streak_distribution) ?? {};
+  const errorMessage = "Invalid check-in stats response";
+  const raw = requireRecord(stats, errorMessage);
+  const rawDistribution = requireRecord(raw.streak_distribution, errorMessage);
   const distribution = Object.entries(rawDistribution).reduce<Record<number, number>>(
     (acc, [key, value]) => {
       const numericKey = Number(key);
       if (!Number.isFinite(numericKey)) {
         return acc;
       }
-      acc[numericKey] = asNumber(value, 0);
+      acc[numericKey] = requireFiniteNumber(value, errorMessage);
       return acc;
     },
     {}
   );
 
   return {
-    today_count: asNumber(raw.today_count, 0),
-    yesterday_count: asNumber(raw.yesterday_count, 0),
-    week_total: asNumber(raw.week_total, 0),
+    today_count: requireFiniteNumber(raw.today_count, errorMessage),
+    yesterday_count: requireFiniteNumber(raw.yesterday_count, errorMessage),
+    week_total: requireFiniteNumber(raw.week_total, errorMessage),
     streak_distribution: distribution,
   };
 }
 
 function normalizeCheckInRecord(record: unknown): CheckInRecordsResponse["items"][number] {
-  const raw = resolvePayloadRecord(record);
+  const raw = requireRecord(record, "Invalid check-in record response");
   return {
     id: asText(raw.id, ""),
     user_id: asText(raw.user_id, ""),
@@ -581,19 +531,20 @@ function normalizeCheckInRecord(record: unknown): CheckInRecordsResponse["items"
 }
 
 function normalizeReferralStats(stats: unknown): ReferralStats {
-  const raw = resolvePayloadRecord(stats);
+  const errorMessage = "Invalid referral stats response";
+  const raw = requireRecord(stats, errorMessage);
   return {
-    total_codes: asNumber(raw.total_codes, 0),
-    active_codes: asNumber(raw.active_codes, 0),
-    total_referrals: asNumber(raw.total_referrals, 0),
-    successful_referrals: asNumber(raw.successful_referrals, 0),
-    pending_rewards: asNumber(raw.pending_rewards, 0),
-    total_points_awarded: asNumber(raw.total_points_awarded, 0),
+    total_codes: requireFiniteNumber(raw.total_codes, errorMessage),
+    active_codes: requireFiniteNumber(raw.active_codes, errorMessage),
+    total_referrals: requireFiniteNumber(raw.total_referrals, errorMessage),
+    successful_referrals: requireFiniteNumber(raw.successful_referrals, errorMessage),
+    pending_rewards: requireFiniteNumber(raw.pending_rewards, errorMessage),
+    total_points_awarded: requireFiniteNumber(raw.total_points_awarded, errorMessage),
   };
 }
 
 function normalizeInviteCode(code: unknown): InviteCodesResponse["items"][number] {
-  const raw = resolvePayloadRecord(code);
+  const raw = requireRecord(code, "Invalid invite code response");
   return {
     id: asText(raw.id, ""),
     code: asText(raw.code, ""),
@@ -608,7 +559,7 @@ function normalizeInviteCode(code: unknown): InviteCodesResponse["items"][number
 }
 
 function normalizeRewardRecord(reward: unknown): RewardsResponse["items"][number] {
-  const raw = resolvePayloadRecord(reward);
+  const raw = requireRecord(reward, "Invalid reward record response");
   return {
     id: asText(raw.id, ""),
     user_id: asText(raw.user_id, ""),
@@ -623,52 +574,46 @@ function normalizeRewardRecord(reward: unknown): RewardsResponse["items"][number
 }
 
 function normalizeQuotaUsageStats(stats: unknown): QuotaUsageStats {
-  const raw = resolvePayloadRecord(stats);
+  const errorMessage = "Invalid quota usage stats response";
+  const raw = requireRecord(stats, errorMessage);
   return {
-    period_start: asText(raw.period_start, ""),
-    period_end: asText(raw.period_end, ""),
-    material_decompositions: asNumber(raw.material_decompositions, 0),
-    inspiration_copies: asNumber(raw.inspiration_copies, 0),
-    skills_created: asNumber(raw.skills_created, 0),
+    period_start: requireNonEmptyString(raw.period_start, errorMessage),
+    period_end: requireNonEmptyString(raw.period_end, errorMessage),
+    material_decompositions: requireFiniteNumber(raw.material_decompositions, errorMessage),
+    inspiration_copies: requireFiniteNumber(raw.inspiration_copies, errorMessage),
+    skills_created: requireFiniteNumber(raw.skills_created, errorMessage),
   };
 }
 
-function normalizeQuotaCounter(counter: unknown): QuotaCounter {
-  const raw = resolvePayloadRecord(counter);
+function normalizeQuotaCounter(counter: unknown, errorMessage: string): QuotaCounter {
+  const raw = requireRecord(counter, errorMessage);
   return {
-    used: asNumber(raw.used, 0),
-    limit: asNumber(raw.limit, 0),
+    used: requireFiniteNumber(raw.used, errorMessage),
+    limit: requireFiniteNumber(raw.limit, errorMessage),
     reset_at: asNullableText(raw.reset_at),
   };
 }
 
 function normalizeUserQuota(detail: unknown): UserQuotaDetail {
-  const raw = resolvePayloadRecord(detail);
+  const errorMessage = "Invalid user quota response";
+  const raw = requireRecord(detail, errorMessage);
   return {
-    user_id: asText(raw.user_id, ""),
+    user_id: requireNonEmptyString(raw.user_id, errorMessage),
     username: asText(raw.username, "-"),
-    email: asText(raw.email, ""),
-    plan_name: asText(raw.plan_name, "-"),
+    email: requireString(raw.email, errorMessage),
+    plan_name: requireNonEmptyString(raw.plan_name, errorMessage),
     plan_display_name: asNullableText(raw.plan_display_name),
     plan_display_name_en: asNullableText(raw.plan_display_name_en),
-    ai_conversations: normalizeQuotaCounter(raw.ai_conversations),
-    material_decompositions: normalizeQuotaCounter(raw.material_decompositions),
-    inspiration_copies: normalizeQuotaCounter(raw.inspiration_copies),
-    custom_skills: normalizeQuotaCounter(raw.custom_skills),
+    ai_conversations: normalizeQuotaCounter(raw.ai_conversations, errorMessage),
+    material_decompositions: normalizeQuotaCounter(raw.material_decompositions, errorMessage),
+    inspiration_copies: normalizeQuotaCounter(raw.inspiration_copies, errorMessage),
+    custom_skills: normalizeQuotaCounter(raw.custom_skills, errorMessage),
   };
 }
 
 // ==================== 用户管理 API ====================
 
-/**
- * Fetch paginated list of users with optional search filter.
- *
- * @param skip - Number of records to skip for pagination (default: 0)
- * @param limit - Maximum number of records to return (default: 20)
- * @param search - Optional search keyword for username or email filtering
- * @returns Promise resolving to one page of users and the total matching the filter
- */
-export async function getUsers(
+async function getUsers(
   skip: number = 0,
   limit: number = 20,
   search?: string
@@ -683,81 +628,39 @@ export async function getUsers(
   }
 
   const payload = await api.get<unknown>(`${ADMIN_BASE}/users?${params.toString()}`);
-  const users = pickArray<unknown>(payload, ["items", "users"]).map(normalizeUser);
-  const rawTotal = asRecord(payload)?.total;
-  const total = typeof rawTotal === "number" && Number.isFinite(rawTotal) ? rawTotal : null;
-  return { users, total };
+  const payloadRecord = requireRecord(payload, "Invalid users list response");
+  const items = requireArray(payloadRecord.items, "Invalid users list response");
+  const total = requireFiniteNumber(payloadRecord.total, "Invalid users list response");
+  return { users: items.map(normalizeUser), total };
 }
 
-/**
- * Fetch a single user by ID.
- *
- * @param id - User ID (UUID string)
- * @returns Promise resolving to user object
- */
-export async function getUser(id: string): Promise<User> {
+async function getUser(id: string): Promise<User> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/users/${encodeURIComponent(id)}`);
   return normalizeUser(payload);
 }
 
-/**
- * Update user information.
- *
- * @param id - User ID (UUID string)
- * @param data - Partial user data to update
- * @returns Promise resolving to updated user object
- */
-export async function updateUser(
-  id: string,
-  data: UserUpdateRequest
-): Promise<User> {
+async function updateUser(id: string, data: UserUpdateRequest): Promise<User> {
   return api.put<User>(`${ADMIN_BASE}/users/${id}`, data);
 }
 
-/**
- * Soft delete a user account.
- *
- * @param id - User ID (UUID string)
- * @returns Promise resolving to backend delete result
- */
-export async function deleteUser(id: string): Promise<User | { message: string }> {
+async function deleteUser(id: string): Promise<User | { message: string }> {
   return api.delete<User | { message: string }>(`${ADMIN_BASE}/users/${id}`);
 }
 
 // ==================== Prompt 管理 API ====================
 
-/**
- * Fetch all system prompt configurations.
- *
- * @returns Promise resolving to list of prompt configurations
- */
-export async function getPrompts(): Promise<PromptsListResponse> {
+async function getPrompts(): Promise<PromptsListResponse> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/prompts`);
-  return pickArray<unknown>(payload, ["items", "prompts"]).map(normalizeSystemPrompt);
+  return requireArray(payload, "Invalid prompts response").map(normalizeSystemPrompt);
 }
 
-/**
- * Fetch prompt configuration for a specific project type.
- *
- * @param projectType - Project type identifier (e.g., "novel", "article")
- * @returns Promise resolving to prompt configuration object
- */
-export async function getPrompt(
-  projectType: string
-): Promise<SystemPromptConfig> {
+async function getPrompt(projectType: string): Promise<SystemPromptConfig> {
   return api.get<SystemPromptConfig>(
     `${ADMIN_BASE}/prompts/${encodeURIComponent(projectType)}`
   );
 }
 
-/**
- * Create or update prompt configuration for a project type.
- *
- * @param projectType - Project type identifier (e.g., "novel", "article")
- * @param data - Prompt configuration data to upsert
- * @returns Promise resolving to created/updated prompt configuration
- */
-export async function upsertPrompt(
+async function upsertPrompt(
   projectType: string,
   data: PromptConfigRequest
 ): Promise<SystemPromptConfig> {
@@ -767,68 +670,30 @@ export async function upsertPrompt(
   );
 }
 
-/**
- * Delete prompt configuration for a project type.
- *
- * @param projectType - Project type identifier to delete
- * @returns Promise resolving to success message
- */
-export async function deletePrompt(
-  projectType: string
-): Promise<{ message: string }> {
+async function deletePrompt(projectType: string): Promise<{ message: string }> {
   return api.delete<{ message: string }>(
     `${ADMIN_BASE}/prompts/${encodeURIComponent(projectType)}`
   );
 }
 
-/**
- * Hot reload prompt configurations from storage.
- *
- * @returns Promise resolving to success message
- */
-export async function reloadPrompts(): Promise<PromptReloadResult> {
+async function reloadPrompts(): Promise<PromptReloadResult> {
   return api.post<PromptReloadResult>(`${ADMIN_BASE}/prompts/reload`);
 }
 
 // ==================== 技能审核 API ====================
 
-type PendingSkillsPayload =
-  | PendingSkill[]
-  | {
-      items?: PendingSkill[];
-      skills?: PendingSkill[];
-    };
-
-/**
- * Fetch list of skills pending admin review.
- *
- * @returns Promise resolving to array of pending skills
- */
-export async function getPendingSkills(status: SkillReviewStatus = "pending"): Promise<PendingSkill[]> {
-  const payload = await api.get<PendingSkillsPayload>(
-    `${ADMIN_BASE}/skills/pending?status=${encodeURIComponent(status)}`,
+async function getPendingSkills(status: SkillReviewStatus = "pending"): Promise<PendingSkill[]> {
+  const payload = await api.get<unknown>(
+    `${ADMIN_BASE}/skills/pending?status=${encodeURIComponent(status)}`
   );
-  return pickArray<unknown>(payload, ["items", "skills"]).map(normalizePendingSkill);
+  return requireArray(payload, "Invalid pending skills response").map(normalizePendingSkill);
 }
 
-/**
- * Approve a pending skill for public use.
- *
- * @param id - Skill ID to approve
- * @returns Promise resolving to success message and approved skill ID
- */
-export async function approveSkill(id: string): Promise<{ message: string; skill_id: string }> {
+async function approveSkill(id: string): Promise<{ message: string; skill_id: string }> {
   return api.post<{ message: string; skill_id: string }>(`${ADMIN_BASE}/skills/${id}/approve`);
 }
 
-/**
- * Reject a pending skill with optional reason.
- *
- * @param id - Skill ID to reject
- * @param reason - Optional rejection reason for the author
- * @returns Promise resolving to success message and rejected skill ID
- */
-export async function rejectSkill(
+async function rejectSkill(
   id: string,
   reason?: string
 ): Promise<{ message: string; skill_id: string }> {
@@ -838,13 +703,7 @@ export async function rejectSkill(
   );
 }
 
-/**
- * Take an approved public skill down (status becomes "unpublished").
- *
- * @param id - Skill ID to unpublish
- * @param reason - Optional reason, stored and shown in the review history
- */
-export async function unpublishSkill(
+async function unpublishSkill(
   id: string,
   reason?: string
 ): Promise<{ message: string; skill_id: string }> {
@@ -854,12 +713,7 @@ export async function unpublishSkill(
   );
 }
 
-/**
- * Fetch every resource file (raw content) of a public skill for review.
- *
- * @param id - Public skill ID
- */
-export async function getSkillReviewResources(id: string): Promise<SkillReviewResource[]> {
+async function getSkillReviewResources(id: string): Promise<SkillReviewResource[]> {
   const payload = await api.get<{ resources?: SkillReviewResource[] }>(
     `${ADMIN_BASE}/skills/${id}/resources`
   );
@@ -868,51 +722,15 @@ export async function getSkillReviewResources(id: string): Promise<SkillReviewRe
 
 // ==================== 兑换码管理 API ====================
 
-/** Represents a redemption code for subscription or benefits. */
-export interface RedemptionCode {
-  /** Unique code identifier */
-  id: string;
-  /** The actual redemption code string */
-  code: string;
-  /** Subscription tier the code grants (e.g., "free", "pro") */
-  tier: string;
-  /** Duration of the benefit in days */
-  duration_days: number;
-  /** Type of code (single_use or multi_use) */
-  code_type: string;
-  /** Maximum number of times the code can be used */
-  max_uses: number | null;
-  /** Current number of times the code has been used */
-  current_uses: number;
-  /** Whether the code is currently active */
-  is_active: boolean;
-  /** Optional admin notes about the code */
-  notes: string | null;
-  /** ISO 8601 timestamp of code creation */
-  created_at: string;
-  /** ISO 8601 timestamp of last update */
-  updated_at: string;
-}
-
 /** Paginated response for redemption code listings. */
 export interface CodesListResponse {
-  /** Array of redemption codes */
   items: RedemptionCode[];
-  /** Total number of codes matching the query */
   total: number;
-  /** Current page number */
   page: number;
-  /** Number of items per page */
   page_size: number;
 }
 
-/**
- * Fetch paginated list of redemption codes with optional filters.
- *
- * @param params - Optional filter parameters including pagination and tier filter
- * @returns Promise resolving to paginated codes list
- */
-export async function getCodes(params?: {
+async function getCodes(params?: {
   page?: number;
   page_size?: number;
   tier?: string;
@@ -925,24 +743,20 @@ export async function getCodes(params?: {
   if (params?.is_active !== undefined) searchParams.set("is_active", String(params.is_active));
 
   const payload = await api.get<unknown>(`${ADMIN_BASE}/codes?${searchParams.toString()}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "codes"]).map(normalizeRedemptionCode);
+  const payloadRecord = requireRecord(payload, "Invalid codes response");
+  const items = requireArray(payloadRecord.items, "Invalid codes response").map(
+    normalizeRedemptionCode
+  );
 
   return {
     items,
-    total: asNumber(payloadRecord.total, items.length),
-    page: asNumber(payloadRecord.page, params?.page ?? 1),
-    page_size: asNumber(payloadRecord.page_size, (params?.page_size ?? items.length) || 20),
+    total: requireFiniteNumber(payloadRecord.total, "Invalid codes response"),
+    page: requireFiniteNumber(payloadRecord.page, "Invalid codes response"),
+    page_size: requireFiniteNumber(payloadRecord.page_size, "Invalid codes response"),
   };
 }
 
-/**
- * Create a single redemption code.
- *
- * @param data - Code creation parameters
- * @returns Promise resolving to created redemption code
- */
-export async function createCode(data: {
+async function createCode(data: {
   tier: string;
   duration_days: number;
   code_type?: "single_use" | "multi_use" | "single" | "multi";
@@ -952,12 +766,6 @@ export async function createCode(data: {
   return api.post<RedemptionCode>(`${ADMIN_BASE}/codes`, data);
 }
 
-/**
- * Batch create multiple redemption codes with the same configuration.
- *
- * @param data - Batch creation parameters including count
- * @returns Promise resolving to array of created codes and count
- */
 export interface CodeBatchCreateResponse {
   codes: string[];
   count?: number;
@@ -966,36 +774,18 @@ export interface CodeBatchCreateResponse {
   max_uses?: number;
 }
 
-export async function createCodesBatch(data: {
+async function createCodesBatch(data: {
   tier: string;
   duration_days: number;
   count: number;
   code_type?: "single_use" | "multi_use" | "single" | "multi";
-  /** Required for multi-use codes: how many users can redeem each code. */
   max_uses?: number;
   notes?: string;
 }): Promise<CodeBatchCreateResponse> {
   return api.post<CodeBatchCreateResponse>(`${ADMIN_BASE}/codes/batch`, data);
 }
 
-/**
- * Fetch a single redemption code by ID.
- *
- * @param id - Code ID (UUID string)
- * @returns Promise resolving to redemption code object
- */
-export async function getCode(id: string): Promise<RedemptionCode> {
-  return api.get<RedemptionCode>(`${ADMIN_BASE}/codes/${id}`);
-}
-
-/**
- * Update redemption code properties.
- *
- * @param id - Code ID (UUID string)
- * @param data - Partial code data to update
- * @returns Promise resolving to updated redemption code
- */
-export async function updateCode(
+async function updateCode(
   id: string,
   data: { is_active?: boolean; notes?: string }
 ): Promise<RedemptionCode> {
@@ -1006,41 +796,23 @@ export async function updateCode(
 
 /** Represents a user subscription with plan and billing details. */
 export interface Subscription {
-  /** Unique subscription identifier */
   id: string;
-  /** ID of the subscribed user */
   user_id: string;
-  /** Username of the subscribed user */
   username: string;
-  /** Email of the subscribed user */
   email: string;
-  /** Name of the subscription plan */
   plan_name: string;
-  /** Display name of the subscription plan */
   plan_display_name?: string | null;
-  /** English display name of the subscription plan */
   plan_display_name_en?: string | null;
-  /** Effective plan for user-centric view (falls back to free when record missing). */
   effective_plan_name?: string;
-  /** Effective plan display name for UI. */
   effective_plan_display_name?: string | null;
-  /** English effective plan display name for UI. */
   effective_plan_display_name_en?: string | null;
-  /** Current subscription status (e.g., "active", "expired", "cancelled") */
   status: string;
-  /** Effective status for user-centric view. */
   effective_status?: string;
-  /** ISO 8601 timestamp of current billing period start */
   current_period_start: string | null;
-  /** ISO 8601 timestamp of current billing period end */
   current_period_end: string | null;
-  /** ISO 8601 timestamp of subscription creation */
   created_at: string;
-  /** ISO 8601 timestamp of last subscription update */
   updated_at: string;
-  /** Whether this item maps to a persisted user_subscription row */
   has_subscription_record?: boolean;
-  /** Heuristic marker for QA/test/smoke accounts */
   is_test_account?: boolean;
 }
 
@@ -1056,27 +828,16 @@ export interface UpdateSubscriptionResponse {
 
 /** Paginated response for subscription listings. */
 export interface SubscriptionsListResponse {
-  /** Array of subscriptions */
   items: Subscription[];
-  /** Total number of subscriptions matching the query */
   total: number;
-  /** Current page number */
   page: number;
-  /** Number of items per page */
   page_size: number;
 }
 
-/**
- * Fetch paginated list of subscriptions with optional status filter.
- *
- * @param params - Optional filter parameters including pagination and status
- * @returns Promise resolving to paginated subscriptions list
- */
-export async function getSubscriptions(params?: {
+async function getSubscriptions(params?: {
   page?: number;
   page_size?: number;
   status?: string;
-  /** Username or email fragment */
   search?: string;
 }): Promise<SubscriptionsListResponse> {
   const searchParams = new URLSearchParams();
@@ -1085,18 +846,19 @@ export async function getSubscriptions(params?: {
   if (params?.status) searchParams.set("status", params.status);
   if (params?.search) searchParams.set("search", params.search);
 
-  const payload = await api.get<unknown>(`${ADMIN_BASE}/subscriptions?${searchParams.toString()}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "subscriptions"]).map(normalizeSubscription);
-  const total = asNumber(payloadRecord.total, items.length);
-  const page = asNumber(payloadRecord.page, params?.page ?? 1);
-  const pageSize = asNumber(payloadRecord.page_size, (params?.page_size ?? items.length) || 20);
+  const payload = await api.get<unknown>(
+    `${ADMIN_BASE}/subscriptions?${searchParams.toString()}`
+  );
+  const payloadRecord = requireRecord(payload, "Invalid subscriptions response");
+  const items = requireArray(payloadRecord.items, "Invalid subscriptions response").map(
+    normalizeSubscription
+  );
 
   return {
     items,
-    total,
-    page,
-    page_size: pageSize,
+    total: requireFiniteNumber(payloadRecord.total, "Invalid subscriptions response"),
+    page: asNumber(payloadRecord.page, params?.page ?? 1),
+    page_size: asNumber(payloadRecord.page_size, (params?.page_size ?? items.length) || 20),
   };
 }
 
@@ -1110,7 +872,6 @@ export interface PaymentOrdersListResponse {
   total: number;
   page: number;
   page_size: number;
-  /** Paid orders whose membership is not granted yet, across all pages. */
   needs_attention_total?: number;
 }
 
@@ -1121,7 +882,7 @@ export interface PaymentOrderSyncResponse {
   order: AdminPaymentOrder;
 }
 
-export async function getPaymentOrders(params: {
+async function getPaymentOrders(params: {
   page?: number;
   page_size?: number;
   status?: "pending" | "paid";
@@ -1141,26 +902,17 @@ export async function getPaymentOrders(params: {
   return api.get<PaymentOrdersListResponse>(`${ADMIN_BASE}/payment-orders?${query.toString()}`);
 }
 
-/** Query Zpay for one order and grant it if paid (audited server-side). */
-export async function syncPaymentOrder(orderId: string): Promise<PaymentOrderSyncResponse> {
+async function syncPaymentOrder(orderId: string): Promise<PaymentOrderSyncResponse> {
   return api.post<PaymentOrderSyncResponse>(
     `${ADMIN_BASE}/payment-orders/${encodeURIComponent(orderId)}/sync`
   );
 }
 
-/** Fetch subscription details for a specific user. */
-export async function getUserSubscription(userId: string): Promise<UserSubscriptionDetailResponse> {
+async function getUserSubscription(userId: string): Promise<UserSubscriptionDetailResponse> {
   return api.get<UserSubscriptionDetailResponse>(`${ADMIN_BASE}/subscriptions/${userId}`);
 }
 
-/**
- * Update a user's subscription (admin override).
- *
- * @param userId - User ID (UUID string)
- * @param data - Subscription update parameters
- * @returns Promise resolving to operation result
- */
-export async function updateUserSubscription(
+async function updateUserSubscription(
   userId: string,
   data: { plan_name?: string; duration_days?: number; status?: string }
 ): Promise<UpdateSubscriptionResponse> {
@@ -1179,7 +931,6 @@ export interface UsageMetrics {
   cache_hit_tokens: number;
   cache_miss_tokens: number;
   output_tokens: number;
-  /** CNY as a decimal string rounded to 4 places. */
   cost_cny: string;
   peak_cost_cny: string;
   offpeak_cost_cny: string;
@@ -1190,7 +941,6 @@ export interface UsageSourceRow extends UsageMetrics {
 }
 
 export interface UsageDailyRow extends UsageMetrics {
-  /** Beijing calendar date, YYYY-MM-DD. */
   date: string;
   users?: number;
 }
@@ -1200,7 +950,6 @@ export interface UsagePeriod {
   period_start: string;
   period_end: string;
   pricing_version: string;
-  /** CNY per 1M tokens, keyed by band then token kind. */
   prices: Record<"peak" | "offpeak", Record<UsagePriceKind, string>>;
 }
 
@@ -1236,17 +985,14 @@ export interface UserDailyUsageResponse extends UsagePeriod {
   daily: UsageDailyRow[];
 }
 
-/** Ledger sources (models.llm_usage.LLM_USAGE_SOURCES). */
 export type UsageSource = "agent" | "router" | "suggest" | "polish" | "material";
 
-/** Nearest-rank percentiles in milliseconds; null without samples. */
 export interface UsageDistribution {
   p50: number | null;
   p95: number | null;
   samples: number;
 }
 
-/** Call metrics over provider attempts (a failover counts both attempts). */
 export interface ModelMetrics {
   attempts: number;
   success: number;
@@ -1254,11 +1000,9 @@ export interface ModelMetrics {
   timeout: number;
   cancelled: number;
   not_recorded: number;
-  /** success / (success + error + timeout), 0..1; null without finished attempts. */
   success_rate: number | null;
   latency_ms: UsageDistribution;
   ttft_ms: UsageDistribution;
-  /** Output tokens / generation time (first output delta to stream end), tokens per second. */
   decode_tps: { value: number | null; samples: number };
   cache_hit_tokens: number;
   cache_miss_tokens: number;
@@ -1277,13 +1021,11 @@ export interface ModelMetricsResponse extends UsagePeriod {
   totals: ModelMetrics;
 }
 
-/** Usage and CNY cost totals for a Beijing-day window. */
-export async function getUsageSummary(window: UsageWindow): Promise<UsageSummaryResponse> {
+async function getUsageSummary(window: UsageWindow): Promise<UsageSummaryResponse> {
   return api.get<UsageSummaryResponse>(`${ADMIN_BASE}/usage/summary?window=${window}`);
 }
 
-/** Per-user usage for a window, sorted server-side. */
-export async function getUsageByUser(params: {
+async function getUsageByUser(params: {
   window: UsageWindow;
   sort?: UsageUserSort;
   search?: string;
@@ -1298,15 +1040,16 @@ export async function getUsageByUser(params: {
   return api.get<UserUsageListResponse>(`${ADMIN_BASE}/usage/users?${query.toString()}`);
 }
 
-/** Per-model success rate, latency, time to first token and decode speed for a window. */
-export async function getUsageByModel(window: UsageWindow, source?: UsageSource): Promise<ModelMetricsResponse> {
+async function getUsageByModel(
+  window: UsageWindow,
+  source?: UsageSource
+): Promise<ModelMetricsResponse> {
   const query = new URLSearchParams({ window });
   if (source) query.set("source", source);
   return api.get<ModelMetricsResponse>(`${ADMIN_BASE}/usage/models?${query.toString()}`);
 }
 
-/** One user's daily usage for the last 7, 14 or 30 Beijing days. */
-export async function getUserDailyUsage(
+async function getUserDailyUsage(
   userId: string,
   days: UsageDetailDays = 7
 ): Promise<UserDailyUsageResponse> {
@@ -1317,53 +1060,15 @@ export async function getUserDailyUsage(
 
 // ==================== 审计日志 API ====================
 
-/** Represents an admin action audit log entry. */
-export interface AuditLog {
-  /** Unique log entry identifier */
-  id: string;
-  /** ID of the admin who performed the action */
-  admin_id: string;
-  /** Display name of the admin */
-  admin_name: string;
-  /** Action type performed (e.g., "user.update", "plan.change") */
-  action: string;
-  /** Type of resource affected (e.g., "user", "subscription") */
-  resource_type: string;
-  /** ID of the affected resource */
-  resource_id: string;
-  /** Optional additional details about the action */
-  details: string | null;
-  /** Previous value before the change */
-  old_value: Record<string, unknown> | null;
-  /** New value after the change */
-  new_value: Record<string, unknown> | null;
-  /** IP address of the admin */
-  ip_address: string | null;
-  /** User agent string of the admin's browser */
-  user_agent: string | null;
-  /** ISO 8601 timestamp of the action */
-  created_at: string;
-}
-
 /** Paginated response for audit log listings. */
 export interface AuditLogsResponse {
-  /** Array of audit log entries */
   items: AuditLog[];
-  /** Total number of logs matching the query */
   total: number;
-  /** Current page number */
   page: number;
-  /** Number of items per page */
   page_size: number;
 }
 
-/**
- * Fetch paginated audit logs with optional filters.
- *
- * @param params - Optional filter parameters including pagination, resource type, and action
- * @returns Promise resolving to paginated audit logs list
- */
-export async function getAuditLogs(params?: {
+async function getAuditLogs(params?: {
   page?: number;
   page_size?: number;
   resource_type?: string;
@@ -1376,13 +1081,20 @@ export async function getAuditLogs(params?: {
   if (params?.action) searchParams.set("action", params.action);
 
   const payload = await api.get<unknown>(`${ADMIN_BASE}/audit-logs?${searchParams.toString()}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const rawItems = payloadRecord.items ?? payloadRecord.logs;
-  const total = asNumber(payloadRecord.total, NaN);
-  const page = asNumber(payloadRecord.page, NaN);
-  const pageSize = asNumber(payloadRecord.page_size, NaN);
-  if (!Array.isArray(rawItems) || !Number.isInteger(total) || total < 0 ||
-      !Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1) {
+  const payloadRecord = requireRecord(payload, "Invalid audit log response");
+  const rawItems = payloadRecord.items;
+  const total = asNumber(payloadRecord.total, Number.NaN);
+  const page = asNumber(payloadRecord.page, Number.NaN);
+  const pageSize = asNumber(payloadRecord.page_size, Number.NaN);
+  if (
+    !Array.isArray(rawItems) ||
+    !Number.isInteger(total) ||
+    total < 0 ||
+    !Number.isInteger(page) ||
+    page < 1 ||
+    !Number.isInteger(pageSize) ||
+    pageSize < 1
+  ) {
     throw new Error("Invalid audit log response");
   }
   const items = rawItems.map(normalizeAuditLog);
@@ -1397,179 +1109,166 @@ export async function getAuditLogs(params?: {
 
 // ==================== Dashboard Stats API ====================
 
-/**
- * Fetch dashboard statistics for admin overview.
- *
- * Includes metrics like total users, active subscriptions, revenue data, etc.
- *
- * @returns Promise resolving to dashboard statistics object
- */
-export async function getGrowthDashboard(days: 7 | 14 | 30 = 7): Promise<GrowthDashboard> {
+async function getGrowthDashboard(days: 7 | 14 | 30 = 7): Promise<GrowthDashboard> {
   return api.get<GrowthDashboard>(`${ADMIN_BASE}/dashboard/growth?days=${days}`);
 }
 
-export async function getAcquisitionStats(days: 7 | 14 | 30 | 90 = 30): Promise<AcquisitionStats> {
+async function getAcquisitionStats(days: 7 | 14 | 30 | 90 = 30): Promise<AcquisitionStats> {
   return api.get<AcquisitionStats>(`${ADMIN_BASE}/dashboard/acquisition?days=${days}`);
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+async function getDashboardStats(): Promise<DashboardStats> {
+  const errorMessage = "Invalid dashboard stats response";
   const payload = await api.get<unknown>(`${ADMIN_BASE}/dashboard/stats`);
-  const payloadRecord = resolvePayloadRecord(payload);
+  const raw = requireRecord(payload, errorMessage);
 
   return {
-    total_users: asNumber(payloadRecord.total_users, DEFAULT_DASHBOARD_STATS.total_users),
-    active_users: asNumber(payloadRecord.active_users, DEFAULT_DASHBOARD_STATS.active_users),
-    new_users_today: asNumber(payloadRecord.new_users_today, DEFAULT_DASHBOARD_STATS.new_users_today),
-    total_projects: asNumber(payloadRecord.total_projects, DEFAULT_DASHBOARD_STATS.total_projects),
-    author_created_projects: asNumber(payloadRecord.author_created_projects, DEFAULT_DASHBOARD_STATS.author_created_projects),
-    auto_initialized_projects: asNumber(payloadRecord.auto_initialized_projects, DEFAULT_DASHBOARD_STATS.auto_initialized_projects),
-    total_inspirations: asNumber(payloadRecord.total_inspirations, DEFAULT_DASHBOARD_STATS.total_inspirations),
-    pending_inspirations: asNumber(payloadRecord.pending_inspirations, DEFAULT_DASHBOARD_STATS.pending_inspirations),
-    active_subscriptions: asNumber(payloadRecord.active_subscriptions, DEFAULT_DASHBOARD_STATS.active_subscriptions),
-    pro_users: asNumber(payloadRecord.pro_users, DEFAULT_DASHBOARD_STATS.pro_users),
-    total_points_in_circulation: asNumber(
-      payloadRecord.total_points_in_circulation,
-      DEFAULT_DASHBOARD_STATS.total_points_in_circulation
+    total_users: requireFiniteNumber(raw.total_users, errorMessage),
+    active_users: requireFiniteNumber(raw.active_users, errorMessage),
+    new_users_today: requireFiniteNumber(raw.new_users_today, errorMessage),
+    total_projects: requireFiniteNumber(raw.total_projects, errorMessage),
+    author_created_projects: requireFiniteNumber(raw.author_created_projects, errorMessage),
+    auto_initialized_projects: requireFiniteNumber(raw.auto_initialized_projects, errorMessage),
+    total_inspirations: requireFiniteNumber(raw.total_inspirations, errorMessage),
+    pending_inspirations: requireFiniteNumber(raw.pending_inspirations, errorMessage),
+    active_subscriptions: requireFiniteNumber(raw.active_subscriptions, errorMessage),
+    pro_users: requireFiniteNumber(raw.pro_users, errorMessage),
+    total_points_in_circulation: requireFiniteNumber(
+      raw.total_points_in_circulation,
+      errorMessage
     ),
-    today_check_ins: asNumber(payloadRecord.today_check_ins, DEFAULT_DASHBOARD_STATS.today_check_ins),
-    active_invite_codes: asNumber(payloadRecord.active_invite_codes, DEFAULT_DASHBOARD_STATS.active_invite_codes),
-    week_referrals: asNumber(payloadRecord.week_referrals, DEFAULT_DASHBOARD_STATS.week_referrals),
+    today_check_ins: requireFiniteNumber(raw.today_check_ins, errorMessage),
+    active_invite_codes: requireFiniteNumber(raw.active_invite_codes, errorMessage),
+    week_referrals: requireFiniteNumber(raw.week_referrals, errorMessage),
   };
 }
 
-/**
- * Fetch activation funnel statistics for admin dashboard.
- *
- * @param days - Rolling window in days (1-90)
- * @returns Promise resolving to activation funnel metrics
- */
-export async function getActivationFunnel(days = 7): Promise<ActivationFunnelStats> {
+async function getActivationFunnel(days = 7): Promise<ActivationFunnelStats> {
+  const errorMessage = "Invalid activation funnel response";
   const safeDays = Number.isFinite(days) ? Math.min(Math.max(Math.floor(days), 1), 90) : 7;
-  const payload = await api.get<unknown>(`${ADMIN_BASE}/dashboard/activation-funnel?days=${safeDays}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const rawSteps = pickArray<unknown>(payload, ["steps"]);
+  const payload = await api.get<unknown>(
+    `${ADMIN_BASE}/dashboard/activation-funnel?days=${safeDays}`
+  );
+  const raw = requireRecord(payload, errorMessage);
+  const rawSteps = requireArray(raw.steps, errorMessage);
 
   return {
-    window_days: asNumber(payloadRecord.window_days, DEFAULT_ACTIVATION_FUNNEL.window_days),
-    period_start: asText(payloadRecord.period_start, DEFAULT_ACTIVATION_FUNNEL.period_start),
-    period_end: asText(payloadRecord.period_end, DEFAULT_ACTIVATION_FUNNEL.period_end),
-    activation_rate: asNumber(payloadRecord.activation_rate, DEFAULT_ACTIVATION_FUNNEL.activation_rate),
+    window_days: requireFiniteNumber(raw.window_days, errorMessage),
+    period_start: requireString(raw.period_start, errorMessage),
+    period_end: requireString(raw.period_end, errorMessage),
+    activation_rate: requireFiniteNumber(raw.activation_rate, errorMessage),
     steps: rawSteps.map((step) => {
-      const rawStep = resolvePayloadRecord(step);
+      const rawStep = requireRecord(step, errorMessage);
       return {
-        event_name: asText(rawStep.event_name, ""),
-        label: asText(rawStep.label, ""),
-        users: asNumber(rawStep.users, 0),
+        event_name: requireNonEmptyString(rawStep.event_name, errorMessage),
+        label: requireString(rawStep.label, errorMessage),
+        users: requireFiniteNumber(rawStep.users, errorMessage),
         conversion_from_previous:
-          rawStep.conversion_from_previous === null
+          rawStep.conversion_from_previous === null ||
+          rawStep.conversion_from_previous === undefined
             ? null
-            : asNumber(rawStep.conversion_from_previous, 0),
+            : requireFiniteNumber(rawStep.conversion_from_previous, errorMessage),
         drop_off_from_previous:
-          rawStep.drop_off_from_previous === null
+          rawStep.drop_off_from_previous === null || rawStep.drop_off_from_previous === undefined
             ? null
-            : asNumber(rawStep.drop_off_from_previous, 0),
+            : requireFiniteNumber(rawStep.drop_off_from_previous, errorMessage),
       };
     }),
   };
 }
 
-/**
- * Fetch upgrade conversion attribution stats grouped by source.
- *
- * @param days - Rolling window in days (1-90)
- * @returns Promise resolving to attribution conversion metrics
- */
-export async function getUpgradeConversionStats(days = 7): Promise<UpgradeConversionStats> {
+async function getUpgradeConversionStats(days = 7): Promise<UpgradeConversionStats> {
+  const errorMessage = "Invalid upgrade conversion stats response";
   const safeDays = Number.isFinite(days) ? Math.min(Math.max(Math.floor(days), 1), 90) : 7;
-  const payload = await api.get<unknown>(`${ADMIN_BASE}/dashboard/upgrade-conversion?days=${safeDays}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const rawSources = pickArray<unknown>(payload, ["sources"]);
-  const rawChannels = pickArray<unknown>(payload, ["channels"]);
+  const payload = await api.get<unknown>(
+    `${ADMIN_BASE}/dashboard/upgrade-conversion?days=${safeDays}`
+  );
+  const raw = requireRecord(payload, errorMessage);
+  const rawSources = requireArray(raw.sources, errorMessage);
+  const rawChannels = requireArray(raw.channels, errorMessage);
 
   return {
-    window_days: asNumber(payloadRecord.window_days, DEFAULT_UPGRADE_CONVERSION.window_days),
-    period_start: asText(payloadRecord.period_start, DEFAULT_UPGRADE_CONVERSION.period_start),
-    period_end: asText(payloadRecord.period_end, DEFAULT_UPGRADE_CONVERSION.period_end),
-    total_conversions: asNumber(
-      payloadRecord.total_conversions,
-      DEFAULT_UPGRADE_CONVERSION.total_conversions
-    ),
-    paid_conversions: asNumber(
-      payloadRecord.paid_conversions,
-      DEFAULT_UPGRADE_CONVERSION.paid_conversions
-    ),
+    window_days: requireFiniteNumber(raw.window_days, errorMessage),
+    period_start: requireString(raw.period_start, errorMessage),
+    period_end: requireString(raw.period_end, errorMessage),
+    total_conversions: requireFiniteNumber(raw.total_conversions, errorMessage),
+    paid_conversions: requireFiniteNumber(raw.paid_conversions, errorMessage),
     channels: rawChannels.map((item) => {
-      const raw = resolvePayloadRecord(item);
+      const channelItem = requireRecord(item, errorMessage);
       return {
-        channel: asText(raw.channel, "other"),
-        conversions: asNumber(raw.conversions, 0),
-        paid: raw.paid === true,
+        channel: asText(channelItem.channel, "other"),
+        conversions: requireFiniteNumber(channelItem.conversions, errorMessage),
+        paid: channelItem.paid === true,
       };
     }),
-    unattributed_conversions: asNumber(
-      payloadRecord.unattributed_conversions,
-      DEFAULT_UPGRADE_CONVERSION.unattributed_conversions
+    unattributed_conversions: requireFiniteNumber(raw.unattributed_conversions, errorMessage),
+    after_ai_quota_wall_conversions: requireFiniteNumber(
+      raw.after_ai_quota_wall_conversions,
+      errorMessage
     ),
-    after_ai_quota_wall_conversions: asNumber(
-      payloadRecord.after_ai_quota_wall_conversions,
-      DEFAULT_UPGRADE_CONVERSION.after_ai_quota_wall_conversions
-    ),
-    paid_after_ai_quota_wall_conversions: asNumber(
-      payloadRecord.paid_after_ai_quota_wall_conversions,
-      DEFAULT_UPGRADE_CONVERSION.paid_after_ai_quota_wall_conversions
+    paid_after_ai_quota_wall_conversions: requireFiniteNumber(
+      raw.paid_after_ai_quota_wall_conversions,
+      errorMessage
     ),
     sources: rawSources.map((item) => {
-      const raw = resolvePayloadRecord(item);
+      const sourceItem = requireRecord(item, errorMessage);
       return {
-        source: asText(raw.source, ""),
-        conversions: asNumber(raw.conversions, 0),
-        share: asNumber(raw.share, 0),
+        source: requireNonEmptyString(sourceItem.source, errorMessage),
+        conversions: requireFiniteNumber(sourceItem.conversions, errorMessage),
+        share: requireFiniteNumber(sourceItem.share, errorMessage),
       };
     }),
   };
 }
 
-/**
- * Fetch upgrade funnel expose/click/conversion stats grouped by source.
- *
- * @param days - Rolling window in days (1-90)
- * @returns Promise resolving to upgrade funnel overview metrics
- */
-export async function getUpgradeFunnelStats(days = 7): Promise<UpgradeFunnelStats> {
+async function getUpgradeFunnelStats(days = 7): Promise<UpgradeFunnelStats> {
+  const errorMessage = "Invalid upgrade funnel stats response";
   const safeDays = Number.isFinite(days) ? Math.min(Math.max(Math.floor(days), 1), 90) : 7;
-  const payload = await api.get<unknown>(`${ADMIN_BASE}/dashboard/upgrade-funnel?days=${safeDays}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const rawTotals = resolvePayloadRecord(payloadRecord.totals);
-  const rawSources = pickArray<unknown>(payload, ["sources"]);
+  const payload = await api.get<unknown>(
+    `${ADMIN_BASE}/dashboard/upgrade-funnel?days=${safeDays}`
+  );
+  const raw = requireRecord(payload, errorMessage);
+  const rawTotals = requireRecord(raw.totals, errorMessage);
+  const rawSources = requireArray(raw.sources, errorMessage);
+  const rawSurfaces = raw.surfaces === undefined ? [] : requireArray(raw.surfaces, errorMessage);
 
   return {
-    window_days: asNumber(payloadRecord.window_days, DEFAULT_UPGRADE_FUNNEL.window_days),
-    period_start: asText(payloadRecord.period_start, DEFAULT_UPGRADE_FUNNEL.period_start),
-    period_end: asText(payloadRecord.period_end, DEFAULT_UPGRADE_FUNNEL.period_end),
+    window_days: requireFiniteNumber(raw.window_days, errorMessage),
+    period_start: requireString(raw.period_start, errorMessage),
+    period_end: requireString(raw.period_end, errorMessage),
     totals: {
-      expose: asNumber(rawTotals.expose, DEFAULT_UPGRADE_FUNNEL.totals.expose),
-      click: asNumber(rawTotals.click, DEFAULT_UPGRADE_FUNNEL.totals.click),
-      conversion: asNumber(rawTotals.conversion, DEFAULT_UPGRADE_FUNNEL.totals.conversion),
+      expose: requireFiniteNumber(rawTotals.expose, errorMessage),
+      click: requireFiniteNumber(rawTotals.click, errorMessage),
+      conversion: requireFiniteNumber(rawTotals.conversion, errorMessage),
     },
-    surfaces: pickArray<unknown>(payload, ["surfaces"]).map(item => {
-      const raw = resolvePayloadRecord(item);
+    surfaces: rawSurfaces.map((item) => {
+      const surfaceItem = requireRecord(item, errorMessage);
       return {
-        source: asText(raw.source, ""), surface: asText(raw.surface, ""),
-        exposes: asNumber(raw.exposes, 0), exposed_users: asNumber(raw.exposed_users, 0),
-        clicks: asNumber(raw.clicks, 0), clicking_users: asNumber(raw.clicking_users, 0),
-        page_arrivals: asNumber(raw.page_arrivals, 0),
+        source: requireString(surfaceItem.source, errorMessage),
+        surface: requireString(surfaceItem.surface, errorMessage),
+        exposes: requireFiniteNumber(surfaceItem.exposes, errorMessage),
+        exposed_users: requireFiniteNumber(surfaceItem.exposed_users, errorMessage),
+        clicks: requireFiniteNumber(surfaceItem.clicks, errorMessage),
+        clicking_users: requireFiniteNumber(surfaceItem.clicking_users, errorMessage),
+        page_arrivals: requireFiniteNumber(surfaceItem.page_arrivals, errorMessage),
       };
     }),
     sources: rawSources.map((item) => {
-      const raw = resolvePayloadRecord(item);
+      const sourceItem = requireRecord(item, errorMessage);
       return {
-        source: asText(raw.source, ""),
-        exposes: asNumber(raw.exposes, 0),
-        clicks: asNumber(raw.clicks, 0),
-        conversions: asNumber(raw.conversions, 0),
-        click_through_rate: asNumber(raw.click_through_rate, 0),
-        conversion_rate_from_click: asNumber(raw.conversion_rate_from_click, 0),
-        conversion_rate_from_expose: asNumber(raw.conversion_rate_from_expose, 0),
+        source: requireNonEmptyString(sourceItem.source, errorMessage),
+        exposes: requireFiniteNumber(sourceItem.exposes, errorMessage),
+        clicks: requireFiniteNumber(sourceItem.clicks, errorMessage),
+        conversions: requireFiniteNumber(sourceItem.conversions, errorMessage),
+        click_through_rate: requireFiniteNumber(sourceItem.click_through_rate, errorMessage),
+        conversion_rate_from_click: requireFiniteNumber(
+          sourceItem.conversion_rate_from_click,
+          errorMessage
+        ),
+        conversion_rate_from_expose: requireFiniteNumber(
+          sourceItem.conversion_rate_from_expose,
+          errorMessage
+        ),
       };
     }),
   };
@@ -1577,24 +1276,14 @@ export async function getUpgradeFunnelStats(days = 7): Promise<UpgradeFunnelStat
 
 // ==================== Subscription Plans API ====================
 
-/**
- * Fetch all available subscription plans.
- *
- * @returns Promise resolving to array of subscription plan objects
- */
-export async function getPlans(): Promise<SubscriptionPlan[]> {
+async function getPlans(): Promise<SubscriptionPlan[]> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/plans`);
-  return pickArray<unknown>(payload, ["items", "plans", "tiers"]).map(normalizeSubscriptionPlan);
+  return requireArray(payload, "Invalid subscription plans response").map(
+    normalizeSubscriptionPlan
+  );
 }
 
-/**
- * Update a subscription plan's configuration.
- *
- * @param planId - Plan ID (UUID string)
- * @param data - Partial plan data to update
- * @returns Promise resolving to updated subscription plan object
- */
-export async function updatePlan(
+async function updatePlan(
   planId: string,
   data: PlanUpdateRequest
 ): Promise<SubscriptionPlan> {
@@ -1603,23 +1292,12 @@ export async function updatePlan(
 
 // ==================== Inspirations (Admin) API ====================
 
-/** Paginated response for admin inspiration listings. */
 export interface AdminInspirationsListResponse {
-  /** Array of inspiration objects with admin-visible fields */
   items: AdminInspiration[];
-  /** Total number of inspirations matching the query */
   total: number;
 }
 
-/**
- * Fetch all inspirations with admin-level visibility.
- *
- * Unlike the public API, this returns inspirations of all statuses.
- *
- * @param params - Optional filter parameters for status, source, and pagination
- * @returns Promise resolving to paginated inspirations list
- */
-export async function getInspirations(params?: {
+async function getInspirations(params?: {
   status?: string;
   source?: string;
   skip?: number;
@@ -1632,27 +1310,23 @@ export async function getInspirations(params?: {
   if (params?.limit) searchParams.set("limit", String(params.limit));
 
   const queryString = searchParams.toString();
-  const url = queryString ? `${ADMIN_BASE}/inspirations?${queryString}` : `${ADMIN_BASE}/inspirations`;
+  const url = queryString
+    ? `${ADMIN_BASE}/inspirations?${queryString}`
+    : `${ADMIN_BASE}/inspirations`;
 
   const payload = await api.get<unknown>(url);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "inspirations"]).map(normalizeInspiration);
+  const payloadRecord = requireRecord(payload, "Invalid inspirations response");
+  const items = requireArray(payloadRecord.items, "Invalid inspirations response").map(
+    normalizeInspiration
+  );
 
   return {
     items,
-    total: asNumber(payloadRecord.total, items.length),
+    total: requireFiniteNumber(payloadRecord.total, "Invalid inspirations response"),
   };
 }
 
-/**
- * Review an inspiration submission (approve or reject).
- *
- * @param id - Inspiration ID (UUID string)
- * @param approve - Whether to approve (true) or reject (false) the inspiration
- * @param reason - Rejection reason (required when approve is false)
- * @returns Promise resolving to success message
- */
-export async function reviewInspiration(
+async function reviewInspiration(
   id: string,
   approve: boolean,
   reason?: string
@@ -1663,14 +1337,7 @@ export async function reviewInspiration(
   });
 }
 
-/**
- * Update an inspiration's properties.
- *
- * @param id - Inspiration ID (UUID string)
- * @param data - Partial inspiration data to update
- * @returns Promise resolving to updated inspiration object
- */
-export async function updateInspiration(
+async function updateInspiration(
   id: string,
   data: {
     name?: string;
@@ -1682,19 +1349,13 @@ export async function updateInspiration(
   return api.patch<AdminInspiration>(`${ADMIN_BASE}/inspirations/${id}`, data);
 }
 
-/**
- * Permanently delete an inspiration.
- *
- * @param id - Inspiration ID (UUID string)
- * @returns Promise resolving to success message
- */
-export async function deleteInspiration(id: string): Promise<{ message: string }> {
+async function deleteInspiration(id: string): Promise<{ message: string }> {
   return api.delete<{ message: string }>(`${ADMIN_BASE}/inspirations/${id}`);
 }
 
 // ==================== Feedback (Admin) API ====================
 
-export async function getFeedbackList(params?: {
+async function getFeedbackList(params?: {
   status?: AdminFeedbackStatus;
   source_page?: "dashboard" | "editor";
   has_screenshot?: boolean;
@@ -1716,24 +1377,28 @@ export async function getFeedbackList(params?: {
   const url = queryString ? `${ADMIN_BASE}/feedback?${queryString}` : `${ADMIN_BASE}/feedback`;
 
   const payload = await api.get<unknown>(url);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "feedback"]).map(normalizeAdminFeedback);
+  const payloadRecord = requireRecord(payload, "Invalid feedback list response");
+  const items = requireArray(payloadRecord.items, "Invalid feedback list response").map(
+    normalizeAdminFeedback
+  );
 
   return {
     items,
-    total: asNumber(payloadRecord.total, items.length),
+    total: requireFiniteNumber(payloadRecord.total, "Invalid feedback list response"),
   };
 }
 
-export async function updateFeedbackStatus(
+async function updateFeedbackStatus(
   feedbackId: string,
-  status: AdminFeedbackStatus,
+  status: AdminFeedbackStatus
 ): Promise<AdminFeedbackItem> {
-  const payload = await api.patch<unknown>(`${ADMIN_BASE}/feedback/${feedbackId}/status`, { status });
+  const payload = await api.patch<unknown>(`${ADMIN_BASE}/feedback/${feedbackId}/status`, {
+    status,
+  });
   return normalizeAdminFeedback(payload);
 }
 
-export async function getFeedbackScreenshotBlob(feedbackId: string): Promise<Blob> {
+async function getFeedbackScreenshotBlob(feedbackId: string): Promise<Blob> {
   const entryAccess = getAccessToken();
   const entryRefresh = localStorage.getItem("refresh_token");
   const endpoint = `${ADMIN_BASE}/feedback/${feedbackId}/screenshot`;
@@ -1764,14 +1429,13 @@ export async function getFeedbackScreenshotBlob(feedbackId: string): Promise<Blo
   }
 
   if (!response.ok) {
-    let errorMessage = "ERR_INTERNAL_SERVER_ERROR";
+    let errorData: unknown;
     try {
-      const errorData = await response.json();
-      errorMessage = resolveApiErrorMessage(errorData, errorMessage);
+      errorData = await response.json();
     } catch {
-      // keep fallback message
+      errorData = undefined;
     }
-    throw new ApiError(response.status, errorMessage);
+    throw apiErrorFromPayload(response.status, errorData);
   }
 
   return response.blob();
@@ -1779,35 +1443,17 @@ export async function getFeedbackScreenshotBlob(feedbackId: string): Promise<Blo
 
 // ==================== Points Management API ====================
 
-/**
- * Fetch overall points system statistics.
- *
- * @returns Promise resolving to points system statistics
- */
-export async function getPointsStats(): Promise<PointsStats> {
+async function getPointsStats(): Promise<PointsStats> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/points/stats`);
   return normalizePointsStats(payload);
 }
 
-/**
- * Fetch points balance details for a specific user.
- *
- * @param userId - User ID (UUID string)
- * @returns Promise resolving to user's points balance details
- */
-export async function getUserPoints(userId: string): Promise<AdminPointsBalance> {
+async function getUserPoints(userId: string): Promise<AdminPointsBalance> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/points/${userId}`);
   return normalizeUserPoints(payload);
 }
 
-/**
- * Fetch transaction history for a user's points.
- *
- * @param userId - User ID (UUID string)
- * @param params - Optional pagination parameters
- * @returns Promise resolving to paginated transaction history
- */
-export async function getUserPointsTransactions(
+async function getUserPointsTransactions(
   userId: string,
   params?: { page?: number; page_size?: number }
 ): Promise<PointsTransactionsResponse> {
@@ -1817,25 +1463,23 @@ export async function getUserPointsTransactions(
   const payload = await api.get<unknown>(
     `${ADMIN_BASE}/points/${userId}/transactions?${searchParams.toString()}`
   );
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "transactions"]).map(normalizePointsTransaction);
+  const payloadRecord = requireRecord(payload, "Invalid points transactions response");
+  const items = requireArray(payloadRecord.items, "Invalid points transactions response").map(
+    normalizePointsTransaction
+  );
 
   return {
     items,
-    total: asNumber(payloadRecord.total, items.length),
-    page: asNumber(payloadRecord.page, params?.page ?? 1),
-    page_size: asNumber(payloadRecord.page_size, (params?.page_size ?? items.length) || 20),
+    total: requireFiniteNumber(payloadRecord.total, "Invalid points transactions response"),
+    page: requireFiniteNumber(payloadRecord.page, "Invalid points transactions response"),
+    page_size: requireFiniteNumber(
+      payloadRecord.page_size,
+      "Invalid points transactions response"
+    ),
   };
 }
 
-/**
- * Manually adjust a user's points balance.
- *
- * @param userId - User ID (UUID string)
- * @param data - Adjustment details including amount and reason
- * @returns Promise resolving to success message and new balance
- */
-export async function adjustUserPoints(
+async function adjustUserPoints(
   userId: string,
   data: PointsAdjustRequest
 ): Promise<{ message: string; new_balance: number }> {
@@ -1847,23 +1491,12 @@ export async function adjustUserPoints(
 
 // ==================== Check-in Stats API ====================
 
-/**
- * Fetch overall check-in system statistics.
- *
- * @returns Promise resolving to check-in statistics
- */
-export async function getCheckInStats(): Promise<CheckInStats> {
+async function getCheckInStats(): Promise<CheckInStats> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/check-in/stats`);
   return normalizeCheckInStats(payload);
 }
 
-/**
- * Fetch paginated list of check-in records.
- *
- * @param params - Optional filter parameters including pagination and user filter
- * @returns Promise resolving to paginated check-in records
- */
-export async function getCheckInRecords(params?: {
+async function getCheckInRecords(params?: {
   page?: number;
   page_size?: number;
   user_id?: string;
@@ -1875,46 +1508,32 @@ export async function getCheckInRecords(params?: {
   const payload = await api.get<unknown>(
     `${ADMIN_BASE}/check-in/records?${searchParams.toString()}`
   );
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "records"]).map(normalizeCheckInRecord);
+  const payloadRecord = requireRecord(payload, "Invalid check-in records response");
+  const items = requireArray(payloadRecord.items, "Invalid check-in records response").map(
+    normalizeCheckInRecord
+  );
 
   return {
     items,
-    total: asNumber(payloadRecord.total, items.length),
-    page: asNumber(payloadRecord.page, params?.page ?? 1),
-    page_size: asNumber(payloadRecord.page_size, (params?.page_size ?? items.length) || 20),
+    total: requireFiniteNumber(payloadRecord.total, "Invalid check-in records response"),
+    page: requireFiniteNumber(payloadRecord.page, "Invalid check-in records response"),
+    page_size: requireFiniteNumber(payloadRecord.page_size, "Invalid check-in records response"),
   };
 }
 
 // ==================== Referral Management API ====================
 
-/**
- * Fetch overall referral system statistics.
- *
- * @returns Promise resolving to referral statistics
- */
-export async function getReferralStats(): Promise<ReferralStats> {
+async function getReferralStats(): Promise<ReferralStats> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/referrals/stats`);
   return normalizeReferralStats(payload);
 }
 
-/**
- * Create a new invite code from admin referrals page.
- *
- * @returns Promise resolving to the newly generated invite code
- */
-export async function createAdminInviteCode(): Promise<InviteCodesResponse["items"][number]> {
+async function createAdminInviteCode(): Promise<InviteCodesResponse["items"][number]> {
   const payload = await api.post<unknown>(`${ADMIN_BASE}/invites`);
   return normalizeInviteCode(payload);
 }
 
-/**
- * Fetch paginated list of invite codes.
- *
- * @param params - Optional filter parameters including pagination and active status
- * @returns Promise resolving to paginated invite codes list
- */
-export async function getInviteCodes(params?: {
+async function getInviteCodes(params?: {
   page?: number;
   page_size?: number;
   is_active?: boolean;
@@ -1924,82 +1543,56 @@ export async function getInviteCodes(params?: {
   if (params?.page_size) searchParams.set("page_size", String(params.page_size));
   if (params?.is_active !== undefined) searchParams.set("is_active", String(params.is_active));
   const payload = await api.get<unknown>(`${ADMIN_BASE}/invites?${searchParams.toString()}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "codes"]).map(normalizeInviteCode);
+  const payloadRecord = requireRecord(payload, "Invalid invite codes response");
+  const items = requireArray(payloadRecord.items, "Invalid invite codes response").map(
+    normalizeInviteCode
+  );
 
   return {
     items,
-    total: asNumber(payloadRecord.total, items.length),
-    page: asNumber(payloadRecord.page, params?.page ?? 1),
-    page_size: asNumber(payloadRecord.page_size, (params?.page_size ?? items.length) || 20),
+    total: requireFiniteNumber(payloadRecord.total, "Invalid invite codes response"),
+    page: requireFiniteNumber(payloadRecord.page, "Invalid invite codes response"),
+    page_size: requireFiniteNumber(payloadRecord.page_size, "Invalid invite codes response"),
   };
 }
 
-/**
- * Fetch paginated list of referral reward distribution records.
- *
- * @param params - Optional pagination parameters
- * @returns Promise resolving to paginated rewards list
- */
-export async function getReferralRewards(params?: {
+async function getReferralRewards(params?: {
   page?: number;
   page_size?: number;
 }): Promise<RewardsResponse> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
   if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  const payload = await api.get<unknown>(`${ADMIN_BASE}/referrals/rewards?${searchParams.toString()}`);
-  const payloadRecord = resolvePayloadRecord(payload);
-  const items = pickArray<unknown>(payload, ["items", "rewards"]).map(normalizeRewardRecord);
+  const payload = await api.get<unknown>(
+    `${ADMIN_BASE}/referrals/rewards?${searchParams.toString()}`
+  );
+  const payloadRecord = requireRecord(payload, "Invalid referral rewards response");
+  const items = requireArray(payloadRecord.items, "Invalid referral rewards response").map(
+    normalizeRewardRecord
+  );
 
   return {
     items,
-    total: asNumber(payloadRecord.total, items.length),
-    page: asNumber(payloadRecord.page, params?.page ?? 1),
-    page_size: asNumber(payloadRecord.page_size, (params?.page_size ?? items.length) || 20),
+    total: requireFiniteNumber(payloadRecord.total, "Invalid referral rewards response"),
+    page: requireFiniteNumber(payloadRecord.page, "Invalid referral rewards response"),
+    page_size: requireFiniteNumber(payloadRecord.page_size, "Invalid referral rewards response"),
   };
 }
 
 // ==================== Quota Usage API ====================
 
-/**
- * Fetch overall quota usage statistics across the system.
- *
- * @returns Promise resolving to quota usage statistics
- */
-export async function getQuotaUsageStats(): Promise<QuotaUsageStats> {
+async function getQuotaUsageStats(): Promise<QuotaUsageStats> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/quota/usage`);
   return normalizeQuotaUsageStats(payload);
 }
 
-/**
- * Fetch quota usage details for a specific user.
- *
- * @param userId - User ID (UUID string)
- * @returns Promise resolving to user's quota usage details
- */
-export async function getUserQuota(userId: string): Promise<UserQuotaDetail> {
+async function getUserQuota(userId: string): Promise<UserQuotaDetail> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/quota/${userId}`);
   return normalizeUserQuota(payload);
 }
 
 // ==================== Export ====================
 
-/**
- * Admin API namespace object providing access to all administrative functions.
- *
- * Organized by feature area for convenient access:
- * - User management
- * - Prompt configuration
- * - Skill review
- * - Redemption codes
- * - Subscription management
- * - Audit logs
- * - Dashboard statistics
- * - Points and check-in systems
- * - Referral management
- * - Quota monitoring
- */
 export const adminApi = {
   // 用户管理
   getUsers,
@@ -2025,7 +1618,6 @@ export const adminApi = {
   getCodes,
   createCode,
   createCodesBatch,
-  getCode,
   updateCode,
 
   // 订阅管理

@@ -258,21 +258,25 @@ describe('materialsApi', () => {
 
       await expect(materialsApi.upload(mockFile)).rejects.toMatchObject({
         status: 400,
-        message: 'ERR_FILE_CONTENT_TOO_LONG',
+        errorCode: 'ERR_FILE_CONTENT_TOO_LONG',
+        rawMessage: 'ERR_FILE_CONTENT_TOO_LONG',
         details: { char_count: 312000, limit: 300000, trial_chapters: 20 },
       })
     })
 
-    it('throws default error message when error response is invalid', async () => {
+    it('throws status-based ApiError instead of hardcoded ERR_MATERIAL_UPLOAD_FAILED when error response is non-JSON', async () => {
       vi.mocked(global.fetch).mockResolvedValue({
         ok: false,
-        status: 500,
+        status: 502,
         json: async () => {
           throw new Error('Invalid JSON')
         },
       } as Response)
 
-      await expect(materialsApi.upload(mockFile)).rejects.toThrow('ERR_MATERIAL_UPLOAD_FAILED')
+      await expect(materialsApi.upload(mockFile)).rejects.toMatchObject({
+        status: 502,
+        message: 'API error: 502',
+      })
     })
 
     it('handles network errors', async () => {

@@ -317,7 +317,7 @@ def reload_prompts_endpoint(
             error_type=type(exc).__name__,
         )
         raise APIException(
-            error_code=ErrorCode.INTERNAL_SERVER_ERROR,
+            error_code=ErrorCode.SERVICE_UNAVAILABLE,
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         ) from exc
 

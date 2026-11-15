@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import os
 import re
-from contextlib import suppress
 from datetime import UTC
 
 from sqlmodel import Session, select
@@ -78,12 +77,6 @@ class RedemptionService:
         expected_checksum = signature[:4].hex().upper()[:4]
 
         return hmac.compare_digest(provided_checksum, expected_checksum)
-
-    def get_code_by_code(self, session: Session, code: str) -> RedemptionCode | None:
-        """Look up a redemption code."""
-        return session.exec(
-            select(RedemptionCode).where(RedemptionCode.code == code)
-        ).first()
 
     def _is_downgrade(self, session: Session, user_id: str, code_tier: str) -> bool:
         current_plan = subscription_service.get_effective_paid_plan(session, user_id)
@@ -162,22 +155,25 @@ class RedemptionService:
             if attribution_source:
                 metadata["upgrade_source"] = attribution_source
 
+            tier = redemption_code.tier
+            duration_days = redemption_code.duration_days
             subscription = subscription_service.create_user_subscription(
-                session, user_id, redemption_code.tier, redemption_code.duration_days,
+                session, user_id, tier, duration_days,
                 metadata=metadata,
                 commit=False,
             )
+            if subscription.id is None:
+                session.flush()
+            subscription_id = subscription.id
             session.commit()
-            with suppress(Exception):
-                session.refresh(subscription)
 
             return (
                 True,
-                f"Successfully redeemed {redemption_code.tier} plan for {redemption_code.duration_days} days",
+                f"Successfully redeemed {tier} plan for {duration_days} days",
                 {
-                    "tier": redemption_code.tier,
-                    "duration_days": redemption_code.duration_days,
-                    "subscription_id": subscription.id
+                    "tier": tier,
+                    "duration_days": duration_days,
+                    "subscription_id": subscription_id
                 }
             )
         except Exception as e:

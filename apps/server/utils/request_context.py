@@ -75,16 +75,6 @@ def reset_request_context(tokens: dict[str, Token[Any]]) -> None:
             _request_id.set(None)
 
 
-async def reset_request_context_async(tokens: dict[str, Token[Any]]) -> None:
-    """Async wrapper so Starlette BackgroundTasks runs reset in-event-loop.
-
-    Starlette runs sync background tasks in a worker thread; ContextVar tokens
-    must be reset in the same context they were created in, so we expose an
-    async wrapper for safe use in response.background tasks.
-    """
-    reset_request_context(tokens)
-
-
 def get_agent_run_id() -> str | None:
     """Return the agent run id bound to the current context, if any."""
     return _agent_run_id.get()

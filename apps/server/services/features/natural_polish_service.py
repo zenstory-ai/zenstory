@@ -319,7 +319,7 @@ def _fit_blank_layout(old_lines: list[str], new_lines: list[str]) -> list[str] |
 
 
 def _parse_line_edits(
-    output: str, original: str | None, *, truncated: bool = False
+    output: str, original: str | None = None, *, truncated: bool = False
 ) -> tuple[list[LineEdit], list[str]]:
     """Parse the reply; returns the edits and the fixed names of the deviations tolerated.
 
@@ -450,27 +450,6 @@ def _drop_leading_blank(lines: list[str]) -> list[str]:
     while index < len(lines) - 1 and not lines[index].strip():
         index += 1
     return lines[index:]
-
-
-def parse_line_edits(output: str, original: str | None = None) -> list[LineEdit]:
-    """Parse a ``原：/改：`` or ``OLD:/NEW:`` response.
-
-    The model output is an internal wire format, not prose; nothing outside a pair is
-    ever written into the author's document. Deviations are tolerated only where the
-    protocol structure makes the intent unambiguous:
-
-    - blank lines between markers, marker decorations (bullets, numbering, bold),
-      alias labels, full-width colons, code fences, a marker on its own line;
-    - a leading or trailing note that shares almost nothing with ``original``
-      (needs ``original``; without it such text stays a protocol error);
-    - a reply cut off right after its last ``原：`` keeps the complete pairs before it.
-
-    A block may span several original lines (the model copies context to make a
-    repeated short line unique); its revision must have the same number of non-blank
-    lines, so merged or split lines and text glued onto a revision still fail.
-    """
-    edits, _ = _parse_line_edits(output, original)
-    return edits
 
 
 def _leading_ws(text: str) -> str:
@@ -813,12 +792,12 @@ def apply_line_edits(
     *,
     file_type: str | None = None,
     tolerated: list[str] | None = None,
-) -> tuple[str, int]:
+) -> str:
     """Apply「原：/改：」pairs to the original; unmentioned lines stay byte-identical.
 
-    Returns ``(text, 0)`` for the existing helper contract. Unmatched or still
-    ambiguous anchors raise ``NaturalPolishProtocolError``; nothing is guessed.
-    ``tolerated`` collects the fixed names of the anchor deviations accepted.
+    Unmatched or still ambiguous anchors raise ``NaturalPolishProtocolError``;
+    nothing is guessed. ``tolerated`` collects the fixed names of the anchor
+    deviations accepted.
     """
     notes: list[str] = tolerated if tolerated is not None else []
     is_script = file_type == FILE_TYPE_SCRIPT
@@ -915,7 +894,7 @@ def apply_line_edits(
         result.pop()
     while result and not result[0].strip() and lines and lines[0].strip():
         result.pop(0)
-    return "\n".join(result), 0
+    return "\n".join(result)
 
 
 def _keep_protected_sentences(original_line: str, guarded: str | object) -> tuple[str | object, int]:
@@ -966,13 +945,12 @@ _TRIPLET_ZH_RE = re.compile(
 _HINT_LINE_MAX_CHARS = 300
 
 
-def build_attention_hints(selected_text: str, language: str, file_type: str | None = None) -> str:
+def build_attention_hints(selected_text: str, language: str) -> str:
     """Locate candidate phrases (and, in Chinese, triplets) for contextual review.
 
     选区的最后一句不再单独点给模型：那条提示让模型把结尾的主题句当成升华句删掉
     （2026-10-09 第二轮审计 N1），也让本来干净的结尾被顺手改写。
     """
-    del file_type  # 保留参数，调用方不变；剧本和正文用同一套提示。
     is_english = language.lower().startswith("en")
     patterns = _STOCK_PHRASE_PATTERNS_EN if is_english else _STOCK_PHRASE_PATTERNS_ZH
     hits: list[tuple[str, list[str]]] = []
@@ -1236,7 +1214,7 @@ def guard_line_sentences(original_line: str, new_line: str) -> tuple[str, int]:
 
 
 # 英文句末标点（可带右引号、右括号），且标点前不是汉字；下一句以拉丁字母或数字开头（可带左引号、左括号）。
-_SENTENCE_CLOSERS = "\"'”’)]"
+_LATIN_SENTENCE_CLOSERS = "\"'”’)]"
 _SENTENCE_TERMINALS = ".!?…"
 
 
@@ -1249,7 +1227,7 @@ def _ends_latin_sentence(text: str) -> bool:
     brackets) that is not attached to a CJK character. A backward linear scan: an
     end-anchored regex search here is quadratic on long runs of punctuation."""
     index = len(text)
-    while index > 0 and text[index - 1] in _SENTENCE_CLOSERS:
+    while index > 0 and text[index - 1] in _LATIN_SENTENCE_CLOSERS:
         index -= 1
     run_start = index
     while run_start > 0 and text[run_start - 1] in _SENTENCE_TERMINALS:
@@ -1348,7 +1326,7 @@ class NaturalPolishService:
         served: dict[str, Any] = {}
         # 静态提示词在前、本次提示在后，前缀缓存仍然命中。
         prompt = self._resolve_prompt(language, file_type) + build_attention_hints(
-            selected_text, language, file_type
+            selected_text, language
         )
 
         messages = [
@@ -1396,7 +1374,7 @@ class NaturalPolishService:
             edits = aligned
 
         try:
-            polished_text, _ = apply_line_edits(
+            polished_text = apply_line_edits(
                 selected_text, edits, file_type=file_type, tolerated=tolerated
             )
         except NaturalPolishProtocolError as error:

@@ -148,16 +148,6 @@ class UpdateUserRequest(BaseModel):
         return value
 
 
-class ChangePasswordRequest(BaseModel):
-    old_password: str
-    new_password: str
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, value: str) -> str:
-        return _validate_new_password(value)
-
-
 class PasswordResetRequest(BaseModel):
     email: EmailStr
     language: str | None = "zh"
@@ -674,28 +664,18 @@ async def register(
         )
 
     # Activation milestone: signup completed.
-    try:
-        activation_event_service.record_once(
-            session,
-            user_id=new_user.id,
-            event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS,
-            event_metadata={
-                "source": "register_api",
-                "acquisition": normalize_acquisition(request.acquisition),
-                "invite_policy_variant": invite_policy_variant,
-                "invite_policy_rollout_percent": invite_policy_rollout_percent,
-                "invite_code_optional": invite_code_optional,
-            },
-        )
-    except Exception as e:
-        log_with_context(
-            logger,
-            logging.WARNING,
-            "Failed to record signup activation event",
-            user_id=new_user.id,
-            error=str(e),
-            error_type=type(e).__name__,
-        )
+    activation_event_service.record_once_best_effort(
+        session,
+        user_id=new_user.id,
+        event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS,
+        event_metadata={
+            "source": "register_api",
+            "acquisition": normalize_acquisition(request.acquisition),
+            "invite_policy_variant": invite_policy_variant,
+            "invite_policy_rollout_percent": invite_policy_rollout_percent,
+            "invite_code_optional": invite_code_optional,
+        },
+    )
 
     return {
         "message": get_message("auth_register_success" if success else "auth_register_delivery_pending", _accept_language),
@@ -1201,50 +1181,6 @@ def update_current_user_preferences(
         stored = set_ui_language(session, current_user.id, request.ui_language)
         session.commit()
     return UserPreferencesResponse(ui_language=stored)
-
-
-@router.post("/change-password")
-async def change_password(
-    request: ChangePasswordRequest,
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-    accept_language: str = Depends(get_accept_language)
-):
-    """
-    Change user password.
-
-    - Requires authentication
-    - Verifies old password before changing
-    """
-    # Verify old password
-    if not await asyncio.to_thread(verify_password, request.old_password, current_user.hashed_password):
-        raise APIException(
-            error_code=ErrorCode.AUTH_INVALID_CREDENTIALS,
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
-
-    # Update password
-    current_user.hashed_password = await asyncio.to_thread(hash_password, request.new_password)
-    current_user.updated_at = utcnow()
-
-    session.add(current_user)
-    revoked_count = _revoke_active_refresh_tokens_for_user(
-        session,
-        user_id=current_user.id,
-        reason="password_changed",
-    )
-    session.commit()
-    _run_refresh_token_housekeeping(session)
-    if revoked_count > 0:
-        log_with_context(
-            logger,
-            logging.INFO,
-            "Revoked active refresh tokens after password change",
-            user_id=current_user.id,
-            revoked_count=revoked_count,
-        )
-
-    return {"message": get_message("auth_password_changed", accept_language)}
 
 
 @router.post("/password-reset/request")

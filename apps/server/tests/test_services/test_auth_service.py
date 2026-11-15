@@ -31,7 +31,6 @@ from services.core.auth_service import (
     get_current_active_user,
     get_current_superuser,
     get_current_user,
-    get_optional_current_user,
     get_refresh_token_expires_at,
     hash_password,
     validate_auth_runtime_configuration,
@@ -133,6 +132,29 @@ class TestVerifyPassword:
 
         assert verify_password(password, hashed) is True
         assert verify_password("密码测试124", hashed) is False
+
+    def test_verify_password_long_ascii_over_72_bytes(self):
+        """Passwords over 72 ASCII bytes must hash and verify symmetrically."""
+        password = "a" * 72 + "EXTRA_SUFFIX_123"
+        hashed = hash_password(password)
+
+        assert verify_password(password, hashed) is True
+        assert verify_password("b" + "a" * 71 + "EXTRA_SUFFIX_123", hashed) is False
+
+    def test_verify_password_long_cjk_over_72_utf8_bytes(self):
+        """CJK passwords exceeding 72 UTF-8 bytes (including mid-char split) must hash and verify."""
+        from services.core.auth_service import _truncate_bcrypt_password
+
+        # 1 ASCII + 24 CJK = 73 UTF-8 bytes (72 falls mid-character -> truncates cleanly to 70 bytes)
+        mid_char_pw = "x" + "语" * 24
+        truncated = _truncate_bcrypt_password(mid_char_pw)
+        assert truncated == "x" + "语" * 23
+        assert len(truncated.encode("utf-8")) == 70
+
+        for password in ("密" * 26, mid_char_pw):
+            hashed = hash_password(password)
+            assert verify_password(password, hashed) is True
+            assert verify_password("错" + password[1:], hashed) is False
 
 
 @pytest.mark.unit
@@ -529,54 +551,6 @@ class TestGetCurrentActiveUser:
 
         assert exc_info.value.error_code == ErrorCode.AUTH_INACTIVE_USER
         assert exc_info.value.status_code == 400
-
-
-@pytest.mark.unit
-class TestGetOptionalCurrentUser:
-    """Tests for get_optional_current_user dependency."""
-
-    @pytest.mark.asyncio
-    async def test_get_optional_current_user_no_token(self, db_session: Session):
-        """Test that None token returns None user."""
-        result = await get_optional_current_user(token=None, session=db_session)
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_get_optional_current_user_invalid_token(self, db_session: Session):
-        """Test that invalid token returns None user."""
-        result = await get_optional_current_user(token="invalid_token", session=db_session)
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_get_optional_current_user_valid_token(self, db_session: Session):
-        """Test that valid token returns the user."""
-        user = User(
-            id="user-123",
-            email="test@example.com",
-            username="testuser",
-            hashed_password="hashed",
-            is_active=True,
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        token = create_access_token({"sub": user.id})
-
-        result = await get_optional_current_user(token=token, session=db_session)
-
-        assert result is not None
-        assert result.id == user.id
-
-    @pytest.mark.asyncio
-    async def test_get_optional_current_user_user_not_found(self, db_session: Session):
-        """Test that non-existent user returns None."""
-        token = create_access_token({"sub": "nonexistent-user-id"})
-
-        result = await get_optional_current_user(token=token, session=db_session)
-
-        assert result is None
 
 
 @pytest.mark.unit

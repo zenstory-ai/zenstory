@@ -214,7 +214,10 @@ def validate_invite_code(code: str, session: Session) -> tuple[bool, InviteCode 
 
         return True, invite_code, ""
 
+    except APIException:
+        raise
     except Exception as e:
+        session.rollback()
         log_with_context(
             logger,
             40,  # ERROR
@@ -223,7 +226,11 @@ def validate_invite_code(code: str, session: Session) -> tuple[bool, InviteCode 
             error=str(e),
             error_type=type(e).__name__,
         )
-        return False, None, "Failed to validate invite code"
+        raise APIException(
+            error_code=ErrorCode.INTERNAL_SERVER_ERROR,
+            status_code=500,
+            detail="Failed to validate invite code",
+        ) from e
 
 
 async def create_referral(
@@ -511,8 +518,6 @@ async def complete_referral_and_reward(
         )
         session.add(invitee_reward)
 
-        inviter_balance = points_service.get_balance(session, referral.inviter_id)
-        inviter_stats.available_points = inviter_balance["available"]
         if inviter_stats.total_invites < inviter_stats.successful_invites:
             inviter_stats.total_invites = inviter_stats.successful_invites
 
@@ -670,6 +675,7 @@ def get_user_referral_stats(user_id: str, session: Session) -> dict:
         }
 
     except SQLAlchemyError as e:
+        session.rollback()
         log_with_context(
             logger,
             40,  # ERROR
@@ -706,6 +712,7 @@ def get_user_invite_codes(user_id: str, session: Session) -> list[InviteCode]:
         return list(codes)
 
     except SQLAlchemyError as e:
+        session.rollback()
         log_with_context(
             logger,
             40,  # ERROR

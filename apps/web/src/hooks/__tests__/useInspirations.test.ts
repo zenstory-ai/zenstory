@@ -314,77 +314,14 @@ describe('useInspirations', () => {
     })
   })
 
-  describe('featured inspirations', () => {
-    it('returns featured inspirations from separate query', () => {
-      const mockFeatured = [
-        createMockInspiration({ id: '1', is_featured: true }),
-        createMockInspiration({ id: '2', is_featured: true }),
-      ]
+  describe('featured inspirations separation', () => {
+    it('does not fetch featured inspirations inside useInspirations', () => {
+      renderHook(() => useInspirations())
 
-      mockUseQuery.mockImplementation((options: { queryKey: string[] }) => {
-        if (options.queryKey[0] === 'inspirations-featured') {
-          return {
-            data: mockFeatured,
-            isLoading: false,
-            error: null,
-          }
-        }
-        return {
-          data: { inspirations: [], total: 0, page: 1, page_size: 12 },
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        }
-      })
-
-      const { result } = renderHook(() => useInspirations())
-
-      expect(result.current.featured).toEqual(mockFeatured)
-    })
-
-    it('returns empty array when featured query has no data', () => {
-      mockUseQuery.mockImplementation((options: { queryKey: string[] }) => {
-        if (options.queryKey[0] === 'inspirations-featured') {
-          return {
-            data: undefined,
-            isLoading: false,
-            error: null,
-          }
-        }
-        return {
-          data: { inspirations: [], total: 0, page: 1, page_size: 12 },
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        }
-      })
-
-      const { result } = renderHook(() => useInspirations())
-
-      expect(result.current.featured).toEqual([])
-    })
-
-    it('tracks featured loading state separately', () => {
-      mockUseQuery.mockImplementation((options: { queryKey: string[] }) => {
-        if (options.queryKey[0] === 'inspirations-featured') {
-          return {
-            data: undefined,
-            isLoading: true,
-            error: null,
-          }
-        }
-        return {
-          data: { inspirations: [], total: 0, page: 1, page_size: 12 },
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        }
-      })
-
-      const { result } = renderHook(() => useInspirations())
-
-      expect(result.current.isFeaturedLoading).toBe(true)
-      expect(result.current.isLoading).toBe(false)
+      const featuredCall = mockUseQuery.mock.calls.find(
+        (call) => call[0]?.queryKey?.[0] === 'inspirations-featured'
+      )
+      expect(featuredCall).toBeUndefined()
     })
   })
 
@@ -575,21 +512,15 @@ describe('useInspirations', () => {
       }
 
       const copyMutateAsync = vi.fn().mockResolvedValue(mockResponse)
-      const submitMutateAsync = vi.fn()
       let copyMutationOptions: { onSuccess?: () => void } | undefined
 
-      mockUseMutation
-        .mockImplementationOnce((options) => {
-          copyMutationOptions = options
-          return {
-            mutateAsync: copyMutateAsync,
-            isPending: false,
-          }
-        })
-        .mockImplementationOnce(() => ({
-          mutateAsync: submitMutateAsync,
+      mockUseMutation.mockImplementationOnce((options) => {
+        copyMutationOptions = options
+        return {
+          mutateAsync: copyMutateAsync,
           isPending: false,
-        }))
+        }
+      })
 
       const { result } = renderHook(() => useInspirations())
 

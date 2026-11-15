@@ -46,22 +46,6 @@ export interface VoiceRecognizeResponse {
 }
 
 /**
- * Voice recognition service status and configuration info.
- */
-export interface VoiceStatusResponse {
-  /** Whether the voice recognition service is configured and available */
-  configured: boolean;
-  /** Service provider name (e.g., 'tencent') */
-  provider: string;
-  /** Service name (e.g., 'asr') */
-  service: string;
-  /** Maximum allowed audio duration in seconds */
-  max_duration_seconds: number;
-  /** List of supported audio formats */
-  supported_formats: VoiceAudioFormat[];
-}
-
-/**
  * Send audio data to the voice recognition API for transcription.
  *
  * Converts speech to text using Tencent Cloud ASR service.
@@ -90,18 +74,6 @@ export async function recognizeVoice(
   return signal
     ? api.post<VoiceRecognizeResponse>('/api/v1/voice/recognize', request, { signal })
     : api.post<VoiceRecognizeResponse>('/api/v1/voice/recognize', request);
-}
-
-/**
- * Check the voice recognition service status and configuration.
- *
- * Returns information about whether the service is configured,
- * the provider, and supported audio formats.
- *
- * @returns Promise resolving to service status information
- */
-export async function getVoiceStatus(): Promise<VoiceStatusResponse> {
-  return api.get<VoiceStatusResponse>('/api/v1/voice/status');
 }
 
 /**

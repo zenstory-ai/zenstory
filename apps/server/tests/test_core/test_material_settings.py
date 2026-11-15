@@ -24,7 +24,6 @@ _STAGE_ENV_VARS = (
     "MATERIAL_ENABLE_PLOT_EXTRACTION",
     "MATERIAL_ENABLE_CHARACTER_EXTRACTION",
     "MATERIAL_ENABLE_META_EXTRACTION",
-    "MATERIAL_ENABLE_ENTITY_EXTRACTION",
     "MATERIAL_ENABLE_NOVEL_SYNOPSIS",
     "MATERIAL_ENABLE_STORY_AGGREGATION",
     "MATERIAL_ENABLE_STORYLINE_GENERATION",
@@ -168,68 +167,6 @@ class TestResolveEnabledStages:
         assert "requested={chapter_summaries, characters, meta, synopsis, stories, storylines}" in text
         assert "effective={chapter_summaries, characters, meta, synopsis}" in text
         assert "stories: requires plots" in text
-
-
-class TestLegacyEntityExtractionFlag:
-    def test_legacy_env_false_applies_to_unset_new_flags(self, monkeypatch, caplog):
-        import config.material_settings as ms_mod
-
-        _clean_settings(monkeypatch)
-        monkeypatch.setattr(ms_mod, "_legacy_entity_flag_warned", False)
-        monkeypatch.setenv("MATERIAL_ENABLE_ENTITY_EXTRACTION", "false")
-
-        with caplog.at_level("WARNING", logger="config.material_settings"):
-            settings = MaterialSettings(_env_file=None)
-            MaterialSettings(_env_file=None)
-        stages = ms_mod.resolve_enabled_stages(settings)
-
-        assert stages.characters is False
-        assert stages.meta is False
-        deprecation_logs = [r for r in caplog.records if "deprecated" in r.getMessage()]
-        assert len(deprecation_logs) == 1
-
-    def test_explicit_new_flags_win_over_legacy(self, monkeypatch):
-        from config.material_settings import resolve_enabled_stages
-
-        _clean_settings(monkeypatch)
-        monkeypatch.setenv("MATERIAL_ENABLE_ENTITY_EXTRACTION", "false")
-        monkeypatch.setenv("MATERIAL_ENABLE_CHARACTER_EXTRACTION", "true")
-        monkeypatch.setenv("MATERIAL_ENABLE_META_EXTRACTION", "true")
-
-        stages = resolve_enabled_stages(MaterialSettings(_env_file=None))
-
-        assert stages.characters is True
-        assert stages.meta is True
-
-    def test_legacy_only_fills_the_new_flag_that_is_not_set(self, monkeypatch):
-        from config.material_settings import resolve_enabled_stages
-
-        _clean_settings(monkeypatch)
-        monkeypatch.setenv("MATERIAL_ENABLE_ENTITY_EXTRACTION", "true")
-        monkeypatch.setenv("MATERIAL_ENABLE_META_EXTRACTION", "false")
-        from_env = resolve_enabled_stages(MaterialSettings(_env_file=None))
-        assert (from_env.characters, from_env.meta) == (True, False)
-
-        _clean_settings(monkeypatch)
-        from_kwargs = resolve_enabled_stages(
-            MaterialSettings(
-                _env_file=None, ENABLE_ENTITY_EXTRACTION=False, ENABLE_CHARACTER_EXTRACTION=True
-            )
-        )
-        assert (from_kwargs.characters, from_kwargs.meta) == (True, False)
-
-    def test_new_flags_apply_when_legacy_unset(self, monkeypatch):
-        from config.material_settings import resolve_enabled_stages
-
-        _clean_settings(monkeypatch)
-        monkeypatch.setenv("MATERIAL_ENABLE_META_EXTRACTION", "false")
-
-        settings = MaterialSettings(_env_file=None)
-        stages = resolve_enabled_stages(settings)
-
-        assert settings.ENABLE_ENTITY_EXTRACTION is None
-        assert stages.characters is True
-        assert stages.meta is False
 
 
 class TestDroppedStageWarnings:

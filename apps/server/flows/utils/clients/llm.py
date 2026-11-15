@@ -305,37 +305,6 @@ class MaterialLLMClient:
             f"content_length={len(content)})"
         )
 
-    def validate_response_format(
-        self,
-        response: LLMResponse,
-        required_fields: list[str],
-    ) -> bool:
-        """
-        验证响应格式
-
-        Args:
-            response: LLM 响应对象
-            required_fields: 必需字段列表
-
-        Returns:
-            是否符合格式要求
-        """
-        logger = get_logger(__name__)
-        try:
-            data = self.extract_json_from_response(response)
-
-            # 检查必需字段
-            for field in required_fields:
-                if field not in data:
-                    logger.warning(f"响应缺少必需字段: {field}")
-                    return False
-
-            return True
-
-        except Exception as e:
-            log_error_with_context(e, "响应格式验证失败", logger)
-            return False
-
 
 _material_llm_client: MaterialLLMClient | None = None
 

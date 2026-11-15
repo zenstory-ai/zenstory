@@ -68,7 +68,6 @@ type TreeItemType =
   | "character"
   | "story"
   | "worldview"
-  | "cheat"
   | "plot"
   | "storyline"
   | "relationship"
@@ -84,8 +83,6 @@ interface TreeItem {
   searchText?: string;
   /** Aggregate count from the material detail response; undefined means unknown. */
   count?: number;
-  /** Folder whose decomposition stage was not enabled and that has no data: muted, not expandable. */
-  disabled?: boolean;
 }
 
 const ITEM_FOLDERS: Partial<Record<TreeItemType, string>> = {
@@ -445,10 +442,6 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
           story.core_conflict,
           parseThemes(story.themes),
         ]),
-        metadata: {
-          description: story.synopsis,
-          plot_type: story.story_type,
-        },
       })),
     });
 
@@ -596,7 +589,6 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   };
 
   const handleItemClick = (item: TreeItem) => {
-    if (item.disabled) return;
     if (item.type === "folder") {
       toggleFolder(item.id);
     } else {
@@ -886,8 +878,6 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
         return <Sparkles className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
       case "worldview":
         return <Globe className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
-      case "cheat":
-        return <Zap className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
       case "plot":
         return <File className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
       case "storyline":
@@ -904,8 +894,7 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
   return (
     <div className="space-y-1">
       {items.map((item) => {
-        const isDisabled = Boolean(item.disabled);
-        const isExpanded = !isDisabled && (searchActive || expandedFolders.has(item.id));
+        const isExpanded = searchActive || expandedFolders.has(item.id);
         const isSelected = selectedKey === treeItemKey(item);
         const hasChildren = item.children && item.children.length > 0;
 
@@ -914,22 +903,17 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
             <button
               id={item.type === "folder" ? `material-folder-${item.id}` : undefined}
               onClick={() => onItemClick(item)}
-              disabled={isDisabled}
-              aria-disabled={isDisabled || undefined}
               aria-expanded={item.type === "folder" ? isExpanded : undefined}
               aria-current={isSelected ? "true" : undefined}
               title={item.title}
               className={`w-full flex items-center gap-2 px-2 py-2 min-h-10 max-md:min-h-11 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] ${
-                isDisabled
-                  ? "cursor-not-allowed text-[hsl(var(--text-tertiary))]"
-                  : isSelected
+                isSelected
                   ? "bg-[hsl(var(--accent-primary)/0.08)] text-[hsl(var(--accent-primary))]"
                   : "hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] active:bg-[hsl(var(--bg-hover))]"
               }`}
               style={{ paddingLeft: `${level * 12 + 8}px` }}
             >
-              {item.type === "folder" && isDisabled && <span className="shrink-0 w-3.5" />}
-              {item.type === "folder" && !isDisabled && (
+              {item.type === "folder" && (
                 <span className="shrink-0">
                   {isExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -940,11 +924,6 @@ function FileTree({ items, selectedKey, expandedFolders, onItemClick, loadingSta
               )}
               <span className="shrink-0">{getIcon(item.type, isExpanded)}</span>
               <span className="truncate flex-1 text-left">{item.title}</span>
-              {isDisabled && (
-                <span className="shrink-0 text-xs text-[hsl(var(--text-tertiary))]">
-                  {t("materials:detail.notEnabled")}
-                </span>
-              )}
               {item.type === "folder" && loadingStates[item.id] && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[hsl(var(--accent-primary))]" />
               )}

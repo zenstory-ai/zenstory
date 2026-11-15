@@ -681,6 +681,50 @@ async def test_version_not_found(client: AsyncClient, db_session):
 
 
 @pytest.mark.integration
+async def test_version_unexpected_value_error_returns_500_without_leaking_message(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """Unexpected ValueError during version read/rollback must return 500 without leaking raw message."""
+    from services.core.auth_service import hash_password
+
+    user = User(
+        username="user10_err", email="user10_err@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True, is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    login_response = await client.post("/api/auth/login", data={"username": "user10_err", "password": "password123"})
+    headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+    project_id = (await client.post("/api/v1/projects", json={"name": "P"}, headers=headers)).json()["id"]
+    file_id = (
+        await client.post(
+            f"/api/v1/projects/{project_id}/files",
+            json={"title": "F", "content": "Initial", "file_type": "draft"},
+            headers=headers,
+        )
+    ).json()["id"]
+
+    from services.file_version import get_file_version_service
+
+    svc = get_file_version_service()
+    monkeypatch.setattr(
+        svc,
+        "get_content_at_version",
+        lambda *_a, **_kw: (_ for _ in ()).throw(ValueError("internal secret diff failure")),
+    )
+
+    resp_content = await client.get(f"/api/v1/files/{file_id}/versions/1/content", headers=headers)
+    assert resp_content.status_code == 500
+    assert "internal secret diff failure" not in resp_content.text
+
+    resp_rollback = await client.post(f"/api/v1/files/{file_id}/versions/1/rollback", headers=headers)
+    assert resp_rollback.status_code == 500
+    assert "internal secret diff failure" not in resp_rollback.text
+
+
+@pytest.mark.integration
 async def test_version_content_integrity(client: AsyncClient, db_session):
     """测试版本内容完整性"""
     from services.core.auth_service import hash_password

@@ -178,7 +178,6 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
     if (error) setError("");
 
     if (index === 5 && numValue) {
-      newCode[5] = numValue;
       scheduleAutomaticSubmit(newCode.join(""));
     }
   };
@@ -455,7 +454,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
                       onChange={(e) => handleInputChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
                       onPaste={handlePaste}
-                      disabled={loading || success || !hasEmail}
+                      disabled={loading}
                       className="w-full h-12 sm:h-14 text-center text-xl sm:text-2xl font-bold bg-[hsl(var(--bg-tertiary))] border-2 border-[hsl(var(--border-color))] rounded-xl focus:border-[hsl(var(--accent-primary))] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     />
                   ))}
@@ -475,7 +474,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
                 <button
                   type="button"
                   onClick={handleResend}
-                  disabled={cooldown > 0 || loading || !hasEmail}
+                  disabled={cooldown > 0 || loading}
                   className="btn-ghost w-full py-3 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-2 border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-primary)/0.05)] text-[hsl(var(--text-primary))]"
                 >
                   {cooldown > 0 ? (

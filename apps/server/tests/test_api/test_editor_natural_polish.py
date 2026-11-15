@@ -18,10 +18,14 @@ from services.features.natural_polish_service import (
     NaturalPolishFailure,
     NaturalPolishProtocolError,
     NaturalPolishResult,
+    _parse_line_edits,
     apply_line_edits,
     build_attention_hints,
-    parse_line_edits,
 )
+
+
+def _parse_edits(output: str, original: str | None = None):
+    return _parse_line_edits(output, original)[0]
 
 _CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 
@@ -763,30 +767,29 @@ def test_line_edits_keep_indentation_and_untouched_lines_byte_identical():
     original = "　　她唇角一勾，没说话。\n\n　　窗外下着雨。\n\n　　空气仿佛凝固了。"
     output = "原：她唇角一勾，没说话。\n改：她没说话。\n\n原：　　空气仿佛凝固了。\n改："
 
-    text, dropped = apply_line_edits(original, parse_line_edits(output))
+    text = apply_line_edits(original, _parse_edits(output))
 
-    assert dropped == 0
     assert text == "　　她没说话。\n\n　　窗外下着雨。"
 
 
 def test_deleted_closer_with_content_comes_back_and_a_rewrite_is_kept():
     original = "　　她把信折好。\n\n　　那一刻，她终于明白了母亲为什么一直不肯搬走。"
-    deleted = parse_line_edits("原：　　那一刻，她终于明白了母亲为什么一直不肯搬走。\n改：")
-    rewritten = parse_line_edits(
+    deleted = _parse_edits("原：　　那一刻，她终于明白了母亲为什么一直不肯搬走。\n改：")
+    rewritten = _parse_edits(
         "原：　　那一刻，她终于明白了母亲为什么一直不肯搬走。\n改：　　她想起母亲每晚都把院门留一条缝，等那个不会回来的人。"
     )
 
-    assert apply_line_edits(original, deleted)[0] == original
-    assert apply_line_edits(original, rewritten)[0] == (
+    assert apply_line_edits(original, deleted) == original
+    assert apply_line_edits(original, rewritten) == (
         "　　她把信折好。\n\n　　她想起母亲每晚都把院门留一条缝，等那个不会回来的人。"
     )
 
 
 def test_line_edits_restore_the_original_quote_style():
     original = '他说："我不爱你了。"她唇角一勾。'
-    edits = parse_line_edits("原：他说：“我不爱你了。”她唇角一勾。\n改：他说：“我不爱你了。”她笑了笑。")
+    edits = _parse_edits("原：他说：“我不爱你了。”她唇角一勾。\n改：他说：“我不爱你了。”她笑了笑。")
 
-    text, _ = apply_line_edits(original, edits)
+    text = apply_line_edits(original, edits)
 
     assert text == '他说："我不爱你了。"她笑了笑。'
 
@@ -818,7 +821,7 @@ def test_script_line_edits_never_touch_structure():
         ]
     )
 
-    text, _ = apply_line_edits(original, parse_line_edits(output), file_type="script")
+    text = apply_line_edits(original, _parse_edits(output), file_type="script")
 
     assert text.split("\n") == [
         "【场1】机场 · 日 · 内",
@@ -832,19 +835,19 @@ def test_script_line_edits_never_touch_structure():
 
 def test_script_action_and_dialogue_lines_cannot_be_deleted():
     original = "△ 硬切黑屏。\n\n陆沉：签。"
-    edits = parse_line_edits("原：△ 硬切黑屏。\n改：\n\n原：陆沉：签。\n改：")
+    edits = _parse_edits("原：△ 硬切黑屏。\n改：\n\n原：陆沉：签。\n改：")
 
-    text, _ = apply_line_edits(original, edits, file_type="script")
+    text = apply_line_edits(original, edits, file_type="script")
 
     assert text == original
 
 
 def test_no_change_marker_is_valid_and_unanchored_edits_are_protocol_failures():
-    assert parse_line_edits("无改动") == []
-    assert parse_line_edits("NO CHANGES") == []
+    assert _parse_edits("无改动") == []
+    assert _parse_edits("NO CHANGES") == []
 
     with pytest.raises(NaturalPolishProtocolError, match="unmatched OLD anchor"):
-        apply_line_edits("母亲在剥蒜。", parse_line_edits("原：完全不存在的一句\n改：别的"))
+        apply_line_edits("母亲在剥蒜。", _parse_edits("原：完全不存在的一句\n改：别的"))
 
 
 def test_output_that_only_echoes_old_lines_is_a_protocol_failure():
@@ -853,13 +856,13 @@ def test_output_that_only_echoes_old_lines_is_a_protocol_failure():
     output = "原：　　我又想起葬礼上。\n\n原：　　不是愧疚，是心疼。"
 
     with pytest.raises(NaturalPolishProtocolError, match="expected NEW marker"):
-        parse_line_edits(output)
+        _parse_edits(output)
 
 
 def test_sentence_level_edit_is_spliced_into_its_paragraph():
     original = "　　雨停了。他心中一震，回过头。"
 
-    text, _ = apply_line_edits(original, parse_line_edits("原：他心中一震，回过头。\n改：他回过头。"))
+    text = apply_line_edits(original, _parse_edits("原：他心中一震，回过头。\n改：他回过头。"))
 
     assert text == "　　雨停了。他回过头。"
 
@@ -867,7 +870,7 @@ def test_sentence_level_edit_is_spliced_into_its_paragraph():
 def test_attention_hints_point_at_stock_phrase_lines_only():
     text = "　　她指节泛白，没说话。\n\n　　窗外下着雨。\n\n　　原来，爱一直都在。"
 
-    hints = build_attention_hints(text, "zh", "draft")
+    hints = build_attention_hints(text, "zh")
 
     assert "「她指节泛白，没说话。」：指节泛白" in hints
     assert "「窗外下着雨。」" not in hints
@@ -879,7 +882,7 @@ def test_attention_hints_point_at_stock_phrase_lines_only():
 def test_attention_hints_point_at_chinese_triplets():
     text = "　　他用了一种最笨、最疼、最不体面的方式。\n\n　　她买了苹果、梨和橘子。"
 
-    hints = build_attention_hints(text, "zh", "draft")
+    hints = build_attention_hints(text, "zh")
 
     assert "三连排比" in hints
     assert "「他用了一种最笨、最疼、最不体面的方式。」：最笨、最疼、最不体面" in hints
@@ -887,9 +890,9 @@ def test_attention_hints_point_at_chinese_triplets():
 
 
 def test_attention_hints_stay_empty_when_nothing_matches():
-    assert build_attention_hints("　　窗外下着雨。\n\n　　原来，爱一直都在。", "zh", "draft") == ""
+    assert build_attention_hints("　　窗外下着雨。\n\n　　原来，爱一直都在。", "zh") == ""
     assert build_attention_hints("Rain fell. In that moment she finally understood.", "en") == ""
-    assert build_attention_hints("△ 她转身离开。\n\n苏晚：走吧。", "zh", "script") == ""
+    assert build_attention_hints("△ 她转身离开。\n\n苏晚：走吧。", "zh") == ""
     assert build_attention_hints("x" * 6000, "zh") == ""
 
 

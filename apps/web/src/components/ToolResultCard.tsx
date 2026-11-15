@@ -24,7 +24,6 @@ import {
   CheckCircle2,
   AlertCircle,
   XCircle,
-  Copy,
   RotateCcw,
   FileText,
   Info,
@@ -44,7 +43,7 @@ import {
   Settings,
   Layers,
 } from 'lucide-react';
-import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
+import type { Conflict, FileEditUndoTarget } from '../types';
 import { UndoneEditsContext, undoneEditKey } from '../lib/undoneEdits';
 import { countWords } from '../lib/documentChunker';
 import { sanitizeAgentText } from '../lib/agentDisplayName';
@@ -93,18 +92,11 @@ const isValidUndoTimestamp = (value: unknown): value is string => {
 interface ToolResultCardProps {
   /**
    * The type of content to render.
-   * - 'response': Full agent response with text, actions, and optional conflicts
    * - 'tool_call': Tool execution in progress (loading state)
    * - 'tool_result': Completed tool execution result
    * - 'conflict': Conflict warning with severity and suggestions
    */
-  type: 'response' | 'tool_call' | 'tool_result' | 'conflict';
-
-  /**
-   * Agent response data for type='response'.
-   * Contains text, apply_action, used_snippets, conflicts, and reasoning.
-   */
-  response?: AgentResponse;
+  type: 'tool_call' | 'tool_result' | 'conflict';
 
   /**
    * Name of the tool being executed or completed.
@@ -156,30 +148,6 @@ interface ToolResultCardProps {
 
   /** Open the current project's AI Memory editor at Writing Conventions. */
   onOpenAIMemory?: () => void;
-
-  /**
-   * Callback to apply the response content.
-   * Shown as primary action button for type='response'.
-   */
-  onApply?: () => void;
-
-  /**
-   * Callback to retry the operation.
-   * Shown as secondary action button.
-   */
-  onRetry?: () => void;
-
-  /**
-   * Callback to copy the response text.
-   * Shown as tertiary action button.
-   */
-  onCopy?: () => void;
-
-  /**
-   * Callback to view a snippet in detail.
-   * Called with the snippet ID when view button is clicked.
-   */
-  onViewSnippet?: (snippetId: string) => void;
 }
 
 /**
@@ -482,42 +450,6 @@ const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: 
 };
 
 /**
- * Returns localized action text for an apply action type.
- *
- * @param applyAction - Type of apply action (insert, replace, new_snippet, reference_only)
- * @param t - Translation function from react-i18next
- * @returns Localized action text for button label
- *
- * @example
- * const text = getActionText('insert', t); // t('chat:action.insert')
- */
-const getActionText = (applyAction: string, t: (key: string) => string) => {
-  switch (applyAction) {
-    case 'insert':
-      return t('chat:action.insert');
-    case 'replace':
-      return t('chat:action.replace');
-    case 'new_snippet':
-      return t('chat:action.new_snippet');
-    case 'reference_only':
-      return t('chat:action.reference_only');
-    default:
-      return t('chat:action.apply');
-  }
-};
-
-/**
- * Determines if an apply action can be performed.
- * Reference-only responses cannot be applied.
- *
- * @param applyAction - Type of apply action
- * @returns True if the action can be applied, false otherwise
- */
-const getCanApply = (applyAction: string) => {
-  return applyAction !== 'reference_only';
-};
-
-/**
  * Formats a word count (the editor's `countWords` definition: one per Chinese
  * character, one per English word) for display, switching to 千字 / k above 1000.
  *
@@ -530,61 +462,8 @@ const formatWordCount = (words: number, t: (key: string, options?: Record<string
   return t('chat:size.kCharacters', { length: (words / 1000).toFixed(1) });
 };
 
-/**
- * Component for displaying AI tool execution results.
- *
- * Renders appropriate UI based on the type prop:
- * - **tool_call**: Shows loading state with tool name and description
- * - **tool_result**: Shows success/error with tool-specific details
- * - **conflict**: Shows conflict warning with severity and suggestions
- * - **response**: Shows full response with text, actions, and snippets
- *
- * The component handles multiple tool types with specialized rendering:
- * - create_file: Shows created file info with type and size
- * - update_file: Shows updated file info
- * - edit_file: Shows detailed diff with expandable changes
- * - delete_file: Shows deletion confirmation
- * - query_files: Shows found files list
- * - update_project: Shows updated project fields
- *
- * @param props - Component props (see ToolResultCardProps interface)
- * @returns React element or null if type doesn't match any case
- *
- * @example
- * // Tool call loading state
- * <ToolResultCard
- *   type="tool_call"
- *   toolName="create_file"
- *   result={{ title: "Chapter 1", file_type: "draft" }}
- *   isPending={true}
- * />
- *
- * @example
- * // Tool result success state
- * <ToolResultCard
- *   type="tool_result"
- *   toolName="edit_file"
- *   result={{ id: "file-123", undo: { before_version_number: 3, expected_after_updated_at: "2026-10-06T12:34:56Z" } }}
- *   onUndo={(target) => handleUndo(target)}
- * />
- *
- * @example
- * // Full response with actions
- * <ToolResultCard
- *   type="response"
- *   response={{
- *     text: "Generated content...",
- *     apply_action: "insert",
- *     used_snippets: [{ id: "1", title: "Context" }]
- *   }}
- *   onApply={handleApply}
- *   onCopy={handleCopy}
- *   onViewSnippet={(id) => viewSnippet(id)}
- * />
- */
 const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   type,
-  response,
   toolName,
   result,
   error,
@@ -595,10 +474,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   chatMessageId,
   onOpenFile,
   onOpenAIMemory,
-  onApply,
-  onRetry,
-  onCopy,
-  onViewSnippet,
 }) => {
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
@@ -609,12 +484,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       onUndo(target);
     }
   }, [onUndo]);
-
-  const handleViewSnippet = useCallback((snippetId: string) => {
-    if (onViewSnippet) {
-      onViewSnippet(snippetId);
-    }
-  }, [onViewSnippet]);
 
   // Render Tool Call (loading state)
   if (type === 'tool_call' && toolName) {
@@ -1345,173 +1214,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             )}
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // Render Full Response
-  if (type === 'response' && response) {
-    return (
-      <div className="mb-4">
-        {/* Response Text Card */}
-        <div className="bg-[hsl(var(--success)/0.1)] border border-[hsl(var(--success)/0.3)] rounded-lg p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-4 h-4 text-[hsl(var(--success-text))]" />
-            <span className="text-sm text-[hsl(var(--success-text))] font-medium">{t('chat:response.generated_result')}</span>
-          </div>
-
-          <div className="text-[hsl(var(--text-secondary))] text-sm leading-relaxed whitespace-pre-wrap mb-4">
-            {response.text}
-          </div>
-
-          {/* Action Buttons */}
-          {(onApply || onRetry || onCopy) && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {onApply && getCanApply(response.apply_action) && (
-                <button
-                  onClick={onApply}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-[hsl(var(--success))] text-white rounded-md text-sm font-medium hover:bg-[hsl(var(--success-dark))] transition-colors"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  {getActionText(response.apply_action, t)}
-                </button>
-              )}
-
-              {onRetry && (
-                <button
-                  onClick={onRetry}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] rounded-md text-sm hover:bg-[hsl(var(--bg-hover))] transition-colors"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  {t('common:retry')}
-                </button>
-              )}
-
-              {onCopy && (
-                <button
-                  onClick={onCopy}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] rounded-md text-sm hover:bg-[hsl(var(--bg-hover))] transition-colors"
-                >
-                  <Copy className="w-4 h-4" />
-                  {t('common:copy')}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Used Snippets */}
-        {response.used_snippets && response.used_snippets.length > 0 && (
-          <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg p-4 mb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Info className="w-4 h-4 text-[hsl(var(--info))]" />
-              <span className="text-sm text-[hsl(var(--info))] font-medium">{t('chat:response.used_snippets')}</span>
-            </div>
-
-            <div className="space-y-2">
-              {response.used_snippets.map((snippet: { id?: string; title?: string; content?: string }, index: number) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-2 p-2 bg-[hsl(var(--bg-secondary))] rounded-md"
-                >
-                  <span className="text-xs text-[hsl(var(--text-secondary))] shrink-0 mt-0.5">
-                    {index + 1}.
-                  </span>
-                  <div className="flex-1">
-                    <div className="text-sm text-[hsl(var(--text-primary))] font-medium mb-1">
-                      {snippet.title || `Snippet #${snippet.id}`}
-                    </div>
-                    <div className="text-xs text-[hsl(var(--text-secondary))]">
-                      {snippet.content?.substring(0, 100)}
-                      {(snippet.content?.length ?? 0) > 100 && '…'}
-                    </div>
-                  </div>
-                  {onViewSnippet && snippet.id && (
-                    <button
-                      onClick={() => handleViewSnippet(snippet.id!)}
-                      className="text-xs text-[hsl(var(--accent-primary))] hover:text-[hsl(var(--accent-primary))] shrink-0"
-                    >
-                      {t('common:view')}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Conflicts */}
-        {response.conflicts && response.conflicts.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-[hsl(var(--warning-text))]" />
-              <span className="text-sm text-[hsl(var(--warning-text))] font-medium">
-                {t('chat:response.conflicts_detected', { count: response.conflicts.length })}
-              </span>
-            </div>
-
-            {response.conflicts.map((conflict, index) => (
-              <div
-                key={index}
-                className={`border rounded-lg p-4 ${getSeverityColor(conflict.severity).split(' ')[1]} ${getSeverityBgColor(conflict.severity)}`}
-              >
-                <div className="flex items-start gap-2 mb-2">
-                  {conflict.severity === 'high' ? (
-                    <XCircle className="w-5 h-5 text-[hsl(var(--error-text))] shrink-0" />
-                  ) : conflict.severity === 'medium' ? (
-                    <AlertCircle className="w-5 h-5 text-[hsl(var(--warning-text))] shrink-0" />
-                  ) : (
-                    <Lightbulb className="w-5 h-5 text-[hsl(var(--success-text))] shrink-0" />
-                  )}
-
-                  <div className="flex-1">
-                    <h4 className={`text-sm font-medium mb-1 ${getSeverityColor(conflict.severity).split(' ')[0]}`}>
-                      {conflict.title}
-                    </h4>
-                    <p className="text-sm text-[hsl(var(--text-secondary))] mb-2">
-                      {conflict.description}
-                    </p>
-
-                    {conflict.location && (
-                      <div className="text-xs text-[hsl(var(--text-secondary))] mb-2">
-                        {t('chat:conflict.location', { location: conflict.location })}
-                      </div>
-                    )}
-
-                    {conflict.suggestions && conflict.suggestions.length > 0 && (
-                      <div className="mt-3">
-                        <div className="text-xs text-[hsl(var(--text-secondary))] mb-1">{t('chat:conflict.fix_suggestions')}</div>
-                        <ul className="text-sm text-[hsl(var(--text-secondary))] space-y-1">
-                          {conflict.suggestions.map((suggestion, sIndex) => (
-                            <li key={sIndex} className="flex items-start gap-2">
-                              <span className="text-[hsl(var(--accent-primary))]">•</span>
-                              <span>{suggestion}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Reasoning */}
-        {response.reasoning && (
-          <div className="mt-4 p-3 bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg">
-            <div className="flex items-start gap-2">
-              <Lightbulb className="w-4 h-4 text-[hsl(var(--warning-text))] shrink-0 mt-0.5" />
-              <div>
-                <div className="text-xs text-[hsl(var(--text-secondary))] mb-1">{t('chat:response.reasoning_label')}</div>
-                <div className="text-sm text-[hsl(var(--text-secondary))]">
-                  {response.reasoning}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   }

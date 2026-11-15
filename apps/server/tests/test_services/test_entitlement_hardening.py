@@ -230,7 +230,7 @@ def test_concurrent_skill_creates_cannot_exceed_owned_limit(tmp_path):
         _subscribe(session, user, free, days=3650)
         session.add_all([UserSkill(user_id=user.id, name=f"s{i}", instructions="x") for i in range(2)])
         session.commit()
-        quota_service.ensure_default_quota(session, user.id)
+        quota_service.create_default_quota(session, user.id)
         user_id = user.id
 
     first_holds_lock = Event()

@@ -317,8 +317,7 @@ def find_approximate_match(
         min_pattern_len: Minimum normalized pattern length to search
         keep_line_breaks: 同 find_fuzzy_spans。近似窗口没有逐字对齐，所以按数量
             约束：窗口内部跨过的原文换行不能多于 pattern 自己的换行。
-        stats: 收到 "paragraph_rejected"（因跨段被丢弃的达标窗口数）、
-            "workload_skipped"（恒为 0：超出静态工作量线时改用种子定位，不再跳过）和 "deadline_exceeded"
+        stats: 收到 "paragraph_rejected"（因跨段被丢弃的达标窗口数）和 "deadline_exceeded"
             （扫描超时且未完成）。跨段窗口里最好的一个不比段内最好的差时返回 None：
             段内窗口只是跨段那处的一部分。
 
@@ -328,7 +327,6 @@ def find_approximate_match(
     """
     if stats is not None:
         stats["paragraph_rejected"] = 0
-        stats["workload_skipped"] = 0
         stats["deadline_exceeded"] = 0
     # Normalize both for comparison
     norm_content, map_content = normalize_for_fuzzy_match(content)

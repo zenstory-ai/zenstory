@@ -135,11 +135,6 @@ export function useSwipeGestures(
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (options.preventDefaultTouch && e.touches.length === 1) {
-        // Don't prevent default on multi-touch (allows pinch zoom)
-        // e.preventDefault(); // Commented out to allow scrolling
-      }
-
       const coords = getTouchCoordinates(e.nativeEvent);
       touchStartRef.current = {
         x: coords.x,
@@ -147,7 +142,7 @@ export function useSwipeGestures(
         time: Date.now(),
       };
     },
-    [options.preventDefaultTouch]
+    []
   );
 
   const handleTouchEnd = useCallback(
@@ -278,187 +273,6 @@ export function usePinchGesture(
       onTouchEnd: handleTouchEnd,
     }),
   };
-}
-
-/**
- * Combined gesture hook return type
- */
-export interface GestureHandlers {
-  bind: () => {
-    onTouchStart: (e: React.TouchEvent) => void;
-    onTouchMove: (e: React.TouchEvent) => void;
-    onTouchEnd: (e: React.TouchEvent) => void;
-  };
-  isGesturing: boolean;
-}
-
-/**
- * Combined hook for both swipe and pinch gestures
- *
- * @param onSwipe - Callback for swipe gestures
- * @param onPinch - Callback for pinch gestures
- * @param config - Configuration options
- * @returns Object with bind function and gesturing state
- *
- * @example
- * ```tsx
- * const { bind, isGesturing } = useGestures({
- *   onSwipe: (e) => {
- *     if (e.direction === 'left') nextPanel();
- *     if (e.direction === 'right') prevPanel();
- *   },
- *   onPinch: (e) => {
- *     setZoom(prev => Math.max(0.5, Math.min(2, prev * e.scale)));
- *   },
- * });
- *
- * return <div {...bind()} />;
- * ```
- */
-export function useGestures(handlers: {
-  onSwipe?: (event: SwipeGestureEvent) => void;
-  onPinch?: (event: PinchGestureEvent) => void;
-  config?: GestureConfig;
-}): GestureHandlers {
-  const { onSwipe, onPinch, config = {} } = handlers;
-  const options = { ...DEFAULT_CONFIG, ...config };
-
-  const [isGesturing, setIsGesturing] = useState(false);
-
-  // Swipe state
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(
-    null
-  );
-
-  // Pinch state
-  const initialDistanceRef = useRef<number>(0);
-  const lastScaleRef = useRef<number>(1);
-
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      // Handle swipe start
-      if (e.touches.length === 1) {
-        const coords = getTouchCoordinates(e.nativeEvent);
-        touchStartRef.current = {
-          x: coords.x,
-          y: coords.y,
-          time: Date.now(),
-        };
-      }
-
-      // Handle pinch start
-      if (e.touches.length === 2) {
-        initialDistanceRef.current = getTouchDistance(e.touches);
-        lastScaleRef.current = 1;
-        setIsGesturing(true);
-      }
-    },
-    []
-  );
-
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      // Handle pinch
-      if (e.touches.length === 2 && initialDistanceRef.current > 0 && onPinch) {
-        const currentDistance = getTouchDistance(e.touches);
-        const scale = currentDistance / initialDistanceRef.current;
-
-        if (Math.abs(scale - lastScaleRef.current) >= options.pinchThreshold) {
-          e.preventDefault();
-          lastScaleRef.current = scale;
-
-          onPinch({
-            scale,
-            center: getTouchCenter(e.touches),
-          });
-        }
-      }
-    },
-    [onPinch, options.pinchThreshold]
-  );
-
-  const handleTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
-      // Handle swipe end
-      if (touchStartRef.current && e.touches.length === 0 && onSwipe) {
-        const endCoords = getTouchCoordinates(e.nativeEvent);
-        const startX = touchStartRef.current.x;
-        const startY = touchStartRef.current.y;
-        const startTime = touchStartRef.current.time;
-        const endTime = Date.now();
-
-        const deltaX = endCoords.x - startX;
-        const deltaY = endCoords.y - startY;
-        const deltaTime = endTime - startTime;
-        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        const velocity = distance / deltaTime;
-
-        // Check if gesture meets threshold requirements
-        if (
-          distance >= options.swipeThreshold &&
-          deltaTime <= options.swipeTimeout &&
-          velocity >= options.swipeVelocity
-        ) {
-          const direction = getSwipeDirection(
-            deltaX,
-            deltaY,
-            options.enableVerticalSwipe
-          );
-
-          if (direction) {
-            e.preventDefault();
-            onSwipe({
-              direction,
-              deltaX,
-              deltaY,
-              velocity,
-            });
-          }
-        }
-
-        touchStartRef.current = null;
-      }
-
-      // Reset pinch state
-      if (e.touches.length < 2) {
-        initialDistanceRef.current = 0;
-        setIsGesturing(false);
-      }
-    },
-    [
-      onSwipe,
-      options.swipeThreshold,
-      options.swipeTimeout,
-      options.swipeVelocity,
-      options.enableVerticalSwipe,
-    ]
-  );
-
-  return {
-    bind: () => ({
-      onTouchStart: handleTouchStart,
-      onTouchMove: handleTouchMove,
-      onTouchEnd: handleTouchEnd,
-    }),
-    isGesturing,
-  };
-}
-
-/**
- * Hook to detect if the device supports touch gestures
- */
-export function useTouchSupport(): boolean {
-  const [hasTouchSupport] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return (
-      "ontouchstart" in window ||
-      navigator.maxTouchPoints > 0 ||
-      // @ts-expect-error - Legacy API
-      navigator.msMaxTouchPoints > 0
-    );
-  });
-
-  return hasTouchSupport;
 }
 
 /**

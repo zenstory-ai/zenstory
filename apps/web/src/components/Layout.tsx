@@ -48,13 +48,6 @@ interface LayoutProps {
    * Contains the AI chat interface for conversations.
    */
   right: React.ReactNode;
-
-  /**
-   * Content for the left panel (FileTree).
-   * @deprecated Legacy prop - on mobile, MobileFileTree is rendered directly.
-   * On desktop, Sidebar component handles file tree display.
-   */
-  left?: React.ReactNode;
 }
 
 const MOBILE_KEYBOARD_HEIGHT_THRESHOLD_PX = 120;
@@ -450,23 +443,15 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
  *   middle={<Editor />}
  *   right={<ChatPanel />}
  * />
- *
- * @example
- * // With legacy left prop (deprecated)
- * <Layout
- *   left={<FileTree />}
- *   middle={<Editor />}
- *   right={<ChatPanel />}
- * />
  */
-export const Layout: React.FC<LayoutProps> = ({ left, middle, right }) => {
+export const Layout: React.FC<LayoutProps> = ({ middle, right }) => {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
 
   if (isMobile) {
     return (
       <MobileLayoutProvider isMobile={true}>
-        <MobileLayoutContent left={left} middle={middle} right={right} />
+        <MobileLayoutContent middle={middle} right={right} />
       </MobileLayoutProvider>
     );
   }

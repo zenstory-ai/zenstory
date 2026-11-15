@@ -86,9 +86,9 @@ async def test_stories_visible_without_storyline(client: AsyncClient, db_session
     assert stories.status_code == 200
     assert [item["id"] for item in stories.json()] == [story.id]
 
-    summary = await client.get(f"/api/v1/materials/{novel.id}/summary", headers=_auth(token))
-    assert summary.json()["stories_count"] == 1
-    assert summary.json()["storylines_count"] == 0
+    detail = await client.get(f"/api/v1/materials/{novel.id}", headers=_auth(token))
+    assert detail.json()["stories_count"] == 1
+    assert detail.json()["story_lines_count"] == 0
 
     library = await client.get("/api/v1/materials/library-summary", headers=_auth(token))
     assert library.json()[0]["counts"]["stories"] == 1
@@ -129,8 +129,8 @@ async def test_legacy_story_without_novel_id_visible_via_storyline(client: Async
     storylines = await client.get(f"/api/v1/materials/{novel.id}/storylines", headers=_auth(token))
     assert storylines.json()[0]["stories_count"] == 1
 
-    summary = await client.get(f"/api/v1/materials/{novel.id}/summary", headers=_auth(token))
-    assert summary.json()["stories_count"] == 1
+    detail = await client.get(f"/api/v1/materials/{novel.id}", headers=_auth(token))
+    assert detail.json()["stories_count"] == 1
 
     preview = await client.get(
         f"/api/v1/materials/{novel.id}/stories/{legacy.id}/preview", headers=_auth(token)

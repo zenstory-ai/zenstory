@@ -19,6 +19,7 @@ from config.datetime_utils import utcnow
 from database import create_session
 from utils.logger import get_logger, log_with_context
 
+from ..constants import should_offload_session_work
 from ..prompts import get_prompt_for_project_type
 from ..utils.world_model_visibility import (
     extract_item_metadata,
@@ -123,7 +124,7 @@ class MessageManager:
         Returns:
             Persisted assistant message ID when history save succeeds
         """
-        if self._should_offload_session_work(session):
+        if should_offload_session_work(session):
             return await asyncio.to_thread(
                 self._save_messages_sync,
                 session_id,
@@ -154,12 +155,6 @@ class MessageManager:
             assistant_routing,
             user_created_at=user_created_at,
         )
-
-    def _should_offload_session_work(self, session: Session) -> bool:
-        """Only offload when running against PostgreSQL production-style sessions."""
-        bind = session.get_bind() if hasattr(session, "get_bind") else None
-        dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
-        return dialect_name == "postgresql"
 
     def _save_messages_sync(
         self,
@@ -362,40 +357,18 @@ class MessageManager:
         if not tool_calls:
             return None
 
-        serialized_calls = []
-        for tc in tool_calls:
-            if isinstance(tc, dict):
-                # New format with result info
-                if "name" in tc:
-                    serialized_calls.append({
-                        "id": tc.get("id", ""),
-                        "name": tc.get("name", ""),
-                        "arguments": tc.get("arguments", ""),
-                        "status": tc.get("status", "success"),
-                        "result": tc.get("result"),
-                        "error": tc.get("error"),
-                    })
-                elif "function" in tc:
-                    # Old format with function key
-                    serialized_calls.append({
-                        "id": tc.get("id", ""),
-                        "name": tc.get("function", {}).get("name", ""),
-                        "arguments": tc.get("function", {}).get("arguments", ""),
-                        "status": "success",
-                        "result": None,
-                        "error": None,
-                    })
-            else:
-                # Legacy OpenAI object format (for backwards compatibility)
-                serialized_calls.append({
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                    "status": "success",
-                    "result": None,
-                    "error": None,
-                })
-
+        serialized_calls = [
+            {
+                "id": tc.get("id", ""),
+                "name": tc.get("name", ""),
+                "arguments": tc.get("arguments", ""),
+                "status": tc.get("status", "success"),
+                "result": tc.get("result"),
+                "error": tc.get("error"),
+            }
+            for tc in tool_calls
+            if isinstance(tc, dict) and "name" in tc
+        ]
         return json_module.dumps(serialized_calls)
 
     def _serialize_message_metadata(
@@ -475,7 +448,7 @@ class MessageManager:
                 # Do not leak project existence.
                 raise ValueError(f"Project not found: {self.project_id}")
 
-        project_type = getattr(project, "project_type", None) or "novel"
+        project_type = project.project_type or "novel"
 
         # Build folder IDs for system prompt placeholders.
         #
@@ -504,7 +477,7 @@ class MessageManager:
 
         # Add skill catalog (L1: name + description only; instructions via load_skill)
         if skill_catalog:
-            parts.extend(self._build_skill_catalog_section(skill_catalog, force_en))
+            parts.extend(self._build_skill_catalog_section(skill_catalog))
 
         return "\n".join(parts)
 
@@ -967,9 +940,7 @@ class MessageManager:
                 break
         return clipped.rstrip() + _CONTEXT_PREVIEW_SUFFIX
 
-    def _build_skill_catalog_section(
-        self, skill_catalog: str, _force_en: bool
-    ) -> list[str]:
+    def _build_skill_catalog_section(self, skill_catalog: str) -> list[str]:
         """Build skill catalog section for AI-driven selection."""
         return [
             "",
@@ -1129,7 +1100,7 @@ class MessageManager:
             )
         ).all()
 
-        root_ids = [f.id for f in root_folders if getattr(f, "id", None)]
+        root_ids = [f.id for f in root_folders if f.id]
         child_counts: dict[str, int] = {}
         child_type_counts: dict[str, dict[str, int]] = {}
         if root_ids:

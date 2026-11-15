@@ -72,14 +72,6 @@ function tooManyCharactersMessage(
     : t("materials:uploadModal.errors.tooManyCharactersCounted", counts);
 }
 
-// Upload pre-check rejections (nothing is charged) translated via the errors namespace.
-const UPLOAD_PRECHECK_ERROR_CODES = new Set([
-  "ERR_MATERIAL_NO_CHAPTERS",
-  "ERR_MATERIAL_TOO_MANY_CHAPTERS",
-  "ERR_FILE_ENCODING_UNSUPPORTED",
-  "ERR_MATERIAL_TRIAL_NETWORK_LIMIT",
-]);
-
 /** How much of the picked book a free trial breaks down, for the note in the upload dialog. */
 export interface MaterialTrialSelection {
   totalChapters: number;
@@ -156,13 +148,6 @@ export async function prepareMaterialUpload(
   return { error: null, trial: null };
 }
 
-export async function validateMaterialUploadFile(
-  file: File,
-  t: Translate,
-): Promise<string | null> {
-  return (await prepareMaterialUpload(file, t)).error;
-}
-
 export function resolveMaterialUploadErrorMessage(
   error: unknown,
   t: Translate,
@@ -190,10 +175,18 @@ export function resolveMaterialUploadErrorMessage(
     if (error.errorCode === "ERR_FILE_TYPE_INVALID") {
       return t("materials:uploadModal.errors.invalidType");
     }
-    if (error.errorCode && UPLOAD_PRECHECK_ERROR_CODES.has(error.errorCode)) {
-      return translateError(error.errorCode);
+    if (error.errorCode) {
+      const translated = translateError(error.errorCode);
+      return translated && !translated.startsWith("ERR_") && !translated.startsWith("errors:")
+        ? translated
+        : fallback;
     }
+    return error.message && !error.message.startsWith("API error:") && !error.message.startsWith("ERR_")
+      ? error.message
+      : fallback;
   }
 
-  return error instanceof Error ? error.message : fallback;
+  return error instanceof Error && error.message && !error.message.startsWith("ERR_")
+    ? error.message
+    : fallback;
 }

@@ -194,27 +194,6 @@ class TestGetUserPlan:
 
 
 @pytest.mark.unit
-class TestGetPlanLimits:
-    """Tests for get_plan_limits method."""
-
-    def test_get_plan_limits_free(self, db_session: Session, free_plan):
-        """Test getting limits for free plan."""
-        result = quota_service.get_plan_limits(free_plan)
-
-        assert result is not None
-        assert result["ai_conversations_per_day"] == 3
-        assert result["max_projects"] == 3
-
-    def test_get_plan_limits_pro(self, db_session: Session, pro_plan):
-        """Test getting limits for pro plan."""
-        result = quota_service.get_plan_limits(pro_plan)
-
-        assert result is not None
-        assert result["ai_conversations_per_day"] == -1  # Unlimited
-        assert result["max_projects"] == -1  # Unlimited
-
-
-@pytest.mark.unit
 class TestFeatureAccess:
     def test_has_feature_access_defaults_to_false_for_free(self, db_session: Session, test_user, free_plan):
         assert quota_service.has_feature_access(

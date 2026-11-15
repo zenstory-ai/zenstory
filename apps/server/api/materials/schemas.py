@@ -27,22 +27,6 @@ class MaterialUploadResponse(BaseModel):
     message: str
 
 
-class JobStatusResponse(BaseModel):
-    """Job status response."""
-    job_id: int
-    novel_id: int
-    status: str  # pending/processing/completed/completed_with_errors/failed
-    total_chapters: int
-    processed_chapters: int
-    progress_percentage: float
-    stage_progress: dict | None
-    error_message: str | None  # ERR_* code
-    started_at: datetime | None
-    completed_at: datetime | None
-    created_at: datetime
-    updated_at: datetime
-
-
 # ==================== Library Schemas ====================
 
 class MaterialListItem(BaseModel):
@@ -264,7 +248,6 @@ __all__ = [
     "MaterialEntityType",
     # Upload & Job
     "MaterialUploadResponse",
-    "JobStatusResponse",
     # Library
     "MaterialListItem",
     "MaterialDetailResponse",

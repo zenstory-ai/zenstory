@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { InviteCodeCard } from '../referral/InviteCodeCard'
 import type { InviteCode } from '@/types/referral'
 
+const mockToastError = vi.fn()
+vi.mock('../../lib/toast', () => ({
+  toast: {
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
+}))
+
 // Mock react-i18next so the `referral` namespace resolves to the same strings
 // the app ships in public/locales/zh/referral.json (the `card.*` keys).
 vi.mock('react-i18next', () => ({
@@ -211,15 +218,17 @@ describe('InviteCodeCard', () => {
       vi.useRealTimers()
     })
 
-    it('handles clipboard API failure silently', async () => {
+    it('shows error toast when clipboard API fails', async () => {
       mockClipboardWrite.mockRejectedValueOnce(new Error('Clipboard error'))
 
       render(<InviteCodeCard inviteCode={mockInviteCode} />)
 
       const copyButton = screen.getByTitle('复制邀请码')
+      fireEvent.click(copyButton)
 
-      // Should not throw
-      expect(() => fireEvent.click(copyButton)).not.toThrow()
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledTimes(1)
+      })
     })
   })
 

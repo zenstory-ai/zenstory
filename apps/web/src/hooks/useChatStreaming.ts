@@ -54,71 +54,6 @@ const AI_MEMORY_STATUS_FIELDS = new Set([
 ]);
 
 /**
- * Creates a throttled version of a function that limits execution rate.
- * Ensures the latest call is always eventually executed.
- *
- * @template T - Function type to throttle
- * @param fn - The function to throttle
- * @param delay - Minimum time in milliseconds between executions
- * @returns Throttled function with a cancel method to clear pending execution
- *
- * @example
- * ```tsx
- * const throttledUpdate = throttle((value: string) => {
- *   console.log('Updated:', value);
- * }, 100);
- *
- * throttledUpdate('a'); // Executes immediately
- * throttledUpdate('b'); // Scheduled for 100ms later
- * throttledUpdate('c'); // Replaces 'b', only 'c' executes
- *
- * // To cancel pending execution:
- * throttledUpdate.cancel();
- * ```
- */
-export function throttle<T extends (...args: unknown[]) => void>(
-  fn: T,
-  delay: number
-): T & { cancel: () => void } {
-  let lastCall = 0;
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let pendingArgs: Parameters<T> | null = null;
-
-  const throttled = ((...args: Parameters<T>) => {
-    const now = Date.now();
-    const timeSinceLastCall = now - lastCall;
-
-    if (timeSinceLastCall >= delay) {
-      lastCall = now;
-      fn(...args);
-    } else {
-      // Store the latest args and schedule a call
-      pendingArgs = args;
-      if (!timeoutId) {
-        timeoutId = setTimeout(() => {
-          timeoutId = null;
-          if (pendingArgs) {
-            lastCall = Date.now();
-            fn(...pendingArgs);
-            pendingArgs = null;
-          }
-        }, delay - timeSinceLastCall);
-      }
-    }
-  }) as T & { cancel: () => void };
-
-  throttled.cancel = () => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    pendingArgs = null;
-  };
-
-  return throttled;
-}
-
-/**
  * Generates a unique identifier with the given prefix.
  * Combines timestamp and random string to avoid collisions
  * when multiple IDs are generated in rapid succession.
@@ -538,12 +473,6 @@ export interface UseChatStreamingReturn {
   /** Get callbacks for useAgentStream options */
   getStreamCallbacks: (deps: UseChatStreamingDependencies) => Required<UseChatStreamingOptions>;
 }
-
-/**
- * Type alias for UseChatStreamingReturn for convenience.
- * Represents the return type of the useChatStreaming hook.
- */
-export type { UseChatStreamingReturn as UseChatStreaming };
 
 /**
  * React hook for managing chat streaming UI state with throttled updates.

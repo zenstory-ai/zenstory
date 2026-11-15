@@ -267,7 +267,6 @@ class StreamProcessor:
     # Buffers
     content_buffer: str = ""  # Confirmed file content
     temp_buffer: str = ""  # Buffer for potential partial markers
-    history_buffer: str = ""  # Content for LLM history
 
     # 跨 flush 的标记判定上下文：temp_buffer 之前最后一个已消费字符（判断
     # 行内代码的前置反引号）、已消费内容中 ``` 围栏的开合奇偶性
@@ -303,7 +302,6 @@ class StreamProcessor:
         self.file_id = ""
         self.content_buffer = ""
         self.temp_buffer = ""
-        self.history_buffer = ""
         self.prev_char = ""
         self.fence_open = False
         self.at_body_start = False
@@ -328,7 +326,6 @@ class StreamProcessor:
         self.file_id = file_id
         self.content_buffer = ""
         self.temp_buffer = ""
-        self.history_buffer = ""
         self.prev_char = ""
         self.fence_open = False
         self.at_body_start = False
@@ -542,7 +539,6 @@ class StreamProcessor:
             kept_length=cut,
         )
         self.content_buffer = body[:cut]
-        self.history_buffer = self.content_buffer
         self.temp_buffer = ""
         return True
 
@@ -807,7 +803,6 @@ class StreamProcessor:
         # Add remaining content to buffers
         if before_marker:
             self.content_buffer += before_marker
-            self.history_buffer += before_marker
 
         # Calculate final content length and save final content
         final_content = self.content_buffer
@@ -894,7 +889,6 @@ class StreamProcessor:
 
         # Add to buffers and keep remaining in temp
         self.content_buffer += safe_content
-        self.history_buffer += safe_content
         self.temp_buffer = self.temp_buffer[cut:]
         if safe_content.count(FENCE) % 2 == 1:
             self.fence_open = not self.fence_open
@@ -913,7 +907,6 @@ class StreamProcessor:
         """
         self.state = StreamState.DRAINING
         self.content_buffer = ""
-        self.history_buffer = ""
         self.temp_buffer = ""
 
     def _discard_drained(self, cut: int) -> None:
@@ -1031,7 +1024,6 @@ class StreamProcessor:
             trailing = self.temp_buffer
             if trailing:
                 self.content_buffer += trailing
-                self.history_buffer += trailing
 
             final_content = self.content_buffer
             file_id = self.file_id
@@ -1097,14 +1089,6 @@ class StreamProcessor:
             )
 
         return StreamResult()
-
-    def get_final_content(self) -> str:
-        """Get the final accumulated file content."""
-        return self.content_buffer
-
-    def get_history_buffer(self) -> str:
-        """Get the content buffer for LLM history."""
-        return self.history_buffer
 
 
 def extract_reply_prebody(text: str) -> str | None:

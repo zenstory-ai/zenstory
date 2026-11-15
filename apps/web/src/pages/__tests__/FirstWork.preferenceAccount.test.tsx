@@ -1,3 +1,4 @@
+import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
@@ -38,7 +39,7 @@ let initialized: { owner: string; type: string }[];
 let unknown: string[];
 let client: QueryClient;
 
-function SessionControls() {
+function SessionControls({ onRemountAuth }: { onRemountAuth: () => void }) {
   const auth = useAuth();
   const navigate = useNavigate();
   return <>
@@ -47,8 +48,25 @@ function SessionControls() {
       await auth.login(id, 'offline-password'); navigate('/onboarding/persona');
     }}>Log in {id}</button>)}
     <button onClick={() => { auth.logout(); navigate('/login'); }}>Log out</button>
-    <button onClick={async () => { await auth.refreshToken(); }}>Refresh identity</button>
+    <button onClick={() => { localStorage.removeItem('auth_validated_at'); onRemountAuth(); }}>Refresh identity</button>
   </>;
+}
+
+function Harness() {
+  const [authKey, setAuthKey] = React.useState(0);
+  return (
+    <AuthProvider key={authKey}>
+      <BrowserRouter>
+        <SessionControls onRemountAuth={() => setAuthKey(k => k + 1)} />
+        <AuthIdentityQueryBoundary><Routes>
+          <Route path="/login" element={<div>offline login</div>} />
+          <Route path="/onboarding/persona" element={<OnboardingPersonaPage />} />
+          <Route path="/dashboard" element={<DashboardEntry />} />
+          <Route path="/project/:projectId" element={<div>first work opened</div>} />
+        </Routes></AuthIdentityQueryBoundary>
+      </BrowserRouter>
+    </AuthProvider>
+  );
 }
 
 function DashboardEntry() {
@@ -74,6 +92,9 @@ beforeEach(async () => {
       return json({ access_token: `offline-${id}`, refresh_token: `offline-refresh-${id}`, user: account(id) });
     }
     if (path === '/api/auth/logout') return json({});
+    if (path === '/api/auth/me') {
+      return new Response('{}', { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
     if (path === '/api/auth/refresh') {
       const body = JSON.parse(String(init?.body));
       const id = String(body.refresh_token).replace('offline-refresh-', '');
@@ -100,14 +121,7 @@ beforeEach(async () => {
   }
   await i18n.changeLanguage('en');
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
-  render(<QueryClientProvider client={client}><AuthProvider><BrowserRouter>
-    <SessionControls /><AuthIdentityQueryBoundary><Routes>
-      <Route path="/login" element={<div>offline login</div>} />
-      <Route path="/onboarding/persona" element={<OnboardingPersonaPage />} />
-      <Route path="/dashboard" element={<DashboardEntry />} />
-      <Route path="/project/:projectId" element={<div>first work opened</div>} />
-    </Routes></AuthIdentityQueryBoundary>
-  </BrowserRouter></AuthProvider></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>);
   await screen.findByText('auth-ready');
 });
 
@@ -188,6 +202,7 @@ describe('first-work type belongs to the current account', () => {
     setPreferredProjectType('short');
     vi.stubGlobal('sessionStorage', aTabStorage);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Refresh identity' })); });
+    await screen.findByText('auth-ready');
 
     expect(getPreferredProjectType()).toBe('short');
     expect(getPreferredProjectType('A')).toBe('screenplay');

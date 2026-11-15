@@ -9,7 +9,6 @@
 这是主流程的阶段2A,串行执行
 """
 
-import json
 import time
 from typing import Any
 
@@ -19,13 +18,14 @@ from sqlmodel import col, select
 
 from config.material_settings import material_settings as settings
 from config.material_settings import resolve_enabled_stages
+from core.error_codes import ErrorCode
 from flows.atomic_tasks.narrative import (
-    aggregate_plots_to_stories_task,
-    generate_storylines_task,
+    aggregate_plots_for_story_framework,
+    extract_storylines_from_stories,
     handle_orphan_plots_task,
     identify_story_frameworks_with_chunking,
-    save_stories_task,
-    save_storylines_task,
+    save_stories_with_plots,
+    save_storylines_with_stories,
 )
 from flows.atomic_tasks.summaries import (
     generate_novel_synopsis_task,
@@ -33,7 +33,9 @@ from flows.atomic_tasks.summaries import (
 )
 from flows.database_session import get_db_session
 from flows.utils.helpers import create_checkpoint_manager, create_performance_monitor
+from flows.utils.helpers.exceptions import is_llm_fatal_stop, is_llm_service_failure
 from models.material_models import Chapter
+from services.material.job_errors import MaterialPipelineError
 
 _def_now = time.perf_counter
 
@@ -54,7 +56,6 @@ RUNTIME_TASK_RUNNER = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_W
 def story_aggregate_flow(
     novel_id: int,
     chapter_ids: list[int],
-    correlation_id: str | None = None,  # noqa: ARG001
     job_id: int | None = None,
 ) -> dict[str, Any]:
     """
@@ -91,11 +92,10 @@ def story_aggregate_flow(
         checkpoint_stage = "stage2a"
 
         # ========================================
-        # 步骤1: 生成小说概要 + 提取元数据
+        # 步骤1: 生成小说概要
         # ========================================
 
         synopsis_generated = False
-        meta_extracted = False
 
         # 1.1 生成小说概要
         if stages.synopsis:
@@ -146,24 +146,6 @@ def story_aggregate_flow(
         else:
             logger.info("步骤1.1跳过: 小说概要功能未启用")
 
-        # 1.2 元数据应由阶段1统一触发，这里仅根据checkpoint判断是否已完成
-        if stages.meta:
-            resume_cp = checkpoint.get_checkpoint("stage2")
-            _raw = resume_cp.checkpoint_data if resume_cp else None
-            if isinstance(_raw, str):
-                try:
-                    _raw = json.loads(_raw)
-                except (json.JSONDecodeError, TypeError):
-                    _raw = {}
-            cp_data: dict[str, Any] = _raw if isinstance(_raw, dict) else {}
-            if cp_data.get("meta_extracted"):
-                logger.info("步骤1.2跳过: 检测到元数据已提取 (checkpoint)")
-                meta_extracted = True
-            else:
-                logger.info("步骤1.2跳过: 未检测到checkpoint标记，将由上游阶段负责触发元数据提取")
-        else:
-            logger.info("步骤1.2跳过: 元数据提取功能未启用")
-
         # ========================================
         # 步骤2: 剧情聚合
         # ========================================
@@ -177,7 +159,6 @@ def story_aggregate_flow(
             # 2.1 智能分块 + 识别剧情框架
             frameworks_result = identify_story_frameworks_with_chunking(
                 novel_id=novel_id,
-                enable_chunking=True,
                 max_chunks=10,
             )
 
@@ -198,6 +179,7 @@ def story_aggregate_flow(
                 # 修复: 真正的分批处理 - 每批提交后等待完成,避免资源耗尽
                 batch_size = settings.MAX_CONCURRENT_WORKFLOWS
                 total_batches = (len(story_frameworks) + batch_size - 1) // batch_size
+                story_errors: list[Exception] = []
 
                 for batch_idx in range(0, len(story_frameworks), batch_size):
                     batch_num = batch_idx // batch_size + 1
@@ -212,7 +194,7 @@ def story_aggregate_flow(
                     batch_futures = []
                     with monitor.measure(f"aggregate_stories_batch_{batch_num}"):
                         for idx, framework in enumerate(batch_frameworks, batch_idx + 1):
-                            future = aggregate_plots_to_stories_task.submit(
+                            future = aggregate_plots_for_story_framework.submit(
                                 story_framework=framework,
                                 novel_id=novel_id,
                             )
@@ -226,11 +208,14 @@ def story_aggregate_flow(
                                 logger.info("剧情 %d/%d 聚合完成: %s", idx, len(story_frameworks), title)
                             except Exception as e:
                                 logger.error("剧情 %d 聚合失败: %s - %s", idx, title, str(e))
+                                if is_llm_fatal_stop(e) or isinstance(e, MaterialPipelineError):
+                                    raise
                                 failed_stories.append(f"{idx}:{title}")
+                                story_errors.append(e)
 
                 # 2.3 保存剧情
                 if stories:
-                    save_result = save_stories_task(
+                    save_result = save_stories_with_plots(
                         stories=stories,
                         novel_id=novel_id,
                     )
@@ -259,7 +244,15 @@ def story_aggregate_flow(
                     )
                     logger.info("步骤2完成: 聚合并保存 %d 个剧情", stories_count)
                 else:
-                    logger.warning("步骤2完成: 所有剧情聚合均失败")
+                    code = (
+                        ErrorCode.MATERIAL_LLM_UNAVAILABLE
+                        if story_errors and all(is_llm_service_failure(err) for err in story_errors)
+                        else ErrorCode.MATERIAL_EXTRACTION_FAILED
+                    )
+                    raise MaterialPipelineError(
+                        code,
+                        f"stories: all {len(story_frameworks)} story frameworks failed",
+                    ) from (story_errors[-1] if story_errors else None)
             else:
                 logger.warning("步骤2跳过: 未识别到剧情框架")
         else:
@@ -307,13 +300,13 @@ def story_aggregate_flow(
 
             # 生成剧情线
             with monitor.measure("storyline_generation"):
-                storylines_result = generate_storylines_task(
+                storylines_result = extract_storylines_from_stories(
                     stories=stories,
                     novel_id=novel_id,
                 )
 
                 # 保存剧情线
-                save_storylines_result = save_storylines_task(
+                save_storylines_result = save_storylines_with_stories(
                     storylines=storylines_result["storylines"],
                     novel_id=novel_id,
                 )
@@ -336,7 +329,6 @@ def story_aggregate_flow(
         result = {
             "novel_id": novel_id,
             "synopsis_generated": synopsis_generated,
-            "meta_extracted": meta_extracted,
             "stories_count": stories_count,
             "orphan_handled": orphan_handled,
             "storylines_count": storylines_count,

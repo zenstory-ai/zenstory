@@ -155,7 +155,7 @@ const getSizeClasses = (size: ModalProps['size']): string => {
  * @param props.children - Header content
  * @param props.className - Additional CSS classes
  */
-export const ModalHeader: React.FC<ModalSubcomponentProps> = ({ children, className = '' }) => {
+const ModalHeader: React.FC<ModalSubcomponentProps> = ({ children, className = '' }) => {
   const { titleId } = useModalContext();
   return (
     <div
@@ -173,7 +173,7 @@ export const ModalHeader: React.FC<ModalSubcomponentProps> = ({ children, classN
  * @param props.children - Body content
  * @param props.className - Additional CSS classes
  */
-export const ModalBody: React.FC<ModalSubcomponentProps> = ({ children, className = '' }) => {
+const ModalBody: React.FC<ModalSubcomponentProps> = ({ children, className = '' }) => {
   const { descriptionId } = useModalContext();
   return (
     <div
@@ -191,7 +191,7 @@ export const ModalBody: React.FC<ModalSubcomponentProps> = ({ children, classNam
  * @param props.children - Footer content (typically buttons)
  * @param props.className - Additional CSS classes
  */
-export const ModalFooter: React.FC<ModalSubcomponentProps> = ({ children, className = '' }) => {
+const ModalFooter: React.FC<ModalSubcomponentProps> = ({ children, className = '' }) => {
   return (
     <div
       className={`flex items-center justify-end gap-3 mt-4 pt-4 border-t border-[hsl(var(--border-color))] ${className}`}

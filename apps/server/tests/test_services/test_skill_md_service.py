@@ -25,21 +25,12 @@ class TestSkillMdServiceInit:
     def test_default_initialization(self):
         """Test initialization with default values when no env vars set."""
         with patch.dict(os.environ, {}, clear=True):
-            # Remove the relevant env vars if they exist
-            os.environ.pop("APP_NAME", None)
             os.environ.pop("APP_VERSION", None)
             os.environ.pop("API_BASE_URL", None)
 
             service = SkillMdService()
-            assert service.app_name == "zenstory API"
             assert service.app_version == "1.0.0"
             assert service.api_base == "https://api.zenstory.ai/api/v1"
-
-    def test_custom_app_name(self):
-        """Test initialization with custom APP_NAME."""
-        with patch.dict(os.environ, {"APP_NAME": "Custom API"}):
-            service = SkillMdService()
-            assert service.app_name == "Custom API"
 
     def test_custom_app_version(self):
         """Test initialization with custom APP_VERSION."""
@@ -56,13 +47,11 @@ class TestSkillMdServiceInit:
     def test_all_custom_env_vars(self):
         """Test initialization with all custom environment variables."""
         custom_env = {
-            "APP_NAME": "My Custom API",
             "APP_VERSION": "3.0.0-beta",
             "API_BASE_URL": "https://myapi.example.com/api/v2",
         }
         with patch.dict(os.environ, custom_env):
             service = SkillMdService()
-            assert service.app_name == "My Custom API"
             assert service.app_version == "3.0.0-beta"
             assert service.api_base == "https://myapi.example.com/api/v2"
 

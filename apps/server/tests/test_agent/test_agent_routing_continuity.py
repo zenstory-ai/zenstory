@@ -100,7 +100,7 @@ async def _run_graph(fake_agent, state, *, router=None, auto_review_threshold=10
 def _handoff_call(target: str, context: str) -> list[StreamEvent]:
     """A real handoff: the handoff_to_agent tool call, then the graph's HANDOFF event."""
     return [
-        StreamEvent(type=StreamEventType.TOOL_USE, data={"name": "handoff_to_agent", "id": "h1", "status": "start"}),
+        StreamEvent(type=StreamEventType.TOOL_USE, data={"name": "handoff_to_agent", "id": "h1", "status": "complete", "input": {"target_agent": target, "context": context}}),
         _handoff(target, context),
     ]
 
@@ -306,7 +306,7 @@ def test_chinese_task_complete_marker_counts_as_completion(content, visible):
     from agent.graph.completion_evidence import author_reply_tail
     from agent.graph.nodes import detect_task_complete
 
-    result = detect_task_complete(content, "quality_reviewer")
+    result = detect_task_complete(content)
     assert result.is_complete is True
     assert result.reason == "explicit_complete_marker"
     assert author_reply_tail(content) == visible
@@ -316,7 +316,7 @@ def test_chinese_task_complete_marker_counts_as_completion(content, visible):
 def test_chinese_marker_mid_text_is_not_completion():
     from agent.graph.nodes import detect_task_complete
 
-    assert detect_task_complete("上一轮写着[任务完成]，这一轮还要继续改第二段。", "writer").is_complete is False
+    assert detect_task_complete("上一轮写着[任务完成]，这一轮还要继续改第二段。").is_complete is False
 
 
 @pytest.mark.unit

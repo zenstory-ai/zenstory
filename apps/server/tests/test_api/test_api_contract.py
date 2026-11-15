@@ -290,7 +290,7 @@ class TestRouterPrefixContract:
         critical_routes = [
             "/api/v1/public-skills/categories",
             "/api/v1/skills",
-            "/api/v1/materials",
+            "/api/v1/materials/list",
         ]
 
         for critical_route in critical_routes:

@@ -13,7 +13,7 @@ vi.mock('../apiClient', () => ({
 }))
 
 // Import after mocking
-import { recognizeVoice, getVoiceStatus, blobToBase64 } from '../voiceApi'
+import { recognizeVoice, blobToBase64 } from '../voiceApi'
 import { api } from '../apiClient'
 
 // Get the mocked api
@@ -215,48 +215,6 @@ describe('voiceApi', () => {
     })
   })
 
-  describe('getVoiceStatus', () => {
-    it('returns voice service status', async () => {
-      const mockResponse = {
-        configured: true,
-        provider: 'tencent',
-        service: 'asr',
-        max_duration_seconds: 60,
-        supported_formats: ['wav', 'pcm', 'ogg-opus', 'speex', 'silk', 'mp3', 'm4a', 'aac', 'amr'],
-      }
-      mockApi.get.mockResolvedValue(mockResponse)
-
-      const result = await getVoiceStatus()
-
-      expect(result).toEqual(mockResponse)
-      expect(result.configured).toBe(true)
-      expect(result.provider).toBe('tencent')
-      expect(result.supported_formats).toContain('ogg-opus')
-      expect(mockApi.get).toHaveBeenCalledWith('/api/v1/voice/status')
-    })
-
-    it('returns unconfigured status', async () => {
-      const mockResponse = {
-        configured: false,
-        provider: 'none',
-        service: 'asr',
-        max_duration_seconds: 0,
-        supported_formats: [],
-      }
-      mockApi.get.mockResolvedValue(mockResponse)
-
-      const result = await getVoiceStatus()
-
-      expect(result.configured).toBe(false)
-    })
-
-    it('handles service unavailable', async () => {
-      mockApi.get.mockRejectedValue(new Error('Service unavailable'))
-
-      await expect(getVoiceStatus()).rejects.toThrow('Service unavailable')
-    })
-  })
-
   describe('blobToBase64', () => {
     it('converts Blob to Base64 string', async () => {
       const blob = new Blob(['test content'], { type: 'audio/webm' })
@@ -331,25 +289,12 @@ describe('voiceApi', () => {
 
   describe('Integration Scenarios', () => {
     it('handles complete voice recognition flow', async () => {
-      // Step 1: Check service status
-      const statusResponse = {
-        configured: true,
-        provider: 'tencent',
-        service: 'asr',
-        max_duration_seconds: 60,
-        supported_formats: ['wav'],
-      }
-      mockApi.get.mockResolvedValue(statusResponse)
-
-      const status = await getVoiceStatus()
-      expect(status.configured).toBe(true)
-
-      // Step 2: Convert blob to base64
+      // Step 1: Convert blob to base64
       const audioBlob = new Blob(['audio data'], { type: 'audio/webm' })
       const base64Audio = await blobToBase64(audioBlob)
       expect(typeof base64Audio).toBe('string')
 
-      // Step 3: Recognize voice
+      // Step 2: Recognize voice
       const recognizeResponse = {
         text: 'Recognized text',
         success: true,

@@ -246,10 +246,9 @@ def get_upgrade_conversion_stats(
     session: Session = Depends(get_session),
 ):
     """Get upgrade conversion attribution stats grouped by source."""
-    window_days = max(1, min(days, 90))
     period_end = utcnow()
-    # Window starts at 00:00 Beijing time, window_days - 1 days ago.
-    period_start = beijing_day_bounds(period_end - timedelta(days=window_days - 1))[0]
+    # Window starts at 00:00 Beijing time, days - 1 days ago.
+    period_start = beijing_day_bounds(period_end - timedelta(days=days - 1))[0]
 
     conversion_rows = session.exec(
         select(SubscriptionHistory).where(
@@ -337,14 +336,14 @@ def get_upgrade_conversion_stats(
         logging.INFO,
         "Retrieved upgrade conversion attribution stats",
         user_id=current_user.id,
-        window_days=window_days,
+        window_days=days,
         total_conversions=total_conversions,
         paid_conversions=paid_conversions,
         unattributed_conversions=unattributed_conversions,
     )
 
     return UpgradeConversionStatsResponse(
-        window_days=window_days,
+        window_days=days,
         period_start=period_start.isoformat(),
         period_end=period_end.isoformat(),
         total_conversions=total_conversions,

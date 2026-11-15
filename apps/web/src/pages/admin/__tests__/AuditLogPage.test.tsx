@@ -95,7 +95,6 @@ describe("AuditLogPage", () => {
             action: "update_subscription",
             resource_type: "subscription",
             resource_id: "sub-1",
-            details: "changed plan",
             old_value: null,
             new_value: null,
             ip_address: "127.0.0.1",

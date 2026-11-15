@@ -9,9 +9,10 @@ from sqlmodel import Session, select
 from agent.tools import mcp_tools
 from agent.tools.author_edit_guard import (
     AUTHOR_EDIT_PROTECTED_ERROR,
+    AuthorEditProtectedError,
     AuthorEditProtectionUnavailableError,
     AuthorEditRefusals,
-    latest_text_is_authors,
+    enforce_author_content_protection,
     referenced_file_ids_from_metadata,
 )
 from agent.tools.file_ops import FileToolExecutor
@@ -97,25 +98,21 @@ async def _run(tool, session, user, project, args, *, message, **context):
 
 
 @pytest.mark.parametrize(
-    ("message", "extra_context"),
+    "message",
     [
-        ("把第三章删掉", {}),
-        ("无论如何都不要把我刚刚改过的第三章删掉", {}),
-        ("保留我引用的第三章；把废稿删掉", {"referenced_file_ids": ["TARGET"]}),
-        ("好，照你上轮说的删", {}),
+        "把第三章删掉",
+        "无论如何都不要把我刚刚改过的第三章删掉",
+        "保留我引用的第三章；把废稿删掉",
+        "好，照你上轮说的删",
     ],
 )
 async def test_chat_delete_of_author_owned_file_is_always_refused(
-    db_session, owner_project, message, extra_context
+    db_session, owner_project, message
 ):
     user, project = owner_project
     chapter = _ai_chapter(db_session, project)
     _author_saves(db_session, user, chapter, AUTHOR_CH3)
 
-    resolved_context = {
-        key: ([chapter.id] if value == ["TARGET"] else value)
-        for key, value in extra_context.items()
-    }
     payload = await _run(
         mcp_tools.delete_file,
         db_session,
@@ -123,8 +120,6 @@ async def test_chat_delete_of_author_owned_file_is_always_refused(
         project,
         {"id": chapter.id},
         message=message,
-        focus_file_id=chapter.id,
-        **resolved_context,
     )
 
     assert payload["error_type"] == AUTHOR_EDIT_PROTECTED_ERROR
@@ -555,10 +550,11 @@ async def test_protection_lookup_failure_refuses_without_claiming_author_ownersh
 def test_latest_text_owner_detection(db_session, owner_project):
     user, project = owner_project
     chapter = _ai_chapter(db_session, project)
-    assert latest_text_is_authors(db_session, chapter) is False
+    enforce_author_content_protection(db_session, [chapter], action="delete")
     _author_saves(db_session, user, chapter, AUTHOR_CH3)
     db_session.expire_all()
-    assert latest_text_is_authors(db_session, db_session.get(File, chapter.id)) is True
+    with pytest.raises(AuthorEditProtectedError):
+        enforce_author_content_protection(db_session, [db_session.get(File, chapter.id)], action="delete")
 
 
 def _unversioned(session, project, *, title="来源未知", parent_id=None):

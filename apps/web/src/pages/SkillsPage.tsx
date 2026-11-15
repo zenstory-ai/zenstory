@@ -105,6 +105,7 @@ export default function SkillsPage() {
   // Discover state
   const [publicSkills, setPublicSkills] = useState<PublicSkill[]>([]);
   const [categories, setCategories] = useState<SkillCategory[]>([]);
+  const [categoriesError, setCategoriesError] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   // searchInput 是输入框里的原文；searchQuery 是防抖（并且等输入法组字结束）之后真正用来查询的词
   const [searchInput, setSearchInput] = useState("");
@@ -133,11 +134,17 @@ export default function SkillsPage() {
 
   // Define all async functions with useCallback before useEffect hooks
   const loadCategories = useCallback(async () => {
+    const owner = ownerRef.current;
+    if (!owner) return;
+    setCategoriesError(false);
     try {
       const categoriesRes = await publicSkillsApi.getCategories();
+      if (owner !== ownerRef.current) return;
       setCategories(categoriesRes.categories);
     } catch (error) {
+      if (owner !== ownerRef.current) return;
       logger.error("Failed to load skill categories:", error);
+      setCategoriesError(true);
     }
   }, []);
 
@@ -603,6 +610,8 @@ export default function SkillsPage() {
         <DiscoverContent
           publicSkills={publicSkills}
           categories={categories}
+          categoriesError={categoriesError}
+          onRetryCategories={() => void loadCategories()}
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
           searchQuery={searchInput}
@@ -841,7 +850,6 @@ function SkillCard({
   onShare,
   onExport,
   exporting,
-  readonly,
   isMobile,
   isSelected,
   onToggleSelect,
@@ -852,7 +860,6 @@ function SkillCard({
   onShare?: () => void;
   onExport?: () => void;
   exporting?: boolean;
-  readonly?: boolean;
   isMobile?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -865,26 +872,22 @@ function SkillCard({
       data-testid="skill-card-actions"
       className={isMobile ? "mt-2 flex items-center justify-end gap-1" : "flex items-center gap-1 shrink-0"}
     >
-      {!readonly && (
-        <>
-          <IconButton
-            onClick={onEdit}
-            label={t("skills:editSkill")}
-            icon={<Pencil className="w-4 h-4" />}
-          />
-          <IconButton
-            onClick={onDelete}
-            label={t("skills:deleteConfirm.title")}
-            tone="danger"
-            icon={<Trash2 className="w-4 h-4" />}
-          />
-          <IconButton
-            onClick={onShare}
-            label={t("skills:share.title")}
-            icon={<Share2 className="w-4 h-4" />}
-          />
-        </>
-      )}
+      <IconButton
+        onClick={onEdit}
+        label={t("skills:editSkill")}
+        icon={<Pencil className="w-4 h-4" />}
+      />
+      <IconButton
+        onClick={onDelete}
+        label={t("skills:deleteConfirm.title")}
+        tone="danger"
+        icon={<Trash2 className="w-4 h-4" />}
+      />
+      <IconButton
+        onClick={onShare}
+        label={t("skills:share.title")}
+        icon={<Share2 className="w-4 h-4" />}
+      />
       {onExport && (
         <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
       )}
@@ -925,11 +928,6 @@ function SkillCard({
                 {skill.name}
               </h3>
             </div>
-            {readonly && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-tertiary))] shrink-0">
-                {t("skills:readonly")}
-              </span>
-            )}
             {skill.share_status && <ShareStatusBadge status={skill.share_status} />}
           </div>
           {skill.description && (
@@ -1372,6 +1370,8 @@ function ExportButton({
 function DiscoverContent({
   publicSkills,
   categories,
+  categoriesError,
+  onRetryCategories,
   selectedCategory,
   setSelectedCategory,
   searchQuery,
@@ -1392,6 +1392,8 @@ function DiscoverContent({
 }: {
   publicSkills: PublicSkill[];
   categories: SkillCategory[];
+  categoriesError?: boolean;
+  onRetryCategories?: () => void;
   selectedCategory: string;
   setSelectedCategory: (cat: string) => void;
   searchQuery: string;
@@ -1411,7 +1413,7 @@ function DiscoverContent({
   onCreate: () => void;
   isMobile?: boolean;
 }) {
-  const { t } = useTranslation(["skills"]);
+  const { t } = useTranslation(["skills", "common"]);
 
   // Build category filter options for DashboardFilterPills
   const categoryOptions = [
@@ -1443,11 +1445,26 @@ function DiscoverContent({
             data-testid="public-skill-search"
           />
         </div>
-        <DashboardFilterPills
-          options={categoryOptions}
-          value={selectedCategory}
-          onChange={setSelectedCategory}
-        />
+        {categoriesError && categories.length === 0 ? (
+          <div className="flex items-center gap-2 text-xs text-[hsl(var(--error-text))]">
+            <span>{t("skills:errors.categoriesLoadFailed")}</span>
+            {onRetryCategories && (
+              <button
+                type="button"
+                onClick={onRetryCategories}
+                className="underline hover:no-underline"
+              >
+                {t("common:retry")}
+              </button>
+            )}
+          </div>
+        ) : (
+          <DashboardFilterPills
+            options={categoryOptions}
+            value={selectedCategory}
+            onChange={setSelectedCategory}
+          />
+        )}
       </div>
 
       {hasError && <SkillListError onRetry={onRetry} />}
@@ -1526,24 +1543,33 @@ function PublicSkillCard({
   const [expanded, setExpanded] = useState(false);
   const [fullInstructions, setFullInstructions] = useState<string | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const canExpand = skill.source !== "official" && !skill.instructions_hidden && (Boolean(skill.instructions.trim()) || Boolean(skill.instructions_truncated));
 
-  // 官方技能的正文不对用户返回，卡片只显示用途说明
-  const hidden = !!skill.instructions_hidden;
   const handleToggleExpanded = async () => {
     const next = !expanded;
     setExpanded(next);
     // 列表只带正文预览；展开时再取完整正文
-    if (!next || hidden || !skill.instructions_truncated || fullInstructions !== null) return;
+    if (!next || !canExpand || !skill.instructions_truncated || fullInstructions !== null) return;
     setLoadingDetail(true);
     try {
       const detail = await publicSkillsApi.get(skill.id);
+      if (!mountedRef.current) return;
       setFullInstructions(detail.instructions);
     } catch (error) {
+      if (!mountedRef.current) return;
       logger.error("Failed to load public skill detail:", error);
       toast.error(error instanceof Error && error.message ? error.message : t("skills:errors.detailFailed"));
     } finally {
-      setLoadingDetail(false);
+      if (mountedRef.current) {
+        setLoadingDetail(false);
+      }
     }
   };
   const instructions = fullInstructions ?? skill.instructions;
@@ -1604,12 +1630,6 @@ function PublicSkillCard({
           </button>
         </div>
       </div>
-
-      {expanded && hidden && (
-        <p className="mt-3 pt-3 border-t border-[hsl(var(--border-color)/0.5)] text-xs text-[hsl(var(--text-tertiary))]">
-          {t("instructionsHidden")}
-        </p>
-      )}
 
       {/* Expanded instructions */}
       {canExpand && expanded && instructions && (

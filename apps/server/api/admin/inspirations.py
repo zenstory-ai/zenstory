@@ -286,7 +286,6 @@ def create_inspiration(
 
     # Create inspiration
     inspiration = create_inspiration_from_project(
-        session=session,
         project=project,
         files=list(files),
         source=request.source,

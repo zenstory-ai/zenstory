@@ -725,59 +725,60 @@ class ContextAssembler:
             title = ""
 
             try:
-                if entity_type == "characters":
-                    character = characters_map.get(entity_id)
-                    if not character or character.novel_id != novel_id:
+                with session.begin_nested():
+                    if entity_type == "characters":
+                        character = characters_map.get(entity_id)
+                        if not character or character.novel_id != novel_id:
+                            continue
+
+                        title, markdown = format_character_to_markdown(character, novel.title)
+
+                    elif entity_type == "worldview":
+                        world_view = worldviews_map.get(novel_id)
+                        if not world_view:
+                            continue
+
+                        title, markdown = format_worldview_to_markdown(world_view, novel.title)
+
+                    elif entity_type == "goldenfingers":
+                        golden_finger = goldenfingers_map.get(entity_id)
+                        if not golden_finger or golden_finger.novel_id != novel_id:
+                            continue
+
+                        title, markdown = format_goldenfinger_to_markdown(golden_finger, novel.title)
+
+                    elif entity_type == "storylines":
+                        story_line = storylines_map.get(entity_id)
+                        if not story_line or story_line.novel_id != novel_id:
+                            continue
+
+                        title, markdown = format_storyline_to_markdown(story_line, session, novel.title)
+
+                    elif entity_type == "stories":
+                        story = stories_map.get(entity_id)
+                        if not story:
+                            continue
+
+                        story_novel_id = story.novel_id
+                        if story_novel_id is None and story.story_line_id:
+                            # 历史行没有 novel_id，经故事线归属
+                            story_line = session.get(StoryLine, story.story_line_id)
+                            story_novel_id = story_line.novel_id if story_line else None
+                        if story_novel_id != novel_id:
+                            continue
+
+                        title, markdown = format_story_to_markdown(story, novel.title)
+
+                    elif entity_type == "relationships":
+                        title, markdown = format_relationship_to_markdown(
+                            novel_id,
+                            session,
+                            novel.title,
+                            relationship_id=entity_id,
+                        )
+
+                    else:
                         continue
-
-                    title, markdown = format_character_to_markdown(character, novel.title)
-
-                elif entity_type == "worldview":
-                    world_view = worldviews_map.get(novel_id)
-                    if not world_view:
-                        continue
-
-                    title, markdown = format_worldview_to_markdown(world_view, novel.title)
-
-                elif entity_type == "goldenfingers":
-                    golden_finger = goldenfingers_map.get(entity_id)
-                    if not golden_finger or golden_finger.novel_id != novel_id:
-                        continue
-
-                    title, markdown = format_goldenfinger_to_markdown(golden_finger, novel.title)
-
-                elif entity_type == "storylines":
-                    story_line = storylines_map.get(entity_id)
-                    if not story_line or story_line.novel_id != novel_id:
-                        continue
-
-                    title, markdown = format_storyline_to_markdown(story_line, session, novel.title)
-
-                elif entity_type == "stories":
-                    story = stories_map.get(entity_id)
-                    if not story:
-                        continue
-
-                    story_novel_id = story.novel_id
-                    if story_novel_id is None and story.story_line_id:
-                        # 历史行没有 novel_id，经故事线归属
-                        story_line = session.get(StoryLine, story.story_line_id)
-                        story_novel_id = story_line.novel_id if story_line else None
-                    if story_novel_id != novel_id:
-                        continue
-
-                    title, markdown = format_story_to_markdown(story, novel.title)
-
-                elif entity_type == "relationships":
-                    title, markdown = format_relationship_to_markdown(
-                        novel_id,
-                        session,
-                        novel.title,
-                        relationship_id=entity_id,
-                    )
-
-                else:
-                    continue
 
                 if markdown and title:
                     item = ContextItem.from_snippet(
@@ -897,11 +898,7 @@ class ContextAssembler:
                 log_threshold_ms = 150
 
             if error_reason or duration_ms >= log_threshold_ms:
-                query_hash = None
-                try:
-                    query_hash = hashlib.sha256(normalized_query.encode("utf-8")).hexdigest()[:12]
-                except Exception:
-                    query_hash = None
+                query_hash = hashlib.sha256(normalized_query.encode("utf-8")).hexdigest()[:12]
                 log_with_context(
                     logger,
                     20,  # INFO
@@ -1738,39 +1735,30 @@ class ContextAssembler:
         (<= max existing content chapter) to avoid noisy warnings for future
         outlines that naturally have no body yet.
         """
-        try:
-            from utils.title_sequence import extract_sequence_number
+        from utils.title_sequence import extract_sequence_number
 
-            outlines = file_inventory.get("outline") or []
-            contents: list[dict[str, Any]] = []
-            for file_type in CONTENT_FILE_TYPES:
-                contents.extend(file_inventory.get(file_type) or [])
+        outlines = file_inventory.get("outline") or []
+        contents: list[dict[str, Any]] = []
+        for file_type in CONTENT_FILE_TYPES:
+            contents.extend(file_inventory.get(file_type) or [])
 
-            outline_nums = {
-                n
-                for f in outlines
-                if (n := extract_sequence_number(f.get("title"))) is not None
-            }
-            content_nums = {
-                n
-                for f in contents
-                if (n := extract_sequence_number(f.get("title"))) is not None
-            }
+        outline_nums = {
+            n
+            for f in outlines
+            if (n := extract_sequence_number(f.get("title"))) is not None
+        }
+        content_nums = {
+            n
+            for f in contents
+            if (n := extract_sequence_number(f.get("title"))) is not None
+        }
 
-            if outline_nums and content_nums:
-                max_content_seq = max(content_nums)
-                missing_nums = sorted(
-                    n for n in outline_nums if n <= max_content_seq and n not in content_nums
-                )
-            else:
-                missing_nums = []
-        except Exception as exc:
-            log_with_context(
-                logger,
-                10,  # DEBUG
-                "Failed to compute outline/draft gap hints",
-                error=str(exc),
+        if outline_nums and content_nums:
+            max_content_seq = max(content_nums)
+            missing_nums = sorted(
+                n for n in outline_nums if n <= max_content_seq and n not in content_nums
             )
+        else:
             missing_nums = []
 
         if not missing_nums:

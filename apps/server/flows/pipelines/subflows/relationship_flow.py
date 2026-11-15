@@ -43,7 +43,6 @@ RUNTIME_TASK_RUNNER = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_W
 def relationship_flow(
     novel_id: int,
     chapter_ids: list[int],
-    correlation_id: str | None = None,  # noqa: ARG001
     job_id: int | None = None,
 ) -> dict[str, Any]:
     """提取并保存整本书的人物关系。"""

@@ -136,7 +136,7 @@ class TestChatAPI:
     async def test_get_session_messages_empty(
         self, client: AsyncClient, db_session: Session
     ):
-        """Test GET /chat/session/{project_id}/messages - empty session."""
+        """Test GET /chat/session/{project_id}/recent - empty session."""
         # Create user and project
         user = User(
             username="testuser3",
@@ -168,7 +168,7 @@ class TestChatAPI:
 
         # Get messages (should be empty)
         response = await client.get(
-            f"/api/v1/chat/session/{project.id}/messages",
+            f"/api/v1/chat/session/{project.id}/recent",
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -179,7 +179,7 @@ class TestChatAPI:
     async def test_get_session_messages_with_data(
         self, client: AsyncClient, db_session: Session
     ):
-        """Test GET /chat/session/{project_id}/messages - with messages."""
+        """Test GET /chat/session/{project_id}/recent - with messages."""
         # Create user and project
         user = User(
             username="testuser4",
@@ -236,7 +236,7 @@ class TestChatAPI:
 
         # Get messages
         response = await client.get(
-            f"/api/v1/chat/session/{project.id}/messages",
+            f"/api/v1/chat/session/{project.id}/recent",
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -307,7 +307,7 @@ class TestChatAPI:
         token = response.json()["access_token"]
 
         response = await client.get(
-            f"/api/v1/chat/session/{project.id}/messages",
+            f"/api/v1/chat/session/{project.id}/recent",
             params={"limit": 2},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -316,7 +316,7 @@ class TestChatAPI:
         data = response.json()
         assert [msg["content"] for msg in data] == ["message-3", "message-4"]
 
-    @pytest.mark.parametrize("endpoint", ["messages", "recent"])
+    @pytest.mark.parametrize("endpoint", ["recent"])
     @pytest.mark.parametrize("limit", [0, -1, 101])
     async def test_history_endpoints_reject_out_of_range_limits(
         self, client: AsyncClient, db_session: Session, endpoint: str, limit: int

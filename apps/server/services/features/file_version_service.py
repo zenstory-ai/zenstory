@@ -42,6 +42,14 @@ DEFAULT_USER_VERSION_COALESCE_WINDOW_SECONDS = 600
 BEFORE_AI_EDIT_SUMMARY = "Before AI edit"
 
 
+class VersionNotFoundError(ValueError):
+    """Raised when a requested file version number does not exist."""
+
+
+class FileLookupNotFoundError(ValueError):
+    """Raised when the target file row is missing or soft-deleted."""
+
+
 def before_restore_summary(version_number: int) -> str:
     return f"Before restoring version {version_number}"
 
@@ -478,7 +486,7 @@ class FileVersionService:
         ).first()
 
         if not target:
-            raise ValueError(f"Version {version_number} not found for file {file_id}")
+            raise VersionNotFoundError(f"Version {version_number} not found for file {file_id}")
 
         return self._get_contents_for_versions(session, {file_id: target})[file_id]
 
@@ -548,10 +556,10 @@ class FileVersionService:
         """
         v1 = self.get_version_by_number(session, file_id, version1)
         if v1 is None:
-            raise ValueError(f"Version {version1} not found for file {file_id}")
+            raise VersionNotFoundError(f"Version {version1} not found for file {file_id}")
         v2 = v1 if version1 == version2 else self.get_version_by_number(session, file_id, version2)
         if v2 is None:
-            raise ValueError(f"Version {version2} not found for file {file_id}")
+            raise VersionNotFoundError(f"Version {version2} not found for file {file_id}")
         content1 = self._get_contents_for_versions(session, {file_id: v1})[file_id]
         content2 = content1 if version1 == version2 else self._get_contents_for_versions(session, {file_id: v2})[file_id]
 
@@ -578,24 +586,24 @@ class FileVersionService:
             "file_id": file_id,
             "version1": {
                 "number": version1,
-                "created_at": v1.created_at.isoformat() if v1 else None,
-                "change_type": v1.change_type if v1 else None,
-                "change_source": v1.change_source if v1 else None,
-                "word_count": v1.word_count if v1 else 0,
+                "created_at": v1.created_at.isoformat(),
+                "change_type": v1.change_type,
+                "change_source": v1.change_source,
+                "word_count": v1.word_count,
             },
             "version2": {
                 "number": version2,
-                "created_at": v2.created_at.isoformat() if v2 else None,
-                "change_type": v2.change_type if v2 else None,
-                "change_source": v2.change_source if v2 else None,
-                "word_count": v2.word_count if v2 else 0,
+                "created_at": v2.created_at.isoformat(),
+                "change_type": v2.change_type,
+                "change_source": v2.change_source,
+                "word_count": v2.word_count,
             },
             "unified_diff": "".join(diff_lines),
             "html_diff": html_diff,
             "stats": {
                 "lines_added": lines_added,
                 "lines_removed": lines_removed,
-                "word_diff": (v2.word_count if v2 else 0) - (v1.word_count if v1 else 0),
+                "word_diff": v2.word_count - v1.word_count,
             },
         }
 
@@ -649,7 +657,7 @@ class FileVersionService:
             else:
                 file = session.get(File, file_id, populate_existing=True)
             if not file or file.is_deleted:
-                raise ValueError(f"File {file_id} not found")
+                raise FileLookupNotFoundError(f"File {file_id} not found")
 
             if expected_updated_at is not None:
                 current = normalize_datetime_to_utc(file.updated_at)
@@ -862,8 +870,6 @@ class FileVersionService:
         service-owned behavior by default.
         """
         plan = quota_service.get_user_plan(session, user_id, commit=commit)
-        if not plan:
-            return True, 0, -1
 
         # 与 /plans、后台卡片同一个解析：缺键时用该套餐自己的默认值（Pro 为 100）。
         max_versions = quota_service.get_plan_feature(plan, "file_versions_per_file", 10)

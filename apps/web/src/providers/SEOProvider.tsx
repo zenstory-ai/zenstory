@@ -13,7 +13,7 @@ interface SEOContextType {
 const SEOContext = createContext<SEOContextType | undefined>(undefined);
 
 /** Language of the HTML the server sent, read before Helmet rewrites `<html lang>`. */
-const STATIC_SHELL_LANG = typeof document === 'undefined' ? '' : document.documentElement.lang.toLowerCase();
+const STATIC_SHELL_LANG = document.documentElement.lang.toLowerCase();
 
 /** Whether the server-rendered title and tags are in the reader's language (unknown counts as yes). */
 function staticShellMatches(langKey: 'zh' | 'en'): boolean {

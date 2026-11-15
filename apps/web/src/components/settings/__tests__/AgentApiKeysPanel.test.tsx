@@ -3,10 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
 
-const { listMock, createMock, apiBaseMock } = vi.hoisted(() => ({
+const { listMock, createMock, apiBaseMock, toastErrorMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
   createMock: vi.fn(),
   apiBaseMock: vi.fn(() => 'https://api.zenstory.ai'),
+  toastErrorMock: vi.fn(),
 }))
 
 const mediaState = vi.hoisted(() => ({ isMobile: false }))
@@ -17,6 +18,12 @@ vi.mock('../../../hooks/useMediaQuery', () => ({
 
 vi.mock('../../../lib/apiClient', () => ({
   getApiBase: apiBaseMock,
+}))
+
+vi.mock('../../../lib/toast', () => ({
+  toast: {
+    error: toastErrorMock,
+  },
 }))
 
 vi.mock('react-i18next', () => ({
@@ -59,6 +66,7 @@ describe('AgentApiKeysPanel', () => {
     listMock.mockReset()
     createMock.mockReset()
     apiBaseMock.mockReset()
+    toastErrorMock.mockReset()
     apiBaseMock.mockReturnValue('https://api.zenstory.ai')
     mediaState.isMobile = false
   })
@@ -260,5 +268,18 @@ describe('AgentApiKeysPanel', () => {
     expect(dialog).toHaveTextContent('npx zenstory skill install')
     expect(dialog).not.toHaveTextContent('X-Agent-API-Key')
     expect(screen.getByRole('button', { name: 'apiKeys.copyKey' })).toBeInTheDocument()
+  })
+
+  it('shows an error toast when clipboard copy fails', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('Clipboard blocked'))
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    listMock.mockResolvedValue({ keys: [makeKey()] })
+
+    renderPanel(<AgentApiKeysPanel />)
+    fireEvent.click((await screen.findAllByRole('button', { name: 'apiKeys.copy' }))[0]!)
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledTimes(1)
+    })
   })
 })

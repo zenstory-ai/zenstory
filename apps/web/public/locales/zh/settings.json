@@ -145,12 +145,14 @@
     "upgradeNow": "开通 Pro",
     "upgradeSuggestion": "开通 Pro，AI 消息不限条数",
     "notIncluded": "不含",
-    "redeemDone": "开始使用"
+    "redeemDone": "开始使用",
+    "loadFailed": "套餐状态加载失败，请重试"
   },
   "points": {
     "alreadyCheckedIn": "今日已签到",
     "checkIn": "签到领积分",
-    "redeemPro": "用积分兑换 Pro"
+    "redeemPro": "用积分兑换 Pro",
+    "statusLoadFailed": "签到状态加载失败，点击重试"
   },
   "common": {
     "previous": "上一页",

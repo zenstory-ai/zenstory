@@ -35,8 +35,6 @@ from models import (
 )
 from models.file_model import MAX_FILE_TITLE_LENGTH
 from models.file_version import (
-    CHANGE_SOURCE_AI,
-    CHANGE_SOURCE_SYSTEM,
     CHANGE_SOURCE_USER,
     CHANGE_TYPE_AI_EDIT,
     CHANGE_TYPE_AUTO_SAVE,
@@ -104,11 +102,6 @@ VALID_CHANGE_TYPES = {
     CHANGE_TYPE_AI_EDIT,
     CHANGE_TYPE_RESTORE,
     CHANGE_TYPE_AUTO_SAVE,
-}
-VALID_CHANGE_SOURCES = {
-    CHANGE_SOURCE_USER,
-    CHANGE_SOURCE_AI,
-    CHANGE_SOURCE_SYSTEM,
 }
 
 
@@ -405,18 +398,6 @@ def _resolve_change_type(change_type: str | None) -> str:
             detail=f"Invalid change_type: {change_type}",
         )
     return change_type
-
-
-def _resolve_change_source(change_source: str | None) -> str:
-    if change_source is None:
-        return CHANGE_SOURCE_USER
-    if change_source not in VALID_CHANGE_SOURCES:
-        raise APIException(
-            error_code=ErrorCode.VALIDATION_ERROR,
-            status_code=400,
-            detail=f"Invalid change_source: {change_source}",
-        )
-    return change_source
 
 
 def _load_file_for_write(session: Session, file_id: str) -> File | None:
@@ -826,9 +807,6 @@ def update_file(
     # 请求参数校验必须先于任何写入：change_type/change_source 非法时若等到正文
     # commit 之后才抛 400，就又是一次「内容其实已保存却提示失败」的误导性失败。
     change_type = _resolve_change_type(file_data.change_type)
-    # Validate the deprecated hint for backward compatibility, but never use
-    # client input as the trusted actor.
-    _resolve_change_source(file_data.change_source)
     # 这是带 Bearer token 的用户侧 PUT；客户端可以描述 AI 审阅意图，但不能决定
     # 持久化版本的可信来源。否则伪造 ai/system 会同时绕过配额闸门和 user 行计数。
     # AI 审阅语义由 change_type=ai_edit 保留，版本来源与 POST /versions 一样钉死 user。
@@ -902,7 +880,6 @@ def update_file(
             # Don't override explicit user-provided metadata payload.
             user_supplied_word_count = (
                 file_data.metadata is not None
-                and isinstance(file_data.metadata, dict)
                 and "word_count" in file_data.metadata
             )
             if not user_supplied_word_count:
@@ -948,8 +925,6 @@ def update_file(
         # 前端提示「保存失败」而正文其实已经落库——典型的误导性失败。
         # 现在的口径：per-file 版本额度限制的是历史深度，不该把用户的正文保存
         # 整体判负；超限就跳过版本快照，并在响应里显式告诉前端。
-        from services.file_version import get_file_version_service
-
         file_version_service = get_file_version_service()
         # skip_version 只为兼容旧客户端保留：正文有变化时一律「合并或新建」版本。
         # 旧编辑器对 ≤10 字的改动发 skip_version，结果这些小改动永远进不了历史，
@@ -1040,39 +1015,28 @@ def update_file(
         session.refresh(file)
 
     if content_changed:
-        try:
-            if change_source == CHANGE_SOURCE_USER:
-                activation_event_service.record_once(
-                    session,
-                    user_id=current_user.id,
-                    event_name=ACTIVATION_EVENT_FIRST_FILE_SAVED,
-                    project_id=file.project_id,
-                    event_metadata={
-                        "file_id": file.id,
-                        "file_type": file.file_type,
-                    },
-                )
-
-            if change_type == CHANGE_TYPE_AI_EDIT:
-                activation_event_service.record_once(
-                    session,
-                    user_id=current_user.id,
-                    event_name=ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
-                    project_id=file.project_id,
-                    event_metadata={
-                        "file_id": file.id,
-                        "file_type": file.file_type,
-                    },
-                )
-        except Exception as e:
-            log_with_context(
-                logger,
-                logging.WARNING,
-                "Failed to record activation event on file update",
-                error=str(e),
-                file_id=file.id,
-                project_id=file.project_id,
+        if change_source == CHANGE_SOURCE_USER:
+            activation_event_service.record_once_best_effort(
+                session,
                 user_id=current_user.id,
+                event_name=ACTIVATION_EVENT_FIRST_FILE_SAVED,
+                project_id=file.project_id,
+                event_metadata={
+                    "file_id": file.id,
+                    "file_type": file.file_type,
+                },
+            )
+
+        if change_type == CHANGE_TYPE_AI_EDIT:
+            activation_event_service.record_once_best_effort(
+                session,
+                user_id=current_user.id,
+                event_name=ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
+                project_id=file.project_id,
+                event_metadata={
+                    "file_id": file.id,
+                    "file_type": file.file_type,
+                },
             )
 
 
@@ -1521,13 +1485,19 @@ def upload_material(
                 content = raw_bytes.decode("gbk")
             except UnicodeDecodeError:
                 content = raw_bytes.decode("utf-8", errors="ignore")
-    except Exception as e:
-        if isinstance(e, APIException):
-            raise
+    except APIException:
+        raise
+    except (UnicodeDecodeError, ValueError) as e:
         raise APIException(
             error_code=ErrorCode.VALIDATION_ERROR,
-            status_code=400
+            status_code=400,
         ) from e
+    except Exception:
+        logger.exception(
+            "Unexpected error reading uploaded material file",
+            extra={"project_id": project_id, "upload_filename": file.filename},
+        )
+        raise
 
     # 4. Validate content length
     char_count = len(content)
@@ -1731,10 +1701,17 @@ def upload_drafts(
                 )
                 pending_drafts.append(draft)
 
-        except Exception as e:
-            logger.warning(f"Error processing upload file {getattr(upload_file, 'filename', '?')}: {e}")
+        except (UnicodeDecodeError, ValueError) as e:
+            logger.warning(f"Validation error processing upload file {getattr(upload_file, 'filename', '?')}: {e}")
             errors.append(f"{getattr(upload_file, 'filename', '未知文件')}: {ErrorCode.VALIDATION_ERROR}")
             continue
+        except Exception:
+            session.rollback()
+            logger.exception(
+                "Unexpected error processing uploaded draft file",
+                extra={"project_id": project_id, "upload_filename": getattr(upload_file, "filename", None)},
+            )
+            raise
 
         # One input is accepted only after all its chapters pass validation.
         # Unexpected ORM failures must abort the request, not look like bad input.

@@ -28,8 +28,6 @@ from services.core.auth_service import (
     create_access_token,
     create_refresh_token,
     get_refresh_token_expires_at,
-    hash_password,
-    verify_password,
     verify_token,
 )
 
@@ -69,7 +67,7 @@ class RevocationProbe:
         self.pause_rotation = False
         self.preload_refresh = False
 
-    def seed(self, name, *, password=False):
+    def seed(self, name):
         suffix = uuid4().hex
         actor = {
             "user": suffix, "old_id": uuid4().hex,
@@ -83,7 +81,7 @@ class RevocationProbe:
         with Session(self.engine) as session:
             session.add(User(
                 id=actor["user"], username=f"revocation-{suffix}",
-                email=f"revocation-{suffix}@example.test", hashed_password=hash_password("OwnedOld1!") if password else "unused",
+                email=f"revocation-{suffix}@example.test", hashed_password="unused",
                 email_verified=True, is_active=True,
             ))
             session.flush()
@@ -150,10 +148,6 @@ class RevocationProbe:
                 headers["Authorization"] = f"Bearer {actor['access']}"
                 if path == "/api/auth/me":
                     return await client.get(path, headers=headers)
-                if path == "/api/auth/change-password":
-                    return await client.post(path, json={
-                        "old_password": "OwnedOld1!", "new_password": "OwnedNew2!",
-                    }, headers=headers)
                 return await client.post(path, headers=headers)
 
         return asyncio.run(send())
@@ -165,7 +159,7 @@ class RevocationProbe:
             ).order_by(RefreshTokenRecord.token_jti)).all()
             return [row.model_dump(mode="json") for row in rows]
 
-    def observe_blocked_user_gate(self, *, password=False):
+    def observe_blocked_user_gate(self):
         blocker = self.sessions["A"]["pid"]
         waiting = self.sessions["B"]["pid"]
         deadline = time.monotonic() + 5
@@ -178,10 +172,7 @@ class RevocationProbe:
                 ), {"pid": waiting}).mappings().one()
             if row["wait_event_type"] == "Lock" and blocker in row["blockers"]:
                 query = row["query"].lower().replace('"', "")
-                if password:
-                    assert query.lstrip().startswith("update user")
-                else:
-                    assert query.lstrip().startswith("select") and "from user" in query and "for update" in query
+                assert query.lstrip().startswith("select") and "from user" in query and "for update" in query
                 return dict(row)
         raise AssertionError("B User gate never showed an own-database wait on A")
 
@@ -248,19 +239,17 @@ def _record(record_property, facts):
     print(f"REFRESH_REVOCATION_PROBE {value}")
 
 
-@pytest.mark.parametrize("password", [False, True], ids=["logout", "password-change"])
-def test_concurrent_revocation_revokes_rotation_descendant(revocation_probe, record_property, password):
+def test_concurrent_revocation_revokes_rotation_descendant(revocation_probe, record_property):
     probe = revocation_probe
-    actor = probe.seed("owner", password=password)
+    actor = probe.seed("owner")
     probe.pause_rotation = True
     with ThreadPoolExecutor(max_workers=2) as writers:
         rotation = writers.submit(probe.request, "A", "/api/auth/refresh", actor)
         try:
             assert probe.locked.wait(5), "A did not execute real User FOR UPDATE"
-            endpoint = "/api/auth/change-password" if password else "/api/auth/logout"
-            logout = writers.submit(probe.request, "B", endpoint, actor)
+            logout = writers.submit(probe.request, "B", "/api/auth/logout", actor)
             assert probe.user_gate_started.wait(5), "B did not reach the real User gate"
-            blocked = probe.observe_blocked_user_gate(password=password)
+            blocked = probe.observe_blocked_user_gate()
             assert not probe.revoke_selected.is_set(), "B enumerated tokens before owning User"
             assert not probe.update_started.is_set()
             assert not rotation.done() and not logout.done()
@@ -278,19 +267,12 @@ def test_concurrent_revocation_revokes_rotation_descendant(revocation_probe, rec
     assert old["revoked_at"] and old["revoke_reason"] == "rotated"
     assert old["replaced_by_jti"] == payload["jti"]
     descendant = next(row for row in before_child_request if row["token_jti"] == payload["jti"])
-    assert descendant["revoked_at"] and descendant["revoke_reason"] == (
-        "password_changed" if password else "logout"
-    )
+    assert descendant["revoked_at"] and descendant["revoke_reason"] == "logout"
     assert descendant["revoked_at"] >= descendant["issued_at"]
     assert probe.sessions["B"]["update_record_ids"] == [descendant["id"]]
-    if password:
-        with Session(probe.engine) as reader:
-            current = reader.get(User, actor["user"])
-            assert verify_password("OwnedNew2!", current.hashed_password)
-            assert not verify_password("OwnedOld1!", current.hashed_password)
     child = probe.request("C", "/api/auth/refresh", actor, refresh=new_token)
     _record(record_property, {
-        "case": "concurrent-password" if password else "concurrent-logout", "wait": blocked, "old_id": actor["old_id"],
+        "case": "concurrent-logout", "wait": blocked, "old_id": actor["old_id"],
         "selected_by_logout": probe.sessions["B"]["update_record_ids"],
         "rotation_status": rotated.status_code, "logout_status": logged_out.status_code,
         "new_child_jti": payload["jti"], "before_child_request": before_child_request,

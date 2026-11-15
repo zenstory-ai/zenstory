@@ -17,13 +17,13 @@ from services.core.auth_service import create_access_token
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["session", "messages", "recent", "clear", "new", "feedback"])
+@pytest.mark.parametrize("operation", ["session", "recent", "clear", "new", "feedback"])
 async def test_chat_orm_uses_worker(tmp_path, monkeypatch, record_property, operation):
     await _exercise(tmp_path, monkeypatch, record_property, operation)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["session", "messages", "recent", "clear", "new", "feedback"])
+@pytest.mark.parametrize("operation", ["session", "recent", "clear", "new", "feedback"])
 async def test_chat_foreign_project_unchanged(tmp_path, monkeypatch, record_property, operation):
     await _exercise(tmp_path, monkeypatch, record_property, operation, foreign=True)
 
@@ -82,7 +82,7 @@ async def _exercise(tmp_path, monkeypatch, record_property, operation, *, foreig
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     method = {"clear": "DELETE", "new": "POST", "feedback": "POST"}.get(operation, "GET")
                     url = f"/api/v1/chat/session/{project_id}"
-                    if operation in ("messages", "recent", "new"):
+                    if operation in ("recent", "new"):
                         url += "/" + operation
                     payload = {}
                     if operation == "feedback":
@@ -111,7 +111,7 @@ async def _exercise(tmp_path, monkeypatch, record_property, operation, *, foreig
                 body = response.json()
                 if operation == "session":
                     assert body == before["session"]
-                elif operation in ("messages", "recent"):
+                elif operation == "recent":
                     assert body == [{"id": message_id, "session_id": chat_id, "role": "assistant",
                                      "content": "Retained exact body", "tool_calls": None,
                                      "metadata": '{"existing":"keep"}',

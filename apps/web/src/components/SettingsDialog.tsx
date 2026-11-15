@@ -19,7 +19,7 @@
  * @module components/SettingsDialog
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useIsFetching } from '@tanstack/react-query';
 import { User, Settings, Moon, Sun, LogOut, CreditCard, Coins, Users, Key } from 'lucide-react';
@@ -197,10 +197,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
   const { i18n } = useTranslation();
   const { theme, accentColor, setTheme, setAccentColor } = useTheme();
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const resolveAllowedTab = (tab: SettingsTab): SettingsTab => {
+    if ((!isPointsPanelEnabled && tab === 'points') || (!isReferralEnabled && tab === 'referral')) {
+      return 'profile';
+    }
+    return tab;
+  };
+  const [selectedTab, setActiveTab] = useState<SettingsTab>(() =>
+    isOpen && defaultTab ? resolveAllowedTab(defaultTab) : 'profile',
+  );
+  const activeTab = resolveAllowedTab(selectedTab);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(() => !isAnalyticsOptedOut());
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const prevIsOpenRef = useRef(false);
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const [showRedeemProModal, setShowRedeemProModal] = useState(false);
   const currentLanguage = normalizeLocale(i18n.language || i18n.resolvedLanguage);
@@ -218,6 +226,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
   // Track if we've ever had data (to distinguish initial load from refetch)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) {
+      setHasLoadedOnce(false);
+    } else if (defaultTab) {
+      setActiveTab(resolveAllowedTab(defaultTab));
+    }
+  }
+
   // Show skeleton only during initial load, not refetch
   const showPointsSkeleton = !hasLoadedOnce && isPointsFetching > 0;
 
@@ -233,44 +250,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
     }
   }, [activeTab, isPointsFetching, hasLoadedOnce]);
 
-  // Reset hasLoadedOnce when dialog closes; consume defaultTab on open
-  useEffect(() => {
-    if (!isOpen) {
-      setHasLoadedOnce(false);
-      prevIsOpenRef.current = false;
-    } else if (!prevIsOpenRef.current && defaultTab) {
-      setActiveTab(defaultTab);
-      prevIsOpenRef.current = true;
-    } else {
-      prevIsOpenRef.current = true;
-    }
-  }, [isOpen, defaultTab]);
-
-  // Fallback to profile tab if points or referral is disabled.
-  useEffect(() => {
-    if ((!isPointsPanelEnabled && activeTab === 'points') || (!isReferralEnabled && activeTab === 'referral')) {
-      setActiveTab('profile');
-    }
-  }, [activeTab, isPointsPanelEnabled, isReferralEnabled]);
-
-  /**
-   * Handles user logout with loading state protection.
-   *
-   * Prevents multiple logout requests by checking `isLoggingOut` state.
-   * After successful logout, closes the dialog. Errors are silently caught
-   * and loading state is always reset in the finally block.
-   *
-   * @returns {Promise<void>}
-   */
-  const handleLogout = async () => {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    try {
-      await logout();
-      onClose();
-    } finally {
-      setIsLoggingOut(false);
-    }
+  const handleLogout = () => {
+    logout();
+    onClose();
   };
 
   /**
@@ -402,12 +384,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                   variant="secondary"
                   size={isMobile ? 'touch' : 'md'}
                   onClick={handleLogout}
-                  disabled={isLoggingOut}
                   data-testid="settings-logout-button"
                   className="w-full"
                   leftIcon={<LogOut size={16} />}
                 >
-                  {isLoggingOut ? tAuth('logout.loading') : tAuth('logout.button')}
+                  {tAuth('logout.button')}
                 </Button>
               </div>
             )}

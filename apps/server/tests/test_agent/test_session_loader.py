@@ -469,13 +469,12 @@ class TestSessionLoaderHistoryBudget:
         loader = SessionLoader(project_id=project.id, user_id=user.id)
         for foreign in foreign_sessions:
             session_data = loader.load_chat_session(db_session, chat_session_id=foreign.id)
-            assert session_data.chat_session is None
             assert session_data.session_id is None
             assert session_data.history_messages == []
             assert session_data.working_set_refs == []
 
         missing = loader.load_chat_session(db_session, chat_session_id="no-such-session")
-        assert missing.chat_session is None
+        assert missing.session_id is None
         assert missing.history_messages == []
 
     def test_load_chat_session_handles_long_history_over_100_turns(

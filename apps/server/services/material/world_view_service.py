@@ -46,44 +46,13 @@ class WorldViewService:
             session.add(existing)
             session.flush()
             return "updated"
-        else:
-            new_wv = WorldView(
-                novel_id=novel_id,
-                power_system=data.get("power_system"),
-                world_structure=data.get("world_structure"),
-                key_factions=_serialize_json(data.get("key_factions")),
-                special_rules=_serialize_json(data.get("special_rules")),
-            )
-            session.add(new_wv)
-            session.flush()
-            return "created"
-
-    def upsert_world_view(
-        self, session: Session, novel_id: int, data: dict[str, Any]
-    ) -> WorldView:
-        """Upsert world view for a novel. Returns the world view entity."""
-        existing = self.get_by_novel(session, novel_id)
-
-        if existing:
-            # Update existing world view
-            existing.power_system = data.get("power_system") or existing.power_system
-            existing.world_structure = (
-                data.get("world_structure") or existing.world_structure
-            )
-            existing.key_factions = _serialize_json(data.get("key_factions")) or existing.key_factions
-            existing.special_rules = _serialize_json(data.get("special_rules")) or existing.special_rules
-            session.add(existing)
-            session.flush()
-            return existing
-        else:
-            # Create new world view
-            new_wv = WorldView(
-                novel_id=novel_id,
-                power_system=data.get("power_system"),
-                world_structure=data.get("world_structure"),
-                key_factions=_serialize_json(data.get("key_factions")),
-                special_rules=_serialize_json(data.get("special_rules")),
-            )
-            session.add(new_wv)
-            session.flush()
-            return new_wv
+        new_wv = WorldView(
+            novel_id=novel_id,
+            power_system=data.get("power_system"),
+            world_structure=data.get("world_structure"),
+            key_factions=_serialize_json(data.get("key_factions")),
+            special_rules=_serialize_json(data.get("special_rules")),
+        )
+        session.add(new_wv)
+        session.flush()
+        return "created"

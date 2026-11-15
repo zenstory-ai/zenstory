@@ -869,16 +869,6 @@ describe('MessageList', () => {
     })
   })
 
-  it('displays streaming cursor for streaming message', () => {
-    const messages = [
-      createMessage({ id: 'streaming-msg', role: 'assistant', content: 'Streaming...' }),
-    ]
-    render(<MessageList messages={messages} streamingMessageId="streaming-msg" />)
-
-    // Check that the message is rendered
-    expect(screen.getByText('Streaming...')).toBeInTheDocument()
-  })
-
   it('handles streaming content updates', () => {
     const { rerender } = render(
       <MessageList
@@ -1254,24 +1244,6 @@ describe('MessageList', () => {
           div.textContent?.includes('Streaming content')
         )
       expect(streamItemsContainer).toBeTruthy()
-    })
-
-    it('handles streaming message id correctly with virtualization', () => {
-      const messages = [
-        createMessage({ id: 'msg-1', role: 'user', content: 'User message' }),
-        createMessage({ id: 'streaming-msg', role: 'assistant', content: 'Streaming...' }),
-      ]
-
-      render(
-        <MessageList
-          messages={messages}
-          streamingMessageId="streaming-msg"
-        />
-      )
-
-      // Both messages should be rendered
-      expect(screen.getByText('User message')).toBeInTheDocument()
-      expect(screen.getByText('Streaming...')).toBeInTheDocument()
     })
   })
 })

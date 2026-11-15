@@ -12,9 +12,8 @@
  * - Importing materials as project files
  */
 
-import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { parseContentDispositionFilename } from "./contentDisposition";
-import { resolveApiErrorMessage } from "./errorHandler";
 import { getLocale } from "./i18n-helpers";
 
 // eslint-disable-next-line no-control-regex
@@ -594,16 +593,9 @@ export const materialsApi = {
       try {
         errorData = await response.json();
       } catch {
-        // Could not parse error response
+        // Non-JSON proxy/gateway response falls through to apiErrorFromPayload status default.
       }
-      // Keep error_detail (e.g. the counted size of an over-limit book).
-      const { details, detailText } = apiErrorFromPayload(response.status, errorData);
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(errorData, "ERR_MATERIAL_UPLOAD_FAILED"),
-        details,
-        detailText,
-      );
+      throw apiErrorFromPayload(response.status, errorData);
     }
 
     return response.json();

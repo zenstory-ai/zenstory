@@ -117,7 +117,7 @@ async def test_empty_pro_features_resolve_consistently_across_public_and_user_su
     catalog = (await client.get("/api/v1/subscription/catalog")).json()
     entitlements = next(tier for tier in catalog["tiers"] if tier["name"] == "pro")["entitlements"]
     quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
-    materials_access = await client.get("/api/v1/materials", headers=headers)
+    materials_access = await client.get("/api/v1/materials/list", headers=headers)
 
     assert me["tier"] == "pro"
     assert me["features"] == pro_features
@@ -178,7 +178,7 @@ async def test_explicit_pro_zero_and_false_overrides_remain_effective_everywhere
     catalog = (await client.get("/api/v1/subscription/catalog")).json()
     entitlements = next(tier for tier in catalog["tiers"] if tier["name"] == "pro")["entitlements"]
     quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
-    materials_access = await client.get("/api/v1/materials", headers=headers)
+    materials_access = await client.get("/api/v1/materials/list", headers=headers)
 
     assert me["features"] == pro_features
     assert pro_features["materials_library_access"] is entitlements["materials_library_access"] is False
@@ -207,7 +207,7 @@ async def test_free_upload_limit_does_not_imply_materials_library_access(client:
     catalog = (await client.get("/api/v1/subscription/catalog")).json()
     entitlements = next(tier for tier in catalog["tiers"] if tier["name"] == "free")["entitlements"]
     quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
-    materials_access = await client.get("/api/v1/materials", headers=headers)
+    materials_access = await client.get("/api/v1/materials/list", headers=headers)
 
     assert me["features"]["materials_library_access"] is False
     assert entitlements["materials_library_access"] is False

@@ -26,13 +26,11 @@ describe('subscriptionApi', () => {
     localStorage.clear()
   })
 
-  it('shares one quota key per account while isolating another signed-in account', () => {
+  it('scopes quota key per signed-in account', () => {
     localStorage.setItem('user', JSON.stringify({ id: 'account-a' }))
-    expect(subscriptionQueryKeys.quotaLite()).toEqual(subscriptionQueryKeys.quota())
     const accountAKey = subscriptionQueryKeys.quota()
 
     localStorage.setItem('user', JSON.stringify({ id: 'account-b' }))
-    expect(subscriptionQueryKeys.quotaLite()).toEqual(subscriptionQueryKeys.quota())
     expect(subscriptionQueryKeys.quota()).not.toEqual(accountAKey)
   })
 
@@ -233,95 +231,6 @@ describe('subscriptionApi', () => {
     })
   })
 
-  describe('getHistory', () => {
-    it('calls correct endpoint with default limit', async () => {
-      const mockHistory = [
-        {
-          id: 'hist-1',
-          user_id: 'user-1',
-          action: 'created' as const,
-          plan_name: 'free',
-          start_date: '2025-01-01T00:00:00Z',
-          end_date: null,
-          metadata: {},
-          created_at: '2025-01-01T00:00:00Z',
-        },
-      ]
-      mockApiGet.mockResolvedValue(mockHistory)
-
-      const result = await subscriptionApi.getHistory()
-
-      expect(mockApiGet).toHaveBeenCalledWith('/api/v1/subscription/history?limit=50')
-      expect(result).toEqual(mockHistory)
-    })
-
-    it('calls correct endpoint with custom limit', async () => {
-      mockApiGet.mockResolvedValue([])
-
-      await subscriptionApi.getHistory(10)
-
-      expect(mockApiGet).toHaveBeenCalledWith('/api/v1/subscription/history?limit=10')
-    })
-
-    it('returns empty array when no history', async () => {
-      mockApiGet.mockResolvedValue([])
-
-      const result = await subscriptionApi.getHistory()
-
-      expect(result).toEqual([])
-    })
-
-    it('handles multiple history entries with different actions', async () => {
-      const mockHistory = [
-        {
-          id: 'hist-1',
-          user_id: 'user-1',
-          action: 'created' as const,
-          plan_name: 'free',
-          start_date: '2025-01-01T00:00:00Z',
-          end_date: null,
-          metadata: {},
-          created_at: '2025-01-01T00:00:00Z',
-        },
-        {
-          id: 'hist-2',
-          user_id: 'user-1',
-          action: 'upgraded' as const,
-          plan_name: 'pro',
-          start_date: '2025-01-15T00:00:00Z',
-          end_date: '2025-02-15T00:00:00Z',
-          metadata: { code: 'PRO-CODE' },
-          created_at: '2025-01-15T00:00:00Z',
-        },
-        {
-          id: 'hist-3',
-          user_id: 'user-1',
-          action: 'expired' as const,
-          plan_name: 'pro',
-          start_date: '2025-02-15T00:00:00Z',
-          end_date: '2025-02-15T00:00:00Z',
-          metadata: {},
-          created_at: '2025-02-15T00:00:00Z',
-        },
-      ]
-      mockApiGet.mockResolvedValue(mockHistory)
-
-      const result = await subscriptionApi.getHistory()
-
-      expect(result).toHaveLength(3)
-      expect(result[0].action).toBe('created')
-      expect(result[1].action).toBe('upgraded')
-      expect(result[2].action).toBe('expired')
-    })
-
-    it('propagates errors from API', async () => {
-      const error = new Error('History unavailable')
-      mockApiGet.mockRejectedValue(error)
-
-      await expect(subscriptionApi.getHistory()).rejects.toThrow('History unavailable')
-    })
-  })
-
   describe('API Integration', () => {
     it('all methods return promises', () => {
       mockApiGet.mockResolvedValue({})
@@ -329,8 +238,8 @@ describe('subscriptionApi', () => {
 
       expect(subscriptionApi.getStatus()).toBeInstanceOf(Promise)
       expect(subscriptionApi.getQuota()).toBeInstanceOf(Promise)
+      expect(subscriptionApi.getCatalog()).toBeInstanceOf(Promise)
       expect(subscriptionApi.redeemCode('TEST')).toBeInstanceOf(Promise)
-      expect(subscriptionApi.getHistory()).toBeInstanceOf(Promise)
     })
 
     it('uses correct HTTP methods for each operation', async () => {
@@ -345,9 +254,6 @@ describe('subscriptionApi', () => {
 
       await subscriptionApi.redeemCode('CODE')
       expect(mockApiPost).toHaveBeenCalled()
-
-      await subscriptionApi.getHistory()
-      expect(mockApiGet).toHaveBeenCalledTimes(3)
     })
   })
 })

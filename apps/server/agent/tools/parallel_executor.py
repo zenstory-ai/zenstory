@@ -39,20 +39,8 @@ class SubagentTask:
     status: str = "pending"  # pending, running, completed, partial, failed
     result: Any = None
     error: str | None = None
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
     # 在本批（执行器收到的 tasks）里的下标，结果里原样回显。
     index: int = 0
-
-
-@dataclass
-class ParallelExecutionResult:
-    """Result of a parallel execution."""
-    execution_id: str
-    tasks: list[SubagentTask]
-    all_completed: bool
-    any_failed: bool
-    total_duration_ms: int
 
 
 # 每个任务结果的保底上限。实际上限按任务数均分 TOOL_RESULT_MAX_CHARS 的 80%
@@ -415,7 +403,7 @@ async def execute_parallel(
         tasks: List of task specifications with type, description, and params
 
     Returns:
-        ParallelExecutionResult as MCP-formatted dict
+        Parallel execution result as MCP-formatted dict
     """
     from agent.core.events import (
         parallel_end_event,
@@ -518,7 +506,6 @@ async def execute_parallel(
     async def execute_task(task: SubagentTask) -> SubagentTask:
         async with semaphore:
             task.status = "running"
-            task.started_at = datetime.now()
             # 发给前端进度条的失败说明：只用子任务自带的 user_message；原始错误
             # （task.error）只留在返回给模型的 tasks[] 里和日志中。
             user_facing_error: str | None = None
@@ -613,7 +600,6 @@ async def execute_parallel(
                 task.status = "failed"
                 logger.error(f"parallel_execute task failed: {e}", exc_info=True)
             finally:
-                task.completed_at = datetime.now()
                 emit_progress(
                     parallel_task_end_event(
                         execution_id=execution_id,

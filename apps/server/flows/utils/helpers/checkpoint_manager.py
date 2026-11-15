@@ -17,28 +17,6 @@ class CheckpointManager:
         self.job_id = job_id
         self.logger = get_run_logger()
 
-    def create_checkpoint(
-        self,
-        stage: str,
-        status: str = "processing",
-        data: dict[str, Any] | None = None,
-    ) -> None:
-        """创建检查点"""
-        from flows.database_session import get_prefect_db_session
-
-        with get_prefect_db_session() as session:
-            svc = CheckpointService()
-            svc.upsert(
-                session,
-                self.novel_id,
-                stage,
-                data or {},
-                status=status,
-                job_id=self.job_id,
-            )
-            session.commit()
-            self.logger.info(f"创建检查点: stage={stage}, status={status}")
-
     def update_checkpoint(
         self,
         stage: str,
@@ -60,7 +38,6 @@ class CheckpointManager:
                 job_id=self.job_id,
                 error=error,
             )
-            session.commit()
 
             self.logger.info(
                 f"更新检查点: stage={stage}, status={status or checkpoint.stage_status}"

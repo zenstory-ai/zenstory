@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { pointsApi } from '../../lib/pointsApi';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 
 interface PointsBalanceProps {
   className?: string;
@@ -12,8 +13,8 @@ interface PointsBalanceProps {
 }
 
 export function PointsBalance({ className = '', showExpiration = true }: PointsBalanceProps) {
-  const { t } = useTranslation('points');
-  const { data: balance, isLoading } = useQuery({
+  const { t } = useTranslation(['points', 'common']);
+  const { data: balance, isLoading, isError, refetch } = useQuery({
     queryKey: ['points-balance'],
     queryFn: () => pointsApi.getBalance(),
     refetchInterval: 60000,
@@ -24,6 +25,21 @@ export function PointsBalance({ className = '', showExpiration = true }: PointsB
     queryFn: () => pointsApi.getConfig(),
   });
   const proCost = config?.pro_7days_cost;
+
+  if (isError && !balance) {
+    return (
+      <Card className={className}>
+        <div className="space-y-2">
+          <p role="alert" className="text-xs text-[hsl(var(--error-text))]">
+            {t('balanceLoadFailed', '积分余额没加载出来，请重试')}
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => void refetch()}>
+            {t('common:retry', '重试')}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   if (!balance && !isLoading) return null;
 

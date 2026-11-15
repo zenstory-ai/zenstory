@@ -11,9 +11,10 @@ from prompts.prompt_loader import (
 )
 
 
-def test_prompt_loader_rejects_unknown_novel_type():
+@pytest.mark.parametrize("novel_type", ["invalid", "published"])
+def test_prompt_loader_rejects_unknown_novel_type(novel_type: str):
     with pytest.raises(ValueError) as excinfo:
-        PromptLoader("invalid")
+        PromptLoader(novel_type)
 
     assert "不支持的小说类型" in str(excinfo.value)
 
@@ -24,7 +25,8 @@ def test_prompt_loader_lists_available_prompts_for_web_long():
     available = loader.list_available_prompts()
 
     assert "character_mention" in available
-    assert "text_edit" in available
+    assert "chapter_summary" in available
+    assert "plot_extraction" in available
 
 
 def test_prompt_loader_missing_template_reports_available_choices():
@@ -43,11 +45,11 @@ def test_cached_loader_is_reused_and_get_prompt_renders_template():
 
     first = _get_cached_loader("web_long")
     second = _get_cached_loader("web_long")
-    rendered = get_prompt("text_edit", original_text="原文", instruction="润色一下")
+    rendered = get_prompt("plot_extraction", word_count=1200)
 
     assert first is second
-    assert "润色一下" in rendered
-    assert "原文" in rendered
+    assert "10-15个" in rendered
+    assert "1200" in rendered
 
 
 def test_compatibility_function_matches_get_prompt_output():

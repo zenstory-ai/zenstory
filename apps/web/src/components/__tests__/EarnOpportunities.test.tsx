@@ -528,5 +528,17 @@ describe('EarnOpportunities', () => {
         expect(screen.getByText('Special & <characters> "test"')).toBeInTheDocument()
       })
     })
+
+    it('shows error state with retry when earn opportunities query fails', async () => {
+      mockPointsApi.getEarnOpportunities
+        .mockRejectedValueOnce(new Error('network error'))
+        .mockResolvedValueOnce(mockOpportunities)
+
+      render(<EarnOpportunities />, { wrapper: createWrapper() })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('积分任务加载失败，请重试')
+      screen.getByRole('button', { name: '重试' }).click()
+      expect(await screen.findByText('Daily check-in')).toBeInTheDocument()
+    })
   })
 })

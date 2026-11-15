@@ -18,7 +18,6 @@ def get_hmac_secret() -> str:
 def generate_code(
     tier: str,
     duration_days: int,
-    code_type: str = "single_use"
 ) -> str:
     """
     Generate a redemption code.
@@ -28,7 +27,6 @@ def generate_code(
     Args:
         tier: Plan tier (e.g., "pro", "free")
         duration_days: Duration in days
-        code_type: "single_use" or "multi_use"
 
     Returns:
         Generated code string
@@ -64,10 +62,9 @@ def generate_batch_codes(
     tier: str,
     duration_days: int,
     count: int,
-    code_type: str = "single_use"
 ) -> list[str]:
     """Generate multiple unique codes."""
     codes = set()
     while len(codes) < count:
-        codes.add(generate_code(tier, duration_days, code_type))
+        codes.add(generate_code(tier, duration_days))
     return list(codes)

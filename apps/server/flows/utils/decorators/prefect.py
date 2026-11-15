@@ -177,25 +177,3 @@ def api_task(
         persist_result=False,  # ✅ API 任务不持久化
         name=name,
     )
-
-
-def analysis_task(
-    retries: int = 2,
-    retry_delay_seconds: int = 3,
-    cache_expiration: timedelta | None = None,
-    name: str | None = None,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """
-    分析处理专用装饰器
-
-    约定：
-        - 分析类任务保持较低重试次数
-        - 不持久化结果，减少内存占用
-    """
-    return smart_retry_task(
-        retries=retries,
-        retry_delay_seconds=retry_delay_seconds,
-        cache_expiration=cache_expiration,
-        persist_result=False,  # ✅ 分析任务不持久化
-        name=name,
-    )

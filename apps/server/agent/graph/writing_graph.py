@@ -1374,15 +1374,11 @@ def _extract_review_payload(agent_content: str) -> str:
     if "<file" not in raw.lower():
         return raw
 
-    # Normalize file marker variants (best-effort). We reuse the same normalization
+    # Normalize file marker variants. We reuse the same normalization
     # logic as StreamProcessor so reviewer extraction is consistent with file writes.
-    normalized = raw
-    try:
-        from agent.core.stream_processor import normalize_file_markers
+    from agent.core.stream_processor import normalize_file_markers
 
-        normalized = normalize_file_markers(raw)
-    except Exception:
-        normalized = raw
+    normalized = normalize_file_markers(raw)
 
     start_tag = "<file>"
     end_tag = "</file>"
@@ -3319,13 +3315,10 @@ async def run_writing_workflow_streaming(
             # 检测任务完成。
             # - 显式 handoff 优先级最高（继续协作，不触发 stop/complete）。
             # - 计划交接（作者范围内还没跑的阶段）不被完成标记打断。
-            # - 自动送审仅在显式完成标记时允许打断。
-            # - 无待交接时允许启发式完成。
+            # - 仅显式末尾完成标记（[TASK_COMPLETE] / [任务完成]）可触发完成收尾。
             if agent_content:
-                evaluation = evaluate_agent_output(agent_content, current_agent_type)
-                complete_result = detect_task_complete(agent_content, current_agent_type)
-
-                explicit_complete = complete_result.reason == "explicit_complete_marker"
+                evaluation = evaluate_agent_output(agent_content)
+                complete_result = detect_task_complete(agent_content, evaluation=evaluation)
 
                 if has_explicit_handoff:
                     can_stop_for_completion = False
@@ -3342,9 +3335,7 @@ async def run_writing_workflow_streaming(
                             next_planned=pending_next_agent,
                         )
                 else:
-                    can_stop_for_completion = complete_result.is_complete and (
-                        explicit_complete or not has_pending_handoff
-                    )
+                    can_stop_for_completion = complete_result.is_complete
 
                 if can_stop_for_completion:
                     log_with_context(

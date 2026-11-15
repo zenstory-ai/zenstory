@@ -771,6 +771,62 @@ class TestRedeemForPro:
         balance = points_service.get_balance(db_session, test_user.id)
         assert balance["available"] == 50  # Remaining points
 
+    def test_redeem_for_pro_does_not_refresh_or_lazy_load_after_commit(
+        self, db_session: Session, test_user
+    ):
+        """Post-commit refresh/lazy-load failures must not raise 500 after points commit."""
+        from models.subscription import SubscriptionPlan
+
+        plan = SubscriptionPlan(
+            name="pro",
+            display_name="专业版",
+            display_name_en="Pro",
+            price_monthly_cents=1900,
+            price_yearly_cents=19000,
+            features={},
+            is_active=True,
+        )
+        db_session.add(plan)
+        db_session.commit()
+
+        points_service.earn_points(
+            session=db_session,
+            user_id=test_user.id,
+            amount=POINTS_PRO_7DAYS_COST,
+            transaction_type="test",
+        )
+
+        real_commit = db_session.commit
+        real_execute = db_session.execute
+        committed = False
+
+        def commit_then_disconnect() -> None:
+            nonlocal committed
+            real_commit()
+            db_session.expire_all()
+            committed = True
+
+        def guarded_execute(*args, **kwargs):
+            if committed:
+                raise RuntimeError("post-commit lazy load triggered")
+            return real_execute(*args, **kwargs)
+
+        with (
+            patch.object(db_session, "commit", side_effect=commit_then_disconnect),
+            patch.object(
+                db_session,
+                "refresh",
+                side_effect=RuntimeError("post-commit refresh must not happen"),
+            ),
+            patch.object(db_session, "execute", side_effect=guarded_execute),
+        ):
+            result = points_service.redeem_for_pro(db_session, test_user.id, days=7)
+
+        assert result["success"] is True
+        assert result["points_spent"] == POINTS_PRO_7DAYS_COST
+        assert result["pro_days"] == 7
+        assert isinstance(result["new_period_end"], str) and result["new_period_end"]
+
 
 @pytest.mark.unit
 class TestGetEarnOpportunities:

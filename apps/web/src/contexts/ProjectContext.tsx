@@ -88,6 +88,8 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const projectsRef = useRef<Project[]>(projects);
+  projectsRef.current = projects;
   const [projectsOwnerId, setProjectsOwnerId] = useState<string | null>(null);
   const projectsOwnerIdRef = useRef<string | null>(null);
   const authUserIdRef = useRef<string | null>(user?.id ?? null);
@@ -557,30 +559,31 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, [setCurrentProjectId]);
 
   const updateProject = useCallback(async (projectId: string, updates: Partial<Project>): Promise<Project> => {
+    const requestedUserId = authUserIdRef.current;
     const updatedProject = await projectApi.update(projectId, updates);
+    if (authUserIdRef.current !== requestedUserId) return updatedProject;
     setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p));
     return updatedProject;
   }, []);
 
   const deleteProject = useCallback(async (projectId: string): Promise<void> => {
+    const requestedUserId = authUserIdRef.current;
     await projectApi.delete(projectId);
-    
-    setProjects(prev => {
-      const newProjects = prev.filter(p => p.id !== projectId);
-      const remainingProjects = newProjects as ProjectWithId[];
+    if (authUserIdRef.current !== requestedUserId) return;
 
-      // If we deleted the current project, switch to most recently updated one.
-      if (currentProjectId === projectId && remainingProjects.length > 0) {
-        const mostRecentProject = pickMostRecentlyUpdated(remainingProjects);
-        setCurrentProjectId(mostRecentProject.id);
-      } else if (remainingProjects.length === 0) {
-        // No projects left, clear state (user will be redirected to dashboard)
-        setCurrentProjectId(null);
-      }
-      
-      return newProjects;
-    });
-  }, [currentProjectId, setCurrentProjectId]);
+    const remainingProjects = projectsRef.current.filter(p => p.id !== projectId) as ProjectWithId[];
+    projectsRef.current = remainingProjects;
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+
+    // If we deleted the current project, switch to most recently updated one.
+    if (currentProjectIdRef.current === projectId && remainingProjects.length > 0) {
+      const mostRecentProject = pickMostRecentlyUpdated(remainingProjects);
+      setCurrentProjectId(mostRecentProject.id);
+    } else if (remainingProjects.length === 0) {
+      // No projects left, clear state (user will be redirected to dashboard)
+      setCurrentProjectId(null);
+    }
+  }, [setCurrentProjectId]);
 
   const refreshProjects = useCallback(async () => {
     await loadProjects();

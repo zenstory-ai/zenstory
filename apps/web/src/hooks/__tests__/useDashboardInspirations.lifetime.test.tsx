@@ -178,23 +178,24 @@ describe.each([false, true])('actual dashboard suggestions rootStrict=%s', stric
     expect(titles()).toEqual(current); expect(titles()).toHaveLength(2); expect(requests).toHaveLength(2)
   })
 
-  it('characterization: owned nonOK caches null across later load and remount; no visible retry contract', async () => {
+  it('evicts owned nonOK from cache so later load and remount recover after transient failure', async () => {
     route = async locale => response(locale, 503)
-    const view = render(leaf(strict)); await flush(); expect(titles()).toEqual([]); expect(requests).toHaveLength(1)
+    const view = render(leaf(strict)); await flush(); expect(titles()).toEqual([]); expect(requests.length).toBeGreaterThanOrEqual(1)
+    const failedCount = requests.length
     route = async locale => response(locale)
-    expect(await source.loadDashboardInspirationBundle('zh')).toBeNull(); view.unmount(); render(leaf(strict)); await flush()
-    expect(titles()).toEqual([]); expect(requests).toHaveLength(1); snapshot('cached null despite network recovery')
+    expect(await source.loadDashboardInspirationBundle('zh')).not.toBeNull(); view.unmount(); render(leaf(strict)); await flush()
+    expect(titles()).toHaveLength(2); expect(requests).toHaveLength(failedCount + 1); snapshot('recovered after nonOK eviction')
   })
 
-  it('retains the loader rejection cache while the actual mounted leaf stays quiet', async () => {
+  it('evicts the loader rejection from cache so later load and mounted leaf recover quietly', async () => {
     const a = gate('zh'); route = () => a.promise
     const initial = source.loadDashboardInspirationBundle('zh'); const rejection = expect(initial).rejects.toThrow('offline zh network rejection')
     a.reject(); await rejection
     route = async locale => response(locale)
-    const cached = source.loadDashboardInspirationBundle('zh'); expect(cached).toBe(initial)
-    await expect(cached).rejects.toThrow('offline zh network rejection')
-    render(leaf(strict)); await flush(); expect(requests).toHaveLength(1); expect(titles()).toEqual([])
-    snapshot('actual hook consumes cached rejected promise')
+    const recovered = source.loadDashboardInspirationBundle('zh'); expect(recovered).not.toBe(initial)
+    await expect(recovered).resolves.not.toBeNull()
+    render(leaf(strict)); await flush(); expect(requests).toHaveLength(2); expect(titles()).toHaveLength(2)
+    snapshot('actual hook recovers after evicted rejected promise')
     expect(rejections).toEqual([])
   })
 

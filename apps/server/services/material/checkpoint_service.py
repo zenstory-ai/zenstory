@@ -131,13 +131,3 @@ class CheckpointService:
         session.add(cp)
         session.flush()
         return cp
-
-    def delete_all(self, session: Session, novel_id: int) -> None:
-        """Delete all checkpoints for a novel."""
-        statement = select(ProcessCheckpoint).where(
-            ProcessCheckpoint.novel_id == novel_id
-        )
-        checkpoints = session.exec(statement).all()
-        for cp in checkpoints:
-            session.delete(cp)
-        session.flush()

@@ -137,7 +137,3 @@ def configure_logging() -> None:
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-
-
-# Auto-configure logging on module import
-configure_logging()

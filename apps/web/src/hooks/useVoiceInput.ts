@@ -74,8 +74,6 @@ export interface UseVoiceInputReturn {
  * 检查浏览器是否支持录音
  */
 function checkMediaRecorderSupport(): boolean {
-  if (typeof window === 'undefined') return false;
-  
   return !!(
     navigator.mediaDevices &&
     typeof navigator.mediaDevices.getUserMedia === 'function' &&

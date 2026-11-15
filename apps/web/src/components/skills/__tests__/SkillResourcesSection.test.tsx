@@ -49,4 +49,19 @@ describe('SkillResourcesSection request freshness', () => {
     await waitFor(() => expect(screen.queryByDisplayValue('stale A content')).not.toBeInTheDocument())
     expect(screen.getByDisplayValue('newest B content')).toBeInTheDocument()
   })
+
+  it('shows load error with retry instead of claiming there are no resource files', async () => {
+    vi.mocked(skillsApi.listResources)
+      .mockRejectedValueOnce(new Error('Gateway timeout'))
+      .mockResolvedValueOnce({ resources: [{ path: 'references/recovered.md', size: 12 }] })
+
+    const user = userEvent.setup()
+    render(<SkillResourcesSection skillId="skill-1" readOnly />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Gateway timeout')
+    expect(screen.queryByText('resources.empty')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'common:retry' }))
+    expect(await screen.findByText('references/recovered.md')).toBeInTheDocument()
+  })
 })

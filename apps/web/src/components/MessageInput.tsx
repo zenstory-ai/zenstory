@@ -215,8 +215,6 @@ interface MessageInputProps {
   aiSuggestions?: string[];
   /** Chips (AI or fallback) to leave out, e.g. ones that repeat the next-step card. */
   hideSuggestion?: (suggestion: string) => boolean;
-  /** Current conversation message count (reserved for compatibility/analytics) */
-  messageCount?: number;
   /** Controls whether suggestion area is loading, ready with AI, or fallback static */
   suggestionDisplayState?: SuggestionDisplayState;
   /** Callback to trigger refresh of AI suggestions */
@@ -1031,7 +1029,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         className={
           isFillLayout
             ? "flex flex-1 min-h-0 items-end gap-1.5"
-            : `flex items-end ${isMobile ? 'gap-1.5' : 'gap-1.5'}`
+            : "flex items-end gap-1.5"
         }
         style={isFillLayout ? { minHeight: `${textareaMinHeightPx}px` } : undefined}
       >

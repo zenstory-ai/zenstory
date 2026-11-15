@@ -107,16 +107,17 @@ export default function FeedbackManagement() {
     return `${(sizeBytes / 1024 / 1024).toFixed(2)} MB`;
   };
 
-  const renderDebugMeta = (feedback: AdminFeedbackItem) => {
-    const lines: Array<{ label: string; value: string | null }> = [
+  const getDebugMetaLines = (feedback: AdminFeedbackItem) =>
+    [
       { label: "req", value: feedback.request_id },
       { label: "trace", value: feedback.trace_id },
       { label: "run", value: feedback.agent_run_id },
       { label: "project", value: feedback.project_id },
       { label: "session", value: feedback.agent_session_id },
-    ];
+    ].filter((line): line is { label: string; value: string } => Boolean(line.value));
 
-    const visible = lines.filter((line) => Boolean(line.value));
+  const renderDebugMeta = (feedback: AdminFeedbackItem) => {
+    const visible = getDebugMetaLines(feedback);
     if (!visible.length) return null;
 
     return (
@@ -367,27 +368,20 @@ export default function FeedbackManagement() {
                       <p className="line-clamp-3 text-[hsl(var(--text-primary))]">{feedback.issue_text}</p>
                     </td>
                     <td className="px-4 py-3 text-xs text-[hsl(var(--text-secondary))]">
-                      {renderDebugMeta(feedback) ? (
-                        <div className="space-y-1 font-mono">
-                          {feedback.request_id && (
-                            <div className="max-w-[220px] truncate">req: {feedback.request_id}</div>
-                          )}
-                          {feedback.trace_id && (
-                            <div className="max-w-[220px] truncate">trace: {feedback.trace_id}</div>
-                          )}
-                          {feedback.agent_run_id && (
-                            <div className="max-w-[220px] truncate">run: {feedback.agent_run_id}</div>
-                          )}
-                          {feedback.project_id && (
-                            <div className="max-w-[220px] truncate">project: {feedback.project_id}</div>
-                          )}
-                          {feedback.agent_session_id && (
-                            <div className="max-w-[220px] truncate">session: {feedback.agent_session_id}</div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-[hsl(var(--text-secondary))]">-</span>
-                      )}
+                      {(() => {
+                        const debugLines = getDebugMetaLines(feedback);
+                        return debugLines.length > 0 ? (
+                          <div className="space-y-1 font-mono">
+                            {debugLines.map((line) => (
+                              <div key={line.label} className="max-w-[220px] truncate">
+                                {line.label}: {line.value}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-[hsl(var(--text-secondary))]">-</span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       {feedback.has_screenshot ? (

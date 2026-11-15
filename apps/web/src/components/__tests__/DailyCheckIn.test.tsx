@@ -132,4 +132,22 @@ describe('DailyCheckIn', () => {
 
     expect(await screen.findByText('签到失败，请重试')).toBeInTheDocument()
   })
+
+  it('shows retry state instead of false unchecked-in button when status query fails', async () => {
+    mockGetCheckInStatus
+      .mockRejectedValueOnce(new Error('status failed'))
+      .mockResolvedValueOnce({
+        checked_in: true,
+        streak_days: 2,
+        points_earned_today: 5,
+      })
+
+    renderWithQuery(<DailyCheckIn />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('签到状态加载失败，请重试')
+    expect(screen.queryByText('签到领积分')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(await screen.findByText('今日已签到')).toBeInTheDocument()
+  })
 })

@@ -492,4 +492,34 @@ describe("chunkRecovery", () => {
     expect(newPageRecovery.reloadForChunkErrorOnce(chunkError, "DashboardHome")).toBe(true);
     expect(reloadSpy).toHaveBeenCalledTimes(2);
   });
+
+  it("never fails lazyRoute after importer succeeds when sessionStorage throws SecurityError", async () => {
+    const securityError = new DOMException("Access is denied for this document", "SecurityError");
+    vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => {
+      throw securityError;
+    });
+
+    const LazyComponent = recovery.lazyRoute(
+      async () => ({ default: () => createElement("div", null, "restricted storage route") }),
+      "RestrictedRoute",
+    );
+
+    render(
+      createElement(
+        Suspense,
+        { fallback: createElement("div", null, "loading") },
+        createElement(LazyComponent),
+      ),
+    );
+
+    expect(await screen.findByText("restricted storage route")).toBeInTheDocument();
+    expect(
+      recovery.reloadForChunkErrorOnce(
+        new Error("Failed to fetch dynamically imported module"),
+        "RestrictedRoute",
+      ),
+    ).toBe(false);
+    expect(reloadSpy).not.toHaveBeenCalled();
+    expect((await import("../appUpdate")).getAppUpdateState().required).toBe(true);
+  });
 });

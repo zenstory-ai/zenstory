@@ -341,7 +341,6 @@ describe('MessageInput', () => {
       <MessageInput
         {...defaultProps}
         aiSuggestions={[]}
-        messageCount={0}
         suggestionDisplayState="fallback"
       />
     )

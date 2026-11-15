@@ -24,23 +24,6 @@ _AI_CHANGE_SOURCE = "ai"
 _AI_EDIT_CHANGE_TYPE = "ai_edit"
 
 
-@dataclass(frozen=True)
-class AuthorScope:
-    """Presence of an instance means the operation originated in application chat.
-
-    The fields remain available to callers that use them as model context, but none of them grant
-    destructive authority.
-    """
-
-    messages: tuple[str, ...] = ()
-    referenced_file_ids: frozenset[str] = frozenset()
-    focus_file_id: str | None = None
-
-    @property
-    def text(self) -> str:
-        return "\n".join(message for message in self.messages if message)
-
-
 class AuthorContentProtectionError(RuntimeError):
     """Typed domain refusal raised while holding the target write lock."""
 
@@ -69,15 +52,6 @@ class AuthorEditProtectionUnavailableError(AuthorContentProtectionError):
             "无法确认目标文件的内容来源或保护状态，本次破坏性操作未执行。"
             "局部调整可用 edit_file；需要删除或整份替换时，请作者在文件菜单或编辑器中操作。",
         )
-
-
-def latest_text_is_authors(session: Any, file: Any) -> bool:
-    """Whether the current non-empty body is known to come from an author-side write.
-
-    Unknown provenance is not claimed as author-owned; destructive callers go through
-    ``enforce_author_content_protection``, which refuses it separately.
-    """
-    return _latest_text_owner_is_author(session, file) is True
 
 
 def _latest_text_owner_is_author(session: Any, file: Any) -> bool | None:

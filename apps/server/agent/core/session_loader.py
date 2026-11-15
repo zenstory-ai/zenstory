@@ -19,6 +19,7 @@ from typing import Any
 from sqlalchemy import desc, func, or_
 from sqlmodel import Session, and_, select
 
+from agent.constants import should_offload_session_work
 from agent.utils.token_utils import estimate_message_tokens
 from config.agent_runtime import (
     AGENT_CHAT_HISTORY_TOKEN_BUDGET,
@@ -126,7 +127,6 @@ _HISTORY_PAGE_TEXT_BYTES = 4 * 1024 * 1024
 class SessionData:
     """Data loaded for a chat session."""
 
-    chat_session: Any | None = None
     session_id: str | None = None
     history_messages: list[dict[str, Any]] = field(default_factory=list)
     context_data: Any | None = None
@@ -352,7 +352,6 @@ class SessionLoader:
         chat_session: Any,
     ) -> SessionData:
         """Fill history window and working-set refs for an ownership-checked session."""
-        result.chat_session = chat_session
         result.session_id = chat_session.id
 
         # Load recent user/assistant messages under token budget.
@@ -376,7 +375,7 @@ class SessionLoader:
             project_id=self.project_id,
             user_id=self.user_id,
             session_id=chat_session.id,
-            total_history_message_count=getattr(chat_session, "message_count", None),
+            total_history_message_count=chat_session.message_count,
             history_message_count=len(result.history_messages),
             history_token_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
         )
@@ -525,7 +524,7 @@ class SessionLoader:
                 ],
             )
             return
-        by_id = {str(f.id): f for f in files if getattr(f, "file_type", None) != "folder"}
+        by_id = {str(f.id): f for f in files if f.file_type != "folder"}
         present = [file_id for file_id in ordered if file_id in by_id]
         checked, unchecked = present[:AUTHOR_EDITS_MAX_FILES], present[AUTHOR_EDITS_MAX_FILES:]
 
@@ -536,8 +535,10 @@ class SessionLoader:
         for file_id in checked:
             file = by_id[file_id]
             try:
-                with session.begin_nested():
+                with session.begin_nested() as nested:
                     changes = author_changes(session, file)
+                    if changes is not None and changes.failed:
+                        nested.rollback()
             except Exception:
                 changes = AuthorChanges(hunks=[], complete=False, failed=True)
             if changes is not None:
@@ -636,7 +637,7 @@ class SessionLoader:
                 File.is_deleted.is_(False),
             )
         ).all()
-        files_by_id = {str(f.id): f for f in files if getattr(f, "file_type", None) != "folder"}
+        files_by_id = {str(f.id): f for f in files if f.file_type != "folder"}
 
         full_blocks: list[str] = []
         omitted: list[str] = []
@@ -735,12 +736,6 @@ class SessionLoader:
             self.attach_author_edits(read_session, result)
             self.attach_working_set(read_session, result)
             return result
-
-    def _should_offload_session_work(self, session: Session) -> bool:
-        """Only offload when running against PostgreSQL production-style sessions."""
-        bind = session.get_bind() if hasattr(session, "get_bind") else None
-        dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
-        return dialect_name == "postgresql"
 
     def _load_history_window_under_token_budget(
         self,
@@ -1466,7 +1461,7 @@ class SessionLoader:
         Returns:
             SessionData with chat session and assembled context
         """
-        if self._should_offload_session_work(session):
+        if should_offload_session_work(session):
             # 1 & 2. Load chat session + assemble context in a worker thread with a
             # fresh sync DB session so async request handling stays responsive.
             result = await asyncio.to_thread(

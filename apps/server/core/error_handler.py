@@ -43,7 +43,6 @@ class APIException(HTTPException):
         headers: dict[str, Any] | None = None,
         detail: Any | None = None,
         message: str | None = None,
-        **kwargs,
     ):
         self.error_code = error_code
         # Backward compatibility: many callsites still pass `message=...`.
@@ -51,7 +50,6 @@ class APIException(HTTPException):
             detail = message
         # If detail is provided, use it; otherwise use error_code
         detail_value = detail if detail is not None else error_code
-        # Ignore unknown kwargs to prevent runtime crashes from legacy callsites.
         super().__init__(status_code=status_code, detail=detail_value, headers=headers)
 
 
@@ -78,7 +76,7 @@ async def api_exception_handler(request: Request, exc: APIException) -> JSONResp
             "error_code": exc.error_code,
             "error_detail": exc.detail,
         },
-        headers=getattr(exc, "headers", None),
+        headers=exc.headers,
     )
 
 
@@ -114,7 +112,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         status_code=exc.status_code,
         content={"detail": str(exc.detail)},
         # Preserve headers such as Retry-After (429) and WWW-Authenticate (401).
-        headers=getattr(exc, "headers", None),
+        headers=exc.headers,
     )
 
 

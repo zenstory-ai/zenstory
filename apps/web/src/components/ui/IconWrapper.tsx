@@ -58,12 +58,6 @@ export interface IconWrapperProps {
    */
   rounded?: 'md' | 'full';
   /**
-   * Whether to show the background color.
-   * When false, only the icon color is applied.
-   * @default true
-   */
-  background?: boolean;
-  /**
    * The icon element to wrap.
    */
   children: React.ReactNode;
@@ -94,18 +88,11 @@ export interface IconWrapperProps {
  * <IconWrapper variant="success" rounded="full">
  *   <CheckIcon />
  * </IconWrapper>
- *
- * @example
- * // No background, just colored icon
- * <IconWrapper variant="error" background={false}>
- *   <XIcon />
- * </IconWrapper>
  */
 export function IconWrapper({
   size = 'md',
   variant = 'default',
   rounded = 'md',
-  background = true,
   children,
   className,
 }: IconWrapperProps) {
@@ -114,7 +101,7 @@ export function IconWrapper({
       className={cn(
         'flex items-center justify-center',
         sizeMap[size],
-        background && variantStyles[variant],
+        variantStyles[variant],
         roundedStyles[rounded],
         className
       )}

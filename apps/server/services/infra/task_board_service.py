@@ -4,6 +4,8 @@ Task board service for persisting Agent task state in Redis.
 import json
 from typing import Any
 
+import redis
+
 from services.infra.redis_client import get_redis_client
 from utils.logger import get_logger, log_with_context
 
@@ -100,7 +102,7 @@ class TaskBoardService:
             )
 
             return True
-        except Exception as e:
+        except (redis.RedisError, TypeError, ValueError, OSError) as e:
             log_with_context(
                 logger,
                 40,  # ERROR
@@ -164,7 +166,7 @@ class TaskBoardService:
             )
 
             return tasks
-        except Exception as e:
+        except (redis.RedisError, json.JSONDecodeError, OSError) as e:
             log_with_context(
                 logger,
                 40,  # ERROR
@@ -176,56 +178,6 @@ class TaskBoardService:
                 error_type=type(e).__name__,
             )
             return None
-
-    def delete_tasks(
-        self,
-        session_id: str,
-        *,
-        user_id: str | None = None,
-        project_id: str | None = None,
-    ) -> bool:
-        """
-        Delete tasks from Redis for a session.
-
-        Args:
-            session_id: The session identifier
-            user_id: Optional runtime user scope
-            project_id: Optional runtime project scope
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            client = get_redis_client()
-            key = self._get_key(
-                session_id,
-                user_id=user_id,
-                project_id=project_id,
-            )
-            client.delete(key)
-
-            log_with_context(
-                logger,
-                20,  # INFO
-                "Deleted tasks from task board",
-                session_id=session_id,
-                user_id=user_id,
-                project_id=project_id,
-            )
-
-            return True
-        except Exception as e:
-            log_with_context(
-                logger,
-                40,  # ERROR
-                "Error deleting tasks from task board",
-                session_id=session_id,
-                user_id=user_id,
-                project_id=project_id,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            return False
 
 
 # Singleton instance

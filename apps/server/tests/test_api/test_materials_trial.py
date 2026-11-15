@@ -66,7 +66,7 @@ async def test_trial_is_off_until_enabled(client: AsyncClient, db_session, monke
     quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
     assert quota["material_trial"]["available"] is False
     assert (await _upload(client, headers)).status_code == 402
-    assert (await client.get("/api/v1/materials", headers=headers)).status_code == 402
+    assert (await client.get("/api/v1/materials/list", headers=headers)).status_code == 402
 
 
 @pytest.mark.integration
@@ -98,7 +98,7 @@ async def test_free_author_gets_one_capped_trial_and_can_read_its_result(
     # One trial per account.
     assert (await _upload(client, headers)).status_code == 402
     # The trial book is readable in the library.
-    library = await client.get("/api/v1/materials", headers=headers)
+    library = await client.get("/api/v1/materials/list", headers=headers)
     assert library.status_code == 200
     assert [item["id"] for item in library.json()] == [response.json()["novel_id"]]
 
@@ -125,7 +125,7 @@ async def test_a_failed_trial_stays_used_and_visible(client: AsyncClient, db_ses
     assert trial["available"] is False
     assert trial["used"] is True
     assert (await _upload(client, headers)).status_code == 402
-    library = (await client.get("/api/v1/materials", headers=headers)).json()
+    library = (await client.get("/api/v1/materials/list", headers=headers)).json()
     assert [(item["id"], item["status"]) for item in library] == [(response.json()["novel_id"], "failed")]
     assert library[0]["error_message"] == error_code
     db_session.expire_all()
@@ -302,7 +302,7 @@ async def test_trial_accepts_a_whole_book_and_keeps_only_the_first_chapters(
     assert meta["chapter_count"] == 3
     assert meta["source_chapter_count"] == 150
     assert meta["char_count"] == len(stored_text)
-    library = (await client.get("/api/v1/materials", headers=headers)).json()
+    library = (await client.get("/api/v1/materials/list", headers=headers)).json()
     assert library[0]["trial_chapter_limit"] == 3
     assert library[0]["source_chapter_count"] == 150
 
@@ -454,7 +454,7 @@ async def test_dispatch_failure_after_commit_uses_the_trial_and_keeps_a_failed_b
     monkeypatch.setattr(materials_upload_api, "_start_flow_deployment", _dispatch_accepted)
     assert (await _upload(client, headers)).status_code == 402
 
-    library = (await client.get("/api/v1/materials", headers=headers)).json()
+    library = (await client.get("/api/v1/materials/list", headers=headers)).json()
 
     assert [item["status"] for item in library] == ["failed"]
     assert library[0]["error_message"] == ErrorCode.MATERIAL_DISPATCH_FAILED

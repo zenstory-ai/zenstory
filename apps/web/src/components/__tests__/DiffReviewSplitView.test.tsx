@@ -28,22 +28,6 @@ vi.mock("react-i18next", async () => {
   };
 });
 
-vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({ count }: { count: number }) => ({
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, index) => ({
-        index,
-        key: String(index),
-        size: 200,
-        start: index * 200,
-        end: (index + 1) * 200,
-      })),
-    getTotalSize: () => count * 200,
-    scrollToIndex: vi.fn(),
-    measureElement: vi.fn(),
-  }),
-}));
-
 vi.mock("../InlineDiffEditor", () => ({
   InlineDiffEditor: React.forwardRef(function MockInlineDiffEditor(
     props: {
@@ -195,5 +179,35 @@ describe("DiffReviewSplitView", () => {
     fireEvent.click(screen.getByRole("button", { name: "edit-2" }));
     fireEvent.keyDown(root!, { key: "u" });
     expect(onResetEdit).toHaveBeenCalledWith("edit-2");
+  });
+
+  it("scrolls the active review card into view using DOM scrollIntoView", () => {
+    const scrollIntoViewMock = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+
+    try {
+      render(
+        <DiffReviewSplitView
+          originalContent="old"
+          modifiedContent="new"
+          pendingEdits={[
+            { ...pendingEdits[0]!, status: "pending" },
+            { ...pendingEdits[1]!, status: "pending" },
+          ]}
+          onAcceptEdit={vi.fn()}
+          onRejectEdit={vi.fn()}
+          onResetEdit={vi.fn()}
+        />
+      );
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
+      scrollIntoViewMock.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: "edit-2" }));
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    }
   });
 });

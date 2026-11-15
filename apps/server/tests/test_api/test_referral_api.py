@@ -18,14 +18,10 @@ from sqlmodel import Session
 from models import User
 from models.points import PointsTransaction
 from models.referral import (
+    REWARD_TYPE_POINTS,
     InviteCode,
-    Referral,
     UserReward,
     UserStats,
-    REFERRAL_STATUS_PENDING,
-    REFERRAL_STATUS_REWARDED,
-    REWARD_TYPE_POINTS,
-    REWARD_TYPE_PRO_TRIAL,
 )
 from services.core.auth_service import hash_password
 from services.features.referral_service import MAX_INVITE_CODES_PER_USER
@@ -137,8 +133,9 @@ class TestGetInviteCodes:
 
     async def test_get_invite_codes_success(self, client: AsyncClient, auth_headers, db_session: Session):
         """Test getting all invite codes for a user."""
-        from models.referral import InviteCode
         from sqlalchemy import text as sql_text
+
+        from models.referral import InviteCode
 
         # Get user from DB to get the ID
         user_result = db_session.exec(
@@ -269,8 +266,9 @@ class TestValidateInviteCode:
 
     async def test_validate_invite_code_public(self, client: AsyncClient, db_session: Session):
         """Test that validation endpoint is public (no auth required)."""
-        from models.referral import InviteCode
         from sqlalchemy import text as sql_text
+
+        from models.referral import InviteCode
 
         # Create a user and code directly
         user_result = db_session.exec(
@@ -301,7 +299,6 @@ class TestValidateInviteCode:
 
     async def test_validate_invite_code_valid(self, client: AsyncClient, auth_headers, db_session: Session):
         """Test validation of a valid invite code."""
-        from sqlalchemy import text as sql_text
 
         # Create a code first
         create_response = await client.post(
@@ -513,8 +510,8 @@ class TestGetUserRewards:
         )
         reward2 = UserReward(
             user_id=user_id,
-            reward_type=REWARD_TYPE_PRO_TRIAL,
-            amount=14,
+            reward_type=REWARD_TYPE_POINTS,
+            amount=50,
             source="referral",
             is_used=False,
         )

@@ -301,17 +301,6 @@ async function setupMaterialLibraryMocking(page: Page) {
       return
     }
 
-    if (pathname.endsWith('/status') && request.method() === 'GET') {
-      const novelId = pathname.split('/materials/')[1]?.split('/status')[0]
-      const material = mockMaterials.find((m) => m.id === novelId) ?? mockMaterials[0]
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(material),
-      })
-      return
-    }
-
     if (request.method() === 'DELETE') {
       await route.fulfill({
         status: 200,

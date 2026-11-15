@@ -296,11 +296,9 @@ class TestNovelIngestionResume:
         result = flow_mod._check_and_resume_from_checkpoint(
             content_hash="abc",
             user_id="u1",
-            novel_id=None,
             correlation_id=None,
             flow_start=0.0,
             logger=fake_logger,
-            publisher=MagicMock(),
             job_id=900,
         )
 
@@ -332,11 +330,9 @@ class TestNovelIngestionResume:
         result = flow_mod._check_and_resume_from_checkpoint(
             content_hash="abc",
             user_id="u1",
-            novel_id=None,
             correlation_id=None,
             flow_start=0.0,
             logger=fake_logger,
-            publisher=MagicMock(),
             job_id=900,
         )
 
@@ -389,11 +385,9 @@ class TestNovelIngestionResume:
         result = flow_mod._check_and_resume_from_checkpoint(
             content_hash="abc",
             user_id="u1",
-            novel_id=None,
             correlation_id="cid",
             flow_start=0.0,
             logger=fake_logger,
-            publisher=MagicMock(),
             job_id=900,
         )
 
@@ -424,11 +418,9 @@ class TestNovelIngestionResume:
         result = flow_mod._check_and_resume_from_checkpoint(
             content_hash="abc",
             user_id="u1",
-            novel_id=None,
             correlation_id="cid",
             flow_start=0.0,
             logger=fake_logger,
-            publisher=MagicMock(),
             job_id=900,
         )
 
@@ -480,11 +472,9 @@ class TestNovelIngestionResume:
         result = flow_mod._check_and_resume_from_checkpoint(
             content_hash="abc",
             user_id="u1",
-            novel_id=None,
             correlation_id="cid",
             flow_start=0.0,
             logger=fake_logger,
-            publisher=MagicMock(),
             job_id=900,
         )
 
@@ -517,11 +507,9 @@ class TestNovelIngestionResume:
         result = flow_mod._check_and_resume_from_checkpoint(
             content_hash="abc",
             user_id="u1",
-            novel_id=None,
             correlation_id="cid",
             flow_start=0.0,
             logger=fake_logger,
-            publisher=MagicMock(),
             job_id=900,
         )
 
@@ -569,11 +557,9 @@ class TestNovelIngestionResume:
         result = flow_mod._check_and_resume_from_checkpoint(
             content_hash="abc",
             user_id="u1",
-            novel_id=None,
             correlation_id=None,
             flow_start=0.0,
             logger=fake_logger,
-            publisher=MagicMock(),
             job_id=900,
         )
 
@@ -590,7 +576,7 @@ class TestMarkJobAsFailed:
         publisher = MagicMock()
         flow_mod._mark_job_as_failed(
             novel_id=None,
-            _correlation_id=None,
+            correlation_id=None,
             error_code="ERR_MATERIAL_DECOMPOSE_FAILED",
             flow_start=0.0,
             logger=fake_logger,
@@ -611,16 +597,13 @@ class TestJobIdentity:
 
         class _Session:
             def __init__(self):
-                self.commits = 0
+                self.added = []
 
             def get(self, _model, job_id):
                 return {12: job, 13: neighboring_job}.get(job_id)
 
-            def add(self, _obj):
-                return None
-
-            def commit(self):
-                self.commits += 1
+            def add(self, obj):
+                self.added.append(obj)
 
         session = _Session()
         monkeypatch.setattr(
@@ -633,7 +616,7 @@ class TestJobIdentity:
         assert job.correlation_id == "prefect-run"
         assert job.total_chapters == 3
         assert neighboring_job.total_chapters == 0
-        assert session.commits == 1
+        assert session.added == [job]
 
         with pytest.raises(ValueError, match="不属于"):
             flow_mod._validate_and_repair_job_identity(6, 12, "wrong-novel")
@@ -671,7 +654,7 @@ class TestJobIdentity:
         publisher = MagicMock()
         flow_mod._mark_job_as_failed(
             novel_id=5,
-            _correlation_id=None,
+            correlation_id=None,
             error_code="ERR_MATERIAL_LLM_UNAVAILABLE",
             exception_type="LLMNonRetryableError",
             flow_start=0.0,

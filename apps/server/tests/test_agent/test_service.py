@@ -1273,14 +1273,13 @@ class TestAgentServiceProcessStream:
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
         session_data = SessionData(
-            chat_session=None,
             session_id="sess-offload",
             history_messages=[],
             context_data=ContextData(items=[], context="", token_estimate=0),
         )
 
         with (
-            patch.object(service, "_should_offload_session_work", return_value=True),
+            patch("agent.service.should_offload_session_work", return_value=True),
             patch.object(service, "_resolve_or_create_chat_session_id_sync", return_value="sess-offload"),
             patch("agent.service.SessionLoader.load_session_and_context", new=AsyncMock(return_value=session_data)),
             patch.object(

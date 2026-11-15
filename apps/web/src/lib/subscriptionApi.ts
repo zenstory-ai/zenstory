@@ -14,15 +14,9 @@ import type {
   QuotaResponse,
   RedeemCodeRequest,
   RedeemCodeResponse,
-  SubscriptionHistory,
-  SubscriptionPlan,
 } from '../types/subscription';
 
 function getSubscriptionCacheScope(): string {
-  if (typeof window === 'undefined') {
-    return 'anonymous';
-  }
-
   try {
     const rawUser = localStorage.getItem('user');
     if (!rawUser) {
@@ -45,8 +39,6 @@ const quotaQueryKey = () => ['subscription-quota', getSubscriptionCacheScope()] 
 export const subscriptionQueryKeys = {
   status: () => ['subscription-status', getSubscriptionCacheScope()] as const,
   quota: quotaQueryKey,
-  // Compatibility alias for existing imports. Both readers share one account-scoped cache.
-  quotaLite: quotaQueryKey,
 };
 
 export const subscriptionApi = {
@@ -70,12 +62,6 @@ export const subscriptionApi = {
     api.get<QuotaResponse>('/api/v1/subscription/quota'),
 
   /**
-   * Get active plans for user-facing plan comparison.
-   */
-  getPlans: () =>
-    api.get<SubscriptionPlan[]>('/api/v1/subscription/plans'),
-
-  /**
    * Get normalized plan catalog for pricing/billing pages.
    */
   getCatalog: () =>
@@ -95,18 +81,6 @@ export const subscriptionApi = {
     }
     return api.post<RedeemCodeResponse>('/api/v1/subscription/redeem', payload);
   },
-
-  /**
-   * Get the user's subscription history.
-   *
-   * Returns a chronological list of subscription changes including
-   * redemptions, renewals, and expirations.
-   *
-   * @param limit - Maximum number of history entries to return
-   * @returns Promise resolving to array of subscription history records
-   */
-  getHistory: (limit = 50) =>
-    api.get<SubscriptionHistory[]>(`/api/v1/subscription/history?limit=${limit}`),
 };
 
 export default subscriptionApi;

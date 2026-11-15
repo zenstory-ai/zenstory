@@ -52,13 +52,13 @@ class PromptLoader:
     """
 
     TEMPLATE_DIR = Path(__file__).parent / "templates"
-    NOVEL_TYPES = ["web_short", "web_long", "published"]
+    NOVEL_TYPES = ["web_short", "web_long"]
 
     def __init__(self, novel_type: str = "web_long"):
         """初始化加载器
 
         Args:
-            novel_type: 小说类型，可选 web_short/web_long/published
+            novel_type: 小说类型，可选 web_short/web_long
 
         Raises:
             ValueError: 不支持的小说类型
@@ -123,12 +123,12 @@ class PromptLoader:
 
 # ==================== 便捷函数 ====================
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=2)
 def _get_cached_loader(novel_type: str) -> PromptLoader:
     """获取缓存的 PromptLoader 实例
 
     使用 LRU 缓存避免重复创建加载器和 Jinja2 环境。
-    缓存大小为 3，刚好覆盖所有 novel_type (web_short/web_long/published)。
+    缓存大小为 2，覆盖所有 novel_type (web_short/web_long)。
 
     Args:
         novel_type: 小说类型
@@ -147,7 +147,7 @@ def get_prompt(prompt_type: str, novel_type: str = "web_long", **kwargs: Any) ->
 
     Args:
         prompt_type: Prompt 类型（如 character_mention, plot_extraction）
-        novel_type: 小说类型（web_short/web_long/published）
+        novel_type: 小说类型（web_short/web_long）
         **kwargs: 传递给模板的变量
 
     Returns:
@@ -163,12 +163,11 @@ def get_prompt(prompt_type: str, novel_type: str = "web_long", **kwargs: Any) ->
 
 # ==================== 兼容层工厂 ====================
 
-def _create_compat_function(prompt_type: str, _required_params: list[str] | None = None) -> Callable:
+def _create_compat_function(prompt_type: str) -> Callable:
     """工厂函数: 创建兼容旧接口的函数
 
     Args:
         prompt_type: 对应的 Prompt 模板类型
-        _required_params: 必需参数列表（用于函数签名，已弃用）
 
     Returns:
         兼容函数
@@ -199,13 +198,8 @@ create_character_mention_prompt = _create_compat_function("character_mention")
 create_plot_extraction_prompt = _create_compat_function("plot_extraction")
 create_chapter_summary_prompt = _create_compat_function("chapter_summary")
 create_relationship_extraction_prompt = _create_compat_function("relationship_extraction")
-create_character_extraction_prompt = _create_compat_function("character_extraction")
 create_meta_extraction_prompt = _create_compat_function("meta_extraction")
 create_novel_synopsis_prompt = _create_compat_function("novel_synopsis")
-# 细分提取（复用 meta_extraction 模板）
-create_golden_finger_extraction_prompt = _create_compat_function("meta_extraction")
-create_world_view_extraction_prompt = _create_compat_function("meta_extraction")
-create_timeline_extraction_prompt = _create_compat_function("relationship_extraction")
 
 # 剧情聚合类 Prompt
 create_cross_chunk_merge_judgment_prompt = _create_compat_function("cross_chunk_merge")
@@ -214,9 +208,6 @@ create_orphan_assignment_prompt = _create_compat_function("orphan_plots_assignme
 create_story_framework_identification_prompt = _create_compat_function("story_framework_identification")
 create_plot_aggregation_prompt = _create_compat_function("plot_aggregation")
 create_storyline_extraction_prompt = _create_compat_function("storyline_extraction")
-
-# 文本编辑类 Prompt
-create_text_edit_prompt = _create_compat_function("text_edit")
 
 
 # ==================== 特殊兼容函数（需要自定义签名）====================
@@ -297,140 +288,6 @@ def format_cross_chunk_merge_user_message(
     )
 
 
-# ==================== 写作生成类 Prompt ====================
-
-def create_chapter_planning_prompt(
-    story_title: str,
-    story_synopsis: str,
-    story_core_objective: str,
-    story_core_conflict: str,
-    plot_points: list,
-    characters: list,
-    world_views: list,
-    golden_fingers: list,
-    target_words: int,
-    suggested_chapters: int,
-    novel_type: str = "web_long",
-    **kwargs
-) -> str:
-    """创建章节规划 Prompt
-
-    Args:
-        story_title: 剧情标题
-        story_synopsis: 剧情概述
-        story_core_objective: 核心目标
-        story_core_conflict: 核心冲突
-        plot_points: 情节点列表（格式化后的字符串）
-        characters: 角色列表（格式化后的字符串）
-        world_views: 世界观列表（格式化后的字符串）
-        golden_fingers: 金手指列表（格式化后的字符串）
-        target_words: 目标总字数
-        suggested_chapters: 建议章节数
-        novel_type: 小说类型
-        **kwargs: 其他可选参数
-
-    Returns:
-        渲染后的 Prompt
-    """
-    return get_prompt(
-        "chapter_planning",
-        novel_type=novel_type,
-        story_title=story_title,
-        story_synopsis=story_synopsis,
-        story_core_objective=story_core_objective,
-        story_core_conflict=story_core_conflict,
-        plot_points=plot_points,
-        characters=characters,
-        world_views=world_views,
-        golden_fingers=golden_fingers,
-        target_words=target_words,
-        suggested_chapters=suggested_chapters,
-        **kwargs
-    )
-
-
-def create_chapter_generation_prompt(
-    story_title: str,
-    story_synopsis: str,
-    story_core_objective: str,
-    story_core_conflict: str,
-    chapter_number: int,
-    chapter_title: str,
-    chapter_outline: str,
-    plot_points: list,
-    characters: list,
-    world_views: list,
-    golden_fingers: list,
-    target_words: int,
-    prev_chapter_context: str = "",
-    novel_type: str = "web_long",
-    **kwargs
-) -> str:
-    """创建章节正文生成 Prompt
-
-    Args:
-        story_title: 剧情标题
-        story_synopsis: 剧情概述
-        story_core_objective: 核心目标
-        story_core_conflict: 核心冲突
-        chapter_number: 章节序号
-        chapter_title: 章节标题
-        chapter_outline: 章节大纲
-        plot_points: 情节点列表（格式化后的字符串）
-        characters: 角色列表（格式化后的字符串）
-        world_views: 世界观列表（格式化后的字符串）
-        golden_fingers: 金手指列表（格式化后的字符串）
-        target_words: 目标字数
-        prev_chapter_context: 前章结尾（用于衔接）
-        novel_type: 小说类型
-        **kwargs: 其他可选参数
-
-    Returns:
-        渲染后的 Prompt
-    """
-    return get_prompt(
-        "chapter_generation",
-        novel_type=novel_type,
-        story_title=story_title,
-        story_synopsis=story_synopsis,
-        story_core_objective=story_core_objective,
-        story_core_conflict=story_core_conflict,
-        chapter_number=chapter_number,
-        chapter_title=chapter_title,
-        chapter_outline=chapter_outline,
-        plot_points=plot_points,
-        characters=characters,
-        world_views=world_views,
-        golden_fingers=golden_fingers,
-        target_words=target_words,
-        prev_chapter_context=prev_chapter_context,
-        **kwargs
-    )
-
-
-def create_novel_qa_assistant_prompt(
-    novel_context: str,
-    novel_type: str = "web_long",
-    **kwargs
-) -> str:
-    """创建小说问答助手 Prompt
-
-    Args:
-        novel_context: 小说完整上下文
-        novel_type: 小说类型
-        **kwargs: 其他可选参数
-
-    Returns:
-        渲染后的 Prompt
-    """
-    return get_prompt(
-        "novel_qa_assistant",
-        novel_type=novel_type,
-        novel_context=novel_context,
-        **kwargs
-    )
-
-
 # ==================== 导出清单 ====================
 
 __all__ = [
@@ -446,7 +303,6 @@ __all__ = [
     "create_plot_extraction_prompt",
     "create_chapter_summary_prompt",
     "create_relationship_extraction_prompt",
-    "create_character_extraction_prompt",
     "create_meta_extraction_prompt",
     "create_novel_synopsis_prompt",
 
@@ -458,12 +314,4 @@ __all__ = [
     "create_plot_aggregation_prompt",
     "create_storyline_extraction_prompt",
     "format_cross_chunk_merge_user_message",
-
-    # 兼容函数 - 写作生成类
-    "create_chapter_planning_prompt",
-    "create_chapter_generation_prompt",
-    "create_novel_qa_assistant_prompt",
-
-    # 兼容函数 - 文本编辑类
-    "create_text_edit_prompt",
 ]

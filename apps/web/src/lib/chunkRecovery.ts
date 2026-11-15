@@ -25,6 +25,31 @@ const DYNAMIC_IMPORT_ERROR_PATTERNS = [
 let pendingChunkReload: Promise<never> | null = null;
 let documentNavigationInProgress = false;
 
+function readSessionStorage(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionStorage(key: string, value: string): boolean {
+  try {
+    sessionStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeSessionStorage(key: string): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Storage may be blocked in restricted WebViews or private windows.
+  }
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message || String(error);
@@ -43,25 +68,27 @@ export function reloadForChunkErrorOnce(
   authoritative = false,
 ): boolean {
   if (
-    typeof window === "undefined"
-    || documentNavigationInProgress
+    documentNavigationInProgress
     || (!authoritative && !isChunkLoadError(error))
   ) {
     return false;
   }
 
-  const guardedSource = sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY);
+  const guardedSource = readSessionStorage(CHUNK_RELOAD_STORAGE_KEY);
   if (guardedSource !== null) {
     if (
       pendingChunkReload !== null
       && GENERIC_CHUNK_ERROR_SOURCES.has(guardedSource)
       && !GENERIC_CHUNK_ERROR_SOURCES.has(source)
     ) {
-      sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, source);
+      writeSessionStorage(CHUNK_RELOAD_STORAGE_KEY, source);
     }
     // The one automatic reload was already spent and old code still fails.
     if (pendingChunkReload === null) markAppUpdateRequired();
     return pendingChunkReload !== null;
+  }
+  if (pendingChunkReload !== null) {
+    return true;
   }
 
   const captureEvent = new CustomEvent(BEFORE_CHUNK_RELOAD_EVENT, {
@@ -74,22 +101,21 @@ export function reloadForChunkErrorOnce(
     return false;
   }
 
+  if (!writeSessionStorage(CHUNK_RELOAD_STORAGE_KEY, source)) {
+    markAppUpdateRequired();
+    return false;
+  }
+  writeSessionStorage(CHUNK_RELOAD_AT_STORAGE_KEY, String(Date.now()));
   logger.warn("Recovering from stale chunk load failure", {
     source,
     message: getErrorMessage(error),
   });
   pendingChunkReload = new Promise<never>(() => {});
-  sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, source);
-  sessionStorage.setItem(CHUNK_RELOAD_AT_STORAGE_KEY, String(Date.now()));
   window.location.reload();
   return true;
 }
 
 export function installChunkRecoveryHandlers(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
   // Firefox rejects still-loading module requests while a document navigation
   // is taking over. Vite reports those cancellations through the same event as
   // a stale deployed chunk; reloading here would cancel the user's destination
@@ -120,18 +146,18 @@ export function installChunkRecoveryHandlers(): void {
 }
 
 function clearRecoveredGuard(importedSource: string): void {
-  const guardedSource = sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY);
+  const guardedSource = readSessionStorage(CHUNK_RELOAD_STORAGE_KEY);
   if (guardedSource === null) return;
 
   const isOwnGuard = guardedSource === importedSource;
   const isStaleGenericGuard =
     GENERIC_CHUNK_ERROR_SOURCES.has(guardedSource)
-    && Date.now() - Number(sessionStorage.getItem(CHUNK_RELOAD_AT_STORAGE_KEY) ?? 0)
+    && Date.now() - Number(readSessionStorage(CHUNK_RELOAD_AT_STORAGE_KEY) ?? 0)
       >= GENERIC_GUARD_MIN_AGE_MS;
 
   if (isOwnGuard || isStaleGenericGuard) {
-    sessionStorage.removeItem(CHUNK_RELOAD_STORAGE_KEY);
-    sessionStorage.removeItem(CHUNK_RELOAD_AT_STORAGE_KEY);
+    removeSessionStorage(CHUNK_RELOAD_STORAGE_KEY);
+    removeSessionStorage(CHUNK_RELOAD_AT_STORAGE_KEY);
   }
 }
 
@@ -142,7 +168,7 @@ export function lazyRoute<TProps>(
   return lazy(async () => {
     try {
       const module = await importer();
-      if (typeof window !== "undefined" && pendingChunkReload === null) {
+      if (pendingChunkReload === null) {
         clearRecoveredGuard(source);
       }
       return module;

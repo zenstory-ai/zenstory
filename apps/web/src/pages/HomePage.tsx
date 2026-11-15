@@ -90,15 +90,6 @@ export default function HomePage() {
     "/login"
   );
 
-  const handleGetStarted = () => {
-    if (user) {
-      navigate("/dashboard");
-    } else if (authConfig.registrationEnabled) {
-      navigate(withAttributionSource("/register", HOME_CTA_SOURCES.projectTypeCard));
-    } else {
-      navigate(withAttributionSource("/login", HOME_CTA_SOURCES.projectTypeCard));
-    }
-  };
   const handleGetStartedWithSource = (source: string) => {
     if (user) {
       navigate("/dashboard");
@@ -108,6 +99,7 @@ export default function HomePage() {
       navigate(withAttributionSource("/login", source));
     }
   };
+  const handleGetStarted = () => handleGetStartedWithSource(HOME_CTA_SOURCES.projectTypeCard);
 
   const handleGetStartedHover = () => {
     // 根据用户状态预加载相应路由
@@ -205,8 +197,6 @@ export default function HomePage() {
         return <SceneSuggest />;
       case 'edit':
         return <SceneEdit />;
-      default:
-        return <SceneCreate />;
     }
   };
 

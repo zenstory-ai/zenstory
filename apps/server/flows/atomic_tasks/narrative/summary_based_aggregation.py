@@ -25,16 +25,31 @@ from prefect import get_run_logger
 
 from flows.database_session import get_db_session
 from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
-from flows.utils.helpers.exceptions import LLMOutputError, ValidationError
+from flows.utils.helpers.exceptions import LLMOutputError
 
 from .intelligent_chunking import intelligent_chunking_task
+
+
+def _parse_json_str_list(raw: Any) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, str)]
+    return []
+
 
 # ==================== 核心任务 ====================
 
 @api_task(name="identify_story_frameworks_with_chunking", retries=3)
 def identify_story_frameworks_with_chunking(
     novel_id: int,
-    enable_chunking: bool = True,
     max_chunks: int = 15,  # 增加最大块数，与intelligent_chunking保持一致
 ) -> dict[str, Any]:
     """
@@ -47,17 +62,12 @@ def identify_story_frameworks_with_chunking(
 
     Args:
         novel_id: 小说ID
-        enable_chunking: 是否启用智能分块
         max_chunks: 最大分块数量
 
     Returns:
         Dict: 剧情框架列表
     """
     logger = get_run_logger()
-
-    if not enable_chunking:
-        logger.info("智能分块未启用，使用原有逻辑")
-        return identify_story_frameworks_from_summaries(novel_id)
 
     logger.info(f"开始基于智能分块的剧情识别: novel_id={novel_id}")
 
@@ -254,7 +264,7 @@ def aggregate_plots_for_story_framework(
                 "index": p.index,
                 "plot_type": p.plot_type,
                 "description": p.description,
-                "characters": p.characters or [],
+                "characters": _parse_json_str_list(p.characters),
             }
             for p in plots
         ]
@@ -421,8 +431,6 @@ def save_stories_with_plots(
                 logger.warning(f"检测到重名剧情: '{title}', 使用索引区分: {map_key}")
             story_id_map[map_key] = story_id
 
-        db.commit()
-
     logger.info(f"剧情保存完成: {len(story_ids)} 个")
 
     return {
@@ -469,8 +477,6 @@ def save_storylines_with_stories(
             )
             storyline_ids.append(storyline_id)
 
-        db.commit()
-
     logger.info(f"剧情线保存完成: {len(storyline_ids)} 条")
 
     return {
@@ -481,117 +487,7 @@ def save_storylines_with_stories(
     }
 
 
-@api_task(name="summary_based_story_aggregation", retries=2)
-def summary_based_story_aggregation(
-    novel_id: int,
-    chapter_ids: list[int] | None = None,
-) -> dict[str, Any]:
-    """
-    基于章节摘要的剧情聚合主流程
-
-    流程:
-    1. 从章节摘要识别剧情框架
-    2. 根据章节范围聚合情节点
-    3. 保存剧情到数据库
-    4. 从剧情中提炼剧情线
-    5. 保存剧情线到数据库
-
-    Args:
-        novel_id: 小说ID
-        chapter_ids: 章节ID列表（可选）
-
-    Returns:
-        Dict: 聚合结果
-    """
-    logger = get_run_logger()
-
-    logger.info(f"开始基于章节摘要的剧情聚合: novel_id={novel_id}")
-
-    # 第一步：识别剧情框架
-    framework_result = identify_story_frameworks_from_summaries(
-        novel_id=novel_id,
-        chapter_ids=chapter_ids,
-    )
-
-    story_frameworks = framework_result["story_frameworks"]
-    logger.info(f"识别出 {len(story_frameworks)} 个剧情框架")
-
-    if not story_frameworks:
-        logger.warning("未识别出任何剧情框架")
-        return {
-            "novel_id": novel_id,
-            "stories_count": 0,
-            "storylines_count": 0,
-        }
-
-    # 第二步：聚合情节点
-    stories = []
-    for framework in story_frameworks:
-        try:
-            result = aggregate_plots_for_story_framework(
-                story_framework=framework,
-                novel_id=novel_id,
-            )
-            stories.append(result["story"])
-        except (LLMOutputError, ValidationError, KeyError) as e:
-            logger.error(f"聚合剧情失败: {framework.get('title')}, error={e}")
-            continue
-
-    logger.info(f"成功聚合 {len(stories)} 个剧情")
-
-    if not stories:
-        logger.warning("未成功聚合任何剧情")
-        return {
-            "novel_id": novel_id,
-            "stories_count": 0,
-            "storylines_count": 0,
-        }
-
-    # 第三步：保存剧情
-    save_result = save_stories_with_plots(
-        stories=stories,
-        novel_id=novel_id,
-    )
-
-    # 第四步：提炼剧情线
-    storyline_result = extract_storylines_from_stories(
-        stories=stories,
-        novel_id=novel_id,
-    )
-
-    storylines = storyline_result["storylines"]
-    logger.info(f"提炼出 {len(storylines)} 条剧情线")
-
-    # 第五步：保存剧情线
-    storyline_save_result = save_storylines_with_stories(
-        storylines=storylines,
-        novel_id=novel_id,
-    )
-
-    logger.info("基于章节摘要的剧情聚合完成")
-
-    return {
-        "novel_id": novel_id,
-        "frameworks_count": len(story_frameworks),
-        "stories_count": save_result["created_count"],
-        "storylines_count": storyline_save_result["created_count"],
-        "story_ids": save_result["story_ids"],
-        "storyline_ids": storyline_save_result["storyline_ids"],
-    }
-
-
 # ==================== 辅助函数 ====================
-
-def _get_chunk_chapter_ids(_novel_id: int, chunk: dict[str, Any]) -> list[int]:
-    """获取块内的章节ID列表"""
-    from services.material.chapters_service import ChaptersService
-    with get_db_session() as db:
-        return ChaptersService().list_ids_by_number_range(
-            db,
-            _novel_id,
-            chunk["start_chapter"],
-            chunk["end_chapter"],
-        )
 
 
 @api_task(name="merge_cross_chunk_stories", retries=2)

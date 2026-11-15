@@ -7,41 +7,23 @@
 // 首页图标 (HomePage)
 // ============================================
 export {
-  // Hero 区域
   Zap,
   ArrowRight,
-  ArrowLeft,
-
-  // Features 区域
   Check,
-
-  // Demo 区域
   Sparkles,
-  Shield,
   History,
-
-  // 项目类型
   Book,
   FileText,
   Clapperboard,
-
-  // 为什么选择
   Mic,
   Paperclip,
   Brain,
   Cloud,
   Download,
-
-  // 场景编辑
   Edit3,
   User,
-
-  // 社交证明
   Users,
-  PenTool,
   Star,
-
-  // 热门标签
   TrendingUp,
 } from 'lucide-react';
 
@@ -56,8 +38,6 @@ export {
   LogOut,
   Menu,
   X,
-  Film,
-  FlaskConical,
   Library,
 } from 'lucide-react';
 
@@ -65,7 +45,6 @@ export {
 // 认证相关图标 (Login, Register, OAuthCallback)
 // ============================================
 export {
-  // 邮件验证
   Mail,
   AlertCircle,
   CheckCircle,
@@ -75,66 +54,21 @@ export {
 // 文件树和编辑器图标 (Editor, FileTree, ChatPanel)
 // ============================================
 export {
-  // 文件操作
   File,
   Folder,
   FolderOpen,
-  FileText as DocFile,
   Plus,
-  Minus,
-
-  // 导航
   ChevronRight,
   ChevronDown,
-  MoreVertical,
-
-  // 编辑器
-  Bold,
-  Italic,
-  Underline,
-  List,
-  ListOrdered,
-  Quote,
-  Code,
-  Link,
-  Image as ImageIcon,
-  Undo2,
-  Redo2,
-
-  // 聊天
-  Send,
-  Mic2,
-  Paperclip as AttachFile,
   Copy,
-  Download as SaveIcon,
   RefreshCw,
-} from 'lucide-react';
-
-// ============================================
-// 用户菜单和设置图标 (UserMenu, SettingsDialog)
-// ============================================
-export {
-  User as UserProfile,
-  Settings,
-  LogOut as LogoutIcon,
-  Moon,
-  Sun,
-  Languages,
-  HelpCircle,
 } from 'lucide-react';
 
 // ============================================
 // 版本历史和差异图标 (FileVersionHistory, DiffViewer)
 // ============================================
 export {
-  GitCompare,
-  GitCommit,
-  GitMerge,
   GitBranch,
-  Eye,
-  EyeOff,
-  Check as DiffCheck,
-  X as DiffX,
 } from 'lucide-react';
 
 // ============================================
@@ -142,13 +76,9 @@ export {
 // ============================================
 export {
   AlertTriangle,
-  Info,
   Loader2,
   ChevronLeft,
   ChevronUp,
-  ExternalLink,
-  Maximize2,
-  Minimize2,
   Filter,
 } from 'lucide-react';
 
@@ -157,8 +87,6 @@ export {
 // ============================================
 export {
   Pencil,
-  Lock,
-  BarChart3,
   Share2,
   Compass,
   MinusCircle,
@@ -173,5 +101,4 @@ export {
   Upload,
   BookOpen,
   Globe,
-  Layers,
 } from 'lucide-react';

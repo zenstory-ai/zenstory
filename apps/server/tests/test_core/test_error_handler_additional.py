@@ -22,11 +22,10 @@ def _request() -> Request:
     )
 
 
-def test_api_exception_accepts_message_alias_and_extra_kwargs():
+def test_api_exception_accepts_message_alias():
     exc = APIException(
         error_code=ErrorCode.VALIDATION_ERROR,
         message="Friendly message",
-        unused="ignored",
     )
 
     assert exc.detail == "Friendly message"

@@ -93,10 +93,15 @@ async def send_verification_code(email: str, language: str = "zh") -> tuple[bool
             return False, get_message("verification_send_failed", language)
 
         # Set resend cooldown
-        await asyncio.to_thread(set_resend_cooldown, email, RESEND_COOLDOWN)
+        if not await asyncio.to_thread(set_resend_cooldown, email, RESEND_COOLDOWN):
+            await asyncio.to_thread(delete_verification_code, email)
+            return False, get_message("verification_send_failed", language)
 
         # Reset attempts counter
-        await asyncio.to_thread(reset_verification_attempts, email)
+        if not await asyncio.to_thread(reset_verification_attempts, email):
+            await asyncio.to_thread(delete_verification_code, email)
+            await asyncio.to_thread(delete_resend_cooldown, email)
+            return False, get_message("verification_send_failed", language)
 
         # Send email
         expiry_minutes = VERIFICATION_CODE_TTL // 60

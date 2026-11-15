@@ -113,7 +113,6 @@ vi.mock('../../lib/api', () => ({
   },
   fileVersionApi: {
     getVersions: vi.fn(),
-    createVersion: vi.fn(),
   },
 }))
 
@@ -835,7 +834,6 @@ describe('Editor', () => {
     await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledWith('file-a'))
     expect(screen.getByTestId('content-input')).toHaveValue('Content B')
     expect(api.fileVersionApi.getVersions).not.toHaveBeenCalled()
-    expect(api.fileVersionApi.createVersion).not.toHaveBeenCalled()
     expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 
@@ -946,7 +944,6 @@ describe('Editor', () => {
     })
     expect(api.fileApi.get).toHaveBeenCalledWith('file-1')
     expect(api.fileVersionApi.getVersions).not.toHaveBeenCalled()
-    expect(api.fileVersionApi.createVersion).not.toHaveBeenCalled()
     expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 
@@ -963,7 +960,6 @@ describe('Editor', () => {
     })
     expect(api.fileApi.get).toHaveBeenCalledWith('legacy-file')
     expect(api.fileVersionApi.getVersions).not.toHaveBeenCalled()
-    expect(api.fileVersionApi.createVersion).not.toHaveBeenCalled()
     expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 

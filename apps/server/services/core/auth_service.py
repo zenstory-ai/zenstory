@@ -80,12 +80,15 @@ def _resolve_runtime_environment() -> str:
     return "development"
 
 
+def _truncate_bcrypt_password(password: str) -> str:
+    """Truncate UTF-8 password bytes cleanly at bcrypt's 72-byte limit."""
+    encoded = password.encode("utf-8")
+    return password if len(encoded) <= 72 else encoded[:72].decode("utf-8", errors="ignore")
+
+
 # 密码哈希
 def hash_password(password: str) -> str:
-    # bcrypt has a 72 byte limit, truncate if necessary
-    if len(password.encode('utf-8')) > 72:
-        password = password[:72]
-    return cast(str, pwd_context.hash(password))
+    return cast(str, pwd_context.hash(_truncate_bcrypt_password(password)))
 
 
 # 验证密码
@@ -94,12 +97,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
     try:
-        return cast(bool, pwd_context.verify(plain_password, hashed_password))
+        return cast(bool, pwd_context.verify(_truncate_bcrypt_password(plain_password), hashed_password))
     except UnknownHashError:
         # For malformed non-empty hashes, keep legacy behavior for tests/callers.
         raise
-    except Exception:
-        # Covers unexpected verification errors; treat as non-match.
+    except ValueError:
         return False
 
 
@@ -305,28 +307,6 @@ async def get_current_active_user(
             status_code=400
         )
     return current_user
-
-
-# 可选获取当前用户（不强制认证）
-async def get_optional_current_user(
-    token: str | None = Depends(oauth2_scheme),
-    session: Session = Depends(get_session),
-) -> User | None:
-    if token is None:
-        return None
-
-    payload = verify_token(token, expected_type=TOKEN_TYPE_ACCESS)
-    if payload is None:
-        return None
-
-    user_id = cast(str | None, payload.get("sub"))
-    if user_id is None:
-        return None
-
-    user = session.get(User, user_id)
-    if user is None or not access_token_matches_password(payload, user):
-        return None
-    return user
 
 
 # 获取当前超级用户

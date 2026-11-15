@@ -126,7 +126,20 @@ export function loadDashboardInspirationBundle(locale: DashboardInspirationLocal
   if (cached) {
     return cached;
   }
-  const request = fetchBundle(locale);
+  const request = fetchBundle(locale).then(
+    (bundle) => {
+      if (bundle === null && cache.get(locale) === request) {
+        cache.delete(locale);
+      }
+      return bundle;
+    },
+    (error) => {
+      if (cache.get(locale) === request) {
+        cache.delete(locale);
+      }
+      throw error;
+    },
+  );
   cache.set(locale, request);
   return request;
 }

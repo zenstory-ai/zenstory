@@ -14,7 +14,6 @@ let capturedParams: URLSearchParams | null = null;
  * matching how the callback page used to read them.
  */
 export function captureAuthCallbackParams(): void {
-  if (typeof window === "undefined") return;
   if (window.location.pathname !== AUTH_CALLBACK_PATH) return;
 
   const query = window.location.search.replace(/^\?/, "");

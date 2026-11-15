@@ -112,12 +112,9 @@ def _resolve_existing_feedback_screenshot(raw_path: str | None) -> tuple[Path | 
     return None, found_outside_root
 
 
-def _to_admin_feedback_item(feedback: UserFeedback, user: User, storage=None) -> dict:
+def _to_admin_feedback_item(feedback: UserFeedback, user: User, storage) -> dict:
     if feedback.screenshot_path and feedback.screenshot_path.startswith("s3://"):
-        try:
-            has_screenshot = (storage or _storage()).feedback_reference_exists(feedback.screenshot_path)
-        except (UploadStorageError, ValueError):
-            has_screenshot = False
+        has_screenshot = storage.feedback_reference_exists(feedback.screenshot_path)
     else:
         resolved_screenshot_path, _ = _resolve_existing_feedback_screenshot(feedback.screenshot_path)
         has_screenshot = resolved_screenshot_path is not None
@@ -245,40 +242,6 @@ def list_feedback_admin(
     return {"items": items, "total": total}
 
 
-@router.get("/feedback/{feedback_id}")
-def get_feedback_admin(
-    feedback_id: str,
-    current_user: User = Depends(get_current_superuser),
-    session: Session = Depends(get_session),
-):
-    """Get a single feedback item by ID."""
-    feedback = session.get(UserFeedback, feedback_id)
-    if not feedback:
-        raise APIException(
-            error_code=ErrorCode.NOT_FOUND,
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Feedback not found.",
-        )
-
-    user = session.get(User, feedback.user_id)
-    if not user:
-        raise APIException(
-            error_code=ErrorCode.NOT_FOUND,
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Feedback owner not found.",
-        )
-
-    log_with_context(
-        logger,
-        logging.INFO,
-        "Admin fetched feedback detail",
-        admin_user_id=current_user.id,
-        feedback_id=feedback_id,
-    )
-
-    return _to_admin_feedback_item(feedback, user)
-
-
 @router.patch("/feedback/{feedback_id}/status")
 def update_feedback_status_admin(
     feedback_id: str,
@@ -296,18 +259,6 @@ def update_feedback_status_admin(
             detail="Feedback not found.",
         )
 
-    old_status = feedback.status
-    feedback.status = payload.status
-    feedback.updated_at = utcnow()
-    session.add(feedback)
-    admin_audit_service.log_action(
-        session, current_user.id, "update_feedback_status", "feedback", feedback_id,
-        old_value={"status": old_status}, new_value={"status": payload.status},
-        request=http_request, commit=False,
-    )
-    session.commit()
-    session.refresh(feedback)
-
     user = session.get(User, feedback.user_id)
     if not user:
         raise APIException(
@@ -316,16 +267,39 @@ def update_feedback_status_admin(
             detail="Feedback owner not found.",
         )
 
-    log_with_context(
-        logger,
-        logging.INFO,
-        "Admin updated feedback status",
-        admin_user_id=current_user.id,
-        feedback_id=feedback_id,
-        status=payload.status,
-    )
+    try:
+        storage = _storage()
+    except ValueError as exc:
+        raise APIException(
+            error_code=ErrorCode.SERVICE_UNAVAILABLE,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
 
-    return _to_admin_feedback_item(feedback, user)
+    try:
+        old_status = feedback.status
+        feedback.status = payload.status
+        feedback.updated_at = utcnow()
+        session.add(feedback)
+        admin_audit_service.log_action(
+            session, current_user.id, "update_feedback_status", "feedback", feedback_id,
+            old_value={"status": old_status}, new_value={"status": payload.status},
+            request=http_request, commit=False,
+        )
+        session.commit()
+        session.refresh(feedback)
+
+        log_with_context(
+            logger,
+            logging.INFO,
+            "Admin updated feedback status",
+            admin_user_id=current_user.id,
+            feedback_id=feedback_id,
+            status=payload.status,
+        )
+
+        return _to_admin_feedback_item(feedback, user, storage)
+    finally:
+        getattr(storage, "close", lambda: None)()
 
 
 @router.get("/feedback/{feedback_id}/screenshot")
@@ -407,13 +381,6 @@ def get_feedback_screenshot_admin(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Feedback screenshot file not found.",
         )
-
-    canonical_path = str(file_path)
-    if feedback.screenshot_path != canonical_path:
-        feedback.screenshot_path = canonical_path
-        feedback.updated_at = utcnow()
-        session.add(feedback)
-        session.commit()
 
     log_with_context(
         logger,

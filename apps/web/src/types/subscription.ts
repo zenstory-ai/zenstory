@@ -1,7 +1,6 @@
 // Subscription tier type
 export type SubscriptionTier = "free" | "pro";
 export type SubscriptionStatus = "active" | "expired" | "cancelled" | "none";
-export type CodeType = "single_use" | "multi_use";
 export type SubscriptionAction =
   | "created"
   | "upgraded"
@@ -112,23 +111,6 @@ export interface UsageQuota {
   updated_at: string;
 }
 
-// Redemption code
-export interface RedemptionCode {
-  id: string;
-  code: string;
-  code_type: CodeType;
-  tier: SubscriptionTier;
-  duration_days: number;
-  max_uses: number | null;
-  current_uses: number;
-  created_by: string;
-  is_active: boolean;
-  expires_at: string | null;
-  notes: string | null;
-  created_at: string;
-  redeemed_by: string[];
-}
-
 // Subscription history
 export interface SubscriptionHistory {
   id: string;
@@ -138,20 +120,6 @@ export interface SubscriptionHistory {
   start_date: string;
   end_date: string | null;
   metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-// Admin audit log
-export interface AdminAuditLog {
-  id: string;
-  admin_user_id: string;
-  action: string;
-  resource_type: string;
-  resource_id: string | null;
-  old_value: Record<string, unknown> | null;
-  new_value: Record<string, unknown> | null;
-  ip_address: string | null;
-  user_agent: string | null;
   created_at: string;
 }
 

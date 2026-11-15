@@ -230,7 +230,7 @@ async def test_materials_library_search_preview_and_import_roundtrip(client: Asy
     db_session.commit()
     db_session.refresh(character)
 
-    materials_response = await client.get("/api/v1/materials", headers=headers)
+    materials_response = await client.get("/api/v1/materials/list", headers=headers)
     assert materials_response.status_code == 200
     materials_payload = materials_response.json()
     assert len(materials_payload) == 1

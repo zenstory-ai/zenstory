@@ -1011,5 +1011,32 @@ describe('first work entry', () => {
         view.unmount()
       }
     })
+
+    it('shows error toast when project creation succeeds without an id and distinguishes featured inspiration load errors from empty state', async () => {
+      const toastError = vi.spyOn(toast, 'error').mockImplementation(() => '')
+      try {
+        mockCreateProject.mockResolvedValueOnce({ id: '' })
+        mockInspirationsConfig.enabled = true
+        const refetchFeatured = vi.fn()
+        mockUseFeaturedInspirations.mockReturnValue({
+          featured: [],
+          isLoading: false,
+          isFetching: false,
+          error: new Error('featured unavailable'),
+          refetch: refetchFeatured,
+        })
+
+        renderDashboardHome()
+        expect(screen.queryByText('暂无精选灵感')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: '重试' }))
+        expect(refetchFeatured).toHaveBeenCalledTimes(1)
+
+        fireEvent.click(screen.getByTestId('create-project-button'))
+        await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))
+        expect(mockNavigate).not.toHaveBeenCalled()
+      } finally {
+        toastError.mockRestore()
+      }
+    })
   })
 })

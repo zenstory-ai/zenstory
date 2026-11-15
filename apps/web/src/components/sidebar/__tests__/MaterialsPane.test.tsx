@@ -9,6 +9,7 @@ const mockImportToProject = vi.fn()
 const mockSearchMaterials = vi.fn()
 const mockToastSuccess = vi.fn()
 const mockToastError = vi.fn()
+const mockToastInfo = vi.fn()
 const mockToggleNovel = vi.fn()
 const mockToggleEntityType = vi.fn()
 const mockLoadPreview = vi.fn()
@@ -97,6 +98,7 @@ vi.mock('../../../lib/toast', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
+    info: (...args: unknown[]) => mockToastInfo(...args),
   },
 }))
 
@@ -289,5 +291,22 @@ describe('MaterialsPane', () => {
   it('shows stored historical relationships while the global producer flag is off', () => {
     render(<MaterialsPane />)
     expect(screen.getByText('editor:fileTree.referenceRelationships')).toBeInTheDocument()
+  })
+
+  it('shows inline retry when category navigation fails and notifies when attach limit is reached', async () => {
+    mockGetEntityNavigation
+      .mockRejectedValueOnce(new Error('navigation failed'))
+      .mockResolvedValueOnce([{ id: 1, name: 'Hero' }])
+    mockAddMaterial.mockReturnValue(false)
+
+    render(<MaterialsPane />)
+    fireEvent.click(screen.getByText('editor:fileTree.referenceCharacters'))
+
+    expect(await screen.findByText('materials:detail.folderLoadError')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common:retry' }))
+
+    expect(await screen.findByText('Hero')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByTitle('editor:fileTree.attachToChat')[0]!)
+    expect(mockToastInfo).toHaveBeenCalledWith('editor:fileTree.maxMaterials')
   })
 })

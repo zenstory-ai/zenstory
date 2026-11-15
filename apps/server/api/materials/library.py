@@ -1,12 +1,10 @@
 """
 Material library management API endpoints.
 
-Handles library list, detail, status, tree, summary, and delete operations:
+Handles library list, detail, tree, and delete operations:
 - List all user's materials
 - Get material detail with entity counts
-- Get job status for decomposition progress
 - Get chapter tree structure
-- Get counts summary for a material
 - Soft delete materials
 """
 import contextlib
@@ -48,7 +46,6 @@ from utils.logger import get_logger
 
 from .helpers import _get_novel_or_404, _resolve_lang
 from .schemas import (
-    JobStatusResponse,
     MaterialDetailResponse,
     MaterialListItem,
 )
@@ -242,115 +239,6 @@ def get_material_detail(
         golden_fingers_count=int(detail_row.golden_fingers_count or 0),
         has_world_view=int(detail_row.worldview_count or 0) > 0,
         enabled_stages=IngestionJobsService.get_enabled_stages(latest_job),
-    )
-
-
-@router.get("/{novel_id}/summary")
-def get_material_summary(
-    novel_id: int,
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-):
-    """返回素材库各类型数据的计数摘要"""
-    _get_novel_or_404(session, novel_id, current_user.id)
-
-    summary_row = session.exec(
-        select(
-            select(func.count(Chapter.id))
-            .where(Chapter.novel_id == novel_id)
-            .scalar_subquery()
-            .label("chapters_count"),
-            select(func.count(Character.id))
-            .where(Character.novel_id == novel_id)
-            .scalar_subquery()
-            .label("characters_count"),
-            select(func.count(Plot.id))
-            .where(
-                Plot.chapter_id.in_(
-                    select(Chapter.id).where(Chapter.novel_id == novel_id)
-                )
-            )
-            .scalar_subquery()
-            .label("plots_count"),
-            select(func.count(Story.id))
-            .where(story_in_novel(novel_id))
-            .scalar_subquery()
-            .label("stories_count"),
-            select(func.count(StoryLine.id))
-            .where(StoryLine.novel_id == novel_id)
-            .scalar_subquery()
-            .label("storylines_count"),
-            select(func.count(CharacterRelationship.id))
-            .where(CharacterRelationship.novel_id == novel_id)
-            .scalar_subquery()
-            .label("relationships_count"),
-            select(func.count(GoldenFinger.id))
-            .where(GoldenFinger.novel_id == novel_id)
-            .scalar_subquery()
-            .label("goldenfingers_count"),
-            select(func.count(WorldView.id))
-            .where(WorldView.novel_id == novel_id)
-            .scalar_subquery()
-            .label("worldview_count"),
-        )
-    ).one()
-
-    return {
-        "chapters_count": int(summary_row.chapters_count or 0),
-        "characters_count": int(summary_row.characters_count or 0),
-        "plots_count": int(summary_row.plots_count or 0),
-        "stories_count": int(summary_row.stories_count or 0),
-        "storylines_count": int(summary_row.storylines_count or 0),
-        "relationships_count": int(summary_row.relationships_count or 0),
-        "goldenfingers_count": int(summary_row.goldenfingers_count or 0),
-        "has_worldview": int(summary_row.worldview_count or 0) > 0,
-    }
-
-
-@router.get("/{novel_id}/status", response_model=JobStatusResponse)
-def get_material_status(
-    novel_id: int,
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session),
-):
-    """
-    Query decomposition status.
-
-    Returns the latest ingestion job status for the novel.
-    """
-    # Verify novel ownership and soft delete check
-    _get_novel_or_404(session, novel_id, current_user.id)
-
-    # Get latest job
-    latest_job = session.exec(
-        select(IngestionJob)
-        .where(IngestionJob.novel_id == novel_id)
-        .order_by(IngestionJob.created_at.desc())
-    ).first()
-    latest_job = _reconcile_job_if_needed(session, latest_job)
-
-    if not latest_job:
-        raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
-
-    # Parse stage_progress
-    stage_progress = None
-    if latest_job.stage_progress:
-        with contextlib.suppress(Exception):
-            stage_progress = json.loads(latest_job.stage_progress)
-
-    return JobStatusResponse(
-        job_id=latest_job.id,
-        novel_id=latest_job.novel_id,
-        status=latest_job.status,
-        total_chapters=latest_job.total_chapters,
-        processed_chapters=latest_job.processed_chapters,
-        progress_percentage=latest_job.progress_percentage,
-        stage_progress=stage_progress,
-        error_message=public_job_error(latest_job.error_message),
-        started_at=latest_job.started_at,
-        completed_at=latest_job.completed_at,
-        created_at=latest_job.created_at,
-        updated_at=latest_job.updated_at,
     )
 
 

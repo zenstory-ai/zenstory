@@ -1225,5 +1225,19 @@ describe('SkillsPage', () => {
       await userEvent.click(within(ownCard).getByRole('button', { name: 'Edit Skill' }))
       expect(await screen.findByDisplayValue('You are a writing assistant.')).not.toHaveAttribute('readonly')
     })
+
+    it('surfaces category load failure with retry instead of pretending no categories exist', async () => {
+      vi.mocked(publicSkillsApi.getCategories)
+        .mockRejectedValueOnce(new Error('categories unavailable'))
+        .mockResolvedValueOnce({ categories: mockCategories })
+
+      render(<SkillsPage />)
+      expect(await screen.findByText('skills:errors.categoriesLoadFailed')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      await waitFor(() => {
+        expect(publicSkillsApi.getCategories).toHaveBeenCalledTimes(2)
+      })
+    })
   })
 })

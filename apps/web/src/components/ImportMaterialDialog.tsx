@@ -65,16 +65,11 @@ export const ImportMaterialDialog: React.FC<ImportMaterialDialogProps> = ({
           .filter((n: FileTreeNode) => n.file_type === 'folder')
           .map((n: FileTreeNode) => ({ id: n.id, title: n.title }));
         setFolders(folderList);
-
-        // Auto-select recommended folder
-        const recommended = folderList.find(
-          (f: { id: string; title: string }) => f.title === preview.suggested_folder_name
+        setTargetFolderId((prev) =>
+          prev && folderList.some((f) => f.id === prev && f.title !== preview.suggested_folder_name)
+            ? prev
+            : null
         );
-        if (recommended) {
-          setTargetFolderId(recommended.id);
-        } else {
-          setTargetFolderId(null);
-        }
       } catch (err) {
         if (!mountedRef.current || folderRequestRef.current !== request) return;
         logger.error('Failed to load folders:', err);

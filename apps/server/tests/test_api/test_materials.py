@@ -713,7 +713,7 @@ async def test_upload_material_returns_503_when_flow_dispatch_fails(
     assert billing["quota_refunded"] is True
 
     list_response = await client.get(
-        "/api/v1/materials",
+        "/api/v1/materials/list",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert list_response.status_code == 200
@@ -1132,27 +1132,6 @@ def _enable_test_s3(monkeypatch):
 
 
 @pytest.mark.integration
-async def test_s3_mode_owner_can_download_legacy_local_material(
-    client: AsyncClient, db_session, monkeypatch, tmp_path
-):
-    from config.material_settings import material_settings
-
-    user, token = await create_test_user(client, db_session, "legacy_s3_owner")
-    _enable_test_s3(monkeypatch)
-    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
-    filename = f"{user.id}_20261007_0000000000000000_migration_fixture.txt"
-    (tmp_path / filename).write_bytes(b"legacy material bytes")
-
-    response = await client.get(
-        f"/api/v1/materials/internal/files/{filename}",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 200
-    assert response.content == b"legacy material bytes"
-
-
-@pytest.mark.integration
 async def test_s3_mode_worker_can_download_legacy_local_material(
     client: AsyncClient, db_session, monkeypatch, tmp_path
 ):
@@ -1181,14 +1160,16 @@ async def test_s3_mode_legacy_local_material_missing_is_404(
 ):
     from config.material_settings import material_settings
 
-    user, token = await create_test_user(client, db_session, "legacy_s3_missing")
+    user, _ = await create_test_user(client, db_session, "legacy_s3_missing")
     _enable_test_s3(monkeypatch)
+    monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "worker-token")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
     filename = f"{user.id}_20261007_0000000000000000_missing.txt"
 
     response = await client.get(
-        f"/api/v1/materials/internal/files/{filename}",
-        headers={"Authorization": f"Bearer {token}"},
+        f"/api/v1/materials/internal/system/files/{filename}",
+        params={"user_id": user.id},
+        headers={"X-Internal-Token": "worker-token"},
     )
 
     assert response.status_code == 404
@@ -1200,8 +1181,9 @@ async def test_s3_mode_legacy_local_material_rejects_symlink_and_oversize(
 ):
     from config.material_settings import material_settings
 
-    user, token = await create_test_user(client, db_session, "legacy_s3_unsafe")
+    user, _ = await create_test_user(client, db_session, "legacy_s3_unsafe")
     _enable_test_s3(monkeypatch)
+    monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "worker-token")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
     outside = tmp_path.parent / "outside-legacy.txt"
     outside.write_bytes(b"outside")
@@ -1209,8 +1191,9 @@ async def test_s3_mode_legacy_local_material_rejects_symlink_and_oversize(
     (tmp_path / symlink_name).symlink_to(outside)
 
     symlink_response = await client.get(
-        f"/api/v1/materials/internal/files/{symlink_name}",
-        headers={"Authorization": f"Bearer {token}"},
+        f"/api/v1/materials/internal/system/files/{symlink_name}",
+        params={"user_id": user.id},
+        headers={"X-Internal-Token": "worker-token"},
     )
     assert symlink_response.status_code == 403
 
@@ -1218,8 +1201,9 @@ async def test_s3_mode_legacy_local_material_rejects_symlink_and_oversize(
     with (tmp_path / oversized_name).open("wb") as handle:
         handle.truncate(MAX_FILE_SIZE + 1)
     oversized_response = await client.get(
-        f"/api/v1/materials/internal/files/{oversized_name}",
-        headers={"Authorization": f"Bearer {token}"},
+        f"/api/v1/materials/internal/system/files/{oversized_name}",
+        params={"user_id": user.id},
+        headers={"X-Internal-Token": "worker-token"},
     )
     assert oversized_response.status_code == 413
 
@@ -1234,7 +1218,8 @@ async def test_s3_mode_legacy_local_material_rejects_symlink_and_oversize(
 async def test_s3_mode_opaque_material_still_reads_private_object(
     client: AsyncClient, db_session, monkeypatch
 ):
-    user, token = await create_test_user(client, db_session, "opaque_s3_owner")
+    user, _ = await create_test_user(client, db_session, "opaque_s3_owner")
+    monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "worker-token")
     object_name = f"{'a' * 32}.txt"
     requests: list[httpx.Request] = []
 
@@ -1260,8 +1245,9 @@ async def test_s3_mode_opaque_material_still_reads_private_object(
     monkeypatch.setattr(materials_upload_api, "_storage", lambda: storage)
 
     response = await client.get(
-        f"/api/v1/materials/internal/files/{object_name}",
-        headers={"Authorization": f"Bearer {token}"},
+        f"/api/v1/materials/internal/system/files/{object_name}",
+        params={"user_id": user.id},
+        headers={"X-Internal-Token": "worker-token"},
     )
 
     assert response.status_code == 200
@@ -1325,7 +1311,7 @@ async def test_get_materials_empty(client: AsyncClient, db_session):
     user, token = await create_test_user(client, db_session, "listuser1")
 
     response = await client.get(
-        "/api/v1/materials",
+        "/api/v1/materials/list",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -1356,7 +1342,7 @@ async def test_get_materials_with_data(client: AsyncClient, db_session):
     db_session.commit()
 
     response = await client.get(
-        "/api/v1/materials",
+        "/api/v1/materials/list",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -1390,7 +1376,7 @@ async def test_get_materials_excludes_deleted(client: AsyncClient, db_session):
     create_test_job(db_session, novel2.id, "completed")
 
     response = await client.get(
-        "/api/v1/materials",
+        "/api/v1/materials/list",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -1412,7 +1398,7 @@ async def test_get_materials_user_isolation(client: AsyncClient, db_session):
 
     # Get materials as user1
     response = await client.get(
-        "/api/v1/materials",
+        "/api/v1/materials/list",
         headers={"Authorization": f"Bearer {token1}"},
     )
 
@@ -1572,7 +1558,7 @@ async def test_get_material_status_reconciles_stale_pending_job(client: AsyncCli
     db_session.refresh(job)
 
     response = await client.get(
-        f"/api/v1/materials/{novel.id}/status",
+        f"/api/v1/materials/{novel.id}",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -2143,6 +2129,48 @@ async def test_batch_import_uses_accept_language_for_auto_folder(client: AsyncCl
     assert folder.title == "Characters"
 
 
+@pytest.mark.integration
+async def test_batch_import_counts_item_4xx_and_propagates_5xx(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """Per-item 4xx increments failed_count, while unexpected DB/5xx errors raise 500."""
+    from sqlalchemy.exc import SQLAlchemyError
+
+    user, token = await create_test_user(client, db_session, "batcherruser")
+    novel = create_test_novel(db_session, user.id, "Batch Error Novel")
+    project = Project(name="Batch Error Project", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    # Missing entity -> 404 APIException -> counted as failed_count=1
+    resp_4xx = await client.post(
+        "/api/v1/materials/batch-import",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "project_id": project.id,
+            "items": [{"novel_id": novel.id, "entity_type": "characters", "entity_id": 999999}],
+        },
+    )
+    assert resp_4xx.status_code == 200
+    assert resp_4xx.json()["failed_count"] == 1
+
+    # Unexpected SQLAlchemyError -> must NOT return 200 OK
+    def boom(*_args, **_kwargs):
+        raise SQLAlchemyError("database connection lost")
+
+    monkeypatch.setattr("api.materials.import_.import_material", boom)
+    resp_5xx = await client.post(
+        "/api/v1/materials/batch-import",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "project_id": project.id,
+            "items": [{"novel_id": novel.id, "entity_type": "characters", "entity_id": 1}],
+        },
+    )
+    assert resp_5xx.status_code == 500
+
+
 # ==================== Delete Tests ====================
 
 
@@ -2311,7 +2339,7 @@ async def test_import_material_rejects_non_folder_target(client: AsyncClient, db
 async def test_materials_endpoints_require_auth(client: AsyncClient, db_session):
     """Test that all material endpoints require authentication."""
     endpoints = [
-        ("GET", "/api/v1/materials"),
+        ("GET", "/api/v1/materials/list"),
         ("GET", "/api/v1/materials/library-summary"),
         ("GET", "/api/v1/materials/search?q=test"),
         ("GET", "/api/v1/materials/1"),

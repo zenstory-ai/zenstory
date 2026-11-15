@@ -66,6 +66,7 @@
     "createFailed": "Couldn't create. Please try again.",
     "deleteFailed": "Couldn't delete. Please try again.",
     "maxMaterials": "You can add up to {{max}} files to a chat",
+    "alreadyAttached": "Already added to chat",
     "skillsFolder": "Skills",
     "skillsEmpty": "No skills yet",
     "referenceLibrary": "Novel References",
@@ -271,6 +272,7 @@
   "projectSwitcher": {
     "searchPlaceholder": "Search projects",
     "loading": "Loading…",
+    "loadFailed": "Failed to load projects",
     "noProjects": "No projects",
     "noResults": "No matching projects found",
     "editName": "Edit project name",

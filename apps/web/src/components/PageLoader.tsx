@@ -17,17 +17,3 @@ export function PageLoader() {
     </div>
   );
 }
-
-/**
- * 轻量级 Loading 组件 - 用于内联加载场景
- */
-export function InlineLoader() {
-  const { t } = useTranslation(["common"]);
-
-  return (
-    <div className="flex items-center gap-2 py-8">
-      <Loader2 className="w-5 h-5 text-[hsl(var(--accent-primary))] animate-spin" />
-      <span className="text-sm text-[hsl(var(--text-secondary))]">{t("common:loading")}</span>
-    </div>
-  );
-}

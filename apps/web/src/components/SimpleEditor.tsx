@@ -241,7 +241,6 @@ export const SimpleEditor = ({
   const [isNaturalPolishRunning, setIsNaturalPolishRunning] = useState(false);
   const naturalPolishRunIdRef = useRef(0);
   const naturalPolishAbortRef = useRef<AbortController | null>(null);
-  const naturalPolishBufferRef = useRef<string>("");
   const naturalPolishBaselineRef = useRef<{
     content: string;
     start: number;
@@ -379,7 +378,7 @@ export const SimpleEditor = ({
     const prevScrollTop = container ? container.scrollTop : null;
     const currentHeightPx =
       Number.parseFloat(textarea.style.height || "0") || SIMPLE_EDITOR_MIN_HEIGHT_PX;
-    const isFocused = typeof document !== "undefined" && document.activeElement === textarea;
+    const isFocused = document.activeElement === textarea;
 
     let nextHeightPx = Math.max(textarea.scrollHeight, SIMPLE_EDITOR_MIN_HEIGHT_PX);
 
@@ -408,8 +407,7 @@ export const SimpleEditor = ({
   isReviewModeRef.current = Boolean(isReviewMode);
 
   useEffect(() => {
-    const isFocused =
-      typeof document !== "undefined" && document.activeElement === textareaRef.current;
+    const isFocused = document.activeElement === textareaRef.current;
     adjustTextareaHeight(!isFocused);
   }, [displayContent, adjustTextareaHeight]);
 
@@ -462,7 +460,6 @@ export const SimpleEditor = ({
     naturalPolishAbortRef.current?.abort();
     naturalPolishAbortRef.current = null;
     naturalPolishBaselineRef.current = null;
-    naturalPolishBufferRef.current = "";
     setIsNaturalPolishRunning(false);
   }, [fileId, adjustTextareaHeight, clearSelectionState]);
 
@@ -681,7 +678,6 @@ export const SimpleEditor = ({
     const baselineContent = textarea.value;
     setNaturalPolishRetry(null);
     naturalPolishBaselineRef.current = { content: baselineContent, start, end, selection };
-    naturalPolishBufferRef.current = "";
     const runId = naturalPolishRunIdRef.current + 1;
     naturalPolishRunIdRef.current = runId;
 
@@ -717,14 +713,12 @@ export const SimpleEditor = ({
       if (!baseline) {
         naturalPolishAbortRef.current = null;
         naturalPolishBaselineRef.current = null;
-        naturalPolishBufferRef.current = "";
         return;
       }
       if (latestFileIdRef.current !== fileId) {
         // File switched while request was in flight; ignore this result.
         naturalPolishAbortRef.current = null;
         naturalPolishBaselineRef.current = null;
-        naturalPolishBufferRef.current = "";
         return;
       }
 
@@ -732,7 +726,6 @@ export const SimpleEditor = ({
         // 服务端判定没有实质改动并已退还额度：不进审阅，原文一个字节都不动。
         naturalPolishAbortRef.current = null;
         naturalPolishBaselineRef.current = null;
-        naturalPolishBufferRef.current = "";
         toast.info(t("editor:naturalPolishNoChange"));
         return;
       }
@@ -741,7 +734,6 @@ export const SimpleEditor = ({
       if (!rewrittenCore) {
         naturalPolishAbortRef.current = null;
         naturalPolishBaselineRef.current = null;
-        naturalPolishBufferRef.current = "";
         toast.error(t("editor:naturalPolishEmpty"));
         return;
       }
@@ -754,7 +746,6 @@ export const SimpleEditor = ({
 
       naturalPolishAbortRef.current = null;
       naturalPolishBaselineRef.current = null;
-      naturalPolishBufferRef.current = "";
 
       onEnterDiffReview?.(fileId, baseline.content, modifiedContent);
     } catch (error) {
@@ -765,7 +756,6 @@ export const SimpleEditor = ({
           setIsNaturalPolishRunning(false);
           naturalPolishAbortRef.current = null;
           naturalPolishBaselineRef.current = null;
-          naturalPolishBufferRef.current = "";
         }
         return;
       }
@@ -774,7 +764,6 @@ export const SimpleEditor = ({
       setIsNaturalPolishRunning(false);
       naturalPolishAbortRef.current = null;
       naturalPolishBaselineRef.current = null;
-      naturalPolishBufferRef.current = "";
       if (latestFileIdRef.current === fileId) {
         const retryable = readNaturalPolishRetryableFailure(error);
         if (retryable) {

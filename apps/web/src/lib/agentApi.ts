@@ -427,7 +427,7 @@ export function streamAgentRequest(
         agent_run_id: responseAgentRunId,
         project_id: request.project_id,
         agent_session_id: request.session_id ?? null,
-        route: typeof window !== "undefined" ? window.location.href : undefined,
+        route: window.location.href,
         created_at: new Date().toISOString(),
       });
 
@@ -775,9 +775,7 @@ export function streamAgentRequest(
                 agent_run_id: existing.agent_run_id ?? responseAgentRunId,
                 project_id: existing.project_id ?? request.project_id,
                 agent_session_id: data.session_id,
-                route:
-                  existing.route
-                  ?? (typeof window !== "undefined" ? window.location.href : undefined),
+                route: existing.route ?? window.location.href,
                 created_at: existing.created_at ?? new Date().toISOString(),
               });
               callbacks.onSessionStarted?.(data.session_id);

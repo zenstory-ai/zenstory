@@ -46,7 +46,6 @@ export async function waitForEditorSaves(timeoutMs = 5000): Promise<void> {
 
 /** Announces that the editor stored new content for a project. */
 export function notifyEditorContentSaved(projectId: string): void {
-  if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent<EditorContentSavedDetail>(EDITOR_CONTENT_SAVED_EVENT, {
       detail: { projectId },

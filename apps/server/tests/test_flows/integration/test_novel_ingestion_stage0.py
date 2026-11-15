@@ -29,6 +29,8 @@ class _FakeSessionCtx:
         return self.session
 
     def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            self.session.commit()
         return False
 
 

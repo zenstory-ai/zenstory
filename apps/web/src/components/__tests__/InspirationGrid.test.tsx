@@ -4,8 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { InspirationGrid } from '../inspirations/InspirationGrid'
 import * as useInspirationsModule from '../../hooks/useInspirations'
+import type { UseInspirationsReturn } from '../../hooks/useInspirations'
 import { ApiError } from '../../lib/apiClient'
-import type { Inspiration, InspirationDetail, UseInspirationsReturn } from '../../types'
+import type { Inspiration, InspirationDetail } from '../../types'
 
 // Mock useInspirations hook
 vi.mock('../../hooks/useInspirations', () => ({
@@ -108,10 +109,9 @@ function createMockUseInspirationsReturn(
     page: 1,
     pageSize: 12,
     isLoading: false,
+    isFetching: false,
     error: null,
     refetch: vi.fn().mockResolvedValue(undefined),
-    featured: [],
-    isFeaturedLoading: false,
     getDetail: vi.fn().mockResolvedValue(null),
     currentDetail: null,
     isDetailLoading: false,

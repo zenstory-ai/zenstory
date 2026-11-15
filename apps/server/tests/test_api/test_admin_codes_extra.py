@@ -290,32 +290,6 @@ async def test_list_codes_filters_by_tier_and_active_with_pagination(
 
 
 @pytest.mark.integration
-async def test_get_code_details_success(client: AsyncClient, db_session: Session):
-    """Superuser can fetch code details by id."""
-    admin = await create_user(db_session, "admin_code_extra_4", "admin_code_extra_4@example.com", is_superuser=True)
-    get_or_create_plan(db_session, "pro")
-    code = RedemptionCode(
-        code="ERG-DETAIL-001",
-        code_type="single_use",
-        tier="pro",
-        duration_days=30,
-        max_uses=1,
-        created_by=admin.id,
-        is_active=True,
-    )
-    db_session.add(code)
-    db_session.commit()
-
-    token = await login_user(client, admin.username)
-    response = await client.get(f"/api/admin/codes/{code.id}", headers=auth_headers(token))
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == code.id
-    assert data["code"] == "ERG-DETAIL-001"
-
-
-@pytest.mark.integration
 async def test_update_code_updates_active_and_notes(client: AsyncClient, db_session: Session):
     """Update endpoint should persist is_active and notes fields."""
     admin = await create_user(db_session, "admin_code_extra_5", "admin_code_extra_5@example.com", is_superuser=True)
@@ -401,7 +375,6 @@ async def test_create_code_returns_400_for_invalid_tier(
     "method,path_template,payload",
     [
         ("GET", "/api/admin/codes", None),
-        ("GET", "/api/admin/codes/{code_id}", None),
         ("PUT", "/api/admin/codes/{code_id}", {"notes": "forbidden"}),
         (
             "POST",

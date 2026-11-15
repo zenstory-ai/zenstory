@@ -298,7 +298,6 @@ async def test_aborted_body_save_keeps_file_type_for_first_persist_mark(monkeypa
 
     task = adapter._persist_active_capture_in_background()
     assert task is not None
-    adapter.reset()
     assert await task is True
     assert meter.stages == ["file_save"]
     assert meter.first_body_marks == 1

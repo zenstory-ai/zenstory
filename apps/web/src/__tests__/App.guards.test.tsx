@@ -74,10 +74,6 @@ vi.mock("../providers/SEOProvider", () => ({
   SEOProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("../providers/CommonProviders", () => ({
-  CommonProviders: ({ children }: { children: ReactNode }) => <>{children}</>,
-}));
-
 vi.mock("../providers/ProtectedProviders", () => ({
   ProtectedProviders: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));

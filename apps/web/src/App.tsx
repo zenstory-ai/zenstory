@@ -11,7 +11,6 @@ import { SEOProvider } from "./providers/SEOProvider";
 import { AuthIdentityQueryBoundary, AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { FileSearchProvider } from "./contexts/FileSearchContext";
-import { CommonProviders } from "./providers/CommonProviders";
 import { ProtectedProviders } from "./providers/ProtectedProviders";
 import { ToastContainer } from "./components/Toast";
 import { RouteChangeTracker } from "./components/RouteChangeTracker";
@@ -307,11 +306,9 @@ function App() {
                     <Route
                       path="/"
                       element={
-                        <CommonProviders>
-                          <PublicRoute>
-                            <HomePage />
-                          </PublicRoute>
-                        </CommonProviders>
+                        <PublicRoute>
+                          <HomePage />
+                        </PublicRoute>
                       }
                     />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -324,31 +321,25 @@ function App() {
                     <Route
                       path="/login"
                       element={
-                        <CommonProviders>
-                          <PublicRoute>
-                            <Login />
-                          </PublicRoute>
-                        </CommonProviders>
+                        <PublicRoute>
+                          <Login />
+                        </PublicRoute>
                       }
                     />
                     <Route
                       path="/register"
                       element={
-                        <CommonProviders>
-                          <PublicRoute>
-                            <Register />
-                          </PublicRoute>
-                        </CommonProviders>
+                        <PublicRoute>
+                          <Register />
+                        </PublicRoute>
                       }
                     />
                     <Route
                       path="/forgot-password"
                       element={
-                        <CommonProviders>
-                          <PublicRoute>
-                            <ForgotPassword />
-                          </PublicRoute>
-                        </CommonProviders>
+                        <PublicRoute>
+                          <ForgotPassword />
+                        </PublicRoute>
                       }
                     />
                     <Route path="/verify-email" element={<VerifyEmailWrapper />} />

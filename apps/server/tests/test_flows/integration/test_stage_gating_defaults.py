@@ -34,7 +34,6 @@ _FLAG_NAMES = (
     "ENABLE_PLOT_EXTRACTION",
     "ENABLE_CHARACTER_EXTRACTION",
     "ENABLE_META_EXTRACTION",
-    "ENABLE_ENTITY_EXTRACTION",
     "ENABLE_NOVEL_SYNOPSIS",
     "ENABLE_STORY_AGGREGATION",
     "ENABLE_STORYLINE_GENERATION",
@@ -174,7 +173,7 @@ def test_default_stages_skip_plot_and_story_work_and_complete(monkeypatch, defau
     monkeypatch.setattr(chapter_mod, "generate_chapter_summary_task", summary_task)
     monkeypatch.setattr(chapter_mod, "update_chapter_summary_task", FakeTask(None))
     monkeypatch.setattr(chapter_mod, "extract_character_mentions_task", mention_task)
-    for name in ("extract_chapter_plots_task", "validate_plots_task", "save_plots_task"):
+    for name in ("extract_chapter_plots_task", "save_plots_task"):
         monkeypatch.setattr(chapter_mod, name, _Forbidden(name, forbidden_calls))
     monkeypatch.setattr(chapter_mod, "chapter_extraction_flow", chapter_mod.chapter_extraction_flow.fn)
 
@@ -200,16 +199,16 @@ def test_default_stages_skip_plot_and_story_work_and_complete(monkeypatch, defau
     monkeypatch.setattr(story_mod, "update_novel_synopsis_task", lambda novel_id, synopsis: None)
     for name in (
         "identify_story_frameworks_with_chunking",
-        "aggregate_plots_to_stories_task",
-        "save_stories_task",
+        "aggregate_plots_for_story_framework",
+        "save_stories_with_plots",
         "handle_orphan_plots_task",
-        "generate_storylines_task",
-        "save_storylines_task",
+        "extract_storylines_from_stories",
+        "save_storylines_with_stories",
     ):
         monkeypatch.setattr(story_mod, name, _Forbidden(name, forbidden_calls))
 
     class _StoryWrapper:
-        def submit(self, nid, cids, _cid, job_id=None):
+        def submit(self, nid, cids, job_id=None):
             return FakeFuture(
                 story_mod.story_aggregate_flow.fn(
                     novel_id=nid,

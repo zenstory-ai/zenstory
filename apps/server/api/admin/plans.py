@@ -87,8 +87,6 @@ def update_plan(
         if any(getattr(request.features, key) is None for key in request.features.model_fields_set):
             raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=422)
         features = request.features.model_dump(exclude_unset=True)
-        if any(value is None for value in features.values()):
-            raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=422)
         for key, fixed_limit in FIXED_PLAN_FEATURES.get(plan.name, {}).items():
             if features.get(key, fixed_limit) != fixed_limit:
                 raise APIException(

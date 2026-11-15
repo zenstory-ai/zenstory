@@ -1,6 +1,6 @@
 """
 Character mentions service - SQLModel version.
-Handles CharacterMention CRUD operations for two-phase character extraction.
+Handles CharacterMention operations for two-phase character extraction.
 """
 from __future__ import annotations
 
@@ -14,33 +14,10 @@ from models.material_models import CharacterMention
 class CharacterMentionsService:
     """Character mention service using SQLModel patterns."""
 
-    def create(self, session: Session, data: dict) -> CharacterMention:
-        """Create a character mention record."""
-        mention = CharacterMention(**data)
-        session.add(mention)
-        session.flush()
-        return mention
-
-    def bulk_create(self, session: Session, mentions: list[dict]) -> list[int]:
-        """Bulk create character mentions."""
-        ids = []
-        for data in mentions:
-            mention = CharacterMention(**data)
-            session.add(mention)
-            session.flush()
-            ids.append(mention.id)
-        return ids
-
     def get_by_novel(self, session: Session, novel_id: int) -> list[CharacterMention]:
         """Get all character mentions for a novel."""
         return list(session.exec(
             select(CharacterMention).where(CharacterMention.novel_id == novel_id)
-        ).all())
-
-    def get_by_chapter(self, session: Session, chapter_id: int) -> list[CharacterMention]:
-        """Get character mentions for a chapter."""
-        return list(session.exec(
-            select(CharacterMention).where(CharacterMention.chapter_id == chapter_id)
         ).all())
 
     def get_by_character_name_or_alias(
@@ -84,26 +61,15 @@ class CharacterMentionsService:
             session.add(existing)
             session.flush()
             return existing
-        else:
-            mention = CharacterMention(
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                character_name=character_name,
-                **data
-            )
-            session.add(mention)
-            session.flush()
-            return mention
-
-    def delete_by_novel(self, session: Session, novel_id: int) -> int:
-        """Delete all character mentions for a novel."""
-        result = session.exec(
-            select(CharacterMention).where(CharacterMention.novel_id == novel_id)
-        ).all()
-        count = len(result)
-        for mention in result:
-            session.delete(mention)
-        return count
+        mention = CharacterMention(
+            novel_id=novel_id,
+            chapter_id=chapter_id,
+            character_name=character_name,
+            **data
+        )
+        session.add(mention)
+        session.flush()
+        return mention
 
     @staticmethod
     def _alias_matches(raw_aliases: str | None, name: str) -> bool:

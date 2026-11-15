@@ -19,7 +19,6 @@
 import type {
   File,
   FileTreeNode,
-  FileVersion,
   FileVersionListResponse,
   PatchProjectRequest,
   Project,
@@ -28,12 +27,10 @@ import type {
   VersionComparison,
   VersionContentResponse,
 } from "../types";
-import { api, ApiError, apiErrorFromPayload, errorDetailObject, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
-import { resolveApiErrorMessage } from "./errorHandler";
+import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { getLocale } from "./i18n-helpers";
 import { parseContentDispositionFilename } from "./contentDisposition";
 import type { Acquisition } from "./acquisition";
-import { logger } from "./logger";
 import { isFileTitleTooLong } from "./fileTitle";
 import { captureException, trackEvent } from "./analytics";
 
@@ -110,30 +107,6 @@ async function readFailedResponseError(response: Response): Promise<ApiError> {
  */
 export const authApi = {
   /**
-   * Initiate Google OAuth login flow.
-   *
-   * Redirects the browser to the backend's Google OAuth endpoint,
-   * which then redirects to Google's consent screen.
-   * After successful authentication, Google redirects back to the callback URL.
-   */
-  googleLogin: () => {
-    const url = `${getApiBase()}/api/auth/google`;
-    window.location.href = url;
-  },
-
-  /**
-   * Apple OAuth login - pending backend implementation.
-   *
-   * @feature_request Sign in with Apple support
-   * @backend_needed Add /api/v1/auth/apple endpoint with Apple ID integration
-   * @see https://developer.apple.com/sign-in-with-apple/
-   * @see apps/server/api/auth.py for OAuth implementation reference
-   */
-  appleLogin: () => {
-    logger.log('Apple OAuth coming soon');
-  },
-
-  /**
    * Resolve registration invite-code policy (supports gray rollout experiments).
    */
   getRegistrationPolicy: async (params: { email?: string; username?: string } = {}) => {
@@ -148,11 +121,7 @@ export const authApi = {
       { method: "GET" }
     );
     if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(error, "ERR_AUTH_REGISTRATION_FAILED"),
-      );
+      throw await readFailedResponseError(response);
     }
     return response.json() as Promise<{
       invite_code_optional: boolean;
@@ -161,32 +130,12 @@ export const authApi = {
     }>;
   },
 
-  /**
-   * Register a new user account.
-   *
-   * @param data - Registration data
-   * @param data.username - Optional username; the server defaults to the email prefix
-   * @param data.email - User's email address
-   * @param data.password - User's password (will be hashed server-side)
-   * @param data.invite_code - Optional invite code for closed beta or referrals
-   * @returns Promise resolving to the created user object with tokens
-   * @throws {ApiError} ERR_AUTH_REGISTRATION_FAILED if registration fails
-   *
-   * @example
-   * ```ts
-   * const user = await authApi.register({
-   *   email: 'writer@example.com',
-   *   password: 'securePassword123'
-   * });
-   * ```
-   */
   correctRegistrationEmail: async (data: { email: string; password: string; new_email: string; language: 'zh' | 'en' }) => {
     const response = await fetch(`${getApiBase()}/api/auth/registration-email`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(response.status, resolveApiErrorMessage(error, 'ERR_AUTH_RESEND_FAILED'));
+      throw await readFailedResponseError(response);
     }
     return response.json() as Promise<{ email: string; verification_sent: boolean }>;
   },
@@ -198,30 +147,11 @@ export const authApi = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(error, 'ERR_AUTH_REGISTRATION_FAILED'),
-      );
+      throw await readFailedResponseError(response);
     }
     return response.json();
   },
 
-  /**
-   * Authenticate a user with username and password.
-   *
-   * Uses form-data format as required by OAuth2 password flow.
-   *
-   * @param username - User's username or email
-   * @param password - User's password
-   * @returns Promise resolving to authentication tokens and user info
-   * @throws {ApiError} ERR_AUTH_INVALID_CREDENTIALS if credentials are invalid
-   *
-   * @example
-   * ```ts
-   * const { access_token, refresh_token } = await authApi.login('writer', 'password');
-   * ```
-   */
   login: async (username: string, password: string) => {
     const formData = new FormData();
     formData.append('username', username);
@@ -231,51 +161,11 @@ export const authApi = {
       body: formData,
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(error, 'ERR_AUTH_INVALID_CREDENTIALS'),
-        errorDetailObject(error),
-      );
+      throw await readFailedResponseError(response);
     }
     return response.json();
   },
 
-  /**
-   * Refresh an expired access token using a valid refresh token.
-   *
-   * Called automatically by apiClient when a 401 response is received.
-   *
-   * @param refreshToken - The refresh token obtained during login
-   * @returns Promise resolving to new access and refresh tokens
-   * @throws {ApiError} ERR_AUTH_TOKEN_INVALID if refresh token is expired or invalid
-   */
-  refreshToken: async (refreshToken: string) => {
-    const response = await fetch(`${getApiBase()}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(error, 'ERR_AUTH_TOKEN_INVALID'),
-      );
-    }
-    return response.json();
-  },
-
-  /**
-   * Verify a user's email address with a verification code.
-   *
-   * Called after the user receives a verification email with a code.
-   *
-   * @param email - The email address to verify
-   * @param code - The verification code from the email
-   * @returns Promise resolving to verification status
-   * @throws {ApiError} ERR_AUTH_INVALID_VERIFICATION_CODE if code is invalid or expired
-   */
   verifyEmail: async (email: string, code: string) => {
     const response = await fetch(`${getApiBase()}/api/auth/verify-email`, {
       method: 'POST',
@@ -283,25 +173,11 @@ export const authApi = {
       body: JSON.stringify({ email, code }),
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(error, 'ERR_AUTH_INVALID_VERIFICATION_CODE'),
-      );
+      throw await readFailedResponseError(response);
     }
     return response.json();
   },
 
-  /**
-   * Resend the verification email to a user.
-   *
-   * Useful if the verification code expired or the email was lost.
-   *
-   * @param email - The email address to resend verification to
-   * @returns Promise resolving to success status
-   * @throws {ApiError} ERR_AUTH_VERIFICATION_COOLDOWN (details.retry_after_seconds) while a code was just sent,
-   *   ERR_AUTH_RESEND_FAILED if delivery fails
-   */
   resendVerification: async (email: string) => {
     const response = await fetch(`${getApiBase()}/api/auth/resend-verification`, {
       method: 'POST',
@@ -309,33 +185,15 @@ export const authApi = {
       body: JSON.stringify({ email }),
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(error, 'ERR_AUTH_RESEND_FAILED'),
-        errorDetailObject(error),
-      );
+      throw await readFailedResponseError(response);
     }
     return response.json();
   },
 
-  /**
-   * Check if an email address has been verified.
-   *
-   * Used to show verification status in the UI.
-   *
-   * @param email - The email address to check
-   * @returns Promise resolving to verification status object
-   * @throws {ApiError} ERR_VALIDATION_ERROR if email format is invalid
-   */
   checkVerification: async (email: string) => {
     const response = await fetch(`${getApiBase()}/api/auth/check-verification?email=${encodeURIComponent(email)}`);
     if (!response.ok) {
-      const error = await response.json();
-      throw new ApiError(
-        response.status,
-        resolveApiErrorMessage(error, 'ERR_VALIDATION_ERROR'),
-      );
+      throw await readFailedResponseError(response);
     }
     return response.json();
   },
@@ -612,73 +470,6 @@ export const fileVersionApi = {
   },
 
   /**
-   * Create a new version for a file.
-   *
-   * Explicitly creates a version with the provided content.
-   * Note: Versions are also created automatically on file updates.
-   *
-   * @param fileId - The UUID of the file
-   * @param content - The content to save in this version
-   * @param options - Optional version metadata
-   * @param options.changeType - Type of change ('create', 'edit', 'ai_edit', 'restore', 'auto_save')
-   * @param options.changeSource - Who made the change ('user', 'ai', 'system')
-   * @param options.changeSummary - Human-readable summary of changes
-   * @returns Promise resolving to the created FileVersion object
-   *
-   * @example
-   * ```ts
-   * const version = await fileVersionApi.createVersion('file-uuid', content, {
-   *   changeType: 'edit',
-   *   changeSource: 'user',
-   *   changeSummary: 'Fixed typo in chapter 3'
-   * });
-   * ```
-   */
-  createVersion: (
-    fileId: string,
-    content: string,
-    options?: {
-      changeType?: "create" | "edit" | "ai_edit" | "restore" | "auto_save";
-      changeSource?: "user" | "ai" | "system";
-      changeSummary?: string;
-    },
-  ) =>
-    api.post<FileVersion>(`/api/v1/files/${fileId}/versions`, {
-      content,
-      change_type: options?.changeType || "edit",
-      change_source: options?.changeSource || "user",
-      change_summary: options?.changeSummary,
-    }),
-
-  /**
-   * Get a specific version by ID.
-   *
-   * @param versionId - The UUID of the version
-   * @returns Promise resolving to the FileVersion object
-   *
-   * @example
-   * ```ts
-   * const version = await fileVersionApi.getVersion('version-uuid');
-   * ```
-   */
-  getVersion: (versionId: string) =>
-    api.get<FileVersion>(`/api/v1/versions/${versionId}`),
-
-  /**
-   * Get the latest version for a file.
-   *
-   * @param fileId - The UUID of the file
-   * @returns Promise resolving to the latest FileVersion object
-   *
-   * @example
-   * ```ts
-   * const latestVersion = await fileVersionApi.getLatestVersion('file-uuid');
-   * ```
-   */
-  getLatestVersion: (fileId: string) =>
-    api.get<FileVersion>(`/api/v1/files/${fileId}/versions/latest`),
-
-  /**
    * Get content at a specific version number.
    *
    * Retrieves the actual file content (not just metadata) at a specific version.
@@ -791,36 +582,6 @@ export interface FileUpdateVersionIntent {
  * @namespace fileApi
  */
 export const fileApi = {
-  /**
-   * Get all files for a project, optionally filtered.
-   *
-   * @param projectId - The UUID of the project
-   * @param options - Optional filters
-   * @param options.fileType - Filter by file type ('outline', 'draft', 'character', 'lore', 'material')
-   * @param options.parentId - Filter by parent folder ID
-   * @returns Promise resolving to array of File objects
-   *
-   * @example
-   * ```ts
-   * // Get all draft files
-   * const drafts = await fileApi.getAll('project-uuid', { fileType: 'draft' });
-   *
-   * // Get files in a specific folder
-   * const folderFiles = await fileApi.getAll('project-uuid', { parentId: 'folder-uuid' });
-   * ```
-   */
-  getAll: (
-    projectId: string,
-    options?: { fileType?: string; parentId?: string },
-  ) => {
-    const params = new URLSearchParams();
-    if (options?.fileType) params.append("file_type", options.fileType);
-    if (options?.parentId !== undefined)
-      params.append("parent_id", options.parentId);
-    const query = params.toString() ? `?${params}` : "";
-    return api.get<File[]>(`/api/v1/projects/${projectId}/files${query}`);
-  },
-
   /**
    * Get a single file by ID.
    *
@@ -1075,46 +836,6 @@ export const fileApi = {
       errors: string[];
     };
   },
-
-  /**
-   * Move a file to a new parent folder.
-   *
-   * @param fileId - The UUID of the file to move
-   * @param targetParentId - The UUID of the target parent folder (null for root)
-   * @returns Promise resolving to the updated File object
-   *
-   * @example
-   * ```ts
-   * // Move file to a folder
-   * await fileApi.move('file-uuid', 'folder-uuid');
-   *
-   * // Move file to root
-   * await fileApi.move('file-uuid', null);
-   * ```
-   */
-  move: async (fileId: string, targetParentId: string | null): Promise<File> => {
-    return api.post<File>(`/api/v1/files/${fileId}/move`, {
-      target_parent_id: targetParentId,
-    });
-  },
-
-  /**
-   * Reorder files within a parent folder.
-   *
-   * @param projectId - The UUID of the project
-   * @param orderedIds - Array of file IDs in the desired order
-   * @returns Promise resolving to success message
-   *
-   * @example
-   * ```ts
-   * await fileApi.reorder('project-uuid', ['file1', 'file2', 'file3']);
-   * ```
-   */
-  reorder: (projectId: string, orderedIds: string[]) =>
-    api.post<{ message: string; count: number }>(
-      `/api/v1/projects/${projectId}/files/reorder`,
-      { ordered_ids: orderedIds }
-    ),
 };
 
 /**
@@ -1529,13 +1250,6 @@ export const agentApiKeysApi = {
    */
   list: async () => {
     return api.get<import("../types").AgentApiKeyListResponse>("/api/v1/agent-api-keys");
-  },
-
-  /**
-   * Get a single API key by ID
-   */
-  get: async (id: string) => {
-    return api.get<import("../types").AgentApiKey>(`/api/v1/agent-api-keys/${id}`);
   },
 
   /**

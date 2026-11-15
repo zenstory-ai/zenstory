@@ -9,8 +9,6 @@ import type {
   CopyInspirationResponse,
   MyInspirationSubmission,
   MyInspirationSubmissionsResponse,
-  SubmitInspirationRequest,
-  SubmitInspirationResponse,
 } from '../types';
 
 export interface UseInspirationsOptions {
@@ -47,10 +45,6 @@ export interface UseInspirationsReturn {
   error: Error | null;
   /** Refetch inspirations */
   refetch: () => Promise<void>;
-  /** Featured inspirations */
-  featured: Inspiration[];
-  /** Loading state for featured */
-  isFeaturedLoading: boolean;
   /** Get inspiration detail */
   getDetail: (id: string) => Promise<InspirationDetail | null>;
   /** Current detail */
@@ -61,10 +55,6 @@ export interface UseInspirationsReturn {
   copyInspiration: (id: string, projectName?: string) => Promise<CopyInspirationResponse>;
   /** Loading state for copy operation */
   isCopying: boolean;
-  /** Submit a project to inspiration library */
-  submitInspiration: (payload: SubmitInspirationRequest) => Promise<SubmitInspirationResponse>;
-  /** Loading state for submit operation */
-  isSubmitting: boolean;
   /** Reset detail view */
   resetDetail: () => void;
 }
@@ -147,14 +137,6 @@ export function useInspirations(options: UseInspirationsOptions = {}): UseInspir
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Fetch featured inspirations
-  const { data: featuredData, isLoading: isFeaturedLoading } = useQuery<Inspiration[], Error>({
-    queryKey: ['inspirations-featured'],
-    queryFn: () => inspirationsApi.getFeatured(6),
-    enabled,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-  });
-
   // Copy inspiration mutation
   const copyMutation = useMutation<
     CopyInspirationResponse,
@@ -167,19 +149,6 @@ export function useInspirations(options: UseInspirationsOptions = {}): UseInspir
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       // Invalidate inspirations to update copy_count
       queryClient.invalidateQueries({ queryKey: ['inspirations'] });
-    },
-  });
-
-  // Submit inspiration mutation
-  const submitMutation = useMutation<
-    SubmitInspirationResponse,
-    Error,
-    SubmitInspirationRequest
-  >({
-    mutationFn: (payload) => inspirationsApi.submit(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inspirations'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'inspirations'] });
     },
   });
 
@@ -222,13 +191,6 @@ export function useInspirations(options: UseInspirationsOptions = {}): UseInspir
     [copyMutation]
   );
 
-  const submitInspiration = useCallback(
-    async (payload: SubmitInspirationRequest): Promise<SubmitInspirationResponse> => {
-      return submitMutation.mutateAsync(payload);
-    },
-    [submitMutation]
-  );
-
   return {
     inspirations: listData?.inspirations ?? [],
     total: listData?.total ?? 0,
@@ -238,15 +200,11 @@ export function useInspirations(options: UseInspirationsOptions = {}): UseInspir
     isFetching: Boolean(isFetching),
     error: error ?? null,
     refetch: handleRefetch,
-    featured: featuredData ?? [],
-    isFeaturedLoading,
     getDetail,
     currentDetail,
     isDetailLoading,
     copyInspiration,
     isCopying: copyMutation.isPending,
-    submitInspiration,
-    isSubmitting: submitMutation.isPending,
     resetDetail,
   };
 }
@@ -270,7 +228,7 @@ export function useInspirations(options: UseInspirationsOptions = {}): UseInspir
  * ```
  */
 export function useFeaturedInspirations(limit: number = 6) {
-  const { data, isLoading, isFetching, error } = useQuery<Inspiration[], Error>({
+  const { data, isLoading, isFetching, error, refetch } = useQuery<Inspiration[], Error>({
     queryKey: ['inspirations-featured', limit],
     queryFn: () => inspirationsApi.getFeatured(limit),
     staleTime: 10 * 60 * 1000, // 10 minutes
@@ -281,6 +239,7 @@ export function useFeaturedInspirations(limit: number = 6) {
     isLoading,
     isFetching: Boolean(isFetching),
     error,
+    refetch,
   };
 }
 

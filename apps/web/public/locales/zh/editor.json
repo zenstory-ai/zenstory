@@ -66,6 +66,7 @@
     "createFailed": "新建失败，请重试",
     "deleteFailed": "删除失败，请重试",
     "maxMaterials": "一次最多引用 {{max}} 个文件到对话",
+    "alreadyAttached": "已引用到对话",
     "skillsFolder": "技能",
     "skillsEmpty": "还没有可用的技能",
     "referenceLibrary": "参考小说库",
@@ -271,6 +272,7 @@
   "projectSwitcher": {
     "searchPlaceholder": "搜索项目",
     "loading": "加载中…",
+    "loadFailed": "加载项目失败",
     "noProjects": "暂无项目",
     "noResults": "没有找到匹配的项目",
     "editName": "编辑项目名称",

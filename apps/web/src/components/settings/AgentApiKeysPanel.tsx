@@ -6,6 +6,7 @@ import { agentApiKeysApi } from '../../lib/api';
 import { getApiBase } from '../../lib/apiClient';
 import { getLocaleCode } from '../../lib/i18n-helpers';
 import { handleApiError } from '../../lib/errorHandler';
+import { toast } from '../../lib/toast';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import Modal from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -91,13 +92,15 @@ function CopiedStatus({ copied }: { copied: boolean }) {
 }
 
 function CommandLine({ command }: { command: string }) {
-  const { t } = useTranslation('settings');
+  const { t } = useTranslation(['settings', 'common']);
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     if (await copyToClipboard(command)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error(t('common:copyFailed', '复制失败，请手动复制'));
     }
   };
 
@@ -185,7 +188,7 @@ function KeyCreatedModal({
   apiKey: string;
   onClose: () => void;
 }) {
-  const { t } = useTranslation('settings');
+  const { t } = useTranslation(['settings', 'common']);
   const [copied, setCopied] = useState(false);
   const { loginCommand } = getAgentConnectInfo();
 
@@ -193,6 +196,8 @@ function KeyCreatedModal({
     if (await copyToClipboard(apiKey)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error(t('common:copyFailed', '复制失败，请手动复制'));
     }
   };
 
@@ -381,13 +386,15 @@ function KeyRow({
   onDelete: (key: AgentApiKey) => void;
   onToggleActive: (key: AgentApiKey) => void;
 }) {
-  const { t } = useTranslation('settings');
+  const { t } = useTranslation(['settings', 'common']);
   const [copiedPrefix, setCopiedPrefix] = useState(false);
 
   const handleCopyPrefix = async () => {
     if (await copyToClipboard(apiKey.key_prefix)) {
       setCopiedPrefix(true);
       setTimeout(() => setCopiedPrefix(false), 2000);
+    } else {
+      toast.error(t('common:copyFailed', '复制失败，请手动复制'));
     }
   };
 

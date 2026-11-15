@@ -10,11 +10,9 @@
  * - Five size options: xs, sm, md, lg, xl
  * - Three color themes: primary, white, secondary
  * - Optional text labels with horizontal/vertical layout
- * - Page-level and inline loader convenience components
  *
  * @module components/LoadingSpinner
  */
-import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -66,32 +64,6 @@ export interface LoadingSpinnerProps {
    * - 'secondary': Uses secondary text color
    */
   color?: 'primary' | 'white' | 'secondary';
-}
-
-/**
- * Props for the PageLoader component.
- *
- * @interface PageLoaderProps
- */
-export interface PageLoaderProps {
-  /**
-   * Optional text label to display below the spinner.
-   * Defaults to "加载中..." (Loading...) if not provided.
-   */
-  label?: string;
-}
-
-/**
- * Props for the InlineLoader component.
- *
- * @interface InlineLoaderProps
- */
-export interface InlineLoaderProps {
-  /**
-   * Optional text label to display next to the spinner.
-   * Defaults to "加载中..." (Loading...) if not provided.
-   */
-  label?: string;
 }
 
 /**
@@ -212,59 +184,5 @@ export function LoadingSpinner({
       {spinner}
       <span className="text-sm">{label}</span>
     </span>
-  );
-}
-
-/**
- * Page-level loading component with full-screen centered layout.
- *
- * Renders a large spinner centered on the page with optional label.
- * Use this for initial page loads or major content transitions.
- *
- * @param props - Component props
- * @param props.label - Optional text label (defaults to "加载中...")
- * @returns A full-page centered loading indicator
- *
- * @example
- * // Basic page loader
- * <PageLoader />
- *
- * @example
- * // With custom label
- * <PageLoader label="Loading your workspace..." />
- */
-export function PageLoader({ label }: PageLoaderProps) {
-  const { t } = useTranslation();
-  return (
-    <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex items-center justify-center">
-      <LoadingSpinner size="lg" label={label || t('common:loading', "加载中…")} vertical />
-    </div>
-  );
-}
-
-/**
- * Inline loading component for embedding in forms, cards, etc.
- *
- * Renders a small spinner with horizontal padding, suitable for
- * inline loading states within content areas.
- *
- * @param props - Component props
- * @param props.label - Optional text label (defaults to "加载中...")
- * @returns An inline loading indicator with padding
- *
- * @example
- * // In a card content area
- * <InlineLoader />
- *
- * @example
- * // With custom label
- * <InlineLoader label="Fetching data..." />
- */
-export function InlineLoader({ label }: InlineLoaderProps) {
-  const { t } = useTranslation();
-  return (
-    <div className="flex items-center gap-2 py-8">
-      <LoadingSpinner size="sm" label={label || t('common:loading', "加载中…")} />
-    </div>
   );
 }

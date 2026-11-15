@@ -3,25 +3,38 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 const mockGetAccessToken = vi.fn()
 const mockGetApiBase = vi.fn(() => 'http://localhost:8000')
 const mockTryRefreshToken = vi.fn()
+const mockClearAuthStorage = vi.fn()
 const mockResolveApiErrorMessage = vi.fn()
 
-vi.mock('../apiClient', () => ({
-  ApiError: class ApiError extends Error {
+vi.mock('../apiClient', () => {
+  class MockApiError extends Error {
     status: number
+    details?: Record<string, unknown>
+    detailText?: string
 
-    constructor(status: number, message: string) {
+    constructor(status: number, message: string, details?: Record<string, unknown>, detailText?: string) {
       super(message)
       this.status = status
       this.name = 'ApiError'
+      this.details = details
+      this.detailText = detailText
     }
-  },
-  getAccessToken: () => mockGetAccessToken(),
-  getApiBase: () => mockGetApiBase(),
-  resolveOwnedAuthSession: () => ({
-    accessToken: mockGetAccessToken(), refreshToken: localStorage.getItem('refresh_token'),
-  }),
-  tryRefreshToken: () => mockTryRefreshToken(),
-}))
+  }
+  return {
+    ApiError: MockApiError,
+    apiErrorFromPayload: (status: number, errorData: unknown) => {
+      const errorMessage = mockResolveApiErrorMessage(errorData, `API error: ${status}`)
+      return new MockApiError(status, errorMessage)
+    },
+    clearAuthStorage: (...args: unknown[]) => mockClearAuthStorage(...args),
+    getAccessToken: () => mockGetAccessToken(),
+    getApiBase: () => mockGetApiBase(),
+    resolveOwnedAuthSession: () => ({
+      accessToken: mockGetAccessToken(), refreshToken: localStorage.getItem('refresh_token'),
+    }),
+    tryRefreshToken: () => mockTryRefreshToken(),
+  }
+})
 
 vi.mock('../errorHandler', () => ({
   resolveApiErrorMessage: (...args: unknown[]) => mockResolveApiErrorMessage(...args),
@@ -146,7 +159,59 @@ describe('feedbackApi.submit', () => {
 
     expect(mockResolveApiErrorMessage).toHaveBeenCalledWith(
       { error_code: 'ERR_FILE_TOO_LARGE' },
-      'ERR_INTERNAL_SERVER_ERROR'
+      'API error: 400'
     )
+  })
+
+  it('uses status-based ApiError instead of ERR_INTERNAL_SERVER_ERROR on non-JSON 413/429 responses', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 413,
+      json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token <')),
+    } as unknown as Response)
+
+    await expect(
+      feedbackApi.submit({
+        issueText: 'Oversized proxy upload',
+        sourcePage: 'dashboard',
+      })
+    ).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 413,
+      message: 'API error: 413',
+    })
+  })
+
+  it('clears expired auth storage when replayed request after refresh still returns 401', async () => {
+    mockTryRefreshToken.mockImplementation(async () => {
+      mockGetAccessToken.mockReturnValue('rotated-access-token')
+      localStorage.setItem('access_token', 'rotated-access-token')
+      localStorage.setItem('refresh_token', 'rotated-refresh-token')
+      return true
+    })
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: vi.fn().mockResolvedValue({ detail: 'Unauthorized' }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: vi.fn().mockResolvedValue({ detail: 'Unauthorized' }),
+      } as unknown as Response)
+
+    await expect(
+      feedbackApi.submit({
+        issueText: 'Session expired',
+        sourcePage: 'dashboard',
+      })
+    ).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 401,
+    })
+
+    expect(mockClearAuthStorage).toHaveBeenCalledWith('retry_still_unauthorized')
   })
 })

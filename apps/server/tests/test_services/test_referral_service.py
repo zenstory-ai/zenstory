@@ -326,6 +326,23 @@ class TestValidateInviteCode:
         assert result_code is None
         assert "deactivated" in error.lower()
 
+    @pytest.mark.asyncio
+    async def test_validate_invite_code_db_error_rolls_back_and_raises_500(self):
+        """Database failures must roll back and raise 500 instead of faking valid=False."""
+        from unittest.mock import MagicMock
+
+        from sqlalchemy.exc import SQLAlchemyError
+
+        mock_session = MagicMock(spec=Session)
+        mock_session.exec.side_effect = SQLAlchemyError("db unavailable")
+
+        with pytest.raises(APIException) as exc_info:
+            validate_invite_code("ABCD-1234", mock_session)
+
+        assert exc_info.value.error_code == ErrorCode.INTERNAL_SERVER_ERROR
+        assert exc_info.value.status_code == 500
+        mock_session.rollback.assert_called_once()
+
 
 @pytest.mark.unit
 class TestCreateReferral:
@@ -529,9 +546,11 @@ class TestCompleteReferralAndReward:
             select(UserStats).where(UserStats.user_id == test_user.id)
         ).first()
 
+        from services.features.points_service import points_service
+
         assert stats.successful_invites == 1
         assert stats.total_points == INVITER_REWARD_POINTS
-        assert stats.available_points == INVITER_REWARD_POINTS
+        assert points_service.get_balance(db_session, test_user.id)["available"] == INVITER_REWARD_POINTS
 
     @pytest.mark.asyncio
     async def test_complete_referral_blocks_repeat_ip_rewards(
@@ -651,6 +670,21 @@ class TestGetUserReferralStats:
         assert stats["total_points"] == INVITER_REWARD_POINTS
         assert stats["available_points"] == INVITER_REWARD_POINTS - 20
 
+    def test_get_user_referral_stats_db_error_rolls_back(self):
+        """DB errors in get_user_referral_stats must roll back the session."""
+        from unittest.mock import MagicMock
+
+        from sqlalchemy.exc import SQLAlchemyError
+
+        mock_session = MagicMock(spec=Session)
+        mock_session.exec.side_effect = SQLAlchemyError("db error")
+
+        with pytest.raises(APIException) as exc_info:
+            get_user_referral_stats("user-1", mock_session)
+
+        assert exc_info.value.status_code == 500
+        mock_session.rollback.assert_called_once()
+
 
 @pytest.mark.unit
 class TestGetUserInviteCodes:
@@ -676,3 +710,18 @@ class TestGetUserInviteCodes:
         assert len(codes) == 2
         # Should be ordered by created_at desc
         assert codes[0].created_at >= codes[1].created_at
+
+    def test_get_user_invite_codes_db_error_rolls_back(self):
+        """DB errors in get_user_invite_codes must roll back the session."""
+        from unittest.mock import MagicMock
+
+        from sqlalchemy.exc import SQLAlchemyError
+
+        mock_session = MagicMock(spec=Session)
+        mock_session.exec.side_effect = SQLAlchemyError("db error")
+
+        with pytest.raises(APIException) as exc_info:
+            get_user_invite_codes("user-1", mock_session)
+
+        assert exc_info.value.status_code == 500
+        mock_session.rollback.assert_called_once()

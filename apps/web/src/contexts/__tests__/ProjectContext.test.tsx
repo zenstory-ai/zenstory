@@ -47,7 +47,6 @@ function createWrapper(user = null) {
     login: vi.fn(),
     register: vi.fn(),
     logout: vi.fn(),
-    refreshToken: vi.fn(),
     handleOAuthCallback: vi.fn(),
     verifyEmail: vi.fn(),
     resendVerification: vi.fn(),
@@ -105,7 +104,7 @@ describe('ProjectContext', () => {
 
     vi.mocked(useAuth).mockReturnValue({
       user: mockUser, loading: false,
-      login: vi.fn(), register: vi.fn(), logout: vi.fn(), refreshToken: vi.fn(),
+      login: vi.fn(), register: vi.fn(), logout: vi.fn(),
       handleOAuthCallback: vi.fn(), verifyEmail: vi.fn(), resendVerification: vi.fn(),
       googleLogin: vi.fn(), appleLogin: vi.fn(),
     })
@@ -115,7 +114,7 @@ describe('ProjectContext', () => {
     const userB = { ...mockUser, id: 'user-b', username: 'user-b' }
     vi.mocked(useAuth).mockReturnValue({
       user: userB, loading: false,
-      login: vi.fn(), register: vi.fn(), logout: vi.fn(), refreshToken: vi.fn(),
+      login: vi.fn(), register: vi.fn(), logout: vi.fn(),
       handleOAuthCallback: vi.fn(), verifyEmail: vi.fn(), resendVerification: vi.fn(),
       googleLogin: vi.fn(), appleLogin: vi.fn(),
     })
@@ -237,7 +236,6 @@ describe('ProjectContext', () => {
         login: vi.fn(),
         register: vi.fn(),
         logout: vi.fn(),
-        refreshToken: vi.fn(),
         handleOAuthCallback: vi.fn(),
         verifyEmail: vi.fn(),
         resendVerification: vi.fn(),
@@ -1387,6 +1385,65 @@ describe('ProjectContext', () => {
       })
 
       expect(result.current.currentProject).toBe(null)
+    })
+
+    it('ignores in-flight updateProject and deleteProject completions after an account switch', async () => {
+      let resolveUpdate!: (project: Project) => void
+      let resolveDelete!: () => void
+      vi.mocked(projectApi.getAll)
+        .mockResolvedValueOnce(mockProjects)
+        .mockResolvedValueOnce([{ ...mockProjects[0]!, id: 'project-b', name: 'Project B' }])
+      vi.mocked(projectApi.update).mockReturnValueOnce(new Promise((resolve) => { resolveUpdate = resolve }))
+      vi.mocked(projectApi.delete).mockReturnValueOnce(new Promise((resolve) => { resolveDelete = resolve }))
+
+      vi.mocked(useAuth).mockReturnValue({
+        user: mockUser,
+        loading: false,
+        login: vi.fn(),
+        register: vi.fn(),
+        logout: vi.fn(),
+        handleOAuthCallback: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        googleLogin: vi.fn(),
+        appleLogin: vi.fn(),
+      })
+
+      const wrapper = ({ children }: { children: ReactNode }) => <ProjectProvider>{children}</ProjectProvider>
+      const { result, rerender } = renderHook(() => useProject(), { wrapper })
+      await waitFor(() => expect(result.current.projects.length).toBe(2))
+
+      let updatePromise!: Promise<Project>
+      let deletePromise!: Promise<void>
+      act(() => {
+        updatePromise = result.current.updateProject('project-b', { name: 'Mutated by A' })
+        deletePromise = result.current.deleteProject('project-b')
+      })
+
+      const userB = { ...mockUser, id: 'user-b', username: 'user-b' }
+      vi.mocked(useAuth).mockReturnValue({
+        user: userB,
+        loading: false,
+        login: vi.fn(),
+        register: vi.fn(),
+        logout: vi.fn(),
+        handleOAuthCallback: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        googleLogin: vi.fn(),
+        appleLogin: vi.fn(),
+      })
+      rerender()
+      await waitFor(() => expect(result.current.projects.map((p) => p.id)).toEqual(['project-b']))
+
+      await act(async () => {
+        resolveUpdate({ ...mockProjects[0]!, id: 'project-b', name: 'Mutated by A' })
+        resolveDelete()
+        await Promise.all([updatePromise, deletePromise])
+      })
+
+      expect(result.current.projects.map((p) => p.name)).toEqual(['Project B'])
+      expect(result.current.currentProjectId).toBe('project-b')
     })
   })
 })

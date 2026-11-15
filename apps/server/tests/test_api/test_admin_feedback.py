@@ -323,71 +323,6 @@ async def test_admin_feedback_list_filters_has_screenshot(
 
 
 @pytest.mark.integration
-async def test_admin_feedback_detail_success(client: AsyncClient, db_session: Session):
-    """Superuser should fetch single feedback detail."""
-    admin = await create_user(db_session, "admin_feedback_5", "admin_feedback_5@example.com", is_superuser=True)
-    target_user = await create_user(db_session, "writer_feedback_5", "writer_feedback_5@example.com")
-    feedback = create_feedback(
-        db_session,
-        user_id=target_user.id,
-        issue_text="Need detailed issue lookup",
-        source_page="dashboard",
-        status="open",
-    )
-    token = await login_user(client, admin.username)
-
-    response = await client.get(
-        f"/api/admin/feedback/{feedback.id}",
-        headers=auth_headers(token),
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["id"] == feedback.id
-    assert payload["username"] == target_user.username
-    assert payload["issue_text"] == "Need detailed issue lookup"
-
-
-@pytest.mark.integration
-async def test_admin_feedback_detail_not_found(client: AsyncClient, db_session: Session):
-    """Unknown feedback id should return 404."""
-    admin = await create_user(db_session, "admin_feedback_9", "admin_feedback_9@example.com", is_superuser=True)
-    token = await login_user(client, admin.username)
-
-    response = await client.get(
-        "/api/admin/feedback/missing-feedback-id",
-        headers=auth_headers(token),
-    )
-
-    assert response.status_code == 404
-
-
-@pytest.mark.integration
-async def test_admin_feedback_detail_owner_not_found(client: AsyncClient, db_session: Session):
-    """Feedback detail should return 404 when owner is missing."""
-    admin = await create_user(db_session, "admin_feedback_10", "admin_feedback_10@example.com", is_superuser=True)
-    target_user = await create_user(db_session, "writer_feedback_10", "writer_feedback_10@example.com")
-    feedback = create_feedback(
-        db_session,
-        user_id=target_user.id,
-        issue_text="Owner will be missing",
-        source_page="dashboard",
-        status="open",
-    )
-    feedback.user_id = "missing-feedback-owner"
-    db_session.add(feedback)
-    db_session.commit()
-    token = await login_user(client, admin.username)
-
-    response = await client.get(
-        f"/api/admin/feedback/{feedback.id}",
-        headers=auth_headers(token),
-    )
-
-    assert response.status_code == 404
-
-
-@pytest.mark.integration
 async def test_admin_feedback_update_status(client: AsyncClient, db_session: Session):
     """Superuser should update feedback status."""
     admin = await create_user(db_session, "admin_feedback_2", "admin_feedback_2@example.com", is_superuser=True)
@@ -697,4 +632,50 @@ async def test_admin_feedback_screenshot_download_supports_legacy_absolute_path(
     assert response.content == screenshot_bytes
 
     db_session.refresh(feedback)
-    assert feedback.screenshot_path == str(actual_file.resolve())
+    assert feedback.screenshot_path == legacy_path
+
+
+@pytest.mark.integration
+async def test_admin_feedback_update_status_closes_storage_and_returns_503_on_storage_error(
+    client: AsyncClient,
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Status update must surface storage config failure as 503 and close storage on success."""
+    admin = await create_user(db_session, "admin_fb_storage", "admin_fb_storage@example.com", is_superuser=True)
+    target_user = await create_user(db_session, "writer_fb_storage", "writer_fb_storage@example.com")
+    feedback = create_feedback(
+        db_session,
+        user_id=target_user.id,
+        issue_text="S3 screenshot check",
+        status="open",
+        screenshot_path="s3://test-bucket/feedback/item.png",
+    )
+    token = await login_user(client, admin.username)
+
+    monkeypatch.setattr("api.admin.feedback._storage", lambda: (_ for _ in ()).throw(ValueError("bad s3 config")))
+    failed = await client.patch(
+        f"/api/admin/feedback/{feedback.id}/status",
+        headers=auth_headers(token),
+        json={"status": "processing"},
+    )
+    assert failed.status_code == 503
+
+    closed = {"count": 0}
+
+    class _ClosableStorage:
+        def feedback_reference_exists(self, _ref):
+            return True
+
+        def close(self):
+            closed["count"] += 1
+
+    monkeypatch.setattr("api.admin.feedback._storage", _ClosableStorage)
+    succeeded = await client.patch(
+        f"/api/admin/feedback/{feedback.id}/status",
+        headers=auth_headers(token),
+        json={"status": "resolved"},
+    )
+    assert succeeded.status_code == 200
+    assert succeeded.json()["has_screenshot"] is True
+    assert closed["count"] == 1

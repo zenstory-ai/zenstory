@@ -65,7 +65,7 @@ function NavItem({
       </Link>
 
       {/* Render children if parent is active or a child is active */}
-      {hasChildren && (isActive || hasActiveChild) && (
+      {hasChildren && isActive && (
         <div className="mt-1 space-y-0.5">
           {item.children!.map((child) => (
             <NavItem

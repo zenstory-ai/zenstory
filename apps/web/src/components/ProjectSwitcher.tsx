@@ -98,6 +98,8 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
     currentProject,
     currentProjectId,
     loading,
+    error,
+    refreshProjects,
     createProject,
     updateProject,
     deleteProject,
@@ -309,7 +311,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
         <Folder size={16} className="text-[hsl(var(--text-secondary))] shrink-0" />
         <div className="text-left min-w-0 overflow-hidden">
             <div className="font-medium text-sm text-[hsl(var(--text-primary))] truncate">
-              {currentProject?.name || t('editor:projectSwitcher.loading')}
+              {currentProject?.name || (loading ? t('editor:projectSwitcher.loading') : error ? t('editor:projectSwitcher.loadFailed') : t('editor:projectSwitcher.noProjects'))}
             </div>
         </div>
         <ChevronDown
@@ -352,6 +354,17 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
             {loading ? (
               <div className="p-8 text-center text-[hsl(var(--text-secondary))] text-sm">
                 {t('editor:projectSwitcher.loading')}
+              </div>
+            ) : error && projects.length === 0 ? (
+              <div className="p-6 text-center text-sm space-y-2">
+                <p role="alert" className="text-[hsl(var(--error-text))]">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => void refreshProjects()}
+                  className="text-xs font-medium text-[hsl(var(--accent-primary))] hover:underline"
+                >
+                  {t('common:retry')}
+                </button>
               </div>
             ) : filteredProjects.length === 0 ? (
               <div className="p-8 text-center text-[hsl(var(--text-secondary))] text-sm">

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { pointsApi } from '../../lib/pointsApi';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { inspirationsConfig } from '../../config/inspirations';
 
 interface EarnOpportunitiesProps {
@@ -45,8 +46,8 @@ const OPPORTUNITY_ICONS: Record<string, React.ReactNode> = {
 };
 
 export function EarnOpportunities({ className = '' }: EarnOpportunitiesProps) {
-  const { t } = useTranslation('points');
-  const { data: opportunities, isLoading, isFetching } = useQuery({
+  const { t } = useTranslation(['points', 'common']);
+  const { data: opportunities, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['earn-opportunities'],
     queryFn: () => pointsApi.getEarnOpportunities(),
   });
@@ -54,6 +55,21 @@ export function EarnOpportunities({ className = '' }: EarnOpportunitiesProps) {
     (opportunity) => inspirationsConfig.enabled || opportunity.type !== 'inspiration_contribution',
   );
   const isOpportunitiesLoading = isLoading || (isFetching && opportunityItems.length === 0);
+
+  if (isError && !opportunities) {
+    return (
+      <Card className={className}>
+        <div className="space-y-2">
+          <p role="alert" className="text-xs text-[hsl(var(--error-text))]">
+            {t('opportunitiesLoadFailed', '积分任务加载失败，请重试')}
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => void refetch()}>
+            {t('common:retry', '重试')}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   if (!isOpportunitiesLoading && opportunityItems.length === 0) return null;
 

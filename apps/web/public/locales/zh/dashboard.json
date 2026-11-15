@@ -215,7 +215,8 @@
     "viewAll": "查看全部",
     "emptyTitle": "暂无精选灵感",
     "emptyHint": "去灵感库看看更多故事开头。",
-    "emptyCta": "查看灵感库"
+    "emptyCta": "查看灵感库",
+    "loadFailed": "精选灵感加载失败，请重试"
   },
   "time": {
     "justNow": "刚刚",

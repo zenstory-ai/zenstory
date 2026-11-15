@@ -40,7 +40,6 @@ from .file_model import (
     FILE_TYPE_DRAFT,
     FILE_TYPE_FOLDER,
     FILE_TYPE_LORE,
-    FILE_TYPE_METADATA_SCHEMA,
     FILE_TYPE_OUTLINE,
     FILE_TYPE_SCRIPT,
     FILE_TYPE_SNIPPET,
@@ -65,7 +64,6 @@ from .material_models import (
     Chapter,
     Character,
     CharacterRelationship,
-    EventTimeline,
     GoldenFinger,
     IngestionJob,
     Novel,
@@ -88,9 +86,7 @@ from .referral import (
     REFERRAL_STATUS_COMPLETED,
     REFERRAL_STATUS_PENDING,
     REFERRAL_STATUS_REWARDED,
-    REWARD_TYPE_CREDITS,
     REWARD_TYPE_POINTS,
-    REWARD_TYPE_PRO_TRIAL,
     InviteCode,
     Referral,
     UserReward,
@@ -148,7 +144,6 @@ __all__ = [
     "FILE_TYPE_SNIPPET",
     "FILE_TYPE_SCRIPT",
     "FILE_TYPE_FOLDER",
-    "FILE_TYPE_METADATA_SCHEMA",
     # FileVersion constants
     "VERSION_BASE_INTERVAL",
     "CHANGE_TYPE_CREATE",
@@ -177,7 +172,6 @@ __all__ = [
     "WorldView",
     "IngestionJob",
     "ProcessCheckpoint",
-    "EventTimeline",
     # Inspiration model
     "Inspiration",
     # Referral system models
@@ -190,8 +184,6 @@ __all__ = [
     "REFERRAL_STATUS_COMPLETED",
     "REFERRAL_STATUS_REWARDED",
     "REWARD_TYPE_POINTS",
-    "REWARD_TYPE_PRO_TRIAL",
-    "REWARD_TYPE_CREDITS",
     # Subscription models
     "SubscriptionPlan",
     "UserSubscription",

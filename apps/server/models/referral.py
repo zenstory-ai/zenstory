@@ -21,8 +21,6 @@ REFERRAL_STATUS_REWARDED = "REWARDED"      # Rewards distributed
 
 # Reward type constants
 REWARD_TYPE_POINTS = "points"              # Loyalty points
-REWARD_TYPE_PRO_TRIAL = "pro_trial"        # Pro subscription trial
-REWARD_TYPE_CREDITS = "credits"            # AI credits
 
 
 class InviteCode(SQLModel, table=True):

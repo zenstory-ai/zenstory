@@ -81,13 +81,11 @@ class TestChapterExtractionFlow:
 
         summary = FakeTask({"chapter_id": 0, "summary": "ok"})
         plots = FakeTask({"chapter_id": 0, "plots": []})
-        validate = FakeTask({"valid": True})
         save = FakeTask({"saved_count": 0})
         mentions = FakeTask({"chapter_id": 0, "mentions": []})
         monkeypatch.setattr(chapter_mod, "generate_chapter_summary_task", summary)
         monkeypatch.setattr(chapter_mod, "update_chapter_summary_task", FakeTask({}))
         monkeypatch.setattr(chapter_mod, "extract_chapter_plots_task", plots)
-        monkeypatch.setattr(chapter_mod, "validate_plots_task", validate)
         monkeypatch.setattr(chapter_mod, "save_plots_task", save)
         monkeypatch.setattr(chapter_mod, "extract_character_mentions_task", mentions)
 

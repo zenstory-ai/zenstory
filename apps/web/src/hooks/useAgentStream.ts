@@ -13,9 +13,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { produce } from "immer";
-import i18n from "../lib/i18n";
 import { parseWrittenFiles, type RoundWrittenFile, type RoundStopOutcome } from "../lib/chatRoundEnd";
-import { useImmer } from "use-immer";
 import {
   sendSteeringRequest,
   stopAgentRun,
@@ -39,23 +37,6 @@ import type {
   SSEWorkflowStoppedData,
   ToolCall,
 } from "../types";
-
-/** Parallel task state for tracking multi-agent execution */
-interface ParallelTask {
-  id: string;
-  type: string;
-  description: string;
-  status: "pending" | "running" | "completed" | "partial" | "failed";
-  resultPreview?: string;
-  error?: string;
-}
-
-/** Parallel execution state tracking */
-interface ParallelExecutionState {
-  executionId: string;
-  tasks: Map<string, ParallelTask>;
-  startTime: number;
-}
 
 /** A segment of assistant response (thinking, text content, or tool calls) */
 export interface MessageSegment {
@@ -242,12 +223,8 @@ export interface UseAgentStreamOptions {
 export interface UseAgentStreamReturn {
   /** Current stream state */
   state: AgentStreamState;
-  /** All message segments from this stream */
-  segments: MessageSegment[];
   /** Start streaming request */
   startStream: (request: Omit<AgentRequest, "project_id">) => void;
-  /** Cancel ongoing stream (drops the connection; used on unmount / project switch) */
-  cancel: () => void;
   /**
    * Author pressed stop: ask the server to end the run on this stream so it can
    * settle billing as an author stop; falls back to cancel() if that fails.
@@ -271,10 +248,6 @@ export interface UseAgentStreamReturn {
   isStreaming: boolean;
   /** Whether waiting for thinking step */
   isThinking: boolean;
-  /** Current thinking content */
-  thinkingContent: string;
-  /** Current content (cumulative) */
-  content: string;
   /** Detected conflicts */
   conflicts: Conflict[];
   /** Error message if any */
@@ -297,18 +270,11 @@ export const STOP_GRACE_MS = 5000;
 const initialState: AgentStreamState = {
   isStreaming: false,
   isThinking: false,
-  thinkingMessage: "",
-  thinkingContent: "",
   content: "",
   conflicts: [],
-  contextItems: [],
-  contextTokenCount: null,
   error: null,
   errorCode: null,
   retryable: false,
-  applyAction: null,
-  refs: [],
-  toolCalls: [],
 };
 
 // Flush streaming content to React state at most once per interval.
@@ -321,21 +287,17 @@ export function useAgentStream(
   options: UseAgentStreamOptions = {},
 ): UseAgentStreamReturn {
   const [state, setState] = useState<AgentStreamState>(initialState);
-  const [segments, updateSegmentsState] = useImmer<MessageSegment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to track current segments value for onComplete callback (avoids stale closure)
-  // This is updated synchronously alongside state updates using produce()
   const segmentsRef = useRef<MessageSegment[]>([]);
 
-  // Helper to update both state and ref synchronously - ensures ref is always current
   const updateSegmentsSync = useCallback((updater: (draft: MessageSegment[]) => void) => {
     segmentsRef.current = produce(segmentsRef.current, updater);
-    updateSegmentsState(updater);
-  }, [updateSegmentsState]);
+  }, []);
 
   // Track current segment for streaming
   const currentSegmentIdRef = useRef<string | null>(null);
@@ -363,7 +325,6 @@ export function useAgentStream(
   // 这段窗口里若拿上一轮的陈旧 session id 去 /agent/steer，必然 404。
   // 所以 canSteer 与 sendSteeringMessage 一律以本 ref 为准。
   const activeStreamSessionIdRef = useRef<string | null>(null);
-  const parallelStateRef = useRef<ParallelExecutionState | null>(null);
   const streamEpochRef = useRef(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const currentProjectIdRef = useRef(projectId);
@@ -549,7 +510,6 @@ export function useAgentStream(
     sessionIdRef.current = null;
     activeStreamSessionIdRef.current = null;
     setSessionId(null);
-    parallelStateRef.current = null;
     setState((prev) => ({
       ...prev,
       isStreaming: false,
@@ -680,20 +640,6 @@ export function useAgentStream(
     if (allDone && nextPending.length > 0) {
       pendingToolCallsRef.current = [];
     }
-
-    setState((prev) => {
-      let stateUpdated = false;
-      return {
-        ...prev,
-        toolCalls: prev.toolCalls.map((tc) => {
-          if (!stateUpdated && tc.tool_name === toolName && tc.status === "pending") {
-            stateUpdated = true;
-            return { ...tc, status, result, error };
-          }
-          return tc;
-        }),
-      };
-    });
   }, [upsertToolCallsSegment]);
 
   /**
@@ -734,7 +680,6 @@ export function useAgentStream(
     sessionIdRef.current = null;
     activeStreamSessionIdRef.current = null;
     setSessionId(null);
-    parallelStateRef.current = null;
     onCompleteCalledRef.current = false;
   // updateSegmentsSync is stable from useImmer, included to satisfy lint
   }, [clearError, clearFlushTimer, settleStreamClosed, updateSegmentsSync]);
@@ -889,7 +834,6 @@ export function useAgentStream(
         ...initialState,
         isStreaming: true,
         isThinking: true,
-        thinkingMessage: i18n.t('chat:stream.processing'),
       });
       updateSegmentsSync(draft => { draft.length = 0; });
       currentSegmentIdRef.current = null;
@@ -939,7 +883,6 @@ export function useAgentStream(
             setState((prev) => ({
               ...prev,
               isThinking: true,
-              thinkingMessage: message,
             }));
 
             // 调用外部回调
@@ -956,11 +899,6 @@ export function useAgentStream(
           onContext: (items, tokenCount) => {
             if (isStaleEvent()) return;
             onContextOption?.(items, tokenCount);
-            setState((prev) => ({
-              ...prev,
-              contextItems: items,
-              contextTokenCount: tokenCount ?? null,
-            }));
           },
 
           onContentStart: () => {
@@ -1021,11 +959,7 @@ export function useAgentStream(
             
             // Immediately create/update tool calls segment with pending status
             upsertToolCallsSegment([...pendingToolCallsRef.current], false);
-            
-            setState((prev) => ({
-              ...prev,
-              toolCalls: [...prev.toolCalls, toolCall],
-            }));
+
             if (toolUseId) {
               onToolCall?.(toolName, args, toolUseId);
             } else {
@@ -1066,28 +1000,7 @@ export function useAgentStream(
               // Clear pending tool calls for next round
               pendingToolCallsRef.current = [];
             }
-            
-            setState((prev) => {
-              let stateUpdated = false;
-              return {
-                ...prev,
-                toolCalls: prev.toolCalls.map((tc) => {
-                  const idMatched = normalizedToolUseId ? tc.id === normalizedToolUseId : false;
-                  const nameMatched =
-                    !normalizedToolUseId && tc.tool_name === toolName && tc.status === "pending";
-                  if (!stateUpdated && (idMatched || nameMatched) && tc.status === "pending") {
-                    stateUpdated = true;
-                    return {
-                      ...tc,
-                      status: status as "success" | "error",
-                      result,
-                      error,
-                    };
-                  }
-                  return tc;
-                }),
-              };
-            });
+
             if (toolUseId) {
               onToolResult?.(toolName, status, result, error, toolUseId);
             } else {
@@ -1171,7 +1084,6 @@ export function useAgentStream(
             setState((prev) => ({
               ...prev,
               isThinking: true,
-              thinkingMessage: message,
             }));
             onRouterThinking?.(message);
           },
@@ -1241,44 +1153,22 @@ export function useAgentStream(
           onParallelStart: (execution_id, task_count, task_descriptions, dropped_count) => {
             if (isStaleEvent()) return;
             flushPendingContent();
-            parallelStateRef.current = {
-              executionId: execution_id,
-              tasks: new Map(),
-              startTime: Date.now(),
-            };
             onParallelStart?.(execution_id, task_count, task_descriptions, dropped_count);
           },
 
           onParallelTaskStart: (execution_id, task_id, task_type, description) => {
             if (isStaleEvent()) return;
-            if (parallelStateRef.current) {
-              parallelStateRef.current.tasks.set(task_id, {
-                id: task_id,
-                type: task_type,
-                description,
-                status: "running",
-              });
-            }
             onParallelTaskStart?.(execution_id, task_id, task_type, description);
           },
 
           onParallelTaskEnd: (execution_id, task_id, status, result_preview, error) => {
             if (isStaleEvent()) return;
-            if (parallelStateRef.current) {
-              const task = parallelStateRef.current.tasks.get(task_id);
-              if (task) {
-                task.status = status as ParallelTask["status"];
-                task.resultPreview = result_preview;
-                task.error = error;
-              }
-            }
             onParallelTaskEnd?.(execution_id, task_id, status, result_preview, error);
           },
 
           onParallelEnd: (execution_id, total_tasks, completed, failed, duration_ms, partial) => {
             if (isStaleEvent()) return;
             onParallelEnd?.(execution_id, total_tasks, completed, failed, duration_ms, partial);
-            parallelStateRef.current = null;
           },
 
           onSteeringReceived: (message_id, preview) => {
@@ -1329,15 +1219,11 @@ export function useAgentStream(
                 currentSegmentIdRef.current = null;
               }
 
-              setState((prev) => {
-                return {
-                  ...prev,
-                  isStreaming: false,
-                  isThinking: false,
-                  applyAction: applyAction || null,
-                  refs: data.refs || [],
-                };
-              });
+              setState((prev) => ({
+                ...prev,
+                isStreaming: false,
+                isThinking: false,
+              }));
 
               // Get final segments for callback
               // 🔥 防止重复调用 onComplete（在回调内部也要检查，因为 React 可能多次调用此回调）
@@ -1507,17 +1393,13 @@ export function useAgentStream(
 
   return {
     state,
-    segments,
     startStream,
-    cancel,
     stop,
     isStopping: stopRequested && state.isStreaming,
     reset,
     whenStreamClosed,
     isStreaming: state.isStreaming,
     isThinking: state.isThinking,
-    thinkingContent: state.thinkingContent,
-    content: state.content,
     conflicts: state.conflicts,
     error,
     errorCode,

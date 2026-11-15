@@ -177,6 +177,23 @@ describe('api', () => {
         expect((failure as ApiError).message).toBe('ERR_AUTH_EMAIL_NOT_VERIFIED')
         expect((failure as ApiError).details).toEqual({ email: 'pending@example.com' })
       })
+
+      it('does not throw SyntaxError or fabricate ERR_AUTH_INVALID_CREDENTIALS on non-JSON 502 responses', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 502,
+          json: async () => {
+            throw new SyntaxError('Unexpected token < in JSON')
+          },
+        })
+
+        await expect(authApi.login('testuser', 'password123')).rejects.toSatisfy((err: unknown) => (
+          err instanceof ApiError &&
+          err.status === 502 &&
+          err.errorCode !== 'ERR_AUTH_INVALID_CREDENTIALS' &&
+          err.message === 'API error: 502'
+        ))
+      })
     })
 
     describe('resendVerification', () => {
@@ -195,37 +212,6 @@ describe('api', () => {
         expect(failure).toBeInstanceOf(ApiError)
         expect((failure as ApiError).message).toBe('ERR_AUTH_VERIFICATION_COOLDOWN')
         expect((failure as ApiError).details).toEqual({ retry_after_seconds: 42 })
-      })
-    })
-
-    describe('refreshToken', () => {
-      it('refreshes token successfully', async () => {
-        const mockResponse = {
-          access_token: 'new-token',
-          refresh_token: 'new-refresh',
-          user: { id: '1' },
-        }
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: async () => mockResponse,
-        })
-
-        const result = await authApi.refreshToken('old-refresh-token')
-
-        expect(result).toEqual(mockResponse)
-      })
-
-      it('throws ApiError when refresh token is invalid', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 401,
-          json: async () => ({ detail: 'Invalid refresh token' }),
-        })
-
-        await expect(
-          authApi.refreshToken('invalid-token')
-        ).rejects.toThrow('Invalid refresh token')
       })
     })
 
@@ -254,21 +240,22 @@ describe('api', () => {
           authApi.verifyEmail('test@example.com', 'wrong')
         ).rejects.toThrow('Invalid verification code')
       })
-    })
 
-    describe('googleLogin', () => {
-      it('redirects to Google OAuth URL', () => {
-        let href = ''
-        const hrefGetter = vi.spyOn(window.location, 'href', 'get').mockImplementation(() => href)
-        const hrefSetter = vi.spyOn(window.location, 'href', 'set').mockImplementation(value => { href = value })
-        try {
-          authApi.googleLogin()
+      it('does not fabricate ERR_AUTH_INVALID_VERIFICATION_CODE on non-JSON 503 responses', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 503,
+          json: async () => {
+            throw new SyntaxError('Unexpected token < in JSON')
+          },
+        })
 
-          expect(window.location.href).toContain('/api/auth/google')
-        } finally {
-          hrefSetter.mockRestore()
-          hrefGetter.mockRestore()
-        }
+        await expect(authApi.verifyEmail('test@example.com', '123456')).rejects.toSatisfy((err: unknown) => (
+          err instanceof ApiError &&
+          err.status === 503 &&
+          err.errorCode !== 'ERR_AUTH_INVALID_VERIFICATION_CODE' &&
+          err.message === 'API error: 503'
+        ))
       })
     })
   })
@@ -384,41 +371,6 @@ describe('api', () => {
       mockApi.post.mockResolvedValue({ id: 'file-1' })
       await fileApi.create('project-1', { title: '😀'.repeat(255), content: '正文'.repeat(4000) })
       expect(mockApi.post).toHaveBeenCalled()
-    })
-
-    describe('getAll', () => {
-      it('fetches all files for a project', async () => {
-        const mockFiles = [
-          { id: '1', title: 'File 1' },
-          { id: '2', title: 'File 2' },
-        ]
-        mockApi.get.mockResolvedValue(mockFiles)
-
-        const result = await fileApi.getAll('project-1')
-
-        expect(result).toEqual(mockFiles)
-        expect(mockApi.get).toHaveBeenCalledWith('/api/v1/projects/project-1/files')
-      })
-
-      it('filters by file type', async () => {
-        mockApi.get.mockResolvedValue([])
-
-        await fileApi.getAll('project-1', { fileType: 'draft' })
-
-        expect(mockApi.get).toHaveBeenCalledWith(
-          '/api/v1/projects/project-1/files?file_type=draft'
-        )
-      })
-
-      it('filters by parent_id', async () => {
-        mockApi.get.mockResolvedValue([])
-
-        await fileApi.getAll('project-1', { parentId: 'parent-1' })
-
-        expect(mockApi.get).toHaveBeenCalledWith(
-          '/api/v1/projects/project-1/files?parent_id=parent-1'
-        )
-      })
     })
 
     describe('get', () => {
@@ -675,30 +627,6 @@ describe('api', () => {
 
         expect(mockApi.get).toHaveBeenCalledWith(
           '/api/v1/files/f1/versions?limit=10&offset=5&include_auto_save=true'
-        )
-      })
-    })
-
-    describe('createVersion', () => {
-      it('creates new version', async () => {
-        const mockResponse = { id: 'v1', version_number: 2 }
-        mockApi.post.mockResolvedValue(mockResponse)
-
-        const result = await fileVersionApi.createVersion('f1', 'new content', {
-          changeType: 'edit',
-          changeSource: 'user',
-          changeSummary: 'Updated text',
-        })
-
-        expect(result).toEqual(mockResponse)
-        expect(mockApi.post).toHaveBeenCalledWith(
-          '/api/v1/files/f1/versions',
-          expect.objectContaining({
-            content: 'new content',
-            change_type: 'edit',
-            change_source: 'user',
-            change_summary: 'Updated text',
-          })
         )
       })
     })

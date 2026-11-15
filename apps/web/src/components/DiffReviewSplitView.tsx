@@ -9,7 +9,6 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, ChevronUp, Crosshair, RotateCcw, X } from "lucide-react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PendingEdit } from "../types";
 import { cn } from "../lib/utils";
 import { InlineDiffEditor, type InlineDiffEditorHandle } from "./InlineDiffEditor";
@@ -48,7 +47,7 @@ export const DiffReviewSplitView = ({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const diffRef = useRef<InlineDiffEditorHandle>(null);
-  const queueScrollRef = useRef<HTMLDivElement>(null);
+  const cardElementsRef = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const getOpLabel = useCallback((op: PendingEdit["op"]) => {
     switch (op) {
@@ -99,16 +98,14 @@ export const DiffReviewSplitView = ({
     };
   }, [pendingEdits]);
 
+  if (filter === "pending" && counts.pending === 0 && counts.all > 0) {
+    setFilter("all");
+  }
+
   const filteredEdits = useMemo(() => {
     if (filter === "all") return pendingEdits;
     return pendingEdits.filter((edit) => edit.status === filter);
   }, [filter, pendingEdits]);
-
-  useEffect(() => {
-    if (filter === "pending" && counts.pending === 0 && counts.all > 0) {
-      setFilter("all");
-    }
-  }, [counts.all, counts.pending, filter]);
 
   const resolvedActiveEditId = useMemo(() => {
     if (filteredEdits.length === 0) {
@@ -128,24 +125,15 @@ export const DiffReviewSplitView = ({
     return filteredEdits.findIndex((edit) => edit.id === resolvedActiveEditId);
   }, [filteredEdits, resolvedActiveEditId]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const queueVirtualizer = useVirtualizer({
-    count: filteredEdits.length,
-    getScrollElement: () => queueScrollRef.current,
-    estimateSize: () => 260,
-    overscan: 6,
-  });
-
   const getDisplayNumber = useCallback((editId: string) => {
     const index = pendingEdits.findIndex((edit) => edit.id === editId);
     return index >= 0 ? index + 1 : null;
   }, [pendingEdits]);
 
   useEffect(() => {
-    if (activeIndex >= 0) {
-      queueVirtualizer.scrollToIndex(activeIndex, { align: "center" });
-    }
-  }, [activeIndex, queueVirtualizer]);
+    if (!resolvedActiveEditId) return;
+    cardElementsRef.current.get(resolvedActiveEditId)?.scrollIntoView?.({ block: "nearest" });
+  }, [resolvedActiveEditId]);
 
   const locateEdit = useCallback((editId: string) => {
     const edit = pendingEdits.find((candidate) => candidate.id === editId);
@@ -349,19 +337,23 @@ export const DiffReviewSplitView = ({
           </div>
         </div>
 
-        <div ref={queueScrollRef} className="min-h-0 flex-1 overflow-auto px-3 pb-3">
+        <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
           {filteredEdits.length === 0 ? (
             <div className="px-1 py-6 text-center text-xs text-[hsl(var(--text-secondary))]">
               {t("editor:noChangesInFilter")}
             </div>
           ) : (
             <div className="w-full">
-              {filteredEdits.map((edit, index) => {
-                if (!edit) return null;
-
-                return (
+              {filteredEdits.map((edit, index) => (
                   <div
                     key={edit.id}
+                    ref={(node) => {
+                      if (node) {
+                        cardElementsRef.current.set(edit.id, node);
+                      } else {
+                        cardElementsRef.current.delete(edit.id);
+                      }
+                    }}
                     data-index={index}
                     className="pb-5"
                   >
@@ -463,8 +455,7 @@ export const DiffReviewSplitView = ({
                       </div>
                     </div>
                   </div>
-                );
-              })}
+              ))}
             </div>
           )}
         </div>

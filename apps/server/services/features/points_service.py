@@ -11,7 +11,6 @@ Provides methods for:
 """
 import os
 from collections.abc import Iterable
-from contextlib import suppress
 from datetime import date, datetime, timedelta
 from itertools import groupby
 from typing import Any, cast
@@ -73,10 +72,10 @@ def _calculate_balance(transactions: Iterable[PointsTransaction], *, now: dateti
     lots: list[dict] = []
     overspent = 0
 
-    def to_naive(dt):
+    def to_naive(dt: datetime | None) -> datetime | None:
         if dt is None:
             return None
-        return dt.replace(tzinfo=None) if getattr(dt, "tzinfo", None) else dt
+        return dt.replace(tzinfo=None) if dt.tzinfo else dt
 
     for tx in transactions:
         tx_created_at = to_naive(tx.created_at)
@@ -91,7 +90,7 @@ def _calculate_balance(transactions: Iterable[PointsTransaction], *, now: dateti
             )
             continue
 
-        if tx.amount >= 0:
+        if tx.amount == 0:
             continue
 
         amount_to_spend = abs(tx.amount)
@@ -168,16 +167,6 @@ def _calculate_balance(transactions: Iterable[PointsTransaction], *, now: dateti
 
 class PointsService:
     """Service for managing user points and check-ins."""
-
-    POINTS_CONFIG = {
-        "check_in": POINTS_CHECK_IN,
-        "check_in_streak": POINTS_CHECK_IN_STREAK,
-        "referral": POINTS_REFERRAL,
-        "skill_contribution": POINTS_SKILL_CONTRIBUTION,
-        "inspiration_contribution": POINTS_INSPIRATION_CONTRIBUTION,
-        "profile_complete": POINTS_PROFILE_COMPLETE,
-        "pro_7days_cost": POINTS_PRO_7DAYS_COST,
-    }
 
     def _get_check_in_record_for_day(
         self,
@@ -502,8 +491,8 @@ class PointsService:
                 status_code=400,
                 detail={
                     "message": "Already checked in today",
-                    "streak_days": existing.streak_days if existing else 0,
-                    "points_earned": existing.points_earned if existing else 0,
+                    "streak_days": existing.streak_days,
+                    "points_earned": existing.points_earned,
                 },
             ) from None
 
@@ -626,9 +615,8 @@ class PointsService:
                 metadata={"source": "points_redemption", "points_cost": cost},
                 commit=False,
             )
+            new_period_end = subscription.current_period_end.isoformat()
             session.commit()
-            with suppress(Exception):
-                session.refresh(subscription)
         except Exception:
             session.rollback()
             raise
@@ -640,14 +628,14 @@ class PointsService:
             user_id=user_id,
             points_spent=cost,
             pro_days=days,
-            new_period_end=subscription.current_period_end.isoformat(),
+            new_period_end=new_period_end,
         )
 
         return {
             "success": True,
             "points_spent": cost,
             "pro_days": days,
-            "new_period_end": subscription.current_period_end.isoformat(),
+            "new_period_end": new_period_end,
         }
 
     def award_skill_contribution(

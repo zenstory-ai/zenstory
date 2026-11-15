@@ -277,15 +277,12 @@ class FileCRUD:
         # rely on predictable root folder ids (e.g. "{project_id}-draft-folder"),
         # we auto-restore/recreate expected root folders when referenced.
         expected_root_folders: dict[str, dict[str, Any]] = {}
-        try:
-            from config.project_templates import get_folders_for_type
+        from config.project_templates import get_folders_for_type
 
-            for cfg in get_folders_for_type(project.project_type, "zh"):
-                cfg_id = (cfg or {}).get("id")
-                if isinstance(cfg_id, str) and cfg_id:
-                    expected_root_folders[f"{project_id}-{cfg_id}"] = cfg
-        except Exception:
-            expected_root_folders = {}
+        for cfg in get_folders_for_type(project.project_type, "zh"):
+            cfg_id = (cfg or {}).get("id")
+            if isinstance(cfg_id, str) and cfg_id:
+                expected_root_folders[f"{project_id}-{cfg_id}"] = cfg
 
         def _repair_root_folder(folder_id: str) -> File | None:
             cfg = expected_root_folders.get(folder_id)

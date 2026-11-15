@@ -323,20 +323,6 @@ def _mark_job_dispatch_failed(
 
 # ==================== Internal Endpoints ====================
 
-@router.get("/internal/files/{filename}")
-async def download_upload_file(
-    filename: str,
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    Internal endpoint for Prefect worker to download uploaded files.
-
-    Verifies file ownership based on filename format:
-    {user_id}_{timestamp}_{unique_token}_{original_filename}
-    """
-    return _download_material_object(filename, current_user.id)
-
-
 @router.get("/internal/system/files/{filename}")
 async def download_upload_file_for_worker(
     filename: str,

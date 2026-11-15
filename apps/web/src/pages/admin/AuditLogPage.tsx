@@ -65,11 +65,6 @@ const AuditLogCard: React.FC<{
         <span>{t("auditLogs.resourceId")}: </span>
         <span className="font-mono text-[hsl(var(--text-primary))]"><ResourceIdCell log={log} /></span>
       </div>
-      {log.details && (
-        <div className="text-sm text-[hsl(var(--text-secondary))] line-clamp-2">
-          {log.details}
-        </div>
-      )}
       <div className="flex justify-end pt-2 border-t border-[hsl(var(--separator-color))]">
         <button
           onClick={() => onViewDetails(log)}
@@ -180,18 +175,6 @@ const DetailModal: React.FC<{
             <pre className="text-sm text-[hsl(var(--text-primary))] bg-[hsl(var(--bg-secondary))] px-3 py-2 rounded overflow-x-auto whitespace-pre-wrap break-words">
               {JSON.stringify(log.new_value, null, 2)}
             </pre>
-          </div>
-        )}
-
-        {/* Details (fallback) */}
-        {log.details && !log.old_value && !log.new_value && (
-          <div>
-            <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
-              {t("auditLogs.details")}
-            </label>
-            <p className="text-sm text-[hsl(var(--text-primary))] bg-[hsl(var(--bg-secondary))] px-3 py-2 rounded">
-              {log.details}
-            </p>
           </div>
         )}
 
