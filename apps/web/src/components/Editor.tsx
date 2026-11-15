@@ -1362,7 +1362,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
   }, [currentProjectId, triggerFileTreeRefresh, setSelectedItem, t, resolveCreateParentId]);
 
   // Render material preview mode
-  if (materialLib.preview && materialLib.previewEntityInfo) {
+  if (materialLib.previewEntityInfo && (materialLib.isPreviewLoading || materialLib.preview)) {
+    const previewEntityInfo = materialLib.previewEntityInfo;
     return renderWithUpgradeModal(
       <>
         <MaterialPreview
@@ -1370,14 +1371,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
           isLoading={materialLib.isPreviewLoading}
           onAddToProject={() => setImportDialogOpen(true)}
           onAttachToChat={() => {
-            if (materialLib.preview && materialLib.previewEntityInfo) {
+            if (materialLib.preview) {
               addMaterial(
                 `material_${Date.now()}`,
                 materialLib.preview.title,
                 {
-                  novelId: materialLib.previewEntityInfo.novelId,
-                  entityType: materialLib.previewEntityInfo.entityType,
-                  entityId: materialLib.previewEntityInfo.entityId,
+                  novelId: previewEntityInfo.novelId,
+                  entityType: previewEntityInfo.entityType,
+                  entityId: previewEntityInfo.entityId,
                 }
               );
             }
@@ -1385,14 +1386,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
           }}
           onBack={() => materialLib.clearPreview()}
         />
-        {importDialogOpen && (
+        {importDialogOpen && materialLib.preview && (
           <ImportMaterialDialog
             isOpen={importDialogOpen}
             onClose={() => setImportDialogOpen(false)}
             preview={materialLib.preview}
-            novelId={materialLib.previewEntityInfo.novelId}
-            entityType={materialLib.previewEntityInfo.entityType}
-            entityId={materialLib.previewEntityInfo.entityId}
+            novelId={previewEntityInfo.novelId}
+            entityType={previewEntityInfo.entityType}
+            entityId={previewEntityInfo.entityId}
             onSuccess={() => {
               setImportDialogOpen(false);
               materialLib.clearPreview();

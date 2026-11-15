@@ -46,7 +46,7 @@ export default function SkillReviewPage() {
         setLoading(true);
       }
       const data = await adminApi.getPendingSkills(statusFilter);
-      if (isCurrent()) setSkills(Array.isArray(data) ? data : []);
+      if (isCurrent()) setSkills(data);
     } catch (error) {
       if (!isCurrent()) return;
       logger.error("Failed to load pending skills:", error);

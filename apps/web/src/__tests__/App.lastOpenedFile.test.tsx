@@ -80,9 +80,6 @@ vi.mock("../contexts/ProjectContext", () => ({
     setSelectedItem: state.project.setSelectedItem,
   }),
 }));
-vi.mock("../lib/onboardingPersona", () => ({
-  shouldRequirePersonaOnboarding: () => false,
-}));
 vi.mock("../lib/onboardingPersonaApi", async () => {
   const actual = await vi.importActual<typeof import("../lib/onboardingPersonaApi")>("../lib/onboardingPersonaApi");
   return {

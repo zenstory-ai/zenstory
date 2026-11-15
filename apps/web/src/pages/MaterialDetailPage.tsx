@@ -26,6 +26,7 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Download,
 } from "../components/icons";
 import { materialsApi } from "../lib/materialsApi";
 import { ApiError } from "../lib/apiClient";
@@ -180,6 +181,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   });
   const queryClient = useQueryClient();
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   // Retrying charges a monthly breakdown: a free-trial author can only get 402.
   const { data: subscriptionStatus } = useQuery({
     queryKey: subscriptionQueryKeys.status(),
@@ -209,6 +211,23 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       toast.error(handleApiError(err));
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!novelId || !material) return;
+    setIsExporting(true);
+    try {
+      await materialsApi.exportBreakdown(novelId, material.title);
+      toast.success(
+        t("materials:export.success", {
+          defaultValue: "拆解结果已导出为 TXT 文件",
+        }),
+      );
+    } catch (err) {
+      toast.error(handleApiError(err));
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -699,14 +718,27 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               </p>
             </div>
           </div>
-          {!(isMobile && showMobileContent) && (
-            <DashboardSearchBar
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder={t("materials:detail.searchPlaceholder")}
-              className={isMobile ? "w-full" : "w-56 shrink-0 lg:w-64"}
-            />
-          )}
+          <div className={`flex items-center gap-2 ${isMobile ? "w-full" : "shrink-0"}`}>
+            {!(isMobile && showMobileContent) && (
+              <DashboardSearchBar
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder={t("materials:detail.searchPlaceholder")}
+                className={isMobile ? "min-w-0 flex-1" : "w-56 shrink-0 lg:w-64"}
+              />
+            )}
+            <Button
+              variant="secondary"
+              size={isMobile ? "touch" : "md"}
+              onClick={() => void handleExport()}
+              isLoading={isExporting}
+              disabled={isActiveMaterialStatus(material.status)}
+              leftIcon={<Download className="h-4 w-4" />}
+              className={isMobile && showMobileContent ? "w-full" : "shrink-0"}
+            >
+              {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -1073,15 +1105,6 @@ function ContentDetail({ item }: ContentDetailProps) {
 
   if (item.type === "story") {
     const story = item.data as MaterialStory;
-    const parseThemes = (themes: string | null | undefined): string[] => {
-      if (!themes) return [];
-      try {
-        const parsed = JSON.parse(themes);
-        return Array.isArray(parsed) ? parsed : [themes];
-      } catch {
-        return themes.split(',').map(theme => theme.trim()).filter(Boolean);
-      }
-    };
     const themes = parseThemes(story.themes);
     return (
       <article className="material-detail material-analysis" aria-labelledby={titleId}>

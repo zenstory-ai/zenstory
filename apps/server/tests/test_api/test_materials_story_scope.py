@@ -13,7 +13,6 @@ from httpx import AsyncClient
 
 from agent.context.assembler import ContextAssembler
 from models.material_models import Chapter, Novel, Plot, Story, StoryLine
-from services.material.stats_service import StatsService
 from services.material.stories_service import StoriesService
 from tests.test_api.test_materials import (
     create_test_job,
@@ -105,8 +104,6 @@ async def test_stories_visible_without_storyline(client: AsyncClient, db_session
     )
     assert preview.status_code == 200
     assert "Moonlit Betrayal" in preview.json()["markdown"]
-
-    assert StatsService().get_novel_stats(db_session, novel.id)["story_count"] == 1
 
     items = ContextAssembler()._get_attached_library_materials(
         db_session, user.id, [{"novel_id": novel.id, "entity_type": "stories", "entity_id": story.id}]

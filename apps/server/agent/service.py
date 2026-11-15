@@ -1066,7 +1066,7 @@ class AgentService:
                 # 按本轮已解析（并将写回）的会话 id 读历史与工作集
                 chat_session_id=session_id if user_id else None,
             )
-            loaded_session_id = getattr(session_data, "session_id", None)
+            loaded_session_id = session_data.session_id
             if user_id and loaded_session_id and loaded_session_id != session_id:
                 log_with_context(
                     logger,
@@ -1094,14 +1094,22 @@ class AgentService:
             )
 
             # 稳定资料放在历史之前以便缓存，章节、工作集和其它本轮资料放在历史之后。
+            context_blocks = (
+                list(context_data.blocks)
+                if context_data and context_data.blocks
+                else (
+                    [{"key": "context", "text": context_data.context, "placement": "turn"}]
+                    if context_data and context_data.context
+                    else []
+                )
+            )
             context_plan = await asyncio.to_thread(
                 plan_turn_context,
                 session_id=session_id,
                 project_id=project_id,
                 language=lang,
                 # 未分块的兜底内容仍随本轮发送。
-                context_blocks=list(getattr(context_data, "blocks", None) or [])
-                or ([{"key": "context", "text": context_data.context, "placement": "turn"}] if context_data.context else []),
+                context_blocks=context_blocks,
             )
 
             prompt_kwargs: dict[str, Any] = {
@@ -1175,12 +1183,10 @@ class AgentService:
 
             # 跨轮工作集（上两轮读/写过的文件的当前全文）拼在本轮用户消息之前：
             # 系统提示与历史保持不变，前缀缓存可以一直命中到上一轮。
-            working_set_context = getattr(session_data, "working_set_context", "")
-            if not isinstance(working_set_context, str):
-                working_set_context = ""
+            working_set_context = session_data.working_set_context
             # 作者在 AI 写过之后亲手改了什么（agent/tools/author_changes.py），和工作集放在一起。
-            author_edits_context = getattr(session_data, "author_edits_context", "")
-            if isinstance(author_edits_context, str) and author_edits_context:
+            author_edits_context = session_data.author_edits_context
+            if author_edits_context:
                 working_set_context = (
                     f"{working_set_context}\n\n{author_edits_context}" if working_set_context else author_edits_context
                 )
@@ -1288,7 +1294,7 @@ class AgentService:
                 referenced_file_ids=referenced_file_ids,
                 author_edit_refusals=author_edit_refusals,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
-                read_snapshots=getattr(session_data, "read_snapshots", None),
+                read_snapshots=session_data.read_snapshots,
             )
 
             # Build WritingState for workflow execution

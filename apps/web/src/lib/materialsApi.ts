@@ -13,7 +13,42 @@
  */
 
 import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { parseContentDispositionFilename } from "./contentDisposition";
 import { resolveApiErrorMessage } from "./errorHandler";
+import { getLocale } from "./i18n-helpers";
+
+// eslint-disable-next-line no-control-regex
+const UNSAFE_EXPORT_FILENAME_CHARS = /[\\/:*?"<>|\u0000-\u001f]/g;
+
+function fallbackMaterialExportFilename(title: string | undefined, locale: "zh" | "en"): string {
+  const cleaned = (title ?? "")
+    .replace(UNSAFE_EXPORT_FILENAME_CHARS, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "");
+  const stem = cleaned || (locale === "en" ? "material" : "素材");
+  return `${stem}_${locale === "en" ? "breakdown" : "拆解"}.txt`;
+}
+
+async function fetchWithOwnedSessionRetry(
+  fetchOnce: (accessToken: string | null) => Promise<Response>,
+): Promise<Response> {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem("refresh_token");
+  let response = await fetchOnce(entryAccess);
+  if (response.status === 401 && entryAccess && entryRefresh) {
+    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+    if (ownedSession?.accessToken && ownedSession.refreshToken) {
+      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+        const refreshed = await tryRefreshToken();
+        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+      }
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        response = await fetchOnce(ownedSession.accessToken);
+      }
+    }
+  }
+  return response;
+}
 
 // ==================== Type Definitions ====================
 
@@ -537,8 +572,6 @@ export const materialsApi = {
    * @throws ApiError if upload fails or file format is unsupported
    */
   upload: async (file: globalThis.File, title?: string): Promise<MaterialUploadResponse> => {
-    const entryAccess = getAccessToken();
-    const entryRefresh = localStorage.getItem("refresh_token");
     const formData = new FormData();
     formData.append("file", file);
 
@@ -548,25 +581,13 @@ export const materialsApi = {
     }
     const uploadUrl = `${getApiBase()}/api/v1/materials/upload${query.toString() ? `?${query.toString()}` : ""}`;
 
-    const fetchOnce = (accessToken: string | null): Promise<Response> => fetch(uploadUrl, {
-      method: "POST",
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-      body: formData,
-    });
-
-    let response = await fetchOnce(entryAccess);
-    if (response.status === 401 && entryAccess && entryRefresh) {
-      let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
-      if (ownedSession?.accessToken && ownedSession.refreshToken) {
-        if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-          const refreshed = await tryRefreshToken();
-          ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        }
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          response = await fetchOnce(ownedSession.accessToken);
-        }
-      }
-    }
+    const response = await fetchWithOwnedSessionRetry((accessToken) =>
+      fetch(uploadUrl, {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: formData,
+      }),
+    );
 
     if (!response.ok) {
       let errorData: unknown = null;
@@ -586,6 +607,49 @@ export const materialsApi = {
     }
 
     return response.json();
+  },
+
+  /**
+   * Export all extracted breakdown content for a material as a UTF-8 TXT download.
+   */
+  exportBreakdown: async (novelId: string, fallbackTitle?: string): Promise<{ filename: string }> => {
+    const locale = getLocale();
+    const exportUrl = `${getApiBase()}/api/v1/materials/${encodeURIComponent(novelId)}/export`;
+    const response = await fetchWithOwnedSessionRetry((accessToken) =>
+      fetch(exportUrl, {
+        method: "GET",
+        headers: {
+          "Accept-Language": locale,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      }),
+    );
+
+    if (!response.ok) {
+      let errorData: unknown = null;
+      try {
+        errorData = await response.json();
+      } catch {
+        // Non-JSON proxy/gateway response falls through to apiErrorFromPayload status default.
+      }
+      throw apiErrorFromPayload(response.status, errorData);
+    }
+
+    const filename =
+      parseContentDispositionFilename(response.headers.get("Content-Disposition")) ??
+      fallbackMaterialExportFilename(fallbackTitle, locale);
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
+
+    return { filename };
   },
 
   /**

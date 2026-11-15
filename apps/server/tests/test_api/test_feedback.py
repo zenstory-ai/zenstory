@@ -32,7 +32,6 @@ async def test_s3_feedback_does_not_create_unwritable_legacy_root(monkeypatch):
             return StoredObject(
                 f"s3://test-bucket/feedback/{object_name}",
                 len(content),
-                "0" * 64,
             )
 
         def close(self):

@@ -47,8 +47,8 @@ from .infra.email_client import (
 
 # Infrastructure services (from infra/)
 from .infra.redis_client import (
-    check_resend_cooldown,
     delete_verification_code,
+    get_resend_cooldown_ttl,
     get_verification_attempts,
     get_verification_code,
     increment_verification_attempts,
@@ -92,7 +92,7 @@ __all__ = [
     "store_verification_code",
     "get_verification_code",
     "delete_verification_code",
-    "check_resend_cooldown",
+    "get_resend_cooldown_ttl",
     "set_resend_cooldown",
     "get_verification_attempts",
     "increment_verification_attempts",

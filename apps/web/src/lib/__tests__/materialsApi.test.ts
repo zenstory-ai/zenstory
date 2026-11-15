@@ -316,6 +316,110 @@ describe('materialsApi', () => {
     })
   })
 
+  describe('exportBreakdown', () => {
+    it('downloads breakdown TXT using server Content-Disposition filename and Accept-Language', async () => {
+      localStorage.setItem('zenstory-language', 'en')
+      const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:material-export')
+      const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+      const appendSpy = vi.spyOn(document.body, 'appendChild')
+
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          'Content-Disposition': "attachment; filename*=UTF-8''Star%20Blade_breakdown.txt",
+        }),
+        blob: async () => new Blob(['# Star Blade'], { type: 'text/plain;charset=utf-8' }),
+      } as Response)
+
+      const result = await materialsApi.exportBreakdown('novel-1', 'Fallback Title')
+
+      expect(result).toEqual({ filename: 'Star Blade_breakdown.txt' })
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:8000/api/v1/materials/novel-1/export',
+        expect.objectContaining({
+          method: 'GET',
+          headers: {
+            'Accept-Language': 'en',
+            Authorization: 'Bearer test-token',
+          },
+        }),
+      )
+      expect(createObjectURLSpy).toHaveBeenCalledOnce()
+      const anchor = appendSpy.mock.calls.find(([node]) => node instanceof HTMLAnchorElement)?.[0] as HTMLAnchorElement
+      expect(anchor?.download).toBe('Star Blade_breakdown.txt')
+      expect(clickSpy).toHaveBeenCalledOnce()
+      expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:material-export')
+      localStorage.removeItem('zenstory-language')
+    })
+
+    it('falls back to sanitized title when Content-Disposition is absent and retries once on 401', async () => {
+      const { tryRefreshToken } = await import('../apiClient')
+      const mockTryRefreshToken = tryRefreshToken as ReturnType<typeof vi.fn>
+      vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fallback-export')
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+      mockTryRefreshToken.mockImplementation(async () => {
+        localStorage.setItem('access_token', 'rotated-export-token')
+        localStorage.setItem('refresh_token', 'rotated-export-refresh')
+        return true
+      })
+
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          headers: new Headers(),
+          json: async () => ({ error_code: 'ERR_AUTH_TOKEN_EXPIRED' }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          blob: async () => new Blob(['# 九天斩神诀'], { type: 'text/plain;charset=utf-8' }),
+        } as Response)
+
+      const result = await materialsApi.exportBreakdown('novel-9', '九天/斩神诀: 卷一')
+
+      expect(result).toEqual({ filename: '九天 斩神诀 卷一_拆解.txt' })
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+    })
+
+    it('throws structured ApiError without downloading on 404 or non-JSON 502', async () => {
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        headers: new Headers(),
+        json: async () => ({ error_code: 'ERR_MATERIAL_EXPORT_EMPTY' }),
+      } as Response)
+
+      await expect(materialsApi.exportBreakdown('novel-1')).rejects.toMatchObject({
+        status: 404,
+        rawMessage: 'ERR_MATERIAL_EXPORT_EMPTY',
+        errorCode: 'ERR_MATERIAL_EXPORT_EMPTY',
+      })
+
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        headers: new Headers(),
+        json: async () => {
+          throw new SyntaxError('Unexpected token <')
+        },
+      } as Response)
+
+      await expect(materialsApi.exportBreakdown('novel-1')).rejects.toMatchObject({
+        status: 502,
+        rawMessage: 'API error: 502',
+      })
+      expect(clickSpy).not.toHaveBeenCalled()
+    })
+  })
+
   describe('getTree', () => {
     it('returns material tree structure', async () => {
       const mockTree: MaterialTreeNode[] = [

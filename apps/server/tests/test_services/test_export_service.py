@@ -14,8 +14,6 @@ from sqlmodel import Session
 
 from models import File, Project, User
 from services.features.export_service import (
-    _extract_chapter_number,
-    _parse_chinese_number,
     export_drafts_to_txt,
     get_sorted_drafts,
 )
@@ -71,83 +69,6 @@ def create_draft_file(db_session: Session, test_project, test_user):
         return draft
 
     return _create
-
-
-@pytest.mark.unit
-class TestParseChineseNumber:
-    """Tests for _parse_chinese_number helper function."""
-
-    def test_parse_simple_chinese_numbers(self):
-        """Test parsing simple Chinese numbers (1-10)."""
-        assert _parse_chinese_number("一") == 1
-        assert _parse_chinese_number("二") == 2
-        assert _parse_chinese_number("三") == 3
-        assert _parse_chinese_number("四") == 4
-        assert _parse_chinese_number("五") == 5
-        assert _parse_chinese_number("六") == 6
-        assert _parse_chinese_number("七") == 7
-        assert _parse_chinese_number("八") == 8
-        assert _parse_chinese_number("九") == 9
-        assert _parse_chinese_number("十") == 10
-
-    def test_parse_complex_chinese_numbers(self):
-        """Test parsing complex Chinese numbers."""
-        assert _parse_chinese_number("十一") == 11
-        assert _parse_chinese_number("十二") == 12
-        assert _parse_chinese_number("二十") == 20
-        assert _parse_chinese_number("二十一") == 21
-        assert _parse_chinese_number("三十") == 30
-        assert _parse_chinese_number("一百") == 100
-        assert _parse_chinese_number("一百零一") == 101
-        assert _parse_chinese_number("一百二十三") == 123
-
-    def test_parse_empty_string(self):
-        """Test parsing empty string returns 0."""
-        assert _parse_chinese_number("") == 0
-        assert _parse_chinese_number(None) == 0
-
-
-@pytest.mark.unit
-class TestExtractChapterNumber:
-    """Tests for _extract_chapter_number helper function."""
-
-    def test_extract_chinese_chapter_number(self):
-        """Test extracting chapter number from Chinese chapter titles."""
-        assert _extract_chapter_number("第一章 开始") == 1
-        assert _extract_chapter_number("第二章 冲突") == 2
-        assert _extract_chapter_number("第三章 高潮") == 3
-        assert _extract_chapter_number("第十章 结局") == 10
-        assert _extract_chapter_number("第十一章") == 11
-        assert _extract_chapter_number("第二十章") == 20
-
-    def test_extract_arabic_chapter_number(self):
-        """Test extracting chapter number from Arabic chapter titles."""
-        assert _extract_chapter_number("第1章 开始") == 1
-        assert _extract_chapter_number("第2章 冲突") == 2
-        assert _extract_chapter_number("第3章 高潮") == 3
-        assert _extract_chapter_number("第10章 结局") == 10
-        assert _extract_chapter_number("第11章") == 11
-        assert _extract_chapter_number("第20章") == 20
-
-    def test_extract_plain_number(self):
-        """Test extracting plain number from start of title."""
-        assert _extract_chapter_number("1. 开始") == 1
-        assert _extract_chapter_number("2. 冲突") == 2
-        assert _extract_chapter_number("3 高潮") == 3
-        assert _extract_chapter_number("10 结局") == 10
-
-    def test_extract_no_number_returns_default(self):
-        """Test that titles without numbers return large default (999999)."""
-        assert _extract_chapter_number("序章") == 999999
-        assert _extract_chapter_number("序言") == 999999
-        assert _extract_chapter_number("尾声") == 999999
-        assert _extract_chapter_number("楔子") == 999999
-        assert _extract_chapter_number("无名章节") == 999999
-
-    def test_extract_empty_title(self):
-        """Test extracting from empty title returns default."""
-        assert _extract_chapter_number("") == 999999
-        assert _extract_chapter_number(None) == 999999
 
 
 @pytest.mark.unit

@@ -650,49 +650,6 @@ class PointsService:
             "new_period_end": subscription.current_period_end.isoformat(),
         }
 
-    def expire_stale_points(self, session: Session) -> int:
-        """
-        Batch job to mark expired points.
-
-        Finds all non-expired transactions past their expiration date
-        and marks them as expired.
-
-        Args:
-            session: Database session
-
-        Returns:
-            Number of transactions marked as expired
-        """
-        now = utcnow()
-
-        # Find expired but not yet marked transactions
-        expired_transactions = session.exec(
-            select(PointsTransaction)
-            .where(PointsTransaction.is_expired == False)
-            .where(PointsTransaction.expires_at.is_not(None))
-            .where(PointsTransaction.expires_at <= now)
-            .where(PointsTransaction.amount > 0)
-        ).all()
-
-        count = 0
-        for tx in expired_transactions:
-            tx.is_expired = True
-            tx.expired_at = now
-            session.add(tx)
-            count += 1
-
-        if count > 0:
-            session.commit()
-
-        log_with_context(
-            logger,
-            20,  # INFO
-            "Expired stale points",
-            count=count,
-        )
-
-        return count
-
     def award_skill_contribution(
         self,
         session: Session,

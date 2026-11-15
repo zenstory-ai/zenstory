@@ -11,8 +11,11 @@ Handles library list, detail, status, tree, summary, and delete operations:
 """
 import contextlib
 import json
+from typing import Annotated
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
+from fastapi.responses import Response
 from services.auth import get_current_active_user
 from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, func, select
@@ -26,7 +29,6 @@ from models.material_models import (
     Chapter,
     Character,
     CharacterRelationship,
-    EventTimeline,
     GoldenFinger,
     IngestionJob,
     Novel,
@@ -35,12 +37,16 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
+from services.material.export_service import (
+    build_material_export_filename,
+    export_material_breakdown_to_txt,
+)
 from services.material.ingestion_jobs_service import IngestionJobsService
 from services.material.job_errors import public_job_error
 from services.material.stories_service import story_in_novel
 from utils.logger import get_logger
 
-from .helpers import _get_novel_or_404
+from .helpers import _get_novel_or_404, _resolve_lang
 from .schemas import (
     JobStatusResponse,
     MaterialDetailResponse,
@@ -286,10 +292,6 @@ def get_material_summary(
             .where(WorldView.novel_id == novel_id)
             .scalar_subquery()
             .label("worldview_count"),
-            select(func.count(EventTimeline.id))
-            .where(EventTimeline.novel_id == novel_id)
-            .scalar_subquery()
-            .label("timeline_count"),
         )
     ).one()
 
@@ -302,7 +304,6 @@ def get_material_summary(
         "relationships_count": int(summary_row.relationships_count or 0),
         "goldenfingers_count": int(summary_row.goldenfingers_count or 0),
         "has_worldview": int(summary_row.worldview_count or 0) > 0,
-        "timeline_count": int(summary_row.timeline_count or 0),
     }
 
 
@@ -406,6 +407,32 @@ def get_material_tree(
     return {
         "tree": tree_items,
     }
+
+
+# ==================== Export Endpoints ====================
+
+@router.get("/{novel_id}/export")
+def export_material_breakdown(
+    novel_id: int,
+    accept_language: Annotated[str | None, Header()] = None,
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session),
+):
+    """Export all extracted breakdown content for a material as a UTF-8 TXT download."""
+    novel = _get_novel_or_404(session, novel_id, current_user.id)
+    lang = _resolve_lang(accept_language)
+    content = export_material_breakdown_to_txt(session, novel, lang=lang)
+    if not content:
+        raise APIException(error_code=ErrorCode.MATERIAL_EXPORT_EMPTY, status_code=404)
+
+    filename = build_material_export_filename(novel.title, lang=lang)
+    return Response(
+        content="\ufeff" + content,
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+        },
+    )
 
 
 # ==================== Delete Endpoints ====================

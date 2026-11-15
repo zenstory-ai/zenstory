@@ -89,8 +89,6 @@ function isUpgradeFunnelPayload(value: unknown): value is UpgradeFunnelPayload {
 }
 
 function readPendingEvents(): UpgradeFunnelPayload[] {
-  if (typeof window === "undefined") return [];
-
   try {
     const raw = localStorage.getItem(PENDING_STORAGE_KEY);
     if (!raw) return [];
@@ -103,8 +101,6 @@ function readPendingEvents(): UpgradeFunnelPayload[] {
 }
 
 function writePendingEvents(events: UpgradeFunnelPayload[]): void {
-  if (typeof window === "undefined") return;
-
   try {
     localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(events.slice(-MAX_PENDING_EVENTS)));
   } catch {
@@ -126,13 +122,13 @@ function persistPendingQueue(): void {
 }
 
 function clearRetryTimer(): void {
-  if (retryTimer === null || typeof window === "undefined") return;
+  if (retryTimer === null) return;
   window.clearTimeout(retryTimer);
   retryTimer = null;
 }
 
 function scheduleRetryFlush(): void {
-  if (typeof window === "undefined" || retryTimer !== null) return;
+  if (retryTimer !== null) return;
 
   retryTimer = window.setTimeout(() => {
     retryTimer = null;
@@ -150,7 +146,7 @@ function enqueuePendingEvent(payload: UpgradeFunnelPayload): void {
 }
 
 function ensureFlushHooks(): void {
-  if (typeof window === "undefined" || flushHooksBound) return;
+  if (flushHooksBound) return;
   flushHooksBound = true;
 
   document.addEventListener("visibilitychange", () => {
@@ -203,32 +199,30 @@ export function trackUpgradeFunnelEvent({
     occurred_at: new Date().toISOString(),
   };
 
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent<UpgradeFunnelPayload>(UPGRADE_FUNNEL_EVENT, {
-        detail: payload,
-      })
-    );
+  window.dispatchEvent(
+    new CustomEvent<UpgradeFunnelPayload>(UPGRADE_FUNNEL_EVENT, {
+      detail: payload,
+    })
+  );
 
-    try {
-      window.__zenstoryTrackEvent?.(payload.event_name, payload);
-    } catch (error) {
-      logger.warn("[upgrade-funnel] failed to call external tracker", error);
-    }
-
-    trackEvent(payload.event_name, {
-      ...payload.meta,
-      action: payload.action,
-      source: payload.source,
-      surface: payload.surface,
-      cta: payload.cta,
-      destination: payload.destination,
-    });
-
-    ensureFlushHooks();
-    enqueuePendingEvent(payload);
-    void flushPendingUpgradeFunnelEvents();
+  try {
+    window.__zenstoryTrackEvent?.(payload.event_name, payload);
+  } catch (error) {
+    logger.warn("[upgrade-funnel] failed to call external tracker", error);
   }
+
+  trackEvent(payload.event_name, {
+    ...payload.meta,
+    action: payload.action,
+    source: payload.source,
+    surface: payload.surface,
+    cta: payload.cta,
+    destination: payload.destination,
+  });
+
+  ensureFlushHooks();
+  enqueuePendingEvent(payload);
+  void flushPendingUpgradeFunnelEvents();
 }
 
 async function sendUpgradeFunnelToBackend(
@@ -293,8 +287,6 @@ async function sendUpgradeFunnelToBackend(
 }
 
 async function flushPendingUpgradeFunnelEvents(options: { keepalive?: boolean } = {}): Promise<void> {
-  if (typeof window === "undefined") return;
-
   hydratePendingQueue();
   if (isFlushing || pendingQueue.length === 0) return;
 
@@ -338,7 +330,6 @@ export function clearPendingUpgradeFunnelEvents(): void {
   pendingQueue.length = 0;
   pendingHydrated = true;
   rejectedAccessToken = null;
-  if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(PENDING_STORAGE_KEY);
   } catch {
@@ -383,12 +374,10 @@ export function trackUpgradeConversion(
   });
 }
 
-if (typeof window !== "undefined") {
-  hydratePendingQueue();
-  if (pendingQueue.length > 0) {
-    ensureFlushHooks();
-    window.setTimeout(() => {
-      void flushPendingUpgradeFunnelEvents();
-    }, 0);
-  }
+hydratePendingQueue();
+if (pendingQueue.length > 0) {
+  ensureFlushHooks();
+  window.setTimeout(() => {
+    void flushPendingUpgradeFunnelEvents();
+  }, 0);
 }

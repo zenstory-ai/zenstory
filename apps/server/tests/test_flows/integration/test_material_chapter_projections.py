@@ -227,7 +227,6 @@ def workflow_boundary(store, monkeypatch):
         "ENABLE_STORY_AGGREGATION": False,
         "ENABLE_STORYLINE_GENERATION": False,
         "ENABLE_RELATIONSHIP_EXTRACTION": False,
-        "ENABLE_NEO4J_STORAGE": False,
     }
     monkeypatch.setattr(story_module, "settings", story_module.settings.model_copy(update=flags))
     return captures

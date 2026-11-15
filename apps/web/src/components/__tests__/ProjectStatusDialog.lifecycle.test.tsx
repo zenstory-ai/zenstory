@@ -371,7 +371,8 @@ for (const strict of [false, true]) {
       await waitFor(() => expect(reads('B')).toHaveLength(1))
       await finish(reads('B'), { detail: 'Current B load rejected' }, 503)
       observe('B-load-failed-after-dirty-A', strict)
-      expect.soft(fields()).toEqual({ summary: '', style: '', phase: '', notes: '' })
+      expect.soft(screen.queryAllByRole('textbox')).toHaveLength(0)
+      expect.soft(screen.getByRole('alert')).toHaveTextContent("Couldn't load project details. Please try again.")
       const save = screen.getByRole('button', { name: 'Save' })
       expect.soft(save).toBeDisabled()
       await click(user, save) // Ordinary click: stale A form is actionable on old source.
@@ -507,7 +508,8 @@ for (const strict of [false, true]) {
       await mount(strict)
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
       await finish(reads('A'), { detail: 'Offline load rejected' }, 503)
-      await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(4))
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load project details. Please try again."))
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0)
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
       expect(toasts).toHaveLength(0) // Current load failures log without inventing a toast.
       const start = reads('A').length

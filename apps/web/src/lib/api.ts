@@ -53,6 +53,54 @@ function shouldTrackFileSaved(fileId: string, now: number = Date.now()): boolean
 }
 
 /**
+ * Authenticated raw fetch for non-JSON-body endpoints (multipart uploads, binary downloads).
+ * Retries once after a token refresh on 401 while preserving session ownership.
+ */
+async function fetchWithSessionRetry(
+  endpoint: string,
+  init: RequestInit = {},
+  extraHeaders?: Record<string, string>,
+): Promise<Response> {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem("refresh_token");
+  const fetchOnce = async (accessToken: string | null): Promise<Response> => {
+    const mergedHeaders: Record<string, string> = {
+      ...(extraHeaders ?? {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    };
+    return fetch(`${getApiBase()}${endpoint}`, {
+      ...init,
+      headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
+    });
+  };
+
+  let response = await fetchOnce(entryAccess);
+  if (response.status === 401 && entryAccess && entryRefresh) {
+    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+    if (ownedSession?.accessToken && ownedSession.refreshToken) {
+      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+        const refreshed = await tryRefreshToken();
+        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+      }
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        response = await fetchOnce(ownedSession.accessToken);
+      }
+    }
+  }
+  return response;
+}
+
+async function readFailedResponseError(response: Response): Promise<ApiError> {
+  let errorData: unknown = null;
+  try {
+    errorData = await response.json();
+  } catch {
+    // Non-JSON gateway or proxy error body; fall back to status-based ApiError
+  }
+  return apiErrorFromPayload(response.status, errorData);
+}
+
+/**
  * Authentication API endpoints.
  *
  * Handles user registration, login, OAuth flows, and email verification.
@@ -328,48 +376,13 @@ export const exportApi = {
    * ```
    */
   exportDrafts: async (projectId: string): Promise<DraftExportResult> => {
-    const entryAccess = getAccessToken();
-    const entryRefresh = localStorage.getItem("refresh_token");
-    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
-      const response = await fetch(
-        `${getApiBase()}/api/v1/projects/${projectId}/export/drafts`,
-        {
-          method: "GET",
-          headers: accessToken
-            ? { Authorization: `Bearer ${accessToken}` }
-            : undefined,
-        }
-      );
-
-      // Handle 401 - try to refresh token and retry once
-      if (response.status === 401 && !isRetry) {
-        let ownedSession = entryAccess && entryRefresh
-          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-            const refreshed = await tryRefreshToken();
-            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-          }
-          if (ownedSession?.accessToken && ownedSession.refreshToken) {
-            return doFetch(ownedSession.accessToken, true);
-          }
-        }
-      }
-
-      return response;
-    };
-
-    const response = await doFetch();
+    const response = await fetchWithSessionRetry(
+      `/api/v1/projects/${projectId}/export/drafts`,
+      { method: "GET" },
+    );
 
     if (!response.ok) {
-      let errorMessage = "ERR_EXPORT_NO_DRAFTS";
-      try {
-        const errorData = await response.json();
-        errorMessage = resolveApiErrorMessage(errorData, errorMessage);
-      } catch {
-        // Could not parse error response
-      }
-      throw new ApiError(response.status, errorMessage);
+      throw await readFailedResponseError(response);
     }
 
     // Extract filename from Content-Disposition header
@@ -999,49 +1012,13 @@ export const fileApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const entryAccess = getAccessToken();
-    const entryRefresh = localStorage.getItem("refresh_token");
-    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
-      const response = await fetch(
-        `${getApiBase()}/api/v1/projects/${projectId}/files/upload`,
-        {
-          method: "POST",
-          headers: accessToken
-            ? { Authorization: `Bearer ${accessToken}` }
-            : undefined,
-          body: formData,
-        }
-      );
-
-      // Handle 401 - try to refresh token and retry once
-      if (response.status === 401 && !isRetry) {
-        let ownedSession = entryAccess && entryRefresh
-          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-            const refreshed = await tryRefreshToken();
-            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-          }
-          if (ownedSession?.accessToken && ownedSession.refreshToken) {
-            return doFetch(ownedSession.accessToken, true);
-          }
-        }
-      }
-
-      return response;
-    };
-
-    const response = await doFetch();
+    const response = await fetchWithSessionRetry(
+      `/api/v1/projects/${projectId}/files/upload`,
+      { method: "POST", body: formData },
+    );
 
     if (!response.ok) {
-      let errorMessage = "ERR_FILE_TYPE_INVALID";
-      try {
-        const errorData = await response.json();
-        errorMessage = resolveApiErrorMessage(errorData, errorMessage);
-      } catch {
-        // Could not parse error response
-      }
-      const uploadError = new ApiError(response.status, errorMessage);
+      const uploadError = await readFailedResponseError(response);
       trackEvent("material_upload_failed", {
         project_id: projectId,
         reason: "request_failed",
@@ -1083,48 +1060,13 @@ export const fileApi = {
       formData.append("parent_id", parentId);
     }
 
-    const entryAccess = getAccessToken();
-    const entryRefresh = localStorage.getItem("refresh_token");
-    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
-      const response = await fetch(
-        `${getApiBase()}/api/v1/projects/${projectId}/files/upload-drafts`,
-        {
-          method: "POST",
-          headers: accessToken
-            ? { Authorization: `Bearer ${accessToken}` }
-            : undefined,
-          body: formData,
-        }
-      );
-
-      if (response.status === 401 && !isRetry) {
-        let ownedSession = entryAccess && entryRefresh
-          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-        if (ownedSession?.accessToken && ownedSession.refreshToken) {
-          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-            const refreshed = await tryRefreshToken();
-            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-          }
-          if (ownedSession?.accessToken && ownedSession.refreshToken) {
-            return doFetch(ownedSession.accessToken, true);
-          }
-        }
-      }
-
-      return response;
-    };
-
-    const response = await doFetch();
+    const response = await fetchWithSessionRetry(
+      `/api/v1/projects/${projectId}/files/upload-drafts`,
+      { method: "POST", body: formData },
+    );
 
     if (!response.ok) {
-      let errorMessage = getLocale() === 'en' ? "Upload failed" : "上传失败";
-      try {
-        const errorData = await response.json();
-        errorMessage = resolveApiErrorMessage(errorData, errorMessage);
-      } catch {
-        // Could not parse error response
-      }
-      throw new ApiError(response.status, errorMessage);
+      throw await readFailedResponseError(response);
     }
 
     return (await response.json()) as {
@@ -1181,39 +1123,11 @@ export const fileApi = {
  * Retries once after a token refresh on 401 and throws ApiError on failure.
  */
 async function fetchSkillPackage(endpoint: string, init: RequestInit = {}): Promise<Response> {
-  const entryAccess = getAccessToken();
-  const entryRefresh = localStorage.getItem("refresh_token");
-  const fetchOnce = async (accessToken: string | null): Promise<Response> => {
-    return fetch(`${getApiBase()}${endpoint}`, {
-      ...init,
-      headers: {
-        "Accept-Language": localStorage.getItem("zenstory-language") || "zh",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-    });
-  };
-
-  let response = await fetchOnce(entryAccess);
-  if (response.status === 401 && entryAccess && entryRefresh) {
-    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
-    if (ownedSession?.accessToken && ownedSession.refreshToken) {
-      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
-        const refreshed = await tryRefreshToken();
-        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
-      }
-      if (ownedSession?.accessToken && ownedSession.refreshToken) {
-        response = await fetchOnce(ownedSession.accessToken);
-      }
-    }
-  }
+  const response = await fetchWithSessionRetry(endpoint, init, {
+    "Accept-Language": localStorage.getItem("zenstory-language") || "zh",
+  });
   if (!response.ok) {
-    let errorData: unknown = null;
-    try {
-      errorData = await response.json();
-    } catch {
-      // Could not parse error response
-    }
-    throw apiErrorFromPayload(response.status, errorData);
+    throw await readFailedResponseError(response);
   }
   return response;
 }

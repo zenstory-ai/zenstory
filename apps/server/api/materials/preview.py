@@ -23,21 +23,13 @@ from models.material_models import (
 from services.material.stories_service import story_in_novel
 from utils.logger import get_logger
 
-from .helpers import _get_novel_or_404
+from .helpers import _get_novel_or_404, _resolve_lang
 from .schemas import MaterialPreviewResponse
 
 logger = get_logger(__name__)
 
 # Router without prefix/tags - will be set by parent router
 router = APIRouter()
-
-
-def _resolve_lang(accept_language: str | None) -> str:
-    """Resolve supported language code from Accept-Language header."""
-    if not accept_language:
-        return "zh"
-    lang = accept_language.split(",")[0].split("-")[0].strip().lower()
-    return "en" if lang == "en" else "zh"
 
 
 def _localized_import_hints(entity_type: str, lang: str) -> tuple[str, str]:

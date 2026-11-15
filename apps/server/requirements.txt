@@ -47,9 +47,6 @@ chardet>=5.0.0
 # Chinese number conversion (中文数字转阿拉伯数字)
 cn2an>=0.5.0
 
-# Neo4j graph database (optional, for knowledge graph)
-neo4j>=5.0.0
-
 # JSON repair for tool calling robustness
 json-repair>=0.40.0
 

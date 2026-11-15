@@ -1262,11 +1262,7 @@ function AddedSkillCard({
       )}
       {!hidden && Boolean(skill.instructions.trim()) && <IconButton
         onClick={() => setExpanded(!expanded)}
-        label={
-          hidden
-            ? expanded ? t("skills:collapseDetails") : t("skills:expandDetails")
-            : expanded ? t("skills:collapse") : t("skills:expand")
-        }
+        label={expanded ? t("skills:collapse") : t("skills:expand")}
         aria-expanded={expanded}
         icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       />}

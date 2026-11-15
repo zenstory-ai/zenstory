@@ -148,8 +148,8 @@ def story_aggregate_flow(
 
         # 1.2 元数据应由阶段1统一触发，这里仅根据checkpoint判断是否已完成
         if stages.meta:
-            resume_cp = checkpoint.get_checkpoint("stage2") if hasattr(checkpoint, "get_checkpoint") else None
-            _raw = getattr(resume_cp, "checkpoint_data", None) if resume_cp else None
+            resume_cp = checkpoint.get_checkpoint("stage2")
+            _raw = resume_cp.checkpoint_data if resume_cp else None
             if isinstance(_raw, str):
                 try:
                     _raw = json.loads(_raw)

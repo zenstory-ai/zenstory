@@ -10,6 +10,8 @@
     "save": "保存",
     "saving": "保存中…",
     "saveFailed": "保存失败，请重试",
+    "loadFailed": "无法载入项目信息，请重试。",
+    "retry": "重试",
     "notesConflictTitle": "写作约定已在另一处更新",
     "notesConflict": "你的修改尚未保存。查看最新版本后再选择。",
     "viewLatestNotes": "查看最新版本",

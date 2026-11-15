@@ -73,7 +73,6 @@ class ChaptersService:
                 chapter_number=data["chapter_number"],
                 title=data.get("title"),
                 original_content=data.get("content"),
-                content_hash=data.get("content_hash"),
             )
             session.add(chapter)
             session.flush()

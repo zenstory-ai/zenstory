@@ -8,8 +8,6 @@ const state = vi.hoisted(() => ({
     user: null as { id: string; email_verified?: boolean; email?: string } | null,
     loading: false,
   },
-  requireOnboarding: false,
-  shouldRequireCalls: [] as unknown[],
   initialPath: "/",
   inspirationsEnabled: false,
   project: {
@@ -108,13 +106,6 @@ vi.mock("../contexts/ProjectContext", () => ({
     projects: state.project.projects,
     setSelectedItem: state.project.setSelectedItem,
   }),
-}));
-
-vi.mock("../lib/onboardingPersona", () => ({
-  shouldRequirePersonaOnboarding: (user: unknown) => {
-    state.shouldRequireCalls.push(user);
-    return state.requireOnboarding;
-  },
 }));
 
 vi.mock("../lib/onboardingPersonaApi", async () => {
@@ -247,8 +238,6 @@ describe("App route guards", () => {
     vi.clearAllMocks();
     state.auth.user = null;
     state.auth.loading = false;
-    state.requireOnboarding = false;
-    state.shouldRequireCalls = [];
     state.initialPath = "/";
     state.inspirationsEnabled = false;
     state.project.currentProject = null;
@@ -431,7 +420,6 @@ describe("App route guards", () => {
 
   it("redirects authenticated users to onboarding when required", async () => {
     state.auth.user = { id: "user-1" };
-    state.requireOnboarding = false;
     state.personaGetState.mockResolvedValue({ required: true, profile: null });
 
     renderAppAt("/dashboard");
@@ -444,31 +432,28 @@ describe("App route guards", () => {
 
   it("does not loop-redirect when already on onboarding route", async () => {
     state.auth.user = { id: "user-2" };
-    state.requireOnboarding = true;
 
     renderAppAt("/onboarding/persona");
 
     await waitFor(() => {
       expect(screen.getByText("Onboarding Persona Page")).toBeInTheDocument();
     });
-    expect(state.shouldRequireCalls).toEqual([]);
+    expect(state.personaGetState).not.toHaveBeenCalled();
   });
 
   it("skips onboarding redirects on admin routes", async () => {
     state.auth.user = { id: "admin-user" };
-    state.requireOnboarding = true;
 
     renderAppAt("/admin");
 
     await waitFor(() => {
       expect(screen.getByText("Admin Layout")).toBeInTheDocument();
     });
-    expect(state.shouldRequireCalls).toEqual([]);
+    expect(state.personaGetState).not.toHaveBeenCalled();
   });
 
   it("allows authenticated users through when onboarding is not required", async () => {
     state.auth.user = { id: "user-3" };
-    state.requireOnboarding = true;
     state.personaGetState.mockResolvedValue({ required: false, profile: { version: 1 } });
 
     renderAppAt("/dashboard");
@@ -481,7 +466,6 @@ describe("App route guards", () => {
 
   it("waits for late server persona state instead of redirecting from missing local data", async () => {
     state.auth.user = { id: "late-user" };
-    state.requireOnboarding = true;
     let resolveState!: (value: { required: boolean; profile: null }) => void;
     state.personaGetState.mockReturnValue(new Promise((resolve) => { resolveState = resolve; }));
 
@@ -495,7 +479,6 @@ describe("App route guards", () => {
 
   it("does not let forged local persona data bypass a server-required state", async () => {
     state.auth.user = { id: "forged-user" };
-    state.requireOnboarding = false;
     state.personaGetState.mockResolvedValue({ required: true, profile: null });
 
     renderAppAt("/dashboard?tab=recent#draft");

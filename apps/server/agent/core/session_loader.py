@@ -6,6 +6,7 @@ reducing complexity in the main service module.
 """
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -457,7 +458,15 @@ class SessionLoader:
 
         if not self.user_id:
             return
-        working_set_ids = [str(ref.get("file_id") or "") for ref in result.working_set_refs]
+        fallback_titles: dict[str, str] = {}
+        working_set_ids: list[str] = []
+        for ref in result.working_set_refs:
+            ref_id = str(ref.get("file_id") or "").strip()
+            if ref_id:
+                working_set_ids.append(ref_id)
+                ref_title = str(ref.get("title") or "").strip()
+                if ref_title:
+                    fallback_titles.setdefault(ref_id, ref_title)
         primary_ids: list[str] = []
         other_ids: list[str] = []
         for item in getattr(result.context_data, "items", None) or []:
@@ -467,6 +476,11 @@ class SessionLoader:
             if not metadata.get("file_type") or metadata.get("retrieved") or metadata.get("library_material"):
                 continue
             file_id = str(item.get("id") or "").strip()
+            if not file_id:
+                continue
+            item_title = str(item.get("title") or "").strip()
+            if item_title:
+                fallback_titles.setdefault(file_id, item_title)
             if metadata.get("is_focus") or metadata.get("relation") == "attached":
                 primary_ids.append(file_id)
             else:
@@ -483,6 +497,8 @@ class SessionLoader:
                 )
             ).all()
         except Exception as exc:
+            with contextlib.suppress(Exception):
+                session.rollback()
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -491,6 +507,22 @@ class SessionLoader:
                 user_id=self.user_id,
                 error=str(exc),
                 error_type=type(exc).__name__,
+            )
+            checked_ids, unchecked_ids = ordered[:AUTHOR_EDITS_MAX_FILES], ordered[AUTHOR_EDITS_MAX_FILES:]
+            failed_entries = [
+                (
+                    file_id,
+                    fallback_titles.get(file_id) or "（未命名）",
+                    AuthorChanges(hunks=[], complete=False, failed=True),
+                )
+                for file_id in checked_ids
+            ]
+            result.author_edits_context = render_author_edits_block(
+                failed_entries,
+                unchecked_titles=[
+                    f"《{fallback_titles.get(file_id) or '（未命名）'}》"
+                    for file_id in unchecked_ids
+                ],
             )
             return
         by_id = {str(f.id): f for f in files if getattr(f, "file_type", None) != "folder"}
@@ -540,6 +572,8 @@ class SessionLoader:
                 rendered_full_contents=result.read_snapshots,
             )
         except Exception as exc:  # 工作集是增益信息，失败不影响本轮请求
+            with contextlib.suppress(Exception):
+                session.rollback()
             log_with_context(
                 logger,
                 30,  # WARNING

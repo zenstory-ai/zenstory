@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,22 +16,18 @@ vi.mock('../../lib/subscriptionApi', async (importOriginal) => {
   }
 })
 
-vi.mock('../../stores/subscriptionStore', () => ({
-  useSubscriptionStore: () => ({
-    isPro: () => false,
-    getTier: () => 'free',
-  }),
-}))
-
+import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi'
 import { useAiMessageQuota } from '../useAiMessageQuota'
-import { useQuota } from '../useQuota'
 
 function QuotaConsumers() {
-  const fullQuota = useQuota()
+  const fullQuota = useQuery({
+    queryKey: subscriptionQueryKeys.quota(),
+    queryFn: () => subscriptionApi.getQuota(),
+  })
   const aiQuota = useAiMessageQuota()
   return (
     <>
-      <span data-testid="full-used">{fullQuota.quotas?.ai_conversations.used ?? 'loading'}</span>
+      <span data-testid="full-used">{fullQuota.data?.ai_conversations.used ?? 'loading'}</span>
       <span data-testid="ai-used">{aiQuota.metric?.used ?? 'loading'}</span>
     </>
   )

@@ -412,10 +412,6 @@ class QuotaService:
             "skills_created": int(totals[2] or 0),
         }
 
-    def consume_ai_conversation(self, session: Session, user_id: str) -> bool:
-        """Consume a daily unit; use reserve_ai_conversation when it may be refunded."""
-        return self.reserve_ai_conversation(session, user_id) is not None
-
     def reserve_ai_conversation(
         self,
         session: Session,

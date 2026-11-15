@@ -20,7 +20,7 @@ def delivery(monkeypatch):
     sender = MagicMock(return_value={"id": "mock-delivery"})
     monkeypatch.setattr(email_client.resend.Emails, "send", sender)
     for name, value in {
-        "check_resend_cooldown": False, "store_verification_code": True,
+        "get_resend_cooldown_ttl": 0, "store_verification_code": True,
         "set_resend_cooldown": True, "reset_verification_attempts": True,
         "delete_verification_code": True, "delete_resend_cooldown": True,
     }.items():
@@ -232,7 +232,7 @@ async def test_new_registration_replaces_orphaned_code_before_cooldown_check(cli
     codes, cooldowns = {"writer@example.com": "orphaned-code"}, {"writer@example.com"}
     monkeypatch.setattr(verification_service, "delete_verification_code", lambda email: codes.pop(email, None) is not None)
     monkeypatch.setattr(verification_service, "delete_resend_cooldown", lambda email: bool(cooldowns.discard(email) is None))
-    monkeypatch.setattr(verification_service, "check_resend_cooldown", lambda email, _ttl: email in cooldowns)
+    monkeypatch.setattr(verification_service, "get_resend_cooldown_ttl", lambda email: 60 if email in cooldowns else 0)
     monkeypatch.setattr(verification_service, "store_verification_code", lambda email, code, _ttl: bool(codes.update({email: code}) is None))
     response = await register(client)
     assert response.status_code == 200 and response.json()["verification_sent"] is True

@@ -71,7 +71,6 @@ class UploadConflictError(UploadStorageError):
 class StoredObject:
     reference: str
     size: int
-    sha256: str
     created: bool = True
 
 
@@ -82,10 +81,6 @@ class StorageProbeResult:
     reason: str | None
     cleanup: str
     key: str
-
-
-def _sha256_bytes(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
 
 
 def _safe_suffix(suffix: str) -> str:
@@ -162,7 +157,7 @@ class LocalUploadStorage:
                     handle.write(content)
             except FileExistsError:
                 continue
-            return StoredObject(str(path), len(content), _sha256_bytes(content))
+            return StoredObject(str(path), len(content))
         raise UploadStorageError("failed to allocate a unique upload path")
 
     def put_material(
@@ -314,7 +309,7 @@ class S3UploadStorage:
         now = datetime.now(UTC)
         amz_date = now.strftime("%Y%m%dT%H%M%SZ")
         date_stamp = now.strftime("%Y%m%d")
-        payload_hash = _sha256_bytes(content)
+        payload_hash = hashlib.sha256(content).hexdigest()
         endpoint = urlsplit(self.settings.endpoint)
         if self.settings.url_style == "virtual":
             host = f"{self.bucket}.{endpoint.netloc}"
@@ -432,7 +427,7 @@ class S3UploadStorage:
             if self._signed_request("GET", key, max_response_bytes=len(content)).content != content:
                 raise
             created = False
-        return StoredObject(self._uri(key), len(content), _sha256_bytes(content), created)
+        return StoredObject(self._uri(key), len(content), created=created)
 
     def put_material(
         self,
@@ -511,7 +506,7 @@ class S3UploadStorage:
             step = "get"
             body = self._signed_request("GET", key, max_response_bytes=len(content)).content
             step = "verify"
-            if _sha256_bytes(body) != _sha256_bytes(content):
+            if body != content:
                 raise UploadStorageError("synthetic object bytes differ", reason="integrity")
         except UploadStorageError as exc:
             failure = exc

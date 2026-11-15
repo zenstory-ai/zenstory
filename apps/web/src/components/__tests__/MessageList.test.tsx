@@ -69,15 +69,6 @@ vi.mock('../../contexts/AuthContext', () => ({
   })),
 }))
 
-// Mock useThinkingVisibility hook
-vi.mock('../../hooks/useThinkingVisibility', () => ({
-  useThinkingVisibility: vi.fn(() => ({
-    showThinking: true,
-    setShowThinking: vi.fn(),
-    toggleThinking: vi.fn(),
-  })),
-}))
-
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',

@@ -86,7 +86,6 @@ class MaterialSettings(BaseSettings):
 
     # 阶段2B: 人物关系（默认关闭以降低拆解成本，可通过环境变量显式开启）
     ENABLE_RELATIONSHIP_EXTRACTION: bool = False
-    ENABLE_NEO4J_STORAGE: bool = False  # 禁用 Neo4j
 
     # ============ 上传配置 ============
     UPLOAD_FOLDER: str = "uploads"

@@ -57,8 +57,8 @@ class TestSendVerificationCode:
         email = "test@example.com"
 
         with patch(
-            "services.features.verification_service.check_resend_cooldown"
-        ) as mock_check_cooldown, \
+            "services.features.verification_service.get_resend_cooldown_ttl"
+        ) as mock_cooldown_ttl, \
              patch(
             "services.features.verification_service.store_verification_code"
         ) as mock_store, \
@@ -74,7 +74,7 @@ class TestSendVerificationCode:
         ) as mock_send_email:
 
             # Setup mocks
-            mock_check_cooldown.return_value = False
+            mock_cooldown_ttl.return_value = 0
             mock_store.return_value = True
             mock_set_cooldown.return_value = True
             mock_reset_attempts.return_value = True
@@ -86,7 +86,7 @@ class TestSendVerificationCode:
             # Verify
             assert success is True
             assert error is None
-            mock_check_cooldown.assert_called_once_with(email, 60)
+            mock_cooldown_ttl.assert_called_once_with(email)
             mock_store.assert_called_once()
             mock_set_cooldown.assert_called_once()
             mock_reset_attempts.assert_called_once()
@@ -98,23 +98,16 @@ class TestSendVerificationCode:
         email = "test@example.com"
 
         with patch(
-            "services.features.verification_service.check_resend_cooldown"
-        ) as mock_check_cooldown, \
-             patch(
-            "services.features.verification_service.get_remaining_cooldown"
-        ) as mock_get_cooldown:
-
-            # Setup mocks
-            mock_check_cooldown.return_value = True
-            mock_get_cooldown.return_value = 45
-
+            "services.features.verification_service.get_resend_cooldown_ttl",
+            return_value=45,
+        ) as mock_cooldown_ttl:
             # Execute
             success, error = await send_verification_code(email, language="zh")
 
             # Verify
             assert success is False
             assert error == "验证码发送过于频繁,请在 45 秒后重试"
-            mock_check_cooldown.assert_called_once()
+            mock_cooldown_ttl.assert_called_once_with(email)
 
     @pytest.mark.asyncio
     async def test_send_code_storage_failure(self):
@@ -122,14 +115,14 @@ class TestSendVerificationCode:
         email = "test@example.com"
 
         with patch(
-            "services.features.verification_service.check_resend_cooldown"
-        ) as mock_check_cooldown, \
+            "services.features.verification_service.get_resend_cooldown_ttl"
+        ) as mock_cooldown_ttl, \
              patch(
             "services.features.verification_service.store_verification_code"
         ) as mock_store:
 
             # Setup mocks
-            mock_check_cooldown.return_value = False
+            mock_cooldown_ttl.return_value = 0
             mock_store.return_value = False
 
             # Execute
@@ -141,13 +134,36 @@ class TestSendVerificationCode:
             assert "发送失败" in error or "failed" in error
 
     @pytest.mark.asyncio
+    async def test_send_code_fails_closed_when_cooldown_check_hits_redis_error(self):
+        """Redis failure during cooldown check must fail closed before storing or sending a code."""
+        from core.messages import get_message
+
+        email = "redis-down@example.com"
+        with patch(
+            "services.infra.redis_client.get_redis_client",
+            side_effect=ConnectionError("redis down"),
+        ), patch(
+            "services.features.verification_service.store_verification_code",
+            return_value=True,
+        ) as mock_store, patch(
+            "services.features.verification_service.send_verification_email",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_send_email:
+            success, error = await send_verification_code(email, language="zh")
+            assert success is False
+            assert error == get_message("verification_send_failed", "zh")
+            mock_store.assert_not_called()
+            mock_send_email.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_send_code_email_failure(self):
         """Test handling of email sending failure."""
         email = "test@example.com"
 
         with patch(
-            "services.features.verification_service.check_resend_cooldown"
-        ) as mock_check_cooldown, \
+            "services.features.verification_service.get_resend_cooldown_ttl"
+        ) as mock_cooldown_ttl, \
              patch(
             "services.features.verification_service.store_verification_code"
         ) as mock_store, \
@@ -166,7 +182,7 @@ class TestSendVerificationCode:
         ) as mock_send_email:
 
             # Setup mocks
-            mock_check_cooldown.return_value = False
+            mock_cooldown_ttl.return_value = 0
             mock_store.return_value = True
             mock_set_cooldown.return_value = True
             mock_reset_attempts.return_value = True
@@ -219,8 +235,8 @@ class TestSendVerificationCode:
         email = "test@example.com"
 
         with patch(
-            "services.features.verification_service.check_resend_cooldown"
-        ) as mock_check_cooldown, \
+            "services.features.verification_service.get_resend_cooldown_ttl"
+        ) as mock_cooldown_ttl, \
              patch(
             "services.features.verification_service.store_verification_code"
         ) as mock_store, \
@@ -236,7 +252,7 @@ class TestSendVerificationCode:
         ) as mock_send_email:
 
             # Setup mocks
-            mock_check_cooldown.return_value = False
+            mock_cooldown_ttl.return_value = 0
             mock_store.return_value = True
             mock_set_cooldown.return_value = True
             mock_reset_attempts.return_value = True
@@ -311,7 +327,7 @@ class TestVerifyCode:
             # Setup mocks
             mock_get_attempts.return_value = 0
             mock_get_code.return_value = stored_code
-            mock_increment.return_value = True
+            mock_increment.return_value = 1
 
             # Execute
             success, error = await verify_code(email, wrong_code, language="zh")
@@ -320,8 +336,8 @@ class TestVerifyCode:
             assert success is False
             assert error is not None
             assert "{" not in error
-            assert error.startswith("验证码错误,还剩 ")
-            mock_increment.assert_called_once()
+            assert error == "验证码错误,还剩 4 次尝试机会"
+            mock_increment.assert_called_once_with(email)
 
     @pytest.mark.asyncio
     async def test_verify_code_too_many_attempts(self):
@@ -387,7 +403,7 @@ class TestVerifyCode:
             for attempt in range(5):
                 mock_get_attempts.return_value = attempt
                 mock_get_code.return_value = stored_code
-                mock_increment.return_value = True
+                mock_increment.return_value = attempt + 1
 
                 success, error = await verify_code(email, "wrong", language="zh")
 
@@ -419,6 +435,59 @@ class TestVerifyCode:
             assert success is False
             assert error is not None
             # Should use English error message
+
+    @pytest.mark.asyncio
+    async def test_verify_code_fails_closed_when_attempts_unreadable_or_increment_fails(self):
+        """Redis failure when reading or incrementing attempts must fail closed without allowing guesses."""
+        from core.messages import get_message
+
+        email = "test@example.com"
+        expected_error = get_message("verification_verify_error", "zh")
+
+        with patch(
+            "services.features.verification_service.get_verification_attempts",
+            return_value=None,
+        ), patch(
+            "services.features.verification_service.get_verification_code"
+        ) as mock_get_code:
+            success, error = await verify_code(email, "123456", language="zh")
+            assert success is False
+            assert error == expected_error
+            mock_get_code.assert_not_called()
+
+        with patch(
+            "services.features.verification_service.get_verification_attempts",
+            return_value=0,
+        ), patch(
+            "services.features.verification_service.get_verification_code",
+            return_value="123456",
+        ), patch(
+            "services.features.verification_service.increment_verification_attempts",
+            return_value=None,
+        ):
+            success, error = await verify_code(email, "000000", language="zh")
+            assert success is False
+            assert error == expected_error
+
+    @pytest.mark.asyncio
+    async def test_verify_code_concurrent_over_limit_returns_too_many_attempts(self):
+        """Concurrent wrong-code submissions pushing INCR above MAX_VERIFICATION_ATTEMPTS report lockout, not error."""
+        from core.messages import get_message
+
+        email = "test@example.com"
+        with patch(
+            "services.features.verification_service.get_verification_attempts",
+            return_value=4,
+        ), patch(
+            "services.features.verification_service.get_verification_code",
+            return_value="123456",
+        ), patch(
+            "services.features.verification_service.increment_verification_attempts",
+            return_value=6,
+        ):
+            success, error = await verify_code(email, "000000", language="zh")
+            assert success is False
+            assert error == get_message("verification_too_many_attempts", "zh")
 
 
 class TestGetRemainingCooldown:

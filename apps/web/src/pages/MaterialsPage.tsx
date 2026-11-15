@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Upload, BookOpen, FileText, Clock, CheckCircle, AlertCircle, RefreshCw, Trash2 } from "../components/icons";
+import { Upload, BookOpen, FileText, Clock, CheckCircle, AlertCircle, RefreshCw, Trash2, Download } from "../components/icons";
 import { materialsApi } from "../lib/materialsApi";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
@@ -54,6 +54,7 @@ export default function MaterialsPage() {
   const [redeemSource, setRedeemSource] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
 
   // Upload modal state
   const [file, setFile] = useState<File | null>(null);
@@ -378,6 +379,22 @@ export default function MaterialsPage() {
     }
   };
 
+  const handleExport = async (material: MaterialNovel) => {
+    setExportingId(material.id);
+    try {
+      await materialsApi.exportBreakdown(material.id, material.title);
+      toast.success(
+        t("materials:export.success", {
+          defaultValue: "拆解结果已导出为 TXT 文件",
+        })
+      );
+    } catch (err) {
+      toast.error(handleApiError(err));
+    } finally {
+      setExportingId(null);
+    }
+  };
+
   return (
     <>
       {/* Header */}
@@ -647,6 +664,8 @@ export default function MaterialsPage() {
                 material={material}
                 onClick={() => handleCardClick(material.id)}
                 onDelete={() => setDeletingId(material.id)}
+                onExport={() => handleExport(material)}
+                isExporting={exportingId === material.id}
                 onRetry={
                   // Retrying charges a monthly breakdown: the free trial cannot retry.
                   !hasWorkspaceAccess || isMaterialsQuotaExhausted
@@ -828,6 +847,8 @@ function MaterialCard({
   material,
   onClick,
   onDelete,
+  onExport,
+  isExporting,
   onRetry,
   isRetrying,
   isMobile,
@@ -836,12 +857,20 @@ function MaterialCard({
   material: MaterialNovel;
   onClick: () => void;
   onDelete: () => void;
+  onExport?: () => void;
+  isExporting?: boolean;
   onRetry?: () => void;
   isRetrying?: boolean;
   isMobile?: boolean;
   showDeleteAction?: boolean;
 }) {
   const { t } = useTranslation(["materials", "common"]);
+  const canExport =
+    Boolean(onExport) &&
+    (material.status === "completed" || material.status === "completed_with_errors");
+  const canRetryCard =
+    Boolean(onRetry) &&
+    (material.status === "failed" || material.status === "completed_with_errors");
   const openMaterialLabel = `${t("materials:viewMaterialDetail", {
     defaultValue: "查看素材详情",
   })}: ${material.title}`;
@@ -913,7 +942,7 @@ function MaterialCard({
         aria-label={openMaterialLabel}
         className="cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
       >
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-start justify-between gap-3 mb-3 pr-10">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="w-10 h-10 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center shrink-0">
               <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
@@ -957,21 +986,43 @@ function MaterialCard({
         )}
       </div>
 
-      {(material.status === "failed" || material.status === "completed_with_errors") && onRetry && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRetry();
-          }}
-          disabled={isRetrying}
-          className="mt-3 min-h-11 px-3 inline-flex items-center gap-1.5 rounded-lg text-xs font-medium border border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />
-          {isRetrying
-            ? t("materials:status.processing", { defaultValue: "处理中" })
-            : t("common:retry", { defaultValue: "重试" })}
-        </button>
+      {(canExport || canRetryCard) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {canExport && onExport && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onExport();
+              }}
+              disabled={isExporting}
+              className="min-h-11 px-3 inline-flex items-center gap-1.5 rounded-lg text-xs font-medium border border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isExporting ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
+            </button>
+          )}
+          {canRetryCard && onRetry && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry();
+              }}
+              disabled={isRetrying}
+              className="min-h-11 px-3 inline-flex items-center gap-1.5 rounded-lg text-xs font-medium border border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />
+              {isRetrying
+                ? t("materials:status.processing", { defaultValue: "处理中" })
+                : t("common:retry", { defaultValue: "重试" })}
+            </button>
+          )}
+        </div>
       )}
 
       {/* Delete Button */}

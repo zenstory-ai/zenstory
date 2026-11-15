@@ -266,33 +266,6 @@ class SubscriptionService:
                 session.flush()
             return subscription
 
-    def ensure_user_subscription(
-        self,
-        session: Session,
-        user_id: str,
-        plan_name: str = "free",
-        duration_days: int = 36500,
-        metadata: dict | None = None,
-        commit: bool = True,
-    ) -> UserSubscription:
-        """
-        Ensure a user has a subscription record.
-
-        Returns existing subscription if present; otherwise creates one.
-        """
-        self._lock_user_for_subscription_mutation(session, user_id)
-        existing_sub = self._get_user_subscription_for_update(session, user_id)
-        if existing_sub:
-            return existing_sub
-        return self.create_user_subscription(
-            session=session,
-            user_id=user_id,
-            plan_name=plan_name,
-            duration_days=duration_days,
-            metadata=metadata,
-            commit=commit,
-        )
-
     def upgrade_subscription(
         self,
         session: Session,
@@ -316,101 +289,6 @@ class SubscriptionService:
             metadata=metadata,
             commit=commit,
         )
-
-    def cancel_subscription(
-        self,
-        session: Session,
-        user_id: str,
-        immediately: bool = False
-    ) -> UserSubscription | None:
-        """
-        Cancel a user subscription.
-
-        Args:
-            session: Database session
-            user_id: User ID
-            immediately: If True, cancel immediately; otherwise cancel at period end
-
-        Returns:
-            Updated UserSubscription or None if not found
-        """
-        self._lock_user_for_subscription_mutation(session, user_id)
-        subscription = self._get_user_subscription_for_update(session, user_id)
-        if not subscription:
-            return None
-
-        now = utcnow()
-
-        if immediately:
-            subscription.status = "cancelled"
-            subscription.current_period_end = now
-            action = "cancelled"
-            end_date = now
-        else:
-            subscription.cancel_at_period_end = True
-            action = "cancelled"
-            end_date = subscription.current_period_end
-
-        subscription.updated_at = now
-        session.add(subscription)
-
-        plan = self.get_plan_by_id(session, subscription.plan_id)
-        plan_name = plan.name if plan else "unknown"
-
-        self._log_history(
-            session, user_id, action, plan_name,
-            subscription.current_period_start, end_date,
-            {"immediately": immediately}
-        )
-
-        session.commit()
-        session.refresh(subscription)
-        return subscription
-
-    def check_subscription_status(
-        self, session: Session, user_id: str
-    ) -> tuple[bool, str, datetime | None]:
-        """
-        Check if user has an active subscription.
-
-        Returns: (is_active, plan_name, expires_at)
-        """
-        self._lock_user_for_subscription_mutation(session, user_id)
-        subscription = self._get_user_subscription_for_update(session, user_id)
-
-        if not subscription:
-            return (False, "free", None)
-
-        if subscription.status != "active":
-            return (False, "free", subscription.current_period_end)
-
-        now = utcnow()
-        # Handle both timezone-aware and naive datetimes for comparison
-        period_end = subscription.current_period_end
-        if period_end.tzinfo is None:
-            from datetime import UTC
-            period_end = period_end.replace(tzinfo=UTC)
-        if period_end < now:
-            # Mark as expired
-            subscription.status = "expired"
-            subscription.updated_at = now
-            session.add(subscription)
-
-            plan = self.get_plan_by_id(session, subscription.plan_id)
-            plan_name = plan.name if plan else "unknown"
-
-            self._log_history(
-                session, user_id, "expired", plan_name,
-                subscription.current_period_start, subscription.current_period_end
-            )
-
-            session.commit()
-            return (False, "free", subscription.current_period_end)
-
-        plan = self.get_plan_by_id(session, subscription.plan_id)
-        plan_name = plan.name if plan else "free"
-
-        return (True, plan_name, subscription.current_period_end)
 
     def _log_history(
         self,

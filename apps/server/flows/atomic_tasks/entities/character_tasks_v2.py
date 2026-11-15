@@ -61,7 +61,7 @@ def extract_character_mentions_task(
             raise ValueError(f"章节 {chapter_id} 不存在")
 
         novel_id = ch.novel_id
-        chapter_content = getattr(ch, "content", None) or getattr(ch, "original_content", "")
+        chapter_content = ch.original_content or ""
         chapter_number = ch.chapter_number
 
         logger.info(

@@ -264,7 +264,6 @@ export const mockMaterialsSummaryHandler = http.get(
       relationships_count: 7,
       goldenfingers_count: 2,
       has_worldview: true,
-      timeline_count: 15,
     })
   }
 )

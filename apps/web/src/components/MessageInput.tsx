@@ -414,6 +414,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [skillSearchQuery, setSkillSearchQuery] = useState("");
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
   const [isLoadingSkills, setIsLoadingSkills] = useState(false);
+  const [skillsLoadFailed, setSkillsLoadFailed] = useState(false);
   const skillMenuRef = useRef<HTMLDivElement>(null);
 
   // Reset static suggestions when language changes
@@ -444,11 +445,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const loadSkills = useCallback(async () => {
     if (skills.length > 0) return; // Already loaded
     setIsLoadingSkills(true);
+    setSkillsLoadFailed(false);
     try {
       const response = await skillsApi.list();
       setSkills(response.skills.filter(s => s.is_active));
     } catch (error) {
       logger.error("Failed to load skills:", error);
+      setSkillsLoadFailed(true);
     } finally {
       setIsLoadingSkills(false);
     }
@@ -902,6 +905,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {isLoadingSkills ? (
             <div className="px-3 py-4 text-center text-sm text-[hsl(var(--text-secondary))]">
               {t("chat:skill.loading")}
+            </div>
+          ) : skillsLoadFailed && skills.length === 0 ? (
+            <div className="px-3 py-4 flex flex-col items-center gap-2 text-center">
+              <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
+                {t("chat:skill.loadFailed")}
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadSkills()}
+                className="px-2.5 py-1 text-xs rounded bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary)/0.8)] transition-colors"
+              >
+                {t("chat:skill.retry")}
+              </button>
             </div>
           ) : filteredSkills.length === 0 ? (
             <div className="px-3 py-4 text-center text-sm text-[hsl(var(--text-secondary))]">

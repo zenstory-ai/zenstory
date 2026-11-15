@@ -149,6 +149,10 @@
     "checkoutUnavailable": "暂时不能在线付款。有兑换码的话，点「兑换码开通」就能开通 Pro。"
   },
   "retrySuccess": "已重新开始拆解",
+  "export": {
+    "button": "导出拆解（TXT）",
+    "success": "拆解结果已导出为 TXT 文件"
+  },
   "toast": {
     "loadListFailed": "加载失败，请重试",
     "importSuccess": "已添加到项目",

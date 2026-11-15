@@ -30,6 +30,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   const navigate = useNavigate();
   const fieldId = useId();
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submittingInspiration, setSubmittingInspiration] = useState(false);
   const [project, setProject] = useState<Project | null>(null);
@@ -80,6 +81,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     latestNotesReadRef.current = null;
     focusedInitialSectionRef.current = false;
     setSaving(false);
+    setLoadFailed(false);
     setLoading(Boolean(owner));
 
     return () => {
@@ -150,6 +152,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
 
       if (showLoading) {
         setLoading(true);
+        setLoadFailed(false);
       }
 
       try {
@@ -157,8 +160,12 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
         if (!ownsLoad()) return;
         applyProjectToForm(data, preserveDirty);
         setProject(data);
+        setLoadFailed(false);
       } catch (err) {
-        if (ownsLoad()) logger.error("Failed to load project:", err);
+        if (ownsLoad()) {
+          logger.error("Failed to load project:", err);
+          if (!projectRef.current) setLoadFailed(true);
+        }
       } finally {
         if (ownsLoad()) setLoading(false);
       }
@@ -366,7 +373,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           )}
           <Button size="touch"
             onClick={() => void handleSave()}
-            disabled={saving || loading || !hasChanges || notesConflict}
+            disabled={saving || loading || !project || !hasChanges || notesConflict}
             className="w-full sm:w-auto"
             isLoading={saving}
             loadingText={t('saving')}
@@ -380,6 +387,19 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
       {loading ? (
         <div className="flex items-center justify-center h-40">
           <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--accent-primary))]" />
+        </div>
+      ) : !project && loadFailed ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+          <p role="alert" className="text-sm text-[hsl(var(--error-text))]">
+            {t('loadFailed')}
+          </p>
+          <Button
+            variant="secondary"
+            size="touch"
+            onClick={() => void loadProject({ showLoading: true, preserveDirty: false })}
+          >
+            {t('retry')}
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">

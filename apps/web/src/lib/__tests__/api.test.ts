@@ -11,35 +11,43 @@ const analyticsMocks = vi.hoisted(() => ({
 }))
 
 // Mock apiClient - must use factory function to avoid hoisting issues
-vi.mock('../apiClient', async importOriginal => ({
-  resolveOwnedAuthSession: (await importOriginal<typeof import('../apiClient')>()).resolveOwnedAuthSession,
-  errorDetailObject: (await importOriginal<typeof import('../apiClient')>()).errorDetailObject,
-  api: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    patch: vi.fn(),
-    delete: vi.fn(),
-  },
-  getAccessToken: vi.fn(() => 'test-token'),
-  getApiBase: vi.fn(() => ''),
-  tryRefreshToken: vi.fn(),
-  ApiError: class ApiError extends Error {
+vi.mock('../apiClient', async importOriginal => {
+  const actual = await importOriginal<typeof import('../apiClient')>()
+  const { resolveApiErrorMessage } = await import('../errorHandler')
+  class MockApiError extends Error {
     status: number
+    rawMessage: string
+    errorCode?: string
     details?: Record<string, unknown>
     constructor(status: number, message: string, details?: Record<string, unknown>) {
       super(message)
       this.status = status
       this.name = 'ApiError'
+      this.rawMessage = message
+      this.errorCode = message.startsWith('ERR_') ? message : undefined
       this.details = details
     }
-  },
-  apiErrorFromPayload: vi.fn((status: number, payload: unknown) => {
-    const error = new Error(JSON.stringify(payload)) as Error & { status: number }
-    error.status = status
-    return error
-  }),
-}))
+  }
+  return {
+    resolveOwnedAuthSession: actual.resolveOwnedAuthSession,
+    errorDetailObject: actual.errorDetailObject,
+    api: {
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+    },
+    getAccessToken: vi.fn(() => 'test-token'),
+    getApiBase: vi.fn(() => ''),
+    tryRefreshToken: vi.fn(),
+    ApiError: MockApiError,
+    apiErrorFromPayload: vi.fn((status: number, payload: unknown) => {
+      const message = resolveApiErrorMessage(payload, `API error: ${status}`)
+      return new MockApiError(status, message, actual.errorDetailObject(payload))
+    }),
+  }
+})
 
 vi.mock('../analytics', () => ({
   trackEvent: analyticsMocks.trackEventMock,
@@ -788,6 +796,35 @@ describe('api', () => {
         })
 
         await expect(exportApi.exportDrafts('project-1')).rejects.toThrow(ApiError)
+      })
+
+      it('does not misreport gateway non-JSON errors as ERR_EXPORT_NO_DRAFTS or ERR_FILE_TYPE_INVALID', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 502,
+          json: async () => {
+            throw new SyntaxError('Unexpected token <')
+          },
+        })
+
+        await expect(exportApi.exportDrafts('project-1')).rejects.toSatisfy((err: unknown) => {
+          return (
+            err instanceof ApiError &&
+            err.status === 502 &&
+            err.errorCode !== 'ERR_EXPORT_NO_DRAFTS' &&
+            !err.message.includes('ERR_EXPORT_NO_DRAFTS')
+          )
+        })
+
+        const file = new File(['test'], 'test.txt', { type: 'text/plain' })
+        await expect(fileApi.upload('project-1', file)).rejects.toSatisfy((err: unknown) => {
+          return (
+            err instanceof ApiError &&
+            err.status === 502 &&
+            err.errorCode !== 'ERR_FILE_TYPE_INVALID' &&
+            !err.message.includes('ERR_FILE_TYPE_INVALID')
+          )
+        })
       })
     })
   })

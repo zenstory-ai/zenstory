@@ -1,6 +1,5 @@
 """Tests for admin feedback management endpoints."""
 
-import hashlib
 import io
 from pathlib import Path
 
@@ -100,7 +99,6 @@ async def test_private_object_feedback_roundtrip_requires_admin_and_listing_does
             return StoredObject(
                 reference,
                 len(content),
-                hashlib.sha256(content).hexdigest(),
             )
 
         def feedback_reference_exists(self, reference):

@@ -26,7 +26,7 @@ import { User, Settings, Moon, Sun, LogOut, CreditCard, Coins, Users, Key } from
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useMediaQuery';
-import { normalizeLocale } from '../lib/i18n-helpers';
+import { normalizeLocale, switchLocale } from '../lib/i18n-helpers';
 import { pointsConfig } from '../config/points';
 import { referralConfig } from '../config/referral';
 import Modal from './ui/Modal';
@@ -206,15 +206,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
   const currentLanguage = normalizeLocale(i18n.language || i18n.resolvedLanguage);
   const settingsUpgradePrompt = getUpgradePromptDefinition('settings_subscription_upgrade');
 
-  const handleLanguageChange = async (lang: 'zh' | 'en') => {
-    if (currentLanguage === lang) return;
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('zenstory-language', lang);
-    }
-
-    await i18n.changeLanguage(lang);
-  };
+  const handleLanguageChange = (lang: 'zh' | 'en') =>
+    switchLocale(i18n, currentLanguage, lang);
 
   // Track all points-related query fetching states
   const isPointsFetching = useIsFetching({ queryKey: ['points-balance'] }) +

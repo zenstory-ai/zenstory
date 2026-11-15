@@ -46,8 +46,8 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
   });
   const balance = balanceQuery.data?.available;
   const baseCost = configQuery.data?.pro_7days_cost;
-  const pricingReady = !configQuery.isError && typeof baseCost === 'number' && Number.isFinite(baseCost) && baseCost >= 0;
-  const balanceReady = !balanceQuery.isError && typeof balance === 'number';
+  const pricingReady = !configQuery.isError && baseCost !== undefined;
+  const balanceReady = !balanceQuery.isError && balance !== undefined;
   const options = pricingReady ? [{days:7,cost:baseCost}, {days:14,cost:baseCost*2}, {days:30,cost:baseCost*4}] : [];
   const loadError = configQuery.error ?? balanceQuery.error;
 

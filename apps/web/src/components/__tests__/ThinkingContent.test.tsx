@@ -25,18 +25,6 @@ vi.mock('../LazyMarkdown', async () => {
   }
 })
 
-// Import the mocked module type
-import { useThinkingVisibility } from '../../hooks/useThinkingVisibility'
-
-// Mock the useThinkingVisibility hook
-vi.mock('../../hooks/useThinkingVisibility', () => ({
-  useThinkingVisibility: vi.fn(() => ({
-    showThinking: true,
-    setShowThinking: vi.fn(),
-    toggleThinking: vi.fn(),
-  })),
-}))
-
 const thinkingLabels: Record<string, string> = {
   'chat:tool.edit_file': '编辑文件',
   'chat:workflow.agents.writer': '内容创作者',
@@ -57,12 +45,6 @@ describe('ThinkingContent', () => {
     localStorage.clear()
     // Reset mocks
     vi.clearAllMocks()
-    // Reset the mock to default behavior
-    vi.mocked(useThinkingVisibility).mockReturnValue({
-      showThinking: true,
-      setShowThinking: vi.fn(),
-      toggleThinking: vi.fn(),
-    })
   })
 
   afterEach(() => {
@@ -292,18 +274,6 @@ describe('ThinkingContent', () => {
     const button = screen.getByRole('button')
     // When expanded, aria-label should be 'collapse'
     expect(button).toHaveAttribute('aria-label', 'chat:thinking.collapse')
-  })
-
-  it('returns null when showThinking is false', () => {
-    // Override the mock for this specific test
-    vi.mocked(useThinkingVisibility).mockReturnValue({
-      showThinking: false,
-      setShowThinking: vi.fn(),
-      toggleThinking: vi.fn(),
-    })
-
-    const { container } = render(<ThinkingContent content="Thinking" />)
-    expect(container.firstChild).toBeNull()
   })
 
   it('handles long content', async () => {

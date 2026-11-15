@@ -13,10 +13,10 @@ from utils.logger import get_logger, log_with_context
 
 from ..infra.email_client import InvalidRecipientError, send_verification_email
 from ..infra.redis_client import (
-    check_resend_cooldown,
     consume_verification_code,
     delete_resend_cooldown,
     delete_verification_code,
+    get_resend_cooldown_ttl,
     get_verification_attempts,
     get_verification_code,
     increment_verification_attempts,
@@ -76,9 +76,12 @@ async def send_verification_code(email: str, language: str = "zh") -> tuple[bool
     try:
         # Redis calls are synchronous (2s socket timeouts); run them in a
         # worker thread so a slow Redis cannot stall the event loop.
-        # Check resend cooldown
-        if await asyncio.to_thread(check_resend_cooldown, email, RESEND_COOLDOWN):
-            cooldown_seconds = await asyncio.to_thread(get_remaining_cooldown, email)
+        # Check resend cooldown in a single lookup so an expiring TTL never races
+        # a second query, while Redis errors (None) fail closed.
+        cooldown_seconds = await asyncio.to_thread(get_resend_cooldown_ttl, email)
+        if cooldown_seconds is None:
+            return False, get_message("verification_send_failed", language)
+        if cooldown_seconds > 0:
             message = get_message("verification_resend_cooldown", language)
             return False, message.format(cooldown_seconds=cooldown_seconds)
 
@@ -144,6 +147,8 @@ async def verify_code(email: str, code: str, language: str = "zh") -> tuple[bool
     try:
         # Check attempts limit
         attempts = await asyncio.to_thread(get_verification_attempts, email)
+        if attempts is None:
+            return False, get_message("verification_verify_error", language)
         if attempts >= MAX_VERIFICATION_ATTEMPTS:
             return False, get_message("verification_too_many_attempts", language)
 
@@ -155,9 +160,13 @@ async def verify_code(email: str, code: str, language: str = "zh") -> tuple[bool
 
         # Verify code
         if code != stored_code:
-            # Increment attempts
-            await asyncio.to_thread(increment_verification_attempts, email, MAX_VERIFICATION_ATTEMPTS)
-            remaining_attempts = MAX_VERIFICATION_ATTEMPTS - (attempts + 1)
+            # Increment attempts atomically and separate Redis errors from cap exhaustion
+            current_attempts = await asyncio.to_thread(increment_verification_attempts, email)
+            if current_attempts is None:
+                return False, get_message("verification_verify_error", language)
+            if current_attempts > MAX_VERIFICATION_ATTEMPTS:
+                return False, get_message("verification_too_many_attempts", language)
+            remaining_attempts = MAX_VERIFICATION_ATTEMPTS - current_attempts
             message = get_message("verification_incorrect", language)
             return False, message.format(count=remaining_attempts)
 
@@ -191,25 +200,8 @@ def get_remaining_cooldown(email: str) -> int:
         int: Remaining cooldown seconds (0 if no cooldown)
     """
     email = normalize_email_identity(email)
-
-    try:
-        from ..infra.redis_client import get_redis_client
-
-        client = get_redis_client()
-        key = f"resend_cooldown:{email}"
-        ttl = client.ttl(key)  # type: ignore[return-value]
-        ttl_int = int(ttl) if ttl is not None else 0  # type: ignore[arg-type]
-        return max(0, ttl_int)
-    except Exception as e:
-        log_with_context(
-            logger,
-            40,  # ERROR
-            "get_remaining_cooldown failed",
-            email=email,
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        return 0
+    ttl = get_resend_cooldown_ttl(email)
+    return ttl if ttl is not None else 0
 
 
 def get_code_ttl(email: str) -> int:

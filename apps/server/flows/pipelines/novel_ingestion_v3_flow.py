@@ -42,7 +42,6 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import os
 import tempfile
 import time
@@ -61,7 +60,6 @@ from flows.database_session import get_prefect_db_session
 from flows.utils.helpers import (
     calculate_checksum,
     create_checkpoint_manager,
-    normalize_filename,
     parse_novel_chapters,
     validate_input,
 )
@@ -276,7 +274,7 @@ def _run_novel_ingestion(
                     if chapter.id is not None
                 ]
 
-    normalized_path: str | None = None
+    local_file_path: str | None = None
     downloaded_source_path: str | None = None
     content_hash: str | None = None
     encoding: str | None = None
@@ -293,31 +291,22 @@ def _run_novel_ingestion(
         )
 
         if persisted_chapter_ids is None:
-            # 文件名标准化（解决中文文件名问题）
-            logger.info("[阶段0] 确保文件可用并标准化")
+            logger.info("[阶段0] 确保文件可用并验证")
             source_was_remote = file_path.startswith("s3://")
-            file_path = _ensure_file_local(file_path, user_id, logger)
+            local_file_path = _ensure_file_local(file_path, user_id, logger)
             if source_was_remote:
-                downloaded_source_path = file_path
-            temp_dir = Path(file_path).parent / "temp"
-            normalized_path = normalize_filename(file_path, str(temp_dir))
-
-            # 复制原文件到新位置
-            import shutil
-            shutil.copy2(file_path, normalized_path)
-            logger.info(f"文件已复制到: {normalized_path}")
+                downloaded_source_path = local_file_path
 
             # 文件验证
-            logger.info("[阶段0] 文件验证")
-            validated = validate_input(normalized_path)
+            validated = validate_input(local_file_path)
 
             # 计算文件哈希
-            checksums = calculate_checksum(normalized_path)
+            checksums = calculate_checksum(local_file_path)
             content_hash = checksums["md5_checksum"]
 
             # 解码：与上传接口预检使用同一个函数，API 接受的文件这里一定能解码
             try:
-                _, encoding = read_novel_text(normalized_path)
+                _, encoding = read_novel_text(local_file_path)
             except NovelDecodeError as decode_error:
                 raise MaterialPipelineError(
                     ErrorCode.MATERIAL_FILE_UNREADABLE, str(decode_error)
@@ -384,10 +373,10 @@ def _run_novel_ingestion(
                     )
             else:
                 # novel 已存在但无章节（由 upload 端点预创建），执行 stage0 填充章节
-                if normalized_path is None or content_hash is None or encoding is None:
+                if local_file_path is None or content_hash is None or encoding is None:
                     raise ValueError("缺少已验证的原始文件信息")
                 stage0_result = _execute_stage0(
-                    file_path=normalized_path,
+                    file_path=local_file_path,
                     novel_title=novel_title,
                     author=author,
                     user_id=user_id,
@@ -404,10 +393,10 @@ def _run_novel_ingestion(
                 checkpoint_manager = stage0_result["checkpoint_manager"]
                 job_id = stage0_result["job_id"]
         else:
-            if normalized_path is None or content_hash is None or encoding is None:
+            if local_file_path is None or content_hash is None or encoding is None:
                 raise ValueError("缺少已验证的原始文件信息")
             stage0_result = _execute_stage0(
-                file_path=normalized_path,
+                file_path=local_file_path,
                 novel_title=novel_title,
                 author=author,
                 user_id=user_id,
@@ -467,18 +456,8 @@ def _run_novel_ingestion(
             final_result.get("elapsed_ms", 0),
         )
 
-        # 处理完成后清理临时文件
+        # 处理完成后清理远端下载的临时文件
         try:
-            import shutil
-            if normalized_path and Path(normalized_path).exists():
-                Path(normalized_path).unlink()
-                logger.info("已删除临时文件: %s", normalized_path)
-
-            # 如果temp目录为空，删除temp目录
-            temp_dir = Path(normalized_path).parent if normalized_path else None
-            if temp_dir and temp_dir.exists() and temp_dir.name == "temp" and not any(temp_dir.iterdir()):
-                temp_dir.rmdir()
-                logger.info("已删除空临时目录: %s", temp_dir)
             if downloaded_source_path and Path(downloaded_source_path).exists():
                 Path(downloaded_source_path).unlink()
                 Path(downloaded_source_path).parent.rmdir()
@@ -502,18 +481,8 @@ def _run_novel_ingestion(
             publisher=publisher,
         )
 
-        # 即使出错也清理临时文件
+        # 即使出错也清理远端下载的临时文件
         try:
-            import shutil
-            if normalized_path and Path(normalized_path).exists():
-                Path(normalized_path).unlink()
-                logger.info("已删除临时文件: %s", normalized_path)
-
-            # 如果temp目录为空，删除temp目录
-            temp_dir = Path(normalized_path).parent if normalized_path else None
-            if temp_dir and temp_dir.exists() and temp_dir.name == "temp" and not any(temp_dir.iterdir()):
-                temp_dir.rmdir()
-                logger.info("已删除空临时目录: %s", temp_dir)
             if downloaded_source_path and Path(downloaded_source_path).exists():
                 Path(downloaded_source_path).unlink()
                 Path(downloaded_source_path).parent.rmdir()
@@ -759,7 +728,7 @@ def _execute_stage0(
                     chapters_data = chapters_data[:chapter_limit]
                 existing_job.status = "processing"
                 existing_job.total_chapters = len(chapters_data)
-                if getattr(existing_job, "started_at", None) is None:
+                if existing_job.started_at is None:
                     existing_job.started_at = utcnow()
                 if correlation_id:
                     existing_job.correlation_id = correlation_id
@@ -827,7 +796,6 @@ def _execute_stage0(
                     "chapter_number": ch["chapter_number"],
                     "title": ch["title"],
                     "content": ch["content"],
-                    "content_hash": hashlib.md5(ch["content"].encode()).hexdigest(),
                 }
                 for ch in chapters_data
             ],
@@ -844,15 +812,14 @@ def _execute_stage0(
         )
 
         if job_record:
-            if getattr(job_record, "started_at", None) is None:
+            if job_record.started_at is None:
                 job_record.started_at = utcnow()
-            if hasattr(job_record, "update_stage_progress"):
-                job_record.update_stage_progress(
-                    "stage0",
-                    "completed",
-                    total_chapters=len(chapters_data),
-                    chapters_created=len(chapter_ids),
-                )
+            job_record.update_stage_progress(
+                "stage0",
+                "completed",
+                total_chapters=len(chapters_data),
+                chapters_created=len(chapter_ids),
+            )
 
         session.commit()
 

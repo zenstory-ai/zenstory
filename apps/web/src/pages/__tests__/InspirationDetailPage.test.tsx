@@ -129,4 +129,40 @@ describe('InspirationDetailPage', () => {
       expect(mockToastError).toHaveBeenCalledWith('Copy failed')
     })
   })
+
+  it('ignores superseded retry null results when a newer retry succeeds', async () => {
+    mockCurrentDetail = null
+    mockGetDetail.mockResolvedValueOnce(null)
+    const { rerender } = render(<InspirationDetailPage />)
+
+    const retryBtn = await screen.findByRole('button', { name: 'Retry' })
+
+    let resolveSlowRetry: ((val: Record<string, unknown> | null) => void) | undefined
+    const recoveredDetail = { id: 'insp-2', title: 'Recovered Detail' }
+    mockGetDetail
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSlowRetry = resolve
+          })
+      )
+      .mockResolvedValueOnce(recoveredDetail)
+
+    fireEvent.click(retryBtn)
+    // Supersede on the same mounted page instance with a route param change before first retry settles
+    mockInspirationId = 'insp-2'
+    mockCurrentDetail = recoveredDetail
+    rerender(<InspirationDetailPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Recovered Detail')).toBeInTheDocument()
+    })
+
+    resolveSlowRetry!(null)
+    await waitFor(() => {
+      expect(mockGetDetail).toHaveBeenCalledTimes(3)
+    })
+    expect(screen.queryByText('Failed to load inspiration')).not.toBeInTheDocument()
+    expect(screen.getByText('Recovered Detail')).toBeInTheDocument()
+  })
 })

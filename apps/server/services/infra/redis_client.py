@@ -175,22 +175,14 @@ def consume_verification_code(email: str, code: str) -> bool:
         return False
 
 
-def check_resend_cooldown(email: str, _cooldown_seconds: int = 60) -> bool:
-    """
-    Check if resend verification code is still in cooldown.
-
-    Args:
-        email: Email address
-        _cooldown_seconds: Cooldown period in seconds (unused, default from set_resend_cooldown)
-
-    Returns:
-        bool: True if in cooldown, False otherwise
-    """
+def get_resend_cooldown_ttl(email: str) -> int | None:
+    """Return remaining resend cooldown TTL in seconds (0 when absent/expired), or None on Redis errors."""
     try:
         client = get_redis_client()
         key = f"resend_cooldown:{email}"
         ttl = client.ttl(key)  # type: ignore[return-value]
-        return ttl > 0  # type: ignore[operator]
+        ttl_int = int(ttl) if ttl is not None else 0  # type: ignore[arg-type]
+        return max(0, ttl_int)
     except Exception as e:
         log_with_context(
             logger,
@@ -200,7 +192,7 @@ def check_resend_cooldown(email: str, _cooldown_seconds: int = 60) -> bool:
             error=str(e),
             error_type=type(e).__name__,
         )
-        return False
+        return None
 
 
 def set_resend_cooldown(email: str, cooldown_seconds: int = 60) -> bool:
@@ -258,16 +250,8 @@ def delete_resend_cooldown(email: str) -> bool:
         return False
 
 
-def get_verification_attempts(email: str) -> int:
-    """
-    Get the number of failed verification attempts for an email.
-
-    Args:
-        email: Email address
-
-    Returns:
-        int: Number of attempts
-    """
+def get_verification_attempts(email: str) -> int | None:
+    """Get failed verification attempts for an email, or None when Redis is unavailable."""
     try:
         client = get_redis_client()
         key = f"attempts:{email}"
@@ -282,30 +266,21 @@ def get_verification_attempts(email: str) -> int:
             error=str(e),
             error_type=type(e).__name__,
         )
-        return 0
+        return None
 
 
-def increment_verification_attempts(email: str, max_attempts: int = 5) -> bool:
-    """
-    Increment verification attempts counter for an email.
-
-    Args:
-        email: Email address
-        max_attempts: Maximum allowed attempts before reset
-
-    Returns:
-        bool: True if still under limit, False if limit reached
-    """
+def increment_verification_attempts(email: str) -> int | None:
+    """Increment verification attempts counter and return updated count, or None on Redis errors."""
     try:
         client = get_redis_client()
         key = f"attempts:{email}"
-        current_attempts = client.incr(key)  # type: ignore[return-value]
+        current_attempts = int(client.incr(key))  # type: ignore[arg-type]
 
         # Set expiry on first attempt
         if current_attempts == 1:
             client.expire(key, 300)  # 5 minutes expiry
 
-        return current_attempts <= max_attempts  # type: ignore[operator]
+        return current_attempts
     except Exception as e:
         log_with_context(
             logger,
@@ -315,7 +290,7 @@ def increment_verification_attempts(email: str, max_attempts: int = 5) -> bool:
             error=str(e),
             error_type=type(e).__name__,
         )
-        return False
+        return None
 
 
 def reset_verification_attempts(email: str) -> bool:

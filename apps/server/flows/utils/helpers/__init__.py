@@ -9,10 +9,6 @@ from .filters import filter_character_data, is_generic_title, is_valid_character
 from .index import AliasEntity, build_alias_index
 from .ingestion import (
     calculate_checksum,
-    detect_encoding,
-    extract_metadata,
-    normalize_content,
-    normalize_filename,
     validate_input,
 )
 from .logging import get_logger, log_error_with_context, log_execution_time
@@ -48,10 +44,6 @@ __all__ = [
     # Ingestion utilities
     "validate_input",
     "calculate_checksum",
-    "detect_encoding",
-    "extract_metadata",
-    "normalize_content",
-    "normalize_filename",
     # Novel parsing
     "parse_novel_chapters",
     # Plot calculation (新增)

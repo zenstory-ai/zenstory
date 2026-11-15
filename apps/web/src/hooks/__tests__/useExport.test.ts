@@ -2,7 +2,6 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useExport } from '../useExport'
 
-// Mock the api module
 const mockExportDrafts = vi.fn()
 
 vi.mock('@/lib/api', () => ({
@@ -20,16 +19,12 @@ describe('useExport', () => {
   describe('initial state', () => {
     it('initializes with idle state', () => {
       const { result } = renderHook(() => useExport('project-123'))
-
       expect(result.current.loading).toBe(false)
-      expect(result.current.error).toBe(null)
     })
 
     it('handles null projectId', () => {
       const { result } = renderHook(() => useExport(null))
-
       expect(result.current.loading).toBe(false)
-      expect(result.current.error).toBe(null)
     })
   })
 
@@ -45,7 +40,7 @@ describe('useExport', () => {
     })
 
     it('calls export API with correct projectId', async () => {
-      mockExportDrafts.mockResolvedValueOnce(undefined)
+      mockExportDrafts.mockResolvedValueOnce({ filename: 'drafts.txt' })
 
       const { result } = renderHook(() => useExport('project-123'))
 
@@ -66,16 +61,13 @@ describe('useExport', () => {
 
       const { result } = renderHook(() => useExport('project-123'))
 
-      // Start the export but don't await yet
-      let exportPromise: Promise<void>
+      let exportPromise: Promise<unknown>
       act(() => {
         exportPromise = result.current.exportDrafts()
       })
 
-      // Check loading immediately after starting
       expect(result.current.loading).toBe(true)
 
-      // Now resolve and wait
       await act(async () => {
         resolveExport!()
         await exportPromise!
@@ -84,53 +76,7 @@ describe('useExport', () => {
       expect(result.current.loading).toBe(false)
     })
 
-    it('handles successful export', async () => {
-      mockExportDrafts.mockResolvedValueOnce(undefined)
-
-      const { result } = renderHook(() => useExport('project-123'))
-
-      await act(async () => {
-        await result.current.exportDrafts()
-      })
-
-      expect(result.current.loading).toBe(false)
-      expect(result.current.error).toBe(null)
-    })
-
-    it('handles export error', async () => {
-      mockExportDrafts.mockRejectedValueOnce(new Error('Export failed'))
-
-      const { result } = renderHook(() => useExport('project-123'))
-
-      await act(async () => {
-        try {
-          await result.current.exportDrafts()
-        } catch {
-          // Expected to throw
-        }
-      })
-
-      expect(result.current.loading).toBe(false)
-      expect(result.current.error).toBe('Export failed')
-    })
-
-    it('handles non-Error rejection', async () => {
-      mockExportDrafts.mockRejectedValueOnce('Unknown error')
-
-      const { result } = renderHook(() => useExport('project-123'))
-
-      await act(async () => {
-        try {
-          await result.current.exportDrafts()
-        } catch {
-          // Expected to throw
-        }
-      })
-
-      expect(result.current.error).toBe('Export failed')
-    })
-
-    it('re-throws error for callers to handle', async () => {
+    it('re-throws error for callers and resets loading state', async () => {
       mockExportDrafts.mockRejectedValueOnce(new Error('Export failed'))
 
       const { result } = renderHook(() => useExport('project-123'))
@@ -145,47 +91,6 @@ describe('useExport', () => {
       })
 
       expect(thrownError?.message).toBe('Export failed')
-    })
-
-    it('clears previous error on new export attempt', async () => {
-      // First export fails
-      mockExportDrafts.mockRejectedValueOnce(new Error('First error'))
-
-      const { result } = renderHook(() => useExport('project-123'))
-
-      await act(async () => {
-        try {
-          await result.current.exportDrafts()
-        } catch {
-          // Expected
-        }
-      })
-
-      expect(result.current.error).toBe('First error')
-
-      // Second export succeeds
-      mockExportDrafts.mockResolvedValueOnce(undefined)
-
-      await act(async () => {
-        await result.current.exportDrafts()
-      })
-
-      expect(result.current.error).toBe(null)
-    })
-
-    it('resets loading state after error', async () => {
-      mockExportDrafts.mockRejectedValueOnce(new Error('Export failed'))
-
-      const { result } = renderHook(() => useExport('project-123'))
-
-      await act(async () => {
-        try {
-          await result.current.exportDrafts()
-        } catch {
-          // Expected
-        }
-      })
-
       expect(result.current.loading).toBe(false)
     })
   })
@@ -193,26 +98,9 @@ describe('useExport', () => {
   describe('state stability', () => {
     it('returns stable exportDrafts function', () => {
       const { result, rerender } = renderHook(() => useExport('project-123'))
-
       const firstExportDrafts = result.current.exportDrafts
-
       rerender()
-
       expect(result.current.exportDrafts).toBe(firstExportDrafts)
-    })
-
-    it('has exportDrafts function that depends on projectId', () => {
-      const { result, rerender } = renderHook(
-        ({ projectId }) => useExport(projectId),
-        { initialProps: { projectId: 'project-123' as string | null } }
-      )
-
-      expect(typeof result.current.exportDrafts).toBe('function')
-
-      rerender({ projectId: 'project-456' })
-
-      // Function should still be a function
-      expect(typeof result.current.exportDrafts).toBe('function')
     })
   })
 })

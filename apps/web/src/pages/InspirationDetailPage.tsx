@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { Loader2 } from "../components/icons";
@@ -13,24 +13,22 @@ export default function InspirationDetailPage() {
 
   const { getDetail, currentDetail, isDetailLoading, copyInspiration, isCopying, resetDetail } = useInspirations({ enabled: false });
   const [isOpen, setIsOpen] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [failedId, setFailedId] = useState<string | null>(null);
+  const loadSeqRef = useRef(0);
+  const loadFailed = Boolean(inspirationId && failedId === inspirationId);
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (!inspirationId) {
-        return;
-      }
-      setLoadFailed(false);
-      const detail = await getDetail(inspirationId);
-      if (!cancelled && !detail) {
-        setLoadFailed(true);
-      }
-    };
-    void load();
+    if (inspirationId) {
+      const seq = ++loadSeqRef.current;
+      void getDetail(inspirationId).then((detail) => {
+        if (loadSeqRef.current === seq) {
+          setFailedId(detail ? null : inspirationId);
+        }
+      });
+    }
 
     return () => {
-      cancelled = true;
+      loadSeqRef.current += 1;
       resetDetail();
     };
   }, [inspirationId, getDetail, resetDetail]);
@@ -67,7 +65,13 @@ export default function InspirationDetailPage() {
           <button
             onClick={() => {
               if (!inspirationId) return;
-              void getDetail(inspirationId).then((detail) => setLoadFailed(!detail));
+              const seq = ++loadSeqRef.current;
+              setFailedId(null);
+              void getDetail(inspirationId).then((detail) => {
+                if (loadSeqRef.current === seq) {
+                  setFailedId(detail ? null : inspirationId);
+                }
+              });
             }}
             className="px-3 py-2 rounded-lg bg-[hsl(var(--accent-primary))] text-white"
           >

@@ -25,6 +25,7 @@ from prefect import get_run_logger
 
 from flows.database_session import get_db_session
 from flows.utils import api_task, call_material_llm, database_task, get_material_llm_client
+from flows.utils.helpers.exceptions import LLMOutputError, ValidationError
 
 from .intelligent_chunking import intelligent_chunking_task
 
@@ -532,7 +533,7 @@ def summary_based_story_aggregation(
                 novel_id=novel_id,
             )
             stories.append(result["story"])
-        except Exception as e:
+        except (LLMOutputError, ValidationError, KeyError) as e:
             logger.error(f"聚合剧情失败: {framework.get('title')}, error={e}")
             continue
 
@@ -614,40 +615,35 @@ def _merge_cross_chunk_stories(
 
     logger.info(f"开始跨块剧情合并: {len(chunk_frameworks)} 个剧情")
 
-    try:
-        # 第一步：找出所有跨块边界的剧情对
-        boundary_pairs = _find_boundary_story_pairs(chunk_frameworks, chunks)
-        logger.info(f"发现 {len(boundary_pairs)} 对跨块边界的剧情候选")
+    # 第一步：找出所有跨块边界的剧情对
+    boundary_pairs = _find_boundary_story_pairs(chunk_frameworks, chunks)
+    logger.info(f"发现 {len(boundary_pairs)} 对跨块边界的剧情候选")
 
-        if not boundary_pairs:
-            logger.info("没有跨块边界的剧情对，无需合并")
-            return chunk_frameworks
-
-        # 第二步：让LLM逐对判断
-        merge_decisions = []
-        for story1, story2 in boundary_pairs:
-            decision = _llm_judge_merge(story1, story2, novel_id=novel_id)
-            merge_decisions.append({
-                "story1": story1,
-                "story2": story2,
-                "should_merge": decision["should_merge"],
-                "reason": decision["reason"]
-            })
-
-            logger.info(
-                f"{'✓ 合并' if decision['should_merge'] else '✗ 保持独立'}: "
-                f"'{story1.get('title')}' + '{story2.get('title')}' - {decision['reason']}"
-            )
-
-        # 第三步：执行合并
-        merged_stories = _execute_merge_decisions(chunk_frameworks, merge_decisions)
-
-        logger.info(f"跨块合并完成: {len(chunk_frameworks)} 个剧情 → {len(merged_stories)} 个剧情")
-        return merged_stories
-
-    except Exception as e:
-        logger.error(f"LLM跨块合并失败，保持原样: {e}")
+    if not boundary_pairs:
+        logger.info("没有跨块边界的剧情对，无需合并")
         return chunk_frameworks
+
+    # 第二步：让LLM逐对判断
+    merge_decisions = []
+    for story1, story2 in boundary_pairs:
+        decision = _llm_judge_merge(story1, story2, novel_id=novel_id)
+        merge_decisions.append({
+            "story1": story1,
+            "story2": story2,
+            "should_merge": decision["should_merge"],
+            "reason": decision["reason"]
+        })
+
+        logger.info(
+            f"{'✓ 合并' if decision['should_merge'] else '✗ 保持独立'}: "
+            f"'{story1.get('title')}' + '{story2.get('title')}' - {decision['reason']}"
+        )
+
+    # 第三步：执行合并
+    merged_stories = _execute_merge_decisions(chunk_frameworks, merge_decisions)
+
+    logger.info(f"跨块合并完成: {len(chunk_frameworks)} 个剧情 → {len(merged_stories)} 个剧情")
+    return merged_stories
 
 
 def _find_boundary_story_pairs(
@@ -778,29 +774,23 @@ def _llm_judge_merge(
         story2_synopsis=story2.get('synopsis', story2.get('description', '未知')),
     )
 
-    try:
-        response = call_material_llm(
-            messages=[{"role": "user", "content": user_message}],
-            system_prompt=system_prompt,
-            temperature=0.1,  # 低温度=更保守
-            usage_novel_id=novel_id,
-        )
+    response = call_material_llm(
+        messages=[{"role": "user", "content": user_message}],
+        system_prompt=system_prompt,
+        temperature=0.1,  # 低温度=更保守
+        usage_novel_id=novel_id,
+    )
 
-        # 解析响应：call_material_llm 返回 LLMResponse 对象，必须用客户端方法提取 JSON。
-        # （此前这里把 LLMResponse 当字符串做 re.search，必然抛 TypeError 并被下方 except
-        # 吞掉，导致合并判断永远返回 should_merge=False。改为与本文件其它调用点一致的写法。）
+    try:
         client = get_material_llm_client()
         result = client.extract_json_from_response(response)
+    except (LLMOutputError, ValueError, TypeError) as e:
+        return {"should_merge": False, "reason": f"LLM返回格式错误: {e}"}
 
-        # 验证返回格式
-        if "should_merge" not in result or "reason" not in result:
-            return {"should_merge": False, "reason": "LLM返回格式错误"}
+    if not isinstance(result, dict) or "should_merge" not in result or "reason" not in result:
+        return {"should_merge": False, "reason": "LLM返回格式错误"}
 
-        return result
-
-    except Exception as e:
-        # 失败时保守处理：不合并
-        return {"should_merge": False, "reason": f"LLM调用失败: {str(e)}"}
+    return result
 
 
 def _execute_merge_decisions(

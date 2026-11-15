@@ -1,7 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { materialsApi } from '../lib/materialsApi';
+import { handleApiError } from '../lib/errorHandler';
 import { logger } from "../lib/logger";
+import { toast } from '../lib/toast';
 import { subscriptionApi, subscriptionQueryKeys } from '../lib/subscriptionApi';
 import { hasMaterialsLibraryAccess, isFeatureNotIncludedError } from '../lib/materialsAccess';
 import type {
@@ -124,6 +126,7 @@ export function useMaterialLibrary(): MaterialLibraryState {
   ) => {
     const seq = ++previewSeqRef.current;
     setIsPreviewLoading(true);
+    setPreviewEntityInfo({ novelId, entityType, entityId });
     try {
       const data = await materialsApi.getPreview(novelId, entityType, entityId);
       // Ignore responses that have been superseded by a newer request.
@@ -137,6 +140,7 @@ export function useMaterialLibrary(): MaterialLibraryState {
       if (previewSeqRef.current === seq) {
         setPreview(null);
         setPreviewEntityInfo(null);
+        toast.error(handleApiError(err));
       }
       logger.error('Failed to load material preview:', err);
     } finally {

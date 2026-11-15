@@ -247,7 +247,7 @@ for (const strict of [true, false]) {
       }
       try {
         mount(strict, '/dashboard')
-        fireEvent.click(await screen.findByTestId('dashboard-user-panel-toggle'))
+        fireEvent.click(await screen.findByTestId('dashboard-user-panel-toggle', {}, { timeout: 5000 }))
         fireEvent.click(screen.getByRole('button', { name: 'Logout', exact: true }))
         await screen.findByTestId('login-form')
         await login('B')

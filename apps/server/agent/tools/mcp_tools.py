@@ -157,9 +157,6 @@ _tool_context_var: contextvars.ContextVar[dict[str, Any] | None] = contextvars.C
 _owned_session_var: contextvars.ContextVar[Session | None] = contextvars.ContextVar(
     'owned_session', default=None
 )
-_pending_empty_file_var: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
-    'pending_empty_file', default=None
-)
 
 # 并发子任务的 session 隔离标记（见 ToolContext.get_session 与
 # parallel_executor.execute_task）。放在工具上下文 dict 里而不是 ContextVar，
@@ -606,7 +603,6 @@ class ToolContext:
             "read_snapshots": _ReadSnapshots(read_snapshots) if read_snapshots is not None else None,
         })
         _owned_session_var.set(None)
-        _pending_empty_file_var.set(None)
 
     @classmethod
     def _get_context(cls) -> dict[str, Any]:
@@ -929,7 +925,6 @@ class ToolContext:
         if state is not None:
             state.clear_all()
         _tool_context_var.set(None)
-        _pending_empty_file_var.set(None)
 
     @classmethod
     def get_skill_content_budget(cls) -> SkillContentBudget:
@@ -941,13 +936,23 @@ class ToolContext:
         return SkillContentBudget()
 
     @classmethod
-    def _get_pending_empty_file_state(cls) -> _PendingEmptyFileState | None:
-        """获取请求上下文中跨任务共享的待写入文件持有者（未建上下文时为 None）。"""
+    def _get_pending_empty_file_state(
+        cls, *, create: bool = False
+    ) -> _PendingEmptyFileState | None:
+        """获取请求上下文中跨任务共享的待写入文件持有者（create=True 时为单测按需初始化）。"""
         context = _tool_context_var.get()
         if isinstance(context, dict):
             state = context.get("pending_empty_file_state")
             if isinstance(state, _PendingEmptyFileState):
                 return state
+            if create:
+                state = _PendingEmptyFileState()
+                context["pending_empty_file_state"] = state
+                return state
+        elif create:
+            state = _PendingEmptyFileState()
+            _tool_context_var.set({"pending_empty_file_state": state})
+            return state
         return None
 
     @classmethod
@@ -956,12 +961,9 @@ class ToolContext:
 
         version：文件建好时的 updated_at（create_file 结果里的值）；没有时补不成也不会回滚它。
         """
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.add(file_id, title, version)
-            return
-        # 未调用 set_context 的场景（如直接 set/get 的单测）退回本上下文的 ContextVar
-        _pending_empty_file_var.set({"file_id": file_id, "title": title})
+        state = cls._get_pending_empty_file_state(create=True)
+        assert state is not None
+        state.add(file_id, title, version)
 
     @classmethod
     def clear_pending_empty_file(cls, file_id: str | None = None) -> None:
@@ -975,12 +977,6 @@ class ToolContext:
         state = cls._get_pending_empty_file_state()
         if state is not None:
             state.discard(file_id)
-        if file_id is None:
-            _pending_empty_file_var.set(None)
-        else:
-            fallback = _pending_empty_file_var.get()
-            if fallback is not None and fallback.get("file_id") == file_id:
-                _pending_empty_file_var.set(None)
 
     @classmethod
     def has_pending_empty_file(cls) -> bool:
@@ -991,9 +987,7 @@ class ToolContext:
     def get_pending_empty_file(cls) -> dict[str, str] | None:
         """获取最近一个待写入的空文件信息（与历史单槽语义保持一致）。"""
         state = cls._get_pending_empty_file_state()
-        if state is not None:
-            return state.latest()
-        return _pending_empty_file_var.get()
+        return state.latest() if state is not None else None
 
     @classmethod
     def begin_model_reply(cls) -> None:
@@ -1068,24 +1062,16 @@ class ToolContext:
         Returns:
             (是否占坑成功, 挡住本次创建的文件标题)。
         """
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            return state.try_reserve(ticket, title)
-
-        # 未调用 set_context 的降级路径：没有共享持有者可锁，退回单槽检查。
-        pending = _pending_empty_file_var.get()
-        if pending is not None:
-            return False, pending.get("title")
-        return True, None
+        state = cls._get_pending_empty_file_state(create=True)
+        assert state is not None
+        return state.try_reserve(ticket, title)
 
     @classmethod
     def bind_pending_empty_file(cls, ticket: str, file_id: str, title: str, version: str | None = None) -> None:
         """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。"""
-        state = cls._get_pending_empty_file_state()
-        if state is not None:
-            state.bind(ticket, file_id, title, version)
-            return
-        _pending_empty_file_var.set({"file_id": file_id, "title": title})
+        state = cls._get_pending_empty_file_state(create=True)
+        assert state is not None
+        state.bind(ticket, file_id, title, version)
 
     @classmethod
     def release_pending_empty_file(cls, ticket: str) -> None:
@@ -1102,10 +1088,7 @@ class ToolContext:
         需要逐个补写/逐个上报的调用方（如 writing_graph 的纠偏分支）用这个。
         """
         state = cls._get_pending_empty_file_state()
-        if state is not None:
-            return state.snapshot()
-        fallback = _pending_empty_file_var.get()
-        return [fallback] if fallback is not None else []
+        return state.snapshot() if state is not None else []
 
     @classmethod
     def get_executor(cls) -> FileToolExecutor:

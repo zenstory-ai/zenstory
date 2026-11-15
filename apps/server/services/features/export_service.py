@@ -18,75 +18,6 @@ logger = get_logger(__name__)
 # Chapter separator for merged TXT export
 CHAPTER_SEPARATOR = "\n\n---\n\n"
 
-# Chinese number mapping for chapter sorting
-CHINESE_NUMS = {
-    '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
-    '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
-    '十': 10, '百': 100, '千': 1000
-}
-
-
-def _parse_chinese_number(s: str) -> int:
-    """Parse Chinese number string to integer."""
-    if not s:
-        return 0
-
-    result = 0
-    temp = 0
-    for char in s:
-        if char in CHINESE_NUMS:
-            num = CHINESE_NUMS[char]
-            if num == 10:
-                if temp == 0:
-                    temp = 1
-                result += temp * 10
-                temp = 0
-            elif num == 100:
-                if temp == 0:
-                    temp = 1
-                result += temp * 100
-                temp = 0
-            elif num == 1000:
-                if temp == 0:
-                    temp = 1
-                result += temp * 1000
-                temp = 0
-            else:
-                temp = num
-    result += temp
-    return result if result > 0 else 0
-
-
-def _extract_chapter_number(title: str) -> int:
-    """
-    Extract chapter number from title.
-
-    Supports formats like:
-    - 第一章, 第二章 (Chinese numerals)
-    - 第1章, 第2章 (Arabic numerals)
-    - 1, 2, 3 (Plain numbers at start)
-    """
-    if not title:
-        return 999999  # Put items without chapter number at the end
-
-    # Try Chinese chapter format: 第X章
-    chinese_match = re.search(r'第([零一二三四五六七八九十百千]+)章', title)
-    if chinese_match:
-        return _parse_chinese_number(chinese_match.group(1))
-
-    # Try Arabic number format: 第X章
-    arabic_match = re.search(r'第(\d+)章', title)
-    if arabic_match:
-        return int(arabic_match.group(1))
-
-    # Try just numbers at the start
-    num_match = re.match(r'^(\d+)', title)
-    if num_match:
-        return int(num_match.group(1))
-
-    return 999999  # Put items without chapter number at the end
-
-
 _LEADING_BLANK_LINES = re.compile(r"^(?:[ \t\u3000]*\r?\n)+")
 
 
@@ -146,13 +77,12 @@ def _sort_by_sequence(files: list[File]) -> None:
     # - Explicit nonzero order wins; compatible metadata precedes leading titles.
     def sort_key(f: File):
         effective_order, seq_num = build_sequence_sort_key(
-            getattr(f, "order", 0),
-            title=getattr(f, "title", ""),
+            f.order,
+            title=f.title,
             metadata=f.get_metadata(),
-            file_type=getattr(f, "file_type", None),
+            file_type=f.file_type,
         )
-        created_at = getattr(f, "created_at", None)
-        created_key = created_at.isoformat() if created_at else ""
+        created_key = f.created_at.isoformat() if f.created_at else ""
         return (effective_order, seq_num, created_key)
 
     files.sort(key=sort_key)

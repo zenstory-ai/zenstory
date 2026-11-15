@@ -92,8 +92,7 @@ def extract_character_relationships_task(
             # 构建上下文（避免访问懒加载的 plot.chapter）
             context_parts = []
             for plot in plots:
-                # 仅使用我们在会话内缓存的章节编号映射
-                ch_num = getattr(plot, "chapter_number", None) or chapter_number_by_id.get(plot.chapter_id)
+                ch_num = chapter_number_by_id.get(plot.chapter_id)
                 context_parts.append(
                     f"[章节{ch_num}] {plot.description}"
                 )

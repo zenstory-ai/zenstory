@@ -420,13 +420,13 @@ class TestCheckAIConversationQuota:
 
 
 @pytest.mark.unit
-class TestConsumeAIConversation:
-    """Tests for consume_ai_conversation method."""
+class TestReserveAIConversation:
+    """Tests for reserve_ai_conversation method."""
 
-    def test_consume_within_limit(
+    def test_reserve_within_limit(
         self, db_session: Session, test_user, free_plan
     ):
-        """Test consuming quota when within limit."""
+        """Test reserving quota when within limit."""
         now = datetime.utcnow()
         quota = UsageQuota(
             user_id=test_user.id,
@@ -438,18 +438,18 @@ class TestConsumeAIConversation:
         db_session.add(quota)
         db_session.commit()
 
-        result = quota_service.consume_ai_conversation(db_session, test_user.id)
+        result = quota_service.reserve_ai_conversation(db_session, test_user.id)
 
-        assert result is True
+        assert result is not None
 
         # Verify increment
         db_session.refresh(quota)
         assert quota.ai_conversations_used == 3
 
-    def test_consume_at_limit(
+    def test_reserve_at_limit(
         self, db_session: Session, test_user, free_plan
     ):
-        """Test consuming quota when at limit."""
+        """Test reserving quota when at limit."""
         now = datetime.utcnow()
         quota = UsageQuota(
             user_id=test_user.id,
@@ -461,22 +461,21 @@ class TestConsumeAIConversation:
         db_session.add(quota)
         db_session.commit()
 
-        result = quota_service.consume_ai_conversation(db_session, test_user.id)
+        result = quota_service.reserve_ai_conversation(db_session, test_user.id)
 
-        assert result is False
+        assert result is None
 
         # Verify no increment
         db_session.refresh(quota)
         assert quota.ai_conversations_used == 3
 
-    def test_consume_creates_quota(
+    def test_reserve_creates_quota(
         self, db_session: Session, test_user, free_plan
     ):
-        """Test that consuming creates quota if not exists."""
-        # This should work because check_quota creates the record
-        result = quota_service.consume_ai_conversation(db_session, test_user.id)
+        """Test that reserving creates quota if not exists."""
+        result = quota_service.reserve_ai_conversation(db_session, test_user.id)
 
-        assert result is True
+        assert result is not None
 
         # Verify quota was created
         quota = quota_service.get_user_quota(db_session, test_user.id)
@@ -1030,7 +1029,7 @@ class TestBeijingDailyQuota:
         with Session(db_session.get_bind(), expire_on_commit=False) as other_session:
             stale_quota = quota_service.get_user_quota(other_session, test_user.id)
             assert stale_quota.ai_conversations_used == 20
-            assert quota_service.consume_ai_conversation(db_session, test_user.id) is True
+            assert quota_service.reserve_ai_conversation(db_session, test_user.id) is not None
 
             assert quota_service._reset_quota_if_needed(other_session, stale_quota) is False
             assert stale_quota.ai_conversations_used == 1

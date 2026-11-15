@@ -223,7 +223,7 @@ class _CapturingStorage:
 
     def put_material(self, *, owner_id, timestamp, original_name, content):
         self.stored.append(content)
-        return StoredObject(f"/tmp/fake/{owner_id}_{len(self.stored)}.txt", len(content), "sha")
+        return StoredObject(f"/tmp/fake/{owner_id}_{len(self.stored)}.txt", len(content))
 
     def delete(self, *args, **kwargs):
         return None

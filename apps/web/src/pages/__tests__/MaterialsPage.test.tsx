@@ -17,11 +17,13 @@ const mockList = vi.fn();
 const mockUpload = vi.fn();
 const mockDelete = vi.fn();
 const mockRetry = vi.fn();
+const mockExportBreakdown = vi.fn();
 const mockGetStatus = vi.fn();
 const mockGetQuota = vi.fn();
 const mockGetCatalog = vi.fn();
 const trackEventMock = vi.fn();
 const mockToastError = vi.fn();
+const mockToastSuccess = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -91,6 +93,7 @@ vi.mock("../../lib/materialsApi", () => ({
     upload: (...args: unknown[]) => mockUpload(...args),
     delete: (...args: unknown[]) => mockDelete(...args),
     retry: (...args: unknown[]) => mockRetry(...args),
+    exportBreakdown: (...args: unknown[]) => mockExportBreakdown(...args),
   },
 }));
 
@@ -113,7 +116,7 @@ vi.mock("../../lib/analytics", () => ({
 vi.mock("../../lib/toast", () => ({
   toast: {
     error: (...args: unknown[]) => mockToastError(...args),
-    success: vi.fn(),
+    success: (...args: unknown[]) => mockToastSuccess(...args),
     info: vi.fn(),
   },
 }));
@@ -795,5 +798,47 @@ describe("MaterialsPage", () => {
         screen.getByText("materials:uploadModal.errors.tooManyCharacters")
       ).toBeInTheDocument();
     });
+  });
+
+  it("exports completed material from card action without navigating and hides export while processing", async () => {
+    mockExportBreakdown.mockResolvedValueOnce({ filename: "凡人修仙传_拆解.txt" });
+    mockList.mockResolvedValueOnce([
+      {
+        id: "101",
+        title: "凡人修仙传",
+        original_filename: "fanren.txt",
+        status: "completed",
+        chapters_count: 12,
+        created_at: "2026-11-01T00:00:00Z",
+        updated_at: "2026-11-01T00:00:00Z",
+      },
+      {
+        id: "102",
+        title: "正在拆的书",
+        original_filename: "running.txt",
+        status: "processing",
+        chapters_count: 0,
+        created_at: "2026-11-01T00:00:00Z",
+        updated_at: "2026-11-01T00:00:00Z",
+      },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("凡人修仙传")).toBeInTheDocument();
+    const cards = screen.getAllByTestId("material-card");
+    const completedCard = cards.find((card) => card.textContent?.includes("凡人修仙传"))!;
+    const processingCard = cards.find((card) => card.textContent?.includes("正在拆的书"))!;
+
+    expect(within(processingCard).queryByRole("button", { name: "导出拆解（TXT）" })).not.toBeInTheDocument();
+
+    const exportBtn = within(completedCard).getByRole("button", { name: "导出拆解（TXT）" });
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(mockExportBreakdown).toHaveBeenCalledWith("101", "凡人修仙传");
+      expect(mockToastSuccess).toHaveBeenCalledWith("拆解结果已导出为 TXT 文件");
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

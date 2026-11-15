@@ -357,7 +357,6 @@ class StageExecutor:
             stories_count=story_result.get("stories_count", 0),
             storylines_count=story_result.get("storylines_count", 0),
             relationships_count=relationship_result.get("relationships_count", 0),
-            neo4j_persisted=relationship_result.get("neo4j_persisted", False),
             characters_created=character_entity_result.get("created_count", 0),
             characters_updated=character_entity_result.get("updated_count", 0),
             progress=90,
@@ -376,7 +375,6 @@ class StageExecutor:
                 "storylines_count": story_result.get("storylines_count", 0),
                 "relationships_count": relationship_result.get("relationships_count", 0),
                 "failed_stories": story_result.get("failed_stories", []),
-                "neo4j_failed_chapters": relationship_result.get("neo4j_failed_chapters", []),
                 "character_failed_count": character_entity_result.get("failed_count", 0),
                 "meta_extraction": (stage1_result or {}).get("meta_extraction"),
                 "elapsed_ms": stage2_elapsed,
@@ -396,7 +394,6 @@ class StageExecutor:
             final_status,
             stage1_result,
             story_result,
-            relationship_result,
             character_entity_result,
         )
 
@@ -614,7 +611,6 @@ class StageExecutor:
                 return False
             if (
                 data.get("failed_stories")
-                or data.get("neo4j_failed_chapters")
                 or data.get("failed_characters")
                 or data.get("failed_count", 0) > 0
             ):
@@ -763,8 +759,6 @@ class StageExecutor:
             stage2b_data = _parse_cp_data(self.checkpoint_manager.get_checkpoint("stage2b"))
             relationship_result = {
                 "relationships_count": stage2b_data.get("relationships_count", 0),
-                "neo4j_persisted": stage2b_data.get("neo4j_persisted", False),
-                "neo4j_failed_chapters": stage2b_data.get("neo4j_failed_chapters", []),
                 "status": stage2b_data.get("status", "completed"),
                 "executed_capabilities": stage2b_data.get("executed_capabilities", []),
                 "_executed": False,
@@ -796,8 +790,6 @@ class StageExecutor:
         }
         relationship_payload = {
             "relationships_count": relationship_result.get("relationships_count", 0),
-            "neo4j_persisted": relationship_result.get("neo4j_persisted", False),
-            "neo4j_failed_chapters": relationship_result.get("neo4j_failed_chapters", []),
             "status": relationship_result.get("status", "completed"),
             "executed_capabilities": relationship_result.get("executed_capabilities", []),
         }
@@ -819,10 +811,7 @@ class StageExecutor:
         )
         relationship_complete = (
             not self.stages.relationships
-            or (
-                relationship_payload["status"] == "completed"
-                and not relationship_payload["neo4j_failed_chapters"]
-            )
+            or relationship_payload["status"] == "completed"
         )
         character_complete = (
             not self.stages.characters
@@ -874,15 +863,12 @@ class StageExecutor:
             "stories_count": story_result.get("stories_count", 0),
             "storylines_count": story_result.get("storylines_count", 0),
             "relationships_count": relationship_result.get("relationships_count", 0),
-            "neo4j_persisted": relationship_result.get("neo4j_persisted", False),
             "characters_built": "characters" in executed_capabilities,
             "characters_created": character_entity_result.get("created_count", 0),
             "characters_updated": character_entity_result.get("updated_count", 0),
             "failed_count": len(story_result.get("failed_stories", []))
-            + len(relationship_result.get("neo4j_failed_chapters", []))
             + character_entity_result.get("failed_count", 0),
             "failed_stories": story_result.get("failed_stories", []),
-            "neo4j_failed_chapters": relationship_result.get("neo4j_failed_chapters", []),
             "failed_chapters": [],
             "failed_mention_chapters": [],
             "failed_characters": character_entity_result.get("failed_characters", []),
@@ -957,7 +943,7 @@ class StageExecutor:
             return "completed_with_errors"
         if story_result.get("failed_stories"):
             return "completed_with_errors"
-        if relationship_result.get("neo4j_failed_chapters"):
+        if relationship_result.get("status") not in (None, "completed", "skipped"):
             return "completed_with_errors"
         if character_entity_result.get("failed_count", 0) > 0:
             return "completed_with_errors"
@@ -968,7 +954,6 @@ class StageExecutor:
         final_status: str,
         stage1_result: dict[str, Any] | None,
         story_result: dict[str, Any],
-        relationship_result: dict[str, Any],
         character_entity_result: dict[str, Any],
     ) -> None:
         """
@@ -1005,7 +990,6 @@ class StageExecutor:
                                 is False
                             ),
                             "failed_stories": story_result.get("failed_stories", []),
-                            "neo4j_failed_chapters": relationship_result.get("neo4j_failed_chapters", []),
                             "failed_chapters": (stage1_result or {}).get("failed_chapters", []),
                             "failed_mention_chapters": (stage1_result or {}).get("failed_mention_chapters", []),
                             "failed_characters": character_entity_result.get("failed_characters", []),
@@ -1066,8 +1050,6 @@ class StageExecutor:
             "storylines_count": story_result.get("storylines_count", 0) if story_result else 0,
             "failed_stories": story_result.get("failed_stories", []) if story_result else [],
             "relationships_count": relationship_result.get("relationships_count", 0) if relationship_result else 0,
-            "neo4j_persisted": relationship_result.get("neo4j_persisted", False) if relationship_result else False,
-            "neo4j_failed_chapters": relationship_result.get("neo4j_failed_chapters", []) if relationship_result else [],
             "characters_created": character_entity_result.get("created_count", 0) if character_entity_result else 0,
             "characters_updated": character_entity_result.get("updated_count", 0) if character_entity_result else 0,
             "character_failed_count": character_entity_result.get("failed_count", 0) if character_entity_result else 0,

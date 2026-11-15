@@ -84,21 +84,6 @@ def test_ensure_user_subscription_and_quota_is_noop_when_records_exist(db_sessio
     assert result == {"created_subscription": False, "created_quota": False}
 
 
-def test_ensure_user_subscription_returns_existing_subscription(db_session: Session):
-    user = _create_user(db_session, "ensure-existing")
-    _create_plan(db_session, "free")
-    existing = subscription_service.create_user_subscription(
-        db_session,
-        user.id,
-        "free",
-        duration_days=30,
-    )
-
-    result = subscription_service.ensure_user_subscription(db_session, user.id)
-
-    assert result.id == existing.id
-
-
 def test_create_user_subscription_commit_false_allows_rollback(db_session: Session):
     user = _create_user(db_session, "rollback")
     plan = _create_plan(db_session, "pro")

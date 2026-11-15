@@ -5,14 +5,9 @@ export interface ProjectStatusUpdatedEventDetail {
   updatedFields: string[];
 }
 
-function isBrowser(): boolean {
-  return typeof window !== "undefined";
-}
-
 export function dispatchProjectStatusUpdated(
   detail: ProjectStatusUpdatedEventDetail
 ): void {
-  if (!isBrowser()) return;
   window.dispatchEvent(
     new CustomEvent<ProjectStatusUpdatedEventDetail>(
       PROJECT_STATUS_UPDATED_EVENT,
@@ -24,10 +19,6 @@ export function dispatchProjectStatusUpdated(
 export function subscribeProjectStatusUpdated(
   listener: (detail: ProjectStatusUpdatedEventDetail) => void
 ): () => void {
-  if (!isBrowser()) {
-    return () => {};
-  }
-
   const handler = (event: Event) => {
     const customEvent = event as CustomEvent<ProjectStatusUpdatedEventDetail>;
     if (customEvent.detail) {

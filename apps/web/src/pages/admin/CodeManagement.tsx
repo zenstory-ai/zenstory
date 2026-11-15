@@ -1,5 +1,5 @@
 import { Modal } from "../../components/ui/Modal";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -166,12 +166,11 @@ export const CodeManagement: React.FC = () => {
   const pageSize = 20;
 
   // Tiers come from the plan catalog; codes cannot grant the free tier.
-  const { data: plansData } = useQuery({
+  const { data: plans = [] } = useQuery({
     queryKey: ["admin", "plans"],
     queryFn: adminApi.getPlans,
     staleTime: 5 * 60 * 1000,
   });
-  const plans = useMemo(() => (Array.isArray(plansData) ? plansData : []), [plansData]);
   const grantablePlans = plans.filter((plan) => plan.name !== "free" && plan.is_active);
   const tierLabel = (tier: string) => {
     const plan = plans.find((item) => item.name === tier);

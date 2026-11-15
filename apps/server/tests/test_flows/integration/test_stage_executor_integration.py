@@ -86,7 +86,7 @@ class TestStageExecutorIntegration:
         monkeypatch.setattr(
             executor,
             "_execute_relationship_stage",
-            lambda _done: {"relationships_count": 4, "neo4j_persisted": False, "neo4j_failed_chapters": [], "status": "completed"},
+            lambda _done: {"relationships_count": 4, "status": "completed"},
         )
         monkeypatch.setattr(executor, "_update_stage2_checkpoints", lambda *args, **kwargs: None)
         monkeypatch.setattr(executor, "_update_job_status", lambda *args, **kwargs: None)

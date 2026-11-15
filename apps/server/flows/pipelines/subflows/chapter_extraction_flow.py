@@ -176,24 +176,20 @@ def chapter_extraction_flow(
         monitor = create_performance_monitor("chapter_extraction_flow")
         # 初始化 checkpoint 管理器（用于逐章追踪）
         checkpoint = create_checkpoint_manager(novel_id, job_id)
-        # Older test fakes may not implement get_completed_chapters.
-        if hasattr(checkpoint, "get_completed_chapters"):
-            enabled_capabilities = [
-                capability
-                for capability, enabled in (
-                    ("summaries", stages.chapter_summaries),
-                    ("plots", stages.plots),
-                    ("mentions", stages.characters),
-                )
-                if enabled
-            ]
-            completed_sets = [
-                set(checkpoint.get_completed_chapters("stage1", capability))
-                for capability in enabled_capabilities
-            ]
-            baseline_completed = len(set.intersection(*completed_sets)) if completed_sets else 0
-        else:
-            baseline_completed = 0
+        enabled_capabilities = [
+            capability
+            for capability, enabled in (
+                ("summaries", stages.chapter_summaries),
+                ("plots", stages.plots),
+                ("mentions", stages.characters),
+            )
+            if enabled
+        ]
+        completed_sets = [
+            set(checkpoint.get_completed_chapters("stage1", capability))
+            for capability in enabled_capabilities
+        ]
+        baseline_completed = len(set.intersection(*completed_sets)) if completed_sets else 0
 
         # Each capability resumes independently. An explicit empty list means zero
         # submissions and must never fall back to the full chapter list.

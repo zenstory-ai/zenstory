@@ -313,15 +313,11 @@ def _agent_can_write_files(agent_type: str | None) -> bool:
     """
     if not agent_type:
         return False
-    try:
-        # 写文件工具集合与 runner 的只读拒绝共用 registry.FILE_WRITE_TOOL_NAMES，
-        # 「谁算有写权限」与「只读请求下拒绝哪些工具」不会各说各话。
-        from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
+    # 写文件工具集合与 runner 的只读拒绝共用 registry.FILE_WRITE_TOOL_NAMES，
+    # 「谁算有写权限」与「只读请求下拒绝哪些工具」不会各说各话。
+    from agent.tools.registry import AGENT_TOOL_NAME_MAP, FILE_WRITE_TOOL_NAMES
 
-        tool_names = AGENT_TOOL_NAME_MAP.get(agent_type)
-    except Exception as e:  # pragma: no cover - registry 导入失败属异常路径
-        logger.debug(f"Failed to resolve agent toolset for {agent_type}: {e}")
-        return True
+    tool_names = AGENT_TOOL_NAME_MAP.get(agent_type)
     if tool_names is None:
         # 未知 agent 类型走 registry 的 writer 兜底，视为有写权限。
         return True

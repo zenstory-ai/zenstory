@@ -132,8 +132,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (shouldCheckOnboarding && onboardingState.data?.required) {
-    const search = location.search || (typeof window !== "undefined" ? window.location.search : "");
-    const hash = location.hash || (typeof window !== "undefined" ? window.location.hash : "");
+    const search = location.search || window.location.search;
+    const hash = location.hash || window.location.hash;
 
     return (
       <Navigate
