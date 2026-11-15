@@ -642,7 +642,8 @@ describe('RedeemProModal', () => {
 
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['points-balance'] })
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription'] })
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['quota'] })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription-quota'] })
+      expect(invalidateSpy).toHaveBeenCalledTimes(4)
     })
   })
 

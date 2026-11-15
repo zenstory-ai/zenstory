@@ -39,6 +39,7 @@ from .helpers import _get_novel_or_404
 from .schemas import (
     ChapterDetailResponse,
     CharacterListItem,
+    CharacterNavigationItem,
     CharacterRelationshipItem,
     GoldenFingerListItem,
     PlotListItem,
@@ -99,11 +100,15 @@ def get_chapter_detail(
 
 # ==================== Character Endpoints ====================
 
-@router.get("/{novel_id}/characters", response_model=list[CharacterListItem])
+@router.get(
+    "/{novel_id}/characters",
+    response_model=list[CharacterListItem] | list[CharacterNavigationItem],
+)
 def get_characters(
     novel_id: int,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    navigation: bool = False,
 ):
     """
     Get character list.
@@ -112,6 +117,14 @@ def get_characters(
     """
     # Verify novel ownership and soft delete check
     _get_novel_or_404(session, novel_id, current_user.id)
+
+    if navigation:
+        rows = session.exec(
+            select(Character.id, Character.name)
+            .where(Character.novel_id == novel_id)
+            .order_by(Character.first_appearance_chapter_id.asc())
+        ).all()
+        return [CharacterNavigationItem(id=row.id, name=row.name) for row in rows]
 
     # Get all characters
     characters = session.exec(
@@ -168,11 +181,18 @@ def get_characters(
 async def get_stories(
     novel_id: int,
     current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    navigation: bool = False,
 ):
     """获取剧情列表"""
     # 验证权限和软删除检查
     _get_novel_or_404(session, novel_id, current_user.id)
+
+    if navigation:
+        rows = session.exec(
+            select(Story.id, Story.title).where(story_in_novel(novel_id))
+        ).all()
+        return [dict(row._mapping) for row in rows]
 
     # 获取剧情列表
     stories = session.exec(select(Story).where(story_in_novel(novel_id))).all()
@@ -200,6 +220,7 @@ def get_character_relationships(
     novel_id: int,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    navigation: bool = False,
 ):
     """
     Get all character relationships for a novel.
@@ -212,6 +233,19 @@ def get_character_relationships(
     # Create aliases for self-join on Character table
     CharacterA = aliased(Character, name="character_a")
     CharacterB = aliased(Character, name="character_b")
+
+    if navigation:
+        rows = session.exec(
+            select(
+                CharacterRelationship.id,
+                CharacterA.name.label("character_a_name"),
+                CharacterB.name.label("character_b_name"),
+            )
+            .join(CharacterA, CharacterRelationship.character_a_id == CharacterA.id)
+            .join(CharacterB, CharacterRelationship.character_b_id == CharacterB.id)
+            .where(CharacterRelationship.novel_id == novel_id)
+        ).all()
+        return [dict(row._mapping) for row in rows]
 
     # JOIN query: CharacterRelationship + Character (twice)
     stmt = (
@@ -249,6 +283,7 @@ def get_world_view(
     novel_id: int,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    navigation: bool = False,
 ):
     """
     Get world view for a novel.
@@ -258,6 +293,13 @@ def get_world_view(
 
     # Verify novel ownership and soft delete check
     _get_novel_or_404(session, novel_id, current_user.id)
+
+    if navigation:
+        row = session.exec(
+            select(WorldView.id, WorldView.world_structure)
+            .where(WorldView.novel_id == novel_id)
+        ).first()
+        return dict(row._mapping) if row is not None else None
 
     # Get world view (1:1 relationship)
     world_view = session.exec(
@@ -355,6 +397,7 @@ def get_storylines(
     novel_id: int,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    navigation: bool = False,
 ):
     """
     Get all storylines for a novel.
@@ -364,6 +407,12 @@ def get_storylines(
 
     # Verify novel ownership and soft delete check
     _get_novel_or_404(session, novel_id, current_user.id)
+
+    if navigation:
+        rows = session.exec(
+            select(StoryLine.id, StoryLine.title).where(StoryLine.novel_id == novel_id)
+        ).all()
+        return [dict(row._mapping) for row in rows]
 
     # Get all storylines
     storylines = session.exec(
@@ -425,6 +474,7 @@ def get_golden_fingers(
     novel_id: int,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    navigation: bool = False,
 ):
     """
     Get all golden fingers for a novel.
@@ -434,6 +484,13 @@ def get_golden_fingers(
 
     # Verify novel ownership and soft delete check
     _get_novel_or_404(session, novel_id, current_user.id)
+
+    if navigation:
+        rows = session.exec(
+            select(GoldenFinger.id, GoldenFinger.name)
+            .where(GoldenFinger.novel_id == novel_id)
+        ).all()
+        return [dict(row._mapping) for row in rows]
 
     # Get all golden fingers
     golden_fingers = session.exec(

@@ -3105,7 +3105,11 @@ describe('ChatPanel new-author flow', () => {
     const invalidate = vi.spyOn(testQueryClient, 'invalidateQueries')
     const expectQuotaInvalidated = () => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] })
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['quota', 'test-user'] })
+      const quotaInvalidations = invalidate.mock.calls.filter(([filters]) => {
+        const key = filters?.queryKey
+        return Array.isArray(key) && (key[0] === 'subscription-quota' || key[0] === 'quota')
+      })
+      expect(quotaInvalidations).toEqual([[{ queryKey: ['subscription-quota', 'test-user'] }]])
       invalidate.mockClear()
     }
 

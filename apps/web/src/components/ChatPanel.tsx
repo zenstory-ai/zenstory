@@ -480,7 +480,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   /** Refresh the quota pill (and other quota readers) after the server charged or refunded. */
   const invalidateQuota = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-    void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quotaLite() });
   }, [queryClient]);
   /** Today's used count in the cache when this round was sent (before the server reserved one). */
   const roundQuotaBaselineRef = useRef<number | null>(null);
@@ -498,7 +497,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         ? { ...old, ai_conversations: { ...old.ai_conversations, used: Math.min(old.ai_conversations.used, baseline) } }
         : old;
     queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quota(), restore);
-    queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quotaLite(), restore);
   }, [queryClient]);
   const { isMobile, activePanel, chatFocusRequest, switchToEditor, focusChatInput } = useMobileLayout();
   /** New-user funnel: a send was held back because today's AI messages are used up (once per account). */

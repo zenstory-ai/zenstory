@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MaterialsPane } from '../MaterialsPane'
 
 const mockBatchImport = vi.fn()
-const mockGetCharacters = vi.fn()
+const mockGetEntityNavigation = vi.fn()
+const mockImportToProject = vi.fn()
 const mockSearchMaterials = vi.fn()
 const mockToastSuccess = vi.fn()
 const mockToastError = vi.fn()
@@ -86,14 +87,9 @@ vi.mock('../../../config/materials', () => ({
 vi.mock('../../../lib/materialsApi', () => ({
   materialsApi: {
     batchImport: (...args: unknown[]) => mockBatchImport(...args),
-    getCharacters: (...args: unknown[]) => mockGetCharacters(...args),
-    getWorldView: vi.fn(),
-    getGoldenFingers: vi.fn(),
-    getStoryLines: vi.fn(),
-    getStories: vi.fn(),
-    getRelationships: vi.fn().mockResolvedValue([]),
+    getEntityNavigation: (...args: unknown[]) => mockGetEntityNavigation(...args),
     searchMaterials: (...args: unknown[]) => mockSearchMaterials(...args),
-    importToProject: vi.fn(),
+    importToProject: (...args: unknown[]) => mockImportToProject(...args),
   },
 }))
 
@@ -115,10 +111,13 @@ describe('MaterialsPane', () => {
     vi.clearAllMocks()
     libraryState.accessDenied = false
     mockAddMaterial.mockReturnValue(true)
-    mockGetCharacters.mockResolvedValue([
+    mockGetEntityNavigation.mockResolvedValue([
       { id: 1, name: 'Hero' },
       { id: 2, name: 'Villain' },
     ])
+    mockImportToProject.mockResolvedValue({
+      file_id: 'file-1', title: 'Hero', folder_name: 'Characters', file_type: 'character',
+    })
     mockBatchImport.mockResolvedValue({
       results: [{ file_id: 'file-1', title: 'Hero', folder_name: 'Characters', file_type: 'character' }],
       failed_count: 1,
@@ -138,6 +137,33 @@ describe('MaterialsPane', () => {
     render(<MaterialsPane />)
 
     expect(mockRefreshIfStale).toHaveBeenCalled()
+  })
+
+  it('loads only the opened navigation category and preserves preview, attach, and import actions', async () => {
+    render(<MaterialsPane />)
+
+    fireEvent.click(screen.getByText('editor:fileTree.referenceCharacters'))
+
+    const hero = await screen.findByText('Hero')
+    expect(mockGetEntityNavigation).toHaveBeenCalledExactlyOnceWith('1', 'characters')
+
+    fireEvent.click(hero)
+    expect(mockLoadPreview).toHaveBeenCalledExactlyOnceWith(1, 'characters', 1)
+
+    fireEvent.click(screen.getAllByTitle('editor:fileTree.attachToChat')[0])
+    expect(mockAddMaterial).toHaveBeenCalledExactlyOnceWith('lib_1_characters_1', 'Hero', {
+      novelId: 1,
+      entityType: 'characters',
+      entityId: 1,
+    })
+
+    fireEvent.click(screen.getAllByTitle('editor:fileTree.addToProject')[0])
+    await waitFor(() => {
+      expect(mockImportToProject).toHaveBeenCalledExactlyOnceWith({
+        project_id: 'project-1', novel_id: 1, entity_type: 'characters', entity_id: 1,
+      })
+    })
+    expect(mockGetEntityNavigation).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the latest material search results when an older request resolves later', async () => {
@@ -233,6 +259,7 @@ describe('MaterialsPane', () => {
     })
 
     expect(await screen.findByText('Hero')).toBeInTheDocument()
+    expect(mockGetEntityNavigation).toHaveBeenCalledExactlyOnceWith('1', 'characters')
     const checkboxes = screen.getAllByRole('checkbox', { name: '' })
     await act(async () => {
       await user.click(checkboxes[0])

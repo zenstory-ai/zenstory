@@ -98,7 +98,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -129,7 +129,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -157,7 +157,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -184,7 +184,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -217,7 +217,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -250,7 +250,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -294,7 +294,7 @@ describe('useQuota', () => {
             },
           },
         }
-        mockGetQuota.mockResolvedValue(mockQuotaResponse)
+        mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
         const { result } = renderHook(() => useQuota(), {
           wrapper: createWrapper(),
@@ -324,7 +324,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -355,7 +355,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -382,7 +382,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -409,7 +409,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -438,7 +438,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -483,7 +483,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -527,7 +527,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -579,8 +579,8 @@ describe('useQuota', () => {
       }
 
       mockGetQuota
-        .mockResolvedValueOnce(mockQuotaResponse1)
-        .mockResolvedValueOnce(mockQuotaResponse2)
+        .mockResolvedValueOnce(mockQuotaResponse1.data)
+        .mockResolvedValueOnce(mockQuotaResponse2.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -620,7 +620,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -649,7 +649,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -688,7 +688,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -751,7 +751,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       await act(async () => {
         await result.current.refreshQuota()
@@ -790,7 +790,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -837,7 +837,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
@@ -867,7 +867,7 @@ describe('useQuota', () => {
           },
         },
       }
-      mockGetQuota.mockResolvedValue(mockQuotaResponse)
+      mockGetQuota.mockResolvedValue(mockQuotaResponse.data)
 
       const { result } = renderHook(() => useQuota(), {
         wrapper: createWrapper(),
