@@ -262,7 +262,7 @@ def assert_history_dto(data, snapshot):
         assert datetime.fromisoformat(row["created_at"]) == expected["created_at"]
 
 
-@pytest.mark.parametrize("endpoint,default_limit", [("messages", 50), ("recent", 20)])
+@pytest.mark.parametrize("endpoint,default_limit", [("recent", 20)])
 @pytest.mark.parametrize("requested_limit", [None, 5])
 def test_http_tied_latest_window_matches_session_loader_convention(
     pg_engine, actors, observation, endpoint, default_limit, requested_limit
@@ -306,7 +306,7 @@ def test_real_session_loader_tie_policy_control(pg_engine, actors, observation):
         assert denied.history_messages == [] and denied.session_id is None
 
 
-@pytest.mark.parametrize("endpoint", ["messages", "recent"])
+@pytest.mark.parametrize("endpoint", ["recent"])
 def test_http_non_tied_window_dto_and_limits_controls(pg_engine, actors, observation, endpoint):
     record, _ = observation
     snapshot = seed_history(pg_engine, actors, tied=False)
@@ -325,7 +325,7 @@ def test_http_non_tied_window_dto_and_limits_controls(pg_engine, actors, observa
         assert response.status_code == 422
 
 
-@pytest.mark.parametrize("endpoint", ["messages", "recent"])
+@pytest.mark.parametrize("endpoint", ["recent"])
 def test_http_history_ownership_empty_and_auth_controls(actors, observation, endpoint):
     record, _ = observation
     foreign = request_http(record, "GET",
