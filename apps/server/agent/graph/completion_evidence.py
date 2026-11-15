@@ -86,3 +86,39 @@ __all__ = [
     "ends_on_file_block",
     "ends_on_unclosed_file_block",
 ]
+
+
+# ---------------------------------------------------------------- 文字里没执行的工具调用
+
+# 只认匿名样本里实际出现过的完整结构：成对的 <tool_call> … </tool_call>，里面至少一个
+# <invoke name="已注册工具"> … </invoke>，其间可能夹着模型专用分隔符。只有开头或结尾的残片、
+# 没有外层 <tool_call> 的 invoke、其他写法都不认（宁可漏报，不扩大词表去猜）。
+_MODEL_TOOL_DELIMITER = "]<]minimax[>["
+_TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
+_INVOKE_RE = re.compile(r"<invoke name=\"([^\"<>\n]{1,64})\">.*?</invoke>", re.DOTALL)
+# 示例与转述：代码围栏（未闭合时到结尾）、行内代码、Markdown 引用行。
+_FENCE_RE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n.*?(?:^[ \t]*\1[ \t]*$|\Z)", re.DOTALL | re.MULTILINE)
+_INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+_BLOCKQUOTE_LINE_RE = re.compile(r"^[ \t]*>.*$", re.MULTILINE)
+
+
+def unexecuted_tool_protocol(tail_text: str, registered_tools: set[str] | frozenset[str]) -> list[str]:
+    """最后一次工具事件之后的文字里，写成文字的完整工具调用（按出现顺序返回工具名）。
+
+    这是有界的机器协议结构识别，不判断作者意图或任务是否完成：调用方只在这次 run 的
+    最后一次真实工具事件之后的文字上调用它，所以命中的调用一定没有被执行。``<file>`` 正文、
+    代码、引用里的同形文字是正文或示例，不算；工具名必须属于当前 agent 实际注册的工具。
+    """
+    if not tail_text or "<tool_call>" not in tail_text:
+        return []
+    text = _FILE_BLOCK_RE.sub("", normalize_file_markers(tail_text))
+    text = _FENCE_RE.sub("", text)
+    text = _INLINE_CODE_RE.sub("", text)
+    text = _BLOCKQUOTE_LINE_RE.sub("", text)
+    text = text.replace(_MODEL_TOOL_DELIMITER, "\n")
+    names: list[str] = []
+    for block in _TOOL_CALL_BLOCK_RE.finditer(text):
+        names.extend(
+            name for name in _INVOKE_RE.findall(block.group(1)) if name in registered_tools
+        )
+    return names

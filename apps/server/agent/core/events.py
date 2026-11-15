@@ -643,6 +643,9 @@ def agent_selected_event(
 # iteration_exhausted 的 limit：请求时间快用完了（runner 的时限收尾、图层收尾、墙钟硬超时且已有写入）。
 # 前端据此显示「这一轮先做到这里」与继续按钮；StreamAdapter 据此把这一轮记成可「继续」的时限截停。
 WALL_CLOCK_LIMIT = "wall_clock"
+# iteration_exhausted 的一层：回复里有写成文字的完整工具调用、它没有执行（见
+# graph.completion_evidence.unexecuted_tool_protocol）。不带 limit，不改 stop_reason，不是失控停止。
+UNEXECUTED_TOOL_TEXT_LAYER = "unexecuted_tool_text"
 
 
 class IterationExhaustedFile(BaseModel):
@@ -656,8 +659,9 @@ class IterationExhaustedEventData(BaseModel):
     layer: str = Field(
         ...,
         description=(
-            "Which layer stopped the round: 'collaboration', 'tool_call', or 'empty_file_correction' "
-            "(a created file never got its body: it was rolled back or is left unfinished)"
+            "Which layer stopped the round: 'collaboration', 'tool_call', 'empty_file_correction' "
+            "(a created file never got its body: it was rolled back or is left unfinished), or "
+            "'unexecuted_tool_text' (the reply wrote a complete tool call as text; it did not run)"
         ),
     )
     iterations_used: int = Field(..., description="Total iterations used")

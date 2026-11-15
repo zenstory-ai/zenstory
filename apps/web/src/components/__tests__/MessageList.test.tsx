@@ -303,6 +303,24 @@ describe('MessageList', () => {
     expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
   })
 
+  it('says a step written out as text did not run, live and after reload, without next-step buttons', () => {
+    const onAction = vi.fn()
+    const item: NonNullable<Message['displayItems']>[number] = { id: 'textual', type: 'iteration_exhausted',
+      layer: 'unexecuted_tool_text', iterationsUsed: 1, maxIterations: 12, reason: 'internal reason', timestamp: new Date() }
+    const { unmount } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems: [item] })]} onIterationAssistAction={onAction} />)
+    expect(screen.getByText('workflow.unexecutedToolText')).toBeInTheDocument()
+    expect(screen.getByText('workflow.unexecutedToolTextSummary')).toBeInTheDocument()
+    expect(screen.queryByText('workflow.toolCallExhaustedSummary')).not.toBeInTheDocument()
+    expect(screen.queryByText('internal reason')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'workflow.actionContinue' })).not.toBeInTheDocument()
+    unmount()
+
+    render(<MessageList messages={[createMessage({ role: 'assistant', content: '', statusCards: [{ type: 'iteration_exhausted', layer: 'unexecuted_tool_text' }] })]} onIterationAssistAction={onAction} />)
+    expect(screen.getByText('workflow.unexecutedToolText')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'workflow.actionContinue' })).not.toBeInTheDocument()
+    expect(onAction).not.toHaveBeenCalled()
+  })
+
   it('defers only empty-file cleanup while streaming and restores recovery if the terminal is an error', () => {
     const card = { id: 'delayed-cleanup', type: 'iteration_exhausted' as const,
       layer: 'empty_file_correction' as const, rolledBackFiles: ['临时占位'], timestamp: new Date() }

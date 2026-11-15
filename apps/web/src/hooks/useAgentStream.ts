@@ -1377,6 +1377,7 @@ export function useAgentStream(
                     completionMeta.deliveryOutcome = { reason: 'incomplete', charged: true,
                       savedOutput, removedFiles: [], writtenFiles,
                       ...(data.no_file_changes === true ? { noFileChanges: true } : {}),
+                      ...(data.unexecuted_tool_text === true ? { unexecutedToolText: true } : {}),
                       ...(unwrittenFiles.length > 0 ? { unwrittenFiles } : {}) };
                   } else if (writtenFiles.length > 0 || data.no_file_changes === true) {
                     // The write receipt of a normally completed round (#267): only what the

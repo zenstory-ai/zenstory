@@ -164,7 +164,7 @@ const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Messa
 
           return {
             type: "iteration_exhausted",
-            layer: layer === "collaboration" || layer === "tool_call" || layer === "empty_file_correction" ? layer : undefined,
+            layer: layer === "collaboration" || layer === "tool_call" || layer === "empty_file_correction" || layer === "unexecuted_tool_text" ? layer : undefined,
             ...unfinished,
             iterationsUsed: typeof iterationsUsed === "number" ? iterationsUsed : undefined,
             maxIterations: typeof maxIterations === "number" ? maxIterations : undefined,

@@ -34,6 +34,11 @@ export interface RoundStopOutcome {
    * (`stop_outcome.no_file_changes`). It is the receipt to check the reply's「已修改」against.
    */
   noFileChanges?: boolean;
+  /**
+   * A step of this round was only written out as text and never ran (`stop_outcome.unexecuted_tool_text`):
+   * the note says the round is unfinished without 「可以继续」; there is nothing to resume.
+   */
+  unexecutedToolText?: boolean;
 }
 
 export interface RoundWrittenFile {
@@ -124,6 +129,7 @@ export function parseRoundStopOutcome(metadata: unknown): RoundStopOutcome | nul
     writtenFiles: parseWrittenFiles(raw.written_files, { withIds: true }),
     ...(unwrittenFiles.length ? { unwrittenFiles } : {}),
     ...(raw.no_file_changes === true ? { noFileChanges: true } : {}),
+    ...(raw.unexecuted_tool_text === true ? { unexecutedToolText: true } : {}),
   };
 }
 

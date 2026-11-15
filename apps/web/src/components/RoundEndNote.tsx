@@ -21,9 +21,11 @@ export function RoundEndNote({ outcome, showDailyCount, nextStepsBlocked = false
   // writes) lists them below like any other round: the receipt stands even when the reply's summary is
   // short. Without a confirmed save it keeps the plain "unfinished" line rather than an empty note.
   const listsSavedFiles = outcome.savedOutput && outcome.writtenFiles.length > 0;
+  // A step only written out as text never ran: there is nothing to resume, so no 「可以继续」 either.
+  const withoutContinue = nextStepsBlocked || outcome.unexecutedToolText === true;
   if (outcome.reason === 'incomplete' && !outcome.unwrittenFiles?.length && !listsSavedFiles) {
     let text: string;
-    if (nextStepsBlocked) {
+    if (withoutContinue) {
       text = outcome.savedOutput
         ? t('chat:panel.roundIncompleteSavedPaused', { defaultValue: '已保存本轮完成的修改。' })
         : outcome.noFileChanges
@@ -62,7 +64,7 @@ export function RoundEndNote({ outcome, showDailyCount, nextStepsBlocked = false
     // The file receipt replaces the plain unfinished line, so keep saying the round is unfinished:
     // an empty-file correction card is hidden and, with today's messages used up, has no continue button.
     outcome.reason === 'incomplete' && listsSavedFiles && !outcome.unwrittenFiles?.length
-      ? nextStepsBlocked
+      ? withoutContinue
         ? t('chat:panel.roundUnfinishedItem', { defaultValue: '本轮尚未完成' })
         : t('chat:panel.roundUnfinishedContinueItem', { defaultValue: '本轮尚未完成，可以继续' })
       : null,
