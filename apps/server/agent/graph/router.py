@@ -989,6 +989,9 @@ _SYNTHESIZED_SECTION_HEADERS: tuple[str, ...] = (
     "[Previous tool actions]",
     "[workflow_stopped]",
     "[iteration_exhausted]",
+    # session_loader.PENDING_REWORK_HEADER(_EN)：上一轮没来得及执行的审稿返修要求，只给模型看。
+    "[上一轮未执行的审稿返修要求]",
+    "[Unapplied review revisions from the previous round]",
 )
 
 

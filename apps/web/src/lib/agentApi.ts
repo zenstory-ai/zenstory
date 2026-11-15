@@ -169,6 +169,8 @@ export interface StreamDoneData {
   saved_output?: boolean;
   /** Completed round: the author asked for body text and no file was written. */
   no_file_changes?: boolean;
+  /** Incomplete round: a step was only written out as text and never ran. */
+  unexecuted_tool_text?: boolean;
 }
 
 function streamErrorForAuthor(data: StreamErrorEventData): string {

@@ -414,7 +414,11 @@ export interface SSEAgentSelectedData {
  * Which layer stopped the round. empty_file_correction: a created file never got its text
  * (it was removed again, or is left unfinished because it could not be removed safely).
  */
-export type IterationExhaustedLayer = "collaboration" | "tool_call" | "empty_file_correction";
+/**
+ * unexecuted_tool_text: the reply wrote a complete tool call out as text and it never ran. A truthful
+ * notice, not a paused task: no "keep going" promise.
+ */
+export type IterationExhaustedLayer = "collaboration" | "tool_call" | "empty_file_correction" | "unexecuted_tool_text";
 
 /** A stop with a file still waiting for its text: titles of the files left unfinished / removed again (never their text). */
 export interface IterationExhaustedFiles {
